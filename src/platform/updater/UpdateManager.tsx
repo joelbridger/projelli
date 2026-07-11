@@ -64,14 +64,22 @@ export function UpdateManager() {
       if (isTauri()) {
         try {
           if ((await getNetworkPolicyStatus()).offlineMode || disposed) return;
-        } catch {
+        } catch (err) {
+          console.warn('[UpdateManager] Could not read network policy status; skipping scheduled check:', err);
           return;
         }
       }
       if (disposed) return;
+      // check() never rejects (updaterStore.ts catches every failure internally
+      // and sets store state instead), so there is nothing for a .catch() here to handle.
+      // eslint-disable-next-line lantern-async/no-silent-failure -- see comment above
       initialTimer = setTimeout(() => void check(), INITIAL_DELAY_MS);
+      // eslint-disable-next-line lantern-async/no-silent-failure -- check() never rejects, see above
       intervalTimer = setInterval(() => void check(), RECHECK_INTERVAL_MS);
     };
+    // scheduleIfAllowed() never rejects — its only await is wrapped in a try/catch
+    // above, and everything after that is synchronous.
+    // eslint-disable-next-line lantern-async/no-silent-failure -- see comment above
     void scheduleIfAllowed();
     const unsubscribe = subscribeToOfflineModeChanges((status) => {
       if (status.offlineMode) clearTimers();

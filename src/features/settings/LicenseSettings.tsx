@@ -84,7 +84,9 @@ export function LicenseSettings() {
       if (confirmed) {
         deactivate();
       }
-    })().catch(() => {});
+    })().catch((err: unknown) => {
+      console.error('[LicenseSettings] Deactivate confirmation failed:', err);
+    });
   };
 
   return (
@@ -222,6 +224,9 @@ export function LicenseSettings() {
                 variant="outline"
                 size="sm"
                 onClick={() => {
+                  // refresh() never rejects (useLicense.ts wraps its whole body
+                  // in a try/catch and every branch returns normally).
+                  // eslint-disable-next-line lantern-async/no-silent-failure -- see comment above
                   void refresh();
                 }}
                 disabled={isLoading}
@@ -364,6 +369,10 @@ export function LicenseSettings() {
                 <Button
                   variant="outline"
                   onClick={() => {
+                    // handleActivate() never rejects — the underlying activate()
+                    // wraps its whole body in a try/catch and every branch
+                    // returns normally.
+                    // eslint-disable-next-line lantern-async/no-silent-failure -- see comment above
                     void handleActivate();
                   }}
                   disabled={isLoading || !licenseKeyInput.trim()}

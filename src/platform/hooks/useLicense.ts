@@ -409,7 +409,9 @@ export function useLicense() {
           validationDeferredByOfflineMode: false,
         });
         // Anonymous funnel: someone successfully activated. Sent only if
-        // the user opted into telemetry.
+        // the user opted into telemetry. sendEvent() never rejects (it
+        // catches and swallows internally), so there is no failure to handle.
+        // eslint-disable-next-line lantern-async/no-silent-failure -- see comment above
         void sendEvent('license_activated', {
           license_tier: data.tier as string,
         });
@@ -457,6 +459,8 @@ export function useLicense() {
       lastKnownGoodAt: null,
       validationDeferredByOfflineMode: false,
     });
+    // sendEvent() never rejects (it catches and swallows internally).
+    // eslint-disable-next-line lantern-async/no-silent-failure -- see comment above
     void sendEvent('license_deactivated');
   }, []);
 
@@ -600,14 +604,21 @@ export function useLicense() {
           return;
         }
       }
+      // refresh() never rejects (its try/catch covers the whole body and every
+      // branch returns normally), so there is no failure for a .catch() to handle.
+      // eslint-disable-next-line lantern-async/no-silent-failure -- see comment above
       void refresh();
       weeklyValidationTimer.current = setInterval(
         () => {
+          // eslint-disable-next-line lantern-async/no-silent-failure -- refresh() never rejects, see above
           void refresh();
         },
         7 * 24 * 60 * 60 * 1000
       );
     };
+    // startValidationIfAllowed() never rejects — its only await is wrapped in
+    // a try/catch above, and refresh() (the other await) never rejects either.
+    // eslint-disable-next-line lantern-async/no-silent-failure -- see comment above
     void startValidationIfAllowed();
     const unsubscribe = subscribeToOfflineModeChanges((status) => {
       if (!status.offlineMode) return;

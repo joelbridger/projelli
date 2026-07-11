@@ -110,6 +110,7 @@ export function DocLegacyFallback({
 
   const handleDownload = useCallback(async () => {
     try {
+      // eslint-disable-next-line lantern-egress/no-raw-network-call -- tabContent is a local blob: URL for an already-open workspace file; reading it back is not network activity.
       const response = await fetch(tabContent);
       const blob = await response.blob();
       await downloadFileWithDialog(blob, tabName, blob.type || 'application/msword');

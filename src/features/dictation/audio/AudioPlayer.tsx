@@ -70,6 +70,7 @@ export const AudioPlayer = forwardRef<AudioPlayerHandle, AudioPlayerProps>(funct
   useEffect(() => {
     const generateWaveform = async () => {
       try {
+        // eslint-disable-next-line lantern-egress/no-raw-network-call -- audioSrc is a local blob: URL (URL.createObjectURL); reading it back is not network activity.
         const response = await fetch(audioSrc);
         const arrayBuffer = await response.arrayBuffer();
         const audioContext = new AudioContext();

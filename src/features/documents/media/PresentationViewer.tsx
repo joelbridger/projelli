@@ -128,6 +128,7 @@ export function PresentationViewer({
 
   const handleDownload = useCallback(async () => {
     try {
+      // eslint-disable-next-line lantern-egress/no-raw-network-call -- src is a local data: URL of the original file (see the PresentationViewerProps doc comment above); reading it back is not network activity.
       const response = await fetch(src);
       const blob = await response.blob();
       const buf = await blob.arrayBuffer();
