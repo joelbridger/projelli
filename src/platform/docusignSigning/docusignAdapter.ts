@@ -1,18 +1,16 @@
-import type { ReviewedDocusignTabMap } from '@/platform/intake/docusignSignature/tabMap';
 import { getCorsSafeFetch } from '@/platform/providers/fetchUtils';
 import { assertLocalOnlyAllowsExternal } from '@/platform/privacy/localOnlyGuard';
 
 export interface DocusignAuthorization {
-  /** Broker-issued, one-use authorization. It remains in this function's stack only. */
+  /** A fresh short-lived DocuSign bearer minted for one explicit advisor send action. The adapter only keeps it in memory for one call. */
   accessToken: string;
   accountId: string;
   baseUri: string;
   expiresAt: string;
 }
-// TODO(w9-gate): Lane 4 must export the authenticated, one-use broker capability
-// acquisition function. This adapter accepts only its in-memory result so no
-// document, recipient detail, or matter identifier can ever enter that boundary.
 export type DocusignAuthorizationProvider = () => Promise<DocusignAuthorization>;
+export interface DocusignTabPosition { page: number; xPosition: number; yPosition: number; width: number; height: number; }
+export interface ResolvedDocusignTabMap { signatureTab: DocusignTabPosition; dateSignedTab: DocusignTabPosition; signerNameTab: DocusignTabPosition; }
 export interface DocusignEnvelopeInput {
   pdfBytes: Uint8Array;
   signerName: string;
@@ -20,11 +18,12 @@ export interface DocusignEnvelopeInput {
   requestId: string;
   signatureItemId: string;
   clientUserId: string;
-  tabMap: ReviewedDocusignTabMap;
+  /** Absolute page points, resolved from the reviewed normalized anchors before this direct API boundary. */
+  tabMap: ResolvedDocusignTabMap;
   returnUrl: string;
 }
 export interface DocusignEnvelopeResult { envelopeId: string; recipientViewUrl: string; }
-export interface DocusignRetrievedCompletion { signedPdf: Uint8Array; certificate: Uint8Array; }
+export interface DocusignRetrievedCompletion { envelopeId: string; signedPdf: Uint8Array; certificate: Uint8Array; }
 /** Envelope states returned by DocuSign's envelope-status endpoint. */
 export type DocusignEnvelopeStatus =
   | 'created'
@@ -55,7 +54,7 @@ function requireDocusignBaseUri(value: string): string {
   return uri.toString().replace(/\/+$/u, '');
 }
 function base64(bytes: Uint8Array): string { let value = ''; for (let index = 0; index < bytes.length; index += 0x8000) value += String.fromCharCode(...bytes.subarray(index, index + 0x8000)); return btoa(value); }
-function tab(anchor: ReviewedDocusignTabMap['signatureTab']) { return { pageNumber: String(anchor.page), xPosition: String(Math.round(anchor.rect.x * 100)), yPosition: String(Math.round(anchor.rect.y * 100)), width: String(Math.round(anchor.rect.width * 100)), height: String(Math.round(anchor.rect.height * 100)) }; }
+function tab(position: DocusignTabPosition) { return { pageNumber: String(position.page), xPosition: String(position.xPosition), yPosition: String(position.yPosition), width: String(position.width), height: String(position.height) }; }
 
 /** Direct desktop-to-DocuSign client. It never calls a Lantern endpoint with document or recipient data. */
 export class DirectDocusignAdapter {
@@ -127,7 +126,7 @@ export class DirectDocusignAdapter {
         fetchFn(`${root}/documents/certificate`, { headers: { Authorization: `Bearer ${authorization.accessToken}` } }),
       ]);
       if (!signed.ok || !certificate.ok) throw new Error('DocuSign could not retrieve the signed form and certificate.');
-      return { signedPdf: new Uint8Array(await signed.arrayBuffer()), certificate: new Uint8Array(await certificate.arrayBuffer()) };
+      return { envelopeId, signedPdf: new Uint8Array(await signed.arrayBuffer()), certificate: new Uint8Array(await certificate.arrayBuffer()) };
     });
   }
 }

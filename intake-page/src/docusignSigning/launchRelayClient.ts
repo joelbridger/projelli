@@ -24,6 +24,15 @@ export class SigningLaunchRelayClient {
     }
   }
 
+  /** Server-side one-time consumption. The launch is removed before any ceremony navigation. */
+  async consumeLaunch(): Promise<void> {
+    const response = await fetch(`/docusign-signing/${encodeURIComponent(this.intakeId)}/launch`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${this.tokenB64}` },
+    });
+    if (!response.ok) throw new RelayError(`Signing launch consumption failed with ${String(response.status)}.`);
+  }
+
   private async requestLaunch(): Promise<string | null> {
     const response = await fetch(`/docusign-signing/${encodeURIComponent(this.intakeId)}/launch`, {
       headers: { Authorization: `Bearer ${this.tokenB64}` },

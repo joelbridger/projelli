@@ -26,6 +26,11 @@ export interface LocalSignatureRecord {
   sourceTemplateSha256: string;
   wave8CompletedSha256: string;
   envelopeId: string;
+  /** Request-local filing route, retained only in the protected local signature record. */
+  requestSlug?: string;
+  matterFolderPath?: string;
+  /** AES-256-GCM key for the two ciphertext artifacts, protected by this same local record store. */
+  outputContentKeyB64?: string;
   status: SignatureStatus;
   finalSignedSha256?: string;
   certificateSha256?: string;
@@ -56,6 +61,9 @@ type LooseRecord = Record<string, unknown> & {
   sourceTemplateSha256?: unknown;
   wave8CompletedSha256?: unknown;
   envelopeId?: unknown;
+  requestSlug?: unknown;
+  matterFolderPath?: unknown;
+  outputContentKeyB64?: unknown;
   status?: unknown;
   finalSignedSha256?: unknown;
   certificateSha256?: unknown;
@@ -124,7 +132,7 @@ export function assertValidLocalSignatureRecord(value: unknown): asserts value i
   const record = asRecord(value, 'Local signature record');
   requireExactKeys(record, [
     'requestId', 'signatureItemId', 'sourcePdfFillItemId', 'sourceTemplateVersion', 'sourceTemplateSha256',
-    'wave8CompletedSha256', 'envelopeId', 'status', 'finalSignedSha256', 'certificateSha256', 'events',
+    'wave8CompletedSha256', 'envelopeId', 'requestSlug', 'matterFolderPath', 'outputContentKeyB64', 'status', 'finalSignedSha256', 'certificateSha256', 'events',
   ], 'Local signature record');
   requireText(record.requestId, 'Local signature record requestId');
   requireText(record.signatureItemId, 'Local signature record signatureItemId');
@@ -135,6 +143,9 @@ export function assertValidLocalSignatureRecord(value: unknown): asserts value i
   requireHash(record.sourceTemplateSha256, 'Local signature record sourceTemplateSha256');
   requireHash(record.wave8CompletedSha256, 'Local signature record wave8CompletedSha256');
   requireText(record.envelopeId, 'Local signature record envelopeId');
+  if (record.requestSlug !== undefined) requireText(record.requestSlug, 'Local signature record requestSlug');
+  if (record.matterFolderPath !== undefined) requireText(record.matterFolderPath, 'Local signature record matterFolderPath');
+  if (record.outputContentKeyB64 !== undefined && (typeof record.outputContentKeyB64 !== 'string' || !/^[A-Za-z0-9+/]{43}=$/u.test(record.outputContentKeyB64))) fail('Local signature record outputContentKeyB64 must be an AES-256 content key.');
   if (typeof record.status !== 'string' || !STATUSES.has(record.status as SignatureStatus)) {
     fail('Local signature record status is not supported.');
   }

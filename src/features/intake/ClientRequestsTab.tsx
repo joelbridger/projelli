@@ -29,6 +29,7 @@ export interface ClientRequestsTabProps {
   onOpenFile?: (path: string) => void;
   workspaceService?: WorkspaceService | null;
   matterFolderPath?: string;
+  onSendForSignature?: (input: { intake: IntakeRecord; signatureItemId: string; signerName: string; signerEmail: string }) => Promise<void> | void;
 }
 
 function requestTitle(intake: IntakeRecord): string {
@@ -52,6 +53,7 @@ export function ClientRequestsTab({
   onOpenFile,
   workspaceService,
   matterFolderPath,
+  onSendForSignature,
 }: ClientRequestsTabProps) {
   const intakesById = useIntakeStore((state) => state.intakesById);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -162,6 +164,7 @@ export function ClientRequestsTab({
                   {...(onOpenFile ? { onOpenFile } : {})}
                   {...(workspaceService ? { workspaceService } : {})}
                   {...(matterFolderPath ? { matterFolderPath } : {})}
+                  {...(onSendForSignature ? { onSendForSignature } : {})}
                 />
               </section>
             );

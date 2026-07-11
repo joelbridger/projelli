@@ -115,7 +115,7 @@ describe('Wave 9 signature contract gate', () => {
     await expect(adapter.createEnvelopeAndRecipientView({
       pdfBytes: source, signerName: 'Synthetic Signer', signerEmail: 'synthetic@example.test',
       requestId: 'signature-contract-request', signatureItemId: 'signature-item', clientUserId: 'lantern-client',
-      tabMap: signature().tab_map, returnUrl: 'https://lantern.test/return',
+      tabMap: { signatureTab: { page: 1, xPosition: 61, yPosition: 79, width: 122, height: 79 }, dateSignedTab: { page: 1, xPosition: 61, yPosition: 198, width: 122, height: 79 }, signerNameTab: { page: 1, xPosition: 61, yPosition: 317, width: 122, height: 79 } }, returnUrl: 'https://lantern.test/return',
     })).resolves.toEqual({ envelopeId: 'envelope-1', recipientViewUrl: 'https://demo.docusign.net/Signing/view' });
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('https://demo.docusign.net/restapi/v2.1/accounts/account-1/envelopes');
@@ -126,9 +126,9 @@ describe('Wave 9 signature contract gate', () => {
     const signer = body.recipients.signers[0];
     expect(Uint8Array.from(atob(body.documents[0]?.documentBase64 ?? ''), (byte) => byte.charCodeAt(0))).toEqual(source);
     expect(signer?.tabs).toEqual({
-      signHereTabs: [{ pageNumber: '1', xPosition: '10', yPosition: '10', width: '20', height: '10' }],
-      dateSignedTabs: [{ pageNumber: '1', xPosition: '10', yPosition: '25', width: '20', height: '10' }],
-      fullNameTabs: [{ pageNumber: '1', xPosition: '10', yPosition: '40', width: '20', height: '10' }],
+      signHereTabs: [{ pageNumber: '1', xPosition: '61', yPosition: '79', width: '122', height: '79' }],
+      dateSignedTabs: [{ pageNumber: '1', xPosition: '61', yPosition: '198', width: '122', height: '79' }],
+      fullNameTabs: [{ pageNumber: '1', xPosition: '61', yPosition: '317', width: '122', height: '79' }],
     });
   });
 
@@ -184,7 +184,7 @@ describe('Wave 9 signature contract gate', () => {
       record: {
         requestId: 'signature-contract-request', signatureItemId: 'signature-item', sourcePdfFillItemId: 'pdf-fill-item',
         sourceTemplateVersion: 1, sourceTemplateSha256: 'a'.repeat(64), wave8CompletedSha256: 'b'.repeat(64),
-        envelopeId: 'envelope-1', status: 'signing_opened', events: [],
+        envelopeId: 'envelope-1', matterFolderPath: '/workspace/Client', requestSlug: 'signature-contract-request', status: 'signing_opened', events: [],
       },
       egressReceipts: [],
     });

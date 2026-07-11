@@ -413,6 +413,8 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
   const doneIds = useMemo(() => new Set([...finalizedItemIds, ...localSubmitted]), [finalizedItemIds, localSubmitted]);
   const skipped = useMemo(() => new Set(resume.skipped_item_ids ?? []), [resume.skipped_item_ids]);
   const allDone = actionItems.every((item) => doneIds.has(item.item_id) || skipped.has(item.item_id));
+  const hasDocusignSignature = checklist.items.some((entry) => entry.t === 'signature' && entry.grade === 'docusign');
+  const signingFlowActive = hasDocusignSignature || signatureLaunchRef.current !== null || hasOpenedSigningLaunch(intakeId) || ['ready', 'waiting', 'confirming', 'cancelled', 'declined', 'expired', 'error'].includes(signingUiStatus);
   const item = checklist.items.find((entry) => entry.item_id === currentItemId);
   const firm = useMemo(() => normalizeFirm(checklist.firm), [checklist.firm]);
   const journey = firm.journey;
@@ -483,7 +485,7 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
     };
   }, [allDone, intakeId, pageKey, signingRelay]);
 
-  function openSigningCeremony(): void {
+  async function openSigningCeremony(): Promise<void> {
     const launch = signatureLaunchRef.current;
     if (!launch) {
       setSigningUiStatus('error');
@@ -491,6 +493,9 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
     }
     try {
       assertSignatureLaunchUsable(launch, new Date().toISOString());
+      // Remove the sealed relay record first. A refresh or a different browser must
+      // never be able to fetch this launch after the client chooses to open it.
+      await signingRelay.consumeLaunch();
       const signingWindow = window.open(launch.recipientViewUrl, '_blank');
       if (!signingWindow) {
         setSigningUiStatus('error');
@@ -680,9 +685,11 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
       ) : null}
 
       <div ref={contentRef}>
-      {allDone && signingUiStatus === 'ready' ? (
-        <SigningConsentScreen onContinue={openSigningCeremony} />
-      ) : allDone && signingUiStatus !== 'checking' && signingUiStatus !== 'unavailable' && signingUiStatus !== 'ready' ? (
+      {allDone && signingFlowActive && signingUiStatus === 'ready' ? (
+        <SigningConsentScreen onContinue={() => { void openSigningCeremony(); }} />
+      ) : allDone && signingFlowActive && signingUiStatus === 'unavailable' ? (
+        <section className="panel signing-panel" aria-live="polite"><p className="eyebrow">Signature step</p><h1 tabIndex={-1}>This signing link is no longer available</h1><p>Ask your advisor to resend the signing link.</p></section>
+      ) : allDone && signingFlowActive && signingUiStatus !== 'checking' && signingUiStatus !== 'unavailable' && signingUiStatus !== 'ready' ? (
         <SigningWaitingScreen status={signingUiStatus} />
       ) : statusState ? (
         <JourneyStatusScreen checklist={checklist} firm={firm} resume={resume} state={statusState} />
