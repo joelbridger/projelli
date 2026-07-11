@@ -11,13 +11,13 @@ import {
   handleIssueSigningCapability,
   handleListSignatureWakeups,
   handlePutSignatureLaunch,
+  handleRegisterEnvelope,
   type DocusignSigningDependencies,
 } from "../src/routes/docusignSigning.ts";
 import { BlindSigningBrokerStore, MAX_SIGNATURE_LAUNCH_BYTES } from "../src/lib/docusignSigning/store.ts";
 import type { DocusignSigningGrantConfig, HttpPostForm } from "../src/lib/docusignSigning/jwtGrant.ts";
 
-function fixture() {
-  const store = new Store(":memory:");
+function addOwnedIntake(store: Store) {
   const org = store.createOrg({ name: `Broker ${crypto.randomUUID()}`, plan: "practice", packs: ["advisor"], seat_limit: 2 });
   const user = store.createUser({ org_id: org.org_id, email: `broker-${crypto.randomUUID()}@test.invalid`, password_hash: "x", role: "admin" });
   const activated = store.activateSeat({ org_id: org.org_id, user_id: user.user_id, machine_id: crypto.randomUUID(), machine_label: "test", seat_limit: 2 });
@@ -37,6 +37,10 @@ function fixture() {
   return { store, intakeId, publicToken, seatToken: mintSeatToken(org, user, activated.seat).token };
 }
 
+function fixture() {
+  return addOwnedIntake(new Store(":memory:"));
+}
+
 const rsa = generateKeyPairSync("rsa", { modulusLength: 2048 }).privateKey;
 
 function signingConfig(environment: "demo" | "production" = "demo"): DocusignSigningGrantConfig & { connectKey: string } {
@@ -46,12 +50,13 @@ function signingConfig(environment: "demo" | "production" = "demo"): DocusignSig
     integrationKey: "integration-key",
     impersonatedUserId: "sender-user",
     accountId: "account-id",
-    apiBaseUri: environment === "demo" ? "https://demo.docusign.net/restapi" : "https://na3.docusign.net/restapi",
+    apiBaseUri: environment === "demo" ? "https://demo.docusign.net" : "https://na3.docusign.net",
     privateKey: rsa,
     allowedReturnUrl: "https://intake.lantern.test/signing-return",
     oauthTokenEndpoint: environment === "demo" ? "https://account-d.docusign.com/oauth/token" : "https://account.docusign.com/oauth/token",
     jwtAudience: environment === "demo" ? "account-d.docusign.com" : "account.docusign.com",
     connectKey: "connect-test-key",
+    approvedTemplateIds: new Set(["template-approved"]),
   };
 }
 
@@ -86,13 +91,19 @@ function signedConnect(body: unknown, key = "connect-test-key"): Request {
 }
 
 function validEvent(overrides: Record<string, unknown> = {}) {
+  const at = new Date().toISOString();
   return {
-    event_id: `event-${crypto.randomUUID()}`,
-    envelope_id: `envelope-${crypto.randomUUID()}`,
-    event_type: "completed",
-    occurred_at: new Date().toISOString(),
-    environment: "demo",
-    nonce: `nonce-${crypto.randomUUID()}`,
+    event: "envelope-completed",
+    apiVersion: "v2.1",
+    uri: `/restapi/v2.1/accounts/account-id/envelopes/envelope-${crypto.randomUUID()}`,
+    retryCount: 0,
+    configurationId: 12345,
+    generatedDateTime: at,
+    data: {
+      accountId: "account-id",
+      envelopeId: `envelope-${crypto.randomUUID()}`,
+      envelopeSummary: { status: "completed", statusChangedDateTime: at },
+    },
     ...overrides,
   };
 }
@@ -133,20 +144,28 @@ describe("DocuSign signing launch relay", () => {
 });
 
 describe("JWT capability broker", () => {
-  test("uses only the environment's token endpoint and mints fresh uncached capabilities", async () => {
+  test("uses only the environment's token endpoint and mints fresh uncached bearer capabilities", async () => {
     const f = fixture();
     const urls: string[] = [];
     let sequence = 0;
+    const now = Date.now();
     const postForm: HttpPostForm = async (url) => ({ status: 200, json: { access_token: `token-${++sequence}`, expires_in: 300 } });
-    const d = deps({ postForm });
+    const d = deps({ postForm, now: () => now });
     const original = d.postForm!;
     d.postForm = async (url, form) => { urls.push(url); return original(url, form); };
     const one = await response(await handleIssueSigningCapability(advisorRequest(`/docusign-signing/${f.intakeId}/capability`, f.seatToken, "POST", {}), f.store, f.intakeId, d));
     const two = await response(await handleIssueSigningCapability(advisorRequest(`/docusign-signing/${f.intakeId}/capability`, f.seatToken, "POST", {}), f.store, f.intakeId, d));
-    expect(one.body.capability).toBe("token-1");
-    expect(two.body.capability).toBe("token-2");
+    expect(one.body).toEqual({
+      capability: "token-1",
+      expires_in: 300,
+      access_token: "token-1",
+      account_id: "account-id",
+      base_uri: "https://demo.docusign.net",
+      expires_at: new Date(now + 300_000).toISOString(),
+    });
+    expect(two.body.access_token).toBe("token-2");
     expect(urls).toEqual(["https://account-d.docusign.com/oauth/token", "https://account-d.docusign.com/oauth/token"]);
-    expect(d.brokerStore!.listWakeups()).toEqual([]);
+    expect(d.brokerStore!.listWakeups(f.intakeId)).toEqual([]);
   });
 
   test("isolates production and translates a missing consent without leaking upstream detail", async () => {
@@ -154,7 +173,7 @@ describe("JWT capability broker", () => {
     const urls: string[] = [];
     const production = signingConfig("production");
     const d = deps({ signingConfig: production, postForm: async (url) => { urls.push(url); return { status: 400, json: { error: "consent_required", internal: "do-not-leak" } }; } });
-    const out = await response(await handleIssueSigningCapability(advisorRequest(`/docusign-signing/${f.intakeId}/capability`, f.seatToken, "POST", {}), f.store, f.intakeId, d));
+    const out = await response(await handleIssueSigningCapability(advisorRequest(`/docusign-signing/${f.intakeId}/capability`, f.seatToken, "POST", { template_id: "template-approved" }), f.store, f.intakeId, d));
     expect(urls).toEqual(["https://account.docusign.com/oauth/token"]);
     expect(out).toEqual({ status: 403, body: { error: "docusign_consent_required", detail: "DocuSign consent is required for this signing integration." } });
     expect(JSON.stringify(out)).not.toContain("do-not-leak");
@@ -182,6 +201,18 @@ describe("JWT capability broker", () => {
     expect((await response(await handleIssueSigningCapability(advisorRequest(`/docusign-signing/${f.intakeId}/capability`, f.seatToken, "POST", {}), f.store, f.intakeId, deps({ signingConfig: badHost, postForm })))).status).toBe(503);
     expect(calls).toBe(0);
   });
+
+  test("fails closed when the account target is missing and enforces production template approval", async () => {
+    const f = fixture();
+    let calls = 0;
+    const postForm: HttpPostForm = async () => { calls++; return { status: 200, json: { access_token: "forbidden", expires_in: 300 } }; };
+    const partial = { ...signingConfig(), accountId: null };
+    expect((await response(await handleIssueSigningCapability(advisorRequest(`/docusign-signing/${f.intakeId}/capability`, f.seatToken, "POST", {}), f.store, f.intakeId, deps({ signingConfig: partial, postForm })))).body.error).toBe("docusign_signing_not_configured");
+    const production = signingConfig("production");
+    expect((await response(await handleIssueSigningCapability(advisorRequest(`/docusign-signing/${f.intakeId}/capability`, f.seatToken, "POST", {}), f.store, f.intakeId, deps({ signingConfig: production, postForm })))).body.error).toBe("docusign_template_not_approved");
+    expect((await response(await handleIssueSigningCapability(advisorRequest(`/docusign-signing/${f.intakeId}/capability`, f.seatToken, "POST", { template_id: "template-not-approved" }), f.store, f.intakeId, deps({ signingConfig: production, postForm })))).status).toBe(403);
+    expect(calls).toBe(0);
+  });
 });
 
 describe("DocuSign Connect wake-ups", () => {
@@ -189,10 +220,13 @@ describe("DocuSign Connect wake-ups", () => {
     const f = fixture();
     const d = deps();
     const event = validEvent();
+    const envelopeId = (event.data as { envelopeId: string }).envelopeId;
+    expect((await response(await handleRegisterEnvelope(advisorRequest(`/docusign-signing/${f.intakeId}/envelope`, f.seatToken, "POST", { envelope_id: envelopeId }), f.store, f.intakeId, d))).body).toEqual({ ok: true });
     expect((await response(await handleDocusignConnectEvent(signedConnect(event), d))).status).toBe(200);
     const wakeups = await response(await handleListSignatureWakeups(advisorRequest(`/docusign-signing/${f.intakeId}/wakeups`, f.seatToken, "GET"), f.store, f.intakeId, d));
-    expect(wakeups.body.wakeups).toEqual([{ event_id: event.event_id, envelope_id: event.envelope_id, event_type: "completed", at: event.occurred_at }]);
-    expect((await response(await handleAckSignatureWakeups(advisorRequest(`/docusign-signing/${f.intakeId}/wakeups/ack`, f.seatToken, "POST", { event_ids: [event.event_id] }), f.store, f.intakeId, d))).body).toEqual({ ok: true, consumed: 1 });
+    expect(wakeups.body.wakeups).toEqual([{ event_id: expect.any(String), envelope_id: envelopeId, event_type: "completed", at: event.generatedDateTime }]);
+    const eventId = (wakeups.body.wakeups as Array<{ event_id: string }>)[0]!.event_id;
+    expect((await response(await handleAckSignatureWakeups(advisorRequest(`/docusign-signing/${f.intakeId}/wakeups/ack`, f.seatToken, "POST", { event_ids: [eventId] }), f.store, f.intakeId, d))).body).toEqual({ ok: true, consumed: 1 });
     expect((await response(await handleListSignatureWakeups(advisorRequest(`/docusign-signing/${f.intakeId}/wakeups`, f.seatToken, "GET"), f.store, f.intakeId, d))).body).toEqual({ wakeups: [] });
   });
 
@@ -201,15 +235,16 @@ describe("DocuSign Connect wake-ups", () => {
     const event = validEvent();
     expect((await response(await handleDocusignConnectEvent(new Request("https://broker.test/webhooks/docusign-signing", { method: "POST", body: JSON.stringify(event) }), d))).status).toBe(401);
     expect((await response(await handleDocusignConnectEvent(signedConnect(event, "wrong-key"), d))).status).toBe(401);
-    expect((await response(await handleDocusignConnectEvent(signedConnect({ ...event, occurred_at: new Date(Date.now() - 6 * 60_000).toISOString() }), d))).status).toBe(400);
-    expect((await response(await handleDocusignConnectEvent(signedConnect({ ...event, environment: "production" }), d))).status).toBe(400);
+    expect((await response(await handleDocusignConnectEvent(signedConnect({ ...event, generatedDateTime: new Date(Date.now() - 6 * 60_000).toISOString() }), d))).status).toBe(400);
+    expect((await response(await handleDocusignConnectEvent(signedConnect({ ...event, event: "envelope-voided" }), d))).status).toBe(400);
     expect((await response(await handleDocusignConnectEvent(signedConnect({ ...event, documents: "actual bytes" }), d))).status).toBe(400);
+    expect((await response(await handleDocusignConnectEvent(signedConnect({ ...event, data: { ...event.data, documentBytes: "actual bytes" } }), d))).status).toBe(400);
     const raw = "{not-json";
     const malformed = new Request("https://broker.test/webhooks/docusign-signing", { method: "POST", headers: { "x-docusign-signature-1": createHmac("sha256", "connect-test-key").update(raw).digest("base64") }, body: raw });
     expect((await response(await handleDocusignConnectEvent(malformed, d))).status).toBe(400);
     expect((await response(await handleDocusignConnectEvent(signedConnect(event), d))).status).toBe(200);
     expect((await response(await handleDocusignConnectEvent(signedConnect(event), d))).status).toBe(409);
-    expect(d.brokerStore!.listWakeups()).toHaveLength(1);
+    expect(d.brokerStore!.listWakeups("unregistered-intake")).toHaveLength(0);
   });
 
   test("forbidden webhook fields are rejected after HMAC and never create a wake-up or OAuth call", async () => {
@@ -217,6 +252,36 @@ describe("DocuSign Connect wake-ups", () => {
     for (const field of ["document_content", "recipient_name", "recipient_email", "matter_id", "filename", "file_path", "ceremony_url", "envelope_metadata"]) {
       expect((await response(await handleDocusignConnectEvent(signedConnect(validEvent({ [field]: "forbidden" })), d))).status).toBe(400);
     }
-    expect(d.brokerStore!.listWakeups()).toEqual([]);
+    expect(d.brokerStore!.listWakeups("any-intake")).toEqual([]);
+  });
+
+  test("scopes wake-ups to registered envelopes and rejects unsafe envelope registrations", async () => {
+    const first = fixture();
+    const second = addOwnedIntake(first.store);
+    const d = deps();
+    const eventA = validEvent();
+    const eventB = validEvent();
+    const unregistered = validEvent();
+    const envelopeA = (eventA.data as { envelopeId: string }).envelopeId;
+    const envelopeB = (eventB.data as { envelopeId: string }).envelopeId;
+
+    for (const field of ["document_bytes", "recipient_name", "recipient_email", "matter_id", "filename", "file_path", "ceremony_url", "envelope_metadata"]) {
+      expect((await response(await handleRegisterEnvelope(advisorRequest(`/docusign-signing/${first.intakeId}/envelope`, first.seatToken, "POST", { [field]: "forbidden" }), first.store, first.intakeId, d))).status).toBe(400);
+    }
+    expect((await response(await handleRegisterEnvelope(advisorRequest(`/docusign-signing/${first.intakeId}/envelope`, first.seatToken, "POST", { envelope_id: envelopeA }), first.store, first.intakeId, d))).status).toBe(200);
+    expect((await response(await handleRegisterEnvelope(advisorRequest(`/docusign-signing/${second.intakeId}/envelope`, second.seatToken, "POST", { envelope_id: envelopeB }), first.store, second.intakeId, d))).status).toBe(200);
+    expect((await response(await handleRegisterEnvelope(advisorRequest(`/docusign-signing/${second.intakeId}/envelope`, second.seatToken, "POST", { envelope_id: envelopeA }), first.store, second.intakeId, d))).status).toBe(409);
+
+    expect((await response(await handleDocusignConnectEvent(signedConnect(eventA), d))).status).toBe(200);
+    expect((await response(await handleDocusignConnectEvent(signedConnect(eventB), d))).status).toBe(200);
+    expect((await response(await handleDocusignConnectEvent(signedConnect(unregistered), d))).status).toBe(200);
+    const firstWakeups = await response(await handleListSignatureWakeups(advisorRequest(`/docusign-signing/${first.intakeId}/wakeups`, first.seatToken, "GET"), first.store, first.intakeId, d));
+    const secondWakeups = await response(await handleListSignatureWakeups(advisorRequest(`/docusign-signing/${second.intakeId}/wakeups`, second.seatToken, "GET"), first.store, second.intakeId, d));
+    expect((firstWakeups.body.wakeups as Array<{ envelope_id: string }>).map((wakeup) => wakeup.envelope_id)).toEqual([envelopeA]);
+    expect((secondWakeups.body.wakeups as Array<{ envelope_id: string }>).map((wakeup) => wakeup.envelope_id)).toEqual([envelopeB]);
+
+    const secondEventId = (secondWakeups.body.wakeups as Array<{ event_id: string }>)[0]!.event_id;
+    expect((await response(await handleAckSignatureWakeups(advisorRequest(`/docusign-signing/${first.intakeId}/wakeups/ack`, first.seatToken, "POST", { event_ids: [secondEventId] }), first.store, first.intakeId, d))).body).toEqual({ ok: true, consumed: 0 });
+    expect((await response(await handleListSignatureWakeups(advisorRequest(`/docusign-signing/${second.intakeId}/wakeups`, second.seatToken, "GET"), first.store, second.intakeId, d))).body.wakeups).toHaveLength(1);
   });
 });

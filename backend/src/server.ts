@@ -81,6 +81,7 @@ import {
   handleIssueSigningCapability,
   handleListSignatureWakeups,
   handlePutSignatureLaunch,
+  handleRegisterEnvelope,
 } from "./routes/docusignSigning.ts";
 import { randomUUID } from "node:crypto";
 import type { Store } from "./lib/db.ts";
@@ -219,6 +220,7 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
           if (ds.rest === "launch" && method === "PUT") return await handlePutSignatureLaunch(req, store, ds.id);
           if (ds.rest === "launch" && method === "GET") return await handleGetSignatureLaunch(req, store, ds.id, ip);
           if (ds.rest === "launch" && method === "DELETE") return await handleDeleteSignatureLaunch(req, store, ds.id);
+          if (ds.rest === "envelope" && method === "POST") return await handleRegisterEnvelope(req, store, ds.id);
           if (ds.rest === "wakeups" && method === "GET") return await handleListSignatureWakeups(req, store, ds.id);
           if (ds.rest === "wakeups/ack" && method === "POST") return await handleAckSignatureWakeups(req, store, ds.id);
         }

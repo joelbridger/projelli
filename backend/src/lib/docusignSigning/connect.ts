@@ -1,16 +1,24 @@
-/** Strict, document-free DocuSign Connect event verification. */
+/** Strict, document-free DocuSign Connect aggregate event verification. */
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 export const CONNECT_CLOCK_SKEW_MS = 5 * 60 * 1000;
 
 export interface DocusignConnectPayload {
-  event_id: string;
-  envelope_id: string;
-  event_type: "completed";
-  occurred_at: string;
-  environment: "demo" | "production";
-  nonce: string;
+  event: "envelope-completed";
+  apiVersion: string;
+  uri: string;
+  retryCount: number;
+  configurationId: number;
+  generatedDateTime: string;
+  data: {
+    accountId: string;
+    envelopeId: string;
+    envelopeSummary: {
+      status: "completed";
+      statusChangedDateTime: string;
+    };
+  };
 }
 
 export type ConnectValidation =
@@ -37,57 +45,59 @@ export function verifyDocusignConnectSignature(rawBody: string, signature: strin
   return provided.length === expected.length && timingSafeEqual(provided, expected);
 }
 
-const ALLOWED_FIELDS = new Set(["event_id", "envelope_id", "event_type", "occurred_at", "environment", "nonce"]);
+const TOP_LEVEL_FIELDS = new Set(["event", "apiVersion", "uri", "retryCount", "configurationId", "generatedDateTime", "data"]);
+const DATA_FIELDS = new Set(["accountId", "envelopeId", "envelopeSummary"]);
+const SUMMARY_FIELDS = new Set(["status", "statusChangedDateTime"]);
 const FORBIDDEN_FIELD = /^(document|documents|documentbytes|documentcontent|pdf|content|attachment|attachments|filename|filepath|path|recipientname|recipientemail|matterid|ceremonyurl)$/;
 const OPAQUE_ID_RE = /^[A-Za-z0-9._:-]{1,256}$/;
-const ISO_UTC_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
+// DocuSign sends up to seven fractional digits, while JavaScript only retains milliseconds.
+const ISO_UTC_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,7})?Z$/;
 
 function normalizedField(key: string): string {
   return key.replace(/[^a-z0-9]/gi, "").toLowerCase();
 }
 
-function nonEmptyString(value: unknown, max = 256): value is string {
-  return typeof value === "string" && value.length <= max && OPAQUE_ID_RE.test(value);
+function exactObject(value: unknown, allowedFields: Set<string>): value is Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  return Object.keys(value as Record<string, unknown>).every((key) => !FORBIDDEN_FIELD.test(normalizedField(key)) && allowedFields.has(key));
+}
+
+function nonEmptyOpaqueId(value: unknown): value is string {
+  return typeof value === "string" && OPAQUE_ID_RE.test(value);
+}
+
+function validTimestamp(value: unknown): value is string {
+  return typeof value === "string" && ISO_UTC_RE.test(value) && Number.isFinite(Date.parse(value));
 }
 
 /** Parse only after signature verification. Any document-shaped field is rejected, never stripped. */
-export function validateDocusignConnectPayload(
-  rawBody: string,
-  expectedEnvironment: "demo" | "production",
-  nowMs = Date.now(),
-): ConnectValidation {
+export function validateDocusignConnectPayload(rawBody: string, nowMs = Date.now()): ConnectValidation {
   let candidate: unknown;
   try {
     candidate = JSON.parse(rawBody);
   } catch {
     return { ok: false, code: "invalid_json", status: 400 };
   }
-  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) return { ok: false, code: "invalid_payload", status: 400 };
-  const body = candidate as Record<string, unknown>;
-  for (const key of Object.keys(body)) {
-    if (FORBIDDEN_FIELD.test(normalizedField(key))) return { ok: false, code: "document_or_sensitive_field_forbidden", status: 400 };
-    if (!ALLOWED_FIELDS.has(key)) return { ok: false, code: "unknown_field", status: 400 };
+  if (!exactObject(candidate, TOP_LEVEL_FIELDS)) return { ok: false, code: "unknown_or_sensitive_field", status: 400 };
+  const body = candidate;
+  if (!exactObject(body.data, DATA_FIELDS) || !exactObject(body.data.envelopeSummary, SUMMARY_FIELDS)) {
+    return { ok: false, code: "unknown_or_sensitive_field", status: 400 };
   }
-  if (!nonEmptyString(body["event_id"]) || !nonEmptyString(body["envelope_id"]) || !nonEmptyString(body["nonce"])) {
+  if (body.event !== "envelope-completed" || body.data.envelopeSummary.status !== "completed") {
+    return { ok: false, code: "unknown_event_type", status: 400 };
+  }
+  const retryCount = body.retryCount;
+  const configurationId = body.configurationId;
+  if (typeof body.apiVersion !== "string" || typeof body.uri !== "string" || typeof retryCount !== "number" || !Number.isInteger(retryCount) || retryCount < 0 || typeof configurationId !== "number" || !Number.isInteger(configurationId) || configurationId < 0) {
     return { ok: false, code: "missing_event_fields", status: 400 };
   }
-  if (body["event_type"] !== "completed") return { ok: false, code: "unknown_event_type", status: 400 };
-  if (body["environment"] !== expectedEnvironment) return { ok: false, code: "wrong_environment", status: 400 };
-  if (typeof body["occurred_at"] !== "string" || !ISO_UTC_RE.test(body["occurred_at"])) return { ok: false, code: "invalid_timestamp", status: 400 };
-  const timestamp = Date.parse(body["occurred_at"]);
-  if (!Number.isFinite(timestamp) || Math.abs(nowMs - timestamp) > CONNECT_CLOCK_SKEW_MS) {
-    return { ok: false, code: "expired_event", status: 400 };
-  }
+  if (!nonEmptyOpaqueId(body.data.accountId) || !nonEmptyOpaqueId(body.data.envelopeId)) return { ok: false, code: "missing_event_fields", status: 400 };
+  if (!validTimestamp(body.generatedDateTime) || !validTimestamp(body.data.envelopeSummary.statusChangedDateTime)) return { ok: false, code: "invalid_timestamp", status: 400 };
+  const timestamp = Date.parse(body.generatedDateTime);
+  if (Math.abs(nowMs - timestamp) > CONNECT_CLOCK_SKEW_MS) return { ok: false, code: "expired_event", status: 400 };
   return {
     ok: true,
-    payload: {
-      event_id: body["event_id"],
-      envelope_id: body["envelope_id"],
-      event_type: "completed",
-      occurred_at: body["occurred_at"],
-      environment: body["environment"],
-      nonce: body["nonce"],
-    } as DocusignConnectPayload,
+    payload: body as unknown as DocusignConnectPayload,
     at: new Date(timestamp).toISOString(),
   };
 }

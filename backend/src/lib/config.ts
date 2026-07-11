@@ -133,6 +133,17 @@ function resolveDocusignSigningConfig() {
   const accountId = optionalTrimmed("DOCUSIGN_SIGNING_ACCOUNT_ID");
   const allowedReturnUrlRaw = optionalTrimmed("DOCUSIGN_SIGNING_ALLOWED_RETURN_URL");
   const connectKey = optionalTrimmed("DOCUSIGN_SIGNING_CONNECT_KEY");
+  const approvedTemplateIds = new Set(
+    (optionalTrimmed("DOCUSIGN_SIGNING_APPROVED_TEMPLATE_IDS") ?? "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean),
+  );
+  for (const templateId of approvedTemplateIds) {
+    if (!/^[A-Za-z0-9._:-]{1,256}$/.test(templateId)) {
+      throw new Error("config: DOCUSIGN_SIGNING_APPROVED_TEMPLATE_IDS contains an invalid template ID");
+    }
+  }
   const privatePem = loadPem("DOCUSIGN_SIGNING_PRIVATE_KEY_PEM", "DOCUSIGN_SIGNING_PRIVATE_KEY_PATH");
 
   if (accountId && !/^[A-Za-z0-9-]{1,128}$/.test(accountId)) {
@@ -151,18 +162,24 @@ function resolveDocusignSigningConfig() {
   const apiBaseUriRaw = environment === "production"
     ? optionalTrimmed("DOCUSIGN_SIGNING_PRODUCTION_API_BASE_URI")
     : optionalTrimmed("DOCUSIGN_SIGNING_DEMO_API_BASE_URI");
-  const defaultApiBaseUri = "https://demo.docusign.net/restapi";
+  // The desktop adapter adds its one required /restapi path segment. Keeping
+  // this as a bare origin prevents a duplicate /restapi/restapi request.
+  const defaultApiBaseUri = "https://demo.docusign.net";
   const apiBaseUri = apiBaseUriRaw
     ? assertAbsoluteUrl("DOCUSIGN_SIGNING_API_BASE_URI", apiBaseUriRaw, { requireHttps: environment === "production" })
     : environment === "demo" ? defaultApiBaseUri : null;
 
   if (apiBaseUri) {
-    const host = new URL(apiBaseUri).hostname.toLowerCase();
-    if (!host.endsWith("docusign.net") || !new URL(apiBaseUri).pathname.startsWith("/restapi")) {
-      throw new Error("config: DOCUSIGN_SIGNING API base URI must be a DocuSign /restapi endpoint");
+    const parsed = new URL(apiBaseUri);
+    const host = parsed.hostname.toLowerCase();
+    if (!host.endsWith("docusign.net") || !["", "/"].includes(parsed.pathname) || parsed.search) {
+      throw new Error("config: DOCUSIGN_SIGNING API base URI must be a bare DocuSign origin");
     }
     if (environment === "demo" && host !== "demo.docusign.net") {
       throw new Error("config: a non-released signing broker must use the DocuSign demo API base URI");
+    }
+    if (environment === "production" && (host === "demo.docusign.net" || host.includes("demo"))) {
+      throw new Error("config: a released signing broker must not use a DocuSign demo API base URI");
     }
   }
 
@@ -192,6 +209,7 @@ function resolveDocusignSigningConfig() {
     apiBaseUri,
     privateKey,
     connectKey,
+    approvedTemplateIds,
     allowedReturnUrl,
     oauthTokenEndpoint: environment === "production"
       ? "https://account.docusign.com/oauth/token"
