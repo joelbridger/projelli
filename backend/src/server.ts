@@ -73,6 +73,15 @@ import { handlePublishMatterKeys, handleFetchMatterKey, handleMatterMine } from 
 import { handleOrgClaim } from "./routes/claim.ts";
 import { handleSsoConfigSet, handleSsoConfigGet, handleSsoConfigDelete, handleSsoStart, handleSsoCallback, handleSsoExchange } from "./routes/sso.ts";
 import { handleLemonSqueezyWebhook } from "./routes/webhooks.ts";
+import {
+  handleAckSignatureWakeups,
+  handleDeleteSignatureLaunch,
+  handleDocusignConnectEvent,
+  handleGetSignatureLaunch,
+  handleIssueSigningCapability,
+  handleListSignatureWakeups,
+  handlePutSignatureLaunch,
+} from "./routes/docusignSigning.ts";
 import { randomUUID } from "node:crypto";
 import type { Store } from "./lib/db.ts";
 
@@ -101,6 +110,13 @@ function matchMatter(path: string): { id: string; rest: string } | null {
 /** Extract `/intake/:id/...` the same way matchMatter handles matter routes. */
 function matchIntake(path: string): { id: string; rest: string } | null {
   const m = path.match(/^\/intake\/([^/]+)(?:\/(.*))?$/);
+  if (!m) return null;
+  return { id: decodeURIComponent(m[1]!), rest: m[2] ?? "" };
+}
+
+/** Extract `/docusign-signing/:intakeId/...` without coupling it to intake routes. */
+function matchDocusignSigning(path: string): { id: string; rest: string } | null {
+  const m = path.match(/^\/docusign-signing\/([^/]+)(?:\/(.*))?$/);
   if (!m) return null;
   return { id: decodeURIComponent(m[1]!), rest: m[2] ?? "" };
 }
@@ -196,6 +212,17 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
           }
         }
 
+        // --- Blind DocuSign signing broker (Wave 9) ---
+        const ds = matchDocusignSigning(path);
+        if (ds) {
+          if (ds.rest === "capability" && method === "POST") return await handleIssueSigningCapability(req, store, ds.id);
+          if (ds.rest === "launch" && method === "PUT") return await handlePutSignatureLaunch(req, store, ds.id);
+          if (ds.rest === "launch" && method === "GET") return await handleGetSignatureLaunch(req, store, ds.id, ip);
+          if (ds.rest === "launch" && method === "DELETE") return await handleDeleteSignatureLaunch(req, store, ds.id);
+          if (ds.rest === "wakeups" && method === "GET") return await handleListSignatureWakeups(req, store, ds.id);
+          if (ds.rest === "wakeups/ack" && method === "POST") return await handleAckSignatureWakeups(req, store, ds.id);
+        }
+
         // --- Health (open) ---
         if (path === "/healthz" && method === "GET") {
           return json({ ok: true, service: "keepance-firm-backend", version: "0.1.0" });
@@ -252,6 +279,7 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
 
         // --- Phase 1: LemonSqueezy webhook ---
         if (path === "/webhooks/lemonsqueezy" && method === "POST") return await handleLemonSqueezyWebhook(req, store);
+        if (path === "/webhooks/docusign-signing" && method === "POST") return await handleDocusignConnectEvent(req);
 
         // --- Provisioning (billing-driven; protect at network layer) ---
         if (path === "/admin/org" && method === "POST") return await handleCreateOrg(req, store);
