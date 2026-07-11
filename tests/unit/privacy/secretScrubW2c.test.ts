@@ -28,7 +28,12 @@ describe('secret scrub wave 2c real send paths', () => {
   });
   it('redacts a document summary before its structured provider receives it', async () => {
     const sent: string[] = []; const testProvider = provider(sent);
-    testProvider.structuredOutput = async (prompt) => { sent.push(prompt); return { thesis: 'Summary', bullets: [], assumptions: [], risks: [], open_questions: [], actions: [], confidence: 1, citations: [] }; };
+    testProvider.structuredOutput = async <T>(prompt: string) => {
+      sent.push(prompt);
+      return {
+        thesis: 'Summary', bullets: [], assumptions: [], risks: [], open_questions: [], actions: [], confidence: 1, citations: [],
+      } as T;
+    };
     setPromptDecisionBroker(async () => 'send_redacted_copy'); await new DocSummaryService(testProvider).generateSummary('doc-1', `Link: ${SECRET}`);
     expect(sent).toHaveLength(1); expect(sent[0]).not.toContain('intake-secret'); expect(sent[0]).toContain('[private-link-hidden]');
   });

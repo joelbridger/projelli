@@ -177,7 +177,6 @@ export class WorkflowEngine {
     try {
       community = await this.getCommunityTemplates();
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.warn(
         '[WorkflowEngine] getCommunityTemplates failed, returning built-ins only:',
         err,
@@ -518,7 +517,7 @@ export class WorkflowEngine {
       case 'analyze':
         return this.executeAnalyzeStep(step);
       default:
-        throw new Error(`Unknown step type: ${step.type}`);
+        throw new Error('Unknown workflow step type');
     }
   }
 
@@ -536,7 +535,9 @@ export class WorkflowEngine {
    */
   private async executeGenerateStep(step: WorkflowStep): Promise<Record<string, unknown>> {
     const config = step.config as GenerateStepConfig;
-    const inputs = this.execution!.inputs;
+    const execution = this.execution;
+    if (!execution) throw new Error('No workflow execution is active.');
+    const inputs = execution.inputs;
 
     // Build the prompt from template with current inputs
     const prompt = this.interpolateTemplate(config.promptTemplate, inputs);
@@ -627,13 +628,15 @@ export class WorkflowEngine {
    */
   private async executeReviewStep(step: WorkflowStep): Promise<Record<string, unknown>> {
     const config = step.config as { inputFile: string; reviewPrompt: string };
+    const execution = this.execution;
+    if (!execution) throw new Error('No workflow execution is active.');
 
     // Read the input file
     const content = await this.fileOps.readFile(config.inputFile);
 
     // Build the review prompt
     const prompt = this.interpolateTemplate(config.reviewPrompt, {
-      ...this.execution!.inputs,
+      ...execution.inputs,
       content,
     });
 
@@ -704,7 +707,9 @@ export class WorkflowEngine {
         'Pick your client first.',
       );
     }
-    const inputs = this.execution!.inputs;
+    const execution = this.execution;
+    if (!execution) throw new Error('No workflow execution is active.');
+    const inputs = execution.inputs;
 
     const callStart = Date.now();
     const callId = this.generateCallId();
@@ -720,11 +725,11 @@ export class WorkflowEngine {
       verify: this.analyzeDeps.verifyCitation,
       interpolate: (tpl, values) => this.interpolateTemplate(tpl, values),
       promptPreparation: {
-        providerId: this.audit?.providerId,
-        model: this.audit?.model,
-        background: this.audit?.background ?? false,
+        ...(this.audit?.providerId ? { providerId: this.audit.providerId } : {}),
+        ...(this.audit?.model ? { model: this.audit.model } : {}),
+        ...(this.audit?.background !== undefined ? { background: this.audit.background } : {}),
         ...(this.audit?.onAuditLog ? { onAuditLog: this.audit.onAuditLog } : {}),
-        scope: this.audit?.getScope?.() ?? scope,
+        ...(this.audit?.getScope ? { scope: this.audit.getScope() } : { scope }),
       },
     });
 
@@ -739,10 +744,10 @@ export class WorkflowEngine {
       verificationBanner:
         config.verificationBanner ??
         'Verify every flagged contradiction against the original source before relying on it.',
-      ...(typeof inputs['matterName'] === 'string' ? { matterName: inputs['matterName'] as string } : {}),
-      ...(typeof inputs['witnessName'] === 'string' ? { witnessName: inputs['witnessName'] as string } : {}),
+      ...(typeof inputs['matterName'] === 'string' ? { matterName: inputs['matterName'] } : {}),
+      ...(typeof inputs['witnessName'] === 'string' ? { witnessName: inputs['witnessName'] } : {}),
       ...(typeof inputs['depositionDate'] === 'string'
-        ? { depositionDate: inputs['depositionDate'] as string }
+        ? { depositionDate: inputs['depositionDate'] }
         : {}),
       // VG-3b — the deliverable says what grounded it. Retrieval down but
       // excerpts pasted → analyzed only those, and the header says so. Empty
@@ -819,7 +824,7 @@ export class WorkflowEngine {
       if (value === undefined) {
         return `{{${key}}}`;
       }
-      const stringValue = String(value);
+      const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
       return transform ? transform(stringValue) : stringValue;
     });
   }
@@ -892,14 +897,14 @@ export class WorkflowEngine {
    * Generate a unique run ID
    */
   private generateRunId(): string {
-    return `run_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    return `run_${Date.now().toString()}_${Math.random().toString(36).slice(2, 9)}`;
   }
 
   /**
    * Generate a unique call ID
    */
   private generateCallId(): string {
-    return `call_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    return `call_${Date.now().toString()}_${Math.random().toString(36).slice(2, 9)}`;
   }
 }
 
