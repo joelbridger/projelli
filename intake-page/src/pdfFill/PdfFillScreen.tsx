@@ -1,13 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import * as pdfjs from 'pdfjs-dist';
-import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
 import type { PdfFillRequestItem, PdfFieldMapEntry } from '@/platform/intake/types';
 import { verifySourceBytesAgainstDescriptor } from '@/platform/intake/pdfTemplates/receipt';
 
 import { assertSafeStaticPdf, PdfFillValidationError, preparePdfFillSubmission } from './preparePdfFillSubmission';
 
-pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+type PdfJs = typeof import('pdfjs-dist');
+
+const pdfWorkerUrl = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).href;
+let pdfjsPromise: Promise<PdfJs> | undefined;
+
+function loadPdfjs(): Promise<PdfJs> {
+  pdfjsPromise ??= import('pdfjs-dist');
+  return pdfjsPromise;
+}
 
 const MAX_SOURCE_PAGES = 50;
 const MAX_SOURCE_BYTES = 50 * 1024 * 1024;
@@ -50,14 +56,16 @@ export function PdfFillScreen({ item, firmName, sourceBytes, draft, busy, onDraf
 
   useEffect(() => {
     let cancelled = false;
-    let loadingTask: ReturnType<typeof pdfjs.getDocument> | undefined;
-    let documentProxy: Awaited<ReturnType<typeof pdfjs.getDocument>['promise']> | undefined;
+    let loadingTask: ReturnType<PdfJs['getDocument']> | undefined;
+    let documentProxy: Awaited<ReturnType<PdfJs['getDocument']>['promise']> | undefined;
     async function render(): Promise<void> {
       if (!sourceBytes) {
         setRenderError('This form could not be opened securely. Please contact your advisor.');
         return;
       }
       try {
+        const pdfjs = await loadPdfjs();
+        pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
         await verifySourceBytesAgainstDescriptor(sourceBytes, item.template);
         if (sourceBytes.byteLength > MAX_SOURCE_BYTES) throw new PdfFillValidationError('This form is too large to open safely. Contact your advisor.');
         assertSafeStaticPdf(sourceBytes);
