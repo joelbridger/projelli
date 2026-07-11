@@ -14,7 +14,7 @@ import { assertLocalOnlyAllowsExternal, LocalOnlyExternalError } from '@/platfor
 import { DirectDocusignAdapter, type DocusignEnvelopeInput } from './docusignAdapter';
 import { createDocusignEgressReceipt } from './egressReceipt';
 import { DocusignLaunchRelayClient } from './launchRelayClient';
-import { loadLocalSignatureRecord, saveLocalSignatureRecord, type StoredLocalSignatureRecord } from './signatureRecordStore';
+import { loadLocalSignatureRecord, saveLocalSignatureRecord } from './signatureRecordStore';
 
 export interface CompletionSource {
   intakeId: string;
@@ -66,10 +66,10 @@ export async function startDocusignSignature(input: StartSignatureInput): Promis
   try { assertLocalOnlyAllowsExternal('Send for DocuSign signature'); }
   catch (error) {
     if (!(error instanceof LocalOnlyExternalError)) throw error;
-    await saveLocalSignatureRecord(input.intakeId, { record: { requestId: input.request.request_id, signatureItemId: input.signatureItemId, sourcePdfFillItemId: completion.sourceItemId, sourceTemplateVersion: completion.templateVersion, sourceTemplateSha256: completion.sourceSha256, wave8CompletedSha256: completion.completedSha256, envelopeId: 'blocked-local-only', status: 'not_ready', events: [] }, egressReceipts: [createDocusignEgressReceipt({ host, requestId: input.request.request_id, signatureItemId: input.signatureItemId, outcome: 'blocked_local_only' })] });
+    await saveLocalSignatureRecord(input.intakeId, { record: { requestId: input.request.request_id, signatureItemId: input.signatureItemId, sourcePdfFillItemId: completion.sourceItemId, sourceTemplateVersion: completion.templateVersion, sourceTemplateSha256: completion.sourceSha256, wave8CompletedSha256: completion.completedSha256, envelopeId: 'blocked-local-only', status: 'not_ready', events: [] }, egressReceipts: [createDocusignEgressReceipt({ host, requestId: input.request.request_id, signatureItemId: input.signatureItemId, userConfirmed: true, outcome: 'blocked_local_only' })] });
     throw error;
   }
-  const receipt = createDocusignEgressReceipt({ host, requestId: input.request.request_id, signatureItemId: input.signatureItemId, outcome: 'allowed' });
+  const receipt = createDocusignEgressReceipt({ host, requestId: input.request.request_id, signatureItemId: input.signatureItemId, userConfirmed: true, outcome: 'allowed' });
   // Durable proof of the advisor's confirmation exists before document bytes leave this device.
   await saveLocalSignatureRecord(input.intakeId, { record: { requestId: input.request.request_id, signatureItemId: input.signatureItemId, sourcePdfFillItemId: completion.sourceItemId, sourceTemplateVersion: completion.templateVersion, sourceTemplateSha256: completion.sourceSha256, wave8CompletedSha256: completion.completedSha256, envelopeId: 'pending-egress', status: 'not_ready', events: [] }, egressReceipts: [receipt] });
   const envelope = await input.adapter.createEnvelopeAndRecipientView({ pdfBytes: completion.bytes, signerName: input.signerName, signerEmail: input.signerEmail, requestId: input.request.request_id, signatureItemId: input.signatureItemId, clientUserId: stableClientUserId(input.request.request_id, input.signatureItemId), tabMap: signature.tab_map, returnUrl: input.returnUrl } satisfies DocusignEnvelopeInput);
@@ -90,7 +90,8 @@ export async function retrieveAndFileDocusignCompletion(input: CompletionSource 
   if (stored.record.status === 'signed') return stored.record;
   const status = await input.adapter.pollEnvelopeStatus(stored.record.envelopeId);
   if (status === 'declined' || status === 'voided') {
-    const record = { ...stored.record, status, events: [...stored.record.events, { eventId: `poll:${stored.record.envelopeId}:${status}`, status, source: 'poll' as const, at: new Date().toISOString() }] };
+    const terminalStatus: Extract<SignatureStatus, 'declined' | 'voided'> = status;
+    const record = { ...stored.record, status: terminalStatus, events: [...stored.record.events, { eventId: `poll:${stored.record.envelopeId}:${terminalStatus}`, status: terminalStatus, source: 'poll' as const, at: new Date().toISOString() }] };
     await saveLocalSignatureRecord(input.intakeId, { ...stored, record }); return record;
   }
   if (status !== 'completed') {

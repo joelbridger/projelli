@@ -248,6 +248,6 @@ describe('intake PDF completion display cache', () => {
       receivedItems: [], flags: [], knownSessionIds: [], knownSubmissionIds: [], nudges: [],
     } satisfies IntakeRecord;
     const persisted = partializeIntakeStateForPersistence({ intakesById: { i: record } });
-    expect(persisted.intakesById.i?.items[0]?.pdfCompletion?.completedSha256).toBe('b'.repeat(64));
+    expect(persisted.intakesById['i']?.items[0]?.pdfCompletion?.completedSha256).toBe('b'.repeat(64));
   });
 });

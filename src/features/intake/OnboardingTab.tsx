@@ -397,7 +397,7 @@ export function OnboardingTab({
               </div>
             ))}
           </div>
-          {signatureDialogItemId ? <SendForSignatureDialog open signerName={intake.clientFirstName} signerEmail={intake.clientEmail ?? ''} status={signatureStatuses?.[signatureDialogItemId]} canSend={Boolean(onSendForSignature)} onOpenChange={(open) => { if (!open) setSignatureDialogItemId(null); }} onConfirm={({ name, email }) => onSendForSignature?.({ intake, signatureItemId: signatureDialogItemId, signerName: name, signerEmail: email })} /> : null}
+          {signatureDialogItemId ? <SendForSignatureDialog open signerName={intake.clientFirstName} signerEmail={intake.clientEmail ?? ''} {...(signatureStatuses?.[signatureDialogItemId] !== undefined ? { status: signatureStatuses[signatureDialogItemId] } : {})} canSend={Boolean(onSendForSignature)} onOpenChange={(open) => { if (!open) setSignatureDialogItemId(null); }} onConfirm={({ name, email }) => onSendForSignature?.({ intake, signatureItemId: signatureDialogItemId, signerName: name, signerEmail: email })} /> : null}
         </section>
 
         <aside style={{ display: 'grid', gap: 12, minWidth: 0 }}>

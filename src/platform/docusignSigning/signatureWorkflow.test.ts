@@ -22,10 +22,12 @@ const request = { request_id: 'request-1', schema_version: 1, matter_id: 'never-
 describe('signature send gate', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(loadPdfTemplateDescriptor).mockResolvedValue(request.items[0].template);
+    const pdfItem = request.items[0];
+    if (pdfItem?.t !== 'pdf_fill') throw new Error('test setup: expected the pdf_fill fixture item first');
+    vi.mocked(loadPdfTemplateDescriptor).mockResolvedValue(pdfItem.template);
   });
   it('records a blocked receipt and makes zero DocuSign or broker calls in Local-only mode', async () => {
-    vi.mocked(assertLocalOnlyAllowsExternal).mockImplementation(() => { throw new LocalOnlyExternalError(); });
+    vi.mocked(assertLocalOnlyAllowsExternal).mockImplementation(() => { throw new LocalOnlyExternalError('Send for DocuSign signature'); });
     const adapter = { createEnvelopeAndRecipientView: vi.fn() };
     const relay = { putLaunch: vi.fn() };
     await expect(startDocusignSignature({ intakeId: 'intake-1', sourceFilePath: '/local/form.pdf', receipt: { issuedItemId: 'pdf-1', templateId: 'template-1', templateVersion: 1, sourceSha256: 'a'.repeat(64), completedSha256: 'b'.repeat(64), completedAt: '2026-07-11T00:00:00.000Z', pageVersion: 'w8' }, workspaceService: { readFileBinary: vi.fn(async () => new Uint8Array([1]).buffer), writeFileBinary: vi.fn() }, request, signatureItemId: 'sig-1', requestActive: true, matterFolderPath: '/local/client', requestSlug: 'w9-form-a1', signerName: 'Synthetic Signer', signerEmail: 'synthetic@example.test', returnUrl: 'https://lantern.test/return', adapter: adapter as never, launchRelay: relay as never })).rejects.toBeInstanceOf(LocalOnlyExternalError);

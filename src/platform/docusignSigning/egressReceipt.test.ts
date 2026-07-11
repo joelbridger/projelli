@@ -8,7 +8,7 @@ vi.mock('@/platform/providers/fetchUtils', () => ({ getCorsSafeFetch: vi.fn() })
 
 describe('DocuSign egress and relay boundary', () => {
   it('records the explicit direct-to-DocuSign data boundary', () => {
-    expect(createDocusignEgressReceipt({ host: 'demo.docusign.net', requestId: 'request-1', signatureItemId: 'signature-1', outcome: 'allowed', at: '2026-07-11T00:00:00.000Z' })).toMatchObject({ destinationClass: 'docusign', dataCategories: ['completed_pdf', 'signer_name', 'signer_email'], userConfirmed: true, outcome: 'allowed' });
+    expect(createDocusignEgressReceipt({ host: 'demo.docusign.net', requestId: 'request-1', signatureItemId: 'signature-1', userConfirmed: true, outcome: 'allowed', at: '2026-07-11T00:00:00.000Z' })).toMatchObject({ destinationClass: 'docusign', dataCategories: ['completed_pdf', 'signer_name', 'signer_email'], userConfirmed: true, outcome: 'allowed' });
   });
   it('puts only ciphertext on the Lantern launch relay', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }));

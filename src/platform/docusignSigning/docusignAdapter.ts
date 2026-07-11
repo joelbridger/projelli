@@ -25,6 +25,29 @@ export interface DocusignEnvelopeInput {
 }
 export interface DocusignEnvelopeResult { envelopeId: string; recipientViewUrl: string; }
 export interface DocusignRetrievedCompletion { signedPdf: Uint8Array; certificate: Uint8Array; }
+/** Envelope states returned by DocuSign's envelope-status endpoint. */
+export type DocusignEnvelopeStatus =
+  | 'created'
+  | 'sent'
+  | 'delivered'
+  | 'completed'
+  | 'declined'
+  | 'voided'
+  | 'timedout'
+  | 'processing'
+  | 'deleted'
+  | 'corrected';
+
+const DOCUSIGN_ENVELOPE_STATUSES = new Set<DocusignEnvelopeStatus>([
+  'created', 'sent', 'delivered', 'completed', 'declined', 'voided', 'timedout', 'processing', 'deleted', 'corrected',
+]);
+
+function parseDocusignEnvelopeStatus(value: unknown): DocusignEnvelopeStatus {
+  if (typeof value !== 'string' || !DOCUSIGN_ENVELOPE_STATUSES.has(value as DocusignEnvelopeStatus)) {
+    throw new Error('DocuSign returned an unsupported envelope status.');
+  }
+  return value as DocusignEnvelopeStatus;
+}
 
 function requireDocusignBaseUri(value: string): string {
   const uri = new URL(value);
@@ -80,15 +103,15 @@ export class DirectDocusignAdapter {
     });
   }
 
-  async pollEnvelopeStatus(envelopeId: string, attempts = 5, initialDelayMs = 1_000): Promise<string> {
+  async pollEnvelopeStatus(envelopeId: string, attempts = 5, initialDelayMs = 1_000): Promise<DocusignEnvelopeStatus> {
     if (!envelopeId) throw new Error('Envelope id is required.');
     return this.withAuthorization(async (authorization, fetchFn) => {
       for (let attempt = 0; attempt < attempts; attempt += 1) {
         const response = await fetchFn(`${authorization.baseUri}/restapi/v2.1/accounts/${encodeURIComponent(authorization.accountId)}/envelopes/${encodeURIComponent(envelopeId)}`, { headers: { Authorization: `Bearer ${authorization.accessToken}` } });
         if (!response.ok) throw new Error(`DocuSign status check failed with HTTP ${String(response.status)}.`);
         const body = await response.json() as { status?: unknown };
-        if (typeof body.status !== 'string') throw new Error('DocuSign did not return an envelope status.');
-        if (body.status !== 'sent' && body.status !== 'delivered') return body.status;
+        const status = parseDocusignEnvelopeStatus(body.status);
+        if (status !== 'sent' && status !== 'delivered') return status;
         if (attempt + 1 < attempts) await new Promise<void>((resolve) => { window.setTimeout(resolve, initialDelayMs * (2 ** attempt)); });
         assertLocalOnlyAllowsExternal('Send for DocuSign signature');
       }
