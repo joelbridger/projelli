@@ -85,6 +85,16 @@ describe('createAdvisorIntake team sharing', () => {
     expect(() => { assertSendableRequest([approved]); }).not.toThrow();
     expect(() => { assertSendableRequest([{ ...approved, template: { ...approved.template, sourceSha256: 'bad' } }]); }).toThrow(/pdf_fill/iu);
     expect(() => { assertSendableRequest([{ t: 'signature', item_id: 'sign', label: 'Sign', help_text: '', required: true, subject: 'primary', grade: 'native_clicksign' }]); }).toThrow(/signature/iu);
+    const docusign = {
+      t: 'signature' as const, item_id: 'docusign-sign', label: 'DocuSign', help_text: '', required: true, subject: 'primary',
+      grade: 'docusign' as const, source_pdf_fill_item_id: approved.item_id,
+      tab_map: {
+        signatureTab: { page: 1, rect: { x: 0.1, y: 0.1, width: 0.2, height: 0.1 } },
+        dateSignedTab: { page: 1, rect: { x: 0.1, y: 0.25, width: 0.2, height: 0.1 } },
+        signerNameTab: { page: 1, rect: { x: 0.1, y: 0.4, width: 0.2, height: 0.1 } },
+      },
+    };
+    expect(() => { assertSendableRequest([approved, docusign]); }).toThrow('signature items cannot be sent through an intake link.');
     const oldWave7 = { t: 'pdf_fill', item_id: 'old', label: 'Old', help_text: '', required: true, subject: 'primary', pdf_ref: 'old.pdf', field_map: {}, prefill: [] };
     expect(() => { assertSendableRequest([oldWave7] as never); }).toThrow(/pdf_fill/iu);
   });
