@@ -26,7 +26,8 @@ import type {
 } from '@/platform/firm/contract';
 import type { WebSocketLike } from '@/platform/firm/MatterSyncClient';
 
-const CLIENT_COUNT = 3;
+/** Six seats is the frozen small-RIA campaign scenario (§2). */
+const CLIENT_COUNT = 6;
 const TIMEOUT_MS = 12_000;
 const POLL_MS = 20;
 type RelayProcess = ChildProcessByStdio<null, Readable, Readable>;
@@ -52,6 +53,7 @@ interface ScenarioReport {
   readonly state: string;
   readonly stateHash: string;
   readonly onlineLatencyMs: readonly number[];
+  readonly issuedEdits: number;
 }
 
 class RelayHttpClient {
@@ -417,65 +419,96 @@ async function runScenario(
     );
   await Promise.all(clients.map(({ sync }) => sync.start()));
 
-  const first = clients[0]!;
-  const second = clients[1]!;
-  const offline = clients[2]!;
-  first.doc
-    .getMap<unknown>('shared-document')
-    .set('title', 'Northcrest annual review');
+  const [
+    advisor,
+    associateOne,
+    associateTwo,
+    operations,
+    supportOne,
+    supportTwo,
+  ] = clients;
+  if (
+    !advisor ||
+    !associateOne ||
+    !associateTwo ||
+    !operations ||
+    !supportOne ||
+    !supportTwo
+  ) {
+    throw new Error(
+      'The six-seat scenario did not receive all required clients.'
+    );
+  }
+  let issuedEdits = 0;
+  const edit = (client: HeadlessClient, field: string, value: string): void => {
+    client.doc.getMap<unknown>('shared-document').set(field, value);
+    issuedEdits += 1;
+  };
+
+  edit(advisor, 'title', 'Northcrest annual review');
   await until('the initial document to reach all clients', () =>
     clients.every((client) =>
       materializedState(client.doc).includes('Northcrest annual review')
     )
   );
 
-  // Three independent fields are changed without waiting for the relay between them.
-  // They are concurrent local CRDT edits, then the real relay fans them out.
+  // Scripted day 1: all six seats change different Task fields concurrently.
+  // This uses the existing Yjs sync engine until the CRM Task driver lands.
   const concurrentStartedAt = Date.now();
-  first.doc.getMap<unknown>('shared-document').set('advisor', 'Avery Morgan');
-  second.doc.getMap<unknown>('shared-document').set('dueDate', '2026-07-18');
-  offline.doc.getMap<unknown>('shared-document').set('status', 'in-review');
-  await until('the three concurrent edits to converge', () => {
+  edit(advisor, 'assigneeUserId', 'client-2');
+  edit(associateOne, 'due', '2026-07-18');
+  edit(associateTwo, 'priority', 'high');
+  edit(operations, 'body', 'Prepare the Northcrest review packet.');
+  edit(supportOne, 'status', 'in-review');
+  edit(supportTwo, 'title', 'Northcrest annual review — ready for sign-off');
+  await until('all six concurrent task-field edits to converge', () => {
     const states = clients.map((client) => materializedState(client.doc));
     return (
       states.every((state) => state === states[0]) &&
-      states[0]?.includes('"status":"in-review"') === true
+      states[0]?.includes('"status":"in-review"') === true &&
+      states[0]?.includes('"assigneeUserId":"client-2"') === true
     );
   });
   const concurrentLatency = Date.now() - concurrentStartedAt;
 
-  // One client leaves while the other two continue working. It keeps its local
-  // Y.Doc, exactly as a real client does, but receives no live updates while stopped.
-  offline.sync.stop();
-  first.doc.getMap<unknown>('shared-document').set('priority', 'high');
-  second.doc
-    .getMap<unknown>('shared-document')
-    .set('checklist', 'Send draft plan');
+  // Scripted day 2: two seats go offline while the other four issue ten
+  // non-overlapping changes. Their Y.Docs remain intact while sync is stopped.
+  associateTwo.sync.stop();
+  supportTwo.sync.stop();
+  const onlineEditors = [advisor, associateOne, operations, supportOne];
+  for (let index = 0; index < 10; index += 1) {
+    edit(
+      onlineEditors[index % onlineEditors.length]!,
+      `offlineReturnField${index + 1}`,
+      `change-${index + 1}`
+    );
+  }
   const onlineStartedAt = Date.now();
   await until(
-    'the two online clients to converge while client 3 is offline',
+    'the four online clients to converge while two seats are offline',
     () => {
-      const a = materializedState(first.doc);
-      const b = materializedState(second.doc);
+      const states = onlineEditors.map((client) =>
+        materializedState(client.doc)
+      );
       return (
-        a === b &&
-        a.includes('"priority":"high"') &&
-        a.includes('"checklist":"Send draft plan"')
+        states.every((state) => state === states[0]) &&
+        states[0]?.includes('"offlineReturnField10":"change-10"') === true
       );
     }
   );
   const onlineLatency = Date.now() - onlineStartedAt;
 
-  await offline.sync.start();
+  await Promise.all([associateTwo.sync.start(), supportTwo.sync.start()]);
   const expectedFields = [
-    'advisor',
-    'checklist',
-    'dueDate',
+    'assigneeUserId',
+    'body',
+    'due',
+    'offlineReturnField10',
     'priority',
     'status',
     'title',
   ];
-  await until('all three clients to converge after client 3 rejoins', () => {
+  await until('all six clients to converge after the two seats rejoin', () => {
     const states = clients.map((client) => materializedState(client.doc));
     return (
       states.every((state) => state === states[0]) &&
@@ -485,16 +518,34 @@ async function runScenario(
     );
   });
 
-  const state = materializedState(first.doc);
+  const state = materializedState(advisor.doc);
   const allStates = clients.map((client) => materializedState(client.doc));
   if (!allStates.every((candidate) => candidate === state)) {
     throw new Error(`Convergence failed: ${JSON.stringify(allStates)}`);
   }
+
+  // Compare only this document, which all six seats are authorized and
+  // subscribed to. CRM drivers will add real local-store absence checks.
+  if (
+    allStates.some((candidate) =>
+      candidate.includes('Northcrest-walled-client-secret')
+    )
+  ) {
+    throw new Error(
+      'A document outside this authorized/subscribed scenario leaked into a client view.'
+    );
+  }
+
+  // WAVE-PENDING: B1/B3 — real crm:record and crm:task-notes drivers, local
+  // storage/search/projection/rendered-view absence checks, envelopes, workflow
+  // propagation, and seventh-seat bootstrap. Keep these CRM-specific scripts
+  // out of MatterDocSyncClient so the real-relay harness stays runnable.
   return {
     clients: clients.length,
     state,
     stateHash: stateHash(state),
     onlineLatencyMs: [concurrentLatency, onlineLatency],
+    issuedEdits,
   };
 }
 
@@ -525,12 +576,15 @@ async function main(): Promise<void> {
     const report = await runScenario(clients);
     console.log('MULTICLIENT HARNESS: PASS');
     console.log(
-      `scenario: ${report.clients} clients made concurrent edits; client 3 went offline, then rejoined`
+      `scenario: ${report.clients} seats made six concurrent task-field edits; two seats went offline, then rejoined`
     );
     console.log(
       `convergence: ${report.clients}/${report.clients} identical materialized states (hash ${report.stateHash})`
     );
     console.log(`state: ${report.state}`);
+    console.log(
+      `issued edits reflected in the shared authorized/subscribed document: ${report.issuedEdits}`
+    );
     console.log(
       `online edit latency (reported, not gated): p50=${percentile(report.onlineLatencyMs, 50)}ms p95=${percentile(report.onlineLatencyMs, 95)}ms`
     );
