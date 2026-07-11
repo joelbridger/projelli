@@ -25,3 +25,17 @@ use this procedure for a real customer database.
 The reset removes test/demo organizations, seats, relay data, and audit history
 from that database. This is intentional: it prevents old local client names or
 old ciphertext from surviving beside the v2-only relay.
+
+## Why there is no in-app migration
+
+An in-app legacy migration bridge was built and then deliberately removed. It
+existed to move existing firm devices from the old readable relay format to the
+opaque v2 handles, but no firm data has ever shipped to an outside user, so it
+protected nothing. It was also the last place the relay stored a plaintext client
+identifier (its manifest table), and it was the largest single source of defects
+in this work: every hardening round produced the next round's bugs.
+
+Git history preserves the full implementation. If a real pre-launch migration need
+ever appears (it should not — nothing has shipped), the right answer is a one-time
+migration run by an operator against a frozen relay, not a live, client-driven,
+self-healing protocol carried in the product forever.
