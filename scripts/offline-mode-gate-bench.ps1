@@ -27,7 +27,10 @@ if ($Action -eq 'setup') {
   New-Item -ItemType Directory -Force -Path $evidence, "$root\appdata\Roaming\com.lantern.app", "$root\appdata\Local", "$root\workspace", "$root\mitm" | Out-Null
   $proxyKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings'
   $oldProxy = Get-ItemProperty -Path $proxyKey | Select-Object ProxyEnable,ProxyServer,ProxyOverride
-  $oldDns = Get-DnsClientServerAddress -InterfaceAlias 'Wi-Fi' -AddressFamily IPv4 | Select-Object InterfaceAlias,ServerAddresses
+  $oldDns = @(
+    Get-DnsClientServerAddress -InterfaceAlias 'Wi-Fi' -AddressFamily IPv4 | Select-Object InterfaceAlias,AddressFamily,ServerAddresses
+    Get-DnsClientServerAddress -InterfaceAlias 'Wi-Fi' -AddressFamily IPv6 | Select-Object InterfaceAlias,AddressFamily,ServerAddresses
+  )
   $oldWinHttp = (& netsh winhttp show proxy | Out-String)
   [pscustomobject]@{ createdAt=(Get-Date).ToUniversalTime().ToString('o'); proxy=$oldProxy; dns=$oldDns; winHttp=$oldWinHttp } |
     ConvertTo-Json -Depth 6 | Set-Content -Encoding UTF8 $state
@@ -37,6 +40,8 @@ if ($Action -eq 'setup') {
   Start-Process -FilePath $python -ArgumentList (Join-Path $appRoot 'scripts\offline-mode-dns-sink.py') -WindowStyle Hidden -RedirectStandardOutput "$evidence\dns-stdout.log" -RedirectStandardError "$evidence\dns-stderr.log"
   Start-Process -FilePath $mitm -ArgumentList @('-q','--listen-host','127.0.0.1','-p',$proxyPort,'--set',"confdir=$root\mitm",'-s',(Join-Path $appRoot 'scripts\offline-mode-proxy-log.py'),'-w',"$evidence\proxy.flows") -WindowStyle Hidden -RedirectStandardOutput "$evidence\proxy-stdout.log" -RedirectStandardError "$evidence\proxy-stderr.log"
   Start-Sleep -Seconds 3
+  if (-not (Test-NetConnection -ComputerName '127.0.0.1' -Port $proxyPort -InformationLevel Quiet)) { throw 'mitmproxy did not open its recording listener.' }
+  if (-not (Test-NetConnection -ComputerName '::1' -Port 53 -InformationLevel Quiet)) { throw 'DNS recorder did not open its IPv6 loopback listener.' }
   $cert = "$root\mitm\mitmproxy-ca-cert.cer"
   if (-not (Test-Path $cert)) { throw 'mitmproxy did not create its disposable certificate.' }
   $certInfo = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($cert)
@@ -47,7 +52,7 @@ if ($Action -eq 'setup') {
   Set-ItemProperty -Path $proxyKey -Name ProxyServer -Value "127.0.0.1:$proxyPort"
   Set-ItemProperty -Path $proxyKey -Name ProxyOverride -Value '<local>;127.0.0.1;localhost;::1'
   & netsh winhttp set proxy "127.0.0.1:$proxyPort" bypass-list='127.0.0.1;localhost;::1' | Out-File "$evidence\winhttp-set.log"
-  Set-DnsClientServerAddress -InterfaceAlias 'Wi-Fi' -ServerAddresses '127.0.0.1'
+  Set-DnsClientServerAddress -InterfaceAlias 'Wi-Fi' -AddressFamily IPv6 -ServerAddresses '::1'
 
   New-NetFirewallRule -DisplayName 'Lantern Offline Gate - Lantern remote block' -Direction Outbound -Action Block -Program $lantern -RemoteAddress Internet -Profile Any | Out-Null
   New-NetFirewallRule -DisplayName 'Lantern Offline Gate - WebView remote block' -Direction Outbound -Action Block -Program $webview -RemoteAddress Internet -Profile Any | Out-Null
@@ -77,6 +82,7 @@ if ($Action -eq 'smoke') {
   if (-not (Test-Path $state)) { throw 'Run setup before the recorder smoke test.' }
   Clear-DnsClientCache
   $smokeUrl = "https://www.cloudflare.com/cdn-cgi/trace?offline-gate=$([guid]::NewGuid().ToString('N'))"
+  Resolve-DnsName -Name 'www.cloudflare.com' -Server '::1' -DnsOnly | Out-File "$evidence\recorder-smoke-dns.txt"
   & curl.exe --fail --silent --show-error --proxy "http://127.0.0.1:$proxyPort" $smokeUrl --output "$evidence\recorder-smoke-body.txt"
   if ($LASTEXITCODE -ne 0) { throw "Recorder smoke request failed with curl exit code $LASTEXITCODE." }
   Start-Sleep -Milliseconds 500
@@ -107,7 +113,7 @@ if (Test-Path $state) {
   Set-ItemProperty -Path $proxyKey -Name ProxyServer -Value ([string]$old.proxy.ProxyServer)
   Set-ItemProperty -Path $proxyKey -Name ProxyOverride -Value ([string]$old.proxy.ProxyOverride)
   & netsh winhttp reset proxy | Out-File "$evidence\winhttp-reset.log"
-  foreach ($item in $old.dns) { Set-DnsClientServerAddress -InterfaceAlias $item.InterfaceAlias -ServerAddresses @($item.ServerAddresses) }
+  foreach ($item in $old.dns) { Set-DnsClientServerAddress -InterfaceAlias $item.InterfaceAlias -AddressFamily $item.AddressFamily -ServerAddresses @($item.ServerAddresses) }
 }
 Get-Content "$evidence\mitm-ca-thumbprint.txt" -ErrorAction SilentlyContinue | ForEach-Object { & certutil -user -delstore Root $_ | Out-File "$evidence\mitm-cert-remove.log" }
 Remove-NetFirewallRule -DisplayName 'Lantern Offline Gate*' -ErrorAction SilentlyContinue

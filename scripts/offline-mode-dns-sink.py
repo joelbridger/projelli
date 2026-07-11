@@ -58,9 +58,14 @@ class Tcp(socketserver.BaseRequestHandler):
 
 class ThreadedUdp(socketserver.ThreadingMixIn, socketserver.UDPServer): allow_reuse_address = True
 class ThreadedTcp(socketserver.ThreadingMixIn, socketserver.TCPServer): allow_reuse_address = True
+class ThreadedUdpV6(ThreadedUdp): address_family = socket.AF_INET6
+class ThreadedTcpV6(ThreadedTcp): address_family = socket.AF_INET6
 
 if __name__ == "__main__":
     os.makedirs(os.path.dirname(LOG), exist_ok=True)
-    for server in (ThreadedUdp(("127.0.0.1", 53), Udp), ThreadedTcp(("127.0.0.1", 53), Tcp)):
+    # Windows Internet Connection Sharing owns IPv4 :53 on the Legion.  The
+    # gate therefore uses IPv6 loopback, which is independent of that service
+    # and still exercises the OS resolver without stopping a shared service.
+    for server in (ThreadedUdpV6(("::1", 53), Udp), ThreadedTcpV6(("::1", 53), Tcp)):
         threading.Thread(target=server.serve_forever, daemon=True).start()
     threading.Event().wait()
