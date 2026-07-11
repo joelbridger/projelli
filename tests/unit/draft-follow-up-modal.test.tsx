@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { DraftFollowUpModal } from '@/features/email/DraftFollowUpModal';
 import { buildMailMatterMap } from '@/platform/rag/matterResolver';
+import { setPromptDecisionBroker } from '@/platform/privacy/promptPreparation';
+import { SECRET_SCRUB_FIXTURES } from '@/platform/privacy/promptPreparation.fixtures';
 
 const { structuredOutput, mailSaveDraft, mailSend, mailConnectedAccounts, logEmailAuditEntry, resolveEmailProvider } = vi.hoisted(() => ({
   structuredOutput: vi.fn(),
@@ -126,12 +128,34 @@ describe('DraftFollowUpModal — AI proposes, user approves, hostile notes stay 
     expect(structuredOutput).toHaveBeenCalledTimes(1);
     // Egress logged, and BEFORE the provider ever saw the note content.
     expect(logEmailAuditEntry).toHaveBeenCalled();
-    const [entry] = logEmailAuditEntry.mock.calls[0]! as [{ action: string; metadata: { scope?: { matterId: string } } }];
+    const [entry] = logEmailAuditEntry.mock.calls.find(
+      ([candidate]) => (candidate as { action: string }).action === 'egress',
+    )! as [{ action: string; metadata: { scope?: { matterId: string } } }];
     expect(entry.action).toBe('egress');
     expect(entry.metadata.scope).toEqual({ kind: 'matter', matterId: 'matter-1' });
     const auditCallOrder = logEmailAuditEntry.mock.invocationCallOrder[0]!;
     const sendCallOrder = structuredOutput.mock.invocationCallOrder[0]!;
     expect(auditCallOrder).toBeLessThan(sendCallOrder);
+  });
+
+  it('sends a redacted follow-up source after the advisor chooses the safe copy', async () => {
+    setPromptDecisionBroker(() => Promise.resolve('send_redacted_copy'));
+    try {
+      render(
+        <DraftFollowUpModal
+          open
+          onOpenChange={() => {}}
+          noteName="Meeting Notes.docx"
+        noteContent={`Use ${SECRET_SCRUB_FIXTURES.encoded} for the review.`}
+          matterId="matter-1"
+        />,
+      );
+      await generate();
+      expect(structuredOutput).toHaveBeenCalledTimes(1);
+      expect(structuredOutput.mock.calls[0]![0]).not.toContain('encoded-secret');
+    } finally {
+      setPromptDecisionBroker();
+    }
   });
 
   // Coordinator review (P3): a failed Generate must stay retryable — the button

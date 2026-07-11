@@ -2,7 +2,8 @@
 // Identifies contradictions between model outputs
 
 import type { Provider, StructuredOutputOptions, OutputSchema } from '@/platform/providers/Provider';
-import { runWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
+import { sendPreparedStructuredWithEgressAudit } from '@/platform/privacy/promptPreparation';
+import type { EgressAuditLogger } from '@/platform/privacy/sendWithEgressAudit';
 
 /**
  * A detected contradiction between two statements
@@ -92,7 +93,10 @@ export interface DetectionOptions {
  * ContradictionDetector identifies contradictions between model outputs
  */
 export class ContradictionDetector {
-  constructor(private readonly provider: Provider) {}
+  constructor(
+    private readonly provider: Provider,
+    private readonly onAuditLog?: EgressAuditLogger,
+  ) {}
 
   /**
    * Detect contradictions between two texts
@@ -117,7 +121,7 @@ For implicit contradictions, the statements must logically conflict even if not 
     };
 
     const metadata = this.provider.getMetadata();
-    const result = await runWithEgressAudit<{
+    const result = await sendPreparedStructuredWithEgressAudit<{
       contradictions: Array<{
         statement1: string;
         statement2: string;
@@ -133,26 +137,22 @@ For implicit contradictions, the statements must logically conflict even if not 
       provider: this.provider,
       providerId: metadata.providerId ?? 'unknown',
       model: metadata.model,
-      operation: () =>
-        this.provider.structuredOutput<{
-          contradictions: Array<{
-            statement1: string;
-            statement2: string;
-            type: string;
-            severity: string;
-            explanation: string;
-            suggestedResolution?: string;
-          }>;
-          agreementScore: number;
-          keyDisagreements: string[];
-          keyAgreements: string[];
-        }>(prompt, structuredOptions),
+      surface: 'contradiction_analysis',
+      prompt,
+      options: structuredOptions,
+      parts: [
+        // `prompt` is the actual combined text passed to the provider. It must
+        // be the redaction target, not merely a side-channel scan of its two
+        // source answers.
+        { id: 'prompt', origin: 'chat_history', label: 'Answers being compared', text: prompt },
+      ],
+      ...(this.onAuditLog ? { onAuditLog: this.onAuditLog } : {}),
     });
 
     // Map and filter contradictions
     const contradictions: Contradiction[] = result.contradictions
       .map((c, index) => ({
-        id: `contradiction_${index}`,
+        id: `contradiction_${String(index)}`,
         statement1: {
           text: c.statement1,
           source: source1,

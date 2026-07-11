@@ -7,8 +7,9 @@
 // that starts, then drops, must surface as a real error, not silently restart
 // and duplicate partial output).
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { OpenAIProvider } from './OpenAIProvider';
+import { setPreparationEnforcementMode } from '@/platform/privacy/promptPreparationGuard';
 
 function sseStream(chunks: string[]): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
@@ -41,7 +42,14 @@ function makeProvider(): OpenAIProvider {
   return new OpenAIProvider({ apiKey: 'sk-test' });
 }
 
+beforeEach(() => {
+  // This file tests the adapter's retry mechanics in isolation. App sends are
+  // covered separately through the prepared helpers with enforce left on.
+  setPreparationEnforcementMode('off');
+});
+
 afterEach(() => {
+  setPreparationEnforcementMode('enforce');
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   vi.useRealTimers();

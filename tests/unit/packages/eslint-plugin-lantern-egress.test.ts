@@ -20,7 +20,7 @@ const ruleTester = new RuleTester({
 ruleTester.run('no-direct-provider-send', rule, {
   valid: [
     {
-      filename: '/repo/src/platform/privacy/sendWithEgressAudit.ts',
+      filename: '/repo/src/platform/privacy/promptPreparation.ts',
       code: 'provider.sendMessage(prompt, options); provider.structuredOutput(prompt, options); provider.sendMessageStreaming(prompt, options);',
     },
     {
@@ -32,8 +32,8 @@ ruleTester.run('no-direct-provider-send', rule, {
       code: 'sendWithEgressAudit({ provider, providerId, prompt });',
     },
     {
-      filename: '/repo/src/platform/rag/factsExtraction.ts',
-      code: 'runWithEgressAudit({ provider, providerId, operation: () => provider.structuredOutput(prompt, options) });',
+      filename: '/repo/src/platform/privacy/promptPreparation.test.ts',
+      code: 'await provider.sendMessage(prompt, options);',
     },
   ],
   invalid: [
@@ -55,6 +55,11 @@ ruleTester.run('no-direct-provider-send', rule, {
     {
       filename: '/repo/src/features/ask/hooks/useChatSending.ts',
       code: 'const result = await provider.sendMessageStreaming!(prompt, options);',
+      errors: [{ messageId: 'directSend' }],
+    },
+    {
+      filename: '/repo/src/platform/privacy/sendWithEgressAudit.ts',
+      code: 'const result = await provider.sendMessage(prompt, options);',
       errors: [{ messageId: 'directSend' }],
     },
   ],

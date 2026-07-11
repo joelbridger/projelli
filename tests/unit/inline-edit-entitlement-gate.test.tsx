@@ -19,16 +19,17 @@ vi.mock('@/platform/hooks/useTrial', () => ({
 }));
 
 import { useInlineAiEdit } from '@/features/documents/editor/useInlineAiEdit';
+import { setPromptDecisionBroker } from '@/platform/privacy/promptPreparation';
 
-function makeArgs() {
+function makeArgs(selectedText = 'the selected text') {
   const sendMessageStreaming = vi.fn(async () => ({ content: 'edited' }));
   const provider = {
     sendMessageStreaming,
     getMetadata: () => ({ name: 'Test', providerId: 'test', model: 'm' }),
   };
   const adapter = {
-    getSelectedText: () => 'the selected text',
-    getSelectionRange: () => ({ from: 0, to: 17 }),
+    getSelectedText: () => selectedText,
+    getSelectionRange: () => ({ from: 0, to: selectedText.length }),
     replaceRange: vi.fn(),
     coordsAtPos: () => ({ x: 0, y: 0 }),
     getDocText: () => 'the selected text and more',
@@ -73,5 +74,23 @@ describe('inline AI edit — entitlement gate', () => {
     });
 
     expect(sendMessageStreaming).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends a redacted copy when the selected text contains a private link', async () => {
+    const secret = 'Open https://example.test/i/abc#intake-secret';
+    const { sendMessageStreaming, args } = makeArgs(secret);
+    setPromptDecisionBroker(() => Promise.resolve('send_redacted_copy'));
+    try {
+      const { result } = renderHook(() => useInlineAiEdit(args));
+      await act(async () => {
+        await result.current.handlers.submitInstruction('make it formal');
+      });
+
+      expect(sendMessageStreaming).toHaveBeenCalledTimes(1);
+      const [, options] = sendMessageStreaming.mock.calls[0] as unknown as [string, { systemPrompt?: string }];
+      expect(options.systemPrompt).not.toContain('intake-secret');
+    } finally {
+      setPromptDecisionBroker();
+    }
   });
 });

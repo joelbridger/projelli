@@ -7,6 +7,7 @@ import { getMatters } from '@/platform/matter/matterStore';
 import { buildMailMatterMap } from '@/platform/rag/matterResolver';
 import { beginOAuth, endOAuth } from '@/platform/connectors/oauthPending';
 import { brandText } from '@/config/brandText';
+import { IntegrationHonestyCard } from '@/platform/connectors/IntegrationHonestyCard';
 
 export function MailGmailConnect() {
   useMailSync();
@@ -44,8 +45,8 @@ export function MailGmailConnect() {
     // Clear any prior stall warning on each progress event, so a sync that
     // resumes drops the "may have expired" message instead of leaving it stuck.
     setSyncStalled(false);
-    const timer = setTimeout(() => setSyncStalled(true), 90_000);
-    return () => clearTimeout(timer);
+    const timer = setTimeout(() => { setSyncStalled(true); }, 90_000);
+    return () => { clearTimeout(timer); };
   }, [progress?.status, progress?.written]);
 
   // Reconnect: a stale/hung sync holds the backend single-sync guard, so cancel
@@ -69,7 +70,7 @@ export function MailGmailConnect() {
       // current mail->matter mapping so synced mail is scoped at index time.
       // Scope the sync to "gmail" so connecting Gmail never runs (or fails on) a
       // Microsoft token. Surface failures instead of leaving an empty inbox.
-      mailSyncAll(buildMailMatterMap(getMatters()), 'gmail').catch((err) => {
+      mailSyncAll(buildMailMatterMap(getMatters()), 'gmail').catch((err: unknown) => {
         setConnectError(err instanceof Error ? err.message : typeof err === 'string' ? err : 'Mail sync could not start. Please try again.');
       });
     } catch (err) {
@@ -120,6 +121,7 @@ export function MailGmailConnect() {
         Gmail
         <InfoHelp content={brandText('Signs in with your Google account directly. Your email stays on this device and never leaves your machine. Requires the Lantern desktop app.')} />
       </h3>
+      <IntegrationHonestyCard connectorId="email" />
 
       {!connected && (
         <div className="mt-3 space-y-3">

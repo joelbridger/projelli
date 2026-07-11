@@ -21,7 +21,9 @@ import {
   isLocalOnlyModeFailClosed,
 } from '@/platform/privacy/localOnlyGuard';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
-import { sendWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
+import { sendPreparedMessageWithEgressAudit } from '@/platform/privacy/promptPreparation';
+import type { EgressAuditLogger } from '@/platform/privacy/sendWithEgressAudit';
+import { usePromptPreparationDecision } from '@/features/ask/usePromptPreparationDecision';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
@@ -51,6 +53,8 @@ export interface RunOnAllButtonProps {
   onKeep?: (providerId: string, content: string) => void;
   /** Provider used to detect contradictions after all outputs arrive. */
   analysisProvider?: Provider;
+  /** Durable audit sink supplied by the parent chat surface. */
+  onAuditLog?: EgressAuditLogger;
 }
 
 interface PerProviderResult {
@@ -69,7 +73,9 @@ export function RunOnAllButton({
   prompt,
   onKeep,
   analysisProvider,
+  onAuditLog,
 }: RunOnAllButtonProps) {
+  const promptPreparationDialog = usePromptPreparationDecision();
   const [results, setResults] = useState<PerProviderResult[] | null>(null);
   const [analysis, setAnalysis] = useState<ContradictionAnalysis | null>(null);
   const [isRunning, setIsRunning] = useState(false);
@@ -131,17 +137,32 @@ export function RunOnAllButton({
     const settled = await Promise.allSettled(
       active.map(async (p) => {
         const started = Date.now();
-        const response = await sendWithEgressAudit({
+        const response = await sendPreparedMessageWithEgressAudit({
           provider: p.provider,
           providerId: p.id,
           model: p.provider.getMetadata().model,
+          surface: 'run_on_all',
           prompt,
-          modelCall: {
+          ...(onAuditLog ? { onAuditLog } : {}),
+          parts: [{ id: 'prompt', origin: 'typed_question', label: 'Your question', text: prompt }],
+          // Prompt preparation may wait for the advisor's review. Re-check at
+          // the final door after that wait, then tell the shared sender the
+          // equivalent check is complete; cloud adapters still check again.
+          beforeEgress: () => { assertLocalOnlyAllowsExternal('Run on all models'); },
+          preflightChecked: true,
+          modelCall: (modelResponse) => ({
+            action: 'model_call',
             description: `Run on all request to ${p.label}`,
+            model: p.provider.getMetadata().model,
             inputs: { promptLength: prompt.length },
-            outputs: (modelResponse) => ({ contentLength: modelResponse.content.length }),
+            outputs: { contentLength: modelResponse.content.length },
+            userDecision: 'auto',
             metadata: { feature: 'run_on_all', providerLabel: p.label },
-          },
+            tokensIn: modelResponse.usage.inputTokens,
+            tokensOut: modelResponse.usage.outputTokens,
+            costUsd: modelResponse.cost,
+            provider: p.id,
+          }),
         });
         return {
           providerId: p.id,
@@ -180,7 +201,7 @@ export function RunOnAllButton({
         .map((r) => ({ source: r.label, text: r.content }));
       if (outputs.length >= 2) {
         try {
-          const detector = new ContradictionDetector(analysisProvider);
+          const detector = new ContradictionDetector(analysisProvider, onAuditLog);
           const [a, b] = outputs;
           if (a && b) {
             const analysis = await detector.detect(a.text, a.source, b.text, b.source);
@@ -194,12 +215,13 @@ export function RunOnAllButton({
         }
       }
     }
-  }, [prompt, providers, analysisProvider, distinctProviderIds]);
+  }, [prompt, providers, analysisProvider, distinctProviderIds, onAuditLog]);
 
   const totalCost = (results ?? []).reduce((sum, r) => sum + r.cost, 0);
 
   return (
     <div>
+      {promptPreparationDialog}
       <Button
         data-testid="run-on-all-button"
         size="icon"

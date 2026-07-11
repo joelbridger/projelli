@@ -4,7 +4,8 @@ import { matterLabel } from '@/platform/rag/matterResolver';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import type { Provider } from '@/platform/providers/Provider';
 import { resolveAvailableLocalGenerationProvider } from '@/platform/providers/resolveLocalProvider';
-import { sendWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
+import { sendPreparedMessageWithEgressAudit } from '@/platform/privacy/promptPreparation';
+import { modelAuditMetrics } from '@/platform/privacy/sendWithEgressAudit';
 import type { AuditEntry } from '@/platform/types/audit';
 import type { TranscriptFile } from '@/platform/types/meeting';
 import { meetingNoteFromTranscript } from './meetingNoteTemplate';
@@ -89,23 +90,18 @@ export async function generateMeetingNoteMarkdown(
     clientName,
     ...(input.signal ? { signal: input.signal } : {}),
     send: (prompt, options) =>
-      sendWithEgressAudit({
+      sendPreparedMessageWithEgressAudit({
         provider: resolved.provider,
         providerId: resolved.providerId,
         model: resolved.model,
         prompt,
         options,
+        surface: 'meeting_notes',
+        background: true,
+        parts: [{ id: 'prompt', origin: 'meeting', label: 'Meeting transcript', text: prompt }],
         onAuditLog: onMeetingNotesAudit,
         scope: { kind: 'matter', matterId: input.matterId },
-        modelCall: {
-          description: `Meeting notes to ${resolved.model}`,
-          inputs: {
-            matterId: input.matterId,
-            segmentCount: input.transcript.segments.length,
-          },
-          outputs: (response) => ({ contentLength: response.content.length }),
-          metadata: { feature: 'meeting_notes' },
-        },
+        modelCall: (response) => ({ action: 'model_call', description: `Meeting notes to ${resolved.model}`, model: resolved.model, inputs: { matterId: input.matterId, segmentCount: input.transcript.segments.length }, outputs: { contentLength: response.content.length }, userDecision: 'auto', metadata: { feature: 'meeting_notes' }, ...modelAuditMetrics(response), provider: resolved.providerId }),
       }),
   });
 }

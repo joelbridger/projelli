@@ -699,6 +699,18 @@
         "Building the Client Map live takes a moment. Narrate the privacy story (files stay local, you chose the AI) while it works.",
         "Point at the egress indicator in the top bar: it shows exactly where each AI request went, or that nothing left the machine.",
         "End on the cited answer in beat 4. It is the strongest moment: trustworthy AI that knows this specific client."
+      ],
+      "videos": [
+        {
+          "file": "ask-cited-answer-v6.mp4",
+          "title": "Ask a question, get a cited answer",
+          "description": "Ask about one household, then open the exact sources behind the answer."
+        },
+        {
+          "file": "client-map-v6.mp4",
+          "title": "The Client Map",
+          "description": "See a household picture built from its files, with every fact linked to its source."
+        }
       ]
     },
     {

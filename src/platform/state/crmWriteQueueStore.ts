@@ -21,7 +21,11 @@ import {
   type CrmWriteProposalPayload,
   type CrmWriteProposalRecord,
 } from '@/platform/utils/wealthbox-commands';
-import { composeFieldBlend, isWritableField } from '@/platform/state/fieldBlend';
+import {
+  composeFieldBlend,
+  isWritableField,
+  type PreparedFieldBlendRequest,
+} from '@/platform/state/fieldBlend';
 import { useMatterStore } from '@/platform/matter/matterStore';
 
 export type CrmWriteStatus = 'proposed' | 'sending' | 'sent' | 'failed' | 'verify_pending' | 'stale';
@@ -111,7 +115,7 @@ interface CrmWriteQueueState {
       | { send?: undefined }
       // Codex review catch (P2): this must be an audited send function, not a
       // raw provider, so the required egress receipt can't be silently skipped.
-      | { send: (prompt: string) => Promise<string> }
+      | { send: (request: PreparedFieldBlendRequest) => Promise<string> }
     ),
   ) => Promise<void>;
 }

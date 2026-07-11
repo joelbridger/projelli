@@ -17,11 +17,13 @@ import { ProviderError } from './Provider';
 import type { ChatAttachment } from '@/platform/types/ai';
 import { getCorsSafeFetch, safeJsonParse } from './fetchUtils';
 import { assertCloudSendAllowed } from '@/platform/privacy/cloudSendGuard';
+import { assertCloudPreparation } from '@/platform/privacy/promptPreparationGuard';
 import { sanitizeForPrompt } from '@/platform/utils/prompt-security';
 import { applyAssuredRoute, type AssuredRoute } from '@/platform/firm/assuredInference';
 import { isVisionModel } from './vision-capability';
 import { bytesToBase64 } from './providerUtils';
 import { extractPdfText } from '@/lib/pdf-extract';
+import { prepareBackgroundSystemInstruction, prepareToolResultContinuation, scanPromptPart } from '@/platform/privacy/promptPreparation';
 import { getMaxContextTokens } from './context-limits';
 import {
   abortAwareSleep,
@@ -249,8 +251,8 @@ export class OpenAIProvider implements Provider {
       return prompt;
     }
     const parts: OpenAIContentPart[] = [];
-    for (const { att, bytes } of attachmentBytes) {
-      const block = await this.formatAttachmentForRequest(att, bytes);
+    for (const { att, bytes, extractedText } of attachmentBytes) {
+      const block = await this.formatAttachmentForRequest(att, bytes, extractedText);
       if ('_text_extract' in block) {
         // PDF text-extract: inject extracted text as a text part.
         // Prompt-injection defense (Codex injection audit #3): the extracted
@@ -281,12 +283,14 @@ export class OpenAIProvider implements Provider {
   ): Promise<ProviderResponse> {
     // CENTRAL CHOKE: never send to a cloud AI in private mode (fail-closed).
     assertCloudSendAllowed('openai');
+    assertCloudPreparation(options?.preparationStamp, 'openai');
     const messages: OpenAIMessage[] = [];
 
     // Build system prompt with AI Rules prepended if available
     let systemPrompt = options?.systemPrompt || '';
     if (this.aiRules) {
-      systemPrompt = this.aiRules + (systemPrompt ? `\n\n---\n\n${systemPrompt}` : '');
+      const preparedRules = prepareBackgroundSystemInstruction(this.aiRules);
+      systemPrompt = preparedRules + (systemPrompt ? `\n\n---\n\n${systemPrompt}` : '');
     }
 
     if (systemPrompt) {
@@ -364,31 +368,30 @@ export class OpenAIProvider implements Provider {
           messages.push({
             role: 'tool',
             tool_call_id: toolCall.id,
-            content: JSON.stringify({
+            content: prepareToolResultContinuation(JSON.stringify({
               error: `Failed to parse tool arguments JSON: ${
                 parseError instanceof Error ? parseError.message : String(parseError)
               }`,
-            }),
+            })),
           });
           continue;
         }
 
+        let toolResult: string;
         try {
-          const result = await this.toolExecutor(toolName, params);
-          messages.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            content: JSON.stringify(result),
-          });
+          toolResult = JSON.stringify(await this.toolExecutor(toolName, params));
         } catch (error) {
-          messages.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            content: JSON.stringify({
-              error: error instanceof Error ? error.message : String(error),
-            }),
+          toolResult = JSON.stringify({
+            error: error instanceof Error ? error.message : String(error),
           });
         }
+        // Keep this outside the executor catch: a preparation block must stop
+        // the whole continuation, never become a model-visible tool error.
+        messages.push({
+          role: 'tool',
+          tool_call_id: toolCall.id,
+          content: prepareToolResultContinuation(toolResult),
+        });
       }
 
       // Send follow-up request with tool results attached
@@ -427,13 +430,15 @@ export class OpenAIProvider implements Provider {
   ): Promise<ProviderResponse> {
     // CENTRAL CHOKE: never send to a cloud AI in private mode (fail-closed).
     assertCloudSendAllowed('openai');
+    assertCloudPreparation(options.preparationStamp, 'openai');
     const { onChunk, signal, ...sendOpts } = options;
 
     const messages: OpenAIMessage[] = [];
 
     let systemPrompt = sendOpts.systemPrompt || '';
     if (this.aiRules) {
-      systemPrompt = this.aiRules + (systemPrompt ? `\n\n---\n\n${systemPrompt}` : '');
+      const preparedRules = prepareBackgroundSystemInstruction(this.aiRules);
+      systemPrompt = preparedRules + (systemPrompt ? `\n\n---\n\n${systemPrompt}` : '');
     }
     if (systemPrompt) {
       messages.push({ role: 'system', content: systemPrompt });
@@ -585,6 +590,7 @@ export class OpenAIProvider implements Provider {
   ): Promise<T> {
     // CENTRAL CHOKE: never send to a cloud AI in private mode (fail-closed).
     assertCloudSendAllowed('openai');
+    assertCloudPreparation(options.preparationStamp, 'openai');
     // Build a prompt that requests JSON output
     const structuredPrompt = `${prompt}
 
@@ -766,9 +772,11 @@ Respond ONLY with the JSON object.`;
    */
   async formatAttachmentForRequest(
     att: ChatAttachment,
-    bytes: Uint8Array
+    bytes: Uint8Array,
+    extractedText?: string,
   ): Promise<ProviderContentBlock> {
     if (att.type === 'image') {
+      requireScannableAttachment(att, extractedText);
       const data = bytesToBase64(bytes);
       return {
         type: 'image_url',
@@ -777,12 +785,11 @@ Respond ONLY with the JSON object.`;
     }
 
     if (att.type === 'pdf') {
-      const result = await extractPdfText(bytes);
-      const text = result.pages.join('\n\n');
+      const { text, pageCount } = await readScannablePdf(att, bytes);
       return {
         _text_extract: {
           text,
-          pageCount: result.pageCount,
+          pageCount,
           fileName: att.fileName,
         },
       } satisfies TextExtractBlock;
@@ -811,6 +818,39 @@ Respond ONLY with the JSON object.`;
   supportsNativePdf(_model: string): boolean {
     return false;
   }
+}
+
+function requireScannableAttachment(att: ChatAttachment, extractedText?: string): void {
+  const scan = scanPromptPart({
+    id: 'attachment',
+    origin: 'attachment_binary',
+    label: att.fileName,
+    attachment: { canRedact: false, ...(extractedText !== undefined ? { extractedText } : {}) },
+  });
+  if (scan.blocked) throw new Error('unscannable_attachment');
+  if (scan.findings.length) throw new Error('prompt_review_required');
+}
+
+async function readScannablePdf(
+  att: ChatAttachment,
+  bytes: Uint8Array,
+): Promise<{ text: string; pageCount: number }> {
+  let result: Awaited<ReturnType<typeof extractPdfText>>;
+  try {
+    result = await extractPdfText(bytes);
+  } catch {
+    throw new Error('unscannable_attachment');
+  }
+  const text = result.pages.join('\n\n');
+  const scan = scanPromptPart({
+    id: 'attachment',
+    origin: 'attachment_text',
+    label: att.fileName,
+    attachment: { extractedText: text, canRedact: false },
+  });
+  if (scan.blocked) throw new Error('unscannable_attachment');
+  if (scan.findings.length) throw new Error('prompt_review_required');
+  return { text, pageCount: result.pageCount };
 }
 
 /**
