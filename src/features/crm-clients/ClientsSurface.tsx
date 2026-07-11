@@ -108,7 +108,7 @@ export function ClientsSurface({
       ...household,
       id: household.id,
       kind: 'household',
-      matterId: previous?.matterId ?? household.id,
+      matterId: previous?.matterId ?? live.sharedMatterId ?? household.id,
     };
     delete (persisted as Partial<StoredHousehold>)['syncState'];
     delete (persisted as Partial<StoredHousehold>)['lastSyncedAt'];
@@ -149,7 +149,7 @@ export function ClientsSurface({
         await live.save({
           id,
           kind: 'household',
-          matterId: id,
+          matterId: live.sharedMatterId ?? id,
           name,
           lifecycle: 'Active',
           primaryAdvisor: 'Unassigned',

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+import { useMatterStore } from '@/platform/matter/matterStore';
 import {
   getCrmEngineFreshness,
   subscribeCrmEngineFreshness,
@@ -10,10 +11,19 @@ import {
   saveLiveCrmRecord,
   type LiveCrmRecord,
 } from './liveRecords';
+import {
+  ensureLiveRecordRelay,
+  publishLiveRecord,
+  stopLiveRecordRelay,
+} from './liveRecordRelay';
 
 /** Keeps a mounted CRM screen in step with the encrypted record store. */
 export function useLiveCrmRecords() {
   const workspaceRoot = useWorkspaceStore((state) => state.rootPath);
+  const sharedMatterId = useMatterStore((state) => {
+    const active = state.matters.find((matter) => matter.id === state.activeMatterId);
+    return active?.shared && active.firmMatterId ? active.firmMatterId : null;
+  });
   const [records, setRecords] = useState<readonly LiveCrmRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [freshness, setFreshness] = useState<CrmEngineFreshness>(
@@ -29,13 +39,30 @@ export function useLiveCrmRecords() {
     }
   }, [workspaceRoot]);
   useEffect(() => { void reload(); }, [reload]);
+  useEffect(() => {
+    if (!sharedMatterId || !workspaceRoot) {
+      stopLiveRecordRelay();
+      return;
+    }
+    let cancelled = false;
+    void ensureLiveRecordRelay(sharedMatterId, async (record) => {
+      if (cancelled) return;
+      await saveLiveCrmRecord(workspaceRoot, record);
+      if (!cancelled) await reload();
+    });
+    return () => { cancelled = true; };
+  }, [reload, sharedMatterId, workspaceRoot]);
   const save = useCallback(async (record: LiveCrmRecord) => {
-    const saved = await saveLiveCrmRecord(workspaceRoot, record);
+    const scoped = sharedMatterId && (!record.matterId || record.matterId === 'firm')
+      ? { ...record, matterId: sharedMatterId }
+      : record;
+    const saved = await saveLiveCrmRecord(workspaceRoot, scoped);
     setRecords((current) => {
       const exists = current.some((item) => item.id === saved.id);
       return exists ? current.map((item) => item.id === saved.id ? saved : item) : [...current, saved];
     });
+    publishLiveRecord(saved);
     return saved;
-  }, [workspaceRoot]);
-  return { records, save, reload, error, workspaceRoot, freshness };
+  }, [sharedMatterId, workspaceRoot]);
+  return { records, save, reload, error, workspaceRoot, freshness, sharedMatterId };
 }

@@ -24,10 +24,14 @@
 //      DESKTOP_CDP_HOSTS comma-list is optional; defaults to 127.0.0.1,localhost,[::1].
 import { chromium } from 'playwright';
 
-const PORT = process.env.DESKTOP_CDP_PORT || '9223';
 // The Tauri debug bridge port. Overridable (matching the app's
 // LANTERN_DEV_BRIDGE_PORT) so several app instances can be driven side by side.
 const BRIDGE_PORT = process.env.LANTERN_DEV_BRIDGE_PORT || '9250';
+// In Linux bridge mode callers set LANTERN_DEV_BRIDGE_PORT for BOTH the app
+// and this driver.  Keep DESKTOP_CDP_PORT as an explicit override for the
+// Windows CDP path, but never silently dial its old 9223 default after a
+// caller has selected a bridge port.
+const PORT = process.env.DESKTOP_CDP_PORT || BRIDGE_PORT;
 const CDP_HOSTS = (process.env.DESKTOP_CDP_HOSTS || process.env.DESKTOP_CDP_HOST || '127.0.0.1,localhost,[::1]')
   .split(',')
   .map((host) => host.trim())
