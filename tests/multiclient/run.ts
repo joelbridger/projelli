@@ -13,7 +13,6 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
 import type { Readable } from 'node:stream';
 import * as Y from 'yjs';
 import { MatterDocSyncClient } from '@/platform/firm/coedit/MatterDocSyncClient';
@@ -27,22 +26,22 @@ import type {
 import type { WebSocketLike } from '@/platform/firm/MatterSyncClient';
 
 /** Six seats is the frozen small-RIA campaign scenario (§2). */
-const CLIENT_COUNT = 6;
-const TIMEOUT_MS = 12_000;
-const POLL_MS = 20;
+export const CLIENT_COUNT = 6;
+export const TIMEOUT_MS = 12_000;
+export const POLL_MS = 20;
 type RelayProcess = ChildProcessByStdio<null, Readable, Readable>;
 
-interface JsonResponse {
+export interface JsonResponse {
   [key: string]: unknown;
 }
 
-interface Identity {
+export interface Identity {
   readonly accessToken: string;
   readonly seatToken: string;
   readonly userId: string;
 }
 
-interface HeadlessClient {
+export interface HeadlessClient {
   readonly name: string;
   readonly doc: Y.Doc;
   readonly sync: MatterDocSyncClient;
@@ -56,7 +55,7 @@ interface ScenarioReport {
   readonly issuedEdits: number;
 }
 
-class RelayHttpClient {
+export class RelayHttpClient {
   constructor(
     private readonly baseUrl: string,
     private readonly accessToken: string
@@ -142,7 +141,7 @@ function assertPresent<T>(value: T | undefined | null, label: string): T {
   return value;
 }
 
-async function jsonRequest(
+export async function jsonRequest(
   baseUrl: string,
   pathname: string,
   body: unknown,
@@ -164,7 +163,7 @@ async function jsonRequest(
   return json;
 }
 
-async function reservePort(): Promise<number> {
+export async function reservePort(): Promise<number> {
   return new Promise((resolve, reject) => {
     const server = createServer();
     server.once('error', reject);
@@ -180,7 +179,7 @@ async function reservePort(): Promise<number> {
   });
 }
 
-async function waitForRelay(
+export async function waitForRelay(
   baseUrl: string,
   process: RelayProcess,
   output: () => string
@@ -205,7 +204,7 @@ async function waitForRelay(
   );
 }
 
-function startRelay(
+export function startRelay(
   port: number,
   dataDir: string
 ): { process: RelayProcess; output: () => string } {
@@ -234,7 +233,7 @@ function startRelay(
   return { process: child, output: () => lines.join('').trim() };
 }
 
-async function stopRelay(process: RelayProcess): Promise<void> {
+export async function stopRelay(process: RelayProcess): Promise<void> {
   if (process.exitCode !== null) return;
   process.kill('SIGTERM');
   await new Promise<void>((resolve) => {
@@ -249,11 +248,11 @@ async function stopRelay(process: RelayProcess): Promise<void> {
   });
 }
 
-function pause(ms: number): Promise<void> {
+export function pause(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function until(label: string, predicate: () => boolean): Promise<void> {
+export async function until(label: string, predicate: () => boolean): Promise<void> {
   const deadline = Date.now() + TIMEOUT_MS;
   while (Date.now() < deadline) {
     if (predicate()) return;
@@ -262,7 +261,7 @@ async function until(label: string, predicate: () => boolean): Promise<void> {
   throw new Error(`Timed out waiting for ${label}.`);
 }
 
-function materializedState(doc: Y.Doc): string {
+export function materializedState(doc: Y.Doc): string {
   const content = doc.getMap<unknown>('shared-document');
   return JSON.stringify(
     Object.fromEntries(
@@ -271,7 +270,7 @@ function materializedState(doc: Y.Doc): string {
   );
 }
 
-function stateHash(value: string): string {
+export function stateHash(value: string): string {
   let hash = 2_166_136_261;
   for (let i = 0; i < value.length; i += 1) {
     hash ^= value.charCodeAt(i);
@@ -280,10 +279,10 @@ function stateHash(value: string): string {
   return (hash >>> 0).toString(16).padStart(8, '0');
 }
 
-async function createFirm(
+export async function createFirm(
   baseUrl: string
-): Promise<{ matterId: string; identities: Identity[] }> {
-  const runId = randomUUID();
+): Promise<{ matterId: string; identities: Identity[]; adminAccessToken: string; orgId: string }> {
+  const runId = 'six-seat-fixture';
   const password = 'harness-member-password-123';
   const provision = await jsonRequest(baseUrl, '/admin/org', {
     name: `Harness Firm ${runId}`,
@@ -374,7 +373,8 @@ async function createFirm(
       adminAccess
     );
   }
-  return { matterId, identities };
+  const orgId = assertPresent((JSON.parse(Buffer.from(adminAccess.split('.')[1] ?? '', 'base64url').toString('utf8')) as JsonResponse)['org_id'] as string | undefined, 'the organization id');
+  return { matterId, identities, adminAccessToken: adminAccess, orgId };
 }
 
 function localSocketFactory(baseUrl: string): (url: string) => WebSocketLike {
@@ -387,7 +387,7 @@ function localSocketFactory(baseUrl: string): (url: string) => WebSocketLike {
   };
 }
 
-async function createHeadlessClients(
+export async function createHeadlessClients(
   baseUrl: string,
   matterId: string,
   identities: readonly Identity[]
@@ -595,7 +595,7 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((error: unknown) => {
+if (import.meta.main) main().catch((error: unknown) => {
   const message =
     error instanceof Error ? (error.stack ?? error.message) : String(error);
   console.error('MULTICLIENT HARNESS: FAIL');
