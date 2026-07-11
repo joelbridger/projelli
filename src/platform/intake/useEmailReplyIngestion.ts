@@ -3,7 +3,7 @@ import { isTauri } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 
 import type { Provider } from '@/platform/providers/Provider';
-import { runWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
+import { sendPreparedStructuredWithEgressAudit } from './intakeAiPreparedSend';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { EMAIL_REPLY_AI_CLASSIFICATION_SETTING_KEY } from '@/platform/settings/schema';
 
@@ -134,8 +134,7 @@ async function enqueueCandidate(
       const resolved = await deps.resolveEmailProvider();
       modelConfidence = async (prompt) => {
         try {
-          // W3-LANE2-FIX2-EGRESS-WRAPPED
-          return await runWithEgressAudit({
+          return await sendPreparedStructuredWithEgressAudit({
             provider: resolved.provider,
             providerId: resolved.providerId,
             model: resolved.provider.getMetadata().model,
@@ -144,11 +143,14 @@ async function enqueueCandidate(
             onAuditLog: (entry) => {
               void logIntakeEmailReplyAudit(entry);
             },
-            operation: () => resolved.provider.structuredOutput(prompt, {
+            surface: 'intake_email_reply_confidence',
+            prompt,
+            background: true,
+            options: {
               schema: EMAIL_REPLY_CONFIDENCE_SCHEMA,
               temperature: 0,
               maxTokens: 180,
-            }),
+            },
             modelCall: () => ({
               action: 'model_call',
               description: 'Classified the confidence of an email reply.',

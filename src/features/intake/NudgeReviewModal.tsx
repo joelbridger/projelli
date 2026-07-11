@@ -28,7 +28,7 @@ import {
   draftStructuredOutputOptions,
   type RawDraftResponse,
 } from '@/features/email/followUpDraft';
-import { runWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
+import { sendPreparedStructuredWithEgressAudit } from '@/platform/intake/intakeAiPreparedSend';
 import { sanitizeForPrompt } from '@/platform/utils/prompt-security';
 import { logIntakeNudgeAudit } from '@/platform/intake/nudgeAudit';
 import { Button, IconButton } from '@/ui/kp';
@@ -206,17 +206,16 @@ export function NudgeReviewModal({
     void Promise.resolve()
       .then(async () => {
         const resolved = await resolveEmailProvider();
-        const response = await runWithEgressAudit<RawDraftResponse>({
+        const prompt = buildRewritePrompt(activeDraft, body);
+        const response = await sendPreparedStructuredWithEgressAudit<RawDraftResponse>({
           provider: resolved.provider,
           providerId: resolved.providerId,
           assuredAvailable: resolved.assuredAvailable,
           scope: { kind: 'matter', matterId: currentIntake.matterId },
           onAuditLog: logIntakeNudgeAudit,
-          operation: () =>
-            resolved.provider.structuredOutput<RawDraftResponse>(
-              buildRewritePrompt(activeDraft, body),
-              draftStructuredOutputOptions,
-            ),
+          surface: 'intake_nudge_rewrite',
+          prompt,
+          options: draftStructuredOutputOptions,
         });
         const rewritten = responseBody(response);
         setBody(enforceNudgeBodyInvariants(rewritten || body, activeDraft));
