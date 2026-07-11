@@ -65,6 +65,28 @@ impl GmailClient {
         .await
     }
 
+    fn body_policy_operation(
+        &self,
+    ) -> anyhow::Result<(
+        crate::network_policy::NetworkPolicy,
+        crate::network_policy::EgressOperation,
+    )> {
+        if let Some((policy, operation)) = self.network_policy.as_ref() {
+            return Ok((policy.clone(), operation.clone()));
+        }
+        #[cfg(test)]
+        {
+            return Ok((
+                crate::network_policy::NetworkPolicy::load_from_directory(
+                    &tempfile::tempdir()?.keep(),
+                ),
+                crate::network_policy::LOCAL_LLAMA,
+            ));
+        }
+        #[cfg(not(test))]
+        anyhow::bail!("GmailClient requires a NetworkPolicy before it can read a response")
+    }
+
     /// GET an absolute URL, honoring 429/Retry-After with capped backoff.
     /// Up to 8 attempts before giving up. On non-2xx: logs locally, returns
     /// status-only error (never echoes body to caller).
@@ -83,7 +105,13 @@ impl GmailClient {
                 continue;
             }
             let status = resp.status();
-            let body = resp.text().await?;
+            let (body_policy, body_operation) = self.body_policy_operation()?;
+            let body_url = resp.url().as_str().to_string();
+            let body_grant = crate::commands::connector_network::authorize_url(&body_policy, &body_operation, &body_url)?;
+            let body = crate::commands::connector_network::await_authorized(&body_policy, &body_grant, async {
+                Ok(resp.text().await?)
+            })
+            .await?;
             if !status.is_success() {
                 // Never surface the raw Gmail response body to the caller/UI
                 // (or the log): it can carry mailbox addresses or other PII.
@@ -254,7 +282,13 @@ impl GmailClient {
                 continue;
             }
             let status = resp.status();
-            let body_text = resp.text().await?;
+            let (body_policy, body_operation) = self.body_policy_operation()?;
+            let body_url = resp.url().as_str().to_string();
+            let body_grant = crate::commands::connector_network::authorize_url(&body_policy, &body_operation, &body_url)?;
+            let body_text = crate::commands::connector_network::await_authorized(&body_policy, &body_grant, async {
+                Ok(resp.text().await?)
+            })
+            .await?;
             if !status.is_success() {
                 // Never surface the raw Gmail response body to the caller/UI
                 // (or the log): it can carry mailbox addresses or other PII.

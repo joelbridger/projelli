@@ -119,6 +119,28 @@ impl GraphClient {
         .await
     }
 
+    fn body_policy_operation(
+        &self,
+    ) -> anyhow::Result<(
+        crate::network_policy::NetworkPolicy,
+        crate::network_policy::EgressOperation,
+    )> {
+        if let Some((policy, operation)) = self.network_policy.as_ref() {
+            return Ok((policy.clone(), operation.clone()));
+        }
+        #[cfg(test)]
+        {
+            return Ok((
+                crate::network_policy::NetworkPolicy::load_from_directory(
+                    &tempfile::tempdir()?.keep(),
+                ),
+                crate::network_policy::LOCAL_LLAMA,
+            ));
+        }
+        #[cfg(not(test))]
+        anyhow::bail!("GraphClient requires a NetworkPolicy before it can read a response")
+    }
+
     async fn bearer_token(&self) -> String {
         self.token.lock().await.clone()
     }
@@ -226,7 +248,13 @@ impl GraphClient {
                     continue;
                 }
             }
-            let body = resp.text().await?;
+            let (body_policy, body_operation) = self.body_policy_operation()?;
+            let body_url = resp.url().as_str().to_string();
+            let body_grant = crate::commands::connector_network::authorize_url(&body_policy, &body_operation, &body_url)?;
+            let body = crate::commands::connector_network::await_authorized(&body_policy, &body_grant, async {
+                Ok(resp.text().await?)
+            })
+            .await?;
             if status.as_u16() == 410 {
                 log::warn!(
                     "graph request failed: url={} status={} {}",
@@ -285,7 +313,13 @@ impl GraphClient {
                 }
             }
             if !status.is_success() {
-                let body = resp.text().await?;
+                let (body_policy, body_operation) = self.body_policy_operation()?;
+                let body_url = resp.url().as_str().to_string();
+                let body_grant = crate::commands::connector_network::authorize_url(&body_policy, &body_operation, &body_url)?;
+                let body = crate::commands::connector_network::await_authorized(&body_policy, &body_grant, async {
+                    Ok(resp.text().await?)
+                })
+                .await?;
                 log::warn!(
                     "graph byte request failed: url={} status={} {}",
                     redact_url(url),
@@ -297,7 +331,14 @@ impl GraphClient {
                 }
                 anyhow::bail!("Microsoft Graph request failed (HTTP {})", status);
             }
-            return Ok(resp.bytes().await?.to_vec());
+            let (body_policy, body_operation) = self.body_policy_operation()?;
+            let body_url = resp.url().as_str().to_string();
+            let body_grant = crate::commands::connector_network::authorize_url(&body_policy, &body_operation, &body_url)?;
+            let bytes = crate::commands::connector_network::await_authorized(&body_policy, &body_grant, async {
+                Ok(resp.bytes().await?)
+            })
+            .await?;
+            return Ok(bytes.to_vec());
         }
     }
 
@@ -387,7 +428,13 @@ impl GraphClient {
                 // sendMail returns 202 Accepted with an empty body.
                 return Ok(serde_json::json!({}));
             }
-            let body_text = resp.text().await?;
+            let (body_policy, body_operation) = self.body_policy_operation()?;
+            let body_url = resp.url().as_str().to_string();
+            let body_grant = crate::commands::connector_network::authorize_url(&body_policy, &body_operation, &body_url)?;
+            let body_text = crate::commands::connector_network::await_authorized(&body_policy, &body_grant, async {
+                Ok(resp.text().await?)
+            })
+            .await?;
             if !status.is_success() {
                 log::warn!(
                     "graph POST failed: url={} status={} {}",
@@ -495,7 +542,13 @@ impl GraphClient {
                     continue;
                 }
             }
-            let body_text = resp.text().await?;
+            let (body_policy, body_operation) = self.body_policy_operation()?;
+            let body_url = resp.url().as_str().to_string();
+            let body_grant = crate::commands::connector_network::authorize_url(&body_policy, &body_operation, &body_url)?;
+            let body_text = crate::commands::connector_network::await_authorized(&body_policy, &body_grant, async {
+                Ok(resp.text().await?)
+            })
+            .await?;
             if !status.is_success() {
                 log::warn!(
                     "graph PATCH failed: url={} status={} {}",

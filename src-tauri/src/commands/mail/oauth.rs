@@ -81,7 +81,14 @@ pub async fn ms_exchange_code(
         .await?;
 
     let status = resp.status().as_u16();
-    let v: serde_json::Value = resp.json().await?;
+    let body_url = resp.url().as_str().to_string();
+    let body_grant = crate::commands::connector_network::authorize_url(policy, operation, &body_url)?;
+    let v: serde_json::Value = crate::commands::connector_network::await_authorized(
+        policy,
+        &body_grant,
+        async { Ok(resp.json().await?) },
+    )
+    .await?;
     parse_ms_token_response(status, &v)
 }
 
@@ -175,18 +182,47 @@ impl OAuth {
         })
         .await
     }
+
+    fn body_policy_operation(
+        &self,
+    ) -> anyhow::Result<(
+        crate::network_policy::NetworkPolicy,
+        crate::network_policy::EgressOperation,
+    )> {
+        if let Some((policy, operation)) = self.network_policy.as_ref() {
+            return Ok((policy.clone(), operation.clone()));
+        }
+        #[cfg(test)]
+        {
+            return Ok((
+                crate::network_policy::NetworkPolicy::load_from_directory(
+                    &tempfile::tempdir()?.keep(),
+                ),
+                crate::network_policy::LOCAL_LLAMA,
+            ));
+        }
+        #[cfg(not(test))]
+        anyhow::bail!("mail OAuth requires a NetworkPolicy before it can read a response")
+    }
     pub async fn request_device_code(&self) -> anyhow::Result<DeviceCode> {
         let url = format!("{}/common/oauth2/v2.0/devicecode", self.base);
-        let v: serde_json::Value = self
+        let resp = self
             .send(
                 &url,
                 self.http
                     .post(&url)
                     .form(&[("client_id", self.client_id.as_str()), ("scope", SCOPES)]),
             )
-            .await?
-            .json()
             .await?;
+        let (body_policy, body_operation) = self.body_policy_operation()?;
+        let body_url = resp.url().as_str().to_string();
+        let body_grant = crate::commands::connector_network::authorize_url(&body_policy, &body_operation, &body_url)?;
+        let v: serde_json::Value = crate::commands::connector_network::await_authorized(
+            &body_policy,
+            &body_grant,
+            async { Ok(resp.json().await?) },
+        )
+        .await?;
         DeviceCode::from_json(&v).ok_or_else(|| anyhow::anyhow!("bad devicecode response"))
     }
     /// Poll the token endpoint once. Caller loops on Pending/SlowDown.
@@ -203,7 +239,15 @@ impl OAuth {
             )
             .await?;
         let status = resp.status().as_u16();
-        let v: serde_json::Value = resp.json().await?;
+        let (body_policy, body_operation) = self.body_policy_operation()?;
+        let body_url = resp.url().as_str().to_string();
+        let body_grant = crate::commands::connector_network::authorize_url(&body_policy, &body_operation, &body_url)?;
+        let v: serde_json::Value = crate::commands::connector_network::await_authorized(
+            &body_policy,
+            &body_grant,
+            async { Ok(resp.json().await?) },
+        )
+        .await?;
         Ok(TokenOutcome::from_json(status, &v))
     }
     /// Exchange a stored refresh token for a fresh access token.
@@ -221,7 +265,15 @@ impl OAuth {
             )
             .await?;
         let status = resp.status().as_u16();
-        let v: serde_json::Value = resp.json().await?;
+        let (body_policy, body_operation) = self.body_policy_operation()?;
+        let body_url = resp.url().as_str().to_string();
+        let body_grant = crate::commands::connector_network::authorize_url(&body_policy, &body_operation, &body_url)?;
+        let v: serde_json::Value = crate::commands::connector_network::await_authorized(
+            &body_policy,
+            &body_grant,
+            async { Ok(resp.json().await?) },
+        )
+        .await?;
         Ok(TokenOutcome::from_json(status, &v))
     }
 }

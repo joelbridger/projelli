@@ -226,6 +226,28 @@ impl GoogleOAuth {
         .await
     }
 
+    fn body_policy_operation(
+        &self,
+    ) -> anyhow::Result<(
+        crate::network_policy::NetworkPolicy,
+        crate::network_policy::EgressOperation,
+    )> {
+        if let Some((policy, operation)) = self.network_policy.as_ref() {
+            return Ok((policy.clone(), operation.clone()));
+        }
+        #[cfg(test)]
+        {
+            return Ok((
+                crate::network_policy::NetworkPolicy::load_from_directory(
+                    &tempfile::tempdir()?.keep(),
+                ),
+                crate::network_policy::LOCAL_LLAMA,
+            ));
+        }
+        #[cfg(not(test))]
+        anyhow::bail!("Google OAuth requires a NetworkPolicy before it can read a response")
+    }
+
     /// Exchange an authorization code (plus PKCE verifier) for tokens.
     /// Google requires client_secret for Desktop-type OAuth clients even with PKCE.
     pub async fn exchange_code(
@@ -245,7 +267,15 @@ impl GoogleOAuth {
             ]))
             .await?;
         let status = resp.status().as_u16();
-        let v: serde_json::Value = resp.json().await?;
+        let (body_policy, body_operation) = self.body_policy_operation()?;
+        let body_url = resp.url().as_str().to_string();
+        let body_grant = crate::commands::connector_network::authorize_url(&body_policy, &body_operation, &body_url)?;
+        let v: serde_json::Value = crate::commands::connector_network::await_authorized(
+            &body_policy,
+            &body_grant,
+            async { Ok(resp.json().await?) },
+        )
+        .await?;
         parse_token_response(status, &v)
     }
 
@@ -261,7 +291,15 @@ impl GoogleOAuth {
             ]))
             .await?;
         let status = resp.status().as_u16();
-        let v: serde_json::Value = resp.json().await?;
+        let (body_policy, body_operation) = self.body_policy_operation()?;
+        let body_url = resp.url().as_str().to_string();
+        let body_grant = crate::commands::connector_network::authorize_url(&body_policy, &body_operation, &body_url)?;
+        let v: serde_json::Value = crate::commands::connector_network::await_authorized(
+            &body_policy,
+            &body_grant,
+            async { Ok(resp.json().await?) },
+        )
+        .await?;
         parse_token_response(status, &v)
     }
 }

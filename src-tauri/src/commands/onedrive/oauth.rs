@@ -89,7 +89,18 @@ pub async fn ms_exchange_code(
         .await?;
 
     let status = resp.status().as_u16();
-    let v: serde_json::Value = resp.json().await?;
+    let body_url = resp.url().as_str().to_string();
+    let body_grant = crate::commands::connector_network::authorize_url(
+        policy,
+        &crate::network_policy::ONEDRIVE_OAUTH,
+        &body_url,
+    )?;
+    let v: serde_json::Value = crate::commands::connector_network::await_authorized(
+        policy,
+        &body_grant,
+        async { Ok(resp.json().await?) },
+    )
+    .await?;
     parse_ms_token_response(status, &v)
 }
 
@@ -174,16 +185,26 @@ impl OAuth {
 
     pub async fn request_device_code(&self) -> anyhow::Result<DeviceCode> {
         let url = format!("{}/common/oauth2/v2.0/devicecode", self.base);
-        let v: serde_json::Value = self
+        let resp = self
             .send(
                 &url,
                 self.http
                     .post(&url)
                     .form(&[("client_id", self.client_id.as_str()), ("scope", SCOPES)]),
             )
-            .await?
-            .json()
             .await?;
+        let body_url = resp.url().as_str().to_string();
+        let body_grant = crate::commands::connector_network::authorize_url(
+            &self.policy,
+            &crate::network_policy::ONEDRIVE_OAUTH,
+            &body_url,
+        )?;
+        let v: serde_json::Value = crate::commands::connector_network::await_authorized(
+            &self.policy,
+            &body_grant,
+            async { Ok(resp.json().await?) },
+        )
+        .await?;
         DeviceCode::from_json(&v).ok_or_else(|| anyhow::anyhow!("bad devicecode response"))
     }
 
@@ -200,7 +221,18 @@ impl OAuth {
             )
             .await?;
         let status = resp.status().as_u16();
-        let v: serde_json::Value = resp.json().await?;
+        let body_url = resp.url().as_str().to_string();
+        let body_grant = crate::commands::connector_network::authorize_url(
+            &self.policy,
+            &crate::network_policy::ONEDRIVE_OAUTH,
+            &body_url,
+        )?;
+        let v: serde_json::Value = crate::commands::connector_network::await_authorized(
+            &self.policy,
+            &body_grant,
+            async { Ok(resp.json().await?) },
+        )
+        .await?;
         Ok(TokenOutcome::from_json(status, &v))
     }
 
@@ -218,7 +250,18 @@ impl OAuth {
             )
             .await?;
         let status = resp.status().as_u16();
-        let v: serde_json::Value = resp.json().await?;
+        let body_url = resp.url().as_str().to_string();
+        let body_grant = crate::commands::connector_network::authorize_url(
+            &self.policy,
+            &crate::network_policy::ONEDRIVE_OAUTH,
+            &body_url,
+        )?;
+        let v: serde_json::Value = crate::commands::connector_network::await_authorized(
+            &self.policy,
+            &body_grant,
+            async { Ok(resp.json().await?) },
+        )
+        .await?;
         Ok(TokenOutcome::from_json(status, &v))
     }
 }
