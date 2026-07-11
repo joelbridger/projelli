@@ -2,7 +2,7 @@
 // Identifies contradictions between model outputs
 
 import type { Provider, StructuredOutputOptions, OutputSchema } from '@/platform/providers/Provider';
-import { runWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
+import { sendPreparedStructuredWithEgressAudit } from '@/platform/privacy/promptPreparation';
 
 /**
  * A detected contradiction between two statements
@@ -117,7 +117,7 @@ For implicit contradictions, the statements must logically conflict even if not 
     };
 
     const metadata = this.provider.getMetadata();
-    const result = await runWithEgressAudit<{
+    const result = await sendPreparedStructuredWithEgressAudit<{
       contradictions: Array<{
         statement1: string;
         statement2: string;
@@ -133,20 +133,13 @@ For implicit contradictions, the statements must logically conflict even if not 
       provider: this.provider,
       providerId: metadata.providerId ?? 'unknown',
       model: metadata.model,
-      operation: () =>
-        this.provider.structuredOutput<{
-          contradictions: Array<{
-            statement1: string;
-            statement2: string;
-            type: string;
-            severity: string;
-            explanation: string;
-            suggestedResolution?: string;
-          }>;
-          agreementScore: number;
-          keyDisagreements: string[];
-          keyAgreements: string[];
-        }>(prompt, structuredOptions),
+      surface: 'contradiction_analysis',
+      prompt,
+      options: structuredOptions,
+      parts: [
+        { id: 'source-one', origin: 'chat_history', label: 'First answer', text: text1 },
+        { id: 'source-two', origin: 'chat_history', label: 'Second answer', text: text2 },
+      ],
     });
 
     // Map and filter contradictions

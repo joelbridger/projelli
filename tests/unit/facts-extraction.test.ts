@@ -23,6 +23,7 @@ import {
 } from '@/platform/rag/factsExtraction';
 import type { ChatMessage } from '@/platform/types/ai';
 import type { Provider, ProviderMetadata } from '@/platform/providers/Provider';
+import { SECRET_SCRUB_FIXTURES } from '@/platform/privacy/promptPreparation.fixtures';
 
 function makeProvider(
   behavior: (prompt: string) => Promise<unknown> | unknown,
@@ -168,6 +169,27 @@ describe('runExtraction — error-silent-skip', () => {
     }));
     const proposals = await runExtraction(provider, MESSAGES, AUDIT);
     expect(proposals[0]?.text).toBe('has a dog named Scout');
+  });
+
+  it('blocks private material in this background task before the provider sees it', async () => {
+    const structuredOutput = vi.fn(async () => ({ facts: [{ text: 'should not arrive' }] }));
+    const provider = {
+      ...makeProvider(() => ({ facts: [] })),
+      structuredOutput,
+    } as Provider;
+    const audit = vi.fn();
+    const messages = [{ role: 'user' as const, content: SECRET_SCRUB_FIXTURES.urls, timestamp: 't' }];
+
+    await expect(runExtraction(provider, messages, { ...AUDIT, onAuditLog: audit })).resolves.toEqual([]);
+
+    expect(structuredOutput).not.toHaveBeenCalled();
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'prompt_preparation',
+      metadata: expect.objectContaining({
+        decision: 'blocked',
+        categories: expect.arrayContaining([expect.objectContaining({ kind: 'intake_link_secret', count: 1 })]),
+      }),
+    }));
   });
 });
 

@@ -11,7 +11,7 @@ import {
 } from '@/platform/matter/matterAtAGlance';
 import { assertLocalOnlyAllowsSend } from '@/platform/privacy/localOnlyGuard';
 import { isLocalProvider } from '@/platform/privacy/egress';
-import { sendWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
+import { sendPreparedMessageWithEgressAudit } from '@/platform/privacy/promptPreparation';
 import { getFileAccessConsent } from '@/platform/state/aiChatStore';
 import { fileToolsAllowed } from '@/platform/ai/fileAccessConsent';
 import { IS_DEMO } from '@/web-demo/demoModeFlag';
@@ -82,20 +82,32 @@ export async function runWholePracticeAsk(
       throw new WholePracticeConsentRequiredError();
     }
   }
-  const response = await sendWithEgressAudit({
+  const response = await sendPreparedMessageWithEgressAudit({
     provider: resolved.provider,
     providerId: resolved.providerId,
     model: resolved.model,
+    surface: 'whole_practice_ask',
     prompt: userMessage,
     options: sendOpts,
+    parts: [
+      { id: 'prompt', origin: 'typed_question', label: 'Your question', text: question },
+      { id: 'client-map', origin: 'client_map', label: 'Client Map summaries', text: systemPrompt },
+    ],
     ...(options?.onAuditLog ? { onAuditLog: options.onAuditLog } : {}),
     scope: { kind: 'allMatters' },
-    modelCall: {
+    modelCall: (modelResponse) => ({
+      action: 'model_call',
       description: `Whole-practice question to ${resolved.model} (summaries only, ${String(digest.clients.length)} clients)`,
+      model: resolved.model,
       inputs: { question, clients: digest.clients.length, facts: digest.totalFacts },
-      outputs: (modelResponse) => ({ contentLength: modelResponse.content.length }),
+      outputs: { contentLength: modelResponse.content.length },
+      userDecision: 'auto',
       metadata: { feature: 'whole_practice_ask', scope: 'summaries-only' },
-    },
+      tokensIn: modelResponse.usage.inputTokens,
+      tokensOut: modelResponse.usage.outputTokens,
+      costUsd: modelResponse.cost,
+      provider: resolved.providerId,
+    }),
   });
   const parsed = parseBookAskResponse(response.content, digest);
   return { ...parsed, model: resolved.model };

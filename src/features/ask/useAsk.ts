@@ -52,7 +52,7 @@ import {
   type ConfidentialityMode,
   type EgressInfo,
 } from '@/platform/privacy/egress';
-import { runWithEgressAudit, sendWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
+import { sendPreparedMessageWithEgressAudit, sendPreparedStreamingWithEgressAudit } from '@/platform/privacy/promptPreparation';
 import {
   fileToolsAllowed,
   resolveWorkspaceRetrieval,
@@ -1486,18 +1486,18 @@ export function useAsk({
             await mustLogAuditPhase(onAuditLog, modelCallIntent, 'intent', auditPairId);
           }
           if (typeof provider.sendMessageStreaming === 'function') {
-            const sendMessageStreaming = provider.sendMessageStreaming.bind(provider);
             failedStage = 'provider-send';
             providerCallStarted = true;
             resolveEgressForSend();
             const streamResp = await Promise.race([
-              runWithEgressAudit({
+              sendPreparedStreamingWithEgressAudit({
                 provider,
                 providerId: providerAudit.providerId,
                 model: providerAudit.model,
-                operation: () =>
-                  sendMessageStreaming(q, {
-                    systemPrompt,
+                surface: 'ask',
+                prompt: q,
+                options: {
+                  systemPrompt,
                     // lp/localai-patience (round 2) — align the provider's whole-
                     // request timeout with the UI first-token budget for local sends.
                     ...(providerRequestTimeoutMs !== undefined
@@ -1516,8 +1516,13 @@ export function useAsk({
                         prev ? { ...prev, answer: answerText } : prev
                       );
                     },
-                    signal: abort.signal,
-                  }),
+                  signal: abort.signal,
+                },
+                parts: [
+                  { id: 'prompt', origin: 'typed_question', label: 'Your question', text: q },
+                  { id: 'retrieval', origin: 'retrieval', label: 'Retrieved workspace material', text: workspaceBlock },
+                  { id: 'chat-history', origin: 'chat_history', label: 'Earlier Ask answers', text: historyBlock },
+                ],
               }),
               stallPromise,
             ]);
@@ -1532,10 +1537,11 @@ export function useAsk({
             providerCallStarted = true;
             resolveEgressForSend();
             const resp = await Promise.race([
-              sendWithEgressAudit({
+              sendPreparedMessageWithEgressAudit({
                 provider,
                 providerId: providerAudit.providerId,
                 model: providerAudit.model,
+                surface: 'ask',
                 prompt: q,
                 options: {
                   systemPrompt,
@@ -1549,12 +1555,24 @@ export function useAsk({
                 fileToolsEnabled,
                 isDemo: IS_DEMO,
                 hasDemoByokKey: hasDemoByokKey(),
-                modelCall: {
+                parts: [
+                  { id: 'prompt', origin: 'typed_question', label: 'Your question', text: q },
+                  { id: 'retrieval', origin: 'retrieval', label: 'Retrieved workspace material', text: workspaceBlock },
+                  { id: 'chat-history', origin: 'chat_history', label: 'Earlier Ask answers', text: historyBlock },
+                ],
+                modelCall: (response) => ({
+                  action: 'model_call',
                   description: `Search question to ${providerAudit.model}`,
+                  model: providerAudit.model,
                   inputs: { promptLength: q.length },
-                  outputs: (response) => ({ contentLength: response.content.length }),
+                  outputs: { contentLength: response.content.length },
+                  userDecision: 'auto',
                   metadata: { chatId, askScope },
-                },
+                  tokensIn: response.usage.inputTokens,
+                  tokensOut: response.usage.outputTokens,
+                  costUsd: response.cost,
+                  provider: providerAudit.providerId,
+                }),
               }),
               stallPromise,
             ]);

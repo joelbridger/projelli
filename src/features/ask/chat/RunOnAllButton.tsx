@@ -21,7 +21,8 @@ import {
   isLocalOnlyModeFailClosed,
 } from '@/platform/privacy/localOnlyGuard';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
-import { sendWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
+import { sendPreparedMessageWithEgressAudit } from '@/platform/privacy/promptPreparation';
+import { usePromptPreparationDecision } from '@/features/ask/usePromptPreparationDecision';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
@@ -70,6 +71,7 @@ export function RunOnAllButton({
   onKeep,
   analysisProvider,
 }: RunOnAllButtonProps) {
+  const promptPreparationDialog = usePromptPreparationDecision();
   const [results, setResults] = useState<PerProviderResult[] | null>(null);
   const [analysis, setAnalysis] = useState<ContradictionAnalysis | null>(null);
   const [isRunning, setIsRunning] = useState(false);
@@ -131,17 +133,26 @@ export function RunOnAllButton({
     const settled = await Promise.allSettled(
       active.map(async (p) => {
         const started = Date.now();
-        const response = await sendWithEgressAudit({
+        const response = await sendPreparedMessageWithEgressAudit({
           provider: p.provider,
           providerId: p.id,
           model: p.provider.getMetadata().model,
+          surface: 'run_on_all',
           prompt,
-          modelCall: {
+          parts: [{ id: 'prompt', origin: 'typed_question', label: 'Your question', text: prompt }],
+          modelCall: (modelResponse) => ({
+            action: 'model_call',
             description: `Run on all request to ${p.label}`,
+            model: p.provider.getMetadata().model,
             inputs: { promptLength: prompt.length },
-            outputs: (modelResponse) => ({ contentLength: modelResponse.content.length }),
+            outputs: { contentLength: modelResponse.content.length },
+            userDecision: 'auto',
             metadata: { feature: 'run_on_all', providerLabel: p.label },
-          },
+            tokensIn: modelResponse.usage.inputTokens,
+            tokensOut: modelResponse.usage.outputTokens,
+            costUsd: modelResponse.cost,
+            provider: p.id,
+          }),
         });
         return {
           providerId: p.id,
@@ -200,6 +211,7 @@ export function RunOnAllButton({
 
   return (
     <div>
+      {promptPreparationDialog}
       <Button
         data-testid="run-on-all-button"
         size="icon"

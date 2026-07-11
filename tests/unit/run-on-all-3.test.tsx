@@ -135,7 +135,9 @@ describe('RunOnAllButton (Q15)', () => {
       expect(openai.sendMessage).toHaveBeenCalledTimes(1);
       expect(gemini.sendMessage).toHaveBeenCalledTimes(1);
     });
-    expect(claude.sendMessage).toHaveBeenCalledWith('hello everyone', undefined);
+    expect(claude.sendMessage).toHaveBeenCalledWith('hello everyone', expect.objectContaining({
+      preparationStamp: expect.any(Object),
+    }));
 
     // ComparisonView renders one column per provider.
     await waitFor(() => {
