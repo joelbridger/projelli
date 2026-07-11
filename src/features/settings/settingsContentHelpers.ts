@@ -36,7 +36,7 @@ export const SETTINGS_GROUP_SEARCH: Record<string, { section: SectionCategory; k
   'ws-files':       { section: 'workspace',  keywords: ['files', 'workspace', 'file type', 'letterhead', 'trash', 'hidden files', 'folder'] },
   'aip-ai':         { section: 'ai',         keywords: ['model', 'models', 'provider', 'api key', 'anthropic', 'openai', 'claude', 'gpt', 'gemini', 'byok', 'language model'] },
   'aip-memory':     { section: 'ai',         keywords: ['memory', 'facts', 'remember', 'context', 'recall'] },
-  'privacy-core':   { section: 'privacy',    keywords: ['privacy', 'telemetry', 'tracking', 'analytics', 'anonymous', 'opt out', 'confidential', 'privileged', 'egress', 'network', 'local only', 'data map'] },
+  'privacy-core':   { section: 'privacy',    keywords: ['privacy', 'telemetry', 'tracking', 'analytics', 'anonymous', 'opt out', 'confidential', 'privileged', 'egress', 'network', 'local ai only', 'local only', 'data map'] },
   'privacy-recording': { section: 'privacy', keywords: ['recording', 'notice', 'meeting', 'consent', 'strict', 'spoken notice', 'notice card'] },
   'scheduling-booking': { section: 'scheduling', keywords: ['scheduling', 'booking', 'calendar link', 'availability', 'working hours', 'meeting type', 'buffer', 'minimum notice', 'timezone'] },
   'voice-input':    { section: 'voice',      keywords: ['voice', 'microphone', 'speech to text', 'dictation', 'transcribe', 'transcription', 'push to talk'] },

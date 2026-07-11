@@ -51,7 +51,7 @@ export function TrustBar({ inline = false, onOpenAiSettings }: TrustBarProps) {
 
   const egressTooltip =
     confidentialityMode === 'local-only'
-      ? 'On this computer only: AI runs on your machine. No AI prompt or file is sent to a cloud AI.'
+      ? 'Local AI only: AI runs on this computer. No AI prompt or file is sent to cloud AI.'
       : confidentialityMode === 'assured'
         ? brandText('Assured: requests route through your firm\'s zero-retention proxy. Lantern never sees content.')
         : brandText('Sent to your AI provider account. Sent straight from your machine to your provider with your own API key. Lantern is not in between. Your provider receives the prompt and may keep it briefly for abuse monitoring; control training opt-out in your provider account.');

@@ -402,7 +402,7 @@ export function getScopeLabel(entry: AuditEntry): string | null {
   const meta = asRecord(entry.metadata);
   if (entry.action === 'egress') {
     const mode = meta['mode'];
-    if (mode === 'local-only') return 'Local';
+    if (mode === 'local-only') return 'Local AI only';
     if (mode === 'direct') return 'Direct';
     if (mode === 'assured') return 'Assured';
   }

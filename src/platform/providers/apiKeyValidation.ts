@@ -28,7 +28,6 @@
  */
 
 import { getProviderBaseUrl } from './fetchUtils';
-import { isLocalOnlyModeFailClosed } from '@/platform/privacy/cloudSendGuard';
 import {
   egressFetch,
   OfflineModeBlockedError,
@@ -144,17 +143,6 @@ export async function validateApiKeyLive(
   key: string,
   signal?: AbortSignal
 ): Promise<ValidationResult> {
-  // Private mode: verifying a key sends it to the provider over the network, so
-  // skip the live check entirely (same reason the model-list refresh is skipped).
-  // The key is still saved; the user can verify it after leaving private mode.
-  if (isLocalOnlyModeFailClosed()) {
-    return {
-      outcome: 'network',
-      message:
-        'Key checking is paused in private mode — verifying a key would send it to the provider over the network. Your key is still saved; turn off "On this computer only" to verify it.',
-    };
-  }
-
   // Client-side format check next - avoids a pointless network round-trip.
   const formatError = checkKeyFormat(provider, key);
   if (formatError) {

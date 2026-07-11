@@ -692,7 +692,7 @@ function describeAuditEvent(event: AuditEvent): string {
       // (Ask, redline, matter-at-a-glance, email) shares this description.
       const where =
         event.payload.destination === 'local'
-          ? 'on your machine (nothing left)'
+          ? 'with Local AI'
           : event.payload.destination === 'demo-proxy'
             ? 'the browser demo relay'
             : event.payload.destination === 'assured-proxy'

@@ -25,7 +25,7 @@ export function privacyCenterSecurityOverviewMarkdown(): string {
     '',
     '## Privacy modes',
     '',
-    `- Local-only: ${LOCAL_ONLY_EGRESS.note} (${LOCAL_ONLY_EGRESS.dataLeaves ? 'data may leave the device' : 'nothing leaves the device'}).`,
+    `- Local AI only: ${LOCAL_ONLY_EGRESS.note} Other approved Lantern features may still connect unless Offline Mode is on.`,
     `- Direct (bring your own key): ${DIRECT_EGRESS.note} Data leaves to your chosen AI provider, not to Lantern.`,
     `- Assured (firm option): ${ASSURED_EGRESS.note} Data passes through the firm's zero-retention proxy under a DPA.`,
     '',

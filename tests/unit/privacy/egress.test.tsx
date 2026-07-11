@@ -143,17 +143,17 @@ describe('resolveEgress (the single source of truth)', () => {
 // ---------------------------------------------------------------------------
 
 describe('EgressIndicator', () => {
-  it('shows "nothing leaves" (safe) for an Ollama chat', () => {
+  it('shows the AI-only local status for an Ollama chat', () => {
     setMode('direct');
     render(<EgressIndicator provider="ollama" />);
     const el = screen.getByTestId('egress-indicator');
     expect(el.getAttribute('data-destination')).toBe('local');
     expect(el.getAttribute('data-severity')).toBe('safe');
     expect(el.getAttribute('data-data-leaves')).toBe('false');
-    expect(screen.getByTestId('egress-indicator-label').textContent).toMatch(/on your machine/i);
+    expect(screen.getByTestId('egress-indicator-label').textContent).toMatch(/AI runs on this computer/i);
   });
 
-  it('names the embedded branded Local AI engine in the note (not Ollama)', () => {
+  it('keeps the embedded local-AI note specific to cloud AI', () => {
     // Regression: the local note used a static i18n string that hard-coded
     // "(Ollama)"; for a lantern-local chat it must name the actual engine.
     setMode('direct');
@@ -162,8 +162,8 @@ describe('EgressIndicator', () => {
     expect(el.getAttribute('data-destination')).toBe('local');
     expect(el.getAttribute('data-data-leaves')).toBe('false');
     const note = screen.getByTestId('egress-indicator-note').textContent || '';
-    expect(note).toContain(LOCAL_AI_NAME);
-    expect(note).not.toMatch(/Ollama/);
+    expect(note).toMatch(/No AI prompt or file is sent to a cloud AI/i);
+    expect(note).not.toMatch(/nothing leaves/i);
   });
 
   it('shows a neutral "No AI connected" badge (no guessed provider) when nothing is configured', () => {
@@ -228,13 +228,13 @@ describe('EgressIndicator', () => {
     expect(screen.getByTestId('egress-indicator-label').textContent).toMatch(/Sent to your Google account/i);
   });
 
-  it('reflects Local-only mode: a cloud-provider chat shows nothing-leaves', () => {
+  it('reflects Local AI only mode: a cloud-provider chat stays local', () => {
     setMode('local-only');
     render(<EgressIndicator provider="anthropic" />);
     const el = screen.getByTestId('egress-indicator');
     expect(el.getAttribute('data-destination')).toBe('local');
     expect(el.getAttribute('data-severity')).toBe('safe');
-    expect(screen.getByTestId('egress-indicator-label').textContent).toMatch(/on your machine/i);
+    expect(screen.getByTestId('egress-indicator-label').textContent).toMatch(/AI runs on this computer/i);
   });
 
   it('compact variant carries the same destination/severity data attributes', () => {

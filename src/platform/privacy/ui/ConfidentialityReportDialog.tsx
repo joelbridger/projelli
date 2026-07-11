@@ -41,7 +41,7 @@ function modeBadgeStyle(mode: string): React.CSSProperties {
 }
 
 function modeLabel(mode: string): string {
-  if (mode === 'local-only') return 'Local only';
+  if (mode === 'local-only') return 'Local AI only';
   if (mode === 'assured') return 'Assured';
   return 'Direct (BYOK)';
 }

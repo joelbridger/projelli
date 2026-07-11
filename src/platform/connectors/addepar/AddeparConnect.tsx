@@ -17,7 +17,6 @@ import {
   type AddeparSyncReport,
 } from '@/platform/utils/addepar-commands';
 import { getMatters, useMatterStore } from '@/platform/matter/matterStore';
-import { isPersistedLocalOnly } from '@/platform/privacy/localOnlyGuard';
 import {
   buildAddeparMatterMap,
   normalizeClientName,
@@ -88,10 +87,6 @@ export function AddeparConnect() {
       setError('API key, API secret, firm subdomain, and firm id are required.');
       return;
     }
-    if (isPersistedLocalOnly()) {
-      setError('Local-only mode is on. Turn it off before connecting Addepar, because sign-in contacts Addepar.');
-      return;
-    }
     setBusy(true);
     try {
       const connectedInfo = await withTimeout(
@@ -114,10 +109,6 @@ export function AddeparConnect() {
 
   async function syncNow() {
     setError(null);
-    if (isPersistedLocalOnly()) {
-      setError('Local-only mode is on. Turn it off before syncing Addepar, because it contacts Addepar.');
-      return;
-    }
     setReport(null);
     setLinkedCount(0);
     setUnmatched([]);
@@ -131,13 +122,6 @@ export function AddeparConnect() {
       const matched = linkExactHouseholdMatches(entities, addAddeparKey);
       setLinkedCount(matched.linked);
       setUnmatched(matched.unmatched);
-      // Re-check: addeparListEntities() itself just awaited an Addepar call,
-      // so a Local-only switch mid-flight could otherwise slip past the
-      // guard above and still fire this larger sync call.
-      if (isPersistedLocalOnly()) {
-        setError('Local-only mode is on. Turn it off before syncing Addepar, because it contacts Addepar.');
-        return;
-      }
       const result = await withTimeout(
         addeparSync(buildAddeparMatterMap(getMatters())),
         ADDEPAR_SYNC_TIMEOUT_MS,

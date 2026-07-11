@@ -69,9 +69,9 @@ const SOLO_CARDS: ModeCard[] = [
   {
     mode: 'local-only',
     icon: Laptop,
-    title: 'On this computer only',
+    title: 'Local AI only',
     blurb:
-      'AI runs on your machine: your documents and prompts are never sent to a cloud AI. Cloud AI providers are turned off and only on-device models are used — the built-in Lantern Local AI, or your own Ollama. Connectors you have set up still sync. Use this for your most sensitive client work.',
+      'AI runs on this computer. Your prompts and files are not sent to cloud AI. Connectors, sync, updates, and other internet features may still connect unless Offline Mode is on.',
     accent: 'text-emerald-700 border-emerald-400 dark:text-emerald-300 dark:border-emerald-700',
     tag: 'Most private',
   },
@@ -412,17 +412,17 @@ export function ConfidentialityModeSettings({
           data-testid="confidentiality-local-active-note"
           className="mt-2 text-xs rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"
         >
-          On this computer only is on. Your documents and prompts are never sent
-          to a cloud AI — answers run on a local model on your machine (the
+          Local AI only is on. Your documents and prompts are never sent
+          to a cloud AI. Answers run on a local model on this computer (the
           built-in {brandText('Lantern Local AI')} when it&rsquo;s ready, or your own Ollama).
           Cloud AI providers are disabled in the chat picker. Connectors you have
-          set up still sync.
+          set up still sync unless Offline Mode is on.
         </p>
       )}
 
       {/* Network lockdown (Isolated matter) toggle. Manual switch + an honest note
           about the auto-on behaviour. When a matter with network lockdown is active
-          or Local-only is selected, the mode is forced on and the switch is disabled. */}
+          or Local AI only is selected, the mode is forced on and the switch is disabled. */}
       <div
         data-testid="privileged-matter-mode-toggle"
         data-active={privileged.active ? 'true' : 'false'}
@@ -482,7 +482,7 @@ export function ConfidentialityModeSettings({
           >
             {privileged.trigger === 'privileged-matter'
               ? 'On automatically because the active client has network lockdown. It stays on until you switch to a different client.'
-              : 'On automatically because On this computer only is selected. It stays on while that option is active.'}
+              : 'On automatically because Local AI only is selected. It stays on while that option is active.'}
           </p>
         )}
         {/* Affirmation: shown for ~5 s after the user manually turns lockdown on */}

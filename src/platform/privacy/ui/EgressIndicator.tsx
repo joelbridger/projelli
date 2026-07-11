@@ -246,7 +246,7 @@ export function EgressIndicator({
             data-testid="egress-indicator"
             data-destination={destination}
             data-data-leaves="false"
-            aria-label={`${shortLabel}. Open AI options`}
+            aria-label={`AI connection: ${shortLabel}. Open AI options`}
             title={tooltipText(view.label, view.note)}
             className={statusClassName}
           >
@@ -338,7 +338,7 @@ export function EgressIndicator({
           data-destination={info.destination}
           data-severity={info.severity}
           data-data-leaves={info.dataLeaves ? 'true' : 'false'}
-          aria-label={`${shortLabel}. Open AI options`}
+          aria-label={`AI connection: ${shortLabel}. Open AI options`}
           title={tooltipText(label, note)}
           className={statusClassName}
         >

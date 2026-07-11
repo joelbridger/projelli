@@ -44,10 +44,10 @@ describe('pickAttestation', () => {
     expect(text).toMatch(/no AI activity/i);
   });
 
-  it('all local-only: claims nothing left the machine', () => {
+  it('all local-only: makes the AI-specific cloud claim', () => {
     const text = pickAttestation({ 'local-only': 3 });
-    expect(text).toMatch(/nothing left this machine/i);
-    expect(text).toMatch(/no third party saw/i);
+    expect(text).toMatch(/every recorded AI call.*ran on this computer/i);
+    expect(text).toMatch(/no AI prompt or file was sent to a cloud AI/i);
   });
 
   it('all direct: mentions provider received prompts and app not in path', () => {
@@ -65,10 +65,10 @@ describe('pickAttestation', () => {
 
   it('mixed local+direct: mentions both honestly without overclaiming', () => {
     const text = pickAttestation({ 'local-only': 2, direct: 1 });
-    expect(text).toMatch(/local model/i);
+    expect(text).toMatch(/ran on this computer/i);
     expect(text).toMatch(/your own API key/i);
-    // CRITICAL: must NOT say nothing left the machine
-    expect(text).not.toMatch(/nothing left this machine/i);
+    // CRITICAL: the AI claim must not become a device-wide claim.
+    expect(text).not.toMatch(/nothing left/i);
   });
 
   it('mixed direct+assured: lists both', () => {
@@ -89,7 +89,7 @@ describe('buildConfidentialityReport', () => {
     expect(report.anyDataLeftMachine).toBe(false);
     expect(report.allUnderOwnKeyOrLocal).toBe(true);
     expect(report.byMode['local-only']).toBe(2);
-    expect(report.attestation).toMatch(/nothing left this machine/i);
+    expect(report.attestation).toMatch(/no AI prompt or file was sent to a cloud AI/i);
   });
 
   it('all-direct fixture: anyDataLeftMachine=true, allUnderOwnKeyOrLocal=true', () => {

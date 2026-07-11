@@ -40,7 +40,7 @@ beforeEach(() => {
 describe('ConfidentialityModeSettings — card help trigger a11y (F2)', () => {
   it('renders the per-card help trigger structurally outside any button', () => {
     render(<ConfidentialityModeSettings />);
-    const help = screen.getByLabelText('About On this computer only');
+    const help = screen.getByLabelText('About Local AI only');
     // The trigger itself may be a button, but it must not sit inside another
     // interactive element (no interactive-inside-interactive nesting).
     expect(help.parentElement?.closest('button')).toBeNull();
@@ -48,7 +48,7 @@ describe('ConfidentialityModeSettings — card help trigger a11y (F2)', () => {
 
   it('help trigger is focusable and activatable without selecting the card', () => {
     render(<ConfidentialityModeSettings />);
-    const help = screen.getByLabelText('About On this computer only');
+    const help = screen.getByLabelText('About Local AI only');
     help.focus();
     expect(document.activeElement).toBe(help);
     fireEvent.click(help);

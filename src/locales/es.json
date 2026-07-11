@@ -2900,7 +2900,7 @@
       "edit-item-prompt__sourceHash": "d48ae607270716a09ef34bd01d19f95f0be3bb9b32f2e0b9d77c9e26a69ac23e",
       "edit-item-title": "Editar elemento",
       "edit-item-title__sourceHash": "9f84eeebf87f5b9b0b2daaab2a9b989fa5894da5d6a21d8571e532648307a076",
-      "local-only-notice": "Se ejecuta solo en este dispositivo. La generación usa tu modelo local.",
+      "local-only-notice": "Solo IA local. La generación usa tu modelo local.",
       "local-only-notice__sourceHash": "4d1f2a50b1e4a694d508cc0aabfb7a6839dd4c3cf04555330f19a5f1ea73ca98",
       "building": "Creando el Client Map",
       "building__sourceHash": "2d9d2bc78ae27e605307f5f65717b9d7578dbfca861455c0760234301f2155ba",
@@ -3160,7 +3160,7 @@
   "privacy": {
     "egress": {
       "local": {
-        "label": "On your machine. No cloud AI",
+        "label": "La IA se ejecuta en este equipo. Sin IA en la nube.",
         "note": "This runs on a local model ({{provider}}). No AI prompt or file is sent to a cloud AI."
       },
       "direct": {
@@ -3196,7 +3196,7 @@
       "badge": "Cliente privilegiado: las conexiones externas están bloqueadas para que nada pueda salir de este cliente",
       "title-manual": "Los complementos de red y los servidores MCP están desactivados.",
       "title-privileged-matter": "Activado porque el cliente activo es privilegiado. Los complementos de red y los servidores MCP están desactivados.",
-      "title-local-only": "Activado porque está seleccionado Solo local. Los complementos de red y los servidores MCP están desactivados."
+      "title-local-only": "Activado porque está seleccionada Solo IA local. Los complementos de red y los servidores MCP están desactivados."
     },
     "retention": {
       "title": "Grabaciones de reuniones",
@@ -3540,7 +3540,7 @@
       "recording-incomplete": "Esta grabación no terminó de guardarse, así que no hay audio para transcribir ni para redactar notas. Esto puede pasar si el equipo se quedó sin espacio en disco durante la grabación.",
       "notes-failed-timeout": "No se pudieron redactar las notas. El proveedor de IA no respondió a tiempo. Tu grabación y transcripción están seguras.",
       "notes-failed-error": "No se pudieron redactar las notas. El proveedor de IA devolvió un error. Tu grabación y transcripción están seguras.",
-      "notes-failed-blocked": "Las notas necesitan tu proveedor de IA, pero el modo Solo local lo está bloqueando. Conecta un modelo local para redactar las notas de esta reunión, o, si lo prefieres, desactiva el modo Solo local en Configuración → Privacidad.",
+      "notes-failed-blocked": "Las notas necesitan tu proveedor de IA, pero Solo IA local lo bloquea. Conecta un modelo local o desactiva Solo IA local en Configuración → Privacidad.",
       "docx-editor-label": "Notas de la reunión",
       "retrying-notes": "Reintentando…",
       "transcript-pending": "La transcripción está en cola. Aparecerá aquí en cuanto esté lista.",
@@ -3611,7 +3611,7 @@
         "no-account": "Conecta el correo en Configuración",
         "needs-review": "Marca la reunión como revisada antes de enviar cualquier cosa.",
         "no-items": "Elige al menos un destinatario para un elemento disponible de la reunión.",
-        "local-only-blocked": "El modo Solo local está activado, así que el envío por correo está desactivado.",
+        "local-only-blocked": "El modo sin conexión está activado, así que el envío por correo está desactivado.",
         "ready-count_one": "{{count}} elemento listo para revisar",
         "ready-count_other": "{{count}} elementos listos para revisar",
         "to-line": "Para: {{recipients}}",
