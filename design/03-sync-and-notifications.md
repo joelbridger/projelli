@@ -1,6 +1,6 @@
 # 03 — Sync, Notifications & Propagation (Lane C)
 
-Conforms to 00-master-spec decisions D1-D10 (reconciled 2026-07-11).
+Conforms to 00-master-spec decisions D1–D25.
 
 **Status:** Design-phase deliverable. This is the build contract for CRM sync, encrypted
 notifications, offline behavior, workflow-template propagation, and retention for firms
@@ -27,9 +27,9 @@ The following are **build-plan fixes**, not capabilities we may assume already w
    then open a socket” has a race that can lose update 601. Build `SYNC-01: lossless
    cursor subscription and gap repair` before CRM sync uses the relay.
 2. **Persistent cursors.** Store a successful applied cursor in local SQLCipher for every
-   `(matter_id, doc_id)` and one notification cursor for every `(recipient_user_id,
-   device_id)`. A cursor advances only in the same local transaction that authenticates
-   and applies (or durably stores) its item.
+   `(matter_id, doc_id)` and one notification cursor for every `(org_id,
+   recipient_user_id, device_id)`. A cursor advances only in the same local transaction
+   that authenticates and applies (or durably stores) its item.
 3. **Key-epoch write policy.** The relay accepts writes only at the current epoch. A
    reconnecting device with queued old-epoch work fetches the current key, decrypts its
    own queued edit, re-encrypts it at the current epoch, and sends it as a new idempotent
@@ -44,10 +44,20 @@ subscription watermark `W` for that document and begins buffering later live fra
 that subscription. It then returns `ready { watermark: W }`.
 
 The client pages HTTP updates from `since` through `W`, applying each in cursor order.
-It then drains buffered frames after `W`. A frame whose cursor is not the next expected
-cursor triggers `GET updates?since=<lastApplied>` until the gap is repaired; the client
-never claims `live` while a gap exists. The socket supports `since`, paged backlog, and
-gap repair. On reconnect this sequence repeats. This closes the old pull-to-socket gap.
+It then drains buffered frames after `W`. Relay delivery is **at-least-once**: the
+subscribe-first window can deliver a row already received during the HTTP backfill. For
+each received row, it uses this exact triage:
+
+```text
+cursor <= durableCursor     -> verify the same immutable row identity, then ignore it
+cursor == durableCursor + 1 -> authenticate, apply, and persist cursor in one transaction
+cursor > durableCursor + 1  -> run bounded gap repair
+```
+
+CRDT application and cursor persistence are idempotent by relay cursor/blob ID. The
+client never claims `live` while a gap exists. The socket supports `since`, paged
+backlog, and gap repair. On reconnect this sequence repeats. This closes the old
+pull-to-socket gap without mistaking normal duplicates for gaps.
 
 ---
 
@@ -66,10 +76,10 @@ their existing membership and wall rules.
 | Confidential task text | real household matter | `crm:task-notes`, opened only when needed |
 | Existing content | real household matter | legacy `_notes` and individual `.docx` documents, unchanged |
 
-This is the only CRM topology. There are no per-entity streams and no `__firm__`
-pseudo-matter. Client-record documents are subscribed **when opened**, plus a bounded
-set of pinned or recently used clients. They are never all subscribed merely because a
-firm has 80 households.
+This is the only CRM topology. There are no per-entity streams or retired pseudo-matter
+identifier. Client-record documents are subscribed **when opened**, plus a bounded set of
+pinned or recently used clients. They are never all subscribed merely because a firm has
+80 households.
 
 Firm task shells use the canonical Task contract from 02: `id`, nullable
 `householdRef`, `title`/`body` behind the client key, one `assigneeUserId`, status
@@ -110,17 +120,29 @@ ceiling is not ready for freeze.
 
 | Situation | Logical docs allowed | Connection ceiling | Transfer / storage ceiling | Completion ceiling |
 |---|---:|---:|---:|---:|
-| Fresh bootstrap | 5 firm + 12 client records max (opened/pinned/recent) | 1 WS/device, 1 ticket/device | <= 64 MiB downloaded; <= 2 MiB per checkpoint chunk; <= 16 MiB per document checkpoint | <= 45 s to usable firm board; <= 90 s all subscribed docs projected |
-| Relay restart | same active set | 1 reconnecting WS/device; jitter 0-30 s | <= 20 MiB redownload/device | <= 60 s back to live after relay availability |
-| Return after 30 days offline | same active set | 1 WS/device | <= 32 MiB tail plus checkpoints; <= 10,000 tail updates/doc before rebase | <= 90 s back to live |
+| Fresh bootstrap | 5 firm + 12 client records + 12 matching `crm:task-notes` max | 1 WS/device, 1 ticket/device | <= 64 MiB downloaded; every ciphertext chunk <= 768 KiB | <= 45 s to usable firm board; <= 90 s all subscribed docs projected |
+| Relay restart | same active set, including matching task-notes | 1 reconnecting WS/device; jitter 0-30 s | <= 20 MiB redownload/device | <= 60 s back to live after relay availability |
+| Return after 30 days offline | same active set, including matching task-notes | 1 WS/device | <= 32 MiB tail plus checkpoints; <= 10,000 tail updates/doc before rebase | <= 90 s back to live |
 | Ethical-wall/key change | affected client docs only, plus firm docs | no extra socket | <= 8 MiB key/checkpoint recovery; 0 unreadable cursor advances | <= 30 s to revoke affected live access and mark rebase need |
 
 Pinned/recent client documents are capped at 12 (most-recent eviction, pin overrides only
 after the user explicitly unpins another). Opening a thirteenth client closes the least
-recent unpinned subscription after persisting it. The local SQLCipher projections of
-closed records remain available but carry their freshness state. Checkpoint chunks are
-at most 768 KiB ciphertext, below the existing 1 MiB relay limit. The test campaign owns
-these measurements under D1.
+recent unpinned subscription after persisting it. The matching `crm:task-notes` subscription
+closes with that client record. The local SQLCipher projections of closed records remain
+available but carry their freshness state. Every checkpoint and update chunk is at most
+768 KiB ciphertext, below the existing 1 MiB relay limit. The test campaign owns these
+measurements under D1.
+
+The fresh-bootstrap ceiling is an allocation, not an aspirational aggregate. It includes
+all subscribed documents and their required tails:
+
+| Bootstrap allocation | Count ceiling | Checkpoint bytes | Tail/control bytes | Total ceiling | Completion ceiling |
+|---|---:|---:|---:|---:|---:|
+| Firm documents | 5 | 8 MiB | 2 MiB | 10 MiB | usable board within 45 s |
+| `crm:record` client documents | 12 | 24 MiB | 6 MiB | 30 MiB | all subscribed records within 90 s |
+| `crm:task-notes` documents | 12 | 12 MiB | 3 MiB | 15 MiB | all matching notes within 90 s |
+| Checkpoint manifests, relay frames, and projection overhead | — | 1 MiB | 0 MiB | 1 MiB | included above |
+| **Fresh-bootstrap total** | **29 logical docs** | **45 MiB** | **11 MiB** | **56 MiB** | **within 64 MiB** |
 
 ### 1.4 Bootstrap
 
@@ -142,27 +164,32 @@ read type, subject, content, actor identity, or sender identity.
 
 ```sql
 CREATE TABLE notify_envelopes (
-  seq INTEGER PRIMARY KEY AUTOINCREMENT,
   org_id TEXT NOT NULL,
+  seq INTEGER NOT NULL,
   recipient_user_id TEXT NOT NULL,
   envelope_id TEXT NOT NULL,
   ciphertext BLOB NOT NULL,
   created_at TEXT NOT NULL,
-  expires_at TEXT NOT NULL,
-  UNIQUE(recipient_user_id, envelope_id)
+  expires_at TEXT,
+  retention_until_terminal BOOLEAN NOT NULL DEFAULT FALSE,
+  terminal_at TEXT,
+  PRIMARY KEY(org_id, seq),
+  UNIQUE(org_id, recipient_user_id, envelope_id)
 );
 CREATE TABLE notify_device_acks (
+  org_id TEXT NOT NULL,
   recipient_user_id TEXT NOT NULL,
   device_id TEXT NOT NULL,
   acked_through INTEGER NOT NULL,
-  PRIMARY KEY(recipient_user_id, device_id)
+  PRIMARY KEY(org_id, recipient_user_id, device_id)
 );
 ```
 
 `notify_envelopes` deliberately has **no `sender_seat`** and no persisted matter/type
 column. Short-lived, in-memory rate counters enforce abuse limits without retaining a
 sender-to-recipient history. `envelope_id` is a random 128-bit opaque value in a fixed
-format, never a semantic identifier.
+format, never a semantic identifier. The relay assigns `seq` in increasing order within
+each `org_id`; the retention flag records delivery lifetime only, not an envelope type.
 
 At send time the client supplies a transient authorization scope. The relay checks that
 the sender and recipient are active and that the recipient holds the relevant current
@@ -179,50 +206,61 @@ envelope. Therefore the relay cannot re-check a pending client-confidential enve
 against a wall added *after* it was sent without widening relay metadata. The guarantee
 is: the relay rejects sends to a user who is not currently eligible; a wall immediately
 blocks new deliveries and rotates future content keys. A recipient who already retained
-an old key could decrypt a previously delivered/pending epoch-1 envelope until expiry.
+an old key could decrypt a previously delivered/pending epoch-1 envelope.
 
 This is the deliberately weaker, honest post-wall guarantee chosen to keep the D5
-metadata boundary. Confidential envelopes have a short TTL (7 days), devices remove
-revoked key material during wall processing, and every expired/undecryptable item becomes
-a local dead-letter marker. The app must never claim that a later wall retracts an
-already-addressed encrypted message.
+metadata boundary. Client-confidential informational envelopes have a short TTL (7 days),
+and every expired/undecryptable informational item becomes a local dead-letter marker.
+Approval-class envelopes instead follow the terminal-and-ack retention rule in §2.3.
+Devices remove revoked key material during wall processing. The app must never claim that
+a later wall retracts an already-addressed encrypted message.
 
 ### 2.3 API and delivery protocol
 
 ```
 POST /notify/send
-  { recipient_user_id, envelope_id, ciphertext_b64, transient_scope, key_hint }
-GET  /notify/inbox?since=<cursor>
-POST /notify/ack { device_id, up_to_cursor }
-POST /notify/sync-ticket
-WS   /notify/sync?ticket=...
+  { org_id, recipient_user_id, envelope_id, ciphertext_b64, transient_scope, key_hint,
+    idempotency_key, referenced_operation_id? }
+GET  /notify/inbox?org_id=<org_id>&since=<cursor>
+POST /notify/ack { org_id, device_id, up_to_cursor }
+POST /notify/sync-ticket { org_id }
+WS   /notify/sync?org_id=<org_id>&ticket=...
 ```
 
 Inbox responses contain only `seq`, `envelope_id`, `created_at`, `expires_at`,
 `key_hint`, and ciphertext. Live push is a wake-up/fast path; the paged inbox is the
-source of truth. The same lossless watermark and gap-repair rules as §0.1 apply.
+source of truth. Sequences, cursors, inbox rows, acknowledgements, idempotency keys,
+and device-retirement decisions are all scoped by `org_id`. The same lossless watermark
+and duplicate triage as §0.1 apply.
 
 On the sending device, one SQLCipher transaction writes the business mutation, immutable
 operation record, activity-outbox row, and notification outbox row. The outbox retries
-idempotently until `/notify/send` accepts it. On the recipient, one SQLCipher transaction
-stores/deduplicates the envelope, records its display-ready/dead-letter state, and
-advances the highest **contiguous** durable cursor. Only then may that device ack. This
-provides at-least-once delivery across crashes; approval-class notices are crash-survivable
-end to end.
+idempotently until `/notify/send` accepts it under its `org_id`-scoped idempotency key.
+When an envelope references a document operation, its outbox row dispatches only after
+the relay has durably accepted that immutable operation/blob ID. A recipient that receives
+an early envelope stores it durably as **waiting for referenced state**; it becomes
+display-ready only after the referenced operation is durably applied. On the recipient,
+one SQLCipher transaction stores/deduplicates the envelope, records its
+display-ready/waiting/dead-letter state, and advances the highest **contiguous** durable
+cursor. Only then may that device ack. This provides at-least-once delivery across
+crashes; approval-class notices are crash-survivable end to end.
 
-The relay prunes only after all active recipient devices acknowledge an item or the item
-expires. Retired devices are removed from `notify_device_acks` by the same device
-retirement procedure as §6. Informational notices may expire; the UI rebuilds their
-state from synced records. The relay never invents a blind “N earlier notifications”
-envelope and never drops an unresolved action prompt merely to enforce a cap. An
-outstanding approval remains visible from the authoritative workflow record even after
-its delivery envelope has expired.
+Informational envelopes have a seven-day TTL and then receive a durable local dead-letter
+marker if undelivered or undecryptable. Approval-class envelopes are TTL-exempt:
+`retention_until_terminal = true`, `expires_at` is null, and their opaque retention state
+is released only after the underlying approval is terminal **and** every active recipient
+device has durably acked it. A signed terminal notice, addressed by opaque `envelope_id`,
+sets `terminal_at` without exposing approval content or sender identity. “Active” is
+bounded by the device-retirement/rebase rule in §6 and is evaluated per `org_id`.
+Retired devices are removed from that organization’s `notify_device_acks` only through
+that procedure. The relay never invents a blind “N earlier notifications” envelope and
+never drops an unresolved action prompt merely to enforce a cap.
 
 ### 2.4 Encryption, padding, and metadata truth
 
 Envelope plaintext contains a version, encrypted type, subject reference, D3 HLC display
 stamp, actor identity, and a pointer rather than client content. Firm-operational notices
-use the firm-home key; confidential notices use the client key. Ciphertexts are padded to
+use the `firm_home` key; confidential notices use the client key. Ciphertexts are padded to
 1 KiB, 4 KiB, or 16 KiB bands. Clients batch non-urgent informational sends for up to
 30 seconds; assignments and approval requests send immediately.
 
@@ -232,17 +270,19 @@ oplog timing can still suggest collaboration and likely client association. Padd
 batching reduce but cannot eliminate that inference. This residual traffic-analysis risk
 is accepted because encrypted offline routing requires a recipient dimension.
 
-Undecryptable envelopes are not retried forever: validate the key hint and current grant,
-retry one key refresh, then store a durable local dead-letter reason. They expire at TTL.
-The app offers “refresh access” and shows the authoritative task/approval state; it never
-silently advances past them.
+An undecryptable informational envelope is not retried forever: validate the key hint and
+current grant, retry one key refresh, then store a durable local dead-letter reason at
+its seven-day TTL. An undecryptable approval-class envelope stays durably retained and is
+retried after access refresh until its terminal-and-all-active-device-ack condition is
+met. The app offers “refresh access” and shows the authoritative task/approval state; it
+never silently advances past either state.
 
 ### 2.5 Envelope classes
 
-| Class | Examples | Addressing rule |
-|---|---|---|
-| Firm operational | task assigned/reassigned, approval requested, workflow due, migration event | any active firm seat; firm-home key |
-| Client confidential | mention or content-bearing client alert | only a current holder of that client key; client key |
+| Class | Examples | Addressing rule | Retention |
+|---|---|---|---|
+| Firm operational | task assigned/reassigned, approval requested, workflow due, migration event | any active firm seat; `firm_home` key | informational: 7 days; approval request: terminal-and-ack |
+| Client confidential | mention or content-bearing client alert | only a current holder of that client key; client key | informational: 7 days; approval request: terminal-and-ack |
 
 `workflow_step_due` remains client-computed from synced data. The relay has no due-date
 timer and no plaintext due date.
@@ -251,12 +291,11 @@ timer and no plaintext due date.
 
 ## 3. Offline conflict behavior (D3)
 
-Every scalar LWW decision uses the explicit HLC stamps in the Field Merge Contract, not
-Yjs internal clocks. HLC is named and versioned there; `rev` is reserved for propagation
-revision mechanics, not general scalar ordering. The physical component is clamped to the
-last relay-observed time plus five minutes, and the logical component breaks ties. Thus
-wall clocks participate only as bounded HLC input, never as an unbounded “future clock
-wins” rule. Relay cursor and `created_at` are transport/display metadata, never merge
+Every scalar LWW decision uses the explicit HLC stamps in the
+[02 §2.3 Field Merge Contract](02-data-model.md#23-field-merge-contract-v10), not Yjs
+internal clocks. HLC issuance, clamping, and invalid-stamp handling are owned solely by
+that contract. `rev` is reserved for propagation revision mechanics, not general scalar
+ordering. Relay cursor and `created_at` are transport/display metadata, never merge
 inputs.
 
 Different fields merge independently. Same-field collisions resolve by the field’s HLC
@@ -272,8 +311,8 @@ a new mergeable mutation. Tombstones are not hard-deleted merely because time pa
 Completion is not a mutable “write-once” map field. A completion is an append-only,
 immutable completion operation keyed by `(stepId, completionId)`. Deterministic
 validation derives the displayed completion; conflicting/invalid completion operations
-are visibly quarantined. Reassignment after completion creates a new open assignment and
-never rewrites the recorded completion.
+are visibly quarantined. Reassignment after completion creates a new active assignment
+and never rewrites the recorded completion.
 
 ---
 
@@ -300,29 +339,43 @@ steps[stepId or local:<uuid>]:
   progress: status, assigneeUserId, stepNotes, completion operations, outcome
 ```
 
+An immutable, append-only decision ledger is keyed by
+`(instanceId, revisionId, stepId, field)`. Each decision entry records `accepted` or
+`rejected`, its source operation ID, and any superseded/re-offered state with its
+successor entry. A rejection persists for that field until a **descendant** revision
+changes that same field, at which point the new value is re-offered; unrelated descendant
+changes do not silently reopen it.
+
 Derived fields are exactly title, description, order, required, default assignee role,
 and due offset. Progress and local steps are never propagation targets. There is no
 `templateFieldsRev` and no integer `templateVersionApplied`.
 
 ### 4.2 Offer, review, and transactional apply
 
-For each open instance and applicable revision path, create one **per-instance offer**
+For each active instance and applicable revision path, create one **per-instance offer**
 containing one decision for every changed step/field. The review screen is per instance,
 defaults all decisions to accept, supports per-step accept/reject toggles, and supports
 batch approve-all. This gives the required per-instance review while preserving the
-per-step choice.
+per-step choice. The offer reads and appends decision-ledger entries; it does not infer a
+past rejection from `acceptedRevisionIds` alone.
 
-Applying an accepted offer calculates the composed change-set from the instance’s
-accepted revision set to the selected target. It writes, in one local SQLCipher
-transaction: instance CRDT changes; propagation event; immutable operations; activity
-outbox; and approval/notification outbox. The outbox then sends the encrypted CRDT
-transaction and its notification idempotently. No displayed revision set advances until
-every required accepted change in that change-set is present. Rejected decisions are
-recorded in the offer and leave that field’s source revision unchanged.
+An apply target is deterministic: take its full target closure, order revisions
+topologically over the revision graph, and resolve same-field collisions with the Field
+Merge Contract’s HLC/operation-ID rule. If concurrent heads remain unresolved for review,
+the offer shows an explicit **concurrent-head review required** state and cannot silently
+pick one. Applying an accepted offer calculates this deterministic composed change-set
+from the instance’s accepted revision set to the selected target. It writes, in one local
+SQLCipher transaction: instance CRDT changes; propagation event; immutable operations;
+activity outbox; and approval/notification outbox. The outbox sends the encrypted CRDT
+transaction, waits for its durable relay acceptance, then sends its dependent
+notification idempotently. No displayed revision set advances until every required
+accepted change in that change-set is present. Rejected decisions are recorded in the
+immutable ledger and leave that field’s source revision unchanged.
 
 Template removal writes `removalRequestedBy`, not an immediate deletion. After every
-merge, deterministic reconciliation checks progress. Any step with status other than
-open, notes, completion, outcome, or assignment history stays visible and sets
+merge, deterministic reconciliation checks progress. Any step whose status is not the
+Field Merge Contract constant `UNTOUCHED = 'todo'`, or that has notes, completion,
+outcome, or assignment history stays visible and sets
 `detachedFromTemplate = true`; only a genuinely untouched step can be hidden. This
 re-runs correctly when offline progress arrives after a removal decision.
 
@@ -341,13 +394,16 @@ event/outbox transaction rather than lowering a mutable template version.
   operation, `completed_by`, or outcome.
 - **P2 No destructive removal.** A removal with any merged progress remains visible and
   detached; it is never deleted.
-- **P3 Idempotent revision application.** Reapplying an accepted revision/offer causes
-  no additional state change.
-- **P4 Concurrent-apply convergence.** Equivalent offers applied on different devices
-  converge to the same instance state and accepted revision set.
+- **P3 Idempotent revision application.** Reapplying an accepted revision/offer or its
+  decision-ledger entry causes no additional state change.
+- **P4 Concurrent-apply convergence.** Equivalent offers use the same target closure,
+  topological order, and Field Merge Contract collision rule, so they converge to the
+  same instance state and accepted revision set. Unresolved concurrent heads are an
+  explicit review state, never a device-local choice.
 - **P5 Complete revision-set pinning.** An instance displays a target revision set only
   after every required composed change is present; rejected fields retain their prior
-  explicitly recorded source revisions.
+  explicitly recorded source revisions and immutable rejection ledger entries until a
+  descendant revision changes that field and re-offers it.
 - **P6 Progress invariance.** Propagation never modifies status, assignee, notes,
   completion operations, or outcome.
 - **P7 Conditional undo scope.** Undo restores only still-untouched derived cells from
@@ -355,9 +411,10 @@ event/outbox transaction rather than lowering a mutable template version.
 - **P8 Added-step uniqueness.** A template step ID appears once regardless of duplicate
   apply, reconnect, or concurrent review.
 - **P9 Monotonic accepted knowledge.** `acceptedRevisionIds` only grows through apply;
+  the immutable decision ledger preserves accepts, rejects, supersession, and re-offers;
   undo adds a compensating event and never erases revision history.
 - **P10 Reassign-after-complete.** A completed step’s outcome stays intact; later
-  reassignment creates a new open assignment rather than changing the completion.
+  reassignment creates a new active assignment rather than changing the completion.
 
 ---
 
@@ -386,23 +443,30 @@ before its retention horizon. The checkpoint horizon is at least the retention p
    and applied every update through causal frontier `F`; it may not checkpoint past an
    unreadable or missing cursor.
 2. It emits a signed encrypted manifest containing `(matter, doc_id, F)`, Yjs state
-   vector/hash, chunk hashes, key epoch, and generation. It uploads encrypted chunks
-   (<=768 KiB) first, then atomically publishes the manifest.
-3. Readers accept only a fully published manifest whose chunks and state vector verify.
-   They retain the prior valid checkpoint and raw tail until two independent eligible
-   clients validate the new generation. Validation failure leaves the previous checkpoint
+   vector, canonical state hash, chunk hashes, key epoch, and generation. It uploads
+   encrypted chunks (<=768 KiB) first, then atomically publishes the manifest. The
+   relay’s minimal plaintext checkpoint control metadata is only stream, generation,
+   frontier, retention eligibility, and validation receipts.
+3. Validation is independent reconstruction: a validator loads the prior validated
+   checkpoint, replays every contiguous retained raw row through frontier `F`, and
+   compares the resulting Yjs state vector and canonical state hash with the manifest.
+   Only a matching **signed** validation receipt counts toward the two-validator rule.
+   Readers retain the prior valid checkpoint and raw tail until two independent eligible
+   clients provide those receipts. Validation failure leaves the previous checkpoint
    authoritative and records a repair alert.
-4. Only after the retention horizon and validation may the relay prune raw updates below
-   the checkpoint. It archives the manifest and audit record before pruning.
+4. Only after the retention horizon, retention eligibility, and two matching signed
+   validation receipts may the relay prune raw updates below the checkpoint. It archives
+   the manifest and audit record before pruning.
 
 ### 6.2 Device retirement/rebase
 
 A device offline beyond the checkpoint/retention horizon, or one with a cursor before
-the retained base, cannot merge its old editable CRDT state. It exports unsent local edits
-to a reviewable encrypted file, discards its stale replicated state, loads the validated
-checkpoint, and replays approved exports as new current-epoch operations. This prevents
-old edits from resurrecting tombstoned records. Tombstones remain in valid checkpoints
-until this retirement rule makes their removal safe.
+the retained base, cannot merge its old editable CRDT state. The retirement/rebase
+decision is made separately for that device in each `org_id`. It exports unsent local
+edits to a reviewable encrypted file, discards its stale replicated state, loads the
+validated checkpoint, and replays approved exports as new current-epoch operations. This
+prevents old edits from resurrecting tombstoned records. Tombstones remain in valid
+checkpoints until this retirement rule makes their removal safe.
 
 ### 6.3 Other failure rules
 
@@ -418,12 +482,14 @@ remotely erased and the trust story says so plainly.
 - `SYNC-01` Fix the pre-existing live-sync missed-update defect: multiplexed durable
   subscriptions, watermarks, persistent cursors, paging, and gap repair.
 - `SYNC-02` Enforce current key epoch, reseal queued edits, and quarantine failures.
-- `SYNC-03` Add firm-home provisioning and the exact D1 document router/load limits.
+- `SYNC-03` Add `firm_home` provisioning and the exact D1 document router/load limits.
 - `NOTIFY-01` Build sender-blind, eligibility-gated sealed envelopes with transactional
-  outbox/inbox, device acknowledgements, key hints, TTL/dead letters, padding, and
-  traffic-analysis disclosure.
-- `PROP-01` Build revision-set propagation, per-instance/per-step offers, merge-time
-  removal reconciliation, immutable completion operations, and conditional undo.
+  outbox/inbox, `org_id`-scoped acknowledgements, referenced-operation ordering,
+  approval-class durable retention, informational TTL/dead letters, key hints, padding,
+  and traffic-analysis disclosure.
+- `PROP-01` Build revision-set propagation, immutable per-field decision ledger,
+  deterministic target closure, per-instance/per-step offers, merge-time removal
+  reconciliation, immutable completion operations, and conditional undo.
 - `RETENTION-01` Build signed chunked checkpoints, independent validation,
   archive-before-prune, and offline-device rebase.
 
