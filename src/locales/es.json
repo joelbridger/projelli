@@ -4255,13 +4255,13 @@
         "link-signals-action": "Señales"
       }
     },
-    "requestFromClient": {
-      "noBlueprints": "Todavía no hay plantillas de solicitud disponibles.",
-      "willBeSent": "Se enviará",
-      "nothingNeeded": "No hace falta solicitar nada en este momento.",
-      "alreadyOnFile": "Ya registrado",
-      "alreadyOnFileRow": "{{label}}: Ya registrado, no se volverá a preguntar.",
-      "unsupportedItem": "Este tipo de elemento aún no es compatible. Quítelo para enviar esta solicitud."
+    "request-from-client": {
+      "no-blueprints": "Todavía no hay plantillas de solicitud disponibles.",
+      "will-be-sent": "Se enviará",
+      "nothing-needed": "No hace falta solicitar nada en este momento.",
+      "already-on-file": "Ya registrado",
+      "already-on-file-row": "{{label}}: Ya registrado, no se volverá a preguntar.",
+      "unsupported-item": "Este tipo de elemento aún no es compatible. Quítelo para enviar esta solicitud."
     },
     "nudge": {
       "based-on": "Basado en los elementos faltantes al {{date}}",

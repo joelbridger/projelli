@@ -4,7 +4,7 @@ import { RequestsBoardContainer, type RequestsBoardContainerProps } from './Requ
 export type OnboardingBoardContainerProps = Omit<RequestsBoardContainerProps, 'filter' | 'testId' | 'title'>;
 
 export function OnboardingBoardContainer(props: OnboardingBoardContainerProps) {
-  return <RequestsBoardContainer {...props} filter="onboarding" testId="onboarding-board" title="Onboarding" />;
+  return <RequestsBoardContainer {...props} filter="onboarding" testId="onboarding-board-container" title="Onboarding" />;
 }
 
 export default OnboardingBoardContainer;

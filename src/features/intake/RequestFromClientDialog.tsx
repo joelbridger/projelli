@@ -182,7 +182,7 @@ export function RequestFromClientDialog({
         {step === 'picker' ? (
           <section className="grid gap-3" aria-label="Blueprint picker">
             {availableBlueprints.length === 0 ? (
-              <p className="m-0 text-sm text-muted-foreground">{t('intake.requestFromClient.noBlueprints')}</p>
+              <p className="m-0 text-sm text-muted-foreground">{t('intake.request-from-client.no-blueprints')}</p>
             ) : availableBlueprints.map((blueprint) => (
               <button
                 type="button"
@@ -239,29 +239,29 @@ export function RequestFromClientDialog({
         {step === 'review' && resolution ? (
           <section className="grid gap-4" aria-label="Request review">
             <div className="grid gap-2">
-              <h3 className="m-0 text-base font-semibold">{t('intake.requestFromClient.willBeSent')}</h3>
+              <h3 className="m-0 text-base font-semibold">{t('intake.request-from-client.will-be-sent')}</h3>
               {resolution.visibleItems.map((item) => (
                 <div key={item.item_id} className="rounded-md border border-[var(--kp-divider)] bg-background px-3 py-2 text-sm">
                   {item.label}
                 </div>
               ))}
               {resolution.visibleItems.length === 0 ? (
-                <p className="m-0 text-sm text-muted-foreground">{t('intake.requestFromClient.nothingNeeded')}</p>
+                <p className="m-0 text-sm text-muted-foreground">{t('intake.request-from-client.nothing-needed')}</p>
               ) : null}
             </div>
             {suppressedLabels.length > 0 ? (
               <div className="grid gap-2">
-                <h3 className="m-0 text-base font-semibold">{t('intake.requestFromClient.alreadyOnFile')}</h3>
+                <h3 className="m-0 text-base font-semibold">{t('intake.request-from-client.already-on-file')}</h3>
                 {suppressedLabels.map((item) => (
                   <div key={item.itemId} className="rounded-md bg-[var(--kp-success-bg)] px-3 py-2 text-sm text-[var(--kp-success-text)]">
-                    {t('intake.requestFromClient.alreadyOnFileRow', { label: item.label })}
+                    {t('intake.request-from-client.already-on-file-row', { label: item.label })}
                   </div>
                 ))}
               </div>
             ) : null}
             {blockedItem ? (
               <p role="alert" className="m-0 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-                {t('intake.requestFromClient.unsupportedItem')}
+                {t('intake.request-from-client.unsupported-item')}
               </p>
             ) : null}
           </section>

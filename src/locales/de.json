@@ -4255,13 +4255,13 @@
         "link-signals-action": "Signale"
       }
     },
-    "requestFromClient": {
-      "noBlueprints": "Es sind noch keine Vorlagen für Anfragen verfügbar.",
-      "willBeSent": "Wird gesendet",
-      "nothingNeeded": "Im Moment muss nichts angefragt werden.",
-      "alreadyOnFile": "Bereits vorhanden",
-      "alreadyOnFileRow": "{{label}}: Bereits vorhanden, wird nicht erneut abgefragt.",
-      "unsupportedItem": "Dieser Elementtyp wird noch nicht unterstützt – entfernen Sie ihn, um diese Anfrage zu senden."
+    "request-from-client": {
+      "no-blueprints": "Es sind noch keine Vorlagen für Anfragen verfügbar.",
+      "will-be-sent": "Wird gesendet",
+      "nothing-needed": "Im Moment muss nichts angefragt werden.",
+      "already-on-file": "Bereits vorhanden",
+      "already-on-file-row": "{{label}}: Bereits vorhanden, wird nicht erneut abgefragt.",
+      "unsupported-item": "Dieser Elementtyp wird noch nicht unterstützt. Entfernen Sie ihn, um diese Anfrage zu senden."
     },
     "nudge": {
       "based-on": "Basierend auf fehlenden Elementen am {{date}}",

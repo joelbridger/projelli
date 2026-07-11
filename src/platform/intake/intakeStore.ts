@@ -5,7 +5,8 @@ import { SK_INTAKES } from '@/config/identity';
 import type { IntakeNudgeAttempt } from './nudgeTypes';
 import type { Tier1WarningReason } from './documentDetectiveTypes';
 import type { RequestItem } from './types';
-import { defaultNewHouseholdItems } from '@/features/intake/newHouseholdTemplate';
+import { NEW_HOUSEHOLD_BLUEPRINT } from './defaultBlueprints';
+import { copyRequestBlueprint } from './blueprintValidation';
 import type { FormRequestKind } from './types';
 
 export type IntakeItemState = 'not_started' | 'provided' | 'received' | 'accepted' | 'needs_followup' | 'not_needed';
@@ -186,7 +187,9 @@ export function migratePersistedIntakeState(
 ): PersistedIntakeState {
   const sanitized = sanitizePersistedIntakeState(persistedState);
   if (version >= 3) return sanitized;
-  const templateById = new Map(defaultNewHouseholdItems().map((item) => [item.item_id, item]));
+  const templateById = new Map(
+    copyRequestBlueprint(NEW_HOUSEHOLD_BLUEPRINT).items.map((item) => [item.item_id, item]),
+  );
   return {
     intakesById: Object.fromEntries(Object.entries(sanitized.intakesById).map(([id, raw]) => {
       const record = intakeRecordWithDefaults(raw);

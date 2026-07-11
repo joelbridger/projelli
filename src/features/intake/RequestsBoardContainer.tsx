@@ -94,7 +94,7 @@ export function RequestsBoardContainer({
           const intake = intakesById[row.requestId];
           if (!intake) return null;
           if (row.kind !== 'onboarding') {
-            return <span data-testid={`request-nudge-state-${row.requestId}`}>Nudge {row.nudgeEligibility.reason.replaceAll('_', ' ')}</span>;
+            return <span data-testid={`requests-board-nudge-state-${row.requestId}`}>Nudge {row.nudgeEligibility.reason.replaceAll('_', ' ')}</span>;
           }
           return (
             <NudgeDraftCard
