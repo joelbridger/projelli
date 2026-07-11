@@ -56,6 +56,7 @@ try {
   run(['eval', "Array.from(document.querySelectorAll('button')).find((button) => button.textContent.includes('Create resulting instance'))?.click()"]);
   run(['type', `crm-workflow-instance-${workflowId}`, 'Recreated imported workflow']);
   run(['click', `crm-workflow-record-${workflowId}`]);
+  run(['waitfor', 'Checklist saved']);
 
   run(['click', 'crm-home-nav-firm-setup']); run(['click', 'crm-firm-route-migration']); run(['click', 'crm-migration-attachment-fallback']);
   const attachmentSave = JSON.parse(run(['eval', "JSON.stringify(Array.from(document.querySelectorAll('[data-testid^=crm-attachment-record-save-]')).map(x => x.getAttribute('data-testid')))"]));
@@ -65,6 +66,7 @@ try {
   run(['type', `crm-attachment-reason-${attachmentId}`, 'The old system does not offer attachments through its import connection.']);
   run(['type', `crm-attachment-owner-${attachmentId}`, 'Migration owner']);
   run(['click', `crm-attachment-record-save-${attachmentId}`]);
+  run(['waitfor', 'Checklist saved']);
   screenshot('03-attachment-checklist.png');
   // Reloading the real renderer forces the checklist values to come back from
   // the encrypted store instead of surviving only in component memory.

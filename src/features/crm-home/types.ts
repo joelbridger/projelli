@@ -184,8 +184,8 @@ export interface CrmHomeActions {
   applyPropagation?: (offers: readonly PropagationApplyOffer[]) => void;
   undoPropagation?: () => { restored: number; protectedCells: readonly string[] };
   markNotificationsRead?: () => void;
-  recordWorkflowChecklist?: (record: MigrationWorkflowChecklist) => void;
-  recordAttachmentAccounting?: (record: AttachmentAccountingRecord) => void;
+  recordWorkflowChecklist?: (record: MigrationWorkflowChecklist) => void | Promise<void>;
+  recordAttachmentAccounting?: (record: AttachmentAccountingRecord) => void | Promise<void>;
   createExport?: (kind: ExportJobStatus['kind']) => void;
   retryExport?: (kind: ExportJobStatus['kind']) => void;
   runMigrationImport?: (baseUrl: string) => Promise<void>;
