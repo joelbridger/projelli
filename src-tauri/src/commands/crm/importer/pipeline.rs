@@ -2,6 +2,8 @@
 
 use std::collections::BTreeMap;
 
+use anyhow::bail;
+
 use super::{
     archive::{
         ExternalRefProjection, ImportArchiveManifest, RawArchiveEntry, RawCapture, RawCaptureStore,
