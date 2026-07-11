@@ -8,6 +8,7 @@ use store::{
     EncryptedAuditSink, IntakeFactInput, IntakeFactsStore, MaskedClientFact, RevealedClientFact,
 };
 use tauri::{Manager, State};
+use sha2::{Digest, Sha256};
 
 pub struct IntakeState {
     pub workspace: tokio::sync::Mutex<Option<std::path::PathBuf>>,
@@ -35,6 +36,93 @@ async fn workspace(state: &State<'_, IntakeState>) -> Result<std::path::PathBuf,
         .await
         .clone()
         .ok_or_else(|| "intake workspace not set".to_string())
+}
+
+fn pdf_template_artifact_path(workspace_root: &std::path::Path, template_id: &str) -> anyhow::Result<std::path::PathBuf> {
+    if !template_id
+        .chars()
+        .enumerate()
+        .all(|(index, character)| (index == 0 && character.is_ascii_alphanumeric()) || character.is_ascii_alphanumeric() || character == '_' || character == '-')
+        || template_id.len() < 8
+        || template_id.len() > 128
+    {
+        anyhow::bail!("template id is not safe");
+    }
+    let digest = hex::encode(Sha256::digest(template_id.as_bytes()));
+    Ok(crate::commands::data_dir::workspace_data_dir(workspace_root)
+        .join("intake-pdf-templates")
+        .join(format!("{digest}.enc")))
+}
+
+/// Store an entire PDF template record as an AES-GCM local artifact. The OS
+/// keychain holds only this encryption key, so Windows' tiny credential blob
+/// limit can never reject an advisor's actual PDF.
+#[tauri::command]
+pub async fn intake_pdf_template_artifact_write(
+    state: State<'_, IntakeState>,
+    template_id: String,
+    value: String,
+) -> Result<(), String> {
+    let ws = workspace(&state).await?;
+    tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
+        let path = pdf_template_artifact_path(&ws, &template_id)?;
+        let parent = path.parent().ok_or_else(|| anyhow::anyhow!("artifact path has no parent"))?;
+        std::fs::create_dir_all(parent)?;
+        let key = crate::commands::mail::crypto::get_or_create_scoped_master_key(
+            crate::identity::INTAKE_PDF_TEMPLATES_ENC_SERVICE,
+        )?;
+        let encrypted = crate::commands::mail::crypto::encrypt_with_key(value.as_bytes(), &key)?;
+        let temp = path.with_extension(format!("tmp-{}", std::process::id()));
+        std::fs::write(&temp, encrypted)?;
+        std::fs::rename(&temp, &path)?;
+        Ok(())
+    })
+    .await
+    .map_err(|error| format!("join: {error}"))?
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub async fn intake_pdf_template_artifact_read(
+    state: State<'_, IntakeState>,
+    template_id: String,
+) -> Result<Option<String>, String> {
+    let ws = workspace(&state).await?;
+    tokio::task::spawn_blocking(move || -> anyhow::Result<Option<String>> {
+        let path = pdf_template_artifact_path(&ws, &template_id)?;
+        let encrypted = match std::fs::read(path) {
+            Ok(value) => value,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(error.into()),
+        };
+        let key = crate::commands::mail::crypto::get_or_create_scoped_master_key(
+            crate::identity::INTAKE_PDF_TEMPLATES_ENC_SERVICE,
+        )?;
+        let plaintext = crate::commands::mail::crypto::decrypt_with_key(&encrypted, &key)?;
+        Ok(Some(String::from_utf8(plaintext).map_err(|_| anyhow::anyhow!("PDF template artifact is not UTF-8"))?))
+    })
+    .await
+    .map_err(|error| format!("join: {error}"))?
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub async fn intake_pdf_template_artifact_delete(
+    state: State<'_, IntakeState>,
+    template_id: String,
+) -> Result<(), String> {
+    let ws = workspace(&state).await?;
+    tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
+        let path = pdf_template_artifact_path(&ws, &template_id)?;
+        match std::fs::remove_file(path) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(error.into()),
+        }
+    })
+    .await
+    .map_err(|error| format!("join: {error}"))?
+    .map_err(|error| error.to_string())
 }
 
 #[tauri::command]

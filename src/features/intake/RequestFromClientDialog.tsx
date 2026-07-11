@@ -18,8 +18,12 @@ import { assertValidRequestBlueprint, copyRequestBlueprint } from '@/platform/in
 import { listBuiltInRequestBlueprints } from '@/platform/intake/defaultBlueprints';
 import { intakeFactMatchList } from '@/platform/intake/factsStore';
 import { resolveAskOnce, type AskOnceResolution } from '@/platform/intake/requestAskOnce';
+import { isValidPdfTemplateDescriptor } from '@/platform/intake/pdfTemplates/templateValidation';
+import { usePdfTemplateStore } from '@/platform/intake/pdfTemplateStore';
 import type { RequestBlueprint } from '@/platform/intake/blueprintTypes';
-import type { FormRequest, RequestItem } from '@/platform/intake/types';
+import type { FormRequest, PdfTemplateDescriptor, RequestItem } from '@/platform/intake/types';
+import { TemplateLibraryPanel } from './pdfTemplates/TemplateLibraryPanel';
+import { createPdfFillDraftItem } from './pdfTemplates/requestComposerPdf';
 
 type ComposerStep = 'picker' | 'editor' | 'review';
 
@@ -49,7 +53,9 @@ function newStandingRequestId(): string {
 }
 
 function unsupportedItem(items: RequestItem[]): RequestItem | undefined {
-  return items.find((item) => item.t === 'pdf_fill' || item.t === 'signature');
+  return items.find((item) => item.t === 'signature' || (item.t === 'pdf_fill' && (
+    !isValidPdfTemplateDescriptor(item.template) || !item.sealed_source_pdf_b64
+  )));
 }
 
 function copyBlueprints(blueprints: RequestBlueprint[]): RequestBlueprint[] {
@@ -67,6 +73,7 @@ export function RequestFromClientDialog({
 }: RequestFromClientDialogProps) {
   const { t } = useTranslation();
   const firmBlueprints = useBlueprintStore((state) => state.firmBlueprintsById);
+  const loadSourceBytes = usePdfTemplateStore((state) => state.loadSourceBytes);
   const availableBlueprints = useMemo(
     () => blueprints
       ? copyBlueprints(blueprints)
@@ -81,6 +88,7 @@ export function RequestFromClientDialog({
   const [resolution, setResolution] = useState<AskOnceResolution | null>(null);
   const [error, setError] = useState('');
   const [sending, setSending] = useState(false);
+  const [showTemplateLibrary, setShowTemplateLibrary] = useState(false);
   const draftGeneration = useRef(0);
 
   useEffect(() => {
@@ -92,6 +100,7 @@ export function RequestFromClientDialog({
     setResolution(null);
     setError('');
     setSending(false);
+    setShowTemplateLibrary(false);
   }, [open]);
 
   const blockedItem = unsupportedItem(draftItems);
@@ -125,6 +134,27 @@ export function RequestFromClientDialog({
     draftGeneration.current += 1;
     setDraftItems((items) => items.filter((item) => item.item_id !== itemId));
     setResolution(null);
+  };
+
+  const addApprovedTemplate = async (template: PdfTemplateDescriptor) => {
+    if (!isValidPdfTemplateDescriptor(template)) {
+      setError('This form is not approved yet. Review and approve it before adding it to a request.');
+      return;
+    }
+    try {
+      const sourceBytes = await loadSourceBytes(template.templateId, template.version);
+      if (!sourceBytes) {
+        setError('This approved PDF is unavailable on this device. It was not added to the request.');
+        return;
+      }
+      const item = await createPdfFillDraftItem(template, sourceBytes);
+      draftGeneration.current += 1;
+      setDraftItems((items) => [...items, item]);
+      setResolution(null);
+      setShowTemplateLibrary(false);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'This approved PDF could not be added to the request.');
+    }
   };
 
   const reviewRequest = async () => {
@@ -199,6 +229,12 @@ export function RequestFromClientDialog({
 
         {step === 'editor' ? (
           <section className="grid max-h-[55vh] gap-4 overflow-y-auto" aria-label="Request item editor">
+            <div className="rounded-lg border border-[var(--kp-divider)] bg-[var(--kp-bg-soft)] p-3">
+              <Button type="button" variant="outline" onClick={() => { setShowTemplateLibrary((visible) => !visible); }}>
+                {showTemplateLibrary ? 'Hide PDF form library' : 'Add approved PDF form'}
+              </Button>
+              {showTemplateLibrary ? <div className="mt-3"><TemplateLibraryPanel onChoose={addApprovedTemplate} /></div> : null}
+            </div>
             {draftItems.map((item) => (
               <article key={item.item_id} className="grid gap-3 rounded-lg border border-[var(--kp-divider)] bg-background p-4">
                 <div className="flex items-center justify-between gap-3">
@@ -231,6 +267,7 @@ export function RequestFromClientDialog({
                     />
                   </div>
                 ) : null}
+                {item.t === 'pdf_fill' ? <p className="m-0 text-sm text-muted-foreground">Form ready</p> : null}
               </article>
             ))}
           </section>
