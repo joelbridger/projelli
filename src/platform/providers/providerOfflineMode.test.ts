@@ -1,13 +1,19 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   getStatusMock,
   assertCloudSendAllowedMock,
   assertLocalOnlyAllowsExternalMock,
+  isTauriMock,
 } = vi.hoisted(() => ({
   getStatusMock: vi.fn(),
   assertCloudSendAllowedMock: vi.fn(),
   assertLocalOnlyAllowsExternalMock: vi.fn(),
+  isTauriMock: vi.fn(),
+}));
+
+vi.mock('@tauri-apps/api/core', () => ({
+  isTauri: isTauriMock,
 }));
 
 vi.mock('@/platform/privacy/offlineMode', () => ({
@@ -112,6 +118,12 @@ function localResponse(content = 'Local answered.'): Response {
     { status: 200 }
   );
 }
+
+beforeEach(() => {
+  // This suite proves the desktop boundary. Browser dev mode is intentionally
+  // covered separately in networkClient.test.ts, where isTauri() is false.
+  isTauriMock.mockReturnValue(true);
+});
 
 afterEach(() => {
   vi.restoreAllMocks();

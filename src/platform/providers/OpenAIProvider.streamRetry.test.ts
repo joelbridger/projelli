@@ -18,6 +18,23 @@ vi.mock('@/platform/privacy/networkClient', () => ({
     void operationId;
     return fetch(input, init);
   },
+  // Keep the retry tests on the real streaming path: the provider now opens
+  // streams through the policy-aware transport, then obtains its reader from
+  // that response. This test double deliberately preserves the old fetch
+  // behavior so its retry, mid-stream failure, and abort assertions stay
+  // meaningful.
+  egressFetchStream: (
+    operationId: string,
+    input: string | URL,
+    init?: RequestInit
+  ) => {
+    void operationId;
+    return fetch(input, init);
+  },
+  getEgressStreamReader: (response: Response) => {
+    if (!response.body) throw new Error('No response body');
+    return response.body.getReader();
+  },
 }));
 
 vi.mock('@/platform/privacy/cloudSendGuard', () => ({
