@@ -40,13 +40,22 @@ async function mintTicket(matterId: string, bearer: string, seatToken: string) {
   });
   return { status: res.status, json: (await res.json().catch(() => ({}))) as Record<string, any> };
 }
-const wsUrlForTicket = (matterId: string, ticket: string) =>
-  `ws://${srv.hostname}:${srv.port}/matter/${matterId}/sync?ticket=${encodeURIComponent(ticket)}`;
+const wsUrlForTicket = (matterId: string, ticket: string, options: { docId?: string; since?: number } = {}) => {
+  const params = new URLSearchParams({ ticket });
+  if (options.docId) params.set("doc_id", options.docId);
+  if (options.since !== undefined) params.set("since", String(options.since));
+  return `ws://${srv.hostname}:${srv.port}/matter/${matterId}/sync?${params}`;
+};
 /** Mint a ticket and return the WS URL (the common path the client takes). */
-async function wsUrl(matterId: string, bearer: string, seatToken: string): Promise<string> {
+async function wsUrl(
+  matterId: string,
+  bearer: string,
+  seatToken: string,
+  options: { docId?: string; since?: number } = {},
+): Promise<string> {
   const t = await mintTicket(matterId, bearer, seatToken);
   if (t.status !== 200 || !t.json.ticket) throw new Error(`ticket mint failed (${t.status}): ${JSON.stringify(t.json)}`);
-  return wsUrlForTicket(matterId, t.json.ticket as string);
+  return wsUrlForTicket(matterId, t.json.ticket as string, options);
 }
 
 afterAll(() => srv.stop(true));
@@ -266,6 +275,36 @@ describe("E2EE sync relay — E2E over HTTP + WebSocket", () => {
       expect(live).toBeTruthy();
       // Bytes ride the socket unchanged.
       expect(Array.from(new Uint8Array(Buffer.from(live.ciphertext_b64, "base64")))).toEqual(Array.from(blob));
+    } finally {
+      ws.close();
+    }
+  });
+
+  test("a live subscriber catches up past 500 updates from its saved cursor", async () => {
+    // This is the reconnect race from the adversarial review in a deterministic
+    // form. The peer is caught up through cursor 0 for this new document stream,
+    // then 501 updates land while it is offline. Its live socket must deliver the
+    // 501st update too, rather than replaying only the first 500 old rows.
+    const docId = `live-gap-${crypto.randomUUID()}`;
+    const matter = store.getMatter(matterId)!;
+    let expectedCursor = 0;
+    for (let i = 0; i < 501; i++) {
+      expectedCursor = store.appendMatterUpdate({
+        matter_id: matterId,
+        org_id: matter.org_id,
+        doc_id: docId,
+        blob_id: `offline-${i}-${crypto.randomUUID()}`,
+        ciphertext: new Uint8Array([i & 0xff]),
+        author_seat: aliceSeat,
+        key_epoch: matter.key_epoch,
+      }).update.id;
+    }
+
+    const ws = await openSocket(await wsUrl(matterId, bobAccess, bobSeat, { docId, since: 0 }));
+    try {
+      const buf = bufferUpdates(ws);
+      const caughtUp = await buf.waitFor(expectedCursor);
+      expect(caughtUp.doc_id).toBe(docId);
     } finally {
       ws.close();
     }
