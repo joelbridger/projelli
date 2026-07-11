@@ -21,13 +21,11 @@ import type {
 } from '@/platform/providers/Provider';
 import type { RetrievalScope } from '@/platform/utils/tauri-commands';
 import type { AuditEntry, AuditScope } from '@/platform/types/audit';
-import { auditEventToEntry } from '@/platform/audit/AuditService';
-import { assertLocalOnlyAllowsSend } from '@/platform/privacy/localOnlyGuard';
+import { type ConfidentialityMode } from '@/platform/privacy/egress';
 import {
-  resolveEgress,
-  type ConfidentialityMode,
-} from '@/platform/privacy/egress';
-import { sendWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
+  sendPreparedMessageWithEgressAudit,
+  sendPreparedStreamingWithEgressAudit,
+} from '@/platform/privacy/promptPreparation';
 import {
   runContradictionAnalysis,
   type RetrieveFn,
@@ -114,6 +112,8 @@ export interface WorkflowAuditOptions {
   getScope?: () => AuditScope;
   assuredAvailable?: boolean;
   isDemo?: boolean;
+  /** Headless runs cannot display a send-review dialog and must stop safely. */
+  background?: boolean;
 }
 
 export interface WorkflowEngineOptions {
@@ -349,42 +349,6 @@ export class WorkflowEngine {
     });
   }
 
-  private emitEgressAudit(step: WorkflowStep): void {
-    if (!this.audit?.onAuditLog) return;
-    const mode = this.audit.getConfidentialityMode();
-    const model = this.audit.model ?? this.provider.getMetadata().model;
-    const egress = resolveEgress({
-      provider: this.audit.providerId,
-      mode,
-      isDemo: this.audit.isDemo ?? false,
-      assuredAvailable: this.audit.assuredAvailable ?? false,
-    });
-    const entry = auditEventToEntry({
-      type: 'egress',
-      timestamp: new Date().toISOString(),
-      payload: {
-        provider: egress.provider,
-        model,
-        mode,
-        destination: egress.destination,
-        dataLeaves: egress.dataLeaves,
-        ...(this.audit.getScope ? { scope: this.audit.getScope() } : {}),
-      },
-    });
-    this.emitAudit({
-      ...entry,
-      metadata: {
-        ...entry.metadata,
-        feature: 'workflow',
-        workflowId: this.execution?.template.id,
-        workflowName: this.execution?.template.name,
-        runId: this.execution?.runId,
-        stepId: step.id,
-        stepName: step.name,
-      },
-    });
-  }
-
   private emitModelCallAudit(
     step: WorkflowStep,
     callKind: 'generate' | 'review' | 'analyze',
@@ -456,31 +420,28 @@ export class WorkflowEngine {
     prompt: string,
     options?: SendOptions,
   ): Promise<ProviderResponse> {
-    return sendWithEgressAudit({
+    const response = await sendPreparedMessageWithEgressAudit({
       provider: this.provider,
       providerId: this.audit?.providerId ?? this.provider.getMetadata().providerId ?? 'unknown',
       model: this.audit?.model ?? this.provider.getMetadata().model,
       prompt,
       ...(options ? { options } : {}),
+      surface: `workflow_${callKind}`,
+      background: this.audit?.background ?? false,
+      parts: [
+        { id: 'prompt', origin: 'workflow_input', label: `Workflow ${callKind} request`, text: prompt },
+        ...Object.entries(this.execution?.inputs ?? {}).map(([key, value]) => ({
+          id: `workflow-input-${key}`,
+          origin: 'workflow_input' as const,
+          label: `Workflow answer: ${key}`,
+          text: String(value),
+        })),
+      ],
       ...(this.audit?.onAuditLog ? { onAuditLog: this.audit.onAuditLog } : {}),
       ...(this.audit?.getScope ? { scope: this.audit.getScope() } : {}),
-      modelCall: {
-        description: `Workflow ${callKind} step to ${this.audit?.model ?? this.provider.getMetadata().model}`,
-        inputs: { promptLength: prompt.length, stepId: step.id, callKind },
-        outputs: (response) => ({ contentLength: response.content.length }),
-        metadata: {
-          feature: 'workflow',
-          runId: this.execution?.runId,
-          workflowId: this.execution?.template.id,
-          workflowName: this.execution?.template.name,
-          stepId: step.id,
-          stepName: step.name,
-          callKind,
-          provider: this.audit?.providerId,
-          ...(this.audit?.getScope ? { scope: this.audit.getScope() } : {}),
-        },
-      },
     });
+    this.emitModelCallAudit(step, callKind, prompt, response);
+    return response;
   }
 
   private auditedProvider(step: WorkflowStep, callKind: 'analyze'): Provider {
@@ -496,9 +457,18 @@ export class WorkflowEngine {
       ...(sendMessageStreaming
         ? {
           sendMessageStreaming: async (prompt: string, options: StreamOptions) => {
-            assertLocalOnlyAllowsSend(base.getMetadata().providerId ?? 'unknown');
-            this.emitEgressAudit(step);
-            const response = await sendMessageStreaming(prompt, options);
+            const response = await sendPreparedStreamingWithEgressAudit({
+              provider: base,
+              providerId: this.audit?.providerId ?? base.getMetadata().providerId ?? 'unknown',
+              model: this.audit?.model ?? base.getMetadata().model,
+              prompt,
+              options,
+              surface: 'workflow_streaming',
+              background: this.audit?.background ?? false,
+              parts: [{ id: 'prompt', origin: 'workflow_input', label: 'Workflow streaming request', text: prompt }],
+              ...(this.audit?.onAuditLog ? { onAuditLog: this.audit.onAuditLog } : {}),
+              ...(this.audit?.getScope ? { scope: this.audit.getScope() } : {}),
+            });
             this.emitModelCallAudit(step, 'generate', prompt, response);
             return response;
           },
@@ -511,9 +481,9 @@ export class WorkflowEngine {
         }
         : {}),
       structuredOutput: async <T,>(prompt: string, options: StructuredOutputOptions) => {
-        assertLocalOnlyAllowsSend(base.getMetadata().providerId ?? 'unknown');
-        this.emitEgressAudit(step);
-        // eslint-disable-next-line lantern-egress/no-direct-provider-send -- auditedProvider checks Local-only and writes the workflow egress receipt immediately before this structured call.
+        // The reusable analysis service prepares this request before calling
+        // this wrapper, which retains the workflow-specific model-call receipt.
+        // eslint-disable-next-line lantern-egress/no-direct-provider-send
         const response = await base.structuredOutput<T>(prompt, options);
         this.emitModelCallAudit(step, callKind, prompt, response);
         return response;
@@ -749,6 +719,13 @@ export class WorkflowEngine {
       retrieve: this.analyzeDeps.retrieve,
       verify: this.analyzeDeps.verifyCitation,
       interpolate: (tpl, values) => this.interpolateTemplate(tpl, values),
+      promptPreparation: {
+        providerId: this.audit?.providerId,
+        model: this.audit?.model,
+        background: this.audit?.background ?? false,
+        ...(this.audit?.onAuditLog ? { onAuditLog: this.audit.onAuditLog } : {}),
+        scope: this.audit?.getScope?.() ?? scope,
+      },
     });
 
     // Render the structured findings to a real Word document. The matter +

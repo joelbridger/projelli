@@ -5,7 +5,7 @@ import { filterHitsForExportConsent } from '@/platform/rag/exportConsent';
 import { buildResolvedProviderForClientMap } from './provider';
 import { deriveCompleteness } from '@/platform/clientMap/completeness';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
-import { sendWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
+import { sendPreparedMessageWithEgressAudit } from '@/platform/privacy/promptPreparation';
 import { sourceIdentitiesFromSources } from '@/platform/audit/sourceCapture';
 import { resolveEgress } from '@/platform/privacy/egress';
 import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
@@ -113,7 +113,7 @@ export async function buildClientMap(
   const provider = resolvedProvider.provider;
   let buildEgress: ClientMap['buildEgress'];
   // Receipts (B5): capture the resolved egress route for the Client Map's
-  // receipt line. The audit rows themselves are written by sendWithEgressAudit
+  // receipt line. The audit rows themselves are written by the prepared-send
   // (the egress choke point) immediately before each send - no duplicate
   // logging here, and a failed/timed-out send still leaves the audit record.
   const captureBuildEgress = () => {
@@ -136,20 +136,20 @@ export async function buildClientMap(
     maxTokens: number,
   ) => {
     captureBuildEgress();
-    return sendWithEgressAudit({
+    return sendPreparedMessageWithEgressAudit({
       provider,
       providerId: resolvedProvider.providerId,
       model: resolvedProvider.model,
       prompt,
       options: { systemPrompt, maxTokens },
+      surface: 'client_map',
+      parts: [
+        { id: 'prompt', origin: 'client_map', label: 'Client Map request', text: prompt },
+        { id: `client-map-${label}`, origin: 'client_map', label: 'Client Map source context', text: systemPrompt },
+      ],
       ...(options?.onAuditLog ? { onAuditLog: options.onAuditLog } : {}),
       scope,
-      modelCall: {
-        description: `Client Map ${label} to ${resolvedProvider.model}`,
-        inputs: { matterId, step: label },
-        outputs: (response) => ({ contentLength: response.content.length }),
-        metadata: { feature: 'client_map', step: label },
-      },
+      modelCall: (response) => ({ action: 'model_call', description: `Client Map ${label} to ${resolvedProvider.model}`, model: resolvedProvider.model, inputs: { matterId, step: label }, outputs: { contentLength: response.content.length }, userDecision: 'auto', metadata: { feature: 'client_map', step: label }, tokensIn: response.usage?.inputTokens ?? 0, tokensOut: response.usage?.outputTokens ?? 0, costUsd: response.cost ?? 0, provider: resolvedProvider.providerId }),
     });
   };
   const sections: ClientMapSection[] = [];

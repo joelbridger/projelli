@@ -218,6 +218,7 @@ describe('Workflow Integration Tests', () => {
 
       expect(auditEntries.map((entry) => entry.action)).toEqual([
         'workflow_start',
+        'prompt_preparation',
         'egress',
         'model_call',
         'file_create',

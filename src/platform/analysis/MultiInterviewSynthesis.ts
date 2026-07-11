@@ -19,7 +19,7 @@
 //   - Pasted text separated by `---`
 
 import type { Provider, OutputSchema } from '@/platform/providers/Provider';
-import { runWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
+import { sendPreparedStructuredWithEgressAudit } from '@/platform/privacy/promptPreparation';
 
 export interface Theme {
   name: string;
@@ -169,16 +169,21 @@ Transcript:
 ${transcript.content}
 `;
   const metadata = provider.getMetadata();
-  const result = await runWithEgressAudit<TranscriptSummary>({
+  const result = await sendPreparedStructuredWithEgressAudit<TranscriptSummary>({
     provider,
     providerId: metadata.providerId ?? 'unknown',
     model: metadata.model,
-    operation: () =>
-      provider.structuredOutput<TranscriptSummary>(prompt, {
-        schema: TRANSCRIPT_SCHEMA,
-        systemPrompt:
-          'You are a customer research analyst. Return only concrete, evidence-based findings sourced from the transcript text.',
-      }),
+    surface: 'interview_synthesis_summary',
+    prompt,
+    options: {
+      schema: TRANSCRIPT_SCHEMA,
+      systemPrompt:
+        'You are a customer research analyst. Return only concrete, evidence-based findings sourced from the transcript text.',
+    },
+    parts: [
+      { id: 'prompt', origin: 'workflow_input', label: 'Interview summary request', text: prompt },
+      { id: 'transcript', origin: 'meeting', label: 'Interview transcript', text: transcript.content },
+    ],
   });
   return { ...result, source: transcript.source };
 }
@@ -215,16 +220,21 @@ ${body}
 `;
 
   const metadata = provider.getMetadata();
-  return runWithEgressAudit<MultiInterviewSynthesisResult>({
+  return sendPreparedStructuredWithEgressAudit<MultiInterviewSynthesisResult>({
     provider,
     providerId: metadata.providerId ?? 'unknown',
     model: metadata.model,
-    operation: () =>
-      provider.structuredOutput<MultiInterviewSynthesisResult>(prompt, {
-        schema: SYNTHESIS_SCHEMA,
-        systemPrompt:
-          'You are a senior product researcher. Identify patterns across interviews and surface both consensus and genuine contradictions.',
-      }),
+    surface: 'interview_synthesis',
+    prompt,
+    options: {
+      schema: SYNTHESIS_SCHEMA,
+      systemPrompt:
+        'You are a senior product researcher. Identify patterns across interviews and surface both consensus and genuine contradictions.',
+    },
+    parts: [
+      { id: 'prompt', origin: 'workflow_input', label: 'Interview synthesis request', text: prompt },
+      { id: 'summaries', origin: 'workflow_input', label: 'Interview summaries', text: body },
+    ],
   });
 }
 
