@@ -17,9 +17,17 @@ import { openPageJson, sealPageJson } from './pageCrypto';
 import { RelayClient } from './relayClient';
 import { getOrCreateSessionMarker } from './sessionMarker';
 import { submitAnswer } from './submission';
-import type { AnswerPayload, IntakeChecklist, IntakeFirm, ResumeState } from './types';
+import type { AnswerPayload, IntakeChecklist, IntakeFirm, ResumeState, SigningLaunchUiStatus } from './types';
 import { PdfFillScreen } from './pdfFill/PdfFillScreen';
 import { sealedPdfSourceBytes } from './pdfFill/sealedPdfSource';
+import { assertSignatureLaunchUsable, type SignatureLaunchRecord } from '@/platform/intake/docusignSignature/signatureLaunch';
+import { SigningConsentScreen } from './docusignSigning/SigningConsentScreen';
+import { SigningReturnPage } from './docusignSigning/SigningReturnPage';
+import { SigningWaitingScreen } from './docusignSigning/SigningWaitingScreen';
+import { SigningLaunchRelayClient } from './docusignSigning/launchRelayClient';
+import { hasOpenedSigningLaunch, markSigningLaunchOpened } from './docusignSigning/launchConsumption';
+import { isDocusignSigningMessage } from './docusignSigning/message';
+import { appOrigin, isDocusignReturnPath } from './docusignSigning/origins';
 
 type LoadState =
   | { status: 'checking' | 'loading' }
@@ -32,6 +40,7 @@ type LoadState =
       intakePubRaw: Uint8Array;
       pageKey: CryptoKey;
       relay: RelayClient;
+      signingRelay: SigningLaunchRelayClient;
       checklist: IntakeChecklist;
       resume: ResumeState;
       finalizedItemIds: Set<string>;
@@ -277,6 +286,7 @@ function mergeResume(base: ResumeState, next: ResumeState): ResumeState {
 }
 
 export function App(): JSX.Element {
+  if (isDocusignReturnPath(window.location.pathname)) return <SigningReturnPage />;
   const [loadState, setLoadState] = useState<LoadState>({ status: 'checking' });
 
   useEffect(() => {
@@ -298,6 +308,7 @@ export function App(): JSX.Element {
         const pageKey = await derivePageKey(parsed.s);
         const auth = await deriveAuthToken(parsed.s);
         const relay = new RelayClient(intakeId, auth.tokenB64);
+        const signingRelay = new SigningLaunchRelayClient(intakeId, auth.tokenB64);
         const bundle = await relay.fetchBundle();
         const checklist = await openPageJson<IntakeChecklist>(pageKey, bundle.checklist_ciphertext_b64);
         const resume = await openPageJson<ResumeState>(pageKey, bundle.state_ciphertext_b64);
@@ -309,6 +320,7 @@ export function App(): JSX.Element {
             intakePubRaw: parsed.intakePubRaw,
             pageKey,
             relay,
+            signingRelay,
             checklist,
             resume: mergeResume(EMPTY_RESUME, resume),
             finalizedItemIds: new Set(bundle.finalized_item_ids),
@@ -382,7 +394,7 @@ function ErrorScreen({ message, onRetry }: { message: string; onRetry: () => voi
 }
 
 function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
-  const { checklist, finalizedItemIds, intakeId, intakePubRaw, pageKey, relay, sessionId } = props;
+  const { checklist, finalizedItemIds, intakeId, intakePubRaw, pageKey, relay, sessionId, signingRelay } = props;
   const [resume, setResume] = useState<ResumeState>(props.resume);
   const [currentItemId, setCurrentItemId] = useState(() => chooseInitialItem(checklist, finalizedItemIds, props.resume));
   const [localSubmitted, setLocalSubmitted] = useState<Set<string>>(() => new Set());
@@ -391,9 +403,11 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [busyItemId, setBusyItemId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [signingUiStatus, setSigningUiStatus] = useState<SigningLaunchUiStatus>('checking');
   const contentRef = useRef<HTMLDivElement>(null);
   const resumeRef = useRef<ResumeState>(props.resume);
   const stateWriteQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const signatureLaunchRef = useRef<SignatureLaunchRecord | null>(null);
 
   const actionItems = useMemo(() => checklist.items.filter(isActionable), [checklist.items]);
   const doneIds = useMemo(() => new Set([...finalizedItemIds, ...localSubmitted]), [finalizedItemIds, localSubmitted]);
@@ -403,6 +417,92 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
   const firm = useMemo(() => normalizeFirm(checklist.firm), [checklist.firm]);
   const journey = firm.journey;
   const accent = firm.accent;
+
+  useEffect(() => {
+    const origin = appOrigin();
+    function onSigningReturn(event: MessageEvent<unknown>): void {
+      if (event.origin !== origin || !isDocusignSigningMessage(event.data)) return;
+      switch (event.data.outcome) {
+        case 'signing_complete':
+          setSigningUiStatus('confirming');
+          break;
+        case 'cancel':
+          setSigningUiStatus('cancelled');
+          break;
+        case 'decline':
+          setSigningUiStatus('declined');
+          break;
+        case 'ttl_expired':
+          setSigningUiStatus('expired');
+          break;
+        case 'exception':
+          setSigningUiStatus('error');
+          break;
+      }
+    }
+    window.addEventListener('message', onSigningReturn);
+    return () => window.removeEventListener('message', onSigningReturn);
+  }, []);
+
+  useEffect(() => {
+    if (!allDone) return;
+    let cancelled = false;
+    let stopped = false;
+    let timer: number | undefined;
+    async function checkForLaunch(): Promise<void> {
+      if (signatureLaunchRef.current || stopped) return;
+      try {
+        const ciphertext = await signingRelay.fetchLaunch();
+        if (cancelled || ciphertext === null) {
+          if (!cancelled && ciphertext === null) setSigningUiStatus('unavailable');
+          return;
+        }
+        const launch = await openPageJson<SignatureLaunchRecord>(pageKey, ciphertext);
+        assertSignatureLaunchUsable(launch, new Date().toISOString());
+        if (cancelled) return;
+        signatureLaunchRef.current = launch;
+        if (timer !== undefined) window.clearInterval(timer);
+        setSigningUiStatus(hasOpenedSigningLaunch(intakeId) ? 'waiting' : 'ready');
+      } catch (error) {
+        if (cancelled) return;
+        const message = error instanceof Error ? error.message : '';
+        if (/expired|consumed/iu.test(message)) {
+          stopped = true;
+          if (timer !== undefined) window.clearInterval(timer);
+          setSigningUiStatus('expired');
+          return;
+        }
+        setSigningUiStatus('unavailable');
+      }
+    }
+    void checkForLaunch();
+    timer = window.setInterval(() => void checkForLaunch(), 20_000);
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) window.clearInterval(timer);
+    };
+  }, [allDone, intakeId, pageKey, signingRelay]);
+
+  function openSigningCeremony(): void {
+    const launch = signatureLaunchRef.current;
+    if (!launch) {
+      setSigningUiStatus('error');
+      return;
+    }
+    try {
+      assertSignatureLaunchUsable(launch, new Date().toISOString());
+      const signingWindow = window.open(launch.recipientViewUrl, '_blank');
+      if (!signingWindow) {
+        setSigningUiStatus('error');
+        return;
+      }
+      markSigningLaunchOpened(intakeId);
+      setSigningUiStatus('waiting');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      setSigningUiStatus(/expired|consumed/iu.test(message) ? 'expired' : 'error');
+    }
+  }
 
   function saveResume(next: ResumeState | ((current: ResumeState) => ResumeState)): Promise<void> {
     // React state updates are asynchronous. Keep the authoritative local copy in
@@ -558,7 +658,7 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
 
   useEffect(() => {
     contentRef.current?.querySelector<HTMLHeadingElement>('h1')?.focus();
-  }, [currentItemId, privacyOpen, statusState, allDone, replacingItemId]);
+  }, [currentItemId, privacyOpen, statusState, allDone, replacingItemId, signingUiStatus]);
 
   if (privacyOpen) {
     return <PrivacyScreen checklist={checklist} firm={firm} onBack={() => setPrivacyOpen(false)} />;
@@ -580,7 +680,11 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
       ) : null}
 
       <div ref={contentRef}>
-      {statusState ? (
+      {allDone && signingUiStatus === 'ready' ? (
+        <SigningConsentScreen onContinue={openSigningCeremony} />
+      ) : allDone && signingUiStatus !== 'checking' && signingUiStatus !== 'unavailable' && signingUiStatus !== 'ready' ? (
+        <SigningWaitingScreen status={signingUiStatus} />
+      ) : statusState ? (
         <JourneyStatusScreen checklist={checklist} firm={firm} resume={resume} state={statusState} />
       ) : currentItemId === 'completion' || allDone ? (
         <CompletionScreen checklist={checklist} firm={firm} resume={resume} />
