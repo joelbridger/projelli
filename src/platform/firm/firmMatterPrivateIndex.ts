@@ -145,10 +145,23 @@ export async function addDocumentStreamToPrivateIndex(
   if (!current) throw new Error('Cannot add a document stream before the private index exists.');
   const existing = current.streams[localDocumentId];
   if (existing?.streamHandle === streamHandle) return;
+  const streamsMap = getStreamsV2Map(doc);
+  const previous = streamsMap.get(localDocumentId);
   doc.transact(() => {
-    getStreamsV2Map(doc).set(localDocumentId, { streamHandle, kind: 'document' });
+    streamsMap.set(localDocumentId, { streamHandle, kind: 'document' });
   });
-  await rootSync.flush();
+  try {
+    await rootSync.flush();
+  } catch (error) {
+    // Do not leave a locally usable mapping behind when its encrypted root
+    // update was not accepted. The unused stream lease has no accepted stream
+    // data, so the relay can reclaim it normally.
+    doc.transact(() => {
+      if (previous === undefined) streamsMap.delete(localDocumentId);
+      else streamsMap.set(localDocumentId, previous);
+    });
+    throw error;
+  }
 }
 
 /**
@@ -186,25 +199,4 @@ export async function tombstoneDocumentStreamFromPrivateIndex(
     else streamsMap.delete(localDocumentId);
   });
   await rootSync.flush();
-}
-
-/** Build a v1 index from a locally held legacy mapping; no value leaves Yjs ciphertext. */
-export function migrateLegacyPrivateIndex(
-  doc: Y.Doc,
-  details: { clientName: string; displayName: string; rootStreamHandle: StreamHandle; documentStreams: Record<string, StreamHandle> },
-): FirmMatterPrivateIndex {
-  const streams: FirmMatterPrivateIndex['streams'] = {
-    _notes: { streamHandle: details.rootStreamHandle, kind: 'notes' },
-  };
-  for (const [localId, streamHandle] of Object.entries(details.documentStreams)) {
-    streams[localId] = { streamHandle, kind: 'document' };
-  }
-  const index: FirmMatterPrivateIndex = { version: 1, clientName: details.clientName, displayName: details.displayName, streams };
-  writeFirmMatterPrivateIndex(doc, index);
-  return index;
-}
-
-/** Keeps the opaque matter handle visibly part of the boundary in callers. */
-export function privateIndexRoute(_matterHandle: MatterHandle, rootStreamHandle: StreamHandle): StreamHandle {
-  return parseStreamHandle(rootStreamHandle);
 }

@@ -33,7 +33,7 @@
  * only as trustworthy as it is testable.
  *
  * Wire compatibility: the license-validator returns `tier` + `expires_at` +
- * a validity/`status` signal (see `backend/src/contract.ts`). The optional
+ * a validity/`status` signal (see `src/platform/firm/contract.ts`). The optional
  * `type` / `perpetual` / `purchasedAt` fields below are how we detect a
  * pre-3.0 buyer robustly; any one of them is sufficient, and their ABSENCE is
  * handled conservatively (we never accidentally strip a grandfathered user).

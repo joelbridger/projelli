@@ -89,7 +89,8 @@ const APP_VERSION = '2.1.0';
 
 /**
  * Shape of the license validator's /activate and /validate JSON responses.
- * The server is dependency-free (see backend/src/contract.ts); we type the
+ * The shared firm contract is dependency-free (see
+ * `src/platform/firm/contract.ts`); we type the
  * fields we read so the entitlement plumbing is not built on `any`. Every field
  * is optional because legacy/error payloads may omit them.
  */

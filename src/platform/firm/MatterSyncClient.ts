@@ -168,12 +168,26 @@ export class MatterSyncClient {
     return this.presenceCount;
   }
 
-  /** Wait for local root-index writes to receive their HTTP acceptance. */
+  /**
+   * Wait for local root-index writes to receive their HTTP acceptance.
+   *
+   * This is a durability boundary: callers use it before exposing a newly
+   * allocated document stream. A queued retry is not acceptance, so never
+   * report success while any update is still waiting to be accepted.
+   */
   async flush(): Promise<void> {
-    while (this.inFlightWrites.size > 0) {
-      await Promise.all([...this.inFlightWrites]);
+    for (;;) {
+      while (this.inFlightWrites.size > 0) {
+        await Promise.all([...this.inFlightWrites]);
+      }
+      if (!await this.flushPendingUpdates()) {
+        throw new Error('Could not publish the encrypted root update.');
+      }
+      // A local Yjs update can arrive while we await an acceptance. Do not
+      // expose the caller's durability boundary until that write is accepted,
+      // too.
+      if (this.inFlightWrites.size === 0 && this.pendingUpdates.length === 0) return;
     }
-    await this.flushPendingUpdates();
   }
 
   private setStatus(s: SyncStatus): void {
@@ -299,12 +313,13 @@ export class MatterSyncClient {
    * update for retry instead of silently dropping it.
    */
   private async pushLocalUpdate(update: Uint8Array): Promise<boolean> {
+    let blobId: string | undefined;
     try {
       const key = await this.ensureKey();
       const ciphertext = await encryptUpdateV2(key, update, {
         keyEpoch: this.keyEpoch, matterHandle: this.matterHandle, streamHandle: this.streamHandle,
       });
-      const blobId = genBlobId();
+      blobId = genBlobId();
       this.ownBlobIds.add(blobId);
       const res = await this.client.pushUpdate(
         this.streamHandle,
@@ -319,6 +334,10 @@ export class MatterSyncClient {
       }
       return true;
     } catch {
+      // This blob never received an acceptance response, so it must not stay
+      // in the self-echo set while the logical update is retried with a fresh
+      // blob id.
+      if (blobId) this.ownBlobIds.delete(blobId);
       this.setStatus('offline');
       return false;
     }
@@ -330,14 +349,14 @@ export class MatterSyncClient {
    * push that keeps failing (independent of the WebSocket's own health)
    * doesn't strand the queue with nothing left to wake it back up.
    */
-  private async flushPendingUpdates(): Promise<void> {
+  private async flushPendingUpdates(): Promise<boolean> {
     while (this.pendingUpdates.length > 0) {
       const next = this.pendingUpdates[0];
-      if (next === undefined) return;
+      if (next === undefined) return true;
       const ok = await this.pushLocalUpdate(next);
       if (!ok) {
         this.scheduleReconnect();
-        return;
+        return false;
       }
       this.pendingUpdates.shift();
     }
@@ -347,6 +366,7 @@ export class MatterSyncClient {
     // stuck on 'offline' with nothing else left to correct it — restore it
     // now that pushes are working again.
     if (this.socket) this.setStatus('live');
+    return true;
   }
 
   private clearReconnectTimer(): void {

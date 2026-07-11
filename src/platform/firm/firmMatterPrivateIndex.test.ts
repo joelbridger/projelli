@@ -1,6 +1,8 @@
 import * as Y from 'yjs';
 import { describe, expect, it } from 'vitest';
 import { parseMatterHandle, parseStreamHandle } from './contract';
+import { MatterSyncClient, type WebSocketLike } from './MatterSyncClient';
+import { generateMatterKey } from './matterCrypto';
 import {
   addDocumentStreamToPrivateIndex, createDocumentStream, FIRM_PRIVATE_INDEX_MAP, FIRM_PRIVATE_INDEX_STREAMS_V2_MAP,
   readFirmMatterPrivateIndex, writeFirmMatterPrivateIndex,
@@ -8,6 +10,26 @@ import {
 
 const root = parseStreamHandle(`sh2_${'R'.repeat(43)}`);
 const docStream = parseStreamHandle(`sh2_${'D'.repeat(43)}`);
+
+function rootSyncClient(
+  doc: Y.Doc,
+  pushUpdate: (streamHandle: typeof root) => Promise<{ ok: true; cursor: number; blob_id: string; key_epoch: number; duplicate: boolean }>,
+): Promise<MatterSyncClient> {
+  return generateMatterKey().then((keyB64) => new MatterSyncClient({
+    matterHandle: parseMatterHandle(`mh2_${'M'.repeat(43)}`),
+    streamHandle: root,
+    keyB64,
+    keyEpoch: 1,
+    seatToken: 'seat-token',
+    doc,
+    client: {
+      pullUpdates: () => Promise.resolve({ key_epoch: 1, since: 0, cursor: 0, latest_cursor: 0, has_more: false, updates: [] }),
+      createSyncTicket: () => Promise.resolve({ ticket: 'ticket', expires_in_ms: 1_000 }),
+      pushUpdate,
+    } as never,
+    socketFactory: (): WebSocketLike => ({ send() {}, close() {}, onopen: null, onclose: null, onerror: null, onmessage: null }),
+  }));
+}
 
 describe('encrypted FirmMatterPrivateIndex', () => {
   function seedLegacyIndex(doc: Y.Doc, streams: Record<string, { streamHandle: typeof root; kind: 'notes' | 'document' }>) {
@@ -47,6 +69,49 @@ describe('encrypted FirmMatterPrivateIndex', () => {
     );
     expect(result).toBe(docStream);
     expect(events).toEqual(['allocate', 'encrypted-root-accepted']);
+  });
+
+  it('rejects document-stream creation after a failed root push, removes the local mapping, and leaves the unused lease reclaimable', async () => {
+    const doc = new Y.Doc();
+    writeFirmMatterPrivateIndex(doc, { version: 1, clientName: 'x', displayName: 'x', streams: { _notes: { streamHandle: root, kind: 'notes' } } });
+    const pushedStreams: string[] = [];
+    const sync = await rootSyncClient(doc, (streamHandle) => {
+      pushedStreams.push(streamHandle);
+      return Promise.reject(new Error('relay unavailable'));
+    });
+    await sync.start();
+
+    await expect(createDocumentStream(
+      { allocateStream: () => Promise.resolve({ stream_handle: docStream }) } as never,
+      parseMatterHandle(`mh2_${'M'.repeat(43)}`), 'seat-token', doc, sync, 'local-document-id',
+    )).rejects.toThrow('Could not publish the encrypted root update.');
+
+    expect(readFirmMatterPrivateIndex(doc)?.streams['local-document-id']).toBeUndefined();
+    // Only root-index ciphertext was attempted. The allocated document stream
+    // has accepted no data, so the relay's normal idle-lease cleanup can reclaim it.
+    expect(pushedStreams).not.toContain(docStream);
+    sync.stop();
+  });
+
+  it('retries a transient root push failure and returns the mapped stream only after acceptance', async () => {
+    const doc = new Y.Doc();
+    writeFirmMatterPrivateIndex(doc, { version: 1, clientName: 'x', displayName: 'x', streams: { _notes: { streamHandle: root, kind: 'notes' } } });
+    let attempts = 0;
+    const sync = await rootSyncClient(doc, () => {
+      attempts += 1;
+      if (attempts === 1) return Promise.reject(new Error('temporary relay failure'));
+      return Promise.resolve({ ok: true, cursor: attempts, blob_id: `root-${String(attempts)}`, key_epoch: 1, duplicate: false });
+    });
+    await sync.start();
+
+    await expect(createDocumentStream(
+      { allocateStream: () => Promise.resolve({ stream_handle: docStream }) } as never,
+      parseMatterHandle(`mh2_${'M'.repeat(43)}`), 'seat-token', doc, sync, 'local-document-id',
+    )).resolves.toBe(docStream);
+
+    expect(attempts).toBe(2);
+    expect(readFirmMatterPrivateIndex(doc)?.streams['local-document-id']).toEqual({ streamHandle: docStream, kind: 'document' });
+    sync.stop();
   });
 
   it('merges concurrently added document mappings from two devices', async () => {

@@ -34,7 +34,7 @@ import {
 } from '@/config/pricing';
 import { PricingTiers } from '@/features/settings/PricingTiers';
 import type { LicenseTier } from '@/platform/hooks/useLicense';
-import type { Plan } from '../../backend/src/contract';
+import type { Plan } from '@/platform/firm/contract';
 
 describe('pricing config — tiers and prices', () => {
   it('exposes exactly three tiers in display order', () => {

@@ -1,10 +1,9 @@
 /**
  * Firm backend API contract (client copy).
  *
- * Mirrors `backend/src/contract.ts` — the single source of truth for the
- * request/response shapes the desktop app speaks to the firm backend. The
- * backend README explicitly recommends copying this dependency-free file into
- * the desktop repo to wire the client; keep the two in sync.
+ * This is the authoritative contract for the request/response shapes the
+ * desktop app speaks to the firm backend. It is deliberately dependency-free
+ * so the backend's route tests can check it for privacy drift.
  *
  * Only the shapes the client actually reads/sends are reproduced here. The
  * relay stores OPAQUE ciphertext only — `ciphertext_b64` is a client-encrypted

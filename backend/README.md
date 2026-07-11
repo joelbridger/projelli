@@ -145,9 +145,9 @@ The HTTP test boots the real `Bun.serve` server on an ephemeral port.
 
 ## API
 
-Base URL in dev: `http://127.0.0.1:5190`. Full typed shapes:
-[`src/contract.ts`](src/contract.ts) (dependency-free; copy/import into the
-desktop repo to wire the client).
+Base URL in dev: `http://127.0.0.1:5190`. The authoritative typed shapes live
+with the desktop client in
+[`../src/platform/firm/contract.ts`](../src/platform/firm/contract.ts).
 
 ### Open
 | Method · Path | Body | Returns |
@@ -196,28 +196,31 @@ field name for drop-in compatibility with today's `/validate`.
 > `/webhook`). It has no in-app auth gate because there is no admin to authorize
 > the very first org. Do **not** expose it publicly.
 
-### Matters + ethical walls (chunk 2; Bearer access token, `role: admin`, same-org)
+### V2 opaque matters + ethical walls (Bearer access token, `role: admin`, same-org)
 | Method · Path | Body |
 |---|---|
-| `POST /org/matters` | `{ client_name }` → create a matter (201) |
-| `POST /org/matters/list` | — → `{ matters: [...] }` |
-| `POST /matter/:id/archive` | — → archive |
-| `POST /matter/:id/members/add` | `{ user_id, role? }` → add member (+ `key_release` hint) |
-| `POST /matter/:id/members/remove` | `{ user_id }` → remove (**bumps `key_epoch`** → rotate) |
-| `POST /matter/:id/members/list` | — → `{ members, walls, key_epoch }` |
-| `POST /matter/:id/wall/set` | `{ user_id, reason? }` → **raise a screen** (**bumps `key_epoch`**) |
-| `POST /matter/:id/wall/clear` | `{ user_id }` → lift a screen (does **not** re-grant membership) |
+| `POST /v2/firm/matters` | `{}` → create an opaque provisioning shell (201) |
+| `POST /v2/firm/matters/list` | `{}` → `{ matters: [...] }` with opaque handles only |
+| `POST /v2/firm/matters/:matter_handle/activate` | `{}` → activate a provisioned shell |
+| `POST /v2/firm/matters/:matter_handle/archive` | `{}` → archive |
+| `POST /v2/firm/matters/:matter_handle/members/add` | `{ user_id, role? }` → add member (+ `key_release` hint) |
+| `POST /v2/firm/matters/:matter_handle/members/remove` | `{ user_id }` → remove (**bumps `key_epoch`** → rotate) |
+| `POST /v2/firm/matters/:matter_handle/members/list` | `{}` → members, walls, and `key_epoch` |
+| `POST /v2/firm/matters/:matter_handle/wall/set` | `{ user_id }` → raise a screen (**bumps `key_epoch`**) |
+| `POST /v2/firm/matters/:matter_handle/wall/clear` | `{ user_id }` → lift a screen (does not re-grant membership) |
 
-### E2EE sync relay (chunk 2; any firm member — access JWT + active seat + `member ∧ ¬walled`)
+### V2 E2EE sync relay (any firm member — access JWT + active seat + `member ∧ ¬walled`)
 | Method · Path | Auth | Body / Query | Returns |
 |---|---|---|---|
-| `POST /matter/:id/updates` | Bearer + `seat_token` (body) | `{ blob_id, ciphertext_b64, seat_token, key_epoch? }` | `{ ok, cursor, blob_id, key_epoch, duplicate }` · 201 new / 200 dup · **403** walled/non-member · **404** cross-org · **413** over cap |
-| `GET /matter/:id/updates` | Bearer + `?seat_token=` | `?since=<cursor>` | `{ updates:[{cursor, ciphertext_b64, ...}], cursor, latest_cursor, has_more }` |
-| `GET /matter/:id/sync` *(WS)* | `?seat_token=` + `?access_token=`² | — | live `update` frames + an initial backlog; access-gated **before** upgrade |
+| `POST /v2/firm/matters/:matter_handle/streams` | Bearer + `X-Seat-Token` | `{}` | allocate an opaque stream lease |
+| `POST /v2/firm/streams/:stream_handle/updates` | Bearer + `seat_token` (body) | `{ blob_id, ciphertext_b64, seat_token, key_epoch }` | `{ ok, cursor, blob_id, key_epoch, duplicate }` · 201 new / 200 dup · **403** walled/non-member · **404** cross-org · **413** over cap |
+| `GET /v2/firm/streams/:stream_handle/updates` | Bearer + `X-Seat-Token` | `?since=<cursor>` | `{ updates:[{cursor, ciphertext_b64, ...}], cursor, latest_cursor, has_more }` |
+| `POST /v2/firm/streams/:stream_handle/sync-ticket` | Bearer + `X-Seat-Token` | `{}` | short-lived, single-use ticket |
+| `GET /v2/firm/sync` *(WS)* | `?ticket=` | — | live identifier-free `update` frames + an initial backlog |
 
-² The browser `WebSocket` API can't set an `Authorization` header, so the relay
-accepts the short-lived access JWT via `?access_token=` **only on the relay
-endpoints** (`authenticateRelay`). The HTTP relay keeps using the header.
+The browser `WebSocket` API can't set an `Authorization` header, so the client
+first mints a short-lived, single-use ticket over authenticated HTTP and puts
+only that ticket on the WebSocket URL.
 
 ### Assured zero-retention inference proxy (chunk 3; DECISION.md §5)
 | Method · Path | Auth | Body / Headers | Returns |
@@ -230,8 +233,8 @@ endpoints** (`authenticateRelay`). The HTTP relay keeps using the header.
 
 See [the assured proxy section](#assured-zero-retention-inference-proxy-decisionmd-5) below for how the zero-retention guarantee is enforced + proven.
 
-**The relay is a dumb pipe (DECISION.md §1).** It stores `{matter_id, blob_id,
-ciphertext, author_seat, key_epoch, created_at}` — **opaque bytes it never
+**The relay is a dumb pipe (DECISION.md §1).** It stores opaque matter and
+stream handles plus `{blob_id, ciphertext, author_seat, key_epoch, created_at}` — **opaque bytes it never
 parses, decodes, hashes, or logs.** `ciphertext_b64` is a client-encrypted Yjs
 update; the relay never holds the per-matter key and the only shape check is a
 **1 MiB size cap** (a sanity bound, not content inspection). Pushes are
@@ -260,15 +263,15 @@ allowed = (member ∨ org-admin) ∧ ¬walled        # deny-overrides-allow
 #### Where per-matter key release/rotation hooks in (for the desktop task)
 The relay stores only ciphertext; the per-matter content key is **client-held**
 and released **out of band** into the OS keychain
-(`com.keepance.matter.<matter_id>`, §2) — only to `member ∧ ¬walled`. The server
+(`com.keepance.matter.<opaque-handle>`, §2) — only to `member ∧ ¬walled`. The server
 tracks a **`key_epoch`** per matter (starts at 1) and bumps it at exactly three
 points, each emitting a `matter.key.rotate` audit event:
 
 | Server action | Effect | Desktop key-release service must… |
 |---|---|---|
-| `POST /matter/:id/members/add` | response carries `key_release` (`release_to_member` \| `blocked_walled`) | **release** the current-epoch key to the new member's keychain (iff not walled) |
-| `POST /matter/:id/members/remove` | `key_epoch++` | **stop** releasing to the removed user; **rotate** + re-release the new key to remaining members |
-| `POST /matter/:id/wall/set` | `key_epoch++` | **stop** releasing to the screened user; **rotate** + re-release to everyone else |
+| `POST /v2/firm/matters/:matter_handle/members/add` | response carries `key_release` (`release_to_member` \| `blocked_walled`) | **release** the current-epoch key to the new member's keychain (iff not walled) |
+| `POST /v2/firm/matters/:matter_handle/members/remove` | `key_epoch++` | **stop** releasing to the removed user; **rotate** + re-release the new key to remaining members |
+| `POST /v2/firm/matters/:matter_handle/wall/set` | `key_epoch++` | **stop** releasing to the screened user; **rotate** + re-release to everyone else |
 | `POST /org/user/deprovision` (chunk 1) | — | **stop** releasing all matter keys to that user (existing `NOTE` hook in `routes/admin.ts`) |
 
 Updates carry the `key_epoch` they were sealed under, so a removed/walled user's
@@ -401,20 +404,18 @@ with their own provider DPA — and we say so.
   offline between checks. Keep the offline-grace + degrade-to-free behavior.
 - An **admin UI** calls `/org/seats`, `/org/seat/revoke`, `/org/user/deprovision`,
   `/org/seats/transfer`, `/org/users`, `/org/audit`.
-- Types are in `src/contract.ts` — import/copy them.
+- Types are in `../src/platform/firm/contract.ts` — import/copy them.
 
-- **Sync relay client (chunk 2 — now built server-side):** drive a Yjs doc per
-  open matter document; on local change, encrypt the Yjs update under the
-  per-matter key and `POST /matter/:id/updates`; on startup/reconnect, `GET
-  /matter/:id/updates?since=<lastCursor>` and apply; keep a live `GET
-  /matter/:id/sync` WebSocket for fan-out (advance `since` to each frame's
-  `cursor`). The relay handles ciphertext only — encryption/decryption + the
-  per-matter key live entirely client-side.
+- **Sync relay client:** drive a Yjs doc per open matter document; on local
+  change, encrypt the Yjs update and post it to the opaque stream-update path;
+  on startup/reconnect, pull the same opaque stream after its cursor and open
+  the fixed ticket-only WebSocket for fan-out. The relay handles ciphertext
+  only — encryption/decryption + the per-matter key live entirely client-side.
 - **Per-matter key management (the one crypto piece left):** implement
   release/rotation at the four hooks in
   [the key-release table](#where-per-matter-key-releaserotation-hooks-in-for-the-desktop-task)
   above. The server already tracks + bumps `key_epoch` and audits rotations; the
-  desktop holds the keys in `com.keepance.matter.<matter_id>` and re-keys on a
+  desktop holds the keys in `com.keepance.matter.<opaque-handle>` and re-keys on a
   bump. Define admin escrow (a firm admin recovers a matter if an attorney
   leaves — escrow the matter key to an org master key) here too (R9).
 
@@ -424,4 +425,4 @@ with their own provider DPA — and we say so.
   JWT + `X-Seat-Token` + `X-Provider`/`X-Model` headers and the provider-native
   body; stream the response back as today. BYOK-direct stays the default; this is
   opt-in. An **admin UI** sets the org's managed keys via `/assured/keys/*` and
-  reviews usage via `/assured/billing`. Types are in `src/contract.ts`.
+  reviews usage via `/assured/billing`. Types are in `../src/platform/firm/contract.ts`.
