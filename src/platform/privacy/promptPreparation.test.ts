@@ -71,7 +71,7 @@ describe('prompt preparation red-team catalog', () => {
     warning.mockRestore();
   });
 
-  it('records category and count before egress, without putting the source value in the receipt', async () => {
+  it('keeps the model-call audit detail while adding a preparation receipt before egress', async () => {
     const entries: unknown[] = [];
     let sent = '';
     const provider = {
@@ -85,12 +85,29 @@ describe('prompt preparation red-team catalog', () => {
     await sendPreparedMessageWithEgressAudit({
       provider, providerId: 'ollama', surface: 'test', prompt: SECRET_SCRUB_FIXTURES.urls,
       onAuditLog: (entry) => { entries.push(entry); },
+      modelCall: (response) => ({
+        action: 'model_call',
+        description: 'Legacy audit detail',
+        model: response.model,
+        inputs: { promptLength: 42 },
+        outputs: { contentLength: response.content.length },
+        userDecision: 'auto',
+        metadata: { source: 'legacy-path' },
+      }),
     });
     expect(sent).not.toContain('intake-secret');
     expect(JSON.stringify(entries)).not.toContain('intake-secret');
     expect((entries[0] as { action: string }).action).toBe('prompt_preparation');
     expect((entries[1] as { action: string }).action).toBe('egress');
     expect(JSON.stringify(entries[0])).toContain('intake_link_secret');
+    expect(entries[2]).toMatchObject({
+      action: 'model_call',
+      description: 'Legacy audit detail',
+      model: 'local-test',
+      inputs: { promptLength: 42 },
+      outputs: { contentLength: 2 },
+      metadata: { source: 'legacy-path' },
+    });
   });
 
 });

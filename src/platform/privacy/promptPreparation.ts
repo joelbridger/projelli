@@ -5,7 +5,7 @@
  */
 import type { AttachmentBytes, ProviderResponse, SendOptions, StreamOptions, StructuredOutputOptions } from '@/platform/providers/Provider';
 import type { AuditEvent } from '@/platform/types/audit';
-import type { EgressAuditContext } from './sendWithEgressAudit';
+import type { RunWithEgressAuditOptions } from './sendWithEgressAudit';
 import { runWithEgressAudit } from './sendWithEgressAudit';
 export {
   assertCloudPreparation,
@@ -171,13 +171,18 @@ async function decide(input: { prompt: string; systemPrompt?: string | undefined
   return { decision: 'cancelled' };
 }
 
-export interface PreparedSendContext extends EgressAuditContext {
+/**
+ * The prepared-send helpers own the provider operation, but otherwise retain
+ * every egress-audit detail supplied by their caller. This keeps migrations
+ * from silently losing model-call records or future audit context fields.
+ */
+export type PreparedSendContext<T = ProviderResponse> = Omit<RunWithEgressAuditOptions<T>, 'operation'> & {
   surface: string;
   prompt: string;
   options?: SendOptions;
   parts?: PromptPart[];
   background?: boolean;
-}
+};
 type PromptPreparationReceipt = Extract<AuditEvent, { type: 'prompt_preparation' }>['payload'];
 
 function receipt(ctx: PreparedSendContext, decision: 'clean' | 'redacted_by_user' | 'cancelled' | 'blocked', request?: PreparedCloudRequest): void {
@@ -212,7 +217,7 @@ export async function sendPreparedStreamingWithEgressAudit(ctx: PreparedSendCont
   receipt(ctx, chosen.decision, chosen.request); if (!chosen.request) throw new Error(chosen.decision === 'blocked' ? 'prompt_review_required' : 'prompt_send_cancelled');
   return runWithEgressAudit({ ...ctx, operation: () => ctx.provider.sendMessageStreaming!(chosen.request!.prompt, { ...ctx.options, ...(chosen.request!.systemPrompt ? { systemPrompt: chosen.request!.systemPrompt } : {}), ...(chosen.request!.attachmentBytes ? { attachmentBytes: chosen.request!.attachmentBytes } : {}) }) });
 }
-export async function sendPreparedStructuredWithEgressAudit<T>(ctx: PreparedSendContext & { options: StructuredOutputOptions }): Promise<T> {
+export async function sendPreparedStructuredWithEgressAudit<T>(ctx: PreparedSendContext<T> & { options: StructuredOutputOptions }): Promise<T> {
   const result = prepareCloudRequest({ prompt: ctx.prompt, systemPrompt: ctx.options.systemPrompt, parts: ctx.parts });
   const chosen = await decide({ prompt: ctx.prompt, systemPrompt: ctx.options.systemPrompt }, ctx.surface, ctx.background ?? false, result);
   receipt(ctx, chosen.decision, chosen.request); if (!chosen.request) throw new Error(chosen.decision === 'blocked' ? 'prompt_review_required' : 'prompt_send_cancelled');
