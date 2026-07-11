@@ -163,7 +163,13 @@ describe('meeting store', () => {
 
     const s = useMeetingStore.getState();
     await s.startRecording('m-1', { consentMode: 'one-party' });
-    await useMeetingStore.getState().stopRecording();
+    await useMeetingStore.getState().stopRecording({
+      resolveProvider: async () => ({
+        provider: {} as never,
+        providerId: 'test',
+        model: 'test',
+      }),
+    });
 
     const expectedNotesPath = `${meetingDir}/notes.docx`;
     const expectedTranscriptPath = `${meetingDir}/transcript.json`;
