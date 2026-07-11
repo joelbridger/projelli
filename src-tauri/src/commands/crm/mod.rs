@@ -9,6 +9,7 @@
 pub mod client;
 pub mod commands;
 pub mod engine;
+pub mod importer;
 pub mod model;
 pub mod provider;
 pub mod redtail;
