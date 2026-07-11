@@ -16,7 +16,13 @@ export type EntityKind =
 
 export interface ActorRef { userId: string; seat?: string; display: string; kind: 'user' | 'ai' | 'system' | 'import'; }
 export interface Provenance { origin: 'user' | 'ai' | 'import' | 'connector' | 'meeting' | 'system'; sources: SourceRef[]; importBatchId?: string; note?: string; }
-export interface ExternalRef { provider: 'wealthbox' | 'salesforce' | 'redtail' | string; sourceType: string; sourceId: string; scope: string; crmKey?: string; lastSyncedAt?: string; }
+/** Known import providers remain suggested while permitting connector-defined providers. */
+export type ExternalProvider =
+  | 'wealthbox'
+  | 'salesforce'
+  | 'redtail'
+  | (string & {});
+export interface ExternalRef { provider: ExternalProvider; sourceType: string; sourceId: string; scope: string; crmKey?: string; lastSyncedAt?: string; }
 export interface RawRecordRef { importBatchId: string; manifestId: string; rawRecordId: string; sha256: string; capturedAt: string; }
 export interface EntityRef { kind: EntityKind; id: string; matterId?: string; }
 export type Keyed<T> = Record<string, T>;
@@ -39,7 +45,9 @@ export interface Person extends CrmBase { kind: 'person'; personType: 'person' |
 export interface Account extends CrmBase { kind: 'account'; householdId: string; ownerPersonIds: string[]; custodian: string; accountType: string; registration?: string; last4?: string; purpose?: string; ownership: 'individual' | 'joint' | 'trust' | 'entity'; status: 'open' | 'closed' | 'pending' | 'transferring'; openedAt?: string; closedAt?: string; tagIds: string[]; customFields: CustomFieldValueMap; }
 export type FactType = 'income' | 'asset' | 'liability' | 'net_worth' | 'tax_bracket' | 'account_balance' | 'goal' | 'risk_tolerance' | 'time_horizon' | 'beneficiary' | 'professional_relationship' | 'preference' | 'life_event' | 'note_fact' | 'custom';
 export type FactValue = { t: 'money'; amount: number; currency: string } | { t: 'text'; v: string } | { t: 'date'; v: string } | { t: 'number'; v: number } | { t: 'enum'; v: string } | { t: 'entity'; ref: EntityRef } | { t: 'none' };
-export interface Fact extends CrmBase { kind: 'fact'; householdId: string; subjectRef?: EntityRef; factType: FactType; label: string; value: FactValue; text: string; status: 'current' | 'superseded' | 'stale' | 'disputed'; isAssumption: boolean; pinned: boolean; sectionKey?: CoreSectionKey | string; asOf: string; observedAt: string; supersededBy?: string; }
+/** Frozen Client Map keys remain suggested while admitting future sections. */
+export type FactSectionKey = CoreSectionKey | (string & {});
+export interface Fact extends CrmBase { kind: 'fact'; householdId: string; subjectRef?: EntityRef; factType: FactType; label: string; value: FactValue; text: string; status: 'current' | 'superseded' | 'stale' | 'disputed'; isAssumption: boolean; pinned: boolean; sectionKey?: FactSectionKey; asOf: string; observedAt: string; supersededBy?: string; }
 export interface HouseholdLink { householdId: string; matterId: string; externalRef?: ExternalRef; }
 export interface NoteMention { id: string; ref: EntityRef; notifyState: 'none' | 'pending' | 'sent' | 'read'; }
 export interface Note extends CrmBase { kind: 'note'; householdLinks: HouseholdLink[]; links: EntityRef[]; mentions: NoteMention[]; audience: 'internal' | 'client-facing'; body: string; pinned: boolean; title?: string; format?: 'plain' | 'meeting-note' | 'template'; templateId?: string; authoredVia?: 'manual' | 'jump-push' | 'meeting-capture' | 'ai'; tagIds: string[]; }
@@ -48,22 +56,124 @@ export interface Task extends CrmBase { kind: 'task'; householdRef: EntityRef | 
 export interface WorkflowSchedule { frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'annual'; timezone: string; startsAt: string; householdSelector: ViewQuery; enabled: boolean; }
 export interface StepOutcome { id: string; label: string; nextStepId?: string; restartAtStepId?: string; condition?: string; }
 export interface StepDef { id: string; title: string; description: string; ownerRole?: string; defaultAssigneeId?: string; offsetDays?: number; required: boolean; outcomes: StepOutcome[]; addedInRevisionId: string; removedInRevisionId?: string; }
-export interface TemplateStepChange { stepId: string; field: string; value: unknown; }
-export interface TemplateRevision { revisionId: string; templateId: string; parentRevisionIds: string[]; author: ActorRef; issuedHlc: HlcStamp; label: string; stepChanges: Keyed<TemplateStepChange>; }
+/** The only template-owned cells propagation can change. Progress is never in this set. */
+export type DerivedFieldName = 'title' | 'description' | 'order' | 'required' | 'defaultAssigneeRole' | 'dueOffset';
+export interface TemplateStepChange {
+  stepId: string;
+  field: DerivedFieldName | '__step_removal__';
+  value: unknown;
+  changeKind: 'add' | 'modify' | 'remove';
+}
+/**
+ * The revision graph is the propagation engine's canonical shape. `author` is
+ * optional only because imported historical revisions do not always expose it.
+ */
+export interface TemplateRevision {
+  revisionId: string;
+  templateId: string;
+  parentRevisionIds: string[];
+  author?: ActorRef;
+  issuedHlc: HlcStamp;
+  label: string;
+  stepChanges: TemplateStepChange[];
+}
 export interface WorkflowTemplate extends CrmBase { kind: 'workflowTemplate'; matterId: 'firm_home'; name: string; description: string; category?: string; revisions: Keyed<TemplateRevision>; headRevisionIds: string[]; status: 'draft' | 'published' | 'archived'; steps: Keyed<StepDef>; stepOrder: string[]; triggerHints: string[]; tagIds: string[]; schedule?: WorkflowSchedule; }
 export const UNTOUCHED = 'todo' as const;
 export type WorkflowStepStatus = typeof UNTOUCHED | 'in_progress' | 'done' | 'skipped';
 export interface RevisionSet { revisionIds: string[]; }
 export interface DerivedField { value: unknown; sourceRevisionId: string; sourceOperationId: string; }
-export interface CompletionOperation { completionId: string; stepId: string; completedAt: string; completedBy: ActorRef; outcome?: string; sourceOperationId: string; }
-export interface AssignmentOperation { assignmentId: string; stepId: string; assignedUserId: string | null; assignedAt: string; assignedBy: ActorRef; sourceOperationId: string; }
+export interface CompletionOperation {
+  completionId: string;
+  completedBy: string;
+  /** Optional for historical imports; new operations populate it. */
+  completedAt?: string;
+  outcome?: string;
+  sourceOperationId: string;
+}
+export interface AssignmentOperation {
+  assignmentId: string;
+  assignedUserId: string | null;
+  /** Optional for historical imports; new operations populate it. */
+  assignedAt?: string;
+  assignedBy?: ActorRef;
+  sourceOperationId: string;
+}
 export interface DisplayedStepCompletion { completionId: string; completedAt: string; completedBy: ActorRef; outcome?: string; }
-export interface WorkflowStepProgress { stepId: string; origin: 'template' | 'local'; status: WorkflowStepStatus; assigneeUserId?: string; taskId?: string; titleSnapshot: string; derived: Record<string, DerivedField>; removalRequestedBy: string[]; detachedFromTemplate: boolean; stepNotes: string; assignmentOperations: Keyed<AssignmentOperation>; completionOperations: Keyed<CompletionOperation>; }
+export interface WorkflowStepProgress {
+  stepId: string;
+  origin: 'template' | 'local';
+  status: WorkflowStepStatus;
+  assigneeUserId?: string;
+  taskId?: string;
+  titleSnapshot: string;
+  derived: Partial<Record<DerivedFieldName, DerivedField>>;
+  removalRequestedBy: string[];
+  detachedFromTemplate: boolean;
+  hiddenByTemplateRemoval?: boolean;
+  stepNotes: string;
+  assignmentOperations: AssignmentOperation[];
+  completionOperations: CompletionOperation[];
+  outcome?: string;
+}
 export interface PropagationStepChange { stepId: string; changeKind: 'add' | 'modify' | 'remove'; fields: Record<string, unknown>; decision: 'pending' | 'accepted' | 'rejected' | 'review_required'; decidedBy?: ActorRef; decidedAt?: string; }
 export interface PropagationOffer { offerId: string; fromRevisionSet: RevisionSet; targetRevisionSet: RevisionSet; stepChanges: Keyed<PropagationStepChange>; state: 'pending' | 'applied' | 'partially_applied' | 'superseded'; appliedAt?: string; appliedBy?: ActorRef; }
-export interface PropagationDecision { decisionKey: string; instanceId: string; revisionId: string; stepId: string; field: string; decision: 'accepted' | 'rejected'; sourceOperationId: string; supersedesDecisionKey?: string; reofferState: 'original' | 'reoffered'; decidedAt: string; decidedBy: ActorRef; }
+export interface PropagationDecision {
+  decisionKey: string;
+  instanceId: string;
+  revisionId: string;
+  stepId: string;
+  field: DerivedFieldName | '__step_removal__';
+  decision: 'accepted' | 'rejected';
+  sourceOperationId: string;
+  supersedesDecisionKey?: string | undefined;
+  reofferState: 'original' | 'reoffered';
+  decidedAt?: string;
+  decidedBy?: ActorRef;
+}
 export interface WorkflowInstance extends CrmBase { kind: 'workflowInstance'; householdId: string; templateId: string; acceptedRevisionIds: string[]; displayedRevisionSet: RevisionSet; name: string; status: 'open' | 'completed' | 'cancelled'; startedAt: string; steps: Keyed<WorkflowStepProgress>; pendingOffers: Keyed<PropagationOffer>; decisionLedger: Keyed<PropagationDecision>; }
-export interface ServicePolicy extends CrmBase { kind: 'servicePolicy'; matterId: 'firm_home' | string; scope: 'firm-tier' | 'household-override'; tierName: string; meetingCadence?: 'monthly' | 'quarterly' | 'semiannual' | 'annual' | 'custom'; cadenceDays?: number; nextReviewDue?: string; reviewChecklistTemplateId?: string; schedulingLinkUrl?: string; appliesToHouseholdIds: string[]; description: string; }
+
+/** Engine snapshots are the encrypted CRDT document payloads, not SQL read rows. */
+export interface WorkflowTemplateSnapshot { id: string; revisions: Record<string, TemplateRevision>; headRevisionIds: string[]; }
+export interface DerivedBeforeImage { stepId: string; field: DerivedFieldName; previous?: DerivedField | undefined; sourceOperationId: string; }
+export interface PropagationApplyEvent { eventId: string; offerId: string; operationIds: string[]; beforeImages: DerivedBeforeImage[]; addedStepIds: string[]; }
+export interface WorkflowInstanceSnapshot {
+  id: string;
+  acceptedRevisionIds: string[];
+  displayedRevisionSet: RevisionSet;
+  steps: Record<string, WorkflowStepProgress>;
+  decisionLedger: PropagationDecision[];
+  propagationEvents: PropagationApplyEvent[];
+}
+export interface OfferDecision {
+  id: string;
+  revisionId: string;
+  stepId: string;
+  field: DerivedFieldName | '__step_removal__';
+  value: unknown;
+  changeKind: 'add' | 'modify' | 'remove';
+  decision: 'accepted' | 'rejected' | 'review_required';
+  supersedesDecisionKey?: string | undefined;
+  reofferState: 'original' | 'reoffered';
+}
+export interface PropagationEngineOffer {
+  offerId: string;
+  instanceId: string;
+  fromRevisionSet: RevisionSet;
+  targetRevisionSet: RevisionSet;
+  decisions: OfferDecision[];
+  state: 'pending' | 'applied' | 'partially_applied' | 'superseded';
+  requiresConcurrentHeadReview: boolean;
+}
+export interface PropagationTransactionPayload {
+  kind: 'apply' | 'undo';
+  instance: WorkflowInstanceSnapshot;
+  event: PropagationApplyEvent;
+  immutableOperations: string[];
+  activityOutbox: { eventId: string; idempotencyKey: string };
+  notificationOutbox: { eventId: string; idempotencyKey: string; dependsOnOperationIds: string[] };
+}
+export interface PropagationTransactionPort { transact(payload: PropagationTransactionPayload): void; }
+export interface ServicePolicy extends CrmBase { kind: 'servicePolicy'; matterId: 'firm_home' | (string & {}); scope: 'firm-tier' | 'household-override'; tierName: string; meetingCadence?: 'monthly' | 'quarterly' | 'semiannual' | 'annual' | 'custom'; cadenceDays?: number; nextReviewDue?: string; reviewChecklistTemplateId?: string; schedulingLinkUrl?: string; appliesToHouseholdIds: string[]; description: string; }
 export type ActivityVerb = string;
 export interface ActivityEvent extends CrmBase { kind: 'activityEvent'; at: string; actor: ActorRef; verb: ActivityVerb; targetRef: EntityRef; householdId?: string; summary: string; payload: Record<string, unknown>; important: boolean; }
 export interface FirmDoc extends CrmBase { kind: 'firmDoc'; matterId: 'firm_home'; docType: 'process' | 'note-template' | 'report-layout' | 'ways-of-working' | 'other'; title: string; body: string; bodyRef?: string; tagIds: string[]; pinned: boolean; }
@@ -91,10 +201,12 @@ export interface IntakeSubmission extends CrmBase { kind: 'intakeSubmission'; ma
 export interface MigrationChecklistItem { id: string; importBatchId: string; legacyProjectRef: EntityRef; householdRef: EntityRef | null; sourceTemplateLabel?: string; activityEvidenceRefs: EntityRef[]; decision: 'pending' | 'recreate' | 'gap' | 'not_needed'; resultingWorkflowInstanceRef?: EntityRef; gapReason?: string; decidedAt?: string; decidedBy?: ActorRef; }
 export interface AttachmentAccountingRecord { id: string; importBatchId: string; householdRef: EntityRef; status: 'exported' | 'gap'; exportSource?: string; exportedAt?: string; exportedBy?: ActorRef; gapReason?: string; gapOwnerUserId?: string; }
 export interface ExportJob { id: string; importBatchId: string; kind: 'archive' | 'rollback'; status: 'preparing' | 'ready' | 'failed' | 'exported'; manifestRef?: EntityRef; fidelityReportSha256?: string; destinationLabel?: string; failureReason?: string; startedAt: string; startedBy: ActorRef; finishedAt?: string; }
-// B1-PENDING: design/02 names FilterClause but does not define its shape.
-export interface FilterClause { field: string; op: string; value?: unknown; }
+/** A bounded local SavedView predicate. It deliberately cannot express SQL or code. */
+export type FilterOperator = 'eq' | 'neq' | 'contains' | 'in' | 'before' | 'after' | 'is_empty' | 'is_not_empty';
+export type FilterValue = string | number | boolean | null | readonly (string | number | boolean)[];
+export interface FilterClause { field: string; op: FilterOperator; value?: FilterValue; }
 export type ReportKind = 'no_contact_6mo' | 'attention_vs_fee' | 'birthdays' | 'age_65' | 'rmd_due' | 'review_due' | 'custom';
 export interface ViewQuery { entity: EntityKind; filters: FilterClause[]; sort?: { field: string; dir: 'asc' | 'desc' }[]; groupBy?: string; }
-export interface SavedView extends CrmBase { kind: 'savedView'; matterId: 'firm_home' | string; name: string; surface: 'tasks' | 'households' | 'opportunities' | 'accounts' | 'report'; visibility: 'personal' | 'firm'; query: ViewQuery; layout: 'table' | 'kanban' | 'list'; reportKind?: ReportKind; }
+export interface SavedView extends CrmBase { kind: 'savedView'; matterId: 'firm_home' | (string & {}); name: string; surface: 'tasks' | 'households' | 'opportunities' | 'accounts' | 'report'; visibility: 'personal' | 'firm'; query: ViewQuery; layout: 'table' | 'kanban' | 'list'; reportKind?: ReportKind; }
 
 export type CrmEntity = Household | Person | Account | Fact | Note | Task | WorkflowTemplate | WorkflowInstance | ServicePolicy | ActivityEvent | FirmDoc | Tag | CustomFieldDef | Opportunity | PipelineDef | StageDef | ProposalRecord | LegacyProject | FirmDirectoryEntry | HouseholdDirectoryShell | IntakeLink | IntakeSubmission | ImportArchiveManifest | SavedView;

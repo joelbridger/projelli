@@ -18,6 +18,11 @@ const SCHEMA: &str = r#"
 CREATE TABLE IF NOT EXISTS crm_docs (doc_key TEXT PRIMARY KEY, matter_id TEXT NOT NULL, doc_id TEXT NOT NULL, yjs_state BLOB NOT NULL, state_vector BLOB NOT NULL, updated_at TEXT NOT NULL, deleted INTEGER NOT NULL DEFAULT 0);
 CREATE INDEX IF NOT EXISTS idx_crm_docs_scope ON crm_docs(matter_id, doc_id);
 CREATE TABLE IF NOT EXISTS crm_sync_cursors (stream_key TEXT PRIMARY KEY, cursor INTEGER NOT NULL, key_epoch INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS crm_sync_applied (stream_key TEXT NOT NULL, cursor INTEGER NOT NULL, blob_id TEXT NOT NULL, PRIMARY KEY(stream_key,cursor));
+CREATE TABLE IF NOT EXISTS crm_immutable_operations (operation_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS crm_activity_outbox (idempotency_key TEXT PRIMARY KEY, event_id TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS crm_notification_outbox_intents (org_id TEXT NOT NULL, envelope_id TEXT NOT NULL, mutation_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(org_id,envelope_id));
+CREATE TABLE IF NOT EXISTS crm_propagation_transactions (event_id TEXT PRIMARY KEY, kind TEXT NOT NULL, instance_json TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS crm_hlc_state (org_id TEXT PRIMARY KEY, last_relay_observed_millis INTEGER, last_valid_issued_hlc_json TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS crm_merge_quarantine (operation_id TEXT PRIMARY KEY, org_id TEXT NOT NULL, stamp_json TEXT NOT NULL, reason TEXT NOT NULL, quarantined_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS crm_outbox (org_id TEXT NOT NULL, envelope_id TEXT NOT NULL, mutation_id TEXT NOT NULL, recipient_user_id TEXT NOT NULL, envelope_class TEXT NOT NULL CHECK(envelope_class IN ('firm_operational','client_confidential')), ciphertext BLOB NOT NULL, created_at TEXT NOT NULL, delivered_at TEXT, dead_letter_at TEXT, PRIMARY KEY(org_id,envelope_id));

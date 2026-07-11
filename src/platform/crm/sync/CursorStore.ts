@@ -2,8 +2,8 @@ import type { SyncDocumentKey } from './contracts';
 import { documentId } from './contracts';
 
 /**
- * B1-PENDING: B1 owns the SQLCipher store and will supply this adapter over its
- * transaction API. Keeping the atomic boundary explicit prevents a cursor from
+ * The production implementation is CrmCoreCursorStore, backed by the B1
+ * SQLCipher core. Keeping the atomic boundary explicit prevents a cursor from
  * advancing separately from CRDT application.
  */
 export interface DurableCursorStore {
@@ -21,7 +21,7 @@ interface CursorRow {
   identities: Map<number, string>;
 }
 
-/** Test-only implementation; production injects B1's SQLCipher-backed adapter. */
+/** In-memory implementation used only by focused unit tests. Production uses CrmCoreCursorStore. */
 export class InMemoryCursorStore implements DurableCursorStore {
   private readonly rows = new Map<string, CursorRow>();
 

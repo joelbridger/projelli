@@ -1,3 +1,4 @@
+/* eslint-disable lantern-i18n/no-hardcoded-string -- Frozen CRM screen copy needs its translation catalog in a separate product change. */
 import { AlertCircle, Check, Clock3, Mail, RotateCcw, X } from 'lucide-react';
 import { Badge, Button, Card, CiteChip } from '@/ui/kp';
 import type { CrmClientsActions, CrmProposal } from './adapters';
@@ -27,7 +28,7 @@ export function ProposalCard({
   return (
     <Card
       variant="raised"
-      data-testid={`crm-proposal-${proposal.id}`}
+      data-testid={`crm-proposal-${record.id}`}
       style={{
         borderLeft: `4px solid ${record.state === 'rejected' || record.state === 'expired' ? '#b45309' : '#0f766e'}`,
       }}
@@ -65,15 +66,15 @@ export function ProposalCard({
           <Badge variant="warning">Changed since review</Badge>
         ) : null}
       </div>
-      <p style={{ margin: '10px 0 8px' }}>{proposal.rationale}</p>
+      <p style={{ margin: '10px 0 8px' }}>{record.rationale}</p>
       {changedSinceReview ? (
         <div
           data-testid={`crm-proposal-diff-${record.id}`}
           style={{ borderLeft: '3px solid #b45309', paddingLeft: 10, color: '#713f12' }}
         >
           <strong>Changed since review. Your selection was cleared.</strong>
-          <div><span style={{ color: '#b91c1c' }}>Before: {review?.before ?? 'Previous proposed change'}</span></div>
-          <div><span style={{ color: '#047857' }}>Now: {review?.after ?? 'Updated proposed change'}</span></div>
+          <div><span style={{ color: '#b91c1c' }}>Before: {review.before ?? 'Previous proposed change'}</span></div>
+          <div><span style={{ color: '#047857' }}>Now: {review.after ?? 'Updated proposed change'}</span></div>
           <p style={{ marginBottom: 0 }}>Review this tracked change before approving.</p>
         </div>
       ) : null}

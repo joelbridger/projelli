@@ -39,9 +39,9 @@ function bytes(value: string): Uint8Array {
   return new TextEncoder().encode(value);
 }
 
-function parseJson<T>(value: Uint8Array): T | null {
+function parseJson(value: Uint8Array): unknown {
   try {
-    return JSON.parse(new TextDecoder().decode(value)) as T;
+    return JSON.parse(new TextDecoder().decode(value)) as unknown;
   } catch {
     return null;
   }
@@ -201,7 +201,7 @@ async function loadCheckpointAtEpoch(
     keyEpoch
   );
   const manifest = manifestBytes
-    ? parseJson<SignedCheckpointManifest>(manifestBytes)
+    ? (parseJson(manifestBytes) as SignedCheckpointManifest | null)
     : null;
   if (
     !manifest ||
@@ -420,7 +420,7 @@ export async function validateCheckpoint(
     })
   );
   const receiptBody =
-    parseJson<Omit<ValidationReceipt, 'signatureB64'>>(receiptPayload);
+    parseJson(receiptPayload) as Omit<ValidationReceipt, 'signatureB64'> | null;
   if (!receiptBody)
     return checkpointAlert(
       'manifest_invalid',

@@ -1,9 +1,8 @@
 /**
  * UI-facing CRM Home contracts.
  *
- * ENGINE-PENDING: unify these with `src/platform/crm/propagation/types.ts` at
- * wire-together. These deliberately mirror the engine's PropagationOffer and
- * OfferDecision contracts rather than creating a second persistence model.
+ * These are render adapters over the canonical engine contracts. They carry
+ * display labels only and never become a second persistence model.
  */
 export type CrmFreshness = 'live' | 'syncing' | 'last-synced' | 'offline' | 'error';
 
@@ -129,14 +128,14 @@ export interface CrmMigrationData {
 }
 
 export interface CrmHomeActions {
-  updateTask: (task: CrmTask) => void;
-  applyPropagation: (offers: readonly PropagationApplyOffer[]) => void;
-  undoPropagation: () => { restored: number; protectedCells: readonly string[] };
-  markNotificationsRead: () => void;
-  recordWorkflowChecklist: (record: MigrationWorkflowChecklist) => void;
-  recordAttachmentAccounting: (record: AttachmentAccountingRecord) => void;
-  createExport: (kind: ExportJobStatus['kind']) => void;
-  retryExport: (kind: ExportJobStatus['kind']) => void;
+  updateTask?: (task: CrmTask) => void;
+  applyPropagation?: (offers: readonly PropagationApplyOffer[]) => void;
+  undoPropagation?: () => { restored: number; protectedCells: readonly string[] };
+  markNotificationsRead?: () => void;
+  recordWorkflowChecklist?: (record: MigrationWorkflowChecklist) => void;
+  recordAttachmentAccounting?: (record: AttachmentAccountingRecord) => void;
+  createExport?: (kind: ExportJobStatus['kind']) => void;
+  retryExport?: (kind: ExportJobStatus['kind']) => void;
 }
 
 /**

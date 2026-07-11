@@ -72,7 +72,7 @@ export function createEd25519CheckpointVerifier(
       try {
         const publicKey = await publicKeyForDevice(deviceId);
         if (!publicKey) return false;
-        return crypto.subtle.verify(
+        return await crypto.subtle.verify(
           { name: 'Ed25519' } as AlgorithmIdentifier,
           publicKey,
           b64ToBytes(signatureB64),

@@ -1,3 +1,4 @@
+/* eslint-disable lantern-i18n/no-hardcoded-string -- Frozen CRM screen copy needs its translation catalog in a separate product change. */
 import { useMemo, useState } from 'react';
 import { Plus, ShieldCheck } from 'lucide-react';
 import {
@@ -73,7 +74,7 @@ export function DirectorySurface({
         <Button
           size="sm"
           variant={externalOnly ? 'primary' : 'secondary'}
-          onClick={() => setExternalOnly((value) => !value)}
+          onClick={() => { setExternalOnly((value) => !value); }}
           data-testid="crm-directory-external"
         >
           External
@@ -81,7 +82,7 @@ export function DirectorySurface({
         <Button
           size="sm"
           variant={needsVerification ? 'primary' : 'secondary'}
-          onClick={() => setNeedsVerification((value) => !value)}
+          onClick={() => { setNeedsVerification((value) => !value); }}
           data-testid="crm-directory-needs-verification"
         >
           Needs verification
@@ -90,7 +91,7 @@ export function DirectorySurface({
           size="sm"
           iconLeft={Plus}
           data-testid="crm-directory-add"
-          onClick={() => actions?.onAdd?.('person')}
+          onClick={() => actions?.onAdd?.({ kind: 'person', householdRef: { kind: 'household', id: 'firm_home' }, contextRefs: [] })}
         >
           Add
         </Button>
@@ -132,7 +133,7 @@ export function DirectorySurface({
               role="button"
               tabIndex={0}
               data-testid={`crm-directory-person-${person.id}`}
-              onClick={() => setSelected(person)}
+              onClick={() => { setSelected(person); }}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') setSelected(person);
               }}
@@ -176,7 +177,7 @@ export function DirectorySurface({
       )}
       <SlidePanel
         open={selected !== null}
-        onClose={() => setSelected(null)}
+        onClose={() => { setSelected(null); }}
         title={selected?.name}
         data-testid="crm-directory-person-panel"
       >

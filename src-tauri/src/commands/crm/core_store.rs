@@ -164,6 +164,57 @@ impl CrmCoreStore {
             )
             .optional()?)
     }
+    /// Records an authenticated CRDT blob and advances its relay cursor in one
+    /// SQLCipher transaction. Replays are accepted only when their immutable
+    /// blob identity matches; gaps are rejected before state can advance.
+    pub fn record_applied_cursor(&self, stream_key: &str, cursor: i64, blob_id: &str) -> Result<()> {
+        let mut conn = lock_unpoison(&self.conn);
+        let tx = conn.transaction()?;
+        let current = tx.query_row("SELECT cursor FROM crm_sync_cursors WHERE stream_key=?1", [stream_key], |row| row.get::<_, i64>(0)).optional()?.unwrap_or(0);
+        if cursor <= current {
+            let existing: Option<String> = tx.query_row("SELECT blob_id FROM crm_sync_applied WHERE stream_key=?1 AND cursor=?2", params![stream_key, cursor], |row| row.get(0)).optional()?;
+            match existing {
+                Some(existing) if existing == blob_id => return Ok(()),
+                Some(_) => bail!("CRM relay blob identity mismatch"),
+                None => bail!("CRM relay cursor history is incomplete"),
+            }
+        }
+        if cursor != current + 1 { bail!("CRM relay cursor must stay contiguous") }
+        tx.execute("INSERT INTO crm_sync_applied(stream_key,cursor,blob_id) VALUES(?1,?2,?3)", params![stream_key,cursor,blob_id])?;
+        tx.execute("INSERT INTO crm_sync_cursors(stream_key,cursor,key_epoch) VALUES(?1,?2,0) ON CONFLICT(stream_key) DO UPDATE SET cursor=excluded.cursor", params![stream_key,cursor])?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// The propagation commit boundary. Its instance snapshot, append-only
+    /// operation ids, activity row, and notification outbox entries commit or
+    /// roll back together. All JSON is encrypted at rest by SQLCipher.
+    pub fn commit_propagation_transaction(
+        &self,
+        kind: &str,
+        event_id: &str,
+        instance_json: &str,
+        operation_ids: &[String],
+        activity_idempotency_key: &str,
+        notification_rows: &[(String, String)],
+    ) -> Result<()> {
+        if !matches!(kind, "apply" | "undo") { bail!("invalid propagation transaction kind") }
+        let mut conn = lock_unpoison(&self.conn);
+        let tx = conn.transaction()?;
+        tx.execute("INSERT OR IGNORE INTO crm_propagation_transactions(event_id,kind,instance_json,created_at) VALUES(?1,?2,?3,?4)", params![event_id,kind,instance_json,now_iso()])?;
+        for operation_id in operation_ids {
+            tx.execute("INSERT OR IGNORE INTO crm_immutable_operations(operation_id,payload_json,created_at) VALUES(?1,?2,?3)", params![operation_id, "{}", now_iso()])?;
+        }
+        tx.execute("INSERT OR IGNORE INTO crm_activity_outbox(idempotency_key,event_id,created_at) VALUES(?1,?2,?3)", params![activity_idempotency_key,event_id,now_iso()])?;
+        for (org_id, envelope_id) in notification_rows {
+            // This is the durable dependency-ready intent. B4 later attaches a
+            // recipient, encrypted envelope, and class in the same database;
+            // this core layer never invents routing data or placeholder content.
+            tx.execute("INSERT OR IGNORE INTO crm_notification_outbox_intents(org_id,envelope_id,mutation_id,created_at) VALUES(?1,?2,?3,?4)", params![org_id,envelope_id,event_id,now_iso()])?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
     /// Callers use this inside the same transaction as a document mutation.
     /// Envelope identity is always org-scoped; no sender identity is persisted.
     pub fn enqueue_outbox(
@@ -470,5 +521,19 @@ mod tests {
             )
             .unwrap();
         assert_eq!(count, 1);
+    }
+    #[test]
+    fn propagation_commit_persists_snapshot_operations_activity_and_notification_intent_together() {
+        let (_d, s) = store();
+        s.commit_propagation_transaction(
+            "apply", "event-1", r#"{"id":"instance-1"}"#,
+            &["op-1".into(), "op-2".into()], "activity:event-1",
+            &[("org-1".into(), "envelope-1".into())],
+        ).unwrap();
+        let conn = lock_unpoison(&s.conn);
+        for table in ["crm_propagation_transactions", "crm_immutable_operations", "crm_activity_outbox", "crm_notification_outbox_intents"] {
+            let count: i64 = conn.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| row.get(0)).unwrap();
+            assert!(count > 0, "{table} must be committed with the propagation event");
+        }
     }
 }

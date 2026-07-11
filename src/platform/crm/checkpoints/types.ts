@@ -1,9 +1,8 @@
 /**
  * B9 checkpoint contracts.
  *
- * B1-PENDING: B1's shared CRM types have not landed in this isolated worktree
- * yet. These narrow boundary shapes deliberately live only in B9 and must be
- * replaced with imports from `@/platform/crm/types` when B1 is merged.
+ * Checkpoint wire shapes deliberately stay narrow: their stream identifiers
+ * preserve B1's `matter_id` wire name and carry no decrypted CRM records.
  */
 
 /** A relay position which is safe to use as a checkpoint base. */

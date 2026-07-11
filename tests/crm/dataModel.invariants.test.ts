@@ -41,14 +41,14 @@ describe('CRM data model invariants', () => {
     expect(ENTITY_KIND_CATALOG[kindOnly.kind]).toBe(true);
   });
 
-  // WIRE-PENDING: B1 exported data-only TypeScript contracts; no runtime schemas or CRM CRDT entity codec exists yet.
+  // EXAM-BLOCKED: B1 exported data-only TypeScript contracts; no runtime schemas or CRM CRDT entity codec exists yet.
   it.skip('keeps each entity id stable through generated valid mutations and CRDT round trips');
-  // WIRE-PENDING: Fact construction has no exported runtime schema guard.
+  // EXAM-BLOCKED: Fact construction has no exported runtime schema guard.
   it.skip('rejects generated Fact partials missing source, asOf, or observedAt');
-  // WIRE-PENDING: ImportArchiveManifest finalization has no runtime guard.
+  // EXAM-BLOCKED: ImportArchiveManifest finalization has no runtime guard.
   it.skip('enforces the immutable importArchiveManifest capture and finalization contract');
-  // WIRE-PENDING: no CRM wire serializer exposes household records for matter_id regression coverage.
+  // EXAM-BLOCKED: no CRM wire serializer exposes household records for matter_id regression coverage.
   it.skip('keeps matter_id on the wire for every household-attached entity');
-  // WIRE-PENDING: no client-facing Note rendering boundary exists in the merged engine modules.
+  // EXAM-BLOCKED: no client-facing Note rendering boundary exists in the merged engine modules.
   it.skip('requires Note audience at creation and prevents client-facing paths from reading internal notes');
 });

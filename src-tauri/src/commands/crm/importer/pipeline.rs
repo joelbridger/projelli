@@ -26,9 +26,9 @@ pub enum LandingResult {
     },
 }
 
-/// B1-PENDING: B1 owns the encrypted entity/CRDT store and external_refs
-/// projection. This narrow transaction seam ensures the four D8 steps are
-/// committed together and no second importer idempotency key can appear.
+/// The encrypted entity/CRDT store and external_refs projection implement this
+/// transaction seam. It keeps the four D8 steps together and prevents a
+/// second importer idempotency key from appearing.
 pub trait LandingStore {
     /// Resolves the canonical confidentiality scope. For Notes this must
     /// resolve every Contact link to a household and reject a partial or

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion -- Test setup asserts an intentionally matched element. */
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { CrmHome } from './CrmHome';
@@ -38,11 +39,12 @@ function adapter(overrides: Partial<CrmHomeAdapter> = {}): CrmHomeAdapter {
 }
 
 describe('CrmHome', () => {
-  it('keeps the default Home honest and non-interactive until its data engine is connected', () => {
+  it('keeps the default Home honest with the real offline engine state and no sample records', () => {
     render(<CrmHome />);
-    expect(screen.getByTestId('crm-home-engine-pending')).toHaveTextContent(/CRM data engine not yet connected/i);
+    expect(screen.getByTestId('crm-home')).toBeInTheDocument();
     expect(screen.getByTestId('crm-freshness-banner')).toHaveTextContent(/working offline/i);
-    expect(screen.queryByTestId('crm-screen-today')).not.toBeInTheDocument();
+    expect(screen.getByTestId('crm-screen-today')).toBeInTheDocument();
+    expect(screen.queryByText('Henderson household')).not.toBeInTheDocument();
   });
 
   it('shows sample records only through the visibly labelled preview mode', () => {
@@ -90,7 +92,7 @@ describe('CrmHome', () => {
     expect(screen.getByTestId('crm-workflow-record-workflow-henderson')).toBeDisabled();
     fireEvent.click(screen.getByTestId('crm-workflow-evidence-workflow-henderson'));
     fireEvent.change(screen.getByTestId('crm-workflow-step-workflow-henderson'), { target: { value: 'Prepare review' } });
-    fireEvent.click(screen.getAllByText('Create resulting instance')[0]);
+    fireEvent.click(screen.getAllByText('Create resulting instance')[0]!);
     fireEvent.change(screen.getByTestId('crm-workflow-instance-workflow-henderson'), { target: { value: 'winst_henderson_review' } });
     fireEvent.click(screen.getByTestId('crm-workflow-record-workflow-henderson'));
     expect(recordWorkflowChecklist).toHaveBeenCalledWith(expect.objectContaining({ selectedCurrentStep: 'Prepare review', resultingInstanceLabel: 'winst_henderson_review' }));

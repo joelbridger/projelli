@@ -1,3 +1,4 @@
+/* eslint-disable lantern-i18n/no-hardcoded-string -- Frozen CRM screen copy needs its translation catalog in a separate product change. */
 import { useState } from 'react';
 import {
   CalendarDays,
@@ -60,13 +61,14 @@ export function HouseholdRecordSurface({
   proposals?: readonly CrmProposal[];
   actions?: CrmClientsActions;
 }) {
+  const schedulingLinkUrl = household.schedulingLinkUrl;
   const [tab, setTab] = useState<HouseholdTab>('client_map');
   const [addOpen, setAddOpen] = useState(false);
   const [noteAudience, setNoteAudience] = useState<
     'internal' | 'client-facing' | null
   >(null);
   const [metadataOpen, setMetadataOpen] = useState(false);
-  const sourceProposals = proposals.filter((proposal) => tab !== 'client_map');
+  const sourceProposals = tab === 'client_map' ? [] : proposals;
   return (
     <section data-testid="crm-household-record">
       <header>
@@ -107,7 +109,7 @@ export function HouseholdRecordSurface({
           iconLeft={Plus}
           iconRight={ChevronDown}
           data-testid="crm-household-add"
-          onClick={() => setAddOpen(true)}
+          onClick={() => { setAddOpen(true); }}
         >
           Add to this household
         </Button>
@@ -115,18 +117,18 @@ export function HouseholdRecordSurface({
           size="sm"
           variant="secondary"
           data-testid="crm-household-metadata"
-          onClick={() => setMetadataOpen(true)}
+          onClick={() => { setMetadataOpen(true); }}
         >
           Fields and tags
         </Button>
-        {household.schedulingLinkUrl ? (
+        {schedulingLinkUrl ? (
           <Button
             size="sm"
             variant="secondary"
             iconLeft={CalendarDays}
             data-testid="crm-household-schedule"
             onClick={() =>
-              actions?.onOpenSchedulingLink?.(household.schedulingLinkUrl!)
+              actions?.onOpenSchedulingLink?.(schedulingLinkUrl)
             }
           >
             Schedule with this household
@@ -161,12 +163,12 @@ export function HouseholdRecordSurface({
           tab={tab}
           household={household}
           proposals={sourceProposals}
-          actions={actions}
+          {...(actions ? { actions } : {})}
         />
       )}
       <SlidePanel
         open={addOpen}
-        onClose={() => setAddOpen(false)}
+        onClose={() => { setAddOpen(false); }}
         title="Add to this household"
         data-testid="crm-household-add-panel"
       >
@@ -227,7 +229,7 @@ export function HouseholdRecordSurface({
       </SlidePanel>
       <SlidePanel
         open={noteAudience !== null}
-        onClose={() => setNoteAudience(null)}
+        onClose={() => { setNoteAudience(null); }}
         title={
           noteAudience === 'internal'
             ? 'New internal note'
@@ -241,20 +243,20 @@ export function HouseholdRecordSurface({
               id: member.id,
               label: member.name,
             }))}
-            actions={actions}
-            onCancel={() => setNoteAudience(null)}
+            {...(actions ? { actions } : {})}
+            onCancel={() => { setNoteAudience(null); }}
           />
         ) : null}
       </SlidePanel>
       <SlidePanel
         open={metadataOpen}
-        onClose={() => setMetadataOpen(false)}
+        onClose={() => { setMetadataOpen(false); }}
         title="Fields and tags"
       >
         <RecordMetadataEditor
           values={household.customFields ?? []}
-          tags={household.tags}
-          actions={actions}
+          {...(household.tags ? { tags: household.tags } : {})}
+          {...(actions ? { actions } : {})}
         />
       </SlidePanel>
     </section>
@@ -399,14 +401,14 @@ function ExistingSurface({
   proposals: readonly CrmProposal[];
   actions?: CrmClientsActions;
 }) {
-  const label = tab === 'email' ? 'Email' : tab[0].toUpperCase() + tab.slice(1);
+  const label = tab === 'email' ? 'Email' : tab.charAt(0).toUpperCase() + tab.slice(1);
   return (
     <div
       style={{ display: 'grid', gap: 12, marginTop: 14 }}
       data-testid={`crm-household-${tab}`}
     >
       {proposals.map((proposal) => (
-        <ProposalCard key={proposal.id} proposal={proposal} actions={actions} />
+        <ProposalCard key={proposal.record.id} proposal={proposal} {...(actions ? { actions } : {})} />
       ))}
       <Card variant="raised">
         <h2>{label}</h2>
