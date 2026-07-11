@@ -137,6 +137,27 @@ describe("firm relay privacy proof", () => {
     }
   });
 
+  test("a CORS preflight cannot smuggle a client name into the relay's access logs", async () => {
+    // An OPTIONS reaches no handler, but its URL still lands in proxy/access logs —
+    // the exact disclosure this relay exists to prevent. The boundary must run first.
+    const { store } = fixture();
+    const server = Bun.serve<SyncSocketData>(buildServeOptions(store, new FanoutHub()));
+    const base = `http://${server.hostname}:${server.port}`;
+    try {
+      const response = await fetch(`${base}/v2/firm/matters?client_name=${encodeURIComponent(clientSecret)}`, {
+        method: "OPTIONS",
+        headers: { origin: "https://app.example.test", "access-control-request-method": "POST" },
+      });
+      expect(response.status).toBe(400);
+      const body = await responseJson(response) as { error?: string };
+      expect(body.error).toBe("invalid_v2_query");
+      expect(JSON.stringify(body)).not.toContain(clientSecret);
+    } finally {
+      server.stop(true);
+      store.close();
+    }
+  });
+
   test("every non-pull v2 route rejects query strings before they can reach a handler", async () => {
     const { store, admin, adminToken, adminSeatToken } = fixture();
     const server = Bun.serve<SyncSocketData>(buildServeOptions(store, new FanoutHub()));

@@ -114,16 +114,15 @@ export function buildServeOptions(store: Store, hub: FanoutHub, traffic?: RelayT
       const method = req.method;
       const ip = srv.requestIP(req)?.address ?? "unknown";
 
+      // The v2 boundary runs even for a CORS preflight: an OPTIONS cannot reach a
+      // handler, but its URL still reaches proxy/access logs, which is exactly the
+      // disclosure this relay exists to prevent. Fail closed first, preflight after.
+      const v2Boundary = path.startsWith("/v2/firm/") ? await validateV2RelayBoundary(req) : null;
+      if (v2Boundary) return error(v2Boundary, 400);
+
       if (method === "OPTIONS") return preflight();
 
       try {
-        // Reject unsafe query strings and descriptor-shaped relay bodies before
-        // a route can authenticate, validate, log, or store them. Handlers
-        // retain strict schemas as a second lock for ordinary malformed bodies.
-        if (path.startsWith("/v2/firm/")) {
-          const boundaryError = await validateV2RelayBoundary(req);
-          if (boundaryError) return error(boundaryError, 400);
-        }
         // --- E2EE sync relay + matter ACL (chunk 2) ---
         // The WebSocket upgrade is handled before normal routing so the relay
         // live fan-out shares the same access gate as the HTTP endpoints.
