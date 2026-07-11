@@ -60,8 +60,9 @@ pub fn authorize_url(
         crate::network_policy::DestinationRule::UserConfiguredHost => {
             let host = parsed
                 .host_str()
-                .ok_or_else(|| anyhow::anyhow!("URL has no host"))?;
-            Destination::parse_for_configured_host(parsed, host)?
+                .ok_or_else(|| anyhow::anyhow!("URL has no host"))?
+                .to_string();
+            Destination::parse_for_configured_host(parsed, &host)?
         }
         _ => Destination::parse(parsed)?,
     };
