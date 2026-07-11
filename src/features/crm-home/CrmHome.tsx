@@ -24,6 +24,22 @@ import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { Button } from '@/ui/kp';
 import { getCrmEngineFreshness, subscribeCrmEngineFreshness } from '@/platform/crm/store';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
+import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
+import {
+  applyWorkflowOffer,
+  completeWorkflowStep,
+  createTemplate,
+  decideOffer,
+  offerForInstance,
+  publishTemplateUpdate,
+  renameWorkflowStepLocally,
+  startWorkflow,
+  stepValue,
+  undoWorkflowApply,
+  workflowRecords,
+  type LiveWorkflowInstance,
+  type LiveWorkflowOffer,
+} from './workflowLive';
 import type {
   CrmFreshnessState,
   CrmHomeAdapter,
@@ -240,6 +256,98 @@ function PropagationFieldRow({ decision, onDecision }: { decision: OfferDecision
   return <div style={{ display: 'flex', gap: 8, padding: '8px 0', alignItems: 'start' }}><span><strong>{decision.label}</strong><br /><span style={mutedStyle}>{decision.before ? `${decision.before} → ` : ''}{decision.after} · {decision.reofferState === 'reoffered' ? 'Re-offered after a descendant update' : 'Original offer'}</span></span><div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}><Button size="sm" variant={decision.decision === 'accepted' ? 'primary' : 'secondary'} data-testid={`crm-propagation-accept-${decision.id}`} onClick={() => { onDecision('accepted'); }}>Accept</Button><Button size="sm" variant={decision.decision === 'rejected' ? 'primary' : 'secondary'} data-testid={`crm-propagation-reject-${decision.id}`} onClick={() => { onDecision('rejected'); }}>Reject</Button>{decision.decision === 'review_required' && <span data-testid={`crm-propagation-unresolved-${decision.id}`} style={mutedStyle}>Review required</span>}</div></div>;
 }
 
+type LiveWorkflowData = ReturnType<typeof workflowRecords>;
+type HouseholdChoice = { id: string; label: string };
+function displayValue(value: unknown): string {
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return value === undefined || value === null ? '' : JSON.stringify(value);
+}
+
+function liveStepTitle(instance: LiveWorkflowInstance, stepId: string) {
+  return displayValue(stepValue(instance, stepId, 'title')) || instance.snapshot.steps[stepId]?.titleSnapshot || 'Untitled step';
+}
+
+function LiveWorkflows({ data, households, onSave, onNavigate }: { data: LiveWorkflowData; households: readonly HouseholdChoice[]; onSave: (record: LiveCrmRecord) => Promise<unknown>; onNavigate: (route: CrmHomeRoute) => void }) {
+  const [creating, setCreating] = useState(false);
+  const [name, setName] = useState('Client onboarding');
+  const [titles, setTitles] = useState(['Confirm household details', 'Open accounts', 'Send welcome packet']);
+  const [newHousehold, setNewHousehold] = useState('Northcrest household');
+  const [selectedHouseholdId, setSelectedHouseholdId] = useState('');
+  const [editing, setEditing] = useState(false);
+  const [changedTitle, setChangedTitle] = useState('');
+  const [addedTitle, setAddedTitle] = useState('Send welcome summary');
+  const [error, setError] = useState<string | null>(null);
+  const template = data.templates[0];
+  const instances = template ? data.instances.filter((instance) => instance.templateId === template.id) : [];
+  const save = async (record: LiveCrmRecord) => { try { setError(null); await onSave(record); } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); } };
+  const start = async () => {
+    if (!template) return;
+    let household = households.find((item) => item.id === selectedHouseholdId);
+    if (!household) {
+      const id = `household-${String(Date.now())}`;
+      household = { id, label: newHousehold.trim() || 'New household' };
+      await save({ id, kind: 'household', matterId: id, name: household.label });
+    }
+    await save(startWorkflow(template, household));
+  };
+  const publish = async () => {
+    if (!template) return;
+    try {
+      setError(null);
+      const update = publishTemplateUpdate(template, changedTitle, addedTitle);
+      await onSave(update.template);
+      for (const instance of instances) await onSave(offerForInstance(update.template, instance, update.revisionId, update.label));
+      setEditing(false);
+      onNavigate('propagation');
+    } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
+  };
+  return <Screen title="Workflows" description="Steps your firm follows for each household" Icon={Workflow} action={<Button data-testid="crm-live-workflow-new-template" iconLeft={Plus} onClick={() => { setCreating(true); }}>New template</Button>}>
+    {error && <div role="alert" style={{ ...panelStyle, borderColor: 'var(--kp-danger)' }}>{error}</div>}
+    {!template && !creating && <section style={panelStyle}><strong>No workflow templates yet</strong><p style={mutedStyle}>Create a set of steps, then use it for a household.</p><Button data-testid="crm-live-workflow-create-first" onClick={() => { setCreating(true); }}>Create a workflow</Button></section>}
+    {creating && <section data-testid="crm-live-workflow-template-form" style={panelStyle}><strong>Create a workflow template</strong><p style={mutedStyle}>Start with the three steps your firm follows. You can adjust them before publishing later.</p><label>Template name<input data-testid="crm-live-workflow-name" value={name} onChange={(event) => { setName(event.target.value); }} /></label>{titles.map((title, index) => <label key={index} style={{ display: 'block', marginTop: 8 }}>Step {String(index + 1)}<input data-testid={`crm-live-workflow-step-title-${String(index + 1)}`} value={title} onChange={(event) => { setTitles((current) => current.map((item, position) => position === index ? event.target.value : item)); }} /></label>)}<div style={{ display: 'flex', gap: 8, marginTop: 12 }}><Button data-testid="crm-live-workflow-create-template" onClick={() => { void save(createTemplate(name, titles)); setCreating(false); }}>Save template</Button><Button variant="secondary" onClick={() => { setCreating(false); }}>Cancel</Button></div></section>}
+    {template && <><section data-testid="crm-live-workflow-template" style={panelStyle}><div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}><div><strong>{template.name}</strong><p style={mutedStyle}>{instances.length} open household workflow{instances.length === 1 ? '' : 's'}</p></div><span style={{ display: 'flex', gap: 8 }}><Button variant="secondary" data-testid="crm-live-workflow-open-propagation" onClick={() => { onNavigate('propagation'); }}>Review updates</Button><Button variant="secondary" data-testid="crm-live-workflow-edit-template" onClick={() => { setChangedTitle(template.steps[0]?.title ?? ''); setEditing(true); }}>Edit steps</Button></span></div><ol>{template.steps.map((step) => <li key={step.id}>{step.title} · {step.role} · {step.dueOffset === 0 ? 'start day' : `day ${String(step.dueOffset + 1)}`} · {step.required ? 'required' : 'optional'}</li>)}</ol>{editing && <div data-testid="crm-live-workflow-update-form" style={{ ...panelStyle, background: 'var(--color-background)' }}><strong>Update this template</strong><p style={mutedStyle}>This will ask before changing any household’s open work.</p><label>Rename “{template.steps[0]?.title}”<input data-testid="crm-live-workflow-change-title" value={changedTitle} onChange={(event) => { setChangedTitle(event.target.value); }} /></label><label style={{ display: 'block', marginTop: 8 }}>Add a step<input data-testid="crm-live-workflow-add-title" value={addedTitle} onChange={(event) => { setAddedTitle(event.target.value); }} /></label><Button data-testid="crm-live-workflow-publish" style={{ marginTop: 10 }} onClick={() => { void publish(); }}>Publish update</Button></div>}</section>
+      <section style={panelStyle}><strong>Start for a household</strong><p style={mutedStyle}>This creates an open workflow for one real household. Nothing is shared until you choose to do so.</p>{households.length ? <label>Household<select data-testid="crm-live-workflow-household" value={selectedHouseholdId} onChange={(event) => { setSelectedHouseholdId(event.target.value); }}><option value="">Choose a household</option>{households.map((household) => <option key={household.id} value={household.id}>{household.label}</option>)}</select></label> : <label>Household name<input data-testid="crm-live-workflow-new-household" value={newHousehold} onChange={(event) => { setNewHousehold(event.target.value); }} /></label>}<Button data-testid="crm-live-workflow-start" style={{ marginLeft: 8 }} onClick={() => { void start(); }}>Start workflow</Button></section>
+      <section data-testid="crm-live-workflow-instances" style={panelStyle}><strong>Open household workflows</strong>{instances.length === 0 ? <p style={mutedStyle}>Start this workflow for a household to see its steps here.</p> : instances.map((instance) => <LiveInstanceCard key={instance.id} instance={instance} onSave={save} />)}</section></>}
+  </Screen>;
+}
+
+function LiveInstanceCard({ instance, onSave }: { instance: LiveWorkflowInstance; onSave: (record: LiveCrmRecord) => Promise<unknown> }) {
+  const [editingStep, setEditingStep] = useState<string | null>(null);
+  const [localTitle, setLocalTitle] = useState('');
+  const steps = Object.values(instance.snapshot.steps).filter((step) => !step.hiddenByTemplateRemoval);
+  return <section data-testid={`crm-live-workflow-instance-${instance.id}`} style={{ borderTop: '1px solid var(--kp-border)', marginTop: 10, paddingTop: 10 }}><strong>{instance.householdLabel}</strong><span style={mutedStyle}> · {String(steps.filter((step) => step.status === 'done').length)} of {String(steps.length)} complete</span>{steps.map((step) => <div key={step.stepId} data-testid={`crm-live-workflow-instance-step-${step.stepId}`} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', padding: '7px 0' }}><span>{step.status === 'done' ? '✓' : '□'}</span><strong>{liveStepTitle(instance, step.stepId)}</strong>{step.status === 'done' ? <span style={mutedStyle}>Completed work stays as it is.</span> : <Button size="sm" variant="secondary" data-testid={`crm-live-workflow-complete-${instance.id}-${step.stepId}`} onClick={() => { void onSave(completeWorkflowStep(instance, step.stepId)); }}>Complete step</Button>}<Button size="sm" variant="secondary" data-testid={`crm-live-workflow-edit-local-${instance.id}-${step.stepId}`} onClick={() => { setEditingStep(step.stepId); setLocalTitle(liveStepTitle(instance, step.stepId)); }}>Edit for this household</Button>{editingStep === step.stepId && <span><input data-testid={`crm-live-workflow-local-title-${instance.id}-${step.stepId}`} value={localTitle} onChange={(event) => { setLocalTitle(event.target.value); }} /><Button size="sm" data-testid={`crm-live-workflow-local-save-${instance.id}-${step.stepId}`} onClick={() => { void onSave(renameWorkflowStepLocally(instance, step.stepId, localTitle)); setEditingStep(null); }}>Save</Button></span>}</div>)}</section>;
+}
+
+function plainField(decision: LiveWorkflowOffer['engineOffer']['decisions'][number], instance: LiveWorkflowInstance) {
+  const before = stepValue(instance, decision.stepId, decision.field);
+  const value = displayValue(decision.value);
+  if (decision.changeKind === 'add') return decision.field === 'title' ? `Add “${value}”` : `${decision.field === 'defaultAssigneeRole' ? 'Send it to' : decision.field === 'dueOffset' ? 'Schedule it for' : 'Set'} ${value}`;
+  if (decision.changeKind === 'remove') return 'Remove this untouched future step';
+  if (decision.field === 'title') return `Rename “${displayValue(before)}” to “${value}”`;
+  if (decision.field === 'dueOffset') return `Move timing from ${displayValue(before) || 'the current day'} to ${value}`;
+  if (decision.field === 'defaultAssigneeRole') return `Send new work from ${displayValue(before) || 'the current role'} to ${value}`;
+  return `Change ${decision.field} from ${displayValue(before) || 'the current setting'} to ${value}`;
+}
+
+function LivePropagationReview({ data, onSave }: { data: LiveWorkflowData; onSave: (record: LiveCrmRecord) => Promise<unknown> }) {
+  const [message, setMessage] = useState<string | null>(null);
+  const offers = data.offers.filter((offer) => offer.engineOffer.state === 'pending');
+  const instanceFor = (offer: LiveWorkflowOffer) => data.instances.find((instance) => instance.id === offer.engineOffer.instanceId);
+  const templateFor = (offer: LiveWorkflowOffer) => data.templates.find((template) => template.id === offer.templateId);
+  const change = async (offer: LiveWorkflowOffer, decisionId: string, decision: 'accepted' | 'rejected') => { await onSave(decideOffer(offer, decisionId, decision)); };
+  const apply = async (offer: LiveWorkflowOffer) => {
+    const template = templateFor(offer); const instance = instanceFor(offer);
+    if (!template || !instance) return;
+    try { const result = applyWorkflowOffer(template, instance, offer); await onSave(result.instance); await onSave(result.offer); setMessage(`${offer.householdLabel} is updated. Completed work and notes stayed as they were.`); } catch (reason) { setMessage(reason instanceof Error ? reason.message : String(reason)); }
+  };
+  const undo = async (instance: LiveWorkflowInstance) => { const result = undoWorkflowApply(instance); await onSave(result.instance); setMessage(result.protectedCells.length ? `Restored ${String(result.undoneCells.length)} untouched change${result.undoneCells.length === 1 ? '' : 's'}. Kept ${String(result.protectedCells.length)} later household change${result.protectedCells.length === 1 ? '' : 's'}: ${result.protectedCells.join(', ')}.` : `Restored ${String(result.undoneCells.length)} untouched change${result.undoneCells.length === 1 ? '' : 's'}. No later household changes needed to stay.`); };
+  return <Screen title="Propagation review" description="Review template updates before they touch household work" Icon={GitPullRequest} action={undefined}>
+    {offers.length === 0 ? <section style={panelStyle}><strong>No template updates waiting for review</strong><p style={mutedStyle}>When you publish a workflow update, each household’s open work will appear here for a simple yes or no decision.</p></section> : <><section style={panelStyle}><strong>Template updates ready to review</strong><p style={mutedStyle}>Choose what should change for each household. Work already done stays exactly as it is.</p></section>{offers.map((offer) => { const instance = instanceFor(offer); const grouped = new Map<string, LiveWorkflowOffer['engineOffer']['decisions']>(); for (const decision of offer.engineOffer.decisions) grouped.set(decision.stepId, [...(grouped.get(decision.stepId) ?? []), decision]); const ready = !offer.engineOffer.requiresConcurrentHeadReview && !offer.engineOffer.decisions.some((decision) => decision.decision === 'review_required'); return <section key={offer.id} data-testid={`crm-live-propagation-offer-${offer.id}`} style={panelStyle}><strong>{offer.householdLabel}: {String(grouped.size)} update{grouped.size === 1 ? '' : 's'} to review</strong><p style={mutedStyle}>{offer.revisionLabel}. Work already done stays as it is.</p>{[...grouped.entries()].map(([stepId, decisions]) => <div key={stepId} style={{ borderTop: '1px solid var(--kp-border)', paddingTop: 9, marginTop: 9 }}><strong>{instance ? liveStepTitle(instance, stepId) : 'New workflow step'}</strong>{instance?.snapshot.steps[stepId]?.status === 'done' && <p style={mutedStyle}>This step is complete. Its completed work and notes will not change.</p>}{decisions.map((decision) => <div key={decision.id} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '6px 0' }}><span style={{ flex: 1 }}>{plainField(decision, instance ?? { snapshot: { steps: {} } } as LiveWorkflowInstance)}</span><Button size="sm" variant={decision.decision === 'accepted' ? 'primary' : 'secondary'} data-testid={`crm-live-propagation-accept-${decision.id}`} onClick={() => { void change(offer, decision.id, 'accepted'); }}>Accept</Button><Button size="sm" variant={decision.decision === 'rejected' ? 'primary' : 'secondary'} data-testid={`crm-live-propagation-reject-${decision.id}`} onClick={() => { void change(offer, decision.id, 'rejected'); }}>Keep current</Button></div>)}</div>)}<div style={{ display: 'flex', gap: 8, marginTop: 12 }}><Button data-testid={`crm-live-propagation-apply-${offer.id}`} disabled={!ready} onClick={() => { void apply(offer); }}>Apply these changes</Button>{instance?.lastApplyEventId && <Button variant="secondary" data-testid={`crm-live-propagation-undo-${instance.id}`} onClick={() => { void undo(instance); }}>Undo last update</Button>}</div></section>; })}</>}
+    {data.instances.filter((instance) => instance.lastApplyEventId).map((instance) => <section key={`undo-${instance.id}`} style={panelStyle}><strong>{instance.householdLabel}</strong><span style={mutedStyle}> · Last update can be undone safely. Later household edits will stay in place.</span><Button data-testid={`crm-live-propagation-undo-${instance.id}`} variant="secondary" style={{ marginLeft: 8 }} onClick={() => { void undo(instance); }}>Undo last update</Button></section>)}
+    {message && <p data-testid="crm-live-propagation-result" role="status">{message}</p>}
+  </Screen>;
+}
+
 function Pipeline({ freshness, onNavigate }: { freshness: CrmFreshnessState; onNavigate: (route: CrmHomeRoute) => void }) {
   return <Screen title="Pipeline" description="Potential work, not another project container" Icon={Landmark} action={<Button data-testid="crm-pipeline-new" iconLeft={Plus}>New opportunity</Button>}><div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}><AskBar /><Button variant="secondary" data-testid="crm-pipeline-settings" onClick={() => { onNavigate('pipeline-settings'); }} iconLeft={Settings2}>Settings</Button></div><FreshnessBanner freshness={freshness} /><div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(180px, 1fr))', gap: 10, overflowX: 'auto' }}>{['Discovery', 'Recommendation', 'Decision', 'Won'].map((stage) => <section key={stage} style={panelStyle}><strong>{stage}</strong><p>{stage === 'Discovery' ? 'Patel · $400k · Sep 14' : stage === 'Decision' ? 'Chen · $180k · today' : stage === 'Won' ? 'Lewis · $600k' : 'Avery · $250k · Sep 20'}</p></section>)}</div><section style={panelStyle}><strong>Legacy Projects</strong><p style={mutedStyle}>Read-only historical records. They never write back or auto-convert.</p><Button variant="secondary" data-testid="crm-legacy-start-workflow">Start a workflow from this</Button></section></Screen>;
 }
@@ -284,7 +392,7 @@ function ExportReadiness({ job, onCreate, onRetry }: { job: ExportJobStatus; onC
 
 function Screen({ title, description, Icon, action, children }: { title: string; description: string; Icon: typeof LayoutDashboard; action?: React.ReactNode; children: React.ReactNode }) { return <div data-testid={`crm-screen-${title.toLowerCase().replaceAll(' ', '-')}`} style={{ padding: 'var(--kp-space-xl)', overflow: 'auto', width: '100%', display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-md)' }}><SurfaceHeader Icon={Icon} title={title} description={description} actions={action} />{children}</div>; }
 
-function ConnectedCrmHome({ adapter, initialRoute = 'today', preview = false }: Required<Pick<CrmHomeProps, 'adapter'>> & Omit<CrmHomeProps, 'adapter'>) {
+function ConnectedCrmHome({ adapter, initialRoute = 'today', preview = false, workflowData, households, saveLiveRecord }: Required<Pick<CrmHomeProps, 'adapter'>> & Omit<CrmHomeProps, 'adapter'> & { workflowData?: LiveWorkflowData; households?: readonly HouseholdChoice[]; saveLiveRecord?: (record: LiveCrmRecord) => Promise<unknown> }) {
   // The screen receives engine-derived data only; preview data is opt-in above.
   const activeAdapter = adapter;
   const [route, setRoute] = useState<CrmHomeRoute>(initialRoute);
@@ -293,13 +401,14 @@ function ConnectedCrmHome({ adapter, initialRoute = 'today', preview = false }: 
   const [undoReport, setUndoReport] = useState<string | null>(null);
   const freshness = activeAdapter.freshness;
   const offers = activeAdapter.offers;
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- Adapter changes are the external screen-data boundary.
   useEffect(() => { setTasks(activeAdapter.tasks); }, [activeAdapter.tasks]);
   const updateTask = (task: CrmTask) => { setTasks((current) => current.some((item) => item.id === task.id) ? current.map((item) => item.id === task.id ? task : item) : [...current, task]); activeAdapter.actions.updateTask?.(task); };
   const jump = (next: CrmHomeRoute) => { setRoute(next); };
   const reportUndo = useCallback(() => { const result = activeAdapter.actions.undoPropagation?.() ?? { restored: 0, protectedCells: [] }; setUndoReport(result.protectedCells.length ? `${String(result.restored)} untouched derived cells restored. Protected cells kept: ${result.protectedCells.join(', ')}.` : `${String(result.restored)} untouched derived cells restored. No protected cells needed to stay.`); }, [activeAdapter]);
   useEffect(() => { const onKeyDown = (event: KeyboardEvent) => { if ((event.target as HTMLElement | null)?.tagName === 'INPUT') return; if (event.key === 'g') { (window as Window & { __crmGo?: boolean }).__crmGo = true; return; } if ((window as Window & { __crmGo?: boolean }).__crmGo) { const key = event.key.toLowerCase(); const destination = key === 'h' ? 'today' : key === 't' ? 'tasks' : key === 'w' ? 'workflows' : key === 'p' ? 'pipeline' : key === 'r' ? 'reports' : key === 'f' ? 'firm-setup' : key === 'm' ? 'migration' : null; if (destination) { event.preventDefault(); jump(destination); } (window as Window & { __crmGo?: boolean }).__crmGo = false; } if (event.key === '/' && route !== 'tasks') { document.querySelector<HTMLInputElement>('[data-testid="crm-ask-input"]')?.focus(); } if (route === 'propagation' && event.key.toLowerCase() === 'u') { event.preventDefault(); reportUndo(); } }; window.addEventListener('keydown', onKeyDown); return () => { window.removeEventListener('keydown', onKeyDown); }; }, [activeAdapter, reportUndo, route]);
   const notificationPanel = <aside aria-label="Notifications" style={{ position: 'absolute', right: 20, top: 56, width: 340, zIndex: 10, ...panelStyle, boxShadow: 'var(--kp-shadow-2)' }}><strong>Notifications (3)</strong><p>New assignment · Confirm transfer · Miller household · recipient: Maya</p><p style={mutedStyle}>Sent 10:34 · delivered 10:35 · acked 10:36 · ciphertext: 4–16 KiB<br />Opaque id: env_7f…91</p><p style={mutedStyle}>The relay sees recipient, timestamps, size band, delivery/ack timing, and opaque ID. It does not store a sender.</p><Button data-testid="crm-notifications-read" variant="secondary" onClick={() => { setNotificationsRead(true); activeAdapter.actions.markNotificationsRead?.(); }}>{notificationsRead ? 'Marked read on this device' : 'Mark all read on this device'}</Button></aside>;
-  const content = route === 'today' ? <Today tasks={tasks} freshness={freshness} onNavigate={jump} onUpdateTask={updateTask} /> : route === 'tasks' ? <Tasks tasks={tasks} freshness={freshness} onUpdateTask={updateTask} /> : route === 'workflows' ? <Workflows freshness={freshness} onNavigate={jump} /> : route === 'propagation' ? <PropagationReview offers={offers} freshness={freshness} onApply={(selected) => activeAdapter.actions.applyPropagation?.(selected)} onUndo={reportUndo} undoReport={undoReport} /> : route === 'pipeline' ? <Pipeline freshness={freshness} onNavigate={jump} /> : route === 'pipeline-settings' ? <PipelineSettings /> : route === 'reports' ? <Reports freshness={freshness} /> : route === 'fields-tags' ? <FieldsTags /> : route === 'intake-links' ? <IntakeLinks /> : route === 'migration' || route === 'fidelity' || route === 'workflow-recreation' || route === 'attachment-accounting' || route === 'archive-export' || route === 'rollback-export' ? <Migration route={route} freshness={freshness} migration={activeAdapter.migration} onNavigate={jump} actions={activeAdapter.actions} /> : <FirmSetup onNavigate={jump} freshness={freshness} />;
+  const content = route === 'today' ? <Today tasks={tasks} freshness={freshness} onNavigate={jump} onUpdateTask={updateTask} /> : route === 'tasks' ? <Tasks tasks={tasks} freshness={freshness} onUpdateTask={updateTask} /> : route === 'workflows' ? workflowData && households && saveLiveRecord ? <LiveWorkflows data={workflowData} households={households} onSave={saveLiveRecord} onNavigate={jump} /> : <Workflows freshness={freshness} onNavigate={jump} /> : route === 'propagation' ? workflowData && saveLiveRecord ? <LivePropagationReview data={workflowData} onSave={saveLiveRecord} /> : <PropagationReview offers={offers} freshness={freshness} onApply={(selected) => activeAdapter.actions.applyPropagation?.(selected)} onUndo={reportUndo} undoReport={undoReport} /> : route === 'pipeline' ? <Pipeline freshness={freshness} onNavigate={jump} /> : route === 'pipeline-settings' ? <PipelineSettings /> : route === 'reports' ? <Reports freshness={freshness} /> : route === 'fields-tags' ? <FieldsTags /> : route === 'intake-links' ? <IntakeLinks /> : route === 'migration' || route === 'fidelity' || route === 'workflow-recreation' || route === 'attachment-accounting' || route === 'archive-export' || route === 'rollback-export' ? <Migration route={route} freshness={freshness} migration={activeAdapter.migration} onNavigate={jump} actions={activeAdapter.actions} /> : <FirmSetup onNavigate={jump} freshness={freshness} />;
   const [showNotifications, setShowNotifications] = useState(false);
   return <div data-testid="crm-home" style={{ display: 'flex', height: '100%', minHeight: 0, position: 'relative', background: 'var(--color-background)' }}>{preview && <div data-testid="crm-home-preview-label" role="status" style={{ position: 'absolute', zIndex: 20, right: 16, bottom: 12, ...panelStyle, padding: 8, borderColor: 'var(--kp-direct)' }}>Preview sample content only. Not connected to CRM data.</div>}<HomeRail route={route} onNavigate={jump} /><div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', position: 'relative' }}>{content}<button data-testid="crm-notifications-button" aria-label="Open notifications" onClick={() => { setShowNotifications((open) => !open); }} style={{ position: 'absolute', top: 15, right: 18, border: 0, background: 'transparent', cursor: 'pointer', color: 'var(--kp-navy)' }}><Bell size={20} /> <span aria-label="3 notifications">3</span></button>{showNotifications && notificationPanel}</div></div>;
 }
@@ -324,7 +433,13 @@ export function CrmHome({ adapter, preview = false, initialRoute }: CrmHomeProps
     actions: { updateTask: (task) => { void live.save({ ...task, kind: 'task', matterId: 'firm' }); } },
   };
   const activeAdapter = adapter ?? (preview ? PREVIEW_ADAPTER : liveAdapter);
-  return <ConnectedCrmHome adapter={activeAdapter} preview={preview} {...(initialRoute ? { initialRoute } : {})} />;
+  const households: HouseholdChoice[] = live.records
+    .filter((record) => record.kind === 'household')
+    .map((record) => ({ id: record.id, label: typeof record['name'] === 'string' ? record['name'] : typeof record['label'] === 'string' ? record['label'] : 'Untitled household' }));
+  // Only the real desktop surface receives the durable workflow bridge. Adapter
+  // and preview renders remain deterministic presentation fixtures for tests.
+  const liveWorkflowProps = adapter || preview ? {} : { workflowData: workflowRecords(live.records), households, saveLiveRecord: live.save };
+  return <ConnectedCrmHome adapter={activeAdapter} preview={preview} {...liveWorkflowProps} {...(initialRoute ? { initialRoute } : {})} />;
 }
 
 export default CrmHome;
