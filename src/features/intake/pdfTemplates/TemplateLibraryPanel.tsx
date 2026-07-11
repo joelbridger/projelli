@@ -35,13 +35,17 @@ function artifactRef(): string {
 }
 
 function defaultFields(inspection: PdfInspection): PdfFieldMap {
-  return Object.fromEntries(inspection.fields.map((field) => [field.name, {
-    kind: 'acroform' as const,
-    field_id: field.name,
-    acroform_field: field.name,
-    pdf_field_type: field.type,
-    ...(field.options && field.options.length >= 2 ? { options: field.options } : {}),
-  }]));
+  return Object.fromEntries(inspection.fields.map((field) => {
+    const base = {
+      kind: 'acroform' as const,
+      field_id: field.name,
+      acroform_field: field.name,
+    };
+    const entry: PdfFieldMapEntry = field.type === 'radio' || field.type === 'select'
+      ? { ...base, pdf_field_type: field.type, options: field.options ?? [] }
+      : { ...base, pdf_field_type: field.type };
+    return [field.name, entry];
+  }));
 }
 
 /** New overlay fields start in a visible, distinct grid position. */
@@ -247,11 +251,14 @@ export function TemplateLibraryPanel({ onChoose }: TemplateLibraryPanelProps) {
   const updateField = (id: string, patch: Partial<PdfFieldMapEntry>) => setFields((current) => ({ ...current, [id]: { ...current[id], ...patch } as PdfFieldMapEntry }));
   const updateOverlayField = (
     id: string,
-    patch: Partial<Extract<PdfFieldMapEntry, { kind: 'overlay' }>>,
+    patch: Partial<Pick<Extract<PdfFieldMapEntry, { kind: 'overlay' }>, 'page' | 'rect' | 'font' | 'alignment' | 'overflow'>>,
   ) => setFields((current) => {
     const entry = current[id];
     if (!entry || entry.kind !== 'overlay') return current;
-    return { ...current, [id]: { ...entry, ...patch } };
+    const next: Extract<PdfFieldMapEntry, { kind: 'overlay' }> = entry.pdf_field_type === 'radio' || entry.pdf_field_type === 'select'
+      ? { ...entry, ...patch, options: entry.options }
+      : { ...entry, ...patch };
+    return { ...current, [id]: next };
   });
   const updateOverlayNumber = (
     id: string,
