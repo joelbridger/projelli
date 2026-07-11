@@ -62,7 +62,7 @@ pub async fn mail_send(
             match provider.as_str() {
         "m365" => send_m365(policy.inner().clone(), state, to, cc, bcc, subject, body, in_reply_to_id, attachments.unwrap_or_default()).await,
         "gmail" => send_gmail(policy.inner().clone(), state, to, cc, bcc, subject, body, in_reply_to_id, attachments.unwrap_or_default()).await,
-        "imap" => send_imap(state, account, to, cc, bcc, subject, body, in_reply_to_id, attachments.unwrap_or_default()).await,
+        "imap" => send_imap(policy.inner().clone(), state, account, to, cc, bcc, subject, body, in_reply_to_id, attachments.unwrap_or_default()).await,
         other => Err(format!("unknown provider: {other}")),
             }
         } => result,
@@ -191,9 +191,12 @@ async fn send_m365(
     _in_reply_to_id: Option<String>,
     attachments: Vec<AttachmentInput>,
 ) -> Result<String, String> {
-    let token = fresh_access_token().await?; // returns "scope_upgrade_required" when needed
-    let client = crate::commands::mail::graph::GraphClient::new_with_refresh(token, graph_token_refresh())
-        .with_network_policy(policy, crate::network_policy::OUTLOOK_MAIL_SYNC);
+    let token = fresh_access_token(&policy).await?; // returns "scope_upgrade_required" when needed
+    let client = crate::commands::mail::graph::GraphClient::new_with_refresh(
+        token,
+        graph_token_refresh(policy.clone()),
+    )
+    .with_network_policy(policy, crate::network_policy::OUTLOOK_MAIL_SYNC);
 
     // conversation_id is not stored in MailRecord; pass None for now.
     // Threading for M365 replies can be added when conversationId is stored.
@@ -214,7 +217,7 @@ async fn send_gmail(
     in_reply_to_id: Option<String>,
     attachments: Vec<AttachmentInput>,
 ) -> Result<String, String> {
-    let token = fresh_gmail_access_token().await?; // returns "scope_upgrade_required" when needed
+    let token = fresh_gmail_access_token(&policy).await?; // returns "scope_upgrade_required" when needed
 
     // Resolve threading headers from the stored message.
     let (in_reply_to, references) = if let Some(ref orig_id) = in_reply_to_id {
@@ -261,6 +264,7 @@ async fn send_gmail(
 }
 
 async fn send_imap(
+    policy: crate::network_policy::NetworkPolicy,
     state: State<'_, MailState>,
     _account: String,
     to: Vec<String>,
@@ -295,6 +299,7 @@ async fn send_imap(
     let smtp_port: u16 = 587;
 
     crate::commands::mail::imap::send::smtp_send(
+        &policy,
         &host,
         smtp_port,
         &cfg.username,
@@ -395,9 +400,12 @@ async fn save_draft_m365(
     in_reply_to: Option<String>,
 ) -> Result<String, String> {
     // Surfaces "scope_upgrade_required" for pre-upgrade tokens.
-    let token = fresh_access_token().await?;
-    let client = crate::commands::mail::graph::GraphClient::new_with_refresh(token, graph_token_refresh())
-        .with_network_policy(policy, crate::network_policy::OUTLOOK_MAIL_SYNC);
+    let token = fresh_access_token(&policy).await?;
+    let client = crate::commands::mail::graph::GraphClient::new_with_refresh(
+        token,
+        graph_token_refresh(policy.clone()),
+    )
+    .with_network_policy(policy, crate::network_policy::OUTLOOK_MAIL_SYNC);
     match in_reply_to {
         Some(orig) => {
             let raw = orig.strip_prefix("mail:").unwrap_or(&orig).to_string();
@@ -421,7 +429,7 @@ async fn save_draft_gmail(
     body_html: String,
     in_reply_to: Option<String>,
 ) -> Result<String, String> {
-    let token = fresh_gmail_access_token().await?;
+    let token = fresh_gmail_access_token(&policy).await?;
 
     // Reply threading headers from the stored original (same path send_gmail
     // uses; non-fatal if unresolvable — the draft is saved unthreaded).

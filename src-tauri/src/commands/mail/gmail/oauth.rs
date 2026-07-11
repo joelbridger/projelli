@@ -211,8 +211,11 @@ impl GoogleOAuth {
     }
 
     async fn send(&self, request: reqwest::RequestBuilder) -> anyhow::Result<reqwest::Response> {
-        let Some((policy, operation)) = &self.network_policy else {
+        let Some((policy, operation)) = self.network_policy.as_ref() else {
+            #[cfg(test)]
             return Ok(request.send().await?);
+            #[cfg(not(test))]
+            anyhow::bail!("Google OAuth requires a NetworkPolicy before it can make a request");
         };
         let authorized =
             crate::commands::connector_network::authorize_url(policy, operation, &self.base)?;

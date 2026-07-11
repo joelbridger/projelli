@@ -7,7 +7,7 @@
 
 use super::graph_source::CalendarSource;
 use super::model::{CalendarAttendee, CalendarEvent, CalendarProvider};
-use chrono::{Datelike, DateTime, Duration, TimeZone, Utc};
+use chrono::{DateTime, Datelike, Duration, TimeZone, Utc};
 
 /// GET the ICS text with a bounded timeout. No auth: secret ICS URLs carry
 /// their token in the URL itself — codex-review P2 (round 7): reqwest
@@ -16,34 +16,48 @@ use chrono::{Datelike, DateTime, Duration, TimeZone, Utc};
 /// despite the https-only check in `calendar_connect_ics`. Only follow a
 /// redirect that stays on https (or loopback http, matching the connect
 /// command's own dev exception).
-pub async fn fetch_ics_text(url: &str) -> anyhow::Result<String> {
+pub async fn fetch_ics_text(
+    policy: &crate::network_policy::NetworkPolicy,
+    configured_url: &str,
+    url: &str,
+) -> anyhow::Result<String> {
     let http = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
         .connect_timeout(std::time::Duration::from_secs(15))
-        .redirect(reqwest::redirect::Policy::custom(|attempt| {
-            let safe = attempt.url().scheme() == "https"
-                || matches!(attempt.url().host_str(), Some("localhost") | Some("127.0.0.1") | Some("::1"));
-            if safe { attempt.follow() } else { attempt.stop() }
-        }))
+        // Never forward the secret URL (including its query token) to a
+        // redirect target without a distinct policy decision.  Rejecting
+        // redirects is the safest behavior for a configured ICS feed.
+        .redirect(reqwest::redirect::Policy::none())
         .build()?;
-    let resp = http.get(url).send().await?;
+    let authorized = crate::commands::connector_network::authorize_configured_origin(
+        policy,
+        &crate::network_policy::ICS_CALENDAR_SYNC,
+        url,
+        configured_url,
+    )?;
+    let resp =
+        crate::commands::connector_network::await_authorized(policy, &authorized, async move {
+            Ok(http.get(url).send().await?)
+        })
+        .await?;
+    if resp.status().is_redirection() {
+        anyhow::bail!(
+            "ICS calendar redirects are not allowed; use the feed's final address instead"
+        )
+    }
     if !resp.status().is_success() {
         anyhow::bail!("http {}", resp.status().as_u16());
     }
     Ok(resp.text().await?)
 }
 
-pub struct IcsCalendarSource;
-
-impl IcsCalendarSource {
-    pub fn new() -> Self {
-        Self
-    }
+pub struct IcsCalendarSource {
+    policy: crate::network_policy::NetworkPolicy,
 }
 
-impl Default for IcsCalendarSource {
-    fn default() -> Self {
-        Self::new()
+impl IcsCalendarSource {
+    pub fn new(policy: crate::network_policy::NetworkPolicy) -> Self {
+        Self { policy }
     }
 }
 
@@ -59,7 +73,7 @@ impl CalendarSource for IcsCalendarSource {
         to_utc: &str,
     ) -> anyhow::Result<Vec<CalendarEvent>> {
         let url = super::commands::ics_url().map_err(|e| anyhow::anyhow!(e))?;
-        let text = fetch_ics_text(&url).await?;
+        let text = fetch_ics_text(&self.policy, &url, &url).await?;
         parse_ics(&text, from_utc, to_utc)
     }
 }
@@ -94,7 +108,11 @@ fn split_prop(line: &str) -> Option<(String, Vec<(String, String)>, String)> {
             // TZID="America/New_York"). codex-review P2 (round 7): leaving
             // the quotes in place broke resolve_tz's chrono-tz lookup,
             // silently falling back to UTC for every quoted TZID.
-            let v = v.trim().strip_prefix('"').and_then(|s| s.strip_suffix('"')).unwrap_or(v);
+            let v = v
+                .trim()
+                .strip_prefix('"')
+                .and_then(|s| s.strip_suffix('"'))
+                .unwrap_or(v);
             Some((k.to_ascii_uppercase(), v.to_string()))
         })
         .collect();
@@ -171,7 +189,9 @@ fn resolve_tz(tzid: Option<&str>) -> Option<chrono_tz::Tz> {
             return Some(tz);
         }
     }
-    log::debug!("calendar ics: unrecognized TZID {zone:?}, treating as UTC (documented limitation)");
+    log::debug!(
+        "calendar ics: unrecognized TZID {zone:?}, treating as UTC (documented limitation)"
+    );
     None
 }
 
@@ -207,7 +227,11 @@ fn utc_to_naive_local(dt: DateTime<Utc>, tz: Option<chrono_tz::Tz>) -> chrono::N
 /// `expand_occurrences`.
 fn parse_ics_datetime(value: &str, tzid: Option<&str>) -> anyhow::Result<DateTime<Utc>> {
     let naive = parse_ics_naive(value)?;
-    let tz = if is_inherently_utc(value) { None } else { resolve_tz(tzid) };
+    let tz = if is_inherently_utc(value) {
+        None
+    } else {
+        resolve_tz(tzid)
+    };
     Ok(naive_to_utc(naive, tz))
 }
 
@@ -246,7 +270,11 @@ fn parse_byday_token(tok: &str) -> Option<(Option<i32>, chrono::Weekday)> {
         "SU" => chrono::Weekday::Sun,
         _ => return None,
     };
-    let ord = if ord_part.is_empty() { None } else { ord_part.parse::<i32>().ok() };
+    let ord = if ord_part.is_empty() {
+        None
+    } else {
+        ord_part.parse::<i32>().ok()
+    };
     Some((ord, day))
 }
 
@@ -324,21 +352,28 @@ fn expand_occurrences(
     // silently emitting the wrong day of the month).
     let mut bydays: Vec<(Option<i32>, chrono::Weekday)> = Vec::new();
     for part in rule.split(';') {
-        let Some((k, v)) = part.split_once('=') else { continue };
+        let Some((k, v)) = part.split_once('=') else {
+            continue;
+        };
         match k.to_ascii_uppercase().as_str() {
-            "FREQ" => freq = match v.to_ascii_uppercase().as_str() {
-                "DAILY" => "DAILY",
-                "WEEKLY" => "WEEKLY",
-                "MONTHLY" => "MONTHLY",
-                _ => "",
-            },
+            "FREQ" => {
+                freq = match v.to_ascii_uppercase().as_str() {
+                    "DAILY" => "DAILY",
+                    "WEEKLY" => "WEEKLY",
+                    "MONTHLY" => "MONTHLY",
+                    _ => "",
+                }
+            }
             "INTERVAL" => interval = v.parse().unwrap_or(1).max(1),
             "COUNT" => count = v.parse().ok(),
             // RFC 5545: UNTIL, when it carries a time, is always UTC
             // regardless of DTSTART's zone — no TZID to apply here.
             "UNTIL" => until = parse_ics_datetime(v, None).ok(),
             "BYDAY" => {
-                bydays = v.split(',').filter_map(|d| parse_byday_token(d.trim())).collect();
+                bydays = v
+                    .split(',')
+                    .filter_map(|d| parse_byday_token(d.trim()))
+                    .collect();
             }
             _ => {}
         }
@@ -424,8 +459,9 @@ fn expand_occurrences(
                 let mut last_valid_date = start_naive.date();
                 for c in 1..=max_cycles {
                     let months = c * interval as u32;
-                    if let Some(d) =
-                        start_naive.date().checked_add_months(chrono::Months::new(months))
+                    if let Some(d) = start_naive
+                        .date()
+                        .checked_add_months(chrono::Months::new(months))
                     {
                         if d.day() == start_naive.day() {
                             valid_cycles += 1;
@@ -572,8 +608,12 @@ pub fn parse_ics(text: &str, from_utc: &str, to_utc: &str) -> anyhow::Result<Vec
                 continue; // inside VALARM (or another subcomponent) — not a VEVENT field
             }
         }
-        let Some(raw) = current.as_mut() else { continue };
-        let Some((name, params, value)) = split_prop(&line) else { continue };
+        let Some(raw) = current.as_mut() else {
+            continue;
+        };
+        let Some((name, params, value)) = split_prop(&line) else {
+            continue;
+        };
         let tzid = params
             .iter()
             .find(|(k, _)| k == "TZID")
@@ -587,9 +627,7 @@ pub fn parse_ics(text: &str, from_utc: &str, to_utc: &str) -> anyhow::Result<Vec
             "STATUS" => raw.cancelled = value.eq_ignore_ascii_case("CANCELLED"),
             "RRULE" => raw.rrule = Some(value),
             "EXDATE" => raw.exdates.push((value, tzid)),
-            "ORGANIZER" => {
-                raw.organizer = strip_mailto_prefix(&value).to_ascii_lowercase()
-            }
+            "ORGANIZER" => raw.organizer = strip_mailto_prefix(&value).to_ascii_lowercase(),
             "ATTENDEE" => {
                 let email = strip_mailto_prefix(&value).to_ascii_lowercase();
                 if !email.is_empty() {
@@ -642,14 +680,22 @@ fn finish_vevent(
             return Ok(vec![]);
         }
     };
-    let tz = if is_inherently_utc(start_val) { None } else { resolve_tz(start_tz.as_deref()) };
+    let tz = if is_inherently_utc(start_val) {
+        None
+    } else {
+        resolve_tz(start_tz.as_deref())
+    };
     let start = naive_to_utc(start_naive, tz);
     // RFC 5545 §3.6.1: a VEVENT with no DTEND defaults to a 1-day duration
     // when DTSTART is a DATE (all-day, no time component), and 1 hour
     // otherwise (VEVENT/VALUE=DATE-TIME default duration is undefined by
     // the spec; 1 hour is this codebase's documented fallback).
     let is_all_day_start = start_val.trim().len() == 8 && !start_val.contains('T');
-    let default_duration = if is_all_day_start { Duration::days(1) } else { Duration::hours(1) };
+    let default_duration = if is_all_day_start {
+        Duration::days(1)
+    } else {
+        Duration::hours(1)
+    };
     let duration = match raw.dtend.as_ref() {
         Some((end_val, end_tz)) => parse_ics_datetime(end_val, end_tz.as_deref())
             .map(|end| end - start)
@@ -662,11 +708,22 @@ fn finish_vevent(
     let exdates_naive: Vec<chrono::NaiveDateTime> = raw
         .exdates
         .iter()
-        .flat_map(|(v, _tz)| v.split(',').filter_map(|one| parse_ics_naive(one).ok()).collect::<Vec<_>>())
+        .flat_map(|(v, _tz)| {
+            v.split(',')
+                .filter_map(|one| parse_ics_naive(one).ok())
+                .collect::<Vec<_>>()
+        })
         .collect();
 
-    let occurrences =
-        expand_occurrences(start_naive, tz, raw.rrule.as_deref(), &exdates_naive, duration, from, to);
+    let occurrences = expand_occurrences(
+        start_naive,
+        tz,
+        raw.rrule.as_deref(),
+        &exdates_naive,
+        duration,
+        from,
+        to,
+    );
     Ok(occurrences
         .into_iter()
         .filter(|occ| *occ + duration > from && *occ < to)
@@ -732,7 +789,10 @@ mod tests {
              ATTENDEE;CN=Kim:MAILTO:Kim@Henderson.com\r\nEND:VEVENT\r\n",
         );
         let events = parse_ics(&ics, WINDOW_FROM, WINDOW_TO).unwrap();
-        assert_eq!(events[0].organizer_email, "adv@firm.com", "scheme must not survive into the email");
+        assert_eq!(
+            events[0].organizer_email, "adv@firm.com",
+            "scheme must not survive into the email"
+        );
         assert_eq!(events[0].attendees[0].email, "kim@henderson.com");
     }
 
@@ -752,7 +812,10 @@ mod tests {
         let events = parse_ics(&ics, WINDOW_FROM, WINDOW_TO).unwrap();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].title, "Annual review - Henderson");
-        assert_eq!(events[0].description, "Real agenda for the meeting", "VALARM's DESCRIPTION must not overwrite the meeting's");
+        assert_eq!(
+            events[0].description, "Real agenda for the meeting",
+            "VALARM's DESCRIPTION must not overwrite the meeting's"
+        );
     }
 
     #[test]
@@ -766,18 +829,26 @@ mod tests {
              DTEND;TZID=\"America/Denver\":20260702T110000\r\nEND:VEVENT\r\n",
         );
         let events = parse_ics(&ics, WINDOW_FROM, WINDOW_TO).unwrap();
-        assert_eq!(events[0].start_utc, "2026-07-02T16:00:00Z", "MDT is UTC-6 in July");
+        assert_eq!(
+            events[0].start_utc, "2026-07-02T16:00:00Z",
+            "MDT is UTC-6 in July"
+        );
     }
 
     #[test]
     fn all_day_event_with_no_dtend_defaults_to_one_day_not_one_hour() {
         // codex-review P3: RFC 5545 defaults a DATE-only DTSTART with no
         // DTEND to a 1-day span, not this codebase's usual 1-hour fallback.
-        let ics = wrap("BEGIN:VEVENT\r\nUID:ad1\r\nSUMMARY:Conference\r\nDTSTART:20260702\r\nEND:VEVENT\r\n");
+        let ics = wrap(
+            "BEGIN:VEVENT\r\nUID:ad1\r\nSUMMARY:Conference\r\nDTSTART:20260702\r\nEND:VEVENT\r\n",
+        );
         let events = parse_ics(&ics, WINDOW_FROM, WINDOW_TO).unwrap();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].start_utc, "2026-07-02T00:00:00Z");
-        assert_eq!(events[0].end_utc, "2026-07-03T00:00:00Z", "1-day default, not 1-hour");
+        assert_eq!(
+            events[0].end_utc, "2026-07-03T00:00:00Z",
+            "1-day default, not 1-hour"
+        );
     }
 
     #[test]
@@ -826,7 +897,10 @@ mod tests {
              RRULE:FREQ=WEEKLY;COUNT=10\r\nEND:VEVENT\r\n",
         );
         let events = parse_ics(&ics, "2026-10-01T00:00:00Z", "2026-11-16T00:00:00Z").unwrap();
-        assert!(events.len() >= 5, "several weekly occurrences should land in a 6-week window");
+        assert!(
+            events.len() >= 5,
+            "several weekly occurrences should land in a 6-week window"
+        );
         use chrono::Timelike;
         let hours: std::collections::HashSet<u32> = events
             .iter()
@@ -836,8 +910,14 @@ mod tests {
                     .hour()
             })
             .collect();
-        assert!(hours.contains(&14), "EDT (UTC-4) occurrences before the Nov transition: {hours:?}");
-        assert!(hours.contains(&15), "EST (UTC-5) occurrences after the Nov transition: {hours:?}");
+        assert!(
+            hours.contains(&14),
+            "EDT (UTC-4) occurrences before the Nov transition: {hours:?}"
+        );
+        assert!(
+            hours.contains(&15),
+            "EST (UTC-5) occurrences after the Nov transition: {hours:?}"
+        );
     }
 
     #[test]
@@ -853,7 +933,11 @@ mod tests {
              DTEND;TZID=Pacific Standard Time:20260702T100000\r\nEND:VEVENT\r\n",
         );
         let events = parse_ics(&ics, WINDOW_FROM, WINDOW_TO).unwrap();
-        assert_eq!(events.len(), 1, "the event must not be dropped for an unrecognized-by-chrono-tz name");
+        assert_eq!(
+            events.len(),
+            1,
+            "the event must not be dropped for an unrecognized-by-chrono-tz name"
+        );
         assert_eq!(
             events[0].start_utc, "2026-07-02T16:00:00Z",
             "Pacific Standard Time -> America/Los_Angeles, PDT is UTC-7 in July"
@@ -865,17 +949,37 @@ mod tests {
         // (rrule + exdate lines, expected occurrence count in window, why)
         // Base event: Thursday 2026-07-02 16:00Z. Window ends 2026-07-16 (exclusive).
         let table = [
-            ("RRULE:FREQ=WEEKLY;COUNT=10", 2, "weekly: Jul 2, Jul 9 in window (Jul 16 excluded)"),
+            (
+                "RRULE:FREQ=WEEKLY;COUNT=10",
+                2,
+                "weekly: Jul 2, Jul 9 in window (Jul 16 excluded)",
+            ),
             ("RRULE:FREQ=DAILY;COUNT=3", 3, "daily x3: Jul 2,3,4"),
-            ("RRULE:FREQ=WEEKLY;INTERVAL=2;COUNT=4", 1, "biweekly: only Jul 2 fits before Jul 16"),
-            ("RRULE:FREQ=WEEKLY;UNTIL=20260709T235959Z", 2, "until caps at Jul 9"),
+            (
+                "RRULE:FREQ=WEEKLY;INTERVAL=2;COUNT=4",
+                1,
+                "biweekly: only Jul 2 fits before Jul 16",
+            ),
+            (
+                "RRULE:FREQ=WEEKLY;UNTIL=20260709T235959Z",
+                2,
+                "until caps at Jul 9",
+            ),
             (
                 "RRULE:FREQ=WEEKLY;COUNT=10\r\nEXDATE:20260709T160000Z",
                 1,
                 "exdate removes Jul 9",
             ),
-            ("RRULE:FREQ=WEEKLY;BYDAY=TU,TH;COUNT=6", 4, "Tu+Th from Thu Jul 2: Jul 2,7,9,14"),
-            ("RRULE:FREQ=SECONDLY;COUNT=99", 1, "unsupported freq falls back to master only"),
+            (
+                "RRULE:FREQ=WEEKLY;BYDAY=TU,TH;COUNT=6",
+                4,
+                "Tu+Th from Thu Jul 2: Jul 2,7,9,14",
+            ),
+            (
+                "RRULE:FREQ=SECONDLY;COUNT=99",
+                1,
+                "unsupported freq falls back to master only",
+            ),
             (
                 "RRULE:FREQ=MONTHLY;BYDAY=1TH;COUNT=6",
                 1,
@@ -912,7 +1016,10 @@ mod tests {
         );
         let events = parse_ics(&ics, "2026-07-25T00:00:00Z", "2026-08-01T00:00:00Z").unwrap();
         assert_eq!(events.len(), 1);
-        assert_eq!(events[0].start_utc, "2026-07-31T16:00:00Z", "must land on the actual last Friday, not shift to DTSTART's day-of-month");
+        assert_eq!(
+            events[0].start_utc, "2026-07-31T16:00:00Z",
+            "must land on the actual last Friday, not shift to DTSTART's day-of-month"
+        );
     }
 
     #[test]
@@ -930,7 +1037,11 @@ mod tests {
              RRULE:FREQ=WEEKLY;COUNT=3\r\nEND:VEVENT\r\n",
         );
         let events = parse_ics(&ics, "2026-07-01T00:00:00Z", "2026-07-03T00:00:00Z").unwrap();
-        assert_eq!(events.len(), 1, "the Jun 29 occurrence overlaps despite starting before the window");
+        assert_eq!(
+            events.len(),
+            1,
+            "the Jun 29 occurrence overlaps despite starting before the window"
+        );
         assert_eq!(events[0].start_utc, "2026-06-29T09:00:00Z");
         assert_eq!(events[0].end_utc, "2026-07-02T09:00:00Z");
     }
@@ -981,7 +1092,10 @@ mod tests {
              DTSTART:20200102T160000Z\r\nDTEND:20200102T170000Z\r\nRRULE:FREQ=WEEKLY;COUNT=5\r\nEND:VEVENT\r\n",
         );
         let events = parse_ics(&ics, WINDOW_FROM, WINDOW_TO).unwrap();
-        assert!(events.is_empty(), "series of 5 weekly occurrences in 2020 is long over by 2026");
+        assert!(
+            events.is_empty(),
+            "series of 5 weekly occurrences in 2020 is long over by 2026"
+        );
     }
 
     #[test]
@@ -998,7 +1112,11 @@ mod tests {
              RRULE:FREQ=MONTHLY;COUNT=2\r\nEND:VEVENT\r\n",
         );
         let events = parse_ics(&ics, "2026-03-15T00:00:00Z", "2026-04-05T00:00:00Z").unwrap();
-        assert_eq!(events.len(), 1, "Mar 31 is the real 2nd occurrence, not exhausted by a phantom Feb hit");
+        assert_eq!(
+            events.len(),
+            1,
+            "Mar 31 is the real 2nd occurrence, not exhausted by a phantom Feb hit"
+        );
         assert_eq!(events[0].start_utc, "2026-03-31T16:00:00Z");
     }
 
@@ -1028,10 +1146,8 @@ mod tests {
         }
         let start = first_monday_of(2026, 1).and_hms_opt(16, 0, 0).unwrap();
         let july = first_monday_of(2026, 7);
-        let window_from = DateTime::<Utc>::from_naive_utc_and_offset(
-            july.and_hms_opt(0, 0, 0).unwrap(),
-            Utc,
-        );
+        let window_from =
+            DateTime::<Utc>::from_naive_utc_and_offset(july.and_hms_opt(0, 0, 0).unwrap(), Utc);
         let window_to = window_from + Duration::days(2);
 
         let occurrences = expand_occurrences(
@@ -1073,6 +1189,9 @@ mod tests {
         // only holds if the fixture had exactly one leading space. Fixed
         // here rather than under-unfolding, since silently eating a real
         // content space would corrupt titles/descriptions in real ICS feeds.
-        assert_eq!(events[0].title, "Long titled meeting that continues on a folded line");
+        assert_eq!(
+            events[0].title,
+            "Long titled meeting that continues on a folded line"
+        );
     }
 }

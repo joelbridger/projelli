@@ -38,9 +38,11 @@ impl GraphDocumentSource {
         token: String,
         omit_select: bool,
         refresh: GraphTokenRefresh,
+        policy: crate::network_policy::NetworkPolicy,
     ) -> Self {
         Self {
-            client: OneDriveClient::new_with_refresh(token, refresh),
+            client: OneDriveClient::new_with_refresh(token, refresh)
+                .with_network_policy(policy, crate::network_policy::ONEDRIVE_SYNC),
             drive_id: None,
             omit_select,
         }
@@ -60,9 +62,11 @@ impl GraphDocumentSource {
         drive_id: String,
         omit_select: bool,
         refresh: GraphTokenRefresh,
+        policy: crate::network_policy::NetworkPolicy,
     ) -> Self {
         Self {
-            client: OneDriveClient::new_with_refresh(token, refresh),
+            client: OneDriveClient::new_with_refresh(token, refresh)
+                .with_network_policy(policy, crate::network_policy::ONEDRIVE_SYNC),
             drive_id: Some(drive_id),
             omit_select,
         }

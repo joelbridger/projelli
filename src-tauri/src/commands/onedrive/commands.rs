@@ -135,12 +135,14 @@ fn token_entry() -> Result<keyring::Entry, String> {
     keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_REFRESH_KEY).map_err(|e| e.to_string())
 }
 
-async fn fresh_access_token() -> Result<String, String> {
+async fn fresh_access_token(
+    policy: &crate::network_policy::NetworkPolicy,
+) -> Result<String, String> {
     let entry = token_entry()?;
     let rt = entry
         .get_password()
         .map_err(|_| "not connected".to_string())?;
-    let auth = OAuth::new(client_id());
+    let auth = OAuth::new(client_id(), policy.clone());
     match auth.refresh(&rt).await.map_err(|e| e.to_string())? {
         TokenOutcome::Tokens {
             access, refresh, ..
@@ -166,10 +168,11 @@ async fn fresh_access_token() -> Result<String, String> {
     }
 }
 
-fn graph_token_refresh() -> GraphTokenRefresh {
-    Arc::new(|| -> GraphTokenRefreshFuture {
+fn graph_token_refresh(policy: crate::network_policy::NetworkPolicy) -> GraphTokenRefresh {
+    Arc::new(move || -> GraphTokenRefreshFuture {
+        let policy = policy.clone();
         Box::pin(async {
-            fresh_access_token()
+            fresh_access_token(&policy)
                 .await
                 .map_err(|e| anyhow::anyhow!("{e}"))
         })
@@ -261,6 +264,7 @@ pub async fn onedrive_connect(
     )
     .map_err(|e| e.to_string())?;
     let tokens = ms_exchange_code(
+        &policy,
         &client_id(),
         &code,
         &verifier,
@@ -318,7 +322,7 @@ pub async fn onedrive_begin_login(
         "https://login.microsoftonline.com",
     )
     .map_err(|e| e.to_string())?;
-    let auth = OAuth::new(client_id());
+    let auth = OAuth::new(client_id(), policy.inner().clone());
     let dc = auth
         .request_device_code()
         .await
@@ -343,7 +347,7 @@ pub async fn onedrive_poll_login(
         "https://login.microsoftonline.com",
     )
     .map_err(|e| e.to_string())?;
-    let auth = OAuth::new(client_id());
+    let auth = OAuth::new(client_id(), policy.inner().clone());
     match auth
         .poll_token(&device_code)
         .await
@@ -758,8 +762,9 @@ pub async fn onedrive_list_drives(
     policy: State<'_, crate::network_policy::NetworkPolicy>,
 ) -> Result<Vec<Drive>, String> {
     authorize_onedrive(&policy)?;
-    let token = fresh_access_token().await?;
-    OneDriveClient::new_with_refresh(token, graph_token_refresh())
+    let token = fresh_access_token(&policy).await?;
+    OneDriveClient::new_with_refresh(token, graph_token_refresh(policy.inner().clone()))
+        .with_network_policy(policy.inner().clone(), crate::network_policy::ONEDRIVE_SYNC)
         .list_drives()
         .await
         .map_err(|e| e.to_string())
@@ -783,15 +788,24 @@ pub async fn onedrive_list_folders(
     // brand new listing before it even starts.
     state.cancel.store(false, Ordering::SeqCst);
     let cancel = state.cancel.clone();
-    match tokio::time::timeout(LIST_FOLDERS_TIMEOUT, list_folders_body(cancel)).await {
+    match tokio::time::timeout(
+        LIST_FOLDERS_TIMEOUT,
+        list_folders_body(cancel, policy.inner().clone()),
+    )
+    .await
+    {
         Ok(result) => result,
         Err(_elapsed) => Err(TIMED_OUT_LIST_FOLDERS.to_string()),
     }
 }
 
-async fn list_folders_body(cancel: Arc<AtomicBool>) -> Result<Vec<OneDriveFolderDto>, String> {
-    let token = fresh_access_token().await?;
-    let client = OneDriveClient::new_with_refresh(token, graph_token_refresh());
+async fn list_folders_body(
+    cancel: Arc<AtomicBool>,
+    policy: crate::network_policy::NetworkPolicy,
+) -> Result<Vec<OneDriveFolderDto>, String> {
+    let token = fresh_access_token(&policy).await?;
+    let client = OneDriveClient::new_with_refresh(token, graph_token_refresh(policy.clone()))
+        .with_network_policy(policy, crate::network_policy::ONEDRIVE_SYNC);
     let drives = client.list_drives().await.map_err(|e| e.to_string())?;
     let mut out = Vec::new();
     let mut listed_default_drive = false;
@@ -1013,13 +1027,14 @@ pub async fn onedrive_sync(
     // a stall anywhere in it (auth refresh, Graph calls, disk I/O) now ends in
     // an honest timeout error instead of silence.
     let sync_future = async {
-        let token = fresh_access_token().await?;
-        let refresh = graph_token_refresh();
+        let token = fresh_access_token(&policy).await?;
+        let refresh = graph_token_refresh(policy.clone());
         let store = OneDriveStore::open(&workspace).map_err(|e| e.to_string())?;
         let rag_key =
             crate::commands::rag::crypto::get_or_create_master_key().map_err(|e| e.to_string())?;
 
         let available_drives = OneDriveClient::new_with_refresh(token.clone(), refresh.clone())
+            .with_network_policy(policy.clone(), crate::network_policy::ONEDRIVE_SYNC)
             .list_drives()
             .await
             .unwrap_or_default();
@@ -1027,6 +1042,7 @@ pub async fn onedrive_sync(
         let mut merged_report = OneDriveSyncReport::default();
         if drive_ids.is_empty() {
             let omit_select = OneDriveClient::new_with_refresh(token.clone(), refresh.clone())
+                .with_network_policy(policy.clone(), crate::network_policy::ONEDRIVE_SYNC)
                 .default_drive()
                 .await
                 .map(|drive| is_personal_drive(&drive))
@@ -1035,6 +1051,7 @@ pub async fn onedrive_sync(
                 token,
                 omit_select,
                 refresh,
+                policy.clone(),
             );
             sync_documents(
                 &source,
@@ -1068,6 +1085,7 @@ pub async fn onedrive_sync(
                     drive_id,
                     omit_select,
                     refresh.clone(),
+                    policy.clone(),
                 );
                 match sync_documents(
                     &source,

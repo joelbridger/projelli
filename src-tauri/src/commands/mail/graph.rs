@@ -84,8 +84,11 @@ impl GraphClient {
         url: &str,
         request: reqwest::RequestBuilder,
     ) -> anyhow::Result<reqwest::Response> {
-        let Some((policy, operation)) = &self.network_policy else {
+        let Some((policy, operation)) = self.network_policy.as_ref() else {
+            #[cfg(test)]
             return Ok(request.send().await?);
+            #[cfg(not(test))]
+            anyhow::bail!("GraphClient requires a NetworkPolicy before it can make a request");
         };
         let authorized = crate::commands::connector_network::authorize_url(policy, operation, url)?;
         crate::commands::connector_network::await_authorized(policy, &authorized, async move {
@@ -687,6 +690,15 @@ impl GraphProvider {
         Self {
             client: GraphClient::new_with_base_and_refresh(token, base, Some(refresh)),
         }
+    }
+
+    pub fn with_network_policy(
+        mut self,
+        policy: crate::network_policy::NetworkPolicy,
+        operation: crate::network_policy::EgressOperation,
+    ) -> Self {
+        self.client = self.client.with_network_policy(policy, operation);
+        self
     }
 }
 

@@ -127,6 +127,7 @@ pub async fn calendar_connect_outlook(
     )
     .map_err(|e| e.to_string())?;
     let tokens = ms_exchange_code(
+        &policy,
         &ms_client_id(),
         &code,
         &verifier,
@@ -288,7 +289,7 @@ pub async fn calendar_connect_ics(
         &host,
     )
     .map_err(|e| e.to_string())?;
-    let body = super::ics_source::fetch_ics_text(&trimmed)
+    let body = super::ics_source::fetch_ics_text(&policy, &trimmed, &trimmed)
         .await
         .map_err(|e| format!("Could not read that calendar address: {e}"))?;
     if !body.contains("BEGIN:VCALENDAR") {
@@ -475,7 +476,9 @@ pub async fn calendar_disconnect_inner(
 
 /// Fresh MS access token from the stored refresh token (rotation-aware;
 /// the onedrive/commands.rs shape).
-pub(crate) async fn fresh_ms_access_token() -> Result<String, String> {
+pub(crate) async fn fresh_ms_access_token(
+    policy: &crate::network_policy::NetworkPolicy,
+) -> Result<String, String> {
     let entry = keyring::Entry::new(
         &crate::identity::calendar_keychain_service("ms"),
         KEYCHAIN_REFRESH_KEY,
@@ -484,7 +487,7 @@ pub(crate) async fn fresh_ms_access_token() -> Result<String, String> {
     let rt = entry
         .get_password()
         .map_err(|_| "not connected".to_string())?;
-    let auth = super::oauth::OAuth::new(ms_client_id());
+    let auth = super::oauth::OAuth::new(ms_client_id(), policy.clone());
     match auth.refresh(&rt).await.map_err(|e| e.to_string())? {
         super::oauth::TokenOutcome::Tokens {
             access, refresh, ..
@@ -505,7 +508,9 @@ pub(crate) async fn fresh_ms_access_token() -> Result<String, String> {
 }
 
 /// Fresh Google access token (the mail gmail refresh shape).
-pub(crate) async fn fresh_google_access_token() -> Result<String, String> {
+pub(crate) async fn fresh_google_access_token(
+    policy: &crate::network_policy::NetworkPolicy,
+) -> Result<String, String> {
     use crate::commands::mail::{gmail_client_id, gmail_client_secret};
     let entry = keyring::Entry::new(
         &crate::identity::calendar_keychain_service("google"),
@@ -518,7 +523,8 @@ pub(crate) async fn fresh_google_access_token() -> Result<String, String> {
     let oauth = crate::commands::mail::gmail::oauth::GoogleOAuth::new(
         gmail_client_id(),
         gmail_client_secret(),
-    );
+    )
+    .with_network_policy(policy.clone(), crate::network_policy::GOOGLE_CALENDAR_OAUTH);
     match oauth.refresh(&rt).await {
         Ok(tokens) => Ok(tokens.access),
         Err(e) => {
@@ -684,7 +690,7 @@ pub async fn calendar_sync_all(
 
     let mut cancellation = policy.register_cancellation();
     let result = tokio::select! {
-        result = calendar_sync_all_inner(&app, &state, &matter_map) => result,
+        result = calendar_sync_all_inner(&app, &state, &matter_map, policy.inner().clone()) => result,
         _ = cancellation.cancelled() => {
             state.cancel.store(true, Ordering::SeqCst);
             Err("Offline Mode cancelled the calendar sync.".to_string())
@@ -705,6 +711,7 @@ async fn calendar_sync_all_inner(
     app: &AppHandle,
     state: &State<'_, CalendarState>,
     matter_map: &[CalendarMatterMapEntry],
+    policy: crate::network_policy::NetworkPolicy,
 ) -> Result<CalendarSyncReportDto, String> {
     use super::engine::sync_source;
     use super::google_source::GoogleCalendarSource;
@@ -731,13 +738,13 @@ async fn calendar_sync_all_inner(
     // calendar is connected" instead of the actual keychain problem.
     let mut sources: Vec<Box<dyn CalendarSource>> = Vec::new();
     if calendar_is_connected("outlook".into()).await? {
-        sources.push(Box::new(GraphCalendarSource::new()));
+        sources.push(Box::new(GraphCalendarSource::new(policy.clone())));
     }
     if calendar_is_connected("google".into()).await? {
-        sources.push(Box::new(GoogleCalendarSource::new()));
+        sources.push(Box::new(GoogleCalendarSource::new(policy.clone())));
     }
     if calendar_is_connected("ics".into()).await? {
-        sources.push(Box::new(IcsCalendarSource::new()));
+        sources.push(Box::new(IcsCalendarSource::new(policy)));
     }
     if sources.is_empty() {
         return Err("No calendar is connected.".into());

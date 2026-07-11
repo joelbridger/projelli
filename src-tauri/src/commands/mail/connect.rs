@@ -97,6 +97,7 @@ pub async fn outlook_connect(
     )
     .map_err(|e| e.to_string())?;
     let tokens = ms_exchange_code(
+        &policy,
         &client_id(),
         &code,
         &verifier,
@@ -233,13 +234,16 @@ pub async fn mail_disconnect() -> Result<(), String> {
     }
 }
 
-pub(crate) async fn fresh_access_token() -> Result<String, String> {
+pub(crate) async fn fresh_access_token(
+    policy: &crate::network_policy::NetworkPolicy,
+) -> Result<String, String> {
     let entry =
         keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_REFRESH_KEY).map_err(|e| e.to_string())?;
     let rt = entry
         .get_password()
         .map_err(|_| "not connected".to_string())?;
-    let auth = OAuth::new(client_id());
+    let auth = OAuth::new(client_id())
+        .with_network_policy(policy.clone(), crate::network_policy::OUTLOOK_MAIL_OAUTH);
     match auth.refresh(&rt).await.map_err(|e| e.to_string())? {
         TokenOutcome::Tokens {
             access, refresh, ..
@@ -265,10 +269,13 @@ pub(crate) async fn fresh_access_token() -> Result<String, String> {
     }
 }
 
-pub(crate) fn graph_token_refresh() -> GraphTokenRefresh {
-    Arc::new(|| -> GraphTokenRefreshFuture {
+pub(crate) fn graph_token_refresh(
+    policy: crate::network_policy::NetworkPolicy,
+) -> GraphTokenRefresh {
+    Arc::new(move || -> GraphTokenRefreshFuture {
+        let policy = policy.clone();
         Box::pin(async {
-            fresh_access_token()
+            fresh_access_token(&policy)
                 .await
                 .map_err(|e| anyhow::anyhow!("{e}"))
         })
@@ -306,6 +313,7 @@ pub async fn mail_imap_connect(
         username: username.clone(),
         password: password.clone(),
         account: username.clone(),
+        policy: policy.inner().clone(),
     };
     // Validate the connection (also rejects bad host/credentials up front).
     provider
@@ -425,6 +433,12 @@ pub async fn gmail_connect(
     let state_token = gen_state();
     let (listener, redirect_uri) = bind_loopback().await.map_err(|e| e.to_string())?;
     let url = build_auth_url(&gmail_client_id(), &redirect_uri, &challenge, &state_token);
+    crate::commands::connector_network::authorize_url(
+        &policy,
+        &crate::network_policy::GMAIL_OAUTH,
+        &url,
+    )
+    .map_err(|e| e.to_string())?;
     open_browser(&url);
     let code = await_redirect_code_or_cancel(
         listener,
@@ -521,7 +535,9 @@ pub async fn gmail_disconnect() -> Result<(), String> {
 /// access token. Returns `Err("not connected")` if no refresh token is stored.
 /// Returns `Err("scope_upgrade_required")` when the stored token predates
 /// the gmail.send scope — the frontend should prompt re-auth.
-pub(crate) async fn fresh_gmail_access_token() -> Result<String, String> {
+pub(crate) async fn fresh_gmail_access_token(
+    policy: &crate::network_policy::NetworkPolicy,
+) -> Result<String, String> {
     let entry = keyring::Entry::new(GMAIL_KEYCHAIN_SERVICE, GMAIL_REFRESH_KEY)
         .map_err(|e| e.to_string())?;
     let rt = entry
@@ -530,7 +546,8 @@ pub(crate) async fn fresh_gmail_access_token() -> Result<String, String> {
     let oauth = crate::commands::mail::gmail::oauth::GoogleOAuth::new(
         gmail_client_id(),
         gmail_client_secret(),
-    );
+    )
+    .with_network_policy(policy.clone(), crate::network_policy::GMAIL_OAUTH);
     match oauth.refresh(&rt).await {
         Ok(tokens) => Ok(tokens.access),
         Err(e) => {

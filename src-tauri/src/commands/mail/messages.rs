@@ -225,10 +225,10 @@ pub async fn mail_get_attachment(
         result = async {
     match provider.as_str() {
         "m365" => {
-            let token = fresh_access_token().await?;
+            let token = fresh_access_token(&policy).await?;
             let client = crate::commands::mail::graph::GraphClient::new_with_refresh(
                 token,
-                graph_token_refresh(),
+                graph_token_refresh(policy.inner().clone()),
             )
             .with_network_policy(policy.inner().clone(), crate::network_policy::OUTLOOK_MAIL_SYNC);
             let (bytes, content_type, filename) = client
@@ -242,7 +242,7 @@ pub async fn mail_get_attachment(
             })
         }
         "gmail" => {
-            let token = fresh_gmail_access_token().await?;
+            let token = fresh_gmail_access_token(&policy).await?;
             let client = crate::commands::mail::gmail::api::GmailClient::new(token)
                 .with_network_policy(policy.inner().clone(), crate::network_policy::GMAIL_SYNC);
             // Gmail attachment id is the part-body `attachmentId` — message_id

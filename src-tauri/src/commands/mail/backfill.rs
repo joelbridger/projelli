@@ -854,11 +854,13 @@ async fn sync_m365_section(
     enc_key: &[u8; 32],
     matter_map: &[MailMatterMapEntry],
     cancel: &Arc<AtomicBool>,
+    policy: crate::network_policy::NetworkPolicy,
 ) -> Result<SectionOutcome, String> {
-    let token = fresh_access_token().await?;
-    let refresh = graph_token_refresh();
+    let token = fresh_access_token(&policy).await?;
+    let refresh = graph_token_refresh(policy.clone());
     let folders =
         crate::commands::mail::graph::GraphProvider::new_with_refresh(token, refresh.clone())
+            .with_network_policy(policy.clone(), crate::network_policy::OUTLOOK_MAIL_SYNC)
             .list_folders()
             .await
             .map_err(|e| e.to_string())?;
@@ -867,9 +869,10 @@ async fn sync_m365_section(
         if cancel.load(Ordering::SeqCst) {
             return Ok(SectionOutcome::Cancelled);
         }
-        let token = fresh_access_token().await?;
+        let token = fresh_access_token(&policy).await?;
         let provider =
-            crate::commands::mail::graph::GraphProvider::new_with_refresh(token, refresh.clone());
+            crate::commands::mail::graph::GraphProvider::new_with_refresh(token, refresh.clone())
+                .with_network_policy(policy.clone(), crate::network_policy::OUTLOOK_MAIL_SYNC);
         let folder_matter = resolve_mail_matter(matter_map, "m365", M365_ACCOUNT, &folder.id);
         let s = sync_one_folder(
             app,
@@ -908,6 +911,7 @@ async fn sync_imap_section(
     enc_key: &[u8; 32],
     matter_map: &[MailMatterMapEntry],
     cancel: &Arc<AtomicBool>,
+    policy: crate::network_policy::NetworkPolicy,
 ) -> Result<SectionOutcome, String> {
     let (imap_cfg, imap_pw) = match load_imap_config() {
         Some(v) => v,
@@ -927,6 +931,7 @@ async fn sync_imap_section(
         username: imap_cfg.username.clone(),
         password: imap_pw,
         account: imap_cfg.account.clone(),
+        policy,
     };
     let folders = provider.list_folders().await.map_err(|e| e.to_string())?;
     let mut base = sync::PageStats::default();
@@ -972,10 +977,12 @@ async fn sync_gmail_section(
     enc_key: &[u8; 32],
     matter_map: &[MailMatterMapEntry],
     cancel: &Arc<AtomicBool>,
+    policy: crate::network_policy::NetworkPolicy,
 ) -> Result<SectionOutcome, String> {
     use crate::commands::mail::gmail::GmailProvider;
-    let token = fresh_gmail_access_token().await?;
+    let token = fresh_gmail_access_token(&policy).await?;
     let folders = GmailProvider::new(token, GMAIL_ACCOUNT.to_string())
+        .with_network_policy(policy.clone(), crate::network_policy::GMAIL_SYNC)
         .list_folders()
         .await
         .map_err(|e| e.to_string())?;
@@ -984,8 +991,9 @@ async fn sync_gmail_section(
         if cancel.load(Ordering::SeqCst) {
             return Ok(SectionOutcome::Cancelled);
         }
-        let token = fresh_gmail_access_token().await?;
-        let provider = GmailProvider::new(token, GMAIL_ACCOUNT.to_string());
+        let token = fresh_gmail_access_token(&policy).await?;
+        let provider = GmailProvider::new(token, GMAIL_ACCOUNT.to_string())
+            .with_network_policy(policy.clone(), crate::network_policy::GMAIL_SYNC);
         let folder_matter = resolve_mail_matter(matter_map, "gmail", GMAIL_ACCOUNT, &folder.id);
         let s = sync_one_folder(
             app,
@@ -1102,7 +1110,7 @@ pub async fn mail_sync_all(
     // sync (it used to emit a single global "error" that showed on every panel).
     let mut cancellation = policy.register_cancellation();
     let result = tokio::select! {
-        result = mail_sync_all_inner(&app, &state, &matter_map, &only_provider) => result,
+        result = mail_sync_all_inner(&app, &state, &matter_map, &only_provider, policy.inner().clone()) => result,
         _ = cancellation.cancelled() => {
             state.cancel.store(true, Ordering::SeqCst);
             Err("Offline Mode cancelled the mail sync.".to_string())
@@ -1138,6 +1146,7 @@ async fn mail_sync_all_inner(
     state: &State<'_, MailState>,
     matter_map: &[MailMatterMapEntry],
     only_provider: &Option<String>,
+    policy: crate::network_policy::NetworkPolicy,
 ) -> Result<(), String> {
     let workspace = state
         .workspace
@@ -1169,8 +1178,16 @@ async fn mail_sync_all_inner(
     if should_sync_provider(only_provider, "m365") {
         match mail_is_connected().await {
             Ok(true) => {
-                let r =
-                    sync_m365_section(app, &store, &workspace, &enc_key, matter_map, &cancel).await;
+                let r = sync_m365_section(
+                    app,
+                    &store,
+                    &workspace,
+                    &enc_key,
+                    matter_map,
+                    &cancel,
+                    policy.clone(),
+                )
+                .await;
                 finish_section(app, "m365", r);
             }
             Ok(false) => {}
@@ -1185,8 +1202,16 @@ async fn mail_sync_all_inner(
     if should_sync_provider(only_provider, "imap") {
         match load_imap_config_checked() {
             Ok(Some(_)) => {
-                let r =
-                    sync_imap_section(app, &store, &workspace, &enc_key, matter_map, &cancel).await;
+                let r = sync_imap_section(
+                    app,
+                    &store,
+                    &workspace,
+                    &enc_key,
+                    matter_map,
+                    &cancel,
+                    policy.clone(),
+                )
+                .await;
                 finish_section(app, "imap", r);
             }
             Ok(None) => {}
@@ -1201,8 +1226,16 @@ async fn mail_sync_all_inner(
     if should_sync_provider(only_provider, "gmail") {
         match gmail_is_connected().await {
             Ok(true) => {
-                let r = sync_gmail_section(app, &store, &workspace, &enc_key, matter_map, &cancel)
-                    .await;
+                let r = sync_gmail_section(
+                    app,
+                    &store,
+                    &workspace,
+                    &enc_key,
+                    matter_map,
+                    &cancel,
+                    policy.clone(),
+                )
+                .await;
                 finish_section(app, "gmail", r);
             }
             Ok(false) => {}

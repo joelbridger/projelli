@@ -571,8 +571,16 @@ impl NetworkPolicy {
     }
 
     pub fn register_cancellation(&self) -> PolicyCancellation {
+        self.register_cancellation_for(self.inner.generation.load(Ordering::Acquire))
+    }
+
+    /// Register cancellation against a capability generation that was already
+    /// authorized.  This is deliberately not equivalent to registering "now":
+    /// a policy flip between authorization and registration must be visible
+    /// immediately rather than becoming the receiver's new baseline.
+    pub fn register_cancellation_for(&self, generation: u64) -> PolicyCancellation {
         PolicyCancellation {
-            generation: self.inner.generation.load(Ordering::Acquire),
+            generation,
             changes: self.inner.changes.subscribe(),
         }
     }

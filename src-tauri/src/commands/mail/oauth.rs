@@ -38,6 +38,7 @@ pub fn build_ms_auth_url(
 /// Exchange an auth code for MS tokens via the loopback flow (public client,
 /// PKCE, no client_secret).
 pub async fn ms_exchange_code(
+    policy: &crate::network_policy::NetworkPolicy,
     client_id: &str,
     code: &str,
     code_verifier: &str,
@@ -50,17 +51,33 @@ pub async fn ms_exchange_code(
         .build()
         .expect("build reqwest client");
 
-    let resp = http
-        .post(token_endpoint)
-        .form(&[
-            ("grant_type", "authorization_code"),
-            ("client_id", client_id),
-            ("code", code),
-            ("code_verifier", code_verifier),
-            ("redirect_uri", redirect_uri),
-            ("scope", SCOPES),
-        ])
-        .send()
+    let operation = {
+        #[cfg(test)]
+        {
+            &crate::network_policy::LOCAL_LLAMA
+        }
+        #[cfg(not(test))]
+        {
+            &crate::network_policy::OUTLOOK_MAIL_OAUTH
+        }
+    };
+    let authorized =
+        crate::commands::connector_network::authorize_url(policy, operation, token_endpoint)?;
+    let resp =
+        crate::commands::connector_network::await_authorized(policy, &authorized, async move {
+            Ok(http
+                .post(token_endpoint)
+                .form(&[
+                    ("grant_type", "authorization_code"),
+                    ("client_id", client_id),
+                    ("code", code),
+                    ("code_verifier", code_verifier),
+                    ("redirect_uri", redirect_uri),
+                    ("scope", SCOPES),
+                ])
+                .send()
+                .await?)
+        })
         .await?;
 
     let status = resp.status().as_u16();
@@ -146,8 +163,11 @@ impl OAuth {
         url: &str,
         request: reqwest::RequestBuilder,
     ) -> anyhow::Result<reqwest::Response> {
-        let Some((policy, operation)) = &self.network_policy else {
+        let Some((policy, operation)) = self.network_policy.as_ref() else {
+            #[cfg(test)]
             return Ok(request.send().await?);
+            #[cfg(not(test))]
+            anyhow::bail!("mail OAuth requires a NetworkPolicy before it can make a request");
         };
         let authorized = crate::commands::connector_network::authorize_url(policy, operation, url)?;
         crate::commands::connector_network::await_authorized(policy, &authorized, async move {
@@ -268,6 +288,12 @@ impl TokenOutcome {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn test_policy() -> crate::network_policy::NetworkPolicy {
+        crate::network_policy::NetworkPolicy::load_from_directory(
+            &tempfile::tempdir().unwrap().keep(),
+        )
+    }
 
     #[tokio::test]
     async fn requests_device_code_from_endpoint() {
@@ -404,6 +430,7 @@ mod tests {
 
         let token_endpoint = format!("{}/common/oauth2/v2.0/token", server.uri());
         let tokens = ms_exchange_code(
+            &test_policy(),
             "client-ms",
             "code123",
             "verifier123",
@@ -438,6 +465,7 @@ mod tests {
 
         let token_endpoint = format!("{}/common/oauth2/v2.0/token", server.uri());
         ms_exchange_code(
+            &test_policy(),
             "client-ms",
             "code",
             "verifier",
@@ -474,6 +502,7 @@ mod tests {
 
         let token_endpoint = format!("{}/common/oauth2/v2.0/token", server.uri());
         let result = ms_exchange_code(
+            &test_policy(),
             "client-ms",
             "bad-code",
             "verifier",
@@ -507,6 +536,7 @@ mod tests {
 
         let token_endpoint = format!("{}/common/oauth2/v2.0/token", server.uri());
         let result = ms_exchange_code(
+            &test_policy(),
             "client-ms",
             "code",
             "verifier",
@@ -537,7 +567,16 @@ mod tests {
         let redirect = "http://localhost:7777";
         if let Ok(code) = std::env::var("MS_CODE") {
             let verifier = std::env::var("MS_VERIFIER").expect("set MS_VERIFIER");
-            match ms_exchange_code(&cid, &code, &verifier, redirect, MS_TOKEN_ENDPOINT).await {
+            match ms_exchange_code(
+                &test_policy(),
+                &cid,
+                &code,
+                &verifier,
+                redirect,
+                MS_TOKEN_ENDPOINT,
+            )
+            .await
+            {
                 Ok(t) => eprintln!("MS_RESULT=OK refresh_len={}", t.refresh.len()),
                 Err(e) => eprintln!("MS_RESULT=FAIL err={e}"),
             }
@@ -587,9 +626,16 @@ mod tests {
         let verifier = std::env::var("MS_VERIFIER").expect("set MS_VERIFIER");
 
         // 1. Exchange the real code for a real access token.
-        let tokens = ms_exchange_code(&cid, &code, &verifier, redirect, MS_TOKEN_ENDPOINT)
-            .await
-            .expect("token exchange failed");
+        let tokens = ms_exchange_code(
+            &test_policy(),
+            &cid,
+            &code,
+            &verifier,
+            redirect,
+            MS_TOKEN_ENDPOINT,
+        )
+        .await
+        .expect("token exchange failed");
         eprintln!(
             "IMPORT: token OK (access_len={}, refresh_len={})",
             tokens.access.len(),
