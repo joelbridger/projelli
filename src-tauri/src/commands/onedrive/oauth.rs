@@ -62,6 +62,7 @@ pub async fn ms_exchange_code(
     let http = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
         .connect_timeout(std::time::Duration::from_secs(15))
+        .redirect(reqwest::redirect::Policy::none())
         .build()
         .expect("build reqwest client");
 
@@ -142,6 +143,7 @@ impl OAuth {
         let http = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(30))
             .connect_timeout(std::time::Duration::from_secs(15))
+            .redirect(reqwest::redirect::Policy::none())
             .build()
             .expect("build reqwest client");
         Self {

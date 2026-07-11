@@ -12,7 +12,7 @@ import { Textarea } from '@/ui/textarea';
 import { Input } from '@/ui/input';
 import { Label } from '@/ui/label';
 import { Bug, Loader2 } from 'lucide-react';
-import { getCorsSafeFetch } from '@/platform/providers/fetchUtils';
+import { egressFetch } from '@/platform/privacy/networkClient';
 import { openExternal } from '@/platform/utils/openExternal';
 import { BRAND } from '@/config/brand';
 
@@ -96,10 +96,7 @@ export function BugReportDialog({ open, onOpenChange }: BugReportDialogProps) {
     }
 
     try {
-      // F-120: the bug report goes to Lantern infrastructure, not the user's
-      // AI provider — opt out of the "Sending to your AI provider" pulse.
-      const fetchFn = await getCorsSafeFetch({ signalEgress: false });
-      const res = await fetchFn(BUG_REPORT_URL, {
+      const res = await egressFetch('bug-report', BUG_REPORT_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -115,11 +112,16 @@ export function BugReportDialog({ open, onOpenChange }: BugReportDialogProps) {
     }
   }, [message, email, includeMetadata]);
 
-  const handleFallbackEmail = useCallback(() => {
+  const handleFallbackEmail = useCallback(async () => {
     const meta = collectMetadata();
     const url = buildMailto(message.trim(), email.trim(), meta);
-    void openExternal(url);
-    onOpenChange(false);
+    try {
+      await openExternal(url);
+      onOpenChange(false);
+    } catch (error) {
+      setErrorText(error instanceof Error ? error.message : 'Unknown error');
+      setStatus('error');
+    }
   }, [message, email, onOpenChange]);
 
   const canSubmit = message.trim().length > 0 && status !== 'sending';
@@ -210,7 +212,7 @@ export function BugReportDialog({ open, onOpenChange }: BugReportDialogProps) {
             <div className="flex items-center justify-between gap-2 pt-2">
               <button
                 type="button"
-                onClick={handleFallbackEmail}
+                onClick={() => void handleFallbackEmail()}
                 className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
               >
                 {t('common.bug-report.open-email-client')}

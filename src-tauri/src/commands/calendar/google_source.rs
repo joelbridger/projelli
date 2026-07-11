@@ -44,6 +44,7 @@ impl GoogleCalendarSource {
         let http = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(30))
             .connect_timeout(std::time::Duration::from_secs(15))
+            .redirect(reqwest::redirect::Policy::none())
             .build()
             .expect("build reqwest client");
         Self {
@@ -100,15 +101,17 @@ impl CalendarSource for GoogleCalendarSource {
                     crate::commands::mail::gmail::oauth::urlencoding_encode(t)
                 ));
             }
-            let authorized = crate::commands::connector_network::authorize_url(
+            let resp = crate::commands::connector_network::send_with_authorized_redirects(
                 &self.policy,
                 &self.operation,
                 &url,
-            )?;
-            let resp = crate::commands::connector_network::await_authorized(
-                &self.policy,
-                &authorized,
-                async { Ok(self.http.get(&url).bearer_auth(&access).send().await?) },
+                |request_url| {
+                    let http = self.http.clone();
+                    let access = access.clone();
+                    async move {
+                        Ok(http.get(request_url).bearer_auth(&access).send().await?)
+                    }
+                },
             )
             .await?;
             if !resp.status().is_success() {

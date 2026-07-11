@@ -26,6 +26,10 @@ const RAW_CONSTRUCTION = [
   /\b(?:tokio_tungstenite|tungstenite)::(?:connect_async|client_async(?:_tls)?)\s*\(/,
 ];
 
+const REDIRECT_CAPABLE_CLIENT = /\breqwest::Client::(?:new|builder)\s*\(/;
+const RAW_REDIRECTING_GET = /\breqwest::get\s*\(/;
+const REDIRECT_DISABLED = /\.redirect\s*\(\s*(?:reqwest::redirect::)?Policy::none\s*\(\s*\)\s*\)/;
+
 // These are the boundary implementation itself, not consumers of it.
 const POLICY_IMPLEMENTATIONS = new Set([
   'src-tauri/src/network_policy.rs',
@@ -76,11 +80,23 @@ function productionSource(source) {
 function isPolicyGuardedClient(source) {
   const usesConnectorBoundary =
     (source.includes('crate::commands::connector_network::await_authorized') ||
-      /\bawait_authorized\s*\(/.test(source)) &&
+      source.includes('crate::commands::connector_network::send_with_authorized_redirects') ||
+      /\b(?:await_authorized|send_with_authorized_redirects)\s*\(/.test(source)) &&
     /\bNetworkPolicy\b/.test(source);
   const usesEgressHttpClient =
     source.includes('EgressHttpClient::new') && source.includes('authorize_url');
   return usesConnectorBoundary || usesEgressHttpClient;
+}
+
+/** A builder's redirect setting must appear before its build call. Keeping the
+ * scan local catches a copied client setup even when the rest of its file uses
+ * authorize_url/await_authorized for the first request. */
+function clientDisablesAutomaticRedirects(lines, start) {
+  for (let index = start; index < Math.min(lines.length, start + 24); index += 1) {
+    if (REDIRECT_DISABLED.test(lines.slice(start, index + 1).join(' '))) return true;
+    if (/\.build\s*\(\s*\)/.test(lines[index])) return false;
+  }
+  return false;
 }
 
 export function findNativeEgressBoundaryViolations(root = repoRoot) {
@@ -94,6 +110,35 @@ export function findNativeEgressBoundaryViolations(root = repoRoot) {
     const hasRawConstruction = lines.some((line) =>
       RAW_CONSTRUCTION.some((pattern) => pattern.test(line)),
     );
+    const redirectViolations = [];
+    if (
+      !POLICY_IMPLEMENTATIONS.has(relPath) &&
+      !LOOPBACK_SIDECARS.has(relPath) &&
+      !KNOWN_TRACKED_EXCEPTIONS.has(relPath)
+    ) {
+      lines.forEach((line, index) => {
+        if (RAW_REDIRECTING_GET.test(line)) {
+          redirectViolations.push({
+            relPath,
+            line: index + 1,
+            text: line.trim(),
+            rule: 'raw reqwest::get follows redirects automatically',
+          });
+        } else if (
+          REDIRECT_CAPABLE_CLIENT.test(line) &&
+          !clientDisablesAutomaticRedirects(lines, index)
+        ) {
+          redirectViolations.push({
+            relPath,
+            line: index + 1,
+            text: line.trim(),
+            rule: 'reqwest client does not explicitly disable automatic redirects',
+          });
+        }
+      });
+    }
+    violations.push(...redirectViolations);
+
     if (!hasRawConstruction) continue;
 
     if (
@@ -122,10 +167,10 @@ if (invokedDirectly) {
   if (violations.length > 0) {
     console.error('❌ Native network construction outside Offline Mode policy boundary:\n');
     for (const violation of violations) {
-      console.error(`   ${violation.relPath}:${violation.line}  ${violation.text}`);
+      console.error(`   ${violation.relPath}:${violation.line}  ${violation.text}${violation.rule ? ` (${violation.rule})` : ''}`);
     }
     console.error(
-      '\nUse EgressHttpClient or connector_network authorization before the transport. ' +
+      '\nUse EgressHttpClient or connector_network authorization before the transport, and disable automatic redirects so every hop is authorized. ' +
         'Only the native policy implementation, literal-loopback sidecar, and one loud tracked SSO gap are exempt.',
     );
     process.exit(1);

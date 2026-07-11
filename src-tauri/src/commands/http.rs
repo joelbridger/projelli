@@ -15,7 +15,7 @@
 
 use std::time::Duration;
 
-use crate::commands::connector_network::{authorize_configured_host, await_authorized};
+use crate::commands::connector_network::send_with_authorized_redirects;
 use crate::network_policy::{NetworkPolicy, EXTERNAL_NAVIGATION};
 
 /// Max number of bytes we'll read from a response body before giving up.
@@ -159,13 +159,10 @@ pub async fn fetch_url_title(
     url: String,
     policy: tauri::State<'_, NetworkPolicy>,
 ) -> Result<String, String> {
-    let parsed = reqwest::Url::parse(&url).map_err(|_| "invalid URL".to_string())?;
-    let host = parsed.host_str().ok_or_else(|| "invalid URL".to_string())?;
-    let grant = authorize_configured_host(policy.inner(), &EXTERNAL_NAVIGATION, &url, host)
-        .map_err(|error| error.to_string())?;
+    reqwest::Url::parse(&url).map_err(|_| "invalid URL".to_string())?;
     let client = match reqwest::Client::builder()
         .timeout(Duration::from_secs(5))
-        .redirect(reqwest::redirect::Policy::limited(5))
+        .redirect(reqwest::redirect::Policy::none())
         .user_agent("Advisor Prep HeroTitleFetcher/1.0")
         .build()
     {
@@ -173,11 +170,20 @@ pub async fn fetch_url_title(
         Err(_) => return Ok(String::new()),
     };
 
-    await_authorized(policy.inner(), &grant, async {
-        let resp = match client.get(&url).send().await {
-            Ok(r) => r,
-            Err(_) => return Ok(String::new()),
-        };
+    let resp = match send_with_authorized_redirects(
+        policy.inner(),
+        &EXTERNAL_NAVIGATION,
+        &url,
+        |request_url| {
+            let client = client.clone();
+            async move { Ok(client.get(request_url).send().await?) }
+        },
+    )
+    .await
+    {
+        Ok(response) => response,
+        Err(_) => return Ok(String::new()),
+    };
         if !resp.status().is_success() {
             return Ok(String::new());
         }
@@ -204,9 +210,6 @@ pub async fn fetch_url_title(
         }
         let html = String::from_utf8_lossy(&buf);
         Ok(extract_title_from_html(&html).unwrap_or_default())
-    })
-    .await
-    .map_err(|error| error.to_string())
 }
 
 /// Cheap check used to short-circuit streaming once we've got a title tag.

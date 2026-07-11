@@ -27,7 +27,7 @@ use tauri::State;
 use tauri::{AppHandle, Manager};
 use tokio::sync::Mutex;
 
-use crate::commands::connector_network::{authorize_url, await_authorized};
+use crate::commands::connector_network::{authorize_url, await_authorized, send_with_authorized_redirects};
 use crate::network_policy::{NetworkPolicy, VOICE_MODEL_DOWNLOAD};
 use crate::sidecars::{PiperSidecar, Sidecar};
 
@@ -201,11 +201,19 @@ pub async fn tts_download_voice(
         .map_err(|e| e.to_string())?;
 
     let cdn_url = format!("{VOICE_CDN_BASE_URL}/{voice_id}.tar.gz");
-    let grant = authorize_url(policy.inner(), &VOICE_MODEL_DOWNLOAD, &cdn_url)
+    let http = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
         .map_err(|e| e.to_string())?;
-    let response = await_authorized(policy.inner(), &grant, async {
-        Ok(reqwest::get(&cdn_url).await?)
-    })
+    let response = send_with_authorized_redirects(
+        policy.inner(),
+        &VOICE_MODEL_DOWNLOAD,
+        &cdn_url,
+        |url| {
+            let http = http.clone();
+            async move { Ok(http.get(url).send().await?) }
+        },
+    )
     .await
     .map_err(|e| e.to_string())?;
 
@@ -216,7 +224,11 @@ pub async fn tts_download_voice(
         ));
     }
 
-    let archive_bytes = await_authorized(policy.inner(), &grant, async {
+    // Keep a fresh capability alive while consuming the body too: receiving a
+    // large archive is still network activity and must stop after a mode flip.
+    let body_grant = authorize_url(policy.inner(), &VOICE_MODEL_DOWNLOAD, &cdn_url)
+        .map_err(|e| e.to_string())?;
+    let archive_bytes = await_authorized(policy.inner(), &body_grant, async {
         Ok(response.bytes().await?)
     })
     .await

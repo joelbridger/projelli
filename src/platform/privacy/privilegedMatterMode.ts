@@ -72,7 +72,7 @@ export type PrivilegedMatterModeTrigger =
   | 'off'
   | 'manual'
   | 'privileged-matter'
-  | 'local-ai-only';
+  | 'local-only';
 
 /**
  * Resolve whether Privileged Matter Mode is effectively active, and why.
@@ -93,7 +93,7 @@ export function resolvePrivilegedMatterMode(
   const forced = forcedByMatter || forcedByLocalOnly;
 
   if (forcedByMatter) return { active: true, trigger: 'privileged-matter', forced: true };
-  if (forcedByLocalOnly) return { active: true, trigger: 'local-ai-only', forced: true };
+  if (forcedByLocalOnly) return { active: true, trigger: 'local-only', forced: true };
   if (inputs.manual) return { active: true, trigger: 'manual', forced: false };
   return { active: false, trigger: 'off', forced };
 }

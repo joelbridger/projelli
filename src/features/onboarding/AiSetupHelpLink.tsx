@@ -35,7 +35,7 @@ import { Input } from '@/ui/input';
 import { Label } from '@/ui/label';
 import { HelpCircle, LifeBuoy, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getCorsSafeFetch } from '@/platform/providers/fetchUtils';
+import { egressFetch } from '@/platform/privacy/networkClient';
 import { openExternal } from '@/platform/utils/openExternal';
 import { redactSecrets } from '@/platform/utils/redactSecrets';
 import { BRAND } from '@/config/brand';
@@ -215,10 +215,7 @@ export function AiSetupHelpDialog({
     const ac = new AbortController();
     const timer = setTimeout(() => { ac.abort(); }, 15_000);
     try {
-      // The help ticket goes to Lantern infrastructure, not the user's AI
-      // provider — opt out of the "Sending to your AI provider" pulse.
-      const fetchFn = await getCorsSafeFetch({ signalEgress: false });
-      const res = await fetchFn(AI_SETUP_HELP_URL, {
+      const res = await egressFetch('ai-setup-help', AI_SETUP_HELP_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -235,7 +232,7 @@ export function AiSetupHelpDialog({
     }
   }, [message, email, provider, context, t]);
 
-  const handleFallbackEmail = useCallback(() => {
+  const handleFallbackEmail = useCallback(async () => {
     // Same redacted ticket as the POST path — the mailto body can't leak a key
     // pasted into any field, including the email box.
     const ticket = buildRedactedTicket(
@@ -250,8 +247,13 @@ export function AiSetupHelpDialog({
       os: ticket.os,
       userAgent: ticket.user_agent,
     });
-    void openExternal(url);
-    onOpenChange(false);
+    try {
+      await openExternal(url);
+      onOpenChange(false);
+    } catch (error) {
+      console.error('[AiSetupHelpDialog] email fallback failed', error);
+      setStatus('error');
+    }
   }, [message, email, provider, context, onOpenChange]);
 
   const canSubmit = message.trim().length > 0 && status !== 'sending';
@@ -359,7 +361,7 @@ export function AiSetupHelpDialog({
               <button
                 type="button"
                 data-testid="ai-setup-help-mailto"
-                onClick={handleFallbackEmail}
+                onClick={() => void handleFallbackEmail()}
                 className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
               >
                 {t('common.ai-setup-help.open-email-client')}

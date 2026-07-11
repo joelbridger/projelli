@@ -29,6 +29,7 @@ impl AddeparClient {
         Self {
             http: reqwest::Client::builder()
                 .user_agent("Advisor Prep Hero-Addepar-Connector/1.0")
+                .redirect(reqwest::redirect::Policy::none())
                 // Without these, a stalled connection or a non-responding
                 // Addepar host left every "Connecting…"/"Syncing…" state in
                 // the UI hung forever, with no error and no way to recover

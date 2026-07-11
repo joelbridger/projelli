@@ -40,9 +40,12 @@
     "zocks-sync"
   ],
   "renderer": [
+    "ai-setup-help",
     "assured-ai",
+    "bug-report",
     "cloud-ai",
     "diagnostics",
+    "external-navigation",
     "firm-seat-validation",
     "license-api",
     "local-loopback",

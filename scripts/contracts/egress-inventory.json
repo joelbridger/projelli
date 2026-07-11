@@ -8,7 +8,7 @@
   },
   "renderer": {
     "operations": [
-      "assured-ai", "cloud-ai", "diagnostics", "firm-seat-validation", "license-api", "local-loopback", "marketplace-manifest", "marketplace-package", "telemetry", "updater-github-releases"
+      "ai-setup-help", "assured-ai", "bug-report", "cloud-ai", "diagnostics", "external-navigation", "firm-seat-validation", "license-api", "local-loopback", "marketplace-manifest", "marketplace-package", "telemetry", "updater-github-releases"
     ],
     "receiptTest": "tests/unit/privacy/networkEgressReceipt.test.ts::can make a safe receipt for every renderer registry operation",
     "boundaryTest": "tests/unit/privacy/networkClient.test.ts::blocks every registered off-device operation before transport"

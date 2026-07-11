@@ -27,7 +27,14 @@
  * only about stopping THIS device from contacting the relay while offline.
  */
 
-export type EgressHostClass = 'literal-loopback' | 'cloud-ai' | 'service';
+export type EgressHostClass =
+  | 'literal-loopback'
+  | 'cloud-ai'
+  | 'service'
+  /** A person chose the destination at the interaction boundary (for example,
+   * opening a link in their browser). Offline Mode still blocks it; a static
+   * host allow-list would make ordinary external navigation unusable. */
+  | 'user-configured-host';
 
 export interface EgressOperation {
   id: string;
@@ -149,6 +156,36 @@ const initialOperations = [
     transfersMetadata: true,
     transfersCredential: false,
     receiptLabel: 'optional diagnostics',
+  },
+  {
+    id: 'external-navigation',
+    category: 'navigation',
+    allowedHostClass: 'user-configured-host',
+    allowedHosts: [],
+    transfersContent: false,
+    transfersMetadata: true,
+    transfersCredential: false,
+    receiptLabel: 'external navigation',
+  },
+  {
+    id: 'bug-report',
+    category: 'diagnostics',
+    allowedHostClass: 'service',
+    allowedHosts: ['forms.lanternplatform.app'],
+    transfersContent: true,
+    transfersMetadata: true,
+    transfersCredential: false,
+    receiptLabel: 'bug report',
+  },
+  {
+    id: 'ai-setup-help',
+    category: 'diagnostics',
+    allowedHostClass: 'service',
+    allowedHosts: ['forms.lanternplatform.app'],
+    transfersContent: true,
+    transfersMetadata: true,
+    transfersCredential: false,
+    receiptLabel: 'AI setup help request',
   },
 ] as const satisfies readonly EgressOperation[];
 

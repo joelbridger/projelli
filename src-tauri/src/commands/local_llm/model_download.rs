@@ -382,6 +382,10 @@ async fn download_model_to_dir_with_policy(
         let client = reqwest::Client::builder()
             .connect_timeout(std::time::Duration::from_secs(20))
             .timeout(std::time::Duration::from_secs(60 * 60))
+            // Production downloads use EgressHttpClient's guarded redirect
+            // loop. This fallback client is only used by hermetic tests, but
+            // it must never quietly become a redirect-following bypass.
+            .redirect(reqwest::redirect::Policy::none())
             .build()
             .context("build local AI model download client")?;
 

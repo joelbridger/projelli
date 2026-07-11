@@ -36,6 +36,7 @@ impl CalendlyClient {
         let http = reqwest::Client::builder()
             .timeout(Duration::from_secs(60))
             .connect_timeout(Duration::from_secs(15))
+            .redirect(reqwest::redirect::Policy::none())
             .build()
             .expect("build reqwest client for CalendlyClient");
         Self {

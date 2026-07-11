@@ -2,6 +2,7 @@
 // Supports both browser (window.open) and Tauri (shell plugin)
 
 import { isTauriEnvironment } from '@/platform/fs/BackendFactory';
+import { assertEgressNavigationAllowed } from '@/platform/privacy/networkClient';
 
 /**
  * Opens a URL in the system's default browser (Tauri) or a new tab (browser)
@@ -10,6 +11,10 @@ import { isTauriEnvironment } from '@/platform/fs/BackendFactory';
  */
 export async function openExternal(url: string): Promise<void> {
   const isTauri = isTauriEnvironment();
+
+  // This is a real off-device action in the desktop app, even though the
+  // operating system owns the browser after the hand-off.
+  await assertEgressNavigationAllowed('external-navigation', url);
 
   if (isTauri) {
     // Tauri mode: Use shell plugin to open in system browser

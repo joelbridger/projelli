@@ -74,6 +74,7 @@ impl RedtailClient {
         let http = reqwest::Client::builder()
             .timeout(Duration::from_secs(60))
             .connect_timeout(Duration::from_secs(15))
+            .redirect(reqwest::redirect::Policy::none())
             .build()
             .expect("build reqwest client for RedtailClient");
         Self {
@@ -145,6 +146,7 @@ impl RedtailClient {
         let http = reqwest::Client::builder()
             .timeout(Duration::from_secs(30))
             .connect_timeout(Duration::from_secs(15))
+            .redirect(reqwest::redirect::Policy::none())
             .build()
             .expect("build reqwest client for Redtail auth");
         let url = format!("{}/authentication", base.trim_end_matches('/'));

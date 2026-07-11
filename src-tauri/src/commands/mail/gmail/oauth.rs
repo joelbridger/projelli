@@ -190,6 +190,7 @@ impl GoogleOAuth {
         let http = reqwest::Client::builder()
             .timeout(Duration::from_secs(30))
             .connect_timeout(Duration::from_secs(15))
+            .redirect(reqwest::redirect::Policy::none())
             .build()
             .expect("build reqwest client");
         Self {

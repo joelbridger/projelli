@@ -107,6 +107,7 @@ function assertRegisteredDestination(
   operation: EgressOperation,
   destination: URL
 ): void {
+  if (operation.allowedHostClass === 'user-configured-host') return;
   const host = normalizedHost(destination);
   if (!operation.allowedHosts.includes(host)) {
     throw new EgressDestinationNotAllowedError(operation.id, host);

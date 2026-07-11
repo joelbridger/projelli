@@ -81,6 +81,7 @@ pub async fn exchange_salesforce_code(
     let http = reqwest::Client::builder()
         .timeout(Duration::from_secs(30))
         .connect_timeout(Duration::from_secs(15))
+        .redirect(reqwest::redirect::Policy::none())
         .build()
         .expect("build reqwest client for Salesforce OAuth");
     let authorized = crate::commands::connector_network::authorize_url(
@@ -190,6 +191,7 @@ impl SalesforceClient {
         let http = reqwest::Client::builder()
             .timeout(Duration::from_secs(60))
             .connect_timeout(Duration::from_secs(15))
+            .redirect(reqwest::redirect::Policy::none())
             .build()
             .expect("build reqwest client for SalesforceClient");
         Ok(Self {

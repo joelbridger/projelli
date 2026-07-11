@@ -52,6 +52,7 @@ impl GraphClient {
         let http = reqwest::Client::builder()
             .timeout(Duration::from_secs(60))
             .connect_timeout(Duration::from_secs(15))
+            .redirect(reqwest::redirect::Policy::none())
             .build()
             .expect("build reqwest client");
         Self {
@@ -90,10 +91,31 @@ impl GraphClient {
             #[cfg(not(test))]
             anyhow::bail!("GraphClient requires a NetworkPolicy before it can make a request");
         };
-        let authorized = crate::commands::connector_network::authorize_url(policy, operation, url)?;
-        crate::commands::connector_network::await_authorized(policy, &authorized, async move {
-            Ok(request.send().await?)
-        })
+        // A redirect must be built again from the original request shape so
+        // the shared helper can authorize its Location before any second hop.
+        // `try_clone` is available for every Graph request body used here
+        // (JSON or empty); fail closed if a future caller supplies a streaming
+        // body that cannot safely be replayed.
+        let template = request
+            .try_clone()
+            .ok_or_else(|| anyhow::anyhow!("graph request body cannot be safely redirected"))?;
+        let client = self.http.clone();
+        crate::commands::connector_network::send_with_authorized_redirects(
+            policy,
+            operation,
+            url,
+            move |redirect_url| {
+                let mut cloned = template
+                    .try_clone()
+                    .expect("Graph request template must remain clonable")
+                    .build()
+                    .expect("Graph request template must remain buildable");
+                *cloned.url_mut() = reqwest::Url::parse(&redirect_url)
+                    .expect("redirect URL was already parsed by the policy helper");
+                let client = client.clone();
+                async move { Ok(client.execute(cloned).await?) }
+            },
+        )
         .await
     }
 

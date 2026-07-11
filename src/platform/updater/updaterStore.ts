@@ -34,6 +34,11 @@ import {
   subscribeToOfflineModeChanges,
 } from '@/platform/privacy/offlineMode';
 import { OfflineModeBlockedError } from '@/platform/privacy/networkClient';
+import { getEgressOperation } from '@/platform/privacy/egressRegistry';
+import {
+  buildNetworkEgressReceipt,
+  recordNetworkEgressReceipt,
+} from '@/platform/privacy/networkEgressReceipt';
 
 export type UpdaterStatus =
   | 'idle'
@@ -84,13 +89,71 @@ function isTauriRuntime(): boolean {
 
 const INITIAL_PROGRESS: DownloadProgress = { total: 0, downloaded: 0 };
 
-async function offlineModeBlocksUpdater(): Promise<boolean> {
+const UPDATER_CHECK_DESTINATION = new URL('https://github.com');
+
+/**
+ * The updater plugin owns its own native HTTP client, so it cannot go through
+ * egressFetch. Guard its transport immediately before every plugin call and
+ * record the same allowed/blocked-before-network decision as other sinks.
+ */
+async function authorizeUpdaterTransport(): Promise<boolean> {
   if (!isTauriRuntime()) return false;
+  const operation = getEgressOperation('updater-github-releases');
+  if (!operation) throw new Error('Updater egress operation is not registered.');
   try {
-    return (await getNetworkPolicyStatus()).offlineMode;
-  } catch {
+    const status = await getNetworkPolicyStatus();
+    if (status.offlineMode) {
+      const error = new OfflineModeBlockedError(operation.receiptLabel);
+      recordNetworkEgressReceipt(
+        buildNetworkEgressReceipt(
+          operation,
+          UPDATER_CHECK_DESTINATION,
+          status.generation,
+          true,
+          'blocked-before-network',
+          error,
+        ),
+      );
+      return true;
+    }
+    recordNetworkEgressReceipt(
+      buildNetworkEgressReceipt(
+        operation,
+        UPDATER_CHECK_DESTINATION,
+        status.generation,
+        false,
+        'allowed',
+      ),
+    );
+    return false;
+  } catch (error) {
     // The native policy intentionally begins fail-closed during startup.
+    // There is no trustworthy generation to put in a receipt in this state.
+    console.warn('[updater] native Offline Mode policy is unavailable:', error);
     return true;
+  }
+}
+
+async function recordUpdaterTransportResult(
+  result: 'completed' | 'failed',
+  error?: unknown,
+): Promise<void> {
+  const operation = getEgressOperation('updater-github-releases');
+  if (!operation || !isTauriRuntime()) return;
+  try {
+    const status = await getNetworkPolicyStatus();
+    recordNetworkEgressReceipt(
+      buildNetworkEgressReceipt(
+        operation,
+        UPDATER_CHECK_DESTINATION,
+        status.generation,
+        status.offlineMode,
+        result,
+        error,
+      ),
+    );
+  } catch {
+    // The preflight already failed closed if native policy was unavailable.
   }
 }
 
@@ -125,7 +188,7 @@ export const useUpdaterStore = create<UpdaterState>()((set, get) => ({
       });
       return;
     }
-    if (await offlineModeBlocksUpdater()) {
+    if (await authorizeUpdaterTransport()) {
       set({
         status: current.available ? 'available' : 'idle',
         error: null,
@@ -137,9 +200,10 @@ export const useUpdaterStore = create<UpdaterState>()((set, get) => ({
     try {
       const { check } = await import('@tauri-apps/plugin-updater');
       const update = await check();
+      await recordUpdaterTransportResult('completed');
       // A mode flip during the plugin call cannot cancel the plugin's invoke,
       // but must not surface or start follow-up work after it returns.
-      if (await offlineModeBlocksUpdater()) {
+      if (await authorizeUpdaterTransport()) {
         await update?.close();
         set({
           available: null,
@@ -165,6 +229,7 @@ export const useUpdaterStore = create<UpdaterState>()((set, get) => ({
         });
       }
     } catch (err) {
+      await recordUpdaterTransportResult('failed', err);
       const message = err instanceof Error ? err.message : String(err);
       console.warn('[updater] check failed:', message);
       // Network errors and 404s are non-fatal — drop back to idle so the
@@ -182,7 +247,7 @@ export const useUpdaterStore = create<UpdaterState>()((set, get) => ({
     const update = get().available;
     if (!update) return;
     if (!isTauriRuntime()) return;
-    if (await offlineModeBlocksUpdater()) {
+    if (await authorizeUpdaterTransport()) {
       set({
         status: 'available',
         downloadProgress: INITIAL_PROGRESS,
@@ -220,7 +285,8 @@ export const useUpdaterStore = create<UpdaterState>()((set, get) => ({
           });
         }
       });
-      if (await offlineModeBlocksUpdater()) {
+      await recordUpdaterTransportResult('completed');
+      if (await authorizeUpdaterTransport()) {
         // The plugin may already have completed its install, but must not lead
         // to an automatic restart or another network action while mode is on.
         set({
@@ -239,6 +305,7 @@ export const useUpdaterStore = create<UpdaterState>()((set, get) => ({
         set({ status: 'ready-to-restart' });
       }
     } catch (err) {
+      await recordUpdaterTransportResult('failed', err);
       const message = err instanceof Error ? err.message : String(err);
       console.error('[updater] download/install failed:', message);
       set({ status: 'error', error: message });
@@ -251,7 +318,7 @@ export const useUpdaterStore = create<UpdaterState>()((set, get) => ({
 
   restart: async () => {
     if (!isTauriRuntime()) return;
-    if (await offlineModeBlocksUpdater()) {
+    if (await authorizeUpdaterTransport()) {
       const error = new OfflineModeBlockedError('app updates');
       set({ error: error.message, deferredByOfflineMode: true });
       return;

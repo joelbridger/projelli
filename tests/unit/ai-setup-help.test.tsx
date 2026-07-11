@@ -23,17 +23,15 @@ vi.mock('@/platform/utils/openExternal', () => ({
   openExternal: vi.fn(async () => {}),
 }));
 
-const mockFetch = vi.fn();
-vi.mock('@/platform/providers/fetchUtils', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('@/platform/providers/fetchUtils')>();
-  return { ...actual, getCorsSafeFetch: vi.fn(async () => mockFetch) };
-});
+const { mockEgressFetch } = vi.hoisted(() => ({ mockEgressFetch: vi.fn() }));
+vi.mock('@/platform/privacy/networkClient', () => ({
+  egressFetch: mockEgressFetch,
+}));
 
 describe('AiSetupHelpLink / AiSetupHelpDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockFetch.mockResolvedValue({ ok: true, status: 200 });
+    mockEgressFetch.mockResolvedValue({ ok: true, status: 200 });
   });
 
   it('renders the help link and opens the dialog when clicked', () => {
@@ -87,10 +85,11 @@ describe('AiSetupHelpLink / AiSetupHelpDialog', () => {
     fireEvent.click(screen.getByTestId('ai-setup-help-submit'));
 
     await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(mockEgressFetch).toHaveBeenCalledTimes(1);
     });
-    const call = mockFetch.mock.calls[0] as [string, RequestInit];
-    const [url, opts] = call;
+    const call = mockEgressFetch.mock.calls[0] as [string, string, RequestInit];
+    const [operation, url, opts] = call;
+    expect(operation).toBe('ai-setup-help');
     expect(url).toBe('https://forms.lanternplatform.app/api/forms/lantern/ai-setup-help');
     expect(opts.method).toBe('POST');
     const body = JSON.parse(opts.body as string) as Record<string, unknown>;
@@ -118,10 +117,10 @@ describe('AiSetupHelpLink / AiSetupHelpDialog', () => {
     });
     fireEvent.click(screen.getByTestId('ai-setup-help-submit'));
     await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(mockEgressFetch).toHaveBeenCalledTimes(1);
     });
-    const call = mockFetch.mock.calls[0] as [string, RequestInit];
-    const body = JSON.parse(call[1].body as string) as Record<string, unknown>;
+    const call = mockEgressFetch.mock.calls[0] as [string, string, RequestInit];
+    const body = JSON.parse(call[2].body as string) as Record<string, unknown>;
     expect(body).not.toHaveProperty('email');
   });
 
@@ -143,7 +142,7 @@ describe('AiSetupHelpLink / AiSetupHelpDialog', () => {
   });
 
   it('shows an error state and preserves the message when the send fails', async () => {
-    mockFetch.mockResolvedValue({ ok: false, status: 500 });
+    mockEgressFetch.mockResolvedValue({ ok: false, status: 500 });
     render(
       <AiSetupHelpDialog
         open
@@ -178,7 +177,7 @@ describe('AiSetupHelpLink / AiSetupHelpDialog', () => {
       target: { value: '   ' },
     });
     fireEvent.click(screen.getByTestId('ai-setup-help-submit'));
-    expect(mockFetch).not.toHaveBeenCalled();
+    expect(mockEgressFetch).not.toHaveBeenCalled();
   });
 
   it('shows the "do not paste your key" helper text', () => {
@@ -212,10 +211,10 @@ describe('AiSetupHelpLink / AiSetupHelpDialog', () => {
     });
     fireEvent.click(screen.getByTestId('ai-setup-help-submit'));
     await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(mockEgressFetch).toHaveBeenCalledTimes(1);
     });
-    const call = mockFetch.mock.calls[0] as [string, RequestInit];
-    const body = JSON.parse(call[1].body as string) as Record<string, unknown>;
+    const call = mockEgressFetch.mock.calls[0] as [string, string, RequestInit];
+    const body = JSON.parse(call[2].body as string) as Record<string, unknown>;
     const sent = body['message'] as string;
     expect(sent).not.toContain(key);
     expect(sent).toContain('[redacted possible API key]');
@@ -238,10 +237,10 @@ describe('AiSetupHelpLink / AiSetupHelpDialog', () => {
     });
     fireEvent.click(screen.getByTestId('ai-setup-help-submit'));
     await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(mockEgressFetch).toHaveBeenCalledTimes(1);
     });
-    const call = mockFetch.mock.calls[0] as [string, RequestInit];
-    const body = JSON.parse(call[1].body as string) as Record<string, unknown>;
+    const call = mockEgressFetch.mock.calls[0] as [string, string, RequestInit];
+    const body = JSON.parse(call[2].body as string) as Record<string, unknown>;
     expect((body['message'] as string).length).toBeLessThanOrEqual(2000);
   });
 
@@ -262,7 +261,7 @@ describe('AiSetupHelpLink / AiSetupHelpDialog', () => {
       target: { value: 'not-an-email' },
     });
     fireEvent.click(screen.getByTestId('ai-setup-help-submit'));
-    expect(mockFetch).not.toHaveBeenCalled();
+    expect(mockEgressFetch).not.toHaveBeenCalled();
     expect(
       screen.getByTestId('ai-setup-help-email-error'),
     ).toBeInTheDocument();

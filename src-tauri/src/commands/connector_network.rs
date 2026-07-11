@@ -5,15 +5,66 @@
 //! so a mode change cancels work already waiting on a remote service.
 
 use crate::network_policy::{AuthorizedGeneration, Destination, EgressOperation, NetworkPolicy};
-use reqwest::Url;
+use reqwest::{header::LOCATION, Response, Url};
 use std::future::Future;
+
+/// Keep redirect handling outside reqwest's automatic redirect machinery so
+/// every destination receives a fresh policy authorization before its socket
+/// can open. Callers must build their client with `Policy::none()`.
+pub async fn send_with_authorized_redirects<F, Fut>(
+    policy: &NetworkPolicy,
+    operation: &EgressOperation,
+    initial_url: &str,
+    build_request: F,
+) -> anyhow::Result<Response>
+where
+    F: Fn(String) -> Fut,
+    Fut: Future<Output = anyhow::Result<Response>>,
+{
+    const MAX_REDIRECT_HOPS: usize = 5;
+    let mut next_url = Url::parse(initial_url)?;
+
+    for redirect_hops in 0..=MAX_REDIRECT_HOPS {
+        let url = next_url.as_str().to_string();
+        let authorized = authorize_url(policy, operation, &url)?;
+        let response = await_authorized(policy, &authorized, build_request(url)).await?;
+
+        if !response.status().is_redirection() {
+            return Ok(response);
+        }
+        if redirect_hops == MAX_REDIRECT_HOPS {
+            anyhow::bail!("too many redirects (maximum {MAX_REDIRECT_HOPS})");
+        }
+        // Ensure a policy flip that raced the redirect response wins before we
+        // inspect or follow its destination. The next loop iteration parses
+        // and authorizes the Location before sending anything.
+        policy.assert_authorized_generation(&authorized)?;
+        let location = response
+            .headers()
+            .get(LOCATION)
+            .and_then(|value| value.to_str().ok())
+            .ok_or_else(|| anyhow::anyhow!("redirect response had no usable Location header"))?;
+        next_url = next_url.join(location)?;
+    }
+
+    unreachable!("redirect loop returns at its bound")
+}
 
 pub fn authorize_url(
     policy: &NetworkPolicy,
     operation: &EgressOperation,
     url: &str,
 ) -> anyhow::Result<AuthorizedGeneration> {
-    let destination = Destination::parse(Url::parse(url)?)?;
+    let parsed = Url::parse(url)?;
+    let destination = match operation.destination_rule {
+        crate::network_policy::DestinationRule::UserConfiguredHost => {
+            let host = parsed
+                .host_str()
+                .ok_or_else(|| anyhow::anyhow!("URL has no host"))?;
+            Destination::parse_for_configured_host(parsed, host)?
+        }
+        _ => Destination::parse(parsed)?,
+    };
     Ok(policy.authorize(operation, &destination)?)
 }
 
@@ -437,5 +488,44 @@ mod tests {
             "https://calendar.example.test/feed.ics",
         )
         .is_err());
+    }
+
+    #[tokio::test]
+    async fn guarded_redirect_rejects_an_unapproved_second_hop_before_transport() {
+        use wiremock::{matchers::{method, path}, Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        let initial = format!("{}/first", server.uri());
+        let forbidden_second_hop = format!("http://localhost:{}/second", server.address().port());
+        Mock::given(method("GET"))
+            .and(path("/first"))
+            .respond_with(ResponseTemplate::new(302).insert_header("Location", forbidden_second_hop))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/second"))
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&server)
+            .await;
+
+        let policy = policy();
+        let http = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .unwrap();
+        let result = send_with_authorized_redirects(
+            &policy,
+            &crate::network_policy::LOCAL_LLAMA,
+            &initial,
+            |url| {
+                let http = http.clone();
+                async move { Ok(http.get(url).send().await?) }
+            },
+        )
+        .await;
+
+        assert!(result.is_err());
+        let requests = server.received_requests().await.unwrap();
+        assert_eq!(requests.len(), 1, "the forbidden redirect must never be followed");
     }
 }
