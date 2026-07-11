@@ -90,7 +90,9 @@ export async function runWholePracticeAsk(
     prompt: userMessage,
     options: sendOpts,
     parts: [
-      { id: 'prompt', origin: 'typed_question', label: 'Your question', text: question },
+      // The provider receives the formatted user message, not the bare
+      // question. Make that exact wire payload the redaction target.
+      { id: 'prompt', origin: 'typed_question', label: 'Your question', text: userMessage },
       { id: 'client-map', origin: 'client_map', label: 'Client Map summaries', text: systemPrompt },
     ],
     ...(options?.onAuditLog ? { onAuditLog: options.onAuditLog } : {}),

@@ -1771,15 +1771,23 @@ export function useChatSending(deps: UseChatSendingDeps) {
               parts: [
                 { id: 'prompt', origin: 'typed_question', label: 'Your message', text: userMessage.content },
                 { id: 'chat-history', origin: 'chat_history', label: 'Earlier chat messages', text: messages.map((message) => message.content).join('\n') },
-                { id: 'retrieval', origin: 'retrieval', label: 'Retrieved workspace material', text: retrievedSources.map((source) => source.content).join('\n') },
+                { id: 'retrieval', origin: 'retrieval', label: 'Retrieved workspace material', text: retrievedSources.map((source) => source.chunkText).join('\n') },
                 { id: 'open-files', origin: 'open_file', label: 'Open files', text: fileBlock },
                 { id: 'facts', origin: 'chat_history', label: 'Saved chat facts', text: facts.map((fact) => fact.text).join('\n') },
-                ...(attachmentBytes ?? []).map((attachment, attachmentIndex) => ({
-                  id: `attachment-${attachment.att.id}`,
-                  origin: 'attachment_text' as const,
-                  label: 'Attachment',
-                  attachment: { attachmentId: attachment.att.id, attachmentIndex, extractedText: pdfExtractions[attachment.att.id]?.pages.join('\n'), canRedact: attachment.att.type === 'pdf' },
-                })),
+                ...(attachmentBytes ?? []).map((attachment, attachmentIndex) => {
+                  const extraction = pdfExtractions[attachment.att.id];
+                  return {
+                    id: `attachment-${attachment.att.id}`,
+                    origin: 'attachment_text' as const,
+                    label: 'Attachment',
+                    attachment: {
+                      attachmentId: attachment.att.id,
+                      attachmentIndex,
+                      canRedact: attachment.att.type === 'pdf',
+                      ...(extraction ? { extractedText: extraction.pages.join('\n') } : {}),
+                    },
+                  };
+                }),
               ],
             });
           } catch (err) {
@@ -1886,15 +1894,23 @@ export function useChatSending(deps: UseChatSendingDeps) {
             parts: [
               { id: 'prompt', origin: 'typed_question', label: 'Your message', text: userMessage.content },
               { id: 'chat-history', origin: 'chat_history', label: 'Earlier chat messages', text: messages.map((message) => message.content).join('\n') },
-              { id: 'retrieval', origin: 'retrieval', label: 'Retrieved workspace material', text: retrievedSources.map((source) => source.content).join('\n') },
+              { id: 'retrieval', origin: 'retrieval', label: 'Retrieved workspace material', text: retrievedSources.map((source) => source.chunkText).join('\n') },
               { id: 'open-files', origin: 'open_file', label: 'Open files', text: fileBlock },
               { id: 'facts', origin: 'chat_history', label: 'Saved chat facts', text: facts.map((fact) => fact.text).join('\n') },
-              ...(attachmentBytes ?? []).map((attachment, attachmentIndex) => ({
-                id: `attachment-${attachment.att.id}`,
-                origin: 'attachment_text' as const,
-                label: 'Attachment',
-                attachment: { attachmentId: attachment.att.id, attachmentIndex, extractedText: pdfExtractions[attachment.att.id]?.pages.join('\n'), canRedact: attachment.att.type === 'pdf' },
-              })),
+              ...(attachmentBytes ?? []).map((attachment, attachmentIndex) => {
+                const extraction = pdfExtractions[attachment.att.id];
+                return {
+                  id: `attachment-${attachment.att.id}`,
+                  origin: 'attachment_text' as const,
+                  label: 'Attachment',
+                  attachment: {
+                    attachmentId: attachment.att.id,
+                    attachmentIndex,
+                    canRedact: attachment.att.type === 'pdf',
+                    ...(extraction ? { extractedText: extraction.pages.join('\n') } : {}),
+                  },
+                };
+              }),
             ],
             modelCall: (modelResponse) => ({
               action: 'model_call',

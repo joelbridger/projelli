@@ -22,6 +22,7 @@ import {
 } from '@/platform/privacy/localOnlyGuard';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { sendPreparedMessageWithEgressAudit } from '@/platform/privacy/promptPreparation';
+import type { EgressAuditLogger } from '@/platform/privacy/sendWithEgressAudit';
 import { usePromptPreparationDecision } from '@/features/ask/usePromptPreparationDecision';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/ui/button';
@@ -52,6 +53,8 @@ export interface RunOnAllButtonProps {
   onKeep?: (providerId: string, content: string) => void;
   /** Provider used to detect contradictions after all outputs arrive. */
   analysisProvider?: Provider;
+  /** Durable audit sink supplied by the parent chat surface. */
+  onAuditLog?: EgressAuditLogger;
 }
 
 interface PerProviderResult {
@@ -70,6 +73,7 @@ export function RunOnAllButton({
   prompt,
   onKeep,
   analysisProvider,
+  onAuditLog,
 }: RunOnAllButtonProps) {
   const promptPreparationDialog = usePromptPreparationDecision();
   const [results, setResults] = useState<PerProviderResult[] | null>(null);
@@ -139,6 +143,7 @@ export function RunOnAllButton({
           model: p.provider.getMetadata().model,
           surface: 'run_on_all',
           prompt,
+          ...(onAuditLog ? { onAuditLog } : {}),
           parts: [{ id: 'prompt', origin: 'typed_question', label: 'Your question', text: prompt }],
           modelCall: (modelResponse) => ({
             action: 'model_call',
@@ -191,7 +196,7 @@ export function RunOnAllButton({
         .map((r) => ({ source: r.label, text: r.content }));
       if (outputs.length >= 2) {
         try {
-          const detector = new ContradictionDetector(analysisProvider);
+          const detector = new ContradictionDetector(analysisProvider, onAuditLog);
           const [a, b] = outputs;
           if (a && b) {
             const analysis = await detector.detect(a.text, a.source, b.text, b.source);
@@ -205,7 +210,7 @@ export function RunOnAllButton({
         }
       }
     }
-  }, [prompt, providers, analysisProvider, distinctProviderIds]);
+  }, [prompt, providers, analysisProvider, distinctProviderIds, onAuditLog]);
 
   const totalCost = (results ?? []).reduce((sum, r) => sum + r.cost, 0);
 

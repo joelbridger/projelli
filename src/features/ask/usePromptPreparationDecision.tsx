@@ -8,7 +8,7 @@ import { PromptPreparationDialog } from '@/platform/privacy/ui/PromptPreparation
 
 interface PendingDecision {
   findings: SecretFinding[];
-  resolve: (decision: PromptDecision) => void;
+  resolves: Array<(decision: PromptDecision) => void>;
 }
 
 /** Connect an interactive Ask surface to the safe-copy or cancel dialog. */
@@ -18,13 +18,21 @@ export function usePromptPreparationDecision() {
 
   useEffect(() => {
     setPromptDecisionBroker(({ findings }) => new Promise<PromptDecision>((resolve) => {
-      const next = { findings, resolve };
+      const current = pendingRef.current;
+      // One user action can intentionally fan out to several providers (Run on
+      // all). They all carry the same material, so keep one review dialog and
+      // apply its safe choice to every waiting prepared request.
+      if (current) {
+        current.resolves.push(resolve);
+        return;
+      }
+      const next = { findings, resolves: [resolve] };
       pendingRef.current = next;
       setPending(next);
     }));
     return () => {
       setPromptDecisionBroker();
-      pendingRef.current?.resolve('cancel');
+      pendingRef.current?.resolves.forEach((resolve) => { resolve('cancel'); });
       pendingRef.current = null;
     };
   }, []);
@@ -33,7 +41,7 @@ export function usePromptPreparationDecision() {
     const current = pendingRef.current;
     pendingRef.current = null;
     setPending(null);
-    current?.resolve(decision);
+    current?.resolves.forEach((resolve) => { resolve(decision); });
   }, []);
 
   return (

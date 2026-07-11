@@ -16,6 +16,7 @@ import { RunOnAllButton } from '@/features/ask/chat/RunOnAllButton';
 import type { Provider, ProviderResponse } from '@/platform/providers/Provider';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { CONFIDENTIALITY_MODE_SETTING_KEY } from '@/platform/privacy/egress';
+import { SECRET_SCRUB_FIXTURES } from '@/platform/privacy/promptPreparation.fixtures';
 
 // The personal-install choice gate (Task 1.3) is added to RunOnAllButton.runAll.
 // Stub assertCloudGenerationAllowed as a no-op here — these tests focus on the
@@ -145,6 +146,56 @@ describe('RunOnAllButton (Q15)', () => {
       expect(screen.getByTestId('comparison-keep-claude')).toBeInTheDocument();
       expect(screen.getByTestId('comparison-keep-openai')).toBeInTheDocument();
       expect(screen.getByTestId('comparison-keep-gemini')).toBeInTheDocument();
+    });
+  });
+
+  it('reviews one safe copy for the fan-out and never gives any provider the raw secret', async () => {
+    const claude = makeProvider('claude', { content: 'claude response' });
+    const openai = makeProvider('openai', { content: 'openai response' });
+    render(
+      <RunOnAllButton
+        tier="professional"
+        providers={[
+          { id: 'claude', label: 'Claude', provider: claude },
+          { id: 'openai', label: 'OpenAI', provider: openai },
+        ]}
+        prompt={SECRET_SCRUB_FIXTURES.urls}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('run-on-all-button'));
+    await screen.findByText('Review private links');
+    fireEvent.click(screen.getByRole('button', { name: 'Send redacted copy' }));
+
+    await waitFor(() => {
+      expect(claude.sendMessage).toHaveBeenCalledTimes(1);
+      expect(openai.sendMessage).toHaveBeenCalledTimes(1);
+    });
+    expect(claude.sendMessage.mock.calls[0]?.[0]).not.toContain('intake-secret');
+    expect(openai.sendMessage.mock.calls[0]?.[0]).not.toContain('intake-secret');
+  });
+
+  it('does not fan out when the advisor cancels private-link review', async () => {
+    const claude = makeProvider('claude', { content: 'claude response' });
+    const openai = makeProvider('openai', { content: 'openai response' });
+    render(
+      <RunOnAllButton
+        tier="professional"
+        providers={[
+          { id: 'claude', label: 'Claude', provider: claude },
+          { id: 'openai', label: 'OpenAI', provider: openai },
+        ]}
+        prompt={SECRET_SCRUB_FIXTURES.urls}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('run-on-all-button'));
+    await screen.findByText('Review private links');
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    await waitFor(() => {
+      expect(claude.sendMessage).not.toHaveBeenCalled();
+      expect(openai.sendMessage).not.toHaveBeenCalled();
     });
   });
 

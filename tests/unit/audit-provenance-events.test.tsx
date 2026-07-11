@@ -96,6 +96,7 @@ import { useMatterStore } from '@/platform/matter/matterStore';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { CONFIDENTIALITY_MODE_SETTING_KEY } from '@/platform/privacy/egress';
 import { CONFIDENTIALITY_CHOICE_MADE_KEY } from '@/platform/privacy/resolvePersonalEgressDefault';
+import { SECRET_SCRUB_FIXTURES } from '@/platform/privacy/promptPreparation.fixtures';
 
 type LoggedEntry = Omit<AuditEntry, 'id' | 'timestamp'>;
 
@@ -504,6 +505,37 @@ describe('Lantern 3.0 audit provenance events', () => {
       metadata: expect.objectContaining({ decision: 'blocked' }),
     }));
     expect(eventsOfType(logged, 'egress_blocked')).toHaveLength(1);
+  });
+
+  it('shows the review, sends only a redacted chat copy, and records the finding', async () => {
+    const logged: LoggedEntry[] = [];
+    render(<AIChatViewer chatData={chat} apiKeys={apiKey} onAuditLog={(entry) => logged.push(entry)} />);
+
+    act(() => fireEvent.change(screen.getByTestId('chat-input'), { target: { value: SECRET_SCRUB_FIXTURES.urls } }));
+    act(() => fireEvent.click(screen.getByTestId('chat-send-button')));
+    await screen.findByText('Review private links');
+    fireEvent.click(screen.getByRole('button', { name: 'Send redacted copy' }));
+
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1));
+    expect(mocks.sendMessage.mock.calls[0]?.[0]).not.toContain('intake-secret');
+    expect(logged).toContainEqual(expect.objectContaining({
+      action: 'prompt_preparation',
+      metadata: expect.objectContaining({
+        decision: 'redacted_by_user',
+        categories: expect.arrayContaining([expect.objectContaining({ kind: 'intake_link_secret', count: 1 })]),
+      }),
+    }));
+  });
+
+  it('does not send a chat request when the advisor cancels private-link review', async () => {
+    render(<AIChatViewer chatData={chat} apiKeys={apiKey} />);
+
+    act(() => fireEvent.change(screen.getByTestId('chat-input'), { target: { value: SECRET_SCRUB_FIXTURES.urls } }));
+    act(() => fireEvent.click(screen.getByTestId('chat-send-button')));
+    await screen.findByText('Review private links');
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    await waitFor(() => expect(mocks.sendMessage).not.toHaveBeenCalled());
   });
 
   it('does not log an attachment send when an unscannable attachment is blocked', async () => {

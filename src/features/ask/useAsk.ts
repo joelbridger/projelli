@@ -43,6 +43,7 @@ import { sourceIdentitiesFromSources } from '@/platform/audit/sourceCapture';
 import {
   createAuditPairId,
   mustLogAuditPhase,
+  withDurableAuditPhase,
   type AuditEntryInput,
   type AuditLogSink,
 } from '@/platform/audit/durableAudit';
@@ -1477,14 +1478,23 @@ export function useAsk({
         });
         try {
           const auditPairId = createAuditPairId('ask');
-          const egressIntent = buildEgressEntry();
-          if (egressIntent) {
-            await mustLogAuditPhase(onAuditLog, egressIntent, 'intent', auditPairId);
-          }
-          const modelCallIntent = buildModelCallEntry(0);
-          if (modelCallIntent) {
-            await mustLogAuditPhase(onAuditLog, modelCallIntent, 'intent', auditPairId);
-          }
+          // Preparation must be the first durable record for this request. If
+          // the advisor cancels or this background-safe gate blocks, there is
+          // no egress intent to record because nothing can leave the device.
+          const preparedAuditLogger: AuditLogSink = (entry) => {
+            if (entry.action !== 'prompt_preparation') return;
+            onAuditLog?.(entry);
+            const decision = (entry.metadata as { decision?: string }).decision;
+            if (decision === 'blocked' || decision === 'cancelled') return;
+            const egressIntent = buildEgressEntry();
+            if (egressIntent) {
+              onAuditLog?.(withDurableAuditPhase(egressIntent, 'intent', auditPairId));
+            }
+            const modelCallIntent = buildModelCallEntry(0);
+            if (modelCallIntent) {
+              onAuditLog?.(withDurableAuditPhase(modelCallIntent, 'intent', auditPairId));
+            }
+          };
           if (typeof provider.sendMessageStreaming === 'function') {
             failedStage = 'provider-send';
             providerCallStarted = true;
@@ -1523,6 +1533,7 @@ export function useAsk({
                   { id: 'retrieval', origin: 'retrieval', label: 'Retrieved workspace material', text: workspaceBlock },
                   { id: 'chat-history', origin: 'chat_history', label: 'Earlier Ask answers', text: historyBlock },
                 ],
+                onAuditLog: preparedAuditLogger,
               }),
               stallPromise,
             ]);
@@ -1555,24 +1566,12 @@ export function useAsk({
                 fileToolsEnabled,
                 isDemo: IS_DEMO,
                 hasDemoByokKey: hasDemoByokKey(),
+                onAuditLog: preparedAuditLogger,
                 parts: [
                   { id: 'prompt', origin: 'typed_question', label: 'Your question', text: q },
                   { id: 'retrieval', origin: 'retrieval', label: 'Retrieved workspace material', text: workspaceBlock },
                   { id: 'chat-history', origin: 'chat_history', label: 'Earlier Ask answers', text: historyBlock },
                 ],
-                modelCall: (response) => ({
-                  action: 'model_call',
-                  description: `Search question to ${providerAudit.model}`,
-                  model: providerAudit.model,
-                  inputs: { promptLength: q.length },
-                  outputs: { contentLength: response.content.length },
-                  userDecision: 'auto',
-                  metadata: { chatId, askScope },
-                  tokensIn: response.usage.inputTokens,
-                  tokensOut: response.usage.outputTokens,
-                  costUsd: response.cost,
-                  provider: providerAudit.providerId,
-                }),
               }),
               stallPromise,
             ]);
