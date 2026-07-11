@@ -480,7 +480,7 @@ describe('createTemplatesMarketplaceService factory', () => {
     const svc = createTemplatesMarketplaceService(fs.fs, '/ws');
 
     // Smoke-check the option wiring by inspecting refresh()'s URL.
-    const fetchSpy = vi.fn(async () => ({
+    const fetchSpy = vi.fn(async (..._args: Parameters<typeof fetch>) => ({
       ok: true,
       json: async () => [SAMPLE_ENTRY],
     } as Response));
