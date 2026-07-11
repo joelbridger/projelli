@@ -23,9 +23,12 @@
 //   Each voice dir contains <voice-id>.onnx and <voice-id>.onnx.json.
 
 use std::path::PathBuf;
+use tauri::State;
 use tauri::{AppHandle, Manager};
 use tokio::sync::Mutex;
 
+use crate::commands::connector_network::{authorize_url, await_authorized};
+use crate::network_policy::{NetworkPolicy, VOICE_MODEL_DOWNLOAD};
 use crate::sidecars::{PiperSidecar, Sidecar};
 
 /// Tauri state: a single resident PiperSidecar shared across all commands.
@@ -180,7 +183,11 @@ pub async fn tts_stop(state: tauri::State<'_, TtsState>) -> Result<(), String> {
 /// Download a lazy-loaded voice from Advisor Prep Hero CDN.
 /// Returns the local path to the downloaded .onnx file on success.
 #[tauri::command]
-pub async fn tts_download_voice(app: AppHandle, voice_id: String) -> Result<String, String> {
+pub async fn tts_download_voice(
+    app: AppHandle,
+    voice_id: String,
+    policy: State<'_, NetworkPolicy>,
+) -> Result<String, String> {
     let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
 
     let voice_dir = data_dir.join("voices").join(&voice_id);
@@ -189,7 +196,13 @@ pub async fn tts_download_voice(app: AppHandle, voice_id: String) -> Result<Stri
         .map_err(|e| e.to_string())?;
 
     let cdn_url = format!("https://lantern.com/voices/{voice_id}.tar.gz");
-    let response = reqwest::get(&cdn_url).await.map_err(|e| e.to_string())?;
+    let grant = authorize_url(policy.inner(), &VOICE_MODEL_DOWNLOAD, &cdn_url)
+        .map_err(|e| e.to_string())?;
+    let response = await_authorized(policy.inner(), &grant, async {
+        Ok(reqwest::get(&cdn_url).await?)
+    })
+    .await
+    .map_err(|e| e.to_string())?;
 
     if !response.status().is_success() {
         return Err(format!(
@@ -198,7 +211,11 @@ pub async fn tts_download_voice(app: AppHandle, voice_id: String) -> Result<Stri
         ));
     }
 
-    let archive_bytes = response.bytes().await.map_err(|e| e.to_string())?;
+    let archive_bytes = await_authorized(policy.inner(), &grant, async {
+        Ok(response.bytes().await?)
+    })
+    .await
+    .map_err(|e| e.to_string())?;
     let tmp_path = voice_dir.join("download.tar.gz");
     tokio::fs::write(&tmp_path, &archive_bytes)
         .await

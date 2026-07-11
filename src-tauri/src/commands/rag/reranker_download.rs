@@ -12,11 +12,17 @@
 // with the `RERANKER_NOT_READY` marker and retrieval falls back to vector-only.
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 
 use anyhow::{Context, Result};
 use serde::Serialize;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, State};
+
+use crate::commands::connector_network::{authorize_url, await_authorized};
+use crate::network_policy::{NetworkPolicy, RERANKER_MODEL_DOWNLOAD};
 
 use super::reranker;
 
@@ -81,7 +87,10 @@ pub fn model_files_cached(cache_dir: &Path) -> bool {
 /// subdir distinct from the embedder's.
 pub fn writable_cache_dir() -> PathBuf {
     if let Some(data_dir) = dirs::data_dir() {
-        return data_dir.join(crate::identity::OS_DATA_SUBDIR).join("models").join("reranker");
+        return data_dir
+            .join(crate::identity::OS_DATA_SUBDIR)
+            .join("models")
+            .join("reranker");
     }
     std::env::temp_dir().join(format!("{}-reranker", crate::identity::OS_DATA_SUBDIR))
 }
@@ -92,7 +101,7 @@ fn emit(app: &AppHandle, p: RerankerDownloadProgress) {
 
 /// Best-effort exact grand total via HEAD on each file. Any failure → None and
 /// the UI falls back to a byte counter.
-async fn head_total_size() -> Option<u64> {
+async fn head_total_size(policy: &NetworkPolicy) -> Option<u64> {
     let client = match reqwest::Client::builder()
         .connect_timeout(std::time::Duration::from_secs(10))
         .timeout(std::time::Duration::from_secs(20))
@@ -104,7 +113,12 @@ async fn head_total_size() -> Option<u64> {
     let mut sum: u64 = 0;
     for file in REQUIRED_FILES {
         let url = format!("https://huggingface.co/{MODEL_REPO}/resolve/main/{file}");
-        let resp = client.head(&url).send().await.ok()?;
+        let grant = authorize_url(policy, &RERANKER_MODEL_DOWNLOAD, &url).ok()?;
+        let resp = await_authorized(policy, &grant, async {
+            Ok(client.head(&url).send().await?)
+        })
+        .await
+        .ok()?;
         if !resp.status().is_success() {
             return None;
         }
@@ -122,6 +136,85 @@ async fn head_total_size() -> Option<u64> {
         sum += len;
     }
     Some(sum)
+}
+
+#[derive(Clone)]
+struct AsyncSinkProgress {
+    sink: Arc<dyn Fn(RerankerDownloadProgress) + Send + Sync>,
+    file: String,
+    done_before: u64,
+    file_done: u64,
+    grand_total: Option<u64>,
+    last_emit: u64,
+}
+
+impl hf_hub::api::tokio::Progress for AsyncSinkProgress {
+    async fn init(&mut self, _size: usize, _filename: &str) {
+        self.file_done = 0;
+        self.last_emit = 0;
+        self.emit_now();
+    }
+    async fn update(&mut self, size: usize) {
+        self.file_done += size as u64;
+        if self.file_done.saturating_sub(self.last_emit) >= 4 * 1024 * 1024 {
+            self.emit_now();
+        }
+    }
+    async fn finish(&mut self) {
+        self.emit_now();
+    }
+}
+
+impl AsyncSinkProgress {
+    fn emit_now(&mut self) {
+        self.last_emit = self.file_done;
+        (self.sink)(RerankerDownloadProgress {
+            state: RerankerDownloadState::Downloading,
+            file: Some(self.file.clone()),
+            bytes_done: self.done_before + self.file_done,
+            bytes_total: self.grand_total,
+            message: None,
+        });
+    }
+}
+
+async fn download_all_authorized(
+    policy: &NetworkPolicy,
+    cache_dir: &Path,
+    grand_total: Option<u64>,
+    sink: impl Fn(RerankerDownloadProgress) + Send + Sync + 'static,
+) -> Result<()> {
+    let api =
+        hf_hub::api::tokio::ApiBuilder::from_cache(hf_hub::Cache::new(cache_dir.to_path_buf()))
+            .with_progress(false)
+            .build()
+            .context("hf-hub api init")?;
+    let repo = api.model(MODEL_REPO.to_string());
+    let sink: Arc<dyn Fn(RerankerDownloadProgress) + Send + Sync> = Arc::new(sink);
+    let mut done_before = 0;
+    for file in REQUIRED_FILES {
+        if let Some(len) = cached_file_len(cache_dir, file) {
+            done_before += len;
+            continue;
+        }
+        let url = format!("https://huggingface.co/{MODEL_REPO}/resolve/main/{file}");
+        let grant = authorize_url(policy, &RERANKER_MODEL_DOWNLOAD, &url)?;
+        let progress = AsyncSinkProgress {
+            sink: sink.clone(),
+            file: file.into(),
+            done_before,
+            file_done: 0,
+            grand_total,
+            last_emit: 0,
+        };
+        await_authorized(policy, &grant, async {
+            Ok(repo.download_with_progress(file, progress).await?)
+        })
+            .await
+            .with_context(|| format!("download {file}"))?;
+        done_before += cached_file_len(cache_dir, file).unwrap_or(0);
+    }
+    Ok(())
 }
 
 /// hf-hub `Progress` adapter forwarding throttled aggregate progress to a sink.
@@ -166,7 +259,9 @@ impl SinkProgress {
 
 fn cached_file_len(cache_dir: &Path, file: &str) -> Option<u64> {
     let cache = hf_hub::Cache::new(cache_dir.to_path_buf());
-    let p = cache.repo(hf_hub::Repo::model(MODEL_REPO.to_string())).get(file)?;
+    let p = cache
+        .repo(hf_hub::Repo::model(MODEL_REPO.to_string()))
+        .get(file)?;
     std::fs::metadata(&p).ok().map(|m| m.len())
 }
 
@@ -178,10 +273,11 @@ fn download_all(
     grand_total: Option<u64>,
     sink: impl Fn(RerankerDownloadProgress) + Send + Clone + 'static,
 ) -> Result<()> {
-    let api = hf_hub::api::sync::ApiBuilder::from_cache(hf_hub::Cache::new(cache_dir.to_path_buf()))
-        .with_progress(false)
-        .build()
-        .context("hf-hub api init")?;
+    let api =
+        hf_hub::api::sync::ApiBuilder::from_cache(hf_hub::Cache::new(cache_dir.to_path_buf()))
+            .with_progress(false)
+            .build()
+            .context("hf-hub api init")?;
     let repo = api.model(MODEL_REPO.to_string());
 
     let mut done_before: u64 = 0;
@@ -207,7 +303,7 @@ fn download_all(
 
 /// Full job: size prepass → download missing → verify by initializing the
 /// reranker. On verify failure the repo dir is wiped so Retry re-fetches.
-async fn run_download(app: &AppHandle) -> Result<()> {
+async fn run_download(app: &AppHandle, policy: &NetworkPolicy) -> Result<()> {
     emit(
         app,
         RerankerDownloadProgress {
@@ -219,18 +315,13 @@ async fn run_download(app: &AppHandle) -> Result<()> {
         },
     );
 
-    let total = head_total_size().await;
+    let total = head_total_size(policy).await;
 
     let dir = writable_cache_dir();
     std::fs::create_dir_all(&dir).context("create reranker cache dir")?;
 
     let app_for_sink = app.clone();
-    let dir_for_dl = dir.clone();
-    tokio::task::spawn_blocking(move || {
-        download_all(&dir_for_dl, total, move |p| emit(&app_for_sink, p))
-    })
-    .await
-    .context("download task join failed")??;
+    download_all_authorized(policy, &dir, total, move |p| emit(&app_for_sink, p)).await?;
 
     emit(
         app,
@@ -268,7 +359,10 @@ pub async fn reranker_status() -> Result<String, String> {
 /// otherwise runs the download to completion and returns "ready" (or errors
 /// after emitting an Error event).
 #[tauri::command]
-pub async fn reranker_ensure(app: AppHandle) -> Result<String, String> {
+pub async fn reranker_ensure(
+    app: AppHandle,
+    policy: State<'_, NetworkPolicy>,
+) -> Result<String, String> {
     if DOWNLOADING.load(Ordering::SeqCst) {
         return Ok("downloading".into());
     }
@@ -301,7 +395,7 @@ pub async fn reranker_ensure(app: AppHandle) -> Result<String, String> {
     }
     let _downloading_guard = DownloadingGuard;
 
-    match run_download(&app).await {
+    match run_download(&app, policy.inner()).await {
         Ok(()) => {
             emit(
                 &app,

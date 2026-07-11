@@ -47,6 +47,28 @@ use protocol::{
     ERROR_METHOD_NOT_FOUND,
 };
 
+const MCP_OFFLINE_MESSAGE: &str =
+    "Offline Mode is on. Lantern cannot connect to the internet. Turn it off to use MCP access.";
+
+/// This binary is separate from the desktop process. Reloading the same
+/// native policy record before every request makes a live external-client
+/// session lose export capability on its next request after a policy flip.
+fn require_mcp_access(policy: &lantern_lib::network_policy::NetworkPolicy) -> Result<(), String> {
+    if policy.status().offline_mode || !policy.status().hydrated {
+        return Err(MCP_OFFLINE_MESSAGE.to_string());
+    }
+    Ok(())
+}
+
+fn load_current_mcp_policy() -> Result<lantern_lib::network_policy::NetworkPolicy, String> {
+    let app_data = dirs::data_dir()
+        .ok_or_else(|| MCP_OFFLINE_MESSAGE.to_string())?
+        .join(lantern_lib::identity::OS_DATA_SUBDIR);
+    let policy = lantern_lib::network_policy::NetworkPolicy::load_from_app_data_dir(&app_data);
+    require_mcp_access(&policy)?;
+    Ok(policy)
+}
+
 /// Advertised MCP protocol version. The spec lets servers pick the highest
 /// version they understand; Claude Desktop (April 2026) speaks this one.
 pub const MCP_PROTOCOL_VERSION: &str = "2025-03-26";
@@ -132,7 +154,10 @@ fn main() {
         let line = match line {
             Ok(l) => l,
             Err(e) => {
-                eprintln!("{}: stdin read error: {e}", lantern_lib::identity::MCP_APPROVAL_TEMP_PREFIX);
+                eprintln!(
+                    "{}: stdin read error: {e}",
+                    lantern_lib::identity::MCP_APPROVAL_TEMP_PREFIX
+                );
                 break;
             }
         };
@@ -171,11 +196,17 @@ fn write_response(out: &mut impl Write, resp: &JsonRpcResponse) {
     match serde_json::to_string(resp) {
         Ok(s) => {
             if let Err(e) = writeln!(out, "{s}") {
-                eprintln!("{}: stdout write error: {e}", lantern_lib::identity::MCP_APPROVAL_TEMP_PREFIX);
+                eprintln!(
+                    "{}: stdout write error: {e}",
+                    lantern_lib::identity::MCP_APPROVAL_TEMP_PREFIX
+                );
             }
             let _ = out.flush();
         }
-        Err(e) => eprintln!("{}: serialize error: {e}", lantern_lib::identity::MCP_APPROVAL_TEMP_PREFIX),
+        Err(e) => eprintln!(
+            "{}: serialize error: {e}",
+            lantern_lib::identity::MCP_APPROVAL_TEMP_PREFIX
+        ),
     }
 }
 
@@ -183,6 +214,11 @@ fn write_response(out: &mut impl Write, resp: &JsonRpcResponse) {
 /// notifications (which never produce a response).
 async fn dispatch(req: &JsonRpcRequest, ctx: Option<&ServerCtx>) -> Option<JsonRpcResponse> {
     let id = req.id.clone().unwrap_or(Value::Null);
+    if !req.method.starts_with("notifications/") && req.method != "initialized" {
+        if let Err(message) = load_current_mcp_policy() {
+            return Some(JsonRpcResponse::error(id, ERROR_INTERNAL, message));
+        }
+    }
     match req.method.as_str() {
         "initialize" => Some(handle_initialize(id)),
         "initialized" | "notifications/initialized" => None, // notification
@@ -193,7 +229,9 @@ async fn dispatch(req: &JsonRpcRequest, ctx: Option<&ServerCtx>) -> Option<JsonR
             None => Some(JsonRpcResponse::error(
                 id,
                 ERROR_INTERNAL,
-                format!("{WORKSPACE_ENV} is not configured — restart Advisor Prep Hero and try again"),
+                format!(
+                    "{WORKSPACE_ENV} is not configured — restart Advisor Prep Hero and try again"
+                ),
             )),
         },
         // `notifications/cancelled`, `logging/setLevel`, etc. — swallow quietly.
@@ -225,6 +263,23 @@ fn handle_initialize(id: Value) -> JsonRpcResponse {
 
 fn handle_tools_list(id: Value) -> JsonRpcResponse {
     JsonRpcResponse::ok(id, json!({ "tools": tools::describe_tools() }))
+}
+
+#[cfg(test)]
+mod offline_mode_tests {
+    use super::*;
+
+    #[test]
+    fn offline_policy_denies_mcp_access_with_the_standard_message() {
+        let policy = lantern_lib::network_policy::NetworkPolicy::load_from_app_data_dir(
+            &tempfile::tempdir().unwrap().keep(),
+        );
+        policy.set_offline_mode(true).unwrap();
+        assert_eq!(
+            require_mcp_access(&policy).unwrap_err(),
+            MCP_OFFLINE_MESSAGE
+        );
+    }
 }
 
 async fn handle_tools_call(id: Value, params: Option<&Value>, ctx: &ServerCtx) -> JsonRpcResponse {
@@ -380,7 +435,10 @@ fn resolve_against_root(
 
 /// Resolve a workspace-relative path, rejecting traversal attempts, absolute
 /// paths, and symlinks escaping the workspace root.
-pub fn resolve_workspace_path(workspace: &Path, relative: &str) -> Result<ResolvedWorkspacePath, String> {
+pub fn resolve_workspace_path(
+    workspace: &Path,
+    relative: &str,
+) -> Result<ResolvedWorkspacePath, String> {
     if relative.is_empty() {
         return Err("path is empty".into());
     }
@@ -512,7 +570,10 @@ mod tests {
     #[test]
     fn rejects_lantern_internal_root_path() {
         let ws = std::env::temp_dir();
-        let scope_path = format!("{}/mcp-session-scope.json", lantern_lib::identity::WORKSPACE_DATA_DIR);
+        let scope_path = format!(
+            "{}/mcp-session-scope.json",
+            lantern_lib::identity::WORKSPACE_DATA_DIR
+        );
         let err = resolve_workspace_path(&ws, &scope_path).unwrap_err();
         assert!(
             err.contains("App internal files are not exposed over MCP"),
@@ -523,7 +584,10 @@ mod tests {
     #[test]
     fn rejects_lantern_internal_root_path_with_backslashes() {
         let ws = std::env::temp_dir();
-        let scope_path = format!("{}\\mcp-session-scope.json", lantern_lib::identity::WORKSPACE_DATA_DIR);
+        let scope_path = format!(
+            "{}\\mcp-session-scope.json",
+            lantern_lib::identity::WORKSPACE_DATA_DIR
+        );
         let err = resolve_workspace_path(&ws, &scope_path).unwrap_err();
         assert!(
             err.contains("App internal files are not exposed over MCP"),
@@ -534,7 +598,10 @@ mod tests {
     #[test]
     fn rejects_lantern_internal_root_path_after_current_dir_segment() {
         let ws = std::env::temp_dir();
-        let scope_path = format!("./{}/mcp-session-scope.json", lantern_lib::identity::WORKSPACE_DATA_DIR);
+        let scope_path = format!(
+            "./{}/mcp-session-scope.json",
+            lantern_lib::identity::WORKSPACE_DATA_DIR
+        );
         let err = resolve_workspace_path(&ws, &scope_path).unwrap_err();
         assert!(
             err.contains("App internal files are not exposed over MCP"),
@@ -638,7 +705,8 @@ mod tests {
             .expect("existing file through a symlinked workspace root must resolve");
         assert!(
             p.lexical_path.starts_with(&symlinked_root),
-            "lexical_path must stay rooted at the caller's original workspace spelling, got: {:?}", p.lexical_path
+            "lexical_path must stay rooted at the caller's original workspace spelling, got: {:?}",
+            p.lexical_path
         );
         assert!(
             p.io_path.starts_with(real.path()),
@@ -653,7 +721,8 @@ mod tests {
         );
         assert!(
             p2.io_path.starts_with(real.path()),
-            "new-file io_path must also be rooted at the canonical target, got: {:?}", p2.io_path
+            "new-file io_path must also be rooted at the canonical target, got: {:?}",
+            p2.io_path
         );
     }
 

@@ -46,6 +46,8 @@ pub enum EgressCategory {
     Licensing,
     Connector,
     ProductMaintenance,
+    Navigation,
+    ExternalClientExport,
 }
 
 /// The kinds of data an operation may transfer.  Receipt writing arrives in a
@@ -269,6 +271,88 @@ pub const ICS_CALENDAR_SYNC: EgressOperation = EgressOperation {
     receipt_label: "ICS calendar sync",
 };
 
+// Model repositories intentionally name only the configured first-hop host.
+// Hugging Face selects its storage CDN with a short-lived redirect; the
+// download command cancels the entire request future on a policy flip, so the
+// redirect can never outlive the authorization that started it.
+pub const RAG_MODEL_DOWNLOAD: EgressOperation = EgressOperation {
+    id: "rag-model-download",
+    category: EgressCategory::ProductMaintenance,
+    destination_rule: DestinationRule::ExactHosts(&["huggingface.co"]),
+    data_classes: EgressDataClasses {
+        content: false,
+        metadata: true,
+        credential: false,
+    },
+    receipt_label: "RAG model download",
+};
+pub const RERANKER_MODEL_DOWNLOAD: EgressOperation = EgressOperation {
+    id: "reranker-model-download",
+    category: EgressCategory::ProductMaintenance,
+    destination_rule: DestinationRule::ExactHosts(&["huggingface.co"]),
+    data_classes: EgressDataClasses {
+        content: false,
+        metadata: true,
+        credential: false,
+    },
+    receipt_label: "reranker model download",
+};
+pub const LOCAL_LLM_MODEL_DOWNLOAD: EgressOperation = EgressOperation {
+    id: "local-llm-model-download",
+    category: EgressCategory::ProductMaintenance,
+    destination_rule: DestinationRule::ExactHosts(&["huggingface.co"]),
+    data_classes: EgressDataClasses {
+        content: false,
+        metadata: true,
+        credential: false,
+    },
+    receipt_label: "local LLM model download",
+};
+pub const VOICE_MODEL_DOWNLOAD: EgressOperation = EgressOperation {
+    id: "voice-model-download",
+    category: EgressCategory::ProductMaintenance,
+    destination_rule: DestinationRule::ExactHosts(&["lantern.com"]),
+    data_classes: EgressDataClasses {
+        content: false,
+        metadata: true,
+        credential: false,
+    },
+    receipt_label: "voice model download",
+};
+pub const MEETING_AUTO_JOIN: EgressOperation = EgressOperation {
+    id: "meeting-auto-join",
+    category: EgressCategory::Navigation,
+    destination_rule: DestinationRule::UserConfiguredHost,
+    data_classes: EgressDataClasses {
+        content: false,
+        metadata: true,
+        credential: false,
+    },
+    receipt_label: "meeting auto-join",
+};
+pub const EXTERNAL_NAVIGATION: EgressOperation = EgressOperation {
+    id: "external-navigation",
+    category: EgressCategory::Navigation,
+    destination_rule: DestinationRule::UserConfiguredHost,
+    data_classes: EgressDataClasses {
+        content: false,
+        metadata: true,
+        credential: false,
+    },
+    receipt_label: "external navigation",
+};
+pub const MCP_EXTERNAL_CLIENT_EXPORT: EgressOperation = EgressOperation {
+    id: "mcp-external-client-export",
+    category: EgressCategory::ExternalClientExport,
+    destination_rule: DestinationRule::UserConfiguredHost,
+    data_classes: EgressDataClasses {
+        content: true,
+        metadata: true,
+        credential: false,
+    },
+    receipt_label: "MCP access",
+};
+
 /// A small seed registry for Lane 0.  Later lanes extend this list as they
 /// migrate real sinks; authorization never trusts an unregistered operation.
 pub const EGRESS_OPERATION_REGISTRY: &[EgressOperation] = &[
@@ -288,6 +372,13 @@ pub const EGRESS_OPERATION_REGISTRY: &[EgressOperation] = &[
     GOOGLE_CALENDAR_OAUTH,
     GOOGLE_CALENDAR_SYNC,
     ICS_CALENDAR_SYNC,
+    RAG_MODEL_DOWNLOAD,
+    RERANKER_MODEL_DOWNLOAD,
+    LOCAL_LLM_MODEL_DOWNLOAD,
+    VOICE_MODEL_DOWNLOAD,
+    MEETING_AUTO_JOIN,
+    EXTERNAL_NAVIGATION,
+    MCP_EXTERNAL_CLIENT_EXPORT,
 ];
 
 pub fn registered_operation(id: &str) -> Option<&'static EgressOperation> {

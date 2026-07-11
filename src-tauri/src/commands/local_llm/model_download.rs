@@ -13,8 +13,12 @@ use sha2::{Digest, Sha256};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
+use tauri::State;
 use tauri::{AppHandle, Emitter};
 use tokio::io::AsyncWriteExt;
+
+use crate::commands::connector_network::{authorize_url, await_authorized};
+use crate::network_policy::{NetworkPolicy, LOCAL_LLM_MODEL_DOWNLOAD};
 
 pub const MODEL_ID: &str = "qwen3-4b-instruct-2507-q4-k-m";
 pub const MODEL_REPO: &str = "bartowski/Qwen_Qwen3-4B-Instruct-2507-GGUF";
@@ -399,6 +403,19 @@ pub async fn download_model_to_dir(
     Ok(final_path)
 }
 
+/// Policy-wrapped production entry point.  The authorization is held across
+/// the entire resumable transfer, including the response stream, so a mode
+/// flip drops the in-flight request rather than merely blocking a later retry.
+async fn download_model_to_dir_authorized(
+    policy: &NetworkPolicy,
+    model_dir: &Path,
+    spec: &ModelDownloadSpec,
+    sink: impl Fn(LocalModelDownloadProgress) + Send + Sync,
+) -> Result<PathBuf> {
+    let grant = authorize_url(policy, &LOCAL_LLM_MODEL_DOWNLOAD, &spec.source_url)?;
+    await_authorized(policy, &grant, download_model_to_dir(model_dir, spec, sink)).await
+}
+
 pub async fn local_llm_model_status_value() -> Result<String> {
     if DOWNLOADING.load(Ordering::SeqCst) {
         return Ok("downloading".to_string());
@@ -419,7 +436,10 @@ pub async fn local_llm_model_status() -> Result<String, String> {
 }
 
 #[tauri::command]
-pub async fn local_llm_model_ensure(app: AppHandle) -> Result<String, String> {
+pub async fn local_llm_model_ensure(
+    app: AppHandle,
+    policy: State<'_, NetworkPolicy>,
+) -> Result<String, String> {
     if DOWNLOADING.load(Ordering::SeqCst) {
         return Ok("downloading".to_string());
     }
@@ -448,7 +468,10 @@ pub async fn local_llm_model_ensure(app: AppHandle) -> Result<String, String> {
     let _ = write_manifest(&dir, &spec.manifest(LocalModelStatus::Downloading));
 
     let app_for_sink = app.clone();
-    let result = download_model_to_dir(&dir, &spec, move |p| emit(&app_for_sink, p)).await;
+    let result = download_model_to_dir_authorized(policy.inner(), &dir, &spec, move |p| {
+        emit(&app_for_sink, p)
+    })
+    .await;
 
     match result {
         Ok(_) => Ok("ready".to_string()),
