@@ -14,6 +14,7 @@ pub mod core_store;
 pub mod commands;
 pub mod engine;
 pub mod importer;
+pub mod migration_commands;
 pub mod model;
 pub mod provider;
 pub mod redtail;

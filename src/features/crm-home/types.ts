@@ -126,6 +126,25 @@ export interface CrmMigrationData {
   workflowChecklists: readonly MigrationWorkflowChecklist[];
   attachmentAccounting: readonly AttachmentAccountingRecord[];
   exports: readonly ExportJobStatus[];
+  report?: MigrationFidelityReport;
+}
+
+export interface MigrationFidelityRow {
+  sourceType: string;
+  fetched: number;
+  imported: number;
+  skipped: number;
+  rejected: number;
+  plainReason?: string | null;
+}
+
+export interface MigrationFidelityReport {
+  batchId: string;
+  generatedAt: string;
+  matrix: readonly MigrationFidelityRow[];
+  attachments: { viaApi: string; affected: number; exported: number; gaps: number; unaccounted: number };
+  workflows: { checklists: number; pending: number };
+  message: string;
 }
 
 export interface CrmHomeActions {
@@ -137,6 +156,7 @@ export interface CrmHomeActions {
   recordAttachmentAccounting?: (record: AttachmentAccountingRecord) => void;
   createExport?: (kind: ExportJobStatus['kind']) => void;
   retryExport?: (kind: ExportJobStatus['kind']) => void;
+  runMigrationImport?: (baseUrl: string) => Promise<void>;
 }
 
 /**
