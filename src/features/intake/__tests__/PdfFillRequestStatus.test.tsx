@@ -41,9 +41,9 @@ describe('PDF form request status', () => {
     expect(within(row).queryByText('Sensitive template title')).toBeNull();
     expect(within(row).queryByText(/raw-client-file/iu)).toBeNull();
 
-    act(() => { store.updateItem('form-request', { ...pdfRequest('received').items[0], state: 'received' }); });
+    act(() => { store.updateItem('form-request', { ...pdfRequest('received').items[0]!, state: 'received' }); });
     expect(within(row).getByText('Form returned')).toBeTruthy();
-    act(() => { store.updateItem('form-request', { ...pdfRequest('needs_followup').items[0], state: 'needs_followup' }); });
+    act(() => { store.updateItem('form-request', { ...pdfRequest('needs_followup').items[0]!, state: 'needs_followup' }); });
     expect(within(row).getByText('Needs follow-up')).toBeTruthy();
   });
 });
