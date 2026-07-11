@@ -36,6 +36,10 @@ This is a sandbox where breaking things is acceptable.
   user-facing copy; no time estimates in docs.
 - **Rust builds:** this fork uses its own `./target` (global sccache shares compiled
   artifacts). Still only ONE cargo compile at a time server-wide.
+- **Shared resources (Jameson, 2026-07-11): do NOT use the Legion test-bench laptop or any
+  other resource the mainline session could be using** — this program runs on this server
+  + Codex only. When the 06 test campaign's Layer 3 needs the Legion bench, coordinate
+  through BOARD.md and get an explicit go first.
 - **🚨 MODEL ROUTING (Jameson's explicit rule for this program, 2026-07-11):** ALL work —
   design lanes, build lanes, test lanes, investigations — is done by **Codex
   (`codex-task`, gpt-5.6-terra, high reasoning effort)**. The ONLY Anthropic model in the
