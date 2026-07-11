@@ -78,7 +78,7 @@ describe('RequestFromClientDialog', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it('blocks PDF and signature items in context before the issuer is called', async () => {
+  it('allows an approved PDF item to be reviewed and sent', async () => {
     vi.mocked(intakeFactMatchList).mockResolvedValue([]);
     const issueRequest = vi.fn();
     const unsupportedBlueprint: RequestBlueprint = {
@@ -106,6 +106,24 @@ describe('RequestFromClientDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: /pdf update/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Review request' }));
 
+    expect(await screen.findByText('Custodian form')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Send request' }).hasAttribute('disabled')).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Send request' }));
+    await waitFor(() => expect(issueRequest).toHaveBeenCalledWith(expect.objectContaining({
+      items: [expect.objectContaining({ t: 'pdf_fill', prefill: [] })],
+    })));
+  });
+
+  it('keeps signature items blocked in the review screen', async () => {
+    vi.mocked(intakeFactMatchList).mockResolvedValue([]);
+    const issueRequest = vi.fn();
+    const signatureBlueprint: RequestBlueprint = {
+      blueprintId: 'signature-request', schemaVersion: 1, label: 'Signature request', source: 'firm_saved', defaultKind: 'standing',
+      items: [{ t: 'signature', item_id: 'signature', label: 'Sign form', help_text: '', required: true, subject: 'primary', grade: 'docusign' }],
+    };
+    render(<RequestFromClientDialog open onOpenChange={vi.fn()} matterId="matter-1" clientName="Avery Chen" blueprints={[signatureBlueprint]} issueRequest={issueRequest} />);
+    fireEvent.click(screen.getByRole('button', { name: /signature request/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Review request' }));
     expect(await screen.findByText(/This item type isn.t supported yet/i)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Send request' }).hasAttribute('disabled')).toBe(true);
     expect(issueRequest).not.toHaveBeenCalled();
