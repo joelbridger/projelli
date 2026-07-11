@@ -5,6 +5,17 @@ import type {
 
 export const OVERLAY_FONTS = ['Helvetica', 'Times-Roman', 'Courier'] as const;
 
+/**
+ * Canvas 2D cannot consume a CSS custom property directly, so this resolves
+ * the real --kp-navy design-token value at paint time instead of duplicating
+ * its hex literal here (see src/styles/globals.css @theme for the token).
+ */
+function resolveNavyTextColor(): string {
+  if (typeof document === 'undefined') return 'black';
+  const resolved = getComputedStyle(document.documentElement).getPropertyValue('--kp-navy').trim();
+  return resolved || 'black';
+}
+
 /** New overlay fields start in a visible, distinct grid position. */
 export function overlayField(index: number): PdfFieldMapEntry {
   const zeroBased = Math.max(0, index - 1);
@@ -103,7 +114,7 @@ export function drawOverlayDryFill(
   context.beginPath();
   context.rect(x, y, width, height);
   context.clip();
-  context.fillStyle = entry.font.color ?? '#111827';
+  context.fillStyle = entry.font.color ?? resolveNavyTextColor();
   context.font = `${String(entry.font.size * scale)}px ${canvasFontFamily(entry.font.family)}`;
   context.textAlign = entry.alignment;
   context.textBaseline = 'top';
