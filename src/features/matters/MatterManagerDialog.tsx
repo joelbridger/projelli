@@ -57,6 +57,7 @@ import { useFirmStore } from '@/platform/firm/firmStore';
 import { obtainMatterKey } from '@/platform/firm/matterKeyService';
 import { registerDevice } from '@/platform/firm/deviceKeys';
 import type { MatterMineSummary } from '@/platform/firm/contract';
+import { parseMatterHandle } from '@/platform/firm/contract';
 import { openMatterNotes } from '@/features/matters/logic/openMatterNotes';
 import { stopMatterSync } from '@/features/matters/logic/matterNotesSync';
 import { promoteMatterToShared } from '@/features/matters/logic/promoteMatterToShared';
@@ -167,7 +168,7 @@ export function MatterManagerDialog({ open, onOpenChange, focusMatterId }: Matte
       const linkedFirmIds = new Set(
         matters.filter((m) => m.firmMatterId).map((m) => m.firmMatterId ?? ''),
       );
-      setRemoteMineMatters(res.matters.filter((m) => !linkedFirmIds.has(m.matter_id)));
+      setRemoteMineMatters(res.matters.filter((m) => !linkedFirmIds.has(m.matter_handle)));
     } catch {
       setRemoteMineMatters([]);
     } finally {
@@ -255,7 +256,7 @@ export function MatterManagerDialog({ open, onOpenChange, focusMatterId }: Matte
   };
 
   const handleOpenShared = async (remote: MatterMineSummary) => {
-    setOpeningRemoteId(remote.matter_id);
+    setOpeningRemoteId(remote.matter_handle);
     setOpenError(null);
     try {
       const client = getClient();
@@ -265,7 +266,7 @@ export function MatterManagerDialog({ open, onOpenChange, focusMatterId }: Matte
       await registerDevice(client);
 
       // Attempt to obtain the matter key (seat token required for X-Seat-Token header)
-      const key = await obtainMatterKey(client, remote.matter_id, seatToken ?? '');
+      const key = await obtainMatterKey(client, remote.matter_handle, seatToken ?? '');
       if (key === null) {
         setOpenError(t('matter.manager.firm-key-blocked'));
         return;
@@ -273,9 +274,10 @@ export function MatterManagerDialog({ open, onOpenChange, focusMatterId }: Matte
 
       // Create a linked local matter
       createMatter({
-        name: remote.client_name,
-        client: remote.client_name,
-        firmMatterId: remote.matter_id,
+        name: 'Shared client waiting for encrypted details',
+        client: 'Shared client waiting for encrypted details',
+        firmMatterId: remote.matter_handle,
+        rootStreamHandle: remote.root_stream_handle,
         orgId: firm.org?.org_id ?? '',
         role: remote.role,
         shared: true,
@@ -286,10 +288,10 @@ export function MatterManagerDialog({ open, onOpenChange, focusMatterId }: Matte
         type: 'matter_shared',
         timestamp: new Date().toISOString(),
         payload: {
-          matter_id: remote.matter_id,
-          firm_matter_id: remote.matter_id,
+          matter_id: remote.matter_handle,
+          firm_matter_id: remote.matter_handle,
           ...(firm.org?.org_id ? { org_id: firm.org.org_id } : {}),
-          detail: `opened remote matter ${remote.matter_id}`,
+          detail: 'opened shared client locally',
         },
       });
 
@@ -373,21 +375,21 @@ export function MatterManagerDialog({ open, onOpenChange, focusMatterId }: Matte
 
             {!mineLoading && remoteMineMatters.map((remote) => (
               <div
-                key={remote.matter_id}
+                key={remote.matter_handle}
                 className="flex items-center justify-between rounded-md border bg-white px-3 py-2 text-xs"
-                data-testid={`firm-remote-matter-${remote.matter_id}`}
+                data-testid={`firm-remote-matter-${remote.matter_handle}`}
               >
-                <span className="font-medium">{remote.client_name}</span>
+                <span className="font-medium">Shared client</span>
                 <span className="flex items-center gap-2">
                   <span className="capitalize text-muted-foreground">{remote.role}</span>
                   <Button
                     type="button"
                     size="sm"
-                    data-testid={`firm-open-remote-${remote.matter_id}`}
-                    disabled={openingRemoteId === remote.matter_id}
+                    data-testid={`firm-open-remote-${remote.matter_handle}`}
+                    disabled={openingRemoteId === remote.matter_handle}
                     onClick={() => void handleOpenShared(remote)}
                   >
-                    {openingRemoteId === remote.matter_id
+                    {openingRemoteId === remote.matter_handle
                       ? t('matter.manager.firm-opening')
                       : t('matter.manager.firm-open-action')}
                   </Button>
@@ -762,7 +764,7 @@ export function MatterManagerDialog({ open, onOpenChange, focusMatterId }: Matte
                         {expandedRosterId === m.id && m.firmMatterId && (
                           <MemberRoster
                             matterId={m.id}
-                            firmMatterId={m.firmMatterId}
+                            firmMatterId={parseMatterHandle(m.firmMatterId)}
                             canInvite={m.role === 'owner' || firm.role === 'admin'}
                           />
                         )}

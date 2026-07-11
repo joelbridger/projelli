@@ -52,6 +52,10 @@ import {
   type ListOrgUsersResponse,
   type SsoConfigSetRequest,
   type SsoConfigView,
+  type MatterHandle,
+  type StreamHandle,
+  parseMatterHandle,
+  parseStreamHandle,
 } from './contract';
 
 export class FirmApiError extends Error {
@@ -229,12 +233,21 @@ export class FirmApiClient {
   }
 
   // --- matters ---------------------------------------------------------------
-  createMatter(clientName: string): Promise<CreateMatterResponse> {
+  /** Provision an empty opaque shell. Client names and local IDs never cross this boundary. */
+  createMatter(): Promise<CreateMatterResponse> {
     return this.request<CreateMatterResponse>(FIRM_ENDPOINTS.createMatter, {
       method: 'POST',
       auth: true,
-      body: { client_name: clientName },
+      body: {},
     });
+  }
+
+  activateMatter(matterHandle: MatterHandle): Promise<{ ok: true }> {
+    const handle = parseMatterHandle(matterHandle);
+    return this.request<{ ok: true }>(
+      FIRM_ENDPOINTS.activateMatter.replace(':matter_handle', encodeURIComponent(handle)),
+      { method: 'POST', auth: true, body: {} },
+    );
   }
 
   listMatters(): Promise<ListMattersResponse> {
@@ -256,41 +269,42 @@ export class FirmApiClient {
     });
   }
 
-  listMatterMembers(matterId: string): Promise<MatterMembersResponse> {
+  listMatterMembers(matterHandle: MatterHandle): Promise<MatterMembersResponse> {
+    const handle = parseMatterHandle(matterHandle);
     return this.request<MatterMembersResponse>(
-      FIRM_ENDPOINTS.listMatterMembers.replace(':id', encodeURIComponent(matterId)),
+      FIRM_ENDPOINTS.listMatterMembers.replace(':matter_handle', encodeURIComponent(handle)),
       { method: 'POST', auth: true },
     );
   }
 
   addMatterMember(
-    matterId: string,
+    matterHandle: MatterHandle,
     userId: string,
     role?: MatterRole,
   ): Promise<AddMatterMemberResponse> {
     return this.request<AddMatterMemberResponse>(
-      FIRM_ENDPOINTS.addMatterMember.replace(':id', encodeURIComponent(matterId)),
+      FIRM_ENDPOINTS.addMatterMember.replace(':matter_handle', encodeURIComponent(parseMatterHandle(matterHandle))),
       { method: 'POST', auth: true, body: { user_id: userId, ...(role ? { role } : {}) } },
     );
   }
 
-  removeMatterMember(matterId: string, userId: string): Promise<RemoveMatterMemberResponse> {
+  removeMatterMember(matterHandle: MatterHandle, userId: string): Promise<RemoveMatterMemberResponse> {
     return this.request<RemoveMatterMemberResponse>(
-      FIRM_ENDPOINTS.removeMatterMember.replace(':id', encodeURIComponent(matterId)),
+      FIRM_ENDPOINTS.removeMatterMember.replace(':matter_handle', encodeURIComponent(parseMatterHandle(matterHandle))),
       { method: 'POST', auth: true, body: { user_id: userId } },
     );
   }
 
-  setWall(matterId: string, userId: string, reason?: string): Promise<SetWallResponse> {
+  setWall(matterHandle: MatterHandle, userId: string): Promise<SetWallResponse> {
     return this.request<SetWallResponse>(
-      FIRM_ENDPOINTS.setWall.replace(':id', encodeURIComponent(matterId)),
-      { method: 'POST', auth: true, body: { user_id: userId, ...(reason ? { reason } : {}) } },
+      FIRM_ENDPOINTS.setWall.replace(':matter_handle', encodeURIComponent(parseMatterHandle(matterHandle))),
+      { method: 'POST', auth: true, body: { user_id: userId } },
     );
   }
 
-  clearWall(matterId: string, userId: string): Promise<ClearWallResponse> {
+  clearWall(matterHandle: MatterHandle, userId: string): Promise<ClearWallResponse> {
     return this.request<ClearWallResponse>(
-      FIRM_ENDPOINTS.clearWall.replace(':id', encodeURIComponent(matterId)),
+      FIRM_ENDPOINTS.clearWall.replace(':matter_handle', encodeURIComponent(parseMatterHandle(matterHandle))),
       { method: 'POST', auth: true, body: { user_id: userId } },
     );
   }
@@ -343,40 +357,32 @@ export class FirmApiClient {
   }
 
   publishMatterKeys(
-    matterId: string,
+    matterHandle: MatterHandle,
     payload: PublishMatterKeysRequest,
   ): Promise<PublishMatterKeysResponse> {
     return this.request<PublishMatterKeysResponse>(
-      FIRM_ENDPOINTS.publishMatterKeys.replace(':id', encodeURIComponent(matterId)),
+      FIRM_ENDPOINTS.publishMatterKeys.replace(':matter_handle', encodeURIComponent(parseMatterHandle(matterHandle))),
       { method: 'POST', auth: true, body: payload },
     );
   }
 
-  fetchMatterKeys(matterId: string, deviceId: string, seatToken: string): Promise<FetchMatterKeysResponse> {
+  fetchMatterKeys(matterHandle: MatterHandle, deviceId: string, seatToken: string): Promise<FetchMatterKeysResponse> {
     return this.request<FetchMatterKeysResponse>(
-      FIRM_ENDPOINTS.fetchMatterKeys.replace(':id', encodeURIComponent(matterId)),
+      FIRM_ENDPOINTS.fetchMatterKeys.replace(':matter_handle', encodeURIComponent(parseMatterHandle(matterHandle))),
       { method: 'POST', auth: true, body: { device_id: deviceId }, headers: { 'X-Seat-Token': seatToken } },
     );
   }
 
   // --- E2EE relay ------------------------------------------------------------
-  /**
-   * Push one encrypted CRDT update blob.
-   *
-   * @param docId - Document stream to push into. Absent (or `'_notes'`) = matter
-   *   notes; pass the document's `doc_id` for co-editing streams. Defaults to
-   *   `'_notes'` so existing call sites that omit it continue to work unchanged.
-   */
   pushUpdate(
-    matterId: string,
+    streamHandle: StreamHandle,
     blobId: string,
     ciphertextB64: string,
     seatToken: string,
-    keyEpoch?: number,
-    docId = '_notes',
+    keyEpoch: number,
   ): Promise<PushUpdateResponse> {
     return this.request<PushUpdateResponse>(
-      FIRM_ENDPOINTS.pushUpdate.replace(':id', encodeURIComponent(matterId)),
+      FIRM_ENDPOINTS.pushUpdate.replace(':stream_handle', encodeURIComponent(parseStreamHandle(streamHandle))),
       {
         method: 'POST',
         auth: true,
@@ -384,27 +390,19 @@ export class FirmApiClient {
           blob_id: blobId,
           ciphertext_b64: ciphertextB64,
           seat_token: seatToken,
-          ...(keyEpoch !== undefined ? { key_epoch: keyEpoch } : {}),
-          doc_id: docId,
+          key_epoch: keyEpoch,
         },
       },
     );
   }
 
-  /**
-   * Pull updates after `since` for a specific document stream.
-   *
-   * @param docId - Document stream to filter by. Absent = `'_notes'` (backward
-   *   compatible). Seat token rides in the X-Seat-Token header — never the query
-   *   string — so it can't leak into access logs.
-   */
-  pullUpdates(matterId: string, since: number, seatToken: string, docId = '_notes'): Promise<PullUpdatesResponse> {
+  pullUpdates(streamHandle: StreamHandle, since: number, seatToken: string): Promise<PullUpdatesResponse> {
     return this.request<PullUpdatesResponse>(
-      FIRM_ENDPOINTS.pullUpdates.replace(':id', encodeURIComponent(matterId)),
+      FIRM_ENDPOINTS.pullUpdates.replace(':stream_handle', encodeURIComponent(parseStreamHandle(streamHandle))),
       {
         method: 'GET',
         auth: true,
-        query: { since: String(since), doc_id: docId },
+        query: { since: String(since) },
         headers: { 'X-Seat-Token': seatToken },
       },
     );
@@ -416,17 +414,23 @@ export class FirmApiClient {
    * HTTP relay. The returned ticket is the ONLY credential the client puts on the
    * WS URL; the access/seat token never appears in a WebSocket URL.
    *
-   * The `doc_id` is NOT part of the ticket request — it rides as a query param
-   * on the WS URL itself (`&doc_id=`) because it is not a credential.
    */
-  createSyncTicket(matterId: string, seatToken: string): Promise<SyncTicketResponse> {
+  createSyncTicket(streamHandle: StreamHandle, seatToken: string): Promise<SyncTicketResponse> {
     return this.request<SyncTicketResponse>(
-      FIRM_ENDPOINTS.syncTicket.replace(':id', encodeURIComponent(matterId)),
+      FIRM_ENDPOINTS.syncTicket.replace(':stream_handle', encodeURIComponent(parseStreamHandle(streamHandle))),
       {
         method: 'POST',
         auth: true,
         headers: { 'X-Seat-Token': seatToken },
       },
+    );
+  }
+
+  /** Allocate an opaque document stream. The request body is intentionally empty. */
+  allocateStream(matterHandle: MatterHandle): Promise<{ stream_handle: StreamHandle }> {
+    return this.request<{ stream_handle: StreamHandle }>(
+      FIRM_ENDPOINTS.allocateStream.replace(':matter_handle', encodeURIComponent(parseMatterHandle(matterHandle))),
+      { method: 'POST', auth: true, body: {} },
     );
   }
 

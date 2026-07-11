@@ -6,12 +6,12 @@
  * ciphertext; all encryption/decryption happens here with the per-matter key.
  *
  * Lifecycle (`start()`):
- *   1. Catch up: `GET /matter/:id/updates?since=<cursor>` (paged), decrypt each
+ *   1. Catch up: stream-scoped v2 updates (paged), decrypt each
  *      blob, apply to the Yjs doc, advance the cursor.
- *   2. Live: open `WS /matter/:id/sync`; the relay sends a `ready` frame then
+ *   2. Live: open the fixed v2 sync socket with a redeemed ticket; the relay sends a `ready` frame then
  *      backlog + live `update` frames. Decrypt + apply each; advance the cursor.
  *   3. Send: on a local Yjs update, encrypt it under the matter key + current
- *      `key_epoch` and `POST /matter/:id/updates`. The relay never sees plaintext.
+ *      `key_epoch` and a stream-scoped v2 update. The relay never sees plaintext.
  *
  * Convergence: two clients sharing the same matter key apply each other's
  * (decrypted) Yjs updates and the CRDT guarantees they converge regardless of
@@ -27,9 +27,9 @@
 
 import * as Y from 'yjs';
 import type { FirmApiClient } from './FirmApiClient';
-import { encryptUpdate, decryptUpdate, importMatterKey } from './matterCrypto';
-import { getMatterSyncSocketUrl } from './firmConfig';
-import type { SyncFrame } from './contract';
+import { encryptUpdateV2, decryptUpdateV2, importMatterKey } from './matterCrypto';
+import { getMatterSyncSocketUrl, isV1MatterCryptoReadAllowed } from './firmConfig';
+import type { MatterHandle, StreamHandle, SyncFrame } from './contract';
 
 export type SyncStatus =
   | 'idle'
@@ -71,7 +71,9 @@ export interface WebSocketLike {
 export type WebSocketFactory = (url: string) => WebSocketLike;
 
 export interface MatterSyncOptions {
-  matterId: string;
+  /** Opaque relay context. Local Matter and document IDs must never be passed here. */
+  matterHandle: MatterHandle;
+  streamHandle: StreamHandle;
   /** Raw AES content key (base64) for the current epoch. */
   keyB64: string;
   keyEpoch: number;
@@ -84,13 +86,6 @@ export interface MatterSyncOptions {
    * with only that ticket. Kept here for the option shape / identity context.
    */
   accessToken?: string;
-  /**
-   * Document stream partition. Defaults to `'_notes'` (the matter notes stream,
-   * backward-compatible). Pass the `.docx` file's `doc_id` for co-editing streams.
-   * Two clients with DIFFERENT docIds on the SAME matter operate on completely
-   * separate streams: push/pull/WS are all filtered by this value.
-   */
-  docId?: string;
   client: FirmApiClient;
   doc?: Y.Doc;
   callbacks?: MatterSyncCallbacks;
@@ -113,8 +108,8 @@ function genBlobId(): string {
 
 export class MatterSyncClient {
   readonly doc: Y.Doc;
-  private readonly matterId: string;
-  private readonly docId: string;
+  private readonly matterHandle: MatterHandle;
+  private readonly streamHandle: StreamHandle;
   private readonly client: FirmApiClient;
   private readonly seatToken: string;
   private readonly callbacks: MatterSyncCallbacks;
@@ -138,13 +133,14 @@ export class MatterSyncClient {
   private reconnectDelayMs = 0;
   /** Blob ids we originated, so we don't re-apply our own echoes wastefully. */
   private readonly ownBlobIds = new Set<string>();
+  private readonly inFlightWrites = new Set<Promise<boolean>>();
   private updateHandler: ((update: Uint8Array, origin: unknown) => void) | null = null;
   /** Origin marker used when applying remote updates so we don't re-broadcast. */
   private readonly remoteOrigin = Symbol('matter-sync-remote');
 
   constructor(opts: MatterSyncOptions) {
-    this.matterId = opts.matterId;
-    this.docId = opts.docId ?? '_notes';
+    this.matterHandle = opts.matterHandle;
+    this.streamHandle = opts.streamHandle;
     this.client = opts.client;
     this.seatToken = opts.seatToken;
     this.callbacks = opts.callbacks ?? {};
@@ -170,6 +166,14 @@ export class MatterSyncClient {
   /** Returns the last known total subscriber count from the relay (includes self). */
   getPresenceCount(): number {
     return this.presenceCount;
+  }
+
+  /** Wait for local root-index writes to receive their HTTP acceptance. */
+  async flush(): Promise<void> {
+    while (this.inFlightWrites.size > 0) {
+      await Promise.all([...this.inFlightWrites]);
+    }
+    await this.flushPendingUpdates();
   }
 
   private setStatus(s: SyncStatus): void {
@@ -217,7 +221,10 @@ export class MatterSyncClient {
         this.pendingUpdates.push(update);
         return;
       }
-      void this.pushLocalUpdate(update).then((ok) => {
+      const write = this.pushLocalUpdate(update);
+      this.inFlightWrites.add(write);
+      void write.then((ok) => {
+        this.inFlightWrites.delete(write);
         if (!ok) {
           this.pendingUpdates.push(update);
           this.scheduleReconnect();
@@ -237,7 +244,7 @@ export class MatterSyncClient {
       let pages = 0;
       // Loop while the relay says there is more beyond this page.
       for (;;) {
-        const res = await this.client.pullUpdates(this.matterId, this.cursor, this.seatToken, this.docId);
+        const res = await this.client.pullUpdates(this.streamHandle, this.cursor, this.seatToken);
         if (res.key_epoch > this.keyEpoch) {
           this.callbacks.onKeyEpochAdvanced?.(res.key_epoch);
         }
@@ -269,7 +276,9 @@ export class MatterSyncClient {
       return;
     }
     const key = await this.ensureKey();
-    const res = await decryptUpdate(key, ciphertextB64, blobEpoch);
+    const res = await decryptUpdateV2(key, ciphertextB64, {
+      keyEpoch: blobEpoch, matterHandle: this.matterHandle, streamHandle: this.streamHandle,
+    }, isV1MatterCryptoReadAllowed());
     if (!res.ok) {
       // Could be an older-epoch blob our current key can't open, or tampering.
       // Skip it rather than crash the sync loop (CRDT tolerates gaps; a full
@@ -292,16 +301,17 @@ export class MatterSyncClient {
   private async pushLocalUpdate(update: Uint8Array): Promise<boolean> {
     try {
       const key = await this.ensureKey();
-      const ciphertext = await encryptUpdate(key, update, this.keyEpoch);
+      const ciphertext = await encryptUpdateV2(key, update, {
+        keyEpoch: this.keyEpoch, matterHandle: this.matterHandle, streamHandle: this.streamHandle,
+      });
       const blobId = genBlobId();
       this.ownBlobIds.add(blobId);
       const res = await this.client.pushUpdate(
-        this.matterId,
+        this.streamHandle,
         blobId,
         ciphertext,
         this.seatToken,
         this.keyEpoch,
-        this.docId,
       );
       this.cursor = Math.max(this.cursor, res.cursor);
       if (res.key_epoch > this.keyEpoch) {
@@ -379,7 +389,7 @@ export class MatterSyncClient {
     // the WS URL (no credential in a WebSocket URL → nothing leaks to a log).
     let ticket: string;
     try {
-      const res = await this.client.createSyncTicket(this.matterId, this.seatToken);
+      const res = await this.client.createSyncTicket(this.streamHandle, this.seatToken);
       ticket = res.ticket;
     } catch {
       // Couldn't get a ticket (offline / auth lapsed): stay in catch-up-only
@@ -391,7 +401,7 @@ export class MatterSyncClient {
     // A stop() during the await must not then open a socket.
     if (!this.started) return;
 
-    const url = getMatterSyncSocketUrl(this.matterId, ticket, this.docId);
+    const url = getMatterSyncSocketUrl(ticket);
     let ws: WebSocketLike;
     try {
       if (this.socketFactory) {
@@ -461,27 +471,18 @@ export class MatterSyncClient {
     if (frame.type === 'ready') {
       // The socket will replay backlog as `update` frames; we already caught up
       // via HTTP, and applying duplicates is a no-op, so nothing to do here.
-      // Defensive: if the relay sends a ready frame for a different doc_id,
-      // ignore it (one socket = one doc, but be safe).
-      if (frame.doc_id !== undefined && frame.doc_id !== this.docId) return;
-      if (frame.subscribers !== undefined) {
-        this.presenceCount = frame.subscribers;
-        this.callbacks.onPresenceCount?.(frame.subscribers);
-      }
+      this.presenceCount = frame.subscribers;
+      this.callbacks.onPresenceCount?.(frame.subscribers);
       this.setStatus('live');
       return;
     }
     if (frame.type === 'presence') {
       // Relay-broadcast presence count update (peer joined or left).
-      if (frame.doc_id !== undefined && frame.doc_id !== this.docId) return;
       this.presenceCount = frame.count;
       this.callbacks.onPresenceCount?.(frame.count);
       return;
     }
-    // The only remaining frame type is `update` (TS narrows it here).
-    // Defensive: filter out frames for a different doc stream (should not happen
-    // with one socket = one doc, but belt-and-suspenders for relay edge cases).
-    if (frame.doc_id !== undefined && frame.doc_id !== this.docId) return;
+    // The only remaining frame type is `update`; stream context comes from the ticket.
     if (frame.key_epoch > this.keyEpoch) {
       this.callbacks.onKeyEpochAdvanced?.(frame.key_epoch);
     }

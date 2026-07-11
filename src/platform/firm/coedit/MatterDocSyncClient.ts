@@ -33,14 +33,11 @@
 import * as Y from 'yjs';
 import { MatterSyncClient, type MatterSyncCallbacks, type WebSocketFactory, type SyncStatus } from '@/platform/firm/MatterSyncClient';
 import type { FirmApiClient } from '@/platform/firm/FirmApiClient';
+import type { MatterHandle, StreamHandle } from '@/platform/firm/contract';
 
 export interface MatterDocSyncOptions {
-  matterId: string;
-  /**
-   * The document stream id. Use a hex digest of the matter-relative file path
-   * (see design §7). Must NOT be `'_notes'` (reserved for the notes stream).
-   */
-  docId: string;
+  matterHandle: MatterHandle;
+  streamHandle: StreamHandle;
   /** The Y.Doc to sync. Typically built by `documentJsonToYDoc`. */
   doc: Y.Doc;
   /** Raw AES-256 content key (base64) for the current epoch. */
@@ -82,8 +79,8 @@ export class MatterDocSyncClient {
     // Build the options object, omitting optional properties when undefined so
     // that exactOptionalPropertyTypes is satisfied (don't pass key: undefined).
     const syncOpts: import('@/platform/firm/MatterSyncClient').MatterSyncOptions = {
-      matterId:  opts.matterId,
-      docId:     opts.docId,
+      matterHandle: opts.matterHandle,
+      streamHandle: opts.streamHandle,
       doc:       opts.doc,
       keyB64:    opts.keyB64,
       keyEpoch:  opts.keyEpoch,

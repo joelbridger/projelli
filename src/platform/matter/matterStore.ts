@@ -318,6 +318,7 @@ export interface CreateMatterInput {
   mcpAccessGranted?: boolean;
   /** Optionally link the matter to the firm backend at creation time. */
   firmMatterId?: string;
+  rootStreamHandle?: string;
   orgId?: string;
   role?: 'owner' | 'editor' | 'viewer';
   shared?: boolean;
@@ -394,6 +395,7 @@ interface MatterState {
     id: string,
     linkage: {
       firmMatterId: string;
+      rootStreamHandle?: string;
       orgId: string;
       role: 'owner' | 'editor' | 'viewer';
     }
@@ -1048,6 +1050,9 @@ export const useMatterStore = create<MatterState>()(
           ...(input.firmMatterId !== undefined
             ? { firmMatterId: input.firmMatterId }
             : {}),
+          ...(input.rootStreamHandle !== undefined
+            ? { rootStreamHandle: input.rootStreamHandle }
+            : {}),
           ...(input.orgId !== undefined ? { orgId: input.orgId } : {}),
           ...(input.role !== undefined ? { role: input.role } : {}),
           ...(input.shared !== undefined ? { shared: input.shared } : {}),
@@ -1511,10 +1516,10 @@ export const useMatterStore = create<MatterState>()(
         });
       },
 
-      linkFirmMatter: (id, { firmMatterId, orgId, role }) => {
+      linkFirmMatter: (id, { firmMatterId, rootStreamHandle, orgId, role }) => {
         set((state) => ({
           matters: state.matters.map((m) =>
-            m.id === id ? { ...m, firmMatterId, orgId, role, shared: true } : m
+            m.id === id ? { ...m, firmMatterId, ...(rootStreamHandle ? { rootStreamHandle } : {}), orgId, role, shared: true } : m
           ),
         }));
       },
@@ -1524,7 +1529,7 @@ export const useMatterStore = create<MatterState>()(
           matters: state.matters.map((m): Matter => {
             if (m.id !== id) return m;
             // Use destructuring to drop the optional fields
-            const { firmMatterId: _a, orgId: _b, role: _c, ...rest } = m;
+            const { firmMatterId: _a, rootStreamHandle: _root, orgId: _b, role: _c, ...rest } = m;
             return { ...rest, shared: false };
           }),
         }));

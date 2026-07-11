@@ -44,7 +44,7 @@ export function getFirmApiBase(): string {
  * The browser `WebSocket` API cannot set an Authorization header, so historically
  * the access + seat tokens rode as query params — which leaks long-lived secrets
  * into access logs and history. Instead the caller first mints a SINGLE-USE,
- * short-lived TICKET over an authed HTTP request (`POST /matter/:id/sync-ticket`),
+ * short-lived TICKET over an authed HTTP request,
  * and ONLY that ticket rides on the WS URL. No access or seat token ever appears
  * in a WebSocket URL.
  */
@@ -52,12 +52,10 @@ export function getFirmApiBase(): string {
  * Build the WebSocket URL for a matter sync session.
  *
  * The ticket is the ONLY credential on the URL (minted by the authed HTTP
- * `POST /matter/:id/sync-ticket`; never the access/seat token). The `doc_id`
- * is NOT a credential so it is safe to carry as a query param. Absent doc_id
- * → the backend defaults to `_notes`, but we always send it explicitly so the
- * default-`_notes` path is well-defined at the call site.
+ * `POST /v2/firm/streams/:stream_handle/sync-ticket`; never the access/seat
+ * token or either routing handle. The redeemed ticket supplies local socket context.
  */
-export function getMatterSyncSocketUrl(matterId: string, ticket: string, docId = '_notes'): string {
+export function getMatterSyncSocketUrl(ticket: string): string {
   const base = getFirmApiBase();
   // Resolve to an absolute URL first (handles the dev proxy-relative base).
   let httpUrl: string;
@@ -69,8 +67,17 @@ export function getMatterSyncSocketUrl(matterId: string, ticket: string, docId =
     httpUrl = `http://localhost${base}`;
   }
   const wsBase = httpUrl.replace(/^http/i, 'ws').replace(/\/+$/, '');
-  const path = `/matter/${encodeURIComponent(matterId)}/sync`;
-  return `${wsBase}${path}?ticket=${encodeURIComponent(ticket)}&doc_id=${encodeURIComponent(docId)}`;
+  return `${wsBase}/v2/firm/sync?ticket=${encodeURIComponent(ticket)}`;
+}
+
+/** Temporary migration bridge deadline. Deployments set this to an ISO date. */
+export function isV1MatterCryptoReadAllowed(now = new Date()): boolean {
+  try {
+    const deadline = import.meta.env['VITE_FIRM_V1_CRYPTO_READ_DEADLINE'] as string | undefined;
+    return !deadline || now.getTime() < new Date(deadline).getTime();
+  } catch {
+    return true;
+  }
 }
 
 /** App version sent on activation (kept in sync with the licensing hook). */

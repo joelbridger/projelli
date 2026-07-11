@@ -49,7 +49,7 @@ import {
 import { AuditService } from '@/platform/audit/AuditService';
 import type {
   FirmMatter,
-  MatterMembersResponse,
+  MatterMembersResponse, MatterHandle,
   SeatSummary,
   AssuredProvider,
   ManagedKeyInfo,
@@ -128,8 +128,7 @@ export function FirmAdminConsole() {
   const [seats, setSeats] = useState<SeatSummary[]>([]);
   const [managedKeys, setManagedKeys] = useState<ManagedKeyInfo[]>([]);
   const [orgUsers, setOrgUsers] = useState<OrgUserEntry[]>([]);
-  const [newClient, setNewClient] = useState('');
-  const [selectedMatter, setSelectedMatter] = useState<string | null>(null);
+  const [selectedMatter, setSelectedMatter] = useState<MatterHandle | null>(null);
   const [members, setMembers] = useState<MatterMembersResponse | null>(null);
   // Invite by email (replaces raw user-id input)
   const [memberEmail, setMemberEmail] = useState('');
@@ -223,7 +222,7 @@ export function FirmAdminConsole() {
   }, [getClient]);
 
   const loadMembers = useCallback(
-    async (matterId: string) => {
+    async (matterId: MatterHandle) => {
       const res = await getClient().listMatterMembers(matterId);
       setMembers(res);
     },
@@ -263,7 +262,7 @@ export function FirmAdminConsole() {
   }, [firm.role, matters, getClient, t]);
 
   /** Invite a member by email: create user if needed, then add to matter. */
-  const handleInvite = async (matterId: string) => {
+  const handleInvite = async (matterId: MatterHandle) => {
     const email = memberEmail.trim();
     if (!email) return;
     setBusy(true);
@@ -336,7 +335,7 @@ export function FirmAdminConsole() {
   };
 
   /** Re-publish matter keys to all currently registered member devices. */
-  const handleRepublishKeys = async (matterId: string) => {
+  const handleRepublishKeys = async (matterId: MatterHandle) => {
     const epoch = members?.key_epoch;
     if (!epoch) return;
     await run(async () => {
@@ -345,7 +344,7 @@ export function FirmAdminConsole() {
   };
 
   /** Set wall by email. */
-  const handleSetWall = async (matterId: string) => {
+  const handleSetWall = async (matterId: MatterHandle) => {
     const email = wallEmail.trim();
     if (!email) return;
     const userId = emailToUserId[email];
@@ -428,58 +427,30 @@ export function FirmAdminConsole() {
         </p>
       )}
 
-      {/* Matters */}
+      {/* Matters: names stay in each device's encrypted root index. */}
       <Section icon={FolderPlus} title={t('firm.admin.matters-section')}>
-        <div className="flex items-end gap-2">
-          <div className="flex-1 space-y-1">
-            <Label htmlFor="firm-new-matter" className="text-xs">
-              {t('firm.admin.new-matter-label')}
-            </Label>
-            <Input
-              id="firm-new-matter"
-              data-testid="firm-new-matter-name"
-              value={newClient}
-              onChange={(e) => { setNewClient(e.target.value); }}
-              placeholder={t('firm.admin.new-matter-placeholder')}
-            />
-          </div>
-          <Button
-            type="button"
-            size="sm"
-            data-testid="firm-create-matter"
-            disabled={busy || !newClient.trim()}
-            onClick={() =>
-              void run(async () => {
-                await getClient().createMatter(newClient.trim());
-                setNewClient('');
-                await loadMatters();
-              }, t('firm.admin.matter-created'))
-            }
-          >
-            {t('firm.admin.create-matter')}
-          </Button>
-        </div>
+        <p className="text-xs text-muted-foreground">Create a shared client from its local Client Map. This list intentionally shows no server-side client names.</p>
         <ul data-testid="firm-matter-list" className="mt-2 space-y-1">
           {matters.length === 0 && (
             <li className="text-xs text-muted-foreground">{t('firm.admin.no-matters')}</li>
           )}
           {matters.map((m) => (
-            <li key={m.matter_id}>
+            <li key={m.matter_handle}>
               <button
                 type="button"
-                data-testid={`firm-matter-${m.matter_id}`}
+                data-testid={`firm-matter-${m.matter_handle}`}
                 onClick={() => {
-                  setSelectedMatter(m.matter_id);
-                  void run(() => loadMembers(m.matter_id));
+                  setSelectedMatter(m.matter_handle);
+                  void run(() => loadMembers(m.matter_handle));
                 }}
                 className={cn(
                   'w-full text-left rounded-md border px-2 py-1.5 text-xs transition-colors',
-                  selectedMatter === m.matter_id
+                  selectedMatter === m.matter_handle
                     ? 'border-sky-400 bg-sky-50'
                     : 'border-border hover:bg-muted/30',
                 )}
               >
-                <span className="font-medium">{m.client_name}</span>
+                <span className="font-medium">Shared client</span>
                 <span className="ml-2 text-muted-foreground">
                   {t('firm.admin.epoch-label', { epoch: m.key_epoch })}
                 </span>

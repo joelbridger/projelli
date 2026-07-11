@@ -1,75 +1,72 @@
-/**
- * promoteMatterToShared — promote one LOCAL matter to a firm-SHARED matter, in
- * place. This is the proven 6-step routine lifted verbatim from
- * MatterManagerDialog.handleShare so the carry-over flow can reuse it instead of
- * re-implementing firm-matter creation or key publishing.
- *
- * Only the collaboration layer (the per-matter notes stream + chosen co-edited
- * docs) ever syncs through the E2EE relay; the matter's files, email, and RAG
- * index stay local. The relay only ever stores ciphertext.
- */
+/** Promote a local matter without ever sending its name or ID to the relay. */
+import * as Y from 'yjs';
 import { useMatterStore } from '@/platform/matter/matterStore';
-import { getOrCreateMatterKey, publishMatterKeyToMembers } from '@/platform/firm/matterKeyService';
+import { createLocalMatterKey, forgetMatterKey, publishMatterKeyToMembers } from '@/platform/firm/matterKeyService';
 import { registerDevice } from '@/platform/firm/deviceKeys';
 import { audit } from '@/features/matters/matterManagerDialogHelpers';
+import { encryptUpdateV2, importMatterKey } from '@/platform/firm/matterCrypto';
+import { writeFirmMatterPrivateIndex } from '@/platform/firm/firmMatterPrivateIndex';
+import { useFirmStore } from '@/platform/firm/firmStore';
 import type { FirmApiClient } from '@/platform/firm/FirmApiClient';
+import type { MatterHandle } from '@/platform/firm/contract';
 
 export type PromoteMatterResult =
-  | { status: 'shared'; matterId: string; firmMatterId: string; orgId: string }
+  | { status: 'shared'; matterId: string; firmMatterId: MatterHandle; orgId: string }
   | { status: 'failed'; matterId: string; error: string };
 
+function blobId(): string {
+  return crypto.randomUUID();
+}
+
 /**
- * Promote one local matter to a firm-shared matter, in place.
- *
- * Steps (identical to the per-matter Share button):
- *   1. client.createMatter(clientName) — a backend SHELL carrying no content.
- *   2. linkFirmMatter — attach the firm id/org/role to the local matter.
- *   3. getOrCreateMatterKey — establish the per-matter AES-256 key locally.
- *   4. registerDevice — so the admin can wrap the key for this device.
- *   5. publishMatterKeyToMembers — wrap + publish the key (just the owner now).
- *   6. audit a matter_shared event.
- *
- * On any failure the link is rolled back so a matter never ends in a partial
- * shared state, and a `failed` result is returned (never thrown).
+ * Ordered v2 promotion:
+ * provision opaque shell → local key → encrypted root private index → activate
+ * → device registration/key distribution → local linkage. The original local
+ * Matter.id and all human-readable details remain entirely on this device.
  */
 export async function promoteMatterToShared(
   matterId: string,
   clientName: string,
   client: FirmApiClient,
 ): Promise<PromoteMatterResult> {
-  const { linkFirmMatter, unlinkFirmMatter } = useMatterStore.getState();
-  // Track whether linkFirmMatter ran so the catch block rolls back correctly.
-  // We cannot trust a render-time `matters` snapshot in the catch path.
-  let linkedLocalId: string | null = null;
+  const { linkFirmMatter } = useMatterStore.getState();
+  let handle: MatterHandle | null = null;
   try {
-    const createRes = await client.createMatter(clientName);
-    const firmMatterId = createRes.matter.matter_id;
-    const orgId = createRes.matter.org_id;
-    const epoch = createRes.matter.key_epoch;
+    const provision = await client.createMatter();
+    handle = provision.matter_handle;
+    const keyB64 = await createLocalMatterKey(handle);
 
-    linkFirmMatter(matterId, { firmMatterId, orgId, role: 'owner' });
-    linkedLocalId = matterId;
-
-    await getOrCreateMatterKey(firmMatterId);
-    await registerDevice(client);
-    await publishMatterKeyToMembers(client, firmMatterId, epoch);
-
-    audit.append({
-      type: 'matter_shared',
-      timestamp: new Date().toISOString(),
-      payload: {
-        matter_id: matterId,
-        firm_matter_id: firmMatterId,
-        org_id: orgId,
-        detail: `shared as firm matter ${firmMatterId}`,
-      },
+    const root = new Y.Doc();
+    writeFirmMatterPrivateIndex(root, {
+      version: 1,
+      clientName,
+      displayName: clientName,
+      streams: { _notes: { streamHandle: provision.root_stream_handle, kind: 'notes' } },
     });
-    return { status: 'shared', matterId, firmMatterId, orgId };
+    const key = await importMatterKey(keyB64);
+    const ciphertext = await encryptUpdateV2(key, Y.encodeStateAsUpdate(root), {
+      keyEpoch: provision.key_epoch,
+      matterHandle: handle,
+      streamHandle: provision.root_stream_handle,
+    });
+    const seatToken = useFirmStore.getState().seatToken;
+    if (!seatToken) throw new Error('A valid firm seat is required to share a client.');
+    await client.pushUpdate(provision.root_stream_handle, blobId(), ciphertext, seatToken, provision.key_epoch);
+
+    await client.activateMatter(handle);
+    await registerDevice(client);
+    await publishMatterKeyToMembers(client, handle, provision.key_epoch);
+
+    const orgId = useFirmStore.getState().session?.org?.org_id ?? '';
+    linkFirmMatter(matterId, { firmMatterId: handle, rootStreamHandle: provision.root_stream_handle, orgId, role: 'owner' });
+    audit.append({
+      type: 'matter_shared', timestamp: new Date().toISOString(),
+      payload: { matter_id: matterId, firm_matter_id: handle, ...(orgId ? { org_id: orgId } : {}), detail: 'shared locally' },
+    });
+    return { status: 'shared', matterId, firmMatterId: handle, orgId };
   } catch (err) {
-    if (linkedLocalId) {
-      const fresh = useMatterStore.getState().matters.find((x) => x.id === linkedLocalId);
-      if (fresh?.firmMatterId) unlinkFirmMatter(linkedLocalId);
-    }
+    // Before activation this leaves only a timed-out provisioning shell server-side.
+    if (handle) await forgetMatterKey(handle).catch(() => undefined);
     return { status: 'failed', matterId, error: err instanceof Error ? err.message : String(err) };
   }
 }

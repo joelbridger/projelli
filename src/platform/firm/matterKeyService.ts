@@ -27,40 +27,40 @@ import { storeMatterKey, loadMatterKey, clearMatterKey } from './firmKeychain';
 import { FirmApiClient, FirmApiError } from './FirmApiClient';
 import { wrapMatterKey, unwrapMatterKey } from './keyWrap';
 import { getOrCreateDeviceKeypair } from './deviceKeys';
-import type { FirmMatter } from './contract';
+import type { FirmMatter, MatterHandle } from './contract';
 
 /** Load the stored matter key (base64), or null if none on this machine. */
-export async function getMatterKey(matterId: string): Promise<string | null> {
-  return loadMatterKey(matterId);
+export async function getMatterKey(matterHandle: MatterHandle): Promise<string | null> {
+  return loadMatterKey(matterHandle);
 }
 
 /** Generate + store a fresh key for a matter (the creator establishes it). */
-export async function createLocalMatterKey(matterId: string): Promise<string> {
+export async function createLocalMatterKey(matterHandle: MatterHandle): Promise<string> {
   const keyB64 = await generateMatterKey();
-  await storeMatterKey(matterId, keyB64);
+  await storeMatterKey(matterHandle, keyB64);
   return keyB64;
 }
 
 /** Load the matter key, generating + storing one if none exists yet. */
-export async function getOrCreateMatterKey(matterId: string): Promise<string> {
-  const existing = await loadMatterKey(matterId);
+export async function getOrCreateMatterKey(matterHandle: MatterHandle): Promise<string> {
+  const existing = await loadMatterKey(matterHandle);
   if (existing) return existing;
-  return createLocalMatterKey(matterId);
+  return createLocalMatterKey(matterHandle);
 }
 
 /**
  * Rotate the local matter key to a new epoch. Generates a fresh key and stores
  * it, replacing the previous one. (The follow-up re-wraps + distributes it.)
  */
-export async function rotateMatterKeyLocally(matterId: string): Promise<string> {
+export async function rotateMatterKeyLocally(matterHandle: MatterHandle): Promise<string> {
   const keyB64 = await generateMatterKey();
-  await storeMatterKey(matterId, keyB64);
+  await storeMatterKey(matterHandle, keyB64);
   return keyB64;
 }
 
 /** Forget a matter's key (e.g. the local user is removed from the matter). */
-export async function forgetMatterKey(matterId: string): Promise<void> {
-  await clearMatterKey(matterId);
+export async function forgetMatterKey(matterHandle: MatterHandle): Promise<void> {
+  await clearMatterKey(matterHandle);
 }
 
 // ── Cross-member key distribution (implements the deferred follow-up) ───────
@@ -82,10 +82,10 @@ interface EligibleDevice {
  */
 async function eligibleDevices(
   client: FirmApiClient,
-  matterId: string,
+  matterHandle: MatterHandle,
 ): Promise<{ devices: EligibleDevice[]; walledSkipped: number }> {
   // Fetch the member roster + wall list.
-  const membersResp = await client.listMatterMembers(matterId);
+  const membersResp = await client.listMatterMembers(matterHandle);
   const walledUserIds = new Set(membersResp.walls.map((w) => w.user_id));
 
   // Determine the set of user IDs to wrap for:
@@ -131,20 +131,20 @@ async function eligibleDevices(
  */
 export async function publishMatterKeyToMembers(
   client: FirmApiClient,
-  matterId: string,
+  matterHandle: MatterHandle,
   epoch: number,
 ): Promise<{ published: number; skippedWalled: number }> {
   // 1. Load local matter key (must exist; caller is the holder).
-  const matterKeyB64 = await loadMatterKey(matterId);
+  const matterKeyB64 = await loadMatterKey(matterHandle);
   if (!matterKeyB64) {
     throw new Error(
-      `publishMatterKeyToMembers: no local matter key for matter "${matterId}". ` +
+      'publishMatterKeyToMembers: no local matter key for this shared client. ' +
         'Only the matter creator/key-holder can publish.',
     );
   }
 
   // 2. Roster + escrow + device expansion (walled users' devices dropped).
-  const { devices, walledSkipped } = await eligibleDevices(client, matterId);
+  const { devices, walledSkipped } = await eligibleDevices(client, matterHandle);
 
   // 3. Wrap the matter key for each eligible device.
   const wrapped: Array<{ user_id: string; device_id: string; wrapped_key_b64: string }> = [];
@@ -158,7 +158,7 @@ export async function publishMatterKeyToMembers(
   }
 
   // 4. POST the publish payload.
-  await client.publishMatterKeys(matterId, { epoch, wrapped });
+  await client.publishMatterKeys(matterHandle, { epoch, wrapped });
 
   return { published: wrapped.length, skippedWalled: walledSkipped };
 }
@@ -189,21 +189,21 @@ export function deviceSetFingerprint(
  */
 export async function autoRepublishHeldMatterKeys(
   client: FirmApiClient,
-  matters: Array<Pick<FirmMatter, 'matter_id' | 'key_epoch'>>,
+  matters: Array<Pick<FirmMatter, 'matter_handle' | 'key_epoch'>>,
   lastFingerprints: Record<string, string>,
-): Promise<{ republishedMatterIds: string[]; fingerprints: Record<string, string> }> {
+): Promise<{ republishedMatterIds: MatterHandle[]; fingerprints: Record<string, string> }> {
   const fingerprints = { ...lastFingerprints };
-  const republishedMatterIds: string[] = [];
+  const republishedMatterIds: MatterHandle[] = [];
   for (const m of matters) {
     try {
-      const key = await loadMatterKey(m.matter_id);
+      const key = await loadMatterKey(m.matter_handle);
       if (!key) continue; // not the key holder on this device
-      const { devices } = await eligibleDevices(client, m.matter_id);
+      const { devices } = await eligibleDevices(client, m.matter_handle);
       const fp = deviceSetFingerprint(devices, m.key_epoch);
-      if (fingerprints[m.matter_id] === fp) continue;
-      await publishMatterKeyToMembers(client, m.matter_id, m.key_epoch);
-      fingerprints[m.matter_id] = fp;
-      republishedMatterIds.push(m.matter_id);
+      if (fingerprints[m.matter_handle] === fp) continue;
+      await publishMatterKeyToMembers(client, m.matter_handle, m.key_epoch);
+      fingerprints[m.matter_handle] = fp;
+      republishedMatterIds.push(m.matter_handle);
     } catch {
       // Quiet: next poll retries; the manual Re-publish button still exists.
     }
@@ -224,11 +224,11 @@ export async function autoRepublishHeldMatterKeys(
  */
 export async function obtainMatterKey(
   client: FirmApiClient,
-  matterId: string,
+  matterHandle: MatterHandle,
   seatToken: string,
 ): Promise<string | null> {
   // 1. Local keychain hit.
-  const cached = await loadMatterKey(matterId);
+  const cached = await loadMatterKey(matterHandle);
   if (cached) return cached;
 
   // 2. Fetch from server.
@@ -236,7 +236,7 @@ export async function obtainMatterKey(
 
   let fetchResp: { epoch: number; wrapped_key_b64: string };
   try {
-    fetchResp = await client.fetchMatterKeys(matterId, deviceId, seatToken);
+    fetchResp = await client.fetchMatterKeys(matterHandle, deviceId, seatToken);
   } catch (err) {
     if (err instanceof FirmApiError && (err.status === 403 || err.status === 404)) {
       // Fail closed: no key stored, return null.
@@ -250,7 +250,7 @@ export async function obtainMatterKey(
   const matterKeyB64 = await unwrapMatterKey(fetchResp.wrapped_key_b64, fetchResp.epoch);
 
   // 4. Store in keychain.
-  await storeMatterKey(matterId, matterKeyB64);
+  await storeMatterKey(matterHandle, matterKeyB64);
 
   return matterKeyB64;
 }
