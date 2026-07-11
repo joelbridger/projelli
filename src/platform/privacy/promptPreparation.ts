@@ -185,7 +185,7 @@ export type PreparedSendContext<T = ProviderResponse> = Omit<RunWithEgressAuditO
 };
 type PromptPreparationReceipt = Extract<AuditEvent, { type: 'prompt_preparation' }>['payload'];
 
-function receipt(ctx: PreparedSendContext, decision: 'clean' | 'redacted_by_user' | 'cancelled' | 'blocked', request?: PreparedCloudRequest): void {
+function receipt<T>(ctx: PreparedSendContext<T>, decision: 'clean' | 'redacted_by_user' | 'cancelled' | 'blocked', request?: PreparedCloudRequest): void {
   const metadata = {
     surface: ctx.surface,
     destination: ctx.providerId,
