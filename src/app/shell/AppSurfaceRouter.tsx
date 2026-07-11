@@ -293,7 +293,10 @@ export function AppSurfaceRouter({
 }: AppSurfaceRouterProps) {
   useIntakeInboxSync({ workspaceService: workspaceServiceRef.current });
   useEmailReplyIngestion({ resolveEmailProvider });
-  useDocumentExtractionIngestion({ resolveDocumentExtractionProvider });
+  useDocumentExtractionIngestion({
+    resolveDocumentExtractionProvider,
+    workspaceService: workspaceServiceRef.current,
+  });
 
   // Privacy Center + Activity Log are nested as sections inside the Settings
   // screen (the gear opens Settings). Built here so SettingsContent stays

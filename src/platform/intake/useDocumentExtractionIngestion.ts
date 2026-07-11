@@ -1,5 +1,6 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 
+import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { Provider } from '@/platform/providers/Provider';
 
 import {
@@ -14,6 +15,7 @@ import {
   subscribeToFiledIntakeDocuments,
   type FiledIntakeDocument,
 } from './documentFilingEvents';
+import { useIntakeStore, type IntakeFlag } from './intakeStore';
 import { FACT_KIND_SENSITIVITY } from './types';
 
 export interface DocumentExtractionProvider {
@@ -28,6 +30,67 @@ export interface DocumentExtractionIngestionDeps {
   extractFacts?: typeof extractDocumentFacts;
   saveProposal?: typeof documentExtractionProposalSave;
   resolveDocumentExtractionProvider?: () => Promise<DocumentExtractionProvider>;
+  workspaceService?: WorkspaceService | null;
+}
+
+const retries = new Map<string, () => Promise<void>>();
+
+function failureFlagId(document: FiledIntakeDocument): string {
+  return `document-extraction:${stableDocumentExtractionProposalId({
+    matterId: document.matterId,
+    requestId: document.requestId,
+    intakeId: document.intakeId,
+    sourcePath: document.filePath,
+  })}`;
+}
+
+function failureFlag(document: FiledIntakeDocument): IntakeFlag {
+  return {
+    id: failureFlagId(document),
+    kind: 'extraction_failed',
+    itemId: document.itemId,
+    message: 'This document saved fine, but we could not read it automatically.',
+    at: new Date().toISOString(),
+    documentExtraction: {
+      matterId: document.matterId,
+      requestId: document.requestId,
+      intakeId: document.intakeId,
+      itemId: document.itemId,
+      subject: document.subject,
+      filePath: document.filePath,
+      fileName: document.fileName,
+      matterFolderPath: document.matterFolderPath,
+      ...(document.mimeType ? { mimeType: document.mimeType } : {}),
+    },
+  };
+}
+
+function reportFailure(document: FiledIntakeDocument, error: unknown): void {
+  console.warn('[useDocumentExtractionIngestion] Document extraction failed:', error);
+  useIntakeStore.getState().addFlag(document.intakeId, failureFlag(document));
+}
+
+function documentFromFailureFlag(
+  flag: IntakeFlag,
+  workspaceService: WorkspaceService,
+): FiledIntakeDocument | null {
+  const context = flag.documentExtraction;
+  if (!context) return null;
+  return {
+    ...context,
+    workspaceService,
+  };
+}
+
+/** Runs the saved document again when an advisor selects Retry extraction. */
+export async function retryFailedDocumentExtraction(flagId: string): Promise<void> {
+  const retry = retries.get(flagId);
+  if (!retry) throw new Error('This document is no longer available to retry.');
+  await retry();
+}
+
+export function clearDocumentExtractionRetriesForTests(): void {
+  retries.clear();
 }
 
 function displayValue(value: { t: 'money'; v: { amount: number; currency: string } }): string {
@@ -106,8 +169,8 @@ export async function processFiledIntakeDocument(
 
 /**
  * App-level listener for the shared post-filing notice. Its failure handling is
- * intentionally the same best-effort shape as email reply ingestion: document
- * filing has already succeeded and extraction errors are only logged.
+ * intentionally best-effort: document filing has already succeeded, while a
+ * failed extraction is logged and shown as a retryable intake attention flag.
  */
 export function useDocumentExtractionIngestion(deps: DocumentExtractionIngestionDeps): void {
   const {
@@ -116,16 +179,46 @@ export function useDocumentExtractionIngestion(deps: DocumentExtractionIngestion
     extractFacts,
     saveProposal,
     resolveDocumentExtractionProvider,
+    workspaceService,
   } = deps;
-  useEffect(() => subscribeToFiledIntakeDocuments((document) => {
-    void processFiledIntakeDocument(document, {
-      ...(readDocument ? { readDocument } : {}),
-      ...(classifyDocument ? { classifyDocument } : {}),
-      ...(extractFacts ? { extractFacts } : {}),
-      ...(saveProposal ? { saveProposal } : {}),
-      ...(resolveDocumentExtractionProvider ? { resolveDocumentExtractionProvider } : {}),
-    }).catch((error: unknown) => {
-      console.warn('[useDocumentExtractionIngestion] Document extraction failed:', error);
-    });
+  const process = useCallback((document: FiledIntakeDocument) => processFiledIntakeDocument(document, {
+    ...(readDocument ? { readDocument } : {}),
+    ...(classifyDocument ? { classifyDocument } : {}),
+    ...(extractFacts ? { extractFacts } : {}),
+    ...(saveProposal ? { saveProposal } : {}),
+    ...(resolveDocumentExtractionProvider ? { resolveDocumentExtractionProvider } : {}),
   }), [readDocument, classifyDocument, extractFacts, saveProposal, resolveDocumentExtractionProvider]);
+  const retry = useCallback((document: FiledIntakeDocument, flagId: string) => async () => {
+    try {
+      await process(document);
+      useIntakeStore.getState().removeFlag(document.intakeId, flagId);
+      retries.delete(flagId);
+    } catch (error) {
+      reportFailure(document, error);
+      throw error;
+    }
+  }, [process]);
+
+  useEffect(() => subscribeToFiledIntakeDocuments((document) => {
+    const flagId = failureFlagId(document);
+    retries.set(flagId, retry(document, flagId));
+    void process(document).catch((error: unknown) => {
+      reportFailure(document, error);
+    });
+  }), [process, retry]);
+
+  useEffect(() => {
+    if (!workspaceService) return;
+    const registerSavedRetries = () => {
+      for (const intake of Object.values(useIntakeStore.getState().intakesById)) {
+        for (const flag of intake.flags) {
+          if (flag.kind !== 'extraction_failed') continue;
+          const document = documentFromFailureFlag(flag, workspaceService);
+          if (document) retries.set(flag.id, retry(document, flag.id));
+        }
+      }
+    };
+    registerSavedRetries();
+    return useIntakeStore.subscribe(registerSavedRetries);
+  }, [retry, workspaceService]);
 }

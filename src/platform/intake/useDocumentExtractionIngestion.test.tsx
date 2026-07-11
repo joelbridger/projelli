@@ -1,5 +1,5 @@
 import { render, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Provider } from '@/platform/providers/Provider';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
@@ -13,6 +13,8 @@ import {
 } from './documentExtractionProposalStore';
 import {
   useDocumentExtractionIngestion,
+  clearDocumentExtractionRetriesForTests,
+  retryFailedDocumentExtraction,
   type DocumentExtractionIngestionDeps,
 } from './useDocumentExtractionIngestion';
 
@@ -96,6 +98,11 @@ describe('useDocumentExtractionIngestion', () => {
   beforeEach(() => {
     useIntakeStore.getState().resetForTests();
     clearInMemoryDocumentExtractionQueuesForTests();
+    clearDocumentExtractionRetriesForTests();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('files a client-link document through routeIntakeSubmission, then persists its extraction proposal', async () => {
@@ -170,5 +177,57 @@ describe('useDocumentExtractionIngestion', () => {
       workspaceService,
     })).resolves.toEqual({ filePath: '/workspace/Sarah/Requests/income-request/income.pdf' });
     expect(writeFileBinary).toHaveBeenCalledTimes(1);
+  });
+
+  it('warns, adds a retryable extraction flag, and retries the same filed document after extraction fails', async () => {
+    const writeFileBinary = vi.fn().mockResolvedValue(undefined);
+    const workspaceService = { writeFileBinary } as unknown as WorkspaceService;
+    const record = intake();
+    useIntakeStore.getState().upsertIntake(record);
+    const readDocument = vi.fn()
+      .mockRejectedValueOnce(new Error('reader unavailable'))
+      .mockResolvedValueOnce({
+        status: 'read' as const,
+        pages: [{ page: 1, text: 'Annual income: $120,000', extraction: 'text' as const }],
+      });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    render(<IngestionHarness deps={{
+      readDocument,
+      classifyDocument: () => ({ kind: 'pay_stub', confidence: 'high', sourceRefs: [], evidence: [] }),
+      extractFacts: vi.fn().mockResolvedValue([]),
+      resolveDocumentExtractionProvider: () => Promise.resolve({
+        provider: provider(defaultStructuredOutput()),
+        providerId: 'test-provider',
+        assuredAvailable: false,
+      }),
+    }} />);
+
+    await expect(routeIntakeSubmission(submission(), {
+      intake: record,
+      matterFolderPath: '/workspace/Sarah',
+      workspaceService,
+    })).resolves.toEqual({ filePath: '/workspace/Sarah/Requests/income-request/income.pdf' });
+
+    await waitFor(() => {
+      expect(useIntakeStore.getState().intakesById['intake-1']?.flags).toEqual([
+        expect.objectContaining({
+          kind: 'extraction_failed',
+          itemId: 'income-support',
+          documentExtraction: expect.objectContaining({
+            filePath: '/workspace/Sarah/Requests/income-request/income.pdf',
+          }),
+        }),
+      ]);
+    });
+    expect(warn).toHaveBeenCalledWith(
+      '[useDocumentExtractionIngestion] Document extraction failed:',
+      expect.any(Error),
+    );
+
+    const flag = useIntakeStore.getState().intakesById['intake-1']?.flags[0];
+    expect(flag?.id).toBeTruthy();
+    await retryFailedDocumentExtraction(flag?.id ?? 'missing');
+    expect(readDocument).toHaveBeenCalledTimes(2);
+    expect(useIntakeStore.getState().intakesById['intake-1']?.flags).toEqual([]);
   });
 });

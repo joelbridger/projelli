@@ -9,7 +9,7 @@ import type {
 import { IntakeRelayClient } from '@/platform/intake/IntakeRelayClient';
 import { OnboardingTab } from '../OnboardingTab';
 import { LinkLifecyclePanel } from '../LinkLifecyclePanel';
-import { LinkSignalBadge } from '../LinkSignalBadge';
+import { LinkSignalBadge, LinkSignalBadges } from '../LinkSignalBadge';
 
 const relaySpies = vi.hoisted(() => ({
   fetchInbox: vi.fn(),
@@ -106,6 +106,12 @@ const signalCases: Array<{
     badgeClass: 'kp-badge--danger',
   },
   {
+    kind: 'extraction_failed',
+    severity: 'attention',
+    label: 'Document needs review',
+    badgeClass: 'kp-badge--warning',
+  },
+  {
     kind: 'regenerate_available',
     severity: 'info',
     label: 'New link available',
@@ -151,6 +157,27 @@ describe('link lifecycle signals', () => {
     );
 
     expect(screen.queryByTestId('link-signal-detail-active')).toBeNull();
+  });
+
+  it('shows a retry action for an extraction failure and sends the flag back to the retry handler', () => {
+    const onRetryExtraction = vi.fn().mockResolvedValue(undefined);
+    render(
+      <LinkSignalBadges
+        signals={[{
+          kind: 'extraction_failed',
+          severity: 'attention',
+          dismissible: false,
+          flagId: 'extraction-flag-1',
+        }]}
+        onRetryExtraction={onRetryExtraction}
+      />
+    );
+
+    fireEvent.click(screen.getByTestId('retry-extraction-extraction-flag-1'));
+    expect(onRetryExtraction).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'extraction_failed',
+      flagId: 'extraction-flag-1',
+    }));
   });
 
   it('keeps revoked and integrity signals visible until the link state changes', () => {

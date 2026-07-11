@@ -1,8 +1,9 @@
+import { Fragment } from 'react';
 import { AlertTriangle, CheckCircle2, RefreshCcw, ShieldAlert } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import type { LinkSignal } from '@/platform/intake/onboardingModel';
-import { Badge, type BadgeProps, type IconType } from '@/ui/kp';
+import { Badge, Button, type BadgeProps, type IconType } from '@/ui/kp';
 import { linkSignalLabel } from './linkSignalCopy';
 
 export interface LinkSignalBadgeProps {
@@ -45,9 +46,12 @@ export function LinkSignalBadge({
 
 export function LinkSignalBadges({
   signals,
+  onRetryExtraction,
 }: {
   signals: LinkSignal[];
+  onRetryExtraction?: (signal: LinkSignal) => Promise<void> | void;
 }) {
+  const { t } = useTranslation();
   if (signals.length === 0) return null;
   return (
     <div
@@ -61,10 +65,26 @@ export function LinkSignalBadges({
       }}
     >
       {signals.map((signal) => (
-        <LinkSignalBadge
-          key={`${signal.kind}:${signal.at ?? 'none'}`}
-          signal={signal}
-        />
+        <Fragment key={`${signal.kind}:${signal.at ?? 'none'}`}>
+          <LinkSignalBadge signal={signal} />
+        {signal.kind === 'extraction_failed' && signal.flagId && onRetryExtraction ? (
+          <Button
+            key={`retry:${signal.flagId}`}
+            type="button"
+            variant="secondary"
+            size="sm"
+            data-testid={`retry-extraction-${signal.flagId}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              void Promise.resolve(onRetryExtraction(signal)).catch((error: unknown) => {
+                console.warn('[LinkSignalBadges] Could not retry document extraction:', error);
+              });
+            }}
+          >
+            {t('intake.link.signal.extraction-failed.retry')}
+          </Button>
+        ) : null}
+        </Fragment>
       ))}
     </div>
   );
