@@ -13,23 +13,23 @@ const titleChange = (value: string, kind: 'add' | 'modify' | 'remove' = 'modify'
 describe('Workflow template propagation properties', () => {
   it('P1 completed outcome immutable', () => {
     const base = instance();
-    base.steps.step!.status = 'done';
-    base.steps.step!.outcome = 'approved';
-    base.steps.step!.completionOperations.push({ completionId: 'complete-1', completedBy: 'advisor-a', outcome: 'approved', sourceOperationId: 'done-op' });
+    base.steps['step']!.status = 'done';
+    base.steps['step']!.outcome = 'approved';
+    base.steps['step']!.completionOperations.push({ completionId: 'complete-1', completedBy: 'advisor-a', outcome: 'approved', sourceOperationId: 'done-op' });
     const tx = new RecordingTransaction();
     const applied = applyOffer(template([revision('r1', [], titleChange('New title'))]), base,
       createOffer(template([revision('r1', [], titleChange('New title'))]), base, 'offer-1'), 'event-1', tx);
     const undone = undoApply(applied.instance, applied.event, 'undo-1', tx).instance;
-    expect(undone.steps.step!.completionOperations).toEqual(base.steps.step!.completionOperations);
-    expect(undone.steps.step!.outcome).toBe('approved');
+    expect(undone.steps['step']!.completionOperations).toEqual(base.steps['step']!.completionOperations);
+    expect(undone.steps['step']!.outcome).toBe('approved');
   });
 
   it('P2 no destructive removal', () => {
     const base = instance();
-    base.steps.step!.status = 'in_progress';
+    base.steps['step']!.status = 'in_progress';
     const model = template([revision('r1', [], [{ stepId: 'step', field: '__step_removal__', value: true, changeKind: 'remove' }])]);
     const result = applyOffer(model, base, createOffer(model, base, 'offer-1'), 'event-1', new RecordingTransaction()).instance;
-    expect(result.steps.step).toMatchObject({ detachedFromTemplate: true, hiddenByTemplateRemoval: false, removalRequestedBy: ['r1'] });
+    expect(result.steps['step']).toMatchObject({ detachedFromTemplate: true, hiddenByTemplateRemoval: false, removalRequestedBy: ['r1'] });
   });
 
   it('P3 idempotent revision application', () => {
@@ -58,28 +58,28 @@ describe('Workflow template propagation properties', () => {
     const model = template([revision('r1', [], titleChange('Rejected title'))]);
     const offer = setOfferDecision(createOffer(model, base, 'offer-1'), 'offer-1:r1:step:title', 'rejected');
     const result = applyOffer(model, base, offer, 'event-1', new RecordingTransaction()).instance;
-    expect(result.steps.step!.derived.title).toEqual(base.steps.step!.derived.title);
+    expect(result.steps['step']!.derived.title).toEqual(base.steps['step']!.derived.title);
     expect(result.decisionLedger).toEqual([expect.objectContaining({ decision: 'rejected', sourceOperationId: 'event-1:r1:step:title' })]);
     expect(result.displayedRevisionSet).toEqual({ revisionIds: ['r1'] });
   });
 
   it('P6 progress invariance', () => {
     const base = instance();
-    Object.assign(base.steps.step!, { status: 'done', assigneeUserId: 'advisor-a', stepNotes: 'human note', outcome: 'yes' });
-    base.steps.step!.completionOperations.push({ completionId: 'c1', completedBy: 'advisor-a', outcome: 'yes', sourceOperationId: 'c-op' });
+    Object.assign(base.steps['step']!, { status: 'done', assigneeUserId: 'advisor-a', stepNotes: 'human note', outcome: 'yes' });
+    base.steps['step']!.completionOperations.push({ completionId: 'c1', completedBy: 'advisor-a', outcome: 'yes', sourceOperationId: 'c-op' });
     const model = template([revision('r1', [], titleChange('Template title'))]);
     const result = applyOffer(model, base, createOffer(model, base, 'offer-1'), 'event-1', new RecordingTransaction()).instance;
-    expect(result.steps.step!).toMatchObject({ status: 'done', assigneeUserId: 'advisor-a', stepNotes: 'human note', outcome: 'yes', completionOperations: base.steps.step!.completionOperations });
+    expect(result.steps['step']!).toMatchObject({ status: 'done', assigneeUserId: 'advisor-a', stepNotes: 'human note', outcome: 'yes', completionOperations: base.steps['step']!.completionOperations });
   });
 
   it('P7 conditional undo scope', () => {
     const base = instance();
     const model = template([revision('r1', [], titleChange('Template title'))]);
     const applied = applyOffer(model, base, createOffer(model, base, 'offer-1'), 'event-1', new RecordingTransaction());
-    applied.instance.steps.step!.derived.title = { value: 'Later local title', sourceRevisionId: 'local', sourceOperationId: 'later-op' };
+    applied.instance.steps['step']!.derived.title = { value: 'Later local title', sourceRevisionId: 'local', sourceOperationId: 'later-op' };
     const undone = undoApply(applied.instance, applied.event, 'undo-1', new RecordingTransaction());
     expect(undone.protectedCells).toContain('step:title');
-    expect(undone.instance.steps.step!.derived.title!.value).toBe('Later local title');
+    expect(undone.instance.steps['step']!.derived.title!.value).toBe('Later local title');
   });
 
   it('P8 added-step uniqueness', () => {
@@ -102,12 +102,12 @@ describe('Workflow template propagation properties', () => {
 
   it('P10 reassign-after-complete', () => {
     const base = instance();
-    base.steps.step!.status = 'done';
-    base.steps.step!.outcome = 'approved';
-    base.steps.step!.completionOperations.push({ completionId: 'c1', completedBy: 'advisor-a', outcome: 'approved', sourceOperationId: 'c-op' });
+    base.steps['step']!.status = 'done';
+    base.steps['step']!.outcome = 'approved';
+    base.steps['step']!.completionOperations.push({ completionId: 'c1', completedBy: 'advisor-a', outcome: 'approved', sourceOperationId: 'c-op' });
     const reassigned = appendAssignment(base, 'step', { assignmentId: 'a1', assignedUserId: 'advisor-b', sourceOperationId: 'a-op' });
-    expect(reassigned.steps.step!).toMatchObject({ assigneeUserId: 'advisor-b', outcome: 'approved', completionOperations: base.steps.step!.completionOperations });
-    expect(reassigned.steps.step!.assignmentOperations).toHaveLength(1);
+    expect(reassigned.steps['step']!).toMatchObject({ assigneeUserId: 'advisor-b', outcome: 'approved', completionOperations: base.steps['step']!.completionOperations });
+    expect(reassigned.steps['step']!.assignmentOperations).toHaveLength(1);
   });
 
   it('SA revision-path field race', () => {
@@ -117,8 +117,8 @@ describe('Workflow template propagation properties', () => {
       revision('r2', ['r1'], [{ stepId: 'step', field: 'description', value: 'Description', changeKind: 'modify' }], 2),
     ], ['r2']);
     const result = applyOffer(model, base, createOffer(model, base, 'offer-1'), 'event-1', new RecordingTransaction()).instance;
-    expect(result.steps.step!.derived.title!.sourceRevisionId).toBe('r1');
-    expect(result.steps.step!.derived.description!.sourceRevisionId).toBe('r2');
+    expect(result.steps['step']!.derived.title!.sourceRevisionId).toBe('r1');
+    expect(result.steps['step']!.derived.description!.sourceRevisionId).toBe('r2');
   });
 
   it('SA incomplete change-set visibility', () => {
@@ -134,15 +134,15 @@ describe('Workflow template propagation properties', () => {
     const base = instance();
     const removeModel = template([revision('r1', [], [{ stepId: 'step', field: '__step_removal__', value: true, changeKind: 'remove' }])]);
     const removed = applyOffer(removeModel, base, createOffer(removeModel, base, 'offer-1'), 'event-1', new RecordingTransaction()).instance;
-    removed.steps.step!.status = 'in_progress';
-    expect(reconcileTemplateRemovals(removed).steps.step).toMatchObject({ detachedFromTemplate: true, hiddenByTemplateRemoval: false });
+    removed.steps['step']!.status = 'in_progress';
+    expect(reconcileTemplateRemovals(removed).steps['step']).toMatchObject({ detachedFromTemplate: true, hiddenByTemplateRemoval: false });
   });
 
   it('SA conditional undo after local edit', () => {
     const base = instance();
     const model = template([revision('r1', [], titleChange('New title'))]);
     const applied = applyOffer(model, base, createOffer(model, base, 'offer-1'), 'event-1', new RecordingTransaction());
-    applied.instance.steps.step!.derived.title = { value: 'Local', sourceRevisionId: 'local', sourceOperationId: 'local-op' };
+    applied.instance.steps['step']!.derived.title = { value: 'Local', sourceRevisionId: 'local', sourceOperationId: 'local-op' };
     expect(undoApply(applied.instance, applied.event, 'undo-1', new RecordingTransaction()).protectedCells).toContain('step:title');
   });
 

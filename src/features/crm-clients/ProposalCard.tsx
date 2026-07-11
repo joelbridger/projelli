@@ -30,7 +30,7 @@ export function ProposalCard({
       variant="raised"
       data-testid={`crm-proposal-${record.id}`}
       style={{
-        borderLeft: `4px solid ${record.state === 'rejected' || record.state === 'expired' ? '#b45309' : '#0f766e'}`,
+        borderLeft: `4px solid ${record.state === 'rejected' || record.state === 'expired' ? 'var(--kp-warning)' : 'var(--color-teal-700)'}`,
       }}
     >
       <div
@@ -70,11 +70,11 @@ export function ProposalCard({
       {changedSinceReview ? (
         <div
           data-testid={`crm-proposal-diff-${record.id}`}
-          style={{ borderLeft: '3px solid #b45309', paddingLeft: 10, color: '#713f12' }}
+          style={{ borderLeft: '3px solid var(--kp-warning)', paddingLeft: 10, color: 'var(--color-amber-900)' }}
         >
           <strong>Changed since review. Your selection was cleared.</strong>
-          <div><span style={{ color: '#b91c1c' }}>Before: {review.before ?? 'Previous proposed change'}</span></div>
-          <div><span style={{ color: '#047857' }}>Now: {review.after ?? 'Updated proposed change'}</span></div>
+          <div><span style={{ color: 'var(--color-red-700)' }}>Before: {review.before ?? 'Previous proposed change'}</span></div>
+          <div><span style={{ color: 'var(--color-emerald-700)' }}>Now: {review.after ?? 'Updated proposed change'}</span></div>
           <p style={{ marginBottom: 0 }}>Review this tracked change before approving.</p>
         </div>
       ) : null}
@@ -92,12 +92,12 @@ export function ProposalCard({
         </div>
       ) : null}
       {proposal.deliveryError ? (
-        <p role="alert" style={{ color: '#b91c1c' }}>
+        <p role="alert" style={{ color: 'var(--color-red-700)' }}>
           {proposal.deliveryError}
         </p>
       ) : null}
       {isCommunication && !isTerminal ? (
-        <p style={{ fontSize: 13, color: '#475569' }}>
+        <p style={{ fontSize: 13, color: 'var(--color-slate-600)' }}>
           <Mail
             size={14}
             aria-hidden="true"
@@ -142,7 +142,7 @@ export function ProposalCard({
         ) : null}
         {record.state === 'rejected' ? (
           <>
-            <span style={{ fontSize: 13, color: '#92400e' }}>
+            <span style={{ fontSize: 13, color: 'var(--color-amber-800)' }}>
               Dismissed. This stays in recoverable history.
             </span>
             <Button
@@ -157,10 +157,10 @@ export function ProposalCard({
           </>
         ) : null}
         {record.state === 'expired' ? (
-          <span style={{ fontSize: 13, color: '#92400e' }}>Expired. This remains in history.</span>
+          <span style={{ fontSize: 13, color: 'var(--color-amber-800)' }}>Expired. This remains in history.</span>
         ) : null}
         {record.state === 'approved' ? (
-          <span style={{ fontSize: 13, color: '#166534' }}>
+          <span style={{ fontSize: 13, color: 'var(--color-green-800)' }}>
             Approved and recorded.
           </span>
         ) : null}

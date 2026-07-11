@@ -70,7 +70,7 @@ export function createCorpus(): Corpus {
     });
   }
   for (let i = 1; i <= 76; i++) {
-    const h = homes[(i - 1) % 40];
+    const h = homes[(i - 1) % 40]!;
     const id = 10100 + i;
     const first = `DEMO Person ${String(i).padStart(2, '0')}`;
     const member = {
@@ -158,6 +158,7 @@ export function createCorpus(): Corpus {
     created_at: stamp(1),
     updated_at: stamp(1),
     linked_to: [linked(10001, 'Project', 'DEMO Project collision')],
+    custom_fields: null,
   });
   const tasks = Array.from({ length: 58 }, (_, n) => {
     const i = n + 1,

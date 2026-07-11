@@ -136,7 +136,7 @@ export function HouseholdRecordSurface({
         ) : (
           <span
             title="Ask a firm admin to add a scheduling link"
-            style={{ fontSize: 13, color: '#64748b' }}
+            style={{ fontSize: 13, color: 'var(--color-slate-500)' }}
           >
             Scheduling link unavailable
           </span>
@@ -272,13 +272,13 @@ function ClientMap({ household }: { household: HouseholdRecord }) {
           household.facts.map((fact) => (
             <div
               key={fact.id}
-              style={{ padding: '8px 0', borderTop: '1px solid #e2e8f0' }}
+              style={{ padding: '8px 0', borderTop: '1px solid var(--color-slate-200)' }}
             >
               <strong>
                 {fact.label}: {fact.value}
               </strong>{' '}
               <Badge variant="neutral">{fact.status}</Badge>
-              <div style={{ fontSize: 13, color: '#475569' }}>
+              <div style={{ fontSize: 13, color: 'var(--color-slate-600)' }}>
                 As of {fact.asOf}
                 {fact.learned ? ` · Learned ${fact.learned}` : ''}
               </div>
@@ -356,8 +356,8 @@ function ClientMap({ household }: { household: HouseholdRecord }) {
       <Card variant="raised" data-testid="crm-household-notes">
         <div
           style={{
-            border: '1px solid #d97706',
-            background: '#fffbeb',
+            border: '1px solid var(--color-amber-600)',
+            background: 'var(--color-amber-50)',
             padding: 10,
           }}
         >
@@ -371,8 +371,8 @@ function ClientMap({ household }: { household: HouseholdRecord }) {
         </div>
         <div
           style={{
-            border: '1px solid #0f766e',
-            background: '#f0fdfa',
+            border: '1px solid var(--color-teal-700)',
+            background: 'var(--color-teal-50)',
             padding: 10,
             marginTop: 8,
           }}
