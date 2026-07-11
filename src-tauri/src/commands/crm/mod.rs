@@ -7,6 +7,9 @@
 //! object-level sync engine.
 
 pub mod client;
+pub mod core_model;
+pub mod core_schema;
+pub mod core_store;
 pub mod commands;
 pub mod engine;
 pub mod model;
