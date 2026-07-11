@@ -1,6 +1,6 @@
 # 01 — Wealthbox feature matrix
 
-Conforms to 00-master-spec decisions D1-D10 (reconciled 2026-07-11).
+Conforms to 00-master-spec decisions D1–D25 (reconciled 2026-07-11).
 
 *Design lane A, LANTERN-CRM program. Compiled 2026-07-11. Sources: wealthbox.com
 (features/pricing/integrations/API pages), help.wealthbox.com (help center articles,
@@ -92,11 +92,11 @@ every external write; light theme; `matter`/`matter_id` never renamed.*
 |---|---|---|---|---|---|
 | Workflow templates | Named, editable sequential-step or checklist processes, startable on a Contact, Opportunity, or Project | Basic | R (templates), W (steps only) | E-092, E-093 — advisors can't always find/name the right template, causing ad-hoc rework | REPLICATE |
 | Wealthbox Library of Workflows | 10 pre-built templates for common processes (lead gen, onboarding, trade requests, life events) | Basic | R | not mentioned | REPLICATE — seed Lantern with a small starter library too |
-| Workflow instances (open workflows) | A started workflow tracks steps/owners/progress against its template | Basic | R/W | E-098, E-099 — JBW runs ~40 open post-meeting workflows at a time | REPLICATE |
-| Scheduled workflows | A workflow can be scheduled to auto-start on a future date/time | Basic | UNVERIFIED | not mentioned | REPLICATE |
-| Workflow outcomes (branch/restart/complete) | A step can branch to another step, restart on a date, or the whole workflow can be completed/restarted | Basic | UNVERIFIED | not mentioned | REPLICATE |
+| Workflow instances (open workflows) | A started workflow tracks steps/owners/progress against its template | Basic | No v1 migration path for current state; see [05 §2.5a](05-migration-importer.md#25a-open-workflow-instances-guided-re-creation-at-cutover) | E-098, E-099 — JBW runs ~40 open post-meeting workflows at a time | REPLICATE — Lantern owns new workflow instances. Wealthbox open-instance state is not API-readable in v1, so cutover uses the guided manual re-creation fallback in [05 §2.5a](05-migration-importer.md#25a-open-workflow-instances-guided-re-creation-at-cutover). |
+| Scheduled workflows | A workflow can be scheduled to auto-start on a future date/time | Basic | UNVERIFIED | not mentioned | REPLICATE — `WorkflowTemplate.schedule` is the canonical contract in [02 §1.7](02-data-model.md#17-workflowtemplate-versioned); its editor lives in [04 §6 Templates](04-screens-end-to-end.md#6-home--workflows). |
+| Workflow outcomes (branch/restart/complete) | A step can branch to another step, restart on a date, or the whole workflow can be completed/restarted | Basic | UNVERIFIED | not mentioned | REPLICATE — `StepDef.outcomes` is the canonical contract in [02 §1.7](02-data-model.md#17-workflowtemplate-versioned); its editor lives in [04 §6 Templates](04-screens-end-to-end.md#6-home--workflows). |
 | Coworker commenting on workflow steps | Team members can comment on an in-progress workflow step | Basic | R (comments) | not mentioned | REPLICATE |
-| Contact Actions in Opportunity Workflows | A 2026 addition letting a workflow trigger contact-level actions from within an opportunity workflow | Basic | UNVERIFIED | not mentioned | REPLICATE |
+| Contact Actions in Opportunity Workflows | A 2026 addition letting a workflow trigger contact-level actions from within an opportunity workflow | Basic | UNVERIFIED | not mentioned | SKIP for v1 — documented [D23 exclusion](00-master-spec.md#d23--feature-home-rulings): bulk contact actions have no v1 contract or screen home. |
 | **Template-edit propagation to open instances** | **Does NOT exist in Wealthbox.** Editing a template never updates already-open (in-flight) workflow instances | n/a | n/a | E-098 — "if you change the template it doesn't change any of the open workflows"; E-099 — "you've got 40 open that don't say remember to do this" | **IMPROVE — this is the charter's marquee, named "only we do this" feature** (§ pre-made decision 6): editing a template offers a reviewed, diffable update to every open instance. Highest design/correctness priority in the whole program. |
 | Jump → Wealthbox workflow trigger | Jump can detect "let's open an account" in a meeting and offer to launch the matching Wealthbox workflow | n/a (Jump feature, Wealthbox is the target) | n/a | E-450 — "I think you can do that but we just haven't" (feature exists, unused — friction/adoption gap) | REPLICATE — as an AI-proposed workflow launch from meeting content, with the same friction fix (see AI suite) |
 
@@ -105,9 +105,9 @@ every external write; light theme; `matter`/`matter_id` never renamed.*
 | Feature | What it does | Pricing tier | API | JBW evidence | Verdict |
 |---|---|---|---|---|---|
 | Opportunity record | Tracks a potential engagement (annuity, retirement plan, 401k) with AUM/commission/fee fields | Basic | R/W | not mentioned | REPLICATE — `Opportunity` remains a first-class CRM entity under D9 |
-| Opportunity pipelines | Customizable stage sequences to move an opportunity through; count gated by plan (Basic=1, Pro=3, Premier=5, Enterprise=unlimited) | Basic (1 pipeline) → Premier (5) | R/W | not mentioned | REPLICATE — D9 confirms first-class `PipelineDef` and `StageDef` records, including stage-trigger rules; do not plan-gate a small firm's pipelines |
-| Opportunity stages | Customizable named stages within a pipeline | Basic | R/W | not mentioned | REPLICATE — first-class `StageDef` records under D9 |
-| Launch workflow from new opportunity | An opportunity entering a stage/pipeline can auto-start a workflow | Basic | R/W | not mentioned | REPLICATE — a D9 first-class pipeline stage-trigger rule |
+| Opportunity pipelines | Customizable stage sequences to move an opportunity through; count gated by plan (Basic=1, Pro=3, Premier=5, Enterprise=unlimited) | Basic (1 pipeline) → Premier (5) | R/W | not mentioned | REPLICATE — `PipelineDef`, `StageDef`, and stage-trigger rules are canonical in [02 §1.14](02-data-model.md#114-opportunity--pipelinedef--stagedef--stagetriggerrule); create/edit/order configuration lives in [04 §8 Pipeline settings](04-screens-end-to-end.md#8-home--pipeline). Do not plan-gate a small firm's pipelines. |
+| Opportunity stages | Customizable named stages within a pipeline | Basic | R/W | not mentioned | REPLICATE — first-class `StageDef` records in [02 §1.14](02-data-model.md#114-opportunity--pipelinedef--stagedef--stagetriggerrule), configured in [04 §8 Pipeline settings](04-screens-end-to-end.md#8-home--pipeline). |
+| Launch workflow from new opportunity | An opportunity entering a stage/pipeline can auto-start a workflow | Basic | R/W | not mentioned | REPLICATE — `StageTriggerRule` is canonical in [02 §1.14](02-data-model.md#114-opportunity--pipelinedef--stagedef--stagetriggerrule), configured in [04 §8 Pipeline settings](04-screens-end-to-end.md#8-home--pipeline). |
 
 ## 7. Projects
 
@@ -120,14 +120,14 @@ every external write; light theme; `matter`/`matter_id` never renamed.*
 | Feature | What it does | Pricing tier | API | JBW evidence | Verdict |
 |---|---|---|---|---|---|
 | Calendar / events | Event records (meetings, appointments) linked to contacts, with two-way sync to Google/Outlook/Apple calendars | Basic | R/W | E-109 region — "exists, unused at JBW" | REPLICATE — build it, but don't over-invest; JBW's own usage shows this is a commodity feature they don't lean on, Lantern's meetings capture already covers the real workflow |
-| Calendly integration for scheduling links | Calendar-scheduling integration is a named partner app, not native | Basic | n/a (partner integration) | E-085 — "which Calendly link" is a real scheduling pain point (service-tier-aware link selection) | IMPROVE — service-tier-aware scheduling (already a locked Path-4 idea, §5.2 ServicePolicy) beats a generic calendar link picker |
+| Calendly integration for scheduling links | Calendar-scheduling integration is a named partner app, not native | Basic | n/a (partner integration) | E-085 — "which Calendly link" is a real scheduling pain point (service-tier-aware link selection) | IMPROVE — `ServicePolicy.schedulingLinkUrl` is the canonical field in [02 §1.9](02-data-model.md#19-servicepolicy); Firm setup and household scheduling actions expose it in [04 §§3 and 13](04-screens-end-to-end.md#3-clients--household-record). The provider integration remains owned by the existing connector under [D23](00-master-spec.md#d23--feature-home-rulings), not a new CRM integration. |
 
 ## 9. Email
 
 | Feature | What it does | Pricing tier | API | JBW evidence | Verdict |
 |---|---|---|---|---|---|
 | Email sync (Gmail/Outlook) | Two-way sync that pulls sent/received email into a contact's Email tab | Basic (limited) / Pro+ (fuller) | UNVERIFIED (not in confirmed API resource list) | E-020, E-291 — "you cannot keyword-search email content" is a named, direct pain point | REPLICATE — and fix the named defect: full-text + semantic search over synced email, which Lantern's existing email connector + RAG stack already does better |
-| BCC Email Dropbox | A unique per-user email address; BCC or forward any email to it and Wealthbox tries to match it to a contact, permanently storing it even if deleted from the original inbox or sync disconnects | Basic | n/a (SMTP-level feature, not API) | not mentioned directly, but matches JBW's manual copy-paste-with-labeling habit (E-009) | SKIP — documented D9 exclusion: server-side plaintext BCC capture conflicts with the E2EE charter. Revisit only with a client-side alternative |
+| BCC Email Dropbox | A unique per-user email address; BCC or forward any email to it and Wealthbox tries to match it to a contact, permanently storing it even if deleted from the original inbox or sync disconnects | Basic | n/a (SMTP-level feature, not API) | not mentioned directly, but matches JBW's manual copy-paste-with-labeling habit (E-009) | SKIP for v1 — server-side plaintext capture conflicts with the E2EE charter; a client-side alternative is future work only. See [00 §D9](00-master-spec.md#d9--feature-homes-xd-14151617-settled). |
 | Emails land in Activity Stream, not the Email tab, for dropbox items | A quirk: BCC-dropped emails show only in the activity stream, not threaded, not on the Email tab | Basic | n/a | not mentioned | SKIP as designed — this is a Wealthbox limitation (no threading), not a feature worth copying; our email connector already threads properly |
 | Email broadcast | Send a one-to-many email blast to a filtered contact list from inside the CRM | Basic | UNVERIFIED | not mentioned | SKIP — marketing-blast tooling is out of scope for a ≤10-seat RIA system of record; better served by a dedicated tool if ever needed |
 
@@ -148,14 +148,14 @@ every external write; light theme; `matter`/`matter_id` never renamed.*
 | Contact activity stream | Chronological feed of everything on a contact (notes, tasks, events, emails) | Basic | R | E-100 — "your lives are really in Wealthbox tasks, workflows... and email" | REPLICATE — becomes the unified, dated, sourced timeline (charter §5.2) |
 | Firm-wide activity/dashboard feed | A home-page feed of firm activity across contacts | Basic | R | not mentioned | REPLICATE |
 | @-mentioning | Type "@" + a contact name from the publisher box to post a note about them without navigating to their record | Basic | UNVERIFIED | not mentioned directly (matches E-021's "notify everybody" pattern) | REPLICATE |
-| Comments on activity | Reply to an activity-stream item; visibility can be set to "everyone" | Basic | R only | not mentioned | REPLICATE — team coordination color (E-021's Teams-vs-Wealthbox split) is exactly what an in-CRM comment thread can capture instead of leaking to Teams |
-| Likes/emoji activity reactions | React to an activity-stream item | Basic | R only | not mentioned | SKIP for v1 — D9 defers activity reactions; comments provide the needed coordination path |
+| Comments on activity | Reply to an activity-stream item; visibility can be set to "everyone" | Basic | R only | not mentioned | SKIP for v1 — documented [D23 exclusion](00-master-spec.md#d23--feature-home-rulings): activity comments are deferred together with reactions; no v1 comment entity or composer is planned. |
+| Likes/emoji activity reactions | React to an activity-stream item | Basic | R only | not mentioned | SKIP for v1 — deferred with activity comments under [D23](00-master-spec.md#d23--feature-home-rulings); neither has a v1 contract or screen home. |
 
 ## 12. Document storage
 
 | Feature | What it does | Pricing tier | API | JBW evidence | Verdict |
 |---|---|---|---|---|---|
-| File storage on records | Attach files to contacts/notes/tasks; storage cap by plan (Basic 2GB → Premier 10GB → Enterprise 20GB) | Basic | UNVERIFIED (no confirmed API endpoint for attachments — also flagged as a gap in our own connector) | not mentioned directly (E-132/E-841 region touches documents workflow generally) | REPLICATE — but Lantern already has a stronger document story (Word-native engine, OneDrive/SharePoint connector); this is closer to already-shipped than new build |
+| File storage on records | Attach files to contacts/notes/tasks; storage cap by plan (Basic 2GB → Premier 10GB → Enterprise 20GB) | Basic | No v1 API migration path: tested attachment/file/document reads were absent; see [05 §2.5b](05-migration-importer.md#25b-files-and-attachments-operator-export-plus-client-level-gap-flags) | not mentioned directly (E-132/E-841 region touches documents workflow generally) | SKIP as a new v1 CRM entity — documented [D23 exclusion](00-master-spec.md#d23--feature-home-rulings): the existing Documents subsystem owns files and CRM records link them through `contextRefs`; no attachment entity is introduced. Attachment migration is export-or-gap accounting in [05 §2.5b](05-migration-importer.md#25b-files-and-attachments-operator-export-plus-client-level-gap-flags). |
 
 ## 13. Integrations directory (top ~15 of 150+)
 
@@ -166,12 +166,12 @@ every external write; light theme; `matter`/`matter_id` never renamed.*
 | RightCapital | Financial planning | E-029 region (screenshotted into PowerPoint, not exported) | SKIP for v1 — read-only reference integration later if a pilot firm needs it; not a system-of-record feature |
 | Charles Schwab | Custodian | E-076 (account confusion happened here) | SKIP — custodial data feeds are a distinct, much larger integration project; out of scope for the CRM-replacement design phase |
 | DocuSign | E-signature | E-090 region — named as a trust-building integration | SKIP for v1 — D9 assigns DocuSign tracking to the existing connector rather than a new CRM feature |
-| JotForm | Intake forms | E-087 — used heavily for new-client and cashflow intake | SKIP as external tool — Lantern's own intake links (charter's "no mobile app, phone-shaped needs via responsive intake links") already cover this natively |
+| JotForm | Intake forms | E-087 — used heavily for new-client and cashflow intake | SKIP as an external integration — Lantern's responsive intake-link flow is the v1 replacement: link creation, public responsive form, then submission matching/review in [04 §14](04-screens-end-to-end.md#14-existing-surfaces-write-crm-data). |
 | Redtail | Competing CRM | market-share leader (crm-market-research.md §2) | REPLICATE via migration importer only (a second migration source, not a live integration) |
 | Salesforce | Competing CRM / enterprise | E-105 — named as a trust signal ("big names") | REPLICATE via migration importer only |
 | Microsoft Outlook / Gmail | Email & calendar | E-020, E-291 (email pain), E-109 (calendar) | REPLICATE — already shipping in Lantern (email connector) |
 | Microsoft Teams | Team chat | E-021, E-307 — where the "real color" actually lives today | IMPROVE — don't integrate Teams; make the CRM itself good enough at internal color that the leak stops (see §3 "inside scoop") |
-| Calendly | Scheduling | E-085 (service-tier-aware link problem) | REPLICATE — matches the locked Calendly-parity plan already scoped in `~/lantern-plus/docs/plans` (project_jump_parity_calendly_schwab) |
+| Calendly | Scheduling | E-085 (service-tier-aware link problem) | IMPROVE — v1 exposes the service-tier-aware `ServicePolicy.schedulingLinkUrl` in [02 §1.9](02-data-model.md#19-servicepolicy) through Firm setup and household scheduling actions in [04 §§3 and 13](04-screens-end-to-end.md#3-clients--household-record); the provider integration remains the existing connector's job under [D23](00-master-spec.md#d23--feature-home-rulings). |
 | AdvicePay | Billing | not mentioned | SKIP for v1 — no evidence of use; revisit if a pilot firm needs it |
 | Orion / Black Diamond / Tamarac / Addepar | Portfolio management | not mentioned | SKIP for v1 — same reasoning as Schwab; large integration projects with zero evidence of JBW need |
 | eMoney / MoneyGuide / Voyant | Financial planning (RightCapital's peers) | not mentioned directly | SKIP for v1 — same as RightCapital |
@@ -183,7 +183,7 @@ every external write; light theme; `matter`/`matter_id` never renamed.*
 
 | Feature | What it does | Pricing tier | API | JBW evidence | Verdict |
 |---|---|---|---|---|---|
-| iOS / Android native apps | Full CRM access on mobile: Today view, contact search, click-to-call, caller ID, in-person meeting recording uploaded to the AI Notetaker, calendar | Basic | n/a (native apps, not API) | not mentioned | **SKIP — charter locked decision: no mobile app.** Phone-shaped needs are met by responsive intake-style links instead |
+| iOS / Android native apps | Full CRM access on mobile: Today view, contact search, click-to-call, caller ID, in-person meeting recording uploaded to the AI Notetaker, calendar | Basic | n/a (native apps, not API) | not mentioned | **SKIP — charter locked decision: no mobile app.** Phone-shaped needs are met by the full responsive intake-link flow in [04 §14](04-screens-end-to-end.md#14-existing-surfaces-write-crm-data). |
 | Caller ID from Wealthbox contacts | iOS feature: incoming calls matched against Wealthbox contacts | Basic | n/a | not mentioned | SKIP — dialer/phone infrastructure, named exclusion example in the charter |
 | Click-to-call | Tap a phone number in the app to dial | Basic | n/a | not mentioned | SKIP — same reason, dialer infra |
 
@@ -214,14 +214,14 @@ every external write; light theme; `matter`/`matter_id` never renamed.*
 |---|---|---|---|---|---|
 | Self-service CSV/Excel/vCard/Outlook import | In-app bulk import tool for contacts and related data | Basic | UNVERIFIED (import tooling, not confirmed as an API path) | not mentioned | SKIP for v1 — D9 keeps the Wealthbox migration wizard as the import path; generic CSV/vCard import jobs are deferred |
 | White-glove migration service | Wealthbox's team migrates a firm's data from another CRM (Salesforce, Redtail, Junxure, Dynamics, ACT!, etc.), typically a few days to weeks | Included at all tiers, per help center | n/a (service, not API) | not mentioned directly, but this is exactly the switching-cost calculus in the market research (§3, 1-2 week typical migrations) | REPLICATE, inverted — **this becomes design/05's Wealthbox→Lantern migration wizard**, the make-or-break surface per the deep-dive (§7): mirror → parallel-run → cutover with a fidelity report |
-| Data portability / export | All tiers can export their own data out of Wealthbox | Basic | UNVERIFIED | not mentioned | REPLICATE — and go further: a frozen, decrypted archive export is a compliance requirement (charter/deep-dive §8), not just a nice-to-have |
+| Data portability / export | All tiers can export their own data out of Wealthbox | Basic | UNVERIFIED | not mentioned | REPLICATE — frozen, decrypted archive export and rollback export are explicit user actions with readiness/status screens in [04 §11](04-screens-end-to-end.md#11-home--firm--migration-wizard-and-fidelity-report), not merely a manifest viewer. |
 | External Unique ID field for import linking | A field used to key imported notes/tasks back to the right contact during bulk import | Basic | R (part of Contacts resource) | not mentioned | REPLICATE — same pattern, needed for idempotent re-import during a parallel-run migration |
 
 ## 18. API & webhooks
 
 | Feature | What it does | Pricing tier | API | JBW evidence | Verdict |
 |---|---|---|---|---|---|
-| REST API (OAuth2 + token auth) | Full CRUD-ish access to Contacts, Tasks, Events, Notes, Opportunities, Projects, Workflows/Workflow Templates/Workflow Steps, Contact Roles, Custom Fields (read), Tags (read), Comments (read), Household Members (write), Teams/Users/User Groups (read) | Basic (raw access) / Pro+ ("API Development Support" — implies paid help, not gated API access itself) | This IS the API | Our own connector already exercises Contacts, Households, Notes, Tasks, Events, deletions — proving the surface live | REPLICATE — this is the target of the migration importer (design/05), not something Lantern needs to expose outward in the same shape, since Lantern is the destination, not a platform other tools integrate into (at least not in v1) |
+| REST API (OAuth2 + token auth) | Full CRUD-ish access to Contacts, Tasks, Events, Notes, Opportunities, Projects, Workflows/Workflow Templates/Workflow Steps, Contact Roles, Custom Fields (read), Tags (read), Comments (read), Household Members (write), Teams/Users/User Groups (read) | Basic (raw access) / Pro+ ("API Development Support" — implies paid help, not gated API access itself) | This IS the API | Our own connector already exercises Contacts, Households, Notes, Tasks, Events, deletions — proving the surface live | REPLICATE — this is the migration-importer source, not a Lantern outward API. The live-probe boundary in [05 §§2.1 and 2.5](05-migration-importer.md#21-coverage-table-probed-endpoints-and-typed-targets) is binding: no open-workflow-current-state or attachment API import is promised in v1. |
 | Rate limiting | ~1 request/sec sustained over a 5-min window, burst-tolerant, 429 on excess | all tiers | n/a | Our connector already respects ~1 rps with 429 backoff | n/a — a constraint on OUR importer, not a Lantern feature |
 | Native webhooks | **Does not exist.** Wealthbox has no native webhook/push system; third parties (Zapier) fake it by polling | n/a | **None confirmed** | not mentioned | IMPROVE — irrelevant to Lantern's own architecture (the E2EE relay's WebSocket fan-out is already push-based for connected peers per the feasibility doc §2), but worth naming as a gap Wealthbox itself hasn't closed |
 | Workflow trigger via API | External tools (Jump) can trigger a Wealthbox workflow start via the API | Basic | W | E-450 — Jump can trigger Wealthbox workflows from meeting content | n/a — not a Lantern-native feature, this describes how Jump uses Wealthbox; Lantern's meetings capture triggers workflows natively, no external API round-trip needed |
@@ -235,13 +235,13 @@ including the two n/a "constraint, not a feature" rows in §18):
 
 | Verdict | Approx. count |
 |---|---|
-| **REPLICATE** | 56 |
-| **IMPROVE** | 17 |
-| **SKIP** | 20 |
+| **REPLICATE** | 52 |
+| **IMPROVE** | 18 |
+| **SKIP** | 23 |
 | **n/a** | 2 |
 | **Total** | 95 |
 
-SKIP breakdown by reason: mobile app / dialer infra (3 — the charter's own named example), enterprise/multi-workspace scale (2), D9 exclusions (5: BCC Dropbox conflicts with E2EE, DocuSign tracking belongs to the existing connector, activity reactions are deferred, generic CSV/vCard imports are deferred, and Projects are legacy-import records rather than a new v1 object), out-of-scope external tools with zero JBW evidence of need (10: RightCapital, Schwab, JotForm-as-integration, AdvicePay, Orion/Black Diamond/Tamarac/Addepar, eMoney/MoneyGuide/Voyant, third-party AI-on-Wealthbox layers, Zapier, email-broadcast blasts), and Wealthbox-own limitations not worth copying (dropbox emails not threaded; email-broadcast marketing blasts).
+SKIP breakdown by reason: mobile app / dialer infra (3 — the charter's own named example), enterprise/multi-workspace scale (2), D9/D23 exclusions (8: BCC Dropbox conflicts with E2EE; DocuSign tracking belongs to the existing connector; activity comments and reactions are deferred; generic CSV/vCard imports are deferred; Projects remain legacy-import records; Contact Actions bulk actions are excluded; and files stay in the existing Documents subsystem), out-of-scope external tools with zero JBW evidence of need (9: RightCapital, Schwab, JotForm-as-integration, AdvicePay, Orion/Black Diamond/Tamarac/Addepar, eMoney/MoneyGuide/Voyant, third-party AI-on-Wealthbox layers, Zapier, email-broadcast blasts), and one Wealthbox-own limitation not worth copying (dropbox emails are not threaded).
 
 ## (b) The 10 features that define parity in a sales conversation
 
@@ -264,7 +264,7 @@ JBW evidence:
 
 - Exact API write-scope for Task assignee and Task recurrence fields (our own connector's `CrmTask` model has neither field yet — this needs a live-token check, same caveat the deep-dive already flagged in §7).
 - Whether Custom Objects are exposed via the public API at all (no confirmed resource in dev.wealthbox.com's list).
-- File/attachment upload-download API endpoints (not found in the confirmed resource list; our own connector has no attachment support today either).
+- File/attachment upload-download API endpoints — the live probe found no v1 read path; migration uses the operator-export or per-client-gap fallback in [05 §2.5b](05-migration-importer.md#25b-files-and-attachments-operator-export-plus-client-level-gap-flags), not an API importer.
 - AI Notetaker's exact plan-by-plan bundling (Basic shows a clear $49/mo add-on price; Pro/Premier bundling terms weren't confirmed from primary sources in this pass).
 - Agents / Playbooks / AI Assistant pricing tier and exact API surface — these are March 2026 early-access announcements; no pricing or API detail has surfaced yet as of 2026-07-11.
 - Whether Scheduled Workflows, Workflow Outcomes (branch/restart), and Contact Actions in Opportunity Workflows are API-writable or UI-only.
