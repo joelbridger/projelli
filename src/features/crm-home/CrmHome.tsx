@@ -24,12 +24,14 @@ import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { Button } from '@/ui/kp';
 import { getCrmEngineFreshness, subscribeCrmEngineFreshness } from '@/platform/crm/store';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
+import { createMigrationExport, runWealthboxMigration } from '@/platform/crm/migration';
 import type {
   CrmFreshnessState,
   CrmHomeAdapter,
   CrmTask,
   AttachmentAccountingRecord,
   ExportJobStatus,
+  MigrationFidelityReport,
   MigrationWorkflowChecklist,
   OfferDecision,
   PropagationOffer,
@@ -256,15 +258,19 @@ function IntakeLinks() { return <Screen title="Intake links" description="Scoped
 
 function Migration({ route, freshness, migration, onNavigate, actions }: { route: CrmHomeRoute; freshness: CrmFreshnessState; migration: CrmHomeAdapter['migration']; onNavigate: (route: CrmHomeRoute) => void; actions: CrmHomeAdapter['actions'] }) {
   const [parallel, setParallel] = useState(false);
+  const [baseUrl, setBaseUrl] = useState('http://127.0.0.1:8788/v1');
+  const [running, setRunning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const run = async () => { setRunning(true); setError(null); try { await actions.runMigrationImport?.(baseUrl); } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); } finally { setRunning(false); } };
   const exportKind = route === 'archive-export' ? 'archive' : route === 'rollback-export' ? 'rollback' : null;
   if (exportKind) return <ExportReadiness job={migration.exports.find((job) => job.kind === exportKind) ?? { kind: exportKind, status: 'failed', failureReason: 'No export job was supplied by the CRM data engine.' }} onCreate={() => actions.createExport?.(exportKind)} onRetry={() => actions.retryExport?.(exportKind)} />;
   if (route === 'workflow-recreation') return <WorkflowFallbackChecklist records={migration.workflowChecklists} onRecord={(record) => actions.recordWorkflowChecklist?.(record)} />;
   if (route === 'attachment-accounting') return <AttachmentFallbackChecklist records={migration.attachmentAccounting} onRecord={(record) => actions.recordAttachmentAccounting?.(record)} />;
-  if (route === 'fidelity') return <FidelityReport onNavigate={onNavigate} />;
-  return <Screen title="Wealthbox migration" description="Mirror → Parallel run → Cutover" Icon={Activity} action={<Button data-testid="crm-migration-fidelity" onClick={() => { onNavigate('fidelity'); }}>Review fidelity report</Button>}><FreshnessBanner freshness={freshness} /><section style={panelStyle}><strong>Mirror ● Last synced &nbsp; Parallel run {parallel ? '● Active' : '○ Next'} &nbsp; Cutover ○ Locked</strong><p>80 households · 262 people · 1,904 notes · 311 tasks</p><div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><Button variant="secondary" data-testid="crm-migration-archive" iconLeft={FileArchive} onClick={() => { onNavigate('archive-export'); }}>Archive export</Button><Button variant="secondary" data-testid="crm-migration-rollback" iconLeft={Download} onClick={() => { onNavigate('rollback-export'); }}>Rollback export</Button><Button data-testid="crm-migration-start-parallel" disabled={parallel} onClick={() => { setParallel(true); }}>{parallel ? 'Parallel run active' : 'Start parallel run'}</Button></div></section><section style={panelStyle}><strong>Parallel run is deliberately limited</strong><p style={mutedStyle}>It mirrors readable workflow templates and activity traces. It never claims to read open-workflow state from an API. External writes require a reviewed tracked diff and approval.</p></section><section style={panelStyle}><strong>Required through cutover</strong><div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><Button variant="secondary" data-testid="crm-migration-workflow-fallback" onClick={() => { onNavigate('workflow-recreation'); }}>In-flight workflow re-creation</Button><Button variant="secondary" data-testid="crm-migration-attachment-fallback" onClick={() => { onNavigate('attachment-accounting'); }}>Attachment accounting</Button></div></section></Screen>;
+  if (route === 'fidelity') return <FidelityReport onNavigate={onNavigate} report={migration.report} />;
+  return <Screen title="Wealthbox migration" description="Bring over your practice safely" Icon={Activity} action={<Button data-testid="crm-migration-fidelity" disabled={!migration.report} onClick={() => { onNavigate('fidelity'); }}>Review import report</Button>}><FreshnessBanner freshness={freshness} /><section style={panelStyle}><strong>{migration.report ? 'Import finished' : 'Connect the simulator and import'}</strong><p style={mutedStyle}>{migration.report ? migration.report.message : 'Use the local simulator address. This only uses made-up Northcrest practice data.'}</p><label style={{ display: 'block', marginBottom: 10 }}>Simulator address <input data-testid="crm-migration-base-url" value={baseUrl} onChange={(event) => { setBaseUrl(event.target.value); }} style={{ display: 'block', width: 'min(620px, 100%)' }} /></label><Button data-testid="crm-migration-run-import" disabled={running} onClick={() => { void run(); }}>{running ? 'Importing…' : migration.report ? 'Run import again' : 'Run import'}</Button>{error && <p data-testid="crm-migration-error" role="alert">{error}</p>}</section><section style={panelStyle}><strong>Parallel run {parallel ? 'is active' : 'comes next'}</strong><p style={mutedStyle}>It mirrors only the information the source system lets us read. It does not pretend it can see a workflow’s current step when the source system does not provide it.</p><div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><Button variant="secondary" data-testid="crm-migration-archive" disabled={!migration.report} iconLeft={FileArchive} onClick={() => { onNavigate('archive-export'); }}>Archive export</Button><Button variant="secondary" data-testid="crm-migration-rollback" disabled={!migration.report} iconLeft={Download} onClick={() => { onNavigate('rollback-export'); }}>Rollback export</Button><Button data-testid="crm-migration-start-parallel" disabled={parallel || !migration.report} onClick={() => { setParallel(true); }}>{parallel ? 'Parallel run active' : 'Start parallel run'}</Button></div></section><section style={panelStyle}><strong>Things a person must check</strong><p style={mutedStyle}>If some information cannot be brought over, this gives you a simple checklist. Nothing is hidden behind technical error names.</p><div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><Button variant="secondary" data-testid="crm-migration-workflow-fallback" disabled={!migration.report} onClick={() => { onNavigate('workflow-recreation'); }}>In-flight workflow checklist</Button><Button variant="secondary" data-testid="crm-migration-attachment-fallback" disabled={!migration.report} onClick={() => { onNavigate('attachment-accounting'); }}>Attachment checklist</Button></div></section></Screen>;
 }
 
-function FidelityReport({ onNavigate }: { onNavigate: (route: CrmHomeRoute) => void }) { return <Screen title="Fidelity report" description="Jul 11 · 10:42" Icon={Flag} action={<Button variant="secondary">Export report</Button>}><section style={panelStyle}><strong>Attention needed before cutover</strong><p>Households 80 fetched / 80 imported / 0 skipped · Complete</p><p>Notes 1,904 fetched / 1,892 imported / 12 skipped · Review</p><p>Open workflows: 4 checklists · 3 decided · 1 needs operator decision</p><p>Attachments: 78 exported · 2 explicit client gaps</p><Button variant="secondary" onClick={() => { onNavigate('workflow-recreation'); }}>See workflow checklist</Button> <Button variant="secondary" onClick={() => { onNavigate('attachment-accounting'); }}>See attachment accounting</Button></section><p style={mutedStyle}>Cutover stays locked until every active-client skip is explained, the full check and frozen archive match, rollback is ready, every workflow checklist is decided, and each attachment is exported or marked as a gap.</p></Screen>; }
+function FidelityReport({ onNavigate, report }: { onNavigate: (route: CrmHomeRoute) => void; report?: MigrationFidelityReport }) { if (!report) return <Screen title="Import report" description="No import has run yet" Icon={Flag}><p>Run the import first.</p></Screen>; return <Screen title="Import report" description={new Date(report.generatedAt).toLocaleString()} Icon={Flag}><section style={panelStyle}><strong>What came over</strong><p style={mutedStyle}>{report.message}</p><div data-testid="crm-fidelity-matrix">{report.matrix.map((row) => <section key={row.sourceType} data-testid={`crm-fidelity-row-${row.sourceType}`} style={{ borderTop: '1px solid var(--kp-border)', padding: '8px 0' }}><strong>{row.sourceType.replaceAll('_', ' ')}</strong><span> · {row.fetched} found · {row.imported} imported · {row.skipped} not imported</span>{row.plainReason ? <p role="alert" style={mutedStyle}>{row.plainReason}</p> : null}</section>)}</div></section><section style={panelStyle}><strong>Attachments: {report.attachments.viaApi}</strong><p>{report.attachments.affected} clients need an answer: {report.attachments.exported} exported, {report.attachments.gaps} marked as a gap, {report.attachments.unaccounted} still need attention.</p><strong>In-flight workflows</strong><p>{report.workflows.checklists} checklist items · {report.workflows.pending} still need a decision.</p><Button variant="secondary" onClick={() => { onNavigate('workflow-recreation'); }}>Open workflow checklist</Button> <Button variant="secondary" onClick={() => { onNavigate('attachment-accounting'); }}>Open attachment checklist</Button></section></Screen>; }
 
 function WorkflowFallbackChecklist({ records, onRecord }: { records: readonly MigrationWorkflowChecklist[]; onRecord: (record: MigrationWorkflowChecklist) => void }) {
   const [drafts, setDrafts] = useState(records);
@@ -318,10 +324,45 @@ export function CrmHome({ adapter, preview = false, initialRoute }: CrmHomeProps
     ...(typeof record['householdLabel'] === 'string' ? { householdLabel: record['householdLabel'] } : {}),
     ...(typeof record['dueAt'] === 'string' ? { dueAt: record['dueAt'], dueLabel: record['dueAt'] } : {}),
   }));
+  const liveWorkflowChecklists: readonly MigrationWorkflowChecklist[] = live.records.filter((record) => record.kind === 'migration_workflow_checklist').map((record) => ({
+    id: record.id,
+    clientLabel: typeof record['clientLabel'] === 'string' ? record['clientLabel'] : 'Imported client',
+    sourceTemplateLabel: typeof record['sourceTemplateLabel'] === 'string' ? record['sourceTemplateLabel'] : 'Imported workflow',
+    activityEvidence: Array.isArray(record['activityEvidence']) ? record['activityEvidence'].filter((item): item is string => typeof item === 'string') : [],
+    availableSteps: Array.isArray(record['availableSteps']) ? record['availableSteps'].filter((item): item is string => typeof item === 'string') : [],
+    selectedCurrentStep: typeof record['selectedCurrentStep'] === 'string' ? record['selectedCurrentStep'] : undefined,
+    evidenceReviewed: record['evidenceReviewed'] === true,
+    decision: record['decision'] === 'recreate' || record['decision'] === 'gap' ? record['decision'] : 'pending',
+    resultingInstanceLabel: typeof record['resultingInstanceLabel'] === 'string' ? record['resultingInstanceLabel'] : undefined,
+    gapReason: typeof record['gapReason'] === 'string' ? record['gapReason'] : undefined,
+  }));
+  const liveAttachmentAccounting: readonly AttachmentAccountingRecord[] = live.records.filter((record) => record.kind === 'migration_attachment_accounting').map((record) => ({
+    id: record.id,
+    clientLabel: typeof record['clientLabel'] === 'string' ? record['clientLabel'] : 'Imported client',
+    status: record['status'] === 'exported' || record['status'] === 'gap' ? record['status'] : 'pending',
+    exportSource: typeof record['exportSource'] === 'string' ? record['exportSource'] : undefined,
+    exportedBy: typeof record['exportedBy'] === 'string' ? record['exportedBy'] : undefined,
+    gapReason: typeof record['gapReason'] === 'string' ? record['gapReason'] : undefined,
+    gapOwner: typeof record['gapOwner'] === 'string' ? record['gapOwner'] : undefined,
+  }));
+  const reportRecord = live.records.find((record) => record.kind === 'migration_report');
+  const liveReport: MigrationFidelityReport | undefined = reportRecord && Array.isArray(reportRecord['matrix']) && typeof reportRecord['batchId'] === 'string' && typeof reportRecord['generatedAt'] === 'string' && typeof reportRecord['message'] === 'string' && reportRecord['attachments'] && typeof reportRecord['attachments'] === 'object' && reportRecord['workflows'] && typeof reportRecord['workflows'] === 'object' ? reportRecord as unknown as MigrationFidelityReport : undefined;
+  const liveExports: readonly ExportJobStatus[] = (['archive', 'rollback'] as const).map((kind) => {
+    const record = live.records.find((item) => item.kind === 'migration_export' && item['exportKind'] === kind);
+    return { kind, status: record?.['status'] === 'exported' || record?.['status'] === 'preparing' || record?.['status'] === 'failed' ? record['status'] : 'ready', exportedAt: typeof record?.['exportedAt'] === 'string' ? record['exportedAt'] : undefined, manifestId: typeof record?.['manifestId'] === 'string' ? record['manifestId'] : undefined, reconciliationReportId: typeof record?.['reconciliationReportId'] === 'string' ? record['reconciliationReportId'] : undefined, failureReason: typeof record?.['failureReason'] === 'string' ? record['failureReason'] : undefined };
+  });
   const liveAdapter: CrmHomeAdapter = {
     ...emptyEngineAdapter(freshness),
     tasks: liveTasks,
-    actions: { updateTask: (task) => { void live.save({ ...task, kind: 'task', matterId: 'firm' }); } },
+    migration: { workflowChecklists: liveWorkflowChecklists, attachmentAccounting: liveAttachmentAccounting, exports: liveExports, ...(liveReport ? { report: liveReport } : {}) },
+    actions: {
+      updateTask: (task) => { void live.save({ ...task, kind: 'task', matterId: 'firm' }); },
+      recordWorkflowChecklist: (record) => { void live.save({ ...record, kind: 'migration_workflow_checklist', matterId: 'firm' }); },
+      recordAttachmentAccounting: (record) => { void live.save({ ...record, kind: 'migration_attachment_accounting', matterId: 'firm' }); },
+      createExport: (kind) => { void createMigrationExport(live.workspaceRoot, kind).then(() => live.reload()); },
+      retryExport: (kind) => { void createMigrationExport(live.workspaceRoot, kind).then(() => live.reload()); },
+      runMigrationImport: async (baseUrl) => { await runWealthboxMigration(live.workspaceRoot, baseUrl); await live.reload(); },
+    },
   };
   const activeAdapter = adapter ?? (preview ? PREVIEW_ADAPTER : liveAdapter);
   return <ConnectedCrmHome adapter={activeAdapter} preview={preview} {...(initialRoute ? { initialRoute } : {})} />;
