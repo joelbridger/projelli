@@ -18,11 +18,20 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import { composeFieldBlend, isNarrativeField, WEALTHBOX_NARRATIVE_FIELDS } from './fieldBlend';
+import {
+  composeFieldBlend,
+  isNarrativeField,
+  WEALTHBOX_NARRATIVE_FIELDS,
+  type PreparedFieldBlendRequest,
+} from './fieldBlend';
 
 function fakeSender(response: string) {
-  const send = vi.fn().mockResolvedValue(response);
-  return { send };
+  const requests: PreparedFieldBlendRequest[] = [];
+  const send = vi.fn((request: PreparedFieldBlendRequest): Promise<string> => {
+    requests.push(request);
+    return Promise.resolve(response);
+  });
+  return { send, requests };
 }
 
 describe('isNarrativeField', () => {
@@ -65,7 +74,7 @@ describe('composeFieldBlend — scalar fields', () => {
 
 describe('composeFieldBlend — narrative fields, audited sender configured', () => {
   it('sends a merge instruction to the audited sender and returns its response verbatim', async () => {
-    const { send } = fakeSender('Robert owns a rental property. Retiring spring 2027.');
+    const { send, requests } = fakeSender('Robert owns a rental property. Retiring spring 2027.');
     const finalValue = await composeFieldBlend({
       field: 'background_information',
       existingValue: 'Robert owns a rental property.',
@@ -74,16 +83,13 @@ describe('composeFieldBlend — narrative fields, audited sender configured', ()
     });
     expect(finalValue).toBe('Robert owns a rental property. Retiring spring 2027.');
     expect(send).toHaveBeenCalledTimes(1);
-    const call = send.mock.calls[0];
-    expect(call).toBeDefined();
-    const request = call?.[0];
-    const prompt = request && typeof request === 'object' && 'prompt' in request
-      ? String(request.prompt)
-      : '';
-    expect(prompt).toContain('Merge the new information into the existing text');
-    expect(prompt).toContain('Keep every existing fact');
-    expect(prompt).toContain('Robert owns a rental property.');
-    expect(prompt).toContain('Retiring spring 2027.');
+    expect(requests).toHaveLength(1);
+    const request = requests[0];
+    expect(request).toBeDefined();
+    expect(request?.prompt).toContain('Merge the new information into the existing text');
+    expect(request?.prompt).toContain('Keep every existing fact');
+    expect(request?.prompt).toContain('Robert owns a rental property.');
+    expect(request?.prompt).toContain('Retiring spring 2027.');
     expect(request).toMatchObject({ surface: 'crm_field_blend', background: true });
   });
 

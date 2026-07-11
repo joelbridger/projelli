@@ -6,6 +6,7 @@ import { buildResolvedProviderForClientMap } from './provider';
 import { parseItems, itemsFromRaw, aiSectionPrompt } from './aiSection';
 import type { ClientMapSection } from '@/platform/clientMap/types';
 import { sendPreparedMessageWithEgressAudit } from '@/platform/privacy/promptPreparation';
+import { modelAuditMetrics } from '@/platform/privacy/sendWithEgressAudit';
 import type { AuditEntry } from '@/platform/types/audit';
 
 export interface BuildCustomSectionOptions {
@@ -54,7 +55,7 @@ export async function buildCustomSection(
     ],
     ...(options?.onAuditLog ? { onAuditLog: options.onAuditLog } : {}),
     scope: { kind: 'matter', matterId },
-    modelCall: (response) => ({ action: 'model_call', description: `Client Map custom section (${title}) to ${resolved.model}`, model: resolved.model, inputs: { matterId, sectionId }, outputs: { contentLength: response.content.length }, userDecision: 'auto', metadata: { feature: 'client_map', step: 'custom_section', sectionId }, tokensIn: response.usage?.inputTokens ?? 0, tokensOut: response.usage?.outputTokens ?? 0, costUsd: response.cost ?? 0, provider: resolved.providerId }),
+    modelCall: (response) => ({ action: 'model_call', description: `Client Map custom section (${title}) to ${resolved.model}`, model: resolved.model, inputs: { matterId, sectionId }, outputs: { contentLength: response.content.length }, userDecision: 'auto', metadata: { feature: 'client_map', step: 'custom_section', sectionId }, ...modelAuditMetrics(response), provider: resolved.providerId }),
   });
   return { ...base, items: itemsFromRaw(parseItems(res.content), hits) };
 }

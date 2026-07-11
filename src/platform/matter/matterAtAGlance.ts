@@ -36,6 +36,7 @@ import {
 import type { ClientMap } from '@/platform/clientMap/types';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
 import { sendPreparedMessageWithEgressAudit } from '@/platform/privacy/promptPreparation';
+import { modelAuditMetrics } from '@/platform/privacy/sendWithEgressAudit';
 import type { AuditEntry } from '@/platform/types/audit';
 
 // Re-export types consumed by callers so they don't need to reach into
@@ -330,7 +331,7 @@ Rules:
     ],
     ...(options?.onAuditLog ? { onAuditLog: options.onAuditLog } : {}),
     scope,
-    modelCall: (response) => ({ action: 'model_call', description: `At-a-glance summary to ${resolvedProvider.model}`, model: resolvedProvider.model, inputs: { matterId }, outputs: { contentLength: response.content.length }, userDecision: 'auto', metadata: { feature: 'at_a_glance' }, tokensIn: response.usage?.inputTokens ?? 0, tokensOut: response.usage?.outputTokens ?? 0, costUsd: response.cost ?? 0, provider: resolvedProvider.providerId }),
+    modelCall: (response) => ({ action: 'model_call', description: `At-a-glance summary to ${resolvedProvider.model}`, model: resolvedProvider.model, inputs: { matterId }, outputs: { contentLength: response.content.length }, userDecision: 'auto', metadata: { feature: 'at_a_glance' }, ...modelAuditMetrics(response), provider: resolvedProvider.providerId }),
   });
 
   if (options?.signal?.aborted) {

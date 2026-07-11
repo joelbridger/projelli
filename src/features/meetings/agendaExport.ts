@@ -9,6 +9,7 @@ import type { Provider } from '@/platform/providers/Provider';
 import { buildResolvedProviderForGlance } from '@/platform/matter/matterAtAGlance';
 import { AuditService } from '@/platform/audit/AuditService';
 import { sendPreparedMessageWithEgressAudit } from '@/platform/privacy/promptPreparation';
+import { modelAuditMetrics } from '@/platform/privacy/sendWithEgressAudit';
 import type { AuditEntry } from '@/platform/types/audit';
 import type { GeneratedBrief } from './generateBrief';
 
@@ -113,7 +114,7 @@ export async function agendaMarkdownFromBrief(
       ],
       onAuditLog: onAgendaAuditLog,
       scope: { kind: 'matter', matterId: opts.matterId },
-      modelCall: (response) => ({ action: 'model_call', description: `Agenda rewrite for ${opts.eventTitle}`, model, inputs: { eventTitle: opts.eventTitle }, outputs: { contentLength: response.content.length }, userDecision: 'auto', metadata: { feature: 'meeting_agenda', provider: providerId }, tokensIn: response.usage?.inputTokens ?? 0, tokensOut: response.usage?.outputTokens ?? 0, costUsd: response.cost ?? 0, provider: providerId }),
+      modelCall: (response) => ({ action: 'model_call', description: `Agenda rewrite for ${opts.eventTitle}`, model, inputs: { eventTitle: opts.eventTitle }, outputs: { contentLength: response.content.length }, userDecision: 'auto', metadata: { feature: 'meeting_agenda', provider: providerId }, ...modelAuditMetrics(response), provider: providerId }),
     });
     const md = res.content.trim();
     const wellFormed = REQUIRED_SECTIONS.every((s) => md.includes(s));

@@ -6,6 +6,7 @@ import { buildResolvedProviderForClientMap } from './provider';
 import { deriveCompleteness } from '@/platform/clientMap/completeness';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
 import { sendPreparedMessageWithEgressAudit } from '@/platform/privacy/promptPreparation';
+import { modelAuditMetrics } from '@/platform/privacy/sendWithEgressAudit';
 import { sourceIdentitiesFromSources } from '@/platform/audit/sourceCapture';
 import { resolveEgress } from '@/platform/privacy/egress';
 import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
@@ -149,7 +150,7 @@ export async function buildClientMap(
       ],
       ...(options?.onAuditLog ? { onAuditLog: options.onAuditLog } : {}),
       scope,
-      modelCall: (response) => ({ action: 'model_call', description: `Client Map ${label} to ${resolvedProvider.model}`, model: resolvedProvider.model, inputs: { matterId, step: label }, outputs: { contentLength: response.content.length }, userDecision: 'auto', metadata: { feature: 'client_map', step: label }, tokensIn: response.usage?.inputTokens ?? 0, tokensOut: response.usage?.outputTokens ?? 0, costUsd: response.cost ?? 0, provider: resolvedProvider.providerId }),
+      modelCall: (response) => ({ action: 'model_call', description: `Client Map ${label} to ${resolvedProvider.model}`, model: resolvedProvider.model, inputs: { matterId, step: label }, outputs: { contentLength: response.content.length }, userDecision: 'auto', metadata: { feature: 'client_map', step: label }, ...modelAuditMetrics(response), provider: resolvedProvider.providerId }),
     });
   };
   const sections: ClientMapSection[] = [];

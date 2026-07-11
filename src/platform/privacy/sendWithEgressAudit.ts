@@ -1,6 +1,6 @@
 import { auditEventToEntry } from '@/platform/audit/AuditService';
 import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
-import type { Provider, ProviderResponse, SendOptions } from '@/platform/providers/Provider';
+import type { Provider, ProviderResponse, SendOptions, TokenUsage } from '@/platform/providers/Provider';
 import { assertLocalOnlyAllowsSend } from '@/platform/privacy/localOnlyGuard';
 import {
   resolveEgress,
@@ -10,6 +10,22 @@ import {
 import type { AuditEntry, AuditScope } from '@/platform/types/audit';
 
 export type EgressAuditLogger = (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
+
+/**
+ * Keep audit accounting honest when a legacy provider or test fixture omits
+ * token or cost details. The provider contract requires these fields, but the
+ * audit trail should still record the completed model call rather than fail.
+ */
+export function modelAuditMetrics(response: {
+  usage?: Partial<Pick<TokenUsage, 'inputTokens' | 'outputTokens'>>;
+  cost?: number;
+}): Pick<AuditEntry, 'tokensIn' | 'tokensOut' | 'costUsd'> {
+  return {
+    tokensIn: response.usage?.inputTokens ?? 0,
+    tokensOut: response.usage?.outputTokens ?? 0,
+    costUsd: response.cost ?? 0,
+  };
+}
 
 export interface EgressAuditContext {
   provider: Provider;

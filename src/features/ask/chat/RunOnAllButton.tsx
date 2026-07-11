@@ -148,7 +148,7 @@ export function RunOnAllButton({
           // Prompt preparation may wait for the advisor's review. Re-check at
           // the final door after that wait, then tell the shared sender the
           // equivalent check is complete; cloud adapters still check again.
-          beforeEgress: () => assertLocalOnlyAllowsExternal('Run on all models'),
+          beforeEgress: () => { assertLocalOnlyAllowsExternal('Run on all models'); },
           preflightChecked: true,
           modelCall: (modelResponse) => ({
             action: 'model_call',

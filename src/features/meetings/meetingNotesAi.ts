@@ -5,6 +5,7 @@ import { useMatterStore } from '@/platform/matter/matterStore';
 import type { Provider } from '@/platform/providers/Provider';
 import { resolveAvailableLocalGenerationProvider } from '@/platform/providers/resolveLocalProvider';
 import { sendPreparedMessageWithEgressAudit } from '@/platform/privacy/promptPreparation';
+import { modelAuditMetrics } from '@/platform/privacy/sendWithEgressAudit';
 import type { AuditEntry } from '@/platform/types/audit';
 import type { TranscriptFile } from '@/platform/types/meeting';
 import { meetingNoteFromTranscript } from './meetingNoteTemplate';
@@ -100,7 +101,7 @@ export async function generateMeetingNoteMarkdown(
         parts: [{ id: 'prompt', origin: 'meeting', label: 'Meeting transcript', text: prompt }],
         onAuditLog: onMeetingNotesAudit,
         scope: { kind: 'matter', matterId: input.matterId },
-        modelCall: (response) => ({ action: 'model_call', description: `Meeting notes to ${resolved.model}`, model: resolved.model, inputs: { matterId: input.matterId, segmentCount: input.transcript.segments.length }, outputs: { contentLength: response.content.length }, userDecision: 'auto', metadata: { feature: 'meeting_notes' }, tokensIn: response.usage?.inputTokens ?? 0, tokensOut: response.usage?.outputTokens ?? 0, costUsd: response.cost ?? 0, provider: resolved.providerId }),
+        modelCall: (response) => ({ action: 'model_call', description: `Meeting notes to ${resolved.model}`, model: resolved.model, inputs: { matterId: input.matterId, segmentCount: input.transcript.segments.length }, outputs: { contentLength: response.content.length }, userDecision: 'auto', metadata: { feature: 'meeting_notes' }, ...modelAuditMetrics(response), provider: resolved.providerId }),
       }),
   });
 }

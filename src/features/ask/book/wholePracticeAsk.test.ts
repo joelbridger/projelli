@@ -36,6 +36,7 @@ import type { Matter } from '@/platform/types/matter';
 import { useAIChatStore } from '@/platform/state/aiChatStore';
 import { SECRET_SCRUB_FIXTURES } from '@/platform/privacy/promptPreparation.fixtures';
 import { setPromptDecisionBroker } from '@/platform/privacy/promptPreparation';
+import type { AuditEntry } from '@/platform/types/audit';
 
 function at<T>(arr: T[], i: number): T {
   const v = arr[i];
@@ -110,7 +111,10 @@ describe('runWholePracticeAsk', () => {
   });
 
   it('sends only a redacted copy and records its secret category', async () => {
-    const audit = vi.fn();
+    const auditEntries: Array<Omit<AuditEntry, 'id' | 'timestamp'>> = [];
+    const audit = vi.fn((entry: Omit<AuditEntry, 'id' | 'timestamp'>): void => {
+      auditEntries.push(entry);
+    });
     sendMessageMock.mockResolvedValue({
       content: '{"answer":"Safe answer","matches":[]}',
       usage: { inputTokens: 10, outputTokens: 10, totalTokens: 20 }, cost: 0,
@@ -121,13 +125,12 @@ describe('runWholePracticeAsk', () => {
 
     expect(sendMessageMock).toHaveBeenCalledTimes(1);
     expect(sendMessageMock.mock.calls[0]?.[0]).not.toContain('intake-secret');
-    expect(audit).toHaveBeenCalledWith(expect.objectContaining({
-      action: 'prompt_preparation',
-      metadata: expect.objectContaining({
-        decision: 'redacted_by_user',
-        categories: expect.arrayContaining([expect.objectContaining({ kind: 'intake_link_secret', count: 1 })]),
-      }),
-    }));
+    const receipt = auditEntries.find((entry) => entry.action === 'prompt_preparation');
+    if (!receipt) throw new Error('Expected a prompt-preparation audit receipt');
+    expect(receipt.metadata['decision']).toBe('redacted_by_user');
+    const categories = receipt.metadata['categories'];
+    if (!Array.isArray(categories)) throw new Error('Expected audit receipt categories');
+    expect(categories).toContainEqual({ kind: 'intake_link_secret', count: 1 });
   });
 
   it('does not send when the advisor cancels the private-link review', async () => {
