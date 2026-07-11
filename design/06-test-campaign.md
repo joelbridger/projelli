@@ -1,5 +1,7 @@
 # 06 — The test campaign: the exit exam
 
+**Conforms to 00-master-spec decisions D1-D10 (reconciled 2026-07-11).**
+
 **Lane F deliverable.** This is the complete test plan for Path 4 (Lantern as a small
 RIA's system of record). Per the charter (`LANTERN-CRM.md`), the whole CRM is designed
 and built first, against a frozen spec, with **no lane pausing for user testing**. This
@@ -71,25 +73,13 @@ as a harness enhancement"* — **no existing desktop spec runs two real app inst
 concurrently.** Layer 2's N-client harness (§2) is this missing piece, generalized past 2
 clients.
 
-**Northcrest demo dataset** — two generations exist on disk, and they are NOT the same
-size; this is a real discrepancy the campaign must resolve (see §Open questions):
-- `~/lantern-demo-data/output/Northcrest Wealth Partners/` — the original set per its
-  README: **26 households** (6 hand-built + 20 generated), 374 files (~17 MiB), plus a
-  `_Firm/` compliance folder. Deterministic build (`build/build.py`) + a 21-check verifier
-  (`build/verify.py`).
-- `~/lantern-demo-data/full-practice/` — a **2026-07-10** newer, larger set matching the
-  charter's "80 households" claim exactly: **80 factsheets, 80 client folders**, built
-  from `wealthbox-contacts-raw.json` — **a real 229-contact Wealthbox export (80
-  Household + 137 Person records, real API shape: `background_info`, `household.members`,
-  `email_addresses`, `custom_fields`, `contact_roles`, etc.)** pulled from an actual
-  Wealthbox demo account. `PLAN.md` documents the fact-sheet schema (accounts sum to
-  `aum_total`, consistent storylines/dates across files+emails+meetings, segment mix
-  ~30%/25%/25%/12%/8% retiree/pre-retiree/accumulator/business-owner/inheritor) and the
-  per-household deliverables (financial plan, annual review notes, 8-12 statement PDFs
-  with charts, signed agreement, 4-8 emails, 1-2 meetings with transcript+notes). This is
-  the fixture corpus Layer 3 and Layer 4 use. `wealthbox-contacts-raw.json` is also the
-  **exact importer input fixture** for Layer 4 — it is a real API export, not a synthetic
-  approximation, so a 100%-fidelity import against it is a meaningful claim.
+**Northcrest fixture boundary (D7)** — all campaign data is fabricated. The canonical
+fixture is the fabricated Northcrest practice: 80 households and its fabricated documents,
+notes, meetings, tasks, and Wealthbox-shaped records. The importer is fed only by the
+synthetic Wealthbox-API simulator defined in `design/05-migration-importer.md` §6.2. Old
+26-household material and any non-fabricated export are excluded from this campaign. The
+simulator fixture manifest records its exact 80-household counts, relationships, and edge
+cases so every assertion remains deterministic without accessing a real workspace.
 
 **Legion bench harness** — `scripts/desktop-drive.mjs` (CDP driver, data-testid based,
 matches the always-on-Chrome pattern), `scripts/legion-drive.sh` (SSH wrapper running the
@@ -127,29 +117,43 @@ config changes.
 Location: `tests/unit/crm/dataModel.invariants.test.ts` (new domain — the CRM's typed
 core is new; existing `tests/unit/crm/` only covers Wealthbox connector wiring today).
 
-For every entity lane B defines (Household, Person, Account, Fact, Note, Task,
-WorkflowInstance, WorkflowTemplate, ServicePolicy):
+For every `EntityKind` in `design/02-data-model.md` §1 — `household`, `person`,
+`account`, `fact`, `note`, `task`, `workflowTemplate`, `workflowInstance`,
+`servicePolicy`, `activityEvent`, `firmDoc`, `tag`, `customFieldDef`, `opportunity`,
+`savedView`, `pipelineDef`, `stageDef`, `proposalRecord`, and `firmDirectoryEntry` — run
+the shared base-record invariants below. The test fixture catalog is exhaustive: adding an
+EntityKind in 02 without adding it here fails this test file's catalog check.
+
+- **Actual-field contract:** validate each generated record against 02's concrete schema,
+  including every required field, required immutable field, and declared optional field
+  behavior. In particular, a Fact requires `asOf` and `observedAt` plus the shared
+  provenance `source`; a Note requires immutable `audience` and its Y.Text `body`; a Person
+  has `roles[]` distinct from `HouseholdMember.role`; and the canonical Task is
+  exactly D2's `id`, nullable `householdRef`, `title`, client-key-side Y.Text `body`, one
+  `assigneeUserId`, D2 status set, `due`, `recurrence`, D2 priority set, `contextRefs`, and
+  provenance/dating. No test may revive the superseded plural-assignee, `description`,
+  `dueDate`, or extra-priority task variants.
 - **Stable-ID invariant:** an entity's ID never changes across any mutation, merge, or
   round-trip through the CRDT encoding. Property test: generate a random valid entity +
   a random sequence of valid mutations (via `fast-check` model-based testing —
   `fc.commands`), assert `id` is invariant across the whole run.
-- **Provenance invariant (Fact, per lane C's design principle #2 — "every fact wears its
-  date and source"):** a `Fact` can never exist without a non-empty `source` and a valid
-  `date`; the type system plus a runtime schema guard (mirroring the existing
+- **Provenance and dating invariant (Fact):** a `Fact` can never exist without a non-empty
+  shared `source`, valid `asOf`, and valid `observedAt`; the type system plus a runtime
+  schema guard (mirroring the existing
   `DocSummary`/`SourceCard`/`RunRecord` Zod-or-equivalent pattern in
   `src/platform/types/`) rejects construction otherwise. Test: `fc.assert` over random
-  partial objects, assert every one missing `source` or `date` throws or is rejected by
-  the schema guard — zero silent acceptance.
+  partial objects, assert every one missing a required provenance or dating field throws
+  or is rejected by the schema guard — zero silent acceptance.
 - **Matter-facade invariant:** every entity that attaches to a household resolves to a
   `matter_id` internally and the field is never renamed on the wire — a machine-checked
   regression test mirroring the existing renaming guard pattern (see `ARCHITECTURE.md`'s
   "locked identifiers" + `tests/unit/architecture-boundaries.test.ts` for the existing
   enforcement style to extend).
-- **Two-audience invariant (Note):** a `Note`'s `audience` field is exactly `internal` or
-  `client-facing`, is set at creation (no untyped default), and a client-facing rendering
-  path can be statically shown to never read an `internal` note (grep-based architecture
-  guard, same style as the ESLint `lint:gate` regression-only pattern already in
-  `scripts/eslint-gate.mjs`).
+- **Two-audience invariant (Note):** a `Note`'s immutable `audience` field is exactly
+  `internal` or `client-facing`, is set at creation (no untyped default), and a
+  client-facing rendering path can be statically shown to never read an `internal` note
+  (grep-based architecture guard, same style as the ESLint `lint:gate` regression-only
+  pattern already in `scripts/eslint-gate.mjs`).
 
 Pass criteria: 100% of generated cases hold (property tests, not example tests — a single
 counterexample fails the gate).
@@ -185,26 +189,31 @@ Location: `backend/test/notification-envelope.test.ts`, cloned from
 `backend/test/sync-relay.test.ts`'s boot pattern (isolated in-memory `Store` + `FanoutHub`,
 same ticket-auth WS pattern).
 
-- **Metadata-only delivery:** the server-side envelope record for a pending notification
-  contains only `{recipient, count, timestamp}` — never task/record content. Test:
-  construct a notification, inspect every field persisted server-side, assert none matches
-  or contains the plaintext of the underlying event (string-containment assertion against
-  a known plaintext fixture — this is also re-run as a trust-breaker test in §5).
+- **Metadata-only, senderless delivery:** the relay persists only recipient, timestamps,
+  and ciphertext for an envelope — never plaintext, a persisted sender identity, or a
+  sender-to-recipient history. Test a known fabricated plaintext and assert no persisted
+  field or relay log contains it; assert `sender_seat` is absent. Short-lived rate-limit
+  state is exercised separately and is never a durable envelope field.
 - **At-least-once delivery:** an envelope pushed while the recipient is offline is present
   on their next poll/reconnect (no notification silently dropped). Test: create envelope,
   simulate offline client (no WS connection), reconnect, assert envelope is retrievable.
-- **Delivery dedup:** the same underlying event (e.g. "assigned to task X") never produces
-  two distinct envelopes the client must independently dismiss — assert idempotent
-  envelope creation keyed on (event type, entity ID, recipient).
-- **Ethical-wall interaction:** a walled member never receives an envelope for a matter
-  they're walled from, even if an envelope was already pending when the wall was applied
-  — extends the existing walled-user-403-at-upgrade case in `sync-relay.test.ts`.
+- **Delivery dedup and durability:** simulate an at-least-once relay retry and a client
+  crash between mutation and send. The same `envelope_id` is shown once, the durable
+  transactional outbox/inbox survives restart, and an approval-class notice is eventually
+  delivered or receives its TTL/dead-letter marker — never silently lost or held forever.
+- **Client-confidential wall class:** a client-confidential envelope can be addressed only
+  to seats holding that client's key. Revoke a pending recipient's key grant before poll;
+  assert the relay and client do not deliver or reveal the envelope.
+- **Firm-operational wall class:** a firm-operational notice (for example, a firm task or
+  "notify everybody") reaches every firm seat, including a seat walled from the related
+  client content, while revealing no client-confidential title, body, link, or key. This is
+  intentionally distinct from the client-confidential test above.
 
 ### 1.4 Importer id-mapping / dedupe (owns: lane E's importer design)
 
-Location: `tests/unit/crm/wealthboxImporter.idMapping.test.ts`, using
-`wealthbox-contacts-raw.json` (§0) as the input fixture directly — no synthetic mock, the
-real 229-contact export.
+Location: `tests/unit/crm/wealthboxImporter.idMapping.test.ts`, using only the fabricated
+80-household Northcrest payload served by the synthetic Wealthbox-API simulator (§0 and
+`design/05-migration-importer.md` §6.2).
 
 - **Stable id-mapping:** every Wealthbox `household.id` maps to exactly one Lantern
   entity ID across repeated import runs (re-running the importer against the same export
@@ -215,51 +224,92 @@ real 229-contact export.
   updates the existing Lantern entity, never forks a duplicate).
 - **Dedup on partial overlap:** import a subset (first 40 households) followed by the
   full 80 — the union result has exactly 80 households, not 120.
-- **Person-to-household attachment fidelity:** every `Person`-type contact with a
-  `household` reference in the raw export attaches to the correct household in the
-  imported result (property test over all 137 Person contacts in the fixture — 100% must
-  attach correctly, zero orphans).
+- **Person-to-household attachment fidelity:** every fabricated Person with a household
+  reference attaches to the correct fabricated household in the imported result (property
+  test over the simulator manifest — 100% must attach correctly, zero orphans).
 
 ### 1.5 Propagation properties (owns: lane C's `design/03-sync-and-notifications.md` §4)
 
-This is the marquee correctness problem (per the charter's pre-made decision #6 and the
-deep-dive §6.3: *"applying a template edit to in-flight instances being concurrently
-edited, without clobbering progress"*). Lane C's §4 is the authoritative property list;
-**this section turns each property lane C names into a concrete spec file** — write these
-specs once §4 exists, using this structure:
+This is the marquee correctness problem (per the charter's pre-made decision #6). The
+binding property contract is P1–P10 in `design/03-sync-and-notifications.md` §4, under
+D4's per-instance offer with per-step decisions. The review starts all steps selected,
+allows accept/reject per step, and only advances the displayed template version once its
+required change-set is wholly present.
 
 Location: `tests/unit/workflows/templatePropagation.properties.test.ts`.
 
-For each property `P` lane C's §4 lists (expected properties, generalized from the
-architecture doc's constraints — confirm exact list against `design/03-sync-and-
-notifications.md` §4 when writing):
-- **No-clobber-in-progress:** a template edit proposed while an instance has uncommitted
-  local progress (e.g. a step marked complete, not yet synced) never silently discards
-  that progress — the merge either (a) applies cleanly alongside the local progress or
-  (b) surfaces a reviewable conflict (never a silent overwrite). Property test: generate
-  random (template-edit, concurrent-instance-progress) pairs, assert the local progress
-  is provably present in the post-merge state OR a conflict artifact exists — never
-  neither.
-- **Convergence:** N clients, each holding a stale copy of an instance, each receiving
-  the same template-edit propagation independently (some online, some offline-then-sync),
-  converge to byte-identical materialized instance state once all have synced — this is
-  the direct CRM analog of the existing `convergence.test.ts` p1-p5 cases, generalized to
-  N clients via `fast-check`'s model-based multi-actor testing.
-- **Reviewability:** propagation is never auto-applied without an approval step (per the
-  charter's inherited invariant "AI proposes → user approves for all external writes" —
-  template propagation is not literally an AI write, but the spec (lane C) should say
-  whether the same approval discipline applies; if yes, assert no code path applies a
-  propagated change to an instance without an explicit approval record).
-- **Bounded blast radius:** a template edit's propagation touches only instances derived
-  from that exact template version-chain — an instance created from a *different*
-  template (even with a similar name) is never touched. Property test: two independent
-  template families, random instance sets, assert cross-family propagation count is
-  always zero.
+The following ten **named, one-for-one** tests are mandatory. They do not collapse into
+broader tests and no additional concern is substituted for a P-property:
+
+1. **P1 completed outcome immutable** — an apply or conditional undo never changes an
+   established `completed_by`, `completed_rev`, or outcome.
+2. **P2 no destructive removal** — removal of a progressed step preserves it and sets or
+   re-evaluates `detachedFromTemplate`, rather than deleting progress.
+3. **P3 idempotent per version** — replaying the same offer/change-set has exactly the
+   same result as applying it once.
+4. **P4 concurrent-apply convergence** — independent clients applying the same accepted
+   per-instance, per-step offer converge byte-for-byte.
+5. **P5 version pinning** — an unapproved instance remains on its old displayed version;
+   an approved instance advances only after the complete required change-set is present.
+6. **P6 progress invariance** — propagation never changes a step's status, assignee, or
+   notes/progress state.
+7. **P7 conditional undo scope** — undo restores only template-derived fields untouched
+   since apply, reports fields it must not overwrite, and changes nothing else.
+8. **P8 added-step uniqueness** — an added stable step ID appears exactly once regardless
+   of replay, observation order, or number of clients.
+9. **P9 monotonic version** — propagation cannot lower an instance's displayed template
+   version; only the explicit conditional undo transition may do so.
+10. **P10 reassign-after-complete** — a post-completion reassignment opens the new
+    assignment while preserving the original completed outcome.
+
+The following named sync-attack regression scenarios are required in the same file, in
+addition to P1–P10:
+
+- **SA revision-path field race:** independently change two template-derived fields across
+  versions; each field's source revision is tracked and neither change is skipped by a
+  single coarse template revision.
+- **SA incomplete change-set visibility:** interrupt an approved multi-step apply; the
+  instance continues to display its old template version until every required change is
+  present after recovery.
+- **SA offline progress versus removal:** make step progress offline while another device
+  removes that step; on merge, re-run the removal decision and preserve/detach progressed
+  work rather than deleting it.
+- **SA conditional undo after local edit:** edit a template-derived field after apply, then
+  undo; the later local edit survives and the undo reports that field as untouched by
+  rollback.
+- **SA transactional outbox crash:** crash at each mutation/outbox boundary of an approved
+  apply; after restart, the mutation and its approval envelope are both durable and deduped,
+  or neither is committed.
 
 Pass criteria for all of §1: every property spec passes at ≥1,000 generated cases (the
 `fast-check` default is 100 runs; raise `numRuns` to 1000 for the propagation and CRDT
 convergence suites specifically, given their correctness-criticality) with zero
 shrink-to-counterexample failures.
+
+### 1.6 D1 lazy-subscription load budgets (80 fabricated households)
+
+Location: `tests/integration/crm/syncLoadBudget.test.ts`. This test consumes the numeric
+ceilings in `design/03-sync-and-notifications.md`'s D1 load-budget table; that table is
+the single source of truth for permitted subscriptions, bootstrap bytes, catch-up work,
+and completion time. The test fails if a ceiling is missing or non-numeric, as well as
+when the implementation exceeds one. It runs against all 80 fabricated Northcrest
+households, not a reduced sample.
+
+- **Bootstrap budget:** start a fresh device. It receives the firm-wide collection docs
+  and only its configured pinned/recent client-record docs, never all 80 client records.
+  Assert every measured metric is within the D1 bootstrap ceiling.
+- **Restart budget:** restart after a clean persisted session. Assert restored
+  subscriptions and catch-up work stay within the D1 restart ceiling and do not expand
+  into an all-household re-subscription.
+- **Offline-return budget:** take a device offline, make representative firm and client
+  changes elsewhere, then reconnect it. Assert cursor catch-up, replay volume, and final
+  subscriptions meet the D1 offline-return ceiling while preserving convergence.
+- **Wall-change budget:** revoke then restore one client's eligibility for a seat. Assert
+  its client-record subscription and key are removed before protected content can be read,
+  then restored only as allowed; all wall-change work meets the D1 numeric ceiling.
+
+The test records measured values beside the four D1 ceilings so a failure identifies
+bootstrap, restart, offline return, or wall change rather than producing one opaque result.
 
 ---
 
@@ -319,12 +369,10 @@ Layer-3 firm size for continuity).
    volume here).
 4. **Template edit with open instances.** ✱ A workflow template is edited while 8 open
    instances exist across the 6 seats, 3 of which have uncommitted local progress on 2
-   different clients at edit time. Propagation is proposed; each seat independently
-   reviews/approves (or one seat approves, per lane C's approval model — confirm against
-   `design/03-sync-and-notifications.md`). Assert: the no-clobber and convergence
-   properties from §1.5 hold at the *system* level (not just the unit-CRDT level) — every
-   client's post-propagation view of every touched instance is byte-identical, and the 3
-   in-progress instances retain their local progress.
+   different clients at edit time. Propagation offers are reviewed per instance with
+   per-step accept/reject choices and all-on defaults. Assert: P1–P10 and the named
+   sync-attack scenarios from §1.5 hold at the *system* level, including byte-identical
+   views after quiesce and retained in-progress work.
 5. **Notification delivery/dedup at scale.** Combine the day's total event count (from
    steps 1-4) against actual envelopes delivered per seat; assert zero lost
    notifications, zero duplicate notifications, and — since the relay is content-blind by
@@ -358,7 +406,7 @@ Layer-3 firm size for continuity).
 
 ### 3.1 Setup
 
-Uses `full-practice/` (§0) — 80 households, 6 simulated seats matching a real small RIA
+Uses the fabricated Northcrest 80-household corpus (§0), with 6 simulated seats matching a small RIA
 team (an advisor lead, 2 associate advisors, an ops/compliance person, 2 support staff —
 finalize the exact 6 roles against lane D's screens doc when it lands, since role-specific
 screens determine who does what each day). Corpus is synced to the Legion via the
@@ -375,13 +423,12 @@ per-spec logs) — no new evidence tooling needed.
 
 ### 3.2 Day-by-day script
 
-**Day 1 — Onboarding the book.** The importer (lane E) ingests all 80 households from
-`wealthbox-contacts-raw.json` plus the file/email/meeting corpus in `full-practice/
-clients/`. Checklist: all 80 households present in the Client Map; the fidelity report
-(§4) reads 100% on records-that-matter; the 6 seats can each see the full book (per the
-architecture's "every member's device syncs the firm's task/activity docs" boundary);
-import progress is visible and honest throughout (no false-success class of bug — the
-QA-74 precedent in §0).
+**Day 1 — Onboarding the book.** The importer (lane E) ingests all 80 households from the
+fabricated Northcrest Wealthbox-API simulator plus its fabricated file/email/meeting
+corpus. Checklist: all 80 households are present in the directory and Client Map; the
+fidelity report (§4) is complete; every seat sees permitted firm-wide collections; client
+records remain lazily subscribed according to §1.6; import progress is visible and honest
+throughout (no false-success class of bug — the QA-74 precedent in §0).
 
 **Day 2 — Morning triage, x2 (two advisors).** Two seats independently open Practice
 Home. Checklist: the day's triage view is computed live (not stale), matches the actual
@@ -390,7 +437,7 @@ state of tasks/meetings due that day, capacity-aware surfacing shows a realistic
 client-facing surface opened later the same day.
 
 **Day 3 — Meetings → notes → tasks.** 3 seats each run one client meeting (using a
-`full-practice` household's existing meeting transcript+notes as the simulated capture
+fabricated Northcrest household's existing meeting transcript+notes as the simulated capture
 input, or a live scripted mock meeting if lane D's meeting-capture flow requires real
 audio/video input — confirm against lane D). Each meeting produces notes (correctly
 audience-tagged) and 2-3 tasks assigned across the other seats. Checklist: notes attach to
@@ -410,7 +457,7 @@ progress, all 8 instances converge identically across all 6 seats after propagat
 
 **Day 5 — Reports + exam export.** Each report type lane A/D define (e.g. "no contact in
 6 months," birthdays, service-tier due-for-review) is run and checked against the known
-`full-practice` fact sheets (since every household's `timeline` field is internally
+fabricated Northcrest fact sheets (since every household's `timeline` field is internally
 consistent per the fixture's own schema, a report's output is mechanically checkable
 against the fixture data — e.g. count of households with no `timeline` event in the
 trailing 6 months should match the report's row count exactly). Checklist ends with the
@@ -430,23 +477,21 @@ to each other) holds at the end of Day 5.
 
 ## 4. LAYER 4 — migration fidelity
 
-Extends lane E's importer design with the concrete numeric bar. Location:
+Adopts the canonical fidelity matrix in `design/05-migration-importer.md` §3 by reference:
+that matrix alone defines source type → target entity → fabricated fixture source → required
+completeness → allowed skip reasons. This layer does not create a second matrix or a
+competing definition of "records-that-matter." Location:
 `tests/integration/migration/fidelityReport.test.ts` + a Legion-bench re-run as part of
 Layer 3 Day 1.
 
-- **Fidelity report, 100% on records-that-matter.** "Records-that-matter" = every
-  Household, Person, Account, Note, Task with content, and open WorkflowInstance in the
-  source export (per the deep-dive §7's "the nail-biter standard... applied to
-  ourselves"). Build the report the same shape as the existing `tests/eval/ask/grade.ts`
-  pattern (a structured scoring harness with a machine-checkable pass bar, not a manual
-  eyeball): `{recordType, fetched: N, imported: N, skipped: N, skipReason[]}` per type,
-  against `wealthbox-contacts-raw.json`'s actual 229 contacts (80 Household + 137
-  Person) — assert `imported == fetched` for every records-that-matter type, and every
-  `skipped` entry (if any, for genuinely out-of-scope record types like a deleted/archived
-  contact) carries a human-readable reason, never a silent drop.
+- **Fidelity report, matrix-exact.** Drive the whole importer against the fabricated
+  Northcrest simulator. Build the report in the existing `tests/eval/ask/grade.ts` style:
+  `{sourceType, targetEntity, fetched, imported, skipped, skipReason[]}`. For every matrix
+  row, assert its required completeness exactly; any skip must be an allowed matrix reason
+  and carry a human-readable explanation. No non-fabricated export or workspace is used.
 - **Re-run idempotency.** Import the fixture twice in immediate succession; assert zero
   new records on run 2 (this duplicates §1.4's unit-level dedup test at the integration
-  level, against the full real importer path including file/UI wiring, not just the
+  level, against the full importer path including file/UI wiring, not just the
   mapping function).
 - **Rollback dry-run.** Per the deep-dive §7's cutover design ("a defined day-one
   rollback: re-export from Lantern back to Wealthbox format"), run a dry-run rollback
@@ -455,9 +500,9 @@ Layer 3 Day 1.
   field with no Wealthbox equivalent (if any exist per lane B's schema) is explicitly
   listed as "not representable in target format" rather than silently dropped.
 
-Pass criteria: fidelity report reads exactly 100% on records-that-matter (0 unexplained
-skips), idempotency test shows 0 new records on re-run, rollback dry-run shows 0 silent
-field drops.
+Pass criteria: every canonical matrix row meets its required completeness with zero
+unexplained or disallowed skips, idempotency test shows 0 new records on re-run, and the
+rollback dry-run shows 0 silent field drops.
 
 ---
 
@@ -478,7 +523,7 @@ existing `tests/security/` convention for adversarial specs).
    in-flight push and restarting the client from persisted local state). Assert: on
    restart, the locally-created update is still present and re-attempts sync — it is
    never lost because a push was interrupted.
-2. **Cross-client leak.** Adversarial: seat A and seat B are both real firm members but A
+2. **Cross-client leak.** Adversarial: seat A and seat B are both simulated firm members but A
    is walled from a specific household (per the existing ethical-wall mechanism in
    `sync-relay.test.ts`). Attempt every read path in the CRM against that household from
    A's client (Practice Home surfacing, search, reports, notification content) — assert
@@ -525,7 +570,7 @@ later" path).
 | 1 (gate additions) | `npm run gate` (existing Vitest/Bun/cargo test runners) | Same rail as every other unit/integration/security spec; no new infra |
 | 2 (multi-user sim) | New: headless harness runs in CI-capable time (seconds-minutes per script, Bun/Node process spin-up, no browser); the ✱-marked desktop-harness re-runs need the Legion (WebView2/keychain/SQLCipher are Windows-real, can't fully fake in CI) | Split deliberately: fast headless coverage for breadth, real-stack re-runs only where the real stack matters |
 | 3 (Northcrest week) | Legion bench only (`scripts/legion-*`, `windows-bench.yml` pattern) | Needs the real signed desktop app, real file system, real multi-day state accumulation — this is what `windows-bench.yml` already exists to run, extended to a week-long script instead of a single smoke |
-| 4 (migration fidelity) | Split: fidelity-report scoring + idempotency in CI (`tests/integration/`); the Day-1 full-corpus import re-run happens again on the Legion as part of Layer 3 (real-stack confirmation, not a duplicate design) | The scoring math doesn't need real hardware; the actual import-374-files-and-index-them-all path does |
+| 4 (migration fidelity) | Split: fidelity-report scoring + idempotency in CI (`tests/integration/`); the Day-1 fabricated full-corpus import re-run happens again on the Legion as part of Layer 3 (real-stack confirmation, not a duplicate design) | The scoring math doesn't need real hardware; the fabricated 80-household import and indexing path does |
 | 5 (trust-breaker sweep) | Split: 1-4 run in CI (`tests/security/`, deterministic fault injection); 5 (metadata leak under load) needs Layer 2's full harness running, so it runs wherever Layer 2 runs (CI headless first, Legion re-run alongside Layer 3 Day 1's live import for belt-and-suspenders) | Matches existing `tests/security/` convention of CI-first adversarial tests |
 
 ### 6.2 Ordering
@@ -534,10 +579,8 @@ later" path).
    should exist and be green *before* any higher layer runs, because a Layer-2/3 failure
    traced back to a Layer-1-testable root cause (e.g. a CRDT convergence bug) wastes a
    full multi-client script or a Legion day chasing something a unit test would have
-   caught in seconds. Lane C's §4 property list is a hard input here — if it isn't
-   written when this campaign starts executing, §1.5's specs are written against the
-   generalized properties in this doc and reconciled against lane C's exact list once it
-   lands (flagged as an open dependency, not a blocker for starting Layer 1.1-1.4).
+   caught in seconds. P1–P10 and the named sync-attack cases in §1.5 are binding inputs
+   here; they are written before any higher-layer propagation exercise runs.
 2. **Layer 2** next — the headless multi-client harness is the cheapest way to find
    convergence/propagation/notification bugs at N-client scale; run it repeatedly (it's
    fast) as the fix wave lands.
@@ -575,7 +618,7 @@ The test campaign — and by extension the one-shot build wave it exits — is D
 1. **All 5 layers are green:** Layer 1 passes at `npm run gate`; Layer 2's full script set
    passes on the headless harness AND the ✱-marked subset passes on the desktop-harness
    re-run; Layer 3's full 5-day Northcrest week is green on the Legion; Layer 4's fidelity
-   report reads exactly 100% on records-that-matter with idempotency and rollback dry-run
+   report meets every canonical fidelity-matrix row with idempotency and rollback dry-run
    both clean; Layer 5's 5 trust-breaker tests all pass.
 2. **Zero trust-breaker-class bugs open** — not "zero known trust-breaker bugs of high
    severity," zero, full stop, matching the precedent's own bar (§0).
@@ -592,31 +635,12 @@ job is proving the built system is *correct*, not that anyone wants it.
 
 ## 7. Open questions
 
-1. **80 vs 26 households — which fixture is canonical?** `full-practice/` (80
-   households, matches the charter, built from a real Wealthbox export) is clearly the
-   intended corpus for this program based on its 2026-07-10 build date and explicit
-   80-household target in its own `PLAN.md`. The older `output/Northcrest Wealth
-   Partners/` (26 households) predates it and appears to be the original Keepance-era
-   demo set. Recommend this campaign treats `full-practice/` as canonical and the older
-   set as superseded — but this should be confirmed with whoever's coordinating the
-   overall program (not a Lane F call alone, since other lanes/docs may reference the
-   26-household set by its README).
-2. **Lane C's exact §4 property list.** §1.5 and §2.2's propagation specs are written
-   against the generalized properties this doc infers from the deep-dive's architecture
-   section (no-clobber, convergence, reviewability, bounded blast radius). Once
-   `design/03-sync-and-notifications.md` §4 exists, its exact property list must be
-   reconciled against this section — likely a net addition of specs, not a rewrite, but
-   flagging it as unverified until that doc lands.
-3. **Exact 6 seat roles for Layer 3.** The deep-dive names a "6-10 person RIA" and a
+1. **Exact 6 seat roles for Layer 3.** The deep-dive names a "6-10 person RIA" and a
    morning-triage/meetings/reports pattern but doesn't assign the exact 6 job titles this
    campaign's week-script uses. Recommend finalizing against lane D's screens doc (which
    will define role-specific UI, if any) rather than inventing roles here that might not
    match what got built.
-4. **Notification approval model for propagation** (§2.2 step 4, §3.2 Day 4): does every
-   affected seat individually approve a propagated template change to their own open
-   instance, or does one seat (e.g. the template owner) approve on behalf of the firm?
-   This changes the exact assertion shape in both specs. Depends on lane C's design.
-5. **Meeting-capture input for Layer 3 Day 3.** `full-practice` households already have
+2. **Meeting-capture input for Layer 3 Day 3.** Fabricated Northcrest households already have
    1-2 past meetings with transcript+notes as static fixtures (good for testing the
    *data* side — notes/tasks generated from a meeting). Whether Day 3 also needs to
    exercise the *live capture* flow (the notice card, live transcription) or can validate
@@ -626,7 +650,7 @@ job is proving the built system is *correct*, not that anyone wants it.
    `docs/PRODUCT-JOURNEY.md`'s own account of the notice-card feature going through nine
    rounds of adversarial review already) and scoping Day 3 to the CRM-specific
    downstream behavior (notes/tasks attaching correctly), not re-proving live capture.
-6. **Property-based testing library approval.** This doc recommends adding `fast-check`
+3. **Property-based testing library approval.** This doc recommends adding `fast-check`
    as a new dev dependency (§1). Flagging as a genuinely new tool choice for this repo
    (not previously used) rather than assuming it's pre-approved — cheap, standard,
    Vitest-native, but worth a one-line sign-off during spec freeze review rather than

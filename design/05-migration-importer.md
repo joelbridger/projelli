@@ -1,12 +1,19 @@
 # 05 — Migration & Importer (Wealthbox → Lantern)
 
 **Lane E · design phase · LANTERN-CRM program**
+Conforms to 00-master-spec decisions D1-D10 (reconciled 2026-07-11).
 **Written:** 2026-07-11. Code inventory verified against this fork at the commit checked
 out today (`~/lantern-crm`, forked from `~/lantern-plus` `0971d8f3`). Public API claims
 verified via web search/fetch against `dev.wealthbox.com` and related sources on
 2026-07-11 — dated because Wealthbox's docs can change; anything not directly quoted from
-a fetched page is marked **UNVERIFIED** and needs a live-token check before the build wave
-locks it in.
+a fetched page is marked **UNVERIFIED** and remains an explicit build risk until it can be
+modeled by the fabricated API simulator described in §6.
+
+**Data boundary (D7):** this design authorizes only the fabricated Northcrest corpus and
+the synthetic Wealthbox-API simulator. It authorizes no customer data, production accounts,
+or non-fabricated workspaces. Every fixture, raw capture, archive manifest, fidelity report,
+parallel-run, cutover, and rollback described below is a sandbox exercise over fabricated
+data only.
 
 **Entity names note:** `design/02-data-model.md` (lane B) had not landed as of this
 writing. Sections below describe Wealthbox objects and how they map onto *conceptual*
@@ -36,17 +43,17 @@ most of one's plumbing. Everything below is cited to `src-tauri/src/commands/crm
   (1s → 2s → 4s → … → 64s). This whole gate is a **single mutex shared by every call** —
   all requests for all object types serialize through it one at a time.
 - **Pagination:** `list_all()` loops `page = 1, 2, …` at `per_page = DEFAULT_PER_PAGE` (50,
-  `model.rs`) until a page returns fewer items than the page size. The real maximum
-  `per_page` Wealthbox allows is **UNVERIFIED** (`TODO(live-probe)` comments throughout
+  `model.rs`) until a page returns fewer items than the page size. The maximum
+  `per_page` Wealthbox allows is **UNVERIFIED** (`TODO(probe)` comments throughout
   `client.rs`/`model.rs` — the docs don't state it).
 - **PII discipline:** non-2xx responses log only the HTTP status and endpoint path, never
-  the response body (bodies can carry client PII). This is a real security property, not
+  the response body (bodies can carry client PII). This is an important security property, not
   boilerplate — the importer must preserve it even while adding new endpoints.
 - **Typed fetchers that exist:** `list_contacts` (optional `updated_since`, `contact_type`),
   `list_households` (contacts filtered to `type=household`), `list_notes` (⚠️ the API
-  returns notes under the JSON key `status_updates`, not `notes` — a real, already-hit
+  returns notes under the JSON key `status_updates`, not `notes` — an already-handled
   quirk), `list_tasks`, `list_events`, `deleted_contact_ids` (Wealthbox contacts support a
-  real tombstone via `?deleted=true`; **no other object type exposes a deleted-items
+  tombstone via `?deleted=true`; **no other object type exposes a deleted-items
   filter** in this client today).
 - **Label resolver:** `resolve_category_label` / `resolve_user_name` / `resolve_team_name`
   lazily fetch and cache `/categories/{type}`, `/users`, `/teams` — **in-memory only, reset
@@ -73,8 +80,8 @@ organization/trust), `CrmNote`, `CrmTask`, `CrmEvent`. Notable details:
   product decision.
 - `contact_roles: Vec<serde_json::Value>` is captured but **completely untyped** — the
   field exists so nothing throws on parse, but nothing in the codebase reads it. It is a
-  placeholder, not a real import of Wealthbox's contact-roles feature.
-- Every bare `String`/`Vec` field uses a `null_to_default` deserializer so the live API's
+  placeholder, not a complete import of Wealthbox's contact-roles feature.
+- Every bare `String`/`Vec` field uses a `null_to_default` deserializer so the API's
   habit of sending explicit `null` (not just omitting keys) never fails a parse. This
   matters for the importer: **anything not modeled as a named field is silently dropped**
   at parse time (see 1.4) — this null-tolerance only protects fields that *are* modeled.
@@ -116,15 +123,16 @@ organization/trust), `CrmNote`, `CrmTask`, `CrmEvent`. Notable details:
   named field on `CrmContact`/`CrmNote`/`CrmTask`/`CrmEvent` is dropped at parse time and
   never stored anywhere** — not even as an orphan blob. Today there is no true raw-response
   archive. The deep-dive doc's "raw JSON retained" line (§7) describes this typed-model
-  JSON, not a verbatim API capture. **The importer must add real raw-JSON retention** — see
+  JSON, not a verbatim API capture. **The importer must add verbatim raw-JSON retention** — see
   §2.1.
 - `crm_cursors` table (`object_type → cursor` string) and `get_cursor`/`set_cursor` methods
   **already exist and are tested**, but **nothing in `ingest()` calls them** — every sync
   today is a full re-list of every object type, with `updated_since` never actually passed.
-  This is real, tested scaffolding sitting unused — a strong starting point for §2.3, not
+  This is tested scaffolding sitting unused — a strong starting point for §2.3, not
   a green-field build.
-- `crm_outbound_writes` table is the write-back idempotency ledger (dedup key, status,
-  remote id) — see §4.
+- `crm_outbound_writes` table is the write-back approval ledger (dedup key, status,
+  remote id) — see §4. It is not the importer idempotency mechanism; D8 defines the only
+  importer rule in §2.2.
 
 ### 1.5 Write-back (`write.rs`)
 
@@ -133,7 +141,7 @@ organization/trust), `CrmNote`, `CrmTask`, `CrmEvent`. Notable details:
   /contacts/{id}` restricted to `WRITABLE_FIELDS = ["background_information"]`
   (`write.rs:1112`). Nothing else is writable. No delete exists anywhere in the codebase,
   by design (doc comment on `client.rs`: "no delete anywhere").
-- Two confirmed live Wealthbox quirks, found the hard way and now guarded against:
+- Two confirmed Wealthbox quirks, now guarded against:
   1. `POST /tasks` with no `due_date` returns HTTP 422 — validated client-side
      (`validate_task_due_date`) before any network call.
   2. The **read** field name and the **write** field name for the one writable field
@@ -141,13 +149,13 @@ organization/trust), `CrmNote`, `CrmTask`, `CrmEvent`. Notable details:
      wrong one for either direction produces a 200-that-does-nothing "silent no-op."
      `write.rs` treats a readback that doesn't match as `WriteNotApplied`, never as
      success. **This is the exact shape of landmine to expect for every new writable
-     field** — assume nothing about read/write field-name symmetry until proven live.
+  field** — assume nothing about read/write field-name symmetry without a simulator case.
 - Dedup: `dedup_key()` hashes (kind, household, normalized title/body, due date,
   `requested_at`) — scoped to *one approval event*, so a crash-retry of the same approval
   can't double-post, but a genuinely new approval of identical content (e.g. a recurring
   "left voicemail" note) still sends. This pattern is the right one to reuse for any new
   writable object type.
-- Field writes carry a **stale-guard**: `push_crm_field_update` re-reads the live value at
+- Field writes carry a **stale-guard**: `push_crm_field_update` re-reads the current value at
   approve time and refuses to write if it no longer matches what the advisor reviewed
   (`StaleFieldValue`) — this is the seed of the parallel-run conflict policy (§4).
 
@@ -168,10 +176,10 @@ activity." Section 2 below is the coverage plan for closing that gap.
 it's the *same* `ingest()` engine already running as the read-only Mirror (deep-dive §7
 phase 1), extended to (a) cover more object types, (b) retain true raw JSON, (c) checkpoint
 progress, and (d) go incremental. "Migration" is the moment Lantern's copy of the data
-becomes the one advisors *edit*, not a new fetch pipeline. This keeps re-runs safe for
-free: the existing `crm_key()`/store-id upsert scheme already makes every `ingest()` call
-idempotent (§1.2, §1.3) — re-running the importer twice does not duplicate anything, it
-just re-confirms the same rows (or picks up what changed).
+becomes the one advisors *edit*, not a new fetch pipeline. D8 replaces the old
+`crm_key()`/store-id explanation: the landing pipeline in §2.2 is the **only** importer
+idempotency rule. Existing keys remain useful source identifiers and read-model keys, but
+they never independently decide whether an import is safe to replay.
 
 ### 2.1 Full object coverage plan
 
@@ -179,42 +187,71 @@ just re-confirms the same rows (or picks up what changed).
 |---|---|---|---|
 | Contacts (person/household/org/trust) | ✅ fully modeled | `GET /v1/contacts` | Keep. Add raw-JSON retention (below). |
 | Notes | ✅ (key quirk handled) | `GET /v1/notes` (returns `status_updates`) | Keep. |
-| Tasks | ✅ | `GET /v1/tasks` | Keep. **UNVERIFIED**: docs describe nested subtasks — not modeled today; confirm shape live. |
+| Tasks | ✅ | `GET /v1/tasks` | Keep. **UNVERIFIED**: docs describe nested subtasks — not modeled today; model a simulator case before implementation. |
 | Events | ✅ | `GET /v1/events` | Keep. |
 | Opportunities | ❌ not fetched | `GET /v1/opportunities` | **New.** Needed for pipeline/deal history — currently invisible to Lantern entirely. |
 | Projects | ❌ not fetched (only excluded as a link type) | `GET /v1/projects` | **New.** |
 | Workflow templates | ❌ | `GET /v1/workflow_templates` (read-only, per docs) | **New**, read-only — this is the template Lantern's own workflow-propagation feature needs to understand what a firm's workflows *are*. |
 | Workflow instances | ❌ | `GET /v1/workflows` (filterable by resource/status) | **New — highest-risk item.** See below. |
-| Workflow step state | ❌ | `PUT /v1/workflow_steps` (complete/revert) documented; **no list/read endpoint found** | **UNVERIFIED, critical.** If there is truly no way to read a workflow instance's current step short of enumerating steps some other way, we cannot faithfully import "what stage is this client at" — only that a workflow is attached. This directly threatens the charter's own locked decision #6 ("workflow-template propagation to open instances is the marquee feature and the hardest correctness problem") — if we can't even *read* instance state reliably, propagation design is blocked on this API question, not on our own logic. **Must be tested against a live token before the build wave, not assumed.** |
-| Custom fields | ❌ | `GET /v1/custom_fields` (registry) + nested arrays on records, shape `{id, name, value, document_type, field_type}` per docs | **New.** Add a `CrmCustomField` struct, merge onto `CrmContact` (confirmed nested there per docs) and **UNVERIFIED** onto notes/tasks/opportunities — check live. |
-| Tags (registry) | Partial — tag strings already parse per-contact (`CrmTag`) | `GET /v1/tags` | **New** — fetch the canonical registry so imported tags de-duplicate against a real workspace-wide tag list instead of becoming orphan strings per household. |
-| Contact roles | Placeholder only (`Vec<Value>`, unused) | `GET /v1/contact_roles` | **New** — type it properly; today's field is a parse-safety no-op, not a real import. |
+| Workflow step state | ❌ | `PUT /v1/workflow_steps` (complete/revert) documented; **no list/read endpoint found** | **UNVERIFIED, critical.** If no endpoint exposes a workflow instance's current step, import only the attached-workflow fact and mark step state as an allowed fidelity skip (§3). The synthetic simulator must carry both readable and unreadable-state cases. |
+| Custom fields | ❌ | `GET /v1/custom_fields` (registry) + nested arrays on records, shape `{id, name, value, document_type, field_type}` per docs | **New.** Add a `CrmCustomField` struct, merge onto `CrmContact` (confirmed nested there per docs) and **UNVERIFIED** on notes/tasks/opportunities; cover both shapes in fabricated fixtures. |
+| Tags (registry) | Partial — tag strings already parse per-contact (`CrmTag`) | `GET /v1/tags` | **New** — fetch the canonical registry so imported tags de-duplicate against one firm-wide tag list instead of becoming orphan strings per household. |
+| Contact roles | Placeholder only (`Vec<Value>`, unused) | `GET /v1/contact_roles` | **New** — type it properly; today's field is a parse-safety no-op, not a complete import. |
 | Activity stream | ❌ | `GET /v1/activity`, cursor-paginated, filterable by contact/type/updated_since | **New**, read-only, lower priority — this is "full historical activity" (logins, field changes, system events), imported as an inspectable timeline, not an editable record. Its native cursor param is a good match for the currently-unused `crm_cursors` scaffold (§2.3). |
-| Files / attachments | ❌ | **No documented endpoint found.** Wealthbox's own help docs point firms at third-party file storage integrations (Box, OneDrive/SharePoint) rather than native file hosting. | **UNVERIFIED / likely non-goal.** See §2.5 — don't design an "attachment downloader" against an API that may not exist; confirm with a real firm's setup first. |
-| Users | Cached, in-memory only | `GET /v1/users` | **New** — persist as a real one-time reference import (id → name/email), used to map `assigned_to` to a Lantern member or an "external (Wealthbox-only) user" placeholder. |
+| Files / attachments | ❌ | **No documented endpoint found.** Wealthbox's own help docs point firms at third-party file storage integrations (Box, OneDrive/SharePoint) rather than native file hosting. | **UNVERIFIED / likely non-goal.** See §2.5 — do not design an attachment downloader without a documented response shape. |
+| Users | Cached, in-memory only | `GET /v1/users` | **New** — persist as a reference import (id → name/email), used to map `assigned_to` to a Lantern member or an "external (Wealthbox-only) user" placeholder. |
 | Teams | Cached, in-memory only | `GET /v1/teams` | **New**, same treatment as Users. |
-| Categories (stages, sources, etc.) | Partial — label cache only | `GET /v1/customizable_categories`, `/v1/categories/{type}` | Persist as a lookup table so imported records show human labels without a live network call, and so the importer can validate a category id still exists in the workspace at import time. |
+| Categories (stages, sources, etc.) | Partial — label cache only | `GET /v1/customizable_categories`, `/v1/categories/{type}` | Persist as a lookup table so imported records show human labels without a network call, and so the importer can validate a category id at import time. |
 
-**Raw-JSON retention (new, required):** add a `crm_objects_raw` table (or a `raw_json`
-column alongside the existing typed `json` column) that stores the **unmodified API
-response body** per object, written at ingest time before/alongside the typed-model parse.
-This is not optional for a migration tool: without it, any field Wealthbox sends that isn't
-one of today's named struct fields is unrecoverable the moment it's fetched — including for
-new object types we haven't fully modeled yet by launch. It is also the backbone of the
-frozen export archive (§5) and the fidelity report's per-record drill-down (§3).
+### 2.2 Landing pipeline, raw capture, and replay safety (D8)
 
-### 2.2 ID mapping + dedupe (re-runnable imports)
+Every imported record takes exactly this path, in this order:
 
-Extend the existing `crm_key()` / store-id pattern (`contact:<id>`, `note:<id>[@<household>]`)
-uniformly to every new object type: `opportunity:<id>`, `project:<id>`,
-`workflow:<id>`, `workflowtemplate:<id>`, `customfield:<id>`, `activity:<id>`, etc.,
-carrying the same provider-prefix convention (`sfdc:`/`redtail:`) for multi-provider
-safety. Because every upsert is keyed on this id and resets `deleted = 0` on re-appearance
-(`store.rs`), **the importer is naturally re-runnable and idempotent** — running it again
-after a partial failure, or periodically during parallel-run, never creates duplicates. The
-one piece that needs new work is extending the linked-object type guard (§1.3) so a note
-linked to a real Opportunity or Project (now that those are actually fetched) files under
-the *right* grouping key instead of falling into `skipped_unlinked` by default.
+```text
+verbatim raw HTTP response → typed source record → Lantern entity / CRDT mutation → external_refs projection
+```
+
+This pipeline is the sole rule for safe replay. A retry starts by looking up the source
+record's `external_refs` projection, then re-applies the same typed source record into the
+same entity or CRDT mutation in one transaction. It must never use a separate upsert key,
+content hash, cursor, or UI action as a competing idempotency rule.
+
+**New raw-capture layer.** Before parsing, the importer persists each verbatim response in
+an encrypted `crm_raw_captures` store. Each capture has a stable `rawRecordRef`, batch id,
+provider, endpoint, page/cursor position, captured-at timestamp, response bytes, byte
+length, and SHA-256. Parsing makes typed source records that retain their originating
+`rawRecordRef`; unknown fields remain recoverable because the original bytes are never
+rewritten. Capture rows are append-only. The importer may mark a capture parsed or rejected,
+but never alter its bytes, source locator, or hash.
+
+**Atomic landing transaction.** For each typed source record, one SQLCipher transaction:
+
+1. resolves or creates the Lantern entity / CRDT document using its existing
+   `external_refs` projection;
+2. applies the typed fields under the field-merge contract in `02-data-model.md`;
+3. writes the entity's `rawRecordRef` and provenance; and
+4. upserts the matching `external_refs` projection only after the mutation succeeds.
+
+`external_refs` is the durable mapping `(provider, sourceType, sourceId, scope) →
+EntityRef`. `scope` is empty for ordinary one-entity mappings and is a canonical,
+sorted household-set fingerprint where a source record's confidentiality scope requires it.
+The projection is rebuildable from captured records and Lantern provenance, but is the only
+lookup used during normal replay.
+
+**Multi-household notes.** A source note linked to several households becomes **one**
+Lantern `Note`, never copied into several household records. Its `householdLinks` list holds
+every resolved household link; its external reference uses the composite scope fingerprint
+of that sorted list. The note is visible only to a person holding keys for **every** linked
+household (the intersection rule). A missing or unauthorized household link prevents the
+note from landing and records the specific allowed skip reason in the fidelity matrix.
+
+**Archive manifest.** Each import batch creates one immutable archive manifest alongside
+its raw captures. The manifest records the batch id, capture-layer version, fixture corpus
+identity, every `rawRecordRef`, source locator, SHA-256, byte length, capture timestamp,
+typed-record outcome, target `EntityRef` or skip reason, and the resulting `external_refs`
+projection. The completed manifest is content-addressed and sealed; correction requires a
+new batch and new manifest, never editing an earlier one. Every imported entity carries its
+own `rawRecordRef` back to this manifest.
 
 ### 2.3 Incremental re-sync during parallel-run
 
@@ -224,14 +261,14 @@ unused:
 - **Additive objects (contacts, notes, tasks, events, opportunities, projects, workflow
   instances):** pass `updated_since` (already an accepted param on the objects that support
   it; **UNVERIFIED** exact format — the code's own comments flag this) using the cursor
-  stored from the previous sync's completion time. This gets near-real-time pickup of
+  stored from the previous sync's completion time. This gets prompt pickup of
   *changes* cheaply.
 - **Deletions are the catch:** an `updated_since`-scoped fetch, by definition, never sees
   something that was deleted (it's just absent from the response — same as it always was).
   Today's tombstone logic (§1.3) only works correctly against a **full** listing, because it
   diffs "everything we just saw" against "everything we had." **New design decision:** run
   a hybrid cadence — frequent incremental syncs (every few minutes, cursor-based, cheap) for
-  live parallel-run responsiveness, plus a periodic **full** resync (e.g. nightly) that is
+  parallel-run responsiveness, plus a periodic **full** resync (e.g. nightly) that is
   the only pass allowed to tombstone. Document this plainly for the fidelity report (§3):
   "last full reconciliation" needs its own visible timestamp, distinct from "last sync,"
   because a deletion made in Wealthbox at 2pm won't show as gone in Lantern until the next
@@ -261,7 +298,7 @@ small-delta syncs are fine as-is):
 2. **Per-object-type sequencing, not one giant blob.** Import contacts first (everything
    else links to them), then notes/tasks/events/opportunities/projects (link resolution
    needs contacts already loaded), then workflows/custom-fields/activity last (informational,
-   nothing else depends on them). This lets the fidelity report show real incremental
+   nothing else depends on them). This lets the fidelity report show clear incremental
    progress ("contacts: done, notes: 40% …") instead of an opaque all-or-nothing status.
 
 ### 2.5 Attachment download strategy
@@ -269,16 +306,16 @@ small-delta syncs are fine as-is):
 **Provisional, pending verification.** No documented Wealthbox endpoint for listing or
 downloading files/attachments was found (§2.1). Wealthbox's own help center describes file
 storage as something firms do through connected third-party integrations (Box, OneDrive/
-SharePoint), not through Wealthbox itself. If that holds up under a live check, the
+SharePoint), not through Wealthbox itself. If that holds up under documented API behavior, the
 importer's correct behavior is to **not** claim file migration as a Wealthbox-connector
-responsibility at all — a firm's actual files most likely already live in a storage
+responsibility at all — a firm's files most likely already sit in a storage
 provider Lantern has its own, separate connector for (per the parent Keepance codebase's
 existing OneDrive/SharePoint and Box connectors). The migration-readiness checklist (§5)
 should include "confirm which file-storage integration this firm actually uses" as a
 discovery step, not assume it. **Do not build a Wealthbox-attachments fetcher against
-unconfirmed docs — verify live first**, and if a real attachments API does turn up on a live
-workspace, this section needs a real design pass (streamed download, size limits, virus
-scanning parity with the existing document pipeline).
+unconfirmed docs.** If a documented attachment response shape later appears, this section
+needs a full design pass (streamed download, size limits, virus scanning parity with the
+existing document pipeline).
 
 ---
 
@@ -286,22 +323,45 @@ scanning parity with the existing document pipeline).
 
 The existing `IngestReport` struct (`engine/ingest.rs`) already tracks `contacts, notes,
 tasks, events, skipped_unlinked, removed_tombstoned` as plain counters — this is the right
-shape to build on, not replace. Extend it into a real product surface:
+shape to build on, not replace. Extend it into a durable product surface:
 
 ### 3.1 Structure
 
 - **Per record type:** fetched N / imported N / skipped N, with skip reasons broken out
-  (unlinked, unparseable/malformed, duplicate id collision, provider rejected the record on
-  a later write-back check, category/field reference to something no longer in the
-  workspace). Every fetched-but-not-imported record has exactly one reason, always shown.
-- **Per-record drill-down:** each skipped record is individually addressable — a firm's
-  admin (or Lantern's own support) can open "12 notes skipped: unlinked" and see the actual
-  12, including enough of the raw content (from the raw-JSON retention in §2.1) to judge
-  whether it's genuinely orphaned data or a real bug.
+  exactly as listed for that source type in §3.2. Every fetched-but-not-imported record has
+  exactly one reason, always shown.
+- **Per-record drill-down:** each skipped record is individually addressable through its
+  `rawRecordRef`, so a sandbox reviewer can inspect the verbatim capture and determine
+  whether it is orphaned data or an importer defect.
 - **Two timestamps, not one:** "last incremental sync" and "last full reconciliation" (see
   §2.3) — because a full reconciliation is the only pass that can prove a deletion.
 
-### 3.2 The 100%-on-what-matters bar
+### 3.2 Canonical fidelity matrix (D8)
+
+This is the **only** fidelity matrix for the program. `06-test-campaign.md` adopts this
+table by reference and must not create a competing matrix. “Complete” means every
+fabricated source record reaches the stated target through §2.2 and has an archive-manifest
+entry; “skip” means the record is retained in raw capture and reported with exactly one
+listed reason.
+
+| Source type | Target entity | Fixture source | Required completeness | Allowed skip reasons |
+|---|---|---|---|---|
+| Household/contact person/org/trust | Household, Person, Organization, Trust, household membership | Northcrest fabricated API corpus: contacts clean/null/collision cases | 100% for resolved active households and contacts | malformed source; unsupported source type; unresolved required household link |
+| Note | One Note with `householdLinks[]` | Northcrest fabricated API corpus: single-link, multi-link, unresolved-link, collision cases | 100% when every household link resolves; one target note per source note | malformed source; no resolved household link; partial/missing household-link set; confidentiality intersection cannot be established |
+| Task | Canonical Task (D2) | Northcrest fabricated API corpus: assigned/unassigned/due/recurrence cases | 100% for records with a valid target scope | malformed source; unresolved required household link; unsupported subtask shape |
+| Event | Existing calendar event via `EntityRef` | Northcrest fabricated API corpus: household-linked and firm cases | 100% for records with a valid target scope | malformed source; unresolved required household link |
+| Opportunity | Opportunity linked to PipelineDef/StageDef | Northcrest fabricated API corpus: pipeline, stage, closed cases | 100% where source pipeline/stage references resolve | malformed source; missing required pipeline/stage reference; unresolved required household link |
+| Project | Read-only legacy Project record | Northcrest fabricated API corpus: linked/unlinked cases | 100% of parseable records; no automatic workflow conversion | malformed source; unresolved required link |
+| Workflow template | WorkflowTemplate | Northcrest fabricated API corpus: templates and step definitions | 100% of parseable records | malformed source; unsupported source shape |
+| Workflow instance/step state | Read-only legacy workflow record | Northcrest fabricated API corpus: readable and unreadable step-state cases | 100% of readable instance facts; step state only when supplied | malformed source; endpoint does not supply step state; unresolved required link |
+| Custom field registry/value | Field definition plus typed target field/provenance | Northcrest fabricated API corpus: typed and null values | 100% of documented supported shapes | malformed source; unsupported field type; source shape not documented |
+| Tags/categories | Firm lookup/read model and entity labels | Northcrest fabricated API corpus: duplicate and missing-label cases | 100% of parseable registry entries | malformed source; unresolved registry reference |
+| Contact roles | `Person.roles[]` and `HouseholdMember.role` as applicable | Northcrest fabricated API corpus: person and household roles | 100% of typed role records | malformed source; role has no supported target scope |
+| Users/teams | `FirmDirectoryEntry` read model | Northcrest fabricated API corpus: matched and external users | 100% of parseable records | malformed source |
+| Activity stream | ActivityEvent timeline record | Northcrest fabricated API corpus: cursor, login, field-change cases | 100% of parseable records | malformed source; unsupported activity subtype |
+| Files/attachments | No migration target in v1 | Fabricated “no endpoint” fixture | 0%, explicitly disclosed | no documented source endpoint |
+
+### 3.3 The 100%-on-what-matters bar
 
 Not every fetched byte carries equal weight, and pretending otherwise (either "100% of
 everything" as an unreachable purity test, or "close enough" as an acceptable standard for
@@ -309,7 +369,7 @@ client data) both fail the product. The bar:
 
 - **"Matters" = anything tied to an active client relationship**: households, contacts,
   notes, tasks, events, and opportunities linked to a still-open household. These import at
-  **100% or the migration is not offered to the firm as complete** — no silent partial
+  **100% or the sandbox migration is not marked complete** — no silent partial
   success.
 - **Lower-stakes categories** (a note whose only link was to a project or opportunity that
   no longer exists in the workspace; activity-stream login/system events; a workflow
@@ -326,7 +386,7 @@ client data) both fail the product. The bar:
   that pitch for the advisor who finds it, regardless of how many thousands imported
   cleanly.
 
-### 3.3 As a real artifact
+### 3.4 As a durable artifact
 
 The fidelity report is generated as a document a firm can keep — exportable (PDF or
 similarly durable format), timestamped, matched 1:1 against the frozen archive's manifest
@@ -340,6 +400,8 @@ officer files alongside the frozen Wealthbox export for their own records.
 Deep-dive §7 phase 2: Lantern's records become editable while every Lantern-side change
 still writes back to Wealthbox, which stays authoritative. This is "the honest test of
 would they switch" — so it has to be honest about exactly what round-trips and what doesn't.
+Under D7, this section specifies only a fabricated-data sandbox rehearsal; it does not
+authorize a customer-data parallel run.
 
 ### 4.1 What write-back actually covers today (verified, §1.5)
 
@@ -347,7 +409,7 @@ would they switch" — so it has to be honest about exactly what round-trips and
   fine, because notes are append-only in the advisor workflow anyway (you add a new note,
   you don't rewrite history) and it means notes **cannot conflict** — there's nothing to
   reconcile.
-- **Tasks:** create only (`POST /tasks`), with Wealthbox's live-confirmed due-date
+- **Tasks:** create only (`POST /tasks`), with Wealthbox's documented due-date
   requirement enforced before send.
 - **Contact fields:** exactly one field, `background_information`, via `PUT
   /contacts/{id}`, with a stale-guard.
@@ -363,8 +425,8 @@ would they switch" — so it has to be honest about exactly what round-trips and
    that can't write back without a visible marker ("this stays in Lantern until cutover" or
    similar) — the entire point of parallel-run is trust; a field that silently doesn't sync
    back is a worse trust failure than not offering the edit at all.
-2. **Expanding write-back is real, field-by-field work, not a batch job.** Each new
-   writable field should be expected to need the same live-verification write.rs already
+2. **Expanding write-back is careful, field-by-field work, not a batch job.** Each new
+   writable field should be expected to need the same simulator verification write.rs already
    did once for `background_information` (§1.5's read/write name-mismatch landmine, the
    422-without-due-date landmine) — budget per-field verification, not a bulk "just add
    these to `WRITABLE_FIELDS`."
@@ -372,7 +434,7 @@ would they switch" — so it has to be honest about exactly what round-trips and
    explicitly, not attempted write-back.** These are the objects with zero write
    scaffolding today, and per the charter's own pre-made decision #6, workflow-instance
    correctness is already flagged as the single hardest problem in the whole program. Let
-   parallel-run advisors *see* their pipeline/workflow state live from Wealthbox, but don't
+   parallel-run advisors see their pipeline/workflow state from Wealthbox, but don't
    let them edit it in Lantern until that subsystem gets its own dedicated design and
    review pass — rushing write-back for the riskiest object type into parallel-run is the
    wrong place to take that risk.
@@ -380,12 +442,12 @@ would they switch" — so it has to be honest about exactly what round-trips and
 ### 4.3 Conflict policy
 
 Use the pattern the stale-guard on the field-update path already established
-(`push_crm_field_update`, §1.5): **re-read the live value at write time; if it has changed
+(`push_crm_field_update`, §1.5): **re-read the current value at write time; if it has changed
 since what the advisor reviewed, refuse the write and surface the current value rather than
 guessing or overwriting.** This generalizes cleanly to any newly-round-tripped field. It is
 deliberately **not** the CRDT merge algorithm from architecture decision #2 — that governs
 conflicts between two *Lantern* users editing the same shared Lantern document, a genuinely
-different problem (both sides are peers with real merge semantics). Wealthbox, from
+different problem (both sides are peers with CRDT merge semantics). Wealthbox, from
 Lantern's point of view, is a dumb REST store with no merge concept of its own — optimistic
 locking (read-check-then-write, surface don't silently clobber) is the right shape for
 *this* boundary, not a CRDT.
@@ -394,17 +456,18 @@ locking (read-check-then-write, surface don't silently clobber) is the right sha
 
 ## 5. Cutover + rollback
 
-### 5.1 Frozen Wealthbox archive export
+This is a fabricated-data sandbox cutover and rollback rehearsal only. It does not
+authorize a customer migration, external write, or production cutover.
 
-Once raw-JSON retention exists (§2.1), the frozen archive is a straightforward export: one
-newline-delimited-JSON file per object type (`contacts.ndjson`, `notes.ndjson`, …) built
-from the **raw** captured bodies (not the typed-model reserialization — the whole point is
-recordkeeping fidelity to what Wealthbox actually sent), bundled with a manifest whose
-counts must match the fidelity report (§3) exactly. This satisfies the deep-dive's Rule
-204-2 recordkeeping concern (§8 of that doc — flagged there as a compliance flag, not a
-resolved conclusion; this design treats "keep a frozen, provable export" as the safe
-default regardless of how that flag ultimately resolves). Retained indefinitely, outside
-the live Lantern workspace, immutable once written.
+### 5.1 Immutable import-batch archive manifest
+
+Each completed sandbox batch seals the immutable archive manifest defined in §2.2. Its
+raw-capture files may be exported as one newline-delimited JSON file per source type
+(`contacts.ndjson`, `notes.ndjson`, …), but the manifest is the authoritative archive
+index: every `rawRecordRef`, checksum, source locator, typed outcome, target entity,
+external-reference projection, and fidelity-matrix result appears exactly once. Its counts
+must match §3 exactly. The archive is retained outside the editable Lantern data store;
+neither its raw captures nor its manifest can be edited after sealing.
 
 ### 5.2 Day-one rollback
 
@@ -413,44 +476,43 @@ being rolled back:
 
 - **Contact-field edits made only in Lantern** (anything beyond the one field that already
   round-trips): re-export as CSV matching Wealthbox's own bulk contact-import column
-  schema. **UNVERIFIED** — need to confirm live whether that import tool's columns cover
+  schema. **UNVERIFIED** — confirm through documented schemas whether that import tool's columns cover
   every field this connector syncs, or only a subset; this gates how complete a rollback of
   contact edits can actually be.
 - **Lantern-native notes/tasks/events created after cutover:** replay them back through the
   same authenticated `POST` calls the write path already has half-built (§1.5, extended to
-  events), reusing the exact `dedup_key` idempotency scheme so a rollback that's retried or
-  partially redone can't double-post into Wealthbox.
+  events). Every replay enters the same raw response → typed source record → entity/CRDT
+  mutation → `external_refs` landing pipeline in §2.2; no separate rollback dedupe rule is
+  permitted.
 - This is written down now as a **plan**, not implemented — building and testing the
   rollback path is build-wave/test-campaign work, but the plan must exist before cutover is
-  ever offered to a real firm, per the deep-dive's own framing of cutover requiring "a
+  ever used outside the fabricated sandbox, per the deep-dive's own framing of cutover requiring "a
   defined day-one rollback," not a vague promise.
 
 ### 5.3 The Jump-coexistence problem (explicit, per charter instruction)
 
-Jump writes into Wealthbox today through whatever integration it uses on the firm's side.
-During Mirror and Parallel-run (deep-dive §7 phases 1–2), Lantern's sync is reading the same
-Wealthbox API Jump writes into — so Jump's writes show up in Lantern automatically, for
-free, with no special handling. **At cutover, that stops being true.** Once Wealthbox is no
-longer the system of record (archived per §5.1, or simply no longer the place advisors and
-Jump both write to), Jump's writes have nowhere authoritative to land. The firm has exactly
-two options, and this design treats picking one as **mandatory, written into the pilot
-agreement, not a thing discovered after the fact**:
+In the fabricated Jump-coexistence scenario, Jump writes into the simulated Wealthbox API.
+During Mirror and Parallel-run (deep-dive §7 phases 1–2), Lantern reads those simulated
+writes automatically. **At cutover, that stops being true.** Once the simulated Wealthbox
+store is no longer authoritative (archived per §5.1), simulated Jump writes have nowhere
+authoritative to land. The sandbox scenario has exactly two outcomes, and the rehearsal
+must select one before cutover:
 
 1. **Drop Jump.** Whatever meeting-notes/follow-up automation Jump provided needs to
-   already be replaced by a Lantern-native equivalent before cutover, or the firm loses
+   already be replaced by a Lantern-native equivalent before cutover, or the scenario loses
    that capability on day one.
 2. **Keep Jump, lose its write target.** Jump keeps running against Wealthbox, but those
-   writes now land in a system the firm has stopped treating as authoritative — meaning
-   Jump's output either goes unread or the firm quietly keeps living in Wealthbox for
+   writes now land in a system the scenario has stopped treating as authoritative — meaning
+   Jump's output either goes unread or the scenario quietly keeps using Wealthbox for
    Jump-touched work, undermining the whole point of cutting over.
 
 **A concrete gap this design surfaces:** today's `CrmNote` model has no way to distinguish
 a Jump-authored note from a human-authored one — notes are undifferentiated. There is no
-automatic way to measure how dependent a firm currently is on Jump's writes before
+automatic way to measure how dependent a sandbox scenario is on Jump's writes before
 cutover. The closest available mitigation, and a named item for the migration-readiness
 checklist, is a **manual pre-cutover audit**: sample recent notes/tasks for Jump's
-recognizable format or footer text and estimate reliance before asking the firm to commit
-to option 1 or 2.
+recognizable format or footer text and estimate reliance before selecting
+option 1 or 2.
 
 ---
 
@@ -458,38 +520,38 @@ to option 1 or 2.
 
 ### 6.1 Fixture corpus
 
-Two sources already exist and should be consolidated, not rebuilt from scratch:
+Two fabricated sources already exist and should be consolidated, not rebuilt from scratch:
 
 - **`model.rs`'s inline test fixtures** (`CONTACTS_FIXTURE`, `NOTES_FIXTURE`,
   `TASKS_FIXTURE`, `EVENTS_FIXTURE`) — realistic, shaped against documented (and in one
-  case live-quirk-corrected: the `background_info` alias) Wealthbox responses, including
+  case quirk-corrected: the `background_info` alias) Wealthbox responses, including
   null-field edge cases (`household_with_null_fields_and_top_level_name_parses_correctly`)
   and the id-collision guard case in `engine/mod.rs`
   (`ingest_skips_and_counts_unlinked_objects`).
 - **The Northcrest demo dataset** (`~/lantern-demo-data`, 80 households / 374 docs,
-  referenced in project memory as the program's fabricated demo firm) — a much larger,
-  more realistic corpus already built for other purposes, worth reusing as the volume test
+  referenced in project memory as the program's fabricated demo firm) — a larger
+  fabricated corpus already built for other purposes, worth reusing as the volume test
   case for the importer's throughput/checkpointing work (§2.4).
 
 **New fixture work needed:** every newly-added object type (§2.1) needs both clean and
 edge-case fixtures — nulls, missing keys, colliding numeric ids across object types (the
 existing Project/Contact-id-collision test is the template), and — critically — a
-representative **open workflow instance with step state**, once §2.1's UNVERIFIED question
-about whether that state is even readable gets answered live.
+representative **open workflow instance with step state**, with both readable and unreadable
+states modeled in the fabricated simulator.
 
 ### 6.2 Synthetic Wealthbox API simulator
 
 `client.rs` already supports a swappable base URL (`new_with_base`, built for tests) and
 the existing test suite already runs a local mock HTTP server (`wiremock`) for `client.rs`'s
 own unit tests (e.g. `post_json_sends_token_header_and_parses_response`). This is the seed
-of a real simulator, not a green-field build:
+of a complete simulator, not a green-field build:
 
 - Build a small `wiremock`-backed fake Wealthbox server that serves the full fixture corpus
   (§6.1) across every endpoint in §2.1's coverage table, with configurable pagination,
   429/rate-limit behavior, and mid-page failure injection (for testing the checkpoint/resume
   logic from §2.4).
 - Lane F's exit tests drive the whole importer + fidelity-report pipeline against this
-  simulator with **zero live-Wealthbox dependency** — this is also the right shape for an
+  simulator with **zero external-account dependency** — this is also the right shape for an
   ongoing CI regression gate, since the simulator's fixture corpus has known, fixed
   fetched/imported/skipped counts.
 
@@ -505,9 +567,10 @@ hand before a release.
 
 ## 7. Open questions / UNVERIFIED (dated 2026-07-11)
 
-All of the following need a live Wealthbox API token against a real or sandbox workspace
-to close out — none are blockers to freezing this design, but every one is an accepted
-open risk that must be named at spec-freeze review, not discovered mid-build:
+All of the following remain simulator-modeling risks. They are resolved only with
+fabricated responses and sandbox tests; this program does not authorize obtaining answers
+from customer data, production accounts, or non-fabricated workspaces. None blocks freezing
+this design, but each is an accepted risk that must be named at spec-freeze review:
 
 1. **Highest risk:** does `/v1/workflows` (or any endpoint) expose enough state to
    reconstruct an *open* workflow instance's current step/stage, or is `/v1/workflow_steps`
@@ -515,7 +578,7 @@ open risk that must be named at spec-freeze review, not discovered mid-build:
    inference? This blocks faithful workflow-instance import and, downstream, the
    workflow-propagation design the charter already calls the hardest problem in the program.
 2. Exact max `per_page` and exact `updated_since` timestamp format Wealthbox's API accepts
-   — existing `TODO(live-probe)` markers in `client.rs`/`model.rs`.
+   — existing `TODO(probe)` markers in `client.rs`/`model.rs`.
 3. Whether custom fields appear nested on notes/tasks/opportunities, or contacts only.
 4. Whether Wealthbox exposes **any** native file/attachment storage + API at all, versus
    files living exclusively in a connected third-party integration (Box/OneDrive/
@@ -528,8 +591,8 @@ open risk that must be named at spec-freeze review, not discovered mid-build:
 7. Whether notes/tasks/events/opportunities/projects/workflows expose *any* deleted-item
    filter (contacts do, via `?deleted=true`) — today's diff-based tombstoning (§1.3, §2.3)
    is the only mechanism for every other object type, and it only works on a full resync.
-8. Real-world 429/rate-limit behavior across many concurrently-relevant object-type
-   endpoints during a full historical pull for a firm of meaningful size — untested at
+8. Rate-limit behavior across many concurrent object-type endpoints during a full
+   historical pull for a firm-sized fabricated corpus — untested at
    scale; today's single shared rate-gate mutex is the only mitigation in place.
 9. Whether OAuth 2.0 (which the public docs describe as the primary auth path) differs
    from the raw `ACCESS_TOKEN` header this fork implements in available scopes or rate
@@ -539,9 +602,9 @@ open risk that must be named at spec-freeze review, not discovered mid-build:
 ---
 
 **Summary for spec-freeze review:** the read side is a solid, well-tested four-object
-foundation (contacts/notes/tasks/events) with real pagination, rate-limiting, and PII
-discipline already proven in production code — but it covers roughly half of what a
-faithful Wealthbox migration needs, and the write side covers two object types plus one
-field. The single highest-leverage unknown is whether open workflow instances are even
-readable via the API; that answer should be sought before the build wave commits deeply to
-the workflow-propagation design in lane C/D.
+foundation (contacts/notes/tasks/events) with pagination, rate-limiting, and PII discipline
+already present in the code — but it covers roughly half of what a faithful Wealthbox
+migration needs, and the write side covers two object types plus one field. The
+highest-leverage unknown is whether open workflow instances are readable through the API;
+the fabricated simulator must represent both possible outcomes before the build wave commits
+deeply to workflow-propagation work in lanes C/D.

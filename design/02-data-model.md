@@ -1,5 +1,7 @@
 # 02 — Data model + storage design (CRM core)
 
+**Conforms to 00-master-spec decisions D1-D10 (reconciled 2026-07-11).**
+
 **Lane B deliverable. Status: DRAFT for freeze review.** This spec is written to be
 **frozen and built against without iteration** (per `LANTERN-CRM.md` §"one-shot
 workflow"), so it errs toward completeness. Every claim about existing code cites a
@@ -51,11 +53,11 @@ Restated as the four rails this model is built on:
 
 Field specs are given as TypeScript interfaces (the app is TS-first; the Rust store
 mirrors the shapes, as `model.rs` already mirrors the connector DTOs). Per-field CRDT
-merge class is tagged in §2 with these markers:
+merge class is settled by the Field Merge Contract in §2.3:
 
 | Marker | Meaning | Yjs representation |
 |---|---|---|
-| **LWW** | Last-writer-wins register | value in a `Y.Map` + companion `…#hlc` field (see §2.1) |
+| **LWW** | Last-writer-wins register | value in a `Y.Map` + companion `…#hlc` field (see §2.3) |
 | **SEQ** | Character/element sequence, true co-edit merge | `Y.Text` or `Y.Array` |
 | **SET** | Add-wins observed-remove set (OR-Set) | `Y.Map<id, member>` keyed by element id |
 | **CNT** | Monotonic counter (grow-only or PN) | `Y.Map` of per-actor partial counts |
@@ -85,6 +87,7 @@ interface CrmBase {
   source: Provenance;      // LWW — where this record most-recently came from (§5)
   deleted: boolean;        // LWW — soft-delete tombstone (mirrors crm_objects.deleted, store.rs:83)
   externalRefs: ExternalRef[]; // SET — provider ids this maps to (Wealthbox/SFDC/Redtail), §4
+  rawRecordRef?: RawRecordRef; // IMM when imported — exact verbatim archive payload (§4.4)
   schemaVersion: number;   // LWW — doc schema version for forward migration
 }
 
@@ -92,7 +95,8 @@ type EntityKind =
   | 'household' | 'person' | 'account' | 'fact' | 'note' | 'task'
   | 'workflowTemplate' | 'workflowInstance' | 'servicePolicy'
   | 'activityEvent' | 'firmDoc' | 'tag' | 'customFieldDef'
-  | 'opportunity' | 'savedView';
+  | 'opportunity' | 'pipelineDef' | 'stageDef' | 'proposalRecord'
+  | 'firmDirectoryEntry' | 'importArchiveManifest' | 'savedView';
 
 interface ActorRef {
   userId: string;          // firm member id, or 'system'
@@ -116,6 +120,14 @@ interface ExternalRef {
   crmKey: string;          // the provider-safe crm_key() value, model.rs:314-317
   lastSyncedAt?: string;
 }
+
+interface RawRecordRef {
+  importBatchId: string;
+  manifestId: string;
+  rawRecordId: string;
+  sha256: string;          // digest of the verbatim captured HTTP response
+  capturedAt: string;
+}
 ```
 
 `SourceRef`, `CrmStreetAddress`, `CrmEmailAddress`, `CrmPhoneNumber`, `CrmTag` are reused
@@ -135,7 +147,7 @@ interface Household extends CrmBase {
   greeting?: string;            // LWW — salutation for client-facing docs
   status: 'prospect' | 'active' | 'inactive' | 'former'; // LWW — lifecycle (extends CrmContact.status, model.rs:246)
   clientSince?: string;         // LWW — date (CrmContact.client_since, model.rs:236)
-  memberIds: string[];          // SET — Person ids in this household (the household graph)
+  members: Keyed<HouseholdMember>; // SET — Person links; the member role belongs here, not on Person
   primaryContactId?: string;    // LWW — the "Head" member (CrmHouseholdMember.title, model.rs:84)
   servicePolicyId?: string;     // LWW — ref to ServicePolicy (§1.9)
   tagIds: string[];             // SET — Tag ids (§1.12)
@@ -145,6 +157,12 @@ interface Household extends CrmBase {
   ownership: 'mine' | 'shared' | 'other'; // LWW — book-of-business ownership (E-085)
   pinnedFactIds: string[];      // SET — facts pinned as permanent memory (E-073)
   archived: boolean;            // LWW — organizational hide (mirrors Matter.archived, matter.ts:167)
+}
+
+interface HouseholdMember {
+  personId: string;             // IMM
+  role?: string;                // LWW — Head/Spouse/Partner/Child within this household
+  addedAt: string;              // IMM
 }
 ```
 
@@ -159,7 +177,7 @@ interface Person extends CrmBase {
   kind: 'person';
   personType: 'person' | 'trust' | 'organization'; // mirrors CrmContact type ∈ person|trust|org (model.rs:186)
   householdIds: string[];       // SET — households this person belongs to (usually 1; trusts/orgs may span)
-  role?: string;                // LWW — household role: Head/Spouse/Partner/Child (CrmHouseholdMember.title, model.rs:84)
+  roles: PersonRole[];          // SET — professional/contact roles, deliberately distinct from HouseholdMember.role
 
   // identity (all LWW) — mirror CrmContact identity block, model.rs:215-231
   firstName: string; middleName?: string; lastName: string;
@@ -195,6 +213,13 @@ interface Person extends CrmBase {
     | 'business_manager' | 'family_officer' | 'trusted_contact' | 'other'; // maps CrmContact professional-relationship pointers, model.rs:279-286
   servesHouseholdIds: string[]; // SET — households this external party serves
   verifiedRecipient?: VerifiedRecipientLink; // LWW — gate for client-facing sends (E-095)
+}
+
+interface PersonRole {
+  id: string;                   // IMM
+  label: string;                // LWW
+  organizationRef?: EntityRef;  // LWW
+  active: boolean;              // LWW
 }
 
 interface VerifiedRecipientLink {
@@ -293,8 +318,9 @@ hard wall** (path4 §4 principle 5, E-050) and pinnability (E-073).
 ```ts
 interface Note extends CrmBase {
   kind: 'note';
-  householdId: string;          // IMM
+  householdLinks: HouseholdLink[]; // SET — one note may link many households (D8)
   links: EntityRef[];           // SET — what this note is about (mirrors CrmNote.linked_to, model.rs:358)
+  mentions: NoteMention[];      // SET — people/firm members explicitly mentioned (D9)
   audience: 'internal' | 'client-facing'; // IMM — the hard wall (E-050). IMM because reclassifying is a new note, not a mutation.
   body: string;                 // SEQ — Y.Text, true co-edit merge (reuses the docCrdt Y.Text pattern, docCrdt.ts:33)
   pinned: boolean;              // LWW — pinned notes as permanent memory (E-073)
@@ -303,6 +329,18 @@ interface Note extends CrmBase {
   templateId?: string;          // LWW — note template used
   authoredVia?: 'manual' | 'jump-push' | 'meeting-capture' | 'ai'; // LWW — Jump→note push provenance (E-029/030)
   tagIds: string[];             // SET
+}
+
+interface HouseholdLink {
+  householdId: string;          // IMM
+  matterId: string;             // IMM — needed to enforce the intersection wall
+  externalRef?: ExternalRef;    // IMM for a multi-household imported note's composite source link
+}
+
+interface NoteMention {
+  id: string;                   // IMM, e.g. "user:<id>" or "person:<id>"
+  ref: EntityRef;               // IMM
+  notifyState: 'none' | 'pending' | 'sent' | 'read'; // LWW, notification detail is encrypted
 }
 ```
 
@@ -316,24 +354,16 @@ principle 3 — "tasks carry judgment").
 ```ts
 interface Task extends CrmBase {
   kind: 'task';
-  householdId?: string;         // IMM — scope (optional: firm-level tasks exist)
-  title: string;                // LWW (CrmTask.name, model.rs:377)
-  description: string;          // SEQ — Y.Text (CrmTask.description, model.rs:381)
-  status: 'open' | 'in_progress' | 'blocked' | 'done' | 'cancelled'; // LWW (richer than CrmTask.complete bool, model.rs:379)
-  assigneeIds: string[];        // SET — one or many firm members (the missing field)
-  dueDate?: string;             // LWW (CrmTask.due_date, model.rs:378)
-  startDate?: string;           // LWW
-  priority: 'low' | 'normal' | 'high' | 'urgent'; // LWW (CrmTask.priority, model.rs:380)
-  recurrence?: RecurrenceRule;  // LWW — the missing recurrence semantics (E-049/E-075)
-  parentTaskId?: string;        // IMM — subtask/recurrence-parent link
-  category?: string;            // LWW — team/category (the missing field)
-  contextRefs: EntityRef[];     // SET — meeting/account/note/opportunity this task hangs off (E-119 judgment context)
-  links: EntityRef[];           // SET — CrmTask.linked_to equivalent (model.rs:390)
-  workflowInstanceId?: string;  // IMM — set when this task is a workflow step's task
-  workflowStepId?: string;      // IMM
-  completedAt?: string; completedBy?: ActorRef; // LWW
-  tagIds: string[];             // SET
-  customFields: CustomFieldValueMap;
+  id: string;                   // IMM — app-minted, never provider-owned
+  householdRef: EntityRef | null; // IMM — null means a firm task; opaque in its firm shell
+  title: string;                // LWW — operational shell field
+  body: string;                 // SEQ — Y.Text on the client-key side (or firm key for a firm task)
+  assigneeUserId: string | null;// LWW — exactly one assignee, or explicitly unassigned
+  status: 'open' | 'in_progress' | 'blocked' | 'done' | 'cancelled'; // LWW
+  due?: string;                 // LWW
+  recurrence?: RecurrenceRule;  // LWW
+  priority: 'high' | 'normal' | 'low'; // LWW
+  contextRefs: EntityRef[];     // SET
 }
 
 interface RecurrenceRule {
@@ -366,15 +396,24 @@ interface WorkflowTemplate extends CrmBase {
   name: string;                 // LWW
   description: string;          // SEQ — Y.Text
   category?: string;            // LWW — "Money Movement", "Post-Meeting", "Onboarding" (E-092/093)
-  version: number;              // LWW/CNT — monotonic; bumped on any step-set change
+  rev: number;                  // CNT — the only `rev`: monotonic propagation revision
   status: 'draft' | 'published' | 'archived'; // LWW
-  steps: Keyed<WorkflowStepDef>;// SEQ+SET — ordered, id-keyed (order is a SEQ of ids; bodies are a SET)
+  steps: Keyed<StepDef>;        // SEQ+SET — ordered, id-keyed (order is a SEQ of ids; bodies are a SET)
   stepOrder: string[];          // SEQ — Y.Array of step ids (the order sequence)
   triggerHints: string[];       // SET — patterns that suggest "convert this ad-hoc task?" (E-092/093)
   tagIds: string[];             // SET
+  schedule?: WorkflowSchedule;  // LWW — scheduled workflow launch rule (D9)
 }
 
-interface WorkflowStepDef {
+interface WorkflowSchedule {
+  frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'annual';
+  timezone: string;
+  startsAt: string;
+  householdSelector: ViewQuery; // saved, evaluated-at-launch client-side selector
+  enabled: boolean;
+}
+
+interface StepDef {
   id: string;                   // IMM — STABLE across versions (this is what makes propagation mergeable, §2.7)
   title: string;                // LWW
   description: string;          // SEQ
@@ -382,8 +421,17 @@ interface WorkflowStepDef {
   defaultAssigneeId?: string;   // LWW
   offsetDays?: number;          // LWW — due N days after instance start / prior step
   required: boolean;            // LWW
-  addedInVersion: number;       // IMM — provenance for propagation diffs
-  removedInVersion?: number;    // LWW — soft-removal keeps the id alive for merge
+  outcomes: StepOutcome[];      // SET — branch/restart decisions (D9)
+  addedInRev: number;           // IMM — provenance for propagation diffs
+  removedInRev?: number;        // LWW — soft-removal keeps the id alive for merge
+}
+
+interface StepOutcome {
+  id: string;                   // IMM
+  label: string;                // LWW
+  nextStepId?: string;          // LWW — absent means complete this branch
+  restartAtStepId?: string;     // LWW — explicit rework/restart path
+  condition?: string;           // LWW — user-visible rule text, evaluated client-side
 }
 ```
 
@@ -402,17 +450,17 @@ interface WorkflowInstance extends CrmBase {
   kind: 'workflowInstance';
   householdId: string;          // IMM
   templateId: string;           // IMM
-  templateVersion: number;      // LWW — the version this instance was LAST reconciled to (§2.7)
+  displayedTemplateRev: number; // LWW — advances only after a whole required change-set is present
   name: string;                 // LWW — instance label (usually template name + household)
   status: 'open' | 'completed' | 'cancelled'; // LWW
   startedAt: string;            // IMM
   completedAt?: string;         // LWW
   steps: Keyed<WorkflowStepProgress>; // per-step progress, id-keyed by the template's stable step id
-  pendingPropagations: PropagationOffer[]; // APP/SET — reviewed template changes awaiting per-step accept (E-099 "review which get the change")
+  pendingOffers: Keyed<PropagationOffer>; // SET — one per-instance offer with per-step decisions
 }
 
 interface WorkflowStepProgress {
-  stepId: string;               // IMM — matches WorkflowStepDef.id (the merge key)
+  stepId: string;               // IMM — matches StepDef.id (the merge key)
   status: 'todo' | 'in_progress' | 'done' | 'skipped'; // LWW — per-step, so a template edit never clobbers progress
   assigneeId?: string;          // LWW
   taskId?: string;              // IMM — the Task materializing this step (§1.6)
@@ -420,16 +468,25 @@ interface WorkflowStepProgress {
   // snapshot of the step definition this instance is currently honoring, so an
   // instance renders correctly even offline from the template:
   titleSnapshot: string;        // LWW
-  fromTemplateVersion: number;  // LWW — which template version this step reflects
+  derivedValues: Record<string, unknown>; // LWW per key — current template-derived field values
+  derivedFieldRevs: Record<string, number>; // LWW per key — source rev for every template-derived field
+  detachedFromTemplate: boolean;// LWW — removal/offline-progress rule is re-run on merge
+  stepNotes: string;            // SEQ — per-step Y.Text comments, never a task-body surrogate (D9)
 }
 
 interface PropagationOffer {
   offerId: string;              // IMM
-  fromVersion: number; toVersion: number; // IMM
-  stepId: string;               // IMM — the step this change touches
+  fromRev: number; toRev: number; // IMM
+  stepChanges: Keyed<PropagationStepChange>; // SET — review unit is the instance, choice is per step
+  state: 'pending' | 'applied' | 'partially_applied' | 'superseded'; // LWW
+  appliedAt?: string; appliedBy?: ActorRef; // LWW
+}
+
+interface PropagationStepChange {
+  stepId: string;               // IMM
   changeKind: 'add' | 'modify' | 'remove'; // IMM
-  proposed: Partial<WorkflowStepDef>; // IMM — the new step content
-  decision: 'pending' | 'accepted' | 'rejected'; // LWW — the human review gate (E-099)
+  fields: Record<string, unknown>; // IMM — proposed values, keyed by derived field
+  decision: 'pending' | 'accepted' | 'rejected'; // LWW
   decidedBy?: ActorRef; decidedAt?: string; // LWW
 }
 ```
@@ -437,10 +494,14 @@ interface PropagationOffer {
 **The propagation contract (shapes only; algorithm = lane C):** editing a template mints
 `PropagationOffer`s onto each open instance, one per changed step, keyed by stable step
 id. A present human accepts/rejects per step; accept applies the change to that instance's
-`WorkflowStepProgress` **without touching its `status`** (progress is preserved). Because
-every offer and every step is keyed by an IMM step id, two reviewers on two devices merge
-convergently (accept-wins on `decision` is LWW with tiebreak). This is the correctness-
-critical seam flagged XL in feasibility §6.
+`WorkflowStepProgress` **without touching its `status`** (progress is preserved). An offer
+is displayed and approved per instance, with all step changes selected by default and an
+approve-all action; each step still has its own accept/reject decision. `derivedFieldRevs`
+records the source revision for every propagated field. The displayed revision does not move
+until the complete required change-set is present. Removal versus offline progress re-runs
+the removal decision using `detachedFromTemplate`; conditional undo restores only derived
+fields untouched since application and reports the rest. Apply is one transactional outbox
+mutation with its notification (D4/D5). This is the correctness-critical seam.
 
 ### 1.9 ServicePolicy
 
@@ -573,12 +634,107 @@ interface Opportunity extends CrmBase {
   customFields: CustomFieldValueMap;
 }
 
-// Pipeline + stage definitions are firm-level config stored as a small FirmDoc-like entity
-// (docType extension) or a dedicated 'pipelineDef' — kept as a firm config doc to avoid a
-// 16th top-level entity. Stage list is an ordered SEQ of {id, name, order, isWon, isLost}.
+interface PipelineDef extends CrmBase {
+  kind: 'pipelineDef';
+  matterId: '__firm__';         // IMM
+  name: string;                 // LWW
+  description?: string;         // SEQ
+  stageIds: string[];           // SET
+  stageOrder: string[];         // SEQ
+  archived: boolean;            // LWW
+}
+
+interface StageDef extends CrmBase {
+  kind: 'stageDef';
+  matterId: '__firm__';         // IMM
+  pipelineId: string;           // IMM
+  name: string;                 // LWW
+  statusEffect: 'open' | 'won' | 'lost' | 'none'; // LWW
+  triggerRules: StageTriggerRule[]; // SET — launch/offer rules on stage entry (D9)
+  archived: boolean;            // LWW
+}
+
+interface StageTriggerRule {
+  id: string;                   // IMM
+  event: 'entered' | 'exited';  // IMM
+  workflowTemplateId?: string;  // LWW
+  proposalRequired: boolean;    // LWW — never launch an AI proposed workflow automatically
+  enabled: boolean;             // LWW
+}
 ```
 
-### 1.15 SavedView / Report definition
+### 1.15 ProposalRecord (AI approval queue)
+
+AI-proposed workflow launches are durable approval records, never automatic launches. A
+proposal points at a template and target household, carries the human-readable reason and
+may be approved, rejected, or expired. Approval creates the workflow instance in the same
+local transaction and records the decision in the audit trail.
+
+```ts
+interface ProposalRecord extends CrmBase {
+  kind: 'proposalRecord';
+  householdRef: EntityRef;      // IMM
+  proposalType: 'workflow_launch'; // IMM
+  workflowTemplateId: string;   // IMM
+  proposedBy: ActorRef;         // IMM
+  rationale: string;            // SEQ
+  contextRefs: EntityRef[];     // SET
+  state: 'pending' | 'approved' | 'rejected' | 'expired'; // LWW
+  decidedAt?: string; decidedBy?: ActorRef; // LWW
+  createdWorkflowInstanceId?: string; // LWW, populated only by an approved proposal
+}
+```
+
+### 1.16 FirmDirectoryEntry (identity read-model)
+
+This is a CRM-facing read-model of the existing firm identity rails. It neither creates
+users nor grants access. Existing firm admin, teams, and matter-key membership remain the
+only authority for roles and permissions (D9).
+
+```ts
+interface FirmDirectoryEntry extends CrmBase {
+  kind: 'firmDirectoryEntry';
+  matterId: '__firm__';         // IMM
+  userId: string;               // IMM — existing identity id
+  displayName: string;          // LWW
+  email?: string;               // LWW
+  title?: string;               // LWW
+  active: boolean;              // LWW
+  teamLabels: string[];         // SET — display only, not authorization
+  externalRefs: ExternalRef[];  // SET — imported Wealthbox user/assignee mapping
+}
+```
+
+### 1.17 ImportArchiveManifest
+
+Each import batch has one immutable, firm-scoped manifest. It lists every verbatim raw HTTP
+response captured before typing or mutation, so every imported entity can point to one exact
+payload through `rawRecordRef`. The raw bytes live encrypted in the local import archive;
+the manifest stores their identifiers and hashes, not a rewritten copy.
+
+```ts
+interface ImportArchiveManifest extends CrmBase {
+  kind: 'importArchiveManifest';
+  matterId: '__firm__';         // IMM
+  importBatchId: string;        // IMM
+  provider: string;             // IMM
+  capturedAt: string;           // IMM
+  sourceWorkspaceLabel: string; // IMM — synthetic/demo source only in this program
+  records: RawArchiveEntry[];   // APP while capture completes, IMM after finalization
+  finalizedAt?: string;         // IMM once set
+  manifestSha256?: string;      // IMM once set
+}
+
+interface RawArchiveEntry {
+  rawRecordId: string;          // IMM
+  requestPath: string;          // IMM
+  capturedAt: string;           // IMM
+  responseSha256: string;       // IMM
+  byteLength: number;           // IMM
+}
+```
+
+### 1.18 SavedView / Report definition
 
 Structured browse for the "Seattle persona" (path4 §5.2, principle 6). A saved view or a
 report is a **stored query definition**; results are always computed live (never cached as
@@ -612,7 +768,7 @@ interface ViewQuery {
 Reports are **computed on demand and stamped "computed just now from N sources"**
 (path4 §5.2). The definition is stored; the answer never is.
 
-### 1.16 Shared value types
+### 1.19 Shared value types
 
 ```ts
 interface EntityRef { kind: EntityKind; id: string; matterId?: string; } // typed cross-entity pointer
@@ -627,8 +783,8 @@ type Keyed<T> = Record<string /*element id*/, T>;                        // id-k
 
 - **Primary ids are app-minted, type-prefixed UUIDv7**: `hh_<uuid7>`, `per_<uuid7>`,
   `acct_<uuid7>`, `fact_<uuid7>`, `note_<uuid7>`, `task_<uuid7>`, `wtpl_`, `winst_`,
-  `svc_`, `act_`, `fdoc_`, `tag_`, `cfd_`, `opp_`, `view_`. UUIDv7 is time-ordered so the
-  SQL index gets locality for free.
+  `svc_`, `act_`, `fdoc_`, `tag_`, `cfd_`, `opp_`, `pipe_`, `stage_`, `proposal_`, `dir_`,
+  `import_`, `view_`. UUIDv7 is time-ordered so the SQL index gets locality for free.
 - **Provider ids are NEVER primary keys.** Wealthbox numeric ids and `crm_key()` values
   (`model.rs:314-317`) are retained only in `externalRefs[]`. This is the clean decoupling
   feasibility §1/§6 demands ("app-owned editable records decoupled from the connector") and
@@ -638,169 +794,99 @@ type Keyed<T> = Record<string /*element id*/, T>;                        // id-k
   the citation target; they never change, even across a Wealthbox→Lantern→Wealthbox round
   trip.
 
-### 2.2 One doc per record; per-field merge classes
+### 2.2 D1 topology: per-collection docs, lazily subscribed
 
-**Every entity instance is its own Yjs document** (not one giant doc per household). The
-Y.Doc root is a single `Y.Map` named `record` holding the entity's fields, following the
-established "meta Y.Map + typed children" pattern from co-editing
-(`src/platform/firm/coedit/docCrdt.ts:9-52`). Field merge class (from §0.5) determines the
-Yjs type used:
+The previous per-entity streams are struck. A collection document, not an entity document,
+is the Yjs truth unit. The relay stream is always `(matter_id, doc_id)`.
 
-- **LWW register** → the value plus a companion hybrid-logical-clock stamp
-  `"<field>#hlc"`. On concurrent writes the higher HLC wins; ties break on `actorId`. HLC
-  = `(wallClockMillis, logicalCounter, actorId)`; this gives money/status fields a
-  deterministic, causally-sensible winner instead of raw wall-clock LWW. (Yjs' built-in
-  Y.Map LWW is last-applied-wins by Lamport order; we layer the explicit HLC stamp so the
-  **winning value carries its own timestamp for §5 provenance**, not just an implicit one.)
-- **SEQ** (`body`, `description`, long prose) → `Y.Text`, giving true character-level
-  co-edit merge — the exact machinery co-editing already runs (`docCrdt.ts:33`,
-  `MatterSyncClient` §transport). Two advisors typing in the same note body merge without
-  loss.
-- **SET** (`memberIds`, `assigneeIds`, `tagIds`, `Keyed<T>` maps, `externalRefs`) →
-  add-wins OR-Set: a `Y.Map` keyed by element id; add sets the entry, remove tombstones
-  it. Concurrent add+remove of different elements both apply; concurrent add-wins over
-  remove of the **same** element (advisor intent: an add is information, a remove is
-  cleanup).
-- **CNT** (`version` counters) → a PN-counter map of per-actor deltas; the value is the
-  sum. Used only where a monotonic count matters (template `version`).
-- **APP** (ActivityEvent stream, PropagationOffer log) → insert-only `Y.Array`.
-- **IMM** (`id`, `kind`, `matterId`, `audience`, step ids) → written once at creation; a
-  concurrent-create of "the same" logical record cannot happen because ids are minted
-  locally and unique. Where two imports produce the same logical entity, the merge is by
-  `externalRef` at the index layer (§4.4), not by mutating IMM fields.
+| Scope | Doc ID | Root contents | Subscription rule |
+|---|---|---|---|
+| Firm home | `crm:tasks` | Task operational shells; firm-task bodies | Bootstrap and always-on |
+| Firm home | `crm:workflows` | Workflow instances, propagation offers, PipelineDef, StageDef, ProposalRecord | Bootstrap and always-on |
+| Firm home | `crm:templates` | WorkflowTemplate, ServicePolicy, Tag, CustomFieldDef, FirmDoc, SavedView | Bootstrap and always-on |
+| Firm home | `crm:directory` | FirmDirectoryEntry and ImportArchiveManifest | Bootstrap and always-on |
+| Firm home | `crm:activity:<YYYY-Qn>` | append-only ActivityEvent entries | Current quarter plus recent/pinned quarters |
+| Real household matter | `crm:record` | Household, Person links, Account, Fact, Note, Opportunity, and client-key Task bodies | On open, plus pinned/recent households; never all households by default |
 
-### 2.3 Conflict semantics per field type (the frozen contract)
+A task's operational shell is in `crm:tasks`. If `householdRef` is non-null, its body
+lives in that household's `crm:record` and the shell contains only an opaque body reference.
+If `householdRef` is null, its body is firm-key content in `crm:tasks`. This is still one
+D2 Task schema, but a firm rollup cannot disclose client-confidential body text. A
+multi-household Note is stored once at a deterministic anchor household record and sealed
+with an intersection key derived from all linked household keys; it renders only where the
+device holds every linked key. No per-entity household streams exist.
+There is exactly one `crm:record` document for each household under that household's real
+matter; it is subscribed only when the household is open, pinned, or recent.
 
-| Field pattern | Merge class | Concurrent-edit outcome |
-|---|---|---|
-| Scalars: name, status, dueDate, priority, custodian, purpose, amount, Fact.value | **LWW+HLC** | Higher HLC wins; loser value is recoverable from that actor's ActivityEvent (§6) — nothing is silently gone, but only one value is "current" |
-| Long prose: Note.body, Task.description, FirmDoc.body, WorkflowTemplate.description | **SEQ** | Character-level merge; both edits survive |
-| Collections: members, assignees, tags, addresses, emails, phones, externalRefs, customFields | **SET (add-wins)** | Union; same-element add beats remove |
-| Fact.value change | **new record** | A value change mints a new Fact with `supersededBy` on the old; both persist (value history) |
-| WorkflowInstance step progress | **per-step LWW** | Keyed by IMM step id → a template propagation merges without clobbering `status` (§2.7) |
-| ActivityEvent, PropagationOffer entries | **APP** | Insert-only; order by `at`/HLC; never mutated |
-| version counter | **CNT** | Sum of per-actor increments |
+### 2.3 Field Merge Contract v1.0
 
-**Why LWW for money/status and not merge:** a balance or a task status has exactly one
-true current value; a text-merge of "$100k" and "$120k" is nonsense. LWW+HLC picks a
-deterministic winner and the ActivityEvent trail plus Fact-supersession chain preserve the
-loser. This is a **named accepted risk** (see §7 Q1) — LWW can drop a concurrent field
-edit; the mitigations are (a) per-field HLC so the winner is intentional-looking, (b) the
-activity trail, (c) Fact value-history chaining for the one field type where history is
-most valued (money).
+**This named, versioned table is the canonical merge contract.** IMM fields are written once
+and reject different later values. LWW-HLC writes a value plus (wallMillis, logicalCounter,
+actorId); higher HLC wins and actor ID breaks an exact tie. SEQ uses Y.Text/Y.Array. OR-SET
+is an add-wins observed-remove map keyed by item ID. APP is insert-only. STEP-LWW is
+LWW-HLC keyed by immutable step ID. Every named field is covered here; no unlisted field is
+permitted.
 
-### 2.4 Yjs doc shape per entity (frozen)
+| Entity or value | IMM | LWW-HLC | SEQ | OR-SET | APP / STEP-LWW |
+|---|---|---|---|---|---|
+| CrmBase | id, kind, matterId, createdAt, createdBy, rawRecordRef | updatedAt, updatedBy, source, deleted, schemaVersion | — | externalRefs | — |
+| ActorRef / RawRecordRef / EntityRef / RawArchiveEntry | ActorRef.userId, seat, display, kind; RawRecordRef.importBatchId, manifestId, rawRecordId, sha256, capturedAt; EntityRef.kind, id, matterId; RawArchiveEntry.rawRecordId, requestPath, capturedAt, responseSha256, byteLength | — | — | — | — |
+| Provenance | — | origin, sources, importBatchId, note | — | — | — |
+| ExternalRef | provider, externalId, crmKey | lastSyncedAt | — | — | — |
+| Household / HouseholdMember | HouseholdMember.personId, HouseholdMember.addedAt | name, greeting, status, clientSince, primaryContactId, servicePolicyId, primaryAdvisorId, ownership, archived, HouseholdMember.role | — | members, tagIds, pinnedFactIds, addresses, customFields | — |
+| Person / PersonRole / VerifiedRecipientLink | PersonRole.id | personType, firstName, middleName, lastName, nickname, prefix, suffix, companyName, jobTitle, birthDate, anniversary, retirementDate, dateOfDeath, maritalStatus, investmentObjective, timeHorizon, riskTolerance, background, importantInfo, personalInterests, isExternal, externalRole, verifiedRecipient, PersonRole.label, PersonRole.organizationRef, PersonRole.active, VerifiedRecipientLink.verified, verifiedAt, verifiedBy, channel, address | — | householdIds, roles, addresses, emails, phones, tagIds, customFields, servesHouseholdIds | — |
+| Account | householdId | custodian, accountType, registration, last4, purpose, ownership, status, openedAt, closedAt | — | ownerPersonIds, tagIds, customFields | — |
+| Fact | householdId | subjectRef, factType, label, value, text, status, isAssumption, pinned, sectionKey, asOf, observedAt, supersededBy | — | — | — |
+| Note / HouseholdLink / NoteMention | audience, HouseholdLink.householdId, matterId, externalRef, NoteMention.id, ref | pinned, title, format, templateId, authoredVia, NoteMention.notifyState | body | householdLinks, links, mentions, tagIds | — |
+| Task / RecurrenceRule | householdRef | title, assigneeUserId, status, due, recurrence, priority, RecurrenceRule.freq, interval, byWeekday, byMonthDay, count, until, regenerateOnComplete | body | contextRefs | — |
+| WorkflowTemplate / WorkflowSchedule | — | name, category, rev, status, schedule, WorkflowSchedule.frequency, timezone, startsAt, householdSelector, enabled | description, stepOrder | steps, triggerHints, tagIds | — |
+| StepDef / StepOutcome | StepDef.id, StepDef.addedInRev, StepOutcome.id | StepDef.title, ownerRole, defaultAssigneeId, offsetDays, required, removedInRev, StepOutcome.label, nextStepId, restartAtStepId, condition | StepDef.description | outcomes | — |
+| WorkflowInstance / WorkflowStepProgress | householdId, templateId, startedAt, WorkflowStepProgress.stepId, taskId | displayedTemplateRev, name, status, completedAt, WorkflowStepProgress.status, assigneeId, completedAt, completedBy, titleSnapshot, derivedValues, derivedFieldRevs, detachedFromTemplate | WorkflowStepProgress.stepNotes | pendingOffers | steps (STEP-LWW) |
+| PropagationOffer / PropagationStepChange | offerId, fromRev, toRev, PropagationStepChange.stepId, changeKind, fields | state, appliedAt, appliedBy, decision, decidedBy, decidedAt | — | stepChanges | — |
+| ServicePolicy / ActivityEvent | ServicePolicy.matterId; ActivityEvent.at, actor, verb, targetRef, householdId, summary, payload, important | ServicePolicy.scope, tierName, meetingCadence, cadenceDays, nextReviewDue, reviewChecklistTemplateId | ServicePolicy.description | appliesToHouseholdIds | ActivityEvent (APP) |
+| FirmDoc / Tag / CustomFieldDef / CustomFieldValue | FirmDoc.matterId, Tag.matterId, CustomFieldDef.matterId, CustomFieldDef.key | FirmDoc.docType, title, bodyRef, pinned; Tag.name, color, category; CustomFieldDef.appliesTo, label, fieldType, options, required, order, archived; CustomFieldValue.value, updatedAt, source | FirmDoc.body | FirmDoc.tagIds, Tag.externalRefs | — |
+| Opportunity / PipelineDef / StageDef / StageTriggerRule | Opportunity.householdId, PipelineDef.matterId, StageDef.matterId, pipelineId, StageTriggerRule.id, event | Opportunity.name, pipelineId, stageId, amount, probability, status, expectedCloseDate, closedAt, closeReason, ownerId; PipelineDef.name, archived; StageDef.name, statusEffect, archived; StageTriggerRule.workflowTemplateId, proposalRequired, enabled | PipelineDef.description, stageOrder | Opportunity.contextRefs, tagIds, customFields; PipelineDef.stageIds; StageDef.triggerRules | — |
+| ProposalRecord / FirmDirectoryEntry | ProposalRecord.householdRef, proposalType, workflowTemplateId, proposedBy; FirmDirectoryEntry.matterId, userId | ProposalRecord.state, decidedAt, decidedBy, createdWorkflowInstanceId; FirmDirectoryEntry.displayName, email, title, active | ProposalRecord.rationale | ProposalRecord.contextRefs; FirmDirectoryEntry.teamLabels, externalRefs | — |
+| ImportArchiveManifest / SavedView / ViewQuery | ImportArchiveManifest.matterId, importBatchId, provider, capturedAt, sourceWorkspaceLabel, finalizedAt, manifestSha256 | SavedView.name, surface, visibility, query, layout, reportKind; ViewQuery.entity, filters, sort, groupBy | — | — | ImportArchiveManifest.records (APP until finalization) |
 
-Each entity's Y.Doc = one root `Y.Map record`. Field → Yjs slot:
+Fact value edits mint a new Fact linked by supersededBy; the LWW rule chooses only the
+current link, never destroys history. rev exists only on WorkflowTemplate as the propagation
+revision. ActivityEvent entries never mutate or delete.
 
-```
-Household record : Y.Map
-  name,greeting,status,clientSince,primaryContactId,servicePolicyId,
-  primaryAdvisorId,ownership,archived, + "<f>#hlc" stamps      → LWW scalars
-  memberIds,tagIds,pinnedFactIds                               → SET (Y.Map<id,true>)
-  addresses                                                    → SET (Y.Map<id, addrJson>)
-  customFields                                                 → SET (Y.Map<key, {value,updatedAt,source}>)
-  id,kind,matterId,createdAt,createdBy                         → IMM (plain)
+### 2.4 Propagation state contract
 
-Person record : Y.Map
-  identity/date/profile/narrative scalars + #hlc              → LWW
-  householdIds,emails,phones,addresses,tagIds,servesHouseholdIds → SET
-  isExternal,externalRole,verifiedRecipient(+#hlc)            → LWW
-  customFields                                                → SET
+There is one offer per instance, carrying per-step accept/reject decisions. Review defaults
+all steps to accepted and offers approve-all. derivedFieldRevs[stepId.field] records the
+source revision for every template-derived field. displayedTemplateRev advances only when
+the required change-set is complete. An offline-progress/removal race re-runs the removal
+decision using detachedFromTemplate. Undo restores only derived fields untouched since
+apply and reports the rest. Apply, audit entry, and outbox work are one transaction.
 
-Account record : Y.Map    (custodian,type,last4,purpose,ownership,status,dates = LWW; owners,tags = SET)
-Fact record    : Y.Map    (factType,value,status,asOf,observedAt,pinned,supersededBy = LWW; sources in Provenance = LWW blob)
-Note record    : Y.Map    (audience,pinned,title = LWW; body = Y.Text SEQ; links,tags = SET)
-Task record    : Y.Map    (status,dueDate,priority,recurrence,category = LWW; description = Y.Text SEQ; assigneeIds,contextRefs,links,tags = SET)
-WorkflowTemplate record : Y.Map (name,category,version,status = LWW; description = Y.Text; steps = SET Y.Map<stepId,defJson>; stepOrder = Y.Array SEQ)
-WorkflowInstance record : Y.Map (templateVersion,status = LWW; steps = SET Y.Map<stepId, progressJson w/ per-field #hlc>; pendingPropagations = Y.Array APP)
-ServicePolicy  : Y.Map    (LWW scalars; appliesToHouseholdIds = SET; description = Y.Text)
-ActivityEvent  : (not per-record) → one APP Y.Array per stream (§2.5)
-FirmDoc        : Y.Map    (docType,title,pinned,bodyRef = LWW; body = Y.Text; tags = SET)
-Tag/CustomFieldDef/Opportunity/SavedView : Y.Map (scalars LWW; collections SET)
-```
+### 2.5 Yjs representation
 
-`WorkflowStepDef` and `WorkflowStepProgress` are stored as JSON leaves inside their parent
-`Y.Map` **keyed by stable step id**, each with its own `#hlc` stamps on the mutable
-sub-fields, so per-step merge works (§2.7). Same technique co-editing uses for run/subrun
-maps (`docCrdt.ts:33-52`).
-
-### 2.5 Doc-stream partitioning (which docs sync on which relay stream)
-
-The relay syncs per `(matter_id, doc_id)` stream (`contract.ts:222-245`,
-`MatterSyncClient.ts:87-93`). We reuse that exactly. Partitioning:
-
-- **Per-household record streams** (scoped to the household's `matterId`), one `doc_id`
-  per entity **collection**, holding a `Y.Map<entityId, entityDoc-as-subdoc-ref>` index
-  plus the child docs. Concretely, `doc_id` values under a household's matter:
-  `crm/households`, `crm/persons`, `crm/accounts`, `crm/facts`, `crm/notes`, `crm/tasks`,
-  `crm/opportunities`, `crm/workflowInstances`, `crm/servicePolicies`, `crm/activity`.
-- **Firm-level streams** under a reserved pseudo-matter `__firm__` (with a firm-wide key
-  every seat holds): `firm/workflowTemplates`, `firm/firmDocs`, `firm/tags`,
-  `firm/customFieldDefs`, `firm/servicePolicies`, `firm/savedViews`, `firm/activity`,
-  `firm/pipelines`.
-
-Each stream is a Yjs doc whose root `Y.Map` maps `entityId → Y.Map record` (Yjs supports
-nested maps; alternatively subdocs). One stream per collection keeps the co-edit blast
-radius small and lets a device sync only the collections it needs — but see §7 Q2: the
-firm-wide task rollup requires syncing every household's `crm/tasks`, which tensions with
-ethical walls (`backend` `ethical_walls`, feasibility §2). **Accepted for ≤10 seats**
-(charter decision #4).
-
-### 2.6 Firm-level vs household-level & the `__firm__` pseudo-matter
-
-Firm-global entities (templates, tags, custom-field defs, firm process docs, firm service
-tiers, firm saved views) carry `matterId: '__firm__'` and sync on the firm streams. This
-keeps the facade intact (no real matter is renamed; `__firm__` is a sentinel exactly like
-`UNASSIGNED_MATTER_ID` at `matter.ts:21`) while giving firm-wide docs a home every seat
-syncs. The firm key is distributed through the **existing** per-matter key machinery
-(`src/platform/firm/matterKeyService.ts`, `keyWrap.ts`) treating `__firm__` as a matter all
-members belong to.
-
-### 2.7 The propagation merge shape (contract for lane C)
-
-Frozen invariants lane C's algorithm must honor:
-
-1. **Step identity is immutable and shared** between template and every instance
-   (`WorkflowStepDef.id` == `WorkflowStepProgress.stepId`). This is the merge key.
-2. A template edit **never writes to any instance directly**. It mints `PropagationOffer`s
-   (APP) onto each open instance's `pendingPropagations`, keyed by `(offerId, stepId,
-   fromVersion→toVersion)`.
-3. Accepting an offer updates only that step's **definition snapshot** fields
-   (`titleSnapshot`, `fromTemplateVersion`) and, if the step is new, adds a
-   `WorkflowStepProgress{status:'todo'}`. It **must not** write `status` on an existing
-   progress. Progress is sacred.
-4. `templateVersion` on the instance advances to `toVersion` only when **all** offers up
-   to that version are decided.
-5. Two reviewers deciding the same offer concurrently: `decision` is LWW+HLC with
-   `accepted` winning ties (accept-wins, matching SET add-wins intuition). An accepted-then-
-   rejected race resolves to accepted; the reject is recorded in the activity trail.
-
-Everything about *when/how* offers are generated and applied convergently is lane C; the
-**shapes and invariants above are frozen** here.
+Within each collection doc, the root Y.Map is keyed by stable entity ID. Values are nested
+maps, Y.Text, Y.Array, and OR-Set maps exactly as Field Merge Contract v1.0 requires.
+crm:activity:<YYYY-Qn> is its root APP array. This replaces every prior per-entity Y.Doc
+shape and per-household collection stream.
 
 ---
 
 ## 3. Storage
 
-### 3.1 The two-layer store: docs (truth) + SQL index (rebuildable)
+### 3.1 The two-layer store: collection docs (truth) + SQL index (rebuildable)
 
 ```
-Truth layer  : Yjs docs, synced as encrypted blobs through the relay oplog
-               (backend matter_updates, contract.ts:232-252). Local durable copy of each
-               doc's current state (the merged Y.Doc) is persisted so the app opens offline.
-Index layer  : crm-core-enc.db (SQLCipher) — a materialized read-model, one table per
-               entity, REBUILT from decrypted docs. Never authoritative. (D0.1)
+Truth layer  : durable merged Yjs state for each subscribed collection document,
+               encrypted and synced through the relay oplog.
+Index layer  : crm-core-enc.db (SQLCipher) — a materialized read-model, rebuilt from
+               decrypted collection docs and never authoritative. (D0.1)
 ```
 
-Write path: user edits → local Y.Doc mutation → (a) encrypt+push the Yjs update to the
-relay (reusing `MatterSyncClient.pushLocalUpdate`, `MatterSyncClient.ts:292-315`) and
-(b) apply the same change to the SQL index in the same local transaction. Remote path:
-decrypted peer update → apply to Y.Doc → re-project the touched entity into the SQL index
-(`onRemoteUpdate`, `MatterSyncClient.ts:283`). The index projector is a **pure function of
-doc state**, so a full rebuild = replay all docs through the projector. This is the same
-"raw record + derived render-state, rebuildable" split the connector already runs
-(`crm_objects.json` + `crm_render_state`, `store.rs:176-214`).
+Write path: user edit → local collection-doc mutation → same local transaction updates the
+SQL projection and the durable outbox. A remote update is decrypted, applied to its
+collection doc, then projected. The projector is a pure function of collection state, so a
+full rebuild replays every locally held collection document. A failed relay push never
+diverges the durable local truth from its projection.
 
 ### 3.2 SQLCipher schema (`crm-core-enc.db`)
 
@@ -810,21 +896,18 @@ keychain under a **dedicated service** (not shared with mail/crm/vectors), `busy
 for concurrent sync-loop + indexer writers (`store.rs:158-215`, `audit/store.rs:535-556`).
 
 ```sql
--- doc state cache: the merged Yjs state for each entity doc (truth layer local mirror).
--- The authoritative bytes; SQL tables below are projected from these.
+-- durable local mirror of each subscribed collection document (truth layer).
+-- SQL tables below are rebuildable projections from these collection states.
 CREATE TABLE crm_docs (
-  doc_key      TEXT PRIMARY KEY,   -- "<matterId>/<docId>/<entityId>"
+  doc_key      TEXT PRIMARY KEY,   -- "<matterId>/<docId>"
   matter_id    TEXT NOT NULL,      -- plaintext scope (queryable) — the pattern RAG already uses (feasibility §4)
-  doc_id       TEXT NOT NULL,      -- collection stream, e.g. 'crm/tasks'
-  entity_id    TEXT NOT NULL,
-  entity_kind  TEXT NOT NULL,
+  doc_id       TEXT NOT NULL,      -- collection stream, e.g. 'crm:tasks'
   yjs_state    BLOB NOT NULL,      -- Y.encodeStateAsUpdate(doc) — merged CRDT state
   state_vector BLOB NOT NULL,      -- Y.encodeStateVector — for delta sync catch-up
   updated_at   TEXT NOT NULL,      -- newest field write (§5)
   deleted      INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX idx_crm_docs_scope ON crm_docs(matter_id, doc_id);
-CREATE INDEX idx_crm_docs_entity ON crm_docs(entity_id);
 
 -- oplog cursor high-water per stream (mirrors crm_cursors, store.rs:189-192 and the relay
 -- oplog cursor, contract.ts:247-249). Lets sync resume without re-pulling.
@@ -832,6 +915,18 @@ CREATE TABLE crm_sync_cursors (
   stream_key TEXT PRIMARY KEY,     -- "<matterId>/<docId>"
   cursor     INTEGER NOT NULL,     -- last applied relay cursor
   key_epoch  INTEGER NOT NULL DEFAULT 0
+);
+
+-- D5 durable notification delivery. These rows are written in the same local transaction
+-- as the doc mutation that caused them. Neither table stores a persisted sender identity.
+CREATE TABLE crm_outbox (
+  envelope_id TEXT PRIMARY KEY, mutation_id TEXT NOT NULL, recipient_user_id TEXT NOT NULL,
+  envelope_class TEXT NOT NULL CHECK(envelope_class IN ('firm_operational','client_confidential')),
+  ciphertext BLOB NOT NULL, created_at TEXT NOT NULL, delivered_at TEXT, dead_letter_at TEXT
+);
+CREATE TABLE crm_inbox (
+  envelope_id TEXT PRIMARY KEY, ciphertext BLOB NOT NULL, received_at TEXT NOT NULL,
+  decrypted_at TEXT, deduped_at TEXT, dead_letter_at TEXT
 );
 
 -- ── Projected read-model (rebuildable). One table per entity; columns are the fields the
@@ -875,32 +970,28 @@ CREATE INDEX idx_fact_current ON facts(household_id, fact_type, as_of) WHERE sta
 CREATE INDEX idx_fact_pinned ON facts(household_id, pinned);
 
 CREATE TABLE notes (
-  id TEXT PRIMARY KEY, matter_id TEXT NOT NULL, household_id TEXT, audience TEXT,
+  id TEXT PRIMARY KEY, matter_id TEXT NOT NULL, anchor_household_id TEXT, audience TEXT,
   pinned INTEGER DEFAULT 0, title TEXT, authored_via TEXT, created_at TEXT, updated_at TEXT,
   json TEXT NOT NULL, deleted INTEGER DEFAULT 0
 );
 CREATE INDEX idx_note_hh_aud ON notes(household_id, audience);
 
 CREATE TABLE tasks (
-  id TEXT PRIMARY KEY, matter_id TEXT NOT NULL, household_id TEXT, title TEXT, status TEXT,
-  priority TEXT, due_date TEXT, category TEXT, workflow_instance_id TEXT,
-  recurrence_json TEXT, updated_at TEXT, completed_at TEXT, json TEXT NOT NULL, deleted INTEGER DEFAULT 0
+  id TEXT PRIMARY KEY, household_id TEXT, title TEXT, assignee_user_id TEXT, status TEXT,
+  priority TEXT, due_at TEXT, recurrence_json TEXT, updated_at TEXT,
+  json TEXT NOT NULL, deleted INTEGER DEFAULT 0
 );
-CREATE INDEX idx_task_status_due ON tasks(status, due_date);       -- "who's overdue" (client-side, §0.4)
+CREATE INDEX idx_task_status_due ON tasks(status, due_at);          -- "who's overdue" (client-side, §0.4)
 CREATE INDEX idx_task_hh ON tasks(household_id);
-CREATE INDEX idx_task_wf ON tasks(workflow_instance_id);
-CREATE TABLE task_assignees (              -- normalized SET for assignee queries
-  task_id TEXT NOT NULL, assignee_id TEXT NOT NULL, PRIMARY KEY(task_id, assignee_id)
-);
-CREATE INDEX idx_task_assignee ON task_assignees(assignee_id);     -- "all tasks for Alice" (E-119)
+CREATE INDEX idx_task_assignee ON tasks(assignee_user_id);         -- "all tasks for Alice" (E-119)
 
 CREATE TABLE workflow_templates (
-  id TEXT PRIMARY KEY, name TEXT, category TEXT, version INTEGER, status TEXT,
+  id TEXT PRIMARY KEY, name TEXT, category TEXT, rev INTEGER, status TEXT,
   updated_at TEXT, json TEXT NOT NULL, deleted INTEGER DEFAULT 0
 );
 CREATE TABLE workflow_instances (
   id TEXT PRIMARY KEY, matter_id TEXT NOT NULL, household_id TEXT, template_id TEXT,
-  template_version INTEGER, status TEXT, started_at TEXT, completed_at TEXT,
+  displayed_template_rev INTEGER, status TEXT, started_at TEXT, completed_at TEXT,
   open_offer_count INTEGER DEFAULT 0,   -- fast "instances with pending template changes" (E-099)
   updated_at TEXT, json TEXT NOT NULL, deleted INTEGER DEFAULT 0
 );
@@ -915,6 +1006,21 @@ CREATE INDEX idx_opp_pipeline_stage ON opportunities(pipeline_id, stage_id, stat
 
 CREATE TABLE service_policies ( id TEXT PRIMARY KEY, matter_id TEXT, scope TEXT, tier_name TEXT,
   cadence_days INTEGER, json TEXT NOT NULL, deleted INTEGER DEFAULT 0 );
+
+CREATE TABLE pipeline_defs ( id TEXT PRIMARY KEY, name TEXT, archived INTEGER DEFAULT 0,
+  json TEXT NOT NULL, deleted INTEGER DEFAULT 0 );
+CREATE TABLE stage_defs ( id TEXT PRIMARY KEY, pipeline_id TEXT NOT NULL, name TEXT,
+  status_effect TEXT, archived INTEGER DEFAULT 0, json TEXT NOT NULL, deleted INTEGER DEFAULT 0 );
+CREATE INDEX idx_stage_pipeline ON stage_defs(pipeline_id);
+CREATE TABLE proposal_records ( id TEXT PRIMARY KEY, household_id TEXT, workflow_template_id TEXT,
+  state TEXT, decided_at TEXT, json TEXT NOT NULL, deleted INTEGER DEFAULT 0 );
+CREATE INDEX idx_proposal_pending ON proposal_records(state, household_id);
+CREATE TABLE firm_directory_entries ( id TEXT PRIMARY KEY, user_id TEXT UNIQUE, display_name TEXT,
+  email TEXT, active INTEGER DEFAULT 1, json TEXT NOT NULL, deleted INTEGER DEFAULT 0 );
+CREATE TABLE import_archive_manifests ( id TEXT PRIMARY KEY, import_batch_id TEXT UNIQUE,
+  provider TEXT, finalized_at TEXT, manifest_sha256 TEXT, json TEXT NOT NULL );
+CREATE TABLE note_household_links ( note_id TEXT NOT NULL, household_id TEXT NOT NULL,
+  matter_id TEXT NOT NULL, PRIMARY KEY(note_id, household_id) );
 
 CREATE TABLE activity_events (      -- projection of the APP activity streams
   id TEXT PRIMARY KEY, matter_id TEXT, household_id TEXT, at TEXT NOT NULL, actor_id TEXT,
@@ -941,18 +1047,33 @@ CREATE TABLE external_refs (
 );
 CREATE INDEX idx_extref_entity ON external_refs(entity_id);
 
+-- D8's only import pipeline. A directory entry is mapped exactly like every other source
+-- record; multi-household Notes use their composite external reference in this projection.
+CREATE TABLE import_directory_mappings (
+  provider TEXT NOT NULL, external_user_id TEXT NOT NULL, directory_entry_id TEXT NOT NULL,
+  PRIMARY KEY(provider, external_user_id)
+);
+
 CREATE TABLE meta ( key TEXT PRIMARY KEY, value TEXT NOT NULL );  -- schema_version, index_rebuild_watermark, …
 ```
+
+**Notification durability and eligibility (D5).** The transaction that mutates a collection
+doc also writes the encrypted outbox row. Relay delivery is at least once; the inbox dedupes
+by `envelope_id`, survives a crash, and TTL-expired undecryptable ciphertext gets a
+dead-letter marker. The relay persists recipient, timestamps, and ciphertext only, never a
+sender seat. A client-confidential envelope is created only for holders of every required
+client key; a firm-operational notice goes to all firm seats. `NoteMention.notifyState` is
+the encrypted record-side state, not relay-visible metadata.
 
 Migrations follow the `migrate_*_columns` swallow-error `ALTER TABLE ADD COLUMN` pattern
 (`store.rs:884-895`).
 
 ### 3.3 How docs and the index coexist (the rebuild contract)
 
-- The projector `project(entityDoc) → rows` is deterministic and total. `meta.schema_version`
+- The projector `project(collectionDoc) → rows` is deterministic and total. `meta.schema_version`
   gates it.
 - **Index rebuild** (on schema change, corruption, or first open after import): `DELETE`
-  every projected table, then iterate `crm_docs`, decode each `yjs_state`, run the
+  every projected table, then iterate `crm_docs`, decode each collection `yjs_state`, run the
   projector, upsert. `crm_docs` + the relay oplog are sufficient to reconstruct everything;
   losing the projected tables is never data loss (D0.1). This is the exact guarantee the
   connector already relies on (`crm_render_state` rebuilt from `crm_objects`,
@@ -1049,9 +1170,12 @@ forced by the data change.
 ### 4.4 Wealthbox read-mirror → entities (field-by-field, citing `model.rs`)
 
 The connector mirror (`crm_objects`, `store.rs`) stays as the **import/parallel-run source**;
-these mappings drive both the migration importer (lane E) and parallel-run write-back. Every
-mapping records the provider id in `external_refs` (§3.2), so re-import is idempotent (an
-existing `external_ref` reuses the minted Lantern id instead of duplicating).
+these mappings drive both the migration importer (lane E) and parallel-run write-back. The
+only import landing pipeline is: **verbatim raw HTTP response capture → typed source record
+→ Lantern collection-doc mutation → `external_refs` projection**. The raw capture is first,
+encrypted, and listed in the immutable batch `ImportArchiveManifest`; every imported entity
+gets its exact `rawRecordRef`. Re-import idempotency is decided only by the final
+`external_refs` projection, never by a guessed application ID.
 
 **Contacts — `CrmContact` (`model.rs:200-303`):**
 
@@ -1059,7 +1183,7 @@ existing `external_ref` reuses the minted Lantern id instead of duplicating).
 |---|---|
 | `type` = "household" (`model.rs:206`), `name` (`:213`), `company_name` | `Household{name, ...}` |
 | `type` = person/trust/org (`:186`) | `Person{personType, ...}` |
-| `household` nested ref + `members[]` (`CrmHouseholdRef`/`Member`, `model.rs:76-105`) | `Household.memberIds` ↔ `Person.householdIds`; member `title` → `Person.role` |
+| `household` nested ref + `members[]` (`CrmHouseholdRef`/`Member`, `model.rs:76-105`) | `Household.members[personId]` ↔ `Person.householdIds`; member `title` → `HouseholdMember.role` |
 | identity: first/middle/last/nickname/prefix/suffix/company/job (`:215-231`) | `Person.*` identity block |
 | dates: birth/anniversary/client_since/retirement/death (`:233-238`) | `Person` dates; `client_since`→`Household.clientSince` for the household |
 | `marital_status` (`:242`), `status` (`:246`), `contact_type` | `Person.maritalStatus`, `Household.status` |
@@ -1069,20 +1193,29 @@ existing `external_ref` reuses the minted Lantern id instead of duplicating).
 | professional pointers: `attorney/cpa/doctor/insurance/business_manager/family_officer/trusted_contact` (contact ids, `:279-286`) | external `Person{isExternal, externalRole}` + `Fact{factType:'professional_relationship', value:{t:'entity'}}` linking household→person |
 | `street_addresses/email_addresses/phone_numbers` (`CrmStreetAddress/Email/Phone`, `:288-294`, `model.rs:118-146`) | `Person.addresses/emails/phones` (verbatim reuse) |
 | `tags[]` (`CrmTag`, `:300`, `model.rs:175-180`) | `Tag` entities + `entity_tags`; Wealthbox tag id in `Tag.externalRefs` |
-| `contact_roles[]` raw JSON (`:302`) | `CustomFieldValue`s under generated `CustomFieldDef`s (§1.13) — the "custom fields not modeled" gap (feasibility §5) |
+| `contact_roles[]` raw JSON (`:302`) | `Person.roles[]` where a typed role can be recovered; otherwise curated `CustomFieldValue`s under generated `CustomFieldDef`s (§1.13) |
 | `id`/`external_id`/`crm_key()` (`:201-203`, `:314-317`) | `external_refs` row; **never** the Lantern primary id (§2.1) |
 
 **Notes — `CrmNote` (`model.rs:349-359`):** `content`→`Note.body`; `linked_to[]`
-(`CrmLink`, `model.rs:154-165`)→`Note.links[]` (EntityRefs resolved via `external_refs`);
+(`CrmLink`, `model.rs:154-165`)→`Note.links[]` (EntityRefs resolved via `external_refs`) and
+every linked household becomes one `Note.householdLinks[]` entry. The importer creates ONE
+note with a composite source external reference, never one copy per household. Its body is
+subject to the intersection-key rule in §2.2; `mentions[]` starts empty unless an explicit
+source identity can be resolved.
 `created_at`/`updated_at`→`Note.createdAt`/`updatedAt`; imported notes default
 `audience:'internal'` and `authoredVia:'manual'` (no audience signal exists in Wealthbox —
 flagged §7 Q5). Jump-pushed notes (E-029/030), if identifiable by content, set
 `authoredVia:'jump-push'`.
 
-**Tasks — `CrmTask` (`model.rs:371-391`):** `name`→`title`; `due_date`→`dueDate`;
+**Tasks — `CrmTask` (`model.rs:371-391`):** `name`→`title`; `due_date`→`due`;
 `complete`(bool)→`status` (`done` if true else `open`); `priority`→`priority`;
-`description`→`description`; `linked_to`→`links`. Assignee/recurrence/category **have no
-Wealthbox source** on `CrmTask` (the missing fields) — imported empty, filled going forward.
+`description`→`body`; the resolved household link→`householdRef`; other `linked_to`
+records→`contextRefs`. `assigneeUserId` and `recurrence` have no Wealthbox source and import
+as null/absent. This is the D2 Task schema, with no importer-only variant.
+
+**Firm directory mapping:** Wealthbox users/assignee identities map to `FirmDirectoryEntry`
+by provider user ID through `import_directory_mappings` (§3.2). This is a display/import
+crosswalk only. It never creates a Lantern user, team, role, or permission.
 
 **Events — `CrmEvent` (`model.rs:403-416`):** there is no first-class Meeting/Event entity
 in the CRM core (Lantern meetings + calendar connectors own scheduling). Events import as
@@ -1104,7 +1237,7 @@ feasibility §5). No delete write-back (matches current constraint).
 ### 5.1 Every record wears source + dates
 
 `CrmBase` guarantees `createdAt`, `updatedAt`, `source: Provenance` on every entity (§1).
-`updatedAt` is the newest field write; each LWW field also carries a `#hlc` stamp (§2.2) so
+`updatedAt` is the newest field write; each LWW field also carries a `#hlc` stamp (§2.3) so
 the **specific field's** last-change time is recoverable, not just the record's. `Provenance`
 carries `SourceRef[]` citations (`clientMap/types.ts:31-41`), so "how do we know this" is
 answerable and clickable exactly as Client Map citations are today (path4 §4 principle 2 —
@@ -1178,8 +1311,8 @@ export-everything-decrypted capability, firm-initiated, becomes a hard requireme
 **`examExport(scope)` — firm-initiated, decrypt-everything, fidelity-stamped.** It:
 1. Requires an **admin/owner** actor and appends an audit entry recording who initiated it,
    when, and the scope (the export is itself an audited event).
-2. Walks every doc stream in scope (a household's matter, a date range, or the whole firm),
-   decrypts each Yjs doc locally (the firm holds the keys), and materializes a **plaintext
+2. Walks every collection doc in scope (a household's matter, a date range, or the whole
+   firm), decrypts each Yjs doc locally (the firm holds the keys), and materializes a **plaintext
    bundle**: households/persons/accounts/facts/notes/tasks/workflows/opportunities +
    activity feed + the decrypted hash-chained audit log + attachment files (decrypted from
    the vault).
@@ -1195,53 +1328,22 @@ decrypt+serialize — the server is never involved and never able to do it (D0.4
 
 ---
 
-## 7. Open questions (the freeze review must settle these)
+## 7. Remaining freeze questions
 
-1. **LWW loss on money/status fields (§2.3).** Accepted risk: concurrent edits to a scalar
-   drop one value (kept only in the activity trail / Fact chain). Is per-field HLC-LWW +
-   activity trail sufficient, or do specific fields (Task.status, Account balances) need a
-   stronger merge (e.g. multi-value register surfaced to the user as a conflict to resolve)?
-   This is the riskiest single call in the model.
-2. **Firm-wide task rollup vs. ethical walls (§2.5).** "All tasks for Alice / who's overdue"
-   requires every seat to sync every household's `crm/tasks` stream, but ethical walls
-   (`backend` `ethical_walls`, feasibility §2) exist to deny some members some matters. How
-   do we reconcile a firm-wide task view with per-matter key denial? Options: (a) a
-   walls-aware task index that omits walled matters per device, (b) a narrow plaintext task
-   metadata side-channel (assignee/due/status/matter_id only — feasibility §3), (c)
-   accept that walled tasks simply don't appear in a walled member's rollup. Privacy call for
-   Jameson (this is the §6.1 trade-off in path4).
-3. **Doc granularity: one doc per record vs. one doc per collection (§2.2/§2.5).** This spec
-   freezes **one Y.Doc per entity instance**, streamed within a per-collection channel. The
-   alternative (one doc per household holding all its records) simplifies scope but enlarges
-   the co-edit blast radius and the 1 MiB update cap risk. Confirm per-record granularity at
-   freeze; it's expensive to change later.
-4. **`__firm__` pseudo-matter key distribution (§2.6).** Treating firm-global docs as a
-   matter every seat belongs to means the firm key is held by all seats. Is that acceptable
-   (templates/tags/process docs are not client-confidential), and does removing a seat force a
-   firm-key epoch bump + re-wrap for everyone (matterKeys epoch machinery, feasibility §2)?
-5. **Note audience on import (§4.4).** Wealthbox has no internal/client-facing signal, so all
-   imported notes default `internal`. Is defaulting to the safer (internal) lane correct, and
-   how does the migration wizard let the firm reclassify in bulk?
-6. **Meeting/Event as entity vs. timeline-only (§4.4).** This spec imports Wealthbox events as
-   `ActivityEvent`s and leans on Lantern meetings + calendar connectors for scheduling. Do we
-   need an editable first-class `Meeting`/`CalendarEvent` entity (E-109 says JBW doesn't use
-   Wealthbox's calendar), or is timeline + connector sufficient?
-7. **Opportunity/pipeline scope for v1.** Lane A's matrix requires Opportunity; JBW evidence
-   barely mentions pipelines. Confirm whether Opportunity ships in the core build or is a
-   later stage (it's fully specced here either way).
-8. **Government-ID fields (§4.4).** The connector deliberately omits passport/SSN/license
-   (`model.rs:8-10`) per Reg S-P. A system-of-record may need SSN (tax docs, account opening).
-   Do we add encrypted-at-rest, redacted-in-egress ID fields, or keep the omission and store
-   IDs only as vault documents? (path4 §5.5 flags this too.)
-9. **Retention-purge job.** §6.2 assumes a future audited purge job at the far end of the
-   5-year window; its policy (what/when/who-approves) is undefined here and needs its own
-   spec (lane F candidate).
-10. **Custom-field explosion from `contact_roles` (§4.4).** Auto-generating `CustomFieldDef`s
-    from arbitrary Wealthbox `contact_roles` JSON could create dozens of noisy fields. Does the
-    migration wizard need a mapping/curation step, or do we import them into a single JSON
-    "legacy fields" blob first and let the firm promote fields deliberately?
+The following do not reopen D1-D5, D8, or D9.
 
----
+1. **LWW loss on money/status fields (§2.3).** Is the ActivityEvent trail plus Fact
+   supersession history enough when two people make a true concurrent scalar edit?
+2. **Import note classification.** Wealthbox has no internal/client-facing signal. The
+   migration default is internal; the migration screen must define bulk reclassification.
+3. **Calendar/Event boundary.** Calendar, mail, and documents remain existing-subsystem
+   records linked through EntityRef. Confirm the timeline-only import remains enough.
+4. **Government IDs.** Keep them in encrypted vault documents unless a separate,
+   redaction-reviewed design adds a structured field.
+5. **Retention purge.** The eventual audited, counsel-approved far-end purge policy needs
+   a separate specification.
+6. **Custom-role curation.** Decide when an unmapped source contact role becomes a
+   Person.roles entry, a curated custom field, or a legacy field retained only in the archive.
 
 *Traceability: existing-code claims cite repo paths in `/home/jameson/lantern-crm`
 (`src/platform/types/matter.ts`, `src/platform/clientMap/types.ts`,
