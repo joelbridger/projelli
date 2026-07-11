@@ -164,6 +164,38 @@ describe('prompt preparation red-team catalog', () => {
     warning.mockRestore();
   });
 
+  it('records detected categories and counts for every preparation decision', async () => {
+    type ReceiptMetadata = {
+      decision: 'clean' | 'redacted_by_user' | 'cancelled' | 'blocked';
+      categories: Array<{ kind: string; count: number }>;
+    };
+    const receipts: ReceiptMetadata[] = [];
+    const provider = {
+      getMetadata: () => ({ model: 'local-test' }),
+      sendMessage: () => Promise.resolve({ content: 'ok', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 }, cost: 0, model: 'local-test' }),
+    } as unknown as Provider;
+    const send = (prompt: string, background = false) => sendPreparedMessageWithEgressAudit({
+      provider, providerId: 'ollama', surface: 'test', prompt, background,
+      onAuditLog: (entry) => {
+        if (entry.action === 'prompt_preparation') receipts.push(entry.metadata as ReceiptMetadata);
+      },
+    });
+
+    await send('ordinary question');
+    setPromptDecisionBroker(() => Promise.resolve('send_redacted_copy'));
+    await send('password: private-value');
+    setPromptDecisionBroker(() => Promise.resolve('cancel'));
+    await expect(send('password: private-value')).rejects.toThrow('prompt_send_cancelled');
+    await expect(send('password: private-value', true)).rejects.toThrow('prompt_review_required');
+
+    expect(receipts.map(({ decision, categories }) => ({ decision, categories }))).toEqual([
+      { decision: 'clean', categories: [] },
+      { decision: 'redacted_by_user', categories: [{ kind: 'password', count: 1 }] },
+      { decision: 'cancelled', categories: [{ kind: 'password', count: 1 }] },
+      { decision: 'blocked', categories: [{ kind: 'password', count: 1 }] },
+    ]);
+  });
+
   it('keeps the model-call audit detail while adding a preparation receipt before egress', async () => {
     const entries: unknown[] = [];
     let sent = '';

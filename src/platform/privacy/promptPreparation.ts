@@ -318,11 +318,16 @@ export type PreparedSendContext<T = ProviderResponse> = Omit<RunWithEgressAuditO
 };
 type PromptPreparationReceipt = Extract<AuditEvent, { type: 'prompt_preparation' }>['payload'];
 
-function receipt<T>(ctx: PreparedSendContext<T>, decision: 'clean' | 'redacted_by_user' | 'cancelled' | 'blocked', request?: PreparedCloudRequest): void {
+function receipt<T>(
+  ctx: PreparedSendContext<T>,
+  decision: 'clean' | 'redacted_by_user' | 'cancelled' | 'blocked',
+  findings: SecretFinding[],
+  request?: PreparedCloudRequest,
+): void {
   const metadata = {
     surface: ctx.surface,
     destination: ctx.providerId,
-    categories: (request?.findings ?? []).map(({ kind, count, receiptCategory }) => ({ kind: receiptCategory ?? kind, count })),
+    categories: findings.map(({ kind, count, receiptCategory }) => ({ kind: receiptCategory ?? kind, count })),
     decision,
     attachmentDisposition: request?.attachmentDisposition ?? 'blocked',
   } satisfies PromptPreparationReceipt;
@@ -340,19 +345,19 @@ function receipt<T>(ctx: PreparedSendContext<T>, decision: 'clean' | 'redacted_b
 export async function sendPreparedMessageWithEgressAudit(ctx: PreparedSendContext): Promise<ProviderResponse> {
   const result = prepareCloudRequest({ prompt: ctx.prompt, systemPrompt: ctx.options?.systemPrompt, parts: ctx.parts, attachmentBytes: ctx.options?.attachmentBytes });
   const chosen = await decide(ctx.surface, ctx.background ?? false, result);
-  receipt(ctx, chosen.decision, chosen.request);
+  receipt(ctx, chosen.decision, result.status === 'ready' ? result.request.findings : result.findings ?? [], chosen.request);
   const request = chosen.request;
   if (!request) throw new Error(chosen.decision === 'blocked' ? 'prompt_review_required' : 'prompt_send_cancelled');
-  return runWithEgressAudit({ ...ctx, operation: () => ctx.provider.sendMessage(request.prompt, { ...ctx.options, ...(request.systemPrompt ? { systemPrompt: request.systemPrompt } : {}), ...(request.attachmentBytes ? { attachmentBytes: request.attachmentBytes } : {}) }) });
+  return runWithEgressAudit({ ...ctx, operation: () => ctx.provider.sendMessage(request.prompt, { ...ctx.options, preparationStamp: request.preparationId, ...(request.systemPrompt ? { systemPrompt: request.systemPrompt } : {}), ...(request.attachmentBytes ? { attachmentBytes: request.attachmentBytes } : {}) }) });
 }
 export async function sendPreparedStreamingWithEgressAudit(ctx: PreparedSendContext & { options: StreamOptions }): Promise<ProviderResponse> {
   const result = prepareCloudRequest({ prompt: ctx.prompt, systemPrompt: ctx.options.systemPrompt, parts: ctx.parts, attachmentBytes: ctx.options.attachmentBytes });
   const chosen = await decide(ctx.surface, ctx.background ?? false, result);
-  receipt(ctx, chosen.decision, chosen.request);
+  receipt(ctx, chosen.decision, result.status === 'ready' ? result.request.findings : result.findings ?? [], chosen.request);
   const request = chosen.request;
   if (!request) throw new Error(chosen.decision === 'blocked' ? 'prompt_review_required' : 'prompt_send_cancelled');
   return runWithEgressAudit({ ...ctx, operation: () => {
-    const response = ctx.provider.sendMessageStreaming?.(request.prompt, { ...ctx.options, ...(request.systemPrompt ? { systemPrompt: request.systemPrompt } : {}), ...(request.attachmentBytes ? { attachmentBytes: request.attachmentBytes } : {}) });
+    const response = ctx.provider.sendMessageStreaming?.(request.prompt, { ...ctx.options, preparationStamp: request.preparationId, ...(request.systemPrompt ? { systemPrompt: request.systemPrompt } : {}), ...(request.attachmentBytes ? { attachmentBytes: request.attachmentBytes } : {}) });
     if (!response) throw new Error('provider_streaming_unavailable');
     return response;
   } });
@@ -360,10 +365,10 @@ export async function sendPreparedStreamingWithEgressAudit(ctx: PreparedSendCont
 export async function sendPreparedStructuredWithEgressAudit<T>(ctx: PreparedSendContext<T> & { options: StructuredOutputOptions }): Promise<T> {
   const result = prepareCloudRequest({ prompt: ctx.prompt, systemPrompt: ctx.options.systemPrompt, parts: ctx.parts });
   const chosen = await decide(ctx.surface, ctx.background ?? false, result);
-  receipt(ctx, chosen.decision, chosen.request);
+  receipt(ctx, chosen.decision, result.status === 'ready' ? result.request.findings : result.findings ?? [], chosen.request);
   const request = chosen.request;
   if (!request) throw new Error(chosen.decision === 'blocked' ? 'prompt_review_required' : 'prompt_send_cancelled');
-  return runWithEgressAudit({ ...ctx, operation: () => ctx.provider.structuredOutput<T>(request.prompt, { ...ctx.options, ...(request.systemPrompt ? { systemPrompt: request.systemPrompt } : {}) }) });
+  return runWithEgressAudit({ ...ctx, operation: () => ctx.provider.structuredOutput<T>(request.prompt, { ...ctx.options, preparationStamp: request.preparationId, ...(request.systemPrompt ? { systemPrompt: request.systemPrompt } : {}) }) });
 }
 
 /** Used by cloud provider tool loops. Tool continuations never have a dialog. */
