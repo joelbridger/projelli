@@ -1,0 +1,127 @@
+{
+  "startedAt": "2026-07-11T13:26:35.258Z",
+  "finishedAt": "2026-07-11T13:26:36.584Z",
+  "mode": "offline",
+  "workspace": "C:\\offline-mode-gate\\20260711T132700Z\\workspace",
+  "auditSetup": {
+    "ok": true,
+    "value": null
+  },
+  "initialStatus": {
+    "ok": true,
+    "value": {
+      "offlineMode": true,
+      "generation": 1,
+      "hydrated": true,
+      "loadError": null
+    }
+  },
+  "modeSet": {
+    "ok": true,
+    "value": "already-set"
+  },
+  "status": {
+    "ok": true,
+    "value": {
+      "offlineMode": true,
+      "generation": 1,
+      "hydrated": true,
+      "loadError": null
+    }
+  },
+  "actions": {
+    "mailLogin": {
+      "ok": false,
+      "error": "Offline Mode is on. Lantern cannot connect to the internet. Turn it off to use Outlook mail sign-in.",
+      "expectedBlocked": true
+    },
+    "calendarLogin": {
+      "ok": false,
+      "error": "Offline Mode is on. Lantern cannot connect to the internet. Turn it off to use Outlook Calendar sign-in.",
+      "expectedBlocked": true
+    },
+    "crm": {
+      "ok": false,
+      "error": "Offline Mode is on. Lantern cannot connect to the internet. Turn it off to use Wealthbox sync.",
+      "expectedBlocked": true
+    },
+    "ragDownload": {
+      "ok": true,
+      "value": "ready",
+      "expectedBlocked": false
+    },
+    "localModelDownload": {
+      "ok": false,
+      "error": "Offline Mode is on. Lantern cannot connect to the internet. Turn it off to use local LLM model download.: Offline Mode is on. Lantern cannot connect to the internet. Turn it off to use local LLM model download.",
+      "expectedBlocked": true
+    },
+    "meetingJoin": {
+      "ok": false,
+      "error": "Offline Mode is on. Lantern cannot connect to the internet. Turn it off to use meeting auto-join.",
+      "expectedBlocked": true
+    },
+    "mcpAccess": {
+      "ok": false,
+      "error": "Offline Mode is on. Lantern cannot connect to the internet. Turn it off to use MCP access.",
+      "expectedBlocked": true
+    },
+    "localModelStatus": {
+      "ok": true,
+      "value": "error"
+    }
+  },
+  "receipts": {
+    "ok": true,
+    "value": [
+      {
+        "id": "audit_native_network_egress_1783776395678148500_8",
+        "timestamp": "2026-07-11T13:26:35.678139900+00:00",
+        "action": "network_egress",
+        "description": "Network action blocked before connection: Outlook mail sign-in",
+        "payloadJson": "{\"action\":\"network_egress\",\"description\":\"Network action blocked before connection: Outlook mail sign-in\",\"id\":\"audit_native_network_egress_1783776395678148500_8\",\"inputs\":{},\"metadata\":{\"aiMode\":\"not-applicable\",\"dataClasses\":{\"binaryDownload\":false,\"content\":false,\"credential\":true,\"metadata\":true},\"destination\":\"login.microsoftonline.com\",\"destinationClass\":\"exact-host\",\"direction\":\"sync\",\"failureCode\":\"OFFLINE_MODE_BLOCKED\",\"offlineMode\":true,\"operationId\":\"outlook-mail-oauth\",\"operationLabel\":\"Outlook mail sign-in\",\"policyGeneration\":1,\"result\":\"blocked-before-network\",\"scope\":{\"kind\":\"allMatters\"},\"source\":\"native-network-policy\",\"version\":1},\"model\":null,\"outputs\":{},\"timestamp\":\"2026-07-11T13:26:35.678139900+00:00\",\"userDecision\":\"auto\"}"
+      },
+      {
+        "id": "audit_native_network_egress_1783776395752788700_9",
+        "timestamp": "2026-07-11T13:26:35.752778200+00:00",
+        "action": "network_egress",
+        "description": "Network action blocked before connection: Outlook Calendar sign-in",
+        "payloadJson": "{\"action\":\"network_egress\",\"description\":\"Network action blocked before connection: Outlook Calendar sign-in\",\"id\":\"audit_native_network_egress_1783776395752788700_9\",\"inputs\":{},\"metadata\":{\"aiMode\":\"not-applicable\",\"dataClasses\":{\"binaryDownload\":false,\"content\":false,\"credential\":true,\"metadata\":true},\"destination\":\"login.microsoftonline.com\",\"destinationClass\":\"exact-host\",\"direction\":\"sync\",\"failureCode\":\"OFFLINE_MODE_BLOCKED\",\"offlineMode\":true,\"operationId\":\"outlook-calendar-oauth\",\"operationLabel\":\"Outlook Calendar sign-in\",\"policyGeneration\":1,\"result\":\"blocked-before-network\",\"scope\":{\"kind\":\"allMatters\"},\"source\":\"native-network-policy\",\"version\":1},\"model\":null,\"outputs\":{},\"timestamp\":\"2026-07-11T13:26:35.752778200+00:00\",\"userDecision\":\"auto\"}"
+      },
+      {
+        "id": "audit_native_network_egress_1783776395829749800_10",
+        "timestamp": "2026-07-11T13:26:35.829736600+00:00",
+        "action": "network_egress",
+        "description": "Network action blocked before connection: Wealthbox sync",
+        "payloadJson": "{\"action\":\"network_egress\",\"description\":\"Network action blocked before connection: Wealthbox sync\",\"id\":\"audit_native_network_egress_1783776395829749800_10\",\"inputs\":{},\"metadata\":{\"aiMode\":\"not-applicable\",\"dataClasses\":{\"binaryDownload\":false,\"content\":true,\"credential\":true,\"metadata\":true},\"destination\":\"api.crmworkspace.com\",\"destinationClass\":\"exact-host\",\"direction\":\"sync\",\"failureCode\":\"OFFLINE_MODE_BLOCKED\",\"offlineMode\":true,\"operationId\":\"wealthbox-sync\",\"operationLabel\":\"Wealthbox sync\",\"policyGeneration\":1,\"result\":\"blocked-before-network\",\"scope\":{\"kind\":\"allMatters\"},\"source\":\"native-network-policy\",\"version\":1},\"model\":null,\"outputs\":{},\"timestamp\":\"2026-07-11T13:26:35.829736600+00:00\",\"userDecision\":\"auto\"}"
+      },
+      {
+        "id": "audit_native_network_egress_1783776395964486200_11",
+        "timestamp": "2026-07-11T13:26:35.964476800+00:00",
+        "action": "network_egress",
+        "description": "Network action blocked before connection: local LLM model download",
+        "payloadJson": "{\"action\":\"network_egress\",\"description\":\"Network action blocked before connection: local LLM model download\",\"id\":\"audit_native_network_egress_1783776395964486200_11\",\"inputs\":{},\"metadata\":{\"aiMode\":\"not-applicable\",\"dataClasses\":{\"binaryDownload\":true,\"content\":false,\"credential\":false,\"metadata\":true},\"destination\":\"huggingface.co\",\"destinationClass\":\"exact-host\",\"direction\":\"download\",\"failureCode\":\"OFFLINE_MODE_BLOCKED\",\"offlineMode\":true,\"operationId\":\"local-llm-model-download\",\"operationLabel\":\"local LLM model download\",\"policyGeneration\":1,\"result\":\"blocked-before-network\",\"scope\":{\"kind\":\"allMatters\"},\"source\":\"native-network-policy\",\"version\":1},\"model\":null,\"outputs\":{},\"timestamp\":\"2026-07-11T13:26:35.964476800+00:00\",\"userDecision\":\"auto\"}"
+      },
+      {
+        "id": "audit_native_network_egress_1783776396030930100_12",
+        "timestamp": "2026-07-11T13:26:36.030918500+00:00",
+        "action": "network_egress",
+        "description": "Network action blocked before connection: meeting auto-join",
+        "payloadJson": "{\"action\":\"network_egress\",\"description\":\"Network action blocked before connection: meeting auto-join\",\"id\":\"audit_native_network_egress_1783776396030930100_12\",\"inputs\":{},\"metadata\":{\"aiMode\":\"not-applicable\",\"dataClasses\":{\"binaryDownload\":false,\"content\":false,\"credential\":false,\"metadata\":true},\"destination\":\"teams.microsoft.com\",\"destinationClass\":\"user-configured-host\",\"direction\":\"navigation\",\"failureCode\":\"OFFLINE_MODE_BLOCKED\",\"offlineMode\":true,\"operationId\":\"meeting-auto-join\",\"operationLabel\":\"meeting auto-join\",\"policyGeneration\":1,\"result\":\"blocked-before-network\",\"scope\":{\"kind\":\"allMatters\"},\"source\":\"native-network-policy\",\"version\":1},\"model\":null,\"outputs\":{},\"timestamp\":\"2026-07-11T13:26:36.030918500+00:00\",\"userDecision\":\"auto\"}"
+      },
+      {
+        "id": "audit_native_network_egress_1783776396097705600_13",
+        "timestamp": "2026-07-11T13:26:36.097691200+00:00",
+        "action": "network_egress",
+        "description": "Network action blocked before connection: MCP access",
+        "payloadJson": "{\"action\":\"network_egress\",\"description\":\"Network action blocked before connection: MCP access\",\"id\":\"audit_native_network_egress_1783776396097705600_13\",\"inputs\":{},\"metadata\":{\"aiMode\":\"not-applicable\",\"dataClasses\":{\"binaryDownload\":false,\"content\":true,\"credential\":false,\"metadata\":true},\"destination\":\"mcp-external-client.invalid\",\"destinationClass\":\"exact-host\",\"direction\":\"external-client-export\",\"failureCode\":\"OFFLINE_MODE_BLOCKED\",\"offlineMode\":true,\"operationId\":\"mcp-external-client-export\",\"operationLabel\":\"MCP access\",\"policyGeneration\":1,\"result\":\"blocked-before-network\",\"scope\":{\"kind\":\"allMatters\"},\"source\":\"native-network-policy\",\"version\":1},\"model\":null,\"outputs\":{},\"timestamp\":\"2026-07-11T13:26:36.097691200+00:00\",\"userDecision\":\"auto\"}"
+      }
+    ]
+  },
+  "integrity": {
+    "ok": true,
+    "value": {
+      "status": "verified",
+      "checked": 6
+    }
+  }
+}

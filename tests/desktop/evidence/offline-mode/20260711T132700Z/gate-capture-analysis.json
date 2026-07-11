@@ -1,0 +1,1758 @@
+{
+  "generatedAt": "2026-07-11T13:29:40.446Z",
+  "source": {
+    "decodedEtl": "C:\\offline-mode-gate\\20260711T132700Z\\evidence\\gate-capture.txt",
+    "pcapng": "C:\\offline-mode-gate\\20260711T132700Z\\evidence\\gate-capture.pcapng"
+  },
+  "window": {
+    "from": null,
+    "to": null
+  },
+  "note": "PktMon is machine-wide. Firewall rules scope enforcement to Lantern and WebView2; this passive capture independently records traffic during the same window.",
+  "outboundDnsQueries": [
+    {
+      "group": "1407374883554558",
+      "observedAt": "2026-07-11T07:27:30.838Z",
+      "source": "10.0.0.39",
+      "sourcePort": 55241,
+      "destination": "100.100.100.100",
+      "destinationPort": 53,
+      "detail": "10.0.0.39.55241 > 100.100.100.100.53: 44404+ A? wpad.taila01fda.ts.net. (40)"
+    },
+    {
+      "group": "1407374883554568",
+      "observedAt": "2026-07-11T07:27:30.839Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62802,
+      "destination": "100.100.100.100",
+      "destinationPort": 53,
+      "detail": "10.0.0.39.62802 > 100.100.100.100.53: 16993+ AAAA? wpad.taila01fda.ts.net. (40)"
+    },
+    {
+      "group": "281474976711857",
+      "observedAt": "2026-07-11T07:27:31.838Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 62802,
+      "destination": "fd7a:115c:a1e0::53",
+      "destinationPort": 53,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.62802 > fd7a:115c:a1e0::53.53: 16993+ AAAA? wpad.taila01fda.ts.net. (40)"
+    }
+  ],
+  "outboundTcpSyn": [
+    {
+      "group": "844424930132905",
+      "observedAt": "2026-07-11T07:26:35.379Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62606,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62606 > 23.211.246.228.443: Flags [S], seq 3817492894, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1125899906845054",
+      "observedAt": "2026-07-11T07:26:37.426Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62609,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62609 > 23.211.246.228.443: Flags [S], seq 2367987967, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1304",
+      "observedAt": "2026-07-11T07:26:41.493Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62612,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62612 > 23.211.246.228.443: Flags [S], seq 3393593408, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953424191",
+      "observedAt": "2026-07-11T07:26:45.572Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62615,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62615 > 23.211.246.228.443: Flags [S], seq 3034853758, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1125899906845335",
+      "observedAt": "2026-07-11T07:26:47.619Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62617,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62617 > 23.211.246.228.443: Flags [S], seq 2743744153, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1407374883554311",
+      "observedAt": "2026-07-11T07:26:47.698Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62618,
+      "destination": "13.107.139.11",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62618 > 13.107.139.11.443: Flags [S], seq 2764204366, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "281474976711727",
+      "observedAt": "2026-07-11T07:26:55.777Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62625,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62625 > 23.211.246.228.443: Flags [S], seq 2301380345, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953424351",
+      "observedAt": "2026-07-11T07:26:57.809Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62626,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62626 > 23.211.246.228.443: Flags [S], seq 3077419483, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1407374883554459",
+      "observedAt": "2026-07-11T07:27:01.868Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62630,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62630 > 23.211.246.228.443: Flags [S], seq 868429426, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953424395",
+      "observedAt": "2026-07-11T07:27:03.900Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62631,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62631 > 23.211.246.228.443: Flags [S], seq 767049064, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1420",
+      "observedAt": "2026-07-11T07:27:05.933Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62634,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62634 > 23.211.246.228.443: Flags [S], seq 396367434, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "844424930133079",
+      "observedAt": "2026-07-11T07:27:07.966Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62636,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62636 > 23.211.246.228.443: Flags [S], seq 3023556189, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "844424930133089",
+      "observedAt": "2026-07-11T07:27:08.110Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62637,
+      "destination": "52.168.117.174",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62637 > 52.168.117.174.443: Flags [S], seq 1955603982, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "844424930133099",
+      "observedAt": "2026-07-11T07:27:12.040Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62640,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62640 > 23.211.246.228.443: Flags [S], seq 3778007, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "844424930133132",
+      "observedAt": "2026-07-11T07:27:14.085Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62642,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62642 > 23.211.246.228.443: Flags [S], seq 1298701727, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953424622",
+      "observedAt": "2026-07-11T07:27:16.118Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62643,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62643 > 23.211.246.228.443: Flags [S], seq 3047560664, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953424652",
+      "observedAt": "2026-07-11T07:27:18.161Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62645,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62645 > 23.211.246.228.443: Flags [S], seq 3309712132, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "281474976711804",
+      "observedAt": "2026-07-11T07:27:20.192Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62647,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62647 > 23.211.246.228.443: Flags [S], seq 2561359811, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "281474976711837",
+      "observedAt": "2026-07-11T07:27:22.223Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62648,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62648 > 23.211.246.228.443: Flags [S], seq 2648362414, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953424763",
+      "observedAt": "2026-07-11T07:27:26.280Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62652,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62652 > 23.211.246.228.443: Flags [S], seq 3681942339, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "844424930133247",
+      "observedAt": "2026-07-11T07:27:28.321Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62653,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62653 > 23.211.246.228.443: Flags [S], seq 498697403, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953424814",
+      "observedAt": "2026-07-11T07:27:30.348Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62655,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62655 > 23.211.246.228.443: Flags [S], seq 3116442298, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953424867",
+      "observedAt": "2026-07-11T07:27:34.427Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62658,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62658 > 23.211.246.228.443: Flags [S], seq 1110069231, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1688849860266201",
+      "observedAt": "2026-07-11T07:27:36.468Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62660,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62660 > 23.211.246.228.443: Flags [S], seq 2507139000, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953424912",
+      "observedAt": "2026-07-11T07:27:38.505Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62662,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62662 > 23.211.246.228.443: Flags [S], seq 3886850008, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953424934",
+      "observedAt": "2026-07-11T07:27:40.530Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62663,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62663 > 23.211.246.228.443: Flags [S], seq 1297120037, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "281474976711897",
+      "observedAt": "2026-07-11T07:27:46.650Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62668,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62668 > 23.211.246.228.443: Flags [S], seq 326136327, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "281474976711907",
+      "observedAt": "2026-07-11T07:27:48.688Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62670,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62670 > 23.211.246.228.443: Flags [S], seq 122888999, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "844424930133348",
+      "observedAt": "2026-07-11T07:27:50.734Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62672,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62672 > 23.211.246.228.443: Flags [S], seq 2803894230, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953425073",
+      "observedAt": "2026-07-11T07:27:52.772Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62673,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62673 > 23.211.246.228.443: Flags [S], seq 1290564216, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1714",
+      "observedAt": "2026-07-11T07:27:54.869Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62675,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62675 > 23.211.246.228.443: Flags [S], seq 4232341928, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1724",
+      "observedAt": "2026-07-11T07:27:56.947Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62677,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62677 > 23.211.246.228.443: Flags [S], seq 1740333929, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1688849860266298",
+      "observedAt": "2026-07-11T07:27:58.978Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62678,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62678 > 23.211.246.228.443: Flags [S], seq 206078356, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "844424930133389",
+      "observedAt": "2026-07-11T07:28:01.022Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62680,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62680 > 23.211.246.228.443: Flags [S], seq 1733510515, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "281474976711983",
+      "observedAt": "2026-07-11T07:28:03.070Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62682,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62682 > 23.211.246.228.443: Flags [S], seq 4288417730, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "281474976711993",
+      "observedAt": "2026-07-11T07:28:05.105Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62683,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62683 > 23.211.246.228.443: Flags [S], seq 108212070, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1770",
+      "observedAt": "2026-07-11T07:28:07.140Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62685,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62685 > 23.211.246.228.443: Flags [S], seq 4175544529, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953425339",
+      "observedAt": "2026-07-11T07:28:13.251Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62690,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62690 > 23.211.246.228.443: Flags [S], seq 2618563488, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "281474976712047",
+      "observedAt": "2026-07-11T07:28:15.291Z",
+      "source": "10.0.0.39",
+      "sourcePort": 59739,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.59739 > 23.211.246.228.443: Flags [S], seq 2195846995, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "844424930133445",
+      "observedAt": "2026-07-11T07:28:17.321Z",
+      "source": "10.0.0.39",
+      "sourcePort": 51246,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.51246 > 23.211.246.228.443: Flags [S], seq 601547983, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "844424930133466",
+      "observedAt": "2026-07-11T07:28:19.358Z",
+      "source": "10.0.0.39",
+      "sourcePort": 61497,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.61497 > 23.211.246.228.443: Flags [S], seq 4015461600, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "281474976712087",
+      "observedAt": "2026-07-11T07:28:21.400Z",
+      "source": "10.0.0.39",
+      "sourcePort": 61499,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.61499 > 23.211.246.228.443: Flags [S], seq 2519114160, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1851",
+      "observedAt": "2026-07-11T07:28:23.430Z",
+      "source": "10.0.0.39",
+      "sourcePort": 61500,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.61500 > 23.211.246.228.443: Flags [S], seq 3534947418, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953425514",
+      "observedAt": "2026-07-11T07:28:25.469Z",
+      "source": "10.0.0.39",
+      "sourcePort": 61502,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.61502 > 23.211.246.228.443: Flags [S], seq 1261630472, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953425524",
+      "observedAt": "2026-07-11T07:28:27.514Z",
+      "source": "10.0.0.39",
+      "sourcePort": 61504,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.61504 > 23.211.246.228.443: Flags [S], seq 1968869490, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "844424930133487",
+      "observedAt": "2026-07-11T07:28:29.549Z",
+      "source": "10.0.0.39",
+      "sourcePort": 61506,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.61506 > 23.211.246.228.443: Flags [S], seq 304608385, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "844424930133507",
+      "observedAt": "2026-07-11T07:28:33.615Z",
+      "source": "10.0.0.39",
+      "sourcePort": 61509,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.61509 > 23.211.246.228.443: Flags [S], seq 2533355018, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1125899906846132",
+      "observedAt": "2026-07-11T07:28:35.642Z",
+      "source": "10.0.0.39",
+      "sourcePort": 61511,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.61511 > 23.211.246.228.443: Flags [S], seq 3747735405, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1921",
+      "observedAt": "2026-07-11T07:28:37.674Z",
+      "source": "10.0.0.39",
+      "sourcePort": 61512,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.61512 > 23.211.246.228.443: Flags [S], seq 4085226289, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1125899906846205",
+      "observedAt": "2026-07-11T07:28:41.745Z",
+      "source": "10.0.0.39",
+      "sourcePort": 61516,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.61516 > 23.211.246.228.443: Flags [S], seq 264898393, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1407374883554904",
+      "observedAt": "2026-07-11T07:28:45.813Z",
+      "source": "10.0.0.39",
+      "sourcePort": 61519,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.61519 > 23.211.246.228.443: Flags [S], seq 4208678870, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "844424930133599",
+      "observedAt": "2026-07-11T07:28:47.859Z",
+      "source": "10.0.0.39",
+      "sourcePort": 61521,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.61521 > 23.211.246.228.443: Flags [S], seq 3442317538, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1407374883554947",
+      "observedAt": "2026-07-11T07:28:49.892Z",
+      "source": "10.0.0.39",
+      "sourcePort": 61522,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.61522 > 23.211.246.228.443: Flags [S], seq 1590026829, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "844424930133617",
+      "observedAt": "2026-07-11T07:28:51.930Z",
+      "source": "10.0.0.39",
+      "sourcePort": 61524,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.61524 > 23.211.246.228.443: Flags [S], seq 3017673779, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "2011",
+      "observedAt": "2026-07-11T07:28:55.991Z",
+      "source": "10.0.0.39",
+      "sourcePort": 61527,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.61527 > 23.211.246.228.443: Flags [S], seq 1228536235, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953425782",
+      "observedAt": "2026-07-11T07:28:58.029Z",
+      "source": "10.0.0.39",
+      "sourcePort": 61529,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.61529 > 23.211.246.228.443: Flags [S], seq 9975132, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1407374883555049",
+      "observedAt": "2026-07-11T07:29:00.060Z",
+      "source": "10.0.0.39",
+      "sourcePort": 61531,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.61531 > 23.211.246.228.443: Flags [S], seq 3451918778, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "844424930133666",
+      "observedAt": "2026-07-11T07:29:04.139Z",
+      "source": "10.0.0.39",
+      "sourcePort": 61534,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.61534 > 23.211.246.228.443: Flags [S], seq 3147480511, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "2077",
+      "observedAt": "2026-07-11T07:29:06.170Z",
+      "source": "10.0.0.39",
+      "sourcePort": 61536,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.61536 > 23.211.246.228.443: Flags [S], seq 654147804, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1407374883555090",
+      "observedAt": "2026-07-11T07:29:08.200Z",
+      "source": "10.0.0.39",
+      "sourcePort": 61537,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.61537 > 23.211.246.228.443: Flags [S], seq 1817189379, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "281474976712296",
+      "observedAt": "2026-07-11T07:29:12.263Z",
+      "source": "10.0.0.39",
+      "sourcePort": 61541,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.61541 > 23.211.246.228.443: Flags [S], seq 3676599322, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953425989",
+      "observedAt": "2026-07-11T07:29:14.304Z",
+      "source": "10.0.0.39",
+      "sourcePort": 61542,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.61542 > 23.211.246.228.443: Flags [S], seq 2146019008, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "281474976712339",
+      "observedAt": "2026-07-11T07:29:16.350Z",
+      "source": "10.0.0.39",
+      "sourcePort": 61544,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.61544 > 23.211.246.228.443: Flags [S], seq 1231685105, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1407374883555120",
+      "observedAt": "2026-07-11T07:29:16.669Z",
+      "source": "10.0.0.39",
+      "sourcePort": 61545,
+      "destination": "20.184.175.22",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.61545 > 20.184.175.22.443: Flags [S], seq 2632714100, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "281474976712359",
+      "observedAt": "2026-07-11T07:29:18.383Z",
+      "source": "10.0.0.39",
+      "sourcePort": 61547,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.61547 > 23.211.246.228.443: Flags [S], seq 3232966533, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "844424930133716",
+      "observedAt": "2026-07-11T07:29:20.415Z",
+      "source": "10.0.0.39",
+      "sourcePort": 61548,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.61548 > 23.211.246.228.443: Flags [S], seq 3076458683, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "844424930133734",
+      "observedAt": "2026-07-11T07:29:22.456Z",
+      "source": "10.0.0.39",
+      "sourcePort": 61551,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.61551 > 23.211.246.228.443: Flags [S], seq 2476465283, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "2127",
+      "observedAt": "2026-07-11T07:29:26.518Z",
+      "source": "10.0.0.39",
+      "sourcePort": 61554,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.61554 > 23.211.246.228.443: Flags [S], seq 868168432, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "844424930133812",
+      "observedAt": "2026-07-11T07:29:30.579Z",
+      "source": "10.0.0.39",
+      "sourcePort": 61558,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.61558 > 23.211.246.228.443: Flags [S], seq 1881203365, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1125899906846603",
+      "observedAt": "2026-07-11T07:29:32.153Z",
+      "source": "10.0.0.39",
+      "sourcePort": 61559,
+      "destination": "52.168.117.174",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.61559 > 52.168.117.174.443: Flags [S], seq 2836668088, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953426276",
+      "observedAt": "2026-07-11T07:29:32.620Z",
+      "source": "10.0.0.39",
+      "sourcePort": 61560,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.61560 > 23.211.246.228.443: Flags [S], seq 3168517685, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "844424930133836",
+      "observedAt": "2026-07-11T07:29:34.654Z",
+      "source": "10.0.0.39",
+      "sourcePort": 61562,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.61562 > 23.211.246.228.443: Flags [S], seq 871918915, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "844424930133846",
+      "observedAt": "2026-07-11T07:29:36.692Z",
+      "source": "10.0.0.39",
+      "sourcePort": 61564,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.61564 > 23.211.246.228.443: Flags [S], seq 2138072543, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    }
+  ],
+  "outboundUdpDatagrams": [
+    {
+      "group": "562949953426202",
+      "observedAt": "2026-07-11T07:29:26.389Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 50749,
+      "destination": "2001:4860:4840:400::",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.50749 > 2001:4860:4840:400::.443: UDP, length 33"
+    },
+    {
+      "group": "2177",
+      "observedAt": "2026-07-11T07:29:38.445Z",
+      "source": "10.0.0.39",
+      "sourcePort": 61979,
+      "destination": "10.0.0.223",
+      "destinationPort": 44557,
+      "detail": "10.0.0.39.61979 > 10.0.0.223.44557: UDP, length 38"
+    },
+    {
+      "group": "1568",
+      "observedAt": "2026-07-11T07:27:24.678Z",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "10.0.0.88",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 10.0.0.88.41641: UDP, length 124"
+    },
+    {
+      "group": "562949953424140",
+      "observedAt": "2026-07-11T07:26:40.930Z",
+      "source": "10.0.0.39",
+      "sourcePort": 137,
+      "destination": "10.0.0.255",
+      "destinationPort": 137,
+      "detail": "10.0.0.39.137 > 10.0.0.255.137: UDP, length 50"
+    },
+    {
+      "group": "562949953424129",
+      "observedAt": "2026-07-11T07:26:40.929Z",
+      "source": "172.22.176.1",
+      "sourcePort": 137,
+      "destination": "172.22.191.255",
+      "destinationPort": 137,
+      "detail": "172.22.176.1.137 > 172.22.191.255.137: UDP, length 50"
+    },
+    {
+      "group": "1125899906845211",
+      "observedAt": "2026-07-11T07:26:42.220Z",
+      "source": "10.0.0.39",
+      "sourcePort": 52475,
+      "destination": "10.0.0.1",
+      "destinationPort": 5351,
+      "detail": "10.0.0.39.52475 > 10.0.0.1.5351: UDP, length 2"
+    },
+    {
+      "group": "1125899906845221",
+      "observedAt": "2026-07-11T07:26:42.221Z",
+      "source": "10.0.0.39",
+      "sourcePort": 52475,
+      "destination": "10.0.0.1",
+      "destinationPort": 5351,
+      "detail": "10.0.0.39.52475 > 10.0.0.1.5351: UDP, length 24"
+    },
+    {
+      "group": "1125899906845241",
+      "observedAt": "2026-07-11T07:26:42.674Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 41641,
+      "destination": "2601:681:d01:a7e0:365a:60ff:fe7c:ee82",
+      "destinationPort": 41641,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.41641 > 2601:681:d01:a7e0:365a:60ff:fe7c:ee82.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860265712",
+      "observedAt": "2026-07-11T07:26:42.675Z",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "172.22.0.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 172.22.0.1.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860265722",
+      "observedAt": "2026-07-11T07:26:42.675Z",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "172.21.0.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 172.21.0.1.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860265732",
+      "observedAt": "2026-07-11T07:26:42.675Z",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "172.25.0.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 172.25.0.1.41641: UDP, length 124"
+    },
+    {
+      "group": "1125899906845535",
+      "observedAt": "2026-07-11T07:27:15.705Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 41641,
+      "destination": "2601:681:d01:a7e0::69f8",
+      "destinationPort": 41641,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.41641 > 2601:681:d01:a7e0::69f8.41641: UDP, length 110"
+    },
+    {
+      "group": "562949953424733",
+      "observedAt": "2026-07-11T07:27:24.879Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 41641,
+      "destination": "2607:f740:c::646",
+      "destinationPort": 3478,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.41641 > 2607:f740:c::646.3478: UDP, length 40"
+    },
+    {
+      "group": "562949953424743",
+      "observedAt": "2026-07-11T07:27:24.879Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 41641,
+      "destination": "2607:f740:16::640",
+      "destinationPort": 3478,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.41641 > 2607:f740:16::640.3478: UDP, length 40"
+    },
+    {
+      "group": "2147",
+      "observedAt": "2026-07-11T07:29:27.475Z",
+      "source": "10.0.0.39",
+      "sourcePort": 61979,
+      "destination": "10.0.0.223",
+      "destinationPort": 44557,
+      "detail": "10.0.0.39.61979 > 10.0.0.223.44557: UDP, length 1468"
+    },
+    {
+      "group": "844424930133227",
+      "observedAt": "2026-07-11T07:27:24.900Z",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "192.73.242.28",
+      "destinationPort": 3478,
+      "detail": "10.0.0.39.41641 > 192.73.242.28.3478: UDP, length 40"
+    },
+    {
+      "group": "562949953424753",
+      "observedAt": "2026-07-11T07:27:24.900Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 41641,
+      "destination": "2607:f740:16::5c",
+      "destinationPort": 3478,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.41641 > 2607:f740:16::5c.3478: UDP, length 40"
+    }
+  ],
+  "tlsClientHelloRecordCount": 30,
+  "outboundNonLoopbackSample": [
+    {
+      "group": "1197",
+      "observedAt": "2026-07-11T07:26:34.680Z",
+      "source": "100.127.67.22",
+      "sourcePort": 22,
+      "destination": "100.68.20.52",
+      "destinationPort": 60498,
+      "detail": "100.127.67.22.22 > 100.68.20.52.60498: Flags [P.], seq 4040136044:4040136384, ack 1202972517, win 255, options [nop,nop,TS val 209659742 ecr 2173919508], length 340"
+    },
+    {
+      "group": "1199",
+      "observedAt": "2026-07-11T07:26:34.681Z",
+      "source": "100.127.67.22",
+      "sourcePort": 22,
+      "destination": "100.68.20.52",
+      "destinationPort": 60498,
+      "detail": "100.127.67.22.22 > 100.68.20.52.60498: Flags [P.], seq 4040136384:4040136452, ack 1202972517, win 255, options [nop,nop,TS val 209659742 ecr 2173919508], length 68"
+    },
+    {
+      "group": "1201",
+      "observedAt": "2026-07-11T07:26:34.681Z",
+      "source": "100.127.67.22",
+      "sourcePort": 22,
+      "destination": "100.68.20.52",
+      "destinationPort": 60498,
+      "detail": "100.127.67.22.22 > 100.68.20.52.60498: Flags [P.], seq 4040136452:4040136552, ack 1202972517, win 255, options [nop,nop,TS val 209659743 ecr 2173919508], length 100"
+    },
+    {
+      "group": "844424930132905",
+      "observedAt": "2026-07-11T07:26:35.379Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62606,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62606 > 23.211.246.228.443: Flags [S], seq 3817492894, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1125899906845002",
+      "observedAt": "2026-07-11T07:26:35.413Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62606,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62606 > 23.211.246.228.443: Flags [F.], seq 3817492895, ack 712582892, win 1024, length 0"
+    },
+    {
+      "group": "1125899906845022",
+      "observedAt": "2026-07-11T07:26:35.427Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62606,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62606 > 23.211.246.228.443: Flags [.], ack 712582892, win 1024, options [nop,nop,sack 1 {712582891:712582892}], length 0"
+    },
+    {
+      "group": "562949953426202",
+      "observedAt": "2026-07-11T07:29:26.389Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 50749,
+      "destination": "2001:4860:4840:400::",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.50749 > 2001:4860:4840:400::.443: UDP, length 33"
+    },
+    {
+      "group": "281474976712433",
+      "observedAt": "2026-07-11T07:29:36.810Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 59206,
+      "destination": "2607:f8b0:4023:c0d::bc",
+      "destinationPort": 5228,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.59206 > 2607:f8b0:4023:c0d::bc.5228: Flags [.], seq 249840786:249840787, ack 2498042975, win 255, length 1"
+    },
+    {
+      "group": "1211",
+      "observedAt": "2026-07-11T07:26:36.786Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 52787,
+      "destination": "2606:b740:1:20::102",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.52787 > 2606:b740:1:20::102.443: Flags [P.], seq 4175693662:4175694015, ack 3751287155, win 255, length 353"
+    },
+    {
+      "group": "2177",
+      "observedAt": "2026-07-11T07:29:38.445Z",
+      "source": "10.0.0.39",
+      "sourcePort": 61979,
+      "destination": "10.0.0.223",
+      "destinationPort": 44557,
+      "detail": "10.0.0.39.61979 > 10.0.0.223.44557: UDP, length 38"
+    },
+    {
+      "group": "1125899906845054",
+      "observedAt": "2026-07-11T07:26:37.426Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62609,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62609 > 23.211.246.228.443: Flags [S], seq 2367987967, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "844424930132945",
+      "observedAt": "2026-07-11T07:26:37.448Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62609,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62609 > 23.211.246.228.443: Flags [.], ack 3115562491, win 1024, length 0"
+    },
+    {
+      "group": "844424930132955",
+      "observedAt": "2026-07-11T07:26:37.449Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62609,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62609 > 23.211.246.228.443: Flags [F.], seq 2367987968, ack 3115562491, win 1024, length 0"
+    },
+    {
+      "group": "1231",
+      "observedAt": "2026-07-11T07:26:37.768Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 60889,
+      "destination": "2603:1030:807:3::1f",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.60889 > 2603:1030:807:3::1f.443: Flags [P.], seq 2069188462:2069188493, ack 482652748, win 2044, length 31"
+    },
+    {
+      "group": "1125899906845084",
+      "observedAt": "2026-07-11T07:26:38.683Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 52787,
+      "destination": "2606:b740:1:20::102",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.52787 > 2606:b740:1:20::102.443: Flags [P.], seq 4175694015:4175694338, ack 3751287252, win 254, length 323"
+    },
+    {
+      "group": "1249",
+      "observedAt": "2026-07-11T07:26:39.414Z",
+      "source": "10.0.0.39",
+      "sourcePort": 5353,
+      "destination": "224.0.0.251",
+      "destinationPort": 5353,
+      "detail": "10.0.0.39.5353 > 224.0.0.251.5353: 0 AAAA (QM)? wpad.local. (28)"
+    },
+    {
+      "group": "1259",
+      "observedAt": "2026-07-11T07:26:39.415Z",
+      "source": "100.127.67.22",
+      "sourcePort": 5353,
+      "destination": "224.0.0.251",
+      "destinationPort": 5353,
+      "detail": "100.127.67.22.5353 > 224.0.0.251.5353: 0 AAAA (QM)? wpad.local. (28)"
+    },
+    {
+      "group": "1280",
+      "observedAt": "2026-07-11T07:26:39.415Z",
+      "source": "172.22.176.1",
+      "sourcePort": 5353,
+      "destination": "224.0.0.251",
+      "destinationPort": 5353,
+      "detail": "172.22.176.1.5353 > 224.0.0.251.5353: 0 AAAA (QM)? wpad.local. (28)"
+    },
+    {
+      "group": "1294",
+      "observedAt": "2026-07-11T07:26:39.416Z",
+      "source": "fe80::8ea0:aca1:7a28:7de0",
+      "sourcePort": 5353,
+      "destination": "ff02::fb",
+      "destinationPort": 5353,
+      "detail": "fe80::8ea0:aca1:7a28:7de0.5353 > ff02::fb.5353: 0 AAAA (QM)? wpad.local. (28)"
+    },
+    {
+      "group": "1125899906845089",
+      "observedAt": "2026-07-11T07:26:39.416Z",
+      "source": "fd7a:115c:a1e0::bc01:43a8",
+      "sourcePort": 5353,
+      "destination": "ff02::fb",
+      "destinationPort": 5353,
+      "detail": "fd7a:115c:a1e0::bc01:43a8.5353 > ff02::fb.5353: 0 AAAA (QM)? wpad.local. (28)"
+    },
+    {
+      "group": "1125899906845105",
+      "observedAt": "2026-07-11T07:26:39.417Z",
+      "source": "fe80::2168:8e10:7e0:d2ab",
+      "sourcePort": 5353,
+      "destination": "ff02::fb",
+      "destinationPort": 5353,
+      "detail": "fe80::2168:8e10:7e0:d2ab.5353 > ff02::fb.5353: 0 AAAA (QM)? wpad.local. (28)"
+    },
+    {
+      "group": "1568",
+      "observedAt": "2026-07-11T07:27:24.678Z",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "10.0.0.88",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 10.0.0.88.41641: UDP, length 124"
+    },
+    {
+      "group": "1125899906845124",
+      "observedAt": "2026-07-11T07:26:39.846Z",
+      "source": "10.0.0.39",
+      "sourcePort": 5353,
+      "destination": "224.0.0.251",
+      "destinationPort": 5353,
+      "detail": "10.0.0.39.5353 > 224.0.0.251.5353: 0 AAAA (QU)? wpad.local. (28)"
+    },
+    {
+      "group": "1125899906845134",
+      "observedAt": "2026-07-11T07:26:39.847Z",
+      "source": "100.127.67.22",
+      "sourcePort": 5353,
+      "destination": "224.0.0.251",
+      "destinationPort": 5353,
+      "detail": "100.127.67.22.5353 > 224.0.0.251.5353: 0 AAAA (QU)? wpad.local. (28)"
+    },
+    {
+      "group": "1125899906845155",
+      "observedAt": "2026-07-11T07:26:39.847Z",
+      "source": "172.22.176.1",
+      "sourcePort": 5353,
+      "destination": "224.0.0.251",
+      "destinationPort": 5353,
+      "detail": "172.22.176.1.5353 > 224.0.0.251.5353: 0 AAAA (QU)? wpad.local. (28)"
+    },
+    {
+      "group": "1125899906845169",
+      "observedAt": "2026-07-11T07:26:39.847Z",
+      "source": "fe80::8ea0:aca1:7a28:7de0",
+      "sourcePort": 5353,
+      "destination": "ff02::fb",
+      "destinationPort": 5353,
+      "detail": "fe80::8ea0:aca1:7a28:7de0.5353 > ff02::fb.5353: 0 AAAA (QU)? wpad.local. (28)"
+    },
+    {
+      "group": "1125899906845174",
+      "observedAt": "2026-07-11T07:26:39.848Z",
+      "source": "fd7a:115c:a1e0::bc01:43a8",
+      "sourcePort": 5353,
+      "destination": "ff02::fb",
+      "destinationPort": 5353,
+      "detail": "fd7a:115c:a1e0::bc01:43a8.5353 > ff02::fb.5353: 0 AAAA (QU)? wpad.local. (28)"
+    },
+    {
+      "group": "1125899906845190",
+      "observedAt": "2026-07-11T07:26:39.848Z",
+      "source": "fe80::2168:8e10:7e0:d2ab",
+      "sourcePort": 5353,
+      "destination": "ff02::fb",
+      "destinationPort": 5353,
+      "detail": "fe80::2168:8e10:7e0:d2ab.5353 > ff02::fb.5353: 0 AAAA (QU)? wpad.local. (28)"
+    },
+    {
+      "group": "562949953424140",
+      "observedAt": "2026-07-11T07:26:40.930Z",
+      "source": "10.0.0.39",
+      "sourcePort": 137,
+      "destination": "10.0.0.255",
+      "destinationPort": 137,
+      "detail": "10.0.0.39.137 > 10.0.0.255.137: UDP, length 50"
+    },
+    {
+      "group": "562949953424129",
+      "observedAt": "2026-07-11T07:26:40.929Z",
+      "source": "172.22.176.1",
+      "sourcePort": 137,
+      "destination": "172.22.191.255",
+      "destinationPort": 137,
+      "detail": "172.22.176.1.137 > 172.22.191.255.137: UDP, length 50"
+    },
+    {
+      "group": "1407374883554260",
+      "observedAt": "2026-07-11T07:26:41.181Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 60889,
+      "destination": "2603:1030:807:3::1f",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.60889 > 2603:1030:807:3::1f.443: Flags [.], ack 482652775, win 2044, length 0"
+    },
+    {
+      "group": "1304",
+      "observedAt": "2026-07-11T07:26:41.493Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62612,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62612 > 23.211.246.228.443: Flags [S], seq 3393593408, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1688849860265692",
+      "observedAt": "2026-07-11T07:26:41.517Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62612,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62612 > 23.211.246.228.443: Flags [F.], seq 3393593409, ack 1744785212, win 1024, length 0"
+    },
+    {
+      "group": "562949953424160",
+      "observedAt": "2026-07-11T07:26:41.543Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62612,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62612 > 23.211.246.228.443: Flags [.], ack 1744785212, win 1024, options [nop,nop,sack 1 {1744785211:1744785212}], length 0"
+    },
+    {
+      "group": "1125899906845211",
+      "observedAt": "2026-07-11T07:26:42.220Z",
+      "source": "10.0.0.39",
+      "sourcePort": 52475,
+      "destination": "10.0.0.1",
+      "destinationPort": 5351,
+      "detail": "10.0.0.39.52475 > 10.0.0.1.5351: UDP, length 2"
+    },
+    {
+      "group": "1125899906845221",
+      "observedAt": "2026-07-11T07:26:42.221Z",
+      "source": "10.0.0.39",
+      "sourcePort": 52475,
+      "destination": "10.0.0.1",
+      "destinationPort": 5351,
+      "detail": "10.0.0.39.52475 > 10.0.0.1.5351: UDP, length 24"
+    },
+    {
+      "group": "1125899906845231",
+      "observedAt": "2026-07-11T07:26:42.674Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 51717,
+      "destination": "2607:f740:16::640",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.51717 > 2607:f740:16::640.443: Flags [P.], seq 3357142861:3357143144, ack 4035691324, win 255, length 283"
+    },
+    {
+      "group": "1125899906845241",
+      "observedAt": "2026-07-11T07:26:42.674Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 41641,
+      "destination": "2601:681:d01:a7e0:365a:60ff:fe7c:ee82",
+      "destinationPort": 41641,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.41641 > 2601:681:d01:a7e0:365a:60ff:fe7c:ee82.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860265712",
+      "observedAt": "2026-07-11T07:26:42.675Z",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "172.22.0.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 172.22.0.1.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860265722",
+      "observedAt": "2026-07-11T07:26:42.675Z",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "172.21.0.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 172.21.0.1.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860265732",
+      "observedAt": "2026-07-11T07:26:42.675Z",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "172.25.0.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 172.25.0.1.41641: UDP, length 124"
+    },
+    {
+      "group": "1125899906845535",
+      "observedAt": "2026-07-11T07:27:15.705Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 41641,
+      "destination": "2601:681:d01:a7e0::69f8",
+      "destinationPort": 41641,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.41641 > 2601:681:d01:a7e0::69f8.41641: UDP, length 110"
+    },
+    {
+      "group": "562949953424171",
+      "observedAt": "2026-07-11T07:26:42.852Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 58997,
+      "destination": "2603:1030:807:3::4",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.58997 > 2603:1030:807:3::4.443: Flags [P.], seq 4095105056:4095105087, ack 1791314879, win 2042, length 31"
+    },
+    {
+      "group": "1125899906845255",
+      "observedAt": "2026-07-11T07:26:43.173Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 52787,
+      "destination": "2606:b740:1:20::102",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.52787 > 2606:b740:1:20::102.443: Flags [P.], seq 4175694338:4175694856, ack 3751287349, win 254, length 518"
+    },
+    {
+      "group": "1125899906845275",
+      "observedAt": "2026-07-11T07:26:43.556Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62614,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62614 > 23.211.246.228.443: Flags [.], ack 3520483501, win 1024, length 0"
+    },
+    {
+      "group": "281474976711657",
+      "observedAt": "2026-07-11T07:26:43.556Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62614,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62614 > 23.211.246.228.443: Flags [F.], seq 1677027026, ack 3520483501, win 1024, length 0"
+    },
+    {
+      "group": "281474976711667",
+      "observedAt": "2026-07-11T07:26:43.702Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 60889,
+      "destination": "2603:1030:807:3::1f",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.60889 > 2603:1030:807:3::1f.443: Flags [P.], seq 2069188493:2069188521, ack 482652775, win 2044, length 28"
+    },
+    {
+      "group": "281474976711677",
+      "observedAt": "2026-07-11T07:26:44.795Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 58997,
+      "destination": "2603:1030:807:3::4",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.58997 > 2603:1030:807:3::4.443: Flags [P.], seq 4095105087:4095105115, ack 1791314983, win 2047, length 28"
+    },
+    {
+      "group": "562949953424191",
+      "observedAt": "2026-07-11T07:26:45.572Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62615,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62615 > 23.211.246.228.443: Flags [S], seq 3034853758, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953424201",
+      "observedAt": "2026-07-11T07:26:45.603Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62615,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62615 > 23.211.246.228.443: Flags [F.], seq 3034853759, ack 4021093487, win 1024, length 0"
+    },
+    {
+      "group": "1125899906845335",
+      "observedAt": "2026-07-11T07:26:47.619Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62617,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62617 > 23.211.246.228.443: Flags [S], seq 2743744153, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1688849860265762",
+      "observedAt": "2026-07-11T07:26:47.649Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62617,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62617 > 23.211.246.228.443: Flags [F.], seq 2743744154, ack 4185438924, win 1024, length 0"
+    },
+    {
+      "group": "1407374883554311",
+      "observedAt": "2026-07-11T07:26:47.698Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62618,
+      "destination": "13.107.139.11",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62618 > 13.107.139.11.443: Flags [S], seq 2764204366, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953424243",
+      "observedAt": "2026-07-11T07:26:47.743Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62618,
+      "destination": "13.107.139.11",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62618 > 13.107.139.11.443: Flags [P.], seq 2764204367:2764204563, ack 1824976888, win 255, length 196"
+    },
+    {
+      "group": "1125899906845360",
+      "observedAt": "2026-07-11T07:26:47.833Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62618,
+      "destination": "13.107.139.11",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62618 > 13.107.139.11.443: Flags [.], seq 2764204721:2764206161, ack 1824986202, win 254, length 1440"
+    },
+    {
+      "group": "1125899906845361",
+      "observedAt": "2026-07-11T07:26:47.833Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62618,
+      "destination": "13.107.139.11",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62618 > 13.107.139.11.443: Flags [P.], seq 2764206161:2764207076, ack 1824986202, win 254, length 915"
+    },
+    {
+      "group": "1688849860265952",
+      "observedAt": "2026-07-11T07:26:48.074Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62618,
+      "destination": "13.107.139.11",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62618 > 13.107.139.11.443: Flags [.], ack 1825012270, win 255, length 0"
+    },
+    {
+      "group": "1125899906845371",
+      "observedAt": "2026-07-11T07:26:48.683Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 52787,
+      "destination": "2606:b740:1:20::102",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.52787 > 2606:b740:1:20::102.443: Flags [P.], seq 4175695282:4175695729, ack 3751287543, win 253, length 447"
+    },
+    {
+      "group": "1407374883554352",
+      "observedAt": "2026-07-11T07:26:49.687Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62620,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62620 > 23.211.246.228.443: Flags [.], ack 4104940539, win 1024, length 0"
+    },
+    {
+      "group": "1125899906845395",
+      "observedAt": "2026-07-11T07:26:49.687Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62620,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62620 > 23.211.246.228.443: Flags [F.], seq 434982573, ack 4104940539, win 1024, length 0"
+    },
+    {
+      "group": "1407374883554362",
+      "observedAt": "2026-07-11T07:26:52.175Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 52787,
+      "destination": "2606:b740:1:20::102",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.52787 > 2606:b740:1:20::102.443: Flags [P.], seq 4175695729:4175696052, ack 3751287640, win 253, length 323"
+    },
+    {
+      "group": "562949953424301",
+      "observedAt": "2026-07-11T07:26:53.766Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 60889,
+      "destination": "2603:1030:807:3::1f",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.60889 > 2603:1030:807:3::1f.443: Flags [P.], seq 2069188521:2069188552, ack 482652775, win 2044, length 31"
+    },
+    {
+      "group": "281474976711727",
+      "observedAt": "2026-07-11T07:26:55.777Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62625,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62625 > 23.211.246.228.443: Flags [S], seq 2301380345, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1407374883554406",
+      "observedAt": "2026-07-11T07:26:57.190Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 60889,
+      "destination": "2603:1030:807:3::1f",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.60889 > 2603:1030:807:3::1f.443: Flags [.], ack 482652802, win 2044, length 0"
+    },
+    {
+      "group": "562949953424351",
+      "observedAt": "2026-07-11T07:26:57.809Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62626,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62626 > 23.211.246.228.443: Flags [S], seq 3077419483, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1407374883554426",
+      "observedAt": "2026-07-11T07:26:58.179Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 52787,
+      "destination": "2606:b740:1:20::102",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.52787 > 2606:b740:1:20::102.443: Flags [P.], seq 4175696374:4175696697, ack 3751287834, win 252, length 323"
+    },
+    {
+      "group": "1407374883554436",
+      "observedAt": "2026-07-11T07:26:58.841Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 58997,
+      "destination": "2603:1030:807:3::4",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.58997 > 2603:1030:807:3::4.443: Flags [P.], seq 4095105115:4095105146, ack 1791315114, win 2047, length 31"
+    },
+    {
+      "group": "1390",
+      "observedAt": "2026-07-11T07:26:59.865Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62628,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62628 > 23.211.246.228.443: Flags [F.], seq 436963716, ack 2177865080, win 1024, length 0"
+    },
+    {
+      "group": "281474976711737",
+      "observedAt": "2026-07-11T07:27:01.176Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 52787,
+      "destination": "2606:b740:1:20::102",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.52787 > 2606:b740:1:20::102.443: Flags [P.], seq 4175696697:4175697020, ack 3751287931, win 252, length 323"
+    },
+    {
+      "group": "1407374883554459",
+      "observedAt": "2026-07-11T07:27:01.868Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62630,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62630 > 23.211.246.228.443: Flags [S], seq 868429426, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "281474976711757",
+      "observedAt": "2026-07-11T07:27:01.923Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62630,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62630 > 23.211.246.228.443: Flags [.], ack 202707714, win 1024, options [nop,nop,sack 1 {202707713:202707714}], length 0"
+    },
+    {
+      "group": "1688849860266035",
+      "observedAt": "2026-07-11T07:27:01.924Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62630,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62630 > 23.211.246.228.443: Flags [.], ack 202707715, win 1024, length 0"
+    },
+    {
+      "group": "562949953424733",
+      "observedAt": "2026-07-11T07:27:24.879Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 41641,
+      "destination": "2607:f740:c::646",
+      "destinationPort": 3478,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.41641 > 2607:f740:c::646.3478: UDP, length 40"
+    },
+    {
+      "group": "562949953424743",
+      "observedAt": "2026-07-11T07:27:24.879Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 41641,
+      "destination": "2607:f740:16::640",
+      "destinationPort": 3478,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.41641 > 2607:f740:16::640.3478: UDP, length 40"
+    },
+    {
+      "group": "562949953424395",
+      "observedAt": "2026-07-11T07:27:03.900Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62631,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62631 > 23.211.246.228.443: Flags [S], seq 767049064, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1410",
+      "observedAt": "2026-07-11T07:27:03.930Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62631,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62631 > 23.211.246.228.443: Flags [F.], seq 767049065, ack 4187834312, win 1024, length 0"
+    },
+    {
+      "group": "1420",
+      "observedAt": "2026-07-11T07:27:05.933Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62634,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62634 > 23.211.246.228.443: Flags [S], seq 396367434, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1430",
+      "observedAt": "2026-07-11T07:27:05.964Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62634,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62634 > 23.211.246.228.443: Flags [F.], seq 396367435, ack 1269746068, win 1024, length 0"
+    },
+    {
+      "group": "1440",
+      "observedAt": "2026-07-11T07:27:06.103Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 62062,
+      "destination": "2a04:4e42:50::347",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.62062 > 2a04:4e42:50::347.443: Flags [P.], seq 1242340924:1242340956, ack 2483057218, win 253, length 32"
+    },
+    {
+      "group": "1125899906845525",
+      "observedAt": "2026-07-11T07:27:07.176Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 52787,
+      "destination": "2606:b740:1:20::102",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.52787 > 2606:b740:1:20::102.443: Flags [P.], seq 4175697551:4175697874, ack 3751288125, win 251, length 323"
+    },
+    {
+      "group": "1688849860266085",
+      "observedAt": "2026-07-11T07:27:07.618Z",
+      "source": "10.0.0.39",
+      "sourcePort": 64706,
+      "destination": "34.40.0.146",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.64706 > 34.40.0.146.443: Flags [P.], seq 79312063:79312098, ack 571715530, win 250, length 35"
+    },
+    {
+      "group": "844424930133079",
+      "observedAt": "2026-07-11T07:27:07.966Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62636,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62636 > 23.211.246.228.443: Flags [S], seq 3023556189, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953424465",
+      "observedAt": "2026-07-11T07:27:07.996Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62636,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62636 > 23.211.246.228.443: Flags [.], ack 1151161926, win 1024, length 0"
+    },
+    {
+      "group": "844424930133089",
+      "observedAt": "2026-07-11T07:27:08.110Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62637,
+      "destination": "52.168.117.174",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62637 > 52.168.117.174.443: Flags [S], seq 1955603982, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953424496",
+      "observedAt": "2026-07-11T07:27:08.187Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62637,
+      "destination": "52.168.117.174",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62637 > 52.168.117.174.443: Flags [P.], seq 1955603983:1955604542, ack 869734763, win 1024, length 559"
+    },
+    {
+      "group": "1454",
+      "observedAt": "2026-07-11T07:27:08.270Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62637,
+      "destination": "52.168.117.174",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62637 > 52.168.117.174.443: Flags [P.], seq 1955604542:1955604622, ack 869743755, win 1024, length 80"
+    },
+    {
+      "group": "1464",
+      "observedAt": "2026-07-11T07:27:08.270Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62637,
+      "destination": "52.168.117.174",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62637 > 52.168.117.174.443: Flags [P.], seq 1955604622:1955605751, ack 869743755, win 1024, length 1129"
+    },
+    {
+      "group": "1479",
+      "observedAt": "2026-07-11T07:27:08.270Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62637,
+      "destination": "52.168.117.174",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62637 > 52.168.117.174.443: Flags [.], seq 1955605751:1955607191, ack 869743755, win 1024, length 1440"
+    },
+    {
+      "group": "1480",
+      "observedAt": "2026-07-11T07:27:08.270Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62637,
+      "destination": "52.168.117.174",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62637 > 52.168.117.174.443: Flags [P.], seq 1955607191:1955607624, ack 869743755, win 1024, length 433"
+    },
+    {
+      "group": "844424930133099",
+      "observedAt": "2026-07-11T07:27:12.040Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62640,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62640 > 23.211.246.228.443: Flags [S], seq 3778007, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953424570",
+      "observedAt": "2026-07-11T07:27:12.069Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62640,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62640 > 23.211.246.228.443: Flags [.], ack 3139645808, win 1024, length 0"
+    },
+    {
+      "group": "1688849860266115",
+      "observedAt": "2026-07-11T07:27:12.091Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62640,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62640 > 23.211.246.228.443: Flags [.], ack 3139645808, win 1024, options [nop,nop,sack 1 {3139645807:3139645808}], length 0"
+    },
+    {
+      "group": "2147",
+      "observedAt": "2026-07-11T07:29:27.475Z",
+      "source": "10.0.0.39",
+      "sourcePort": 61979,
+      "destination": "10.0.0.223",
+      "destinationPort": 44557,
+      "detail": "10.0.0.39.61979 > 10.0.0.223.44557: UDP, length 1468"
+    },
+    {
+      "group": "1407374883554504",
+      "observedAt": "2026-07-11T07:27:13.210Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 60889,
+      "destination": "2603:1030:807:3::1f",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.60889 > 2603:1030:807:3::1f.443: Flags [.], ack 482652829, win 2044, length 0"
+    },
+    {
+      "group": "281474976711784",
+      "observedAt": "2026-07-11T07:27:13.712Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 60889,
+      "destination": "2603:1030:807:3::1f",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.60889 > 2603:1030:807:3::1f.443: Flags [P.], seq 2069188583:2069188611, ack 482652829, win 2044, length 28"
+    },
+    {
+      "group": "844424930133132",
+      "observedAt": "2026-07-11T07:27:14.085Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62642,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62642 > 23.211.246.228.443: Flags [S], seq 1298701727, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953424612",
+      "observedAt": "2026-07-11T07:27:14.112Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62642,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62642 > 23.211.246.228.443: Flags [F.], seq 1298701728, ack 2665884621, win 1024, length 0"
+    },
+    {
+      "group": "844424930133162",
+      "observedAt": "2026-07-11T07:27:14.788Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 58997,
+      "destination": "2603:1030:807:3::4",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.58997 > 2603:1030:807:3::4.443: Flags [P.], seq 4095105146:4095105174, ack 1791315245, win 2046, length 28"
+    },
+    {
+      "group": "562949953424622",
+      "observedAt": "2026-07-11T07:27:16.118Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62643,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62643 > 23.211.246.228.443: Flags [S], seq 3047560664, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1512",
+      "observedAt": "2026-07-11T07:27:16.158Z",
+      "source": "10.0.0.39",
+      "sourcePort": 62643,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.62643 > 23.211.246.228.443: Flags [F.], seq 3047560665, ack 2462033953, win 1024, length 0"
+    }
+  ]
+}

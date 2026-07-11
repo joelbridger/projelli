@@ -1,0 +1,20 @@
+{
+  "verdict": "partial-not-release-pass",
+  "packetRecorderSmoke": "passed",
+  "offlineActionWindow": {
+    "dnsQueries": 0,
+    "tcpSyn": 0,
+    "udpDatagrams": 0,
+    "note": "One pre-existing external TCP data packet was observed."
+  },
+  "quietPeriod": "not-proven-machine-wide-background-traffic",
+  "offlineMessagesAndReceipts": "passed",
+  "localAi": "not-run-no-verified-local-model",
+  "localDataAndEntitlement": "not-run-no-disposable-fixture",
+  "onlineControl": {
+    "packetCapture": "observed-dns-and-external-tcp",
+    "proxy": "not-observed",
+    "result": "failed"
+  },
+  "benchRestored": true
+}

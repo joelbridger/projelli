@@ -53,9 +53,14 @@ async function run() {
     // This binds the real encrypted audit database to our isolated disposable
     // workspace before any native guard is called.
     const auditSetup = await invoke(page, 'audit_set_workspace', { path: workspace });
-    // Make the requested mode explicit in the already-running native process.
-    // This removes restart timing and policy-file escaping from the gate itself.
-    const modeSet = await invoke(page, 'set_offline_mode', { enabled: mode === 'offline' });
+    const initialStatus = await invoke(page, 'network_policy_status');
+    // Do not rewrite the policy file when the fresh app already has the desired
+    // startup state. This avoids a needless Windows file-lock race and still
+    // makes the control run explicitly turn Offline Mode off.
+    const desiredOffline = mode === 'offline';
+    const modeSet = initialStatus.ok && initialStatus.value?.offlineMode === desiredOffline
+      ? { ok: true, value: 'already-set' }
+      : await invoke(page, 'set_offline_mode', { enabled: desiredOffline });
     const status = await invoke(page, 'network_policy_status');
     const actions = {};
 
@@ -67,18 +72,32 @@ async function run() {
     actions.crm = expectedOffline(await invoke(page, 'crm_connect', {
       provider: 'wealthbox', token: 'offline-gate-disposable-token', username: null, password: null,
     }), 'Wealthbox sync');
-    actions.ragDownload = expectedOffline(await invoke(page, 'model_ensure'), 'RAG model download');
-    if (mode === 'offline') actions.localModelDownload = expectedOffline(await invoke(page, 'local_llm_model_ensure'), 'local LLM model download');
-    if (mode === 'offline') actions.meetingJoin = expectedOffline(await invoke(page, 'notice_card_open', {
-      label: 'offline-gate-meeting', joinUrl: 'https://teams.microsoft.com/l/meetup-join/offline-gate', initScript: '',
-    }), 'meeting auto-join');
-    actions.mcpAccess = expectedOffline(await invoke(page, 'mcp_approve_write', { token: 'abcdef', approved: false }), 'MCP access');
+    if (mode === 'offline') {
+      actions.ragDownload = expectedOffline(await invoke(page, 'model_ensure'), 'RAG model download');
+      actions.localModelDownload = expectedOffline(await invoke(page, 'local_llm_model_ensure'), 'local LLM model download');
+      actions.meetingJoin = expectedOffline(await invoke(page, 'notice_card_open', {
+        label: 'offline-gate-meeting', joinUrl: 'https://teams.microsoft.com/l/meetup-join/offline-gate', initScript: '',
+      }), 'meeting auto-join');
+      actions.mcpAccess = expectedOffline(await invoke(page, 'mcp_approve_write', { token: 'abcdef', approved: false }), 'MCP access');
+    }
+
+    // A real local-model attempt when the disposable bench already has one.
+    // The status path is entirely local; start/health/stop only run when a
+    // verified model is already present, so this gate never downloads one.
+    if (mode === 'offline') {
+      actions.localModelStatus = await invoke(page, 'local_llm_model_status');
+      if (actions.localModelStatus.ok && actions.localModelStatus.value === 'ready') {
+        actions.localModelStart = await invoke(page, 'local_llm_sidecar_start');
+        actions.localModelHealth = await invoke(page, 'local_llm_sidecar_health');
+        actions.localModelStop = await invoke(page, 'local_llm_sidecar_stop');
+      }
+    }
 
     // A visible proof that the real settings UI reflected the native state.
     await page.screenshot({ path: path.join(outDir, `${mode}-app.jpeg`), type: 'jpeg', quality: 80 });
     const receipts = await invoke(page, 'audit_list', { limit: null, offset: null });
     const integrity = await invoke(page, 'audit_verify_integrity');
-    const result = { startedAt, finishedAt: new Date().toISOString(), mode, workspace, auditSetup, modeSet, status, actions, receipts, integrity };
+    const result = { startedAt, finishedAt: new Date().toISOString(), mode, workspace, auditSetup, initialStatus, modeSet, status, actions, receipts, integrity };
     await fs.writeFile(path.join(outDir, `${mode}-driver-result.json`), JSON.stringify(result, null, 2));
     console.log(JSON.stringify(result, null, 2));
   } finally {
