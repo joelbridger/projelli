@@ -34,8 +34,19 @@ mod tests {
     use crate::commands::mail::store::EncryptedMailStore;
     use crate::commands::rag::store::UNASSIGNED_MATTER;
     use std::sync::atomic::{AtomicBool, Ordering};
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
     use std::time::Duration;
+
+    /// `MARKED_THIS_SESSION` is a process-global latch, and cargo test runs
+    /// tests in parallel across threads within the same process. Two tests
+    /// below (`backfill_marker_set_is_idempotent_and_clearable` and
+    /// `vector_rebuild_marker_skips_missing_store_and_bypasses_stale_latch`)
+    /// each reset/read that same static, so running them concurrently lets
+    /// one test's `.store(...)` land between the other's sequential asserts —
+    /// this was a real, intermittent failure, not the "test order can't
+    /// matter" isolation an older comment claimed. Both tests take this lock
+    /// as their first line to serialize against each other.
+    static MARKED_THIS_SESSION_TEST_LOCK: Mutex<()> = Mutex::new(());
 
     // ── OAuth cancel — the "Reconnect hangs 5 minutes with no cancel" fix ────
 
@@ -426,13 +437,15 @@ mod tests {
 
     #[test]
     fn backfill_marker_set_is_idempotent_and_clearable() {
+        let _guard = MARKED_THIS_SESSION_TEST_LOCK.lock().unwrap();
         use super::{mark_rag_backfill_needed, MARKED_THIS_SESSION, RAG_BACKFILL_NEEDED_KEY};
         use std::sync::atomic::Ordering;
         let dir = tempfile::TempDir::new().unwrap();
         let key = [0x42u8; 32];
 
-        // This is the only test that touches the process-level latch; start
-        // from a known state so test order can't matter.
+        // Another test in this module also touches this process-level latch
+        // (see MARKED_THIS_SESSION_TEST_LOCK above); start from a known state
+        // now that the lock above rules out that test running concurrently.
         MARKED_THIS_SESSION.store(false, Ordering::SeqCst);
 
         // Setting the marker creates the store (meta table included) + the row.
@@ -477,6 +490,7 @@ mod tests {
 
     #[test]
     fn vector_rebuild_marker_skips_missing_store_and_bypasses_stale_latch() {
+        let _guard = MARKED_THIS_SESSION_TEST_LOCK.lock().unwrap();
         use super::{
             mark_rag_backfill_needed_after_vector_rebuild, MARKED_THIS_SESSION,
             RAG_BACKFILL_NEEDED_KEY,
