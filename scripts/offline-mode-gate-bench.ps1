@@ -4,7 +4,7 @@
 # `launch`; always finish with `cleanup`.
 param([ValidateSet('setup','smoke','launch','cleanup')][string]$Action)
 $ErrorActionPreference = 'Stop'
-$root = 'C:\offline-mode-gate'
+$root = if ($env:OFFLINE_GATE_ROOT) { $env:OFFLINE_GATE_ROOT } else { 'C:\offline-mode-gate' }
 $evidence = "$root\evidence"
 $state = "$root\pre-gate-state.json"
 $proxyPort = 18080
