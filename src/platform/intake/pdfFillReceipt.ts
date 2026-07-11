@@ -62,6 +62,7 @@ function containsEscapedActivePdfActionName(bytes: Uint8Array): boolean {
   const source = new TextDecoder('latin1').decode(bytes);
   const names = source.matchAll(/\/((?:#[0-9a-f]{2}|[^\s()[\]<>/{%])+)/giu);
   for (const [, encodedName] of names) {
+    if (encodedName === undefined) continue;
     const name = encodedName.replaceAll(/#([0-9a-f]{2})/giu, (_match, hex: string) =>
       String.fromCharCode(Number.parseInt(hex, 16)));
     if (ACTIVE_PDF_ACTION.has(name)) return true;
@@ -69,8 +70,8 @@ function containsEscapedActivePdfActionName(bytes: Uint8Array): boolean {
   return false;
 }
 
-function hasEntries(value: Record<string, unknown> | null): boolean {
-  return value !== null && Object.keys(value).length > 0;
+function hasEntries(value: unknown): boolean {
+  return typeof value === 'object' && value !== null && Object.keys(value).length > 0;
 }
 
 function annotationIsActive(annotation: Record<string, unknown>): boolean {

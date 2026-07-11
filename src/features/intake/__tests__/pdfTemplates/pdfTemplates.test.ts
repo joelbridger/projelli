@@ -21,8 +21,10 @@ const template: PdfTemplateDescriptor = {
 describe('PDF template composer and golden dry fill', () => {
   it('adds an approved template as a value snapshot that is sendable', async () => {
     const item = await createPdfFillDraftItem(template, new TextEncoder().encode('golden-source-pdf'));
-    template.fields.full_name = { ...template.fields.full_name, rect: { x: 0.8, y: 0.1, width: 0.1, height: 0.05 } };
-    expect(item.template.fields.full_name).not.toEqual(template.fields.full_name);
+    const fullName = template.fields['full_name'];
+    if (!fullName || fullName.kind !== 'overlay') throw new Error('Expected full name overlay field.');
+    template.fields['full_name'] = { ...fullName, rect: { x: 0.8, y: 0.1, width: 0.1, height: 0.05 } };
+    expect(item.template.fields['full_name']).not.toEqual(template.fields['full_name']);
     const request: FormRequest = { request_id: 'intake_1', schema_version: 1, matter_id: 'matter_1', kind: 'standing', items: [item] };
     expect(() => assertSendableRequest(request.items)).not.toThrow();
   });
@@ -38,16 +40,21 @@ describe('PDF template composer and golden dry fill', () => {
     expect(golden).toContain('"field":"annual_income"');
     expect(golden).toContain('"value":"$12,500.00"');
     const shifted = structuredClone(template);
-    shifted.fields.annual_income = { ...shifted.fields.annual_income, rect: { x: 0.7, y: 0.3, width: 0.2, height: 0.05 } };
-    delete shifted.fields.state;
+    const annualIncome = shifted.fields['annual_income'];
+    if (!annualIncome || annualIncome.kind !== 'overlay') throw new Error('Expected annual income overlay field.');
+    shifted.fields['annual_income'] = { ...annualIncome, rect: { x: 0.7, y: 0.3, width: 0.2, height: 0.05 } };
+    delete shifted.fields['state'];
     expect(buildDryFillPreviewSnapshot(shifted)).not.toBe(golden);
     expect(buildDryFillPreviewSnapshot(shifted)).not.toContain('"field":"state"');
   });
 
   it('creates distinct overlay fields and keeps their editable geometry', () => {
     const first = overlayField(1);
+    if (first.kind !== 'overlay') throw new Error('Expected first overlay field.');
+    const secondBase = overlayField(2);
+    if (secondBase.kind !== 'overlay') throw new Error('Expected second overlay field.');
     const second = {
-      ...overlayField(2),
+      ...secondBase,
       page: 2,
       rect: { x: 0.58, y: 0.42, width: 0.31, height: 0.08 },
     };
