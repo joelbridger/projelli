@@ -209,15 +209,11 @@ describe('useDocumentExtractionIngestion', () => {
     })).resolves.toEqual({ filePath: '/workspace/Sarah/Requests/income-request/income.pdf' });
 
     await waitFor(() => {
-      expect(useIntakeStore.getState().intakesById['intake-1']?.flags).toEqual([
-        expect.objectContaining({
-          kind: 'extraction_failed',
-          itemId: 'income-support',
-          documentExtraction: expect.objectContaining({
-            filePath: '/workspace/Sarah/Requests/income-request/income.pdf',
-          }),
-        }),
-      ]);
+      const flags = useIntakeStore.getState().intakesById['intake-1']?.flags ?? [];
+      expect(flags).toHaveLength(1);
+      expect(flags[0]?.kind).toBe('extraction_failed');
+      expect(flags[0]?.itemId).toBe('income-support');
+      expect(flags[0]?.documentExtraction?.filePath).toBe('/workspace/Sarah/Requests/income-request/income.pdf');
     });
     expect(warn).toHaveBeenCalledWith(
       '[useDocumentExtractionIngestion] Document extraction failed:',
