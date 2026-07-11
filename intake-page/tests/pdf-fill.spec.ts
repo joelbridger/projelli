@@ -20,6 +20,8 @@ import { sealedPdfSourceBytes } from '../src/pdfFill/sealedPdfSource';
 import { submitAnswer } from '../src/submission';
 import { syntheticAcroFormPdf, syntheticOverlayPdf, syntheticPdfWithExternalUriAction } from './fixtures/pdfFixtures';
 
+const ISSUED_ITEM_ID = 'ri_0123456789abcdef0123456789abcdef0123';
+
 async function acroTemplate(source: Uint8Array): Promise<PdfTemplateDescriptor> {
   return {
     templateId: 'synthetic-acro-001', version: 1, kind: 'acroform', sourceSha256: await sha256Hex(source),
@@ -64,6 +66,7 @@ async function overlayChoiceTemplate(source: Uint8Array): Promise<PdfTemplateDes
 test('flattens a synthetic AcroForm locally with all supported form controls', async () => {
   const source = await syntheticAcroFormPdf();
   const prepared = await preparePdfFillSubmission({
+    issuedItemId: ISSUED_ITEM_ID,
     sourceBytes: source,
     template: await acroTemplate(source),
     values: { name: 'Avery Chen', date: '1990-01-02', money: '90000', agree: 'true', choice: 'yes', select: 'two' },
@@ -80,6 +83,7 @@ test('flattens a synthetic AcroForm locally with all supported form controls', a
 test('writes a synthetic non-fillable overlay locally without introducing fields', async () => {
   const source = await syntheticOverlayPdf();
   const prepared = await preparePdfFillSubmission({
+    issuedItemId: ISSUED_ITEM_ID,
     sourceBytes: source,
     template: await overlayTemplate(source),
     values: { answer: 'Avery Chen', notes: 'A short synthetic note for the reviewed box.' },
@@ -92,6 +96,7 @@ test('writes a synthetic non-fillable overlay locally without introducing fields
 test('draws an overlay radio mark for a reviewed option value that is not truthy text', async () => {
   const source = await syntheticOverlayPdf();
   const prepared = await preparePdfFillSubmission({
+    issuedItemId: ISSUED_ITEM_ID,
     sourceBytes: source,
     template: await overlayChoiceTemplate(source),
     values: { delivery: 'email' },
@@ -106,6 +111,7 @@ test('draws an overlay radio mark for a reviewed option value that is not truthy
 test('rejects a source PDF with an external URI action before it can be rendered or filled', async () => {
   const source = await syntheticPdfWithExternalUriAction();
   await expect(preparePdfFillSubmission({
+    issuedItemId: ISSUED_ITEM_ID,
     sourceBytes: source,
     template: await overlayTemplate(source),
     values: { answer: 'Avery Chen', notes: '' },
@@ -135,11 +141,13 @@ test('rejects an oversized sealed PDF value before base64 decoding', () => {
 test('blocks missing, invalid, and too-long values before any upload can begin', async () => {
   const source = await syntheticAcroFormPdf();
   await expect(preparePdfFillSubmission({
+    issuedItemId: ISSUED_ITEM_ID,
     sourceBytes: source, template: await acroTemplate(source), values: { name: '', date: 'not-a-date', money: 'nope', agree: 'false', choice: 'other', select: 'other' },
   })).rejects.toBeInstanceOf(PdfFillValidationError);
 
   const overlay = await syntheticOverlayPdf();
   await expect(preparePdfFillSubmission({
+    issuedItemId: ISSUED_ITEM_ID,
     sourceBytes: overlay, template: await overlayTemplate(overlay, 'stop'), values: { answer: 'This sentence is intentionally much too long for the reviewed one-line form box.', notes: '' },
   })).rejects.toThrow(/contact your advisor/iu);
 });
@@ -158,11 +166,11 @@ test('sends one encrypted PDF and keeps source bytes, values, receipt, and hashe
   const source = await syntheticAcroFormPdf();
   const template = await acroTemplate(source);
   const values = { name: 'Avery Chen', date: '1990-01-02', money: '90000', agree: 'true', choice: 'yes', select: 'two' };
-  const prepared = await preparePdfFillSubmission({ sourceBytes: source, template, values });
   const { privateKey, publicKeyRaw } = await generateIntakeKeypair();
   const chunks: ChunkUpload[] = [];
   let submit: SubmitManifest | undefined;
-  const item: PdfFillRequestItem = { t: 'pdf_fill', item_id: 'opaque-handle', label: 'Synthetic form', help_text: '', required: true, subject: 'primary', template, prefill: [] };
+  const item: PdfFillRequestItem = { t: 'pdf_fill', item_id: ISSUED_ITEM_ID, label: 'Synthetic form', help_text: '', required: true, subject: 'primary', template, prefill: [] };
+  const prepared = await preparePdfFillSubmission({ issuedItemId: item.item_id, sourceBytes: source, template, values });
   const relay = {
     fetchUploadedIndexes: async () => [] as number[],
     uploadChunk: async (_itemId: string, chunk: ChunkUpload) => { chunks.push(chunk); },
@@ -177,7 +185,7 @@ test('sends one encrypted PDF and keeps source bytes, values, receipt, and hashe
   const wire = JSON.stringify({ chunks, submit });
   for (const forbidden of [
     'Avery Chen', 'Synthetic form', template.templateId, template.sourceSha256,
-    prepared.receipt.completedSha256, new TextDecoder().decode(source), new TextDecoder().decode(prepared.pdfBytes),
+    prepared.receipt.completedSha256, 'issuedItemId', new TextDecoder().decode(source), new TextDecoder().decode(prepared.pdfBytes),
   ]) expect(wire).not.toContain(forbidden);
 
   if (!submit) throw new Error('Missing encrypted submission');

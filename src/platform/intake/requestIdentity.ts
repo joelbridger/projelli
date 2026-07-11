@@ -13,6 +13,8 @@ export function createRequestSlug(seed = 'request'): string {
 }
 
 /** Opaque wire handle: no product meaning may be encoded in it. */
+export const OPAQUE_ITEM_HANDLE_RE = /^ri_[a-f0-9]{36}$/u;
+
 export function createOpaqueItemHandle(): string {
   return `ri_${randomToken(18)}`;
 }

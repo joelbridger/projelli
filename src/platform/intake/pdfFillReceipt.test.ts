@@ -46,6 +46,7 @@ function descriptor(overrides: Partial<PdfTemplateDescriptor> = {}): PdfTemplate
 
 async function receipt(bytes: Uint8Array, template = descriptor()): Promise<PdfCompletionReceipt> {
   return {
+    issuedItemId: 'ri_0123456789abcdef0123456789abcdef0123',
     templateId: template.templateId, templateVersion: template.version,
     sourceSha256: template.sourceSha256, completedSha256: await sha256Hex(bytes),
     completedAt: '2026-07-11T12:00:00.000Z', pageVersion: 'w8.1',
@@ -56,14 +57,14 @@ describe('verifyPdfFillReceipt', () => {
   it('accepts a matching safe flattened PDF', async () => {
     const bytes = validPdf();
     const approved = descriptor();
-    await expect(verifyPdfFillReceipt({ completedBytes: bytes, receipt: await receipt(bytes, approved), descriptor: approved }))
+    await expect(verifyPdfFillReceipt({ completedBytes: bytes, receipt: await receipt(bytes, approved), descriptor: approved, expectedItemId: 'ri_0123456789abcdef0123456789abcdef0123' }))
       .resolves.toBeUndefined();
   });
 
   it('accepts an empty AcroForm shell left by a flattened pdf-lib document', async () => {
     const bytes = validPdf('/AcroForm << /Fields [] >>');
     const approved = descriptor();
-    await expect(verifyPdfFillReceipt({ completedBytes: bytes, receipt: await receipt(bytes, approved), descriptor: approved }))
+    await expect(verifyPdfFillReceipt({ completedBytes: bytes, receipt: await receipt(bytes, approved), descriptor: approved, expectedItemId: 'ri_0123456789abcdef0123456789abcdef0123' }))
       .resolves.toBeUndefined();
   });
 
@@ -71,13 +72,13 @@ describe('verifyPdfFillReceipt', () => {
     const bytes = validPdf();
     const approved = descriptor();
     await expect(verifyPdfFillReceipt({
-      completedBytes: bytes, receipt: { ...await receipt(bytes, approved), completedSha256: 'b'.repeat(64) }, descriptor: approved,
+      completedBytes: bytes, receipt: { ...await receipt(bytes, approved), completedSha256: 'b'.repeat(64) }, descriptor: approved, expectedItemId: 'ri_0123456789abcdef0123456789abcdef0123',
     })).rejects.toThrow(/receipt hash/iu);
     await expect(verifyPdfFillReceipt({
-      completedBytes: bytes, receipt: await receipt(bytes, approved), descriptor: descriptor({ maxOutputBytes: 1 }),
+      completedBytes: bytes, receipt: await receipt(bytes, approved), descriptor: descriptor({ maxOutputBytes: 1 }), expectedItemId: 'ri_0123456789abcdef0123456789abcdef0123',
     })).rejects.toThrow(/output size limit/iu);
     await expect(verifyPdfFillReceipt({
-      completedBytes: bytes, receipt: await receipt(bytes, approved), descriptor: descriptor({ templateId: 'template_approved_02' }),
+      completedBytes: bytes, receipt: await receipt(bytes, approved), descriptor: descriptor({ templateId: 'template_approved_02' }), expectedItemId: 'ri_0123456789abcdef0123456789abcdef0123',
     })).rejects.toThrow(/template version/iu);
   });
 
@@ -89,7 +90,7 @@ describe('verifyPdfFillReceipt', () => {
     ['signature widget', validPdf('/AcroForm << /Fields [5 0 R] >>', ['<< /Type /Annot /Subtype /Widget /FT /Sig /Rect [0 0 0 0] >>'])],
   ])('rejects %s', async (_name, bytes) => {
     const approved = descriptor();
-    await expect(verifyPdfFillReceipt({ completedBytes: bytes, receipt: await receipt(bytes, approved), descriptor: approved }))
+    await expect(verifyPdfFillReceipt({ completedBytes: bytes, receipt: await receipt(bytes, approved), descriptor: approved, expectedItemId: 'ri_0123456789abcdef0123456789abcdef0123' }))
       .rejects.toThrow(/interactive|active|attachment/iu);
   });
 
@@ -102,10 +103,21 @@ describe('verifyPdfFillReceipt', () => {
   it('rejects malformed bytes and a missing local descriptor', async () => {
     const bytes = enc.encode('%PDF-not-a-real-document');
     const approved = descriptor();
-    await expect(verifyPdfFillReceipt({ completedBytes: bytes, receipt: await receipt(bytes, approved), descriptor: approved }))
+    await expect(verifyPdfFillReceipt({ completedBytes: bytes, receipt: await receipt(bytes, approved), descriptor: approved, expectedItemId: 'ri_0123456789abcdef0123456789abcdef0123' }))
       .rejects.toThrow(/valid PDF|parsed safely/iu);
     const safeBytes = validPdf();
-    await expect(verifyPdfFillReceipt({ completedBytes: safeBytes, receipt: await receipt(safeBytes, approved), descriptor: null }))
+    await expect(verifyPdfFillReceipt({ completedBytes: safeBytes, receipt: await receipt(safeBytes, approved), descriptor: null, expectedItemId: 'ri_0123456789abcdef0123456789abcdef0123' }))
       .rejects.toThrow(/local approved template/iu);
+  });
+
+  it('rejects a completed form issued for a sibling request item', async () => {
+    const bytes = validPdf();
+    const approved = descriptor();
+    await expect(verifyPdfFillReceipt({
+      completedBytes: bytes,
+      receipt: await receipt(bytes, approved),
+      descriptor: approved,
+      expectedItemId: 'ri_abcdef0123456789abcdef0123456789abcd',
+    })).rejects.toThrow(/request item/iu);
   });
 });

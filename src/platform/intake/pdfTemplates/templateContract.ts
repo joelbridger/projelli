@@ -96,6 +96,8 @@ export interface PdfTemplateDescriptor {
 
 /** A sealed integrity record. It makes no signature or identity claim. */
 export interface PdfCompletionReceipt {
+  /** The exact opaque request-item handle that issued this completion. */
+  issuedItemId: string;
   templateId: string;
   templateVersion: number;
   sourceSha256: string;

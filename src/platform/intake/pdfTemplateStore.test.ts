@@ -4,6 +4,7 @@ import { assertSafePdfImportSource } from './pdfTemplates/pdfInspector';
 import { sha256Hex } from './pdfTemplates/receipt';
 import { usePdfTemplateStore } from './pdfTemplateStore';
 import type { PdfTemplateDescriptor } from './pdfTemplates/templateContract';
+import { KC_FALLBACK_PREFIX } from '@/config/identity';
 
 const source = new TextEncoder().encode(
   '%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\n%%EOF'
@@ -74,11 +75,14 @@ describe('pdf template library', () => {
     expect(
       await usePdfTemplateStore.getState().loadSourceBytes(value.templateId, 1)
     ).toEqual(largeSource);
-    expect(
-      localStorage.getItem(
-        'lantern:intake-pdf-template-artifact:template_store_0001'
-      )
-    ).toBeTruthy();
+    const stored = localStorage.getItem(
+      `${KC_FALLBACK_PREFIX}intake.pdf-template-artifact::template_store_0001`
+    );
+    expect(stored).toBeTruthy();
+    expect(stored).not.toContain(new TextDecoder().decode(largeSource));
+    expect(stored).not.toContain(value.templateId);
+    expect(stored).not.toContain('Full.Name');
+    expect(stored).not.toContain(value.sourceSha256);
     // The old keychain-shaped shelf must never receive the full PDF.
     expect(
       Object.keys(localStorage).some((key) =>

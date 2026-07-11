@@ -396,7 +396,7 @@ async function routePdfFillSubmission(
   const bytes = concatBytes(submission.plaintextBytes);
   try {
     const descriptor = await loadPdfTemplateDescriptor(submission.intakeId, submission.itemId);
-    await verifyPdfFillReceipt({ completedBytes: bytes, receipt, descriptor });
+    await verifyPdfFillReceipt({ completedBytes: bytes, receipt, descriptor, expectedItemId: submission.itemId });
     if (!options.workspaceService) {
       throw new Error('A workspace must be open before completed forms can be filed.');
     }

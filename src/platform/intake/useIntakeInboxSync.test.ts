@@ -26,6 +26,7 @@ import {
 import { useMatterStore } from '@/platform/matter/matterStore';
 
 const enc = new TextEncoder();
+const PDF_ITEM_ID = 'ri_0123456789abcdef0123456789abcdef0123';
 
 function pdf(objects: string[]): Uint8Array {
   let value = '%PDF-1.4\n';
@@ -61,8 +62,9 @@ function pdfDescriptor(overrides: Partial<PdfTemplateDescriptor> = {}): PdfTempl
   };
 }
 
-async function pdfReceipt(bytes: Uint8Array, template: PdfTemplateDescriptor): Promise<PdfCompletionReceipt> {
+async function pdfReceipt(bytes: Uint8Array, template: PdfTemplateDescriptor, issuedItemId = PDF_ITEM_ID): Promise<PdfCompletionReceipt> {
   return {
+    issuedItemId,
     templateId: template.templateId, templateVersion: template.version, sourceSha256: template.sourceSha256,
     completedSha256: await sha256Hex(bytes), completedAt: '2026-07-11T12:00:00.000Z', pageVersion: 'w8.1',
   };
@@ -593,8 +595,8 @@ describe('useIntakeInboxSync wiring helpers', () => {
     vi.mocked(intakeKeychain.loadPdfTemplateDescriptor).mockResolvedValue(template);
     const record = intake({
       kind: 'standing', requestSlug: 'beneficiary-update-a1',
-      items: [{ itemId: 'pdf-form', label: 'Private template title', state: 'not_started' }],
-      requestItems: [{ t: 'pdf_fill', item_id: 'pdf-form', label: 'Private template title', help_text: '', required: true, subject: 'primary', template, prefill: [] }],
+      items: [{ itemId: PDF_ITEM_ID, label: 'Private template title', state: 'not_started' }],
+      requestItems: [{ t: 'pdf_fill', item_id: PDF_ITEM_ID, label: 'Private template title', help_text: '', required: true, subject: 'primary', template, prefill: [] }],
     });
     useIntakeStore.getState().upsertIntake(record);
     const current = useIntakeStore.getState().intakesById['intake-1'];
@@ -602,7 +604,7 @@ describe('useIntakeInboxSync wiring helpers', () => {
     const fileDocument = vi.fn<(options: FileIntakeDocumentOptions) => Promise<string>>().mockResolvedValue('/workspace/Sarah/Requests/beneficiary-update-a1/forms/completed-form-submission-1.pdf');
 
     await expect(routeIntakeSubmission(routedSubmission(null, {
-      itemId: 'pdf-form', contentType: 'application/pdf', fileNames: ['client-file.pdf'], plaintextBytes: [bytes], receipt,
+      itemId: PDF_ITEM_ID, contentType: 'application/pdf', fileNames: ['client-file.pdf'], plaintextBytes: [bytes], receipt,
     }), {
       intake: current, matterFolderPath: '/workspace/Sarah', workspaceService: {} as never, fileDocument,
     })).resolves.toEqual({ filePath: '/workspace/Sarah/Requests/beneficiary-update-a1/forms/completed-form-submission-1.pdf' });
@@ -625,8 +627,8 @@ describe('useIntakeInboxSync wiring helpers', () => {
     const bytes = completedPdf();
     const record = intake({
       kind: 'standing', requestSlug: 'beneficiary-update-a1',
-      items: [{ itemId: 'pdf-form', label: 'Form', state: 'not_started' }],
-      requestItems: [{ t: 'pdf_fill', item_id: 'pdf-form', label: 'Form', help_text: '', required: true, subject: 'primary', template, prefill: [] }],
+      items: [{ itemId: PDF_ITEM_ID, label: 'Form', state: 'not_started' }],
+      requestItems: [{ t: 'pdf_fill', item_id: PDF_ITEM_ID, label: 'Form', help_text: '', required: true, subject: 'primary', template, prefill: [] }],
     });
     useIntakeStore.getState().upsertIntake(record);
     const current = useIntakeStore.getState().intakesById['intake-1'];
@@ -634,7 +636,7 @@ describe('useIntakeInboxSync wiring helpers', () => {
     const fileDocument = vi.fn();
 
     await expect(routeIntakeSubmission(routedSubmission(null, {
-      itemId: 'pdf-form', contentType: invalid.contentType, fileNames: invalid.fileNames,
+      itemId: PDF_ITEM_ID, contentType: invalid.contentType, fileNames: invalid.fileNames,
       plaintextBytes: [bytes], receipt: invalid.receipt,
     }), {
       intake: current, matterFolderPath: '/workspace/Sarah', workspaceService: {} as never, fileDocument,
@@ -643,7 +645,7 @@ describe('useIntakeInboxSync wiring helpers', () => {
     expect(fileDocument).not.toHaveBeenCalled();
     expect(useIntakeStore.getState().intakesById['intake-1']?.items[0]).toMatchObject({ state: 'needs_followup' });
     expect(useIntakeStore.getState().intakesById['intake-1']?.flags).toEqual(expect.arrayContaining([
-      expect.objectContaining({ kind: 'integrity_mismatch', itemId: 'pdf-form' }),
+      expect.objectContaining({ kind: 'integrity_mismatch', itemId: PDF_ITEM_ID }),
     ]));
   });
 
@@ -654,15 +656,15 @@ describe('useIntakeInboxSync wiring helpers', () => {
     vi.mocked(intakeKeychain.loadPdfTemplateDescriptor).mockResolvedValue(localTemplate);
     const record = intake({
       kind: 'standing', requestSlug: 'beneficiary-update-a1',
-      items: [{ itemId: 'pdf-form', label: 'Form', state: 'not_started' }],
-      requestItems: [{ t: 'pdf_fill', item_id: 'pdf-form', label: 'Form', help_text: '', required: true, subject: 'primary', template: localTemplate, prefill: [] }],
+      items: [{ itemId: PDF_ITEM_ID, label: 'Form', state: 'not_started' }],
+      requestItems: [{ t: 'pdf_fill', item_id: PDF_ITEM_ID, label: 'Form', help_text: '', required: true, subject: 'primary', template: localTemplate, prefill: [] }],
     });
     useIntakeStore.getState().upsertIntake(record);
     const current = useIntakeStore.getState().intakesById['intake-1'];
     if (!current) throw new Error('missing intake');
     const fileDocument = vi.fn();
     await expect(routeIntakeSubmission(routedSubmission(null, {
-      itemId: 'pdf-form', contentType: 'application/pdf', fileNames: ['form.pdf'], plaintextBytes: [bytes], receipt: await pdfReceipt(bytes, changedTemplate),
+      itemId: PDF_ITEM_ID, contentType: 'application/pdf', fileNames: ['form.pdf'], plaintextBytes: [bytes], receipt: await pdfReceipt(bytes, changedTemplate),
     }), {
       intake: current, matterFolderPath: '/workspace/Sarah', workspaceService: {} as never, fileDocument,
     })).rejects.toThrow(/source hash/iu);
@@ -676,15 +678,15 @@ describe('useIntakeInboxSync wiring helpers', () => {
     vi.mocked(intakeKeychain.loadPdfTemplateDescriptor).mockResolvedValue(template);
     const record = intake({
       kind: 'standing', requestSlug: 'beneficiary-update-a1',
-      items: [{ itemId: 'pdf-form', label: 'Form', state: 'not_started' }],
-      requestItems: [{ t: 'pdf_fill', item_id: 'pdf-form', label: 'Form', help_text: '', required: true, subject: 'primary', template, prefill: [] }],
+      items: [{ itemId: PDF_ITEM_ID, label: 'Form', state: 'not_started' }],
+      requestItems: [{ t: 'pdf_fill', item_id: PDF_ITEM_ID, label: 'Form', help_text: '', required: true, subject: 'primary', template, prefill: [] }],
     });
     useIntakeStore.getState().upsertIntake(record);
     const current = useIntakeStore.getState().intakesById['intake-1'];
     if (!current) throw new Error('missing intake');
     const fileDocument = vi.fn();
     const receipt = await pdfReceipt(bytes, template);
-    const crossRequest = routedSubmission(null, { itemId: 'pdf-form', contentType: 'application/pdf', fileNames: ['form.pdf'], plaintextBytes: [bytes], receipt });
+    const crossRequest = routedSubmission(null, { itemId: PDF_ITEM_ID, contentType: 'application/pdf', fileNames: ['form.pdf'], plaintextBytes: [bytes], receipt });
     crossRequest.intakeId = 'another-request';
     await expect(routeIntakeSubmission(crossRequest, {
       intake: current, matterFolderPath: '/workspace/Sarah', workspaceService: {} as never, fileDocument,
@@ -703,8 +705,8 @@ describe('useIntakeInboxSync wiring helpers', () => {
     vi.mocked(intakeKeychain.loadPdfTemplateDescriptor).mockResolvedValue(template);
     const standing = intake({
       intakeId: 'standing-1', kind: 'standing', requestSlug: 'beneficiary-update-a1',
-      items: [{ itemId: 'pdf-form', label: 'Form', state: 'not_started' }],
-      requestItems: [{ t: 'pdf_fill', item_id: 'pdf-form', label: 'Form', help_text: '', required: true, subject: 'primary', template, prefill: [] }],
+      items: [{ itemId: PDF_ITEM_ID, label: 'Form', state: 'not_started' }],
+      requestItems: [{ t: 'pdf_fill', item_id: PDF_ITEM_ID, label: 'Form', help_text: '', required: true, subject: 'primary', template, prefill: [] }],
     });
     const onboarding = intake({ intakeId: 'onboarding-1', kind: 'onboarding', requestSlug: 'onboarding' });
     useIntakeStore.getState().upsertIntake(onboarding);
@@ -713,7 +715,7 @@ describe('useIntakeInboxSync wiring helpers', () => {
     if (!current) throw new Error('missing standing request');
     const fileDocument = vi.fn<(options: FileIntakeDocumentOptions) => Promise<string>>().mockResolvedValue('/workspace/Sarah/Requests/beneficiary-update-a1/forms/completed-form-submission-1.pdf');
     const submission = routedSubmission(null, {
-      itemId: 'pdf-form', contentType: 'application/pdf', fileNames: ['form.pdf'], plaintextBytes: [bytes], receipt: await pdfReceipt(bytes, template),
+      itemId: PDF_ITEM_ID, contentType: 'application/pdf', fileNames: ['form.pdf'], plaintextBytes: [bytes], receipt: await pdfReceipt(bytes, template),
       submissionId: 'submission-1',
     });
     submission.intakeId = 'standing-1';
@@ -727,8 +729,8 @@ describe('useIntakeInboxSync wiring helpers', () => {
     const bytes = completedPdf();
     const record = intake({
       kind: 'onboarding', requestSlug: 'onboarding',
-      items: [{ itemId: 'pdf-form', label: 'Form', state: 'not_started' }],
-      requestItems: [{ t: 'pdf_fill', item_id: 'pdf-form', label: 'Form', help_text: '', required: true, subject: 'primary', template, prefill: [] }],
+      items: [{ itemId: PDF_ITEM_ID, label: 'Form', state: 'not_started' }],
+      requestItems: [{ t: 'pdf_fill', item_id: PDF_ITEM_ID, label: 'Form', help_text: '', required: true, subject: 'primary', template, prefill: [] }],
     });
     useIntakeStore.getState().upsertIntake(record);
     const current = useIntakeStore.getState().intakesById['intake-1'];
@@ -736,7 +738,7 @@ describe('useIntakeInboxSync wiring helpers', () => {
     const fileDocument = vi.fn();
 
     await expect(routeIntakeSubmission(routedSubmission(null, {
-      itemId: 'pdf-form', contentType: 'application/pdf', fileNames: ['form.pdf'], plaintextBytes: [bytes], receipt: await pdfReceipt(bytes, template),
+      itemId: PDF_ITEM_ID, contentType: 'application/pdf', fileNames: ['form.pdf'], plaintextBytes: [bytes], receipt: await pdfReceipt(bytes, template),
     }), {
       intake: current, matterFolderPath: '/workspace/Sarah', workspaceService: {} as never, fileDocument,
     })).rejects.toThrow(/standing request/iu);
@@ -744,7 +746,7 @@ describe('useIntakeInboxSync wiring helpers', () => {
     expect(fileDocument).not.toHaveBeenCalled();
     expect(useIntakeStore.getState().intakesById['intake-1']?.items[0]).toMatchObject({ state: 'needs_followup' });
     expect(useIntakeStore.getState().intakesById['intake-1']?.flags).toEqual(expect.arrayContaining([
-      expect.objectContaining({ kind: 'integrity_mismatch', itemId: 'pdf-form' }),
+      expect.objectContaining({ kind: 'integrity_mismatch', itemId: PDF_ITEM_ID }),
     ]));
   });
 
@@ -754,8 +756,8 @@ describe('useIntakeInboxSync wiring helpers', () => {
     vi.mocked(intakeKeychain.loadPdfTemplateDescriptor).mockResolvedValue(template);
     const record = intake({
       kind: 'standing', requestSlug: 'beneficiary-update-a1',
-      items: [{ itemId: 'pdf-form', label: 'Form', state: 'not_started' }],
-      requestItems: [{ t: 'pdf_fill', item_id: 'pdf-form', label: 'Form', help_text: '', required: true, subject: 'primary', template, prefill: [] }],
+      items: [{ itemId: PDF_ITEM_ID, label: 'Form', state: 'not_started' }],
+      requestItems: [{ t: 'pdf_fill', item_id: PDF_ITEM_ID, label: 'Form', help_text: '', required: true, subject: 'primary', template, prefill: [] }],
     });
     useIntakeStore.getState().upsertIntake(record);
     const current = useIntakeStore.getState().intakesById['intake-1'];
@@ -763,7 +765,7 @@ describe('useIntakeInboxSync wiring helpers', () => {
     const fileDocument = vi.fn().mockRejectedValue(new Error('Disk is full.'));
 
     await expect(routeIntakeSubmission(routedSubmission(null, {
-      itemId: 'pdf-form', contentType: 'application/pdf', fileNames: ['form.pdf'], plaintextBytes: [bytes], receipt: await pdfReceipt(bytes, template),
+      itemId: PDF_ITEM_ID, contentType: 'application/pdf', fileNames: ['form.pdf'], plaintextBytes: [bytes], receipt: await pdfReceipt(bytes, template),
     }), {
       intake: current, matterFolderPath: '/workspace/Sarah', workspaceService: {} as never, fileDocument,
     })).rejects.toThrow(/disk is full/iu);
@@ -771,7 +773,7 @@ describe('useIntakeInboxSync wiring helpers', () => {
     expect(useIntakeStore.getState().intakesById['intake-1']?.items[0]).toMatchObject({ state: 'needs_followup' });
     expect(useIntakeStore.getState().intakesById['intake-1']?.receivedItems).toEqual([]);
     expect(useIntakeStore.getState().intakesById['intake-1']?.flags).toEqual(expect.arrayContaining([
-      expect.objectContaining({ kind: 'integrity_mismatch', itemId: 'pdf-form' }),
+      expect.objectContaining({ kind: 'integrity_mismatch', itemId: PDF_ITEM_ID }),
     ]));
   });
 
@@ -779,13 +781,13 @@ describe('useIntakeInboxSync wiring helpers', () => {
     const template = pdfDescriptor();
     const record = intake({
       kind: 'standing', requestSlug: 'beneficiary-update-a1',
-      items: [{ itemId: 'pdf-form', label: 'Form', state: 'not_started' }],
-      requestItems: [{ t: 'pdf_fill', item_id: 'pdf-form', label: 'Form', help_text: '', required: true, subject: 'primary', template, prefill: [] }],
+      items: [{ itemId: PDF_ITEM_ID, label: 'Form', state: 'not_started' }],
+      requestItems: [{ t: 'pdf_fill', item_id: PDF_ITEM_ID, label: 'Form', help_text: '', required: true, subject: 'primary', template, prefill: [] }],
     });
     useIntakeStore.getState().upsertIntake(record);
     const { privateKey, publicKeyRaw } = await generateIntakeKeypair();
     const rejected = await sealedInboxSubmission({
-      intakeId: 'intake-1', itemId: 'pdf-form', submissionId: 'bad-form', cursor: 1, publicKeyRaw,
+      intakeId: 'intake-1', itemId: PDF_ITEM_ID, submissionId: 'bad-form', cursor: 1, publicKeyRaw,
       body: { client_claim: 'not accepted' }, contentType: 'application/json', fileNames: [],
     });
     const relay = {

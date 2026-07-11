@@ -35,6 +35,7 @@ function descriptor(overrides: Record<string, unknown> = {}): PdfTemplateDescrip
 
 function receipt(overrides: Record<string, unknown> = {}): PdfCompletionReceipt {
   return {
+    issuedItemId: 'ri_0123456789abcdef0123456789abcdef0123',
     templateId: 'template_approved_01', templateVersion: 1,
     sourceSha256: SOURCE_HASH, completedSha256: 'b'.repeat(64),
     completedAt: '2026-07-11T12:00:00.000Z', pageVersion: 'w8.1',
@@ -113,6 +114,7 @@ describe('PDF completion receipt integrity helpers', () => {
   });
 
   it('rejects malformed receipt fields and unexpected raw payload data', () => {
+    expect(() => { assertValidPdfCompletionReceipt(receipt({ issuedItemId: 'pdf-form' })); }).toThrow(/issuedItemId/iu);
     expect(() => { assertValidPdfCompletionReceipt(receipt({ completedSha256: 'not-a-hash' })); }).toThrow(/completedSha256/iu);
     expect(() => { assertValidPdfCompletionReceipt(receipt({ client_values: { name: 'Avery' } })); }).toThrow(/unsupported property/iu);
   });

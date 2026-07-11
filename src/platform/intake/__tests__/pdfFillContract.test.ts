@@ -463,12 +463,14 @@ describe('Wave 8 encrypted PDF-fill contract gate', () => {
 
   it('fills a sealed source locally, flattens it, and seals a receipt with the encrypted PDF submission', async () => {
     const { sourceBytes, template } = await realPdfTemplate();
-    const result = await preparePdfFillSubmission({ sourceBytes, template, values: { client_name: 'Avery Chen' } });
+    const issuedItemId = 'ri_0123456789abcdef0123456789abcdef0123';
+    const result = await preparePdfFillSubmission({ issuedItemId, sourceBytes, template, values: { client_name: 'Avery Chen' } });
     expect(result.contentType).toBe('application/pdf');
     expect(result.fileName).not.toContain('client-information');
     expect(result.pdfBytes).toBeInstanceOf(Uint8Array);
     expect(result.pdfBytes).not.toEqual(sourceBytes);
     expect(result.receipt).toEqual(expect.objectContaining({
+      issuedItemId,
       templateId: template.templateId,
       sourceSha256: template.sourceSha256,
       completedSha256: await sha256Hex(result.pdfBytes),
@@ -479,7 +481,8 @@ describe('Wave 8 encrypted PDF-fill contract gate', () => {
     const server = installRelayServer();
     const { sourceBytes, template } = await realPdfTemplate();
     const issued = await issue(request([pdfItem(template)]));
-    const prepared = await preparePdfFillSubmission({ sourceBytes, template, values: { client_name: 'Avery Chen' } });
+    const item = requestItem(issued.record, 'pdf_fill');
+    const prepared = await preparePdfFillSubmission({ issuedItemId: item.item_id, sourceBytes, template, values: { client_name: 'Avery Chen' } });
     const capture = await submitPreparedPdf({ issued, prepared, submissionId: 'pdf-valid-submission' });
     server.ingest(capture);
     const workspace = recordingWorkspace();
@@ -497,11 +500,20 @@ describe('Wave 8 encrypted PDF-fill contract gate', () => {
     const server = installRelayServer();
     const { sourceBytes, template } = await realPdfTemplate();
     const alternateTemplate = { ...template, templateId: 'template_approved_05' };
-    const issued = await issue(request([pdfItem(template), pdfItem(alternateTemplate, 'alternate-logical-id')]));
-    const prepared = await preparePdfFillSubmission({ sourceBytes, template, values: { client_name: 'Avery Chen' } });
+    const issued = await issue(request([
+      pdfItem(template),
+      pdfItem(template, 'same-template-sibling-logical-id'),
+      pdfItem(alternateTemplate, 'alternate-logical-id'),
+    ]));
     const primaryItem = requestItem(issued.record, 'pdf_fill');
-    const alternateItem = issued.record.requestItems?.find((item) => item.t === 'pdf_fill' && item.item_id !== primaryItem.item_id);
-    if (!alternateItem) throw new Error('Expected the alternate opaque PDF-fill handle.');
+    const prepared = await preparePdfFillSubmission({ issuedItemId: primaryItem.item_id, sourceBytes, template, values: { client_name: 'Avery Chen' } });
+    const siblingItem = issued.record.requestItems?.find((item) =>
+      item.t === 'pdf_fill' && item.item_id !== primaryItem.item_id && item.template.templateId === template.templateId
+    );
+    const alternateItem = issued.record.requestItems?.find((item) =>
+      item.t === 'pdf_fill' && item.template.templateId === alternateTemplate.templateId
+    );
+    if (!siblingItem || !alternateItem) throw new Error('Expected distinct opaque PDF-fill handles.');
     const other = await issue({ ...request([pdfItem(template)]), request_id: 'pdf-other-request' });
     const otherItem = requestItem(other.record, 'pdf_fill');
     const unsafeInteractive = sourceBytes;
@@ -521,7 +533,8 @@ describe('Wave 8 encrypted PDF-fill contract gate', () => {
       expectedRecord: IntakeRecord;
     }> = [
       { name: 'changed-template-hash', itemId: primaryItem.item_id, intakeId: issued.record.intakeId, publicKeyRaw: issued.bundle.publicKeyRaw, contentType: 'application/pdf', fileNames: [prepared.fileName], bytes: prepared.pdfBytes, receipt: { ...prepared.receipt, sourceSha256: '0'.repeat(64) }, expectedRecord: issued.record },
-      { name: 'wrong-opaque-handle', itemId: alternateItem.item_id, intakeId: issued.record.intakeId, publicKeyRaw: issued.bundle.publicKeyRaw, contentType: 'application/pdf', fileNames: [prepared.fileName], bytes: prepared.pdfBytes, receipt: prepared.receipt, expectedRecord: issued.record },
+      { name: 'same-template-sibling-handle', itemId: siblingItem.item_id, intakeId: issued.record.intakeId, publicKeyRaw: issued.bundle.publicKeyRaw, contentType: 'application/pdf', fileNames: [prepared.fileName], bytes: prepared.pdfBytes, receipt: prepared.receipt, expectedRecord: issued.record },
+      { name: 'different-template-handle', itemId: alternateItem.item_id, intakeId: issued.record.intakeId, publicKeyRaw: issued.bundle.publicKeyRaw, contentType: 'application/pdf', fileNames: [prepared.fileName], bytes: prepared.pdfBytes, receipt: prepared.receipt, expectedRecord: issued.record },
       { name: 'json-payload', itemId: primaryItem.item_id, intakeId: issued.record.intakeId, publicKeyRaw: issued.bundle.publicKeyRaw, contentType: 'application/json', fileNames: [], bytes: encoder.encode(JSON.stringify({ value: 'not a form' })), receipt: prepared.receipt, expectedRecord: issued.record },
       { name: 'non-pdf-mime', itemId: primaryItem.item_id, intakeId: issued.record.intakeId, publicKeyRaw: issued.bundle.publicKeyRaw, contentType: 'image/png', fileNames: [prepared.fileName], bytes: prepared.pdfBytes, receipt: prepared.receipt, expectedRecord: issued.record },
       { name: 'multiple-files', itemId: primaryItem.item_id, intakeId: issued.record.intakeId, publicKeyRaw: issued.bundle.publicKeyRaw, contentType: 'application/pdf', fileNames: ['one.pdf', 'two.pdf'], bytes: prepared.pdfBytes, receipt: prepared.receipt, expectedRecord: issued.record },
@@ -566,7 +579,7 @@ describe('Wave 8 encrypted PDF-fill contract gate', () => {
       items: [{ t: 'doc_upload', item_id: 'onboarding-file', label: 'Onboarding file', help_text: '', required: true, subject: 'primary', accepted_mime_types: ['application/pdf'] }],
     });
     const standing = await issue({ ...request([pdfItem(template)]), request_id: 'standing-pdf-isolation', matter_id: matterId });
-    const prepared = await preparePdfFillSubmission({ sourceBytes, template, values: { client_name: 'Avery Chen' } });
+    const prepared = await preparePdfFillSubmission({ issuedItemId: requestItem(standing.record, 'pdf_fill').item_id, sourceBytes, template, values: { client_name: 'Avery Chen' } });
     const onboardingCapture = installClientRelay();
     const onboardingItem = requestItem(onboarding.record, 'doc_upload');
     await submitAnswer({
@@ -607,7 +620,7 @@ describe('Wave 8 encrypted PDF-fill contract gate', () => {
     const { sourceBytes, template } = await realPdfTemplate();
     const checklist = request([pdfItem(template)]);
     const issued = await issue(checklist);
-    const prepared = await preparePdfFillSubmission({ sourceBytes, template, values: { client_name: 'Avery Chen' } });
+    const prepared = await preparePdfFillSubmission({ issuedItemId: requestItem(issued.record, 'pdf_fill').item_id, sourceBytes, template, values: { client_name: 'Avery Chen' } });
     const capture = await submitPreparedPdf({ issued, prepared, submissionId: 'pdf-wire-inspection' });
     server.ingest(capture);
     const workspace = recordingWorkspace();
@@ -622,6 +635,7 @@ describe('Wave 8 encrypted PDF-fill contract gate', () => {
       'client_name', 'Avery Chen', template.sourceSha256, prepared.receipt.completedSha256,
       template.templateId, 'Client information form', template.outputFileStem,
       prepared.fileName, 'client-form-logical-id', checklist.matter_id,
+      'issuedItemId',
     ]) {
       expect(allWireBodies).not.toContain(forbidden);
     }
