@@ -97,10 +97,17 @@ describe('extractDocumentFacts', () => {
       providerId: 'test-provider',
     });
 
-    expect(auditEntries).toHaveLength(2);
+    // Fold note: routing through the real promptPreparation layer adds one
+    // more entry here - its own 'prompt_preparation' scrub receipt, logged
+    // before the model call - on top of the pre-fold 'egress' + 'model_call'
+    // pair. It carries only finding categories/counts and a decision enum,
+    // never prompt content, so the no-leak assertions below still apply to
+    // all three entries.
+    expect(auditEntries).toHaveLength(3);
     const auditJson = JSON.stringify(auditEntries);
     expect(auditJson).toContain('"action":"egress"');
     expect(auditJson).toContain('"action":"model_call"');
+    expect(auditJson).toContain('"action":"prompt_preparation"');
     expect(auditJson).toContain('"classifier":"document_extraction"');
     expect(auditJson).toContain('"matterId":"matter-code"');
     expect(auditJson).toContain('"requestId":"request-code"');

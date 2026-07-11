@@ -1580,6 +1580,16 @@ function AppShell() {
     },
     [addAuditEntry]
   );
+  // Intake's audit-emitter contracts predate addAuditEntry's async fold-in
+  // (it now resolves the created AuditEntry, for callers elsewhere that
+  // chain off it) and are typed Promise<void> - neither Intake emitter uses
+  // the resolved value, only the completion, so this adapter just discards it.
+  const awaitAuditEntry = useCallback(
+    async (entry: Omit<AuditEntry, 'id' | 'timestamp'>): Promise<void> => {
+      await addAuditEntry(entry);
+    },
+    [addAuditEntry]
+  );
 
   useEffect(() => {
     setMatterAuditEmitter(emitAuditEntry);
@@ -1610,18 +1620,18 @@ function AppShell() {
 
   useEffect(() => {
     // Email-reply filing waits for this promise before any file or fact write.
-    setIntakeEmailReplyAuditEmitter(addAuditEntry);
+    setIntakeEmailReplyAuditEmitter(awaitAuditEntry);
     return () => {
       setIntakeEmailReplyAuditEmitter(null);
     };
-  }, [addAuditEntry]);
+  }, [awaitAuditEntry]);
 
   useEffect(() => {
-    setIntakeDocumentExtractionAuditEmitter(addAuditEntry);
+    setIntakeDocumentExtractionAuditEmitter(awaitAuditEntry);
     return () => {
       setIntakeDocumentExtractionAuditEmitter(null);
     };
-  }, [addAuditEntry]);
+  }, [awaitAuditEntry]);
 
   // Handle save audio recording (extracted to useAudioRecording)
   const { handleSaveAudioRecording } = useAudioRecording({

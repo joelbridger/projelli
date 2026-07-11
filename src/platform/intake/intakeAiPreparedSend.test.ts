@@ -1,53 +1,22 @@
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-const { runWithEgressAudit } = vi.hoisted(() => ({
-  runWithEgressAudit: vi.fn(
-    async <T>({ operation }: { operation: () => Promise<T> }): Promise<T> =>
-      operation()
-  ),
-}));
-
-vi.mock('@/platform/privacy/sendWithEgressAudit', () => ({
-  runWithEgressAudit,
-}));
-
+import { sendPreparedStructuredWithEgressAudit as realSendPreparedStructuredWithEgressAudit } from '@/platform/privacy/promptPreparation';
 import { sendPreparedStructuredWithEgressAudit } from './intakeAiPreparedSend';
 
 const intakeDirectory = dirname(fileURLToPath(import.meta.url));
 
 describe('Intake prepared AI send seam', () => {
-  it('keeps the prepared structured-send contract while this branch passes through', async () => {
-    const structuredOutput = vi.fn().mockResolvedValue({ answer: 'safe' });
-    const provider = {
-      getMetadata: () => ({ model: 'test-model' }),
-      structuredOutput,
-    } as never;
-    const options = { schema: { type: 'object' as const, properties: {} } };
-
-    await expect(
-      sendPreparedStructuredWithEgressAudit({
-        provider,
-        providerId: 'test-provider',
-        surface: 'intake_test',
-        prompt: 'test prompt',
-        background: true,
-        options,
-      })
-    ).resolves.toEqual({ answer: 'safe' });
-
-    expect(structuredOutput).toHaveBeenCalledWith('test prompt', options);
-    expect(runWithEgressAudit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        provider,
-        providerId: 'test-provider',
-        surface: 'intake_test',
-        prompt: 'test prompt',
-        background: true,
-      })
-    );
+  it('forwards to the real prompt-preparation export, not a local reimplementation', () => {
+    // The seam's own pass-through was replaced at fold time (was previously
+    // covered by its own contract test here, mocking runWithEgressAudit
+    // directly - that behavior now lives in promptPreparation.ts and is
+    // covered by its own dedicated test suite, promptPreparation.test.ts).
+    // Reference equality is the strongest proof this file is a pure
+    // re-export and not a drifted copy.
+    expect(sendPreparedStructuredWithEgressAudit).toBe(realSendPreparedStructuredWithEgressAudit);
   });
 
   it.each([
