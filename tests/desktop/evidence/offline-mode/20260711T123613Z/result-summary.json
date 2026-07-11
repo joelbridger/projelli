@@ -1,0 +1,21 @@
+{
+  "result": "failed",
+  "runAt": "2026-07-11T12:26:35Z",
+  "bench": "Legion Windows dev-mode desktop build (not signed)",
+  "offlinePolicyValid": true,
+  "assertions": {
+    "zeroOffDeviceDns": "not-proven",
+    "zeroOffDeviceTcpUdp": "not-proven",
+    "zeroProxyRequestsAndWebSockets": "not-proven",
+    "loopbackLocalAiWorks": "not-run",
+    "blockedReceiptsAndClearMessage": "failed",
+    "noLateReconnect": "not-proven",
+    "localDataAndCachedEntitlement": "not-run"
+  },
+  "controlPass": "failed",
+  "findings": [
+    "Wealthbox hides the required Offline Mode message.",
+    "MCP returned the block message without a network-egress receipt in this path.",
+    "The recorder did not observe approved native traffic with Offline Mode off."
+  ]
+}

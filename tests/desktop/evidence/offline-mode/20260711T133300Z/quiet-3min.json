@@ -1,0 +1,14 @@
+{
+    "startedAt":  "2026-07-11T13:32:23.4958063Z",
+    "finishedAt":  "2026-07-11T13:35:23.5085147Z",
+    "proxyLines":  0,
+    "lanternConnections":  [
+                               {
+                                   "LocalAddress":  "127.0.0.1",
+                                   "LocalPort":  9250,
+                                   "RemoteAddress":  "0.0.0.0",
+                                   "RemotePort":  0,
+                                   "State":  2
+                               }
+                           ]
+}

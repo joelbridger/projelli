@@ -1,0 +1,1641 @@
+{
+  "generatedAt": "2026-07-11T13:23:58.622Z",
+  "source": {
+    "decodedEtl": "C:\\offline-mode-gate\\20260711T132100Z\\evidence\\gate-capture.txt",
+    "pcapng": "C:\\offline-mode-gate\\20260711T132100Z\\evidence\\gate-capture.pcapng"
+  },
+  "note": "PktMon is machine-wide. Firewall rules scope enforcement to Lantern and WebView2; this passive capture independently records traffic during the same window.",
+  "outboundDnsQueries": [
+    {
+      "group": "844424930132219",
+      "source": "100.127.67.22",
+      "sourcePort": 49667,
+      "destination": "100.100.100.100",
+      "destinationPort": 53,
+      "detail": "100.127.67.22.49667 > 100.100.100.100.53: 8431+ A? wpad.taila01fda.ts.net. (40)"
+    },
+    {
+      "group": "844424930132221",
+      "source": "100.127.67.22",
+      "sourcePort": 60454,
+      "destination": "100.100.100.100",
+      "destinationPort": 53,
+      "detail": "100.127.67.22.60454 > 100.100.100.100.53: 36031+ AAAA? wpad.taila01fda.ts.net. (40)"
+    },
+    {
+      "group": "1125899906844751",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 54650,
+      "destination": "2001:558:feed::1",
+      "destinationPort": 53,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.54650 > 2001:558:feed::1.53: 20954+ A? 193745-ipv4fdsmte.gr.global.aa-rt.sharepoint.com. (66)"
+    },
+    {
+      "group": "1125899906844761",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 51890,
+      "destination": "2001:558:feed::1",
+      "destinationPort": 53,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.51890 > 2001:558:feed::1.53: 36165+ AAAA? 193745-ipv4fdsmte.gr.global.aa-rt.sharepoint.com. (66)"
+    },
+    {
+      "group": "562949953423816",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 61521,
+      "destination": "2001:558:feed::1",
+      "destinationPort": 53,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.61521 > 2001:558:feed::1.53: 25213+ A? 194391-ipv4fdsmte.gr.global.aa-rt.sharepoint.com. (66)"
+    },
+    {
+      "group": "562949953423826",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 53140,
+      "destination": "2001:558:feed::1",
+      "destinationPort": 53,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.53140 > 2001:558:feed::1.53: 56396+ AAAA? 194391-ipv4fdsmte.gr.global.aa-rt.sharepoint.com. (66)"
+    },
+    {
+      "group": "562949953423836",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 53140,
+      "destination": "2001:558:feed::2",
+      "destinationPort": 53,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.53140 > 2001:558:feed::2.53: 56396+ AAAA? 194391-ipv4fdsmte.gr.global.aa-rt.sharepoint.com. (66)"
+    }
+  ],
+  "outboundTcpSyn": [
+    {
+      "group": "281474976710716",
+      "source": "10.0.0.39",
+      "sourcePort": 53688,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53688 > 23.211.246.228.443: Flags [S], seq 3966512435, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "281474976710726",
+      "source": "10.0.0.39",
+      "sourcePort": 53693,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53693 > 23.211.246.228.443: Flags [S], seq 3187551508, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "281474976710736",
+      "source": "10.0.0.39",
+      "sourcePort": 53698,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53698 > 23.211.246.228.443: Flags [S], seq 3722476050, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953421932",
+      "source": "10.0.0.39",
+      "sourcePort": 53707,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53707 > 23.211.246.228.443: Flags [S], seq 4206200060, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953421973",
+      "source": "10.0.0.39",
+      "sourcePort": 53709,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53709 > 23.211.246.228.443: Flags [S], seq 3079927201, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "156",
+      "source": "10.0.0.39",
+      "sourcePort": 53711,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53711 > 23.211.246.228.443: Flags [S], seq 2568259980, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "176",
+      "source": "10.0.0.39",
+      "sourcePort": 53712,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53712 > 23.211.246.228.443: Flags [S], seq 2074216784, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "281474976710846",
+      "source": "10.0.0.39",
+      "sourcePort": 53714,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53714 > 23.211.246.228.443: Flags [S], seq 4227793528, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953422138",
+      "source": "10.0.0.39",
+      "sourcePort": 53716,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53716 > 23.211.246.228.443: Flags [S], seq 3717371604, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953422204",
+      "source": "10.0.0.39",
+      "sourcePort": 53721,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53721 > 23.211.246.228.443: Flags [S], seq 3317985357, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "844424930132231",
+      "source": "10.0.0.39",
+      "sourcePort": 65461,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65461 > 23.211.246.228.443: Flags [S], seq 2555727762, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "844424930132251",
+      "source": "10.0.0.39",
+      "sourcePort": 65463,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65463 > 23.211.246.228.443: Flags [S], seq 3804730446, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "281474976710907",
+      "source": "10.0.0.39",
+      "sourcePort": 65464,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65464 > 23.211.246.228.443: Flags [S], seq 4008798658, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953422320",
+      "source": "10.0.0.39",
+      "sourcePort": 65468,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65468 > 23.211.246.228.443: Flags [S], seq 3728424771, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "281474976710937",
+      "source": "10.0.0.39",
+      "sourcePort": 65471,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65471 > 23.211.246.228.443: Flags [S], seq 222478240, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953422421",
+      "source": "10.0.0.39",
+      "sourcePort": 65474,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65474 > 23.211.246.228.443: Flags [S], seq 2384080592, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "443",
+      "source": "10.0.0.39",
+      "sourcePort": 65476,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65476 > 23.211.246.228.443: Flags [S], seq 1738286007, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "281474976710978",
+      "source": "10.0.0.39",
+      "sourcePort": 65479,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65479 > 23.211.246.228.443: Flags [S], seq 3015482353, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "477",
+      "source": "10.0.0.39",
+      "sourcePort": 65481,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65481 > 23.211.246.228.443: Flags [S], seq 1701656723, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953422493",
+      "source": "10.0.0.39",
+      "sourcePort": 65483,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65483 > 23.211.246.228.443: Flags [S], seq 99264345, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953422519",
+      "source": "10.0.0.39",
+      "sourcePort": 65484,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65484 > 23.211.246.228.443: Flags [S], seq 2912491269, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "537",
+      "source": "10.0.0.39",
+      "sourcePort": 65486,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65486 > 23.211.246.228.443: Flags [S], seq 76187084, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "844424930132421",
+      "source": "10.0.0.39",
+      "sourcePort": 65489,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65489 > 23.211.246.228.443: Flags [S], seq 2710710538, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "281474976711008",
+      "source": "10.0.0.39",
+      "sourcePort": 65491,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65491 > 23.211.246.228.443: Flags [S], seq 781456582, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "617",
+      "source": "10.0.0.39",
+      "sourcePort": 65494,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65494 > 23.211.246.228.443: Flags [S], seq 2081335020, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "844424930132451",
+      "source": "10.0.0.39",
+      "sourcePort": 65496,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65496 > 23.211.246.228.443: Flags [S], seq 2875431192, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1407374883553830",
+      "source": "10.0.0.39",
+      "sourcePort": 65498,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65498 > 23.211.246.228.443: Flags [S], seq 3692939135, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "281474976711072",
+      "source": "10.0.0.39",
+      "sourcePort": 65499,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65499 > 23.211.246.228.443: Flags [S], seq 13850229, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "677",
+      "source": "10.0.0.39",
+      "sourcePort": 65501,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65501 > 23.211.246.228.443: Flags [S], seq 497469190, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953422923",
+      "source": "10.0.0.39",
+      "sourcePort": 65503,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65503 > 23.211.246.228.443: Flags [S], seq 3635873686, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953422973",
+      "source": "10.0.0.39",
+      "sourcePort": 65511,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65511 > 23.211.246.228.443: Flags [S], seq 3472918302, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "763",
+      "source": "10.0.0.39",
+      "sourcePort": 65513,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65513 > 23.211.246.228.443: Flags [S], seq 768727021, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1407374883553891",
+      "source": "10.0.0.39",
+      "sourcePort": 65514,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65514 > 23.211.246.228.443: Flags [S], seq 3292002073, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "844424930132508",
+      "source": "10.0.0.39",
+      "sourcePort": 65516,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65516 > 23.211.246.228.443: Flags [S], seq 3327928006, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "803",
+      "source": "10.0.0.39",
+      "sourcePort": 65518,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65518 > 23.211.246.228.443: Flags [S], seq 3301051190, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "844424930132518",
+      "source": "10.0.0.39",
+      "sourcePort": 65519,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65519 > 23.211.246.228.443: Flags [S], seq 482988561, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "844424930132541",
+      "source": "10.0.0.39",
+      "sourcePort": 65521,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65521 > 23.211.246.228.443: Flags [S], seq 1654642270, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "833",
+      "source": "10.0.0.39",
+      "sourcePort": 65523,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65523 > 23.211.246.228.443: Flags [S], seq 2609649030, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953423146",
+      "source": "10.0.0.39",
+      "sourcePort": 65524,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65524 > 23.211.246.228.443: Flags [S], seq 2143236844, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "863",
+      "source": "10.0.0.39",
+      "sourcePort": 65528,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65528 > 23.211.246.228.443: Flags [S], seq 842267169, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "844424930132597",
+      "source": "10.0.0.39",
+      "sourcePort": 65529,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65529 > 23.211.246.228.443: Flags [S], seq 3533695084, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "281474976711238",
+      "source": "10.0.0.39",
+      "sourcePort": 65531,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65531 > 23.211.246.228.443: Flags [S], seq 212082255, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953423220",
+      "source": "10.0.0.39",
+      "sourcePort": 65533,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65533 > 23.211.246.228.443: Flags [S], seq 3607157840, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953423250",
+      "source": "10.0.0.39",
+      "sourcePort": 65534,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65534 > 23.211.246.228.443: Flags [S], seq 3958304189, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "844424930132617",
+      "source": "10.0.0.39",
+      "sourcePort": 49160,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.49160 > 23.211.246.228.443: Flags [S], seq 4168735425, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "959",
+      "source": "10.0.0.39",
+      "sourcePort": 49161,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.49161 > 23.211.246.228.443: Flags [S], seq 4157738464, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "844424930132637",
+      "source": "10.0.0.39",
+      "sourcePort": 49163,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.49163 > 23.211.246.228.443: Flags [S], seq 130190468, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953423456",
+      "source": "10.0.0.39",
+      "sourcePort": 49165,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.49165 > 23.211.246.228.443: Flags [S], seq 2995845107, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953423507",
+      "source": "10.0.0.39",
+      "sourcePort": 49166,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.49166 > 23.211.246.228.443: Flags [S], seq 3985967900, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953423529",
+      "source": "10.0.0.39",
+      "sourcePort": 49168,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.49168 > 23.211.246.228.443: Flags [S], seq 542976334, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1688849860265363",
+      "source": "10.0.0.39",
+      "sourcePort": 49170,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.49170 > 23.211.246.228.443: Flags [S], seq 2257716194, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "281474976711386",
+      "source": "10.0.0.39",
+      "sourcePort": 49171,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.49171 > 23.211.246.228.443: Flags [S], seq 1856054091, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "281474976711396",
+      "source": "10.0.0.39",
+      "sourcePort": 49173,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.49173 > 23.211.246.228.443: Flags [S], seq 2144086361, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "281474976711426",
+      "source": "10.0.0.39",
+      "sourcePort": 49175,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.49175 > 23.211.246.228.443: Flags [S], seq 3372959240, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "281474976711468",
+      "source": "10.0.0.39",
+      "sourcePort": 49176,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.49176 > 23.211.246.228.443: Flags [S], seq 4233189027, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "844424930132734",
+      "source": "10.0.0.39",
+      "sourcePort": 49178,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.49178 > 23.211.246.228.443: Flags [S], seq 3590957273, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "844424930132754",
+      "source": "10.0.0.39",
+      "sourcePort": 49185,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.49185 > 23.211.246.228.443: Flags [S], seq 593743708, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "844424930132764",
+      "source": "10.0.0.39",
+      "sourcePort": 49186,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.49186 > 23.211.246.228.443: Flags [S], seq 253455509, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953423765",
+      "source": "10.0.0.39",
+      "sourcePort": 49188,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.49188 > 23.211.246.228.443: Flags [S], seq 3472506341, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1125",
+      "source": "10.0.0.39",
+      "sourcePort": 49189,
+      "destination": "52.104.132.41",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.49189 > 52.104.132.41.443: Flags [S], seq 3886528192, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "281474976711576",
+      "source": "10.0.0.39",
+      "sourcePort": 49193,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.49193 > 23.211.246.228.443: Flags [S], seq 2832319005, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "844424930132824",
+      "source": "10.0.0.39",
+      "sourcePort": 49195,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.49195 > 23.211.246.228.443: Flags [S], seq 1764160621, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1145",
+      "source": "10.0.0.39",
+      "sourcePort": 49199,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.49199 > 23.211.246.228.443: Flags [S], seq 247011329, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    }
+  ],
+  "outboundUdpDatagrams": [
+    {
+      "group": "844424930132049",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "10.0.0.88",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 10.0.0.88.41641: UDP, length 432"
+    },
+    {
+      "group": "844424930132059",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "10.0.0.88",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 10.0.0.88.41641: UDP, length 160"
+    },
+    {
+      "group": "844424930132069",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "10.0.0.88",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 10.0.0.88.41641: UDP, length 192"
+    },
+    {
+      "group": "130",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "10.0.0.88",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 10.0.0.88.41641: UDP, length 110"
+    },
+    {
+      "group": "1688849860265424",
+      "source": "10.0.0.39",
+      "sourcePort": 61979,
+      "destination": "10.0.0.223",
+      "destinationPort": 44557,
+      "detail": "10.0.0.39.61979 > 10.0.0.223.44557: UDP, length 1468"
+    },
+    {
+      "group": "844424930132834",
+      "source": "10.0.0.39",
+      "sourcePort": 61979,
+      "destination": "10.0.0.223",
+      "destinationPort": 44557,
+      "detail": "10.0.0.39.61979 > 10.0.0.223.44557: UDP, length 38"
+    },
+    {
+      "group": "1125899906843886",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 41641,
+      "destination": "2607:f740:16::640",
+      "destinationPort": 3478,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.41641 > 2607:f740:16::640.3478: UDP, length 40"
+    },
+    {
+      "group": "1125899906844741",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 50749,
+      "destination": "2001:4860:4840:400::",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.50749 > 2001:4860:4840:400::.443: UDP, length 33"
+    },
+    {
+      "group": "403",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "10.0.0.88",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 10.0.0.88.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860264193",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "172.30.0.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 172.30.0.1.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860264213",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "172.19.0.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 172.19.0.1.41641: UDP, length 124"
+    },
+    {
+      "group": "562949953421874",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 41641,
+      "destination": "2601:681:d01:a7e0:365a:60ff:fe7c:ee82",
+      "destinationPort": 41641,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.41641 > 2601:681:d01:a7e0:365a:60ff:fe7c:ee82.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860264223",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "172.31.0.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 172.31.0.1.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860264233",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "172.23.0.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 172.23.0.1.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860264243",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "73.3.81.86",
+      "destinationPort": 11625,
+      "detail": "10.0.0.39.41641 > 73.3.81.86.11625: UDP, length 124"
+    },
+    {
+      "group": "1688849860264253",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "73.3.81.86",
+      "destinationPort": 2868,
+      "detail": "10.0.0.39.41641 > 73.3.81.86.2868: UDP, length 124"
+    },
+    {
+      "group": "1688849860264263",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "172.28.0.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 172.28.0.1.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860264273",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "172.17.0.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 172.17.0.1.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860264283",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "172.18.0.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 172.18.0.1.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860264293",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "172.21.0.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 172.21.0.1.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860264303",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "172.27.0.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 172.27.0.1.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860264313",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "172.22.0.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 172.22.0.1.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860264323",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "172.26.0.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 172.26.0.1.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860264333",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "192.168.122.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 192.168.122.1.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860264343",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "172.29.0.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 172.29.0.1.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860264353",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "172.20.0.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 172.20.0.1.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860264363",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "172.24.0.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 172.24.0.1.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860264373",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "172.25.0.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 172.25.0.1.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860264522",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 41641,
+      "destination": "2601:681:d01:a7e0::69f8",
+      "destinationPort": 41641,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.41641 > 2601:681:d01:a7e0::69f8.41641: UDP, length 110"
+    },
+    {
+      "group": "1125899906843876",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 41641,
+      "destination": "2607:f740:c::646",
+      "destinationPort": 3478,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.41641 > 2607:f740:c::646.3478: UDP, length 40"
+    },
+    {
+      "group": "1688849860264889",
+      "source": "10.0.0.39",
+      "sourcePort": 59887,
+      "destination": "10.0.0.1",
+      "destinationPort": 5351,
+      "detail": "10.0.0.39.59887 > 10.0.0.1.5351: UDP, length 2"
+    },
+    {
+      "group": "1688849860264899",
+      "source": "10.0.0.39",
+      "sourcePort": 59887,
+      "destination": "10.0.0.1",
+      "destinationPort": 5351,
+      "detail": "10.0.0.39.59887 > 10.0.0.1.5351: UDP, length 24"
+    },
+    {
+      "group": "1125899906844186",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "192.73.244.245",
+      "destinationPort": 3478,
+      "detail": "10.0.0.39.41641 > 192.73.244.245.3478: UDP, length 40"
+    }
+  ],
+  "tlsClientHelloRecordCount": 20,
+  "outboundNonLoopbackSample": [
+    {
+      "group": "844424930132049",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "10.0.0.88",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 10.0.0.88.41641: UDP, length 432"
+    },
+    {
+      "group": "844424930132059",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "10.0.0.88",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 10.0.0.88.41641: UDP, length 160"
+    },
+    {
+      "group": "844424930132069",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "10.0.0.88",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 10.0.0.88.41641: UDP, length 192"
+    },
+    {
+      "group": "130",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "10.0.0.88",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 10.0.0.88.41641: UDP, length 110"
+    },
+    {
+      "group": "1125899906842965",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 49408,
+      "destination": "2603:1030:a07:a::402",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.49408 > 2603:1030:a07:a::402.443: Flags [.], seq 1101991775:1101991776, ack 930114279, win 250, length 1"
+    },
+    {
+      "group": "1688849860265424",
+      "source": "10.0.0.39",
+      "sourcePort": 61979,
+      "destination": "10.0.0.223",
+      "destinationPort": 44557,
+      "detail": "10.0.0.39.61979 > 10.0.0.223.44557: UDP, length 1468"
+    },
+    {
+      "group": "1407374883553391",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 60889,
+      "destination": "2603:1030:807:3::1f",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.60889 > 2603:1030:807:3::1f.443: Flags [P.], seq 2069187472:2069187503, ack 482652154, win 2046, length 31"
+    },
+    {
+      "group": "844424930132834",
+      "source": "10.0.0.39",
+      "sourcePort": 61979,
+      "destination": "10.0.0.223",
+      "destinationPort": 44557,
+      "detail": "10.0.0.39.61979 > 10.0.0.223.44557: UDP, length 38"
+    },
+    {
+      "group": "1125899906843886",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 41641,
+      "destination": "2607:f740:16::640",
+      "destinationPort": 3478,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.41641 > 2607:f740:16::640.3478: UDP, length 40"
+    },
+    {
+      "group": "281474976710716",
+      "source": "10.0.0.39",
+      "sourcePort": 53688,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53688 > 23.211.246.228.443: Flags [S], seq 3966512435, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1407374883553401",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 60889,
+      "destination": "2603:1030:807:3::1f",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.60889 > 2603:1030:807:3::1f.443: Flags [.], ack 482652181, win 2046, length 0"
+    },
+    {
+      "group": "1125899906844741",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 50749,
+      "destination": "2001:4860:4840:400::",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.50749 > 2001:4860:4840:400::.443: UDP, length 33"
+    },
+    {
+      "group": "403",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "10.0.0.88",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 10.0.0.88.41641: UDP, length 124"
+    },
+    {
+      "group": "1407374883553435",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 52787,
+      "destination": "2606:b740:1:20::102",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.52787 > 2606:b740:1:20::102.443: Flags [P.], seq 4175647754:4175648273, ack 3751275806, win 254, length 519"
+    },
+    {
+      "group": "1688849860264149",
+      "source": "10.0.0.39",
+      "sourcePort": 53691,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53691 > 23.211.246.228.443: Flags [F.], seq 3738324553, ack 3165238721, win 1024, length 0"
+    },
+    {
+      "group": "562949953421750",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 52787,
+      "destination": "2606:b740:1:20::102",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.52787 > 2606:b740:1:20::102.443: Flags [P.], seq 4175648273:4175648596, ack 3751275903, win 253, length 323"
+    },
+    {
+      "group": "281474976710726",
+      "source": "10.0.0.39",
+      "sourcePort": 53693,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53693 > 23.211.246.228.443: Flags [S], seq 3187551508, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "844424930132125",
+      "source": "10.0.0.39",
+      "sourcePort": 53693,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53693 > 23.211.246.228.443: Flags [.], ack 4136051291, win 1024, length 0"
+    },
+    {
+      "group": "1407374883553449",
+      "source": "10.0.0.39",
+      "sourcePort": 53695,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53695 > 23.211.246.228.443: Flags [F.], seq 2033100269, ack 967174881, win 1024, length 0"
+    },
+    {
+      "group": "562949953421780",
+      "source": "10.0.0.39",
+      "sourcePort": 53695,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53695 > 23.211.246.228.443: Flags [.], ack 967174882, win 1024, length 0"
+    },
+    {
+      "group": "1407374883553471",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 52787,
+      "destination": "2606:b740:1:20::102",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.52787 > 2606:b740:1:20::102.443: Flags [P.], seq 4175649033:4175649468, ack 3751276097, win 252, length 435"
+    },
+    {
+      "group": "281474976710736",
+      "source": "10.0.0.39",
+      "sourcePort": 53698,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53698 > 23.211.246.228.443: Flags [S], seq 3722476050, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1407374883553481",
+      "source": "10.0.0.39",
+      "sourcePort": 53698,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53698 > 23.211.246.228.443: Flags [F.], seq 3722476051, ack 223050648, win 1024, length 0"
+    },
+    {
+      "group": "120",
+      "source": "10.0.0.39",
+      "sourcePort": 64706,
+      "destination": "34.40.0.146",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.64706 > 34.40.0.146.443: Flags [P.], seq 79310803:79310838, ack 571714414, win 254, length 35"
+    },
+    {
+      "group": "1407374883553491",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 60889,
+      "destination": "2603:1030:807:3::1f",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.60889 > 2603:1030:807:3::1f.443: Flags [P.], seq 2069187503:2069187534, ack 482652181, win 2046, length 31"
+    },
+    {
+      "group": "1407374883553512",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 60889,
+      "destination": "2603:1030:807:3::1f",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.60889 > 2603:1030:807:3::1f.443: Flags [.], ack 482652208, win 2046, length 0"
+    },
+    {
+      "group": "281474976710756",
+      "source": "10.0.0.39",
+      "sourcePort": 53705,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53705 > 23.211.246.228.443: Flags [F.], seq 2588747162, ack 372539241, win 1024, length 0"
+    },
+    {
+      "group": "1688849860264193",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "172.30.0.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 172.30.0.1.41641: UDP, length 124"
+    },
+    {
+      "group": "562949953421864",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 51717,
+      "destination": "2607:f740:16::640",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.51717 > 2607:f740:16::640.443: Flags [P.], seq 3357142124:3357142389, ack 4035690026, win 253, length 265"
+    },
+    {
+      "group": "1688849860264213",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "172.19.0.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 172.19.0.1.41641: UDP, length 124"
+    },
+    {
+      "group": "562949953421874",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 41641,
+      "destination": "2601:681:d01:a7e0:365a:60ff:fe7c:ee82",
+      "destinationPort": 41641,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.41641 > 2601:681:d01:a7e0:365a:60ff:fe7c:ee82.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860264223",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "172.31.0.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 172.31.0.1.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860264233",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "172.23.0.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 172.23.0.1.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860264243",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "73.3.81.86",
+      "destinationPort": 11625,
+      "detail": "10.0.0.39.41641 > 73.3.81.86.11625: UDP, length 124"
+    },
+    {
+      "group": "1688849860264253",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "73.3.81.86",
+      "destinationPort": 2868,
+      "detail": "10.0.0.39.41641 > 73.3.81.86.2868: UDP, length 124"
+    },
+    {
+      "group": "1688849860264263",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "172.28.0.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 172.28.0.1.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860264273",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "172.17.0.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 172.17.0.1.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860264283",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "172.18.0.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 172.18.0.1.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860264293",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "172.21.0.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 172.21.0.1.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860264303",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "172.27.0.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 172.27.0.1.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860264313",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "172.22.0.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 172.22.0.1.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860264323",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "172.26.0.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 172.26.0.1.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860264333",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "192.168.122.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 192.168.122.1.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860264343",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "172.29.0.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 172.29.0.1.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860264353",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "172.20.0.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 172.20.0.1.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860264363",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "172.24.0.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 172.24.0.1.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860264373",
+      "source": "10.0.0.39",
+      "sourcePort": 41641,
+      "destination": "172.25.0.1",
+      "destinationPort": 41641,
+      "detail": "10.0.0.39.41641 > 172.25.0.1.41641: UDP, length 124"
+    },
+    {
+      "group": "1688849860264522",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 41641,
+      "destination": "2601:681:d01:a7e0::69f8",
+      "destinationPort": 41641,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.41641 > 2601:681:d01:a7e0::69f8.41641: UDP, length 110"
+    },
+    {
+      "group": "281474976710786",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 52787,
+      "destination": "2606:b740:1:20::102",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.52787 > 2606:b740:1:20::102.443: Flags [P.], seq 4175649791:4175650114, ack 3751276291, win 252, length 323"
+    },
+    {
+      "group": "562949953421932",
+      "source": "10.0.0.39",
+      "sourcePort": 53707,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53707 > 23.211.246.228.443: Flags [S], seq 4206200060, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1125899906843223",
+      "source": "10.0.0.39",
+      "sourcePort": 53707,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53707 > 23.211.246.228.443: Flags [.], ack 519468127, win 1024, options [nop,nop,sack 1 {519468126:519468127}], length 0"
+    },
+    {
+      "group": "1125899906843244",
+      "source": "10.0.0.39",
+      "sourcePort": 53707,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53707 > 23.211.246.228.443: Flags [.], ack 519468128, win 1024, length 0"
+    },
+    {
+      "group": "1407374883553522",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 60889,
+      "destination": "2603:1030:807:3::1f",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.60889 > 2603:1030:807:3::1f.443: Flags [P.], seq 2069187534:2069187562, ack 482652208, win 2046, length 28"
+    },
+    {
+      "group": "562949953421973",
+      "source": "10.0.0.39",
+      "sourcePort": 53709,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53709 > 23.211.246.228.443: Flags [S], seq 3079927201, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1125899906843279",
+      "source": "10.0.0.39",
+      "sourcePort": 53709,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53709 > 23.211.246.228.443: Flags [.], ack 1545813607, win 1024, length 0"
+    },
+    {
+      "group": "1688849860264401",
+      "source": "10.0.0.39",
+      "sourcePort": 53709,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53709 > 23.211.246.228.443: Flags [F.], seq 3079927202, ack 1545813607, win 1024, length 0"
+    },
+    {
+      "group": "156",
+      "source": "10.0.0.39",
+      "sourcePort": 53711,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53711 > 23.211.246.228.443: Flags [S], seq 2568259980, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953422013",
+      "source": "10.0.0.39",
+      "sourcePort": 53711,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53711 > 23.211.246.228.443: Flags [.], ack 3849540859, win 1024, options [nop,nop,sack 1 {3849540858:3849540859}], length 0"
+    },
+    {
+      "group": "562949953422024",
+      "source": "10.0.0.39",
+      "sourcePort": 53711,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53711 > 23.211.246.228.443: Flags [.], ack 3849540860, win 1024, length 0"
+    },
+    {
+      "group": "176",
+      "source": "10.0.0.39",
+      "sourcePort": 53712,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53712 > 23.211.246.228.443: Flags [S], seq 2074216784, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "186",
+      "source": "10.0.0.39",
+      "sourcePort": 53712,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53712 > 23.211.246.228.443: Flags [F.], seq 2074216785, ack 3443030220, win 1024, length 0"
+    },
+    {
+      "group": "1125899906843876",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 41641,
+      "destination": "2607:f740:c::646",
+      "destinationPort": 3478,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.41641 > 2607:f740:c::646.3478: UDP, length 40"
+    },
+    {
+      "group": "1407374883553542",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 62062,
+      "destination": "2a04:4e42:50::347",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.62062 > 2a04:4e42:50::347.443: Flags [P.], seq 1242340188:1242340220, ack 2483054782, win 251, length 32"
+    },
+    {
+      "group": "281474976711478",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 59206,
+      "destination": "2607:f8b0:4023:c0d::bc",
+      "destinationPort": 5228,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.59206 > 2607:f8b0:4023:c0d::bc.5228: Flags [.], seq 249840786:249840787, ack 2498042975, win 255, length 1"
+    },
+    {
+      "group": "281474976710846",
+      "source": "10.0.0.39",
+      "sourcePort": 53714,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53714 > 23.211.246.228.443: Flags [S], seq 4227793528, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "196",
+      "source": "10.0.0.39",
+      "sourcePort": 53714,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53714 > 23.211.246.228.443: Flags [F.], seq 4227793529, ack 1461921579, win 1024, length 0"
+    },
+    {
+      "group": "562949953422108",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 52787,
+      "destination": "2606:b740:1:20::102",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.52787 > 2606:b740:1:20::102.443: Flags [P.], seq 4175650778:4175651298, ack 3751276582, win 251, length 520"
+    },
+    {
+      "group": "562949953422138",
+      "source": "10.0.0.39",
+      "sourcePort": 53716,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53716 > 23.211.246.228.443: Flags [S], seq 3717371604, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1125899906843380",
+      "source": "10.0.0.39",
+      "sourcePort": 53716,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53716 > 23.211.246.228.443: Flags [.], ack 1215899282, win 1024, length 0"
+    },
+    {
+      "group": "206",
+      "source": "10.0.0.39",
+      "sourcePort": 53716,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53716 > 23.211.246.228.443: Flags [F.], seq 3717371605, ack 1215899282, win 1024, length 0"
+    },
+    {
+      "group": "562949953422171",
+      "source": "10.0.0.39",
+      "sourcePort": 53716,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53716 > 23.211.246.228.443: Flags [.], ack 1215899283, win 1024, length 0"
+    },
+    {
+      "group": "1407374883553562",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 52787,
+      "destination": "2606:b740:1:20::102",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.52787 > 2606:b740:1:20::102.443: Flags [P.], seq 4175651298:4175651621, ack 3751276679, win 250, length 323"
+    },
+    {
+      "group": "1125899906843410",
+      "source": "10.0.0.39",
+      "sourcePort": 53717,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53717 > 23.211.246.228.443: Flags [.], ack 1814230457, win 1024, length 0"
+    },
+    {
+      "group": "281474976710866",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 60889,
+      "destination": "2603:1030:807:3::1f",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.60889 > 2603:1030:807:3::1f.443: Flags [P.], seq 2069187562:2069187593, ack 482652208, win 2046, length 31"
+    },
+    {
+      "group": "1407374883553582",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 60889,
+      "destination": "2603:1030:807:3::1f",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.60889 > 2603:1030:807:3::1f.443: Flags [.], ack 482652235, win 2046, length 0"
+    },
+    {
+      "group": "216",
+      "source": "10.0.0.39",
+      "sourcePort": 64706,
+      "destination": "34.40.0.146",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.64706 > 34.40.0.146.443: Flags [P.], seq 79310873:79310908, ack 571714476, win 254, length 35"
+    },
+    {
+      "group": "1688849860264542",
+      "source": "10.0.0.39",
+      "sourcePort": 53719,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53719 > 23.211.246.228.443: Flags [.], ack 4262313252, win 1024, length 0"
+    },
+    {
+      "group": "281474976710886",
+      "source": "10.0.0.39",
+      "sourcePort": 53719,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53719 > 23.211.246.228.443: Flags [.], ack 4262313252, win 1024, options [nop,nop,sack 1 {4262313251:4262313252}], length 0"
+    },
+    {
+      "group": "562949953422204",
+      "source": "10.0.0.39",
+      "sourcePort": 53721,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53721 > 23.211.246.228.443: Flags [S], seq 3317985357, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "337",
+      "source": "10.0.0.39",
+      "sourcePort": 53721,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.53721 > 23.211.246.228.443: Flags [F.], seq 3317985358, ack 144879030, win 1024, length 0"
+    },
+    {
+      "group": "844424930132219",
+      "source": "100.127.67.22",
+      "sourcePort": 49667,
+      "destination": "100.100.100.100",
+      "destinationPort": 53,
+      "detail": "100.127.67.22.49667 > 100.100.100.100.53: 8431+ A? wpad.taila01fda.ts.net. (40)"
+    },
+    {
+      "group": "844424930132221",
+      "source": "100.127.67.22",
+      "sourcePort": 60454,
+      "destination": "100.100.100.100",
+      "destinationPort": 53,
+      "detail": "100.127.67.22.60454 > 100.100.100.100.53: 36031+ AAAA? wpad.taila01fda.ts.net. (40)"
+    },
+    {
+      "group": "347",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 52787,
+      "destination": "2606:b740:1:20::102",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.52787 > 2606:b740:1:20::102.443: Flags [P.], seq 4175651944:4175652267, ack 3751276873, win 255, length 323"
+    },
+    {
+      "group": "1688849860264562",
+      "source": "10.0.0.39",
+      "sourcePort": 65458,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65458 > 23.211.246.228.443: Flags [F.], seq 1734641265, ack 1332106514, win 1024, length 0"
+    },
+    {
+      "group": "844424930132231",
+      "source": "10.0.0.39",
+      "sourcePort": 65461,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65461 > 23.211.246.228.443: Flags [S], seq 2555727762, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "844424930132241",
+      "source": "10.0.0.39",
+      "sourcePort": 65461,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65461 > 23.211.246.228.443: Flags [F.], seq 2555727763, ack 3147067828, win 1024, length 0"
+    },
+    {
+      "group": "844424930132251",
+      "source": "10.0.0.39",
+      "sourcePort": 65463,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65463 > 23.211.246.228.443: Flags [S], seq 3804730446, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "367",
+      "source": "10.0.0.39",
+      "sourcePort": 65463,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65463 > 23.211.246.228.443: Flags [F.], seq 3804730447, ack 3098665360, win 1024, length 0"
+    },
+    {
+      "group": "1407374883553641",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 52787,
+      "destination": "2606:b740:1:20::102",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.52787 > 2606:b740:1:20::102.443: Flags [P.], seq 4175652608:4175652931, ack 3751277067, win 254, length 323"
+    },
+    {
+      "group": "281474976710907",
+      "source": "10.0.0.39",
+      "sourcePort": 65464,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65464 > 23.211.246.228.443: Flags [S], seq 4008798658, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "562949953422297",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 52787,
+      "destination": "2606:b740:1:20::102",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.52787 > 2606:b740:1:20::102.443: Flags [P.], seq 4175652931:4175653254, ack 3751277164, win 254, length 323"
+    },
+    {
+      "group": "562949953422320",
+      "source": "10.0.0.39",
+      "sourcePort": 65468,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65468 > 23.211.246.228.443: Flags [S], seq 3728424771, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "1125899906843686",
+      "source": "10.0.0.39",
+      "sourcePort": 65468,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65468 > 23.211.246.228.443: Flags [F.], seq 3728424772, ack 1027246571, win 1024, length 0"
+    },
+    {
+      "group": "1407374883553671",
+      "source": "10.0.0.39",
+      "sourcePort": 65468,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65468 > 23.211.246.228.443: Flags [.], ack 1027246572, win 1024, length 0"
+    },
+    {
+      "group": "562949953422330",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 52787,
+      "destination": "2606:b740:1:20::102",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.52787 > 2606:b740:1:20::102.443: Flags [P.], seq 4175653254:4175653577, ack 3751277261, win 254, length 323"
+    },
+    {
+      "group": "1407374883553681",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 60889,
+      "destination": "2603:1030:807:3::1f",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.60889 > 2603:1030:807:3::1f.443: Flags [.], ack 482652262, win 2046, length 0"
+    },
+    {
+      "group": "393",
+      "source": "10.0.0.39",
+      "sourcePort": 65469,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65469 > 23.211.246.228.443: Flags [F.], seq 639620454, ack 565940178, win 1024, length 0"
+    },
+    {
+      "group": "1688849860264628",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 58997,
+      "destination": "2603:1030:807:3::4",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.58997 > 2603:1030:807:3::4.443: Flags [P.], seq 4095098409:4095098440, ack 1791307815, win 2043, length 31"
+    },
+    {
+      "group": "562949953422360",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 52787,
+      "destination": "2606:b740:1:20::102",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.52787 > 2606:b740:1:20::102.443: Flags [P.], seq 4175653577:4175654096, ack 3751277358, win 253, length 519"
+    },
+    {
+      "group": "281474976710937",
+      "source": "10.0.0.39",
+      "sourcePort": 65471,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.65471 > 23.211.246.228.443: Flags [S], seq 222478240, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    }
+  ]
+}

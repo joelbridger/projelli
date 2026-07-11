@@ -18,6 +18,7 @@ const devHttps =
   process.env['LANTERN_DEV_HTTPS'] === '1' && existsSync(devCertPath) && existsSync(devKeyPath)
     ? { cert: readFileSync(devCertPath), key: readFileSync(devKeyPath) }
     : undefined;
+const devPort = Number(process.env['LANTERN_DEV_PORT'] ?? '5173');
 
 // Read package.json once at config-load time so the in-app About panel
 // can show the same version the bundle was built with.
@@ -55,7 +56,7 @@ export default defineConfig({
   },
   // Vite dev server configuration
   server: {
-    port: 5173,
+    port: devPort,
     strictPort: true,
     ...(devHttps ? { https: devHttps } : {}),
     // For Tauri development

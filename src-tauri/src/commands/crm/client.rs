@@ -91,7 +91,7 @@ impl WealthboxClient {
 
     /// Construct a client with a custom base URL — intended for tests.
     pub fn new_with_base(token: String, base: String) -> Self {
-        let http = reqwest::Client::builder()
+        let http = crate::egress_http::native_http_client_builder()
             .timeout(Duration::from_secs(60))
             .connect_timeout(Duration::from_secs(15))
             .build()

@@ -1,3 +1,5 @@
 # Evidence (screenshots + logs) is regenerated per run; do not commit.
 *
 !.gitignore
+!offline-mode/
+!offline-mode/**

@@ -53,24 +53,39 @@ const MCP_OFFLINE_MESSAGE: &str =
 /// This binary is separate from the desktop process. Reloading the same
 /// native policy record before every request makes a live external-client
 /// session lose export capability on its next request after a policy flip.
-fn require_mcp_access(policy: &lantern_lib::network_policy::NetworkPolicy) -> Result<(), String> {
+fn require_mcp_access(
+    policy: &lantern_lib::network_policy::NetworkPolicy,
+    workspace: Option<&Path>,
+) -> Result<(), String> {
+    if let Some(workspace) = workspace {
+        policy.set_audit_workspace(workspace.to_path_buf());
+    }
+    // The sidecar preflight does not itself open a remote connection. Its
+    // offline branch still goes through authorization so the rejected
+    // desktop/external-client handoff has a durable receipt.
     if policy.status().offline_mode || !policy.status().hydrated {
-        return Err(MCP_OFFLINE_MESSAGE.to_string());
+        return policy
+            .authorize_mcp_external_client_access()
+            .map(|_| ())
+            .map_err(|_| MCP_OFFLINE_MESSAGE.to_string());
     }
     Ok(())
 }
 
-fn load_current_mcp_policy() -> Result<lantern_lib::network_policy::NetworkPolicy, String> {
+fn load_current_mcp_policy(
+    workspace: Option<&Path>,
+) -> Result<lantern_lib::network_policy::NetworkPolicy, String> {
     let app_data = lantern_lib::app_data::resolve_lantern_app_data_dir()
         .ok_or_else(|| MCP_OFFLINE_MESSAGE.to_string())?;
-    load_mcp_policy_from_app_data_dir(&app_data)
+    load_mcp_policy_from_app_data_dir(&app_data, workspace)
 }
 
 fn load_mcp_policy_from_app_data_dir(
     app_data: &Path,
+    workspace: Option<&Path>,
 ) -> Result<lantern_lib::network_policy::NetworkPolicy, String> {
     let policy = lantern_lib::network_policy::NetworkPolicy::load_from_app_data_dir(&app_data);
-    require_mcp_access(&policy)?;
+    require_mcp_access(&policy, workspace)?;
     Ok(policy)
 }
 
@@ -220,7 +235,9 @@ fn write_response(out: &mut impl Write, resp: &JsonRpcResponse) {
 async fn dispatch(req: &JsonRpcRequest, ctx: Option<&ServerCtx>) -> Option<JsonRpcResponse> {
     let id = req.id.clone().unwrap_or(Value::Null);
     if !req.method.starts_with("notifications/") && req.method != "initialized" {
-        if let Err(message) = load_current_mcp_policy() {
+        if let Err(message) =
+            load_current_mcp_policy(ctx.map(|context| context.workspace_root.as_path()))
+        {
             return Some(JsonRpcResponse::error(id, ERROR_INTERNAL, message));
         }
     }
@@ -281,7 +298,7 @@ mod offline_mode_tests {
         );
         policy.set_offline_mode(true).unwrap();
         assert_eq!(
-            require_mcp_access(&policy).unwrap_err(),
+            require_mcp_access(&policy, None).unwrap_err(),
             MCP_OFFLINE_MESSAGE
         );
     }
@@ -297,7 +314,7 @@ mod offline_mode_tests {
             lantern_lib::network_policy::NetworkPolicy::load_from_app_data_dir(&desktop_app_data);
         desktop_policy.set_offline_mode(true).unwrap();
 
-        let mcp_policy = match load_mcp_policy_from_app_data_dir(&desktop_app_data) {
+        let mcp_policy = match load_mcp_policy_from_app_data_dir(&desktop_app_data, None) {
             Ok(_) => panic!("MCP must see the desktop policy's Offline Mode state"),
             Err(error) => error,
         };

@@ -1,0 +1,17 @@
+{
+  "generatedAt": "2026-07-11T13:29:40.708Z",
+  "source": {
+    "decodedEtl": "C:\\offline-mode-gate\\20260711T132700Z\\evidence\\gate-capture.txt",
+    "pcapng": "C:\\offline-mode-gate\\20260711T132700Z\\evidence\\gate-capture.pcapng"
+  },
+  "window": {
+    "from": "2026-07-11T13:26:36.612Z",
+    "to": "2026-07-11T13:29:36.625Z"
+  },
+  "note": "PktMon is machine-wide. Firewall rules scope enforcement to Lantern and WebView2; this passive capture independently records traffic during the same window.",
+  "outboundDnsQueries": [],
+  "outboundTcpSyn": [],
+  "outboundUdpDatagrams": [],
+  "tlsClientHelloRecordCount": null,
+  "outboundNonLoopbackSample": []
+}

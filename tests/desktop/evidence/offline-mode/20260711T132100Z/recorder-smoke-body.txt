@@ -1,0 +1,16 @@
+fl=143f60
+h=www.cloudflare.com
+ip=2601:681:d01:a7e0:e915:9d5f:806e:247d
+ts=1783776019.000
+visit_scheme=https
+uag=curl/8.20.0
+colo=SLC
+sliver=none
+http=http/1.1
+loc=US
+tls=TLSv1.3
+sni=plaintext
+warp=off
+gateway=off
+rbi=off
+kex=X25519

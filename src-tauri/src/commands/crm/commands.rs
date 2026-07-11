@@ -1578,12 +1578,7 @@ pub async fn crm_connect(
     // surfaced (it may contain advisor/firm PII).
     let info = validate_token(provider, token, policy.inner().clone())
         .await
-        .map_err(|_| {
-            format!(
-                "Could not connect to {}: invalid token or network error",
-                provider.display_name()
-            )
-        })?;
+        .map_err(|error| crm_connect_error(provider, &error))?;
 
     // Block NEW writes for the whole token-swap + downgrade transition (not
     // just the drain wait) — see ConnectInProgressGuard's doc comment. Also
@@ -1631,6 +1626,20 @@ pub async fn crm_connect(
         plan: info.plan,
         email: info.email,
     })
+}
+
+/// Turn a CRM token-validation failure into renderer-safe copy without hiding
+/// the one error that tells the person what to do next.  The transport clients
+/// deliberately return `anyhow::Error` so they can preserve their detailed
+/// internal cause; this IPC edge is where that cause must become safe UI text.
+fn crm_connect_error(provider: CrmProvider, error: &anyhow::Error) -> String {
+    if let Some(policy_error) = error.downcast_ref::<crate::network_policy::NetworkPolicyError>() {
+        return policy_error.to_string();
+    }
+    format!(
+        "Could not connect to {}: invalid token or network error",
+        provider.display_name()
+    )
 }
 
 /// Run the provider's browser-based OAuth flow and store its refresh token in
@@ -2479,6 +2488,23 @@ pub async fn crm_list_households(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn wealthbox_offline_connect_keeps_the_standard_offline_message() {
+        let policy = crate::network_policy::NetworkPolicy::load_from_directory(
+            &tempfile::tempdir().unwrap().keep(),
+        );
+        policy.set_offline_mode(true).unwrap();
+
+        let error = validate_token(CrmProvider::Wealthbox, "disposable", policy)
+            .await
+            .expect_err("Offline Mode must stop Wealthbox before any request");
+
+        assert_eq!(
+            crm_connect_error(CrmProvider::Wealthbox, &error),
+            "Offline Mode is on. Lantern cannot connect to the internet. Turn it off to use Wealthbox sync."
+        );
+    }
 
     #[tokio::test]
     async fn oauth_connect_identity_check_attaches_network_policy() {

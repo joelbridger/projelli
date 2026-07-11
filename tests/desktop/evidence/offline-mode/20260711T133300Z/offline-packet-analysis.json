@@ -1,0 +1,28 @@
+{
+  "generatedAt": "2026-07-11T13:41:48.885Z",
+  "source": {
+    "decodedEtl": "tests/desktop/evidence/offline-mode/20260711T133300Z/gate-capture.txt",
+    "pcapng": "tests/desktop/evidence/offline-mode/20260711T133300Z/gate-capture.pcapng"
+  },
+  "window": {
+    "from": "2026-07-11T13:32:22.976Z",
+    "to": "2026-07-11T13:32:23.475Z",
+    "pktmonUtcOffsetHours": -6
+  },
+  "note": "PktMon is machine-wide. Firewall rules scope enforcement to Lantern and WebView2; this passive capture independently records traffic during the same window.",
+  "outboundDnsQueries": [],
+  "outboundTcpSyn": [],
+  "outboundUdpDatagrams": [],
+  "tlsClientHelloRecordCount": null,
+  "outboundNonLoopbackSample": [
+    {
+      "group": "1688849860266976",
+      "observedAt": "2026-07-11T13:32:23.465Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 52787,
+      "destination": "2606:b740:1:20::102",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.52787 > 2606:b740:1:20::102.443: Flags [P.], seq 4175739391:4175739826, ack 3751298698, win 255, length 435"
+    }
+  ]
+}

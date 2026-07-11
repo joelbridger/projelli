@@ -1,0 +1,182 @@
+{
+  "startedAt": "2026-07-11T12:35:18.313Z",
+  "finishedAt": "2026-07-11T12:35:23.153Z",
+  "mode": "control-proxy",
+  "workspace": "C:\\offline-mode-gate\\workspace",
+  "auditSetup": {
+    "ok": true,
+    "value": null
+  },
+  "status": {
+    "ok": true,
+    "value": {
+      "offlineMode": false,
+      "generation": 0,
+      "hydrated": true,
+      "loadError": null
+    }
+  },
+  "actions": {
+    "mailLogin": {
+      "ok": false,
+      "error": "error sending request for url (https://login.microsoftonline.com/common/oauth2/v2.0/devicecode)"
+    },
+    "crm": {
+      "ok": false,
+      "error": "Could not connect to Wealthbox: invalid token or network error"
+    },
+    "ragDownload": {
+      "ok": true,
+      "value": "ready"
+    },
+    "mcpAccess": {
+      "ok": true,
+      "value": null
+    }
+  },
+  "receipts": {
+    "ok": true,
+    "value": [
+      {
+        "id": "audit_native_network_egress_1783772795519867600_0",
+        "timestamp": "2026-07-11T12:26:35.519854600+00:00",
+        "action": "network_egress",
+        "description": "Network action blocked before connection: Outlook mail sign-in",
+        "payloadJson": "{\"action\":\"network_egress\",\"description\":\"Network action blocked before connection: Outlook mail sign-in\",\"id\":\"audit_native_network_egress_1783772795519867600_0\",\"inputs\":{},\"metadata\":{\"aiMode\":\"not-applicable\",\"dataClasses\":{\"binaryDownload\":false,\"content\":false,\"credential\":true,\"metadata\":true},\"destination\":\"login.microsoftonline.com\",\"destinationClass\":\"exact-host\",\"direction\":\"sync\",\"failureCode\":\"POLICY_CHANGED_OR_UNAVAILABLE\",\"offlineMode\":true,\"operationId\":\"outlook-mail-oauth\",\"operationLabel\":\"Outlook mail sign-in\",\"policyGeneration\":0,\"result\":\"blocked-before-network\",\"scope\":{\"kind\":\"allMatters\"},\"source\":\"native-network-policy\",\"version\":1},\"model\":null,\"outputs\":{},\"timestamp\":\"2026-07-11T12:26:35.519854600+00:00\",\"userDecision\":\"auto\"}"
+      },
+      {
+        "id": "audit_native_network_egress_1783772795596690000_1",
+        "timestamp": "2026-07-11T12:26:35.596680700+00:00",
+        "action": "network_egress",
+        "description": "Network action blocked before connection: Outlook Calendar sign-in",
+        "payloadJson": "{\"action\":\"network_egress\",\"description\":\"Network action blocked before connection: Outlook Calendar sign-in\",\"id\":\"audit_native_network_egress_1783772795596690000_1\",\"inputs\":{},\"metadata\":{\"aiMode\":\"not-applicable\",\"dataClasses\":{\"binaryDownload\":false,\"content\":false,\"credential\":true,\"metadata\":true},\"destination\":\"login.microsoftonline.com\",\"destinationClass\":\"exact-host\",\"direction\":\"sync\",\"failureCode\":\"POLICY_CHANGED_OR_UNAVAILABLE\",\"offlineMode\":true,\"operationId\":\"outlook-calendar-oauth\",\"operationLabel\":\"Outlook Calendar sign-in\",\"policyGeneration\":0,\"result\":\"blocked-before-network\",\"scope\":{\"kind\":\"allMatters\"},\"source\":\"native-network-policy\",\"version\":1},\"model\":null,\"outputs\":{},\"timestamp\":\"2026-07-11T12:26:35.596680700+00:00\",\"userDecision\":\"auto\"}"
+      },
+      {
+        "id": "audit_native_network_egress_1783772795620341400_2",
+        "timestamp": "2026-07-11T12:26:35.620332200+00:00",
+        "action": "network_egress",
+        "description": "Network action blocked before connection: Wealthbox sync",
+        "payloadJson": "{\"action\":\"network_egress\",\"description\":\"Network action blocked before connection: Wealthbox sync\",\"id\":\"audit_native_network_egress_1783772795620341400_2\",\"inputs\":{},\"metadata\":{\"aiMode\":\"not-applicable\",\"dataClasses\":{\"binaryDownload\":false,\"content\":true,\"credential\":true,\"metadata\":true},\"destination\":\"api.crmworkspace.com\",\"destinationClass\":\"exact-host\",\"direction\":\"sync\",\"failureCode\":\"POLICY_CHANGED_OR_UNAVAILABLE\",\"offlineMode\":true,\"operationId\":\"wealthbox-sync\",\"operationLabel\":\"Wealthbox sync\",\"policyGeneration\":0,\"result\":\"blocked-before-network\",\"scope\":{\"kind\":\"allMatters\"},\"source\":\"native-network-policy\",\"version\":1},\"model\":null,\"outputs\":{},\"timestamp\":\"2026-07-11T12:26:35.620332200+00:00\",\"userDecision\":\"auto\"}"
+      },
+      {
+        "id": "audit_native_network_egress_1783772795663059100_3",
+        "timestamp": "2026-07-11T12:26:35.663050700+00:00",
+        "action": "network_egress",
+        "description": "Network action blocked before connection: local LLM model download",
+        "payloadJson": "{\"action\":\"network_egress\",\"description\":\"Network action blocked before connection: local LLM model download\",\"id\":\"audit_native_network_egress_1783772795663059100_3\",\"inputs\":{},\"metadata\":{\"aiMode\":\"not-applicable\",\"dataClasses\":{\"binaryDownload\":true,\"content\":false,\"credential\":false,\"metadata\":true},\"destination\":\"huggingface.co\",\"destinationClass\":\"exact-host\",\"direction\":\"download\",\"failureCode\":\"POLICY_CHANGED_OR_UNAVAILABLE\",\"offlineMode\":true,\"operationId\":\"local-llm-model-download\",\"operationLabel\":\"local LLM model download\",\"policyGeneration\":0,\"result\":\"blocked-before-network\",\"scope\":{\"kind\":\"allMatters\"},\"source\":\"native-network-policy\",\"version\":1},\"model\":null,\"outputs\":{},\"timestamp\":\"2026-07-11T12:26:35.663050700+00:00\",\"userDecision\":\"auto\"}"
+      },
+      {
+        "id": "audit_native_network_egress_1783772795695931600_4",
+        "timestamp": "2026-07-11T12:26:35.695920400+00:00",
+        "action": "network_egress",
+        "description": "Network action blocked before connection: meeting auto-join",
+        "payloadJson": "{\"action\":\"network_egress\",\"description\":\"Network action blocked before connection: meeting auto-join\",\"id\":\"audit_native_network_egress_1783772795695931600_4\",\"inputs\":{},\"metadata\":{\"aiMode\":\"not-applicable\",\"dataClasses\":{\"binaryDownload\":false,\"content\":false,\"credential\":false,\"metadata\":true},\"destination\":\"teams.microsoft.com\",\"destinationClass\":\"user-configured-host\",\"direction\":\"navigation\",\"failureCode\":\"POLICY_CHANGED_OR_UNAVAILABLE\",\"offlineMode\":true,\"operationId\":\"meeting-auto-join\",\"operationLabel\":\"meeting auto-join\",\"policyGeneration\":0,\"result\":\"blocked-before-network\",\"scope\":{\"kind\":\"allMatters\"},\"source\":\"native-network-policy\",\"version\":1},\"model\":null,\"outputs\":{},\"timestamp\":\"2026-07-11T12:26:35.695920400+00:00\",\"userDecision\":\"auto\"}"
+      },
+      {
+        "id": "audit_native_network_egress_1783772886793447200_0",
+        "timestamp": "2026-07-11T12:28:06.793434700+00:00",
+        "action": "network_egress",
+        "description": "Network action blocked before connection: Outlook mail sign-in",
+        "payloadJson": "{\"action\":\"network_egress\",\"description\":\"Network action blocked before connection: Outlook mail sign-in\",\"id\":\"audit_native_network_egress_1783772886793447200_0\",\"inputs\":{},\"metadata\":{\"aiMode\":\"not-applicable\",\"dataClasses\":{\"binaryDownload\":false,\"content\":false,\"credential\":true,\"metadata\":true},\"destination\":\"login.microsoftonline.com\",\"destinationClass\":\"exact-host\",\"direction\":\"sync\",\"failureCode\":\"OFFLINE_MODE_BLOCKED\",\"offlineMode\":true,\"operationId\":\"outlook-mail-oauth\",\"operationLabel\":\"Outlook mail sign-in\",\"policyGeneration\":0,\"result\":\"blocked-before-network\",\"scope\":{\"kind\":\"allMatters\"},\"source\":\"native-network-policy\",\"version\":1},\"model\":null,\"outputs\":{},\"timestamp\":\"2026-07-11T12:28:06.793434700+00:00\",\"userDecision\":\"auto\"}"
+      },
+      {
+        "id": "audit_native_network_egress_1783772886832154600_1",
+        "timestamp": "2026-07-11T12:28:06.832144300+00:00",
+        "action": "network_egress",
+        "description": "Network action blocked before connection: Outlook Calendar sign-in",
+        "payloadJson": "{\"action\":\"network_egress\",\"description\":\"Network action blocked before connection: Outlook Calendar sign-in\",\"id\":\"audit_native_network_egress_1783772886832154600_1\",\"inputs\":{},\"metadata\":{\"aiMode\":\"not-applicable\",\"dataClasses\":{\"binaryDownload\":false,\"content\":false,\"credential\":true,\"metadata\":true},\"destination\":\"login.microsoftonline.com\",\"destinationClass\":\"exact-host\",\"direction\":\"sync\",\"failureCode\":\"OFFLINE_MODE_BLOCKED\",\"offlineMode\":true,\"operationId\":\"outlook-calendar-oauth\",\"operationLabel\":\"Outlook Calendar sign-in\",\"policyGeneration\":0,\"result\":\"blocked-before-network\",\"scope\":{\"kind\":\"allMatters\"},\"source\":\"native-network-policy\",\"version\":1},\"model\":null,\"outputs\":{},\"timestamp\":\"2026-07-11T12:28:06.832144300+00:00\",\"userDecision\":\"auto\"}"
+      },
+      {
+        "id": "audit_native_network_egress_1783772886854309000_2",
+        "timestamp": "2026-07-11T12:28:06.854299200+00:00",
+        "action": "network_egress",
+        "description": "Network action blocked before connection: Wealthbox sync",
+        "payloadJson": "{\"action\":\"network_egress\",\"description\":\"Network action blocked before connection: Wealthbox sync\",\"id\":\"audit_native_network_egress_1783772886854309000_2\",\"inputs\":{},\"metadata\":{\"aiMode\":\"not-applicable\",\"dataClasses\":{\"binaryDownload\":false,\"content\":true,\"credential\":true,\"metadata\":true},\"destination\":\"api.crmworkspace.com\",\"destinationClass\":\"exact-host\",\"direction\":\"sync\",\"failureCode\":\"OFFLINE_MODE_BLOCKED\",\"offlineMode\":true,\"operationId\":\"wealthbox-sync\",\"operationLabel\":\"Wealthbox sync\",\"policyGeneration\":0,\"result\":\"blocked-before-network\",\"scope\":{\"kind\":\"allMatters\"},\"source\":\"native-network-policy\",\"version\":1},\"model\":null,\"outputs\":{},\"timestamp\":\"2026-07-11T12:28:06.854299200+00:00\",\"userDecision\":\"auto\"}"
+      },
+      {
+        "id": "audit_native_network_egress_1783772886891278800_3",
+        "timestamp": "2026-07-11T12:28:06.891267100+00:00",
+        "action": "network_egress",
+        "description": "Network action blocked before connection: local LLM model download",
+        "payloadJson": "{\"action\":\"network_egress\",\"description\":\"Network action blocked before connection: local LLM model download\",\"id\":\"audit_native_network_egress_1783772886891278800_3\",\"inputs\":{},\"metadata\":{\"aiMode\":\"not-applicable\",\"dataClasses\":{\"binaryDownload\":true,\"content\":false,\"credential\":false,\"metadata\":true},\"destination\":\"huggingface.co\",\"destinationClass\":\"exact-host\",\"direction\":\"download\",\"failureCode\":\"OFFLINE_MODE_BLOCKED\",\"offlineMode\":true,\"operationId\":\"local-llm-model-download\",\"operationLabel\":\"local LLM model download\",\"policyGeneration\":0,\"result\":\"blocked-before-network\",\"scope\":{\"kind\":\"allMatters\"},\"source\":\"native-network-policy\",\"version\":1},\"model\":null,\"outputs\":{},\"timestamp\":\"2026-07-11T12:28:06.891267100+00:00\",\"userDecision\":\"auto\"}"
+      },
+      {
+        "id": "audit_native_network_egress_1783772886922936200_4",
+        "timestamp": "2026-07-11T12:28:06.922927+00:00",
+        "action": "network_egress",
+        "description": "Network action blocked before connection: meeting auto-join",
+        "payloadJson": "{\"action\":\"network_egress\",\"description\":\"Network action blocked before connection: meeting auto-join\",\"id\":\"audit_native_network_egress_1783772886922936200_4\",\"inputs\":{},\"metadata\":{\"aiMode\":\"not-applicable\",\"dataClasses\":{\"binaryDownload\":false,\"content\":false,\"credential\":false,\"metadata\":true},\"destination\":\"teams.microsoft.com\",\"destinationClass\":\"user-configured-host\",\"direction\":\"navigation\",\"failureCode\":\"OFFLINE_MODE_BLOCKED\",\"offlineMode\":true,\"operationId\":\"meeting-auto-join\",\"operationLabel\":\"meeting auto-join\",\"policyGeneration\":0,\"result\":\"blocked-before-network\",\"scope\":{\"kind\":\"allMatters\"},\"source\":\"native-network-policy\",\"version\":1},\"model\":null,\"outputs\":{},\"timestamp\":\"2026-07-11T12:28:06.922927+00:00\",\"userDecision\":\"auto\"}"
+      },
+      {
+        "id": "audit_native_network_egress_1783773237233842400_0",
+        "timestamp": "2026-07-11T12:33:57.233830900+00:00",
+        "action": "network_egress",
+        "description": "Network action allowed: Outlook mail sign-in contacted login.microsoftonline.com",
+        "payloadJson": "{\"action\":\"network_egress\",\"description\":\"Network action allowed: Outlook mail sign-in contacted login.microsoftonline.com\",\"id\":\"audit_native_network_egress_1783773237233842400_0\",\"inputs\":{},\"metadata\":{\"aiMode\":\"not-applicable\",\"dataClasses\":{\"binaryDownload\":false,\"content\":false,\"credential\":true,\"metadata\":true},\"destination\":\"login.microsoftonline.com\",\"destinationClass\":\"exact-host\",\"direction\":\"sync\",\"failureCode\":null,\"offlineMode\":false,\"operationId\":\"outlook-mail-oauth\",\"operationLabel\":\"Outlook mail sign-in\",\"policyGeneration\":0,\"result\":\"allowed\",\"scope\":{\"kind\":\"allMatters\"},\"source\":\"native-network-policy\",\"version\":1},\"model\":null,\"outputs\":{},\"timestamp\":\"2026-07-11T12:33:57.233830900+00:00\",\"userDecision\":\"auto\"}"
+      },
+      {
+        "id": "audit_native_network_egress_1783773239286787000_1",
+        "timestamp": "2026-07-11T12:33:59.286774100+00:00",
+        "action": "network_egress",
+        "description": "Network action failed: Outlook mail sign-in contacted login.microsoftonline.com",
+        "payloadJson": "{\"action\":\"network_egress\",\"description\":\"Network action failed: Outlook mail sign-in contacted login.microsoftonline.com\",\"id\":\"audit_native_network_egress_1783773239286787000_1\",\"inputs\":{},\"metadata\":{\"aiMode\":\"not-applicable\",\"dataClasses\":{\"binaryDownload\":false,\"content\":false,\"credential\":true,\"metadata\":true},\"destination\":\"login.microsoftonline.com\",\"destinationClass\":\"exact-host\",\"direction\":\"sync\",\"failureCode\":\"NETWORK_REQUEST_FAILED\",\"offlineMode\":false,\"operationId\":\"outlook-mail-oauth\",\"operationLabel\":\"Outlook mail sign-in\",\"policyGeneration\":0,\"result\":\"failed\",\"scope\":{\"kind\":\"allMatters\"},\"source\":\"native-network-policy\",\"version\":1},\"model\":null,\"outputs\":{},\"timestamp\":\"2026-07-11T12:33:59.286774100+00:00\",\"userDecision\":\"auto\"}"
+      },
+      {
+        "id": "audit_native_network_egress_1783773239310005400_2",
+        "timestamp": "2026-07-11T12:33:59.309991+00:00",
+        "action": "network_egress",
+        "description": "Network action allowed: Wealthbox sync contacted api.crmworkspace.com",
+        "payloadJson": "{\"action\":\"network_egress\",\"description\":\"Network action allowed: Wealthbox sync contacted api.crmworkspace.com\",\"id\":\"audit_native_network_egress_1783773239310005400_2\",\"inputs\":{},\"metadata\":{\"aiMode\":\"not-applicable\",\"dataClasses\":{\"binaryDownload\":false,\"content\":true,\"credential\":true,\"metadata\":true},\"destination\":\"api.crmworkspace.com\",\"destinationClass\":\"exact-host\",\"direction\":\"sync\",\"failureCode\":null,\"offlineMode\":false,\"operationId\":\"wealthbox-sync\",\"operationLabel\":\"Wealthbox sync\",\"policyGeneration\":0,\"result\":\"allowed\",\"scope\":{\"kind\":\"allMatters\"},\"source\":\"native-network-policy\",\"version\":1},\"model\":null,\"outputs\":{},\"timestamp\":\"2026-07-11T12:33:59.309991+00:00\",\"userDecision\":\"auto\"}"
+      },
+      {
+        "id": "audit_native_network_egress_1783773241371295000_3",
+        "timestamp": "2026-07-11T12:34:01.371283500+00:00",
+        "action": "network_egress",
+        "description": "Network action failed: Wealthbox sync contacted api.crmworkspace.com",
+        "payloadJson": "{\"action\":\"network_egress\",\"description\":\"Network action failed: Wealthbox sync contacted api.crmworkspace.com\",\"id\":\"audit_native_network_egress_1783773241371295000_3\",\"inputs\":{},\"metadata\":{\"aiMode\":\"not-applicable\",\"dataClasses\":{\"binaryDownload\":false,\"content\":true,\"credential\":true,\"metadata\":true},\"destination\":\"api.crmworkspace.com\",\"destinationClass\":\"exact-host\",\"direction\":\"sync\",\"failureCode\":\"NETWORK_REQUEST_FAILED\",\"offlineMode\":false,\"operationId\":\"wealthbox-sync\",\"operationLabel\":\"Wealthbox sync\",\"policyGeneration\":0,\"result\":\"failed\",\"scope\":{\"kind\":\"allMatters\"},\"source\":\"native-network-policy\",\"version\":1},\"model\":null,\"outputs\":{},\"timestamp\":\"2026-07-11T12:34:01.371283500+00:00\",\"userDecision\":\"auto\"}"
+      },
+      {
+        "id": "audit_native_network_egress_1783773318566163700_0",
+        "timestamp": "2026-07-11T12:35:18.566151600+00:00",
+        "action": "network_egress",
+        "description": "Network action allowed: Outlook mail sign-in contacted login.microsoftonline.com",
+        "payloadJson": "{\"action\":\"network_egress\",\"description\":\"Network action allowed: Outlook mail sign-in contacted login.microsoftonline.com\",\"id\":\"audit_native_network_egress_1783773318566163700_0\",\"inputs\":{},\"metadata\":{\"aiMode\":\"not-applicable\",\"dataClasses\":{\"binaryDownload\":false,\"content\":false,\"credential\":true,\"metadata\":true},\"destination\":\"login.microsoftonline.com\",\"destinationClass\":\"exact-host\",\"direction\":\"sync\",\"failureCode\":null,\"offlineMode\":false,\"operationId\":\"outlook-mail-oauth\",\"operationLabel\":\"Outlook mail sign-in\",\"policyGeneration\":0,\"result\":\"allowed\",\"scope\":{\"kind\":\"allMatters\"},\"source\":\"native-network-policy\",\"version\":1},\"model\":null,\"outputs\":{},\"timestamp\":\"2026-07-11T12:35:18.566151600+00:00\",\"userDecision\":\"auto\"}"
+      },
+      {
+        "id": "audit_1783773319817_j4ai37s",
+        "timestamp": "2026-07-11T12:35:19.817Z",
+        "action": "network_egress",
+        "description": "Network action failed: the marketplace catalog contacted raw.githubusercontent.com",
+        "payloadJson": "{\"id\":\"audit_1783773319817_j4ai37s\",\"timestamp\":\"2026-07-11T12:35:19.817Z\",\"action\":\"network_egress\",\"description\":\"Network action failed: the marketplace catalog contacted raw.githubusercontent.com\",\"inputs\":{},\"outputs\":{},\"userDecision\":\"auto\",\"metadata\":{\"version\":1,\"policyGeneration\":0,\"operationId\":\"marketplace-manifest\",\"operationLabel\":\"the marketplace catalog\",\"destinationClass\":\"service\",\"destination\":\"raw.githubusercontent.com\",\"direction\":\"download\",\"dataClasses\":{\"content\":false,\"metadata\":true,\"credential\":false,\"binaryDownload\":true},\"aiMode\":\"direct\",\"offlineMode\":false,\"result\":\"failed\",\"failureCode\":\"NETWORK_REQUEST_FAILED\",\"auditPersistenceStatus\":\"saved\"}}"
+      },
+      {
+        "id": "audit_native_network_egress_1783773320609356000_1",
+        "timestamp": "2026-07-11T12:35:20.609345600+00:00",
+        "action": "network_egress",
+        "description": "Network action failed: Outlook mail sign-in contacted login.microsoftonline.com",
+        "payloadJson": "{\"action\":\"network_egress\",\"description\":\"Network action failed: Outlook mail sign-in contacted login.microsoftonline.com\",\"id\":\"audit_native_network_egress_1783773320609356000_1\",\"inputs\":{},\"metadata\":{\"aiMode\":\"not-applicable\",\"dataClasses\":{\"binaryDownload\":false,\"content\":false,\"credential\":true,\"metadata\":true},\"destination\":\"login.microsoftonline.com\",\"destinationClass\":\"exact-host\",\"direction\":\"sync\",\"failureCode\":\"NETWORK_REQUEST_FAILED\",\"offlineMode\":false,\"operationId\":\"outlook-mail-oauth\",\"operationLabel\":\"Outlook mail sign-in\",\"policyGeneration\":0,\"result\":\"failed\",\"scope\":{\"kind\":\"allMatters\"},\"source\":\"native-network-policy\",\"version\":1},\"model\":null,\"outputs\":{},\"timestamp\":\"2026-07-11T12:35:20.609345600+00:00\",\"userDecision\":\"auto\"}"
+      },
+      {
+        "id": "audit_native_network_egress_1783773320673731600_2",
+        "timestamp": "2026-07-11T12:35:20.673722300+00:00",
+        "action": "network_egress",
+        "description": "Network action allowed: Wealthbox sync contacted api.crmworkspace.com",
+        "payloadJson": "{\"action\":\"network_egress\",\"description\":\"Network action allowed: Wealthbox sync contacted api.crmworkspace.com\",\"id\":\"audit_native_network_egress_1783773320673731600_2\",\"inputs\":{},\"metadata\":{\"aiMode\":\"not-applicable\",\"dataClasses\":{\"binaryDownload\":false,\"content\":true,\"credential\":true,\"metadata\":true},\"destination\":\"api.crmworkspace.com\",\"destinationClass\":\"exact-host\",\"direction\":\"sync\",\"failureCode\":null,\"offlineMode\":false,\"operationId\":\"wealthbox-sync\",\"operationLabel\":\"Wealthbox sync\",\"policyGeneration\":0,\"result\":\"allowed\",\"scope\":{\"kind\":\"allMatters\"},\"source\":\"native-network-policy\",\"version\":1},\"model\":null,\"outputs\":{},\"timestamp\":\"2026-07-11T12:35:20.673722300+00:00\",\"userDecision\":\"auto\"}"
+      },
+      {
+        "id": "audit_native_network_egress_1783773322709536800_3",
+        "timestamp": "2026-07-11T12:35:22.709520600+00:00",
+        "action": "network_egress",
+        "description": "Network action failed: Wealthbox sync contacted api.crmworkspace.com",
+        "payloadJson": "{\"action\":\"network_egress\",\"description\":\"Network action failed: Wealthbox sync contacted api.crmworkspace.com\",\"id\":\"audit_native_network_egress_1783773322709536800_3\",\"inputs\":{},\"metadata\":{\"aiMode\":\"not-applicable\",\"dataClasses\":{\"binaryDownload\":false,\"content\":true,\"credential\":true,\"metadata\":true},\"destination\":\"api.crmworkspace.com\",\"destinationClass\":\"exact-host\",\"direction\":\"sync\",\"failureCode\":\"NETWORK_REQUEST_FAILED\",\"offlineMode\":false,\"operationId\":\"wealthbox-sync\",\"operationLabel\":\"Wealthbox sync\",\"policyGeneration\":0,\"result\":\"failed\",\"scope\":{\"kind\":\"allMatters\"},\"source\":\"native-network-policy\",\"version\":1},\"model\":null,\"outputs\":{},\"timestamp\":\"2026-07-11T12:35:22.709520600+00:00\",\"userDecision\":\"auto\"}"
+      }
+    ]
+  },
+  "integrity": {
+    "ok": true,
+    "value": {
+      "status": "verified",
+      "checked": 19
+    }
+  }
+}

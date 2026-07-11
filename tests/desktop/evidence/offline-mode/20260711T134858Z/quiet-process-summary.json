@@ -1,0 +1,11 @@
+{
+    "startedAt":  "2026-07-11T13:52:54.7193535Z",
+    "finishedAt":  "2026-07-11T13:55:56.4193895Z",
+    "durationSeconds":  180,
+    "intervalSeconds":  5,
+    "pktmonProcessScopedCapture":  false,
+    "sampleCount":  29,
+    "externalTcpConnectionCount":  0,
+    "passed":  true,
+    "precision":  "Process-tree TCP connection-table polling. Covers Lantern.exe and descendants, including its WebView2 children when parented by Lantern. It proves no owned non-loopback TCP connection was present at a poll, but cannot attribute UDP packets."
+}

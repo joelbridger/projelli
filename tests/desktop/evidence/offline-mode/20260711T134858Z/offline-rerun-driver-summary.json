@@ -1,0 +1,35 @@
+{
+  "startedAt": "2026-07-11T13:51:06.690Z",
+  "finishedAt": "2026-07-11T13:51:16.992Z",
+  "mode": "offline",
+  "offlineMode": true,
+  "blockedActions": {
+    "mailLogin": "Outlook mail sign-in",
+    "calendarLogin": "Outlook Calendar sign-in",
+    "crm": "Wealthbox sync",
+    "localModelDownload": "local LLM model download",
+    "meetingJoin": "meeting auto-join",
+    "mcpAccess": "MCP access"
+  },
+  "localModelStatus": "error",
+  "localData": {
+    "listed": true,
+    "readable": true,
+    "content": "Lantern Offline Mode gate: this local file must remain readable.\n"
+  },
+  "cachedEntitlementUi": {
+    "activated": true,
+    "tier": "Professional",
+    "offlineStatus": "Offline Mode is using your last confirmed license status.",
+    "degradedNoticeVisible": false
+  },
+  "auditIntegrity": {
+    "status": "verified",
+    "checked": 773
+  },
+  "receiptsDuringRun": [
+    "Network action blocked before connection: meeting auto-join",
+    "Network action blocked before connection: MCP access",
+    "Network action blocked before connection: the marketplace catalog"
+  ]
+}
