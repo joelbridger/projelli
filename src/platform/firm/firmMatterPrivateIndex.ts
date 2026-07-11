@@ -10,6 +10,13 @@ import { parseStreamHandle } from './contract';
 import type { FirmApiClient } from './FirmApiClient';
 
 export const FIRM_PRIVATE_INDEX_MAP = 'firm-private-index';
+/**
+ * The version-two stream directory is a named Yjs root map, rather than a map
+ * value stored under `firm-private-index`. Named root types are obtained by
+ * name on every client, so two legacy clients can never race by assigning two
+ * different Y.Map values to the same parent key.
+ */
+export const FIRM_PRIVATE_INDEX_STREAMS_V2_MAP = 'firm-private-index-streams-v2';
 const INDEX_VERSION = 1;
 
 export interface FirmMatterPrivateIndex {
@@ -24,6 +31,7 @@ export interface RootIndexSync {
 }
 
 type PrivateStreamEntry = FirmMatterPrivateIndex['streams'][string];
+type PrivateStreamValue = PrivateStreamEntry | { tombstone: true };
 
 function stringField(value: unknown, name: string): string {
   if (typeof value !== 'string') throw new Error(`Malformed private index: ${name}.`);
@@ -49,30 +57,39 @@ function readPlainStreams(rawStreams: unknown): FirmMatterPrivateIndex['streams'
   return streams;
 }
 
-function readNestedStreams(streamsMap: Y.Map<unknown>): FirmMatterPrivateIndex['streams'] {
-  const streams: FirmMatterPrivateIndex['streams'] = {};
-  for (const [localId, entry] of streamsMap.entries()) {
-    streams[localId] = readStreamEntry(entry);
-  }
-  return streams;
+function readLegacyStreams(rawStreams: unknown): FirmMatterPrivateIndex['streams'] {
+  if (rawStreams === undefined) return {};
+  // Briefly released clients wrote a Y.Map under `streams`; retain it as a
+  // legacy source too. It must never again be replaced as part of a write.
+  return rawStreams instanceof Y.Map ? readPlainStreams(Object.fromEntries(rawStreams.entries())) : readPlainStreams(rawStreams);
 }
 
 /**
- * Earlier unreleased builds stored a whole object at `streams`. Move those
- * entries into a nested Y.Map on first use so independent document writes use
- * distinct Yjs keys and converge instead of replacing the whole directory.
+ * Get the single versioned stream map in a transaction. Unlike a parent
+ * `map.set('streams', new Y.Map())`, this never performs a whole-map
+ * assignment: each client opens the same named root map and writes only an
+ * individual local-document key.
  */
-function ensureNestedStreamsMap(doc: Y.Doc, map: Y.Map<unknown>): Y.Map<unknown> {
-  const rawStreams = map.get('streams');
-  if (rawStreams instanceof Y.Map) return rawStreams;
-
-  const legacyStreams = rawStreams === undefined ? {} : readPlainStreams(rawStreams);
-  const streamsMap = new Y.Map<unknown>();
+function getStreamsV2Map(doc: Y.Doc): Y.Map<unknown> {
+  let streamsMap: Y.Map<unknown> | undefined;
   doc.transact(() => {
-    map.set('streams', streamsMap);
-    for (const [localId, entry] of Object.entries(legacyStreams)) streamsMap.set(localId, entry);
+    streamsMap = doc.getMap<unknown>(FIRM_PRIVATE_INDEX_STREAMS_V2_MAP);
   });
-  return streamsMap;
+  return streamsMap as Y.Map<unknown>;
+}
+
+/** Read old and new directories together; a v2 entry (including a tombstone) wins. */
+function readStreams(doc: Y.Doc, indexMap: Y.Map<unknown>): FirmMatterPrivateIndex['streams'] {
+  const streams = readLegacyStreams(indexMap.get('streams'));
+  for (const [localId, entry] of getStreamsV2Map(doc).entries()) {
+    const value = entry as PrivateStreamValue;
+    if (typeof entry === 'object' && entry !== null && !Array.isArray(entry) && (entry as { tombstone?: unknown }).tombstone === true) {
+      Reflect.deleteProperty(streams, localId);
+    } else {
+      streams[localId] = readStreamEntry(value);
+    }
+  }
+  return streams;
 }
 
 /** Read and validate the dedicated map. Corrupt state never becomes routing data. */
@@ -84,7 +101,7 @@ export function readFirmMatterPrivateIndex(doc: Y.Doc): FirmMatterPrivateIndex |
     version: 1,
     clientName: stringField(map.get('clientName'), 'clientName'),
     displayName: stringField(map.get('displayName'), 'displayName'),
-    streams: readNestedStreams(ensureNestedStreamsMap(doc, map)),
+    streams: readStreams(doc, map),
   };
 }
 
@@ -95,12 +112,19 @@ export function writeFirmMatterPrivateIndex(doc: Y.Doc, index: FirmMatterPrivate
   for (const entry of Object.values(checked.streams)) parseStreamHandle(entry.streamHandle);
   doc.transact(() => {
     const map = doc.getMap<unknown>(FIRM_PRIVATE_INDEX_MAP);
-    const streamsMap = ensureNestedStreamsMap(doc, map);
+    const legacyStreams = readLegacyStreams(map.get('streams'));
+    const streamsMap = getStreamsV2Map(doc);
     map.set('version', INDEX_VERSION);
     map.set('clientName', checked.clientName);
     map.set('displayName', checked.displayName);
     for (const localId of streamsMap.keys()) {
-      if (!Object.prototype.hasOwnProperty.call(checked.streams, localId)) streamsMap.delete(localId);
+      if (!Object.prototype.hasOwnProperty.call(checked.streams, localId)) {
+        // A legacy entry must stay hidden after a normal local deletion, but
+        // the legacy object itself is retained until an explicit migration
+        // barrier can retire it safely.
+        if (Object.prototype.hasOwnProperty.call(legacyStreams, localId)) streamsMap.set(localId, { tombstone: true });
+        else streamsMap.delete(localId);
+      }
     }
     for (const [localId, entry] of Object.entries(checked.streams)) streamsMap.set(localId, entry);
   });
@@ -120,9 +144,8 @@ export async function addDocumentStreamToPrivateIndex(
   if (!current) throw new Error('Cannot add a document stream before the private index exists.');
   const existing = current.streams[localDocumentId];
   if (existing?.streamHandle === streamHandle) return;
-  writeFirmMatterPrivateIndex(doc, {
-    ...current,
-    streams: { ...current.streams, [localDocumentId]: { streamHandle, kind: 'document' } },
+  doc.transact(() => {
+    getStreamsV2Map(doc).set(localDocumentId, { streamHandle, kind: 'document' });
   });
   await rootSync.flush();
 }
@@ -153,9 +176,12 @@ export async function tombstoneDocumentStreamFromPrivateIndex(
 ): Promise<void> {
   const current = readFirmMatterPrivateIndex(doc);
   if (!current || !current.streams[localDocumentId]) return;
-  const streams = { ...current.streams };
-  Reflect.deleteProperty(streams, localDocumentId);
-  writeFirmMatterPrivateIndex(doc, { ...current, streams });
+  doc.transact(() => {
+    const legacyStreams = readLegacyStreams(doc.getMap<unknown>(FIRM_PRIVATE_INDEX_MAP).get('streams'));
+    const streamsMap = getStreamsV2Map(doc);
+    if (Object.prototype.hasOwnProperty.call(legacyStreams, localDocumentId)) streamsMap.set(localDocumentId, { tombstone: true });
+    else streamsMap.delete(localDocumentId);
+  });
   await rootSync.flush();
 }
 

@@ -137,6 +137,104 @@ describe("firm relay privacy proof", () => {
     }
   });
 
+  test("every non-pull v2 route rejects query strings before they can reach a handler", async () => {
+    const { store, admin, adminToken, adminSeatToken } = fixture();
+    const server = Bun.serve<SyncSocketData>(buildServeOptions(store, new FanoutHub()));
+    const base = `http://${server.hostname}:${server.port}`;
+    const auth = { authorization: `Bearer ${adminToken}`, "x-seat-token": adminSeatToken };
+    const sentinelQuery = `client_name=${encodeURIComponent(clientSecret)}`;
+    const request = async (path: string, body: unknown = {}) => {
+      const response = await fetch(`${base}${path}?${sentinelQuery}`, {
+        method: "POST",
+        headers: { "content-type": "application/json", ...auth },
+        body: JSON.stringify(body),
+      });
+      return { status: response.status, body: await responseJson(response) };
+    };
+    try {
+      const created = await fetch(`${base}/v2/firm/matters`, {
+        method: "POST", headers: { "content-type": "application/json", ...auth }, body: "{}",
+      });
+      const { matter_handle: matterHandle, root_stream_handle: rootStream } = await responseJson(created) as { matter_handle: string; root_stream_handle: string };
+      const routes = [
+        `/v2/firm/matters/${matterHandle}/activate`,
+        `/v2/firm/matters/${matterHandle}/archive`,
+        `/v2/firm/matters/${matterHandle}/members/add`,
+        `/v2/firm/matters/${matterHandle}/members/remove`,
+        `/v2/firm/matters/${matterHandle}/members/list`,
+        `/v2/firm/matters/${matterHandle}/wall/set`,
+        `/v2/firm/matters/${matterHandle}/wall/clear`,
+        `/v2/firm/matters/${matterHandle}/keys/publish`,
+        `/v2/firm/matters/${matterHandle}/keys/fetch`,
+        `/v2/firm/matters/${matterHandle}/streams`,
+        `/v2/firm/streams/${rootStream}/updates`,
+        `/v2/firm/streams/${rootStream}/sync-ticket`,
+        "/v2/firm/migration-manifest",
+        "/v2/firm/migration-complete",
+      ];
+      for (const path of routes) {
+        const result = await request(path);
+        expect(result.status, path).toBe(400);
+        expect(result.body.error, path).toBe("invalid_v2_query");
+        expect(JSON.stringify(result.body), path).not.toContain(clientSecret);
+      }
+      expectSentinelsAbsentFromStore(store);
+    } finally {
+      server.stop(true);
+      store.close();
+    }
+  });
+
+  test("only one validated cursor query is accepted for pulls, and only one ticket query is accepted for sync", async () => {
+    const { store, adminToken, adminSeatToken } = fixture();
+    const server = Bun.serve<SyncSocketData>(buildServeOptions(store, new FanoutHub()));
+    const base = `http://${server.hostname}:${server.port}`;
+    const auth = { authorization: `Bearer ${adminToken}`, "x-seat-token": adminSeatToken };
+    try {
+      const create = await fetch(`${base}/v2/firm/matters`, {
+        method: "POST", headers: { "content-type": "application/json", ...auth }, body: "{}",
+      });
+      const { matter_handle: matterHandle, root_stream_handle: rootStream } = await responseJson(create) as { matter_handle: string; root_stream_handle: string };
+      await fetch(`${base}/v2/firm/matters/${matterHandle}/activate`, {
+        method: "POST", headers: { "content-type": "application/json", ...auth }, body: "{}",
+      });
+      const validPull = await fetch(`${base}/v2/firm/streams/${rootStream}/updates?since=0`, { headers: auth });
+      expect(validPull.status).toBe(200);
+      for (const query of [
+        "",
+        "since=0&since=1",
+        "since=-1",
+        "since=not-a-number",
+        `since=0&client_name=${encodeURIComponent(clientSecret)}`,
+      ]) {
+        const response = await fetch(`${base}/v2/firm/streams/${rootStream}/updates${query ? `?${query}` : ""}`, { headers: auth });
+        expect(response.status, query || "missing since").toBe(400);
+        expect(await response.text(), query || "missing since").not.toContain(clientSecret);
+      }
+
+      const ticketResponse = await fetch(`${base}/v2/firm/streams/${rootStream}/sync-ticket`, {
+        method: "POST", headers: { "content-type": "application/json", ...auth }, body: "{}",
+      });
+      const { ticket } = await responseJson(ticketResponse) as { ticket: string };
+      const socket = await new Promise<WebSocket>((resolve, reject) => {
+        const ws = new WebSocket(`${base.replace("http", "ws")}/v2/firm/sync?ticket=${ticket}`);
+        const timeout = setTimeout(() => reject(new Error("socket did not open")), 2_000);
+        ws.onopen = () => { clearTimeout(timeout); resolve(ws); };
+        ws.onerror = () => { clearTimeout(timeout); reject(new Error("socket failed to open")); };
+      });
+      socket.close();
+      for (const query of ["", `ticket=${ticket}&ticket=${ticket}`, `ticket=${ticket}&client_name=${encodeURIComponent(clientSecret)}`, "ticket=not-a-ticket"]) {
+        const response = await fetch(`${base}/v2/firm/sync${query ? `?${query}` : ""}`);
+        expect(response.status, query || "missing ticket").toBe(400);
+        expect(await response.text(), query || "missing ticket").not.toContain(clientSecret);
+      }
+      expectSentinelsAbsentFromStore(store);
+    } finally {
+      server.stop(true);
+      store.close();
+    }
+  });
+
   test("real FirmApiClient and MatterSyncClient traffic stays opaque, while the hostile probe remains captured and rejected", async () => {
     const { store, admin, member, adminToken, memberToken, adminSeatToken, memberSeatToken } = fixture();
     const httpCapture: Array<Record<string, unknown>> = [];
@@ -215,6 +313,11 @@ describe("firm relay privacy proof", () => {
 
       const cleanCapture = JSON.stringify({ httpCapture, frameCapture });
       for (const sentinel of sentinels) expect(cleanCapture).not.toContain(sentinel);
+      const capturedUrls = httpCapture
+        .filter((entry) => entry.direction === "request")
+        .map((entry) => entry.url)
+        .join("\n");
+      for (const sentinel of sentinels) expect(capturedUrls).not.toContain(sentinel);
       const frameText = JSON.stringify(frameCapture);
       expect(frameText).not.toContain("matter_handle");
       expect(frameText).not.toContain("stream_handle");

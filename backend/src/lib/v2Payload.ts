@@ -20,6 +20,7 @@ const FORBIDDEN_RELAY_KEYS = new Set([
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 
 export type V2Payload = Record<string, unknown>;
+export type V2RelayBoundaryError = "invalid_v2_payload" | "invalid_v2_query";
 
 function isPlainObject(value: unknown): value is V2Payload {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -48,6 +49,42 @@ export async function requestHasForbiddenV2RelayKey(req: Request): Promise<boole
   } catch {
     return false;
   }
+}
+
+const STREAM_PULL_PATH = /^\/v2\/firm\/streams\/[^/]+\/updates$/;
+const SYNC_SOCKET_PATH = "/v2/firm/sync";
+const CURSOR = /^(?:0|[1-9]\d*)$/;
+const SYNC_TICKET = /^[a-f0-9]{64}$/i;
+
+/**
+ * Query strings are a privacy boundary too: reverse proxies frequently retain
+ * complete URLs. The relay has only two deliberately narrow exceptions.
+ */
+function hasValidV2RelayQuery(url: URL, method: string): boolean {
+  const entries = [...url.searchParams.entries()];
+  if (entries.length === 0) return !(
+    (method === "GET" && STREAM_PULL_PATH.test(url.pathname)) || url.pathname === SYNC_SOCKET_PATH
+  );
+
+  if (method === "GET" && STREAM_PULL_PATH.test(url.pathname)) {
+    if (entries.length !== 1 || entries[0]![0] !== "since") return false;
+    const since = entries[0]![1];
+    return CURSOR.test(since) && Number.isSafeInteger(Number(since));
+  }
+  if (url.pathname === SYNC_SOCKET_PATH) {
+    return entries.length === 1 && entries[0]![0] === "ticket" && SYNC_TICKET.test(entries[0]![1]);
+  }
+  return false;
+}
+
+/**
+ * One fail-closed boundary for every v2 firm route. Keep query and body
+ * validation together so a new route cannot accidentally protect one while
+ * forgetting the other.
+ */
+export async function validateV2RelayBoundary(req: Request): Promise<V2RelayBoundaryError | null> {
+  if (!hasValidV2RelayQuery(new URL(req.url), req.method)) return "invalid_v2_query";
+  return await requestHasForbiddenV2RelayKey(req) ? "invalid_v2_payload" : null;
 }
 
 /**
