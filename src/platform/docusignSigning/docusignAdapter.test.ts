@@ -39,11 +39,14 @@ describe('direct DocuSign adapter', () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('https://demo.docusign.net/restapi/v2.1/accounts/acct-1/envelopes');
     const body = parseEnvelopeRequest(init);
-    expect(atob(body.documents[0].documentBase64)).toBe('exact flattened bytes');
-    expect(body.recipients.signers[0].clientUserId).toBe('lantern-abcd');
-    expect(body.recipients.signers[0].tabs.signHereTabs).toHaveLength(1);
-    expect(body.recipients.signers[0].tabs.dateSignedTabs).toHaveLength(1);
-    expect(body.recipients.signers[0].tabs.fullNameTabs).toHaveLength(1);
+    const [document] = body.documents;
+    const [signer] = body.recipients.signers;
+    if (!document || !signer) throw new Error('Expected exactly one document and one signer.');
+    expect(atob(document.documentBase64)).toBe('exact flattened bytes');
+    expect(signer.clientUserId).toBe('lantern-abcd');
+    expect(signer.tabs.signHereTabs).toHaveLength(1);
+    expect(signer.tabs.dateSignedTabs).toHaveLength(1);
+    expect(signer.tabs.fullNameTabs).toHaveLength(1);
     expect(fetchMock.mock.calls.every(([callUrl]) => new URL(String(callUrl)).hostname.endsWith('.docusign.net'))).toBe(true);
   });
 
