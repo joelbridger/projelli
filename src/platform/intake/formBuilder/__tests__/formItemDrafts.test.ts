@@ -18,14 +18,16 @@ function valid(items: RequestItem[]) {
   return {
     blueprintId: 'draft-test', schemaVersion: 1, label: 'Draft test', source: 'firm_saved' as const,
     defaultKind: 'standing' as const,
-    items: items.map((item, index) => ({ ...item, label: `Item ${index + 1}` })),
+    items: items.map((item, index) => ({ ...item, label: `Item ${String(index + 1)}` })),
   };
 }
 
 describe('form item drafts', () => {
   it('makes structurally valid drafts for every supported item kind', () => {
     const items = [draftTypedField(), draftDocUpload(), draftGuidedQuestion(), draftReadonlyCard(), draftSectionHeader()];
-    expect(() => assertValidRequestBlueprint(valid(items))).not.toThrow();
+    expect(() => {
+      assertValidRequestBlueprint(valid(items));
+    }).not.toThrow();
     expect(items.map((item) => item.t)).toEqual(['typed_field', 'doc_upload', 'guided_question', 'readonly_card', 'readonly_card']);
     expect(draftDocUpload().accepted_mime_types).toEqual(['image/jpeg', 'image/png', 'application/pdf']);
     expect(draftTypedField()).toMatchObject({ fact_kind: 'dob', input: 'date', subject: 'primary' });
@@ -36,7 +38,7 @@ describe('form item drafts', () => {
   it('makes unique ids and never creates excluded item kinds', () => {
     const ids = Array.from({ length: 100 }, () => newItemId());
     expect(new Set(ids).size).toBe(ids.length);
-    const drafts = [draftTypedField(), draftDocUpload(), draftGuidedQuestion(), draftReadonlyCard(), draftSectionHeader()];
+    const drafts: RequestItem[] = [draftTypedField(), draftDocUpload(), draftGuidedQuestion(), draftReadonlyCard(), draftSectionHeader()];
     expect(drafts.some((item) => item.t === 'pdf_fill' || item.t === 'signature')).toBe(false);
   });
 

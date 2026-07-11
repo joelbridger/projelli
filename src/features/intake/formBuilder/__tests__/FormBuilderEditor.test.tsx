@@ -1,8 +1,10 @@
+/// <reference types="@testing-library/jest-dom" />
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { NEW_HOUSEHOLD_BLUEPRINT } from '@/platform/intake/defaultBlueprints';
 import { useBlueprintStore } from '@/platform/intake/blueprintStore';
+import type { RequestBlueprint } from '@/platform/intake/blueprintTypes';
 import { FormBuilderEditor } from '../FormBuilderEditor';
 
 function addAllItemKinds(): void {
@@ -14,7 +16,7 @@ function addAllItemKinds(): void {
 
 function fillAddedItems(): void {
   screen.getAllByLabelText('Label').forEach((input, index) => {
-    fireEvent.change(input, { target: { value: `Item ${index + 1}` } });
+    fireEvent.change(input, { target: { value: `Item ${String(index + 1)}` } });
   });
   fireEvent.change(screen.getByLabelText('Question'), { target: { value: 'What is your income?' } });
   fireEvent.change(screen.getByLabelText('Text'), { target: { value: 'Please read this first.' } });
@@ -26,7 +28,7 @@ describe('FormBuilderEditor', () => {
   });
 
   it('authors a new form and saves every supported item kind', () => {
-    const onSaved = vi.fn();
+    const onSaved = vi.fn<(blueprint: RequestBlueprint) => void>();
     render(<FormBuilderEditor blueprint={null} onSaved={onSaved} onCancel={vi.fn()} />);
     fireEvent.change(screen.getByLabelText('Form name'), { target: { value: 'Annual review' } });
     addAllItemKinds();
@@ -34,6 +36,7 @@ describe('FormBuilderEditor', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save form' }));
 
     const saved = onSaved.mock.calls[0]?.[0];
+    if (!saved) throw new Error('expected the new form to be saved');
     expect(saved).toMatchObject({ blueprintId: 'annual-review', label: 'Annual review', source: 'firm_saved' });
     expect(saved.items.map((item: { t: string }) => item.t)).toEqual(['typed_field', 'doc_upload', 'guided_question', 'readonly_card']);
     expect(useBlueprintStore.getState().listBlueprints().some((blueprint) => blueprint.blueprintId === 'annual-review')).toBe(true);

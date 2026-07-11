@@ -18,6 +18,8 @@ import {
   removeItem,
 } from '@/platform/intake/formBuilder/formItemDrafts';
 
+/* eslint-disable lantern-i18n/no-hardcoded-string -- Form builder copy ships with the Lane 1 UI. */
+
 export interface FormBuilderEditorProps {
   blueprint: RequestBlueprint | null;
   onSaved: (blueprint: RequestBlueprint) => void;
@@ -41,6 +43,20 @@ const INPUTS_BY_FACT_KIND: Record<FactKind, TypedFieldInputFormat[]> = {
   beneficiary: ['text', 'textarea'],
 };
 
+function firstInputFor(kind: FactKind): TypedFieldInputFormat {
+  switch (kind) {
+    case 'dob': return 'date';
+    case 'ssn': return 'ssn';
+    case 'income_annual': return 'money';
+    case 'spending_monthly': return 'money';
+    case 'drivers_license': return 'file_ref';
+    case 'address': return 'text';
+    case 'citizenship': return 'text';
+    case 'employer': return 'text';
+    case 'beneficiary': return 'text';
+  }
+}
+
 function friendlyType(item: RequestItem): string {
   return item.t === 'typed_field' ? 'Typed field'
     : item.t === 'doc_upload' ? 'Document upload'
@@ -63,7 +79,9 @@ function ItemEditor({ item, index, count, onChange, onMove, onRemove }: {
   onMove: (direction: 'up' | 'down') => void;
   onRemove: () => void;
 }): React.JSX.Element {
-  const common = (patch: Partial<RequestItem>) => onChange({ ...item, ...patch } as RequestItem);
+  const common = (patch: Partial<RequestItem>) => {
+    onChange({ ...item, ...patch } as RequestItem);
+  };
   return (
     <article className="grid gap-3 rounded-lg border border-[var(--kp-divider)] bg-background p-4" aria-label={`Edit ${friendlyType(item)}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -100,7 +118,7 @@ function ItemEditor({ item, index, count, onChange, onMove, onRemove }: {
             <Label htmlFor={`${item.item_id}-fact-kind`}>Information to collect</Label>
             <select id={`${item.item_id}-fact-kind`} value={item.fact_kind} onChange={(event) => {
               const factKind = event.target.value as FactKind;
-              onChange({ ...item, fact_kind: factKind, input: INPUTS_BY_FACT_KIND[factKind][0] });
+              onChange({ ...item, fact_kind: factKind, input: firstInputFor(factKind) });
             }}>
               {FACT_KINDS.map((kind) => <option key={kind} value={kind}>{kind.replace(/_/g, ' ')}</option>)}
             </select>
@@ -136,7 +154,14 @@ function ItemEditor({ item, index, count, onChange, onMove, onRemove }: {
           <fieldset className="grid gap-2"><legend className="text-sm font-medium">Answer format</legend>
             {(['money', 'range'] as const).map((format) => <label key={format} className="flex items-center gap-2 text-sm"><input type="radio" name={`${item.item_id}-format`} value={format} checked={item.response_format === format} onChange={() => { onChange({ ...item, response_format: format }); }} />{format}</label>)}
           </fieldset>
-          <div className="grid gap-2"><Label htmlFor={`${item.item_id}-question-fact`}>Save as information</Label><select id={`${item.item_id}-question-fact`} value={item.fact_kind ?? ''} onChange={(event) => { const value = event.target.value as FactKind | ''; onChange({ ...item, ...(value ? { fact_kind: value } : { fact_kind: undefined }) }); }}><option value="">None</option>{FACT_KINDS.map((kind) => <option key={kind} value={kind}>{kind.replace(/_/g, ' ')}</option>)}</select></div>
+          <div className="grid gap-2"><Label htmlFor={`${item.item_id}-question-fact`}>Save as information</Label><select id={`${item.item_id}-question-fact`} value={item.fact_kind ?? ''} onChange={(event) => {
+            const value = event.target.value as FactKind | '';
+            const { fact_kind: previousFactKind, ...withoutFactKind } = item;
+            const nextItem = value
+              ? { ...withoutFactKind, fact_kind: value }
+              : previousFactKind === undefined ? item : withoutFactKind;
+            onChange(nextItem);
+          }}><option value="">None</option>{FACT_KINDS.map((kind) => <option key={kind} value={kind}>{kind.replace(/_/g, ' ')}</option>)}</select></div>
         </>
       ) : null}
 
@@ -150,7 +175,7 @@ function ItemEditor({ item, index, count, onChange, onMove, onRemove }: {
   );
 }
 
-export function FormBuilderEditor(props: FormBuilderEditorProps): JSX.Element {
+export function FormBuilderEditor(props: FormBuilderEditorProps): React.JSX.Element {
   const createFirmBlueprint = useBlueprintStore((state) => state.createFirmBlueprint);
   const updateFirmBlueprint = useBlueprintStore((state) => state.updateFirmBlueprint);
   const [label, setLabel] = useState('');
@@ -158,15 +183,21 @@ export function FormBuilderEditor(props: FormBuilderEditorProps): JSX.Element {
   const [error, setError] = useState('');
   const readOnly = props.blueprint?.source === 'built_in';
 
+  /* eslint-disable react-hooks/set-state-in-effect -- A newly selected blueprint must replace this local editing draft. */
   useEffect(() => {
     const copy = props.blueprint ? copyRequestBlueprint(props.blueprint) : null;
     setLabel(copy?.label ?? '');
     setItems(copy?.items ?? []);
     setError('');
   }, [props.blueprint]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
-  const updateItem = (next: RequestItem) => setItems((current) => current.map((item) => item.item_id === next.item_id ? next : item));
-  const add = (item: RequestItem) => setItems((current) => insertItem(current, current.length, item));
+  const updateItem = (next: RequestItem) => {
+    setItems((current) => current.map((item) => item.item_id === next.item_id ? next : item));
+  };
+  const add = (item: RequestItem) => {
+    setItems((current) => insertItem(current, current.length, item));
+  };
   const save = () => {
     setError('');
     try {
@@ -194,3 +225,5 @@ export function FormBuilderEditor(props: FormBuilderEditorProps): JSX.Element {
     </section>
   );
 }
+
+/* eslint-enable lantern-i18n/no-hardcoded-string */

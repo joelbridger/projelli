@@ -49,7 +49,11 @@ export function moveItem(items: RequestItem[], index: number, direction: 'up' | 
   const target = direction === 'up' ? index - 1 : index + 1;
   if (index < 0 || index >= items.length || target < 0 || target >= items.length) return [...items];
   const moved = [...items];
-  [moved[index], moved[target]] = [moved[target], moved[index]];
+  const a = moved[index];
+  const b = moved[target];
+  if (a === undefined || b === undefined) return [...items];
+  moved[index] = b;
+  moved[target] = a;
   return moved;
 }
 

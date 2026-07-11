@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { instantiateRequestBlueprint } from '@/platform/intake/blueprintFactory';
 import { useBlueprintStore } from '@/platform/intake/blueprintStore';
+import type { RequestBlueprint } from '@/platform/intake/blueprintTypes';
 import { assertSendableRequest } from '@/platform/intake/createIntake';
+import type { RequestItem } from '@/platform/intake/types';
 import {
   draftDocUpload,
   draftGuidedQuestion,
@@ -19,10 +21,10 @@ describe('form builder intake contract', () => {
   });
 
   it('round trips a form through the store and produces a sendable request', () => {
-    const assembled = [draftSectionHeader(), draftTypedField(), draftDocUpload(), draftGuidedQuestion(), draftReadonlyCard()];
+    const assembled: RequestItem[] = [draftSectionHeader(), draftTypedField(), draftDocUpload(), draftGuidedQuestion(), draftReadonlyCard()];
     expect(assembled.some((item) => item.t === 'pdf_fill' || item.t === 'signature')).toBe(false);
 
-    const onSaved = vi.fn();
+    const onSaved = vi.fn<(blueprint: RequestBlueprint) => void>();
     render(<FormBuilderEditor blueprint={null} onSaved={onSaved} onCancel={vi.fn()} />);
     fireEvent.change(screen.getByLabelText('Form name'), { target: { value: 'Contract form' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add section header / text block' }));
@@ -30,13 +32,18 @@ describe('form builder intake contract', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add document upload' }));
     fireEvent.click(screen.getByRole('button', { name: 'Add guided question' }));
     fireEvent.click(screen.getByRole('button', { name: 'Add section header / text block' }));
-    screen.getAllByLabelText('Label').forEach((input, index) => fireEvent.change(input, { target: { value: `Item ${index + 1}` } }));
+    screen.getAllByLabelText('Label').forEach((input, index) => {
+      fireEvent.change(input, { target: { value: `Item ${String(index + 1)}` } });
+    });
     fireEvent.change(screen.getByLabelText('Question'), { target: { value: 'What is your income?' } });
-    fireEvent.change(screen.getAllByLabelText('Text')[0], { target: { value: 'Start here.' } });
-    fireEvent.change(screen.getAllByLabelText('Text')[1], { target: { value: 'Thanks.' } });
+    const [firstText, secondText] = screen.getAllByLabelText('Text');
+    if (!firstText || !secondText) throw new Error('expected two Text fields');
+    fireEvent.change(firstText, { target: { value: 'Start here.' } });
+    fireEvent.change(secondText, { target: { value: 'Thanks.' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save form' }));
 
     const saved = onSaved.mock.calls[0]?.[0];
+    if (!saved) throw new Error('expected the contract form to be saved');
     expect(saved).toBeTruthy();
     expect(saved.items.map((item: { t: string }) => item.t)).toEqual(assembled.map((item) => item.t));
     expect(useBlueprintStore.getState().getBlueprint(saved.blueprintId)).toEqual(saved);
@@ -51,7 +58,9 @@ describe('form builder intake contract', () => {
 
     const sendableBlueprint = useBlueprintStore.getState().createFirmBlueprint({ blueprintId: 'contract-sendable', label: 'Contract sendable', items: saved.items });
     const request = instantiateRequestBlueprint({ blueprint: sendableBlueprint, requestId: 'test_request', matterId: 'test_matter' });
-    expect(() => assertSendableRequest(request.items)).not.toThrow();
+    expect(() => {
+      assertSendableRequest(request.items);
+    }).not.toThrow();
     expect(sendableBlueprint.items.some((item) => item.t === 'pdf_fill' || item.t === 'signature')).toBe(false);
   });
 });
