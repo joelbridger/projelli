@@ -158,7 +158,8 @@ CREATE INDEX IF NOT EXISTS idx_matter_streams_matter ON matter_streams(matter_ha
 
 -- Temporary migration-only bridge. This is the one bounded place legacy local
 -- IDs may live: it is never joined into normal relay responses or audit rows,
--- and expiry/acknowledgement deletes it.
+-- and expiry deletes it. Acknowledgements are per-user and never remove the
+-- shared mapping, so every device can safely finish migration.
 CREATE TABLE IF NOT EXISTS firm_relay_migration_manifest (
   legacy_matter_id  TEXT NOT NULL UNIQUE,
   matter_handle     TEXT NOT NULL UNIQUE REFERENCES matters(matter_handle),
@@ -168,6 +169,16 @@ CREATE TABLE IF NOT EXISTS firm_relay_migration_manifest (
 );
 CREATE INDEX IF NOT EXISTS idx_firm_relay_migration_manifest_expiry
   ON firm_relay_migration_manifest(expires_at);
+
+CREATE TABLE IF NOT EXISTS firm_relay_migration_manifest_acknowledgements (
+  matter_handle   TEXT NOT NULL REFERENCES firm_relay_migration_manifest(matter_handle) ON DELETE CASCADE,
+  user_id         TEXT NOT NULL REFERENCES users(user_id),
+  org_id          TEXT NOT NULL,
+  acknowledged_at TEXT NOT NULL,
+  PRIMARY KEY (matter_handle, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_firm_relay_migration_manifest_ack_user
+  ON firm_relay_migration_manifest_acknowledgements(user_id, org_id);
 
 CREATE TABLE IF NOT EXISTS matter_members (
   matter_handle TEXT NOT NULL REFERENCES matters(matter_handle),
@@ -1044,24 +1055,21 @@ export class Store {
   }
 
   /**
-   * An acknowledgement is accepted only as cleanup. A row leaves the bridge
-   * once its root stream has stored at least one encrypted update, which is the
-   * server-visible proof that the private index was sealed.
+   * Record that this user completed migration. The shared bridge remains
+   * readable until its deadline so another member or a recovered device cannot
+   * lose the mapping because someone else acknowledged first.
    */
   acknowledgeLegacyManifestForUser(userId: string, orgId: string): number {
     const txn = this.db.transaction(() => {
       this.purgeExpiredLegacyManifest();
-      return this.db.query(`DELETE FROM firm_relay_migration_manifest
-        WHERE matter_handle IN (
-          SELECT manifest.matter_handle
-          FROM firm_relay_migration_manifest AS manifest
-          JOIN matter_members AS members ON members.matter_handle = manifest.matter_handle
-          JOIN matters ON matters.matter_handle = manifest.matter_handle
-          WHERE members.user_id = ? AND members.org_id = ? AND matters.org_id = ?
-            AND EXISTS (SELECT 1 FROM matter_updates AS updates
-              WHERE updates.matter_handle = manifest.matter_handle
-                AND updates.stream_handle = manifest.root_stream_handle)
-        )`).run(userId, orgId, orgId).changes;
+      return this.db.query(`INSERT OR IGNORE INTO firm_relay_migration_manifest_acknowledgements
+          (matter_handle, user_id, org_id, acknowledged_at)
+        SELECT manifest.matter_handle, ?, ?, ?
+        FROM firm_relay_migration_manifest AS manifest
+        JOIN matter_members AS members ON members.matter_handle = manifest.matter_handle
+        JOIN matters ON matters.matter_handle = manifest.matter_handle
+        WHERE members.user_id = ? AND members.org_id = ? AND matters.org_id = ?`)
+        .run(userId, orgId, this.nowIso(), userId, orgId, orgId).changes;
     });
     return txn.immediate() as number;
   }

@@ -95,9 +95,12 @@ const authSecretResolved = resolveAuthSecret();
 // The legacy-ID bridge is intentionally short lived.  This is a duration
 // rather than a calendar date so each deployment can publish its approved
 // migration window through configuration without baking a date into code.
-const migrationManifestDeadline = new Date(
-  Date.now() + num("MIGRATION_MANIFEST_TTL_SECONDS", 7 * 24 * 60 * 60),
-).toISOString();
+// The environment value is deliberately in seconds, while JavaScript clocks
+// use milliseconds. Convert once at the boundary so every caller works in the
+// same unit.
+const migrationManifestTtlSeconds = num("MIGRATION_MANIFEST_TTL_SECONDS", 7 * 24 * 60 * 60);
+const migrationManifestTtlMs = migrationManifestTtlSeconds * 1_000;
+const migrationManifestDeadline = new Date(Date.now() + migrationManifestTtlMs).toISOString();
 
 // ---- Managed-key master secret (assured proxy org provider keys, chunk 3) --
 // Master key under which org-level managed provider API keys are encrypted at
@@ -151,6 +154,9 @@ export const config = {
   relayRateLimitMax: num("RELAY_RATE_LIMIT_MAX", 600),
   relayRateLimitWindowSeconds: num("RELAY_RATE_LIMIT_WINDOW_SECONDS", 60),
 
+  /** Legacy bridge window, named with its units to prevent seconds/ms drift. */
+  migrationManifestTtlSeconds,
+  migrationManifestTtlMs,
   /** Absolute expiry written with every legacy bridge row at migration time. */
   migrationManifestDeadline,
 
