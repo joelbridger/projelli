@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import {
   CalendarDays,
+  ArrowLeft,
   ChevronDown,
   Clock3,
   Lock,
@@ -41,6 +42,16 @@ const syncCopy: Record<HouseholdRecord['syncState'], string> = {
   offline: 'Working offline — local edits wait to deliver.',
   needs_attention: 'Needs attention',
 };
+
+function syncLabel(household: HouseholdRecord): string {
+  if (household.syncState === 'last_synced') {
+    return household.lastSyncedAt ? `Last synced ${household.lastSyncedAt}` : 'Last synced';
+  }
+  if (household.syncState === 'syncing' && household.lastSyncedAt) {
+    return `Syncing — received through ${household.lastSyncedAt}`;
+  }
+  return syncCopy[household.syncState];
+}
 const syncVariant: Record<
   HouseholdRecord['syncState'],
   'success' | 'warning' | 'danger' | 'neutral'
@@ -56,10 +67,14 @@ export function HouseholdRecordSurface({
   household,
   proposals = [],
   actions,
+  onSaveHousehold,
+  onBack,
 }: {
   household: HouseholdRecord;
   proposals?: readonly CrmProposal[];
   actions?: CrmClientsActions;
+  onSaveHousehold?: (household: HouseholdRecord) => Promise<void> | void;
+  onBack?: () => void;
 }) {
   const schedulingLinkUrl = household.schedulingLinkUrl;
   const [tab, setTab] = useState<HouseholdTab>('client_map');
@@ -68,6 +83,8 @@ export function HouseholdRecordSurface({
     'internal' | 'client-facing' | null
   >(null);
   const [metadataOpen, setMetadataOpen] = useState(false);
+  const [editingHousehold, setEditingHousehold] = useState(false);
+  const [adding, setAdding] = useState<'person' | 'account' | null>(null);
   const sourceProposals = tab === 'client_map' ? [] : proposals;
   return (
     <section data-testid="crm-household-record">
@@ -82,13 +99,16 @@ export function HouseholdRecordSurface({
           }}
         >
           <h1 style={{ marginTop: 0 }}>{household.name}</h1>
-          <Button
-            size="sm"
-            data-testid="crm-ask-household"
-            onClick={() => actions?.onAskHousehold?.(household.id)}
-          >
-            Ask this household
-          </Button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {onBack ? <Button size="sm" variant="secondary" iconLeft={ArrowLeft} data-testid="crm-household-back" onClick={onBack}>Directory</Button> : null}
+            <Button
+              size="sm"
+              data-testid="crm-ask-household"
+              onClick={() => actions?.onAskHousehold?.(household.id)}
+            >
+              Ask this household
+            </Button>
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
           <Badge variant="neutral">{household.lifecycle}</Badge>
@@ -99,7 +119,7 @@ export function HouseholdRecordSurface({
             <Badge variant="neutral">Next review {household.nextReview}</Badge>
           ) : null}
           <Badge variant={syncVariant[household.syncState]}>
-            {syncCopy[household.syncState]}
+            {syncLabel(household)}
           </Badge>
         </div>
       </header>
@@ -120,6 +140,14 @@ export function HouseholdRecordSurface({
           onClick={() => { setMetadataOpen(true); }}
         >
           Fields and tags
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          data-testid="crm-household-edit"
+          onClick={() => { setEditingHousehold(true); }}
+        >
+          Edit household
         </Button>
         {schedulingLinkUrl ? (
           <Button
@@ -193,6 +221,9 @@ export function HouseholdRecordSurface({
                 if (kind === 'note') {
                   setNoteAudience('internal');
                   setAddOpen(false);
+                } else if (kind === 'person' || kind === 'account') {
+                  setAdding(kind);
+                  setAddOpen(false);
                 } else
                   actions?.onAdd?.({
                     kind,
@@ -245,6 +276,7 @@ export function HouseholdRecordSurface({
             }))}
             {...(actions ? { actions } : {})}
             onCancel={() => { setNoteAudience(null); }}
+            onSaved={() => { setNoteAudience(null); }}
           />
         ) : null}
       </SlidePanel>
@@ -257,10 +289,96 @@ export function HouseholdRecordSurface({
           values={household.customFields ?? []}
           {...(household.tags ? { tags: household.tags } : {})}
           {...(actions ? { actions } : {})}
+          onSaved={() => { setMetadataOpen(false); }}
+        />
+      </SlidePanel>
+      <SlidePanel
+        open={editingHousehold}
+        onClose={() => { setEditingHousehold(false); }}
+        title="Edit household"
+      >
+        <HouseholdEditor
+          household={household}
+          onSave={async (next) => {
+            await onSaveHousehold?.(next);
+            setEditingHousehold(false);
+          }}
+        />
+      </SlidePanel>
+      <SlidePanel
+        open={adding === 'person'}
+        onClose={() => { setAdding(null); }}
+        title="Add person"
+      >
+        <PersonEditor
+          onSave={async (person, external) => {
+            await onSaveHousehold?.({
+              ...household,
+              members: external ? household.members : [...household.members, person],
+              externalParties: external ? [...household.externalParties, person] : household.externalParties,
+            });
+            setAdding(null);
+          }}
+        />
+      </SlidePanel>
+      <SlidePanel
+        open={adding === 'account'}
+        onClose={() => { setAdding(null); }}
+        title="Add account"
+      >
+        <AccountEditor
+          onSave={async (account) => {
+            await onSaveHousehold?.({ ...household, accounts: [...household.accounts, account] });
+            setAdding(null);
+          }}
         />
       </SlidePanel>
     </section>
   );
+}
+
+function HouseholdEditor({ household, onSave }: { household: HouseholdRecord; onSave: (household: HouseholdRecord) => Promise<void> | void }) {
+  const [name, setName] = useState(household.name);
+  const [lifecycle, setLifecycle] = useState(household.lifecycle);
+  const [advisor, setAdvisor] = useState(household.primaryAdvisor);
+  const [tier, setTier] = useState(household.serviceTier);
+  const [nextReview, setNextReview] = useState(household.nextReview ?? '');
+  return <form data-testid="crm-household-editor" onSubmit={(event) => { event.preventDefault(); const cleanName = name.trim(); if (!cleanName) return; const next = { ...household, name: cleanName, lifecycle: lifecycle.trim() || 'Active', primaryAdvisor: advisor.trim() || 'Unassigned', serviceTier: tier.trim() || 'Standard' }; if (nextReview.trim()) next.nextReview = nextReview.trim(); else delete next.nextReview; void onSave(next); }} style={{ display: 'grid', gap: 10 }}>
+    <label>Household name<input data-testid="crm-household-edit-name" value={name} onChange={(event) => { setName(event.target.value); }} /></label>
+    <label>Lifecycle<input data-testid="crm-household-edit-lifecycle" value={lifecycle} onChange={(event) => { setLifecycle(event.target.value); }} /></label>
+    <label>Primary advisor<input data-testid="crm-household-edit-advisor" value={advisor} onChange={(event) => { setAdvisor(event.target.value); }} /></label>
+    <label>Service tier<input data-testid="crm-household-edit-tier" value={tier} onChange={(event) => { setTier(event.target.value); }} /></label>
+    <label>Next review<input data-testid="crm-household-edit-review" value={nextReview} onChange={(event) => { setNextReview(event.target.value); }} /></label>
+    <Button data-testid="crm-household-edit-save" type="submit">Save household</Button>
+  </form>;
+}
+
+function PersonEditor({ onSave }: { onSave: (person: import('./adapters').CrmPerson, external: boolean) => Promise<void> | void }) {
+  const [name, setName] = useState('');
+  const [role, setRole] = useState('');
+  const [relationship, setRelationship] = useState('');
+  const [external, setExternal] = useState(false);
+  return <form data-testid="crm-person-editor" onSubmit={(event) => { event.preventDefault(); const cleanName = name.trim(); if (!cleanName) return; void onSave({ id: `person:${crypto.randomUUID()}`, name: cleanName, personType: 'person', roles: role.split(',').map((value) => value.trim()).filter(Boolean), ...(relationship.trim() ? { householdRole: relationship.trim() } : {}), ...(external ? { external: true } : {}), relatedHouseholds: 1 }, external); }} style={{ display: 'grid', gap: 10 }}>
+    <label>Name<input data-testid="crm-person-name" value={name} onChange={(event) => { setName(event.target.value); }} /></label>
+    <label>Firm roles<input data-testid="crm-person-roles" value={role} placeholder="CPA, attorney" onChange={(event) => { setRole(event.target.value); }} /></label>
+    <label>Household relationship<input data-testid="crm-person-relationship" value={relationship} placeholder="Spouse" onChange={(event) => { setRelationship(event.target.value); }} /></label>
+    <label><input data-testid="crm-person-external" type="checkbox" checked={external} onChange={(event) => { setExternal(event.target.checked); }} /> External party</label>
+    <Button data-testid="crm-person-save" type="submit">Save person</Button>
+  </form>;
+}
+
+function AccountEditor({ onSave }: { onSave: (account: import('./adapters').CrmAccount) => Promise<void> | void }) {
+  const [custodian, setCustodian] = useState('');
+  const [type, setType] = useState('');
+  const [purpose, setPurpose] = useState('');
+  const [lastFour, setLastFour] = useState('');
+  return <form data-testid="crm-account-editor" onSubmit={(event) => { event.preventDefault(); if (!custodian.trim() || !type.trim() || !purpose.trim()) return; void onSave({ id: `account:${crypto.randomUUID()}`, custodian: custodian.trim(), type: type.trim(), purpose: purpose.trim(), ...(lastFour.trim() ? { lastFour: lastFour.trim().slice(-4) } : {}), status: 'Open' }); }} style={{ display: 'grid', gap: 10 }}>
+    <label>Custodian<input data-testid="crm-account-custodian" value={custodian} onChange={(event) => { setCustodian(event.target.value); }} /></label>
+    <label>Account type<input data-testid="crm-account-type" value={type} onChange={(event) => { setType(event.target.value); }} /></label>
+    <label>Purpose<input data-testid="crm-account-purpose" value={purpose} onChange={(event) => { setPurpose(event.target.value); }} /></label>
+    <label>Last four only<input data-testid="crm-account-last-four" inputMode="numeric" value={lastFour} onChange={(event) => { setLastFour(event.target.value); }} /></label>
+    <Button data-testid="crm-account-save" type="submit">Save account</Button>
+  </form>;
 }
 
 function ClientMap({ household }: { household: HouseholdRecord }) {

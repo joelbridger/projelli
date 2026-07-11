@@ -132,6 +132,7 @@ export interface HouseholdRecord {
   ownership: 'mine' | 'shared' | 'other';
   serviceTier: string;
   nextReview?: string;
+  lastSyncedAt?: string;
   syncState: SyncState;
   facts: readonly CrmFact[];
   accounts: readonly CrmAccount[];
@@ -204,11 +205,11 @@ export interface CrmClientsActions {
   onSaveNote?: (
     note: Pick<CrmNote, 'body' | 'audience' | 'pinned' | 'mentions'>,
     notifyFirm: boolean
-  ) => void;
+  ) => void | Promise<void>;
   onSaveMetadata?: (
     values: readonly CrmFieldValue[],
     tags: readonly string[]
-  ) => void;
+  ) => void | Promise<void>;
   onApproveProposal?: (proposalId: string) => void;
   onRejectProposal?: (proposalId: string) => void;
   onRestoreProposal?: (proposalId: string) => void;

@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import {
+  getCrmEngineFreshness,
+  subscribeCrmEngineFreshness,
+  type CrmEngineFreshness,
+} from './store';
+import {
   loadLiveCrmRecords,
   saveLiveCrmRecord,
   type LiveCrmRecord,
@@ -11,6 +16,10 @@ export function useLiveCrmRecords() {
   const workspaceRoot = useWorkspaceStore((state) => state.rootPath);
   const [records, setRecords] = useState<readonly LiveCrmRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [freshness, setFreshness] = useState<CrmEngineFreshness>(
+    getCrmEngineFreshness,
+  );
+  useEffect(() => subscribeCrmEngineFreshness(setFreshness), []);
   const reload = useCallback(async () => {
     try {
       setError(null);
@@ -28,5 +37,5 @@ export function useLiveCrmRecords() {
     });
     return saved;
   }, [workspaceRoot]);
-  return { records, save, reload, error, workspaceRoot };
+  return { records, save, reload, error, workspaceRoot, freshness };
 }
