@@ -120,7 +120,7 @@ core is new; existing `tests/unit/crm/` only covers Wealthbox connector wiring t
 For every `EntityKind` in `design/02-data-model.md` §1 — `household`, `person`,
 `account`, `fact`, `note`, `task`, `workflowTemplate`, `workflowInstance`,
 `servicePolicy`, `activityEvent`, `firmDoc`, `tag`, `customFieldDef`, `opportunity`,
-`savedView`, `pipelineDef`, `stageDef`, `proposalRecord`, `firmDirectoryEntry`, and
+`savedView`, `pipelineDef`, `stageDef`, `proposalRecord`, `legacyProject`, `firmDirectoryEntry`, and
 `importArchiveManifest` — run
 the shared base-record invariants below. The test fixture catalog is exhaustive: adding an
 EntityKind in 02 without adding it here fails this test file's catalog check.
@@ -147,7 +147,7 @@ EntityKind in 02 without adding it here fails this test file's catalog check.
   partial objects, assert every one missing the provenance object or a required dating field throws
   or is rejected by the schema guard — zero silent acceptance.
 - **Import archive manifest contract:** validate every `importArchiveManifest` against
-  [02 §1.17](02-data-model.md#117-importarchivemanifest): immutable `kind`, firm-home
+  [02 §1.18](02-data-model.md#118-importarchivemanifest): immutable `kind`, firm-home
   `matterId`, `importBatchId`, `provider`, `capturedAt`, and synthetic-only
   `sourceWorkspaceLabel`; its `records` contain `rawRecordId`, `requestPath`,
   `capturedAt`, `responseSha256`, and `byteLength`; and finalization permits only the
@@ -237,7 +237,8 @@ Location: `tests/unit/crm/wealthboxImporter.idMapping.test.ts`, using only the f
 80-household Northcrest payload served by the synthetic Wealthbox-API simulator (§0 and
 `design/05-migration-importer.md` §6.2).
 
-- **Stable id-mapping:** every Wealthbox `household.id` maps to exactly one Lantern
+- **Stable id-mapping:** the canonical `(provider, sourceType, sourceId, scope)` key from
+  [02 §3.2](02-data-model.md#32-sqlcipher-schema-crm-core-encdb) maps to exactly one Lantern
   entity ID across repeated import runs (re-running the importer against the same export
   never creates a duplicate household).
 - **Idempotent re-import:** importing the same export twice produces zero new records the
@@ -264,7 +265,7 @@ The following ten **named, one-for-one** tests are mandatory. They do not collap
 broader tests and no additional concern is substituted for a P-property:
 
 1. **P1 completed outcome immutable** — apply and undo never alter a valid completion
-   operation, `completed_by`, or outcome.
+   operation, `completedBy`, or outcome.
 2. **P2 no destructive removal** — a removal with any merged progress remains visible and
    detached; it is never deleted.
 3. **P3 idempotent revision application** — replaying the same accepted revision/offer has exactly the
@@ -401,7 +402,7 @@ ordered list of `{clientIndex, action, expectedInvariant}` steps, run against a 
 Layer-3 firm size for continuity).
 
 1. **Concurrent task edits.** All 6 clients open the same authorized, subscribed task simultaneously; each edits
-   a different field (assignee, due date, priority, note, checklist item, status) within
+   a different field (`assigneeUserId`, `due`, `priority`, `body`, `title`, `status`) within
    a 2-second window; all sync. Assert: final state has all 6 edits present, no field
    reverted, and is byte-identical across those six clients' shared authorized +
    subscribed document set.
