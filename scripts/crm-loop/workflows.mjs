@@ -2,12 +2,14 @@
 // Drives the real Linux Tauri dev bridge. It deliberately uses only visible
 // controls, then reloads the webview to prove saved CRM records come back.
 import { execFileSync } from 'node:child_process';
+import { mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const driver = resolve(root, 'desktop-drive.mjs');
 const env = { ...process.env, DESKTOP_CDP_PORT: process.env.DESKTOP_CDP_PORT || '9250' };
+const screenshotDir = process.env.CRM_LOOP_SCREENSHOTS_DIR || '/tmp/lantern-crm-workflows';
 const run = (...args) => execFileSync('node', [driver, ...args], { cwd: root, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 const click = (testid) => run('click', testid);
 const fill = (testid, value) => run('type', testid, value);
@@ -19,6 +21,22 @@ const need = (prefix) => {
   return id;
 };
 const assert = (condition, message) => { if (!condition) throw new Error(message); };
+const capture = (name) => {
+  mkdirSync(screenshotDir, { recursive: true });
+  const path = resolve(screenshotDir, `${name}.png`);
+  execFileSync('scrot', ['-o', path], { env: { ...env, DISPLAY: env.DISPLAY || ':102' }, stdio: 'ignore' });
+  console.log(`screenshot: ${path}`);
+};
+const restartDesktop = () => {
+  // This is a true Tauri relaunch, not a React-only reload. The bridge call is
+  // expected to lose its response while the old process closes.
+  try { run('eval', "(async () => { const { relaunch } = await import('@tauri-apps/plugin-process'); await relaunch(); return true; })()"); } catch { /* relaunch closed the bridge before it could answer */ }
+  const deadline = Date.now() + 20_000;
+  while (Date.now() < deadline) {
+    try { run('pages'); return; } catch { /* the new desktop process is still starting */ }
+  }
+  throw new Error('Desktop app did not return after relaunch.');
+};
 
 try {
   click('crm-home-nav-workflows');
@@ -47,6 +65,7 @@ try {
   const apply = need('crm-live-propagation-apply-');
   click(apply);
   assert(evaluate('document.body.innerText').includes('Completed work and notes stayed as they were.'), 'Apply did not confirm that completed work stayed unchanged.');
+  capture('workflow-applied');
 
   click('crm-home-nav-workflows');
   const localEdit = ids('crm-live-workflow-edit-local-').at(-1);
@@ -62,11 +81,9 @@ try {
   click(undo);
   const undoText = evaluate(`document.querySelector('[data-testid="crm-live-propagation-result"]')?.textContent || ''`);
   assert(undoText.includes('Kept 2 later household changes'), `Undo did not protect the later household edit: ${undoText}`);
+  capture('workflow-undo-protected');
 
-  // Reloading re-mounts the running desktop app. The CRM bridge reloads from
-  // SQLCipher rather than retaining component state, which is the persistence
-  // proof available through the debug bridge.
-  evaluate('location.reload(); true');
+  restartDesktop();
   const deadline = Date.now() + 10_000;
   while (Date.now() < deadline) {
     try {
@@ -77,7 +94,7 @@ try {
   click('crm-home-nav-workflows');
   click('crm-live-workflow-open-propagation');
   assert(evaluate(`document.body.innerText.includes('No template updates waiting for review')`), 'Applied review decision did not persist after restart.');
-  console.log('PASS: workflow template, household instance, review, protected undo, and persistence all worked through the desktop bridge.');
+  console.log('PASS: workflow template, household instance, review, protected undo, screenshots, and relaunch persistence all worked through the desktop bridge.');
 } catch (error) {
   console.error(`FAIL: ${error instanceof Error ? error.message : String(error)}`);
   process.exitCode = 1;

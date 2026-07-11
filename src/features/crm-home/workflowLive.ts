@@ -33,9 +33,9 @@ const fieldsFor = (step: WorkflowStepDraft, changeKind: 'add' | 'modify' = 'add'
 
 export function workflowRecords(records: readonly LiveCrmRecord[]) {
   return {
-    templates: records.filter((record): record is LiveWorkflowTemplate => record.kind === 'crm_workflow_template' && typeof record.name === 'string' && Boolean(record.snapshot)),
-    instances: records.filter((record): record is LiveWorkflowInstance => record.kind === 'crm_workflow_instance' && typeof record.templateId === 'string' && Boolean(record.snapshot)),
-    offers: records.filter((record): record is LiveWorkflowOffer => record.kind === 'crm_workflow_offer' && typeof record.templateId === 'string' && Boolean(record.engineOffer)),
+    templates: records.filter((record): record is LiveWorkflowTemplate => record.kind === 'crm_workflow_template' && typeof record['name'] === 'string' && Boolean(record['snapshot'])),
+    instances: records.filter((record): record is LiveWorkflowInstance => record.kind === 'crm_workflow_instance' && typeof record['templateId'] === 'string' && Boolean(record['snapshot'])),
+    offers: records.filter((record): record is LiveWorkflowOffer => record.kind === 'crm_workflow_offer' && typeof record['templateId'] === 'string' && Boolean(record['engineOffer'])),
   };
 }
 
