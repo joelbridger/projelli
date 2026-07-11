@@ -164,8 +164,10 @@ export const config = {
   /** Allocation is intentionally much lower than update traffic and keyed by seat. */
   firmMatterStreamAllocationRateLimitMax: num("FIRM_MATTER_STREAM_ALLOCATION_RATE_LIMIT_MAX", 30, { min: 1 }),
   firmMatterStreamAllocationRateLimitWindowSeconds: num("FIRM_MATTER_STREAM_ALLOCATION_RATE_LIMIT_WINDOW_SECONDS", 60, { min: 1 }),
-  /** An allocated document stream must be published by the encrypted root soon. */
-  firmMatterProvisionalStreamTtlSeconds: num("FIRM_MATTER_PROVISIONAL_STREAM_TTL_SECONDS", 300, { min: 1 }),
+  /** Unused stream leases expire; streams with accepted data are retained. */
+  firmMatterStreamLeaseIdleSeconds: num("FIRM_MATTER_STREAM_LEASE_IDLE_SECONDS", 900, { min: 1 }),
+  /** Keeps one editor from consuming a matter's entire durable stream budget. */
+  firmMatterSeatLiveStreamCap: num("FIRM_MATTER_SEAT_LIVE_STREAM_CAP", 128, { min: 1 }),
 
   /** Legacy bridge window, named with its units to prevent seconds/ms drift. */
   migrationManifestTtlSeconds,

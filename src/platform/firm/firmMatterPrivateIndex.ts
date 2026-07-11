@@ -27,8 +27,8 @@ export interface FirmMatterPrivateIndex {
 }
 
 export interface RootIndexSync {
-  /** When present, publish this allocation with the accepted encrypted root update. */
-  flush(commitStreamHandle?: StreamHandle): Promise<void>;
+  /** Publish the encrypted root update. The relay treats its ciphertext as opaque. */
+  flush(): Promise<void>;
 }
 
 type PrivateStreamEntry = FirmMatterPrivateIndex['streams'][string];
@@ -153,7 +153,8 @@ export async function addDocumentStreamToPrivateIndex(
 
 /**
  * Allocate a server-generated opaque stream, then durably publish its local
- * mapping in the encrypted root index before the caller opens that stream.
+ * mapping in the encrypted root index before the caller opens that stream. The
+ * server makes the lease durable only when the stream itself accepts data.
  */
 export async function createDocumentStream(
   client: FirmApiClient,
@@ -165,15 +166,8 @@ export async function createDocumentStream(
 ): Promise<StreamHandle> {
   const { stream_handle } = await client.allocateStream(matterHandle, seatToken);
   const streamHandle = parseStreamHandle(stream_handle);
-  try {
-    // The root-sync implementation passes this opaque handle with the root
-    // update. The server commits it in the same transaction as that update.
-    await addDocumentStreamToPrivateIndex(doc, { flush: () => rootSync.flush(streamHandle) }, localDocumentId, streamHandle);
-  } catch (error) {
-    // Leave the allocation provisional. It will disappear shortly if this
-    // client crashes or cannot publish the encrypted directory update.
-    throw error;
-  }
+  // If publishing the directory fails, the unused lease disappears shortly.
+  await addDocumentStreamToPrivateIndex(doc, rootSync, localDocumentId, streamHandle);
   return streamHandle;
 }
 

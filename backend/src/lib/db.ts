@@ -153,8 +153,10 @@ CREATE TABLE IF NOT EXISTS matter_streams (
   stream_handle TEXT PRIMARY KEY,
   matter_handle TEXT NOT NULL REFERENCES matters(matter_handle),
   created_at    TEXT NOT NULL,
-  -- NULL means committed. A timestamp is a short-lived allocation hold.
-  provisional_expires_at TEXT
+  -- A stream is a reclaimable lease until its first accepted encrypted update.
+  allocated_by_seat TEXT,
+  last_activity_at TEXT NOT NULL,
+  accepted_update_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_matter_streams_matter ON matter_streams(matter_handle);
 
@@ -452,11 +454,24 @@ export class Store {
     if (existingMatterCols.some((c) => c.name === "matter_id")) this.migrateFirmRelayToV2();
     this.db.exec(SCHEMA);
 
-    // Existing v2 relays predate provisional streams. Keep this guarded so a
-    // restart upgrades in place without rebuilding any opaque ciphertext.
+    // Upgrade existing v2 relays in place without touching opaque ciphertext.
     const streamCols = this.db.query("PRAGMA table_info(matter_streams)").all() as Array<{ name: string }>;
-    if (!streamCols.some((c) => c.name === "provisional_expires_at")) {
-      this.db.exec("ALTER TABLE matter_streams ADD COLUMN provisional_expires_at TEXT");
+    const hadProvisionalExpiry = streamCols.some((c) => c.name === "provisional_expires_at");
+    if (!streamCols.some((c) => c.name === "allocated_by_seat")) this.db.exec("ALTER TABLE matter_streams ADD COLUMN allocated_by_seat TEXT");
+    if (!streamCols.some((c) => c.name === "last_activity_at")) {
+      this.db.exec("ALTER TABLE matter_streams ADD COLUMN last_activity_at TEXT");
+      this.db.exec("UPDATE matter_streams SET last_activity_at = created_at WHERE last_activity_at IS NULL");
+    }
+    if (!streamCols.some((c) => c.name === "accepted_update_at")) {
+      this.db.exec("ALTER TABLE matter_streams ADD COLUMN accepted_update_at TEXT");
+      // Pre-lease rows were durable already, except old allocation holds. Keep
+      // those reclaimable so an upgrade cannot turn a crashed client into a
+      // permanent stream leak.
+      if (hadProvisionalExpiry) {
+        this.db.exec("UPDATE matter_streams SET accepted_update_at = created_at WHERE provisional_expires_at IS NULL");
+      } else {
+        this.db.exec("UPDATE matter_streams SET accepted_update_at = created_at WHERE accepted_update_at IS NULL");
+      }
     }
 
     // Guarded migration: add subscription_id column + partial unique index to
@@ -488,7 +503,7 @@ export class Store {
     try {
       this.db.exec(`
         CREATE TABLE matters_v2 (matter_handle TEXT PRIMARY KEY, org_id TEXT NOT NULL, root_stream_handle TEXT NOT NULL UNIQUE, status TEXT NOT NULL, key_epoch INTEGER NOT NULL, created_at TEXT NOT NULL);
-        CREATE TABLE matter_streams_v2 (stream_handle TEXT PRIMARY KEY, matter_handle TEXT NOT NULL REFERENCES matters_v2(matter_handle), created_at TEXT NOT NULL, provisional_expires_at TEXT);
+        CREATE TABLE matter_streams_v2 (stream_handle TEXT PRIMARY KEY, matter_handle TEXT NOT NULL REFERENCES matters_v2(matter_handle), created_at TEXT NOT NULL, allocated_by_seat TEXT, last_activity_at TEXT NOT NULL, accepted_update_at TEXT);
         CREATE TABLE matter_members_v2 (matter_handle TEXT NOT NULL REFERENCES matters_v2(matter_handle), user_id TEXT NOT NULL, org_id TEXT NOT NULL, role TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(matter_handle,user_id));
         CREATE TABLE ethical_walls_v2 (matter_handle TEXT NOT NULL REFERENCES matters_v2(matter_handle), user_id TEXT NOT NULL, org_id TEXT NOT NULL, created_by TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(matter_handle,user_id));
         CREATE TABLE matter_updates_v2 (id INTEGER PRIMARY KEY AUTOINCREMENT, matter_handle TEXT NOT NULL REFERENCES matters_v2(matter_handle), org_id TEXT NOT NULL, stream_handle TEXT NOT NULL REFERENCES matter_streams_v2(stream_handle), blob_id TEXT NOT NULL, ciphertext BLOB NOT NULL, author_seat TEXT NOT NULL, key_epoch INTEGER NOT NULL, created_at TEXT NOT NULL);
@@ -507,14 +522,14 @@ export class Store {
         const root = this.newHandle("sh2_");
         handles.set(old.matter_id, { matter, root, streams: new Map([["_notes", root]]) });
         this.db.query("INSERT INTO matters_v2 VALUES (?, ?, ?, ?, ?, ?)").run(matter, old.org_id, root, old.status === "archived" ? "archived" : "active", old.key_epoch, old.created_at);
-        this.db.query("INSERT INTO matter_streams_v2 VALUES (?, ?, ?, NULL)").run(root, matter, old.created_at);
+        this.db.query("INSERT INTO matter_streams_v2 VALUES (?, ?, ?, NULL, ?, ?)").run(root, matter, old.created_at, old.created_at, old.created_at);
       }
       const updateRows = this.db.query(`SELECT * FROM matter_updates ORDER BY id ASC`).all() as Array<{ id: number; matter_id: string; org_id: string; doc_id?: string; blob_id: string; ciphertext: Uint8Array; author_seat: string; key_epoch: number; created_at: string }>;
       for (const u of updateRows) {
         const mapped = handles.get(u.matter_id); if (!mapped) continue;
         const legacyStream = hasDocId ? (u.doc_id ?? "_notes") : "_notes";
         let stream = mapped.streams.get(legacyStream);
-        if (!stream) { stream = this.newHandle("sh2_"); mapped.streams.set(legacyStream, stream); this.db.query("INSERT INTO matter_streams_v2 VALUES (?, ?, ?, NULL)").run(stream, mapped.matter, u.created_at); }
+        if (!stream) { stream = this.newHandle("sh2_"); mapped.streams.set(legacyStream, stream); this.db.query("INSERT INTO matter_streams_v2 VALUES (?, ?, ?, NULL, ?, ?)").run(stream, mapped.matter, u.created_at, u.created_at, u.created_at); }
         this.db.query("INSERT INTO matter_updates_v2 (id,matter_handle,org_id,stream_handle,blob_id,ciphertext,author_seat,key_epoch,created_at) VALUES (?,?,?,?,?,?,?,?,?)").run(u.id, mapped.matter, u.org_id, stream, u.blob_id, u.ciphertext, u.author_seat, u.key_epoch, u.created_at);
       }
       for (const row of this.db.query("SELECT * FROM matter_members").all() as Array<{ matter_id:string; user_id:string; org_id:string; role:string; created_at:string }>) { const m=handles.get(row.matter_id); if (m) this.db.query("INSERT INTO matter_members_v2 VALUES (?,?,?,?,?)").run(m.matter,row.user_id,row.org_id,row.role,row.created_at); }
@@ -1004,7 +1019,7 @@ export class Store {
     const m: Matter = { matter_handle: this.newHandle("mh2_"), org_id: input.org_id, root_stream_handle: this.newHandle("sh2_"), status: "provisioning", key_epoch: 1, created_at: this.nowIso() };
     const txn = this.db.transaction(() => {
       this.db.query("INSERT INTO matters (matter_handle, org_id, root_stream_handle, status, key_epoch, created_at) VALUES (?, ?, ?, 'provisioning', 1, ?)").run(m.matter_handle, m.org_id, m.root_stream_handle, m.created_at);
-      this.db.query("INSERT INTO matter_streams (stream_handle, matter_handle, created_at) VALUES (?, ?, ?)").run(m.root_stream_handle, m.matter_handle, m.created_at);
+      this.db.query("INSERT INTO matter_streams (stream_handle, matter_handle, created_at, last_activity_at, accepted_update_at) VALUES (?, ?, ?, ?, ?)").run(m.root_stream_handle, m.matter_handle, m.created_at, m.created_at, m.created_at);
     });
     txn.immediate(); return m;
   }
@@ -1021,35 +1036,34 @@ export class Store {
     return rows.map(toMatter);
   }
 
-  createMatterStream(matterHandle: string, ttlSeconds = config.firmMatterProvisionalStreamTtlSeconds): string {
+  createMatterStream(matterHandle: string, seatId: string): string {
     const streamHandle = this.newHandle("sh2_");
-    const expiresAt = new Date(Date.now() + ttlSeconds * 1_000).toISOString();
-    this.db.query("INSERT INTO matter_streams (stream_handle, matter_handle, created_at, provisional_expires_at) VALUES (?, ?, ?, ?)").run(streamHandle, matterHandle, this.nowIso(), expiresAt);
+    const now = this.nowIso();
+    this.db.query("INSERT INTO matter_streams (stream_handle, matter_handle, created_at, allocated_by_seat, last_activity_at) VALUES (?, ?, ?, ?, ?)").run(streamHandle, matterHandle, now, seatId, now);
     return streamHandle;
   }
 
-  countMatterStreams(matterHandle: string): number {
-    this.purgeExpiredProvisionalStreams();
-    const row = this.db.query("SELECT COUNT(*) AS count FROM matter_streams WHERE matter_handle = ?").get(matterHandle) as { count: number };
+  countLiveMatterStreams(matterHandle: string): number {
+    this.reclaimInactiveStreamLeases();
+    const row = this.db.query("SELECT COUNT(*) AS count FROM matter_streams WHERE matter_handle = ? AND accepted_update_at IS NOT NULL").get(matterHandle) as { count: number };
+    return row.count;
+  }
+
+  countSeatLiveMatterStreams(matterHandle: string, seatId: string): number {
+    this.reclaimInactiveStreamLeases();
+    const row = this.db.query("SELECT COUNT(*) AS count FROM matter_streams WHERE matter_handle = ? AND allocated_by_seat = ? AND accepted_update_at IS NOT NULL").get(matterHandle, seatId) as { count: number };
     return row.count;
   }
 
   streamBelongsToMatter(streamHandle: string, matterHandle: string): boolean {
-    this.purgeExpiredProvisionalStreams();
-    return this.db.query("SELECT 1 FROM matter_streams WHERE stream_handle = ? AND matter_handle = ? AND provisional_expires_at IS NULL").get(streamHandle, matterHandle) !== null;
+    this.reclaimInactiveStreamLeases();
+    return this.db.query("SELECT 1 FROM matter_streams WHERE stream_handle = ? AND matter_handle = ?").get(streamHandle, matterHandle) !== null;
   }
 
-  /** Delete unreferenced allocation holds. No update can target one before commit. */
-  purgeExpiredProvisionalStreams(now = this.nowIso()): number {
-    return this.db.query("DELETE FROM matter_streams WHERE provisional_expires_at IS NOT NULL AND provisional_expires_at <= ?").run(now).changes;
-  }
-
-  /** Atomically make an allocated stream usable with its accepted root update. */
-  commitProvisionalMatterStream(matterHandle: string, rootStreamHandle: string, streamHandle: string): boolean {
-    const root = this.getMatter(matterHandle)?.root_stream_handle;
-    if (root !== rootStreamHandle) return false;
-    this.purgeExpiredProvisionalStreams();
-    return this.db.query("UPDATE matter_streams SET provisional_expires_at = NULL WHERE stream_handle = ? AND matter_handle = ? AND provisional_expires_at IS NOT NULL").run(streamHandle, matterHandle).changes > 0;
+  /** Reclaim unused leases only. A stream with accepted ciphertext is never deleted. */
+  reclaimInactiveStreamLeases(now = this.nowIso()): number {
+    const cutoff = new Date(new Date(now).getTime() - config.firmMatterStreamLeaseIdleSeconds * 1_000).toISOString();
+    return this.db.query("DELETE FROM matter_streams WHERE accepted_update_at IS NULL AND last_activity_at <= ?").run(cutoff).changes;
   }
 
   /** Resolve a flat stream route without exposing its parent in the URL. */
@@ -1299,31 +1313,29 @@ export class Store {
     ciphertext: Uint8Array;
     author_seat: string;
     key_epoch: number;
-    /** Present only on a root-index write that publishes this allocation. */
-    commit_stream_handle?: string;
-  }): { update: MatterUpdate; duplicate: boolean } | { commitRejected: true } {
+  }): { update: MatterUpdate; duplicate: boolean } | { streamLimitReached: true } | { seatStreamLimitReached: true } | { streamNotFound: true } | { streamSeatMismatch: true } {
     const now = this.nowIso();
     const txn = this.db.transaction(() => {
-      if (input.commit_stream_handle) {
-        // Commit and append live in one SQLite transaction. The relay cannot
-        // inspect encrypted index bytes, but it can require the client to make
-        // the allocation usable only alongside an accepted root-stream blob.
-        const root = this.getMatter(input.matter_handle)?.root_stream_handle;
-        if (root !== input.stream_handle) return { commitRejected: true as const };
-        const committed = this.db.query(`UPDATE matter_streams
-          SET provisional_expires_at = NULL
-          WHERE stream_handle = ? AND matter_handle = ?
-            AND provisional_expires_at IS NOT NULL AND provisional_expires_at > ?`)
-          .run(input.commit_stream_handle, input.matter_handle, now).changes > 0;
-        if (!committed) return { commitRejected: true as const };
-      }
+      this.reclaimInactiveStreamLeases(now);
+      const stream = this.db.query(`SELECT allocated_by_seat, accepted_update_at FROM matter_streams WHERE stream_handle = ? AND matter_handle = ?`).get(input.stream_handle, input.matter_handle) as { allocated_by_seat: string | null; accepted_update_at: string | null } | null;
+      if (!stream) return { streamNotFound: true as const };
+      if (stream.accepted_update_at === null && stream.allocated_by_seat !== input.author_seat) return { streamSeatMismatch: true as const };
       const existing = this.db
         .query(`SELECT * FROM matter_updates WHERE stream_handle = ? AND blob_id = ?`)
         .get(input.stream_handle, input.blob_id) as
         | { id: number; matter_handle: string; org_id: string; stream_handle: string; blob_id: string; ciphertext: Uint8Array; author_seat: string; key_epoch: number; created_at: string }
         | null;
       if (existing) {
+        this.db.query("UPDATE matter_streams SET last_activity_at = ? WHERE stream_handle = ?").run(now, input.stream_handle);
         return { update: { ...existing, ciphertext: new Uint8Array(existing.ciphertext) }, duplicate: true };
+      }
+      if (stream.accepted_update_at === null) {
+        if (this.countLiveMatterStreams(input.matter_handle) >= config.firmMatterStreamCap) return { streamLimitReached: true as const };
+        if (this.countSeatLiveMatterStreams(input.matter_handle, input.author_seat) >= config.firmMatterSeatLiveStreamCap) return { seatStreamLimitReached: true as const };
+        const activated = this.db.query(`UPDATE matter_streams SET accepted_update_at = ?, last_activity_at = ? WHERE stream_handle = ? AND matter_handle = ? AND accepted_update_at IS NULL`).run(now, now, input.stream_handle, input.matter_handle).changes > 0;
+        if (!activated) return { streamNotFound: true as const };
+      } else {
+        this.db.query("UPDATE matter_streams SET last_activity_at = ? WHERE stream_handle = ?").run(now, input.stream_handle);
       }
       this.db
         .query(
@@ -1356,7 +1368,7 @@ export class Store {
       return { update: { ...row, ciphertext: new Uint8Array(row.ciphertext) }, duplicate: false };
     });
     // IMMEDIATE so concurrent pushes of the same (stream_handle, blob_id) can't both insert.
-    return txn.immediate() as { update: MatterUpdate; duplicate: boolean } | { commitRejected: true };
+    return txn.immediate() as { update: MatterUpdate; duplicate: boolean } | { streamLimitReached: true } | { seatStreamLimitReached: true } | { streamNotFound: true } | { streamSeatMismatch: true };
   }
 
   /**
