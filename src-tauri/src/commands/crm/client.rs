@@ -77,6 +77,10 @@ pub struct WealthboxClient {
     last_request: tokio::sync::Mutex<Option<Instant>>,
     /// Lazily-populated id → label resolver cache.
     label_cache: tokio::sync::Mutex<LabelCache>,
+    network_policy: Option<(
+        crate::network_policy::NetworkPolicy,
+        crate::network_policy::EgressOperation,
+    )>,
 }
 
 impl WealthboxClient {
@@ -98,7 +102,34 @@ impl WealthboxClient {
             http,
             last_request: tokio::sync::Mutex::new(None),
             label_cache: tokio::sync::Mutex::new(LabelCache::default()),
+            network_policy: None,
         }
+    }
+
+    pub fn with_network_policy(
+        mut self,
+        policy: crate::network_policy::NetworkPolicy,
+        operation: crate::network_policy::EgressOperation,
+    ) -> Self {
+        self.network_policy = Some((policy, operation));
+        self
+    }
+    async fn send(
+        &self,
+        url: &str,
+        request: reqwest::RequestBuilder,
+    ) -> anyhow::Result<reqwest::Response> {
+        let Some((policy, operation)) = self.network_policy.as_ref() else {
+            #[cfg(test)]
+            return Ok(request.send().await?);
+            #[cfg(not(test))]
+            anyhow::bail!("WealthboxClient requires a NetworkPolicy before it can make a request");
+        };
+        let authorized = crate::commands::connector_network::authorize_url(policy, operation, url)?;
+        crate::commands::connector_network::await_authorized(policy, &authorized, async move {
+            Ok(request.send().await?)
+        })
+        .await
     }
 
     // -----------------------------------------------------------------------
@@ -150,7 +181,7 @@ impl WealthboxClient {
             for (k, v) in query {
                 req = req.query(&[(*k, v.as_str())]);
             }
-            let resp = req.send().await.context("Wealthbox HTTP send")?;
+            let resp = self.send(&url, req).await.context("Wealthbox HTTP send")?;
 
             if resp.status().as_u16() == 429 {
                 let ra = resp
@@ -195,14 +226,12 @@ impl WealthboxClient {
         };
         for attempt in 0..MAX_429_RETRIES {
             self.rate_gate().await;
-            let resp = self
+            let req = self
                 .http
                 .post(&url)
                 .header("ACCESS_TOKEN", &self.token)
-                .json(body)
-                .send()
-                .await
-                .context("Wealthbox HTTP send")?;
+                .json(body);
+            let resp = self.send(&url, req).await.context("Wealthbox HTTP send")?;
             if resp.status().as_u16() == 429 {
                 let ra = resp
                     .headers()
@@ -221,7 +250,10 @@ impl WealthboxClient {
             }
             return serde_json::from_str(&text).context("parse Wealthbox JSON response");
         }
-        anyhow::bail!("Wealthbox: throttled past retry budget ({} attempts)", MAX_429_RETRIES)
+        anyhow::bail!(
+            "Wealthbox: throttled past retry budget ({} attempts)",
+            MAX_429_RETRIES
+        )
     }
 
     /// PUT `path` with a JSON `body`, returning the parsed JSON response.
@@ -245,14 +277,12 @@ impl WealthboxClient {
         };
         for attempt in 0..MAX_429_RETRIES {
             self.rate_gate().await;
-            let resp = self
+            let req = self
                 .http
                 .put(&url)
                 .header("ACCESS_TOKEN", &self.token)
-                .json(body)
-                .send()
-                .await
-                .context("Wealthbox HTTP send")?;
+                .json(body);
+            let resp = self.send(&url, req).await.context("Wealthbox HTTP send")?;
             if resp.status().as_u16() == 429 {
                 let ra = resp
                     .headers()
@@ -271,7 +301,10 @@ impl WealthboxClient {
             }
             return serde_json::from_str(&text).context("parse Wealthbox JSON response");
         }
-        anyhow::bail!("Wealthbox: throttled past retry budget ({} attempts)", MAX_429_RETRIES)
+        anyhow::bail!(
+            "Wealthbox: throttled past retry budget ({} attempts)",
+            MAX_429_RETRIES
+        )
     }
 
     // -----------------------------------------------------------------------
@@ -696,12 +729,17 @@ mod tests {
         Mock::given(matchers::method("PUT"))
             .and(matchers::path("/contacts/12345"))
             .and(matchers::header("ACCESS_TOKEN", "tok-1"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"id": 12345})))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({"id": 12345})),
+            )
             .mount(&server)
             .await;
         let client = WealthboxClient::new_with_base("tok-1".into(), server.uri());
         let out = client
-            .put_json("/contacts/12345", &serde_json::json!({"background_information": "x"}))
+            .put_json(
+                "/contacts/12345",
+                &serde_json::json!({"background_information": "x"}),
+            )
             .await
             .unwrap();
         assert_eq!(out["id"].as_i64(), Some(12345));
@@ -738,7 +776,10 @@ mod tests {
             }
         }
         let server = MockServer::start().await;
-        Mock::given(matchers::method("PUT")).respond_with(Count).mount(&server).await;
+        Mock::given(matchers::method("PUT"))
+            .respond_with(Count)
+            .mount(&server)
+            .await;
         let client = WealthboxClient::new_with_base("t".into(), server.uri());
         let _ = client.put_json("/contacts/1", &serde_json::json!({})).await;
         assert_eq!(HITS.load(Ordering::SeqCst), 1, "a PUT must never blind-retry on 5xx — the caller's stale-guard decides whether a re-send is safe");
@@ -775,9 +816,16 @@ mod tests {
             }
         }
         let server = MockServer::start().await;
-        Mock::given(matchers::method("POST")).respond_with(Count).mount(&server).await;
+        Mock::given(matchers::method("POST"))
+            .respond_with(Count)
+            .mount(&server)
+            .await;
         let client = WealthboxClient::new_with_base("t".into(), server.uri());
         let _ = client.post_json("/notes", &serde_json::json!({})).await;
-        assert_eq!(HITS.load(Ordering::SeqCst), 1, "a POST must never blind-retry on 5xx — double-post risk");
+        assert_eq!(
+            HITS.load(Ordering::SeqCst),
+            1,
+            "a POST must never blind-retry on 5xx — double-post risk"
+        );
     }
 }

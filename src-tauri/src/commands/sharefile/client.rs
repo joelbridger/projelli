@@ -18,6 +18,10 @@ pub struct SharefileClient {
     api_base: String,
     http: reqwest::Client,
     last_request: tokio::sync::Mutex<Option<Instant>>,
+    network_policy: Option<(
+        crate::network_policy::NetworkPolicy,
+        crate::network_policy::EgressOperation,
+    )>,
 }
 
 impl SharefileClient {
@@ -34,6 +38,7 @@ impl SharefileClient {
             api_base,
             http,
             last_request: tokio::sync::Mutex::new(None),
+            network_policy: None,
         })
     }
 
@@ -50,11 +55,47 @@ impl SharefileClient {
             api_base: api_base.trim_end_matches('/').to_string(),
             http,
             last_request: tokio::sync::Mutex::new(None),
+            network_policy: None,
         })
     }
 
     pub fn base(&self) -> &str {
         &self.api_base
+    }
+
+    pub fn with_network_policy(
+        mut self,
+        policy: crate::network_policy::NetworkPolicy,
+        operation: crate::network_policy::EgressOperation,
+    ) -> Self {
+        self.network_policy = Some((policy, operation));
+        self
+    }
+    async fn send(
+        &self,
+        url: &str,
+        request: reqwest::RequestBuilder,
+    ) -> anyhow::Result<reqwest::Response> {
+        let Some((policy, operation)) = self.network_policy.as_ref() else {
+            #[cfg(test)]
+            return Ok(request.send().await?);
+            #[cfg(not(test))]
+            anyhow::bail!("SharefileClient requires a NetworkPolicy before it can make a request");
+        };
+        let configured_host = reqwest::Url::parse(&self.api_base)
+            .ok()
+            .and_then(|url| url.host_str().map(str::to_owned))
+            .ok_or_else(|| anyhow::anyhow!("ShareFile API base has no host"))?;
+        let authorized = crate::commands::connector_network::authorize_configured_host(
+            policy,
+            operation,
+            url,
+            &configured_host,
+        )?;
+        crate::commands::connector_network::await_authorized(policy, &authorized, async move {
+            Ok(request.send().await?)
+        })
+        .await
     }
 
     pub async fn validate_token(&self) -> anyhow::Result<()> {
@@ -65,7 +106,10 @@ impl SharefileClient {
     pub async fn list_root_children(&self) -> anyhow::Result<Vec<SharefileItem>> {
         match self.list_children_for_id("top").await {
             Ok(items) => Ok(items),
-            Err(_) => self.collect_feed(&format!("/Items?$select={SELECT_ITEM}&$top=200")).await,
+            Err(_) => {
+                self.collect_feed(&format!("/Items?$select={SELECT_ITEM}&$top=200"))
+                    .await
+            }
         }
     }
 
@@ -125,11 +169,9 @@ impl SharefileClient {
         self.ensure_same_origin(url)?;
         for attempt in 0..MAX_429_RETRIES {
             self.rate_gate().await;
+            let req = self.http.get(url).bearer_auth(&self.access_token);
             let resp = self
-                .http
-                .get(url)
-                .bearer_auth(&self.access_token)
-                .send()
+                .send(url, req)
                 .await
                 .context("ShareFile HTTP GET send")?;
 
@@ -158,11 +200,9 @@ impl SharefileClient {
         self.ensure_same_origin(&url)?;
         for attempt in 0..MAX_429_RETRIES {
             self.rate_gate().await;
+            let req = self.http.get(&url).bearer_auth(&self.access_token);
             let resp = self
-                .http
-                .get(&url)
-                .bearer_auth(&self.access_token)
-                .send()
+                .send(&url, req)
                 .await
                 .context("ShareFile HTTP GET download send")?;
 
@@ -180,7 +220,11 @@ impl SharefileClient {
             if !status.is_success() {
                 anyhow::bail!("ShareFile download request failed (HTTP {})", status);
             }
-            return Ok(resp.bytes().await.context("read ShareFile document bytes")?.to_vec());
+            return Ok(resp
+                .bytes()
+                .await
+                .context("read ShareFile document bytes")?
+                .to_vec());
         }
         anyhow::bail!("ShareFile download throttled past retry budget")
     }
@@ -294,8 +338,14 @@ mod tests {
         let client =
             SharefileClient::new_with_base("tok".into(), "https://acme.sf-api.com/sf/v3".into())
                 .unwrap();
-        assert!(client.ensure_same_origin("https://acme.sf-api.com/sf/v3/Items?p=2").is_ok());
-        assert!(client.ensure_same_origin("https://evil.example.com/sf/v3/Items").is_err());
-        assert!(client.ensure_same_origin("http://acme.sf-api.com/sf/v3/Items").is_err());
+        assert!(client
+            .ensure_same_origin("https://acme.sf-api.com/sf/v3/Items?p=2")
+            .is_ok());
+        assert!(client
+            .ensure_same_origin("https://evil.example.com/sf/v3/Items")
+            .is_err());
+        assert!(client
+            .ensure_same_origin("http://acme.sf-api.com/sf/v3/Items")
+            .is_err());
     }
 }

@@ -9,9 +9,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::commands::addepar::client::AddeparClient;
 use crate::commands::addepar::engine;
-use crate::commands::addepar::model::{
-    AddeparConfig, AddeparEntityDto, AddeparMatterMapEntry,
-};
+use crate::commands::addepar::model::{AddeparConfig, AddeparEntityDto, AddeparMatterMapEntry};
 
 const KEYCHAIN_SERVICE: &str = crate::identity::ADDEPAR_SERVICE;
 const KEYCHAIN_CONFIG_KEY: &str = "connection-v1";
@@ -115,6 +113,7 @@ pub async fn addepar_connect(
     api_secret: String,
     subdomain: String,
     firm_id: String,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
 ) -> Result<AddeparConnectInfo, String> {
     let config = AddeparConfig {
         api_key: api_key.trim().to_string(),
@@ -127,10 +126,12 @@ pub async fn addepar_connect(
         || config.subdomain.is_empty()
         || config.firm_id.is_empty()
     {
-        return Err("Addepar API key, API secret, firm subdomain, and firm id are required.".into());
+        return Err(
+            "Addepar API key, API secret, firm subdomain, and firm id are required.".into(),
+        );
     }
 
-    AddeparClient::new(config.clone())
+    AddeparClient::new(config.clone()).with_network_policy(policy.inner().clone(), crate::network_policy::ADDEPAR_SYNC)
         .validate()
         .await
         .map_err(|_| "Could not connect to Addepar. Check the key, secret, subdomain, firm id, and API permissions.".to_string())?;
@@ -147,9 +148,12 @@ pub async fn addepar_is_connected() -> Result<bool, String> {
 }
 
 #[tauri::command]
-pub async fn addepar_list_entities() -> Result<Vec<AddeparEntityDto>, String> {
+pub async fn addepar_list_entities(
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
+) -> Result<Vec<AddeparEntityDto>, String> {
     let config = read_config().ok_or_else(|| "Addepar is not connected".to_string())?;
-    let client = AddeparClient::new(config);
+    let client = AddeparClient::new(config)
+        .with_network_policy(policy.inner().clone(), crate::network_policy::ADDEPAR_SYNC);
     let entities = client.list_entities().await.map_err(|e| e.to_string())?;
     Ok(entities
         .into_iter()
@@ -168,6 +172,7 @@ pub async fn addepar_list_entities() -> Result<Vec<AddeparEntityDto>, String> {
 pub async fn addepar_sync(
     app: AppHandle,
     state: State<'_, AddeparState>,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
     matter_map: Vec<AddeparMatterMapEntry>,
 ) -> Result<AddeparSyncReportDto, String> {
     if state
@@ -187,23 +192,24 @@ pub async fn addepar_sync(
         .await
         .clone()
         .ok_or_else(|| "workspace not set - call addepar_set_workspace first".to_string())?;
-    let rag_key = crate::commands::rag::crypto::get_or_create_master_key()
-        .map_err(|e| e.to_string())?;
+    let rag_key =
+        crate::commands::rag::crypto::get_or_create_master_key().map_err(|e| e.to_string())?;
 
-    let _ = app.emit(ADDEPAR_SYNC_PROGRESS_EVENT, serde_json::json!({ "status": "syncing" }));
-    let client = AddeparClient::new(config);
-    let report = engine::sync_with_key(
-        &client,
-        &workspace,
-        &matter_map,
-        &state.cancel,
-        &rag_key,
-    )
-    .await
-    .map_err(|e| {
-        let _ = app.emit(ADDEPAR_SYNC_PROGRESS_EVENT, serde_json::json!({ "status": "error" }));
-        e.to_string()
-    })?;
+    let _ = app.emit(
+        ADDEPAR_SYNC_PROGRESS_EVENT,
+        serde_json::json!({ "status": "syncing" }),
+    );
+    let client = AddeparClient::new(config)
+        .with_network_policy(policy.inner().clone(), crate::network_policy::ADDEPAR_SYNC);
+    let report = engine::sync_with_key(&client, &workspace, &matter_map, &state.cancel, &rag_key)
+        .await
+        .map_err(|e| {
+            let _ = app.emit(
+                ADDEPAR_SYNC_PROGRESS_EVENT,
+                serde_json::json!({ "status": "error" }),
+            );
+            e.to_string()
+        })?;
 
     let dto = AddeparSyncReportDto {
         entities_fetched: report.entities_fetched,
@@ -264,7 +270,9 @@ pub async fn addepar_disconnect(
     if let Some(ws) = workspace {
         match purge_addepar_rag_chunks(&ws).await {
             Ok(()) => result.rag_purged = true,
-            Err(e) => result.warnings.push(format!("Search-index purge failed: {e}")),
+            Err(e) => result
+                .warnings
+                .push(format!("Search-index purge failed: {e}")),
         }
     } else {
         result
@@ -275,7 +283,9 @@ pub async fn addepar_disconnect(
     if result.rag_purged {
         match delete_config() {
             Ok(()) => result.token_deleted = true,
-            Err(e) => result.warnings.push(format!("Addepar credential delete failed: {e}")),
+            Err(e) => result
+                .warnings
+                .push(format!("Addepar credential delete failed: {e}")),
         }
     } else {
         result.data_remains = true;

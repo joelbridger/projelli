@@ -18,6 +18,10 @@ use crate::commands::addepar::model::{
 pub struct AddeparClient {
     http: reqwest::Client,
     config: AddeparConfig,
+    network_policy: Option<(
+        crate::network_policy::NetworkPolicy,
+        crate::network_policy::EgressOperation,
+    )>,
 }
 
 impl AddeparClient {
@@ -35,7 +39,39 @@ impl AddeparClient {
                 .build()
                 .expect("build Addepar reqwest client"),
             config,
+            network_policy: None,
         }
+    }
+
+    pub fn with_network_policy(
+        mut self,
+        policy: crate::network_policy::NetworkPolicy,
+        operation: crate::network_policy::EgressOperation,
+    ) -> Self {
+        self.network_policy = Some((policy, operation));
+        self
+    }
+    async fn send(&self, url: &str, request: reqwest::RequestBuilder) -> Result<reqwest::Response> {
+        let Some((policy, operation)) = self.network_policy.as_ref() else {
+            #[cfg(test)]
+            return Ok(request.send().await?);
+            #[cfg(not(test))]
+            anyhow::bail!("AddeparClient requires a NetworkPolicy before it can make a request");
+        };
+        let configured_host = reqwest::Url::parse(&self.config.api_base()?)
+            .ok()
+            .and_then(|url| url.host_str().map(str::to_owned))
+            .ok_or_else(|| anyhow::anyhow!("Addepar API base has no host"))?;
+        let authorized = crate::commands::connector_network::authorize_configured_host(
+            policy,
+            operation,
+            url,
+            &configured_host,
+        )?;
+        crate::commands::connector_network::await_authorized(policy, &authorized, async move {
+            Ok(request.send().await?)
+        })
+        .await
     }
 
     #[cfg(test)]
@@ -58,8 +94,9 @@ impl AddeparClient {
 
     pub async fn list_entities(&self) -> Result<Vec<AddeparEntity>> {
         let mut out = Vec::new();
-        let mut next: Option<String> =
-            Some("/entities?page[limit]=200&filter[model_types]=PERSON_NODE,CLIENT,HOUSEHOLD".into());
+        let mut next: Option<String> = Some(
+            "/entities?page[limit]=200&filter[model_types]=PERSON_NODE,CLIENT,HOUSEHOLD".into(),
+        );
         let mut pages = 0u32;
         while let Some(path_or_url) = next.take() {
             pages += 1;
@@ -68,8 +105,15 @@ impl AddeparClient {
             }
             let page: AddeparCollection<AddeparEntityAttributes> =
                 self.get_json(&path_or_url).await?;
-            out.extend(page.data.into_iter().filter(|entity| entity.is_household_or_client()));
-            next = page.links.and_then(|links| links.next).filter(|s| !s.trim().is_empty());
+            out.extend(
+                page.data
+                    .into_iter()
+                    .filter(|entity| entity.is_household_or_client()),
+            );
+            next = page
+                .links
+                .and_then(|links| links.next)
+                .filter(|s| !s.trim().is_empty());
         }
         Ok(out)
     }
@@ -89,7 +133,12 @@ impl AddeparClient {
         };
 
         let performance = match self
-            .portfolio_query(entity, &["time_weighted_return", "value"], &["asset_class"], 365)
+            .portfolio_query(
+                entity,
+                &["time_weighted_return", "value"],
+                &["asset_class"],
+                365,
+            )
             .await
         {
             Ok(v) => Some(v),
@@ -148,13 +197,14 @@ impl AddeparClient {
 
     async fn get_json<T: serde::de::DeserializeOwned>(&self, path_or_url: &str) -> Result<T> {
         let url = self.url(path_or_url)?;
-        let resp = self
+        let req = self
             .http
             .get(&url)
             .basic_auth(&self.config.api_key, Some(&self.config.api_secret))
             .header("Addepar-Firm", self.config.firm_id.trim())
-            .header("Accept", "application/vnd.api+json")
-            .send()
+            .header("Accept", "application/vnd.api+json");
+        let resp = self
+            .send(&url, req)
             .await
             .context("Addepar HTTP GET send")?;
         Self::parse_response(resp, "GET", path_or_url).await
@@ -166,15 +216,16 @@ impl AddeparClient {
         body: &serde_json::Value,
     ) -> Result<T> {
         let url = self.url(path_or_url)?;
-        let resp = self
+        let req = self
             .http
             .post(&url)
             .basic_auth(&self.config.api_key, Some(&self.config.api_secret))
             .header("Addepar-Firm", self.config.firm_id.trim())
             .header("Accept", "application/vnd.api+json")
             .header("Content-Type", "application/vnd.api+json")
-            .json(body)
-            .send()
+            .json(body);
+        let resp = self
+            .send(&url, req)
             .await
             .context("Addepar HTTP POST send")?;
         Self::parse_response(resp, "POST", path_or_url).await
@@ -188,7 +239,12 @@ impl AddeparClient {
         let status = resp.status();
         let body = resp.text().await.context("read Addepar response body")?;
         if !status.is_success() {
-            log::warn!("Addepar request failed: {} {} HTTP {}", method, path, status);
+            log::warn!(
+                "Addepar request failed: {} {} HTTP {}",
+                method,
+                path,
+                status
+            );
             anyhow::bail!("Addepar request failed (HTTP {})", status);
         }
         serde_json::from_str(&body).context("parse Addepar JSON response")

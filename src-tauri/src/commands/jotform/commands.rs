@@ -134,14 +134,20 @@ pub async fn jotform_set_workspace(
 }
 
 #[tauri::command]
-pub async fn jotform_connect(api_key: String) -> Result<JotformConnectInfo, String> {
+pub async fn jotform_connect(
+    api_key: String,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
+) -> Result<JotformConnectInfo, String> {
     let trimmed = api_key.trim().to_string();
     if trimmed.is_empty() {
         return Err("Paste your Jotform API key first.".into());
     }
-    let user = JotformClient::current_user_with_key(trimmed.clone())
-        .await
-        .map_err(|_| "Could not connect to Jotform: check the API key and try again.".to_string())?;
+    let user =
+        JotformClient::current_user_with_key_and_policy(trimmed.clone(), policy.inner().clone())
+            .await
+            .map_err(|_| {
+                "Could not connect to Jotform: check the API key and try again.".to_string()
+            })?;
     store_secret(KEYCHAIN_API_KEY, &trimmed)?;
     Ok(JotformConnectInfo {
         username: user.username,
@@ -156,9 +162,12 @@ pub async fn jotform_is_connected() -> Result<bool, String> {
 }
 
 #[tauri::command]
-pub async fn jotform_list_forms() -> Result<Vec<JotformFormDto>, String> {
+pub async fn jotform_list_forms(
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
+) -> Result<Vec<JotformFormDto>, String> {
     let api_key = read_secret(KEYCHAIN_API_KEY).ok_or("Jotform is not connected")?;
-    let client = JotformClient::new(api_key);
+    let client = JotformClient::new(api_key)
+        .with_network_policy(policy.inner().clone(), crate::network_policy::JOTFORM_SYNC);
     let forms = client.list_forms().await.map_err(|e| e.to_string())?;
     Ok(forms.into_iter().map(Into::into).collect())
 }
@@ -167,6 +176,7 @@ pub async fn jotform_list_forms() -> Result<Vec<JotformFormDto>, String> {
 pub async fn jotform_sync(
     app: AppHandle,
     state: State<'_, JotformState>,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
     matter_map: Vec<JotformMatterMapEntry>,
 ) -> Result<JotformSyncReportDto, String> {
     if state
@@ -225,7 +235,8 @@ pub async fn jotform_sync(
         }
     });
 
-    let client = JotformClient::new(api_key);
+    let client = JotformClient::new(api_key)
+        .with_network_policy(policy.inner().clone(), crate::network_policy::JOTFORM_SYNC);
     let result = engine::backfill(
         &client,
         &store,

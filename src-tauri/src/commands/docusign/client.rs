@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 use anyhow::Context;
 
 use crate::commands::docusign::model::{
-    DocusignAuditEventsResponse, DocusignAuditEvent, DocusignDocument, DocusignEnvelope,
+    DocusignAuditEvent, DocusignAuditEventsResponse, DocusignDocument, DocusignEnvelope,
     DocusignEnvelopePage, DocusignRecipients,
 };
 
@@ -26,6 +26,10 @@ pub struct DocusignClient {
     api_base: String,
     http: reqwest::Client,
     last_request: tokio::sync::Mutex<Option<Instant>>,
+    network_policy: Option<(
+        crate::network_policy::NetworkPolicy,
+        crate::network_policy::EgressOperation,
+    )>,
 }
 
 impl DocusignReadOnlyApi for DocusignClient {}
@@ -43,7 +47,43 @@ impl DocusignClient {
             api_base: api_base.trim_end_matches('/').to_string(),
             http,
             last_request: tokio::sync::Mutex::new(None),
+            network_policy: None,
         }
+    }
+
+    pub fn with_network_policy(
+        mut self,
+        policy: crate::network_policy::NetworkPolicy,
+        operation: crate::network_policy::EgressOperation,
+    ) -> Self {
+        self.network_policy = Some((policy, operation));
+        self
+    }
+    async fn send(
+        &self,
+        url: &str,
+        request: reqwest::RequestBuilder,
+    ) -> anyhow::Result<reqwest::Response> {
+        let Some((policy, operation)) = self.network_policy.as_ref() else {
+            #[cfg(test)]
+            return Ok(request.send().await?);
+            #[cfg(not(test))]
+            anyhow::bail!("DocusignClient requires a NetworkPolicy before it can make a request");
+        };
+        let configured_host = reqwest::Url::parse(&self.api_base)
+            .ok()
+            .and_then(|url| url.host_str().map(str::to_owned))
+            .ok_or_else(|| anyhow::anyhow!("DocuSign API base has no host"))?;
+        let authorized = crate::commands::connector_network::authorize_configured_host(
+            policy,
+            operation,
+            url,
+            &configured_host,
+        )?;
+        crate::commands::connector_network::await_authorized(policy, &authorized, async move {
+            Ok(request.send().await?)
+        })
+        .await
     }
 
     pub fn account_id(&self) -> &str {
@@ -74,14 +114,14 @@ impl DocusignClient {
 
         for attempt in 0..MAX_429_RETRIES {
             self.rate_gate().await;
-            let mut req = self
-                .http
-                .get(&url)
-                .bearer_auth(&self.access_token);
+            let mut req = self.http.get(&url).bearer_auth(&self.access_token);
             for (k, v) in query {
                 req = req.query(&[(*k, v.as_str())]);
             }
-            let resp = req.send().await.context("DocuSign HTTP GET send")?;
+            let resp = self
+                .send(&url, req)
+                .await
+                .context("DocuSign HTTP GET send")?;
 
             if resp.status().as_u16() == 429 {
                 let retry_after = resp
@@ -117,11 +157,9 @@ impl DocusignClient {
         };
         for attempt in 0..MAX_429_RETRIES {
             self.rate_gate().await;
+            let req = self.http.get(&url).bearer_auth(&self.access_token);
             let resp = self
-                .http
-                .get(&url)
-                .bearer_auth(&self.access_token)
-                .send()
+                .send(&url, req)
                 .await
                 .context("DocuSign HTTP GET document send")?;
             if resp.status().as_u16() == 429 {
@@ -139,7 +177,11 @@ impl DocusignClient {
                 log::warn!("DocuSign document GET failed: HTTP {} at {}", status, path);
                 anyhow::bail!("DocuSign document request failed (HTTP {})", status);
             }
-            return Ok(resp.bytes().await.context("read DocuSign document bytes")?.to_vec());
+            return Ok(resp
+                .bytes()
+                .await
+                .context("read DocuSign document bytes")?
+                .to_vec());
         }
         anyhow::bail!("DocuSign document throttled past retry budget")
     }
@@ -167,7 +209,10 @@ impl DocusignClient {
     }
 
     pub async fn get_envelope(&self, envelope_id: &str) -> anyhow::Result<DocusignEnvelope> {
-        let path = format!("/v2.1/accounts/{}/envelopes/{}", self.account_id, envelope_id);
+        let path = format!(
+            "/v2.1/accounts/{}/envelopes/{}",
+            self.account_id, envelope_id
+        );
         self.get_json(
             &path,
             &[("include", "recipients,documents,custom_fields".to_string())],
@@ -229,7 +274,9 @@ fn retry_delay(retry_after: Option<&str>, attempt: u32) -> Duration {
             return Duration::from_secs(secs.min(MAX_RETRY_AFTER_SECS));
         }
     }
-    let secs = 2u64.saturating_pow(attempt.min(6)).min(MAX_RETRY_AFTER_SECS);
+    let secs = 2u64
+        .saturating_pow(attempt.min(6))
+        .min(MAX_RETRY_AFTER_SECS);
     Duration::from_secs(secs)
 }
 
@@ -280,7 +327,10 @@ mod tests {
 
     #[test]
     fn retry_delay_caps_retry_after() {
-        assert_eq!(retry_delay(Some("999"), 0), Duration::from_secs(MAX_RETRY_AFTER_SECS));
+        assert_eq!(
+            retry_delay(Some("999"), 0),
+            Duration::from_secs(MAX_RETRY_AFTER_SECS)
+        );
         assert_eq!(retry_delay(None, 2), Duration::from_secs(4));
     }
 }

@@ -97,9 +97,13 @@ fn delete_connection() -> Result<(), String> {
     Ok(())
 }
 
-fn client_from_stored_connection() -> Result<SharefileClient, String> {
+fn client_from_stored_connection(
+    policy: crate::network_policy::NetworkPolicy,
+) -> Result<SharefileClient, String> {
     let (token, subdomain) = read_connection()?;
-    SharefileClient::new(token, subdomain).map_err(|e| e.to_string())
+    SharefileClient::new(token, subdomain)
+        .map_err(|e| e.to_string())
+        .map(|client| client.with_network_policy(policy, crate::network_policy::SHAREFILE_SYNC))
 }
 
 #[tauri::command]
@@ -112,7 +116,11 @@ pub async fn sharefile_set_workspace(
 }
 
 #[tauri::command]
-pub async fn sharefile_connect(access_token: String, subdomain: String) -> Result<(), String> {
+pub async fn sharefile_connect(
+    access_token: String,
+    subdomain: String,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
+) -> Result<(), String> {
     let token = access_token.trim().to_string();
     if token.is_empty() {
         return Err("ShareFile access token is required".into());
@@ -122,9 +130,16 @@ pub async fn sharefile_connect(access_token: String, subdomain: String) -> Resul
         .trim_start_matches("https://")
         .trim_end_matches("/sf/v3")
         .to_string();
-    let client = SharefileClient::new(token.clone(), normalized_host.clone())
+    let client =
+        SharefileClient::new(token.clone(), normalized_host.clone()).map_err(|e| e.to_string())?;
+    client
+        .with_network_policy(
+            policy.inner().clone(),
+            crate::network_policy::SHAREFILE_SYNC,
+        )
+        .validate_token()
+        .await
         .map_err(|e| e.to_string())?;
-    client.validate_token().await.map_err(|e| e.to_string())?;
     store_connection(&token, &normalized_host)
 }
 
@@ -168,8 +183,10 @@ pub async fn sharefile_disconnect(state: State<'_, SharefileState>) -> Result<()
 }
 
 #[tauri::command]
-pub async fn sharefile_list_folders() -> Result<Vec<SharefileFolderDto>, String> {
-    let client = client_from_stored_connection()?;
+pub async fn sharefile_list_folders(
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
+) -> Result<Vec<SharefileFolderDto>, String> {
+    let client = client_from_stored_connection(policy.inner().clone())?;
     let roots = client
         .list_root_children()
         .await
@@ -201,12 +218,15 @@ async fn collect_folders(
             .list_children(&item.id)
             .await
             .map_err(|e| e.to_string())?;
-        stack.extend(children.into_iter().filter(|child| child.is_folder()).map(
-            |child| {
-                let child_path = child_path(&path, &child.name);
-                (child, child_path)
-            },
-        ));
+        stack.extend(
+            children
+                .into_iter()
+                .filter(|child| child.is_folder())
+                .map(|child| {
+                    let child_path = child_path(&path, &child.name);
+                    (child, child_path)
+                }),
+        );
     }
     Ok(out)
 }
@@ -215,6 +235,7 @@ async fn collect_folders(
 pub async fn sharefile_sync(
     app: AppHandle,
     state: State<'_, SharefileState>,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
     matter_map: Vec<SharefileMatterMapEntry>,
 ) -> Result<SharefileSyncReport, String> {
     if state
@@ -234,7 +255,7 @@ pub async fn sharefile_sync(
         .await
         .clone()
         .ok_or("workspace not set")?;
-    let client = client_from_stored_connection()?;
+    let client = client_from_stored_connection(policy.inner().clone())?;
     let source = SharefileDocumentSource::new(client);
     let store = SharefileStore::open(&workspace).map_err(|e| e.to_string())?;
     let rag_key =

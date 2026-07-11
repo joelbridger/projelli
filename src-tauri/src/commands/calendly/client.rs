@@ -21,6 +21,10 @@ pub struct CalendlyClient {
     base: String,
     user_uri: String,
     http: reqwest::Client,
+    network_policy: Option<(
+        crate::network_policy::NetworkPolicy,
+        crate::network_policy::EgressOperation,
+    )>,
 }
 
 impl CalendlyClient {
@@ -39,11 +43,49 @@ impl CalendlyClient {
             base,
             user_uri,
             http,
+            network_policy: None,
         }
+    }
+
+    pub fn with_network_policy(
+        mut self,
+        policy: crate::network_policy::NetworkPolicy,
+        operation: crate::network_policy::EgressOperation,
+    ) -> Self {
+        self.network_policy = Some((policy, operation));
+        self
+    }
+
+    async fn send(
+        &self,
+        url: &str,
+        request: reqwest::RequestBuilder,
+    ) -> anyhow::Result<reqwest::Response> {
+        let Some((policy, operation)) = self.network_policy.as_ref() else {
+            #[cfg(test)]
+            return Ok(request.send().await?);
+            #[cfg(not(test))]
+            anyhow::bail!("CalendlyClient requires a NetworkPolicy before it can make a request");
+        };
+        let authorized = crate::commands::connector_network::authorize_url(policy, operation, url)?;
+        crate::commands::connector_network::await_authorized(policy, &authorized, async move {
+            Ok(request.send().await?)
+        })
+        .await
     }
 
     pub async fn current_user_with_token(token: String) -> anyhow::Result<CalendlyUser> {
         Self::current_user_with_base(token, BASE_URL.to_string()).await
+    }
+
+    pub async fn current_user_with_token_and_policy(
+        token: String,
+        policy: crate::network_policy::NetworkPolicy,
+    ) -> anyhow::Result<CalendlyUser> {
+        Self::new(token, String::new())
+            .with_network_policy(policy, crate::network_policy::CALENDLY_SYNC)
+            .current_user()
+            .await
     }
 
     pub async fn current_user_with_base(
@@ -129,7 +171,7 @@ impl CalendlyClient {
             for (k, v) in query {
                 req = req.query(&[(*k, v.as_str())]);
             }
-            let resp = req.send().await.context("Calendly HTTP send")?;
+            let resp = self.send(&url, req).await.context("Calendly HTTP send")?;
             if resp.status().as_u16() == 429 {
                 let retry_after = resp
                     .headers()

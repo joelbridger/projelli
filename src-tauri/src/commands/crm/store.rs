@@ -12,8 +12,8 @@
 // The `json` column stores the raw Wealthbox response as-is.  Typed parsing
 // comes in a later phase; the store is intentionally generic over object kind.
 
-use anyhow::{Context, Result};
 use crate::util::sync::lock_unpoison;
+use anyhow::{Context, Result};
 use rusqlite::Connection;
 use std::path::{Path, PathBuf};
 
@@ -802,7 +802,10 @@ impl CrmStore {
 
     pub fn proposal_delete(&self, proposal_id: &str) -> Result<usize> {
         let c = lock_unpoison(&self.conn);
-        Ok(c.execute("DELETE FROM crm_write_proposals WHERE proposal_id = ?1", [proposal_id])?)
+        Ok(c.execute(
+            "DELETE FROM crm_write_proposals WHERE proposal_id = ?1",
+            [proposal_id],
+        )?)
     }
 
     /// Look up an outbound write's ledger row by its content-addressed dedup key.
@@ -1163,9 +1166,7 @@ mod tests {
         second.remote_id = Some("crm-note-123".to_string());
         second.created_at = "2099-01-01T00:00:00Z".to_string();
 
-        let saved = store
-            .proposal_upsert(&second)
-            .expect("re-upsert proposal");
+        let saved = store.proposal_upsert(&second).expect("re-upsert proposal");
 
         assert_eq!(
             saved.created_at, first.created_at,
@@ -1185,13 +1186,35 @@ mod tests {
         let _ = dir;
         assert!(store.outbound_get("k1").unwrap().is_none());
         store
-            .outbound_upsert("k1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "pending", None, true, "ck")
+            .outbound_upsert(
+                "k1",
+                "wealthbox",
+                "note",
+                "12345",
+                "m1",
+                "doc:a.docx",
+                "pending",
+                None,
+                true,
+                "ck",
+            )
             .unwrap();
         let row = store.outbound_get("k1").unwrap().unwrap();
         assert_eq!(row.status, "pending");
         assert_eq!(row.remote_id, None);
         store
-            .outbound_upsert("k1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "sent", Some("555"), false, "ck")
+            .outbound_upsert(
+                "k1",
+                "wealthbox",
+                "note",
+                "12345",
+                "m1",
+                "doc:a.docx",
+                "sent",
+                Some("555"),
+                false,
+                "ck",
+            )
             .unwrap();
         let row = store.outbound_get("k1").unwrap().unwrap();
         assert_eq!(row.status, "sent");
@@ -1215,12 +1238,34 @@ mod tests {
         let _ = dir;
         let fresh_attempt = |status: &str| {
             store
-                .outbound_upsert("k2", "wealthbox", "note", "12345", "m1", "doc:a.docx", status, None, true, "ck")
+                .outbound_upsert(
+                    "k2",
+                    "wealthbox",
+                    "note",
+                    "12345",
+                    "m1",
+                    "doc:a.docx",
+                    status,
+                    None,
+                    true,
+                    "ck",
+                )
                 .unwrap();
         };
         let record_outcome = |status: &str| {
             store
-                .outbound_upsert("k2", "wealthbox", "note", "12345", "m1", "doc:a.docx", status, None, false, "ck")
+                .outbound_upsert(
+                    "k2",
+                    "wealthbox",
+                    "note",
+                    "12345",
+                    "m1",
+                    "doc:a.docx",
+                    status,
+                    None,
+                    false,
+                    "ck",
+                )
                 .unwrap();
         };
 
@@ -1258,13 +1303,47 @@ mod tests {
     fn purge_outbound_writes_for_provider_only_removes_that_providers_rows() {
         let (dir, store) = crm_store();
         let _ = dir;
-        store.outbound_upsert("wb1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "sent", Some("1"), true, "ck").unwrap();
-        store.outbound_upsert("sf1", "salesforce", "note", "001XYZ", "m1", "doc:a.docx", "sent", Some("2"), true, "ck").unwrap();
+        store
+            .outbound_upsert(
+                "wb1",
+                "wealthbox",
+                "note",
+                "12345",
+                "m1",
+                "doc:a.docx",
+                "sent",
+                Some("1"),
+                true,
+                "ck",
+            )
+            .unwrap();
+        store
+            .outbound_upsert(
+                "sf1",
+                "salesforce",
+                "note",
+                "001XYZ",
+                "m1",
+                "doc:a.docx",
+                "sent",
+                Some("2"),
+                true,
+                "ck",
+            )
+            .unwrap();
 
-        let n = store.purge_outbound_writes_for_provider("wealthbox").unwrap();
+        let n = store
+            .purge_outbound_writes_for_provider("wealthbox")
+            .unwrap();
         assert_eq!(n, 1);
-        assert!(store.outbound_get("wb1").unwrap().is_none(), "wealthbox row must be gone");
-        assert!(store.outbound_get("sf1").unwrap().is_some(), "salesforce row must survive a wealthbox disconnect");
+        assert!(
+            store.outbound_get("wb1").unwrap().is_none(),
+            "wealthbox row must be gone"
+        );
+        assert!(
+            store.outbound_get("sf1").unwrap().is_some(),
+            "salesforce row must survive a wealthbox disconnect"
+        );
     }
 
     /// A `sent` row proves delivery only to whichever account was connected
@@ -1281,22 +1360,99 @@ mod tests {
     fn mark_sent_rows_pending_verify_only_touches_that_providers_sent_rows() {
         let (dir, store) = crm_store();
         let _ = dir;
-        store.outbound_upsert("wb-sent", "wealthbox", "note", "12345", "m1", "doc:a.docx", "sent", Some("1"), true, "ck").unwrap();
-        store.outbound_upsert("wb-pending", "wealthbox", "note", "99999", "m1", "doc:b.docx", "pending", None, true, "ck").unwrap();
-        store.outbound_upsert("wb-failed", "wealthbox", "note", "88888", "m1", "doc:c.docx", "failed", None, true, "ck").unwrap();
-        store.outbound_upsert("sf-sent", "salesforce", "note", "001XYZ", "m1", "doc:d.docx", "sent", Some("2"), true, "ck").unwrap();
+        store
+            .outbound_upsert(
+                "wb-sent",
+                "wealthbox",
+                "note",
+                "12345",
+                "m1",
+                "doc:a.docx",
+                "sent",
+                Some("1"),
+                true,
+                "ck",
+            )
+            .unwrap();
+        store
+            .outbound_upsert(
+                "wb-pending",
+                "wealthbox",
+                "note",
+                "99999",
+                "m1",
+                "doc:b.docx",
+                "pending",
+                None,
+                true,
+                "ck",
+            )
+            .unwrap();
+        store
+            .outbound_upsert(
+                "wb-failed",
+                "wealthbox",
+                "note",
+                "88888",
+                "m1",
+                "doc:c.docx",
+                "failed",
+                None,
+                true,
+                "ck",
+            )
+            .unwrap();
+        store
+            .outbound_upsert(
+                "sf-sent",
+                "salesforce",
+                "note",
+                "001XYZ",
+                "m1",
+                "doc:d.docx",
+                "sent",
+                Some("2"),
+                true,
+                "ck",
+            )
+            .unwrap();
 
-        let n = store.mark_sent_rows_pending_verify_for_provider("wealthbox").unwrap();
+        let n = store
+            .mark_sent_rows_pending_verify_for_provider("wealthbox")
+            .unwrap();
         assert_eq!(n, 1, "only the one wealthbox 'sent' row should flip");
 
-        assert_eq!(store.outbound_get("wb-sent").unwrap().unwrap().status, "pending_verify");
-        assert_eq!(store.outbound_get("wb-pending").unwrap().unwrap().status, "pending", "non-sent rows must be untouched");
-        assert_eq!(store.outbound_get("wb-failed").unwrap().unwrap().status, "failed", "non-sent rows must be untouched");
-        assert_eq!(store.outbound_get("sf-sent").unwrap().unwrap().status, "sent", "other providers must be untouched");
+        assert_eq!(
+            store.outbound_get("wb-sent").unwrap().unwrap().status,
+            "pending_verify"
+        );
+        assert_eq!(
+            store.outbound_get("wb-pending").unwrap().unwrap().status,
+            "pending",
+            "non-sent rows must be untouched"
+        );
+        assert_eq!(
+            store.outbound_get("wb-failed").unwrap().unwrap().status,
+            "failed",
+            "non-sent rows must be untouched"
+        );
+        assert_eq!(
+            store.outbound_get("sf-sent").unwrap().unwrap().status,
+            "sent",
+            "other providers must be untouched"
+        );
         // remote_id and created_at (the recovery-verification floor) must
         // survive the transition unchanged — find_recent_matching still
         // needs them to check whichever account is now connected.
-        assert_eq!(store.outbound_get("wb-sent").unwrap().unwrap().remote_id.as_deref(), Some("1"));
+        assert_eq!(
+            store
+                .outbound_get("wb-sent")
+                .unwrap()
+                .unwrap()
+                .remote_id
+                .as_deref(),
+            Some("1")
+        );
     }
 
     /// Codex round 7 (self-converge): a `sent` row downgraded by
@@ -1311,9 +1467,27 @@ mod tests {
     fn recovery_candidate_excludes_a_downgraded_sent_row_with_a_remote_id() {
         let (dir, store) = crm_store();
         let _ = dir;
-        store.outbound_upsert("wb-sent", "wealthbox", "note", "12345", "m1", "doc:a.docx", "sent", Some("1"), true, "shared-content").unwrap();
-        store.mark_sent_rows_pending_verify_for_provider("wealthbox").unwrap();
-        assert_eq!(store.outbound_get("wb-sent").unwrap().unwrap().status, "pending_verify");
+        store
+            .outbound_upsert(
+                "wb-sent",
+                "wealthbox",
+                "note",
+                "12345",
+                "m1",
+                "doc:a.docx",
+                "sent",
+                Some("1"),
+                true,
+                "shared-content",
+            )
+            .unwrap();
+        store
+            .mark_sent_rows_pending_verify_for_provider("wealthbox")
+            .unwrap();
+        assert_eq!(
+            store.outbound_get("wb-sent").unwrap().unwrap().status,
+            "pending_verify"
+        );
 
         assert!(
             store.outbound_find_recovery_candidate("wealthbox", "shared-content").unwrap().is_none(),
@@ -1322,9 +1496,27 @@ mod tests {
 
         // A genuinely interrupted attempt (no remote_id) with the SAME
         // content_key must still be found.
-        store.outbound_upsert("wb-interrupted", "wealthbox", "note", "12345", "m1", "doc:a.docx", "pending", None, true, "shared-content").unwrap();
-        let candidate = store.outbound_find_recovery_candidate("wealthbox", "shared-content").unwrap();
-        assert_eq!(candidate.map(|r| r.dedup_key), Some("wb-interrupted".to_string()));
+        store
+            .outbound_upsert(
+                "wb-interrupted",
+                "wealthbox",
+                "note",
+                "12345",
+                "m1",
+                "doc:a.docx",
+                "pending",
+                None,
+                true,
+                "shared-content",
+            )
+            .unwrap();
+        let candidate = store
+            .outbound_find_recovery_candidate("wealthbox", "shared-content")
+            .unwrap();
+        assert_eq!(
+            candidate.map(|r| r.dedup_key),
+            Some("wb-interrupted".to_string())
+        );
     }
 
     /// Codex round 8 (self-converge): a FRESH send attempt reusing an
@@ -1341,14 +1533,50 @@ mod tests {
         let _ = dir;
         // A row that was `sent` (remote_id set), then downgraded by a
         // reconnect — status flips to pending_verify, remote_id survives.
-        store.outbound_upsert("k1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "sent", Some("111"), true, "ck").unwrap();
-        store.mark_sent_rows_pending_verify_for_provider("wealthbox").unwrap();
-        assert_eq!(store.outbound_get("k1").unwrap().unwrap().remote_id.as_deref(), Some("111"));
+        store
+            .outbound_upsert(
+                "k1",
+                "wealthbox",
+                "note",
+                "12345",
+                "m1",
+                "doc:a.docx",
+                "sent",
+                Some("111"),
+                true,
+                "ck",
+            )
+            .unwrap();
+        store
+            .mark_sent_rows_pending_verify_for_provider("wealthbox")
+            .unwrap();
+        assert_eq!(
+            store
+                .outbound_get("k1")
+                .unwrap()
+                .unwrap()
+                .remote_id
+                .as_deref(),
+            Some("111")
+        );
 
         // A FRESH send attempt under the SAME key (mirrors
         // write.rs::upsert_ledger_before_send, always reset_created_at=true,
         // remote_id=None) must clear the stale remote_id, not preserve it.
-        store.outbound_upsert("k1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "pending", None, true, "ck").unwrap();
+        store
+            .outbound_upsert(
+                "k1",
+                "wealthbox",
+                "note",
+                "12345",
+                "m1",
+                "doc:a.docx",
+                "pending",
+                None,
+                true,
+                "ck",
+            )
+            .unwrap();
         let row = store.outbound_get("k1").unwrap().unwrap();
         assert_eq!(row.status, "pending");
         assert_eq!(
@@ -1359,8 +1587,34 @@ mod tests {
         // But recording THIS attempt's own outcome (reset_created_at=false)
         // must still preserve a remote_id when passed None — e.g. a
         // pending -> pending_verify transition for the SAME attempt.
-        store.outbound_upsert("k1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "sent", Some("222"), false, "ck").unwrap();
-        store.outbound_upsert("k1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "pending_verify", None, false, "ck").unwrap();
+        store
+            .outbound_upsert(
+                "k1",
+                "wealthbox",
+                "note",
+                "12345",
+                "m1",
+                "doc:a.docx",
+                "sent",
+                Some("222"),
+                false,
+                "ck",
+            )
+            .unwrap();
+        store
+            .outbound_upsert(
+                "k1",
+                "wealthbox",
+                "note",
+                "12345",
+                "m1",
+                "doc:a.docx",
+                "pending_verify",
+                None,
+                false,
+                "ck",
+            )
+            .unwrap();
         assert_eq!(
             store.outbound_get("k1").unwrap().unwrap().remote_id.as_deref(),
             Some("222"),
@@ -1376,11 +1630,15 @@ mod tests {
     #[test]
     fn object_digests_match_list_objects_by_household() {
         let (_d, s) = crm_store();
-        s.upsert_object("household:1", "household", "1", "", "h-hh", r#"{"a":1}"#).unwrap();
-        s.upsert_object("contact:10", "person", "1", "", "h-c10", r#"{"a":2}"#).unwrap();
-        s.upsert_object("note:5", "note", "1", "", "h-n5", r#"{"a":3}"#).unwrap();
+        s.upsert_object("household:1", "household", "1", "", "h-hh", r#"{"a":1}"#)
+            .unwrap();
+        s.upsert_object("contact:10", "person", "1", "", "h-c10", r#"{"a":2}"#)
+            .unwrap();
+        s.upsert_object("note:5", "note", "1", "", "h-n5", r#"{"a":3}"#)
+            .unwrap();
         // A different household must not leak in.
-        s.upsert_object("contact:99", "person", "2", "", "h-c99", r#"{"a":4}"#).unwrap();
+        s.upsert_object("contact:99", "person", "2", "", "h-c99", r#"{"a":4}"#)
+            .unwrap();
 
         let expect = |s: &CrmStore| -> Vec<(String, String, String)> {
             s.list_objects_by_household("1")
@@ -1392,7 +1650,8 @@ mod tests {
         assert_eq!(s.list_object_digests_by_household("1").unwrap(), expect(&s));
 
         // Update one object's content_hash → digest reflects it.
-        s.upsert_object("contact:10", "person", "1", "", "h-c10-v2", r#"{"a":22}"#).unwrap();
+        s.upsert_object("contact:10", "person", "1", "", "h-c10-v2", r#"{"a":22}"#)
+            .unwrap();
         assert_eq!(s.list_object_digests_by_household("1").unwrap(), expect(&s));
 
         // Tombstone one → drops from both, still in parity.
@@ -1410,25 +1669,70 @@ mod tests {
         let batched = crm_store();
 
         let ups = vec![
-            CrmUpsert { id: "household:1".into(), kind: "household".into(), household_id: "1".into(), updated_at: "".into(), content_hash: "h1".into(), json: r#"{"a":1}"#.into() },
-            CrmUpsert { id: "contact:10".into(), kind: "person".into(), household_id: "1".into(), updated_at: "".into(), content_hash: "h2".into(), json: r#"{"a":2}"#.into() },
+            CrmUpsert {
+                id: "household:1".into(),
+                kind: "household".into(),
+                household_id: "1".into(),
+                updated_at: "".into(),
+                content_hash: "h1".into(),
+                json: r#"{"a":1}"#.into(),
+            },
+            CrmUpsert {
+                id: "contact:10".into(),
+                kind: "person".into(),
+                household_id: "1".into(),
+                updated_at: "".into(),
+                content_hash: "h2".into(),
+                json: r#"{"a":2}"#.into(),
+            },
         ];
         // Seed a row that both will tombstone.
-        per_row.1.upsert_object("stale:9", "note", "1", "", "hs", r#"{"a":9}"#).unwrap();
-        batched.1.upsert_object("stale:9", "note", "1", "", "hs", r#"{"a":9}"#).unwrap();
+        per_row
+            .1
+            .upsert_object("stale:9", "note", "1", "", "hs", r#"{"a":9}"#)
+            .unwrap();
+        batched
+            .1
+            .upsert_object("stale:9", "note", "1", "", "hs", r#"{"a":9}"#)
+            .unwrap();
 
         // Per-object path.
         for u in &ups {
-            per_row.1.upsert_object(&u.id, &u.kind, &u.household_id, &u.updated_at, &u.content_hash, &u.json).unwrap();
+            per_row
+                .1
+                .upsert_object(
+                    &u.id,
+                    &u.kind,
+                    &u.household_id,
+                    &u.updated_at,
+                    &u.content_hash,
+                    &u.json,
+                )
+                .unwrap();
         }
         per_row.1.tombstone_object("stale:9").unwrap();
 
         // Batched path.
-        batched.1.apply_ingest_batch(&ups, &["stale:9".to_string()]).unwrap();
+        batched
+            .1
+            .apply_ingest_batch(&ups, &["stale:9".to_string()])
+            .unwrap();
 
         assert_eq!(
-            per_row.1.list_objects_by_household("1").unwrap().into_iter().map(|r| (r.id, r.kind, r.content_hash, r.json)).collect::<Vec<_>>(),
-            batched.1.list_objects_by_household("1").unwrap().into_iter().map(|r| (r.id, r.kind, r.content_hash, r.json)).collect::<Vec<_>>(),
+            per_row
+                .1
+                .list_objects_by_household("1")
+                .unwrap()
+                .into_iter()
+                .map(|r| (r.id, r.kind, r.content_hash, r.json))
+                .collect::<Vec<_>>(),
+            batched
+                .1
+                .list_objects_by_household("1")
+                .unwrap()
+                .into_iter()
+                .map(|r| (r.id, r.kind, r.content_hash, r.json))
+                .collect::<Vec<_>>(),
         );
         assert!(per_row.1.get_object("stale:9").unwrap().unwrap().deleted);
         assert!(batched.1.get_object("stale:9").unwrap().unwrap().deleted);

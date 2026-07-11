@@ -16,9 +16,10 @@ pub struct ApiBoxSource {
 }
 
 impl ApiBoxSource {
-    pub fn new(token: String) -> Self {
+    pub fn new(token: String, policy: crate::network_policy::NetworkPolicy) -> Self {
         Self {
-            client: BoxClient::new(token),
+            client: BoxClient::new(token)
+                .with_network_policy(policy, crate::network_policy::BOX_SYNC),
         }
     }
 }

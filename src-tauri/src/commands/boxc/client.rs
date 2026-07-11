@@ -16,6 +16,10 @@ pub struct BoxClient {
     token: String,
     base: String,
     http: reqwest::Client,
+    network_policy: Option<(
+        crate::network_policy::NetworkPolicy,
+        crate::network_policy::EgressOperation,
+    )>,
 }
 
 impl BoxClient {
@@ -29,7 +33,34 @@ impl BoxClient {
             .connect_timeout(std::time::Duration::from_secs(15))
             .build()
             .expect("build reqwest client");
-        Self { token, base, http }
+        Self {
+            token,
+            base,
+            http,
+            network_policy: None,
+        }
+    }
+
+    pub fn with_network_policy(
+        mut self,
+        policy: crate::network_policy::NetworkPolicy,
+        operation: crate::network_policy::EgressOperation,
+    ) -> Self {
+        self.network_policy = Some((policy, operation));
+        self
+    }
+    async fn send(&self, url: &str, request: reqwest::RequestBuilder) -> Result<reqwest::Response> {
+        let Some((policy, operation)) = self.network_policy.as_ref() else {
+            #[cfg(test)]
+            return Ok(request.send().await?);
+            #[cfg(not(test))]
+            anyhow::bail!("BoxClient requires a NetworkPolicy before it can make a request");
+        };
+        let authorized = crate::commands::connector_network::authorize_url(policy, operation, url)?;
+        crate::commands::connector_network::await_authorized(policy, &authorized, async move {
+            Ok(request.send().await?)
+        })
+        .await
     }
 
     pub fn base(&self) -> &str {
@@ -100,11 +131,9 @@ impl BoxClient {
     async fn get_bytes(&self, url: &str) -> Result<Vec<u8>> {
         let mut delay = std::time::Duration::from_millis(500);
         for attempt in 0..5 {
+            let req = self.http.get(url).bearer_auth(&self.token);
             let resp = self
-                .http
-                .get(url)
-                .bearer_auth(&self.token)
-                .send()
+                .send(url, req)
                 .await
                 .with_context(|| format!("Box GET failed for {url}"))?;
             let status = resp.status();
