@@ -48,7 +48,16 @@ pub async fn fetch_ics_text(
     if !resp.status().is_success() {
         anyhow::bail!("http {}", resp.status().as_u16());
     }
-    Ok(resp.text().await?)
+    let body_url = resp.url().as_str().to_string();
+    let body_grant = crate::commands::connector_network::authorize_url(
+        policy,
+        &crate::network_policy::ICS_CALENDAR_SYNC,
+        &body_url,
+    )?;
+    crate::commands::connector_network::await_authorized(policy, &body_grant, async {
+        Ok(resp.text().await?)
+    })
+    .await
 }
 
 pub struct IcsCalendarSource {

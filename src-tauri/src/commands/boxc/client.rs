@@ -141,7 +141,16 @@ impl BoxClient {
                 .with_context(|| format!("Box GET failed for {url}"))?;
             let status = resp.status();
             if status.is_success() {
-                return Ok(resp.bytes().await?.to_vec());
+                let (policy, operation) = self.network_policy.as_ref().ok_or_else(|| {
+                    anyhow::anyhow!("BoxClient requires a NetworkPolicy before it can read a response")
+                })?;
+                let body_url = resp.url().as_str().to_string();
+                let body_grant = crate::commands::connector_network::authorize_url(policy, operation, &body_url)?;
+                let body = crate::commands::connector_network::await_authorized(policy, &body_grant, async {
+                    Ok(resp.bytes().await?)
+                })
+                .await?;
+                return Ok(body.to_vec());
             }
             if status == StatusCode::TOO_MANY_REQUESTS || status == StatusCode::SERVICE_UNAVAILABLE
             {
@@ -163,7 +172,16 @@ impl BoxClient {
             // a generic context, no per-request URL/id in either surface —
             // a Box file/folder id in a long-lived log is itself an
             // indirect PII correlation risk.
-            let body = resp.text().await.unwrap_or_default();
+            let (policy, operation) = self.network_policy.as_ref().ok_or_else(|| {
+                anyhow::anyhow!("BoxClient requires a NetworkPolicy before it can read a response")
+            })?;
+            let body_url = resp.url().as_str().to_string();
+            let body_grant = crate::commands::connector_network::authorize_url(policy, operation, &body_url)?;
+            let body = crate::commands::connector_network::await_authorized(policy, &body_grant, async {
+                Ok(resp.text().await?)
+            })
+            .await
+            .unwrap_or_default();
             crate::util::http_log::log_http_failure("Box GET", status, &body);
             anyhow::bail!("Box request failed (HTTP {status})");
         }
@@ -266,7 +284,8 @@ mod tests {
             .mount(&server)
             .await;
 
-        let client = BoxClient::new_with_base("AT".into(), server.uri());
+        let client = BoxClient::new_with_base("AT".into(), server.uri())
+            .with_network_policy(policy(), crate::network_policy::LOCAL_LLAMA);
         let err = client
             .download_content("abc")
             .await

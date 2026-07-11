@@ -137,7 +137,18 @@ impl CalendarSource for GraphCalendarSource {
             if !resp.status().is_success() {
                 anyhow::bail!("graph calendarView http {}", resp.status().as_u16());
             }
-            let v: serde_json::Value = resp.json().await?;
+            let body_url = resp.url().as_str().to_string();
+            let body_grant = crate::commands::connector_network::authorize_url(
+                &self.policy,
+                &self.operation,
+                &body_url,
+            )?;
+            let v: serde_json::Value = crate::commands::connector_network::await_authorized(
+                &self.policy,
+                &body_grant,
+                async { Ok(resp.json().await?) },
+            )
+            .await?;
             for item in v.get("value").and_then(|x| x.as_array()).unwrap_or(&vec![]) {
                 out.push(map_graph_event(item, &self_emails)?);
             }
@@ -185,7 +196,18 @@ async fn fetch_self_emails(
     if !resp.status().is_success() {
         return Vec::new();
     }
-    let Ok(v) = resp.json::<serde_json::Value>().await else {
+    let body_url = resp.url().as_str().to_string();
+    let Ok(body_grant) = crate::commands::connector_network::authorize_url(policy, operation, &body_url)
+    else {
+        return Vec::new();
+    };
+    let Ok(v) = crate::commands::connector_network::await_authorized(
+        policy,
+        &body_grant,
+        async { Ok(resp.json::<serde_json::Value>().await?) },
+    )
+    .await
+    else {
         return Vec::new();
     };
     let mut emails = Vec::new();

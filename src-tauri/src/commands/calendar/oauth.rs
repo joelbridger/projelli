@@ -115,7 +115,18 @@ pub async fn ms_exchange_code(
         .await?;
 
     let status = resp.status().as_u16();
-    let v: serde_json::Value = resp.json().await?;
+    let body_url = resp.url().as_str().to_string();
+    let body_grant = crate::commands::connector_network::authorize_url(
+        policy,
+        &crate::network_policy::OUTLOOK_CALENDAR_OAUTH,
+        &body_url,
+    )?;
+    let v: serde_json::Value = crate::commands::connector_network::await_authorized(
+        policy,
+        &body_grant,
+        async { Ok(resp.json().await?) },
+    )
+    .await?;
     parse_ms_token_response(status, &v)
 }
 
@@ -206,7 +217,18 @@ impl OAuth {
         )
         .await?;
         let status = resp.status().as_u16();
-        let v: serde_json::Value = resp.json().await?;
+        let body_url = resp.url().as_str().to_string();
+        let body_grant = crate::commands::connector_network::authorize_url(
+            &self.policy,
+            &crate::network_policy::OUTLOOK_CALENDAR_OAUTH,
+            &body_url,
+        )?;
+        let v: serde_json::Value = crate::commands::connector_network::await_authorized(
+            &self.policy,
+            &body_grant,
+            async { Ok(resp.json().await?) },
+        )
+        .await?;
         Ok(TokenOutcome::from_json(status, &v))
     }
 }

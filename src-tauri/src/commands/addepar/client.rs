@@ -208,7 +208,11 @@ impl AddeparClient {
             .send(&url, req)
             .await
             .context("Addepar HTTP GET send")?;
-        Self::parse_response(resp, "GET", path_or_url).await
+        let (policy, operation) = self
+            .network_policy
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("AddeparClient requires a NetworkPolicy before it can read a response"))?;
+        Self::parse_response(resp, policy, operation, "GET", path_or_url).await
     }
 
     async fn post_json<T: serde::de::DeserializeOwned>(
@@ -229,16 +233,28 @@ impl AddeparClient {
             .send(&url, req)
             .await
             .context("Addepar HTTP POST send")?;
-        Self::parse_response(resp, "POST", path_or_url).await
+        let (policy, operation) = self
+            .network_policy
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("AddeparClient requires a NetworkPolicy before it can read a response"))?;
+        Self::parse_response(resp, policy, operation, "POST", path_or_url).await
     }
 
     async fn parse_response<T: serde::de::DeserializeOwned>(
         resp: reqwest::Response,
+        policy: &crate::network_policy::NetworkPolicy,
+        operation: &crate::network_policy::EgressOperation,
         method: &str,
         path: &str,
     ) -> Result<T> {
         let status = resp.status();
-        let body = resp.text().await.context("read Addepar response body")?;
+        let body_url = resp.url().as_str().to_string();
+        let body_grant = crate::commands::connector_network::authorize_url(policy, operation, &body_url)?;
+        let body = crate::commands::connector_network::await_authorized(policy, &body_grant, async {
+            Ok(resp.text().await?)
+        })
+        .await
+        .context("read Addepar response body")?;
         if !status.is_success() {
             log::warn!(
                 "Addepar request failed: {} {} HTTP {}",
