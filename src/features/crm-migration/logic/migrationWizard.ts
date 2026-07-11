@@ -167,7 +167,8 @@ export function hasCompleteAttachmentAccounting(state: MigrationWizardState): bo
   });
   return state.affectedAttachmentHouseholdRefs.every(householdRef => {
     const records = byHousehold.get(householdRef) ?? [];
-    return records.length === 1 && ['exported', 'gap'].includes(records[0]!.status);
+    const [record] = records;
+    return record !== undefined && records.length === 1 && ['exported', 'gap'].includes(record.status);
   });
 }
 

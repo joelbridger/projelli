@@ -46,13 +46,14 @@ describe('Spine', () => {
     expect(nav.textContent).not.toMatch(/ai.?assistant/i);
   });
 
-  it('shows the 3 primary nav items: Client Map, Ask, Workflows', () => {
+  it('shows the 3 primary nav items: Home, Clients, Ask', () => {
     render(<Spine />);
     const navEl = screen.getByTestId('spine-nav');
     expect(navEl).toBeTruthy();
+    expect(screen.getByTestId('spine-nav-home')).toBeTruthy();
     expect(screen.getByTestId('spine-nav-matters')).toBeTruthy();
     expect(screen.getByTestId('spine-nav-search')).toBeTruthy();
-    expect(screen.getByTestId('spine-nav-workflows')).toBeTruthy();
+    expect(screen.queryByTestId('spine-nav-workflows')).toBeNull();
   });
 
   it('renders without crashing with no props', () => {

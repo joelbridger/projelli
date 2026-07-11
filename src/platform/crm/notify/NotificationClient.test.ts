@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/require-await, @typescript-eslint/no-non-null-assertion -- In-memory test doubles intentionally implement async ports synchronously; assertions establish each fixture value. */
 import { describe, expect, it } from 'vitest';
 import { NotificationClient } from './NotificationClient';
 import { ciphertextBand } from './envelopeCrypto';

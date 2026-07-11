@@ -16,7 +16,13 @@ export type EntityKind =
 
 export interface ActorRef { userId: string; seat?: string; display: string; kind: 'user' | 'ai' | 'system' | 'import'; }
 export interface Provenance { origin: 'user' | 'ai' | 'import' | 'connector' | 'meeting' | 'system'; sources: SourceRef[]; importBatchId?: string; note?: string; }
-export interface ExternalRef { provider: 'wealthbox' | 'salesforce' | 'redtail' | string; sourceType: string; sourceId: string; scope: string; crmKey?: string; lastSyncedAt?: string; }
+/** Known import providers remain suggested while permitting connector-defined providers. */
+export type ExternalProvider =
+  | 'wealthbox'
+  | 'salesforce'
+  | 'redtail'
+  | (string & {});
+export interface ExternalRef { provider: ExternalProvider; sourceType: string; sourceId: string; scope: string; crmKey?: string; lastSyncedAt?: string; }
 export interface RawRecordRef { importBatchId: string; manifestId: string; rawRecordId: string; sha256: string; capturedAt: string; }
 export interface EntityRef { kind: EntityKind; id: string; matterId?: string; }
 export type Keyed<T> = Record<string, T>;
@@ -39,7 +45,9 @@ export interface Person extends CrmBase { kind: 'person'; personType: 'person' |
 export interface Account extends CrmBase { kind: 'account'; householdId: string; ownerPersonIds: string[]; custodian: string; accountType: string; registration?: string; last4?: string; purpose?: string; ownership: 'individual' | 'joint' | 'trust' | 'entity'; status: 'open' | 'closed' | 'pending' | 'transferring'; openedAt?: string; closedAt?: string; tagIds: string[]; customFields: CustomFieldValueMap; }
 export type FactType = 'income' | 'asset' | 'liability' | 'net_worth' | 'tax_bracket' | 'account_balance' | 'goal' | 'risk_tolerance' | 'time_horizon' | 'beneficiary' | 'professional_relationship' | 'preference' | 'life_event' | 'note_fact' | 'custom';
 export type FactValue = { t: 'money'; amount: number; currency: string } | { t: 'text'; v: string } | { t: 'date'; v: string } | { t: 'number'; v: number } | { t: 'enum'; v: string } | { t: 'entity'; ref: EntityRef } | { t: 'none' };
-export interface Fact extends CrmBase { kind: 'fact'; householdId: string; subjectRef?: EntityRef; factType: FactType; label: string; value: FactValue; text: string; status: 'current' | 'superseded' | 'stale' | 'disputed'; isAssumption: boolean; pinned: boolean; sectionKey?: CoreSectionKey | string; asOf: string; observedAt: string; supersededBy?: string; }
+/** Frozen Client Map keys remain suggested while admitting future sections. */
+export type FactSectionKey = CoreSectionKey | (string & {});
+export interface Fact extends CrmBase { kind: 'fact'; householdId: string; subjectRef?: EntityRef; factType: FactType; label: string; value: FactValue; text: string; status: 'current' | 'superseded' | 'stale' | 'disputed'; isAssumption: boolean; pinned: boolean; sectionKey?: FactSectionKey; asOf: string; observedAt: string; supersededBy?: string; }
 export interface HouseholdLink { householdId: string; matterId: string; externalRef?: ExternalRef; }
 export interface NoteMention { id: string; ref: EntityRef; notifyState: 'none' | 'pending' | 'sent' | 'read'; }
 export interface Note extends CrmBase { kind: 'note'; householdLinks: HouseholdLink[]; links: EntityRef[]; mentions: NoteMention[]; audience: 'internal' | 'client-facing'; body: string; pinned: boolean; title?: string; format?: 'plain' | 'meeting-note' | 'template'; templateId?: string; authoredVia?: 'manual' | 'jump-push' | 'meeting-capture' | 'ai'; tagIds: string[]; }
@@ -165,7 +173,7 @@ export interface PropagationTransactionPayload {
   notificationOutbox: { eventId: string; idempotencyKey: string; dependsOnOperationIds: string[] };
 }
 export interface PropagationTransactionPort { transact(payload: PropagationTransactionPayload): void; }
-export interface ServicePolicy extends CrmBase { kind: 'servicePolicy'; matterId: 'firm_home' | string; scope: 'firm-tier' | 'household-override'; tierName: string; meetingCadence?: 'monthly' | 'quarterly' | 'semiannual' | 'annual' | 'custom'; cadenceDays?: number; nextReviewDue?: string; reviewChecklistTemplateId?: string; schedulingLinkUrl?: string; appliesToHouseholdIds: string[]; description: string; }
+export interface ServicePolicy extends CrmBase { kind: 'servicePolicy'; matterId: 'firm_home' | (string & {}); scope: 'firm-tier' | 'household-override'; tierName: string; meetingCadence?: 'monthly' | 'quarterly' | 'semiannual' | 'annual' | 'custom'; cadenceDays?: number; nextReviewDue?: string; reviewChecklistTemplateId?: string; schedulingLinkUrl?: string; appliesToHouseholdIds: string[]; description: string; }
 export type ActivityVerb = string;
 export interface ActivityEvent extends CrmBase { kind: 'activityEvent'; at: string; actor: ActorRef; verb: ActivityVerb; targetRef: EntityRef; householdId?: string; summary: string; payload: Record<string, unknown>; important: boolean; }
 export interface FirmDoc extends CrmBase { kind: 'firmDoc'; matterId: 'firm_home'; docType: 'process' | 'note-template' | 'report-layout' | 'ways-of-working' | 'other'; title: string; body: string; bodyRef?: string; tagIds: string[]; pinned: boolean; }
@@ -199,6 +207,6 @@ export type FilterValue = string | number | boolean | null | readonly (string | 
 export interface FilterClause { field: string; op: FilterOperator; value?: FilterValue; }
 export type ReportKind = 'no_contact_6mo' | 'attention_vs_fee' | 'birthdays' | 'age_65' | 'rmd_due' | 'review_due' | 'custom';
 export interface ViewQuery { entity: EntityKind; filters: FilterClause[]; sort?: { field: string; dir: 'asc' | 'desc' }[]; groupBy?: string; }
-export interface SavedView extends CrmBase { kind: 'savedView'; matterId: 'firm_home' | string; name: string; surface: 'tasks' | 'households' | 'opportunities' | 'accounts' | 'report'; visibility: 'personal' | 'firm'; query: ViewQuery; layout: 'table' | 'kanban' | 'list'; reportKind?: ReportKind; }
+export interface SavedView extends CrmBase { kind: 'savedView'; matterId: 'firm_home' | (string & {}); name: string; surface: 'tasks' | 'households' | 'opportunities' | 'accounts' | 'report'; visibility: 'personal' | 'firm'; query: ViewQuery; layout: 'table' | 'kanban' | 'list'; reportKind?: ReportKind; }
 
 export type CrmEntity = Household | Person | Account | Fact | Note | Task | WorkflowTemplate | WorkflowInstance | ServicePolicy | ActivityEvent | FirmDoc | Tag | CustomFieldDef | Opportunity | PipelineDef | StageDef | ProposalRecord | LegacyProject | FirmDirectoryEntry | HouseholdDirectoryShell | IntakeLink | IntakeSubmission | ImportArchiveManifest | SavedView;

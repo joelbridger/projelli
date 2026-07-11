@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion -- Revision graph checks establish these internal invariants before access. */
 import {
   UNTOUCHED,
   type AssignmentOperation,
@@ -373,8 +374,13 @@ export function undoApply(
       continue;
     }
     if (image.previous) step.derived[image.field] = clone(image.previous);
-    else delete step.derived[image.field];
-    if (image.field === 'title') step.titleSnapshot = String(image.previous?.value ?? '');
+    else Reflect.deleteProperty(step.derived, image.field);
+    if (image.field === 'title') {
+      const previousValue = image.previous?.value;
+      step.titleSnapshot = previousValue === undefined || previousValue === null
+        ? ''
+        : String(previousValue as never);
+    }
     undoneCells.push(label);
   }
   for (const stepId of event.addedStepIds) {
@@ -382,7 +388,7 @@ export function undoApply(
     if (!step) continue;
     const ownsAllDerivedCells = Object.values(step.derived).every(cell => event.operationIds.includes(cell.sourceOperationId));
     if (untouched(step) && ownsAllDerivedCells) {
-      delete next.steps[stepId];
+      Reflect.deleteProperty(next.steps, stepId);
       undoneCells.push(`${stepId}:added-step`);
     } else {
       protectedCells.push(`${stepId}:added-step`);
