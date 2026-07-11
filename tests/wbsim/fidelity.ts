@@ -1,9 +1,18 @@
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+
 import { startSimulator } from './server';
 
+const repoRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../..'
+);
+
 const simulator = startSimulator();
-const cargo = Bun.spawn(
+const cargo = spawn(
+  'nice',
   [
-    'nice',
     '-n',
     '10',
     'cargo',
@@ -16,16 +25,17 @@ const cargo = Bun.spawn(
     '--nocapture',
   ],
   {
-    cwd: import.meta.dir + '/../..',
+    cwd: repoRoot,
     env: { ...process.env, WBSIM_BASE_URL: simulator.baseUrl },
-    stdin: 'ignore',
-    stdout: 'inherit',
-    stderr: 'inherit',
+    stdio: ['ignore', 'inherit', 'inherit'],
   }
 );
 
 try {
-  const exitCode = await cargo.exited;
+  const exitCode = await new Promise<number>((resolve, reject) => {
+    cargo.on('error', reject);
+    cargo.on('close', (code) => resolve(code ?? 1));
+  });
   if (exitCode !== 0)
     throw new Error(`fidelity drive failed with cargo exit code ${exitCode}`);
 } finally {
