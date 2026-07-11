@@ -22,8 +22,8 @@ export function isDuplicateSignatureWakeup(records: Iterable<SignatureWakeupReco
 export class BlindSigningBrokerStore {
   private readonly launches = new Map<string, string>();
   private readonly wakeups = new Map<string, SignatureWakeupRecord>();
-  private readonly seenEventIds = new Set<string>();
-  private readonly seenNonces = new Set<string>();
+  private readonly envelopeOwners = new Map<string, string>();
+  private readonly seenReplayKeys = new Set<string>();
 
   putLaunch(intakeId: string, ciphertextB64: string): void {
     this.launches.set(intakeId, ciphertextB64);
@@ -37,25 +37,34 @@ export class BlindSigningBrokerStore {
     this.launches.delete(intakeId);
   }
 
-  hasSeen(eventId: string, nonce: string): boolean {
-    return this.seenEventIds.has(eventId) || this.seenNonces.has(nonce);
+  /** Register only an opaque DocuSign envelope ID. No document or client data enters the broker. */
+  registerEnvelope(intakeId: string, envelopeId: string): void {
+    const existingOwner = this.envelopeOwners.get(envelopeId);
+    if (existingOwner && existingOwner !== intakeId) throw new Error("envelope_already_registered");
+    this.envelopeOwners.set(envelopeId, intakeId);
   }
 
-  enqueueWakeup(record: SignatureWakeupRecord, nonce: string): boolean {
-    if (this.hasSeen(record.event_id, nonce) || isDuplicateSignatureWakeup(this.wakeups.values(), record)) return false;
-    this.seenEventIds.add(record.event_id);
-    this.seenNonces.add(nonce);
+  hasSeen(replayKey: string): boolean {
+    return this.seenReplayKeys.has(replayKey);
+  }
+
+  enqueueWakeup(record: SignatureWakeupRecord, replayKey: string): boolean {
+    if (this.hasSeen(replayKey) || isDuplicateSignatureWakeup(this.wakeups.values(), record)) return false;
+    this.seenReplayKeys.add(replayKey);
     this.wakeups.set(record.event_id, record);
     return true;
   }
 
-  listWakeups(): SignatureWakeupRecord[] {
-    return [...this.wakeups.values()];
+  listWakeups(intakeId: string): SignatureWakeupRecord[] {
+    return [...this.wakeups.values()].filter((record) => this.envelopeOwners.get(record.envelope_id) === intakeId);
   }
 
-  consumeWakeups(eventIds: readonly string[]): number {
+  consumeWakeups(intakeId: string, eventIds: readonly string[]): number {
     let consumed = 0;
-    for (const eventId of eventIds) if (this.wakeups.delete(eventId)) consumed++;
+    for (const eventId of eventIds) {
+      const wakeup = this.wakeups.get(eventId);
+      if (wakeup && this.envelopeOwners.get(wakeup.envelope_id) === intakeId && this.wakeups.delete(eventId)) consumed++;
+    }
     return consumed;
   }
 }

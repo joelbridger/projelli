@@ -15,6 +15,7 @@ export interface DocusignSigningGrantConfig {
   apiBaseUri: string | null;
   privateKey: KeyObject | null;
   allowedReturnUrl: string | null;
+  approvedTemplateIds: ReadonlySet<string>;
   oauthTokenEndpoint: string;
   jwtAudience: string;
 }
@@ -106,9 +107,8 @@ export const postFormWithFetch: HttpPostForm = async (url, form) => {
 };
 
 /**
- * Mint a fresh grant for each explicit advisor send action. DocuSign JWT-grant
- * access tokens are not server-enforceable single-use tokens, so the broker
- * never caches or reuses one and makes no stronger claim than that.
+ * Mint a fresh, short-lived DocuSign bearer for each explicit advisor send
+ * action. The broker never caches or reuses a bearer.
  */
 export async function requestDocusignSigningCapability(
   config: DocusignSigningGrantConfig,

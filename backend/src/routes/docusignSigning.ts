@@ -6,6 +6,7 @@
  * no document, recipient, envelope-creation, or document-retrieval endpoint.
  */
 
+import { createHash } from "node:crypto";
 import { hmacEquals, hmacHash, verifySeatToken } from "../lib/crypto.ts";
 import { config } from "../lib/config.ts";
 import { error, getBearer, json, rateLimit } from "../lib/http.ts";
@@ -24,6 +25,7 @@ const DECOY_INTAKE_TOKEN_HASH = hmacHash("lantern-docusign-signing-decoy-token-v
 const MAX_JSON_BYTES = Math.ceil(MAX_SIGNATURE_LAUNCH_BYTES * 1.4) + 8 * 1024;
 const MAX_CONNECT_BYTES = 64 * 1024;
 const B64_RE = /^[A-Za-z0-9+/]*={0,2}$/u;
+const OPAQUE_ID_RE = /^[A-Za-z0-9._:-]{1,256}$/;
 const FORBIDDEN_FIELD = /^(document|documents|documentbytes|documentcontent|pdf|content|attachment|attachments|filename|filepath|path|recipientname|recipientemail|matterid|ceremonyurl)$/;
 
 export interface DocusignSigningDependencies {
@@ -146,6 +148,10 @@ function validOpaqueLaunch(value: unknown): value is string {
   }
 }
 
+function validOpaqueId(value: unknown): value is string {
+  return typeof value === "string" && OPAQUE_ID_RE.test(value);
+}
+
 function capabilityError(err: unknown): Response {
   if (!(err instanceof DocusignGrantError)) return error("docusign_token_unavailable", 503);
   const details: Record<string, string> = {
@@ -160,16 +166,48 @@ function capabilityError(err: unknown): Response {
 export async function handleIssueSigningCapability(req: Request, store: Store, intakeId: string, input?: DocusignSigningDependencies): Promise<Response> {
   const advisor = authorizeAdvisorSigning(req, store, intakeId);
   if (!advisor.ok) return advisor.resp;
-  const parsed = await readStrictJson(req, []);
+  const parsed = await readStrictJson(req, ["template_id"]);
   if (!parsed.ok) return parsed.resp;
   const deps = dependencies(input);
   const signingConfig = deps.signingConfig ?? config.docusignSigning;
+  const templateId = parsed.body.template_id;
+  if (templateId !== undefined && !validOpaqueId(templateId)) return error("invalid_template_id", 400);
+  if (signingConfig.environment === "production" && (!validOpaqueId(templateId) || !signingConfig.approvedTemplateIds.has(templateId))) {
+    return error("docusign_template_not_approved", 403, "This DocuSign template is not approved for production signing.");
+  }
+  // Do this before the OAuth request so a partial demo setup cannot yield a
+  // bearer with an unusable account target.
+  if (!signingConfig.accountId || !signingConfig.apiBaseUri) return error("docusign_signing_not_configured", 503, "DocuSign signing is not configured for this environment.");
+  const nowMs = deps.now();
   try {
-    const issued = await requestDocusignSigningCapability(signingConfig, deps.postForm, Math.floor(deps.now() / 1000));
-    return json({ capability: issued.capability, expires_in: issued.expiresIn });
+    const issued = await requestDocusignSigningCapability(signingConfig, deps.postForm, Math.floor(nowMs / 1000));
+    return json({
+      // Legacy fields remain while desktop callers move to the explicit names.
+      capability: issued.capability,
+      expires_in: issued.expiresIn,
+      access_token: issued.capability,
+      account_id: signingConfig.accountId,
+      base_uri: signingConfig.apiBaseUri,
+      expires_at: new Date(nowMs + issued.expiresIn * 1000).toISOString(),
+    });
   } catch (err) {
     return capabilityError(err);
   }
+}
+
+/** POST /docusign-signing/:intakeId/envelope */
+export async function handleRegisterEnvelope(req: Request, store: Store, intakeId: string, input?: DocusignSigningDependencies): Promise<Response> {
+  const advisor = authorizeAdvisorSigning(req, store, intakeId);
+  if (!advisor.ok) return advisor.resp;
+  const parsed = await readStrictJson(req, ["envelope_id"]);
+  if (!parsed.ok) return parsed.resp;
+  if (!validOpaqueId(parsed.body.envelope_id)) return error("invalid_envelope_id", 400);
+  try {
+    dependencies(input).brokerStore.registerEnvelope(intakeId, parsed.body.envelope_id);
+  } catch {
+    return error("envelope_registration_conflict", 409);
+  }
+  return json({ ok: true });
 }
 
 /** PUT /docusign-signing/:intakeId/launch */
@@ -221,28 +259,30 @@ export async function handleDocusignConnectEvent(req: Request, input?: DocusignS
   if (!verifyDocusignConnectSignature(rawBody, req.headers.get("x-docusign-signature-1") ?? "", signingConfig.connectKey ?? null)) {
     return error("invalid_signature", 401, "X-DocuSign-Signature-1 verification failed");
   }
-  const validated = validateDocusignConnectPayload(rawBody, signingConfig.environment, deps.now());
+  const validated = validateDocusignConnectPayload(rawBody, deps.now());
   if (!validated.ok) return error(validated.code, validated.status);
-  if (deps.brokerStore.hasSeen(validated.payload.event_id, validated.payload.nonce)) return error("replayed_event", 409);
+  // Connect has no event ID or nonce in this notification. Its documented
+  // idempotency identity is the completed envelope plus generated timestamp.
+  const replayKey = `${validated.payload.data.envelopeId}\u0000${validated.payload.generatedDateTime}`;
+  const eventId = createHash("sha256").update(replayKey).digest("hex");
+  if (deps.brokerStore.hasSeen(replayKey)) return error("replayed_event", 409);
   const enqueued = deps.brokerStore.enqueueWakeup({
-    event_id: validated.payload.event_id,
-    envelope_id: validated.payload.envelope_id,
-    event_type: validated.payload.event_type,
+    event_id: eventId,
+    envelope_id: validated.payload.data.envelopeId,
+    event_type: "completed",
     at: validated.at,
-  }, validated.payload.nonce);
+  }, replayKey);
   if (!enqueued) return error("replayed_event", 409);
   return json({ ok: true });
 }
 
-/** GET /docusign-signing/:intakeId/wakeups (advisor local record matches envelope IDs). */
+/** GET /docusign-signing/:intakeId/wakeups */
 export async function handleListSignatureWakeups(req: Request, store: Store, intakeId: string, input?: DocusignSigningDependencies): Promise<Response> {
   const advisor = authorizeAdvisorSigning(req, store, intakeId);
   if (!advisor.ok) return advisor.resp;
   const unexpected = await rejectUnexpectedBody(req);
   if (unexpected) return unexpected;
-  // The broker deliberately holds no intake-to-envelope map. The authenticated
-  // advisor's encrypted local record matches these opaque envelope wake-ups.
-  return json({ wakeups: dependencies(input).brokerStore.listWakeups() });
+  return json({ wakeups: dependencies(input).brokerStore.listWakeups(intakeId) });
 }
 
 /** POST /docusign-signing/:intakeId/wakeups/ack */
@@ -255,7 +295,7 @@ export async function handleAckSignatureWakeups(req: Request, store: Store, inta
   if (!Array.isArray(eventIds) || eventIds.length === 0 || eventIds.length > 100 || eventIds.some((id) => typeof id !== "string" || id.length === 0 || id.length > 256)) {
     return error("invalid_event_ids", 400);
   }
-  return json({ ok: true, consumed: dependencies(input).brokerStore.consumeWakeups(eventIds) });
+  return json({ ok: true, consumed: dependencies(input).brokerStore.consumeWakeups(intakeId, eventIds) });
 }
 
 export { MAX_SIGNATURE_LAUNCH_BYTES } from "../lib/docusignSigning/store.ts";
