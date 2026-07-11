@@ -297,8 +297,8 @@ timer and no plaintext due date.
 Every scalar LWW decision uses the explicit HLC stamps in the
 [02 §2.3 Field Merge Contract](02-data-model.md#23-field-merge-contract-v10), not Yjs
 internal clocks. HLC issuance, clamping, and invalid-stamp handling are owned solely by
-that contract. `rev` is reserved for propagation revision mechanics, not general scalar
-ordering. Relay cursor and `created_at` are transport/display metadata, never merge
+that contract. No `rev` field exists; propagation uses immutable `revisionId` values and
+revision sets. Relay cursor and `created_at` are transport/display metadata, never merge
 inputs.
 
 Different fields merge independently. Same-field collisions resolve by the field’s HLC
@@ -378,7 +378,7 @@ immutable ledger and leave that field’s source revision unchanged.
 Template removal writes `removalRequestedBy`, not an immediate deletion. After every
 merge, deterministic reconciliation checks progress. Any step whose status is not the
 Field Merge Contract constant `UNTOUCHED = 'todo'`, or that has notes, completion,
-outcome, or assignment history stays visible and sets
+outcome, or assignment history in append-only `assignmentOperations` stays visible and sets
 `detachedFromTemplate = true`; only a genuinely untouched step can be hidden. This
 re-runs correctly when offline progress arrives after a removal decision.
 
@@ -394,7 +394,7 @@ event/outbox transaction rather than lowering a mutable template version.
 ### 4.4 Propagation properties P1-P10
 
 - **P1 Completed outcome immutable.** Apply and undo never alter a valid completion
-  operation, `completed_by`, or outcome.
+  operation, `completedBy`, or outcome.
 - **P2 No destructive removal.** A removal with any merged progress remains visible and
   detached; it is never deleted.
 - **P3 Idempotent revision application.** Reapplying an accepted revision/offer or its
@@ -407,7 +407,7 @@ event/outbox transaction rather than lowering a mutable template version.
   after every required composed change is present; rejected fields retain their prior
   explicitly recorded source revisions and immutable rejection ledger entries until a
   descendant revision changes that field and re-offers it.
-- **P6 Progress invariance.** Propagation never modifies status, assignee, notes,
+- **P6 Progress invariance.** Propagation never modifies status, `assigneeUserId`, notes,
   completion operations, or outcome.
 - **P7 Conditional undo scope.** Undo restores only still-untouched derived cells from
   its own operation and reports every later-changed cell it leaves alone.

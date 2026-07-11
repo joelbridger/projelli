@@ -693,7 +693,7 @@ opens Home > Firm; m/r/t, i work.
 ProposalCard renders one durable `ProposalRecord`, never a generic UI-only suggestion. It
 shows its one supported kind, state, rationale, context, and approval outcome. It uses the
 record's durable review semantics from [02 §1.15](02-data-model.md#115-proposalrecord-ai-approval-queue)
-and [03 §2.3](03-sync-and-notifications.md#23-durable-outbox-and-approval-classes): tracked
+and [03 §2.3](03-sync-and-notifications.md#23-api-and-delivery-protocol): tracked
 green/red change, source chips, changed-since-review automatic unselection, one Approve, durable inline
 error/retry, and recoverable dismiss history. `communication_draft` says it will open the
 existing mail approval flow; it never blends an outside send with a local record write.

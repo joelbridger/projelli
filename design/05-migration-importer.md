@@ -17,13 +17,9 @@ or non-fabricated workspaces. Every fixture, raw capture, archive manifest, fide
 parallel-run, cutover, and rollback described below is a sandbox exercise over fabricated
 data only.
 
-**Entity names note:** `design/02-data-model.md` (lane B) had not landed as of this
-writing. Sections below describe Wealthbox objects and how they map onto *conceptual*
-Lantern entities (Household, Contact, Note, Task, Event, Opportunity, Workflow Instance,
-etc.) using plain descriptive names, not lane B's final type names. Reconcile at
-`00-master-spec.md` / `SPEC-FREEZE.md`. The one name that is already locked and must not
-be reinvented: the internal facade is `matter` / `matter_id` — a Household/Client maps onto
-one `matter`, per the charter's inherited invariant.
+**Entity names:** `design/02-data-model.md` is the canonical entity contract. The internal
+facade is `matter` / `matter_id` — a Household/Client maps onto one `matter`, per the
+charter's inherited invariant.
 
 ---
 
@@ -370,12 +366,12 @@ listed reason.
 
 | Source type | Target entity | Fixture source | Required completeness | Allowed skip reasons |
 |---|---|---|---|---|
-| Household/contact person/org/trust | Household, Person, Organization, Trust, household membership | Northcrest fabricated API corpus: contacts clean/null/collision cases | 100% for resolved active households and contacts | malformed source; unsupported source type; unresolved required household link |
+| Household/contact person/org/trust | Household, Person, `Person.personType` (Organization/Trust), household membership | Northcrest fabricated API corpus: contacts clean/null/collision cases | 100% for resolved active households and contacts | malformed source; unsupported source type; unresolved required household link |
 | Note | One Note with `householdLinks[]` | Northcrest fabricated API corpus: single-link, multi-link, unresolved-link, collision cases | 100% when every household link resolves; one target note per source note | malformed source; no resolved household link; partial/missing household-link set; confidentiality intersection cannot be established |
 | Task | Canonical Task (D2) | Northcrest fabricated API corpus: assigned/unassigned/due/recurrence cases | 100% for records with a valid target scope | malformed source; unresolved required household link; unsupported subtask shape |
-| Event | Existing calendar event via `EntityRef` | Northcrest fabricated API corpus: household-linked and firm cases | 100% for records with a valid target scope | malformed source; unresolved required household link |
+| Event | `ActivityEvent` | Northcrest fabricated API corpus: household-linked and firm cases | 100% for records with a valid target scope | malformed source; unresolved required household link |
 | Opportunity | Opportunity linked to PipelineDef/StageDef | Northcrest fabricated API corpus: opportunity and `/categories/opportunity_stage` cases | 100% where source stage-category references resolve | malformed source; missing required stage-category reference; unresolved required household link; stage value shape unverified pending seeded re-probe |
-| Project | Read-only legacy Project record | Northcrest fabricated API corpus: linked/unlinked cases | 100% of parseable records; no automatic workflow conversion | malformed source; unresolved required link |
+| Project | `LegacyProject` | Northcrest fabricated API corpus: linked/unlinked cases | 100% of parseable records; no automatic workflow conversion | malformed source; unresolved required link |
 | Workflow template | WorkflowTemplate | Northcrest fabricated API corpus: templates and step definitions | 100% of parseable records | malformed source; unsupported source shape |
 | Open workflow instance/current step | New Lantern workflow instance created by operator at cutover | Northcrest fabricated API corpus: templates, activity traces, and guided-re-creation checklist | 100% of in-flight workflows have a checklist and recorded operator decision; no API state is claimed | malformed source; guided manual re-creation fallback required because `/workflow_instances` is absent and populated current state is unverified; unresolved required link |
 | Custom-field values / record-derived inventory | Field inventory plus typed target field/provenance | Northcrest fabricated API corpus: populated contact `custom_fields`, typed and null values | 100% of proven record-level supported shapes; no registry import | malformed source; unsupported field type; populated value shape unverified pending seeded re-probe; registry endpoint unavailable |
