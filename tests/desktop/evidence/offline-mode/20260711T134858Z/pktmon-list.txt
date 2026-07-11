@@ -1,0 +1,10 @@
+
+Network Adapters:
+   Id MAC Address       Name
+   -- -----------       ----
+   14 20-2B-20-6F-A7-F0 Bluetooth Device (Personal Area Network)
+   17                   OpenVPN Data Channel Offload
+   12                   Tailscale Tunnel
+   16 20-2B-20-6F-A7-EF RZ616 Wi-Fi 6E 160MHz
+  137 00-15-5D-88-1B-81 vEthernet (WSL (Hyper-V firewall))
+  139 6C-24-08-EE-E3-EE Realtek PCIe GbE Family Controller

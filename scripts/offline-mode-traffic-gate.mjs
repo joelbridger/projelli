@@ -11,6 +11,19 @@ const workspace = process.env.OFFLINE_GATE_WORKSPACE || 'C:/offline-mode-gate/wo
 const mode = process.env.OFFLINE_GATE_MODE || 'offline';
 const port = process.env.DESKTOP_CDP_PORT || '9223';
 const vitePort = process.env.OFFLINE_GATE_VITE_PORT || '5173';
+const fixtureName = 'offline-mode-gate-local-data.txt';
+const fixtureText = 'Lantern Offline Mode gate: this local file must remain readable.\n';
+const cachedLicensePayload = {
+  tier: 'professional',
+  exp: Math.floor(Date.now() / 1000) + 60 * 60,
+  status: 'active',
+  type: 'subscription',
+};
+
+function syntheticJwt(payload) {
+  const segment = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  return `offline-gate.${segment}.fixture`;
+}
 
 async function pageForBench() {
   const info = await (await fetch(`http://127.0.0.1:${port}/json/version`)).json();
@@ -44,12 +57,67 @@ function expectedOffline(result, label) {
   };
 }
 
+async function seedCachedEntitlement(page) {
+  const token = syntheticJwt(cachedLicensePayload);
+  return page.evaluate(({ token }) => {
+    localStorage.setItem('lantern_license_token', token);
+    localStorage.setItem('lantern_license_last_good_at', new Date().toISOString());
+    return {
+      tokenStored: localStorage.getItem('lantern_license_token') === token,
+      lastGoodAt: localStorage.getItem('lantern_license_last_good_at'),
+    };
+  }, { token });
+}
+
+async function readSeededLocalFileThroughApp(page) {
+  return page.evaluate(async ({ workspace, fixtureName, fixtureText }) => {
+    // This is Lantern's actual Tauri filesystem plugin used by TauriFSBackend,
+    // rather than Node reading the workspace from outside the application.
+    const tauriFs = await import('/src/platform/fs/tauriFsPlugin.ts');
+    const entries = await tauriFs.getTauriFsModule().then((fs) => fs.readDir(workspace));
+    const content = await tauriFs.readTauriTextFile(`${workspace}\\${fixtureName}`);
+    return {
+      listed: entries.some((entry) => entry.name === fixtureName && entry.isFile),
+      readable: content === fixtureText,
+      content,
+    };
+  }, { workspace, fixtureName, fixtureText });
+}
+
+async function verifyCachedEntitlementInUi(page) {
+  try {
+    // License has moved out of Settings into the account panel.
+    await page.getByTestId('account-identity').click({ timeout: 8_000 });
+    await page.getByTestId('account-tab-account').click({ timeout: 8_000 });
+    const tier = await page.getByTestId('license-tier-name').textContent({ timeout: 8_000 });
+    const offlineStatus = await page.getByTestId('license-offline-mode-status').textContent({ timeout: 8_000 });
+    const degradedNoticeVisible = await page.getByTestId('license-degraded-notice').isVisible().catch(() => false);
+    return {
+      activated: Boolean(tier?.trim()),
+      tier: tier?.trim() ?? null,
+      offlineStatus: offlineStatus?.trim() ?? null,
+      degradedNoticeVisible,
+    };
+  } catch (error) {
+    return { activated: false, error: String(error) };
+  }
+}
+
 async function run() {
   await fs.mkdir(outDir, { recursive: true });
   await fs.mkdir(workspace, { recursive: true });
+  await fs.writeFile(path.join(workspace, fixtureName), fixtureText, 'utf8');
   const startedAt = new Date().toISOString();
   const { browser, page } = await pageForBench();
   try {
+    // Seed a structurally valid, cached subscription fixture before exercising
+    // Offline Mode. The production hook uses these same two persisted keys and
+    // deliberately trusts last-known-good while its native policy is offline.
+    const cachedEntitlementSeed = await seedCachedEntitlement(page);
+    // Reload so the production React hook initializes from the just-seeded
+    // disposable profile (rather than merely proving the keys can be written).
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => Boolean(window.__TAURI__?.core?.invoke), null, { timeout: 15_000 });
     // This binds the real encrypted audit database to our isolated disposable
     // workspace before any native guard is called.
     const auditSetup = await invoke(page, 'audit_set_workspace', { path: workspace });
@@ -93,11 +161,16 @@ async function run() {
       }
     }
 
+    // Validate the disposable local-data fixture through the app's own Tauri
+    // filesystem bridge after all offline actions, not through Node/PowerShell.
+    const localData = await readSeededLocalFileThroughApp(page);
+    const cachedEntitlementUi = await verifyCachedEntitlementInUi(page);
+
     // A visible proof that the real settings UI reflected the native state.
     await page.screenshot({ path: path.join(outDir, `${mode}-app.jpeg`), type: 'jpeg', quality: 80 });
     const receipts = await invoke(page, 'audit_list', { limit: null, offset: null });
     const integrity = await invoke(page, 'audit_verify_integrity');
-    const result = { startedAt, finishedAt: new Date().toISOString(), mode, workspace, auditSetup, initialStatus, modeSet, status, actions, receipts, integrity };
+    const result = { startedAt, finishedAt: new Date().toISOString(), mode, workspace, fixture: { name: fixtureName, expectedText: fixtureText }, cachedEntitlementSeed, auditSetup, initialStatus, modeSet, status, actions, localData, cachedEntitlementUi, receipts, integrity };
     await fs.writeFile(path.join(outDir, `${mode}-driver-result.json`), JSON.stringify(result, null, 2));
     console.log(JSON.stringify(result, null, 2));
   } finally {

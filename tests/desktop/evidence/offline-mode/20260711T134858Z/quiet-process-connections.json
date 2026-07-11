@@ -1,0 +1,1462 @@
+{
+    "startedAt":  "2026-07-11T13:52:54.7193535Z",
+    "finishedAt":  "2026-07-11T13:55:56.4193895Z",
+    "durationSeconds":  180,
+    "intervalSeconds":  5,
+    "precision":  "Process-tree TCP connection-table polling. Covers Lantern.exe and descendants, including its WebView2 children when parented by Lantern. It proves no owned non-loopback TCP connection was present at a poll, but cannot attribute UDP packets.",
+    "pktmonProcessScopedCapture":  false,
+    "samples":  [
+                    {
+                        "at":  "2026-07-11T13:52:56.6083135Z",
+                        "processTree":  [
+                                            {
+                                                "ProcessId":  155328,
+                                                "ParentProcessId":  152608,
+                                                "Name":  "lantern.exe",
+                                                "ExecutablePath":  "C:\\keepance\\src-tauri\\target\\debug\\lantern.exe"
+                                            },
+                                            {
+                                                "ProcessId":  166640,
+                                                "ParentProcessId":  155328,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  169328,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  149204,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  152920,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  151232,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  139632,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            }
+                                        ],
+                        "externalTcpConnections":  [
+
+                                                   ]
+                    },
+                    {
+                        "at":  "2026-07-11T13:53:02.9859121Z",
+                        "processTree":  [
+                                            {
+                                                "ProcessId":  155328,
+                                                "ParentProcessId":  152608,
+                                                "Name":  "lantern.exe",
+                                                "ExecutablePath":  "C:\\keepance\\src-tauri\\target\\debug\\lantern.exe"
+                                            },
+                                            {
+                                                "ProcessId":  166640,
+                                                "ParentProcessId":  155328,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  169328,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  149204,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  152920,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  151232,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  139632,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            }
+                                        ],
+                        "externalTcpConnections":  [
+
+                                                   ]
+                    },
+                    {
+                        "at":  "2026-07-11T13:53:09.3369472Z",
+                        "processTree":  [
+                                            {
+                                                "ProcessId":  155328,
+                                                "ParentProcessId":  152608,
+                                                "Name":  "lantern.exe",
+                                                "ExecutablePath":  "C:\\keepance\\src-tauri\\target\\debug\\lantern.exe"
+                                            },
+                                            {
+                                                "ProcessId":  166640,
+                                                "ParentProcessId":  155328,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  169328,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  149204,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  152920,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  151232,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  139632,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            }
+                                        ],
+                        "externalTcpConnections":  [
+
+                                                   ]
+                    },
+                    {
+                        "at":  "2026-07-11T13:53:15.5941888Z",
+                        "processTree":  [
+                                            {
+                                                "ProcessId":  155328,
+                                                "ParentProcessId":  152608,
+                                                "Name":  "lantern.exe",
+                                                "ExecutablePath":  "C:\\keepance\\src-tauri\\target\\debug\\lantern.exe"
+                                            },
+                                            {
+                                                "ProcessId":  166640,
+                                                "ParentProcessId":  155328,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  169328,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  149204,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  152920,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  151232,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  139632,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            }
+                                        ],
+                        "externalTcpConnections":  [
+
+                                                   ]
+                    },
+                    {
+                        "at":  "2026-07-11T13:53:21.9492495Z",
+                        "processTree":  [
+                                            {
+                                                "ProcessId":  155328,
+                                                "ParentProcessId":  152608,
+                                                "Name":  "lantern.exe",
+                                                "ExecutablePath":  "C:\\keepance\\src-tauri\\target\\debug\\lantern.exe"
+                                            },
+                                            {
+                                                "ProcessId":  166640,
+                                                "ParentProcessId":  155328,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  169328,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  149204,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  152920,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  151232,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  139632,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            }
+                                        ],
+                        "externalTcpConnections":  [
+
+                                                   ]
+                    },
+                    {
+                        "at":  "2026-07-11T13:53:28.1242016Z",
+                        "processTree":  [
+                                            {
+                                                "ProcessId":  155328,
+                                                "ParentProcessId":  152608,
+                                                "Name":  "lantern.exe",
+                                                "ExecutablePath":  "C:\\keepance\\src-tauri\\target\\debug\\lantern.exe"
+                                            },
+                                            {
+                                                "ProcessId":  166640,
+                                                "ParentProcessId":  155328,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  169328,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  149204,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  152920,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  151232,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  139632,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            }
+                                        ],
+                        "externalTcpConnections":  [
+
+                                                   ]
+                    },
+                    {
+                        "at":  "2026-07-11T13:53:34.3344790Z",
+                        "processTree":  [
+                                            {
+                                                "ProcessId":  155328,
+                                                "ParentProcessId":  152608,
+                                                "Name":  "lantern.exe",
+                                                "ExecutablePath":  "C:\\keepance\\src-tauri\\target\\debug\\lantern.exe"
+                                            },
+                                            {
+                                                "ProcessId":  166640,
+                                                "ParentProcessId":  155328,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  169328,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  149204,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  152920,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  151232,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  139632,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            }
+                                        ],
+                        "externalTcpConnections":  [
+
+                                                   ]
+                    },
+                    {
+                        "at":  "2026-07-11T13:53:40.5202787Z",
+                        "processTree":  [
+                                            {
+                                                "ProcessId":  155328,
+                                                "ParentProcessId":  152608,
+                                                "Name":  "lantern.exe",
+                                                "ExecutablePath":  "C:\\keepance\\src-tauri\\target\\debug\\lantern.exe"
+                                            },
+                                            {
+                                                "ProcessId":  166640,
+                                                "ParentProcessId":  155328,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  169328,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  149204,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  152920,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  151232,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  139632,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            }
+                                        ],
+                        "externalTcpConnections":  [
+
+                                                   ]
+                    },
+                    {
+                        "at":  "2026-07-11T13:53:46.7920901Z",
+                        "processTree":  [
+                                            {
+                                                "ProcessId":  155328,
+                                                "ParentProcessId":  152608,
+                                                "Name":  "lantern.exe",
+                                                "ExecutablePath":  "C:\\keepance\\src-tauri\\target\\debug\\lantern.exe"
+                                            },
+                                            {
+                                                "ProcessId":  166640,
+                                                "ParentProcessId":  155328,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  169328,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  149204,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  152920,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  151232,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  139632,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            }
+                                        ],
+                        "externalTcpConnections":  [
+
+                                                   ]
+                    },
+                    {
+                        "at":  "2026-07-11T13:53:53.1068960Z",
+                        "processTree":  [
+                                            {
+                                                "ProcessId":  155328,
+                                                "ParentProcessId":  152608,
+                                                "Name":  "lantern.exe",
+                                                "ExecutablePath":  "C:\\keepance\\src-tauri\\target\\debug\\lantern.exe"
+                                            },
+                                            {
+                                                "ProcessId":  166640,
+                                                "ParentProcessId":  155328,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  169328,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  149204,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  152920,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  151232,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  139632,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            }
+                                        ],
+                        "externalTcpConnections":  [
+
+                                                   ]
+                    },
+                    {
+                        "at":  "2026-07-11T13:53:59.3285435Z",
+                        "processTree":  [
+                                            {
+                                                "ProcessId":  155328,
+                                                "ParentProcessId":  152608,
+                                                "Name":  "lantern.exe",
+                                                "ExecutablePath":  "C:\\keepance\\src-tauri\\target\\debug\\lantern.exe"
+                                            },
+                                            {
+                                                "ProcessId":  166640,
+                                                "ParentProcessId":  155328,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  169328,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  149204,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  152920,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  151232,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  139632,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            }
+                                        ],
+                        "externalTcpConnections":  [
+
+                                                   ]
+                    },
+                    {
+                        "at":  "2026-07-11T13:54:05.4266327Z",
+                        "processTree":  [
+                                            {
+                                                "ProcessId":  155328,
+                                                "ParentProcessId":  152608,
+                                                "Name":  "lantern.exe",
+                                                "ExecutablePath":  "C:\\keepance\\src-tauri\\target\\debug\\lantern.exe"
+                                            },
+                                            {
+                                                "ProcessId":  166640,
+                                                "ParentProcessId":  155328,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  169328,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  149204,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  152920,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  151232,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  139632,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            }
+                                        ],
+                        "externalTcpConnections":  [
+
+                                                   ]
+                    },
+                    {
+                        "at":  "2026-07-11T13:54:11.6438164Z",
+                        "processTree":  [
+                                            {
+                                                "ProcessId":  155328,
+                                                "ParentProcessId":  152608,
+                                                "Name":  "lantern.exe",
+                                                "ExecutablePath":  "C:\\keepance\\src-tauri\\target\\debug\\lantern.exe"
+                                            },
+                                            {
+                                                "ProcessId":  166640,
+                                                "ParentProcessId":  155328,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  169328,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  149204,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  152920,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  151232,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  139632,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            }
+                                        ],
+                        "externalTcpConnections":  [
+
+                                                   ]
+                    },
+                    {
+                        "at":  "2026-07-11T13:54:17.8389487Z",
+                        "processTree":  [
+                                            {
+                                                "ProcessId":  155328,
+                                                "ParentProcessId":  152608,
+                                                "Name":  "lantern.exe",
+                                                "ExecutablePath":  "C:\\keepance\\src-tauri\\target\\debug\\lantern.exe"
+                                            },
+                                            {
+                                                "ProcessId":  166640,
+                                                "ParentProcessId":  155328,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  169328,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  149204,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  152920,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  151232,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  139632,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            }
+                                        ],
+                        "externalTcpConnections":  [
+
+                                                   ]
+                    },
+                    {
+                        "at":  "2026-07-11T13:54:24.1350365Z",
+                        "processTree":  [
+                                            {
+                                                "ProcessId":  155328,
+                                                "ParentProcessId":  152608,
+                                                "Name":  "lantern.exe",
+                                                "ExecutablePath":  "C:\\keepance\\src-tauri\\target\\debug\\lantern.exe"
+                                            },
+                                            {
+                                                "ProcessId":  166640,
+                                                "ParentProcessId":  155328,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  169328,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  149204,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  152920,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  151232,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  139632,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            }
+                                        ],
+                        "externalTcpConnections":  [
+
+                                                   ]
+                    },
+                    {
+                        "at":  "2026-07-11T13:54:30.3320539Z",
+                        "processTree":  [
+                                            {
+                                                "ProcessId":  155328,
+                                                "ParentProcessId":  152608,
+                                                "Name":  "lantern.exe",
+                                                "ExecutablePath":  "C:\\keepance\\src-tauri\\target\\debug\\lantern.exe"
+                                            },
+                                            {
+                                                "ProcessId":  166640,
+                                                "ParentProcessId":  155328,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  169328,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  149204,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  152920,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  151232,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  139632,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            }
+                                        ],
+                        "externalTcpConnections":  [
+
+                                                   ]
+                    },
+                    {
+                        "at":  "2026-07-11T13:54:36.5549910Z",
+                        "processTree":  [
+                                            {
+                                                "ProcessId":  155328,
+                                                "ParentProcessId":  152608,
+                                                "Name":  "lantern.exe",
+                                                "ExecutablePath":  "C:\\keepance\\src-tauri\\target\\debug\\lantern.exe"
+                                            },
+                                            {
+                                                "ProcessId":  166640,
+                                                "ParentProcessId":  155328,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  169328,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  149204,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  152920,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  151232,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  139632,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            }
+                                        ],
+                        "externalTcpConnections":  [
+
+                                                   ]
+                    },
+                    {
+                        "at":  "2026-07-11T13:54:42.7736503Z",
+                        "processTree":  [
+                                            {
+                                                "ProcessId":  155328,
+                                                "ParentProcessId":  152608,
+                                                "Name":  "lantern.exe",
+                                                "ExecutablePath":  "C:\\keepance\\src-tauri\\target\\debug\\lantern.exe"
+                                            },
+                                            {
+                                                "ProcessId":  166640,
+                                                "ParentProcessId":  155328,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  169328,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  149204,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  152920,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  151232,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  139632,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            }
+                                        ],
+                        "externalTcpConnections":  [
+
+                                                   ]
+                    },
+                    {
+                        "at":  "2026-07-11T13:54:48.9768855Z",
+                        "processTree":  [
+                                            {
+                                                "ProcessId":  155328,
+                                                "ParentProcessId":  152608,
+                                                "Name":  "lantern.exe",
+                                                "ExecutablePath":  "C:\\keepance\\src-tauri\\target\\debug\\lantern.exe"
+                                            },
+                                            {
+                                                "ProcessId":  166640,
+                                                "ParentProcessId":  155328,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  169328,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  149204,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  152920,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  151232,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  139632,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            }
+                                        ],
+                        "externalTcpConnections":  [
+
+                                                   ]
+                    },
+                    {
+                        "at":  "2026-07-11T13:54:55.3210817Z",
+                        "processTree":  [
+                                            {
+                                                "ProcessId":  155328,
+                                                "ParentProcessId":  152608,
+                                                "Name":  "lantern.exe",
+                                                "ExecutablePath":  "C:\\keepance\\src-tauri\\target\\debug\\lantern.exe"
+                                            },
+                                            {
+                                                "ProcessId":  166640,
+                                                "ParentProcessId":  155328,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  169328,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  149204,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  152920,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  151232,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  139632,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            }
+                                        ],
+                        "externalTcpConnections":  [
+
+                                                   ]
+                    },
+                    {
+                        "at":  "2026-07-11T13:55:01.5067289Z",
+                        "processTree":  [
+                                            {
+                                                "ProcessId":  155328,
+                                                "ParentProcessId":  152608,
+                                                "Name":  "lantern.exe",
+                                                "ExecutablePath":  "C:\\keepance\\src-tauri\\target\\debug\\lantern.exe"
+                                            },
+                                            {
+                                                "ProcessId":  166640,
+                                                "ParentProcessId":  155328,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  169328,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  149204,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  152920,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  151232,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  139632,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            }
+                                        ],
+                        "externalTcpConnections":  [
+
+                                                   ]
+                    },
+                    {
+                        "at":  "2026-07-11T13:55:07.6722618Z",
+                        "processTree":  [
+                                            {
+                                                "ProcessId":  155328,
+                                                "ParentProcessId":  152608,
+                                                "Name":  "lantern.exe",
+                                                "ExecutablePath":  "C:\\keepance\\src-tauri\\target\\debug\\lantern.exe"
+                                            },
+                                            {
+                                                "ProcessId":  166640,
+                                                "ParentProcessId":  155328,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  169328,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  149204,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  152920,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  151232,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  139632,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            }
+                                        ],
+                        "externalTcpConnections":  [
+
+                                                   ]
+                    },
+                    {
+                        "at":  "2026-07-11T13:55:13.8565956Z",
+                        "processTree":  [
+                                            {
+                                                "ProcessId":  155328,
+                                                "ParentProcessId":  152608,
+                                                "Name":  "lantern.exe",
+                                                "ExecutablePath":  "C:\\keepance\\src-tauri\\target\\debug\\lantern.exe"
+                                            },
+                                            {
+                                                "ProcessId":  166640,
+                                                "ParentProcessId":  155328,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  169328,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  149204,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  152920,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  151232,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  139632,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            }
+                                        ],
+                        "externalTcpConnections":  [
+
+                                                   ]
+                    },
+                    {
+                        "at":  "2026-07-11T13:55:20.1188642Z",
+                        "processTree":  [
+                                            {
+                                                "ProcessId":  155328,
+                                                "ParentProcessId":  152608,
+                                                "Name":  "lantern.exe",
+                                                "ExecutablePath":  "C:\\keepance\\src-tauri\\target\\debug\\lantern.exe"
+                                            },
+                                            {
+                                                "ProcessId":  166640,
+                                                "ParentProcessId":  155328,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  169328,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  149204,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  152920,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  151232,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  139632,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            }
+                                        ],
+                        "externalTcpConnections":  [
+
+                                                   ]
+                    },
+                    {
+                        "at":  "2026-07-11T13:55:26.4512570Z",
+                        "processTree":  [
+                                            {
+                                                "ProcessId":  155328,
+                                                "ParentProcessId":  152608,
+                                                "Name":  "lantern.exe",
+                                                "ExecutablePath":  "C:\\keepance\\src-tauri\\target\\debug\\lantern.exe"
+                                            },
+                                            {
+                                                "ProcessId":  166640,
+                                                "ParentProcessId":  155328,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  169328,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  149204,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  152920,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  151232,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  139632,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            }
+                                        ],
+                        "externalTcpConnections":  [
+
+                                                   ]
+                    },
+                    {
+                        "at":  "2026-07-11T13:55:32.6577235Z",
+                        "processTree":  [
+                                            {
+                                                "ProcessId":  155328,
+                                                "ParentProcessId":  152608,
+                                                "Name":  "lantern.exe",
+                                                "ExecutablePath":  "C:\\keepance\\src-tauri\\target\\debug\\lantern.exe"
+                                            },
+                                            {
+                                                "ProcessId":  166640,
+                                                "ParentProcessId":  155328,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  169328,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  149204,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  152920,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  151232,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  139632,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            }
+                                        ],
+                        "externalTcpConnections":  [
+
+                                                   ]
+                    },
+                    {
+                        "at":  "2026-07-11T13:55:38.8920748Z",
+                        "processTree":  [
+                                            {
+                                                "ProcessId":  155328,
+                                                "ParentProcessId":  152608,
+                                                "Name":  "lantern.exe",
+                                                "ExecutablePath":  "C:\\keepance\\src-tauri\\target\\debug\\lantern.exe"
+                                            },
+                                            {
+                                                "ProcessId":  166640,
+                                                "ParentProcessId":  155328,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  169328,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  149204,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  152920,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  151232,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  139632,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            }
+                                        ],
+                        "externalTcpConnections":  [
+
+                                                   ]
+                    },
+                    {
+                        "at":  "2026-07-11T13:55:45.0969654Z",
+                        "processTree":  [
+                                            {
+                                                "ProcessId":  155328,
+                                                "ParentProcessId":  152608,
+                                                "Name":  "lantern.exe",
+                                                "ExecutablePath":  "C:\\keepance\\src-tauri\\target\\debug\\lantern.exe"
+                                            },
+                                            {
+                                                "ProcessId":  166640,
+                                                "ParentProcessId":  155328,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  169328,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  149204,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  152920,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  151232,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  139632,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            }
+                                        ],
+                        "externalTcpConnections":  [
+
+                                                   ]
+                    },
+                    {
+                        "at":  "2026-07-11T13:55:51.4149836Z",
+                        "processTree":  [
+                                            {
+                                                "ProcessId":  155328,
+                                                "ParentProcessId":  152608,
+                                                "Name":  "lantern.exe",
+                                                "ExecutablePath":  "C:\\keepance\\src-tauri\\target\\debug\\lantern.exe"
+                                            },
+                                            {
+                                                "ProcessId":  166640,
+                                                "ParentProcessId":  155328,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  169328,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  149204,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  152920,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  151232,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            },
+                                            {
+                                                "ProcessId":  139632,
+                                                "ParentProcessId":  166640,
+                                                "Name":  "msedgewebview2.exe",
+                                                "ExecutablePath":  "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\150.0.4078.65\\msedgewebview2.exe"
+                                            }
+                                        ],
+                        "externalTcpConnections":  [
+
+                                                   ]
+                    }
+                ],
+    "externalTcpConnectionCount":  0,
+    "passed":  true
+}

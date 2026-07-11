@@ -1,0 +1,84 @@
+{
+  "generatedAt": "2026-07-11T13:51:37.753Z",
+  "source": {
+    "decodedEtl": "C:\\offline-mode-gate\\20260711T134858Z\\evidence\\gate-rerun.txt",
+    "pcapng": "C:\\offline-mode-gate\\20260711T134858Z\\evidence\\gate-rerun.pcapng"
+  },
+  "window": {
+    "from": "2026-07-11T13:51:07.000Z",
+    "to": "2026-07-11T13:51:08.500Z",
+    "pktmonUtcOffsetHours": -6
+  },
+  "note": "PktMon is machine-wide. Firewall rules scope enforcement to Lantern and WebView2; this passive capture independently records traffic during the same window.",
+  "outboundDnsQueries": [],
+  "outboundTcpSyn": [
+    {
+      "group": "562949953441805",
+      "observedAt": "2026-07-11T13:51:08.278Z",
+      "source": "10.0.0.39",
+      "sourcePort": 54912,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.54912 > 23.211.246.228.443: Flags [S], seq 20206777, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    }
+  ],
+  "outboundUdpDatagrams": [
+    {
+      "group": "1125899906866394",
+      "observedAt": "2026-07-11T13:51:07.063Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 62073,
+      "destination": "2001:4860:4802:32::223",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.62073 > 2001:4860:4802:32::223.443: UDP, length 33"
+    },
+    {
+      "group": "1125899906866414",
+      "observedAt": "2026-07-11T13:51:07.994Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 62073,
+      "destination": "2001:4860:4802:32::223",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.62073 > 2001:4860:4802:32::223.443: UDP, length 320"
+    }
+  ],
+  "tlsClientHelloRecordCount": null,
+  "outboundNonLoopbackSample": [
+    {
+      "group": "1125899906866394",
+      "observedAt": "2026-07-11T13:51:07.063Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 62073,
+      "destination": "2001:4860:4802:32::223",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.62073 > 2001:4860:4802:32::223.443: UDP, length 33"
+    },
+    {
+      "group": "1125899906866414",
+      "observedAt": "2026-07-11T13:51:07.994Z",
+      "source": "2601:681:d01:a7e0:e915:9d5f:806e:247d",
+      "sourcePort": 62073,
+      "destination": "2001:4860:4802:32::223",
+      "destinationPort": 443,
+      "detail": "2601:681:d01:a7e0:e915:9d5f:806e:247d.62073 > 2001:4860:4802:32::223.443: UDP, length 320"
+    },
+    {
+      "group": "562949953441805",
+      "observedAt": "2026-07-11T13:51:08.278Z",
+      "source": "10.0.0.39",
+      "sourcePort": 54912,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.54912 > 23.211.246.228.443: Flags [S], seq 20206777, win 65535, options [mss 1460,nop,wscale 8,nop,nop,sackOK], length 0"
+    },
+    {
+      "group": "11616",
+      "observedAt": "2026-07-11T13:51:08.307Z",
+      "source": "10.0.0.39",
+      "sourcePort": 54912,
+      "destination": "23.211.246.228",
+      "destinationPort": 443,
+      "detail": "10.0.0.39.54912 > 23.211.246.228.443: Flags [F.], seq 20206778, ack 1604979034, win 1024, length 0"
+    }
+  ]
+}
