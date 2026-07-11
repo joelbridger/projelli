@@ -52,7 +52,8 @@ if ($Action -eq 'setup') {
   Set-ItemProperty -Path $proxyKey -Name ProxyServer -Value "127.0.0.1:$proxyPort"
   Set-ItemProperty -Path $proxyKey -Name ProxyOverride -Value '<local>;127.0.0.1;localhost;::1'
   & netsh winhttp set proxy "127.0.0.1:$proxyPort" bypass-list='127.0.0.1;localhost;::1' | Out-File "$evidence\winhttp-set.log"
-  Set-DnsClientServerAddress -InterfaceAlias 'Wi-Fi' -AddressFamily IPv6 -ServerAddresses '::1'
+  $ipv6Dns = Get-DnsClientServerAddress -InterfaceAlias 'Wi-Fi' | Where-Object { $_.AddressFamily -eq 23 }
+  Set-DnsClientServerAddress -InputObject $ipv6Dns -ServerAddresses '::1'
 
   New-NetFirewallRule -DisplayName 'Lantern Offline Gate - Lantern remote block' -Direction Outbound -Action Block -Program $lantern -RemoteAddress Internet -Profile Any | Out-Null
   New-NetFirewallRule -DisplayName 'Lantern Offline Gate - WebView remote block' -Direction Outbound -Action Block -Program $webview -RemoteAddress Internet -Profile Any | Out-Null
@@ -113,7 +114,10 @@ if (Test-Path $state) {
   Set-ItemProperty -Path $proxyKey -Name ProxyServer -Value ([string]$old.proxy.ProxyServer)
   Set-ItemProperty -Path $proxyKey -Name ProxyOverride -Value ([string]$old.proxy.ProxyOverride)
   & netsh winhttp reset proxy | Out-File "$evidence\winhttp-reset.log"
-  foreach ($item in $old.dns) { Set-DnsClientServerAddress -InterfaceAlias $item.InterfaceAlias -AddressFamily $item.AddressFamily -ServerAddresses @($item.ServerAddresses) }
+  foreach ($item in $old.dns) {
+    $current = Get-DnsClientServerAddress -InterfaceAlias $item.InterfaceAlias | Where-Object { $_.AddressFamily -eq $item.AddressFamily }
+    Set-DnsClientServerAddress -InputObject $current -ServerAddresses @($item.ServerAddresses)
+  }
 }
 Get-Content "$evidence\mitm-ca-thumbprint.txt" -ErrorAction SilentlyContinue | ForEach-Object { & certutil -user -delstore Root $_ | Out-File "$evidence\mitm-cert-remove.log" }
 Remove-NetFirewallRule -DisplayName 'Lantern Offline Gate*' -ErrorAction SilentlyContinue
