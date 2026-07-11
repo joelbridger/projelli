@@ -16,8 +16,9 @@ import {
   type IntakeSubmissionFlag,
   type RoutedIntakeSubmission,
 } from './IntakeSyncClient';
-import { loadIntakePrivateKey } from './intakeKeychain';
+import { loadIntakePrivateKey, loadPdfTemplateDescriptor } from './intakeKeychain';
 import { fileIntakeDocument } from './intakeFiling';
+import { pdfCompletionReceiptFromManifest, verifyPdfFillReceipt } from './pdfFillReceipt';
 import {
   intakeFactUpsert,
   type IntakeFactUpsertInput,
@@ -363,6 +364,58 @@ async function routeFileSubmission(
   return { filePath };
 }
 
+async function routePdfFillSubmission(
+  submission: RoutedIntakeSubmission,
+  options: RouteIntakeSubmissionOptions,
+): Promise<IntakeRouteResult> {
+  const contractItem = contractItemOrFail(submission, options.intake);
+  if (contractItem.t !== 'pdf_fill') {
+    failNeedsFollowup(submission, options.intake, 'This request item does not accept a completed form.', 'integrity_mismatch');
+  }
+  if (submission.manifest.content_type === 'application/json') {
+    failNeedsFollowup(submission, options.intake, 'A completed form request received a JSON answer.', 'integrity_mismatch');
+  }
+  if (submission.manifest.content_type !== 'application/pdf') {
+    failNeedsFollowup(submission, options.intake, 'A completed form must be returned as a PDF.', 'integrity_mismatch');
+  }
+  if (submission.manifest.file_names.length !== 1) {
+    failNeedsFollowup(submission, options.intake, 'A completed form must contain exactly one file.', 'integrity_mismatch');
+  }
+  const descriptor = await loadPdfTemplateDescriptor(submission.intakeId, submission.itemId);
+  const receipt = pdfCompletionReceiptFromManifest(submission.manifest);
+  if (!receipt) {
+    failNeedsFollowup(submission, options.intake, 'This completed form is missing its sealed receipt.', 'integrity_mismatch');
+  }
+  const bytes = concatBytes(submission.plaintextBytes);
+  try {
+    await verifyPdfFillReceipt({ completedBytes: bytes, receipt, descriptor });
+  } catch (error) {
+    failNeedsFollowup(
+      submission,
+      options.intake,
+      error instanceof Error ? error.message : 'This completed form could not be verified safely.',
+      'integrity_mismatch',
+    );
+  }
+  if (!options.workspaceService) {
+    throw new Error('A workspace must be open before completed forms can be filed.');
+  }
+  if (!options.intake.requestSlug) {
+    failNeedsFollowup(submission, options.intake, 'This request is missing its safe local folder.', 'integrity_mismatch');
+  }
+  const filePath = await (options.fileDocument ?? fileIntakeDocument)({
+    workspaceService: options.workspaceService,
+    matterFolderPath: options.matterFolderPath,
+    requestSlug: options.intake.requestSlug,
+    folder: 'pdf_form',
+    // This is code-generated from the opaque submission id, never from the
+    // template, client values, or the manifest's client-provided filename.
+    fileName: `completed-form-${submission.submissionId}.pdf`,
+    bytes,
+  });
+  return { filePath };
+}
+
 function markSubmissionReceived(
   submission: RoutedIntakeSubmission,
   intake: IntakeRecord,
@@ -419,7 +472,9 @@ export async function routeIntakeSubmission(
       ? submission.manifest.content_type !== 'application/json'
         ? await routeFileSubmission(submission, options)
         : failNeedsFollowup(submission, options.intake, 'A file request received a JSON answer.', 'integrity_mismatch')
-      : failNeedsFollowup(submission, options.intake, 'This request item cannot receive submissions.', 'integrity_mismatch');
+      : item.t === 'pdf_fill'
+        ? await routePdfFillSubmission(submission, options)
+        : failNeedsFollowup(submission, options.intake, 'This request item cannot receive submissions.', 'integrity_mismatch');
   if (!result.factId && !result.filePath) {
     failNeedsFollowup(
       submission,
