@@ -444,8 +444,8 @@ export class FirmApiClient {
   }
 
   /** Allocate an opaque document stream. The request body is intentionally empty. */
-  allocateStream(matterHandle: MatterHandle, seatToken: string): Promise<{ stream_handle: StreamHandle; lease_commit_deadline_ms: number }> {
-    return this.request<{ stream_handle: StreamHandle; lease_commit_deadline_ms: number }>(
+  allocateStream(matterHandle: MatterHandle, seatToken: string): Promise<{ stream_handle: StreamHandle; lease_commit_deadline_at: string }> {
+    return this.request<{ stream_handle: StreamHandle; lease_commit_deadline_at: string }>(
       FIRM_ENDPOINTS.allocateStream.replace(':matter_handle', encodeURIComponent(parseMatterHandle(matterHandle))),
       { method: 'POST', auth: true, body: {}, headers: { 'X-Seat-Token': seatToken } },
     );

@@ -994,10 +994,18 @@ export class Store {
   }
 
   createMatterStream(matterHandle: string, seatId: string): string {
+    return this.createMatterStreamLease(matterHandle, seatId).stream_handle;
+  }
+
+  /** Allocate a lease and stamp its deadline from the relay's own clock. */
+  createMatterStreamLease(matterHandle: string, seatId: string): { stream_handle: string; lease_commit_deadline_at: string } {
     const streamHandle = this.newHandle("sh2_");
     const now = this.nowIso();
     this.db.query("INSERT INTO matter_streams (stream_handle, matter_handle, created_at, allocated_by_seat, last_activity_at) VALUES (?, ?, ?, ?, ?)").run(streamHandle, matterHandle, now, seatId, now);
-    return streamHandle;
+    return {
+      stream_handle: streamHandle,
+      lease_commit_deadline_at: new Date(new Date(now).getTime() + config.firmMatterStreamLeaseCommitDeadlineSeconds * 1_000).toISOString(),
+    };
   }
 
   countLiveMatterStreams(matterHandle: string): number {

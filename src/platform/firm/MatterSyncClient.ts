@@ -26,7 +26,7 @@
  */
 
 import * as Y from 'yjs';
-import type { FirmApiClient } from './FirmApiClient';
+import { FirmApiError, type FirmApiClient } from './FirmApiClient';
 import { encryptUpdateV2, decryptUpdateV2, importMatterKey } from './matterCrypto';
 import { getMatterSyncSocketUrl } from './firmConfig';
 import type { MatterHandle, StreamHandle, SyncFrame } from './contract';
@@ -106,6 +106,41 @@ function genBlobId(): string {
   return `blob_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
+/**
+ * Origin carried by the one root-index transaction that makes a document
+ * stream visible.  It gives that logical write a stable relay idempotency key;
+ * retrying the encrypted update must never mint a second blob id.
+ */
+export interface RootIndexWriteOrigin {
+  readonly type: 'firm-root-index-write';
+  readonly blobId: string;
+}
+
+export function rootIndexWriteOrigin(blobId: string): RootIndexWriteOrigin {
+  return { type: 'firm-root-index-write', blobId };
+}
+
+function blobIdFromOrigin(origin: unknown): string | undefined {
+  if (!origin || typeof origin !== 'object') return undefined;
+  const candidate = origin as Partial<RootIndexWriteOrigin>;
+  return candidate.type === 'firm-root-index-write' && typeof candidate.blobId === 'string'
+    ? candidate.blobId
+    : undefined;
+}
+
+type PendingWrite = {
+  sequence: number;
+  update: Uint8Array;
+  /** Set exactly once: retries send this exact id and encrypted bytes. */
+  blobId: string;
+  ciphertext?: string;
+};
+
+type PushResult =
+  | { kind: 'accepted' }
+  | { kind: 'rejected'; error: FirmApiError }
+  | { kind: 'unknown'; error: unknown };
+
 export class MatterSyncClient {
   readonly doc: Y.Doc;
   private readonly matterHandle: MatterHandle;
@@ -125,7 +160,7 @@ export class MatterSyncClient {
   private socket: WebSocketLike | null = null;
   private started = false;
   /** Local Yjs updates that failed to push, queued (in order) for retry. */
-  private readonly pendingUpdates: Array<{ sequence: number; update: Uint8Array }> = [];
+  private readonly pendingUpdates: PendingWrite[] = [];
   /** Backoff reconnect timer; non-null while a reconnect attempt is pending. */
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   /** Current backoff delay (ms). 0 means "not yet backed off" — the first
@@ -135,7 +170,7 @@ export class MatterSyncClient {
   private readonly ownBlobIds = new Set<string>();
   /** Each local edit gets a monotonic marker so flush() can snapshot a boundary. */
   private nextWriteSequence = 0;
-  private readonly inFlightWrites = new Map<number, { promise: Promise<boolean>; controller: AbortController }>();
+  private readonly inFlightWrites = new Map<number, { promise: Promise<PushResult>; controller: AbortController }>();
   private updateHandler: ((update: Uint8Array, origin: unknown) => void) | null = null;
   /** Origin marker used when applying remote updates so we don't re-broadcast. */
   private readonly remoteOrigin = Symbol('matter-sync-remote');
@@ -189,19 +224,26 @@ export class MatterSyncClient {
     };
     options.signal?.addEventListener('abort', abortBoundaryWrites, { once: true });
     try {
+      let unknownAttempts = 0;
       for (;;) {
         if (options.signal?.aborted) throw new Error('Could not publish the encrypted root update before the stream lease deadline.');
         const inFlight = [...this.inFlightWrites.entries()]
           .filter(([sequence]) => sequence <= boundary)
           .map(([, write]) => write.promise);
         if (inFlight.length > 0) {
-          await Promise.all(inFlight);
+          const results = await Promise.all(inFlight);
+          const rejected = results.find((result) => result.kind === 'rejected');
+          if (rejected?.kind === 'rejected') throw rejected.error;
+          const unknown = results.find((result) => result.kind === 'unknown');
+          if (unknown?.kind === 'unknown') {
+            if (options.signal?.aborted) throw new Error('Could not publish the encrypted root update before the stream lease deadline.');
+            if (unknownAttempts++ > 0) throw unknown.error;
+          }
           continue;
         }
         if (!this.pendingUpdates.some(({ sequence }) => sequence <= boundary)) return;
-        if (!await this.flushPendingUpdatesThrough(boundary, options.signal)) {
-          throw new Error('Could not publish the encrypted root update.');
-        }
+        const result = await this.flushPendingUpdatesThrough(boundary, options.signal);
+        if (result.kind === 'rejected' || result.kind === 'unknown') throw result.error;
       }
     } finally {
       options.signal?.removeEventListener('abort', abortBoundaryWrites);
@@ -250,11 +292,12 @@ export class MatterSyncClient {
       // If there's already a backlog, queue behind it rather than racing a
       // fresh push ahead of updates still waiting to be sent.
       const sequence = ++this.nextWriteSequence;
+      const write: PendingWrite = { sequence, update, blobId: blobIdFromOrigin(origin) ?? genBlobId() };
       if (this.pendingUpdates.length > 0) {
-        this.pendingUpdates.push({ sequence, update });
+        this.pendingUpdates.push(write);
         return;
       }
-      this.startInFlightWrite(sequence, update);
+      this.startInFlightWrite(write);
     };
     this.doc.on('update', this.updateHandler);
 
@@ -323,33 +366,33 @@ export class MatterSyncClient {
    * Returns false (and sets `offline`) on failure so callers can queue the
    * update for retry instead of silently dropping it.
    */
-  private startInFlightWrite(sequence: number, update: Uint8Array): void {
+  private startInFlightWrite(write: PendingWrite): void {
     const controller = new AbortController();
-    const promise = this.pushLocalUpdate(update, controller.signal);
-    this.inFlightWrites.set(sequence, { promise, controller });
-    void promise.then((ok) => {
-      this.inFlightWrites.delete(sequence);
-      if (!ok) {
-        this.pendingUpdates.push({ sequence, update });
+    const promise = this.pushLocalUpdate(write, controller.signal);
+    this.inFlightWrites.set(write.sequence, { promise, controller });
+    void promise.then((result) => {
+      this.inFlightWrites.delete(write.sequence);
+      if (result.kind !== 'accepted') {
+        this.pendingUpdates.push(write);
         this.pendingUpdates.sort((a, b) => a.sequence - b.sequence);
-        this.scheduleReconnect();
+        if (result.kind === 'unknown') this.scheduleReconnect();
       }
     });
   }
 
-  private async pushLocalUpdate(update: Uint8Array, signal?: AbortSignal): Promise<boolean> {
-    let blobId: string | undefined;
+  private async pushLocalUpdate(write: PendingWrite, signal?: AbortSignal): Promise<PushResult> {
     try {
-      const key = await this.ensureKey();
-      const ciphertext = await encryptUpdateV2(key, update, {
-        keyEpoch: this.keyEpoch, matterHandle: this.matterHandle, streamHandle: this.streamHandle,
-      });
-      blobId = genBlobId();
-      this.ownBlobIds.add(blobId);
+      if (!write.ciphertext) {
+        const key = await this.ensureKey();
+        write.ciphertext = await encryptUpdateV2(key, write.update, {
+          keyEpoch: this.keyEpoch, matterHandle: this.matterHandle, streamHandle: this.streamHandle,
+        });
+      }
+      this.ownBlobIds.add(write.blobId);
       const res = await this.client.pushUpdate(
         this.streamHandle,
-        blobId,
-        ciphertext,
+        write.blobId,
+        write.ciphertext,
         this.seatToken,
         this.keyEpoch,
         signal,
@@ -358,14 +401,17 @@ export class MatterSyncClient {
       if (res.key_epoch > this.keyEpoch) {
         this.callbacks.onKeyEpochAdvanced?.(res.key_epoch);
       }
-      return true;
-    } catch {
-      // This blob never received an acceptance response, so it must not stay
-      // in the self-echo set while the logical update is retried with a fresh
-      // blob id.
-      if (blobId) this.ownBlobIds.delete(blobId);
+      return { kind: 'accepted' };
+    } catch (error) {
+      // A 4xx is a definite relay decision. Everything else (including abort)
+      // may have committed after the client lost the response, so retain the
+      // exact blob id + ciphertext for an idempotent retry.
+      if (error instanceof FirmApiError && error.status >= 400 && error.status < 500) {
+        this.ownBlobIds.delete(write.blobId);
+        return { kind: 'rejected', error };
+      }
       this.setStatus('offline');
-      return false;
+      return { kind: 'unknown', error };
     }
   }
 
@@ -375,17 +421,17 @@ export class MatterSyncClient {
    * push that keeps failing (independent of the WebSocket's own health)
    * doesn't strand the queue with nothing left to wake it back up.
    */
-  private async flushPendingUpdatesThrough(boundary: number, signal?: AbortSignal): Promise<boolean> {
+  private async flushPendingUpdatesThrough(boundary: number, signal?: AbortSignal): Promise<PushResult> {
     for (;;) {
-      if (signal?.aborted) return false;
+      if (signal?.aborted) return { kind: 'unknown', error: new Error('Could not publish the encrypted root update before the stream lease deadline.') };
       const nextIndex = this.pendingUpdates.findIndex(({ sequence }) => sequence <= boundary);
       if (nextIndex < 0) break;
       const next = this.pendingUpdates[nextIndex];
-      if (next === undefined) return true;
-      const ok = await this.pushLocalUpdate(next.update, signal);
-      if (!ok) {
-        this.scheduleReconnect();
-        return false;
+      if (next === undefined) return { kind: 'accepted' };
+      const result = await this.pushLocalUpdate(next, signal);
+      if (result.kind !== 'accepted') {
+        if (result.kind === 'unknown') this.scheduleReconnect();
+        return result;
       }
       this.pendingUpdates.splice(nextIndex, 1);
     }
@@ -395,10 +441,10 @@ export class MatterSyncClient {
     // stuck on 'offline' with nothing else left to correct it — restore it
     // now that pushes are working again.
     if (this.socket) this.setStatus('live');
-    return true;
+    return { kind: 'accepted' };
   }
 
-  private flushPendingUpdates(): Promise<boolean> {
+  private flushPendingUpdates(): Promise<PushResult> {
     return this.flushPendingUpdatesThrough(Number.POSITIVE_INFINITY);
   }
 

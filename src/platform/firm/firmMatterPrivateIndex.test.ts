@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { parseMatterHandle, parseStreamHandle } from './contract';
 import { MatterSyncClient, type WebSocketLike } from './MatterSyncClient';
 import { generateMatterKey } from './matterCrypto';
+import { FirmApiError } from './FirmApiClient';
 import {
   addDocumentStreamToPrivateIndex, createDocumentStream, FIRM_PRIVATE_INDEX_MAP, FIRM_PRIVATE_INDEX_STREAMS_V2_MAP,
   readFirmMatterPrivateIndex, writeFirmMatterPrivateIndex,
@@ -10,10 +11,11 @@ import {
 
 const root = parseStreamHandle(`sh2_${'R'.repeat(43)}`);
 const docStream = parseStreamHandle(`sh2_${'D'.repeat(43)}`);
+const leaseAt = () => new Date(Date.now() + 60_000).toISOString();
 
 function rootSyncClient(
   doc: Y.Doc,
-  pushUpdate: (streamHandle: typeof root) => Promise<{ ok: true; cursor: number; blob_id: string; key_epoch: number; duplicate: boolean }>,
+  pushUpdate: (streamHandle: typeof root, blobId: string, ciphertext: string, seatToken: string, keyEpoch: number, signal?: AbortSignal) => Promise<{ ok: true; cursor: number; blob_id: string; key_epoch: number; duplicate: boolean }>,
 ): Promise<MatterSyncClient> {
   return generateMatterKey().then((keyB64) => new MatterSyncClient({
     matterHandle: parseMatterHandle(`mh2_${'M'.repeat(43)}`),
@@ -63,7 +65,7 @@ describe('encrypted FirmMatterPrivateIndex', () => {
     writeFirmMatterPrivateIndex(doc, { version: 1, clientName: 'x', displayName: 'x', streams: { _notes: { streamHandle: root, kind: 'notes' } } });
     const events: string[] = [];
     const result = await createDocumentStream(
-      { allocateStream: () => { events.push('allocate'); return Promise.resolve({ stream_handle: docStream }); } } as never,
+      { allocateStream: () => { events.push('allocate'); return Promise.resolve({ stream_handle: docStream, lease_commit_deadline_at: leaseAt() }); } } as never,
       parseMatterHandle(`mh2_${'M'.repeat(43)}`), 'seat-token', doc,
       { flush: () => { events.push('encrypted-root-accepted'); return Promise.resolve(); } }, 'local-document-id',
     );
@@ -71,7 +73,7 @@ describe('encrypted FirmMatterPrivateIndex', () => {
     expect(events).toEqual(['allocate', 'encrypted-root-accepted']);
   });
 
-  it('rejects document-stream creation after a failed root push, removes the local mapping, and leaves the unused lease reclaimable', async () => {
+  it('keeps a mapping after an acceptance-unknown root push so a later session can reconcile it', async () => {
     const doc = new Y.Doc();
     writeFirmMatterPrivateIndex(doc, { version: 1, clientName: 'x', displayName: 'x', streams: { _notes: { streamHandle: root, kind: 'notes' } } });
     const pushedStreams: string[] = [];
@@ -82,11 +84,11 @@ describe('encrypted FirmMatterPrivateIndex', () => {
     await sync.start();
 
     await expect(createDocumentStream(
-      { allocateStream: () => Promise.resolve({ stream_handle: docStream }) } as never,
+      { allocateStream: () => Promise.resolve({ stream_handle: docStream, lease_commit_deadline_at: leaseAt() }) } as never,
       parseMatterHandle(`mh2_${'M'.repeat(43)}`), 'seat-token', doc, sync, 'local-document-id',
-    )).rejects.toThrow('Could not publish the encrypted root update.');
+    )).rejects.toThrow('relay unavailable');
 
-    expect(readFirmMatterPrivateIndex(doc)?.streams['local-document-id']).toBeUndefined();
+    expect(readFirmMatterPrivateIndex(doc)?.streams['local-document-id']).toEqual({ streamHandle: docStream, kind: 'document' });
     // Only root-index ciphertext was attempted. The allocated document stream
     // has accepted no data, so the relay's normal idle-lease cleanup can reclaim it.
     expect(pushedStreams).not.toContain(docStream);
@@ -98,14 +100,14 @@ describe('encrypted FirmMatterPrivateIndex', () => {
     writeFirmMatterPrivateIndex(doc, { version: 1, clientName: 'x', displayName: 'x', streams: { _notes: { streamHandle: root, kind: 'notes' } } });
     let allocated = false;
     await expect(createDocumentStream(
-      { allocateStream: () => { allocated = true; return Promise.resolve({ stream_handle: docStream }); } } as never,
+      { allocateStream: () => { allocated = true; return Promise.resolve({ stream_handle: docStream, lease_commit_deadline_at: leaseAt() }); } } as never,
       parseMatterHandle(`mh2_${'M'.repeat(43)}`), 'seat-token', doc,
       { flush: ({ signal } = {}) => new Promise<void>((_resolve, reject) => { signal?.addEventListener('abort', () => { reject(new Error('deadline elapsed')); }, { once: true }); }) },
       'timed-out-document', { leaseCommitDeadlineMs: 5 },
     )).rejects.toThrow('deadline elapsed');
 
     expect(allocated).toBe(true);
-    expect(readFirmMatterPrivateIndex(doc)?.streams['timed-out-document']).toBeUndefined();
+    expect(readFirmMatterPrivateIndex(doc)?.streams['timed-out-document']).toEqual({ streamHandle: docStream, kind: 'document' });
   });
 
   it('retries a transient root push failure and returns the mapped stream only after acceptance', async () => {
@@ -120,13 +122,80 @@ describe('encrypted FirmMatterPrivateIndex', () => {
     await sync.start();
 
     await expect(createDocumentStream(
-      { allocateStream: () => Promise.resolve({ stream_handle: docStream }) } as never,
+      { allocateStream: () => Promise.resolve({ stream_handle: docStream, lease_commit_deadline_at: leaseAt() }) } as never,
       parseMatterHandle(`mh2_${'M'.repeat(43)}`), 'seat-token', doc, sync, 'local-document-id',
     )).resolves.toBe(docStream);
 
     expect(attempts).toBe(2);
     expect(readFirmMatterPrivateIndex(doc)?.streams['local-document-id']).toEqual({ streamHandle: docStream, kind: 'document' });
     sync.stop();
+  });
+
+  it('keeps an abort-after-commit mapping and retries the exact same encrypted blob without a duplicate root update', async () => {
+    const doc = new Y.Doc();
+    writeFirmMatterPrivateIndex(doc, { version: 1, clientName: 'x', displayName: 'x', streams: { _notes: { streamHandle: root, kind: 'notes' } } });
+    const attempts: Array<{ blobId: string; ciphertext: string }> = [];
+    let committed = 0;
+    const sync = await rootSyncClient(doc, (_stream, blobId, ciphertext, _seat, _epoch, signal) => {
+      attempts.push({ blobId, ciphertext });
+      if (attempts.length === 1) {
+        return new Promise((_resolve, reject) => {
+          signal?.addEventListener('abort', () => {
+            committed += 1; // The relay accepted it, but its response was lost.
+            reject(new Error('response lost after commit'));
+          }, { once: true });
+        });
+      }
+      return Promise.resolve({ ok: true, cursor: 1, blob_id: blobId, key_epoch: 1, duplicate: true });
+    });
+    await sync.start();
+
+    await expect(createDocumentStream(
+      { allocateStream: () => Promise.resolve({ stream_handle: docStream, lease_commit_deadline_at: leaseAt() }) } as never,
+      parseMatterHandle(`mh2_${'M'.repeat(43)}`), 'seat-token', doc, sync, 'local-document-id', { leaseCommitDeadlineMs: 5 },
+    )).rejects.toThrow('before the stream lease deadline');
+    expect(readFirmMatterPrivateIndex(doc)?.streams['local-document-id']).toEqual({ streamHandle: docStream, kind: 'document' });
+
+    await expect(sync.flush()).resolves.toBeUndefined();
+    expect(committed).toBe(1);
+    expect(attempts).toHaveLength(2);
+    expect(attempts[1]).toEqual(attempts[0]);
+    sync.stop();
+  });
+
+  it('uses compare-and-swap rollback so an older rejected create cannot erase a newer mapping', async () => {
+    const doc = new Y.Doc();
+    writeFirmMatterPrivateIndex(doc, { version: 1, clientName: 'x', displayName: 'x', streams: { _notes: { streamHandle: root, kind: 'notes' } } });
+    const firstStream = parseStreamHandle(`sh2_${'E'.repeat(43)}`);
+    const secondStream = parseStreamHandle(`sh2_${'F'.repeat(43)}`);
+    let rejectFirst: ((error: Error) => void) | undefined;
+    const first = addDocumentStreamToPrivateIndex(doc, {
+      flush: () => new Promise<void>((_resolve, reject) => { rejectFirst = reject; }),
+    }, 'same-document', firstStream);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await addDocumentStreamToPrivateIndex(doc, { flush: () => Promise.resolve() }, 'same-document', secondStream);
+    rejectFirst?.(new FirmApiError(409, 'stream_rejected', 'definite rejection'));
+    await expect(first).rejects.toThrow('definite rejection');
+    expect(readFirmMatterPrivateIndex(doc)?.streams['same-document']).toEqual({ streamHandle: secondStream, kind: 'document' });
+  });
+
+  it('rolls back a definitely rejected root mapping so its unused lease is reclaimable', async () => {
+    const doc = new Y.Doc();
+    writeFirmMatterPrivateIndex(doc, { version: 1, clientName: 'x', displayName: 'x', streams: { _notes: { streamHandle: root, kind: 'notes' } } });
+    await expect(addDocumentStreamToPrivateIndex(doc, {
+      flush: () => Promise.reject(new FirmApiError(403, 'forbidden', 'relay rejected it')),
+    }, 'rejected.docx', docStream)).rejects.toThrow('relay rejected it');
+    expect(readFirmMatterPrivateIndex(doc)?.streams['rejected.docx']).toBeUndefined();
+  });
+
+  it('refuses a slow allocation response before it installs a dead document handle', async () => {
+    const doc = new Y.Doc();
+    writeFirmMatterPrivateIndex(doc, { version: 1, clientName: 'x', displayName: 'x', streams: { _notes: { streamHandle: root, kind: 'notes' } } });
+    await expect(createDocumentStream(
+      { allocateStream: () => Promise.resolve({ stream_handle: docStream, lease_commit_deadline_at: new Date(Date.now() + 1_000).toISOString() }) } as never,
+      parseMatterHandle(`mh2_${'M'.repeat(43)}`), 'seat-token', doc, { flush: () => Promise.resolve() }, 'too-slow',
+    )).rejects.toThrow('too little server-authoritative time');
+    expect(readFirmMatterPrivateIndex(doc)?.streams['too-slow']).toBeUndefined();
   });
 
   it('merges concurrently added document mappings from two devices', async () => {

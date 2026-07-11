@@ -63,7 +63,10 @@ describe("stream lease guards", () => {
   test("owners and editors can allocate streams", async () => {
     for (const role of ["owner", "editor"] as const) {
       const fixture = setup(role);
-      expect((await allocate(fixture)).status).toBe(201);
+      const response = await allocate(fixture);
+      expect(response.status).toBe(201);
+      const body = await response.json() as { lease_commit_deadline_at: string };
+      expect(Date.parse(body.lease_commit_deadline_at)).toBeGreaterThan(Date.now());
       fixture.store.close();
     }
   });

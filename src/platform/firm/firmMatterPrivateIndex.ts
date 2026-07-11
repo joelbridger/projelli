@@ -7,7 +7,8 @@
 import * as Y from 'yjs';
 import type { MatterHandle, StreamHandle } from './contract';
 import { parseStreamHandle } from './contract';
-import type { FirmApiClient } from './FirmApiClient';
+import { FirmApiError, type FirmApiClient } from './FirmApiClient';
+import { rootIndexWriteOrigin } from './MatterSyncClient';
 
 export const FIRM_PRIVATE_INDEX_MAP = 'firm-private-index';
 /**
@@ -25,6 +26,8 @@ const INDEX_VERSION = 1;
  * its encrypted root-index mapping accepted within eight minutes.
  */
 export const DOCUMENT_STREAM_LEASE_COMMIT_DEADLINE_MS = 8 * 60 * 1_000;
+/** Never begin a root commit if the server says there is less than this left. */
+export const DOCUMENT_STREAM_MIN_REMAINING_BUDGET_MS = 5_000;
 
 export interface FirmMatterPrivateIndex {
   version: 1;
@@ -41,6 +44,10 @@ export interface RootIndexSync {
 export interface DocumentStreamCommitOptions {
   /** Test/host override. Production uses the eight-minute safe lease window. */
   leaseCommitDeadlineMs?: number;
+  /** Absolute server-clock deadline returned by allocation. */
+  leaseCommitDeadlineAt?: string;
+  /** Test seam; production always uses the device clock only to budget the server deadline. */
+  now?: () => number;
 }
 
 function deadlineSignal(timeoutMs: number): { signal: AbortSignal; cancel: () => void } {
@@ -63,6 +70,22 @@ function readStreamEntry(entry: unknown): PrivateStreamEntry {
   const kind = candidate['kind'];
   if (kind !== 'notes' && kind !== 'document') throw new Error('Malformed private index: stream kind.');
   return { streamHandle: parseStreamHandle(stringField(candidate['streamHandle'], 'stream handle')), kind };
+}
+
+async function documentStreamCreateBlobId(localDocumentId: string, streamHandle: StreamHandle): Promise<string> {
+  const input = new TextEncoder().encode(`firm-root-index-create-v1\u0000${localDocumentId}\u0000${streamHandle}`);
+  const digest = await crypto.subtle.digest('SHA-256', input);
+  return `root-index-create-v1-${Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')}`;
+}
+
+function isInstalledEntry(value: unknown, streamHandle: StreamHandle): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const candidate = value as { streamHandle?: unknown; kind?: unknown };
+  return candidate.streamHandle === streamHandle && candidate.kind === 'document';
+}
+
+function isDefinitelyRejected(error: unknown): error is FirmApiError {
+  return error instanceof FirmApiError && error.status >= 400 && error.status < 500;
 }
 
 function readPlainStreams(rawStreams: unknown): FirmMatterPrivateIndex['streams'] {
@@ -166,17 +189,26 @@ export async function addDocumentStreamToPrivateIndex(
   if (existing?.streamHandle === streamHandle) return;
   const streamsMap = getStreamsV2Map(doc);
   const previous = streamsMap.get(localDocumentId);
+  const blobId = await documentStreamCreateBlobId(localDocumentId, streamHandle);
   doc.transact(() => {
     streamsMap.set(localDocumentId, { streamHandle, kind: 'document' });
-  });
-  const deadline = deadlineSignal(options.leaseCommitDeadlineMs ?? DOCUMENT_STREAM_LEASE_COMMIT_DEADLINE_MS);
+  }, rootIndexWriteOrigin(blobId));
+  // An absolute relay deadline includes time spent delivering the allocation
+  // response. Never restart that clock when it reaches this device.
+  const deadlineMs = options.leaseCommitDeadlineMs
+    ?? (options.leaseCommitDeadlineAt
+      ? Date.parse(options.leaseCommitDeadlineAt) - (options.now?.() ?? Date.now())
+      : DOCUMENT_STREAM_LEASE_COMMIT_DEADLINE_MS);
+  const deadline = deadlineSignal(Math.max(0, deadlineMs));
   try {
     await rootSync.flush({ signal: deadline.signal });
   } catch (error) {
-    // Do not leave a locally usable mapping behind when its encrypted root
-    // update was not accepted. The unused stream lease has no accepted stream
-    // data, so the relay can reclaim it normally.
-    doc.transact(() => {
+    // Only a relay 4xx proves it did not accept this root update. A timeout,
+    // abort, or network error may have committed after the response was lost:
+    // keep its mapping and let the frozen idempotent blob settle later.
+    if (isDefinitelyRejected(error)) doc.transact(() => {
+      // Compare-and-swap: an older failed create may never undo a later one.
+      if (!isInstalledEntry(streamsMap.get(localDocumentId), streamHandle)) return;
       if (previous === undefined) streamsMap.delete(localDocumentId);
       else streamsMap.set(localDocumentId, previous);
     });
@@ -200,11 +232,18 @@ export async function createDocumentStream(
   localDocumentId: string,
   options: DocumentStreamCommitOptions = {},
 ): Promise<StreamHandle> {
-  const { stream_handle, lease_commit_deadline_ms } = await client.allocateStream(matterHandle, seatToken);
+  const { stream_handle, lease_commit_deadline_at } = await client.allocateStream(matterHandle, seatToken);
   const streamHandle = parseStreamHandle(stream_handle);
+  const now = options.now?.() ?? Date.now();
+  const serverDeadline = Date.parse(lease_commit_deadline_at);
+  if (!Number.isFinite(serverDeadline) || serverDeadline - now < DOCUMENT_STREAM_MIN_REMAINING_BUDGET_MS) {
+    throw new Error('The document stream lease arrived with too little server-authoritative time remaining.');
+  }
   // If publishing the directory fails, the unused lease disappears shortly.
   await addDocumentStreamToPrivateIndex(doc, rootSync, localDocumentId, streamHandle, {
-    leaseCommitDeadlineMs: options.leaseCommitDeadlineMs ?? lease_commit_deadline_ms,
+    leaseCommitDeadlineAt: lease_commit_deadline_at,
+    ...(options.leaseCommitDeadlineMs === undefined ? {} : { leaseCommitDeadlineMs: options.leaseCommitDeadlineMs }),
+    ...(options.now === undefined ? {} : { now: options.now }),
   });
   return streamHandle;
 }

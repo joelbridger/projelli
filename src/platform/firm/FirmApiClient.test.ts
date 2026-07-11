@@ -33,7 +33,7 @@ describe('FirmApiClient v2 relay privacy', () => {
       });
       const body = url.endsWith('/matters') ? {
         matter_handle: matterHandle, root_stream_handle: streamHandle, key_epoch: 1, status: 'provisioning',
-      } : url.endsWith('/streams') ? { stream_handle: streamHandle } :
+      } : url.endsWith('/streams') ? { stream_handle: streamHandle, lease_commit_deadline_at: new Date(Date.now() + 60_000).toISOString() } :
         url.includes('/updates') && (init?.method ?? 'GET') === 'GET' ?
           { key_epoch: 1, since: 0, cursor: 0, latest_cursor: 0, has_more: false, updates: [] } :
           url.endsWith('/sync-ticket') ? { ticket: 'ticket-opaque', expires_in_ms: 60_000 } : { ok: true, cursor: 1, blob_id: 'blob', key_epoch: 1, duplicate: false };
