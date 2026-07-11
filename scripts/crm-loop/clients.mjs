@@ -3,9 +3,14 @@
  * Drives the real Tauri dev bridge. Start the app first, then run once to
  * create the fixture and again with --verify-persisted after restarting it.
  */
+import { execFileSync } from 'node:child_process';
+import { mkdirSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 const base = `http://127.0.0.1:${process.env.DESKTOP_CDP_PORT || '9250'}`;
 const verifyOnly = process.argv.includes('--verify-persisted');
 const suffix = 'CRM loop household';
+const workspace = process.env.CRM_LOOP_WORKSPACE || '/tmp/crm-golden-loop';
 
 async function request(path, params = {}) {
   const url = new URL(path, base);
@@ -28,16 +33,24 @@ async function request(path, params = {}) {
   throw new Error(`${lastError?.message ?? `${path} failed`} while running ${path}${params.js ? `: ${params.js}` : params.testid ? ` on ${params.testid}` : ''}`);
 }
 
-const settle = () => new Promise((resolve) => setTimeout(resolve, 100));
-const click = async (testid) => { await request('/click', { testid }); await settle(); };
-const fill = async (testid, text) => { await settle(); await request('/fill', { testid, text }); };
+const click = async (testid) => { await request('/click', { testid }); };
+const fill = async (testid, text) => {
+  await request('/fill', { testid, text });
+  const saved = await evaluate(`(() => { const element = document.querySelector('[data-testid="${testid}"]'); return element && 'value' in element ? element.value : null; })()`);
+  if (saved !== text) throw new Error(`The app did not accept the value for ${testid}`);
+};
 const evaluate = (js) => request('/eval', { js, timeout_ms: 20_000 });
 
 async function waitFor(testid, seconds = 15) {
   const end = Date.now() + seconds * 1000;
   while (Date.now() < end) {
-    const exists = await evaluate(`Boolean(document.querySelector('[data-testid="${testid}"]'))`);
-    if (exists) return;
+    try {
+      const exists = await evaluate(`Boolean(document.querySelector('[data-testid="${testid}"]'))`);
+      if (exists) return;
+    } catch (error) {
+      // The native WebView can accept the bridge connection a moment before
+      // the first React frame is ready. Keep waiting for the actual control.
+    }
     await new Promise((resolve) => setTimeout(resolve, 150));
   }
   throw new Error(`Timed out waiting for ${testid} (current screen: ${await evaluate('document.querySelector("[data-testid]")?.getAttribute("data-testid") || "none"')})`);
@@ -46,7 +59,7 @@ async function waitFor(testid, seconds = 15) {
 async function waitForGone(testid, seconds = 15) {
   const end = Date.now() + seconds * 1000;
   while (Date.now() < end) {
-    const exists = await evaluate(`Boolean(document.querySelector('[data-testid="${testid}"]))`);
+    const exists = await evaluate(`Boolean(document.querySelector('[data-testid="${testid}"]'))`);
     if (!exists) return;
     await new Promise((resolve) => setTimeout(resolve, 150));
   }
@@ -131,8 +144,30 @@ async function assertSaved() {
 }
 
 try {
+  // The first desktop launch starts at the normal workspace chooser. Open the
+  // fabricated loop folder through the same Tauri command the app uses, then
+  // let the mounted shell react to its real workspace store.
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    try {
+      await evaluate(`(async () => {
+        const invoke = window.__TAURI_INTERNALS__?.invoke;
+        if (!invoke) throw new Error('Tauri invoke is not ready');
+        await invoke('crm_set_workspace', { path: ${JSON.stringify(workspace)} });
+        const { useWorkspaceStore } = await import('/src/platform/fs/workspaceStore.ts');
+        useWorkspaceStore.getState().setRootPath(${JSON.stringify(workspace)});
+        return true;
+      })()`);
+      break;
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    }
+  }
+  await waitFor('spine-nav-matters', 30);
   if (!verifyOnly) await createAndEdit();
   await assertSaved();
+  const evidence = resolve(process.env.CRM_LOOP_SCREENSHOTS_DIR || 'docs/evidence/golden-loop');
+  mkdirSync(evidence, { recursive: true });
+  execFileSync('scrot', ['-o', resolve(evidence, '01-clients.png')], { env: { ...process.env, DISPLAY: process.env.DISPLAY || ':111' }, stdio: 'ignore' });
   console.log(`PASS: ${verifyOnly ? 'saved Clients records survived the restart' : 'Clients create/edit flow completed; now restart the app and rerun with --verify-persisted'}`);
 } catch (error) {
   console.error(`FAIL: ${error instanceof Error ? error.message : String(error)}`);

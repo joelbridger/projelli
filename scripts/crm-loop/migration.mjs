@@ -11,7 +11,9 @@ import path from 'node:path';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const desktop = path.join(root, 'scripts/desktop-drive.mjs');
-const shots = path.join(root, 'artifacts/crm-loop/migration');
+const shots = process.env.CRM_LOOP_SCREENSHOTS_DIR
+  ? path.join(process.env.CRM_LOOP_SCREENSHOTS_DIR, 'migration')
+  : path.join(root, 'docs/evidence/golden-loop/migration');
 mkdirSync(shots, { recursive: true });
 const env = { ...process.env, DESKTOP_CDP_PORT: process.env.DESKTOP_CDP_PORT ?? '9250' };
 const run = (args, timeout = 30_000) => execFileSync('node', [desktop, ...args], { cwd: root, env, encoding: 'utf8', timeout });
@@ -56,6 +58,7 @@ try {
   run(['eval', "Array.from(document.querySelectorAll('button')).find((button) => button.textContent.includes('Create resulting instance'))?.click()"]);
   run(['type', `crm-workflow-instance-${workflowId}`, 'Recreated imported workflow']);
   run(['click', `crm-workflow-record-${workflowId}`]);
+  run(['waitfor', 'Checklist recorded']);
 
   run(['click', 'crm-home-nav-firm-setup']); run(['click', 'crm-firm-route-migration']); run(['click', 'crm-migration-attachment-fallback']);
   const attachmentSave = JSON.parse(run(['eval', "JSON.stringify(Array.from(document.querySelectorAll('[data-testid^=crm-attachment-record-save-]')).map(x => x.getAttribute('data-testid')))"]));
@@ -65,6 +68,7 @@ try {
   run(['type', `crm-attachment-reason-${attachmentId}`, 'The old system does not offer attachments through its import connection.']);
   run(['type', `crm-attachment-owner-${attachmentId}`, 'Migration owner']);
   run(['click', `crm-attachment-record-save-${attachmentId}`]);
+  run(['waitfor', 'Attachment status recorded']);
   screenshot('03-attachment-checklist.png');
   // Reloading the real renderer forces the checklist values to come back from
   // the encrypted store instead of surviving only in component memory.

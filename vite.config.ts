@@ -55,7 +55,10 @@ export default defineConfig({
   },
   // Vite dev server configuration
   server: {
-    port: 5173,
+    // Tauri's debug binary loads this address directly. Keep `npm run dev`
+    // and the native app on the same stable port so live-loop launches do not
+    // leave the desktop window on its static loading screen.
+    port: 5174,
     strictPort: true,
     ...(devHttps ? { https: devHttps } : {}),
     // For Tauri development
