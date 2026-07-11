@@ -2,8 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock Tauri invoke BEFORE importing the service so its transitive
 // `install.ts` import binds to the mock.
+const { invokeMock, isTauriMock } = vi.hoisted(() => ({
+  invokeMock: vi.fn(),
+  isTauriMock: vi.fn(),
+}));
+
 vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn(),
+  invoke: invokeMock,
+  isTauri: isTauriMock,
 }));
 
 import * as tauriCore from '@tauri-apps/api/core';
@@ -18,6 +24,18 @@ import type { CatalogEntry, InstalledEntry } from '@/features/workflows/types/ma
 import type { TemplateManifest } from '@/features/workflows/types/templateManifest';
 
 const mockInvoke = vi.mocked(tauriCore.invoke);
+
+function mockNativeCalls(
+  handler: (command: string) => unknown | Promise<unknown>,
+): void {
+  isTauriMock.mockReturnValue(true);
+  mockInvoke.mockImplementation(async (command: string) => {
+    if (command === 'network_policy_status') {
+      return { offlineMode: false, generation: 1 };
+    }
+    return handler(command);
+  });
+}
 
 interface FakeFs {
   fs: FSBackend;
@@ -96,8 +114,8 @@ const SAMPLE_ENTRY: CatalogEntry = {
   author: { name: 'Jameson Daines', githubUser: 'jamesondaines' },
   category: 'investor',
   tags: ['investor', 'update', 'monthly'],
-  installUrl: 'https://example.test/investor.tar.gz',
-  manifestUrl: 'https://example.test/manifest.json',
+  installUrl: 'https://raw.githubusercontent.com/test/community-templates/main/investor.tar.gz',
+  manifestUrl: 'https://raw.githubusercontent.com/test/community-templates/main/manifest.json',
   minAppVersion: '2.0.0',
   publishedAt: '2026-04-28T00:00:00.000Z',
   updatedAt: '2026-04-28T00:00:00.000Z',
@@ -148,7 +166,7 @@ function fakeStreamingResponse(chunks: Uint8Array[]): Response {
  */
 function buildService(fs: FakeFs, audit?: AuditService): MarketplaceService {
   const svc = new MarketplaceService({
-    repoUrl: 'https://example.test',
+    repoUrl: 'https://raw.githubusercontent.com/test/community-templates/main',
     catalogPath: 'catalog.json',
     cachePath: '/ws/.lantern/cache/templates.json',
     installRoot: '/ws/.lantern/templates',
@@ -173,7 +191,7 @@ function wireHappyPath(fs: FakeFs): void {
   );
   // First invoke = sha256_file, second = extract_tarball.
   mockInvoke.mockReset();
-  mockInvoke.mockImplementation(async (cmd: string) => {
+  mockNativeCalls(async (cmd: string) => {
     if (cmd === 'sha256_file') return 'deadbeefcafef00d';
     if (cmd === 'extract_tarball') {
       // Simulate the Rust extractor placing manifest.json on disk.
@@ -189,6 +207,9 @@ function wireHappyPath(fs: FakeFs): void {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockNativeCalls((command) => {
+    throw new Error(`Unexpected invoke: ${command}`);
+  });
   // Use a unique workspace id per test so localStorage state doesn't leak.
   if (typeof localStorage !== 'undefined') localStorage.clear();
 });
@@ -263,7 +284,7 @@ describe('MarketplaceService.install (failure paths)', () => {
       vi.fn(async () => fakeStreamingResponse([new Uint8Array([9, 9, 9])])),
     );
     mockInvoke.mockReset();
-    mockInvoke.mockImplementation(async (cmd: string) => {
+    mockNativeCalls(async (cmd: string) => {
       if (cmd === 'sha256_file') return 'wronghash';
       throw new Error(`Unexpected invoke: ${cmd}`);
     });
@@ -305,7 +326,7 @@ describe('MarketplaceService.install (failure paths)', () => {
       vi.fn(async () => fakeStreamingResponse([new Uint8Array([1])])),
     );
     mockInvoke.mockReset();
-    mockInvoke.mockImplementation(async (cmd: string) => {
+    mockNativeCalls(async (cmd: string) => {
       if (cmd === 'sha256_file') return 'deadbeefcafef00d';
       if (cmd === 'extract_tarball') {
         // Write an obviously broken manifest (missing required `id`).
@@ -336,7 +357,7 @@ describe('MarketplaceService.install (failure paths)', () => {
       vi.fn(async () => fakeStreamingResponse([new Uint8Array([1])])),
     );
     mockInvoke.mockReset();
-    mockInvoke.mockImplementation(async (cmd: string) => {
+    mockNativeCalls(async (cmd: string) => {
       if (cmd === 'extract_tarball') {
         fs.files.set(
           '/ws/.lantern/templates/investor-update-v1/manifest.json',
@@ -440,7 +461,10 @@ describe('MarketplaceService.install (concurrency)', () => {
       vi.fn(async () => fakeStreamingResponse([new Uint8Array([1])])),
     );
     mockInvoke.mockReset();
-    mockInvoke.mockImplementationOnce(async () => 'wronghash');
+    mockNativeCalls(async (cmd: string) => {
+      if (cmd === 'sha256_file') return 'wronghash';
+      throw new Error(`Unexpected invoke: ${cmd}`);
+    });
     await expect(svc.install('investor-update-v1')).rejects.toThrow(/Checksum/);
 
     // Now wire happy path and retry — should succeed.
@@ -462,7 +486,11 @@ describe('createTemplatesMarketplaceService factory', () => {
     } as Response));
     vi.stubGlobal('fetch', fetchSpy);
     await svc.refresh();
-    expect(fetchSpy).toHaveBeenCalledWith(`${TEMPLATES_REPO_URL}/catalog.json`);
+    expect(String(fetchSpy.mock.calls[0]?.[0])).toBe(`${TEMPLATES_REPO_URL}/catalog.json`);
+    expect(fetchSpy.mock.calls[0]?.[1]).toMatchObject({
+      redirect: 'manual',
+      maxRedirections: 0,
+    });
 
     // Cache path under workspace root.
     expect(fs.spies.write).toHaveBeenCalledWith(
@@ -492,7 +520,7 @@ describe('createTemplatesMarketplaceService factory', () => {
     wireHappyPath(fs);
     // Re-route extract output to the factory's installRoot.
     mockInvoke.mockReset();
-    mockInvoke.mockImplementation(async (cmd: string) => {
+    mockNativeCalls(async (cmd: string) => {
       if (cmd === 'sha256_file') return 'deadbeefcafef00d';
       if (cmd === 'extract_tarball') {
         fs.files.set(
@@ -527,7 +555,7 @@ function buildServiceWithFreshCache(
   audit?: AuditService,
 ): MarketplaceService {
   const svc = new MarketplaceService({
-    repoUrl: 'https://example.test',
+    repoUrl: 'https://raw.githubusercontent.com/test/community-templates/main',
     catalogPath: 'catalog.json',
     cachePath: '/ws/.lantern/cache/templates.json',
     installRoot: '/ws/.lantern/templates',
@@ -564,8 +592,8 @@ function makeInstalledEntry(id: string, version: string, overrides: Partial<Cata
     author: { name: 'Test' },
     category: 'misc',
     tags: [],
-    installUrl: `https://example.test/${id}.tar.gz`,
-    manifestUrl: `https://example.test/${id}.json`,
+    installUrl: `https://raw.githubusercontent.com/test/community-templates/main/${id}.tar.gz`,
+    manifestUrl: `https://raw.githubusercontent.com/test/community-templates/main/${id}.json`,
     minAppVersion: '2.0.0',
     publishedAt: '2026-04-28T00:00:00.000Z',
     updatedAt: '2026-04-28T00:00:00.000Z',
@@ -666,7 +694,7 @@ describe('MarketplaceService.checkForUpdates', () => {
   it('refreshes silently when the cache is stale', async () => {
     const fs = makeFs();
     const svc = new MarketplaceService({
-      repoUrl: 'https://example.test',
+      repoUrl: 'https://raw.githubusercontent.com/test/community-templates/main',
       catalogPath: 'catalog.json',
       cachePath: '/ws/.lantern/cache/templates.json',
       installRoot: '/ws/.lantern/templates',
@@ -701,7 +729,7 @@ describe('MarketplaceService.checkForUpdates', () => {
   it('does not throw when refresh fails offline (returns based on cached catalog)', async () => {
     const fs = makeFs();
     const svc = new MarketplaceService({
-      repoUrl: 'https://example.test',
+      repoUrl: 'https://raw.githubusercontent.com/test/community-templates/main',
       catalogPath: 'catalog.json',
       cachePath: '/ws/.lantern/cache/templates.json',
       installRoot: '/ws/.lantern/templates',

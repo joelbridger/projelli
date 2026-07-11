@@ -1,4 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+const { invokeMock, isTauriMock } = vi.hoisted(() => ({
+  invokeMock: vi.fn(),
+  isTauriMock: vi.fn(),
+}));
+
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: invokeMock,
+  isTauri: isTauriMock,
+}));
 import { MarketplaceService } from '@/features/workflows/marketplace/svc/MarketplaceService';
 import type { FSBackend } from '@/platform/fs/types';
 import type { CatalogEntry } from '@/features/workflows/types/marketplace';
@@ -19,11 +29,22 @@ function makeFs() {
   } as unknown as FSBackend;
 }
 
+function allowNetworkPolicy(): void {
+  isTauriMock.mockReturnValue(true);
+  invokeMock.mockReset();
+  invokeMock.mockImplementation(async (command: string) => {
+    if (command === 'network_policy_status') {
+      return { offlineMode: false, generation: 1 };
+    }
+    throw new Error(`Unexpected command: ${command}`);
+  });
+}
+
 const SAMPLE: CatalogEntry[] = [
   {
     id: 'a', name: 'A', description: '', version: '1.0.0',
     author: { name: 'x' }, category: 'misc', tags: [],
-    installUrl: 'http://e/a.tar.gz', manifestUrl: 'http://e/manifest.json',
+    installUrl: 'https://raw.githubusercontent.com/test/community-templates/main/a.tar.gz', manifestUrl: 'https://raw.githubusercontent.com/test/community-templates/main/manifest.json',
     minAppVersion: '2.0.0', publishedAt: '2026-04-28', updatedAt: '2026-04-28',
   },
 ];
@@ -33,6 +54,7 @@ describe('MarketplaceService.refresh', () => {
   let fetchSpy: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
+    allowNetworkPolicy();
     fs = makeFs();
     fetchSpy = vi.fn(async () => ({
       ok: true,
@@ -50,9 +72,13 @@ describe('MarketplaceService.refresh', () => {
       fs,
     });
     await svc.refresh();
-    expect(fetchSpy).toHaveBeenCalledWith(
-      'https://raw.githubusercontent.com/keepance/community-templates/main/catalog.json'
+    expect(String(fetchSpy.mock.calls[0]?.[0])).toBe(
+      'https://raw.githubusercontent.com/keepance/community-templates/main/catalog.json',
     );
+    expect(fetchSpy.mock.calls[0]?.[1]).toMatchObject({
+      redirect: 'manual',
+      maxRedirections: 0,
+    });
     const cached = await svc.list();
     expect(cached).toHaveLength(1);
     expect(cached[0]!.id).toBe('a');
@@ -60,7 +86,7 @@ describe('MarketplaceService.refresh', () => {
 
   it('uses cached catalog when fetch fails', async () => {
     const svc = new MarketplaceService({
-      repoUrl: 'http://e',
+      repoUrl: 'https://raw.githubusercontent.com/test/community-templates/main',
       catalogPath: 'catalog.json',
       cachePath: '.keepance/cache/m.json',
       installRoot: '.keepance/templates',
@@ -79,6 +105,7 @@ describe('MarketplaceService.getById', () => {
   let fetchSpy: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
+    allowNetworkPolicy();
     fs = makeFs();
     fetchSpy = vi.fn(async () => ({ ok: true, json: async () => SAMPLE } as Response));
     vi.stubGlobal('fetch', fetchSpy);
@@ -86,7 +113,7 @@ describe('MarketplaceService.getById', () => {
 
   it('returns entry by id', async () => {
     const svc = new MarketplaceService({
-      repoUrl: 'http://e', catalogPath: 'catalog.json',
+      repoUrl: 'https://raw.githubusercontent.com/test/community-templates/main', catalogPath: 'catalog.json',
       cachePath: '.cache.json', installRoot: '.r', fs,
     });
     await svc.refresh();
@@ -96,7 +123,7 @@ describe('MarketplaceService.getById', () => {
 
   it('returns null for unknown id', async () => {
     const svc = new MarketplaceService({
-      repoUrl: 'http://e', catalogPath: 'catalog.json',
+      repoUrl: 'https://raw.githubusercontent.com/test/community-templates/main', catalogPath: 'catalog.json',
       cachePath: '.cache.json', installRoot: '.r', fs,
     });
     await svc.refresh();
@@ -109,6 +136,7 @@ describe('MarketplaceService.cacheStatus', () => {
   let fetchSpy: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
+    allowNetworkPolicy();
     fs = makeFs();
     fetchSpy = vi.fn(async () => ({ ok: true, json: async () => SAMPLE } as Response));
     vi.stubGlobal('fetch', fetchSpy);
@@ -116,7 +144,7 @@ describe('MarketplaceService.cacheStatus', () => {
 
   it('reports offline before any refresh', () => {
     const svc = new MarketplaceService({
-      repoUrl: 'http://e', catalogPath: 'c.json',
+      repoUrl: 'https://raw.githubusercontent.com/test/community-templates/main', catalogPath: 'c.json',
       cachePath: '.cache.json', installRoot: '.r', fs,
     });
     expect(svc.cacheStatus()).toBe('offline');
@@ -124,7 +152,7 @@ describe('MarketplaceService.cacheStatus', () => {
 
   it('reports fresh immediately after a successful refresh', async () => {
     const svc = new MarketplaceService({
-      repoUrl: 'http://e', catalogPath: 'c.json',
+      repoUrl: 'https://raw.githubusercontent.com/test/community-templates/main', catalogPath: 'c.json',
       cachePath: '.cache.json', installRoot: '.r', fs,
     });
     await svc.refresh();
@@ -133,7 +161,7 @@ describe('MarketplaceService.cacheStatus', () => {
 
   it('reports stale when the last successful fetch is older than cacheTtlMs', async () => {
     const svc = new MarketplaceService({
-      repoUrl: 'http://e', catalogPath: 'c.json',
+      repoUrl: 'https://raw.githubusercontent.com/test/community-templates/main', catalogPath: 'c.json',
       cachePath: '.cache.json', installRoot: '.r', fs,
       cacheTtlMs: 1, // make any past fetch instantly stale
     });
@@ -146,7 +174,7 @@ describe('MarketplaceService.cacheStatus', () => {
   it('reports offline after a silent refresh failure with no prior cache', async () => {
     fetchSpy.mockRejectedValue(new Error('boom'));
     const svc = new MarketplaceService({
-      repoUrl: 'http://e', catalogPath: 'c.json',
+      repoUrl: 'https://raw.githubusercontent.com/test/community-templates/main', catalogPath: 'c.json',
       cachePath: '.cache.json', installRoot: '.r', fs,
     });
     await svc.refresh({ silent: true });
@@ -155,7 +183,7 @@ describe('MarketplaceService.cacheStatus', () => {
 
   it('reports offline after a fetch failure even when a prior cache exists', async () => {
     const svc = new MarketplaceService({
-      repoUrl: 'http://e', catalogPath: 'c.json',
+      repoUrl: 'https://raw.githubusercontent.com/test/community-templates/main', catalogPath: 'c.json',
       cachePath: '.cache.json', installRoot: '.r', fs,
     });
     await svc.refresh();
@@ -169,12 +197,13 @@ describe('MarketplaceService default behavior (Group III pre-conditions)', () =>
   let fs: ReturnType<typeof makeFs>;
 
   beforeEach(() => {
+    allowNetworkPolicy();
     fs = makeFs();
   });
 
   it('install throws when the catalog has not been refreshed', async () => {
     const svc = new MarketplaceService({
-      repoUrl: 'http://e', catalogPath: 'c.json',
+      repoUrl: 'https://raw.githubusercontent.com/test/community-templates/main', catalogPath: 'c.json',
       cachePath: '.cache.json', installRoot: '.r', fs,
     });
     await expect(svc.install('x')).rejects.toThrow(/not found in catalog/);
@@ -182,7 +211,7 @@ describe('MarketplaceService default behavior (Group III pre-conditions)', () =>
 
   it('uninstall throws when nothing is installed', async () => {
     const svc = new MarketplaceService({
-      repoUrl: 'http://e', catalogPath: 'c.json',
+      repoUrl: 'https://raw.githubusercontent.com/test/community-templates/main', catalogPath: 'c.json',
       cachePath: '.cache.json', installRoot: '.r', fs,
     });
     await expect(svc.uninstall('x')).rejects.toThrow(/not installed/);
@@ -190,7 +219,7 @@ describe('MarketplaceService default behavior (Group III pre-conditions)', () =>
 
   it('listInstalled returns empty array when index file is missing', async () => {
     const svc = new MarketplaceService({
-      repoUrl: 'http://e', catalogPath: 'c.json',
+      repoUrl: 'https://raw.githubusercontent.com/test/community-templates/main', catalogPath: 'c.json',
       cachePath: '.cache.json', installRoot: '.r', fs,
     });
     expect(await svc.listInstalled()).toEqual([]);
@@ -198,7 +227,7 @@ describe('MarketplaceService default behavior (Group III pre-conditions)', () =>
 
   it('checkForUpdates returns empty array', async () => {
     const svc = new MarketplaceService({
-      repoUrl: 'http://e', catalogPath: 'c.json',
+      repoUrl: 'https://raw.githubusercontent.com/test/community-templates/main', catalogPath: 'c.json',
       cachePath: '.cache.json', installRoot: '.r', fs,
     });
     expect(await svc.checkForUpdates()).toEqual([]);
@@ -209,7 +238,7 @@ describe('MarketplaceService.readInstalledManifest', () => {
   it('returns null when the template is not installed', async () => {
     const fs = makeFs();
     const svc = new MarketplaceService({
-      repoUrl: 'http://e', catalogPath: 'c.json',
+      repoUrl: 'https://raw.githubusercontent.com/test/community-templates/main', catalogPath: 'c.json',
       cachePath: '.cache.json', installRoot: '/r', fs,
     });
     expect(await svc.readInstalledManifest('missing')).toBeNull();
@@ -218,7 +247,7 @@ describe('MarketplaceService.readInstalledManifest', () => {
   it('returns the parsed manifest when it exists and validates', async () => {
     const fs = makeFs();
     const svc = new MarketplaceService({
-      repoUrl: 'http://e', catalogPath: 'c.json',
+      repoUrl: 'https://raw.githubusercontent.com/test/community-templates/main', catalogPath: 'c.json',
       cachePath: '.cache.json', installRoot: '/r', fs,
     });
     // Seed installed.json + manifest.json on disk.
@@ -229,7 +258,7 @@ describe('MarketplaceService.readInstalledManifest', () => {
           {
             id: 'x', name: 'X', description: 'd', version: '1.0.0',
             author: { name: 'a' }, category: 'misc', tags: [],
-            installUrl: 'http://e/x.tar.gz', manifestUrl: 'http://e/m.json',
+            installUrl: 'https://raw.githubusercontent.com/test/community-templates/main/x.tar.gz', manifestUrl: 'https://raw.githubusercontent.com/test/community-templates/main/m.json',
             minAppVersion: '2.0.0', publishedAt: '2026-04-28', updatedAt: '2026-04-28',
             installedAt: '2026-04-28T00:00:00Z',
             installedPath: '/r/x',
@@ -264,7 +293,7 @@ describe('MarketplaceService.readInstalledManifest', () => {
   it('returns null when the manifest file is missing or invalid', async () => {
     const fs = makeFs();
     const svc = new MarketplaceService({
-      repoUrl: 'http://e', catalogPath: 'c.json',
+      repoUrl: 'https://raw.githubusercontent.com/test/community-templates/main', catalogPath: 'c.json',
       cachePath: '.cache.json', installRoot: '/r', fs,
     });
     await fs.write(
@@ -274,7 +303,7 @@ describe('MarketplaceService.readInstalledManifest', () => {
           {
             id: 'x', name: 'X', description: 'd', version: '1.0.0',
             author: { name: 'a' }, category: 'misc', tags: [],
-            installUrl: 'http://e/x.tar.gz', manifestUrl: 'http://e/m.json',
+            installUrl: 'https://raw.githubusercontent.com/test/community-templates/main/x.tar.gz', manifestUrl: 'https://raw.githubusercontent.com/test/community-templates/main/m.json',
             minAppVersion: '2.0.0', publishedAt: '2026-04-28', updatedAt: '2026-04-28',
             installedAt: '2026-04-28T00:00:00Z',
             installedPath: '/r/x',

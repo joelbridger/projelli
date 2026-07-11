@@ -33,6 +33,7 @@ import {
   getNetworkPolicyStatus,
   subscribeToOfflineModeChanges,
 } from '@/platform/privacy/offlineMode';
+import { OfflineModeBlockedError } from '@/platform/privacy/networkClient';
 
 export type UpdaterStatus =
   | 'idle'
@@ -182,23 +183,30 @@ export const useUpdaterStore = create<UpdaterState>()((set, get) => ({
     if (!update) return;
     if (!isTauriRuntime()) return;
     if (await offlineModeBlocksUpdater()) {
-      set({ status: 'available', error: null, deferredByOfflineMode: true });
+      set({
+        status: 'available',
+        downloadProgress: INITIAL_PROGRESS,
+        error: null,
+        deferredByOfflineMode: true,
+      });
       return;
     }
     set({
       status: 'downloading',
       downloadProgress: INITIAL_PROGRESS,
       error: null,
+      deferredByOfflineMode: false,
     });
     try {
       let total = 0;
       let downloaded = 0;
-      // Feasibility spike, plugin-updater 2.10.1: DownloadOptions exposes only
-      // headers and timeout. Its Update resource has close(), but no AbortSignal
-      // or cancellation API for an in-flight `downloadAndInstall` invoke. We
-      // therefore block all *new* updater work above and cannot honestly claim
-      // to abort an already-started plugin download without replacing this path.
+      // Known permanent plugin limitation: once this combined native call starts,
+      // Offline Mode cannot abort it mid-download or prevent a Windows NSIS
+      // auto-restart. This code can only block it before this exact call.
       await update.downloadAndInstall((event) => {
+        // An Offline Mode flip clears the visible transfer state below. Ignore
+        // late native progress events so they cannot resurrect a stale bar.
+        if (get().deferredByOfflineMode) return;
         if (event.event === 'Started') {
           total = event.data.contentLength ?? 0;
           set({ downloadProgress: { total, downloaded: 0 } });
@@ -215,7 +223,13 @@ export const useUpdaterStore = create<UpdaterState>()((set, get) => ({
       if (await offlineModeBlocksUpdater()) {
         // The plugin may already have completed its install, but must not lead
         // to an automatic restart or another network action while mode is on.
-        set({ status: 'idle', error: null, deferredByOfflineMode: true });
+        set({
+          available: null,
+          status: 'idle',
+          downloadProgress: INITIAL_PROGRESS,
+          error: null,
+          deferredByOfflineMode: true,
+        });
         return;
       }
       // Some platforms (notably Windows NSIS) auto-restart the app during
@@ -237,6 +251,11 @@ export const useUpdaterStore = create<UpdaterState>()((set, get) => ({
 
   restart: async () => {
     if (!isTauriRuntime()) return;
+    if (await offlineModeBlocksUpdater()) {
+      const error = new OfflineModeBlockedError('app updates');
+      set({ error: error.message, deferredByOfflineMode: true });
+      return;
+    }
     try {
       const { relaunch } = await import('@tauri-apps/plugin-process');
       await relaunch();
@@ -268,8 +287,14 @@ subscribeToOfflineModeChanges((status) => {
   const current = useUpdaterStore.getState();
   useUpdaterStore.setState({
     deferredByOfflineMode: true,
-    ...(current.status === 'checking'
-      ? { status: current.available ? 'available' : 'idle' }
+    ...(current.status === 'downloading'
+      ? {
+          available: null,
+          downloadProgress: INITIAL_PROGRESS,
+          status: 'idle',
+        }
+      : current.status === 'checking'
+        ? { status: current.available ? 'available' : 'idle' }
       : {}),
   });
 });

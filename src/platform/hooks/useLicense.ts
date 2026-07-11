@@ -49,6 +49,7 @@ import {
   SK_MACHINE_ID,
   SK_LICENSE_TOKEN,
   SK_LICENSE_LAST_GOOD_AT,
+  SK_LICENSE_REVOCATION,
 } from '@/config/identity';
 
 export type LicenseTier = 'free' | 'personal' | 'professional' | 'practice';
@@ -95,6 +96,7 @@ export interface LicenseState {
 const STORAGE_KEY = SK_LICENSE_TOKEN;
 const MACHINE_ID_KEY = SK_MACHINE_ID;
 const LAST_GOOD_KEY = SK_LICENSE_LAST_GOOD_AT;
+const REVOCATION_KEY = SK_LICENSE_REVOCATION;
 const LICENSE_API_BASE = BRAND.urls.licenseApi;
 const APP_VERSION = '2.1.0';
 
@@ -134,6 +136,38 @@ function readLastKnownGood(): Date | null {
 function writeLastKnownGood(when: Date): void {
   if (typeof localStorage === 'undefined') return;
   localStorage.setItem(LAST_GOOD_KEY, when.toISOString());
+}
+
+/**
+ * A revocation is a server verdict, not a temporary network failure. Keep it
+ * beside the token so Offline Mode cannot accidentally re-grant grace after a
+ * restart. The token is already stored here; binding the verdict to it also
+ * means activating a different token does not inherit the old verdict.
+ */
+function readPersistedRevocation(token: string): boolean {
+  if (typeof localStorage === 'undefined') return false;
+  try {
+    const value = JSON.parse(localStorage.getItem(REVOCATION_KEY) ?? 'null') as
+      | { token?: unknown; status?: unknown }
+      | null;
+    return value?.token === token && value.status === 'revoked';
+  } catch {
+    return false;
+  }
+}
+
+function writePersistedRevocation(token: string): void {
+  if (typeof localStorage === 'undefined') return;
+  localStorage.setItem(REVOCATION_KEY, JSON.stringify({ token, status: 'revoked' }));
+}
+
+function clearPersistedRevocation(): void {
+  if (typeof localStorage === 'undefined') return;
+  localStorage.removeItem(REVOCATION_KEY);
+}
+
+function isRevokedServerVerdict(data: LicenseServerResponse): boolean {
+  return data.reason === 'revoked' || data.status === 'revoked';
 }
 
 /**
@@ -280,6 +314,7 @@ export function useLicense() {
       };
     }
     const expiresAt = new Date(payload.exp * 1000);
+    const persistedRevocation = readPersistedRevocation(token);
     const purchasedAt = payload.purchased_at
       ? new Date(payload.purchased_at)
       : null;
@@ -296,7 +331,7 @@ export function useLicense() {
       isActivated: true,
       expiresAt,
       error: null,
-      status: payload.status,
+      status: persistedRevocation ? 'revoked' : payload.status,
       type: payload.type ?? payload.license_type,
       purchasedAt:
         purchasedAt && !Number.isNaN(purchasedAt.getTime())
@@ -346,6 +381,9 @@ export function useLicense() {
           return { success: false, error: errorMsg };
         }
         localStorage.setItem(STORAGE_KEY, data.token);
+        // A new activation must not inherit a verdict associated with an old
+        // token. A later validation will persist a fresh verdict if needed.
+        clearPersistedRevocation();
         const now = new Date();
         writeLastKnownGood(now);
         const purchasedAt = data.purchased_at
@@ -405,6 +443,7 @@ export function useLicense() {
   const deactivate = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(LAST_GOOD_KEY);
+    clearPersistedRevocation();
     setState({
       tier: 'free',
       packs: [],
@@ -451,6 +490,9 @@ export function useLicense() {
         // server ever mis-reports, and the data-ownership guarantee means a
         // lapsed/revoked state must never become a hard lockout. The token is
         // only cleared when the user explicitly deactivates.
+        if (isRevokedServerVerdict(data)) {
+          writePersistedRevocation(token);
+        }
         setState((s) => ({
           ...s,
           isLoading: false,
@@ -458,7 +500,7 @@ export function useLicense() {
           // lapsed) license rather than snapping back to an unactivated/trial
           // surface. The entitlement layer turns features off, not data.
           isActivated: true,
-          status: data.reason ?? 'lapsed',
+          status: isRevokedServerVerdict(data) ? 'revoked' : data.reason ?? 'lapsed',
           isOffline: false,
           validationDeferredByOfflineMode: false,
           error: null,
@@ -468,6 +510,7 @@ export function useLicense() {
       // Token still valid; refresh the local state to mirror server's view and
       // stamp last-known-good so offline grace has a fresh anchor.
       const now = new Date();
+      clearPersistedRevocation();
       writeLastKnownGood(now);
       const purchasedAt = data.purchased_at
         ? new Date(data.purchased_at)

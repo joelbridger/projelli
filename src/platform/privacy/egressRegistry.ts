@@ -69,7 +69,8 @@ const initialOperations = [
     id: 'updater-github-releases',
     category: 'product-maintenance',
     allowedHostClass: 'service',
-    allowedHosts: ['github.com'],
+    // GitHub release downloads redirect to this asset host.
+    allowedHosts: ['github.com', 'release-assets.githubusercontent.com'],
     transfersContent: false,
     transfersMetadata: true,
     transfersCredential: false,
@@ -83,6 +84,8 @@ const initialOperations = [
     transfersContent: false,
     transfersMetadata: true,
     transfersCredential: false,
+    // The configured catalog source currently appears unreachable/misconfigured
+    // upstream; keep this host aligned with the configured URL for follow-up.
     receiptLabel: 'the marketplace catalog',
   },
   {

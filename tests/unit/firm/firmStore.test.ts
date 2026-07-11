@@ -18,6 +18,9 @@ import { generateKeyPairSync, sign as edSign, type KeyObject } from 'node:crypto
 // ── Mock the OS keychain bridge: isTauri() === true, invoke() backed by a Map.
 const keychainStore = new Map<string, string>();
 const invokeMock = vi.fn(async (cmd: string, args: Record<string, unknown> = {}) => {
+  if (cmd === 'network_policy_status') {
+    return { offlineMode: false, generation: 1 };
+  }
   const svc = (args['service'] as string) ?? 'com.lantern.app';
   const key = args['key'] as string;
   const id = `${svc}::${key}`;

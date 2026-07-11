@@ -12,6 +12,16 @@
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
+
+const { invokeMock, isTauriMock } = vi.hoisted(() => ({
+  invokeMock: vi.fn(),
+  isTauriMock: vi.fn(),
+}));
+
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: invokeMock,
+  isTauri: isTauriMock,
+}));
 import {
   getDesignPartnerConsent,
   setDesignPartnerConsent,
@@ -112,6 +122,14 @@ describe('sendDiagnosticEvent', () => {
   let store: Record<string, string>;
 
   beforeEach(() => {
+    isTauriMock.mockReturnValue(true);
+    invokeMock.mockReset();
+    invokeMock.mockImplementation(async (command: string) => {
+      if (command === 'network_policy_status') {
+        return { offlineMode: false, generation: 1 };
+      }
+      throw new Error(`Unexpected command: ${command}`);
+    });
     store = setupLocalStorage();
     // Non-private mode so the fail-closed kill-switch doesn't skip the send.
     store['lantern:settings'] = JSON.stringify({ state: { values: { confidentialityMode: 'direct' } }, version: 1 });
