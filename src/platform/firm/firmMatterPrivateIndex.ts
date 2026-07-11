@@ -23,9 +23,56 @@ export interface RootIndexSync {
   flush(): Promise<void>;
 }
 
+type PrivateStreamEntry = FirmMatterPrivateIndex['streams'][string];
+
 function stringField(value: unknown, name: string): string {
   if (typeof value !== 'string') throw new Error(`Malformed private index: ${name}.`);
   return value;
+}
+
+function readStreamEntry(entry: unknown): PrivateStreamEntry {
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) throw new Error('Malformed private index: stream.');
+  const candidate = entry as Record<string, unknown>;
+  const kind = candidate['kind'];
+  if (kind !== 'notes' && kind !== 'document') throw new Error('Malformed private index: stream kind.');
+  return { streamHandle: parseStreamHandle(stringField(candidate['streamHandle'], 'stream handle')), kind };
+}
+
+function readPlainStreams(rawStreams: unknown): FirmMatterPrivateIndex['streams'] {
+  if (!rawStreams || typeof rawStreams !== 'object' || Array.isArray(rawStreams)) {
+    throw new Error('Malformed private index: streams.');
+  }
+  const streams: FirmMatterPrivateIndex['streams'] = {};
+  for (const [localId, entry] of Object.entries(rawStreams as Record<string, unknown>)) {
+    streams[localId] = readStreamEntry(entry);
+  }
+  return streams;
+}
+
+function readNestedStreams(streamsMap: Y.Map<unknown>): FirmMatterPrivateIndex['streams'] {
+  const streams: FirmMatterPrivateIndex['streams'] = {};
+  for (const [localId, entry] of streamsMap.entries()) {
+    streams[localId] = readStreamEntry(entry);
+  }
+  return streams;
+}
+
+/**
+ * Earlier unreleased builds stored a whole object at `streams`. Move those
+ * entries into a nested Y.Map on first use so independent document writes use
+ * distinct Yjs keys and converge instead of replacing the whole directory.
+ */
+function ensureNestedStreamsMap(doc: Y.Doc, map: Y.Map<unknown>): Y.Map<unknown> {
+  const rawStreams = map.get('streams');
+  if (rawStreams instanceof Y.Map) return rawStreams;
+
+  const legacyStreams = rawStreams === undefined ? {} : readPlainStreams(rawStreams);
+  const streamsMap = new Y.Map<unknown>();
+  doc.transact(() => {
+    map.set('streams', streamsMap);
+    for (const [localId, entry] of Object.entries(legacyStreams)) streamsMap.set(localId, entry);
+  });
+  return streamsMap;
 }
 
 /** Read and validate the dedicated map. Corrupt state never becomes routing data. */
@@ -33,23 +80,11 @@ export function readFirmMatterPrivateIndex(doc: Y.Doc): FirmMatterPrivateIndex |
   const map = doc.getMap<unknown>(FIRM_PRIVATE_INDEX_MAP);
   if (map.size === 0) return null;
   if (map.get('version') !== INDEX_VERSION) throw new Error('Malformed private index: version.');
-  const rawStreams = map.get('streams');
-  if (!rawStreams || typeof rawStreams !== 'object' || Array.isArray(rawStreams)) {
-    throw new Error('Malformed private index: streams.');
-  }
-  const streams: FirmMatterPrivateIndex['streams'] = {};
-  for (const [localId, entry] of Object.entries(rawStreams as Record<string, unknown>)) {
-    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) throw new Error('Malformed private index: stream.');
-    const candidate = entry as Record<string, unknown>;
-    const kind = candidate['kind'];
-    if (kind !== 'notes' && kind !== 'document') throw new Error('Malformed private index: stream kind.');
-    streams[localId] = { streamHandle: parseStreamHandle(stringField(candidate['streamHandle'], 'stream handle')), kind };
-  }
   return {
     version: 1,
     clientName: stringField(map.get('clientName'), 'clientName'),
     displayName: stringField(map.get('displayName'), 'displayName'),
-    streams,
+    streams: readNestedStreams(ensureNestedStreamsMap(doc, map)),
   };
 }
 
@@ -60,10 +95,14 @@ export function writeFirmMatterPrivateIndex(doc: Y.Doc, index: FirmMatterPrivate
   for (const entry of Object.values(checked.streams)) parseStreamHandle(entry.streamHandle);
   doc.transact(() => {
     const map = doc.getMap<unknown>(FIRM_PRIVATE_INDEX_MAP);
+    const streamsMap = ensureNestedStreamsMap(doc, map);
     map.set('version', INDEX_VERSION);
     map.set('clientName', checked.clientName);
     map.set('displayName', checked.displayName);
-    map.set('streams', checked.streams);
+    for (const localId of streamsMap.keys()) {
+      if (!Object.prototype.hasOwnProperty.call(checked.streams, localId)) streamsMap.delete(localId);
+    }
+    for (const [localId, entry] of Object.entries(checked.streams)) streamsMap.set(localId, entry);
   });
 }
 

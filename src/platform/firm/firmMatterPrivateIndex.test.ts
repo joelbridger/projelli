@@ -39,4 +39,61 @@ describe('encrypted FirmMatterPrivateIndex', () => {
     expect(result).toBe(docStream);
     expect(events).toEqual(['allocate', 'encrypted-root-accepted']);
   });
+
+  it('merges concurrently added document mappings from two devices', async () => {
+    const first = new Y.Doc();
+    writeFirmMatterPrivateIndex(first, { version: 1, clientName: 'x', displayName: 'x', streams: { _notes: { streamHandle: root, kind: 'notes' } } });
+    const second = new Y.Doc();
+    Y.applyUpdate(second, Y.encodeStateAsUpdate(first));
+    const firstStream = parseStreamHandle(`sh2_${'A'.repeat(43)}`);
+    const secondStream = parseStreamHandle(`sh2_${'B'.repeat(43)}`);
+
+    await addDocumentStreamToPrivateIndex(first, { flush: () => Promise.resolve() }, 'first.docx', firstStream);
+    await addDocumentStreamToPrivateIndex(second, { flush: () => Promise.resolve() }, 'second.docx', secondStream);
+    Y.applyUpdate(first, Y.encodeStateAsUpdate(second));
+    Y.applyUpdate(second, Y.encodeStateAsUpdate(first));
+
+    for (const doc of [first, second]) {
+      expect(readFirmMatterPrivateIndex(doc)?.streams).toMatchObject({
+        'first.docx': { streamHandle: firstStream, kind: 'document' },
+        'second.docx': { streamHandle: secondStream, kind: 'document' },
+      });
+    }
+  });
+
+  it('is idempotent and convergent when two devices add the same document', async () => {
+    const first = new Y.Doc();
+    writeFirmMatterPrivateIndex(first, { version: 1, clientName: 'x', displayName: 'x', streams: { _notes: { streamHandle: root, kind: 'notes' } } });
+    const second = new Y.Doc();
+    Y.applyUpdate(second, Y.encodeStateAsUpdate(first));
+
+    await addDocumentStreamToPrivateIndex(first, { flush: () => Promise.resolve() }, 'shared.docx', docStream);
+    await addDocumentStreamToPrivateIndex(second, { flush: () => Promise.resolve() }, 'shared.docx', docStream);
+    Y.applyUpdate(first, Y.encodeStateAsUpdate(second));
+    Y.applyUpdate(second, Y.encodeStateAsUpdate(first));
+    // Replaying the same encrypted root updates must not change the one mapping.
+    Y.applyUpdate(first, Y.encodeStateAsUpdate(second));
+    Y.applyUpdate(second, Y.encodeStateAsUpdate(first));
+
+    expect(readFirmMatterPrivateIndex(first)?.streams['shared.docx']).toEqual({ streamHandle: docStream, kind: 'document' });
+    expect(readFirmMatterPrivateIndex(second)?.streams['shared.docx']).toEqual({ streamHandle: docStream, kind: 'document' });
+  });
+
+  it('migrates the old plain-object streams shape without dropping mappings', () => {
+    const doc = new Y.Doc();
+    const index = doc.getMap<unknown>('firm-private-index');
+    index.set('version', 1);
+    index.set('clientName', 'x');
+    index.set('displayName', 'x');
+    index.set('streams', {
+      _notes: { streamHandle: root, kind: 'notes' },
+      'first.docx': { streamHandle: docStream, kind: 'document' },
+    });
+
+    expect(readFirmMatterPrivateIndex(doc)?.streams).toEqual({
+      _notes: { streamHandle: root, kind: 'notes' },
+      'first.docx': { streamHandle: docStream, kind: 'document' },
+    });
+    expect(doc.getMap<unknown>('firm-private-index').get('streams')).toBeInstanceOf(Y.Map);
+  });
 });

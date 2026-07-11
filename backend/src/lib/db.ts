@@ -1018,6 +1018,11 @@ export class Store {
     return streamHandle;
   }
 
+  countMatterStreams(matterHandle: string): number {
+    const row = this.db.query("SELECT COUNT(*) AS count FROM matter_streams WHERE matter_handle = ?").get(matterHandle) as { count: number };
+    return row.count;
+  }
+
   streamBelongsToMatter(streamHandle: string, matterHandle: string): boolean {
     return this.db.query("SELECT 1 FROM matter_streams WHERE stream_handle = ? AND matter_handle = ?").get(streamHandle, matterHandle) !== null;
   }

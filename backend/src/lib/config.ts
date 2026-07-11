@@ -154,6 +154,12 @@ export const config = {
   relayRateLimitMax: num("RELAY_RATE_LIMIT_MAX", 600),
   relayRateLimitWindowSeconds: num("RELAY_RATE_LIMIT_WINDOW_SECONDS", 60),
 
+  /** Includes the root notes stream. Bounds empty-stream allocation abuse. */
+  firmMatterStreamCap: num("FIRM_MATTER_STREAM_CAP", 1024, { min: 1 }),
+  /** Allocation is intentionally much lower than update traffic and keyed by seat. */
+  firmMatterStreamAllocationRateLimitMax: num("FIRM_MATTER_STREAM_ALLOCATION_RATE_LIMIT_MAX", 30, { min: 1 }),
+  firmMatterStreamAllocationRateLimitWindowSeconds: num("FIRM_MATTER_STREAM_ALLOCATION_RATE_LIMIT_WINDOW_SECONDS", 60, { min: 1 }),
+
   /** Legacy bridge window, named with its units to prevent seconds/ms drift. */
   migrationManifestTtlSeconds,
   migrationManifestTtlMs,
