@@ -97,3 +97,15 @@ blindness, envelope metadata), and completeness (feature matrix vs screens vs da
 
 - 2026-07-11: Fork created at `0971d8f3`; charter written; design lanes A/B/C/E/F launched
   (D follows A+B). — coordinator session
+- 2026-07-11 (later): All six design docs on disk. Review round 1 done (Codex cross-doc: 20
+  findings; Codex sync attack: ~14 blockers — both in design/reviews/). Coordinator
+  decisions D1-D11 recorded in design/00-master-spec.md (D11 = Jameson's Home-tab IA
+  decision). Reconciliation lanes R1-R6 complete and committed @ 8307ff52. Live Wealthbox
+  API probe evidence in design/evidence/ (key: open workflow instances + attachments NOT
+  API-readable — 05 needs a post-probe amendment). Parallel tracks: relay live-sync bug
+  FIXED test-first on worktree branch (commit ac8cfb32, needs merge); multi-client harness
+  lane in flight; baseline gate in flight. NEXT: fold probe into 05 (small R7), round-2
+  adversarial review (fresh cross-doc + second sync attack + 04-vs-reconciled-contracts),
+  then SPEC-FREEZE.md, then the build wave. Coordination protocol with the mainline
+  session posted to ~/lantern-coordination/BOARD.md (compile windows; re-read at every
+  checkpoint).
