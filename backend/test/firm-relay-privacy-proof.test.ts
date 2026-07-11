@@ -42,6 +42,10 @@ describe("firm relay privacy proof", () => {
       const org=await post("/admin/org",{name:"Firm",plan:"practice",packs:["advisor"],seat_limit:2,admin_email:"admin@privacy.test",admin_password:"privacy-password-123"});
       const login=await post("/auth/login",{email:"admin@privacy.test",password:"privacy-password-123"}); const bearer=`Bearer ${login.json.access_token}`;
       const seat=await post("/org/activate",{license_key:org.json.license_key,machine_id:"privacy-machine"},{authorization:bearer});
+      const legacy=await post("/matter/matter-semantic-123/updates",{client_name:"CLIENT_SECRET_NIMBUS",doc_id:"doc-advisory-plan.docx"},{authorization:bearer});
+      expect(legacy.status).toBe(426); expect(JSON.stringify(legacy.json)).not.toContain("CLIENT_SECRET_NIMBUS");
+      // This deliberately rejected v1 probe is not v2 relay traffic.
+      http.splice(-2);
       const created=await post("/v2/firm/matters",{}, {authorization:bearer}); const mh=created.json.matter_handle as string, sh=created.json.root_stream_handle as string;
       await post(`/v2/firm/matters/${mh}/activate`,{}, {authorization:bearer});
       await post(`/v2/firm/matters/${mh}/keys/publish`,{epoch:1,wrapped:[{user_id:org.json.admin.user_id,device_id:"device",wrapped_key_b64:"opaque"}]},{authorization:bearer});
