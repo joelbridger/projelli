@@ -6,13 +6,20 @@ import type { IntakeRecord } from '@/platform/intake/intakeStore';
 import { DEFAULT_ONBOARDING_CONFIG } from '@/platform/intake/nudgeTypes';
 import { deriveOnboardingRow } from '@/platform/intake/onboardingModel';
 import { setPromptDecisionBroker } from '@/platform/privacy/promptPreparation';
+import type { ResolvedEmailProvider } from '@/features/email/resolveEmailProvider';
 import type { Provider } from '@/platform/providers/Provider';
 
 import { NudgeReviewModal } from './NudgeReviewModal';
 
-const resolveEmailProviderMock = vi.fn();
+function textAreaValue(testId: string): string {
+  const element = screen.getByTestId(testId);
+  if (!(element instanceof HTMLTextAreaElement)) throw new Error(`${testId} is not a textarea.`);
+  return element.value;
+}
+
+const resolveEmailProviderMock = vi.fn<() => Promise<ResolvedEmailProvider>>();
 vi.mock('@/features/email/resolveEmailProvider', () => ({
-  resolveEmailProvider: () => resolveEmailProviderMock(),
+  resolveEmailProvider: (): Promise<ResolvedEmailProvider> => resolveEmailProviderMock(),
 }));
 
 vi.mock('@/platform/utils/mail-commands', async (importOriginal) => {
@@ -75,18 +82,17 @@ describe('NudgeReviewModal AI rewrite - prepared-send wiring', () => {
       <NudgeReviewModal open row={row} intake={record} now={now} onOpenChange={vi.fn()} />
     );
 
-    await waitFor(() => expect(screen.getByTestId('nudge-review-body')).not.toBeDisabled());
+    await waitFor(() => { expect(screen.getByTestId('nudge-review-body')).not.toBeDisabled(); });
     fireEvent.click(screen.getByTestId('nudge-draft-in-my-voice'));
 
-    await waitFor(() => expect(structuredOutput).toHaveBeenCalled());
+    await waitFor(() => { expect(structuredOutput).toHaveBeenCalled(); });
     const [sentPrompt] = structuredOutput.mock.calls[0] as [string, unknown];
     expect(sentPrompt).toContain('Rewrite this onboarding follow-up email body');
     // enforceNudgeBodyInvariants may append the missing-item list and the
     // real link back on if the model's response dropped them, so check
     // containment rather than an exact match.
     await waitFor(() => {
-      const body = screen.getByTestId('nudge-review-body') as HTMLTextAreaElement;
-      expect(body.value).toContain('Rewritten in the advisor voice.');
+      expect(textAreaValue('nudge-review-body')).toContain('Rewritten in the advisor voice.');
     });
   });
 
@@ -102,7 +108,7 @@ describe('NudgeReviewModal AI rewrite - prepared-send wiring', () => {
       <NudgeReviewModal open row={row} intake={record} now={now} onOpenChange={vi.fn()} />
     );
 
-    await waitFor(() => expect(screen.getByTestId('nudge-review-body')).not.toBeDisabled());
+    await waitFor(() => { expect(screen.getByTestId('nudge-review-body')).not.toBeDisabled(); });
     // A secret pasted into the editable draft body - not the known intake
     // link (already redacted unconditionally), a DIFFERENT secret to prove
     // the real scrub layer, not just NudgeReviewModal's own link redaction,
@@ -112,12 +118,11 @@ describe('NudgeReviewModal AI rewrite - prepared-send wiring', () => {
     });
     fireEvent.click(screen.getByTestId('nudge-draft-in-my-voice'));
 
-    await waitFor(() => expect(structuredOutput).toHaveBeenCalled());
+    await waitFor(() => { expect(structuredOutput).toHaveBeenCalled(); });
     const [sentPrompt] = structuredOutput.mock.calls[0] as [string, unknown];
     expect(sentPrompt).not.toContain('hunter2-super-secret');
     await waitFor(() => {
-      const body = screen.getByTestId('nudge-review-body') as HTMLTextAreaElement;
-      expect(body.value).toContain('Rewritten body.');
+      expect(textAreaValue('nudge-review-body')).toContain('Rewritten body.');
     });
   });
 
@@ -133,13 +138,13 @@ describe('NudgeReviewModal AI rewrite - prepared-send wiring', () => {
       <NudgeReviewModal open row={row} intake={record} now={now} onOpenChange={vi.fn()} />
     );
 
-    await waitFor(() => expect(screen.getByTestId('nudge-review-body')).not.toBeDisabled());
+    await waitFor(() => { expect(screen.getByTestId('nudge-review-body')).not.toBeDisabled(); });
     fireEvent.change(screen.getByTestId('nudge-review-body'), {
       target: { value: 'Sharing a password: hunter2-super-secret here by mistake.' },
     });
     fireEvent.click(screen.getByTestId('nudge-draft-in-my-voice'));
 
-    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+    await waitFor(() => { expect(screen.getByRole('alert')).toBeInTheDocument(); });
     expect(structuredOutput).not.toHaveBeenCalled();
   });
 });

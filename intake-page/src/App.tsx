@@ -101,7 +101,7 @@ function isHueChannel(token: string): boolean {
 function splitCssFunctionArgs(value: string, name: string): string[] | null {
   const match = value.match(new RegExp(`^${name}\\(([^()]*)\\)$`, 'iu'));
   if (!match) return null;
-  const parts = match[1].split(',').map((part) => part.trim());
+  const parts = (match[1] ?? '').split(',').map((part) => part.trim());
   if (parts.some((part) => part.length === 0)) return null;
   return parts;
 }
@@ -109,13 +109,13 @@ function splitCssFunctionArgs(value: string, name: string): string[] | null {
 function isSafeRgbColor(value: string): boolean {
   const parts = splitCssFunctionArgs(value, 'rgba?');
   if (!parts || (parts.length !== 3 && parts.length !== 4)) return false;
-  return parts.slice(0, 3).every(isRgbChannel) && (parts.length === 3 || isAlphaChannel(parts[3]));
+  return parts.slice(0, 3).every(isRgbChannel) && (parts.length === 3 || isAlphaChannel(parts[3] ?? ''));
 }
 
 function isSafeHslColor(value: string): boolean {
   const parts = splitCssFunctionArgs(value, 'hsla?');
   if (!parts || (parts.length !== 3 && parts.length !== 4)) return false;
-  return isHueChannel(parts[0]) && isCssPercent(parts[1]) && isCssPercent(parts[2]) && (parts.length === 3 || isAlphaChannel(parts[3]));
+  return isHueChannel(parts[0] ?? '') && isCssPercent(parts[1] ?? '') && isCssPercent(parts[2] ?? '') && (parts.length === 3 || isAlphaChannel(parts[3] ?? ''));
 }
 
 function safeAccentColor(accent: unknown): string {
@@ -237,7 +237,7 @@ function warningMessage(classification: Extract<Tier1Classification, { verdict: 
 
 function getIntakeIdFromPath(): string | null {
   const match = window.location.pathname.match(/^\/i\/([^/]+)/u);
-  return match ? decodeURIComponent(match[1]) : null;
+  return match ? decodeURIComponent(match[1] ?? '') : null;
 }
 
 async function hasModernWebCrypto(): Promise<boolean> {
@@ -455,12 +455,9 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
           singlePayload.kind === 'files' &&
           pending?.completed_sha256 === singlePayload.pdf_completion_receipt?.completedSha256
         );
-        const resumeSubmissionId = supportsResumableFileUpload && matchingPdfResume && allowResume && !replacingItemId
-          ? pending?.submission_id
-          : undefined;
-        const resumeContentKeyB64 = supportsResumableFileUpload && matchingPdfResume && allowResume && !replacingItemId
-          ? pending?.content_key_b64
-          : undefined;
+        const canResume = supportsResumableFileUpload && matchingPdfResume && allowResume && !replacingItemId;
+        const resumeSubmissionId = canResume ? pending?.submission_id : undefined;
+        const resumeContentKeyB64 = canResume ? pending?.content_key_b64 : undefined;
         await submitAnswer({
           intakeId,
           intakePubRaw,
@@ -468,8 +465,8 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
           payload: singlePayload,
           relay,
           sessionId,
-          resumeSubmissionId,
-          resumeContentKeyB64,
+          ...(resumeSubmissionId !== undefined ? { resumeSubmissionId } : {}),
+          ...(resumeContentKeyB64 !== undefined ? { resumeContentKeyB64 } : {}),
           onPendingUpload: async (pendingUpload) => {
             if (itemToSubmit.t !== 'doc_upload' && itemToSubmit.t !== 'pdf_fill') return;
             try {
@@ -590,7 +587,7 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
         <ProvidedScreen
           item={item}
           local={localSubmitted.has(item.item_id)}
-          confirmation={sessionConfirmations[item.item_id]}
+          {...(sessionConfirmations[item.item_id] !== undefined ? { confirmation: sessionConfirmations[item.item_id] } : {})}
           phoneCompleted={resume.phone_completed_item_ids?.includes(item.item_id) ?? false}
           phoneLabel={journeyText(journey.phone_walkthrough_label, checklist, firm)}
           onReplace={() => setReplacingItemId(item.item_id)}
@@ -601,8 +598,8 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
           key={`${item.item_id}:${replacingItemId ?? 'new'}`}
           item={item}
           firmName={firm.name}
-          pendingUpload={resume.pending_uploads?.[item.item_id]}
-          pdfFillDraft={resume.pdf_fill_drafts?.[item.item_id]}
+          {...(resume.pending_uploads?.[item.item_id] !== undefined ? { pendingUpload: resume.pending_uploads[item.item_id] } : {})}
+          {...(resume.pdf_fill_drafts?.[item.item_id] !== undefined ? { pdfFillDraft: resume.pdf_fill_drafts[item.item_id] } : {})}
           onPdfFillDraftChange={(values) => {
             if (item.t !== 'pdf_fill') return;
             void saveResume((current) => ({
@@ -1150,7 +1147,7 @@ function DocUploadScreen({
           const warning = classification?.verdict === 'warn' ? classification : undefined;
           return (
             <div className="upload-slot" key={slotName}>
-              <p>{isLicenseSide ? `${slotName[0].toUpperCase()}${slotName.slice(1)} side` : item.label}</p>
+              <p>{isLicenseSide ? `${(slotName[0] ?? '').toUpperCase()}${slotName.slice(1)} side` : item.label}</p>
               <input
                 id={captureId}
                 className="sr-only"
