@@ -3,6 +3,7 @@
  *  surface without importing upward from `app/` (architecture DAG). The app
  *  layer re-exports it from `useGlobalEventBus` for existing importers. */
 export type AppSurface =
+  | 'home'
   | 'files'
   | 'matters'
   | 'search'
