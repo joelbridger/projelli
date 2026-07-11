@@ -1,6 +1,6 @@
 import type { FormRequest, RequestItem } from '@/platform/intake/types';
-import type { WelcomeJourney } from '@/features/intake/welcomeJourneyDefaults';
-import { sanitizeWelcomeJourney } from '@/features/intake/welcomeJourneyDefaults';
+import type { WelcomeJourney } from '@/platform/intake/welcomeJourneyDefaults';
+import { sanitizeWelcomeJourney } from '@/platform/intake/welcomeJourneyDefaults';
 import { createInitialIntakeLinkBundle, type InitialIntakeLinkBundle } from './intakeLifecycle';
 import { clearIntakeSecrets, storeIntakeSecrets } from './intakeKeychain';
 import type { IntakeRelayClient } from './IntakeRelayClient';

@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { WhatHappensNextEditor } from '../WhatHappensNextEditor';
-import { copyWelcomeJourney, DEFAULT_WELCOME_JOURNEY, type WelcomeJourney } from '../welcomeJourneyDefaults';
+import { copyWelcomeJourney, DEFAULT_WELCOME_JOURNEY, type WelcomeJourney } from '@/platform/intake/welcomeJourneyDefaults';
 
 function inputValue(element: HTMLElement): string {
   if (!(element instanceof HTMLInputElement)) {

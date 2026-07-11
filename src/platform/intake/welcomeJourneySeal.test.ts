@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { DEFAULT_WELCOME_JOURNEY } from '@/features/intake/welcomeJourneyDefaults';
+import { DEFAULT_WELCOME_JOURNEY } from '@/platform/intake/welcomeJourneyDefaults';
 import { createAdvisorIntake } from './createIntake';
 import { b64ToBytes, openPageJson } from './pageSeal';
 import { derivePageKey } from './intakeCrypto';

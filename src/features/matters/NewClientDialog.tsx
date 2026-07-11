@@ -66,7 +66,7 @@ import {
   renderWelcomeJourneyEmail,
   saveFirmWelcomeJourneyDefault,
   type WelcomeJourney,
-} from '@/features/intake/welcomeJourneyDefaults';
+} from '@/platform/intake/welcomeJourneyDefaults';
 import {
   deriveNewClientFolderPath,
   ensureClientFolderOnDisk,

@@ -7,7 +7,7 @@ import {
   hasForbiddenWelcomeJourneyCopy,
   loadFirmWelcomeJourneyDefault,
   saveFirmWelcomeJourneyDefault,
-} from '../welcomeJourneyDefaults';
+} from './welcomeJourneyDefaults';
 
 describe('welcome journey defaults', () => {
   it('keeps the approved timeline, people, and screen copy together', () => {

@@ -53,7 +53,7 @@ import { BeforeYouMeetStrip } from '@/features/meetings/BeforeYouMeetStrip';
 import { CrmWriteReviewCard } from '@/features/matters/CrmWriteReviewCard';
 import { CrmWritePendingBanner } from '@/features/matters/CrmWritePendingBanner';
 import { VoiceprintsCard } from '@/features/matters/VoiceprintsCard';
-import { DEFAULT_WELCOME_JOURNEY } from '@/features/intake/welcomeJourneyDefaults';
+import { DEFAULT_WELCOME_JOURNEY } from '@/platform/intake/welcomeJourneyDefaults';
 import { NEW_HOUSEHOLD_NEXT_STEPS } from '@/features/intake/newHouseholdTemplate';
 import { firmMatterIdForIntakeSharing } from './logic/intakeFirmMatter';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';

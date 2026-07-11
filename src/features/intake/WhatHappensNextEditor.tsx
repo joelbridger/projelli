@@ -4,8 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
 import { Label } from '@/ui/label';
-import type { WelcomeJourney } from './welcomeJourneyDefaults';
-import { sanitizeWelcomeJourney } from './welcomeJourneyDefaults';
+import type { WelcomeJourney } from '@/platform/intake/welcomeJourneyDefaults';
+import { sanitizeWelcomeJourney } from '@/platform/intake/welcomeJourneyDefaults';
 
 export function WhatHappensNextEditor({ value, onChange, onSaveDefault }: { value: WelcomeJourney; onChange: (next: WelcomeJourney) => void; onSaveDefault?: (next: WelcomeJourney) => void }): React.JSX.Element {
   const { t } = useTranslation();
