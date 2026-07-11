@@ -106,14 +106,14 @@ describe('MeetingEntry — honest notes-failed state (QA-31)', () => {
 
     await waitFor(() => expect(screen.getByTestId('meeting-entry-notes-failed')).toBeTruthy());
     const text = screen.getByTestId('meeting-entry-notes-failed').textContent ?? '';
-    expect(text).toMatch(/local-only/i);
+    expect(text).toMatch(/local ai only/i);
 
     // R3 (trust review): this message must not coach a confidentiality-anxious
     // advisor to downgrade their own privacy as the FIRST suggested fix. The
     // privacy-preserving option (connect a local model) must be offered before
-    // "turn off Local-only mode".
+    // "turn off Local AI only".
     const localModelIdx = text.search(/connect a local model/i);
-    const turnOffIdx = text.search(/turn off local-only mode/i);
+    const turnOffIdx = text.search(/turn off local ai only/i);
     expect(localModelIdx).toBeGreaterThanOrEqual(0);
     expect(turnOffIdx).toBeGreaterThanOrEqual(0);
     expect(localModelIdx).toBeLessThan(turnOffIdx);

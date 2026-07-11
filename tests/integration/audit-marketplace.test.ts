@@ -18,6 +18,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
+  isTauri: () => true,
 }));
 
 import * as tauriCore from '@tauri-apps/api/core';
@@ -95,8 +96,8 @@ const ENTRY_V1: CatalogEntry = {
   author: { name: 'Tester' },
   category: 'misc',
   tags: [],
-  installUrl: 'https://example.test/audit-template-1.0.0.tar.gz',
-  manifestUrl: 'https://example.test/audit-template-1.0.0/manifest.json',
+  installUrl: 'https://raw.githubusercontent.com/audit-template-1.0.0.tar.gz',
+  manifestUrl: 'https://raw.githubusercontent.com/audit-template-1.0.0/manifest.json',
   minAppVersion: '2.0.0',
   publishedAt: '2026-04-28T00:00:00.000Z',
   updatedAt: '2026-04-28T00:00:00.000Z',
@@ -106,7 +107,7 @@ const ENTRY_V1: CatalogEntry = {
 const ENTRY_V2: CatalogEntry = {
   ...ENTRY_V1,
   version: '2.0.0',
-  installUrl: 'https://example.test/audit-template-2.0.0.tar.gz',
+  installUrl: 'https://raw.githubusercontent.com/audit-template-2.0.0.tar.gz',
 };
 
 function makeManifest(version: string): TemplateManifest {
@@ -148,7 +149,7 @@ function fakeStreamingResponse(chunks: Uint8Array[]): Response {
 
 function buildService(fakeFs: FakeFs, audit: AuditService): MarketplaceService {
   return new MarketplaceService({
-    repoUrl: 'https://example.test',
+    repoUrl: 'https://raw.githubusercontent.com',
     catalogPath: 'catalog.json',
     cachePath: '/ws/.keepance/cache/templates.json',
     installRoot: INSTALL_ROOT,
@@ -178,6 +179,7 @@ function wireHappy(
 
   mockInvoke.mockReset();
   mockInvoke.mockImplementation(async (cmd: string) => {
+    if (cmd === 'network_policy_status') return { offlineMode: false, generation: 1 };
     if (cmd === 'sha256_file') return entry.checksum ?? 'goodhash';
     if (cmd === 'extract_tarball') {
       fakeFs.files.set(
@@ -223,6 +225,7 @@ describe('audit log spot-check: marketplace lifecycle', () => {
     vi.stubGlobal('fetch', fetchSpy);
     mockInvoke.mockReset();
     mockInvoke.mockImplementation(async (cmd: string) => {
+      if (cmd === 'network_policy_status') return { offlineMode: false, generation: 1 };
       if (cmd === 'sha256_file') return 'badhash';
       throw new Error(`Unexpected invoke: ${cmd}`);
     });

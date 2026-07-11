@@ -4,6 +4,7 @@ import { brandText } from '@/config/brandText';
 import { MeetingSendPanel } from '@/features/meetings/MeetingSendPanel';
 import { emptyMeetingRecipientArtifacts, type MeetingDeliveryPlan } from '@/features/meetings/meetingRecipientPlan';
 import type { MeetingMeta } from '@/features/meetings/meetingStore';
+import { useOfflineModeStore } from '@/platform/privacy/offlineMode';
 import type { Matter } from '@/platform/types/matter';
 
 vi.mock('@/platform/utils/mail-commands', async (importOriginal) => {
@@ -13,11 +14,6 @@ vi.mock('@/platform/utils/mail-commands', async (importOriginal) => {
     mailConnectedAccounts: vi.fn(async () => [{ provider: 'm365', account: 'default', label: 'Outlook' }]),
   };
 });
-
-const localOnlyState = { value: false };
-vi.mock('@/platform/privacy/localOnlyGuard', () => ({
-  isPersistedLocalOnly: () => localOnlyState.value,
-}));
 
 const NOW = '2026-07-07T12:00:00.000Z';
 
@@ -91,11 +87,11 @@ function renderPanel(opts: { inputMeta?: MeetingMeta; ws?: ReturnType<typeof mak
 
 describe('MeetingSendPanel (merged send surface)', () => {
   beforeEach(() => {
-    localOnlyState.value = false;
     vi.clearAllMocks();
+    useOfflineModeStore.setState({ offlineMode: false, generation: 0, hydrated: false, isHydrating: false, hydrationError: null });
   });
   afterEach(() => {
-    localOnlyState.value = false;
+    useOfflineModeStore.setState({ offlineMode: false, generation: 0, hydrated: false, isHydrating: false, hydrationError: null });
   });
 
   it('is one surface: recipient planning and the single Review send action live together', async () => {
@@ -123,8 +119,8 @@ describe('MeetingSendPanel (merged send surface)', () => {
     expect(review).toBeDisabled();
   });
 
-  it('(b) Local-only mode blocks send', async () => {
-    localOnlyState.value = true;
+  it('(b) Offline Mode blocks send', async () => {
+    useOfflineModeStore.setState({ offlineMode: true, generation: 1, hydrated: true });
     renderPanel();
     const review = await screen.findByTestId('meeting-send-review');
     await waitFor(() => expect(review).toBeDisabled());

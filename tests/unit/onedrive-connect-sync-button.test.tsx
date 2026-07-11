@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { OneDriveConnect } from '@/platform/connectors/onedrive/OneDriveConnect';
 import { AuditService } from '@/platform/audit/AuditService';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
-import { SK_SETTINGS } from '@/config/identity';
 import type { OneDriveSyncReport } from '@/platform/utils/onedrive-commands';
 import { ONEDRIVE_SYNC_TIMEOUT_MS } from '@/platform/connectors/onedrive/onedriveTimeout';
 import { useOneDriveStore } from '@/platform/connectors/onedrive/onedriveStore';
@@ -70,6 +69,8 @@ function report(overrides: Partial<OneDriveSyncReport> = {}): OneDriveSyncReport
   };
 }
 
+const OFFLINE_BLOCK = 'Offline Mode is on. Lantern cannot connect to the internet.';
+
 describe('OneDriveConnect Sync now button', () => {
   let logDurable: ReturnType<typeof vi.spyOn>;
 
@@ -123,46 +124,30 @@ describe('OneDriveConnect Sync now button', () => {
     });
   });
 
-  it('still blocks the sync when the confidentiality mode is genuinely local-only', async () => {
+  it('leaves Local AI only free to start a connector sync', async () => {
     useSettingsStore.getState().setSetting('confidentialityMode', 'local-only');
+    oneDriveSync.mockResolvedValue(report({ seen: 3, imported: 2, indexed: 2 }));
 
     render(<OneDriveConnect />);
 
-    expect(
-      await screen.findByText(/local-only mode is on, so oneDrive sync is paused/i)
-    ).toBeTruthy();
     const button = await screen.findByRole('button', { name: 'Sync now' });
-    expect(button).toBeDisabled();
-
     fireEvent.click(button);
 
-    expect(oneDriveSync).not.toHaveBeenCalled();
+    await waitFor(() => expect(oneDriveSync).toHaveBeenCalled());
   });
 
-  it('still blocks a genuinely-persisted local-only mode during the settings-store hydration window', async () => {
-    // Reproduces the P2 the reviewer flagged: a real user has PERSISTED
-    // local-only mode, but the in-memory Zustand settings store hasn't
-    // rehydrated from storage yet (still reports the schema default
-    // 'direct') — write straight to the persisted key, bypassing the
-    // in-memory store entirely, so the reactive `useConfidentialityMode()`
-    // (and therefore the button's own disabled/banner logic) still reads
-    // 'direct' while the real, persisted choice is 'local-only'. The
-    // enforcement check must not trust that in-memory read.
-    localStorage.setItem(
-      SK_SETTINGS,
-      JSON.stringify({ state: { values: { confidentialityMode: 'local-only' } }, version: 1 })
-    );
+  it('stops before bulk sync when Offline Mode turns on during folder listing', async () => {
+    // The native command is the source of truth, including during any UI
+    // hydration window. A refusal during the pre-sync listing must prevent
+    // the later bulk sync from beginning.
+    oneDriveListFolders.mockRejectedValue(new Error(OFFLINE_BLOCK));
 
     render(<OneDriveConnect />);
 
     const button = await screen.findByRole('button', { name: 'Sync now' });
-    expect(button).not.toBeDisabled(); // reactive UI is still in the hydration-window default
-
     fireEvent.click(button);
 
-    expect(
-      await screen.findByText(/local-only mode is on, so oneDrive sync is paused/i)
-    ).toBeTruthy();
+    expect(await screen.findByText((_, element) => element?.textContent === `OneDrive sync ran into a problem: ${OFFLINE_BLOCK}`)).toBeTruthy();
     expect(oneDriveSync).not.toHaveBeenCalled();
   });
 });

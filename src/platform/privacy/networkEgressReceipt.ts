@@ -24,7 +24,8 @@ export interface NetworkEgressReceipt {
   operationId: string;
   operationLabel: string;
   destinationClass: string;
-  destination: string;
+  /** Host only. User-configured navigation can have no destination at receipt creation. */
+  destination: string | null;
   direction: NetworkEgressDirection;
   dataClasses: {
     content: boolean;
@@ -70,7 +71,7 @@ function safeFailureCode(error: unknown): string | undefined {
 
 export function buildNetworkEgressReceipt(
   operation: EgressOperation,
-  destination: URL,
+  destination: URL | null | undefined,
   policyGeneration: number,
   offlineMode: boolean,
   result: NetworkEgressResult,
@@ -83,7 +84,10 @@ export function buildNetworkEgressReceipt(
     operationId: operation.id,
     operationLabel: operation.receiptLabel,
     destinationClass: operation.allowedHostClass,
-    destination: destination.hostname.toLowerCase(),
+    // A user-configured navigation normally supplies its actual destination.
+    // Keep the synthetic/no-destination case honest too: never stringify an
+    // absent host into the misleading literal "undefined".
+    destination: destination?.hostname ? destination.hostname.toLowerCase() : null,
     direction: directionFor(operation),
     dataClasses: {
       content: operation.transfersContent,

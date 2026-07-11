@@ -156,7 +156,9 @@ describe('meeting store', () => {
 
     const s = useMeetingStore.getState();
     await s.startRecording('m-1', { consentMode: 'one-party' });
-    await useMeetingStore.getState().stopRecording();
+    await useMeetingStore.getState().stopRecording({
+      resolveProvider: async () => ({ provider: {} as never, providerId: 'anthropic', model: 'claude' }),
+    });
 
     expect(writeFileBinary).toHaveBeenCalledWith('/ws/C/Meetings/x/notes.docx', expect.any(Uint8Array));
     expect(indexFileMock).toHaveBeenCalledWith('/ws/C/Meetings/x/transcript.json', 'm-1');

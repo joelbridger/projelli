@@ -22,6 +22,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
+  isTauri: () => true,
 }));
 
 import * as tauriCore from '@tauri-apps/api/core';
@@ -115,8 +116,8 @@ const CATALOG: CatalogEntry[] = [
     author: { name: 'Community', githubUser: 'community' },
     category: 'kickoff',
     tags: ['kickoff', 'community'],
-    installUrl: 'https://example.test/kickoff-lite-1.0.0.tar.gz',
-    manifestUrl: 'https://example.test/kickoff-lite-1.0.0/manifest.json',
+    installUrl: 'https://raw.githubusercontent.com/kickoff-lite-1.0.0.tar.gz',
+    manifestUrl: 'https://raw.githubusercontent.com/kickoff-lite-1.0.0/manifest.json',
     minAppVersion: '2.0.0',
     publishedAt: '2026-04-28T00:00:00.000Z',
     updatedAt: '2026-04-28T00:00:00.000Z',
@@ -229,6 +230,7 @@ function wireMockGitHub(fakeFs: FakeFs): void {
 
   mockInvoke.mockReset();
   mockInvoke.mockImplementation(async (cmd: string) => {
+    if (cmd === 'network_policy_status') return { offlineMode: false, generation: 1 };
     if (cmd === 'sha256_file') return 'abc123checksum';
     if (cmd === 'extract_tarball') {
       // Emulate the Rust extractor: drop manifest.json + workflow.json into
@@ -268,7 +270,7 @@ describe('marketplace install end-to-end', () => {
     const fakeFs = makeFs();
     const audit = new AuditService(`int-test-${Math.random()}`);
     const service = new MarketplaceService({
-      repoUrl: 'https://example.test',
+      repoUrl: 'https://raw.githubusercontent.com',
       catalogPath: 'catalog.json',
       cachePath: '/ws/.keepance/cache/templates.json',
       installRoot: INSTALL_ROOT,
@@ -376,7 +378,7 @@ describe('marketplace install end-to-end', () => {
     const fakeFs = makeFs();
     const audit = new AuditService(`int-test-${Math.random()}`);
     const service = new MarketplaceService({
-      repoUrl: 'https://example.test',
+      repoUrl: 'https://raw.githubusercontent.com',
       catalogPath: 'catalog.json',
       cachePath: '/ws/.keepance/cache/templates.json',
       installRoot: INSTALL_ROOT,
@@ -401,6 +403,7 @@ describe('marketplace install end-to-end', () => {
 
     mockInvoke.mockReset();
     mockInvoke.mockImplementation(async (cmd: string) => {
+      if (cmd === 'network_policy_status') return { offlineMode: false, generation: 1 };
       if (cmd === 'sha256_file') return 'WRONG_HASH';
       throw new Error(`Should not invoke ${cmd} after checksum mismatch`);
     });

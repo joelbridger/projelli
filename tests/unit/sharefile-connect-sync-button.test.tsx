@@ -2,7 +2,6 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ShareFileConnect } from '@/platform/connectors/sharefile/ShareFileConnect';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
-import { SK_SETTINGS } from '@/config/identity';
 import type { SharefileSyncReport } from '@/platform/utils/sharefile-commands';
 
 const sharefileCancel = vi.fn();
@@ -49,6 +48,8 @@ function report(overrides: Partial<SharefileSyncReport> = {}): SharefileSyncRepo
   } as SharefileSyncReport;
 }
 
+const OFFLINE_BLOCK = 'Offline Mode is on. Lantern cannot connect to the internet.';
+
 describe('ShareFileConnect Sync now button', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -77,39 +78,29 @@ describe('ShareFileConnect Sync now button', () => {
     expect(screen.queryByText(/local-only mode is on/i)).toBeNull();
   });
 
-  it('still blocks the sync when the confidentiality mode is genuinely local-only', async () => {
+  it('leaves Local AI only free to start a connector sync', async () => {
     useSettingsStore.getState().setSetting('confidentialityMode', 'local-only');
+    sharefileSync.mockResolvedValue(report({ seen: 3, downloaded: 2, indexed: 2 }));
 
     render(<ShareFileConnect />);
 
     const button = await screen.findByRole('button', { name: 'Sync now' });
-    expect(button).toBeDisabled();
-
     fireEvent.click(button);
 
-    expect(sharefileSync).not.toHaveBeenCalled();
+    await waitFor(() => expect(sharefileSync).toHaveBeenCalled());
   });
 
-  it('still blocks a genuinely-persisted local-only mode during the settings-store hydration window', async () => {
-    // Same hydration-window race as the OneDrive twin: write straight to the
-    // persisted settings key, bypassing the in-memory Zustand store, so the
-    // reactive `localOnly` (button disabled/banner) still reads the schema
-    // default while the real persisted choice is 'local-only'.
-    localStorage.setItem(
-      SK_SETTINGS,
-      JSON.stringify({ state: { values: { confidentialityMode: 'local-only' } }, version: 1 })
-    );
+  it('stops before bulk sync when Offline Mode turns on during folder listing', async () => {
+    // The desktop command, not a potentially stale settings value, enforces
+    // Offline Mode before the later bulk sync is allowed to start.
+    sharefileListFolders.mockRejectedValue(new Error(OFFLINE_BLOCK));
 
     render(<ShareFileConnect />);
 
     const button = await screen.findByRole('button', { name: 'Sync now' });
-    expect(button).not.toBeDisabled();
-
     fireEvent.click(button);
 
-    expect(
-      await screen.findByText(/local-only mode is on, so sharefile sync is paused/i)
-    ).toBeTruthy();
+    expect(await screen.findByText((_, element) => element?.textContent === OFFLINE_BLOCK)).toBeTruthy();
     expect(sharefileSync).not.toHaveBeenCalled();
   });
 });

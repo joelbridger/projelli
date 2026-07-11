@@ -58,9 +58,9 @@ const distinctFacts = [
 beforeEach(() => {
   retrieveMock.mockReset();
   sendMock.mockReset();
-  // Default to a non-local-only mode so the existing tests' cloud provider sends.
+  // Default to a non-local-AI-only mode so the existing tests' cloud provider sends.
   // setSetting persists to localStorage too, which is what the fail-closed
-  // cloud-send guard reads. The local-only race test overrides this in its body.
+  // cloud-send guard reads. The Local AI only race test overrides this in its body.
   useSettingsStore.setState({ values: {} });
   useSettingsStore.getState().setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, 'direct');
 });
@@ -141,15 +141,15 @@ describe('buildClientMap', () => {
     expect(map.completeness.ask).toContainEqual({ text: 'Who signed the lease?', sectionKey: 'money' });
   });
 
-  it('Local-only: never sends Client Map context to a cloud provider (race guard)', async () => {
+  it('Local AI only: never sends Client Map context to a cloud provider (race guard)', async () => {
     // The provider mock resolves to a CLOUD provider ('anthropic') — the exact
-    // race outcome where the mode flips to Local-only after a cloud provider was
+    // race outcome where the mode flips to Local AI only after a cloud provider was
     // resolved. The immediately-before-send guard must block the send.
     retrieveMock.mockResolvedValue([hit('/a.docx', 'fact')]);
     sendMock.mockResolvedValue({ content: JSON.stringify({ items: [] }) });
     useSettingsStore.getState().setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, 'local-only');
 
-    await expect(buildClientMap('m1')).rejects.toThrow(/local-only/i);
+    await expect(buildClientMap('m1')).rejects.toThrow(/local ai only/i);
     // The load-bearing privacy assertion: no cloud send ever happened.
     expect(sendMock).not.toHaveBeenCalled();
   });

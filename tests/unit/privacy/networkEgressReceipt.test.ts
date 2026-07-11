@@ -48,7 +48,9 @@ describe('network egress receipts', () => {
 
   it('can make a safe receipt for every renderer registry operation', () => {
     for (const operation of EGRESS_OPERATIONS.values()) {
-      const host = operation.allowedHosts[0]!;
+      // Navigation destinations are chosen by the advisor at click time, so
+      // the registry deliberately has no static host for this operation.
+      const host = operation.allowedHosts[0] ?? 'advisor.example';
       const destination = new URL(
         host === '::1' ? 'http://[::1]/not-in-receipt' : `https://${host}/not-in-receipt`
       );
@@ -66,5 +68,13 @@ describe('network egress receipts', () => {
       });
       expect(JSON.stringify(receipt)).not.toContain('not-in-receipt');
     }
+  });
+
+  it('records an absent synthetic destination as null, never the string "undefined"', () => {
+    const operation = getEgressOperation('external-navigation');
+    const receipt = buildNetworkEgressReceipt(operation!, undefined, 99, false, 'blocked-before-network');
+
+    expect(receipt.destination).toBeNull();
+    expect(JSON.stringify(receipt)).not.toContain('undefined');
   });
 });
