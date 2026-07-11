@@ -15,10 +15,19 @@ import type {
 } from './Provider';
 import { ProviderError } from './Provider';
 import type { ChatAttachment } from '@/platform/types/ai';
-import { getCorsSafeFetch, safeJsonParse, redactUrl } from './fetchUtils';
+import { safeJsonParse, redactUrl } from './fetchUtils';
 import { assertCloudSendAllowed } from '@/platform/privacy/cloudSendGuard';
+import {
+  egressFetch,
+  egressFetchStream,
+  getEgressStreamReader,
+  OfflineModeBlockedError,
+} from '@/platform/privacy/networkClient';
 import { sanitizeForPrompt } from '@/platform/utils/prompt-security';
-import { applyAssuredRoute, type AssuredRoute } from '@/platform/firm/assuredInference';
+import {
+  applyAssuredRoute,
+  type AssuredRoute,
+} from '@/platform/firm/assuredInference';
 import { isVisionModel } from './vision-capability';
 import { bytesToBase64 } from './providerUtils';
 import { extractPdfText } from '@/lib/pdf-extract';
@@ -194,14 +203,18 @@ export class GeminiProvider implements Provider {
   private readonly aiRules: string | undefined;
   private readonly assured: AssuredRoute | undefined;
   private tools: GeminiFunctionDeclaration[] = [];
-  private toolExecutor?: (toolName: string, parameters: Record<string, unknown>) => Promise<unknown>;
+  private toolExecutor?: (
+    toolName: string,
+    parameters: Record<string, unknown>
+  ) => Promise<unknown>;
 
   constructor(config: GeminiProviderConfig) {
     this.apiKey = config.apiKey;
     this.model = config.model ?? 'gemini-2.5-flash';
     this.maxRetries = config.maxRetries ?? 3;
     this.baseUrl = getGeminiBaseUrl(config.baseUrl);
-    this.requestTimeoutMs = config.timeout ?? DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS;
+    this.requestTimeoutMs =
+      config.timeout ?? DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS;
     this.aiRules = config.aiRules;
     this.assured = config.assured;
   }
@@ -213,7 +226,10 @@ export class GeminiProvider implements Provider {
    */
   setTools(
     tools: ClaudeStyleTool[],
-    executor: (toolName: string, parameters: Record<string, unknown>) => Promise<unknown>
+    executor: (
+      toolName: string,
+      parameters: Record<string, unknown>
+    ) => Promise<unknown>
   ): void {
     this.tools = tools.map((t) => ({
       name: t.name,
@@ -229,7 +245,10 @@ export class GeminiProvider implements Provider {
    * With attachments: inlineData parts (images) or text parts (PDF text-extract),
    * followed by the user prompt.
    */
-  private async buildUserParts(prompt: string, attachmentBytes?: AttachmentBytes[]): Promise<GeminiPart[]> {
+  private async buildUserParts(
+    prompt: string,
+    attachmentBytes?: AttachmentBytes[]
+  ): Promise<GeminiPart[]> {
     if (!attachmentBytes || attachmentBytes.length === 0) {
       return [{ text: prompt }];
     }
@@ -278,7 +297,9 @@ export class GeminiProvider implements Provider {
     // Build system instruction with AI Rules prepended if available
     let systemInstruction = options?.systemPrompt || '';
     if (this.aiRules) {
-      systemInstruction = this.aiRules + (systemInstruction ? `\n\n---\n\n${systemInstruction}` : '');
+      systemInstruction =
+        this.aiRules +
+        (systemInstruction ? `\n\n---\n\n${systemInstruction}` : '');
     }
 
     if (systemInstruction) {
@@ -322,7 +343,9 @@ export class GeminiProvider implements Provider {
       const candidate = response.candidates[0];
       if (!candidate) break;
       const parts = candidate.content.parts;
-      const functionCallParts = parts.filter((p) => p.functionCall !== undefined);
+      const functionCallParts = parts.filter(
+        (p) => p.functionCall !== undefined
+      );
       if (functionCallParts.length === 0 || !this.toolExecutor) break;
 
       // Append the model's response (containing functionCall parts) to the history
@@ -385,20 +408,20 @@ export class GeminiProvider implements Provider {
     // error instead, exactly like ClaudeProvider/OpenAIProvider do when their
     // tool-call loop is exceeded, so the send path shows an honest failure.
     const finalParts = response.candidates[0]?.content.parts ?? [];
-    const finalHasFunctionCalls = finalParts.some((p) => p.functionCall !== undefined);
+    const finalHasFunctionCalls = finalParts.some(
+      (p) => p.functionCall !== undefined
+    );
     if (finalHasFunctionCalls && this.toolExecutor) {
       throw new ProviderError(
         `Gemini tool-call loop exceeded ${String(MAX_TOOL_ITERATIONS)} iterations.`,
         'api_error',
         undefined,
-        false,
+        false
       );
     }
 
     // Collect all text parts from the final response
-    const textContent = finalParts
-      .map((p) => p.text ?? '')
-      .join('');
+    const textContent = finalParts.map((p) => p.text ?? '').join('');
 
     const cost = this.calculateCost(totalInputTokens, totalOutputTokens);
 
@@ -425,59 +448,85 @@ export class GeminiProvider implements Provider {
     assertCloudSendAllowed('google');
     const { onChunk, signal, ...sendOpts } = options;
 
-    const contents: GeminiContent[] = [{ role: 'user', parts: await this.buildUserParts(prompt, sendOpts.attachmentBytes) }];
+    const contents: GeminiContent[] = [
+      {
+        role: 'user',
+        parts: await this.buildUserParts(prompt, sendOpts.attachmentBytes),
+      },
+    ];
     const request: GeminiRequest = { contents };
 
     let systemInstruction = sendOpts.systemPrompt || '';
     if (this.aiRules) {
-      systemInstruction = this.aiRules + (systemInstruction ? `\n\n---\n\n${systemInstruction}` : '');
+      systemInstruction =
+        this.aiRules +
+        (systemInstruction ? `\n\n---\n\n${systemInstruction}` : '');
     }
     if (systemInstruction) {
       request.systemInstruction = { parts: [{ text: systemInstruction }] };
     }
 
     const generationConfig: GeminiRequest['generationConfig'] = {};
-    if (sendOpts.maxTokens) generationConfig.maxOutputTokens = sendOpts.maxTokens;
-    if (sendOpts.temperature !== undefined) generationConfig.temperature = sendOpts.temperature;
-    if (sendOpts.stopSequences) generationConfig.stopSequences = sendOpts.stopSequences;
-    if (Object.keys(generationConfig).length > 0) request.generationConfig = generationConfig;
+    if (sendOpts.maxTokens)
+      generationConfig.maxOutputTokens = sendOpts.maxTokens;
+    if (sendOpts.temperature !== undefined)
+      generationConfig.temperature = sendOpts.temperature;
+    if (sendOpts.stopSequences)
+      generationConfig.stopSequences = sendOpts.stopSequences;
+    if (Object.keys(generationConfig).length > 0)
+      request.generationConfig = generationConfig;
 
     // The key travels in the x-goog-api-key header, never the URL — Google
     // supports this header on every REST endpoint, including SSE streaming
     // (`?key=` on a URL is exposed via browser history, proxy access logs,
     // and referrer headers in a way a header is not).
-    const url = redactUrl(`${this.baseUrl}/v1beta/models/${this.model}:streamGenerateContent?alt=sse`);
+    const url = redactUrl(
+      `${this.baseUrl}/v1beta/models/${this.model}:streamGenerateContent?alt=sse`
+    );
 
     const controlled = composeRequestSignal(signal, this.requestTimeoutMs);
-    const safeFetch = await getCorsSafeFetch();
     const routed = applyAssuredRoute(this.assured, url, {
       'Content-Type': 'application/json',
       'x-goog-api-key': this.apiKey,
     });
     let response: Response;
     try {
-      response = await safeFetch(routed.url, {
-        method: 'POST',
-        headers: routed.headers,
-        body: JSON.stringify(request),
-        signal: controlled.signal,
-      });
+      response = await egressFetchStream(
+        this.assured ? 'assured-ai' : 'cloud-ai',
+        routed.url,
+        {
+          method: 'POST',
+          headers: routed.headers,
+          body: JSON.stringify(request),
+          signal: controlled.signal,
+        }
+      );
     } catch (error) {
       controlled.cleanup();
-      if (isAbortError(error, controlled.signal) || isTimeoutError(error, controlled.signal)) {
+      if (error instanceof OfflineModeBlockedError) throw error;
+      if (
+        isAbortError(error, controlled.signal) ||
+        isTimeoutError(error, controlled.signal)
+      ) {
         throw controlled.signal.reason ?? error;
       }
-      throw error instanceof Error ? new Error(redactUrl(error.message)) : error;
+      throw error instanceof Error
+        ? new Error(redactUrl(error.message))
+        : error;
     }
 
     if (!response.ok) {
       const errorData = await safeJsonParse<GeminiError>(response);
       controlled.cleanup();
-      throw new Error(`Gemini API error: ${errorData.error.message} (${errorData.error.status})`);
+      throw new Error(
+        `Gemini API error: ${errorData.error.message} (${errorData.error.status})`
+      );
     }
 
-    const reader = response.body?.getReader();
-    if (!reader) {
+    let reader: ReadableStreamDefaultReader<Uint8Array>;
+    try {
+      reader = getEgressStreamReader(response);
+    } catch {
       controlled.cleanup();
       throw new Error('No response body');
     }
@@ -503,7 +552,8 @@ export class GeminiProvider implements Provider {
         }
         if (event.usageMetadata) {
           inputTokens = event.usageMetadata.promptTokenCount ?? inputTokens;
-          outputTokens = event.usageMetadata.candidatesTokenCount ?? outputTokens;
+          outputTokens =
+            event.usageMetadata.candidatesTokenCount ?? outputTokens;
           totalTokens = event.usageMetadata.totalTokenCount ?? totalTokens;
         }
       } catch {
@@ -560,14 +610,18 @@ IMPORTANT: Respond ONLY with the JSON object. No markdown, no code blocks.`;
     const response = await this.sendMessage(jsonPrompt, {
       ...(options.systemPrompt ? { systemPrompt: options.systemPrompt } : {}),
       temperature: options.temperature ?? 0.1,
-      ...(options.maxTokens !== undefined ? { maxTokens: options.maxTokens } : {}),
+      ...(options.maxTokens !== undefined
+        ? { maxTokens: options.maxTokens }
+        : {}),
       ...(options.signal ? { signal: options.signal } : {}),
     });
 
     try {
       return JSON.parse(response.content) as T;
     } catch (error) {
-      throw new Error(`Failed to parse Gemini response as JSON: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to parse Gemini response as JSON: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -575,7 +629,8 @@ IMPORTANT: Respond ONLY with the JSON object. No markdown, no code blocks.`;
    * Get provider metadata for cost/latency estimates
    */
   getMetadata(): ProviderMetadata {
-    const pricing = GEMINI_PRICING[this.model] ?? GEMINI_PRICING['gemini-1.5-pro']!;
+    const pricing =
+      GEMINI_PRICING[this.model] ?? GEMINI_PRICING['gemini-1.5-pro']!;
 
     return {
       model: this.model,
@@ -594,13 +649,18 @@ IMPORTANT: Respond ONLY with the JSON object. No markdown, no code blocks.`;
   /**
    * Make HTTP request to Gemini API with retries
    */
-  private async makeRequest(request: GeminiRequest, retryCount = 0, signal?: AbortSignal): Promise<GeminiResponse> {
+  private async makeRequest(
+    request: GeminiRequest,
+    retryCount = 0,
+    signal?: AbortSignal
+  ): Promise<GeminiResponse> {
     // The key travels in the x-goog-api-key header, never the URL — see the
     // matching comment in sendMessageStreaming.
-    const url = redactUrl(`${this.baseUrl}/v1beta/models/${this.model}:generateContent`);
+    const url = redactUrl(
+      `${this.baseUrl}/v1beta/models/${this.model}:generateContent`
+    );
 
     try {
-      const safeFetch = await getCorsSafeFetch();
       const routed = applyAssuredRoute(this.assured, url, {
         'Content-Type': 'application/json',
         'x-goog-api-key': this.apiKey,
@@ -608,31 +668,45 @@ IMPORTANT: Respond ONLY with the JSON object. No markdown, no code blocks.`;
       const controlled = composeRequestSignal(signal, this.requestTimeoutMs);
       let response: Response;
       try {
-        response = await safeFetch(routed.url, {
-          method: 'POST',
-          headers: routed.headers,
-          body: JSON.stringify(request),
-          signal: controlled.signal,
-        });
+        response = await egressFetch(
+          this.assured ? 'assured-ai' : 'cloud-ai',
+          routed.url,
+          {
+            method: 'POST',
+            headers: routed.headers,
+            body: JSON.stringify(request),
+            signal: controlled.signal,
+          }
+        );
       } catch (error) {
-        if (isAbortError(error, controlled.signal) || isTimeoutError(error, controlled.signal)) {
+        if (error instanceof OfflineModeBlockedError) throw error;
+        if (
+          isAbortError(error, controlled.signal) ||
+          isTimeoutError(error, controlled.signal)
+        ) {
           throw controlled.signal.reason ?? error;
         }
-        throw error instanceof Error ? new Error(redactUrl(error.message)) : error;
+        throw error instanceof Error
+          ? new Error(redactUrl(error.message))
+          : error;
       } finally {
         controlled.cleanup();
       }
 
       if (!response.ok) {
         const errorData = await safeJsonParse<GeminiError>(response);
-        throw new Error(`Gemini API error: ${errorData.error.message} (${errorData.error.status})`);
+        throw new Error(
+          `Gemini API error: ${errorData.error.message} (${errorData.error.status})`
+        );
       }
 
       const data = await safeJsonParse<GeminiResponse>(response);
 
       // Check for blocked content
       if (data.promptFeedback?.blockReason) {
-        throw new Error(`Content blocked by Gemini: ${data.promptFeedback.blockReason}`);
+        throw new Error(
+          `Content blocked by Gemini: ${data.promptFeedback.blockReason}`
+        );
       }
 
       if (!data.candidates || data.candidates.length === 0) {
@@ -659,7 +733,8 @@ IMPORTANT: Respond ONLY with the JSON object. No markdown, no code blocks.`;
    * Calculate cost based on token usage
    */
   private calculateCost(inputTokens: number, outputTokens: number): number {
-    const pricing = GEMINI_PRICING[this.model] || GEMINI_PRICING['gemini-1.5-pro']!;
+    const pricing =
+      GEMINI_PRICING[this.model] || GEMINI_PRICING['gemini-1.5-pro']!;
     const inputCost = (inputTokens / 1000) * pricing.input;
     const outputCost = (outputTokens / 1000) * pricing.output;
     return inputCost + outputCost;

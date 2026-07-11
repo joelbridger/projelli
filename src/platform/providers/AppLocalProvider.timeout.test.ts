@@ -8,11 +8,24 @@
 // with a budget > 120s, the request signal does NOT abort before the budget.
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('@/platform/privacy/networkClient', () => ({
+  egressFetch: (
+    operationId: string,
+    input: string | URL,
+    init?: RequestInit
+  ) => {
+    void operationId;
+    return fetch(input, init);
+  },
+}));
+
 import { AppLocalProvider } from './AppLocalProvider';
 import { OllamaProvider } from './OllamaProvider';
 import { DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS } from './requestControl';
 
-const startSidecar = (): Promise<string> => Promise.resolve('http://127.0.0.1:18089');
+const startSidecar = (): Promise<string> =>
+  Promise.resolve('http://127.0.0.1:18089');
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -22,14 +35,19 @@ afterEach(() => {
 
 /** A fetch that never resolves but captures the AbortSignal it was handed, so
  *  we can observe exactly when (if ever) the request layer aborts it. */
-function neverResolvingFetch(): { fetchMock: ReturnType<typeof vi.fn>; getSignal: () => AbortSignal | undefined } {
+function neverResolvingFetch(): {
+  fetchMock: ReturnType<typeof vi.fn>;
+  getSignal: () => AbortSignal | undefined;
+} {
   let captured: AbortSignal | undefined;
-  const fetchMock = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
-    captured = init?.signal ?? undefined;
-    return new Promise<Response>(() => {
-      /* never resolves — we only care about the abort timer */
+  const fetchMock = vi
+    .fn()
+    .mockImplementation((_url: string, init?: RequestInit) => {
+      captured = init?.signal ?? undefined;
+      return new Promise<Response>(() => {
+        /* never resolves — we only care about the abort timer */
+      });
     });
-  });
   return { fetchMock, getSignal: () => captured };
 }
 
@@ -44,7 +62,9 @@ describe('AppLocalProvider — per-request timeout override (lp/localai-patience
     // Fire and forget — the fetch mock never resolves, so this promise never
     // settles (no rejection to catch); we assert only on the captured signal.
     // eslint-disable-next-line lantern-async/no-silent-failure -- intentionally-hanging test promise; the mock never settles
-    void provider.sendMessage('a big question over many documents', { requestTimeoutMs: budgetMs });
+    void provider.sendMessage('a big question over many documents', {
+      requestTimeoutMs: budgetMs,
+    });
 
     // Let ensureEndpoint (startSidecar) + buildMessages + the fetch kick off.
     await vi.advanceTimersByTimeAsync(0);
@@ -56,7 +76,9 @@ describe('AppLocalProvider — per-request timeout override (lp/localai-patience
     expect(getSignal()?.aborted).toBe(false);
 
     // At the budget, the request layer's timeout finally fires, honestly.
-    await vi.advanceTimersByTimeAsync(budgetMs - (DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS + 1));
+    await vi.advanceTimersByTimeAsync(
+      budgetMs - (DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS + 1)
+    );
     expect(getSignal()?.aborted).toBe(true);
   });
 
@@ -86,7 +108,9 @@ describe('OllamaProvider — per-request timeout override (lp/localai-patience r
     const budgetMs = 200_000; // > the 120s default
     const provider = new OllamaProvider({ model: 'llama3.1:8b' });
     // eslint-disable-next-line lantern-async/no-silent-failure -- intentionally-hanging test promise; the mock never settles
-    void provider.sendMessage('a big question over many documents', { requestTimeoutMs: budgetMs });
+    void provider.sendMessage('a big question over many documents', {
+      requestTimeoutMs: budgetMs,
+    });
 
     await vi.advanceTimersByTimeAsync(0);
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -94,7 +118,9 @@ describe('OllamaProvider — per-request timeout override (lp/localai-patience r
     await vi.advanceTimersByTimeAsync(DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS + 1);
     expect(getSignal()?.aborted).toBe(false);
 
-    await vi.advanceTimersByTimeAsync(budgetMs - (DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS + 1));
+    await vi.advanceTimersByTimeAsync(
+      budgetMs - (DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS + 1)
+    );
     expect(getSignal()?.aborted).toBe(true);
   });
 });

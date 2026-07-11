@@ -1,8 +1,15 @@
 // Model List Service
 // Fetches available models from provider APIs, caches for 24h, falls back to hardcoded defaults
 
-import { getProviderBaseUrl, getCorsSafeFetch, safeJsonParse, redactUrl, type ProviderType } from './fetchUtils';
+import {
+  getProviderBaseUrl,
+  safeJsonParse,
+  redactUrl,
+  type ProviderType,
+} from './fetchUtils';
 import { skModelsCache } from '@/config/identity';
+import { assertLocalOnlyAllowsExternal } from '@/platform/privacy/localOnlyGuard';
+import { egressFetch } from '@/platform/privacy/networkClient';
 
 export interface ModelInfo {
   id: string;
@@ -39,7 +46,11 @@ function readCache(provider: ProviderType): CacheEntry | null {
 }
 
 function writeCache(provider: ProviderType, models: ModelInfo[]): void {
-  const entry: CacheEntry = { models, fetchedAt: Date.now(), cacheVersion: CACHE_VERSION };
+  const entry: CacheEntry = {
+    models,
+    fetchedAt: Date.now(),
+    cacheVersion: CACHE_VERSION,
+  };
   localStorage.setItem(cacheKey(provider), JSON.stringify(entry));
 }
 
@@ -50,11 +61,31 @@ function isCacheFresh(entry: CacheEntry): boolean {
 // --- Default (hardcoded) model lists ---
 
 const DEFAULT_ANTHROPIC: ModelInfo[] = [
-  { id: 'claude-sonnet-4-6', displayName: 'Claude Sonnet 4.6', provider: 'anthropic' },
-  { id: 'claude-opus-4-6', displayName: 'Claude Opus 4.6', provider: 'anthropic' },
-  { id: 'claude-haiku-4-5-20251001', displayName: 'Claude Haiku 4.5', provider: 'anthropic' },
-  { id: 'claude-sonnet-4-5-20250514', displayName: 'Claude Sonnet 4.5', provider: 'anthropic' },
-  { id: 'claude-3-5-sonnet-20241022', displayName: 'Claude 3.5 Sonnet', provider: 'anthropic' },
+  {
+    id: 'claude-sonnet-4-6',
+    displayName: 'Claude Sonnet 4.6',
+    provider: 'anthropic',
+  },
+  {
+    id: 'claude-opus-4-6',
+    displayName: 'Claude Opus 4.6',
+    provider: 'anthropic',
+  },
+  {
+    id: 'claude-haiku-4-5-20251001',
+    displayName: 'Claude Haiku 4.5',
+    provider: 'anthropic',
+  },
+  {
+    id: 'claude-sonnet-4-5-20250514',
+    displayName: 'Claude Sonnet 4.5',
+    provider: 'anthropic',
+  },
+  {
+    id: 'claude-3-5-sonnet-20241022',
+    displayName: 'Claude 3.5 Sonnet',
+    provider: 'anthropic',
+  },
 ];
 
 const DEFAULT_OPENAI: ModelInfo[] = [
@@ -65,27 +96,46 @@ const DEFAULT_OPENAI: ModelInfo[] = [
 ];
 
 const DEFAULT_GOOGLE: ModelInfo[] = [
-  { id: 'gemini-2.5-flash', displayName: 'Gemini 2.5 Flash', provider: 'google' },
+  {
+    id: 'gemini-2.5-flash',
+    displayName: 'Gemini 2.5 Flash',
+    provider: 'google',
+  },
   { id: 'gemini-1.5-pro', displayName: 'Gemini 1.5 Pro', provider: 'google' },
-  { id: 'gemini-1.5-flash', displayName: 'Gemini 1.5 Flash', provider: 'google' },
+  {
+    id: 'gemini-1.5-flash',
+    displayName: 'Gemini 1.5 Flash',
+    provider: 'google',
+  },
 ];
 
 export function getDefaultModels(provider: ProviderType): ModelInfo[] {
   switch (provider) {
-    case 'anthropic': return DEFAULT_ANTHROPIC;
-    case 'openai': return DEFAULT_OPENAI;
-    case 'google': return DEFAULT_GOOGLE;
+    case 'anthropic':
+      return DEFAULT_ANTHROPIC;
+    case 'openai':
+      return DEFAULT_OPENAI;
+    case 'google':
+      return DEFAULT_GOOGLE;
   }
 }
 
 // --- Fetch logic per provider ---
 
-async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit
+): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    const safeFetch = await getCorsSafeFetch();
-    return await safeFetch(url, { ...init, signal: controller.signal });
+    // Keep the established Local AI only guard as a separate protection. The
+    // egress boundary below independently enforces whole-app Offline Mode.
+    assertLocalOnlyAllowsExternal('model list refresh');
+    return await egressFetch('cloud-ai', url, {
+      ...init,
+      signal: controller.signal,
+    });
   } finally {
     clearTimeout(timer);
   }
@@ -93,19 +143,21 @@ async function fetchWithTimeout(url: string, init: RequestInit): Promise<Respons
 
 function deriveOpenAIDisplayName(id: string): string {
   // e.g. "gpt-4-turbo-2024-04-09" → "GPT-4 Turbo 2024-04-09"
-  return id
-    .replace(/^gpt-/i, 'GPT-')
-    .replace(/^o(\d)/i, 'O$1')
-    .split('-')
-    .map((seg, i) => {
-      if (i === 0) return seg; // already uppercased
-      // Capitalize first letter of each segment unless it's a number/date
-      if (/^\d/.test(seg)) return seg;
-      return seg.charAt(0).toUpperCase() + seg.slice(1);
-    })
-    .join(' ')
-    // Clean up double spaces
-    .replace(/\s+/g, ' ');
+  return (
+    id
+      .replace(/^gpt-/i, 'GPT-')
+      .replace(/^o(\d)/i, 'O$1')
+      .split('-')
+      .map((seg, i) => {
+        if (i === 0) return seg; // already uppercased
+        // Capitalize first letter of each segment unless it's a number/date
+        if (/^\d/.test(seg)) return seg;
+        return seg.charAt(0).toUpperCase() + seg.slice(1);
+      })
+      .join(' ')
+      // Clean up double spaces
+      .replace(/\s+/g, ' ')
+  );
 }
 
 async function fetchAnthropicModels(apiKey: string): Promise<ModelInfo[]> {
@@ -119,7 +171,9 @@ async function fetchAnthropicModels(apiKey: string): Promise<ModelInfo[]> {
     },
   });
   if (!resp.ok) throw new Error(`Anthropic API ${resp.status}`);
-  const data = await safeJsonParse<{ data: Array<{ id: string; display_name?: string }> }>(resp);
+  const data = await safeJsonParse<{
+    data: Array<{ id: string; display_name?: string }>;
+  }>(resp);
   return (data.data ?? [])
     .filter((m) => m.id.includes('claude'))
     .map((m) => ({
@@ -142,12 +196,20 @@ async function fetchOpenAIModels(apiKey: string): Promise<ModelInfo[]> {
   const prefixes = ['gpt-', 'o1-', 'o3-', 'o4-'];
   // Exclude specialized models that aren't for text chat
   const excludeSubstrings = [
-    'audio', 'realtime', 'tts', 'transcribe',
-    'image', 'embedding', 'moderation', 'search',
+    'audio',
+    'realtime',
+    'tts',
+    'transcribe',
+    'image',
+    'embedding',
+    'moderation',
+    'search',
   ];
   return (data.data ?? [])
     .filter((m) => prefixes.some((p) => m.id.startsWith(p)))
-    .filter((m) => !excludeSubstrings.some((bad) => m.id.toLowerCase().includes(bad)))
+    .filter(
+      (m) => !excludeSubstrings.some((bad) => m.id.toLowerCase().includes(bad))
+    )
     .map((m) => ({
       id: m.id,
       displayName: deriveOpenAIDisplayName(m.id),
@@ -177,14 +239,21 @@ async function fetchGoogleModels(apiKey: string): Promise<ModelInfo[]> {
   // image generation ("Nano Banana" = gemini-*-flash-image), TTS,
   // audio, embeddings, vision-only, and experimental live preview.
   const excludeSubstrings = [
-    'image', 'tts', 'audio', 'embedding',
-    'aqa', 'vision', 'learnlm', 'native-audio',
+    'image',
+    'tts',
+    'audio',
+    'embedding',
+    'aqa',
+    'vision',
+    'learnlm',
+    'native-audio',
   ];
   return (data.models ?? [])
     .filter((m) => {
       const id = m.name.replace('models/', '').toLowerCase();
       if (!id.includes('gemini')) return false;
-      if (!(m.supportedGenerationMethods ?? []).includes('generateContent')) return false;
+      if (!(m.supportedGenerationMethods ?? []).includes('generateContent'))
+        return false;
       if (excludeSubstrings.some((bad) => id.includes(bad))) return false;
       return true;
     })
@@ -195,11 +264,17 @@ async function fetchGoogleModels(apiKey: string): Promise<ModelInfo[]> {
     }));
 }
 
-async function fetchModelsForProvider(provider: ProviderType, apiKey: string): Promise<ModelInfo[]> {
+async function fetchModelsForProvider(
+  provider: ProviderType,
+  apiKey: string
+): Promise<ModelInfo[]> {
   switch (provider) {
-    case 'anthropic': return fetchAnthropicModels(apiKey);
-    case 'openai': return fetchOpenAIModels(apiKey);
-    case 'google': return fetchGoogleModels(apiKey);
+    case 'anthropic':
+      return fetchAnthropicModels(apiKey);
+    case 'openai':
+      return fetchOpenAIModels(apiKey);
+    case 'google':
+      return fetchGoogleModels(apiKey);
   }
 }
 
@@ -209,7 +284,10 @@ async function fetchModelsForProvider(provider: ProviderType, apiKey: string): P
  * Get models for a provider. Checks cache first, fetches if stale,
  * falls back to stale cache or hardcoded defaults on failure.
  */
-export async function getModels(provider: ProviderType, apiKey: string): Promise<ModelInfo[]> {
+export async function getModels(
+  provider: ProviderType,
+  apiKey: string
+): Promise<ModelInfo[]> {
   const cached = readCache(provider);
   if (cached && isCacheFresh(cached)) {
     return cached.models;
@@ -234,7 +312,10 @@ export async function getModels(provider: ProviderType, apiKey: string): Promise
  * Bypass cache and fetch fresh models from the API.
  * Called when user saves a new API key.
  */
-export async function refreshModels(provider: ProviderType, apiKey: string): Promise<ModelInfo[]> {
+export async function refreshModels(
+  provider: ProviderType,
+  apiKey: string
+): Promise<ModelInfo[]> {
   try {
     const models = await fetchModelsForProvider(provider, apiKey);
     if (models.length > 0) {
