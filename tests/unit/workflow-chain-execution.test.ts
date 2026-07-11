@@ -11,6 +11,7 @@
 import { describe, it, expect } from 'vitest';
 import { MockProvider } from '@/platform/providers/MockProvider';
 import { runChain } from '@/features/workflows/engine/WorkflowChainEngine';
+import type { AuditEntry } from '@/platform/types/audit';
 import type {
   WorkflowChain,
   WorkflowTemplate,
@@ -150,5 +151,56 @@ describe('runChain — two-step pipeline', () => {
     });
     expect(result.status).toBe('failed');
     expect(result.error).toMatch(/Template not found/);
+  });
+
+  it('blocks a private access link before a headless chain can call its provider', async () => {
+    const provider = new MockProvider();
+    const auditEntries: Array<Omit<AuditEntry, 'id' | 'timestamp'>> = [];
+    const template: WorkflowTemplate = {
+      id: 'secret-chain-template',
+      name: 'Secret chain template',
+      description: '',
+      version: '1.0.0',
+      category: 'research',
+      steps: [{
+        id: 'generate',
+        type: 'generate',
+        name: 'Generate',
+        config: { outputFile: 'result.md', promptTemplate: 'Use this: {{privateLink}}' },
+      }],
+      requiredInputs: [],
+      outputs: ['result.md'],
+    };
+    const chain: WorkflowChain = {
+      schemaVersion: 1,
+      id: 'secret-chain',
+      name: 'Secret chain',
+      steps: [{ templateId: template.id }],
+      createdAt: '',
+      updatedAt: '',
+    };
+
+    const result = await runChain({
+      chain,
+      resolveTemplate: (id) => id === template.id ? template : undefined,
+      provider,
+      fileOps: { writeFile: async () => {}, readFile: async () => '' },
+      onInterview: async () => ({}),
+      initialInputs: { privateLink: 'https://example.test/i/abc#intake-secret' },
+      audit: {
+        providerId: 'mock',
+        model: 'mock-model',
+        getConfidentialityMode: () => 'direct',
+        onAuditLog: (entry) => auditEntries.push(entry),
+      },
+    });
+
+    expect(result.status).toBe('failed');
+    expect(result.error).toContain('prompt_review_required');
+    expect(provider.getCallCount()).toBe(0);
+    expect(auditEntries).toContainEqual(expect.objectContaining({
+      action: 'prompt_preparation',
+      metadata: expect.objectContaining({ decision: 'blocked' }),
+    }));
   });
 });

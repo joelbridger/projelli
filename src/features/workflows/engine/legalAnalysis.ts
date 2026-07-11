@@ -19,7 +19,8 @@
  */
 
 import type { Provider, OutputSchema } from '@/platform/providers/Provider';
-import { runWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
+import { sendPreparedStructuredWithEgressAudit } from '@/platform/privacy/promptPreparation';
+import type { AuditEntry, AuditScope } from '@/platform/types/audit';
 import type {
   AnalyzeStepConfig,
   ContradictionAnalysisResult,
@@ -351,6 +352,18 @@ export interface RunContradictionAnalysisArgs {
   verify: VerifyCitationFn;
   /** Interpolate `{{var}}` against the inputs (engine supplies its own helper). */
   interpolate: (template: string, values: Record<string, unknown>) => string;
+  /**
+   * Optional send context supplied by workflow runs. Chain and queued runs are
+   * headless, so this makes a finding stop before the provider call and keeps
+   * the preparation and egress receipts with the rest of the workflow run.
+   */
+  promptPreparation?: {
+    providerId?: string;
+    model?: string;
+    background?: boolean;
+    onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
+    scope?: AuditScope;
+  };
 }
 
 /**
@@ -376,7 +389,7 @@ export async function runContradictionAnalysis(
   retrievalQuery: string;
   retrievalUnavailable: boolean;
 }> {
-  const { provider, config, inputs, scope, retrieve, verify, interpolate } = args;
+  const { provider, config, inputs, scope, retrieve, verify, interpolate, promptPreparation } = args;
 
   // 1) Matter-scoped retrieval (privilege excluded by the injected retrieve fn).
   const retrievalQuery = interpolate(config.retrievalQueryTemplate, inputs).trim();
@@ -422,15 +435,21 @@ export async function runContradictionAnalysis(
   // fields despite the schema, so we re-validate at the boundary rather than
   // trust the declared type.
   const metadata = provider.getMetadata();
-  const raw = (await runWithEgressAudit<RawContradictionResult>({
+  const raw = (await sendPreparedStructuredWithEgressAudit<RawContradictionResult>({
     provider,
-    providerId: metadata.providerId ?? 'unknown',
-    model: metadata.model,
-    operation: () =>
-      provider.structuredOutput<RawContradictionResult>(
-        prompt,
-        structuredOpts,
-      ),
+    providerId: promptPreparation?.providerId ?? metadata.providerId ?? 'unknown',
+    model: promptPreparation?.model ?? metadata.model,
+    surface: 'workflow_contradiction_analysis',
+    ...(promptPreparation?.background !== undefined ? { background: promptPreparation.background } : {}),
+    prompt,
+    options: structuredOpts,
+    parts: [
+      { id: 'prompt', origin: 'workflow_input', label: 'Contradiction analysis request', text: prompt },
+      ...Object.entries(inputs).map(([key, value]) => ({ id: `workflow-input-${key}`, origin: 'workflow_input' as const, label: `Workflow answer: ${key}`, text: String(value) })),
+      ...chunks.map((chunk, index) => ({ id: `retrieval-${String(index)}`, origin: 'retrieval' as const, label: `Retrieved source: ${chunk.path}`, text: chunk.chunkText })),
+    ],
+    ...(promptPreparation?.onAuditLog ? { onAuditLog: promptPreparation.onAuditLog } : {}),
+    ...(promptPreparation?.scope ? { scope: promptPreparation.scope } : {}),
   })) as Partial<RawContradictionResult> | null | undefined;
 
   const rawFindings: Partial<RawContradictionFinding>[] = Array.isArray(raw?.findings)

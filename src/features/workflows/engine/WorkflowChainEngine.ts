@@ -37,6 +37,22 @@ import type {
   InterviewHandler,
 } from './WorkflowEngine';
 import type { Provider } from '@/platform/providers/Provider';
+import { AuditService } from '@/platform/audit/AuditService';
+import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
+import type { AuditEntry } from '@/platform/types/audit';
+import type { WorkflowAuditOptions } from './WorkflowEngine';
+
+const workflowChainAudit = new AuditService('workflows');
+function persistChainAudit(entry: Omit<AuditEntry, 'id' | 'timestamp'>): void {
+  workflowChainAudit.log(entry.action, entry.description, {
+    ...(entry.model !== undefined ? { model: entry.model } : {}),
+    inputs: entry.inputs,
+    outputs: entry.outputs,
+    ...(entry.userDecision !== undefined ? { userDecision: entry.userDecision } : {}),
+    metadata: entry.metadata,
+    ...(entry.provider !== undefined ? { provider: entry.provider } : {}),
+  });
+}
 
 /**
  * The outcome of running one step inside a chain.
@@ -72,6 +88,8 @@ export interface RunChainOptions {
   onProgress?: (stepIndex: number, templateId: string, phase: 'started' | 'completed' | 'failed') => void;
   /** Allow the caller to seed the very first step with user-supplied inputs. */
   initialInputs?: Record<string, unknown>;
+  /** Optional audit destination. Defaults to the durable workflow activity log. */
+  audit?: Omit<WorkflowAuditOptions, 'background'>;
 }
 
 /**
@@ -192,7 +210,18 @@ export async function runChain(opts: RunChainOptions): Promise<ChainRunRecord> {
     );
 
     try {
-      const engine = createWorkflowEngine(provider, fileOps, onInterview);
+      const engine = createWorkflowEngine(provider, fileOps, onInterview, undefined, {
+        audit: {
+          providerId: opts.audit?.providerId ?? provider.getMetadata().providerId ?? 'unknown',
+          model: opts.audit?.model ?? provider.getMetadata().model,
+          getConfidentialityMode: opts.audit?.getConfidentialityMode ?? getConfidentialityMode,
+          ...(opts.audit?.getScope ? { getScope: opts.audit.getScope } : {}),
+          ...(opts.audit?.assuredAvailable !== undefined ? { assuredAvailable: opts.audit.assuredAvailable } : {}),
+          ...(opts.audit?.isDemo !== undefined ? { isDemo: opts.audit.isDemo } : {}),
+          onAuditLog: opts.audit?.onAuditLog ?? persistChainAudit,
+          background: true,
+        },
+      });
       const run = await engine.execute(template, inputs);
       const outputs = extractNamedOutputs(template, run);
       steps.push({ templateId: chainStep.templateId, run, outputs, warnings });
