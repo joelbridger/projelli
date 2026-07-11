@@ -15,6 +15,7 @@ import { MatterDocSyncClient } from '@/platform/firm/coedit/MatterDocSyncClient'
 import { documentJsonToYDoc, yDocToDocumentJson, editRunText } from '@/platform/firm/coedit/docCrdt';
 import { generateMatterKey, importMatterKey } from '@/platform/firm/matterCrypto';
 import type { PushUpdateResponse, PullUpdatesResponse } from '@/platform/firm/contract';
+import type { MatterHandle, StreamHandle } from '@/platform/firm/contract';
 import type { WebSocketLike } from '@/platform/firm/MatterSyncClient';
 import type { DocumentJson, DocxParagraph } from '@/platform/types/docx';
 
@@ -34,6 +35,10 @@ const BASE_DOC: DocumentJson = {
   ],
   comments: {},
 };
+
+const MATTER_HANDLE = `mh2_${'m'.repeat(43)}` as MatterHandle;
+const streamHandleFor = (docId: string): StreamHandle =>
+  `sh2_${docId.padEnd(43, '_').slice(0, 43)}` as StreamHandle;
 
 // ---------------------------------------------------------------------------
 // Fake relay (doc_id-aware, mirrors FakeDocRelay from matterSync.test.ts)
@@ -93,8 +98,6 @@ class FakeDocRelay {
     const allForDoc = this.blobs.filter((b) => b.doc_id === docId);
     const latest = allForDoc.length ? allForDoc[allForDoc.length - 1]!.cursor : 0;
     return {
-      matter_id: 'm1',
-      doc_id: docId,
       key_epoch: this.keyEpoch,
       since,
       cursor: updates.length ? updates[updates.length - 1]!.cursor : since,
@@ -218,8 +221,8 @@ describe('MatterDocSyncClient', () => {
     // start() so the update handler is wired and the full state lands in the relay.
     const docA = new Y.Doc();
     const clientA = new MatterDocSyncClient({
-      matterId: 'm1',
-      docId,
+      matterHandle: MATTER_HANDLE,
+      streamHandle: streamHandleFor(docId),
       doc: docA,
       keyB64,
       keyEpoch: 1,
@@ -247,8 +250,8 @@ describe('MatterDocSyncClient', () => {
     // Client B starts with an EMPTY Y.Doc and catches up from the relay
     const docB = new Y.Doc();
     const clientB = new MatterDocSyncClient({
-      matterId: 'm1',
-      docId,
+      matterHandle: MATTER_HANDLE,
+      streamHandle: streamHandleFor(docId),
       doc: docB,
       keyB64,
       keyEpoch: 1,
@@ -301,8 +304,8 @@ describe('MatterDocSyncClient', () => {
     const docBeta = documentJsonToYDoc(BASE_DOC);
 
     const clientAlpha = new MatterDocSyncClient({
-      matterId: 'm1',
-      docId: 'doc-alpha',
+      matterHandle: MATTER_HANDLE,
+      streamHandle: streamHandleFor('doc-alpha'),
       doc: docAlpha,
       keyB64,
       keyEpoch: 1,
@@ -316,8 +319,8 @@ describe('MatterDocSyncClient', () => {
     });
 
     const clientBeta = new MatterDocSyncClient({
-      matterId: 'm1',
-      docId: 'doc-beta',
+      matterHandle: MATTER_HANDLE,
+      streamHandle: streamHandleFor('doc-beta'),
       doc: docBeta,
       keyB64,
       keyEpoch: 1,
@@ -372,8 +375,8 @@ describe('MatterDocSyncClient', () => {
     // Client A: start with empty Y.Doc, seed via post-start transact, edit, stop
     const docA = new Y.Doc();
     const clientA = new MatterDocSyncClient({
-      matterId: 'm1',
-      docId,
+      matterHandle: MATTER_HANDLE,
+      streamHandle: streamHandleFor(docId),
       doc: docA,
       keyB64,
       keyEpoch: 1,
@@ -397,8 +400,8 @@ describe('MatterDocSyncClient', () => {
     // Client B joins after the edit with an empty Y.Doc (must catch up via pull)
     const docB = new Y.Doc();
     const clientB = new MatterDocSyncClient({
-      matterId: 'm1',
-      docId,
+      matterHandle: MATTER_HANDLE,
+      streamHandle: streamHandleFor(docId),
       doc: docB,
       keyB64,
       keyEpoch: 1,

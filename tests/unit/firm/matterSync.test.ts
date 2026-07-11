@@ -200,7 +200,7 @@ class FakeDocRelay {
       return { ok: true, cursor: existing.cursor, blob_id: blobId, key_epoch: this.keyEpoch, duplicate: true };
     }
     this.seq += 1;
-    const stored: StoredBlobWithDoc = {
+    const stored: StoredBlobWithStream = {
       cursor: this.seq,
       blob_id: blobId,
       key_epoch: keyEpoch,

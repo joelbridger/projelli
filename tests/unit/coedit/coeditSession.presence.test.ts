@@ -19,6 +19,7 @@ import { generateMatterKey } from '@/platform/firm/matterCrypto';
 import type { DocumentJson } from '@/platform/types/docx';
 import type { WebSocketLike } from '@/platform/firm/MatterSyncClient';
 import type { PushUpdateResponse, PullUpdatesResponse } from '@/platform/firm/contract';
+import type { MatterHandle, StreamHandle } from '@/platform/firm/contract';
 
 // ---------------------------------------------------------------------------
 // Minimal fake relay that supports injecting presence frames
@@ -34,6 +35,11 @@ class FakeSocket implements WebSocketLike {
   open(): void { this.onopen?.({}); }
   deliver(frame: unknown): void { this.onmessage?.({ data: JSON.stringify(frame) }); }
 }
+
+const matterHandleFor = (matterId: string): MatterHandle =>
+  `mh2_${matterId.padEnd(43, '_').slice(0, 43)}` as MatterHandle;
+const streamHandleFor = (docId: string): StreamHandle =>
+  `sh2_${docId.padEnd(43, '_').slice(0, 43)}` as StreamHandle;
 
 class FakeDocRelayWithPresence {
   private sockets: Map<string, FakeSocket[]> = new Map();
@@ -77,8 +83,6 @@ class FakeDocRelayWithPresence {
 
   pullUpdates(_since: number, docId: string): PullUpdatesResponse {
     return {
-      matter_id: 'm1',
-      doc_id: docId,
       key_epoch: this.keyEpoch,
       since: _since,
       cursor: 0,
@@ -117,7 +121,8 @@ async function makeOpts(
 ): Promise<CoeditSessionOptions & { keyB64: string }> {
   const keyB64 = await generateMatterKey();
   return {
-    matterId,
+    matterHandle: matterHandleFor(matterId),
+    streamHandle: streamHandleFor(docId),
     docId,
     fileName: 'test.docx',
     keyB64,

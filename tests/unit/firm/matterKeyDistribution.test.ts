@@ -366,7 +366,7 @@ describe('autoRepublishHeldMatterKeys', () => {
     const before = deviceSetFingerprint([{ user_id: 'alice', device_id: 'alice-d1' }], 1);
     const res = await autoRepublishHeldMatterKeys(
       client,
-      [{ matter_handle: matterHandle, root_stream_handle: handle('root-grow').replace('mh2_', 'sh2_') as never, status: 'active', key_epoch: 1 }],
+      [{ matter_handle: matterHandle, key_epoch: 1 }],
       { [matterHandle]: before },
     );
 
@@ -408,7 +408,7 @@ describe('autoRepublishHeldMatterKeys', () => {
     const current = deviceSetFingerprint([{ user_id: 'alice', device_id: 'alice-d1' }], 1);
     const res = await autoRepublishHeldMatterKeys(
       client,
-      [{ matter_handle: matterHandle, root_stream_handle: handle('root-same').replace('mh2_', 'sh2_') as never, status: 'active', key_epoch: 1 }],
+      [{ matter_handle: matterHandle, key_epoch: 1 }],
       { [matterHandle]: current },
     );
 
@@ -427,7 +427,7 @@ describe('autoRepublishHeldMatterKeys', () => {
 
     const res = await autoRepublishHeldMatterKeys(
       client,
-      [{ matter_handle: matterHandle, root_stream_handle: handle('root-not-held').replace('mh2_', 'sh2_') as never, status: 'active', key_epoch: 3 }],
+      [{ matter_handle: matterHandle, key_epoch: 3 }],
       {},
     );
 
@@ -471,8 +471,8 @@ describe('autoRepublishHeldMatterKeys', () => {
     const res = await autoRepublishHeldMatterKeys(
       client,
       [
-        { matter_handle: badHandle, root_stream_handle: handle('root-bad').replace('mh2_', 'sh2_') as never, status: 'active', key_epoch: 1 },
-        { matter_handle: goodHandle, root_stream_handle: handle('root-good').replace('mh2_', 'sh2_') as never, status: 'active', key_epoch: 1 },
+        { matter_handle: badHandle, key_epoch: 1 },
+        { matter_handle: goodHandle, key_epoch: 1 },
       ],
       {},
     );
@@ -520,7 +520,7 @@ describe('autoRepublishHeldMatterKeys', () => {
     const before = deviceSetFingerprint([{ user_id: 'alice', device_id: 'alice-d1' }], 1);
     const res = await autoRepublishHeldMatterKeys(
       client,
-      [{ matter_handle: matterHandle, root_stream_handle: handle('root-wall').replace('mh2_', 'sh2_') as never, status: 'active', key_epoch: 1 }],
+      [{ matter_handle: matterHandle, key_epoch: 1 }],
       { [matterHandle]: before },
     );
 
@@ -572,7 +572,7 @@ describe('autoRepublishHeldMatterKeys', () => {
     const before = deviceSetFingerprint([{ user_id: 'alice', device_id: 'alice-d1' }], 2);
     const res = await autoRepublishHeldMatterKeys(
       client,
-      [{ matter_handle: matterHandle, root_stream_handle: handle('root-wall-grow').replace('mh2_', 'sh2_') as never, status: 'active', key_epoch: 2 }],
+      [{ matter_handle: matterHandle, key_epoch: 2 }],
       { [matterHandle]: before },
     );
 

@@ -20,6 +20,7 @@ import { generateMatterKey } from '@/platform/firm/matterCrypto';
 import type { DocumentJson, DocxParagraph } from '@/platform/types/docx';
 import type { WebSocketLike } from '@/platform/firm/MatterSyncClient';
 import type { PushUpdateResponse, PullUpdatesResponse } from '@/platform/firm/contract';
+import type { MatterHandle, StreamHandle } from '@/platform/firm/contract';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -43,6 +44,11 @@ const EMPTY_DOC: DocumentJson = {
   body: [],
   comments: {},
 };
+
+const matterHandleFor = (matterId: string): MatterHandle =>
+  `mh2_${matterId.padEnd(43, '_').slice(0, 43)}` as MatterHandle;
+const streamHandleFor = (docId: string): StreamHandle =>
+  `sh2_${docId.padEnd(43, '_').slice(0, 43)}` as StreamHandle;
 
 // ---------------------------------------------------------------------------
 // Fake relay (doc_id-aware, mirrors FakeDocRelay from matterDocSync.test.ts)
@@ -102,8 +108,6 @@ class FakeDocRelay {
     const allForDoc = this.blobs.filter((b) => b.doc_id === docId);
     const latest = allForDoc.length ? allForDoc[allForDoc.length - 1]!.cursor : 0;
     return {
-      matter_id: 'm1',
-      doc_id: docId,
       key_epoch: this.keyEpoch,
       since,
       cursor: updates.length ? updates[updates.length - 1]!.cursor : since,
@@ -125,11 +129,11 @@ class FakeDocRelay {
   }
 
   /** Pre-load relay with state from a Y.Doc (simulates prior sync). */
-  async preload(keyB64: string, docId: string, doc: Y.Doc): Promise<void> {
-    const { encryptUpdate, importMatterKey } = await import('@/platform/firm/matterCrypto');
+  async preload(keyB64: string, matterHandle: MatterHandle, streamHandle: StreamHandle, docId: string, doc: Y.Doc): Promise<void> {
+    const { encryptUpdateV2, importMatterKey } = await import('@/platform/firm/matterCrypto');
     const cryptoKey = await importMatterKey(keyB64);
     const update = Y.encodeStateAsUpdate(doc);
-    const ciphertext_b64 = await encryptUpdate(cryptoKey, update, 1);
+    const ciphertext_b64 = await encryptUpdateV2(cryptoKey, update, { keyEpoch: 1, matterHandle, streamHandle });
     const blob_id = `blob_preload_${Math.random().toString(36).slice(2)}`;
     this.push(blob_id, ciphertext_b64, 1, docId);
   }
@@ -174,7 +178,8 @@ async function until(pred: () => boolean, tries = 80): Promise<void> {
 async function makeOpts(relay: FakeDocRelay, matterId: string, docId: string, initialJson?: DocumentJson): Promise<CoeditSessionOptions & { keyB64: string }> {
   const keyB64 = await generateMatterKey();
   return {
-    matterId,
+    matterHandle: matterHandleFor(matterId),
+    streamHandle: streamHandleFor(docId),
     docId,
     fileName: 'test.docx',
     ...(initialJson !== undefined ? { initialJson } : {}),
@@ -221,7 +226,7 @@ describe('coeditSession', () => {
       body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'Relay content' }] } as DocxParagraph],
       comments: {},
     });
-    await relay.preload(opts.keyB64, docId, relayDoc);
+    await relay.preload(opts.keyB64, opts.matterHandle, opts.streamHandle, docId, relayDoc);
 
     // Open session — relay already has state, initialJson (BASE_DOC = "Hello world") must NOT override it
     const session = await openCoeditSession(opts);
