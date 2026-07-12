@@ -6,6 +6,7 @@
  * descriptor just because its handler does not otherwise need a request body.
  */
 import { config } from "./config.ts";
+import { v2FirmRouteSpec } from "./v2RouteInventory.ts";
 
 const FORBIDDEN_RELAY_KEYS = new Set([
   "client_name",
@@ -186,8 +187,11 @@ export async function requestHasForbiddenV2RelayKey(req: Request): Promise<boole
   return (await inspectV2RelayBody(req)).status !== "valid";
 }
 
-const STREAM_PULL_PATH = /^\/v2\/firm\/streams\/[^/]+\/updates$/;
-const SYNC_SOCKET_PATH = "/v2/firm/sync";
+// Query rules are tied to the same executable route inventory as handler
+// bodies and router dispatch. Only the opaque stream placeholder becomes a
+// raw-segment matcher; it is never URL-decoded here.
+const STREAM_PULL_PATH = new RegExp(`^${v2FirmRouteSpec("pullUpdates").path.replace(":stream_handle", "[^/]+")}$`);
+const SYNC_SOCKET_PATH = v2FirmRouteSpec("syncSocket").path;
 const CURSOR = /^(?:0|[1-9]\d*)$/;
 const SYNC_TICKET = /^[a-f0-9]{64}$/i;
 

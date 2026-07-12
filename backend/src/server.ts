@@ -14,6 +14,7 @@ import { config } from "./lib/config.ts";
 import { getStore } from "./lib/db.ts";
 import { json, error, preflight, startRateLimitGc } from "./lib/http.ts";
 import { validateV2RelayBoundary } from "./lib/v2Payload.ts";
+import { V2_FIRM_ROUTE_SPECS, isDeclaredV2FirmRoute, v2FirmRouteSpec } from "./lib/v2RouteInventory.ts";
 import { hashPassword, generateLicenseKey, hmacHash } from "./lib/crypto.ts";
 import { handleLogin, handleRefresh, handleLogout, handleMe } from "./routes/auth.ts";
 import { handleActivate, handleSeatValidate, handleSeatHeartbeat } from "./routes/seats.ts";
@@ -160,6 +161,10 @@ export function subscribeSyncSocket(
 }
 
 export function buildServeOptions(store: Store, hub: FanoutHub, traffic?: RelayTrafficRecorder) {
+  // Keep the executable input inventory live in production as well as tests.
+  // A typo or missing entry fails server construction instead of silently
+  // leaving a new route outside the hostile-client proof.
+  for (const route of V2_FIRM_ROUTE_SPECS) v2FirmRouteSpec(route.id);
   return {
     hostname: config.host,
     port: config.port,
@@ -180,6 +185,11 @@ export function buildServeOptions(store: Store, hub: FanoutHub, traffic?: RelayT
 
       if (method === "OPTIONS") return preflight();
 
+      // The inventory is an allow-list, not merely documentation. A new v2
+      // handler is unreachable until its route and every client field are in
+      // the shared table that drives the hostile-client privacy proof.
+      if (path.startsWith("/v2/firm/") && !isDeclaredV2FirmRoute(path, method)) return error("not_found", 404);
+
       try {
         // --- E2EE sync relay + matter ACL (chunk 2) ---
         // The WebSocket upgrade is handled before normal routing so the relay
@@ -187,6 +197,7 @@ export function buildServeOptions(store: Store, hub: FanoutHub, traffic?: RelayT
         if (path === "/v2/firm/matters/mine" && method === "POST") return await handleMatterMine(req, store);
         if (path === "/v2/firm/matters/list" && method === "POST") return await handleListMatters(req, store);
         if (path === "/v2/firm/sync" && method === "GET" && req.headers.get("upgrade")?.toLowerCase() === "websocket") {
+          v2FirmRouteSpec("syncSocket");
           const authz = authorizeSyncConnect(req, store);
           if (!authz.ok) return authz.resp;
           const data: SyncSocketData = { subId: randomUUID(), ...authz.data };
