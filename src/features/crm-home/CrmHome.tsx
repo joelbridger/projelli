@@ -9,7 +9,6 @@ import {
   FileArchive,
   Flag,
   GitPullRequest,
-  Landmark,
   LayoutDashboard,
   ListChecks,
   Plus,

@@ -2,7 +2,6 @@ import type { ComponentType } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import type { CrmHomeRoute } from './CrmHome';
 import {
-  fieldsTagsSurface,
   intakeLinksSurface,
   propagationSurface,
   tasksSurface,

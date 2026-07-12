@@ -1,8 +1,8 @@
 import { FileText, History } from 'lucide-react';
 import type { ReactNode } from 'react';
-import type { HouseholdTabDescriptor } from './tabRegistry';
+import type { HouseholdTab, HouseholdTabDescriptor } from './tabRegistry';
 
-function LegacyTab({ route, renderLegacySurface }: { route: 'documents' | 'activity'; renderLegacySurface: (id: string) => ReactNode }) {
+function LegacyTab({ route, renderLegacySurface }: { route: 'documents' | 'activity'; renderLegacySurface: (id: HouseholdTab) => ReactNode }) {
   return <>{renderLegacySurface(route)}</>;
 }
 
