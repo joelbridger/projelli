@@ -58,22 +58,24 @@ function isSafeCursor(value: unknown): value is number {
 
 /**
  * True if the value cannot possibly decode within MAX_UPDATE_BYTES. Deliberately does NOT
- * validate base64 shape/padding — that would misclassify small malformed or tampered
- * ciphertext (which must fall through to decrypt and fail there as `decrypt_failed`) as
- * oversized. `floor(dataLength * 3/4)` ignores padding entirely, which can only ever
- * OVER-estimate the true decoded size, so this can never let a genuinely oversized
- * payload through, and at worst is a couple of bytes over-strict at the exact boundary.
- * Rejects on RAW length first (before any whitespace counting) so a hostile relay cannot
- * force unbounded work by padding with whitespace; only then subtracts exactly the
- * whitespace atob() itself ignores — a raw-length count would let a hostile relay pad a
- * small, otherwise-valid ciphertext with whitespace to make a legitimate update look
- * oversized and get skipped.
+ * validate base64 SHAPE — that would misclassify small malformed or tampered ciphertext
+ * (which must fall through to decrypt and fail there as `decrypt_failed`) as oversized. It
+ * DOES account for trailing `=` padding on the whitespace-stripped data: padding can only
+ * ever REDUCE the true decoded size relative to a bare `floor(length * 3/4)` estimate, so
+ * this is strictly more accurate, never less safe, and closes the case where a legitimate,
+ * exactly-maximum-size, correctly-padded ciphertext would otherwise be wrongly quarantined.
+ * Rejects on RAW length first (before stripping whitespace or counting anything) so a
+ * hostile relay cannot force unbounded work by padding with whitespace; only then strips
+ * exactly the whitespace atob() itself ignores — a raw-length count would let a hostile
+ * relay pad a small, otherwise-valid ciphertext with whitespace to make a legitimate
+ * update look oversized and get skipped.
  */
 function exceedsUpdateByteLimit(ciphertextB64: unknown): boolean {
   if (typeof ciphertextB64 !== 'string') return true;
   if (ciphertextB64.length > MAX_RAW_CIPHERTEXT_CHARS) return true;
-  const dataLength = ciphertextB64.length - (ciphertextB64.match(ATOB_IGNORED_WHITESPACE)?.length ?? 0);
-  return Math.floor((dataLength * 3) / 4) > MAX_UPDATE_BYTES;
+  const data = ciphertextB64.replace(ATOB_IGNORED_WHITESPACE, '');
+  const padding = data.endsWith('==') ? 2 : data.endsWith('=') ? 1 : 0;
+  return Math.floor((data.length * 3) / 4) - padding > MAX_UPDATE_BYTES;
 }
 
 export type SyncStatus =

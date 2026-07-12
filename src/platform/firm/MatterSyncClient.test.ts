@@ -520,6 +520,49 @@ describe('MatterSyncClient v2 socket privacy', () => {
     client.stop();
   });
 
+  it('does not wrongly quarantine a canonical ciphertext exactly at the 1 MiB limit with real `==` padding', async () => {
+    // A byte count of exactly MAX_UPDATE_BYTES (1,048,576) needs 2 trailing
+    // `=` padding characters in its canonical base64 (1,048,576 % 3 === 1).
+    // Ignoring that padding overestimates the decoded size by 2 bytes and
+    // would wrongly reject a legitimate, maximum-size, relay-accepted update.
+    const matterHandle = parseMatterHandle(`mh2_${'1'.repeat(43)}`);
+    const streamHandle = parseStreamHandle(`sh2_${'2'.repeat(43)}`);
+    const keyB64 = await generateMatterKey();
+    // Shape-only: exceedsUpdateByteLimit never validates decodability, only
+    // size — this proves the size estimate is correct independent of whether
+    // decryption itself later succeeds or fails.
+    const atLimitCanonical = `${'A'.repeat(1_398_104 - 2)}==`;
+    const onUpdateQuarantined = vi.fn();
+    let socket: WebSocketLike | undefined;
+    const client = new MatterSyncClient({
+      matterHandle, streamHandle, keyB64, keyEpoch: 1, seatToken: 'seat',
+      client: {
+        pullUpdates: () => Promise.resolve({ key_epoch: 1, since: 0, cursor: 0, latest_cursor: 0, has_more: false, updates: [] }),
+        createSyncTicket: () => Promise.resolve({ ticket: 'ticket-only', expires_in_ms: 1000 }),
+        pushUpdate: () => Promise.resolve({ ok: true, cursor: 3, blob_id: 'new', key_epoch: 1, duplicate: false }),
+      } as never,
+      callbacks: { onUpdateQuarantined },
+      socketFactory: () => {
+        socket = { send() {}, close() {}, onopen: null, onclose: null, onerror: null, onmessage: null };
+        return socket;
+      },
+    });
+
+    await client.start();
+    socket?.onmessage?.({ data: JSON.stringify({ type: 'ready', backlog: 0, latest_cursor: 0, subscribers: 1 }) });
+    socket?.onmessage?.({ data: JSON.stringify({
+      type: 'update', cursor: 1, blob_id: opaqueBlobId('R'), key_epoch: 1, ciphertext_b64: atLimitCanonical,
+    }) });
+
+    // Not real ciphertext, so it correctly fails decryption — the point is
+    // it must NEVER be classified as too large first.
+    await vi.waitFor(() => {
+      expect(onUpdateQuarantined).toHaveBeenCalledWith({ reason: 'decrypt_failed', blobId: opaqueBlobId('R') });
+    });
+    expect(onUpdateQuarantined).not.toHaveBeenCalledWith({ reason: 'ciphertext_too_large', blobId: opaqueBlobId('R') });
+    client.stop();
+  });
+
   it('flushes only writes present at its starting marker, even while later edits keep arriving', async () => {
     let resolveFirstPush: (() => void) | undefined;
     let pushes = 0;
