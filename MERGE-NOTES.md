@@ -113,6 +113,27 @@ as the first workstream after this merge lands. Until that ships, avoid
 unqualified "end-to-end encrypted" language in anything that references the
 intake-key exchange or the firm relay generally.
 
+## Another known gap found in review, NOT fixed here: co-editing lifecycle (dead code, pre-existing)
+
+Round NN's adversarial review found that `src/platform/firm/coedit/coeditSession.ts`
+has the same class of teardown bugs `matterNotesSync.ts` needed three rounds
+(KK/LL/MM) to close: sign-out never calls `closeCoeditSession`, and
+`openCoeditSession`/`closeCoeditSession` don't guard against a build still in
+flight the way `ensureMatterSync`/`stopAll` now do, so a torn-down co-edit
+session could in principle survive teardown and keep a live encrypted channel
+open. Separately, its `MatterDocSyncClient` wiring never sets `onKeyEpochAdvanced`
+at all, so a walled/removed co-editor's session would never fetch a new key or
+stop on denial. **Neither is fixed on this branch** — verified via
+`git log 5f697b7e..HEAD -- src/platform/firm/coedit/coeditSession.ts` (empty)
+that this file predates the branch, and via a full-tree grep that
+`openCoeditSession`/`closeCoeditSession` have zero callers anywhere in the live
+app (`DocxEditor.tsx` only imports the `CoeditSession` type for its prop shape;
+nothing ever constructs one). This matches the existing `createDocumentStream`
+zero-caller precedent already noted elsewhere in this codebase — real
+correctness/security gaps in code that is not currently reachable by any user
+flow. Worth fixing before co-editing is ever wired up to a real UI entry point;
+until then it carries no live exposure.
+
 ## Verify the port
 
 1. Run `cd backend && bun test` and confirm `backend/test/intake-keys.test.ts`
