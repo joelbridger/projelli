@@ -501,7 +501,7 @@
         "field-app-version__sourceHash": "b0b94f12279049a2778750da65c5896f08060d173c5dc6a9d5df9e394ac6eb86",
         "field-event": "<c>event</c>: uno de <c>app_launch</c>, <c>trial_start</c>, <c>trial_end</c>, <c>license_activated</c>, <c>license_deactivated</c>.",
         "field-event__sourceHash": "bc1f75f1e8aca06d01bb82dfcc2fdd8763fa6bb049773ee3e3bc4567a8c5d6af",
-        "field-license-tier": "<c>license_tier</c> (cuando corresponda): trial, personal, professional, practice.",
+        "field-license-tier": "<c>license_tier</c> (cuando corresponda): trial, personal, professional, firm.",
         "field-license-tier__sourceHash": "f7d152bd910804c89a34c457ce6be8502aa36e700605e229bf85904ae9dc2890",
         "endpoint-note": "Endpoint: <c>forms.lanternplatform.app/api/forms/lantern/app-event</c>. JSONL almacenado en servidores de {{productName}}. Se usa únicamente para métricas de embudo y decisiones de hoja de ruta.",
         "endpoint-note__sourceHash": "db930261bf43f001c34e4e42013d35c2e5151ba931b8d208f3a0368e29fba6e9",
@@ -1441,16 +1441,16 @@
         "headline": "The AI you're actually allowed to use with client data.",
         "flow": {
           "connect": {
-            "title": "Connect your practice",
-            "body": "Files, email, and CRM stay on your machine."
+            "title": "Conecta tu firma",
+            "body": "Reúne tus archivos, correo y CRM para que puedas consultar el trabajo de clientes en un solo lugar."
           },
           "client-map": {
             "title": "It builds a Client Map",
-            "body": "Every household is cited from your own records."
+            "body": "Vincula cada hogar con sus fuentes para que puedas comprobar cada respuesta."
           },
           "ask": {
             "title": "Ask anything",
-            "body": "Answers come with sources you can open."
+            "body": "Pregunta sobre el trabajo de clientes para que cada respuesta señale una fuente que puedas abrir."
           }
         },
         "trust-line": "Your client data never touches our servers, the cloud, or any AI's training. Ever.",
@@ -1459,11 +1459,11 @@
       },
       "choose": {
         "headline": "How do you want to start?",
-        "help": "You can explore a ready-made sample practice right now, or point {{productName}} at your own data. You can always switch later.",
+        "help": "Puedes explorar una firma de ejemplo lista ahora mismo o dirigir {{productName}} a tus propios datos. Siempre puedes cambiar más adelante.",
         "sample": {
           "badge": "Recommended",
-          "title": "Start with a sample practice",
-          "help": "Land in a populated practice: the Hendricks Household, with real documents and a ready Client Map, so you can ask a cited question in your first minute.",
+          "title": "Empieza con una firma de ejemplo",
+          "help": "Explora el hogar Hendricks con documentos reales y un Mapa de Cliente listo para que puedas hacer una pregunta con citas en tu primer minuto.",
           "bullet-1": "A worked household you can explore",
           "bullet-2": "A filled, cited Client Map",
           "bullet-3": "Nothing leaves your computer",
@@ -1472,8 +1472,8 @@
         },
         "own": {
           "title": "Connect my own data",
-          "help": "Choose a folder for your practice. In the next steps you can connect your email, files, and Wealthbox so {{productName}} builds Client Maps from your real clients.",
-          "bullet-1": "Pick where your practice lives",
+          "help": "Elige una carpeta para tu firma. Luego conecta el correo, los archivos y Wealthbox para que {{productName}} pueda crear Mapas de Cliente a partir del trabajo real de tus clientes.",
+          "bullet-1": "Elige dónde vive tu firma",
           "bullet-2": "Import email, files, and Wealthbox next",
           "bullet-3": "Your data stays on your machine",
           "loading": "Opening",
@@ -1559,7 +1559,7 @@
         }
       },
       "connect": {
-        "headline": "2. Connect your practice",
+        "headline": "2. Conecta tu firma",
         "pills": {
           "encrypted": "Encrypted in transit",
           "device": "Stays on your device",
@@ -1663,8 +1663,8 @@
         "coming-soon-label": "Coming soon",
         "works-with": {
           "title": "Start with CRM, email, and files",
-          "body": "{{productName}} starts with the places your practice already keeps client work: CRM notes, email, OneDrive or SharePoint folders, PDFs, and Word files. If tools like RightCapital, Holistiplan, DocuSign, or Jump save reports into those places, {{productName}} reads the saved files there and cites them in answers.",
-          "disclaimer": "{{productName}} reads saved files and notes. It is not an official integration with those tools, and their names belong to their owners."
+          "body": "{{productName}} lee los archivos que ya tienes: notas de CRM, correo, carpetas de OneDrive o SharePoint, PDF y archivos de Word. Cita esos archivos en las respuestas para que puedas comprobar de dónde viene cada una.",
+          "disclaimer": "{{productName}} lee archivos y notas guardados en tus propias carpetas."
         }
       },
       "firm": {
@@ -2377,9 +2377,11 @@
       "header-suffix-files-only": "solo de tus archivos",
       "empty-hint": "Cuando una respuesta use tus archivos, las fuentes citadas aparecerán aquí. Las respuestas de conocimiento general no tienen nada que citar; esa es la idea.",
       "footer-note": "Las respuestas de conocimiento general no tienen tarjeta de fuente. El panel Fuentes solo se llena con tus archivos.",
-      "provenance-title": "Esto es una captura exportada, no una conexión activa.",
+      "provenance-title": "{{productName}} lee los archivos que ya tienes. Esto no es una conexión activa.",
       "provenance-title__sourceHash": "9dedc7152c733741eba4b0a7df5dadd0742c2e47c15be4d661787561f63b3df5",
-      "provenance-stale-title": "Esta captura exportada puede estar desactualizada. Vuelve a exportar desde la herramienta para obtener lo más reciente.",
+      "provenance-file": "Lee el archivo que ya tienes",
+      "provenance-file-date": "Lee el archivo que ya tienes · {{date}}",
+      "provenance-stale-title": "Este archivo puede estar desactualizado. Añade uno más reciente cuando tengas uno.",
       "provenance-stale-title__sourceHash": "24c6d91e9c2dfa8a5da8f8a8d5d10f39d51c4e97c929b91bfc4765f5ee4eb27d",
       "provenance-stale-suffix": "puede estar desactualizada",
       "provenance-stale-suffix__sourceHash": "610836cc2fc049c6ef30f171b4745a7119b15a3ca83ae54924cd79d2c98c4e8d",

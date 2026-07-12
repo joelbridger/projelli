@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { ShieldCheck, CheckCircle2, AlertTriangle, Loader2, Clock, ExternalLink } from 'lucide-react';
 import type { AnswerCitation } from './askHelpers';
 import type { AuditEntry, AuditSourceIdentity } from '@/platform/types/audit';
-import { provenanceBadgeLabel, isStalePlan } from '@/platform/rag/sourceProvenance';
+import { formatExportDate, isStalePlan } from '@/platform/rag/sourceProvenance';
 import { formatSourceIdentity } from '@/platform/audit/sourceCapture';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { EXTERNAL_EXPORT_STALE_DAYS_KEY } from '@/platform/settings/schema';
@@ -137,7 +137,9 @@ function ProvenanceBadge({ cite }: { cite: AnswerCitation }) {
     >
       <Icon size={11} strokeWidth={2} style={{ flex: 'none' }} />
       <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {provenanceBadgeLabel(prov)}
+        {prov.exportedAt
+          ? t('ask.sources.provenance-file-date', { date: formatExportDate(prov.exportedAt) })
+          : t('ask.sources.provenance-file')}
         {stale ? ` · ${t('ask.sources.provenance-stale-suffix')}` : ''}
       </span>
     </div>
