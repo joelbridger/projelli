@@ -104,6 +104,11 @@ async function saveFirmSetup() {
   if (!tagId) throw new Error('The saved tag is not available in the record tag picker.');
   await click(tagId);
   await click('crm-record-values-save');
+  const saved = await evaluate(`window.__TAURI_INTERNALS__.invoke('crm_live_list')`);
+  const household = Array.isArray(saved) ? saved.find((record) => record.id === householdId) : null;
+  if (household?.customFields?.service_region?.value !== 'North' || !Array.isArray(household.tagIds) || !household.tagIds.includes(tagId.replace('crm-record-tag-', ''))) {
+    throw new Error('The custom-field value or tag was not saved to the selected household.');
+  }
 }
 
 async function verifySaved() {
