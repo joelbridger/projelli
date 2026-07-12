@@ -208,8 +208,16 @@ async function bootBackend(config: DocusignSandboxCredentials): Promise<BackendP
     AUTH_RATE_LIMIT_MAX: '1000', RELAY_RATE_LIMIT_MAX: '1000',
   });
   const child = spawn('bun', ['run', 'backend/src/server.ts'], { cwd: process.cwd(), env: environment, stdio: ['ignore', 'pipe', 'pipe'] });
-  const baseUrl = await waitForBackendStart(child);
-  await waitForHealth(baseUrl);
+  let baseUrl: string;
+  try {
+    baseUrl = await waitForBackendStart(child);
+    await waitForHealth(baseUrl);
+  } catch (error) {
+    if (!child.killed) child.kill('SIGTERM');
+    await new Promise<void>((resolveStop) => { child.once('exit', () => resolveStop()); setTimeout(resolveStop, 5_000); });
+    await rm(dbDirectory, { recursive: true, force: true });
+    throw error;
+  }
   return {
     process: child,
     baseUrl,
