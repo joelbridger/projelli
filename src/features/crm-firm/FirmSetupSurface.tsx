@@ -1,13 +1,13 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string -- CRM copy is catalogued with the frozen CRM screens. */
 import { useEffect, useMemo, useState } from 'react';
-import { Archive, ArrowRightLeft, ExternalLink, Plus, Save, ShieldCheck, Tags, Users } from 'lucide-react';
+import { Archive, ArrowRightLeft, ExternalLink, Plus, Save, Users } from 'lucide-react';
 import { Button } from '@/ui/kp';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { FirmAdminConsole } from '@/features/firm/FirmAdminConsole';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import type {
   CustomFieldDef,
-  CustomFieldValue,
+  CustomFieldValueMap,
   EntityKind,
   Provenance,
   Tag,
@@ -16,7 +16,10 @@ import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 
 type Tab = 'setup' | 'fields' | 'tags' | 'values';
 type FieldType = CustomFieldDef['fieldType'];
+type CustomFieldValue = CustomFieldValueMap[string];
 type RecordWithMetadata = LiveCrmRecord & { customFields?: Record<string, CustomFieldValue>; tagIds?: string[]; tags?: string[] };
+type LiveCustomFieldDef = LiveCrmRecord & CustomFieldDef;
+type LiveTag = LiveCrmRecord & Tag;
 
 const panelStyle = { border: '1px solid var(--kp-border)', borderRadius: 'var(--radius-lg)', background: 'var(--kp-surface)', padding: 'var(--kp-space-md)' } as const;
 const mutedStyle = { color: 'var(--kp-text-faint)', fontSize: 'var(--kp-font-sm)' } as const;
@@ -111,7 +114,7 @@ function FieldEditor({ current, records, onSave, onClose }: { current?: CustomFi
 }
 
 function FieldsAdmin({ records, onSave }: { records: readonly LiveCrmRecord[]; onSave: (record: LiveCrmRecord) => Promise<unknown> }) {
-  const fields = useMemo(() => records.filter((record): record is CustomFieldDef => record.kind === 'customFieldDef' && !record['deleted']).sort((a, b) => Number(a.order) - Number(b.order)), [records]);
+  const fields = useMemo(() => records.filter((record): record is LiveCustomFieldDef => record.kind === 'customFieldDef' && !record['deleted']).sort((a, b) => a.order - b.order), [records]);
   const [editing, setEditing] = useState<CustomFieldDef | undefined>();
   const [creating, setCreating] = useState(false);
   const archive = async (field: CustomFieldDef) => { await onSave({ ...field, archived: true, updatedAt: new Date().toISOString(), updatedBy: actor() }); };
@@ -128,7 +131,7 @@ function TagEditor({ current, onSave, onClose }: { current?: Tag; onSave: (tag: 
 }
 
 function TagsAdmin({ records, onSave }: { records: readonly LiveCrmRecord[]; onSave: (record: LiveCrmRecord) => Promise<unknown> }) {
-  const tags = useMemo(() => records.filter((record): record is Tag => record.kind === 'tag').sort((a, b) => a.name.localeCompare(b.name)), [records]);
+  const tags = useMemo(() => records.filter((record): record is LiveTag => record.kind === 'tag').sort((a, b) => a.name.localeCompare(b.name)), [records]);
   const [editing, setEditing] = useState<Tag | undefined>();
   const [creating, setCreating] = useState(false);
   const [mergeSource, setMergeSource] = useState<Tag | null>(null);
@@ -152,12 +155,12 @@ function TagsAdmin({ records, onSave }: { records: readonly LiveCrmRecord[]; onS
 }
 
 function RecordValues({ records, onSave }: { records: readonly LiveCrmRecord[]; onSave: (record: LiveCrmRecord) => Promise<unknown> }) {
-  const fieldDefs = useMemo(() => records.filter((record): record is CustomFieldDef => record.kind === 'customFieldDef' && !record['deleted'] && !record.archived), [records]);
+  const fieldDefs = useMemo(() => records.filter((record): record is LiveCustomFieldDef => record.kind === 'customFieldDef' && !record['deleted'] && !record.archived), [records]);
   const editableRecords = useMemo(() => records.filter((record) => recordKinds.includes(record.kind as EntityKind)), [records]);
   const [recordId, setRecordId] = useState('');
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [tagIds, setTagIds] = useState<string[]>([]);
-  const tags = useMemo(() => records.filter((record): record is Tag => record.kind === 'tag' && !record['deleted']), [records]);
+  const tags = useMemo(() => records.filter((record): record is LiveTag => record.kind === 'tag' && !record['deleted']), [records]);
   const selected = editableRecords.find((record) => record.id === recordId) as RecordWithMetadata | undefined;
   const applicable = selected ? fieldDefs.filter((field) => field.appliesTo.includes(selected.kind as EntityKind)) : [];
   useEffect(() => { if (!selected) { setDraft({}); setTagIds([]); return; } const values = customValues(selected); setDraft(Object.fromEntries(applicable.map((field) => [field.key, inputValue(values[field.key]?.value)]))); setTagIds(Array.isArray(selected.tagIds) ? selected.tagIds : []); }, [recordId, selected?.updatedAt, applicable.map((field) => field.id).join('|')]);

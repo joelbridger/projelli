@@ -66,8 +66,8 @@ describe('saved CRM workflow wiring', () => {
     const proposal = createMeetingWorkflowProposal({ id: 'meeting-1', kind: 'activityEvent', matterId: 'h-1', summary: 'Discussed an account transfer' }, template, { id: 'h-1', label: 'River household' });
 
     expect(proposal.kind).toBe('proposalRecord');
-    expect(proposal.proposalKind).toBe('workflow_launch');
-    expect(proposal.state).toBe('pending');
-    expect(proposal.contextRefs).toEqual([{ kind: 'activityEvent', id: 'meeting-1', matterId: 'h-1' }]);
+    expect(proposal['proposalKind']).toBe('workflow_launch');
+    expect(proposal['state']).toBe('pending');
+    expect(proposal['contextRefs']).toEqual([{ kind: 'activityEvent', id: 'meeting-1', matterId: 'h-1' }]);
   });
 });

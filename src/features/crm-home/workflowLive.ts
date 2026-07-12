@@ -9,7 +9,7 @@ import {
 import { UNTOUCHED, type PropagationEngineOffer, type PropagationTransactionPayload, type WorkflowInstanceSnapshot, type WorkflowTemplateSnapshot } from '@/platform/crm/types';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 
-export type WorkflowStepOutcomeDraft = { id: string; label: string; nextStepId?: string; restartAtStepId?: string };
+export type WorkflowStepOutcomeDraft = { id: string; label: string; nextStepId?: string | undefined; restartAtStepId?: string | undefined };
 export type WorkflowStepDraft = { id: string; title: string; role: string; dueOffset: number; required: boolean; outcomes: WorkflowStepOutcomeDraft[] };
 export type WorkflowScheduleDraft = {
   frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'annual';
@@ -118,9 +118,12 @@ export function completeWorkflowStep(instance: LiveWorkflowInstance, stepId: str
   if (outcomeId && !outcome) throw new Error('This workflow outcome is no longer available.');
   if (!step.completionOperations.length) step.completionOperations.push({ completionId: unique('complete'), completedBy: 'local-advisor', completedAt: now(), ...(outcome ? { outcome: outcome.label } : {}), sourceOperationId: unique('manual-complete') });
   step.status = 'done';
-  step.outcome = outcome?.label;
-  if (outcome?.nextStepId && next.snapshot.steps[outcome.nextStepId]) next.snapshot.steps[outcome.nextStepId].status = 'in_progress';
-  if (outcome?.restartAtStepId && next.snapshot.steps[outcome.restartAtStepId]) next.snapshot.steps[outcome.restartAtStepId].status = 'in_progress';
+  if (outcome) step.outcome = outcome.label;
+  else delete step.outcome;
+  const nextStepId = outcome?.nextStepId;
+  const restartAtStepId = outcome?.restartAtStepId;
+  if (nextStepId && next.snapshot.steps[nextStepId]) next.snapshot.steps[nextStepId].status = 'in_progress';
+  if (restartAtStepId && next.snapshot.steps[restartAtStepId]) next.snapshot.steps[restartAtStepId].status = 'in_progress';
   const completed = Boolean(outcome && !outcome.nextStepId && !outcome.restartAtStepId);
   return { ...next, snapshot: reconcileTemplateRemovals(next.snapshot), ...(completed ? { status: 'completed' as const } : {}) };
 }
@@ -170,14 +173,14 @@ export function startScheduledWorkflows(template: LiveWorkflowTemplate, househol
 }
 
 export function createMeetingWorkflowProposal(meeting: LiveCrmRecord, template: LiveWorkflowTemplate, household: { id: string; label: string }): LiveCrmRecord {
-  const summary = typeof meeting.summary === 'string' ? meeting.summary : 'Meeting follow-up';
+  const summary = typeof meeting['summary'] === 'string' ? meeting['summary'] : 'Meeting follow-up';
   return {
     id: unique('workflow-proposal'), kind: 'proposalRecord', matterId: 'firm_home', title: `Review proposed ${template.name} workflow`,
     householdRef: { kind: 'household', id: household.id, matterId: household.id }, proposalKind: 'workflow_launch',
     proposedMutation: { kind: 'workflow_launch', workflowTemplateId: template.id },
     proposedBy: { userId: 'meeting-ai', display: 'Meeting assistant', kind: 'ai' },
     rationale: `Meeting notes suggest “${template.name}” may help: ${summary}`,
-    contextRefs: [{ kind: 'activityEvent', id: meeting.id, matterId: typeof meeting.matterId === 'string' ? meeting.matterId : undefined }],
+    contextRefs: [{ kind: 'activityEvent', id: meeting.id, ...(typeof meeting.matterId === 'string' ? { matterId: meeting.matterId } : {}) }],
     state: 'pending', source: { origin: 'meeting', sources: [] }, createdAt: now(), updatedAt: now(),
   };
 }
@@ -197,7 +200,7 @@ export function renameWorkflowStepLocally(instance: LiveWorkflowInstance, stepId
 export function publishTemplateUpdate(template: LiveWorkflowTemplate, title: string, addedTitle: string) {
   const changed = template.steps[1] ?? template.steps[0];
   if (!changed) throw new Error('A workflow needs at least one step.');
-  const added: WorkflowStepDraft = { id: unique(`${template.id}-step`), title: addedTitle.trim() || 'New follow-up', role: 'Client service', dueOffset: template.steps.length, required: true };
+  const added: WorkflowStepDraft = { id: unique(`${template.id}-step`), title: addedTitle.trim() || 'New follow-up', role: 'Client service', dueOffset: template.steps.length, required: true, outcomes: [] };
   const revisionId = unique(`${template.id}-update`);
   const nextTitle = title.trim() || changed.title;
   const revision = {

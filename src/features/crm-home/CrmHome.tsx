@@ -179,11 +179,17 @@ function HomeRail({ route, onNavigate }: { route: CrmHomeRoute; onNavigate: (rou
 }
 
 function todayKey(): string { return new Date().toISOString().slice(0, 10); }
-type CrmDailyWorkItem = (CrmTask | CrmWorkflowWorkItem) & DailyWorkItem;
+type CrmDailyWorkItem = (CrmTask & DailyWorkItem & { kind: 'task' }) | (CrmWorkflowWorkItem & DailyWorkItem & { kind: 'workflow_step' });
+function dailyWorkItems(tasks: readonly CrmTask[], workflowWorkItems: readonly CrmWorkflowWorkItem[]): CrmDailyWorkItem[] {
+  return [
+    ...tasks.map((task) => ({ ...task, kind: 'task' as const })),
+    ...workflowWorkItems.map((item) => ({ ...item, kind: 'workflow_step' as const })),
+  ];
+}
 function workLabel(item: CrmDailyWorkItem): string { return item.kind === 'workflow_step' ? 'Workflow step' : 'Task'; }
 function workHousehold(item: CrmDailyWorkItem): string | undefined { return item.householdLabel; }
 
-function Today({ tasks, workItems, firmMembers, approvals, activity, freshness, onNavigate, onCompleteWorkItem, onDecideApproval }: { tasks: readonly CrmTask[]; workItems: readonly CrmDailyWorkItem[]; firmMembers: readonly CrmFirmMember[]; approvals: readonly CrmApproval[]; activity: readonly CrmActivity[]; freshness: CrmFreshnessState; onNavigate: (r: CrmHomeRoute) => void; onCompleteWorkItem: (item: CrmDailyWorkItem) => void | Promise<void>; onDecideApproval: (approval: CrmApproval, decision: 'approved' | 'rejected') => void | Promise<void> }) {
+function Today({ workItems, firmMembers, approvals, activity, freshness, onNavigate, onCompleteWorkItem, onDecideApproval }: { workItems: readonly CrmDailyWorkItem[]; firmMembers: readonly CrmFirmMember[]; approvals: readonly CrmApproval[]; activity: readonly CrmActivity[]; freshness: CrmFreshnessState; onNavigate: (r: CrmHomeRoute) => void; onCompleteWorkItem: (item: CrmDailyWorkItem) => void | Promise<void>; onDecideApproval: (approval: CrmApproval, decision: 'approved' | 'rejected') => void | Promise<void> }) {
   const [reviewing, setReviewing] = useState(false);
   const today = todayKey();
   const plan = buildCapacityTriage(workItems, firmMembers.map((member) => member.userId), today);
@@ -208,8 +214,8 @@ function Tasks({ tasks, workflowWorkItems, firmMembers, households, savedViews, 
   const [viewName, setViewName] = useState('');
   const filtered = tasks.filter((task) => task.title.toLowerCase().includes(filter.toLowerCase()));
   const filteredWorkflowSteps = workflowWorkItems.filter((item) => item.title.toLowerCase().includes(filter.toLowerCase()));
-  const workItems: readonly CrmDailyWorkItem[] = [...filtered, ...filteredWorkflowSteps];
-  const plan = buildCapacityTriage([...tasks, ...workflowWorkItems] as readonly CrmDailyWorkItem[], firmMembers.map((member) => member.userId));
+  const workItems = dailyWorkItems(filtered, filteredWorkflowSteps);
+  const plan = buildCapacityTriage(dailyWorkItems(tasks, workflowWorkItems), firmMembers.map((member) => member.userId));
   const advance = (task: CrmTask) => { void onUpdateTask({ ...task, status: task.status === 'done' ? 'open' : 'done' }); };
   const newTask = () => { setEditing({ id: `new-task-${crypto.randomUUID()}`, title: '', body: '', assigneeUserId: null, status: 'open', priority: 'normal', contextRefs: [] }); };
   return <Screen title="Tasks" description="One work list for tasks and workflow steps" Icon={ListChecks} action={<Button data-testid="crm-task-new" iconLeft={Plus} onClick={newTask}>New task</Button>}>
@@ -339,7 +345,7 @@ function LiveWorkflows({ data, households, onSave, onNavigate }: { data: LiveWor
     } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
   };
   const saveSettings = async () => { if (!template) return; await save(updateWorkflowTemplate(template, { schedule, outcomes })); setEditing(false); };
-  const addOutcome = (stepId: string) => setOutcomes((current) => ({ ...current, [stepId]: [...(current[stepId] ?? []), { id: `outcome-${stepId}-${Date.now()}`, label: '', nextStepId: undefined }] }));
+  const addOutcome = (stepId: string) => setOutcomes((current) => ({ ...current, [stepId]: [...(current[stepId] ?? []), { id: `outcome-${stepId}-${Date.now()}`, label: '' }] }));
   const editOutcome = (stepId: string, outcomeId: string, change: Partial<WorkflowStepOutcomeDraft>) => setOutcomes((current) => ({ ...current, [stepId]: (current[stepId] ?? []).map((outcome) => outcome.id === outcomeId ? { ...outcome, ...change } : outcome) }));
   return <Screen title="Workflows" description="Steps your firm follows for each household" Icon={Workflow} action={<Button data-testid="crm-live-workflow-new-template" iconLeft={Plus} onClick={() => { setCreating(true); }}>New template</Button>}>
     {error && <div role="alert" style={{ ...panelStyle, borderColor: 'var(--kp-danger)' }}>{error}</div>}
@@ -459,7 +465,7 @@ function ConnectedCrmHome({ adapter, initialRoute = 'today', preview = false, wo
     else await updateTask({ ...item, status: 'done' });
   };
   const legacySurfaceContent = {
-    today: <Today tasks={activeAdapter.tasks} workItems={[...activeAdapter.tasks, ...workflowWorkItems] as readonly CrmDailyWorkItem[]} firmMembers={firmMembers} approvals={approvals} activity={activity} freshness={freshness} onNavigate={jump} onCompleteWorkItem={completeWorkItem} onDecideApproval={(approval, decision) => activeAdapter.actions.decideApproval?.(approval, decision)} />,
+    today: <Today workItems={dailyWorkItems(activeAdapter.tasks, workflowWorkItems)} firmMembers={firmMembers} approvals={approvals} activity={activity} freshness={freshness} onNavigate={jump} onCompleteWorkItem={completeWorkItem} onDecideApproval={(approval, decision) => activeAdapter.actions.decideApproval?.(approval, decision)} />,
     tasks: <Tasks tasks={activeAdapter.tasks} workflowWorkItems={workflowWorkItems} firmMembers={firmMembers} households={activeAdapter.households ?? []} savedViews={savedTaskViews} freshness={freshness} onUpdateTask={updateTask} onCompleteWorkflowWorkItem={(item) => activeAdapter.actions.completeWorkflowWorkItem?.(item)} onSaveView={(view) => activeAdapter.actions.saveTaskView?.(view)} />,
     workflows: workflowData && workflowHouseholds && saveLiveRecord ? <LiveWorkflows data={workflowData} households={workflowHouseholds} onSave={saveLiveRecord} onNavigate={jump} /> : <Workflows freshness={freshness} onNavigate={jump} />,
     propagation: workflowData && saveLiveRecord ? <LivePropagationReview data={workflowData} onSave={saveLiveRecord} /> : <PropagationReview offers={offers} freshness={freshness} onApply={(selected) => activeAdapter.actions.applyPropagation?.(selected)} onUndo={reportUndo} undoReport={undoReport} />,
