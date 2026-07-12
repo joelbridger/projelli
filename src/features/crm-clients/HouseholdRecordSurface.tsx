@@ -29,6 +29,7 @@ import { RecordMetadataEditor } from './RecordMetadataEditor';
 import { HouseholdTimeline } from '@/features/crm-timeline';
 import type { CrmEngineFreshness } from '@/platform/crm/store';
 import type { TimelineRecord } from '@/features/crm-timeline';
+import { ContactEditor } from './ContactEditor';
 
 type HouseholdTab =
   | 'client_map'
@@ -91,7 +92,8 @@ export function HouseholdRecordSurface({
   >(null);
   const [metadataOpen, setMetadataOpen] = useState(false);
   const [editingHousehold, setEditingHousehold] = useState(false);
-  const [adding, setAdding] = useState<'person' | 'account' | null>(null);
+  const [adding, setAdding] = useState<'person' | 'account' | 'fact' | null>(null);
+  const [editingPerson, setEditingPerson] = useState<import('./adapters').CrmPerson | null>(null);
   const sourceProposals = tab === 'client_map' ? [] : proposals;
   return (
     <section data-testid="crm-household-record">
@@ -192,7 +194,16 @@ export function HouseholdRecordSurface({
         data-testid="crm-household-tab"
       />
       {tab === 'client_map' ? (
-        <ClientMap household={household} />
+        <ClientMap
+          household={household}
+          onEditPerson={setEditingPerson}
+          onDeleteFact={async (id) => {
+            await onSaveHousehold?.({
+              ...household,
+              facts: household.facts.filter((fact) => fact.id !== id),
+            });
+          }}
+        />
       ) : tab === 'timeline' && timelineFreshness ? (
         <HouseholdTimeline
           household={{
@@ -238,7 +249,7 @@ export function HouseholdRecordSurface({
                 if (kind === 'note') {
                   setNoteAudience('internal');
                   setAddOpen(false);
-                } else if (kind === 'person' || kind === 'account') {
+                } else if (kind === 'person' || kind === 'account' || kind === 'fact') {
                   setAdding(kind);
                   setAddOpen(false);
                 } else
@@ -325,18 +336,24 @@ export function HouseholdRecordSurface({
       <SlidePanel
         open={adding === 'person'}
         onClose={() => { setAdding(null); }}
-        title="Add person"
+        title="Add contact"
       >
-        <PersonEditor
-          onSave={async (person, external) => {
+        <ContactEditor
+          onSave={async (person) => {
             await onSaveHousehold?.({
               ...household,
-              members: external ? household.members : [...household.members, person],
-              externalParties: external ? [...household.externalParties, person] : household.externalParties,
+              members: person.external ? household.members : [...household.members, person],
+              externalParties: person.external ? [...household.externalParties, person] : household.externalParties,
             });
             setAdding(null);
           }}
         />
+      </SlidePanel>
+      <SlidePanel open={adding === 'fact'} onClose={() => { setAdding(null); }} title="Add a fact">
+        <FactEditor onSave={async (fact) => { await onSaveHousehold?.({ ...household, facts: [...household.facts, fact] }); setAdding(null); }} />
+      </SlidePanel>
+      <SlidePanel open={editingPerson !== null} onClose={() => { setEditingPerson(null); }} title="Edit contact">
+        {editingPerson ? <ContactEditor person={editingPerson} onSave={async (person) => { const replace = (people: readonly import('./adapters').CrmPerson[]) => people.map((item) => item.id === person.id ? person : item); await onSaveHousehold?.({ ...household, members: replace(household.members), externalParties: replace(household.externalParties) }); setEditingPerson(null); }} onRemove={async () => { await onSaveHousehold?.({ ...household, members: household.members.filter((item) => item.id !== editingPerson.id), externalParties: household.externalParties.filter((item) => item.id !== editingPerson.id) }); setEditingPerson(null); }} /> : null}
       </SlidePanel>
       <SlidePanel
         open={adding === 'account'}
@@ -370,17 +387,19 @@ function HouseholdEditor({ household, onSave }: { household: HouseholdRecord; on
   </form>;
 }
 
-function PersonEditor({ onSave }: { onSave: (person: import('./adapters').CrmPerson, external: boolean) => Promise<void> | void }) {
-  const [name, setName] = useState('');
-  const [role, setRole] = useState('');
-  const [relationship, setRelationship] = useState('');
-  const [external, setExternal] = useState(false);
-  return <form data-testid="crm-person-editor" onSubmit={(event) => { event.preventDefault(); const cleanName = name.trim(); if (!cleanName) return; void onSave({ id: `person:${crypto.randomUUID()}`, name: cleanName, personType: 'person', roles: role.split(',').map((value) => value.trim()).filter(Boolean), ...(relationship.trim() ? { householdRole: relationship.trim() } : {}), ...(external ? { external: true } : {}), relatedHouseholds: 1 }, external); }} style={{ display: 'grid', gap: 10 }}>
-    <label>Name<input data-testid="crm-person-name" value={name} onChange={(event) => { setName(event.target.value); }} /></label>
-    <label>Firm roles<input data-testid="crm-person-roles" value={role} placeholder="CPA, attorney" onChange={(event) => { setRole(event.target.value); }} /></label>
-    <label>Household relationship<input data-testid="crm-person-relationship" value={relationship} placeholder="Spouse" onChange={(event) => { setRelationship(event.target.value); }} /></label>
-    <label><input data-testid="crm-person-external" type="checkbox" checked={external} onChange={(event) => { setExternal(event.target.checked); }} /> External party</label>
-    <Button data-testid="crm-person-save" type="submit">Save person</Button>
+function FactEditor({ onSave }: { onSave: (fact: import('./adapters').CrmFact) => Promise<void> | void }) {
+  const [label, setLabel] = useState('');
+  const [value, setValue] = useState('');
+  const [asOf, setAsOf] = useState(new Date().toISOString().slice(0, 10));
+  const [source, setSource] = useState('');
+  const [sourceRef, setSourceRef] = useState('');
+  return <form data-testid="crm-fact-editor" onSubmit={(event) => { event.preventDefault(); if (!label.trim() || !value.trim() || !asOf || !source.trim()) return; void onSave({ id: `fact:${crypto.randomUUID()}`, label: label.trim(), value: value.trim(), status: 'Current', asOf, learned: new Date().toISOString().slice(0, 10), sources: [{ id: `source:${crypto.randomUUID()}`, label: source.trim(), ...(sourceRef.trim() ? { ref: sourceRef.trim() } : {}) }] }); }} style={{ display: 'grid', gap: 10 }}>
+    <label>What should the firm remember?<input data-testid="crm-fact-label" value={label} onChange={(event) => setLabel(event.target.value)} /></label>
+    <label>Value<input data-testid="crm-fact-value" value={value} onChange={(event) => setValue(event.target.value)} /></label>
+    <label>True as of<input data-testid="crm-fact-as-of" type="date" value={asOf} onChange={(event) => setAsOf(event.target.value)} /></label>
+    <label>Source<input data-testid="crm-fact-source" value={source} onChange={(event) => setSource(event.target.value)} placeholder="Tax return, meeting, or advisor" /></label>
+    <label>Open this source (optional)<input data-testid="crm-fact-source-ref" value={sourceRef} onChange={(event) => setSourceRef(event.target.value)} placeholder="Workspace file, mail link, or web link" /></label>
+    <Button data-testid="crm-fact-save" type="submit">Save fact</Button>
   </form>;
 }
 
@@ -398,7 +417,7 @@ function AccountEditor({ onSave }: { onSave: (account: import('./adapters').CrmA
   </form>;
 }
 
-function ClientMap({ household }: { household: HouseholdRecord }) {
+function ClientMap({ household, onEditPerson, onDeleteFact }: { household: HouseholdRecord; onEditPerson: (person: import('./adapters').CrmPerson) => void; onDeleteFact: (id: string) => Promise<void> | void }) {
   return (
     <div style={{ display: 'grid', gap: 12, marginTop: 14 }}>
       <Card variant="raised" data-testid="crm-household-facts">
@@ -425,16 +444,11 @@ function ClientMap({ household }: { household: HouseholdRecord }) {
                   marginTop: 5,
                 }}
               >
-                {fact.sources.map((source) => (
-                  <CiteChip
-                    key={source.id}
-                    docLabel={source.label}
-                    quote={source.asOf ?? 'Source available'}
-                  >
-                    {source.label}
-                  </CiteChip>
-                ))}
+                {fact.sources.map((source) => source.ref ? (
+                  <button key={source.id} type="button" data-testid={`crm-fact-source-${source.id}`} title={`Open ${source.label}`} onClick={() => { window.open(source.ref, '_blank', 'noopener,noreferrer'); }}><CiteChip docLabel={source.label} quote={source.asOf ?? 'Open source'}>{source.label}</CiteChip></button>
+                ) : <CiteChip key={source.id} docLabel={source.label} quote={source.asOf ?? 'Source recorded'}>{source.label}</CiteChip>)}
               </div>
+              <Button size="sm" variant="secondary" data-testid={`crm-fact-remove-${fact.id}`} onClick={() => { void onDeleteFact(fact.id); }}>Remove fact</Button>
               {fact.history?.length ? (
                 <details>
                   <summary>Older values ({fact.history.length})</summary>
@@ -471,21 +485,11 @@ function ClientMap({ household }: { household: HouseholdRecord }) {
         <h2>People</h2>
         <p>
           <strong>Household members:</strong>{' '}
-          {household.members
-            .map(
-              (person) =>
-                `${person.name}${person.householdRole ? ` (${person.householdRole})` : ''}`
-            )
-            .join(', ') || 'None'}
+          {household.members.length ? household.members.map((person) => <span key={person.id} style={{ display: 'block' }}><button type="button" data-testid={`crm-person-edit-${person.id}`} onClick={() => onEditPerson(person)}>{person.name}</button>{person.householdRole ? ` (${person.householdRole})` : ''}{person.emails?.length ? ` · ${person.emails.find((email) => email.primary)?.address ?? person.emails[0]?.address}` : ''}</span>) : 'None'}
         </p>
         <p>
           <strong>External parties:</strong>{' '}
-          {household.externalParties
-            .map(
-              (person) =>
-                `${person.name} · ${person.roles.join(', ') || 'No role'} · ${person.verifiedAt ? 'Recipient verified' : 'Needs verification'}`
-            )
-            .join('; ') || 'None'}
+          {household.externalParties.length ? household.externalParties.map((person) => <span key={person.id} style={{ display: 'block' }}><button type="button" data-testid={`crm-person-edit-${person.id}`} onClick={() => onEditPerson(person)}>{person.name}</button>{` · ${person.roles.join(', ') || 'No role'} · ${person.verifiedAt ? 'Recipient verified' : 'Needs verification'}`}</span>) : 'None'}
         </p>
       </Card>
       <Card variant="raised" data-testid="crm-household-notes">

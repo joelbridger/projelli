@@ -259,6 +259,42 @@ describe('crm clients surfaces', () => {
     });
   });
 
+  it('saves a trust contact with separate household and person roles plus primary contact details', () => {
+    const onSaveHousehold = vi.fn();
+    render(<HouseholdRecordSurface household={household} onSaveHousehold={onSaveHousehold} />);
+    fireEvent.click(screen.getByTestId('crm-household-add'));
+    fireEvent.click(screen.getByTestId('crm-household-add-person'));
+    fireEvent.change(screen.getByTestId('crm-person-type'), { target: { value: 'trust' } });
+    fireEvent.change(screen.getByTestId('crm-person-name'), { target: { value: 'Henderson Family Trust' } });
+    fireEvent.change(screen.getByTestId('crm-person-roles'), { target: { value: 'Beneficiary contact' } });
+    fireEvent.change(screen.getByTestId('crm-person-relationship'), { target: { value: 'Trust' } });
+    fireEvent.click(screen.getByText('Add email'));
+    fireEvent.change(screen.getByLabelText('Email 1'), { target: { value: 'trust@example.test' } });
+    fireEvent.click(screen.getByTestId('crm-person-save'));
+    expect(onSaveHousehold).toHaveBeenCalledWith(expect.objectContaining({
+      members: expect.arrayContaining([expect.objectContaining({
+        personType: 'trust', householdRole: 'Trust', roles: ['Beneficiary contact'],
+        emails: [expect.objectContaining({ address: 'trust@example.test', primary: true })],
+      })]),
+    }));
+  });
+
+  it('saves a dated fact with recorded provenance and lets it be removed', () => {
+    const onSaveHousehold = vi.fn();
+    render(<HouseholdRecordSurface household={household} onSaveHousehold={onSaveHousehold} />);
+    fireEvent.click(screen.getByTestId('crm-household-add'));
+    fireEvent.click(screen.getByTestId('crm-household-add-fact'));
+    fireEvent.change(screen.getByTestId('crm-fact-label'), { target: { value: 'Preferred review month' } });
+    fireEvent.change(screen.getByTestId('crm-fact-value'), { target: { value: 'October' } });
+    fireEvent.change(screen.getByTestId('crm-fact-as-of'), { target: { value: '2026-07-12' } });
+    fireEvent.change(screen.getByTestId('crm-fact-source'), { target: { value: 'Annual review meeting' } });
+    fireEvent.change(screen.getByTestId('crm-fact-source-ref'), { target: { value: 'mail:review-1' } });
+    fireEvent.click(screen.getByTestId('crm-fact-save'));
+    expect(onSaveHousehold).toHaveBeenCalledWith(expect.objectContaining({ facts: expect.arrayContaining([expect.objectContaining({ label: 'Preferred review month', asOf: '2026-07-12', sources: [expect.objectContaining({ label: 'Annual review meeting', ref: 'mail:review-1' })] })]) }));
+    fireEvent.click(screen.getByTestId('crm-fact-remove-f-1'));
+    expect(onSaveHousehold).toHaveBeenLastCalledWith(expect.objectContaining({ facts: [] }));
+  });
+
   it('lets a matched intake review routed dated facts before any household write', () => {
     const onOpenHousehold = vi.fn();
     const onApproveIntakeFact = vi.fn();
