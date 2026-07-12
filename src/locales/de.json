@@ -2621,6 +2621,7 @@
       "firm-opening": "Wird geoffnet...",
       "firm-key-blocked": "Ich warte darauf, dass dein Kanzleiadmin diesem Gerät Zugriff auf diesen Mandanten gewährt. Ich öffne es automatisch, sobald das erledigt ist.",
       "firm-share-error": "Konnte diesen Mandanten nicht teilen. {{error}}",
+      "firm-reset-sharing-attempt": "Gespeicherten Teilversuch löschen",
       "firm-open-error": "Konnte diesen Mandanten nicht offnen. {{error}}",
       "firm-invite-error": "Konnte {{email}} nicht einladen. {{error}}",
       "firm-remove-error": "Konnte dieses Mitglied nicht entfernen. {{error}}",

@@ -676,14 +676,14 @@ export function FirmAdminConsole() {
                   disabled={busy}
                   onClick={() =>
                     void run(async () => {
-                      await getClient().revokeSeat(s.seat_id, 'admin_revoke');
+                      await getClient().revokeSeat(s.seat_id, 'admin_revoked');
                       audit.append({
                         type: 'seat_revoked',
                         timestamp: new Date().toISOString(),
                         payload: {
                           seat_id: s.seat_id,
                           ...(firm.org?.org_id ? { org_id: firm.org.org_id } : {}),
-                          reason: 'admin_revoke',
+                          reason: 'admin_revoked',
                           detail: `revoked seat ${s.seat_id.slice(0, 12)}`,
                         },
                       });

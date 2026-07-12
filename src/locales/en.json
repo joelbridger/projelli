@@ -1814,6 +1814,7 @@
       "firm-opening": "Opening",
       "firm-key-blocked": "Waiting for your firm admin to grant this device access to this client. I'll open it automatically once they do.",
       "firm-share-error": "I couldn't share this client. {{error}}",
+      "firm-reset-sharing-attempt": "Clear saved sharing attempt",
       "firm-open-error": "I couldn't open this client. {{error}}",
       "firm-invite-error": "I couldn't invite {{email}}. {{error}}",
       "firm-remove-error": "I couldn't remove this member. {{error}}",

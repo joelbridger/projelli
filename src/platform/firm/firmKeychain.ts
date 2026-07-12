@@ -263,16 +263,11 @@ function hasNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0;
 }
 
-/** Strictly check every durable shape before it can be adopted or mutated. */
-function validPromotionRecord(value: unknown, context: PromotionReceiptContext, now = Date.now()): value is PromotionPendingRecord {
+/** Validate every receipt field other than the identity fields added after v1. */
+function validPromotionRecordContents(value: unknown, now = Date.now()): value is Omit<PromotionPendingRecord, keyof PromotionReceiptContext> {
   if (!value || typeof value !== 'object') return false;
   const record = value as PromotionPendingRecord;
-  if (
-    record.localMatterId !== context.localMatterId
-    || record.userId !== context.userId
-    || record.orgId !== context.orgId
-    || !OPAQUE_PROVISIONING_NONCE_PATTERN.test(record.provisioningNonce)
-  ) return false;
+  if (!OPAQUE_PROVISIONING_NONCE_PATTERN.test(record.provisioningNonce)) return false;
 
   const hasProvision = MATTER_HANDLE_PATTERN.test(record.matterHandle ?? '')
     && STREAM_HANDLE_PATTERN.test(record.rootStreamHandle ?? '')
@@ -299,6 +294,29 @@ function validPromotionRecord(value: unknown, context: PromotionReceiptContext, 
     || (record.leaseExpiresAt ?? 0) > now + MAX_PROMOTION_LEASE_MS
   )) return false;
   return true;
+}
+
+/** Strictly check every durable shape before it can be adopted or mutated. */
+function validPromotionRecord(value: unknown, context: PromotionReceiptContext, now = Date.now()): value is PromotionPendingRecord {
+  if (!validPromotionRecordContents(value, now)) return false;
+  const record = value as PromotionPendingRecord;
+  return record.localMatterId === context.localMatterId
+    && record.userId === context.userId
+    && record.orgId === context.orgId;
+}
+
+/**
+ * The first production receipt shape did not record its local/client identity.
+ * Only an entirely identity-free, otherwise valid legacy record may be stamped
+ * with the current session. Any partial or conflicting identity remains a hard
+ * failure: it may be a receipt from another account or client.
+ */
+function isIdentityFreeLegacyPromotionRecord(value: unknown, now = Date.now()): value is Omit<PromotionPendingRecord, keyof PromotionReceiptContext> {
+  if (!validPromotionRecordContents(value, now) || typeof value !== 'object') return false;
+  const record = value as Partial<PromotionPendingRecord>;
+  return record.localMatterId === undefined
+    && record.userId === undefined
+    && record.orgId === undefined;
 }
 
 function promotionCasResult(value: unknown): { swapped: boolean; current: string | null } {
@@ -336,6 +354,21 @@ async function compareAndSetPromotionPending(
   if (locks) return promotionCasResult(await locks.request(`lantern-promotion:${localMatterId}`, { mode: 'exclusive' }, run));
   // Test-only/non-browser fallback. Real desktop never reaches this path.
   return run();
+}
+
+/** Atomically stamp the provenance omitted by the pre-identity receipt format. */
+async function migrateIdentityFreePromotionRecord(
+  localMatterId: string,
+  raw: string,
+  value: unknown,
+  context: PromotionReceiptContext,
+  now: number,
+): Promise<PromotionPendingRecord | 'retry' | null> {
+  if (!isIdentityFreeLegacyPromotionRecord(value, now)) return null;
+  const migrated: PromotionPendingRecord = { ...value, ...context };
+  if (!validPromotionRecord(migrated, context, now)) return null;
+  const result = await compareAndSetPromotionPending(localMatterId, raw, migrated);
+  return result.swapped ? migrated : 'retry';
 }
 
 async function compareAndDeletePromotionPending(
@@ -382,10 +415,16 @@ export async function claimPromotionPending(context: PromotionReceiptContext, fo
       if (result.swapped) return { record, ownerId, owned: true };
       continue;
     }
+    let value: unknown;
+    try { value = JSON.parse(raw) as unknown; } catch { throw new PromotionReceiptError('The saved sharing receipt is corrupted. Reset it before sharing this client again.'); }
     let record: PromotionPendingRecord;
-    try { record = JSON.parse(raw) as PromotionPendingRecord; } catch { throw new PromotionReceiptError('The saved sharing receipt is corrupted. Reset it before sharing this client again.'); }
-    if (!validPromotionRecord(record, context, now)) {
-      throw new PromotionReceiptError('The saved sharing receipt is invalid for this client or firm account. Reset it before sharing this client again.');
+    if (validPromotionRecord(value, context, now)) {
+      record = value;
+    } else {
+      const migrated = await migrateIdentityFreePromotionRecord(localMatterId, raw, value, context, now);
+      if (migrated === 'retry') continue;
+      if (!migrated) throw new PromotionReceiptError('The saved sharing receipt is invalid for this client or firm account. Reset it before sharing this client again.');
+      record = migrated;
     }
     if (record.completed) return { record, ownerId, owned: false };
     if (!forceTakeover && typeof record.leaseExpiresAt === 'number' && record.leaseExpiresAt > now && record.leaseOwnerId) {
@@ -519,13 +558,19 @@ function base64UrlRandom(byteCount: number): string {
 
 export async function loadPromotionPending(context: PromotionReceiptContext): Promise<PromotionPendingRecord | null> {
   const { localMatterId } = context;
-  const raw = await getSecret(promotionService(localMatterId), KC_PROMOTION_PENDING);
-  if (!raw) return null;
-  try {
-    const record = JSON.parse(raw) as PromotionPendingRecord;
-    return validPromotionRecord(record, context) ? record : null;
-  } catch {
-    return null;
+  for (;;) {
+    const raw = await rawPromotionPending(localMatterId);
+    if (!raw) return null;
+    const now = Date.now();
+    try {
+      const value = JSON.parse(raw) as unknown;
+      if (validPromotionRecord(value, context, now)) return value;
+      const migrated = await migrateIdentityFreePromotionRecord(localMatterId, raw, value, context, now);
+      if (migrated === 'retry') continue;
+      return migrated;
+    } catch {
+      return null;
+    }
   }
 }
 

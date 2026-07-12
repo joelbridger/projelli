@@ -20,6 +20,52 @@ function writeRaw(record: unknown, localMatterId = context.localMatterId): void 
 afterEach(() => { localStorage.clear(); });
 
 describe('promotion receipt validation and lease fencing', () => {
+  it('adopts and permanently upgrades a valid pre-identity sharing receipt', async () => {
+    const legacy = {
+      provisioningNonce: `pn2_${'L'.repeat(43)}`,
+      matterHandle: `mh2_${'M'.repeat(43)}`,
+      rootStreamHandle: `sh2_${'S'.repeat(43)}`,
+      keyEpoch: 1,
+      keyB64: 'legacy-key',
+      rootBlobId: `bh2_${'B'.repeat(43)}`,
+      rootCiphertextB64: 'legacy-ciphertext',
+      rootWriteAccepted: true,
+      leaseOwnerId: 'a'.repeat(32),
+      leaseExpiresAt: Date.now() - 1,
+    };
+    writeRaw(legacy);
+
+    const claimed = await claimPromotionPending(context);
+    expect(claimed.owned).toBe(true);
+    expect(claimed.record).toMatchObject({ ...context, provisioningNonce: legacy.provisioningNonce });
+
+    const loaded = await loadPromotionPending(context);
+    expect(loaded).toMatchObject({ ...context, provisioningNonce: legacy.provisioningNonce });
+    const stored = JSON.parse(atob(localStorage.getItem(receiptKey()) ?? '')) as Record<string, unknown>;
+    expect(stored).toMatchObject(context);
+  });
+
+  it('still rejects a receipt that names a different client or firm identity', async () => {
+    writeRaw({
+      ...context,
+      userId: 'user-b',
+      provisioningNonce: `pn2_${'B'.repeat(43)}`,
+      leaseOwnerId: 'b'.repeat(32),
+      leaseExpiresAt: Date.now() + 1_000,
+    });
+
+    await expect(claimPromotionPending(context)).rejects.toBeInstanceOf(PromotionReceiptError);
+  });
+
+  it('does not migrate an identity-free receipt that fails another validation rule', async () => {
+    writeRaw({
+      provisioningNonce: 'not-a-nonce',
+      rootWriteAccepted: true,
+    });
+
+    await expect(claimPromotionPending(context)).rejects.toBeInstanceOf(PromotionReceiptError);
+  });
+
   it.each([
     ['bad shape', { ...context, provisioningNonce: 'not-a-nonce', leaseOwnerId: 'a'.repeat(32), leaseExpiresAt: Date.now() + 1_000 }],
     ['absurd future lease', { ...context, provisioningNonce: `pn2_${'A'.repeat(43)}`, leaseOwnerId: 'a'.repeat(32), leaseExpiresAt: Date.now() + 3_600_000 }],

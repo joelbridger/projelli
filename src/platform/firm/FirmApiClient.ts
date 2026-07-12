@@ -86,6 +86,9 @@ export interface TokenSource {
   refreshAccessToken(): Promise<string | null>;
 }
 
+/** Closed server-approved reasons for ending a device's firm access. */
+export type SeatRevocationReasonCode = 'admin_revoked' | 'device_lost' | 'security_incident';
+
 function hasHeaderGetter(value: unknown): value is Pick<Headers, 'get'> {
   return typeof value === 'object' && value !== null
     && typeof (value as { get?: unknown }).get === 'function';
@@ -517,11 +520,11 @@ export class FirmApiClient {
     });
   }
 
-  revokeSeat(seatId: string, reason?: string): Promise<{ ok: true }> {
+  revokeSeat(seatId: string, reasonCode: SeatRevocationReasonCode): Promise<{ ok: true }> {
     return this.request<{ ok: true }>(FIRM_ENDPOINTS.revokeSeat, {
       method: 'POST',
       auth: true,
-      body: { seat_id: seatId, ...(reason ? { reason } : {}) },
+      body: { seat_id: seatId, reason_code: reasonCode },
     });
   }
 

@@ -61,6 +61,7 @@ import { parseMatterHandle } from '@/platform/firm/contract';
 import { openMatterNotes } from '@/features/matters/logic/openMatterNotes';
 import { stopMatterSync } from '@/features/matters/logic/matterNotesSync';
 import { promoteMatterToShared } from '@/features/matters/logic/promoteMatterToShared';
+import { resetPromotionPending } from '@/platform/firm/firmKeychain';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
@@ -219,6 +220,7 @@ export function MatterManagerDialog({ open, onOpenChange, focusMatterId }: Matte
   // ── Per-matter firm operations ──────────────────────────────────────────
   const [sharingMatterId, setSharingMatterId] = useState<string | null>(null);
   const [shareError, setShareError] = useState<string | null>(null);
+  const [shareErrorMatterId, setShareErrorMatterId] = useState<string | null>(null);
   const [openingRemoteId, setOpeningRemoteId] = useState<string | null>(null);
   const [openError, setOpenError] = useState<string | null>(null);
   // Expanded member roster for a local shared matter
@@ -227,13 +229,32 @@ export function MatterManagerDialog({ open, onOpenChange, focusMatterId }: Matte
   const handleShare = async (matterId: string, clientName: string) => {
     setSharingMatterId(matterId);
     setShareError(null);
+    setShareErrorMatterId(null);
     // Delegates to the shared promote routine (also used by the solo-to-firm
     // carry-over flow) so firm-matter creation + key publishing live in one place.
     const result = await promoteMatterToShared(matterId, clientName, getClient());
     if (result.status === 'failed') {
       setShareError(t('matter.manager.firm-share-error', { error: result.error }));
+      setShareErrorMatterId(matterId);
     }
     setSharingMatterId(null);
+  };
+
+  /** A user can deliberately discard only an invalid or inactive retry receipt. */
+  const handleResetSharingAttempt = async (matterId: string) => {
+    const session = useFirmStore.getState().session;
+    if (!session?.org) return;
+    setSharingMatterId(matterId);
+    try {
+      await resetPromotionPending({ localMatterId: matterId, userId: session.userId, orgId: session.org.org_id });
+      setShareError(null);
+      setShareErrorMatterId(null);
+    } catch (error) {
+      setShareError(t('matter.manager.firm-share-error', { error: error instanceof Error ? error.message : String(error) }));
+      setShareErrorMatterId(matterId);
+    } finally {
+      setSharingMatterId(null);
+    }
   };
 
   const handleLeave = (matterId: string) => {
@@ -792,10 +813,23 @@ export function MatterManagerDialog({ open, onOpenChange, focusMatterId }: Matte
                       </div>
                     )}
 
-                    {shareError && sharingMatterId === null && m.id === matters[matters.length - 1]?.id && (
-                      <p className="text-xs text-rose-700" data-testid="firm-share-error">
-                        {shareError}
-                      </p>
+                    {shareError && sharingMatterId === null && m.id === shareErrorMatterId && (
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs text-rose-700" data-testid="firm-share-error">
+                          {shareError}
+                        </p>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          data-testid={`firm-reset-sharing-attempt-${m.id}`}
+                          // eslint-disable-next-line lantern-async/no-silent-failure -- the helper turns every recovery failure into this visible share error.
+                          onClick={() => void handleResetSharingAttempt(m.id)}
+                        >
+                          {t('matter.manager.firm-reset-sharing-attempt')}
+                        </Button>
+                      </div>
                     )}
                   </div>
                 )}

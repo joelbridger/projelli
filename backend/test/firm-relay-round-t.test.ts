@@ -7,8 +7,10 @@ import { buildServeOptions } from "../src/server.ts";
 
 const opaque = (prefix: "sh2_" | "bh2_", fill: string) => `${prefix}${fill.repeat(43)}`;
 const envelope = Buffer.from(new Uint8Array([2, ...new Array(28).fill(0)])).toString("base64");
+const firmApiClientModule: string = "../../src/platform/firm/FirmApiClient.ts";
 const store = new Store(":memory:");
-const server = Bun.serve(buildServeOptions(store, new FanoutHub()));
+const hub = new FanoutHub();
+const server = Bun.serve(buildServeOptions(store, hub));
 const base = `http://${server.hostname}:${server.port}`;
 let admin = "", owner = "", editor = "", ownerSeat = "", editorSeat = "", matter = "", fake = "";
 let ownerId = "", editorId = "", editorSeatId = "";
@@ -77,6 +79,30 @@ describe("round T firm-relay controls", () => {
     expect(response.text).not.toContain(sentinel);
     expect(JSON.stringify(store.getSeat(editorSeatId))).not.toContain(sentinel);
     expect(JSON.stringify(store.listAudit(store.getMatter(matter)!.org_id))).not.toContain(sentinel);
+  });
+
+  test("the admin-console revoke request reaches the real route, revokes the seat, and evicts it live", async () => {
+    const priorBase = process.env.VITE_FIRM_API_BASE;
+    process.env.VITE_FIRM_API_BASE = base;
+    const originalEvictSeat = hub.evictSeat.bind(hub);
+    const evicted: string[] = [];
+    hub.evictSeat = (seatId: string) => {
+      evicted.push(seatId);
+      originalEvictSeat(seatId);
+    };
+    try {
+      const { FirmApiClient } = await import(firmApiClientModule);
+      const client = new FirmApiClient({ getAccessToken: () => admin, refreshAccessToken: async () => null });
+      await client.revokeSeat(editorSeatId, "admin_revoked");
+
+      expect(store.getSeat(editorSeatId)?.status).toBe("revoked");
+      expect(store.getSeat(editorSeatId)?.revoked_reason).toBe("admin_revoked");
+      expect(evicted).toContain(editorSeatId);
+    } finally {
+      hub.evictSeat = originalEvictSeat;
+      if (priorBase === undefined) delete process.env.VITE_FIRM_API_BASE;
+      else process.env.VITE_FIRM_API_BASE = priorBase;
+    }
   });
 
   test("a route absent from the firm route table is unreachable", async () => {

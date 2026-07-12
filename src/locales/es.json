@@ -2621,6 +2621,7 @@
       "firm-opening": "Abriendo...",
       "firm-key-blocked": "Esperando a que el administrador de tu firma conceda acceso a este dispositivo para este cliente. Lo abriré automáticamente cuando lo haga.",
       "firm-share-error": "No pude compartir este cliente. {{error}}",
+      "firm-reset-sharing-attempt": "Borrar intento de compartir guardado",
       "firm-open-error": "No pude abrir este cliente. {{error}}",
       "firm-invite-error": "No pude invitar a {{email}}. {{error}}",
       "firm-remove-error": "No pude eliminar a este miembro. {{error}}",
