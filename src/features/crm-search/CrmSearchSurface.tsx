@@ -5,6 +5,23 @@ import { Button, Card, SearchField, SurfaceToolbar } from '@/ui/kp';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import { searchCrmRecords, type CrmSearchHit, type CrmSearchScope } from '@/platform/crm/search';
 
+/** Advisors never see engine words. `entityKind` is developer vocabulary — a designer
+ *  spots "Open cited entityKind" in half a second. Speak the user's language. */
+const advisorLabel = (kind: string): string =>
+  ({
+    household: 'client',
+    person: 'person',
+    account: 'account',
+    note: 'note',
+    fact: 'fact',
+    task: 'task',
+    workflowInstance: 'workflow',
+    workflowTemplate: 'workflow template',
+    opportunity: 'opportunity',
+    activityEvent: 'activity',
+    legacyProject: 'project',
+  } as Record<string, string>)[kind] ?? kind;
+
 function householdScopes(records: ReturnType<typeof useLiveCrmRecords>['records']): readonly CrmSearchScope[] {
   return records
     .filter((record) => record.kind === 'household' && typeof record['name'] === 'string')
@@ -24,7 +41,7 @@ function recordText(content: string): string {
 }
 
 function Citation({ hit, onOpen }: { hit: CrmSearchHit; onOpen: (hit: CrmSearchHit) => void }) {
-  return <button type="button" data-testid={`crm-search-citation-${hit.entityId}`} onClick={() => { onOpen(hit); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--kp-direct)', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', font: 'inherit', textAlign: 'left' }}><ChevronRight size={15} />Open cited {hit.entityKind}</button>;
+  return <button type="button" data-testid={`crm-search-citation-${hit.entityId}`} onClick={() => { onOpen(hit); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--kp-direct)', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', font: 'inherit', textAlign: 'left' }}><ChevronRight size={15} />Open cited {advisorLabel(hit.entityKind)}</button>;
 }
 
 /**
@@ -86,8 +103,8 @@ export function CrmSearchSurface() {
     {hits === null && !error ? <div data-testid="crm-ai-assistant-offline-answer"><Card data-testid="crm-search-result" variant="raised" style={{ maxWidth: 840, marginTop: 20 }}><ShieldCheck size={18} aria-hidden="true" /> <strong>Nothing is sent outside your firm.</strong><p style={{ marginBottom: 0, color: 'var(--color-slate-600)' }}>Start with a name, a note topic, or a task detail. Your first saved CRM record will appear here when it matches.</p></Card></div> : null}
     {hits !== null ? <div data-testid="crm-search-answer" style={{ maxWidth: 840, marginTop: 20, display: 'grid', gap: 10 }}>
       <Card variant="raised"><strong>{hits.length ? `I found ${hits.length} matching saved record${hits.length === 1 ? '' : 's'}.` : 'No saved CRM records match that search.'}</strong><p style={{ marginBottom: 0, color: 'var(--color-slate-600)' }}>{hits.length ? 'Open a citation to check the exact local record.' : 'Try another word, or add a note, fact, task, or household first.'}</p></Card>
-      {hits.map((hit) => <Card key={`${hit.matterId}:${hit.entityId}`} variant="interactive" data-testid={`crm-search-hit-${hit.entityId}`}><div style={{ display: 'flex', alignItems: 'start', justifyContent: 'space-between', gap: 12 }}><div><strong>{hit.title}</strong><p style={{ margin: '5px 0 8px', color: 'var(--color-slate-600)', whiteSpace: 'pre-wrap' }}>{hit.snippet}</p><Citation hit={hit} onOpen={setSelected} /></div><span style={{ color: 'var(--color-slate-600)', fontSize: 13 }}>{hit.entityKind}</span></div></Card>)}
+      {hits.map((hit) => <Card key={`${hit.matterId}:${hit.entityId}`} variant="interactive" data-testid={`crm-search-hit-${hit.entityId}`}><div style={{ display: 'flex', alignItems: 'start', justifyContent: 'space-between', gap: 12 }}><div><strong>{hit.title}</strong><p style={{ margin: '5px 0 8px', color: 'var(--color-slate-600)', whiteSpace: 'pre-wrap' }}>{hit.snippet}</p><Citation hit={hit} onOpen={setSelected} /></div><span style={{ color: 'var(--color-slate-600)', fontSize: 13 }}>{advisorLabel(hit.entityKind)}</span></div></Card>)}
     </div> : null}
-    {selected ? <aside role="dialog" aria-label="Cited CRM record" data-testid="crm-search-record" style={{ position: 'fixed', right: 22, bottom: 22, width: 'min(560px, calc(100vw - 44px))', maxHeight: '70vh', overflow: 'auto', background: 'white', border: '1px solid var(--kp-border)', borderRadius: 10, boxShadow: '0 16px 40px rgba(15, 23, 42, .18)', padding: 18, zIndex: 30 }}><div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}><div><p style={{ margin: 0, color: 'var(--kp-direct)', fontWeight: 650 }}>Cited {selected.entityKind}</p><h2 style={{ margin: '4px 0 12px', fontSize: 19 }}>{selected.title}</h2></div><button type="button" aria-label="Close cited record" onClick={() => { setSelected(null); }} style={{ border: 0, background: 'transparent', cursor: 'pointer', height: 28 }}><X size={18} /></button></div><pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit', fontSize: 13, color: 'var(--kp-text)' }}>{recordText(selected.content)}</pre></aside> : null}
+    {selected ? <aside role="dialog" aria-label="Cited CRM record" data-testid="crm-search-record" style={{ position: 'fixed', right: 22, bottom: 22, width: 'min(560px, calc(100vw - 44px))', maxHeight: '70vh', overflow: 'auto', background: 'white', border: '1px solid var(--kp-border)', borderRadius: 10, boxShadow: '0 16px 40px rgba(15, 23, 42, .18)', padding: 18, zIndex: 30 }}><div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}><div><p style={{ margin: 0, color: 'var(--kp-direct)', fontWeight: 650 }}>Cited {advisorLabel(selected.entityKind)}</p><h2 style={{ margin: '4px 0 12px', fontSize: 19 }}>{selected.title}</h2></div><button type="button" aria-label="Close cited record" onClick={() => { setSelected(null); }} style={{ border: 0, background: 'transparent', cursor: 'pointer', height: 28 }}><X size={18} /></button></div><pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit', fontSize: 13, color: 'var(--kp-text)' }}>{recordText(selected.content)}</pre></aside> : null}
   </section>;
 }
