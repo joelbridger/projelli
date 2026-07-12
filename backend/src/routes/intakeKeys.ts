@@ -1,9 +1,10 @@
 /** Wrapped-key routes keyed by client-generated opaque `ih2_` intake handles. */
-import { authenticate, error, isNonEmptyString, json } from "../lib/http.ts";
+import { authenticate, error, isNonEmptyString, json, rateLimit } from "../lib/http.ts";
+import { config } from "../lib/config.ts";
 import { verifyActiveSeat } from "../lib/matters.ts";
 import { readStrictV2Payload } from "../lib/v2Payload.ts";
 import { v2BodyKeys } from "../lib/v2RouteInventory.ts";
-import { decodeWrappedKeyEnvelope, encodeWrappedKeyEnvelope } from "../lib/wrappedKeyEnvelope.ts";
+import { decodeWrappedKeyEnvelope, encodeWrappedKeyEnvelope, MAX_WRAPPED_KEYS_PER_PUBLISH } from "../lib/wrappedKeyEnvelope.ts";
 import type { Store } from "../lib/db.ts";
 
 const validIntakeHandle = (handle: string) => /^ih2_[A-Za-z0-9_-]{43}$/.test(handle);
@@ -23,7 +24,7 @@ export async function handlePublishIntakeKeys(req: Request, store: Store, intake
   if (!auth.ok) return error("unauthorized", 401, auth.reason);
   if (!validIntakeHandle(intakeHandle)) return error("intake_not_found", 404);
   const body = await readStrictV2Payload(req, v2BodyKeys("publishIntakeKeys"));
-  if (!body || !validMatterHandle(body.matter_handle) || !Number.isInteger(body.epoch) || typeof body.epoch !== "number" || !Array.isArray(body.wrapped) || body.wrapped.some((item) => !item || typeof item !== "object" || Array.isArray(item) || Object.keys(item as Record<string, unknown>).some((key) => !["user_id", "device_id", "wrapped_key_b64"].includes(key)))) return error("invalid_v2_payload", 400);
+  if (!body || !validMatterHandle(body.matter_handle) || !Number.isInteger(body.epoch) || typeof body.epoch !== "number" || !Array.isArray(body.wrapped) || body.wrapped.length > MAX_WRAPPED_KEYS_PER_PUBLISH || body.wrapped.some((item) => !item || typeof item !== "object" || Array.isArray(item) || Object.keys(item as Record<string, unknown>).some((key) => !["user_id", "device_id", "wrapped_key_b64"].includes(key)))) return error("invalid_v2_payload", 400);
 
   const wrapped: Array<{ user_id: string; device_id: string; wrapped_key: Uint8Array }> = [];
   for (const item of body.wrapped) {
@@ -38,6 +39,8 @@ export async function handlePublishIntakeKeys(req: Request, store: Store, intake
   if (store.isWalled(body.matter_handle, auth.claims.sub)) return error("forbidden", 403, "walled");
   const owner = store.getMatterMember(body.matter_handle, auth.claims.sub)?.role === "owner";
   if (auth.claims.role !== "admin" && !owner) return error("forbidden", 403, "admin_or_owner_required");
+  const publishRate = rateLimit(auth.claims.org_id, "firm_intake_key_publish", { max: config.firmMatterIntakePublishRateLimitMax, windowSeconds: config.firmMatterStreamWriteRateLimitWindowSeconds });
+  if (!publishRate.ok) return error("rate_limited", 429);
 
   const published = store.publishWrappedIntakeKeys({ intake_handle: intakeHandle, matter_handle: body.matter_handle, org_id: auth.claims.org_id, epoch: body.epoch, published_by: auth.claims.sub, wrapped });
   if ("matterArchived" in published || "matterNotFound" in published) return error("matter_not_found", 404);
@@ -46,6 +49,7 @@ export async function handlePublishIntakeKeys(req: Request, store: Store, intake
   if ("invalidRecipient" in published) return error("invalid_v2_payload", 400);
   if ("staleEpoch" in published) return error("stale_epoch", 409);
   if ("intakeMatterMismatch" in published) return error("intake_matter_mismatch", 409);
+  if ("intakeLimitReached" in published) return error("intake_limit_reached", 409);
   store.audit({ org_id: auth.claims.org_id, actor_user_id: auth.claims.sub, action: "intake.keys.publish", target: intakeHandle, detail: { op: "key_publish", matter_handle: body.matter_handle, epoch: body.epoch, stored: published.stored, skipped: published.skipped } });
   return json({ ok: true, stored: published.stored });
 }

@@ -1271,6 +1271,13 @@ export class Store {
     return row.count;
   }
 
+  countDistinctIntakeHandles(matterHandle: string): number {
+    const row = this.#db
+      .query("SELECT COUNT(DISTINCT intake_handle) AS count FROM wrapped_intake_keys WHERE matter_handle = ?")
+      .get(matterHandle) as { count: number };
+    return row.count;
+  }
+
   /** Owner recovery view: opaque handles only, never document names or content. */
   listLiveMatterStreamHandles(matterHandle: string): string[] {
     return (this.#db.query("SELECT stream_handle FROM matter_streams WHERE matter_handle = ? ORDER BY created_at ASC").all(matterHandle) as Array<{ stream_handle: string }>)
@@ -1918,7 +1925,7 @@ export class Store {
     epoch: number;
     published_by: string;
     wrapped: Array<{ user_id: string; device_id: string; wrapped_key: Uint8Array }>;
-  }): { stored: number; skipped: number } | { matterArchived: true } | { staleEpoch: true } | { matterNotFound: true } | { invalidRecipient: true } | { publisherUnauthorized: true } | { publisherWalled: true } | { intakeMatterMismatch: true } {
+  }): { stored: number; skipped: number } | { matterArchived: true } | { staleEpoch: true } | { matterNotFound: true } | { invalidRecipient: true } | { publisherUnauthorized: true } | { publisherWalled: true } | { intakeMatterMismatch: true } | { intakeLimitReached: true } {
     const txn = this.#db.transaction(() => {
       const matter = this.#db
         .query(`SELECT org_id, status, key_epoch FROM matters WHERE matter_handle = ?`)
@@ -1940,6 +1947,7 @@ export class Store {
         .query(`SELECT matter_handle FROM wrapped_intake_keys WHERE intake_handle = ? AND org_id = ? LIMIT 1`)
         .get(input.intake_handle, input.org_id) as { matter_handle: string } | null;
       if (existing && existing.matter_handle !== input.matter_handle) return { intakeMatterMismatch: true as const };
+      if (!existing && this.countDistinctIntakeHandles(input.matter_handle) >= config.firmMatterIntakeHandleCap) return { intakeLimitReached: true as const };
 
       let stored = 0;
       let skipped = 0;

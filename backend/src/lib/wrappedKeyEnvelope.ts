@@ -17,6 +17,9 @@ const GCM_TAG_BYTES = 16;
 
 export const WRAPPED_KEY_ENVELOPE_BYTES = MAGIC.length + 1 + EPHEMERAL_P256_BYTES + SALT_BYTES + IV_BYTES + MATTER_KEY_BYTES + GCM_TAG_BYTES;
 
+/** A normal firm has far fewer recipient devices than this in one key publish. */
+export const MAX_WRAPPED_KEYS_PER_PUBLISH = 64;
+
 /** Strict canonical base64 decode; malformed data never reaches relay storage. */
 export function decodeWrappedKeyEnvelope(value: unknown): Uint8Array | null {
   if (typeof value !== "string" || !/^[A-Za-z0-9+/]+={0,2}$/.test(value) || value.length % 4 !== 0) return null;

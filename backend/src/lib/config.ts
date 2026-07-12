@@ -157,6 +157,11 @@ export const config = {
   firmMatterStreamWriteRateLimitMax: num("FIRM_MATTER_STREAM_WRITE_RATE_LIMIT_MAX", 30, { min: 1 }),
   firmMatterStreamWriteRateLimitWindowSeconds: num("FIRM_MATTER_STREAM_WRITE_RATE_LIMIT_WINDOW_SECONDS", 60, { min: 1 }),
 
+  /** Distinct client-generated intake handles that may be durably bound to one matter. */
+  firmMatterIntakeHandleCap: num("FIRM_MATTER_INTAKE_HANDLE_CAP", 1024, { min: 1 }),
+  /** Per-firm intake-key publish budget; it uses the shared firm write-rate window above. */
+  firmMatterIntakePublishRateLimitMax: num("FIRM_MATTER_INTAKE_PUBLISH_RATE_LIMIT_MAX", 30, { min: 1 }),
+
   // Assured inference proxy (chunk 3). Per-IP request cap + an upstream timeout.
   // The cap bounds abuse; the timeout severs a hung provider connection so a
   // stuck request can't pin server memory indefinitely (nothing is buffered, but
