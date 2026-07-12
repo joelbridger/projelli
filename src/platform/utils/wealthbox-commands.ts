@@ -70,13 +70,21 @@ export interface CrmSyncReport {
 
 // ── Sync progress event payload ──────────────────────────────────────────────
 
-export type CrmSyncEventStatus = 'syncing' | 'done' | 'error' | 'cancelled';
+export type CrmSyncEventStatus = 'connecting' | 'syncing' | 'stopping' | 'done' | 'error' | 'cancelled';
 
 /** Payload carried on the `crm-sync-progress` Tauri event. */
 export interface CrmSyncProgress {
+  /** Identifies the single user-initiated import that produced this event. */
+  runId: string;
   status: CrmSyncEventStatus;
   households?: number;
   records?: number;
+  message?: string;
+}
+
+/** Create an ID that ties every CRM progress event to one user action. */
+export function createCrmRunId(): string {
+  return crypto.randomUUID();
 }
 
 // ── Command wrappers ─────────────────────────────────────────────────────────
@@ -156,11 +164,11 @@ export async function crmDisconnect(provider?: CrmProvider): Promise<CrmDisconne
  * Fetch the full list of households this Wealthbox login can see. Returns an
  * empty array outside Tauri.
  */
-export async function crmListHouseholds(provider?: CrmProvider): Promise<CrmHouseholdDto[]> {
+export async function crmListHouseholds(runId: string, provider?: CrmProvider): Promise<CrmHouseholdDto[]> {
   if (!isTauri()) return [];
   return provider
-    ? invoke<CrmHouseholdDto[]>('crm_list_households', { provider })
-    : invoke<CrmHouseholdDto[]>('crm_list_households');
+    ? invoke<CrmHouseholdDto[]>('crm_list_households', { provider, runId })
+    : invoke<CrmHouseholdDto[]>('crm_list_households', { runId });
 }
 
 /**
@@ -172,9 +180,9 @@ export async function crmListHouseholds(provider?: CrmProvider): Promise<CrmHous
  *
  * Only available in the desktop app.
  */
-export async function crmSyncAll(matterMap: CrmMatterMapEntry[], provider?: CrmProvider): Promise<CrmSyncReport> {
+export async function crmSyncAll(matterMap: CrmMatterMapEntry[], runId: string, provider?: CrmProvider): Promise<CrmSyncReport> {
   if (!isTauri()) throw new Error('Wealthbox sync is only available in the desktop app.');
-  return invoke<CrmSyncReport>('crm_sync_all', provider ? { matterMap, provider } : { matterMap });
+  return invoke<CrmSyncReport>('crm_sync_all', provider ? { matterMap, provider, runId } : { matterMap, runId });
 }
 
 /** Poll the current sync state without subscribing to events. */

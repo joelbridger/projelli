@@ -9,6 +9,7 @@ import {
   crmListHouseholds,
   crmSyncAll,
   crmCancelSync,
+  createCrmRunId,
   type CrmConnectInfo,
   type CrmDisconnectResult,
 } from '@/platform/utils/wealthbox-commands';
@@ -50,6 +51,9 @@ export function WealthboxConnect() {
   const [token, setToken] = useState('');
   const [connecting, setConnecting] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  // A confirmation is a user decision, not background work. Keeping it separate
+  // prevents an unanswered Import/Cancel question from masquerading as a sync.
+  const [awaitingImportConfirmation, setAwaitingImportConfirmation] = useState(false);
   // True only while a Wealthbox NETWORK call (household list / backend sync)
   // is actually in flight — NOT while the confirm-import dialog is waiting on
   // the user, which is an unbounded, user-controlled pause, not a stall.
@@ -96,7 +100,15 @@ export function WealthboxConnect() {
 
   // Mirror progress into syncing flag.
   useEffect(() => {
-    if (progress?.status === 'syncing') {
+    // While the Import/Cancel question is open, no run is active — a late
+    // "connecting" event from the finished household check must not repaint
+    // the syncing state over the open question.
+    if (awaitingImportConfirmation) return;
+    if (
+      progress?.status === 'connecting' ||
+      progress?.status === 'syncing' ||
+      progress?.status === 'stopping'
+    ) {
       setSyncing(true);
     } else if (
       progress?.status === 'done' ||
@@ -107,7 +119,7 @@ export function WealthboxConnect() {
       // Stop button leaves it stuck on "Syncing…" with Disconnect disabled.
       setSyncing(false);
     }
-  }, [progress?.status]);
+  }, [progress?.status, awaitingImportConfirmation]);
 
   // Connect/sync stall watchdog: while a Wealthbox network call is genuinely
   // in flight with no progress to show, reassure the user after ~20s instead
@@ -160,6 +172,9 @@ export function WealthboxConnect() {
     setSyncError(null);
     setLastSyncReport(null);
     setSyncing(true);
+    setAwaitingImportConfirmation(false);
+    const runId = createCrmRunId();
+    useCrmStore.getState().startRun(runId);
 
     // B2: track the matter mutations we stage in Step 3 so a failure IN STEP 3
     // ITSELF (before anything is confirmed as imported) can be rolled back —
@@ -187,7 +202,7 @@ export function WealthboxConnect() {
       try {
         households = await cancelGate.race(
           withCrmTimeout(
-            crmListHouseholds(),
+            crmListHouseholds(runId),
             'household list',
             CRM_LIST_HOUSEHOLDS_TIMEOUT_MS
           )
@@ -205,6 +220,10 @@ export function WealthboxConnect() {
       // Step 2: Show the confirm dialog with the real count so the user knows
       // exactly how many records will be written to local encrypted storage.
       const count = households.length;
+      // Nothing is running while this question is open. This must be visible in
+      // the connector itself as well as in the raised confirmation dialog.
+      setSyncing(false);
+      setAwaitingImportConfirmation(true);
       const confirmed = await confirm(
         brandText(`Import ${String(count)} household${count === 1 ? '' : 's'} into local encrypted storage on this device? Lantern stores this data locally — it stays on your machine.`),
         {
@@ -213,6 +232,7 @@ export function WealthboxConnect() {
           cancelLabel: 'Cancel',
         }
       );
+      setAwaitingImportConfirmation(false);
       if (!confirmed) return;
 
       // Step 3: Resolve each household to a matter — merge by name so existing
@@ -287,7 +307,11 @@ export function WealthboxConnect() {
           buildCrmMatterMap(getMatters()),
           'wealthbox'
         );
-        const report = await crmSyncAll(map);
+        // Rust owns the ten-minute timeout for the full import.  It requests a
+        // safe stop and waits for its current network/embedding work to exit
+        // before this promise settles, keeping Retry disabled until it is safe.
+        setSyncing(true);
+        const report = await crmSyncAll(map, runId);
         setLastSyncReport({
           householdsProcessed: report.householdsProcessed,
           recordsIndexed: report.recordsIndexed,
@@ -314,7 +338,7 @@ export function WealthboxConnect() {
       // observes the cancel flag), so set the terminal state directly here —
       // mirrors OneDriveConnect's own folder-discovery-phase cancel handling.
       if (err instanceof CrmCancelledError) {
-        useCrmStore.getState().setProgress({ status: 'cancelled' });
+        useCrmStore.getState().setProgress({ runId, status: 'cancelled' });
         return;
       }
       // B2 rollback: Steps 1-3 failed before anything was confirmed as
@@ -347,8 +371,10 @@ export function WealthboxConnect() {
               : 'Sync could not complete. Please try again.'
       );
     } finally {
+      setAwaitingImportConfirmation(false);
       setSyncing(false);
       setNetworkBusy(false);
+      useCrmStore.getState().finishRun(runId);
     }
   }
 
@@ -564,7 +590,9 @@ export function WealthboxConnect() {
             {syncing && (
               <div className="flex items-center gap-3">
                 <p>
-                  {progress?.status === 'syncing' ? (
+                  {progress?.status === 'stopping' ? (
+                    progress.message ?? 'Stopping safely…'
+                  ) : progress?.status === 'syncing' ? (
                     <>
                       Syncing...
                       {progress.households !== undefined &&
@@ -573,7 +601,7 @@ export function WealthboxConnect() {
                         `, ${String(progress.records)} records`}
                     </>
                   ) : (
-                    'Connecting to Wealthbox...'
+                    'Checking your Wealthbox households…'
                   )}
                 </p>
                 <button
@@ -583,6 +611,19 @@ export function WealthboxConnect() {
                 >
                   Stop
                 </button>
+              </div>
+            )}
+
+            {awaitingImportConfirmation && (
+              <div
+                data-testid="wealthbox-awaiting-import-confirmation"
+                className="rounded-md border border-blue-300 bg-blue-50 p-3 text-blue-950"
+                role="status"
+              >
+                <p className="font-medium">Choose Import or Cancel</p>
+                <p className="mt-1 text-xs">
+                  Wealthbox checking is finished. Nothing is syncing until you choose.
+                </p>
               </div>
             )}
 
@@ -625,16 +666,16 @@ export function WealthboxConnect() {
               <button
                 type="button"
                 data-testid="wealthbox-sync-now"
-                disabled={syncing}
+                disabled={syncing || awaitingImportConfirmation}
                 onClick={() => void runSync()}
                 className="rounded-md bg-[var(--kp-navy)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60"
               >
-                {syncing ? 'Syncing...' : 'Sync now'}
+                {syncing ? 'Syncing...' : awaitingImportConfirmation ? 'Choose Import or Cancel' : 'Sync now'}
               </button>
               <button
                 type="button"
                 data-testid="wealthbox-disconnect"
-                disabled={syncing}
+                disabled={syncing || awaitingImportConfirmation}
                 onClick={() => void disconnect()}
                 className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
               >

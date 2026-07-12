@@ -20,6 +20,15 @@
  */
 export const CRM_LIST_HOUSEHOLDS_TIMEOUT_MS = 90_000;
 
+/**
+ * A full CRM import can legitimately take longer than fetching its household
+ * list, but it still needs a ceiling. This is deliberately longer than the
+ * initial-list limit: Wealthbox accounts can have enough records for the
+ * encrypted local indexing step to take several minutes. It prevents the UI
+ * from waiting forever if the desktop command gets stuck after dispatch.
+ */
+export const CRM_SYNC_COMMAND_TIMEOUT_MS = 10 * 60_000;
+
 /** Thrown when a CRM sync-pipeline step exceeds its timeout above. */
 export class CrmTimeoutError extends Error {
   constructor(stage: string, ms: number) {

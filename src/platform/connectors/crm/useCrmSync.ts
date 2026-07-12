@@ -11,7 +11,11 @@ export function useCrmSync(): void {
   const setProgress = useCrmStore((s) => s.setProgress);
   useEffect(() => {
     if (!isTauri()) return;
-    const un = listen<CrmSyncProgress>(CRM_SYNC_EVENT, (e) => { setProgress(e.payload); });
+    const un = listen<CrmSyncProgress>(CRM_SYNC_EVENT, (e) => {
+      // A slow request from an older attempt must never repaint a newer run.
+      if (e.payload.runId !== useCrmStore.getState().currentRunId) return;
+      setProgress(e.payload);
+    });
     return () => {
       void un.then((f) => { f(); });
     };

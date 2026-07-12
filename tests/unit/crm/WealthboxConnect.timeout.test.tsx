@@ -6,8 +6,9 @@
  * `crm-sync-progress` events start). This test drives the REAL
  * `WealthboxConnect` component with fake timers and asserts:
  *
- *   1. After ~20s of syncing with no progress, a "taking longer than usual"
- *      warning appears.
+ *   1. After ~20s of a real network wait with no progress, a "taking longer
+ *      than usual" warning appears. The Import/Cancel question is a user
+ *      decision, not a network wait, so it must never trigger that warning.
  *   2. The Stop button is visible during the WHOLE sync (including the
  *      household-list phase, before progress.status === 'syncing').
  *   3. A `crmListHouseholds()` call that never settles produces a clear,
@@ -30,6 +31,7 @@ const crmMocks = vi.hoisted(() => ({
   crmListHouseholds: vi.fn(),
   crmSyncAll: vi.fn(),
   crmCancelSync: vi.fn(),
+  createCrmRunId: vi.fn(() => 'test-run'),
 }));
 vi.mock('@/platform/utils/wealthbox-commands', () => ({
   ...crmMocks,
@@ -109,8 +111,11 @@ describe('WealthboxConnect — connect/sync stall UX', () => {
     expect(screen.queryByRole('button', { name: /stop/i })).not.toBeInTheDocument();
   });
 
-  it('shows a "taking longer than usual" warning after ~20s of no progress', async () => {
-    crmMocks.crmListHouseholds.mockReturnValue(new Promise(() => {}));
+  it('shows a "taking longer than usual" warning after ~20s of a real backend sync wait', async () => {
+    crmMocks.crmListHouseholds.mockResolvedValue([
+      { id: 'wb-1', name: 'Household 1' },
+    ]);
+    crmMocks.crmSyncAll.mockReturnValue(new Promise(() => {}));
 
     // Render + wire up the click with REAL timers first — Testing Library's
     // findBy/waitFor helpers poll via setTimeout, which would otherwise hang
@@ -119,11 +124,13 @@ describe('WealthboxConnect — connect/sync stall UX', () => {
     const input = screen.getByPlaceholderText(/wealthbox api key/i);
     fireEvent.change(input, { target: { value: 'test-token-123' } });
 
-    vi.useFakeTimers();
     fireEvent.click(screen.getByRole('button', { name: /connect wealthbox/i }));
-    // Flush the microtask chain (crmConnect resolves -> runSync starts ->
-    // blocks inside withCrmTimeout, which synchronously arms its own timer)
-    // without advancing virtual time yet.
+    fireEvent.click(await screen.findByRole('button', { name: /^import$/i }));
+
+    // The confirmed import starts the backend network phase. Only then do we
+    // start virtual time, so the watchdog is testing a real wait rather than
+    // the intentionally idle Import/Cancel decision state.
+    vi.useFakeTimers();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
@@ -179,7 +186,7 @@ describe('WealthboxConnect — connect/sync stall UX', () => {
     fireEvent.click(confirmButton);
 
     act(() => {
-      useCrmStore.getState().setProgress({ status: 'syncing', households: 1, records: 3 });
+      useCrmStore.getState().setProgress({ runId: 'test-run', status: 'syncing', households: 1, records: 3 });
     });
 
     expect(await screen.findByRole('button', { name: /stop/i })).toBeInTheDocument();

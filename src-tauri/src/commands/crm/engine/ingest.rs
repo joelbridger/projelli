@@ -13,6 +13,27 @@ use super::*;
 /// [`IngestReport::skipped_unlinked`].
 #[allow(dead_code)]
 pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<IngestReport> {
+    ingest_cancellable(source, store, None)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("CRM ingest cancelled"))
+}
+
+/// The sync command uses this cancellable form.  A cancellation never drops a
+/// request or an embedding task on the floor: it is observed at safe boundaries
+/// between complete provider calls, before anything is written to the local
+/// store.  The provider client's per-request timeout bounds the one request
+/// that may already be in flight when cancellation is requested.
+pub async fn ingest_cancellable(
+    source: &dyn CrmSource,
+    store: &CrmStore,
+    cancel: Option<&std::sync::atomic::AtomicBool>,
+) -> anyhow::Result<Option<IngestReport>> {
+    use std::sync::atomic::Ordering;
+
+    let cancelled = || cancel.is_some_and(|flag| flag.load(Ordering::SeqCst));
+    if cancelled() {
+        return Ok(None);
+    }
     let mut report = IngestReport::default();
     let provider_id = source.provider_id();
 
@@ -30,6 +51,9 @@ pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<
 
     // ── 1. Contacts ──────────────────────────────────────────────────────────
     let contacts = source.list_all_contacts().await?;
+    if cancelled() {
+        return Ok(None);
+    }
 
     // Build contact_id → grouping_key lookup used by note/task/event resolution.
     let mut contact_to_group: HashMap<String, String> = HashMap::with_capacity(contacts.len());
@@ -63,6 +87,9 @@ pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<
 
     // ── 2. Notes ─────────────────────────────────────────────────────────────
     let notes = source.list_notes().await?;
+    if cancelled() {
+        return Ok(None);
+    }
     for n in &notes {
         let grouping_keys = resolve_grouping_keys(&n.linked_to, &contact_to_group);
         if grouping_keys.is_empty() {
@@ -91,6 +118,9 @@ pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<
 
     // ── 3. Tasks ─────────────────────────────────────────────────────────────
     let tasks = source.list_tasks().await?;
+    if cancelled() {
+        return Ok(None);
+    }
     for t in &tasks {
         let grouping_keys = resolve_grouping_keys(&t.linked_to, &contact_to_group);
         if grouping_keys.is_empty() {
@@ -119,6 +149,9 @@ pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<
 
     // ── 4. Events ────────────────────────────────────────────────────────────
     let events = source.list_events().await?;
+    if cancelled() {
+        return Ok(None);
+    }
     for e in &events {
         let grouping_keys = resolve_grouping_keys(&e.linked_to, &contact_to_group);
         if grouping_keys.is_empty() {
@@ -169,9 +202,14 @@ pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<
         .collect();
     report.removed_tombstoned += tombstone_ids.len() as u32;
 
+    // Do not begin the single local transaction after a stop request.  This is
+    // the final safe point before local state changes for this fetch pass.
+    if cancelled() {
+        return Ok(None);
+    }
     store.apply_ingest_batch(&upserts, &tombstone_ids)?;
 
-    Ok(report)
+    Ok(Some(report))
 }
 
 pub(crate) fn object_belongs_to_provider(store_id: &str, provider_id: &str) -> bool {

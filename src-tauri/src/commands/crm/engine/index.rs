@@ -26,12 +26,13 @@ pub async fn apply_index(
     table: &lancedb::Table,
     key: &[u8; 32],
     items: &[CrmIndexItem],
-) -> anyhow::Result<u32> {
+    cancel: &std::sync::atomic::AtomicBool,
+) -> anyhow::Result<Option<u32>> {
     use anyhow::Context;
     use std::collections::HashMap;
 
     if items.is_empty() {
-        return Ok(0);
+        return Ok(Some(0));
     }
 
     // Chunk every non-empty item, grouped by matter id. One household maps to one
@@ -52,7 +53,7 @@ pub async fn apply_index(
             .extend(chunks);
     }
     if by_matter.is_empty() {
-        return Ok(0);
+        return Ok(Some(0));
     }
 
     // For each matter group: embed all its chunks in one batched model call and
@@ -60,10 +61,17 @@ pub async fn apply_index(
     let mut total = 0u32;
     for (matter_id, chunks) in by_matter {
         let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
-        let vectors = crate::commands::rag::embedder::embed_documents_batched(&texts, None)
+        let Some(vectors) = crate::commands::rag::embedder::embed_documents_batched(&texts, Some(cancel))
             .await
-            .context("embed crm chunks")?
-            .unwrap_or_default();
+            .context("embed crm chunks")? else {
+                // `embed_documents_batched` always awaits the active blocking
+                // batch before it notices cancellation.  Returning only now
+                // means there is no orphaned embedding worker behind this sync.
+                return Ok(None);
+            };
+        if cancel.load(std::sync::atomic::Ordering::SeqCst) {
+            return Ok(None);
+        }
         let rows: Vec<(crate::commands::rag::chunker::Chunk, Vec<f32>)> =
             chunks.into_iter().zip(vectors).collect();
         if rows.is_empty() {
@@ -85,7 +93,7 @@ pub async fn apply_index(
             .context("add crm chunks to lancedb")?;
         total += rows.len() as u32;
     }
-    Ok(total)
+    Ok(Some(total))
 }
 
 // ---------------------------------------------------------------------------
@@ -131,7 +139,11 @@ pub async fn backfill(
     let provider_matter_map = provider_scoped_matter_map(matter_map, provider_id);
 
     // Phase 1: ingest everything into the store.
-    report.ingest = ingest(source, store).await?;
+    let Some(ingest_report) = ingest_cancellable(source, store, Some(cancel)).await? else {
+        report.cancelled = true;
+        return Ok(report);
+    };
+    report.ingest = ingest_report;
 
     // Open the RAG connection + table ONCE for the whole sync. Opening the table
     // scans LanceDB, so per-record opens were a dominant cost; one open per sync.
@@ -291,7 +303,11 @@ pub async fn backfill(
             }
             if !items.is_empty() {
                 did_write = true;
-                report.records_indexed += apply_index(&table, rag_key, &items).await?;
+                let Some(indexed) = apply_index(&table, rag_key, &items, cancel).await? else {
+                    report.cancelled = true;
+                    return Ok(());
+                };
+                report.records_indexed += indexed;
             }
             store.set_render_state(matter_id, &plan_sig, true)?;
         }
