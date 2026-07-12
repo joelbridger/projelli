@@ -20,11 +20,15 @@ const crmProgress = vi.hoisted(() => {
     get: (): Progress => value,
     set(next: Progress) {
       value = next;
-      listeners.forEach((l) => l());
+      listeners.forEach((l) => {
+        l();
+      });
     },
     subscribe(l: () => void) {
       listeners.add(l);
-      return () => listeners.delete(l);
+      return () => {
+        listeners.delete(l);
+      };
     },
     reset() {
       value = null;
@@ -50,7 +54,10 @@ vi.mock('@/platform/connectors/crm/crmStore', async () => {
     useCrmStore: Object.assign(
       (selector: (state: { progress: unknown }) => unknown) =>
         selector({
-          progress: useSyncExternalStore(crmProgress.subscribe, crmProgress.get),
+          progress: useSyncExternalStore(
+            (l) => crmProgress.subscribe(l),
+            () => crmProgress.get(),
+          ),
         }),
       { getState: () => ({ startRun: vi.fn(), finishRun: vi.fn(), setProgress: vi.fn() }) },
     ),
