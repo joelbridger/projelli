@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { Clock3 } from 'lucide-react';
 import { Card, EmptyState, SurfaceToolbar } from '@/ui/kp';
 import type { CrmEngineFreshness } from '@/platform/crm/store';
+import { EV_OPEN_CRM_DOCUMENT } from '@/config/identity';
 import { buildHouseholdTimeline } from './buildTimeline';
 import type { TimelineEntryType, TimelineHousehold, TimelineRecord, TimelineSource } from './types';
 
@@ -29,6 +30,13 @@ export function HouseholdTimeline({ household, records, freshness }: { household
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [openedSource, setOpenedSource] = useState<TimelineSource | null>(null);
+  const openSource = (source: TimelineSource) => {
+    if (source.kind === 'document') {
+      window.dispatchEvent(new CustomEvent(EV_OPEN_CRM_DOCUMENT, { detail: { path: source.id, name: source.label } }));
+      return;
+    }
+    setOpenedSource(source);
+  };
   const entries = useMemo(() => buildHouseholdTimeline(household, records).filter((entry) => {
     const day = entry.at.slice(0, 10);
     return (type === 'all' || entry.type === type) && (!from || day >= from) && (!to || day <= to);
@@ -45,12 +53,11 @@ export function HouseholdTimeline({ household, records, freshness }: { household
     {entries.length === 0 ? <EmptyState icon={Clock3} title="No history matches these filters" body="Notes, facts, completed tasks, workflows, and linked email, meetings, and documents will appear here when they exist." /> : entries.map((entry) => <Card key={entry.id} variant="raised" data-testid={`crm-timeline-entry-${entry.id}`}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}><strong>{entry.summary}</strong><span>{labels[entry.type]}</span></div>
       <p style={{ marginBottom: 6 }}>{formatDate(entry.at)} · {entry.who}</p>
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}><SourceLink source={entry.source} onOpen={setOpenedSource} />{entry.provenance.map((item) => <SourceLink key={`${item.kind}:${item.id}`} source={item} onOpen={setOpenedSource} />)}</div>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}><SourceLink source={entry.source} onOpen={openSource} />{entry.provenance.map((item) => <SourceLink key={`${item.kind}:${item.id}`} source={item} onOpen={openSource} />)}</div>
     </Card>)}
     {openedSource ? <Card variant="raised" data-testid="crm-timeline-source-detail">
       <h2>{openedSource.label}</h2>
-      <p>This entry points to the saved {openedSource.kind} record. Open it in its own area to review the original details.</p>
-      <p>Record reference: {openedSource.kind} / {openedSource.id}</p>
+      <p>This entry points to a saved {openedSource.kind}. Open it in its own area to review the original details.</p>
     </Card> : null}
   </section>;
 }

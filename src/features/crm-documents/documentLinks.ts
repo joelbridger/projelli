@@ -4,7 +4,7 @@ import type { HouseholdRecord } from '@/features/crm-clients/adapters';
 
 export type LinkedDocument = {
   ref: EntityRef;
-  target: 'household' | 'note' | 'task';
+  target: 'household' | 'person' | 'note' | 'task';
   targetId: string;
   targetLabel: string;
   linkedAt?: string;
@@ -27,6 +27,7 @@ function hasHousehold(record: LiveCrmRecord, householdId: string): boolean {
 export function linkedDocumentsForHousehold(household: HouseholdRecord, records: readonly LiveCrmRecord[]): LinkedDocument[] {
   const entries: LinkedDocument[] = [];
   refs(household.contextRefs).forEach((ref) => entries.push({ ref, target: 'household', targetId: household.id, targetLabel: household.name }));
+  [...household.members, ...household.externalParties].forEach((person) => refs(person.contextRefs).forEach((ref) => entries.push({ ref, target: 'person', targetId: person.id, targetLabel: person.name })));
   household.notes.forEach((note) => refs(note.links).forEach((ref) => entries.push({ ref, target: 'note', targetId: note.id, targetLabel: note.body.slice(0, 60) || 'Untitled note', ...((note.updatedAt ?? note.createdAt) ? { linkedAt: note.updatedAt ?? note.createdAt } : {}) })));
   records.forEach((record) => {
     if (!hasHousehold(record, household.id)) return;

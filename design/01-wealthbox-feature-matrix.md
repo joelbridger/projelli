@@ -155,7 +155,7 @@ every external write; light theme; `matter`/`matter_id` never renamed.*
 
 | Feature | What it does | Pricing tier | API | JBW evidence | Verdict |
 |---|---|---|---|---|---|
-| File storage on records | Attach files to contacts/notes/tasks; storage cap by plan (Basic 2GB → Premier 10GB → Enterprise 20GB) | Basic | No v1 API migration path: tested attachment/file/document reads were absent; see [05 §2.5b](05-migration-importer.md#25b-files-and-attachments-operator-export-plus-client-level-gap-flags) | not mentioned directly (E-132/E-841 region touches documents workflow generally) | REPLICATE — reinstated 2026-07-12 (Jameson: the app must do EVERYTHING Wealthbox can). CRM records get first-class attachments that link into the existing Documents subsystem; no parallel file store. |
+| File storage on records | Attach files to contacts/notes/tasks; storage cap by plan (Basic 2GB → Premier 10GB → Enterprise 20GB) | Basic | No v1 API migration path: tested attachment/file/document reads were absent; see [05 §2.5b](05-migration-importer.md#25b-files-and-attachments-operator-export-plus-client-level-gap-flags) | not mentioned directly (E-132/E-841 region touches documents workflow generally) | REPLICATE — Documents remains the single file home. Advisors link saved documents to a household, note, or task with `contextRefs` / `links`; they can drag to link, see the link in the household timeline, open the original in Documents, and remove the link without deleting the file. Attachment migration remains export-or-gap accounting in [05 §2.5b](05-migration-importer.md#25b-files-and-attachments-operator-export-plus-client-level-gap-flags). |
 
 ## 13. Integrations directory (top ~15 of 150+)
 

@@ -69,6 +69,8 @@ export interface CrmPerson {
   addresses?: readonly CrmContactAddress[];
   emails?: readonly CrmContactChannel[];
   phones?: readonly CrmContactChannel[];
+  /** Links to existing workspace documents; the document remains Documents-owned. */
+  contextRefs?: readonly EntityRef[];
 }
 export interface CrmContactAddress { id: string; address: string; city: string; state: string; zip: string; kind: string; primary: boolean; }
 export interface CrmContactChannel { id: string; address: string; kind: string; primary: boolean; }
