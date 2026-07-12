@@ -265,8 +265,20 @@ export function bindAnswerBlocks(
     // becomes properly-cited files content — recovering the citations the model
     // did emit — or honest uncited general prose. Genuinely brief absence
     // statements keep their nothing-found label.
+    // Cloud models sometimes put a genuinely cited, file-backed sentence in a
+    // GENERAL block. Local models commonly omit block markers, so their same
+    // sentence takes the inferred FILES path; cloud answers used to have their
+    // valid citation scrubbed solely because of that label difference. Promote
+    // only blocks that carry a citation-shaped source marker, then let the
+    // normal binder prove it resolves to an in-scope retrieved chunk. A made-up
+    // or out-of-scope citation still falls through to the existing scrubbed
+    // general block, so this never turns an untrusted claim green.
+    const generalBlockHasSourceMarker =
+      rb.kind === 'general' &&
+      RAW_CITATION_MARKER_RE.test(rb.text);
     const treatAsFiles =
       rb.kind === 'files' ||
+      generalBlockHasSourceMarker ||
       (rb.kind === 'nothing-found' && nothingFoundBlockHasRealContent(rb.text));
     if (treatAsFiles) {
       blocks.push(...bindAsFilesBlock(rb.text));
