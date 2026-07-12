@@ -121,6 +121,62 @@ describe("archived matter relay denial", () => {
     f.store.close();
   });
 
+  test("a publisher demoted after the route check cannot overwrite current-epoch wrapped keys", async () => {
+    const f = fixture();
+    f.store.addMatterMember({ matter_handle: f.matter.matter_handle, user_id: f.member.user_id, org_id: f.org.org_id, role: "owner" });
+    const originalPublish = f.store.publishWrappedMatterKeys.bind(f.store);
+    let changed = false;
+    f.store.publishWrappedMatterKeys = (input) => {
+      // The route has already accepted this member as an owner. Simulate the
+      // concurrent role change in the gap immediately before the write method.
+      if (!changed) {
+        changed = true;
+        f.store.addMatterMember({ matter_handle: f.matter.matter_handle, user_id: f.member.user_id, org_id: f.org.org_id, role: "viewer" });
+      }
+      return originalPublish(input);
+    };
+
+    const response = await handlePublishMatterKeys(
+      request(f.memberToken, {
+        epoch: 1,
+        wrapped: [{ user_id: f.member.user_id, device_id: "active-publish-device", wrapped_key_b64: Buffer.from(wrappedEnvelope).toString("base64") }],
+      }),
+      f.store,
+      f.matter.matter_handle,
+    );
+    expect(response.status).toBe(403);
+    expect(f.store.getWrappedMatterKey(f.matter.matter_handle, 1, f.member.user_id, "active-publish-device")).toBeNull();
+    f.store.close();
+  });
+
+  test("a publisher walled after the route check cannot overwrite current-epoch wrapped keys", async () => {
+    const f = fixture();
+    f.store.addMatterMember({ matter_handle: f.matter.matter_handle, user_id: f.member.user_id, org_id: f.org.org_id, role: "owner" });
+    const originalPublish = f.store.publishWrappedMatterKeys.bind(f.store);
+    let changed = false;
+    f.store.publishWrappedMatterKeys = (input) => {
+      // Again, place the access change after the route's early check but before
+      // the storage transaction starts.
+      if (!changed) {
+        changed = true;
+        f.store.setEthicalWall({ matter_handle: f.matter.matter_handle, user_id: f.member.user_id, org_id: f.org.org_id, created_by: f.admin.user_id });
+      }
+      return originalPublish(input);
+    };
+
+    const response = await handlePublishMatterKeys(
+      request(f.memberToken, {
+        epoch: 1,
+        wrapped: [{ user_id: f.member.user_id, device_id: "active-publish-device", wrapped_key_b64: Buffer.from(wrappedEnvelope).toString("base64") }],
+      }),
+      f.store,
+      f.matter.matter_handle,
+    );
+    expect(response.status).toBe(403);
+    expect(f.store.getWrappedMatterKey(f.matter.matter_handle, 1, f.member.user_id, "active-publish-device")).toBeNull();
+    f.store.close();
+  });
+
   test("archive cannot be reversed, and relay access remains denied", async () => {
     const f = fixture();
     const tickets = new SyncTicketStore();

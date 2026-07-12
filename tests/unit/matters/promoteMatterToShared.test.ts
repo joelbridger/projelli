@@ -106,9 +106,9 @@ describe('promoteMatterToShared', () => {
     expect(append).toHaveBeenCalledWith(expect.objectContaining({ type: 'matter_shared' }));
   });
 
-  it('DEFINITE rejection: archives the shell and forgets the key (nothing committed)', async () => {
+  it('DEFINITE rejection before the root write: archives the shell and forgets the key', async () => {
     const client = makeClient();
-    publishMatterKeyToMembers.mockRejectedValueOnce(new FirmApiError(400, 'invalid_v2_payload', 'relay rejected'));
+    client.pushUpdate.mockRejectedValueOnce(new FirmApiError(400, 'invalid_v2_payload', 'relay rejected'));
     storeMatters = [{ id: 'm1', firmMatterId: MATTER }];
     const r = await promoteMatterToShared('m1', 'Acme', client as never);
     expect(r).toMatchObject({ status: 'failed', matterId: 'm1' });

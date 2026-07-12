@@ -21,6 +21,12 @@ export type PromoteMatterResult =
   | { status: 'shared'; matterId: string; firmMatterId: MatterHandle; orgId: string }
   | { status: 'failed'; matterId: string; error: string };
 
+// A browser window can dispatch the same action twice before the first durable
+// retry receipt is written. Coalesce those calls by local matter ID so they use
+// one nonce, one relay shell, and one result. The keychain receipt remains the
+// crash/restart guard; this only closes the in-process race.
+const promotionsInFlight = new Map<string, Promise<PromoteMatterResult>>();
+
 /**
  * Ordered v2 promotion:
  * durable local retry receipt → provision opaque shell → local key → activate → encrypted root private index
@@ -28,6 +34,23 @@ export type PromoteMatterResult =
  * Matter.id and all human-readable details remain entirely on this device.
  */
 export async function promoteMatterToShared(
+  matterId: string,
+  clientName: string,
+  client: FirmApiClient,
+): Promise<PromoteMatterResult> {
+  const existing = promotionsInFlight.get(matterId);
+  if (existing) return existing;
+
+  const promotion = promoteMatterToSharedOnce(matterId, clientName, client);
+  promotionsInFlight.set(matterId, promotion);
+  try {
+    return await promotion;
+  } finally {
+    if (promotionsInFlight.get(matterId) === promotion) promotionsInFlight.delete(matterId);
+  }
+}
+
+async function promoteMatterToSharedOnce(
   matterId: string,
   clientName: string,
   client: FirmApiClient,
@@ -96,6 +119,7 @@ export async function promoteMatterToShared(
     }
     const handle = pending.matterHandle as MatterHandle;
     const rootStreamHandle = pending.rootStreamHandle;
+    const keyEpoch = pending.keyEpoch;
     // The relay deliberately denies every write while a shell is provisioning.
     // Repeated activation is intentionally tolerated by the pending record:
     // if the first response was lost, the following idempotent root write is
@@ -104,9 +128,15 @@ export async function promoteMatterToShared(
       if (error instanceof Error && /404|matter_not_found/.test(error.message)) return;
       throw error;
     });
-    await client.pushUpdate(handle, rootStreamHandle as never, pending.rootBlobId, pending.rootCiphertextB64, seatToken, pending.keyEpoch);
+    if (!pending.rootWriteAccepted) {
+      await client.pushUpdate(handle, rootStreamHandle as never, pending.rootBlobId, pending.rootCiphertextB64, seatToken, keyEpoch);
+      // The relay now has encrypted client data. Persist this phase before any
+      // later work so a fresh session knows to resume, never destroy, it.
+      pending = { ...pending, rootWriteAccepted: true };
+      await storePromotionPending(matterId, pending);
+    }
     await registerDevice(client);
-    await publishMatterKeyToMembers(client, handle, pending.keyEpoch);
+    await publishMatterKeyToMembers(client, handle, keyEpoch);
 
     const orgId = useFirmStore.getState().session?.org?.org_id ?? '';
     linkFirmMatter(matterId, { firmMatterId: handle, rootStreamHandle: rootStreamHandle as never, orgId, role: 'owner' });
@@ -118,23 +148,26 @@ export async function promoteMatterToShared(
     return { status: 'shared', matterId, firmMatterId: handle, orgId };
   } catch (err) {
     // A DEFINITE rejection (the relay answered 4xx) and an UNKNOWN outcome
-    // (timeout, abort, network) demand opposite handling — collapsing them is
-    // how you get either an orphaned shell or a destroyed key:
+    // (timeout, abort, network) demand opposite handling — but only before the
+    // first encrypted root write. Once that write is accepted, the relay holds
+    // recoverable client data, so every failure must preserve the local key and
+    // durable receipt for a later retry.
     //
-    //   definite  -> nothing committed. Archive the shell now so it cannot leak
-    //                or consume quota, and drop the pending record.
-    //   unknown   -> the write may have landed. Keep the pending record and the
-    //                only local key; a later run resumes the SAME shell rather
-    //                than creating a second one. Never archive on a guess.
-    if (pending && err instanceof FirmApiError && err.status >= 400 && err.status < 500) {
-      try {
-        await client.archiveMatter(pending.matterHandle as MatterHandle);
-      // eslint-disable-next-line lantern-async/no-silent-failure -- cleanup is deliberately best-effort after a definite rejection.
-      } catch {
-        // Best-effort cleanup after a definite rejection. Clearing the local
-        // record below still makes a later user attempt use a fresh nonce.
+    //   definite before root write -> nothing committed. Archive the shell now
+    //                                 and discard its local recovery material.
+    //   all other cases            -> preserve the receipt and key; the next
+    //                                 run resumes this exact shell.
+    if (pending && !pending.rootWriteAccepted && err instanceof FirmApiError && err.status >= 400 && err.status < 500) {
+      if (pending.matterHandle) {
+        try {
+          await client.archiveMatter(pending.matterHandle as MatterHandle);
+        // eslint-disable-next-line lantern-async/no-silent-failure -- cleanup is deliberately best-effort after a definite rejection before any client data is committed.
+        } catch {
+          // Best-effort cleanup after a definite rejection. Clearing the local
+          // record below still makes a later user attempt use a fresh nonce.
+        }
+        await forgetMatterKey(pending.matterHandle as MatterHandle);
       }
-      await forgetMatterKey(pending.matterHandle as MatterHandle);
       await clearPromotionPending(matterId);
     }
     return { status: 'failed', matterId, error: err instanceof Error ? err.message : String(err) };

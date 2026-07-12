@@ -127,6 +127,13 @@ export interface PromotionPendingRecord {
   keyB64?: string;
   rootBlobId?: string;
   rootCiphertextB64?: string;
+  /**
+   * Set immediately after the relay accepts the first encrypted root write.
+   * Before this point a definite rejection can safely discard the shell; after
+   * it, the pending receipt and local key are recovery material and must stay.
+   * Older receipts without this field are pre-root-write receipts.
+   */
+  rootWriteAccepted?: boolean;
 }
 
 function promotionService(localMatterId: string): string {
@@ -147,6 +154,7 @@ export async function loadPromotionPending(localMatterId: string): Promise<Promo
     const hasAnyProvision = record.matterHandle !== undefined || record.rootStreamHandle !== undefined || record.keyEpoch !== undefined;
     const hasCrypto = typeof record.keyB64 === 'string' && typeof record.rootBlobId === 'string' && typeof record.rootCiphertextB64 === 'string';
     const hasAnyCrypto = record.keyB64 !== undefined || record.rootBlobId !== undefined || record.rootCiphertextB64 !== undefined;
+    if (record.rootWriteAccepted !== undefined && typeof record.rootWriteAccepted !== 'boolean') return null;
     // There are three safe checkpoints: nonce-only before the request;
     // provisioned handles before key/index work; and the complete encrypted
     // root write. Anything between those shapes is corruption, not a state to

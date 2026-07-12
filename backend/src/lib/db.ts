@@ -1743,7 +1743,7 @@ export class Store {
     epoch: number;
     published_by: string;
     wrapped: Array<{ user_id: string; device_id: string; wrapped_key: Uint8Array }>;
-  }): { stored: number; skipped: number } | { matterArchived: true } | { staleEpoch: true } | { matterNotFound: true } | { invalidRecipient: true } {
+  }): { stored: number; skipped: number } | { matterArchived: true } | { staleEpoch: true } | { matterNotFound: true } | { invalidRecipient: true } | { publisherUnauthorized: true } | { publisherWalled: true } {
     const txn = this.#db.transaction(() => {
       const matter = this.#db
         .query(`SELECT org_id, status, key_epoch FROM matters WHERE matter_handle = ?`)
@@ -1751,6 +1751,19 @@ export class Store {
       if (!matter || matter.org_id !== input.org_id) return { matterNotFound: true as const };
       if (matter.status !== "active") return { matterArchived: true as const };
       if (matter.key_epoch !== input.epoch) return { staleEpoch: true as const };
+
+      // The route performs this check first for fast rejection, but permission
+      // can change while it parses the request. Recheck inside this same
+      // IMMEDIATE transaction as the inserts so a demoted or walled publisher
+      // cannot replace current-epoch wrapped keys after losing access.
+      if (this.isWalled(input.matter_handle, input.published_by)) return { publisherWalled: true as const };
+      const publisher = this.#db
+        .query(`SELECT role FROM users WHERE user_id = ? AND org_id = ?`)
+        .get(input.published_by, input.org_id) as { role: UserRole } | null;
+      const publisherMembership = this.#db
+        .query(`SELECT role FROM matter_members WHERE matter_handle = ? AND user_id = ? AND org_id = ?`)
+        .get(input.matter_handle, input.published_by, input.org_id) as { role: MatterRole } | null;
+      if (publisher?.role !== "admin" && publisherMembership?.role !== "owner") return { publisherUnauthorized: true as const };
 
       let stored = 0;
       let skipped = 0;
@@ -1766,7 +1779,7 @@ export class Store {
       }
       return { stored, skipped };
     });
-    return txn.immediate() as { stored: number; skipped: number } | { matterArchived: true } | { staleEpoch: true } | { matterNotFound: true } | { invalidRecipient: true };
+    return txn.immediate() as { stored: number; skipped: number } | { matterArchived: true } | { staleEpoch: true } | { matterNotFound: true } | { invalidRecipient: true } | { publisherUnauthorized: true } | { publisherWalled: true };
   }
 
   /**

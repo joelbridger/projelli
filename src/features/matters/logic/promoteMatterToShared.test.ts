@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseMatterHandle, parseStreamHandle } from '@/platform/firm/contract';
+import { FirmApiError } from '@/platform/firm/FirmApiClient';
 
 const mocks = vi.hoisted(() => ({
   linkFirmMatter: vi.fn(), createLocalMatterKey: vi.fn(), forgetMatterKey: vi.fn(),
   publishMatterKeyToMembers: vi.fn(), registerDevice: vi.fn(), append: vi.fn(),
   promotionPending: null as Record<string, unknown> | null, storePromotionPending: vi.fn(), clearPromotionPending: vi.fn(),
+  promotionPendingByMatter: new Map<string, Record<string, unknown>>(),
   failHandleCheckpointOnce: false,
   firmState: { seatToken: 'seat' as string | null, session: { org: { org_id: 'org' } } },
 }));
@@ -17,17 +19,18 @@ vi.mock('@/platform/firm/firmStore', () => ({
   useFirmStore: { getState: () => mocks.firmState },
 }));
 vi.mock('@/platform/firm/firmKeychain', () => ({
-  loadPromotionPending: () => Promise.resolve(mocks.promotionPending),
-  storePromotionPending: async (_id: string, value: Record<string, unknown>) => {
+  loadPromotionPending: (id: string) => Promise.resolve(mocks.promotionPendingByMatter.get(id) ?? null),
+  storePromotionPending: async (id: string, value: Record<string, unknown>) => {
     await Promise.resolve();
     mocks.storePromotionPending(value);
     if (mocks.failHandleCheckpointOnce && 'matterHandle' in value) {
       mocks.failHandleCheckpointOnce = false;
       throw new Error('local handle checkpoint interrupted');
     }
+    mocks.promotionPendingByMatter.set(id, value);
     mocks.promotionPending = value;
   },
-  clearPromotionPending: () => { mocks.promotionPending = null; mocks.clearPromotionPending(); return Promise.resolve(); },
+  clearPromotionPending: (id: string) => { mocks.promotionPendingByMatter.delete(id); mocks.promotionPending = null; mocks.clearPromotionPending(); return Promise.resolve(); },
 }));
 
 import { promoteMatterToShared } from './promoteMatterToShared';
@@ -70,6 +73,7 @@ describe('promoteMatterToShared v2 ordering', () => {
     mocks.publishMatterKeyToMembers.mockResolvedValue({ published: 1, skippedWalled: 0 });
     mocks.registerDevice.mockResolvedValue(undefined);
     mocks.promotionPending = null;
+    mocks.promotionPendingByMatter.clear();
     mocks.failHandleCheckpointOnce = false;
   });
 
@@ -102,6 +106,40 @@ describe('promoteMatterToShared v2 ordering', () => {
     expect(mocks.forgetMatterKey).not.toHaveBeenCalled();
     expect(mocks.promotionPending?.['matterHandle']).toBe(matterHandle);
     expect(typeof mocks.promotionPending?.['keyB64']).toBe('string');
+  });
+
+  it('coalesces simultaneous sharing of one local client into one shell and one handle', async () => {
+    const client = successfulClient();
+    let releaseProvision!: () => void;
+    const provisionStarted = new Promise<void>((resolve) => {
+      client.createMatter.mockImplementationOnce(() => new Promise((resolveProvision) => {
+        releaseProvision = () => resolveProvision({ matter_handle: matterHandle, root_stream_handle: rootStreamHandle, key_epoch: 1, status: 'provisioning' as const });
+        resolve();
+      }));
+    });
+
+    const first = promoteMatterToShared('local-matter-77', 'CLIENT_SECRET_NIMBUS', client as never);
+    await provisionStarted;
+    const second = promoteMatterToShared('local-matter-77', 'CLIENT_SECRET_NIMBUS', client as never);
+    releaseProvision();
+
+    const [firstResult, secondResult] = await Promise.all([first, second]);
+    expect(client.createMatter).toHaveBeenCalledTimes(1);
+    expect(firstResult).toMatchObject({ status: 'shared', firmMatterId: matterHandle });
+    expect(secondResult).toEqual(firstResult);
+  });
+
+  it('allows simultaneous sharing of different local clients to proceed independently', async () => {
+    const client = successfulClient();
+
+    const [first, second] = await Promise.all([
+      promoteMatterToShared('local-matter-a', 'CLIENT_SECRET_A', client as never),
+      promoteMatterToShared('local-matter-b', 'CLIENT_SECRET_B', client as never),
+    ]);
+
+    expect(client.createMatter).toHaveBeenCalledTimes(2);
+    expect(first.status).toBe('shared');
+    expect(second.status).toBe('shared');
   });
 
   it('uses one durable retry receipt when a provision response is lost, returning the same shell without a second allocation', async () => {
@@ -147,12 +185,14 @@ describe('promoteMatterToShared v2 ordering', () => {
   });
 
   it('resumes a handle checkpoint after a crash before key generation instead of provisioning another shell', async () => {
-    mocks.promotionPending = {
+    const checkpoint = {
       provisioningNonce: `pn2_${'Z'.repeat(43)}`,
       matterHandle,
       rootStreamHandle,
       keyEpoch: 1,
     };
+    mocks.promotionPending = checkpoint;
+    mocks.promotionPendingByMatter.set('local-matter-77', checkpoint);
     const client = successfulClient();
 
     await expect(promoteMatterToShared('local-matter-77', 'CLIENT_SECRET_NIMBUS', client as never)).resolves.toMatchObject({ status: 'shared', firmMatterId: matterHandle });
@@ -192,6 +232,49 @@ describe('promoteMatterToShared v2 ordering', () => {
     expect(client.activateMatter).toHaveBeenCalledTimes(2);
     expect(client.archiveMatter).not.toHaveBeenCalled();
     expect(mocks.publishMatterKeyToMembers).toHaveBeenCalledTimes(1);
+  });
+
+  it('destroys a definitely rejected shell only before the first encrypted root write', async () => {
+    const client = successfulClient();
+    client.pushUpdate.mockRejectedValueOnce(new FirmApiError(400, 'invalid_v2_payload', 'root rejected'));
+
+    await expect(promoteMatterToShared('local-matter-77', 'CLIENT_SECRET_NIMBUS', client as never)).resolves.toMatchObject({ status: 'failed' });
+
+    expect(client.archiveMatter).toHaveBeenCalledWith(matterHandle);
+    expect(mocks.forgetMatterKey).toHaveBeenCalledWith(matterHandle);
+    expect(mocks.clearPromotionPending).toHaveBeenCalledWith();
+    expect(mocks.promotionPendingByMatter.get('local-matter-77')).toBeUndefined();
+  });
+
+  it('preserves a definitely rejected post-root share and resumes key publishing without another root write', async () => {
+    const client = successfulClient();
+    mocks.publishMatterKeyToMembers.mockRejectedValueOnce(new FirmApiError(409, 'stale_epoch', 'key epoch changed'));
+
+    await expect(promoteMatterToShared('local-matter-77', 'CLIENT_SECRET_NIMBUS', client as never)).resolves.toMatchObject({ status: 'failed', error: 'key epoch changed' });
+    expect(client.archiveMatter).not.toHaveBeenCalled();
+    expect(mocks.forgetMatterKey).not.toHaveBeenCalled();
+    expect(mocks.promotionPendingByMatter.get('local-matter-77')).toMatchObject({ matterHandle, rootWriteAccepted: true });
+
+    await expect(promoteMatterToShared('local-matter-77', 'CLIENT_SECRET_NIMBUS', client as never)).resolves.toMatchObject({ status: 'shared', firmMatterId: matterHandle });
+    expect(client.pushUpdate).toHaveBeenCalledTimes(1);
+    expect(client.createMatter).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserves the shell and key for unknown failures on either side of the root-write checkpoint', async () => {
+    const beforeRoot = successfulClient();
+    beforeRoot.pushUpdate.mockRejectedValueOnce(new Error('network lost before root response'));
+    await expect(promoteMatterToShared('local-matter-before', 'CLIENT_SECRET_NIMBUS', beforeRoot as never)).resolves.toMatchObject({ status: 'failed' });
+    expect(beforeRoot.archiveMatter).not.toHaveBeenCalled();
+    expect(mocks.forgetMatterKey).not.toHaveBeenCalled();
+    expect(mocks.promotionPendingByMatter.get('local-matter-before')).toMatchObject({ matterHandle });
+    expect(mocks.promotionPendingByMatter.get('local-matter-before')).not.toHaveProperty('rootWriteAccepted');
+
+    const afterRoot = successfulClient();
+    mocks.publishMatterKeyToMembers.mockRejectedValueOnce(new Error('network lost after root'));
+    await expect(promoteMatterToShared('local-matter-after', 'CLIENT_SECRET_NIMBUS', afterRoot as never)).resolves.toMatchObject({ status: 'failed' });
+    expect(afterRoot.archiveMatter).not.toHaveBeenCalled();
+    expect(mocks.forgetMatterKey).not.toHaveBeenCalled();
+    expect(mocks.promotionPendingByMatter.get('local-matter-after')).toMatchObject({ matterHandle, rootWriteAccepted: true });
   });
 
   it('keeps a failed activation invisible and allows a clean retry', async () => {
