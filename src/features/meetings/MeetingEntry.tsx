@@ -38,6 +38,9 @@ import { markdownToDocxBytes, applyLetterheadIfConfigured, extractDocxText } fro
 import { docxConvertToPdf } from '@/platform/utils/docx-commands';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { readTauriFile } from '@/platform/fs/tauriFsPlugin';
+import { useFirm } from '@/platform/hooks/useFirm';
+import { buildProviderForGlance } from '@/platform/matter/matterAtAGlance';
+import { MeetingTemplatePanel } from './MeetingTemplatePanel';
 
 export interface MeetingEntryProps {
   matterId: string;
@@ -104,6 +107,7 @@ function transcriptLooksSilent(transcript: TranscriptFile | null): boolean {
 
 export function MeetingEntry({ matterId, meetingDir, folderName, clientName, workspaceRoot, onBack, initialSeekMs, workspaceService, onChanged, showBackButton = true }: MeetingEntryProps) {
   const { t } = useTranslation();
+  const firm = useFirm();
   const [meta, setMeta] = useState<MeetingMeta | null>(null);
   const [transcript, setTranscript] = useState<TranscriptFile | null>(null);
   const [hasNotes, setHasNotes] = useState(false);
@@ -826,6 +830,20 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
                 <div style={{ marginTop: 'var(--kp-space-lg)' }}>
                   <SpeakerNamesPanel meetingDir={meetingDir} matterId={matterId} workspaceRoot={workspaceRoot} />
                 </div>
+                {workspaceService && firm.org && (
+                  <MeetingTemplatePanel
+                    workspace={workspaceService}
+                    firmId={firm.org.org_id}
+                    canManageTemplates={firm.role === 'admin'}
+                    meetingDir={meetingDir}
+                    transcript={transcript}
+                    clientName={clientName}
+                    getProvider={async () => {
+                      const provider = await buildProviderForGlance();
+                      return { send: async (prompt, options) => provider.sendMessage(prompt, options) };
+                    }}
+                  />
+                )}
               </>
             ) : meta?.transcriptError ? (
               <div data-testid="meeting-entry-transcript-failed" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-sm)' }}>

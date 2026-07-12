@@ -13,6 +13,9 @@ interface StoredMeetingTemplates {
 export interface MeetingTemplateStorageBackend {
   readFile(path: string): Promise<string>;
   writeFile(path: string, content: string): Promise<void>;
+  /** WorkspaceService wraps a missing-file error, so callers that can cheaply
+   * check first may provide this and keep real read failures visible. */
+  exists?(path: string): Promise<boolean>;
 }
 
 export function makeMeetingTemplateStorage(backend: MeetingTemplateStorageBackend) {
@@ -67,6 +70,9 @@ export function makeMeetingTemplateStorage(backend: MeetingTemplateStorageBacken
 
   async function load(): Promise<StoredMeetingTemplates> {
     try {
+      if (backend.exists && !(await backend.exists(STORAGE_PATH))) {
+        return { schemaVersion: 1, templates: [] };
+      }
       const raw = await backend.readFile(STORAGE_PATH);
       const parsed: unknown = JSON.parse(raw);
       if (!isStoredMeetingTemplates(parsed)) {
