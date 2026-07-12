@@ -35,6 +35,7 @@
     "test:acceptance": "node tests/acceptance/run.mjs",
     "test:chaos": "node tests/chaos/run.mjs",
     "test:goldenloop": "node scripts/test-goldenloop.mjs",
+    "test:scale": "node tests/scale/run.mjs",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "typecheck:tests": "tsc -p tsconfig.test.json --noEmit",
