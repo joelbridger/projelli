@@ -69,6 +69,9 @@ export interface CrmNote {
   audience: NoteAudience;
   pinned?: boolean;
   mentions?: readonly string[];
+  createdAt?: string;
+  updatedAt?: string;
+  author?: string;
 }
 /** Frozen 02 §1.15 / B1 durable approval record. Never replace this with card state. */
 export interface ProposalRecord {

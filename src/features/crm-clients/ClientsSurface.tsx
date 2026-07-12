@@ -3,6 +3,7 @@ import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import { DirectorySurface } from './DirectorySurface';
 import { HouseholdRecordSurface } from './HouseholdRecordSurface';
+import type { TimelineRecord } from '@/features/crm-timeline';
 import type {
   CrmClientsActions,
   CrmFieldValue,
@@ -123,10 +124,17 @@ export function ClientsSurface({
         proposals={proposals}
         onBack={() => { setSelectedId(null); }}
         onSaveHousehold={saveHousehold}
+        timelineRecords={live.records as readonly TimelineRecord[]}
+        timelineFreshness={live.freshness}
         actions={{
           ...actions,
           onSaveNote: async (note, notifyFirm) => {
-            const nextNote: CrmNote = { id: `note:${crypto.randomUUID()}`, ...note };
+            const nextNote: CrmNote = {
+              id: `note:${crypto.randomUUID()}`,
+              ...note,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            };
             await saveHousehold({ ...current, notes: [...current.notes, nextNote] });
             await actions?.onSaveNote?.(note, notifyFirm);
           },
