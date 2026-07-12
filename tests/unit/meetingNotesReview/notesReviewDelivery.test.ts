@@ -3,7 +3,7 @@ import {
   makeNotesReviewRepository,
   proposalsFromMeetingSummary,
   type NotesReviewWorkspace,
-} from './notesReviewDelivery';
+} from '@/platform/meetingNotesReview/notesReviewDelivery';
 
 function memoryWorkspace(
   initial: Record<string, string> = {}
@@ -11,13 +11,14 @@ function memoryWorkspace(
   const files = new Map(Object.entries(initial));
   return {
     files,
-    async readFile(path) {
+    readFile(path) {
       const value = files.get(path);
-      if (value === undefined) throw new Error(`ENOENT: ${path}`);
-      return value;
+      if (value === undefined) return Promise.reject(new Error(`ENOENT: ${path}`));
+      return Promise.resolve(value);
     },
-    async writeFile(path, content) {
+    writeFile(path, content) {
       files.set(path, content);
+      return Promise.resolve();
     },
   };
 }
@@ -125,13 +126,12 @@ describe('notes review delivery', () => {
         requestedAt: '2026-07-12T12:00:00.000Z',
       })
     );
-    expect(
-      JSON.parse(
-        workspace.files.get(
-          '/Clients/Webb/Meetings/2026-07-12-review/notes-review.json'
-        ) ?? '{}'
-      )
-    ).toMatchObject({
+    const savedState: unknown = JSON.parse(
+      workspace.files.get(
+        '/Clients/Webb/Meetings/2026-07-12-review/notes-review.json'
+      ) ?? '{}'
+    );
+    expect(savedState).toMatchObject({
       items: expect.arrayContaining([
         expect.objectContaining({
           crmAttempt: expect.objectContaining({

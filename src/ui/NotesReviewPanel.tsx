@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, CircleAlert } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Badge, Button } from '@/ui/kp';
 import { normalizeNotesReviewItems } from './normalizeNotesReviewItems';
 import type {
@@ -7,7 +8,7 @@ import type {
   NotesReviewItem,
   NotesReviewPanelProps,
   NotesReviewReceipt,
-} from './types';
+} from './notesReview';
 
 const DESTINATION_LABELS: Record<NotesReviewDestination, string> = {
   task: 'Task',
@@ -40,6 +41,7 @@ export function NotesReviewPanel({
   blockedDestinations = {},
   onApprove,
 }: NotesReviewPanelProps) {
+  const { t } = useTranslation();
   const items = useMemo(() => normalizeNotesReviewItems(rawItems), [rawItems]);
   const [destinations, setDestinations] = useState<
     Record<string, NotesReviewDestination>
@@ -107,9 +109,8 @@ export function NotesReviewPanel({
               fontWeight: 'var(--kp-weight-semibold)',
             }}
           >
-            Review notes
+            {t('meetings.review.title')}
           </div>
-          {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string -- this standalone seam has no copy namespace until the parallel template contract lands. */}
           <div
             style={{
               color: 'var(--color-muted-foreground)',
@@ -117,7 +118,7 @@ export function NotesReviewPanel({
               marginTop: 2,
             }}
           >
-            Nothing is added anywhere until you approve each item.
+            {t('meetings.review.approve-description')}
           </div>
         </div>
         <Badge variant="warning" size="sm">

@@ -79,7 +79,7 @@ describe('en.json structure snapshot', () => {
         "marketplace": 14,
         "matter": 326,
         "media": 100,
-        "meetings": 265,
+        "meetings": 267,
         "memory": 6,
         "model-download": 9,
         "onboarding": 248,

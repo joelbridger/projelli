@@ -8,13 +8,14 @@ function workspace(): NotesReviewWorkspace & { files: Map<string, string> } {
   const files = new Map<string, string>();
   return {
     files,
-    async readFile(path) {
+    readFile(path) {
       const file = files.get(path);
-      if (file === undefined) throw new Error(`ENOENT: ${path}`);
-      return file;
+      if (file === undefined) return Promise.reject(new Error(`ENOENT: ${path}`));
+      return Promise.resolve(file);
     },
-    async writeFile(path, content) {
+    writeFile(path, content) {
       files.set(path, content);
+      return Promise.resolve();
     },
   };
 }
@@ -39,11 +40,11 @@ describe('MeetingNotesReview', () => {
     ).toBeUndefined();
     fireEvent.click(approve);
 
-    await waitFor(() =>
+    await waitFor(() => {
       expect(
         screen.getByTestId(/^notes-review-receipt-action-/)
       ).toHaveTextContent('Task saved in Tasks.md.')
-    );
+    });
     expect(
       fs.files.get('/Clients/Webb/Meetings/2026-07-12-review/Tasks.md')
     ).toContain('Start the rollover paperwork.');

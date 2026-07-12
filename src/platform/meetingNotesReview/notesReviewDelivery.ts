@@ -2,7 +2,7 @@ import type {
   NotesReviewDestination,
   NotesReviewItem,
   NotesReviewReceipt,
-} from './types';
+} from '@/ui/notesReview';
 
 const STATE_FILE = 'notes-review.json';
 const SCHEMA_VERSION = 1 as const;
@@ -276,9 +276,11 @@ function stableId(value: string): string {
 
 function dedupeById(items: NotesReviewItem[]): NotesReviewItem[] {
   const seen = new Set<string>();
-  return items.filter(
-    (item) => !seen.has(item.id) && (seen.add(item.id), true)
-  );
+  return items.filter((item) => {
+    if (seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  });
 }
 
 function mergeSourceItems(

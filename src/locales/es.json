@@ -3504,6 +3504,10 @@
       "failed": "Could not prepare this briefing: {{error}}",
       "unknown-error": "unknown error"
     },
+    "review": {
+      "title": "Revisar notas",
+      "approve-description": "No se añade nada hasta que apruebe cada elemento."
+    },
     "speakers": {
       "title": "¿Quién está hablando?",
       "run": "Separar interlocutores",

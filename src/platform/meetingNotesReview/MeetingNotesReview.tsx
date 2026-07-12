@@ -7,7 +7,7 @@ import {
   crmPrepareWriteProposal,
   crmSaveWriteProposal,
 } from '@/platform/utils/wealthbox-commands';
-import { NotesReviewPanel } from './NotesReviewPanel';
+import { NotesReviewPanel } from '@/ui/NotesReviewPanel';
 import {
   makeNotesReviewRepository,
   type NotesReviewCrmDelivery,
@@ -17,7 +17,7 @@ import type {
   NotesReviewDestination,
   NotesReviewItem,
   NotesReviewReceipt,
-} from './types';
+} from '@/ui/notesReview';
 
 export interface MeetingNotesReviewProps {
   meetingDir: string;
@@ -51,11 +51,6 @@ export function MeetingNotesReview({
   crmDelivery = productionCrmDelivery,
 }: MeetingNotesReviewProps) {
   const matters = useMatterStore((state) => state.matters);
-  const [items, setItems] = useState<NotesReviewItem[]>([]);
-  const [receipts, setReceipts] = useState<Record<string, NotesReviewReceipt>>(
-    {}
-  );
-  const [loadError, setLoadError] = useState<string | null>(null);
   const householdKey = useMemo(() => {
     const candidates = (buildInverseCrmMap(matters).get(matterId) ?? []).filter(
       (key) => !key.startsWith('sfdc:') && !key.startsWith('redtail:')
@@ -84,15 +79,39 @@ export function MeetingNotesReview({
     ]
   );
 
+  if (!repository) return null;
+
+  return (
+    <LoadedMeetingNotesReview
+      key={`${meetingDir}\u0000${matterId}\u0000${summaryText}\u0000${householdKey ?? ''}`}
+      repository={repository}
+      {...(crmBlockedReason ? { crmBlockedReason } : {})}
+    />
+  );
+}
+
+interface LoadedMeetingNotesReviewProps {
+  repository: ReturnType<typeof makeNotesReviewRepository>;
+  crmBlockedReason?: string;
+}
+
+/**
+ * The keyed child starts fresh when its meeting input changes. That avoids a
+ * synchronous state reset in an effect, while the effect below only reflects
+ * the asynchronous repository result.
+ */
+function LoadedMeetingNotesReview({
+  repository,
+  crmBlockedReason,
+}: LoadedMeetingNotesReviewProps) {
+  const [items, setItems] = useState<NotesReviewItem[]>([]);
+  const [receipts, setReceipts] = useState<Record<string, NotesReviewReceipt>>(
+    {}
+  );
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   useEffect(() => {
     let live = true;
-    if (!repository) {
-      setItems([]);
-      setReceipts({});
-      return () => {
-        live = false;
-      };
-    }
     void repository
       .load()
       .then((state) => {
@@ -131,7 +150,7 @@ export function MeetingNotesReview({
       </div>
     );
   }
-  if (!repository || items.length === 0) return null;
+  if (items.length === 0) return null;
 
   const onApprove = async (
     item: NotesReviewItem
