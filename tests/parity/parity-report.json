@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-07-12T01:10:49.337Z",
+  "generatedAt": "2026-07-12T14:22:31.770Z",
   "source": "design/01-wealthbox-feature-matrix.md",
   "totalFeatures": 69,
   "skippedFeatures": 20,
-  "verified": 0,
+  "verified": 23,
   "results": [
     {
       "id": "contact-person",
@@ -11,7 +11,7 @@
       "area": "contacts",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "detail": "Expected visible text: Parity household-1783866041984-3"
     },
     {
       "id": "contact-household",
@@ -19,7 +19,7 @@
       "area": "contacts",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "detail": "Missing required control: crm-directory-add"
     },
     {
       "id": "contact-household-titles",
@@ -27,7 +27,7 @@
       "area": "contacts",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "detail": "Missing required control: crm-directory-add"
     },
     {
       "id": "contact-company-trust",
@@ -35,7 +35,7 @@
       "area": "contacts",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "detail": "Missing required control: crm-directory-add"
     },
     {
       "id": "contact-professional-links",
@@ -43,7 +43,7 @@
       "area": "contacts",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "detail": "Missing required control: crm-directory-add"
     },
     {
       "id": "contact-roles",
@@ -51,7 +51,7 @@
       "area": "contacts",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "detail": "Missing required control: crm-directory-add"
     },
     {
       "id": "contact-ownership",
@@ -59,7 +59,7 @@
       "area": "contacts",
       "verdict": "IMPROVE",
       "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "detail": "Missing required control: crm-directory-add"
     },
     {
       "id": "contact-channels",
@@ -67,7 +67,7 @@
       "area": "contacts",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "detail": "Missing required control: crm-directory-add"
     },
     {
       "id": "contact-fact-rollup",
@@ -75,7 +75,7 @@
       "area": "contacts",
       "verdict": "IMPROVE",
       "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "detail": "Missing required control: crm-directory-add"
     },
     {
       "id": "custom-fields",
@@ -83,7 +83,7 @@
       "area": "firm setup",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "detail": "Missing required control: crm-firm-custom-field-new"
     },
     {
       "id": "tags",
@@ -91,7 +91,7 @@
       "area": "contacts",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "detail": "Expected visible text: Parity household-1783866053792-32"
     },
     {
       "id": "typed-objects",
@@ -99,7 +99,7 @@
       "area": "contacts",
       "verdict": "IMPROVE",
       "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "detail": "Missing required control: crm-directory-add"
     },
     {
       "id": "contact-notes",
@@ -107,7 +107,7 @@
       "area": "contacts",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "detail": "Missing required control: crm-directory-add"
     },
     {
       "id": "pinned-notes-and-memory",
@@ -115,7 +115,7 @@
       "area": "contacts",
       "verdict": "IMPROVE",
       "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "detail": "Missing required control: crm-directory-add"
     },
     {
       "id": "crm-note-search",
@@ -123,7 +123,7 @@
       "area": "search",
       "verdict": "IMPROVE",
       "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "detail": "Expected visible text: Parity note"
     },
     {
       "id": "note-mentions",
@@ -131,7 +131,7 @@
       "area": "timeline",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "detail": "Expected visible text: Parity household-1783866060068-46"
     },
     {
       "id": "internal-note-wall",
@@ -139,39 +139,39 @@
       "area": "contacts",
       "verdict": "IMPROVE",
       "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "detail": "Missing required control: crm-directory-add"
     },
     {
       "id": "task-record",
       "name": "Task record",
       "area": "tasks",
       "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "status": "BUILT",
+      "detail": "Passed against the running desktop app and survived native restart."
     },
     {
       "id": "task-assignee",
       "name": "Task assignee",
       "area": "tasks",
       "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "status": "BUILT",
+      "detail": "Passed against the running desktop app and survived native restart."
     },
     {
       "id": "task-recurrence",
       "name": "Task recurrence",
       "area": "tasks",
       "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "status": "BUILT",
+      "detail": "Passed against the running desktop app and survived native restart."
     },
     {
       "id": "task-priority",
       "name": "Task priority",
       "area": "tasks",
       "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "status": "BUILT",
+      "detail": "Passed against the running desktop app and survived native restart."
     },
     {
       "id": "facts-not-tasks",
@@ -179,15 +179,15 @@
       "area": "contacts",
       "verdict": "IMPROVE",
       "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "detail": "Expected visible text: Parity household-1783866068886-60"
     },
     {
       "id": "task-change-trail",
       "name": "Tasks as an audit trail for plan changes",
       "area": "tasks",
       "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "status": "BUILT",
+      "detail": "Passed against the running desktop app and survived native restart."
     },
     {
       "id": "unified-work",
@@ -195,63 +195,63 @@
       "area": "tasks",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "detail": "A real workflow step did not appear in the shared work list"
     },
     {
       "id": "task-triage",
       "name": "Capacity-aware / judgment-aware task triage",
       "area": "tasks",
       "verdict": "IMPROVE",
-      "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "status": "BUILT",
+      "detail": "Passed against the running desktop app and survived native restart."
     },
     {
       "id": "workflow-templates",
       "name": "Workflow templates",
       "area": "workflows",
       "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "status": "BUILT",
+      "detail": "Passed against the running desktop app and survived native restart."
     },
     {
       "id": "workflow-library",
       "name": "Wealthbox Library of Workflows",
       "area": "workflows",
       "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "status": "BUILT",
+      "detail": "Passed against the running desktop app and survived native restart."
     },
     {
       "id": "workflow-instances",
       "name": "Workflow instances (open workflows)",
       "area": "workflows",
       "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "status": "BUILT",
+      "detail": "Passed against the running desktop app and survived native restart."
     },
     {
       "id": "workflow-scheduling",
       "name": "Scheduled workflows",
       "area": "workflows",
       "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "status": "BUILT",
+      "detail": "Passed against the running desktop app and survived native restart."
     },
     {
       "id": "workflow-outcomes",
       "name": "Workflow outcomes (branch/restart/complete)",
       "area": "workflows",
       "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "status": "BUILT",
+      "detail": "Passed against the running desktop app and survived native restart."
     },
     {
       "id": "workflow-comments",
       "name": "Coworker commenting on workflow steps",
       "area": "workflows",
       "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "status": "BUILT",
+      "detail": "Passed against the running desktop app and survived native restart."
     },
     {
       "id": "meeting-workflow-proposal",
@@ -259,7 +259,7 @@
       "area": "workflows",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "detail": "Meeting did not create an approval-visible workflow proposal"
     },
     {
       "id": "opportunity-record",
@@ -267,31 +267,31 @@
       "area": "pipelines",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "detail": "Missing required control: crm-opportunity-name"
     },
     {
       "id": "opportunity-pipelines",
       "name": "Opportunity pipelines",
       "area": "pipelines",
       "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "status": "BUILT",
+      "detail": "Passed against the running desktop app and survived native restart."
     },
     {
       "id": "opportunity-stages",
       "name": "Opportunity stages",
       "area": "pipelines",
       "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "status": "BUILT",
+      "detail": "Passed against the running desktop app and survived native restart."
     },
     {
       "id": "opportunity-workflow-trigger",
       "name": "Launch workflow from new opportunity",
       "area": "pipelines",
       "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "status": "BUILT",
+      "detail": "Passed against the running desktop app and survived native restart."
     },
     {
       "id": "crm-calendar",
@@ -299,7 +299,7 @@
       "area": "calendar",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "detail": "Action did not create a event record"
     },
     {
       "id": "service-tier-scheduling",
@@ -307,7 +307,7 @@
       "area": "firm setup",
       "verdict": "IMPROVE",
       "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "detail": "Action did not create a servicePolicy record"
     },
     {
       "id": "crm-email-sync",
@@ -315,47 +315,47 @@
       "area": "email",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "detail": "Action did not create a emailActivity record"
     },
     {
       "id": "canned-reports",
       "name": "Automated/canned reports",
       "area": "reports",
       "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "status": "BUILT",
+      "detail": "Passed against the running desktop app and survived native restart."
     },
     {
       "id": "custom-reports",
       "name": "Dynamic/custom reports",
       "area": "reports",
       "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "status": "BUILT",
+      "detail": "Passed against the running desktop app and survived native restart."
     },
     {
       "id": "ai-reports",
       "name": "AI for Reports (prompt-built reports)",
       "area": "reports",
       "verdict": "IMPROVE",
-      "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "status": "BUILT",
+      "detail": "Passed against the running desktop app and survived native restart."
     },
     {
       "id": "client-neglect-report",
       "name": "Client-neglect / no-recent-interaction report",
       "area": "reports",
       "verdict": "IMPROVE",
-      "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "status": "BUILT",
+      "detail": "Passed against the running desktop app and survived native restart."
     },
     {
       "id": "attention-fee-report",
       "name": "Attention-vs-fee report",
       "area": "reports",
       "verdict": "IMPROVE",
-      "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "status": "BUILT",
+      "detail": "Passed against the running desktop app and survived native restart."
     },
     {
       "id": "contact-timeline",
@@ -363,23 +363,23 @@
       "area": "timeline",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "detail": "Missing required control: crm-timeline-event"
     },
     {
       "id": "firm-activity-feed",
       "name": "Firm-wide activity/dashboard feed",
       "area": "timeline",
       "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "status": "BUILT",
+      "detail": "Passed against the running desktop app and survived native restart."
     },
     {
       "id": "activity-mentions",
       "name": "@-mentioning",
       "area": "timeline",
       "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "status": "BUILT",
+      "detail": "Passed against the running desktop app and survived native restart."
     },
     {
       "id": "wealthbox-migration",
@@ -387,119 +387,7 @@
       "area": "migration",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
-    },
-    {
-      "id": "redtail-migration",
-      "name": "Redtail",
-      "area": "migration",
-      "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
-    },
-    {
-      "id": "salesforce-migration",
-      "name": "Salesforce",
-      "area": "migration",
-      "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
-    },
-    {
-      "id": "outlook-gmail",
-      "name": "Microsoft Outlook / Gmail",
-      "area": "email",
-      "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
-    },
-    {
-      "id": "teams-replacement",
-      "name": "Microsoft Teams",
-      "area": "timeline",
-      "verdict": "IMPROVE",
-      "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
-    },
-    {
-      "id": "calendly-replacement",
-      "name": "Calendly",
-      "area": "firm setup",
-      "verdict": "IMPROVE",
-      "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
-    },
-    {
-      "id": "ai-reports-suite",
-      "name": "AI for Reports",
-      "area": "reports",
-      "verdict": "IMPROVE",
-      "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
-    },
-    {
-      "id": "firm-roles",
-      "name": "Member / Admin / Owner roles",
-      "area": "firm setup",
-      "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
-    },
-    {
-      "id": "firm-teams",
-      "name": "Teams",
-      "area": "firm setup",
-      "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
-    },
-    {
-      "id": "firm-visibility",
-      "name": "Groups / visibility restrictions",
-      "area": "firm setup",
-      "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
-    },
-    {
-      "id": "firm-permissions",
-      "name": "Default permissions per user",
-      "area": "firm setup",
-      "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
-    },
-    {
-      "id": "guided-migration",
-      "name": "White-glove migration service",
-      "area": "migration",
-      "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
-    },
-    {
-      "id": "migration-export",
-      "name": "Data portability / export",
-      "area": "migration",
-      "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
-    },
-    {
-      "id": "migration-external-id",
-      "name": "External Unique ID field for import linking",
-      "area": "migration",
-      "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
-    },
-    {
-      "id": "wealthbox-api-connection",
-      "name": "REST API (OAuth2 + token auth)",
-      "area": "migration",
-      "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "Runner setup failed: eval timed out after 5000ms"
+      "detail": "Missing required control: crm-migration-run-import"
     },
     {
       "id": "jump-replacement",
@@ -508,6 +396,46 @@
       "verdict": "REPLICATE",
       "status": "PENDING",
       "detail": "The CRM-linked meeting fixture has not been exposed through the desktop bridge yet."
+    },
+    {
+      "id": "redtail-migration",
+      "name": "Redtail",
+      "area": "migration",
+      "verdict": "REPLICATE",
+      "status": "FAILING",
+      "detail": "Missing required control: crm-redtail-import"
+    },
+    {
+      "id": "salesforce-migration",
+      "name": "Salesforce",
+      "area": "migration",
+      "verdict": "REPLICATE",
+      "status": "FAILING",
+      "detail": "Missing required control: crm-salesforce-import"
+    },
+    {
+      "id": "outlook-gmail",
+      "name": "Microsoft Outlook / Gmail",
+      "area": "email",
+      "verdict": "REPLICATE",
+      "status": "FAILING",
+      "detail": "Action did not create a emailActivity record"
+    },
+    {
+      "id": "teams-replacement",
+      "name": "Microsoft Teams",
+      "area": "timeline",
+      "verdict": "IMPROVE",
+      "status": "FAILING",
+      "detail": "Expected visible text: Parity household-1783866128841-143"
+    },
+    {
+      "id": "calendly-replacement",
+      "name": "Calendly",
+      "area": "firm setup",
+      "verdict": "IMPROVE",
+      "status": "FAILING",
+      "detail": "Action did not create a servicePolicy record"
     },
     {
       "id": "document-connectors",
@@ -524,6 +452,14 @@
       "verdict": "REPLICATE",
       "status": "PENDING",
       "detail": "Needs a deterministic meeting-capture fixture that proves the saved note is linked to its client."
+    },
+    {
+      "id": "ai-reports-suite",
+      "name": "AI for Reports",
+      "area": "reports",
+      "verdict": "IMPROVE",
+      "status": "BUILT",
+      "detail": "Passed against the running desktop app and survived native restart."
     },
     {
       "id": "ai-monitoring",
@@ -548,6 +484,70 @@
       "verdict": "REPLICATE",
       "status": "PENDING",
       "detail": "Needs an offline CRM-aware answer fixture with cited records before this can be proved safely."
+    },
+    {
+      "id": "firm-roles",
+      "name": "Member / Admin / Owner roles",
+      "area": "firm setup",
+      "verdict": "REPLICATE",
+      "status": "FAILING",
+      "detail": "Action did not create a firmMember record"
+    },
+    {
+      "id": "firm-teams",
+      "name": "Teams",
+      "area": "firm setup",
+      "verdict": "REPLICATE",
+      "status": "FAILING",
+      "detail": "Action did not create a team record"
+    },
+    {
+      "id": "firm-visibility",
+      "name": "Groups / visibility restrictions",
+      "area": "firm setup",
+      "verdict": "REPLICATE",
+      "status": "FAILING",
+      "detail": "Action did not create a group record"
+    },
+    {
+      "id": "firm-permissions",
+      "name": "Default permissions per user",
+      "area": "firm setup",
+      "verdict": "REPLICATE",
+      "status": "FAILING",
+      "detail": "Action did not create a permissionPolicy record"
+    },
+    {
+      "id": "guided-migration",
+      "name": "White-glove migration service",
+      "area": "migration",
+      "verdict": "REPLICATE",
+      "status": "FAILING",
+      "detail": "Missing required control: crm-migration-run-import"
+    },
+    {
+      "id": "migration-export",
+      "name": "Data portability / export",
+      "area": "migration",
+      "verdict": "REPLICATE",
+      "status": "FAILING",
+      "detail": "Missing required control: crm-migration-archive"
+    },
+    {
+      "id": "migration-external-id",
+      "name": "External Unique ID field for import linking",
+      "area": "migration",
+      "verdict": "REPLICATE",
+      "status": "FAILING",
+      "detail": "Missing required control: crm-migration-source-id-map"
+    },
+    {
+      "id": "wealthbox-api-connection",
+      "name": "REST API (OAuth2 + token auth)",
+      "area": "migration",
+      "verdict": "REPLICATE",
+      "status": "FAILING",
+      "detail": "Missing required control: crm-migration-base-url"
     },
     {
       "id": "native-collaboration-push",
@@ -640,5 +640,5 @@
       "reason": "D9 keeps the Wealthbox migration wizard as the v1 import path."
     }
   ],
-  "infrastructureError": "eval timed out after 5000ms"
+  "infrastructureError": null
 }
