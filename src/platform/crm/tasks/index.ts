@@ -11,7 +11,7 @@ export interface DailyWorkItem {
   kind: 'task' | 'workflow_step';
   status: 'open' | 'in_progress' | 'blocked' | 'done' | 'cancelled';
   priority: WorkPriority;
-  dueAt?: string;
+  dueAt?: string | undefined;
   assigneeUserId: string | null;
 }
 

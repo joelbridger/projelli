@@ -17,11 +17,11 @@ describe('reportEngine', () => {
   });
   it('never invents a fee while showing missing fee data honestly', () => {
     const report = computeReport(records, 'attention_vs_fee', { entity: 'household', filters: [] }, now);
-    expect(report.rows.find((row) => row.householdId === 'hh-2')?.values.fee).toBe('No fee data recorded');
+    expect(report.rows.find((row) => row.householdId === 'hh-2')?.values['fee']).toBe('No fee data recorded');
     expect(report.exclusions.join(' ')).toContain('No fee household');
   });
   it('uses birthday and review dates from records', () => {
-    expect(computeReport(records, 'birthdays', { entity: 'person', filters: [] }, now).rows[0]?.values.person).toBe('Avery Northcrest');
+    expect(computeReport(records, 'birthdays', { entity: 'person', filters: [] }, now).rows[0]?.values['person']).toBe('Avery Northcrest');
     expect(computeReport(records, 'review_due', { entity: 'household', filters: [] }, now).rows[0]?.householdId).toBe('hh-1');
   });
   it('only proposes a bounded report query from an Ask question', () => {

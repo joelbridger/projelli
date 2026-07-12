@@ -11,8 +11,6 @@ const panel = { border: '1px solid var(--kp-border)', borderRadius: 'var(--radiu
 const muted = { color: 'var(--kp-text-faint)', fontSize: 'var(--kp-font-sm)' } as const;
 const canned = ['no_contact_6mo', 'attention_vs_fee', 'birthdays', 'age_65', 'rmd_due', 'review_due'] as const satisfies readonly ReportKind[];
 
-function fieldValue(row: ComputedReport['rows'][number], field: string): string { return field === 'name' ? row.householdName : row.values[field] ?? 'Not recorded'; }
-
 export function CrmReports() {
   const live = useLiveCrmRecords();
   const [kind, setKind] = useState<ReportKind>('no_contact_6mo');

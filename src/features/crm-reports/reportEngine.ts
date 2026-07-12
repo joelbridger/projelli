@@ -123,7 +123,7 @@ function customRows(households: readonly Household[], query: ViewQuery, activiti
       household,
       fields: {
         name: displayName(household), status: String(household['status'] ?? household['lifecycle'] ?? ''), serviceTier: String(household['serviceTier'] ?? ''), primaryAdvisor: String(household['primaryAdvisor'] ?? ''), nextReviewDue: String(household['nextReviewDue'] ?? household['nextReview'] ?? ''), lastContactAt: iso(lastContact), age: String(now.getUTCFullYear()),
-      },
+      } as Record<string, string>,
       sourceIds: [household.id, ...activities.filter((activity) => householdIdFor(activity) === household.id).map((activity) => activity.id)],
     };
   }).filter(({ fields }) => query.filters.every((filter) => applies(fields[filter.field], filter)));
@@ -174,7 +174,7 @@ export function computeReport(records: readonly LiveCrmRecord[], kind: ReportKin
     if (!due) { exclusions.push(`${displayName(household)} has no next review date recorded.`); continue; }
     if (due <= new Date(now.getTime() + 31 * 86_400_000)) rows.push({ householdId: household.id, householdName: displayName(household), values: { nextReviewDue: iso(due), serviceTier: String(household['serviceTier'] ?? policy?.['tierName'] ?? 'Not recorded') }, sourceIds: [household.id, ...(policy ? [policy.id] : [])] });
   }
-  if (kind === 'attention_vs_fee') rows.sort((a, b) => Number.parseFloat(b.values.comparison) - Number.parseFloat(a.values.comparison));
+  if (kind === 'attention_vs_fee') rows.sort((a, b) => Number.parseFloat(b.values['comparison'] ?? '') - Number.parseFloat(a.values['comparison'] ?? ''));
   return { kind, title: REPORT_TITLES[kind], rows, sourcesConsidered, exclusions, calculatedAt: now.toISOString() };
 }
 

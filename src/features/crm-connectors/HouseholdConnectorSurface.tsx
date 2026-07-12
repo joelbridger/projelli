@@ -69,10 +69,10 @@ function useHouseholdConnectorContext(household: HouseholdRecord): { matterId: s
   return useMemo(() => {
     const record = live.records.find((candidate) => candidate.id === household.id);
     const matterId = typeof record?.matterId === 'string' && record.matterId ? record.matterId : household.id;
-    const policyId = typeof record?.servicePolicyId === 'string' ? record.servicePolicyId : undefined;
+    const policyId = typeof record?.['servicePolicyId'] === 'string' ? record['servicePolicyId'] : undefined;
     const policy = policyId ? live.records.find((candidate) => candidate.kind === 'servicePolicy' && candidate.id === policyId) : undefined;
-    const schedulingLinkUrl = typeof policy?.schedulingLinkUrl === 'string'
-      ? policy.schedulingLinkUrl
+    const schedulingLinkUrl = typeof policy?.['schedulingLinkUrl'] === 'string'
+      ? policy['schedulingLinkUrl']
       : household.schedulingLinkUrl;
     return { matterId, ...(schedulingLinkUrl ? { schedulingLinkUrl } : {}) };
   }, [household.id, household.schedulingLinkUrl, live.records]);
@@ -84,7 +84,7 @@ function useTimelineLinks(householdId: string, matterId: string, items: readonly
     if (!items.length || !live.workspaceRoot) return;
     const existing = new Set(
       live.records
-        .filter((record) => record.kind === 'activityEvent' && record.householdId === householdId)
+        .filter((record) => record.kind === 'activityEvent' && record['householdId'] === householdId)
         .map((record) => record.id),
     );
     for (const item of items) {
@@ -210,7 +210,9 @@ function HouseholdMeetings({ household, matterId, schedulingLinkUrl }: { househo
   </div>;
 }
 
-export function HouseholdConnectorSurface({ tab, household, actions }: { tab: ConnectorTab; household: HouseholdRecord; actions?: CrmClientsActions }) {
+export function HouseholdConnectorSurface({ tab, household, actions }: { tab: ConnectorTab; household: HouseholdRecord; actions?: CrmClientsActions | undefined }) {
   const { matterId, schedulingLinkUrl } = useHouseholdConnectorContext(household);
-  return tab === 'email' ? <HouseholdEmail household={household} matterId={matterId} actions={actions} /> : <HouseholdMeetings household={household} matterId={matterId} schedulingLinkUrl={schedulingLinkUrl} />;
+  return tab === 'email'
+    ? <HouseholdEmail household={household} matterId={matterId} {...(actions ? { actions } : {})} />
+    : <HouseholdMeetings household={household} matterId={matterId} {...(schedulingLinkUrl ? { schedulingLinkUrl } : {})} />;
 }
