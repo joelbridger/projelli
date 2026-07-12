@@ -3345,7 +3345,7 @@
   },
   "answer-dates": {
     "title": "Dates in the cited records",
-    "conflict-flagged": "Date conflict flagged.",
-    "review-records": "Check the cited records before relying on either date."
+    "record-copy-flagged": "Matching record copies have different timestamps.",
+    "review-record-copies": "Check the cited copies before relying on either date."
   }
 }

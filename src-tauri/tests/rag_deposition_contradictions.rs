@@ -901,6 +901,12 @@ async fn f510_capped_finder_feed_contains_both_sides_of_all_three() {
             extraction: h.extraction.clone(),
             extraction_confidence: h.extraction_confidence,
             locator: h.locator.clone(),
+            // This fixture is built directly from vector-store rows, which do
+            // not carry authoritative source-date or fact metadata. Production
+            // retrieval attaches source dates from the local source afterward.
+            source_date: None,
+            dated_fact: None,
+            date_conflict: None,
         })
         .collect();
     hits.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));

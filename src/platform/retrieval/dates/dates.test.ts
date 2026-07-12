@@ -21,82 +21,130 @@ describe('dated retrieval hits', () => {
         id: 'mail',
         sourceId: 'mail:message-1',
         sourceType: 'mail',
-        sourceDate: { value: '2026-06-17T09:30:00Z', kind: 'received', confidence: 'source' },
+        sourceDate: {
+          value: '2026-06-17T09:30:00Z',
+          kind: 'received',
+          confidence: 'source',
+        },
       }),
       hit({
         id: 'document',
         sourceId: '/clients/jordan/policy.pdf',
         sourceType: 'pdf',
-        sourceDate: { value: '2026-05-30T12:00:00Z', kind: 'document-modified', confidence: 'derived' },
+        sourceDate: {
+          value: '2026-05-30T12:00:00Z',
+          kind: 'document-modified',
+          confidence: 'derived',
+        },
       }),
       hit({
         id: 'crm',
         sourceId: 'crm:note-1',
         sourceType: 'crm',
-        sourceDate: { value: '2026-04-03T14:00:00Z', kind: 'created', confidence: 'source' },
+        sourceDate: {
+          value: '2026-04-03T14:00:00Z',
+          kind: 'created',
+          confidence: 'source',
+        },
       }),
     ]);
 
     expect(sources.map((source) => source.sourceDate)).toEqual([
-      { value: '2026-06-17T09:30:00.000Z', kind: 'received', confidence: 'source' },
-      { value: '2026-05-30T12:00:00.000Z', kind: 'document-modified', confidence: 'derived' },
-      { value: '2026-04-03T14:00:00.000Z', kind: 'created', confidence: 'source' },
+      {
+        value: '2026-06-17T09:30:00.000Z',
+        kind: 'received',
+        confidence: 'source',
+      },
+      {
+        value: '2026-05-30T12:00:00.000Z',
+        kind: 'document-modified',
+        confidence: 'derived',
+      },
+      {
+        value: '2026-04-03T14:00:00.000Z',
+        kind: 'created',
+        confidence: 'source',
+      },
     ]);
   });
 
-  it('flags both newer and older incompatible evidence without changing retrieval order', () => {
+  it('flags differently timestamped copies of the same mail record without changing retrieval order', () => {
     const sources = buildDatedWorkspaceSources([
       hit({
-        id: 'signed-policy',
-        sourceId: '/clients/jordan/signed-policy.pdf',
-        path: '/clients/jordan/signed-policy.pdf',
-        sourceType: 'pdf',
-        sourceDate: { value: '2026-05-30T12:00:00Z', kind: 'effective', confidence: 'source' },
+        id: 'mail-copy-older',
+        sourceId: 'mail:message-copy-older',
+        path: 'mail:message-copy-older',
+        sourceType: 'mail',
+        sourceDate: {
+          value: '2026-05-30T12:00:00Z',
+          kind: 'received',
+          confidence: 'source',
+        },
         datedFact: {
-          key: 'umbrella-limit',
-          value: '$3 million',
-          authorityReason: 'signed policy declaration',
+          key: 'mail-message:<jordan-review@example.test>:received-date',
+          value: '2026-05-30T12:00:00Z',
         },
       }),
       hit({
-        id: 'newer-email',
-        sourceId: 'mail:carrier',
-        path: 'mail:carrier',
+        id: 'mail-copy-newer',
+        sourceId: 'mail:message-copy-newer',
+        path: 'mail:message-copy-newer',
         sourceType: 'mail',
-        sourceDate: { value: '2026-06-17T09:30:00Z', kind: 'received', confidence: 'source' },
+        sourceDate: {
+          value: '2026-06-17T09:30:00Z',
+          kind: 'received',
+          confidence: 'source',
+        },
         datedFact: {
-          key: 'umbrella-limit',
-          value: '$5 million',
-          authorityReason: 'email discussing a possible change',
+          key: 'mail-message:<jordan-review@example.test>:received-date',
+          value: '2026-06-17T09:30:00Z',
         },
       }),
     ]);
 
-    expect(sources.map((source) => source.id)).toEqual(['signed-policy', 'newer-email']);
+    expect(sources.map((source) => source.id)).toEqual([
+      'mail-copy-older',
+      'mail-copy-newer',
+    ]);
     const olderSource = sources.at(0);
     const newerSource = sources.at(1);
     expect(olderSource?.dateConflict).toMatchObject({
       relation: 'older-conflicts-with-newer',
-      factKey: 'umbrella-limit',
+      factKey: 'mail-message:<jordan-review@example.test>:received-date',
     });
-    expect(olderSource?.dateConflict?.evidence).toEqual(expect.arrayContaining([
-      expect.objectContaining({ sourceId: '/clients/jordan/signed-policy.pdf', value: '$3 million' }),
-      expect.objectContaining({ sourceId: 'mail:carrier', value: '$5 million' }),
-    ]));
+    expect(olderSource?.dateConflict?.evidence).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          sourceId: 'mail:message-copy-older',
+          value: '2026-05-30T12:00:00Z',
+        }),
+        expect.objectContaining({
+          sourceId: 'mail:message-copy-newer',
+          value: '2026-06-17T09:30:00Z',
+        }),
+      ])
+    );
     expect(newerSource?.dateConflict).toMatchObject({
       relation: 'newer-conflicts-with-older',
-      factKey: 'umbrella-limit',
+      factKey: 'mail-message:<jordan-review@example.test>:received-date',
     });
-    expect(newerSource?.dateConflict?.evidence).toEqual(expect.arrayContaining([
-      expect.objectContaining({ sourceId: '/clients/jordan/signed-policy.pdf', authorityReason: 'signed policy declaration' }),
-      expect.objectContaining({ sourceId: 'mail:carrier', authorityReason: 'email discussing a possible change' }),
-    ]));
+    expect(newerSource?.dateConflict?.evidence).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ sourceId: 'mail:message-copy-older' }),
+        expect.objectContaining({ sourceId: 'mail:message-copy-newer' }),
+      ])
+    );
   });
 
   it('leaves old or invalid date rows readable as Date unavailable', () => {
     const [source] = buildDatedWorkspaceSources([
       hit({
-        sourceDate: { value: 'not-a-date', kind: 'received', rawValue: 'yesterday', confidence: 'source' },
+        sourceDate: {
+          value: 'not-a-date',
+          kind: 'received',
+          rawValue: 'yesterday',
+          confidence: 'source',
+        },
       }),
     ]);
 
@@ -108,20 +156,31 @@ describe('dated retrieval hits', () => {
     });
   });
 
-  it('does not call a simple date difference a conflict', () => {
+  it('does not call unrelated document facts a conflict', () => {
     const sources = buildDatedWorkspaceSources([
       hit({
         id: 'older-policy',
-        sourceDate: { value: '2026-05-01T00:00:00Z', kind: 'effective', confidence: 'source' },
-        datedFact: { key: 'umbrella-limit', value: '$3 million' },
+        sourceDate: {
+          value: '2026-05-01T00:00:00Z',
+          kind: 'effective',
+          confidence: 'source',
+        },
+        datedFact: { key: 'policy-limit', value: '$3 million' },
       }),
       hit({
         id: 'newer-policy-copy',
-        sourceDate: { value: '2026-06-01T00:00:00Z', kind: 'received', confidence: 'source' },
-        datedFact: { key: 'umbrella-limit', value: '$3 million' },
+        sourceDate: {
+          value: '2026-06-01T00:00:00Z',
+          kind: 'received',
+          confidence: 'source',
+        },
+        datedFact: { key: 'carrier-email-limit', value: '$5 million' },
       }),
     ]);
 
-    expect(sources.map((source) => source.dateConflict)).toEqual([undefined, undefined]);
+    expect(sources.map((source) => source.dateConflict)).toEqual([
+      undefined,
+      undefined,
+    ]);
   });
 });
