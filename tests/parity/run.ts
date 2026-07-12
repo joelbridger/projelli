@@ -277,6 +277,28 @@ class DesktopParityApp implements ParityApp {
     await this.require(testid);
     await http('/click', { testid });
   }
+
+  /**
+   * A real desktop can keep its spine expanded or fold it into its compact
+   * icon rail. Both controls are the same navigation action, but they have
+   * distinct stable handles because only one is mounted at a time. Acceptance
+   * checks must drive the visible control instead of mistaking a saved layout
+   * preference for a missing product feature.
+   */
+  private async clickSpineTab(tab: 'home' | 'matters'): Promise<void> {
+    const expanded = `spine-nav-${tab}`;
+    const collapsed = `spine-nav-collapsed-${tab}`;
+    if (await this.exists(expanded)) {
+      await this.click(expanded);
+      return;
+    }
+    if (await this.exists(collapsed)) {
+      await this.click(collapsed);
+      return;
+    }
+    this.lastStep = `require(${JSON.stringify(expanded)} or ${JSON.stringify(collapsed)})`;
+    fail(`Missing required spine navigation control: ${expanded} or ${collapsed}`);
+  }
   private async fill(testid: string, value: string): Promise<void> {
     this.lastStep = `fill(${JSON.stringify(arguments[0])})`;
     await this.require(testid);
@@ -519,7 +541,7 @@ class DesktopParityApp implements ParityApp {
       !!route && clientsRoutes.some((prefix) => route.startsWith(prefix));
     if (wantsClients) {
       if (await this.exists('crm-directory-surface')) return;
-      await this.click('spine-nav-matters');
+      await this.clickSpineTab('matters');
       const end = Date.now() + 10_000;
       while (Date.now() < end) {
         if (await this.exists('crm-directory-surface')) return;
@@ -528,7 +550,7 @@ class DesktopParityApp implements ParityApp {
       fail('The desktop app did not show the Clients directory');
     }
     if (await this.exists('crm-home-nav-tasks')) return;
-    await this.click('spine-nav-home');
+    await this.clickSpineTab('home');
     const end = Date.now() + 10_000;
     while (Date.now() < end) {
       if (await this.exists('crm-home-nav-tasks')) return;
@@ -696,7 +718,7 @@ class DesktopParityApp implements ParityApp {
     await this.waitForCrmReady(path);
     const household = this.token('Parity household');
     const person = this.token('Parity person');
-    await this.click('spine-nav-matters');
+    await this.clickSpineTab('matters');
     await this.waitForControl('crm-directory-surface');
     await this.click('crm-directory-add');
     await this.fill('crm-household-name', household);
@@ -768,7 +790,7 @@ class DesktopParityApp implements ParityApp {
     }
     await this.restart();
     await this.waitForCrmReady(path);
-    await this.click('spine-nav-matters');
+    await this.clickSpineTab('matters');
     // Clients remembers the open household across restart. Return through its
     // visible Directory control before checking the People directory.
     if (await this.exists('crm-household-record')) {
