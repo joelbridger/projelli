@@ -123,7 +123,7 @@ function customRows(households: readonly Household[], query: ViewQuery, activiti
       household,
       fields: {
         name: displayName(household), status: String(household['status'] ?? household['lifecycle'] ?? ''), serviceTier: String(household['serviceTier'] ?? ''), primaryAdvisor: String(household['primaryAdvisor'] ?? ''), nextReviewDue: String(household['nextReviewDue'] ?? household['nextReview'] ?? ''), lastContactAt: iso(lastContact), age: String(now.getUTCFullYear()),
-      } satisfies Record<string, string>,
+      } as Record<string, string>,
       sourceIds: [household.id, ...activities.filter((activity) => householdIdFor(activity) === household.id).map((activity) => activity.id)],
     };
   }).filter(({ fields }) => query.filters.every((filter) => applies(fields[filter.field], filter)));
