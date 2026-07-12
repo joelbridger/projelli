@@ -19,6 +19,7 @@ pub mod model;
 pub mod provider;
 pub mod redtail;
 pub mod render;
+pub mod search;
 pub mod salesforce;
 pub mod source;
 pub mod store;
