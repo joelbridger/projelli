@@ -1,5 +1,90 @@
 use super::*;
 
+/// Date metadata carried with a retrieval result. This mirrors the frontend's
+/// `SourceDate` contract exactly; the values describe the original source, not
+/// when Lantern happened to index it.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum SourceDateKind {
+    Effective,
+    Received,
+    Sent,
+    Created,
+    Updated,
+    EventStart,
+    DocumentModified,
+    SnapshotExported,
+    Unknown,
+}
+
+/// How the date was obtained.  This is a closed IPC contract: callers cannot
+/// accidentally label a locally-derived file timestamp as source evidence.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum SourceDateConfidence {
+    Source,
+    Derived,
+    Unknown,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum DateConflictKind {
+    ConflictingDatedEvidence,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum DateConflictRelation {
+    NewerConflictsWithOlder,
+    OlderConflictsWithNewer,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceDate {
+    /// RFC 3339 when the source supplied a safely parseable timestamp.
+    pub value: Option<String>,
+    /// `received`, `created`, `updated`, or `document-modified` for producers
+    /// currently available in the Rust retrieval path.
+    pub kind: SourceDateKind,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub raw_value: Option<String>,
+    /// Directly read from the mail, CRM, or file metadata source.
+    pub confidence: SourceDateConfidence,
+}
+
+/// Optional adapter-owned fact metadata. The retrieval producer does not infer
+/// facts; it only preserves this shape for a source that supplies one.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DatedFact {
+    pub key: String,
+    pub value: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub authority_reason: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DatedEvidence {
+    pub source_id: String,
+    pub path: String,
+    pub value: String,
+    pub source_date: SourceDate,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub authority_reason: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DateConflictFlag {
+    pub kind: DateConflictKind,
+    pub fact_key: String,
+    pub relation: DateConflictRelation,
+    pub evidence: Vec<DatedEvidence>,
+}
+
 /// One result row returned by `rag_retrieve`. The shape is frozen in Phase
 /// 2 so frontend UI can be built against it:
 ///   - `path`: absolute path of the source file
@@ -60,6 +145,17 @@ pub struct Hit {
     // "Tr. 45:12-46:3". Metadata ON TOP of the unchanged `paragraph_index`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub locator: Option<String>,
+    // B1: producer-side date contract. Retrieval fills adapter-owned record
+    // timestamp identities for mail and CRM and flags differing timestamps on
+    // matching copies of that same record before IPC. This is not general
+    // cross-document fact extraction. File-only sources honestly omit
+    // `dated_fact` when no source adapter owns a stable record identity.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_date: Option<SourceDate>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dated_fact: Option<DatedFact>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub date_conflict: Option<DateConflictFlag>,
 }
 
 /// WS-B/C — the REQUIRED retrieval scope. Confidentiality is enforced here: a

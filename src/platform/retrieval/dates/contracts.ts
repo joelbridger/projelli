@@ -28,16 +28,17 @@ export interface SourceDate {
 }
 
 /**
- * An explicit, source-adapter supplied claim used only to compare evidence for
- * the same fact. This is not a hidden authority score: any authority context
- * is preserved as visible prose for Ask to show an advisor.
+ * An explicit, source-adapter supplied timestamp identity. It is only used to
+ * compare two imported copies of the SAME record (for example, the same mail
+ * message from two folders). It is not a general fact-extraction system and it
+ * must never be used to compare claims in different documents.
  */
 export interface DatedFact {
-  /** Stable, adapter-owned identity such as `umbrella-limit`. */
+  /** Stable, adapter-owned record timestamp identity. */
   key: string;
   /** The source's asserted value, kept verbatim for display. */
   value: string;
-  /** Optional visible explanation, e.g. "signed policy declaration". */
+  /** Optional adapter-supplied provenance explanation. */
   authorityReason?: string;
 }
 
@@ -50,9 +51,9 @@ export interface DatedEvidence {
 }
 
 /**
- * A warning attached to every dated source in an incompatible set. `relation`
- * makes it impossible for a later answer layer to silently treat newer as
- * better: it receives both the newer and older sources and their dates.
+ * A warning attached to matching copies of one record when their imported
+ * timestamps differ. `relation` makes it impossible for a later answer layer
+ * to silently treat newer as better: it receives both copies and their dates.
  */
 export interface DateConflictFlag {
   kind: 'conflicting-dated-evidence';

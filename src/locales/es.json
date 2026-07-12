@@ -4360,7 +4360,7 @@
   },
   "answer-dates": {
     "title": "Fechas en los registros citados",
-    "conflict-flagged": "Se detectó un conflicto de fechas.",
-    "review-records": "Revisa los registros citados antes de confiar en cualquiera de las fechas."
+    "record-copy-flagged": "Las copias del mismo registro tienen marcas de tiempo distintas.",
+    "review-record-copies": "Revisa las copias citadas antes de confiar en cualquiera de las fechas."
   }
 }

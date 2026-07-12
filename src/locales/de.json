@@ -4360,7 +4360,7 @@
   },
   "answer-dates": {
     "title": "Daten in den zitierten Unterlagen",
-    "conflict-flagged": "Datumsabweichung erkannt.",
-    "review-records": "Prüfen Sie die zitierten Unterlagen, bevor Sie sich auf eines der Daten verlassen."
+    "record-copy-flagged": "Passende Kopien desselben Datensatzes haben unterschiedliche Zeitstempel.",
+    "review-record-copies": "Prüfen Sie die zitierten Kopien, bevor Sie sich auf eines der Daten verlassen."
   }
 }
