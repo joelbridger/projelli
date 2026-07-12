@@ -87,7 +87,10 @@ export type CrmHomeRoute =
   | 'attachment-accounting'
   | 'archive-export'
   | 'rollback-export'
-  | 'search';
+  | 'search'
+  | 'email'
+  | 'calendar'
+  | 'timeline';
 
 export interface CrmHomeProps {
   adapter?: CrmHomeAdapter;
