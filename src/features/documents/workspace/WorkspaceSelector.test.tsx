@@ -26,8 +26,12 @@ vi.mock('@/platform/utils/tauri-commands', () => ({
   migrateWorkspaceDataDir: migrateWorkspaceDataDirMock,
 }));
 
+const { vaultStatusMock } = vi.hoisted(() => ({
+  vaultStatusMock: vi.fn(),
+}));
+
 vi.mock('@/platform/firm/vault/vaultClient', () => ({
-  vaultStatus: vi.fn().mockResolvedValue({ enabled: false, locked: false, hasEscrow: false, vaultId: null }),
+  vaultStatus: vaultStatusMock,
 }));
 
 const { createFSBackendMock } = vi.hoisted(() => ({
@@ -41,12 +45,17 @@ vi.mock('@/platform/fs/BackendFactory', () => ({
 
 vi.mock('@/platform/fs/WorkspaceService', () => ({
   createWorkspaceService: () => ({
-    initialize: vi.fn().mockResolvedValue({ rootPath: '/manual/path', name: 'path' }),
+    initialize: vi
+      .fn()
+      .mockResolvedValue({ rootPath: '/manual/path', name: 'path' }),
     getFileTree: vi.fn().mockResolvedValue([]),
   }),
 }));
 
-import { WorkspaceSelector, type WorkspaceSelectorProps } from './WorkspaceSelector';
+import {
+  WorkspaceSelector,
+  type WorkspaceSelectorProps,
+} from './WorkspaceSelector';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 
 function mockPromptForPath() {
@@ -57,6 +66,13 @@ describe('WorkspaceSelector — native picker dialog watchdog (QA-32)', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     openDialogMock.mockReset();
+    vaultStatusMock.mockReset();
+    vaultStatusMock.mockResolvedValue({
+      enabled: false,
+      locked: false,
+      hasEscrow: false,
+      vaultId: null,
+    });
     createFSBackendMock.mockReset();
     createFSBackendMock.mockResolvedValue({});
     migrateWorkspaceDataDirMock.mockReset();
@@ -73,7 +89,7 @@ describe('WorkspaceSelector — native picker dialog watchdog (QA-32)', () => {
         open={true}
         onWorkspaceSelected={vi.fn()}
         promptForPath={promptForPath}
-      />,
+      />
     );
 
     await act(async () => {
@@ -101,7 +117,7 @@ describe('WorkspaceSelector — native picker dialog watchdog (QA-32)', () => {
         open={true}
         onWorkspaceSelected={vi.fn()}
         promptForPath={promptForPath}
-      />,
+      />
     );
 
     await act(async () => {
@@ -130,7 +146,7 @@ describe('WorkspaceSelector — native picker dialog watchdog (QA-32)', () => {
         open={true}
         onWorkspaceSelected={vi.fn()}
         promptForPath={promptForPath}
-      />,
+      />
     );
 
     await act(async () => {
@@ -143,15 +159,63 @@ describe('WorkspaceSelector — native picker dialog watchdog (QA-32)', () => {
   });
 });
 
+describe('WorkspaceSelector — debug first-run workspace', () => {
+  beforeEach(() => {
+    vi.useRealTimers();
+    vaultStatusMock.mockReset();
+    createFSBackendMock.mockReset();
+    migrateWorkspaceDataDirMock.mockReset();
+    migrateWorkspaceDataDirMock.mockResolvedValue(null);
+  });
+
+  it('uses the picker path and shows unlock UI for a locked workspace', async () => {
+    vaultStatusMock.mockResolvedValue({
+      enabled: true,
+      locked: true,
+      hasEscrow: false,
+      vaultId: 'vault-1',
+    });
+
+    render(
+      <WorkspaceSelector
+        open={true}
+        onWorkspaceSelected={vi.fn()}
+        autoOpenWorkspacePath="/debug/locked-workspace"
+      />
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(migrateWorkspaceDataDirMock).toHaveBeenCalledWith(
+      '/debug/locked-workspace'
+    );
+    expect(vaultStatusMock).toHaveBeenCalledWith('/debug/locked-workspace');
+    expect(createFSBackendMock).not.toHaveBeenCalled();
+    expect(screen.getByTestId('recovery-phrase-input')).toBeInTheDocument();
+  });
+});
+
 describe('WorkspaceSelector — recent-workspace open failures (codex-review round 2)', () => {
   beforeEach(() => {
     vi.useRealTimers();
     openDialogMock.mockReset();
+    vaultStatusMock.mockReset();
+    vaultStatusMock.mockResolvedValue({
+      enabled: false,
+      locked: false,
+      hasEscrow: false,
+      vaultId: null,
+    });
     createFSBackendMock.mockReset();
     migrateWorkspaceDataDirMock.mockReset();
     migrateWorkspaceDataDirMock.mockResolvedValue(null);
     useWorkspaceStore.setState({
-      recentWorkspaces: [{ path: '/recent/one', name: 'one', lastOpened: new Date() }],
+      recentWorkspaces: [
+        { path: '/recent/one', name: 'one', lastOpened: new Date() },
+      ],
     } as never);
   });
 
@@ -180,7 +244,9 @@ describe('WorkspaceSelector — recent-workspace open failures (codex-review rou
   });
 
   it('DOES prune the recent workspace on a genuine "path does not exist" failure', async () => {
-    createFSBackendMock.mockRejectedValue(new Error('Workspace path does not exist: /recent/one'));
+    createFSBackendMock.mockRejectedValue(
+      new Error('Workspace path does not exist: /recent/one')
+    );
 
     await openTheOneRecentRow();
 
@@ -190,7 +256,9 @@ describe('WorkspaceSelector — recent-workspace open failures (codex-review rou
   it('a slow migration is fully awaited — createFSBackend (which would re-migrate) never starts early, so no second migration attempt races the first', async () => {
     let resolveMigration: (value: null) => void = () => {};
     migrateWorkspaceDataDirMock.mockReturnValue(
-      new Promise((resolve) => { resolveMigration = resolve; }),
+      new Promise((resolve) => {
+        resolveMigration = resolve;
+      })
     );
 
     render(<WorkspaceSelector open={true} onWorkspaceSelected={vi.fn()} />);

@@ -419,6 +419,30 @@ pub fn run() {
                 let builder =
                     tauri::WebviewWindowBuilder::from_config(app.handle(), window_config)?;
 
+                // A workspace supplied on the command line (or through the
+                // dedicated environment variable) is an automation affordance,
+                // not a replacement for normal first-run onboarding. Pass it to
+                // the renderer only after the host has proved it is a real
+                // directory. JSON encoding keeps unusual but valid path
+                // characters from becoming executable script text.
+                #[cfg(debug_assertions)]
+                let builder = if let Some(workspace) = explicit_launch_workspace() {
+                    let workspace_json = serde_json::to_string(&workspace)
+                        .expect("serializing a workspace path cannot fail");
+                    builder.initialization_script(format!(
+                        "window.__LANTERN_WORKSPACE__ = {workspace_json};"
+                    ))
+                } else {
+                    builder
+                };
+
+                // A release build deliberately has no command-line or
+                // environment workspace override at all. This makes the
+                // automation-only capability impossible to invoke in shipped
+                // binaries, even if an environment variable is present.
+                #[cfg(not(debug_assertions))]
+                let builder = builder;
+
                 #[cfg(all(windows, debug_assertions))]
                 let builder = {
                     let browser_args = crate::webview_env::debug_webview_browser_args("main");
@@ -504,4 +528,139 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+/// Returns an explicitly requested, existing workspace directory for this
+/// launch. `--workspace <dir>` takes precedence over `LANTERN_WORKSPACE`.
+/// Invalid or absent values deliberately return `None`, preserving the normal
+/// first-run picker rather than creating or opening an unexpected folder.
+#[cfg(debug_assertions)]
+fn explicit_launch_workspace() -> Option<String> {
+    let cli_workspace = workspace_argument(std::env::args_os().skip(1));
+    let candidate = cli_workspace
+        .or_else(|| std::env::var_os("LANTERN_WORKSPACE").map(std::path::PathBuf::from))?;
+
+    match canonical_existing_directory(candidate) {
+        Some(path) => path.into_os_string().into_string().ok(),
+        None => {
+            log::warn!("[launch-workspace] ignoring missing or invalid explicit workspace");
+            None
+        }
+    }
+}
+
+#[cfg(any(debug_assertions, test))]
+fn workspace_argument<I>(args: I) -> Option<std::path::PathBuf>
+where
+    I: IntoIterator<Item = std::ffi::OsString>,
+{
+    let mut args = args.into_iter();
+    while let Some(argument) = args.next() {
+        if argument == "--workspace" {
+            return args.next().map(std::path::PathBuf::from);
+        }
+        if let Some(value) = argument
+            .to_str()
+            .and_then(|value| value.strip_prefix("--workspace="))
+        {
+            return Some(std::path::PathBuf::from(value));
+        }
+    }
+    None
+}
+
+#[cfg(any(debug_assertions, test))]
+fn canonical_existing_directory(path: std::path::PathBuf) -> Option<std::path::PathBuf> {
+    use std::path::Component;
+
+    // This debug-only convenience must never quietly turn a visibly-relative
+    // input into a different folder. It also refuses a symlink at the root so
+    // automation cannot disguise the workspace it is about to open.
+    if path
+        .components()
+        .any(|component| matches!(component, Component::ParentDir))
+    {
+        return None;
+    }
+    let metadata = std::fs::symlink_metadata(&path).ok()?;
+    if !metadata.is_dir() || metadata.file_type().is_symlink() {
+        return None;
+    }
+    std::fs::canonicalize(path).ok()
+}
+
+#[cfg(test)]
+mod launch_workspace_tests {
+    use super::{canonical_existing_directory, workspace_argument};
+    use std::ffi::OsString;
+
+    #[test]
+    fn reads_a_separate_workspace_argument() {
+        assert_eq!(
+            workspace_argument([
+                OsString::from("--workspace"),
+                OsString::from("/tmp/lantern")
+            ]),
+            Some("/tmp/lantern".into())
+        );
+    }
+
+    #[test]
+    fn reads_an_equals_workspace_argument() {
+        assert_eq!(
+            workspace_argument([OsString::from("--workspace=/tmp/lantern")]),
+            Some("/tmp/lantern".into())
+        );
+    }
+
+    #[test]
+    fn ignores_unrelated_arguments() {
+        assert_eq!(
+            workspace_argument([OsString::from("--other"), OsString::from("value")]),
+            None
+        );
+    }
+
+    #[test]
+    fn accepts_only_an_existing_directory() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        assert_eq!(
+            canonical_existing_directory(directory.path().to_path_buf()),
+            Some(std::fs::canonicalize(directory.path()).expect("canonical directory"))
+        );
+        assert_eq!(
+            canonical_existing_directory(directory.path().join("missing")),
+            None
+        );
+    }
+
+    #[test]
+    fn rejects_parent_traversal_even_when_the_resolved_directory_exists() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        std::fs::create_dir(directory.path().join("child")).expect("child directory");
+        let traversal = directory.path().join("child").join("..");
+        assert_eq!(canonical_existing_directory(traversal), None);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_symlinked_workspace_roots() {
+        use std::os::unix::fs::symlink;
+
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let target = directory.path().join("target");
+        let link = directory.path().join("workspace-link");
+        std::fs::create_dir(&target).expect("target directory");
+        symlink(&target, &link).expect("workspace symlink");
+        assert_eq!(canonical_existing_directory(link), None);
+    }
+
+    #[cfg(not(debug_assertions))]
+    #[test]
+    fn release_build_rejects_the_workspace_override_at_compile_time() {
+        // This test only compiles in a non-debug test build. The host injection
+        // and explicit_launch_workspace() are both cfg(debug_assertions), so
+        // no release binary can read --workspace or LANTERN_WORKSPACE.
+        assert!(!cfg!(debug_assertions));
+    }
 }
