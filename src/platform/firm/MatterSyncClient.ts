@@ -111,6 +111,22 @@ type PushResult =
   | { kind: 'rejected'; error: FirmApiError }
   | { kind: 'unknown'; error: unknown };
 
+/**
+ * True for frames that carry ciphertext and therefore must be applied in the
+ * order received (the applied-through cursor only advances contiguously).
+ * Presence/ready frames carry neither ciphertext nor a cursor.
+ */
+function isSerialFrame(data: unknown): boolean {
+  try {
+    const text = typeof data === 'string' ? data : String(data);
+    return (JSON.parse(text) as { type?: unknown }).type === 'update';
+  } catch {
+    // An unparseable frame goes through the serial path so handleFrame owns the
+    // decision: never treat "cannot parse" as "safe to apply out of order".
+    return true;
+  }
+}
+
 export class MatterSyncClient {
   readonly doc: Y.Doc;
   private readonly matterHandle: MatterHandle;
@@ -552,10 +568,18 @@ export class MatterSyncClient {
     };
     ws.onmessage = (ev: { data: unknown }) => {
       if (this.socket !== ws) return;
-      // Do not let async decryption reorder otherwise ordered WebSocket frames.
-      this.incomingFrameQueue = this.incomingFrameQueue
-        .then(() => this.handleFrame(ev.data))
-        .catch(() => undefined);
+      // Only ciphertext-bearing frames need the serial queue: async decryption
+      // must not reorder them, because the applied-through cursor may only
+      // advance contiguously. Presence/ready carry no ciphertext and no cursor,
+      // so queueing them behind a slow decrypt would delay live presence for no
+      // benefit — apply them immediately.
+      if (isSerialFrame(ev.data)) {
+        this.incomingFrameQueue = this.incomingFrameQueue
+          .then(() => this.handleFrame(ev.data))
+          .catch(() => undefined);
+        return;
+      }
+      void this.handleFrame(ev.data);
     };
     ws.onerror = () => {
       if (this.socket !== ws) return;
