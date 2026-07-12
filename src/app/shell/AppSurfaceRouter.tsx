@@ -10,6 +10,7 @@
  * delegates rendering to the appropriate surface component.
  */
 
+import { useEffect } from 'react';
 import { CrmHome } from '@/features/crm-home';
 import { ClientsSurface } from '@/features/crm-clients';
 import { CrmAskSurface } from '@/features/crm-ask';
@@ -49,6 +50,7 @@ import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { TrashRetentionPeriod } from '@/features/documents/TrashPanel';
 import type { Matter } from '@/platform/types/matter';
 import {
+  EV_OPEN_CRM_DOCUMENT,
   EV_OPEN_ACCOUNT,
   SK_FIRM_NAME,
 } from '@/config/identity';
@@ -217,6 +219,23 @@ export function AppSurfaceRouter({
   handleSettingsRestartOnboarding,
   activeMatter,
 }: AppSurfaceRouterProps) {
+  // CRM document links are only pointers. Opening one must use the normal
+  // Documents viewer, so format-specific editors and save behavior stay in
+  // their existing home.
+  useEffect(() => {
+    const openCrmDocument = (event: Event) => {
+      const detail = (event as CustomEvent<{ path?: unknown; name?: unknown }>).detail;
+      if (!detail || typeof detail.path !== 'string' || !detail.path) return;
+      const name = typeof detail.name === 'string' && detail.name ? detail.name : detail.path.split(/[\\/]/).pop() || detail.path;
+      void handleFileOpen(detail.path, name).then((opened) => {
+        if (!opened) return;
+        setDocumentsView('editor');
+        setSidebarActiveTab('files');
+      });
+    };
+    window.addEventListener(EV_OPEN_CRM_DOCUMENT, openCrmDocument);
+    return () => window.removeEventListener(EV_OPEN_CRM_DOCUMENT, openCrmDocument);
+  }, [handleFileOpen, setDocumentsView, setSidebarActiveTab]);
   // CRM Ask currently has no document-chat prefill flow. Retain the shell
   // contract while that separate feature remains routed from documents.
   void askPrefill;

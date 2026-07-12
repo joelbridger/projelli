@@ -81,6 +81,8 @@ export interface CrmNote {
   createdAt?: string;
   updatedAt?: string;
   author?: string;
+  /** Links to existing CRM records or workspace documents. */
+  links?: readonly EntityRef[];
 }
 /** Frozen 02 §1.15 / B1 durable approval record. Never replace this with card state. */
 export interface ProposalRecord {
@@ -154,6 +156,8 @@ export interface HouseholdRecord {
   customFields?: readonly CrmFieldValue[];
   tags?: readonly string[];
   schedulingLinkUrl?: string;
+  /** Links to existing CRM records or workspace documents. */
+  contextRefs?: readonly EntityRef[];
 }
 
 export interface HouseholdDirectoryEntry {

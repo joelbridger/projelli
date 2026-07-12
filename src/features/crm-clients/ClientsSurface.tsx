@@ -48,6 +48,7 @@ function householdFromRecord(record: LiveCrmRecord, currentSyncState: SyncState,
     notes: list(record['notes']),
     customFields: list(record['customFields']),
     tags: list(record['tags']).filter((tag): tag is string => typeof tag === 'string'),
+    contextRefs: list(record['contextRefs']),
     ...(typeof record['schedulingLinkUrl'] === 'string' ? { schedulingLinkUrl: record['schedulingLinkUrl'] } : {}),
   };
 }

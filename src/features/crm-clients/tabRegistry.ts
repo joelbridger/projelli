@@ -4,7 +4,8 @@ import type { CrmEngineFreshness } from '@/platform/crm/store';
 import type { TimelineRecord } from '@/features/crm-timeline';
 import type { CrmClientsActions, CrmProposal, HouseholdRecord } from './adapters';
 import { clientMapTab } from './clientMapTab';
-import { activityTab, documentsTab } from './fallbackTabs';
+import { activityTab } from './fallbackTabs';
+import { documentsTab } from '@/features/crm-documents/surface';
 import { timelineTab } from '@/features/crm-timeline/tabSurface';
 import { emailTab, meetingsTab } from '@/features/crm-connectors/tabSurface';
 
