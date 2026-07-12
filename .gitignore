@@ -101,3 +101,4 @@ docs/user-research/**/*.m4a
 docs/user-research/**/*.wav
 docs/user-research/**/*.mp3
 docs/user-research/**/*-raw-transcript.txt
+tests/parity/parity-report.json
