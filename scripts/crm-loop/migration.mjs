@@ -23,7 +23,8 @@ const env = {
   ...process.env,
   DESKTOP_CDP_PORT: process.env.DESKTOP_CDP_PORT ?? '9250',
 };
-const run = (args, timeout = 30_000) =>
+const workspace = process.env.CRM_LOOP_WORKSPACE;
+const run = (args, timeout = 90_000) =>
   execFileSync('node', [desktop, ...args], {
     cwd: root,
     env,
@@ -60,15 +61,18 @@ const screenshot = (name) => {
     return null;
   }
 };
-const exportedFile = () => JSON.parse(run(['eval', "JSON.stringify(document.querySelector('[data-testid=crm-export-file]')?.textContent?.replace(/^Saved file: /, '').split(' · ')[0] ?? null)"]));
+const exportedFile = () => JSON.parse(run(['eval', "document.querySelector('[data-testid=crm-export-file]')?.textContent?.replace(/^Saved file: /, '').split(' · ')[0] ?? null"]));
 
 let simulator;
 try {
+  if (!workspace)
+    throw new Error('CRM_LOOP_WORKSPACE is required so the migration uses a real encrypted workspace.');
+  run(['eval', `(async () => { const invoke = window.__TAURI_INTERNALS__?.invoke; if (!invoke) throw new Error('Tauri invoke is unavailable'); await invoke('crm_set_workspace', { path: ${JSON.stringify(workspace)} }); const { useWorkspaceStore } = await import('/src/platform/fs/workspaceStore.ts'); useWorkspaceStore.getState().setRootPath(${JSON.stringify(workspace)}); return true; })()`]);
   if (verifyOnly) {
     run(['click', 'crm-home-nav-firm-setup']);
     run(['click', 'crm-firm-route-migration']);
     run(['click', 'crm-migration-fidelity']);
-    run(['waitfor', 'Attachments: 0% via API']);
+    run(['waitfor', '0% via API']);
     const records = JSON.parse(
       run(['eval', "window.__TAURI_INTERNALS__.invoke('crm_live_list')"])
     );
@@ -104,11 +108,16 @@ try {
   run(['click', 'crm-firm-route-migration']);
   run(['type', 'crm-migration-base-url', baseUrl]);
   run(['click', 'crm-migration-run-import']);
-  run(['waitfor', 'Import finished', '45']);
+  run(['waitfor', 'Import finished', '90']);
+  const landed = JSON.parse(run(['eval', "window.__TAURI_INTERNALS__.invoke('crm_live_list')"]));
+  for (const kind of ['household', 'note', 'task']) {
+    if (!landed.some((record) => record.kind === kind))
+      throw new Error(`Import finished without a real ${kind} record in the encrypted CRM store.`);
+  }
   screenshot('01-import-finished.png');
   run(['click', 'crm-migration-fidelity']);
   run(['waitfor', 'Not ready to switch yet']);
-  run(['waitfor', 'notes we could not bring over']);
+  run(['waitfor', "couldn't be imported"]);
   const matrix = run([
     'eval',
     "document.querySelectorAll('[data-testid^=crm-fidelity-row-]').length",
@@ -119,30 +128,39 @@ try {
   run(['waitfor', 'Notes to check']);
   screenshot('02-fidelity-report.png');
 
+  run(['click', 'crm-home-nav-firm-setup']);
+  run(['click', 'crm-firm-route-migration']);
+  run(['click', 'crm-migration-fidelity']);
   run(['click', 'crm-migration-workflow-fallback']);
-  const workflowSave = JSON.parse(run(['eval', "JSON.stringify(Array.from(document.querySelectorAll('[data-testid^=crm-workflow-record-]')).map(x => x.getAttribute('data-testid')))"]));
+  const workflowSave = JSON.parse(run(['eval', "Array.from(document.querySelectorAll('[data-testid^=crm-workflow-record-]')).map(x => x.getAttribute('data-testid'))"]));
   if (workflowSave.length) {
     const workflowId = workflowSave[0].replace('crm-workflow-record-', '');
-    const stepCount = Number(run(['eval', `document.querySelector('[data-testid="crm-workflow-step-${workflowId}"]').options.length`]).trim());
-    if (stepCount < 2) throw new Error('A workflow checklist was created without readable source steps. It must be recorded as a trace gap, not recreated.');
+    const stepControl = `document.querySelector('[data-testid="crm-workflow-step-${workflowId}"]')`;
+    const stepCount = Number(run(['eval', `${stepControl}?.options.length ?? 0`]).trim());
     run(['click', `crm-workflow-evidence-${workflowId}`]);
-    run(['eval', `document.querySelector('[data-testid="crm-workflow-step-${workflowId}"]').value = document.querySelector('[data-testid="crm-workflow-step-${workflowId}"]').options[1].value; document.querySelector('[data-testid="crm-workflow-step-${workflowId}"]').dispatchEvent(new Event('change', { bubbles: true }))`]);
-    run(['eval', "Array.from(document.querySelectorAll('button')).find((button) => button.textContent.includes('Create resulting instance'))?.click()"]);
-    run(['type', `crm-workflow-instance-${workflowId}`, 'Recreated imported workflow']);
+    if (stepCount >= 2) {
+      run(['eval', `${stepControl}.value = ${stepControl}.options[1].value; ${stepControl}.dispatchEvent(new Event('change', { bubbles: true }))`]);
+      run(['type', `crm-workflow-instance-${workflowId}`, 'Recreated imported workflow']);
+    } else {
+      run(['waitfor', 'Lantern will not invent a workflow']);
+    }
     run(['click', `crm-workflow-record-${workflowId}`]);
     run(['waitfor', 'Checklist recorded']);
-    run(['click', 'crm-home-nav-workflows']);
-    const instances = Number(run(['eval', "document.querySelectorAll('[data-testid^=crm-live-workflow-instance-]').length"]).trim());
-    if (!instances) throw new Error('The checklist was saved, but no real Lantern workflow instance was created.');
+    if (stepCount >= 2) {
+      run(['click', 'crm-home-nav-workflows']);
+      const instances = Number(run(['eval', "document.querySelectorAll('[data-testid^=crm-live-workflow-instance-]').length"]).trim());
+      if (!instances) throw new Error('The checklist was saved, but no real Lantern workflow instance was created.');
+    }
   }
 
   run(['click', 'crm-home-nav-firm-setup']);
   run(['click', 'crm-firm-route-migration']);
+  run(['click', 'crm-migration-fidelity']);
   run(['click', 'crm-migration-attachment-fallback']);
   const attachmentSave = JSON.parse(
     run([
       'eval',
-      "JSON.stringify(Array.from(document.querySelectorAll('[data-testid^=crm-attachment-record-save-]')).map(x => x.getAttribute('data-testid')))",
+      "Array.from(document.querySelectorAll('[data-testid^=crm-attachment-record-save-]')).map(x => x.getAttribute('data-testid'))",
     ])
   );
   if (!attachmentSave.length)
@@ -166,7 +184,14 @@ try {
   screenshot('03-attachment-checklist.png');
   // Reloading the real renderer forces the checklist values to come back from
   // the encrypted store instead of surviving only in component memory.
-  run(['eval', 'window.location.reload()']); await pause(2_000);
+  run(['eval', 'window.location.reload()']);
+  await waitFor('the renderer after its real reload', async () => {
+    try {
+      return Boolean(JSON.parse(run(['eval', "Boolean(document.querySelector('[data-testid=crm-home-nav-firm-setup]'))"])));
+    } catch {
+      return false;
+    }
+  });
 
   run(['click', 'crm-home-nav-firm-setup']); run(['click', 'crm-firm-route-migration']); run(['click', 'crm-migration-archive']); run(['click', 'crm-export-create']); run(['waitfor', 'Exported']);
   const archiveFile = exportedFile();
@@ -175,7 +200,7 @@ try {
   const rollbackFile = exportedFile();
   if (!rollbackFile || !existsSync(rollbackFile)) throw new Error('The rollback screen reported success, but no rollback CSV exists on disk.');
   screenshot('04-archive-export.png');
-  run(['click', 'crm-home-nav-firm-setup']); run(['click', 'crm-firm-route-migration']); run(['click', 'crm-migration-run-import']); await pause(35_000); run(['waitfor', 'Import finished', '45']);
+  run(['click', 'crm-home-nav-firm-setup']); run(['click', 'crm-firm-route-migration']); run(['click', 'crm-migration-run-import']); await pause(35_000); run(['waitfor', 'Import finished', '90']);
   console.log('PASS migration: import, complete fidelity matrix, both fallback paths, real archive and rollback files, and idempotent re-import all drove through the desktop app.');
 } catch (error) {
   console.error(

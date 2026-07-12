@@ -360,7 +360,7 @@ pub async fn crm_migration_import(
     for record in custom_fields.records {
         *fetched.entry("custom_field".into()).or_default() += 1;
         *imported.entry("custom_field".into()).or_default() += 1;
-        let live = json!({ "id": format!("custom_field:{}", record.source_id), "kind": "custom_field", "matterId": "firm", "sourceType": "custom_field", "sourcePayload": record.payload });
+        let live = json!({ "id": format!("custom_field:{}", record.source_id), "kind": "custom_field", "matterId": "firm", "sourceType": "custom_field", "sourceId": record.source_id, "sourcePayload": record.payload });
         let mut live = live;
         let label = live["sourcePayload"]
             .get("name")
@@ -390,7 +390,7 @@ pub async fn crm_migration_import(
         for record in activity.fetched.records {
             *fetched.entry("activity".into()).or_default() += 1;
             *imported.entry("activity".into()).or_default() += 1;
-            let live = json!({ "id": format!("activity:{}", record.source_id), "kind": "activity", "matterId": "firm", "sourceType": "activity", "sourcePayload": record.payload });
+            let live = json!({ "id": format!("activity:{}", record.source_id), "kind": "activity", "matterId": "firm", "sourceType": "activity", "sourceId": record.source_id, "sourcePayload": record.payload });
             store
                 .upsert_live_record(&live)
                 .map_err(|error| error.to_string())?;
