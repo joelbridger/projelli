@@ -451,7 +451,14 @@ describe('MatterSyncClient E2EE convergence', () => {
 
     // A ticket was minted over the (authed) HTTP client before the socket opened.
     expect(client.createSyncTicket).toHaveBeenCalledTimes(1);
-    expect(client.createSyncTicket).toHaveBeenCalledWith(NOTES_STREAM, SEAT);
+    // Arity-proof: the ticket now also binds the client's last-applied cursor so
+    // the relay replays from there (the >500-update handoff data-loss fix).
+    // Assert the arguments that carry the privacy invariant — the stream handle
+    // and that the seat token travels in the call, never on the socket URL.
+    const ticketArgs = vi.mocked(client.createSyncTicket).mock.calls[0];
+    expect(ticketArgs?.[0]).toBe(NOTES_STREAM);
+    expect(ticketArgs?.[1]).toBe(SEAT);
+    expect(typeof ticketArgs?.[2]).toBe('number');
 
     // The WS URL carries the ticket and NOTHING sensitive.
     expect(wsUrl).toContain('ticket=');

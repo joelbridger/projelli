@@ -1,6 +1,7 @@
 /** V2 HTTP/WebSocket relay proof.  Each case below ports a v1 relay proof to opaque handles. */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Store } from "../src/lib/db.ts";
+import { subscribeSyncSocket } from "../src/server.ts";
 import { FanoutHub, MAX_UPDATE_BYTES } from "../src/lib/matters.ts";
 import { buildServeOptions, subscribeSyncSocket, type SyncSocketData } from "../src/server.ts";
 import { SyncTicketStore } from "../src/lib/syncTickets.ts";
@@ -168,6 +169,39 @@ describe("v2 encrypted relay: preserved HTTP, authorization, cursor, and socket 
     expect(closed).toEqual([[undefined, undefined]]);
     expect(isolatedHub.subscriberCount(matter.matter_handle, released)).toBe(0);
     expect(authorizeSyncConnect(new Request(`http://relay.test/v2/firm/sync?ticket=${preRelease.ticket}`), store, tickets).ok).toBe(false);
+  });
+
+  test("the socket-open gate independently refuses a seat revoked after redemption (defense in depth)", () => {
+    // Redemption already rechecks liveness, but a seat can be revoked in the
+    // window between redemption and Bun calling `open`. That final gate had no
+    // test of its own: disabling it left the suite green, which is exactly the
+    // kind of untested guard that rots. Drive it directly.
+    const isolatedHub = new FanoutHub();
+    const orgId = store.getMatter(handle)!.org_id;
+    // Own user + seat: revoking a seat another test relies on would poison it
+    // (shared store state). This test must not make its neighbours fail.
+    const solo = store.createUser({ org_id: orgId, email: "solo-open-gate@relay.test", password_hash: "x", role: "member" });
+    const soloSeat = store.activateSeat({ org_id: orgId, user_id: solo.user_id, machine_id: "solo-open-gate", machine_label: null, seat_limit: 99 });
+    if (!soloSeat.ok) throw new Error("seat activation failed");
+    const seatId = soloSeat.seat.seat_id;
+    // Make the user a real MEMBER first: otherwise the access check rejects the
+    // socket and this test would pass even with the seat gate removed — proving
+    // nothing. The revoked SEAT must be the only reason it is refused.
+    store.addMatterMember({ matter_handle: handle, user_id: solo.user_id, org_id: orgId, role: "editor" });
+    store.revokeSeat(seatId, "test_revoke_between_redeem_and_open");
+    const frames: string[] = [];
+    let closed: { code: number; reason: string } | null = null;
+    subscribeSyncSocket(store, isolatedHub, {
+      data: { subId: "post-redeem-revoke", matterHandle: handle, streamHandle: root, orgId, userId: solo.user_id, seatId, role: "member", since: 0 },
+      send: (frame: string) => { frames.push(frame); },
+      close: (code: number, reason: string) => { closed = { code, reason }; },
+    } as never);
+    expect(closed).not.toBeNull();
+    expect(closed!.reason).toBe("access_denied");
+    expect(frames).toHaveLength(0);
+    // And the revoked seat receives nothing from a later broadcast.
+    isolatedHub.broadcast(handle, { type: "update", cursor: 1, blob_id: "bh2_" + "A".repeat(43), key_epoch: 1, author_seat: "x", created_at: "now", ciphertext_b64: "AQ==" }, root);
+    expect(frames).toHaveLength(0);
   });
 
   test("revoked seats, deprovisioned users, and suspended orgs cannot redeem or retain live sockets", async () => {

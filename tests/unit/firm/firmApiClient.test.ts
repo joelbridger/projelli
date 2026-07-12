@@ -85,7 +85,7 @@ describe('FirmApiClient — no seat token in any URL', () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(200, { ticket: 'TICKET_123', expires_in_ms: 30000 }));
 
     const client = new FirmApiClient(tokenSource());
-    const res = await client.createSyncTicket(STREAM, SEAT);
+    const res = await client.createSyncTicket(STREAM, SEAT, 0);
     expect(res.ticket).toBe('TICKET_123');
 
     const { url, init } = lastCall();

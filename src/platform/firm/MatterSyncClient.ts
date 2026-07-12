@@ -111,6 +111,20 @@ type PushResult =
   | { kind: 'rejected'; error: FirmApiError }
   | { kind: 'unknown'; error: unknown };
 
+/**
+ * True for frames that participate in ordered reconciliation: the `ready`
+ * snapshot (the anchor the socket promises to complete) and every ciphertext
+ * `update`. A `presence` frame is neither, so it may be applied immediately.
+ */
+function isReconciliationFrame(data: unknown): boolean {
+  try {
+    const text = typeof data === 'string' ? data : String(data);
+    return (JSON.parse(text) as { type?: unknown }).type !== 'presence';
+  } catch {
+    return true;
+  }
+}
+
 export class MatterSyncClient {
   readonly doc: Y.Doc;
   private readonly matterHandle: MatterHandle;
@@ -558,6 +572,16 @@ export class MatterSyncClient {
       // The ready snapshot and every following update share one queue. This
       // prevents a newer live frame from overtaking the reconciliation it
       // promises the socket will complete.
+      //
+      // `presence` is deliberately NOT queued: it carries no ciphertext, no
+      // cursor, and takes no part in reconciliation, so queueing it behind a
+      // slow decrypt would stall the live editor count for no benefit. An
+      // unparseable frame still takes the queue — "cannot parse" never means
+      // "safe to apply out of order".
+      if (!isReconciliationFrame(ev.data)) {
+        void this.handleFrame(ev.data);
+        return;
+      }
       this.incomingFrameQueue = this.incomingFrameQueue
         .then(() => this.handleFrame(ev.data))
         .catch(() => undefined);
