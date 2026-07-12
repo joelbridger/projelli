@@ -202,6 +202,8 @@ export class MatterSyncClient {
   private cursor = 0;
   /** One pull at a time; a key rotation waits for it then re-pulls. */
   private catchUpPromise: Promise<void> | null = null;
+  /** Lifecycle that owns {@link catchUpPromise}; a stopped pull must not block a restart. */
+  private catchUpGeneration: number | null = null;
   /** Key rotations must never race each other or their follow-up catch-up. */
   private rotationQueue: Promise<void> = Promise.resolve();
   private presenceCount = 0;
@@ -221,7 +223,7 @@ export class MatterSyncClient {
   private readonly ownBlobIds = new Set<string>();
   /** Each local edit gets a monotonic marker so flush() can snapshot a boundary. */
   private nextWriteSequence = 0;
-  private readonly inFlightWrites = new Map<number, { promise: Promise<PushResult>; controller: AbortController }>();
+  private readonly inFlightWrites = new Map<number, { write: PendingWrite; promise: Promise<PushResult>; controller: AbortController }>();
   private updateHandler: ((update: Uint8Array, origin: unknown) => void) | null = null;
   /** Origin marker used when applying remote updates so we don't re-broadcast. */
   private readonly remoteOrigin = Symbol('matter-sync-remote');
@@ -269,6 +271,7 @@ export class MatterSyncClient {
    * This waits for a snapshot of local writes to receive HTTP acceptance.
    */
   async flush(options: { signal?: AbortSignal } = {}): Promise<void> {
+    const generation = this.lifecycleGeneration;
     // This is deliberately a snapshot, not a global-drain operation. A busy
     // editor may continue making changes forever; document creation only needs
     // the root-index updates that existed when it called flush().
@@ -288,6 +291,7 @@ export class MatterSyncClient {
           .map(([, write]) => write.promise);
         if (inFlight.length > 0) {
           const results = await Promise.all(inFlight);
+          if (generation !== this.lifecycleGeneration) return;
           const rejected = results.find((result) => result.kind === 'rejected');
           if (rejected?.kind === 'rejected') throw rejected.error;
           const unknown = results.find((result) => result.kind === 'unknown');
@@ -298,7 +302,8 @@ export class MatterSyncClient {
           continue;
         }
         if (!this.pendingUpdates.some(({ sequence }) => sequence <= boundary)) return;
-        const result = await this.flushPendingUpdatesThrough(boundary, options.signal);
+        const result = await this.flushPendingUpdatesThrough(boundary, options.signal, generation);
+        if (generation !== this.lifecycleGeneration) return;
         if (result.kind === 'rejected' || result.kind === 'unknown') throw result.error;
       }
     } finally {
@@ -312,11 +317,13 @@ export class MatterSyncClient {
     this.callbacks.onStatus?.(s);
   }
 
-  private async ensureKey(): Promise<CryptoKey> {
-    if (!this.cryptoKey) {
-      this.cryptoKey = await importMatterKey(this.keyB64);
-    }
-    return this.cryptoKey;
+  private async ensureKey(generation: number, keyB64 = this.keyB64): Promise<CryptoKey | null> {
+    if (generation !== this.lifecycleGeneration) return null;
+    if (keyB64 === this.keyB64 && this.cryptoKey) return this.cryptoKey;
+    const cryptoKey = await importMatterKey(keyB64);
+    if (generation !== this.lifecycleGeneration) return null;
+    if (keyB64 === this.keyB64) this.cryptoKey = cryptoKey;
+    return cryptoKey;
   }
 
   /**
@@ -325,19 +332,28 @@ export class MatterSyncClient {
    * here; subsequent decrypts/encrypts use it.
    */
   async rotateKey(newKeyB64: string, newEpoch: number): Promise<void> {
+    // Remember the lifecycle in which the host asked for this rotation. The
+    // queue callback itself may not run until after stop(), so its own fresh
+    // capture alone would otherwise mistake a dead request for a new one.
+    const requestedGeneration = this.lifecycleGeneration;
     const rotation = this.rotationQueue.then(async () => {
+      const generation = this.lifecycleGeneration;
       // A delayed notification must never roll a newer key backwards.
-      if (newEpoch < this.keyEpoch) return;
+      if (generation !== requestedGeneration || newEpoch < this.keyEpoch) return;
+      // Import before committing the new key state. This makes a stop while
+      // crypto is pending leave the old, still-coherent key state untouched.
+      const cryptoKey = await this.ensureKey(generation, newKeyB64);
+      if (!cryptoKey || generation !== this.lifecycleGeneration) return;
       this.keyB64 = newKeyB64;
       this.keyEpoch = newEpoch;
-      this.cryptoKey = null;
-      await this.ensureKey();
+      this.cryptoKey = cryptoKey;
 
       // A newer-epoch blob may have stopped an in-flight pull. Wait for that
       // pull to finish, then begin again at the last *applied* cursor.
       const inFlight = this.catchUpPromise;
       if (inFlight) await inFlight;
-      await this.catchUp();
+      if (generation !== this.lifecycleGeneration) return;
+      await this.catchUp(generation);
     });
     // Keep the queue usable after a transient network failure, while returning
     // the real error to the caller that requested this rotation.
@@ -355,12 +371,13 @@ export class MatterSyncClient {
     if (this.started) return;
     const generation = ++this.lifecycleGeneration;
     this.started = true;
-    await this.ensureKey();
-    if (generation !== this.lifecycleGeneration) return;
+    if (!(await this.ensureKey(generation)) || generation !== this.lifecycleGeneration) return;
 
     // Broadcast local Yjs updates (skip ones we applied from remote).
     this.updateHandler = (update: Uint8Array, origin: unknown) => {
       if (origin === this.remoteOrigin) return;
+      const updateGeneration = this.lifecycleGeneration;
+      if (updateGeneration !== generation) return;
       // If there's already a backlog, queue behind it rather than racing a
       // fresh push ahead of updates still waiting to be sent.
       const sequence = ++this.nextWriteSequence;
@@ -369,7 +386,7 @@ export class MatterSyncClient {
         this.pendingUpdates.push(write);
         return;
       }
-      this.startInFlightWrite(write);
+      this.startInFlightWrite(write, updateGeneration);
     };
     this.doc.on('update', this.updateHandler);
 
@@ -380,14 +397,19 @@ export class MatterSyncClient {
   }
 
   /** Pull all updates after `cursor`, decrypt, apply. Filtered to this.docId. */
-  private async catchUp(generation = this.lifecycleGeneration): Promise<void> {
-    if (this.catchUpPromise) return this.catchUpPromise;
+  private async catchUp(generation: number): Promise<void> {
+    if (generation !== this.lifecycleGeneration) return;
+    if (this.catchUpPromise && this.catchUpGeneration === generation) return this.catchUpPromise;
     const pull = this.doCatchUp(generation);
     this.catchUpPromise = pull;
+    this.catchUpGeneration = generation;
     try {
       await pull;
     } finally {
-      if (this.catchUpPromise === pull) this.catchUpPromise = null;
+      if (this.catchUpPromise === pull) {
+        this.catchUpPromise = null;
+        this.catchUpGeneration = null;
+      }
     }
   }
 
@@ -423,7 +445,7 @@ export class MatterSyncClient {
 
   private async applyPulled(
     updates: Array<{ cursor: number; blob_id: string; key_epoch: number; ciphertext_b64: string }>,
-    generation = this.lifecycleGeneration,
+    generation: number,
   ): Promise<boolean> {
     for (const u of updates) {
       if (generation !== this.lifecycleGeneration) return false;
@@ -463,8 +485,8 @@ export class MatterSyncClient {
     ciphertextB64: string,
     blobEpoch: number,
     blobId: string,
-    cursor?: number,
-    generation = this.lifecycleGeneration,
+    cursor: number | undefined,
+    generation: number,
   ): Promise<boolean> {
     if (generation !== this.lifecycleGeneration) return false;
     // A blob sealed under a newer epoch than we hold: we can't decrypt it yet.
@@ -473,8 +495,8 @@ export class MatterSyncClient {
       this.callbacks.onKeyEpochAdvanced?.(blobEpoch);
       return false;
     }
-    const key = await this.ensureKey();
-    if (generation !== this.lifecycleGeneration) return false;
+    const key = await this.ensureKey(generation);
+    if (!key || generation !== this.lifecycleGeneration) return false;
     const res = await decryptUpdateV2(key, ciphertextB64, {
       keyEpoch: blobEpoch, matterHandle: this.matterHandle, streamHandle: this.streamHandle,
     });
@@ -559,28 +581,39 @@ export class MatterSyncClient {
    * Returns false (and sets `offline`) on failure so callers can queue the
    * update for retry instead of silently dropping it.
    */
-  private startInFlightWrite(write: PendingWrite): void {
+  private startInFlightWrite(write: PendingWrite, generation: number): void {
+    if (generation !== this.lifecycleGeneration) return;
     const controller = new AbortController();
-    const promise = this.pushLocalUpdate(write, controller.signal);
-    this.inFlightWrites.set(write.sequence, { promise, controller });
+    const promise = this.pushLocalUpdate(write, controller.signal, generation);
+    this.inFlightWrites.set(write.sequence, { write, promise, controller });
     void promise.then((result) => {
+      if (generation !== this.lifecycleGeneration) return;
       this.inFlightWrites.delete(write.sequence);
       if (result.kind !== 'accepted') {
         this.pendingUpdates.push(write);
         this.pendingUpdates.sort((a, b) => a.sequence - b.sequence);
-        if (result.kind === 'unknown') this.scheduleReconnect();
+        if (result.kind === 'unknown') this.scheduleReconnect(generation);
       }
     });
   }
 
-  private async pushLocalUpdate(write: PendingWrite, signal?: AbortSignal): Promise<PushResult> {
+  private async pushLocalUpdate(write: PendingWrite, signal: AbortSignal | undefined, generation: number): Promise<PushResult> {
     try {
+      if (generation !== this.lifecycleGeneration || signal?.aborted) {
+        return { kind: 'unknown', error: new Error('Sync stopped before the local update could be published.') };
+      }
       if (!write.ciphertext) {
-        const key = await this.ensureKey();
+        const key = await this.ensureKey(generation);
+        if (!key || generation !== this.lifecycleGeneration || signal?.aborted) {
+          return { kind: 'unknown', error: new Error('Sync stopped before the local update could be published.') };
+        }
         write.keyEpoch = this.keyEpoch;
         write.ciphertext = await encryptUpdateV2(key, write.update, {
           keyEpoch: write.keyEpoch, matterHandle: this.matterHandle, streamHandle: this.streamHandle,
         });
+        if (generation !== this.lifecycleGeneration || signal?.aborted) {
+          return { kind: 'unknown', error: new Error('Sync stopped before the local update could be published.') };
+        }
       }
       this.ownBlobIds.add(write.blobId);
       const res = await this.client.pushUpdate(
@@ -592,6 +625,9 @@ export class MatterSyncClient {
         write.keyEpoch ?? this.keyEpoch,
         signal,
       );
+      if (generation !== this.lifecycleGeneration || signal?.aborted) {
+        return { kind: 'unknown', error: new Error('Sync stopped before the local update could be published.') };
+      }
       // A push acknowledgement proves only that our own ciphertext reached
       // the relay. It says nothing about earlier peer frames we have not yet
       // decrypted, so it must never move the pull cursor.
@@ -600,6 +636,9 @@ export class MatterSyncClient {
       }
       return { kind: 'accepted' };
     } catch (error) {
+      if (generation !== this.lifecycleGeneration || signal?.aborted) {
+        return { kind: 'unknown', error };
+      }
       // A 4xx is a definite relay decision. Everything else (including abort)
       // may have committed after the client lost the response, so retain the
       // exact blob id + ciphertext for an idempotent retry.
@@ -618,16 +657,22 @@ export class MatterSyncClient {
    * push that keeps failing (independent of the WebSocket's own health)
    * doesn't strand the queue with nothing left to wake it back up.
    */
-  private async flushPendingUpdatesThrough(boundary: number, signal?: AbortSignal): Promise<PushResult> {
+  private async flushPendingUpdatesThrough(boundary: number, signal: AbortSignal | undefined, generation: number): Promise<PushResult> {
     for (;;) {
+      if (generation !== this.lifecycleGeneration) {
+        return { kind: 'unknown', error: new Error('Sync stopped before the local update could be published.') };
+      }
       if (signal?.aborted) return { kind: 'unknown', error: new Error('Could not publish the encrypted root update.') };
       const nextIndex = this.pendingUpdates.findIndex(({ sequence }) => sequence <= boundary);
       if (nextIndex < 0) break;
       const next = this.pendingUpdates[nextIndex];
       if (next === undefined) return { kind: 'accepted' };
-      const result = await this.pushLocalUpdate(next, signal);
+      const result = await this.pushLocalUpdate(next, signal, generation);
+      if (generation !== this.lifecycleGeneration) {
+        return { kind: 'unknown', error: new Error('Sync stopped before the local update could be published.') };
+      }
       if (result.kind !== 'accepted') {
-        if (result.kind === 'unknown') this.scheduleReconnect();
+        if (result.kind === 'unknown') this.scheduleReconnect(generation);
         return result;
       }
       this.pendingUpdates.splice(nextIndex, 1);
@@ -641,8 +686,8 @@ export class MatterSyncClient {
     return { kind: 'accepted' };
   }
 
-  private flushPendingUpdates(): Promise<PushResult> {
-    return this.flushPendingUpdatesThrough(Number.POSITIVE_INFINITY);
+  private flushPendingUpdates(generation: number): Promise<PushResult> {
+    return this.flushPendingUpdatesThrough(Number.POSITIVE_INFINITY, undefined, generation);
   }
 
   private clearReconnectTimer(): void {
@@ -657,25 +702,26 @@ export class MatterSyncClient {
    * (1s, 2s, 4s, ... capped at 30s) while the client remains started. A
    * no-op if a reconnect is already scheduled.
    */
-  private scheduleReconnect(): void {
-    if (!this.started || this.reconnectTimer) return;
+  private scheduleReconnect(generation: number): void {
+    if (generation !== this.lifecycleGeneration || !this.started || this.reconnectTimer) return;
     this.reconnectDelayMs = this.reconnectDelayMs === 0 ? 1000 : Math.min(this.reconnectDelayMs * 2, 30_000);
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
-      if (this.started) void this.reconnectNow();
+      if (generation === this.lifecycleGeneration && this.started) void this.reconnectNow(generation);
     }, this.reconnectDelayMs);
   }
 
-  private async reconnectNow(): Promise<void> {
-    const generation = this.lifecycleGeneration;
+  private async reconnectNow(generation: number): Promise<void> {
+    if (generation !== this.lifecycleGeneration) return;
     await this.catchUp(generation);
     if (generation !== this.lifecycleGeneration) return;
-    await this.flushPendingUpdates();
+    await this.flushPendingUpdates(generation);
     if (generation !== this.lifecycleGeneration) return;
     await this.openSocket(generation);
   }
 
-  private async openSocket(generation = this.lifecycleGeneration): Promise<void> {
+  private async openSocket(generation: number): Promise<void> {
+    if (generation !== this.lifecycleGeneration) return;
     // A socket is already open or in flight — never open a second one. Without
     // this, a reconnect triggered by something OTHER than a real socket close
     // (a failed HTTP push, or `onerror` firing before `onclose`) could stand
@@ -696,7 +742,7 @@ export class MatterSyncClient {
       // Couldn't get a ticket (offline / auth lapsed): stay in catch-up-only
       // mode, but keep trying — otherwise the client is stuck offline forever.
       this.setStatus('offline');
-      if (this.started) this.scheduleReconnect();
+      if (this.started) this.scheduleReconnect(generation);
       return;
     }
     // A stop() during the await must not then open a socket.
@@ -715,14 +761,16 @@ export class MatterSyncClient {
         // scheduleReconnect() itself no-ops if `started` has flipped false;
         // no need to re-check it here (nothing async intervenes since the
         // `!this.started` guard above).
-        this.scheduleReconnect();
+        this.scheduleReconnect(generation);
         return;
       }
     } catch {
+      if (generation !== this.lifecycleGeneration) return;
       this.setStatus('error');
-      this.scheduleReconnect();
+      this.scheduleReconnect(generation);
       return;
     }
+    if (generation !== this.lifecycleGeneration) return;
     this.socket = ws;
 
     // Every handler below is identity-checked against `ws` — with the
@@ -731,14 +779,16 @@ export class MatterSyncClient {
     // been superseded (or explicitly stopped) is a no-op instead of
     // clobbering the newer connection's state.
     ws.onopen = () => {
-      if (this.socket !== ws) return;
+      const eventGeneration = this.lifecycleGeneration;
+      if (eventGeneration !== generation || this.socket !== ws) return;
       // Connectivity is back — reset backoff and flush anything queued while
       // we were offline so teammates aren't silently missing changes.
       this.reconnectDelayMs = 0;
-      void this.flushPendingUpdates();
+      void this.flushPendingUpdates(eventGeneration);
     };
     ws.onmessage = (ev: { data: unknown }) => {
-      if (this.socket !== ws) return;
+      const eventGeneration = this.lifecycleGeneration;
+      if (eventGeneration !== generation || this.socket !== ws) return;
       // The ready snapshot and every following update share one queue. This
       // prevents a newer live frame from overtaking the reconciliation it
       // promises the socket will complete.
@@ -749,33 +799,36 @@ export class MatterSyncClient {
       // unparseable frame still takes the queue — "cannot parse" never means
       // "safe to apply out of order".
       if (!isReconciliationFrame(ev.data)) {
-        void this.handleFrame(ev.data);
+        void this.handleFrame(ev.data, eventGeneration);
         return;
       }
       this.incomingFrameQueue = this.incomingFrameQueue
-        .then(() => this.handleFrame(ev.data))
+        .then(() => this.handleFrame(ev.data, eventGeneration))
         .catch(() => undefined);
     };
     ws.onerror = () => {
-      if (this.socket !== ws) return;
+      const eventGeneration = this.lifecycleGeneration;
+      if (eventGeneration !== generation || this.socket !== ws) return;
       // Treat an error as dead-and-gone immediately (rather than waiting on a
       // possibly-delayed `close`) so openSocket()'s re-entrancy guard doesn't
       // block the reconnect this schedules.
       this.socket = null;
       this.setStatus('error');
-      if (this.started) this.scheduleReconnect();
+      if (this.started) this.scheduleReconnect(eventGeneration);
     };
     ws.onclose = () => {
-      if (this.socket !== ws) return;
+      const eventGeneration = this.lifecycleGeneration;
+      if (eventGeneration !== generation || this.socket !== ws) return;
       this.socket = null;
       if (this.started) {
         this.setStatus('offline');
-        this.scheduleReconnect();
+        this.scheduleReconnect(eventGeneration);
       }
     };
   }
 
-  private async handleFrame(data: unknown): Promise<void> {
+  private async handleFrame(data: unknown, generation: number): Promise<void> {
+    if (generation !== this.lifecycleGeneration) return;
     let frame: SyncFrame;
     try {
       const text = typeof data === 'string' ? data : String(data);
@@ -796,7 +849,9 @@ export class MatterSyncClient {
       this.socketReadyCursor = frame.latest_cursor;
       this.presenceCount = frame.subscribers;
       this.callbacks.onPresenceCount?.(frame.subscribers);
-      if (await this.reconcileThrough(frame.latest_cursor)) {
+      const reconciled = await this.reconcileThrough(frame.latest_cursor, generation);
+      if (generation !== this.lifecycleGeneration) return;
+      if (reconciled) {
         this.socketReadyCursor = null;
         this.incomingCursorBlocked = false;
         this.setStatus('live');
@@ -820,7 +875,9 @@ export class MatterSyncClient {
       // Defensive belt-and-suspenders: a ready reconciliation should run first
       // because frames are queued, but never permit a live frame to leap over
       // its promised replay snapshot if a future transport changes ordering.
-      if (!(await this.reconcileThrough(this.socketReadyCursor))) {
+      const reconciled = await this.reconcileThrough(this.socketReadyCursor, generation);
+      if (generation !== this.lifecycleGeneration) return;
+      if (!reconciled) {
         this.incomingCursorBlocked = true;
         return;
       }
@@ -852,7 +909,9 @@ export class MatterSyncClient {
     if (frame.key_epoch > this.keyEpoch) {
       this.callbacks.onKeyEpochAdvanced?.(frame.key_epoch);
     }
-    if (await this.applyBlob(frame.ciphertext_b64, frame.key_epoch, frame.blob_id, frame.cursor)) {
+    const applied = await this.applyBlob(frame.ciphertext_b64, frame.key_epoch, frame.blob_id, frame.cursor, generation);
+    if (generation !== this.lifecycleGeneration) return;
+    if (applied) {
       if (frame.cursor > this.cursor) this.cursor = frame.cursor;
     } else {
       this.incomingCursorBlocked = true;
@@ -861,12 +920,16 @@ export class MatterSyncClient {
 
   /** Pull until the server snapshot has been fully and successfully applied.
    * This deliberately does not trust the 500-frame socket replay as complete. */
-  private async reconcileThrough(target: number): Promise<boolean> {
+  private async reconcileThrough(target: number, generation: number): Promise<boolean> {
     try {
       while (this.cursor < target) {
+        if (generation !== this.lifecycleGeneration) return false;
         const res = await this.client.pullUpdates(this.streamHandle, this.cursor, this.seatToken);
+        if (generation !== this.lifecycleGeneration) return false;
         if (res.key_epoch > this.keyEpoch) this.callbacks.onKeyEpochAdvanced?.(res.key_epoch);
-        if (!(await this.applyPulled(res.updates))) return false;
+        if (generation !== this.lifecycleGeneration) return false;
+        if (!(await this.applyPulled(res.updates, generation))) return false;
+        if (generation !== this.lifecycleGeneration) return false;
         // No result can prove a cursor gap has been filled. Stay blocked rather
         // than letting a later live frame hide a missing encrypted blob.
         if (res.updates.length === 0) return false;
@@ -881,6 +944,16 @@ export class MatterSyncClient {
   stop(): void {
     this.lifecycleGeneration += 1;
     this.started = false;
+    for (const [sequence, write] of this.inFlightWrites) {
+      if (!this.pendingUpdates.some((pending) => pending.sequence === sequence)) {
+        this.pendingUpdates.push(write.write);
+      }
+      write.controller.abort();
+    }
+    this.pendingUpdates.sort((a, b) => a.sequence - b.sequence);
+    this.inFlightWrites.clear();
+    this.catchUpPromise = null;
+    this.catchUpGeneration = null;
     this.clearReconnectTimer();
     this.reconnectDelayMs = 0;
     if (this.updateHandler) {

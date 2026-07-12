@@ -596,7 +596,8 @@ describe('MatterSyncClient E2EE convergence', () => {
     // A real socket drop cannot turn the gap into an acknowledgement. The
     // replacement connection is opened before the new key causes its re-pull.
     sockets[0]!.onclose?.({});
-    await (c as unknown as { reconnectNow(): Promise<void> }).reconnectNow();
+    const internals = c as unknown as { reconnectNow(generation: number): Promise<void>; lifecycleGeneration: number };
+    await internals.reconnectNow(internals.lifecycleGeneration);
     expect(sockets).toHaveLength(2);
     await c.rotateKey(newKey, 2);
     expect(pullUpdates).toHaveBeenLastCalledWith(NOTES_STREAM, 0, 'seat');

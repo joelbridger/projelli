@@ -47,6 +47,148 @@ describe('MatterSyncClient v2 socket privacy', () => {
     importKey.mockRestore();
   });
 
+  it('does not apply a live frame queued behind a stopped decrypt', async () => {
+    const matterHandle = parseMatterHandle(`mh2_${'Q'.repeat(43)}`);
+    const streamHandle = parseStreamHandle(`sh2_${'R'.repeat(43)}`);
+    const keyB64 = await generateMatterKey();
+    const key = await importMatterKey(keyB64);
+    const firstSource = new Y.Doc();
+    firstSource.getMap('notes').set('first-frame', true);
+    const secondSource = new Y.Doc();
+    secondSource.getMap('notes').set('second-frame', true);
+    const firstCiphertext = await matterCrypto.encryptUpdateV2(key, Y.encodeStateAsUpdate(firstSource), { matterHandle, streamHandle, keyEpoch: 1 });
+    const secondCiphertext = await matterCrypto.encryptUpdateV2(key, Y.encodeStateAsUpdate(secondSource), { matterHandle, streamHandle, keyEpoch: 1 });
+    let releaseFirstDecrypt: (() => void) | undefined;
+    const firstDecrypt = new Promise<void>((resolve) => { releaseFirstDecrypt = resolve; });
+    const realDecrypt = matterCrypto.decryptUpdateV2;
+    const decrypt = vi.spyOn(matterCrypto, 'decryptUpdateV2');
+    let decryptCalls = 0;
+    decrypt.mockImplementation(async (...args) => {
+      decryptCalls += 1;
+      if (decryptCalls === 1) await firstDecrypt;
+      return realDecrypt(...args);
+    });
+    const pullUpdates = vi.fn(() => Promise.resolve({ key_epoch: 1, since: 0, cursor: 0, latest_cursor: 0, has_more: false, updates: [] }));
+    let socket: WebSocketLike | undefined;
+    const client = new MatterSyncClient({
+      matterHandle, streamHandle, keyB64, keyEpoch: 1, seatToken: 'seat',
+      client: {
+        pullUpdates,
+        createSyncTicket: () => Promise.resolve({ ticket: 'ticket-only', expires_in_ms: 1000 }),
+        pushUpdate: () => Promise.resolve({ ok: true, cursor: 3, blob_id: 'new', key_epoch: 1, duplicate: false }),
+      } as never,
+      socketFactory: () => {
+        socket = { send() {}, close() {}, onopen: null, onclose: null, onerror: null, onmessage: null };
+        return socket;
+      },
+    });
+
+    await client.start();
+    socket?.onmessage?.({ data: JSON.stringify({ type: 'update', cursor: 1, blob_id: opaqueBlobId('A'), key_epoch: 1, ciphertext_b64: firstCiphertext }) });
+    await vi.waitFor(() => { expect(decrypt).toHaveBeenCalledOnce(); });
+    socket?.onmessage?.({ data: JSON.stringify({ type: 'update', cursor: 2, blob_id: opaqueBlobId('B'), key_epoch: 1, ciphertext_b64: secondCiphertext }) });
+    client.stop();
+    if (!releaseFirstDecrypt) throw new Error('First decrypt gate was not initialized.');
+    releaseFirstDecrypt();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(client.doc.getMap('notes').get('first-frame')).toBeUndefined();
+    expect(client.doc.getMap('notes').get('second-frame')).toBeUndefined();
+    expect(decrypt).toHaveBeenCalledOnce();
+    expect(pullUpdates).toHaveBeenCalledOnce();
+    decrypt.mockRestore();
+  });
+
+  it('does not commit a key rotation or make another relay call after stop during its key import', async () => {
+    const currentKeyB64 = await generateMatterKey();
+    const nextKeyB64 = await generateMatterKey();
+    const nextCryptoKey = await importMatterKey(nextKeyB64);
+    let releaseRotationImport: ((value: CryptoKey) => void) | undefined;
+    const rotationImport = new Promise<CryptoKey>((resolve) => { releaseRotationImport = resolve; });
+    const realImportKey = matterCrypto.importMatterKey;
+    const importKey = vi.spyOn(matterCrypto, 'importMatterKey');
+    importKey.mockImplementation((keyB64) => keyB64 === nextKeyB64 ? rotationImport : realImportKey(keyB64));
+    const pullUpdates = vi.fn(() => Promise.resolve({ key_epoch: 1, since: 0, cursor: 0, latest_cursor: 0, has_more: false, updates: [] }));
+    const client = new MatterSyncClient({
+      matterHandle: parseMatterHandle(`mh2_${'S'.repeat(43)}`), streamHandle: parseStreamHandle(`sh2_${'T'.repeat(43)}`),
+      keyB64: currentKeyB64, keyEpoch: 1, seatToken: 'seat',
+      client: {
+        pullUpdates,
+        createSyncTicket: () => Promise.resolve({ ticket: 'ticket-only', expires_in_ms: 1000 }),
+        pushUpdate: () => Promise.resolve({ ok: true, cursor: 1, blob_id: 'new', key_epoch: 1, duplicate: false }),
+      } as never,
+      socketFactory: () => ({ send() {}, close() {}, onopen: null, onclose: null, onerror: null, onmessage: null }),
+    });
+
+    await client.start();
+    const rotating = client.rotateKey(nextKeyB64, 2);
+    await vi.waitFor(() => { expect(importKey).toHaveBeenCalledWith(nextKeyB64); });
+    client.stop();
+    if (!releaseRotationImport) throw new Error('Rotation import gate was not initialized.');
+    releaseRotationImport(nextCryptoKey);
+    await rotating;
+
+    expect(client.getKeyEpoch()).toBe(1);
+    expect(pullUpdates).toHaveBeenCalledOnce();
+    importKey.mockRestore();
+  });
+
+  it('does not begin a rotation that was queued before stop', async () => {
+    const currentKeyB64 = await generateMatterKey();
+    const importKey = vi.spyOn(matterCrypto, 'importMatterKey');
+    const client = new MatterSyncClient({
+      matterHandle: parseMatterHandle(`mh2_${'W'.repeat(43)}`), streamHandle: parseStreamHandle(`sh2_${'X'.repeat(43)}`),
+      keyB64: currentKeyB64, keyEpoch: 1, seatToken: 'seat',
+      client: {
+        pullUpdates: vi.fn(),
+        createSyncTicket: vi.fn(),
+        pushUpdate: vi.fn(),
+      } as never,
+    });
+
+    const rotating = client.rotateKey(await generateMatterKey(), 2);
+    client.stop();
+    await rotating;
+
+    expect(client.getKeyEpoch()).toBe(1);
+    expect(importKey).not.toHaveBeenCalled();
+    importKey.mockRestore();
+  });
+
+  it('aborts an in-flight local push on stop and ignores its later acknowledgement', async () => {
+    const doc = new Y.Doc();
+    let resolvePush: ((value: { ok: true; cursor: number; blob_id: string; key_epoch: number; duplicate: boolean }) => void) | undefined;
+    let sawAbort = false;
+    const onKeyEpochAdvanced = vi.fn();
+    const client = new MatterSyncClient({
+      matterHandle: parseMatterHandle(`mh2_${'U'.repeat(43)}`), streamHandle: parseStreamHandle(`sh2_${'V'.repeat(43)}`),
+      keyB64: await generateMatterKey(), keyEpoch: 1, seatToken: 'seat', doc,
+      client: {
+        pullUpdates: () => Promise.resolve({ key_epoch: 1, since: 0, cursor: 0, latest_cursor: 0, has_more: false, updates: [] }),
+        createSyncTicket: () => Promise.resolve({ ticket: 'ticket-only', expires_in_ms: 1000 }),
+        pushUpdate: (_matter: string, _stream: string, _blob: string, _ciphertext: string, _seat: string, _epoch: number, signal?: AbortSignal) => new Promise((resolve) => {
+          resolvePush = resolve;
+          signal?.addEventListener('abort', () => { sawAbort = true; }, { once: true });
+        }),
+      } as never,
+      callbacks: { onKeyEpochAdvanced },
+      socketFactory: () => ({ send() {}, close() {}, onopen: null, onclose: null, onerror: null, onmessage: null }),
+    });
+
+    await client.start();
+    doc.getMap('notes').set('local-edit', true);
+    await vi.waitFor(() => { expect(resolvePush).toBeDefined(); });
+    client.stop();
+    expect(sawAbort).toBe(true);
+    if (!resolvePush) throw new Error('Push gate was not initialized.');
+    resolvePush({ ok: true, cursor: 1, blob_id: 'late', key_epoch: 2, duplicate: false });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(onKeyEpochAdvanced).not.toHaveBeenCalled();
+  });
+
   it('opens the fixed ticket-only socket URL and accepts identifier-free frames', async () => {
     const urls: string[] = [];
     let socket: WebSocketLike | undefined;
