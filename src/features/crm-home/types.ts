@@ -57,6 +57,28 @@ export interface CrmHouseholdOption {
   name: string;
 }
 
+/** Active people from the firm directory, never a display-only name list. */
+export interface CrmFirmMember {
+  userId: string;
+  displayName: string;
+  title?: string | undefined;
+}
+
+/** A workflow step is daily work too. It keeps its own workflow identity. */
+export interface CrmWorkflowWorkItem {
+  id: string;
+  instanceId: string;
+  stepId: string;
+  title: string;
+  householdId: string;
+  householdLabel: string;
+  assigneeUserId: string | null;
+  assigneeLabel?: string | undefined;
+  status: 'open' | 'in_progress' | 'blocked' | 'done' | 'cancelled';
+  priority: 'high' | 'normal' | 'low';
+  dueAt?: string | undefined;
+}
+
 /** The only fields propagation may change. Progress is intentionally absent. */
 export type DerivedStepField =
   | 'title'
@@ -183,6 +205,7 @@ export interface MigrationFidelityReport {
 
 export interface CrmHomeActions {
   updateTask?: (task: CrmTask) => void | Promise<void>;
+  completeWorkflowWorkItem?: (item: CrmWorkflowWorkItem) => void | Promise<void>;
   decideApproval?: (approval: CrmApproval, decision: 'approved' | 'rejected') => void | Promise<void>;
   saveTaskView?: (view: CrmTaskSavedView) => void | Promise<void>;
   applyPropagation?: (offers: readonly PropagationApplyOffer[]) => void;
@@ -206,6 +229,8 @@ export interface CrmHomeAdapter {
   activity?: readonly CrmActivity[];
   savedTaskViews?: readonly CrmTaskSavedView[];
   households?: readonly CrmHouseholdOption[];
+  firmMembers?: readonly CrmFirmMember[];
+  workflowWorkItems?: readonly CrmWorkflowWorkItem[];
   offers: readonly PropagationOffer[];
   migration: CrmMigrationData;
   actions: CrmHomeActions;
