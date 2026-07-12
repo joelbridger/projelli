@@ -1,0 +1,91 @@
+name: Windows cloud tests
+
+# Deliberately manual-only while this proves the GitHub-hosted Windows lane.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref to test
+        required: true
+        default: lp/intake
+        type: string
+
+jobs:
+  test:
+    name: Test on GitHub-hosted Windows
+    runs-on: windows-latest
+    steps:
+      - name: Check out requested ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            intake-page/package-lock.json
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build files
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install protoc and LLVM
+        shell: pwsh
+        run: |
+          choco install protoc llvm -y --no-progress
+          "LIBCLANG_PATH=C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_ENV -Append
+          protoc --version
+
+      - name: Stage Windows sidecar stubs
+        # Tauri validates externalBin before compiling.  The app expects these
+        # exact Windows/MSVC names; tests only need the files to exist.
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path src-tauri/binaries | Out-Null
+          $stub = "$env:WINDIR\System32\where.exe"
+          Copy-Item $stub src-tauri/binaries/piper-x86_64-pc-windows-msvc.exe
+          Copy-Item $stub src-tauri/binaries/llama-server-x86_64-pc-windows-msvc.exe
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Prepare intake page for hosting security tests
+        # Build this serially before Vitest. The hosting suite reuses this
+        # output and only falls back to building it itself when it is absent.
+        working-directory: intake-page
+        # npm's --prefix is unreliable on Windows runners (installs can land in the
+        # wrong dir, leaving pdfjs-dist missing for the prebuild worker-copy) — cd instead.
+        run: |
+          npm ci
+          npm run build
+
+      - name: TypeScript check
+        run: npx tsc --noEmit
+
+      - name: Frontend unit tests
+        run: npx vitest run
+
+      - name: Rust tests (Windows host target)
+        working-directory: src-tauri
+        env:
+          CI: '1'
+        run: cargo test --workspace --locked
+
+      - name: Write failure summary
+        if: failure()
+        shell: pwsh
+        run: |
+          @"
+          ## Windows cloud test failed
+
+          This was a GitHub-hosted `windows-latest` machine, not the self-hosted Legion laptop.
+          Check the failed step above for the first error. The requested ref was `${{ inputs.ref }}`.
+          "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append

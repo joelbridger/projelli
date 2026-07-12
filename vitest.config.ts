@@ -12,6 +12,8 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
+    // A full Windows run can also launch the intake-page fallback build; leave it process headroom.
+    maxWorkers: process.platform === 'win32' ? 2 : undefined,
     setupFiles: ['./tests/setup.ts'],
     // `vitest --changed` follows static imports. These files shape tests at
     // runtime or globally, so any change must re-run the whole suite.

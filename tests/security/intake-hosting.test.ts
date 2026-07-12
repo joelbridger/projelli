@@ -32,13 +32,23 @@ const tempDirs: string[] = [];
 // serially; this beforeAll is the standalone/pre-push fallback — one build,
 // before the tests run, only if dist is missing.
 const intakePageDist = path.join(repoRoot, 'intake-page', 'dist');
+const intakePageRoot = path.join(repoRoot, 'intake-page');
 beforeAll(() => {
   if (!existsSync(path.join(intakePageDist, 'index.html'))) {
-    const result = spawnSync('npm', ['--prefix', path.join(repoRoot, 'intake-page'), 'run', 'build'], {
+    // Launch npm's JavaScript entry point through Node, rather than its
+    // Windows-only .cmd wrapper. Calling the wrapper from Vitest made this
+    // fallback depend on shell quoting and PATH resolution.
+    const npmCli = process.env['npm_execpath'];
+    if (!npmCli) {
+      throw new Error('Cannot find npm CLI for the intake-page build fallback.');
+    }
+    const result = spawnSync(process.execPath, [npmCli, 'run', 'build'], {
+      cwd: intakePageRoot,
       stdio: 'inherit',
     });
     if (result.status !== 0) {
-      throw new Error('Failed to build intake-page/dist for the hosting security tests.');
+      const detail = result.error?.message ?? `exit status ${String(result.status)}`;
+      throw new Error(`Failed to build intake-page/dist for the hosting security tests: ${detail}`);
     }
   }
 }, 180_000);

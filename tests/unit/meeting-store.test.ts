@@ -5,6 +5,9 @@ vi.mock('@tauri-apps/api/core', () => ({ invoke: (...a: unknown[]) => invokeMock
 const writeFileMock = vi.fn(async (_path: string, _content: string) => {});
 const indexFileMock = vi.fn(async (_path: string, _matterId?: string) => {});
 
+const pathSegments = (filePath: string) =>
+  filePath.split(/[\\/]+/u).filter(Boolean);
+
 vi.mock('@/platform/matter/matterStore', () => ({
   useMatterStore: {
     getState: () => ({
@@ -120,8 +123,11 @@ describe('meeting store', () => {
 
   it('indexes transcript.json and notes.docx under the meeting matter as soon as the post-stop pipeline writes them (QA-88)', async () => {
     const files = new Map<string, string>();
+    // This in-memory test filesystem accepts either platform separator.
+    const normalized = (filePath: string) => filePath.replaceAll('\\', '/');
+    const meetingDir = '/ws/C/Meetings/qa88-paths';
     files.set(
-      '/ws/C/Meetings/x/meeting.json',
+      `${meetingDir}/meeting.json`,
       JSON.stringify({
         matterId: 'm-1',
         startedAt: 't0',
@@ -129,38 +135,55 @@ describe('meeting store', () => {
       }),
     );
     files.set(
-      '/ws/C/Meetings/x/transcript.json',
+      `${meetingDir}/transcript.json`,
       JSON.stringify({
         segments: [{ startMs: 0, endMs: 1000, channel: 'mic', speaker: 'You', text: 'hi' }],
       }),
     );
     const readFile = vi.fn(async (p: string) => {
-      if (!files.has(p)) throw new Error('ENOENT');
-      return files.get(p) as string;
+      const filePath = normalized(p);
+      if (!files.has(filePath)) throw new Error('ENOENT');
+      return files.get(filePath) as string;
     });
     const writeFile = vi.fn(async (p: string, content: string) => {
-      files.set(p, content);
+      files.set(normalized(p), content);
     });
     const writeFileBinary = vi.fn(async () => {});
     setMeetingsWorkspaceService({
       readFile,
       writeFile,
-      exists: vi.fn(async (p: string) => files.has(p)),
+      exists: vi.fn(async (p: string) => files.has(normalized(p))),
       writeFileBinary,
     } as never);
     vi.mocked(meetingNoteFromTranscript.run).mockResolvedValueOnce('- did a thing [t:0]');
     invokeMock
-      .mockResolvedValueOnce({ meetingDir: '/ws/C/Meetings/x', startedAt: 't0' })
-      .mockResolvedValueOnce({ meetingDir: '/ws/C/Meetings/x', audioPath: 'a.wav', durationMs: 1000 })
-      .mockResolvedValueOnce({ transcriptPath: '/ws/C/Meetings/x/transcript.json', segmentCount: 1 });
+      .mockResolvedValueOnce({ meetingDir, startedAt: 't0' })
+      .mockResolvedValueOnce({ meetingDir, audioPath: 'a.wav', durationMs: 1000 })
+      .mockResolvedValueOnce({ transcriptPath: `${meetingDir}/transcript.json`, segmentCount: 1 });
 
     const s = useMeetingStore.getState();
     await s.startRecording('m-1', { consentMode: 'one-party' });
-    await useMeetingStore.getState().stopRecording();
+    await useMeetingStore.getState().stopRecording({
+      resolveProvider: async () => ({
+        provider: {} as never,
+        providerId: 'test',
+        model: 'test',
+      }),
+    });
 
-    expect(writeFileBinary).toHaveBeenCalledWith('/ws/C/Meetings/x/notes.docx', expect.any(Uint8Array));
-    expect(indexFileMock).toHaveBeenCalledWith('/ws/C/Meetings/x/transcript.json', 'm-1');
-    expect(indexFileMock).toHaveBeenCalledWith('/ws/C/Meetings/x/notes.docx', 'm-1');
+    const expectedNotesPath = `${meetingDir}/notes.docx`;
+    const expectedTranscriptPath = `${meetingDir}/transcript.json`;
+    const binaryWrite = writeFileBinary.mock.calls[0];
+    expect(binaryWrite).toBeDefined();
+    expect(pathSegments(binaryWrite?.[0] as string)).toEqual(pathSegments(expectedNotesPath));
+    expect(binaryWrite?.[1]).toBeInstanceOf(Uint8Array);
+
+    const indexedPaths = indexFileMock.mock.calls.map(([filePath, matterId]) => ({
+      path: pathSegments(filePath),
+      matterId,
+    }));
+    expect(indexedPaths).toContainEqual({ path: pathSegments(expectedTranscriptPath), matterId: 'm-1' });
+    expect(indexedPaths).toContainEqual({ path: pathSegments(expectedNotesPath), matterId: 'm-1' });
   });
 
   it('extends the Rust-authored meeting.json rather than reconstructing/overwriting matterId/startedAt/consent', async () => {
