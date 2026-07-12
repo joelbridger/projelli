@@ -36,13 +36,19 @@ import type { MatterHandle, StreamHandle, SyncFrame } from './contract';
 const MAX_UPDATE_BYTES = 1024 * 1024;
 /** Largest canonical base64 encoding that can decode to MAX_UPDATE_BYTES. */
 const MAX_UPDATE_BASE64_LENGTH = 4 * Math.ceil(MAX_UPDATE_BYTES / 3);
+/** Same canonical-shape rule the relay enforces (backend/src/routes/matters.ts). */
+const CANONICAL_BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
 
 function isSafeCursor(value: unknown): value is number {
-  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && !Object.is(value, -0);
 }
 
+/** True if the value is not safely decodable within MAX_UPDATE_BYTES. Rejects non-canonical
+ *  base64 outright — the length bound only holds for properly padded input. */
 function exceedsUpdateByteLimit(ciphertextB64: unknown): boolean {
-  return typeof ciphertextB64 === 'string' && ciphertextB64.length > MAX_UPDATE_BASE64_LENGTH;
+  if (typeof ciphertextB64 !== 'string') return true;
+  if (!CANONICAL_BASE64.test(ciphertextB64) || ciphertextB64.length % 4 !== 0) return true;
+  return ciphertextB64.length > MAX_UPDATE_BASE64_LENGTH;
 }
 
 export type SyncStatus =
@@ -53,19 +59,26 @@ export type SyncStatus =
   | 'offline'
   | 'error';
 
+/**
+ * Why a remote update was permanently skipped. `matterSyncStore.ts`'s
+ * `MatterSyncQuarantineReason` is derived from this — keep this the single
+ * source of truth so the two can never drift apart again.
+ */
+export type MatterSyncQuarantineInfo = {
+  reason: 'decrypt_failed' | 'epoch_superseded' | 'yjs_apply_failed' | 'ciphertext_too_large';
+  blobId: string;
+} | {
+  /** An untrusted relay value failed opaque-handle validation. It is never surfaced. */
+  reason: 'invalid_blob_id' | 'invalid_cursor';
+};
+
 export interface MatterSyncCallbacks {
   /** Status changes — drives the UI badge. */
   onStatus?: (status: SyncStatus) => void;
   /** Fired when a Yjs update from a peer has been applied (for UI refresh). */
   onRemoteUpdate?: (doc: Y.Doc) => void;
   /** A remote update was permanently skipped but sync can continue. */
-  onUpdateQuarantined?: (info: {
-    reason: 'decrypt_failed' | 'epoch_superseded' | 'yjs_apply_failed' | 'ciphertext_too_large';
-    blobId: string;
-  } | {
-    /** An untrusted relay value failed opaque-handle validation. It is never surfaced. */
-    reason: 'invalid_blob_id' | 'invalid_cursor';
-  }) => void;
+  onUpdateQuarantined?: (info: MatterSyncQuarantineInfo) => void;
   /**
    * The relay reported a `key_epoch` newer than ours. The host must rotate the
    * local matter key to the new epoch (provision/fetch) and then call

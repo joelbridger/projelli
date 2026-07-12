@@ -13,6 +13,7 @@
  */
 
 import { useMatterStore } from '@/platform/matter/matterStore';
+import type { MatterSyncQuarantineInfo } from '@/platform/firm/MatterSyncClient';
 
 export type MatterSyncStatus =
   | 'idle'
@@ -22,7 +23,8 @@ export type MatterSyncStatus =
   | 'offline'
   | 'error';
 
-export type MatterSyncQuarantineReason = 'decrypt_failed' | 'epoch_superseded' | 'yjs_apply_failed' | 'invalid_blob_id' | 'ciphertext_too_large' | 'invalid_cursor';
+/** Derived from MatterSyncClient's own quarantine-info union so the two can never drift apart. */
+export type MatterSyncQuarantineReason = MatterSyncQuarantineInfo['reason'];
 
 /** Alias to the unified matter store — the `statusByMatterId` slice lives there. */
 export const useMatterSyncStore = useMatterStore;
