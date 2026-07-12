@@ -354,7 +354,7 @@ export class MatterSyncClient {
     updates: Array<{ cursor: number; blob_id: string; key_epoch: number; ciphertext_b64: string }>,
   ): Promise<boolean> {
     for (const u of updates) {
-      const applied = await this.applyBlob(u.ciphertext_b64, u.key_epoch, u.blob_id);
+      const applied = await this.applyBlob(u.ciphertext_b64, u.key_epoch, u.blob_id, u.cursor);
       if (!applied) return false;
       this.cursor = u.cursor;
     }
@@ -362,7 +362,12 @@ export class MatterSyncClient {
   }
 
   /** Decrypt one blob and apply it to the Yjs doc (origin = remote). */
-  private async applyBlob(ciphertextB64: string, blobEpoch: number, blobId: string): Promise<boolean> {
+  private async applyBlob(
+    ciphertextB64: string,
+    blobEpoch: number,
+    blobId: string,
+    cursor?: number,
+  ): Promise<boolean> {
     // A blob sealed under a newer epoch than we hold: we can't decrypt it yet.
     // Signal the host to rotate; skip for now (we'll re-pull after rotation).
     if (blobEpoch > this.keyEpoch) {
@@ -374,18 +379,50 @@ export class MatterSyncClient {
       keyEpoch: blobEpoch, matterHandle: this.matterHandle, streamHandle: this.streamHandle,
     });
     if (!res.ok) {
-      // Could be an older-epoch blob our current key can't open, or tampering.
-      // Skip it rather than crash the sync loop (CRDT tolerates gaps; a full
-      // re-key + re-pull recovers state).
-      return false;
+      // This is deliberately different from the newer-epoch branch above.
+      // Once we hold this epoch's key, a decrypt failure can never become a
+      // legitimate update after a later rotation. Quarantine it and let the
+      // ordered cursor move on, otherwise one corrupt peer blob wedges every
+      // honest member on this stream forever.
+      this.logQuarantinedUpdate('decrypt_failed', blobId, cursor, res.reason);
+      return true;
     }
-    Y.applyUpdate(this.doc, res.update, this.remoteOrigin);
+    try {
+      Y.applyUpdate(this.doc, res.update, this.remoteOrigin);
+    } catch (error) {
+      // Authenticated ciphertext can still carry bytes which Yjs cannot
+      // decode. It is permanently corrupt for this document just like a
+      // decrypt failure, so it must never escape and wedge reconciliation.
+      this.logQuarantinedUpdate('yjs_apply_failed', blobId, cursor, error);
+      return true;
+    }
     if (this.ownBlobIds.has(blobId)) {
       this.ownBlobIds.delete(blobId);
     } else {
       this.callbacks.onRemoteUpdate?.(this.doc);
     }
     return true;
+  }
+
+  /**
+   * Corrupt relay data is not normal connectivity noise. There is no callback
+   * or audit channel on MatterSyncCallbacks, so use the app's established
+   * visible diagnostic path while keeping the editor alive.
+   */
+  private logQuarantinedUpdate(
+    reason: 'decrypt_failed' | 'yjs_apply_failed',
+    blobId: string,
+    cursor: number | undefined,
+    detail: unknown,
+  ): void {
+    console.error('[MatterSyncClient] quarantined corrupt remote update', {
+      reason,
+      matterHandle: this.matterHandle,
+      streamHandle: this.streamHandle,
+      blobId,
+      cursor: cursor ?? this.cursor,
+      detail,
+    });
   }
 
   /**
@@ -653,7 +690,7 @@ export class MatterSyncClient {
     if (frame.key_epoch > this.keyEpoch) {
       this.callbacks.onKeyEpochAdvanced?.(frame.key_epoch);
     }
-    if (await this.applyBlob(frame.ciphertext_b64, frame.key_epoch, frame.blob_id)) {
+    if (await this.applyBlob(frame.ciphertext_b64, frame.key_epoch, frame.blob_id, frame.cursor)) {
       if (frame.cursor > this.cursor) this.cursor = frame.cursor;
     } else {
       this.incomingCursorBlocked = true;

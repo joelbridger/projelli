@@ -23,8 +23,9 @@
 
 import { keychainCompareAndDelete, keychainCompareAndSet, keychainGet, keychainSet, keychainDelete } from '@/platform/utils/tauri-commands';
 import { isTauri } from '@tauri-apps/api/core';
-import { kcUserService, kcMatterService, KC_FALLBACK_PREFIX } from '@/config/identity';
+import { kcUserService, kcMatterService, KC_FALLBACK_PREFIX, KC_FIRM_NS } from '@/config/identity';
 import { OPAQUE_BLOB_ID_PATTERN, OPAQUE_PROVISIONING_NONCE_PATTERN } from './opaqueBlobId';
+import { parseMatterHandle, parseStreamHandle, type MatterHandle, type StreamHandle } from './contract';
 
 /** Service namespace for a user's auth + seat tokens. */
 export function userService(userId: string): string {
@@ -43,6 +44,7 @@ export const KC_SEAT_TOKEN = 'seat_token';
 // Key within a matter service (the raw AES key, base64).
 export const KC_MATTER_KEY = 'content_key';
 const KC_PROMOTION_PENDING = 'promotion_pending';
+const KC_DOCUMENT_STREAM_PIN_PREFIX = 'document_stream_pin:';
 
 function fallbackAvailable(): boolean {
   return typeof localStorage !== 'undefined';
@@ -110,6 +112,82 @@ async function deleteSecret(service: string, key: string): Promise<void> {
   }
   if (fallbackAvailable()) {
     localStorage.removeItem(fallbackKey(service, key));
+  }
+}
+
+/** Atomically write a device-local value only when it still equals `expected`. */
+async function compareAndSetSecret(
+  service: string,
+  key: string,
+  expected: string | null,
+  next: string,
+): Promise<{ swapped: boolean; current: string | null }> {
+  if (isTauri()) return keychainCompareAndSet(key, expected, next, service);
+  const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined;
+  const run = async () => {
+    const current = await getSecret(service, key);
+    if (current !== expected) return { swapped: false, current };
+    await setSecret(service, key, next);
+    return { swapped: true, current };
+  };
+  if (locks) return locks.request(`lantern-firm-keychain:${service}:${key}`, { mode: 'exclusive' }, run);
+  // Test-only/non-browser fallback. Production desktop uses the native lock.
+  return run();
+}
+
+/**
+ * Device-local trust-on-first-use pins for document stream routing.
+ *
+ * These pins deliberately live outside Yjs and the relay. A shared CRDT entry
+ * is useful for collaboration, but never sufficient evidence for a destructive
+ * stream release.
+ */
+function documentStreamPinService(matterHandle: MatterHandle): string {
+  return `${KC_FIRM_NS}.firm-document-stream-pins.${parseMatterHandle(matterHandle)}`;
+}
+
+function documentStreamPinKey(localDocumentId: string): string {
+  if (localDocumentId.length === 0) throw new Error('Cannot pin an empty local document ID.');
+  return `${KC_DOCUMENT_STREAM_PIN_PREFIX}${utf8ToB64(localDocumentId).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')}`;
+}
+
+/** Return this device's pinned opaque stream handle, if any. */
+export async function getPinnedDocumentStream(
+  matterHandle: MatterHandle,
+  localDocumentId: string,
+): Promise<StreamHandle | null> {
+  const raw = await getSecret(documentStreamPinService(matterHandle), documentStreamPinKey(localDocumentId));
+  if (raw === null) return null;
+  try {
+    return parseStreamHandle(raw);
+  } catch {
+    throw new Error('The saved document stream pin is invalid. Refusing destructive release.');
+  }
+}
+
+/**
+ * Atomically establish a pin on first observation. Later observations receive
+ * the original value and must compare it before doing anything destructive.
+ */
+export async function pinDocumentStreamOnFirstObservation(
+  matterHandle: MatterHandle,
+  localDocumentId: string,
+  observedStreamHandle: StreamHandle,
+): Promise<StreamHandle> {
+  const service = documentStreamPinService(matterHandle);
+  const key = documentStreamPinKey(localDocumentId);
+  const wanted = parseStreamHandle(observedStreamHandle);
+  for (;;) {
+    const current = await getSecret(service, key);
+    if (current !== null) {
+      try {
+        return parseStreamHandle(current);
+      } catch {
+        throw new Error('The saved document stream pin is invalid. Refusing destructive release.');
+      }
+    }
+    const result = await compareAndSetSecret(service, key, null, wanted);
+    if (result.swapped) return wanted;
   }
 }
 

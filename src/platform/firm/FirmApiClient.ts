@@ -72,6 +72,9 @@ export class FirmApiError extends Error {
   }
 }
 
+/** 8 MiB ciphertext pages expand to roughly 11 MiB once base64-encoded. */
+export const MAX_PULL_RESPONSE_BYTES = 16 * 1024 * 1024;
+
 /** Token provider: how the client gets the current access token and refreshes. */
 export interface TokenSource {
   getAccessToken(): string | null;
@@ -83,8 +86,49 @@ export interface TokenSource {
   refreshAccessToken(): Promise<string | null>;
 }
 
-async function readJson<T>(res: Response): Promise<T> {
-  const text = await res.text();
+async function readJson<T>(res: Response, maxBytes?: number): Promise<T> {
+  // Some small unit-test response doubles intentionally expose only `text()`.
+  // Real Fetch Responses always have Headers; a missing header object simply
+  // means use the streaming byte counter below.
+  const possibleHeaders = (res as unknown as { headers?: unknown }).headers;
+  const contentLength = maxBytes === undefined || !possibleHeaders || typeof possibleHeaders !== 'object'
+    || !('get' in possibleHeaders) || typeof possibleHeaders.get !== 'function'
+    ? 0
+    : Number(possibleHeaders.get('content-length') ?? '0');
+  if (maxBytes !== undefined && Number.isFinite(contentLength) && contentLength > maxBytes) {
+    await res.body?.cancel();
+    throw new FirmApiError(res.status, 'response_too_large', 'The relay returned an unexpectedly large response.');
+  }
+  let text: string;
+  if (maxBytes === undefined || !res.body) {
+    text = await res.text();
+  } else {
+    const reader = res.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (!value) continue;
+        total += value.byteLength;
+        if (total > maxBytes) {
+          await reader.cancel();
+          throw new FirmApiError(res.status, 'response_too_large', 'The relay returned an unexpectedly large response.');
+        }
+        chunks.push(value);
+      }
+    } finally {
+      reader.releaseLock();
+    }
+    const bytes = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    text = new TextDecoder().decode(bytes);
+  }
   if (!text) return {} as T;
   try {
     return JSON.parse(text) as T;
@@ -116,6 +160,8 @@ export class FirmApiClient {
       headers?: Record<string, string>;
       /** Cancels a bounded relay operation such as document-stream creation. */
       signal?: AbortSignal;
+      /** Reject a response before it can be fully buffered in memory. */
+      maxResponseBytes?: number;
     } = {
       method: 'GET',
     },
@@ -166,7 +212,7 @@ export class FirmApiClient {
       }
       throw apiErr;
     }
-    return readJson<T>(res);
+    return readJson<T>(res, init.maxResponseBytes);
   }
 
   // --- open endpoints --------------------------------------------------------
@@ -436,6 +482,7 @@ export class FirmApiClient {
         auth: true,
         query: { since: String(since) },
         headers: { 'X-Seat-Token': seatToken },
+        maxResponseBytes: MAX_PULL_RESPONSE_BYTES,
       },
     );
   }

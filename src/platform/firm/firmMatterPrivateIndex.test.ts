@@ -1,13 +1,15 @@
 import * as Y from 'yjs';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { parseMatterHandle, parseStreamHandle } from './contract';
 import {
   addDocumentStreamToPrivateIndex, createDocumentStream, FIRM_PRIVATE_INDEX_MAP, FIRM_PRIVATE_INDEX_STREAMS_V2_MAP,
   readFirmMatterPrivateIndex, writeFirmMatterPrivateIndex,
 } from './firmMatterPrivateIndex';
 
+const matterHandle = parseMatterHandle(`mh2_${'M'.repeat(43)}`);
 const root = parseStreamHandle(`sh2_${'R'.repeat(43)}`);
 const docStream = parseStreamHandle(`sh2_${'D'.repeat(43)}`);
+afterEach(() => { localStorage.clear(); });
 describe('encrypted FirmMatterPrivateIndex', () => {
   function seedLegacyIndex(doc: Y.Doc, streams: Record<string, { streamHandle: typeof root; kind: 'notes' | 'document' }>) {
     const index = doc.getMap<unknown>(FIRM_PRIVATE_INDEX_MAP);
@@ -17,10 +19,10 @@ describe('encrypted FirmMatterPrivateIndex', () => {
     index.set('streams', streams);
   }
 
-  it('generates a strict 256-bit client handle and writes its local mapping without a relay round trip', () => {
+  it('generates a strict 256-bit client handle and writes its local mapping without a relay round trip', async () => {
     const doc = new Y.Doc();
     writeFirmMatterPrivateIndex(doc, { version: 1, clientName: 'CLIENT_SECRET_NIMBUS', displayName: 'Nimbus', streams: { _notes: { streamHandle: root, kind: 'notes' } } });
-    const handle = createDocumentStream(doc, 'doc-advisory-plan.docx');
+    const handle = await createDocumentStream(doc, matterHandle, 'doc-advisory-plan.docx');
     expect(handle).toMatch(/^sh2_[A-Za-z0-9_-]{43}$/);
     expect(parseStreamHandle(handle)).toBe(handle);
     expect(readFirmMatterPrivateIndex(doc)?.streams['doc-advisory-plan.docx']).toEqual({ streamHandle: handle, kind: 'document' });
@@ -35,17 +37,17 @@ describe('encrypted FirmMatterPrivateIndex', () => {
     expect(parseMatterHandle(`mh2_${'M'.repeat(43)}`)).toBeTruthy();
   });
 
-  it('recovers a locally-written mapping after a crash before its root update is delivered, with no duplicate', () => {
+  it('recovers a locally-written mapping after a crash before its root update is delivered, with no duplicate', async () => {
     const doc = new Y.Doc();
     writeFirmMatterPrivateIndex(doc, { version: 1, clientName: 'x', displayName: 'x', streams: { _notes: { streamHandle: root, kind: 'notes' } } });
-    const localHandle = createDocumentStream(doc, 'crash-before-root-sync.docx');
+    const localHandle = await createDocumentStream(doc, matterHandle, 'crash-before-root-sync.docx');
     const restarted = new Y.Doc();
     Y.applyUpdate(restarted, Y.encodeStateAsUpdate(doc));
     expect(readFirmMatterPrivateIndex(restarted)?.streams['crash-before-root-sync.docx']).toEqual({ streamHandle: localHandle, kind: 'document' });
     expect(Object.values(readFirmMatterPrivateIndex(restarted)?.streams ?? {}).filter((entry) => entry.streamHandle === localHandle)).toHaveLength(1);
   });
 
-  it('merges concurrently added document mappings from two devices', () => {
+  it('merges concurrently added document mappings from two devices', async () => {
     const first = new Y.Doc();
     writeFirmMatterPrivateIndex(first, { version: 1, clientName: 'x', displayName: 'x', streams: { _notes: { streamHandle: root, kind: 'notes' } } });
     const second = new Y.Doc();
@@ -53,8 +55,8 @@ describe('encrypted FirmMatterPrivateIndex', () => {
     const firstStream = parseStreamHandle(`sh2_${'A'.repeat(43)}`);
     const secondStream = parseStreamHandle(`sh2_${'B'.repeat(43)}`);
 
-    addDocumentStreamToPrivateIndex(first, 'first.docx', firstStream);
-    addDocumentStreamToPrivateIndex(second, 'second.docx', secondStream);
+    await addDocumentStreamToPrivateIndex(first, matterHandle, 'first.docx', firstStream);
+    await addDocumentStreamToPrivateIndex(second, matterHandle, 'second.docx', secondStream);
     Y.applyUpdate(first, Y.encodeStateAsUpdate(second));
     Y.applyUpdate(second, Y.encodeStateAsUpdate(first));
 
@@ -66,14 +68,14 @@ describe('encrypted FirmMatterPrivateIndex', () => {
     }
   });
 
-  it('is idempotent and convergent when two devices add the same document', () => {
+  it('is idempotent and convergent when two devices add the same document', async () => {
     const first = new Y.Doc();
     writeFirmMatterPrivateIndex(first, { version: 1, clientName: 'x', displayName: 'x', streams: { _notes: { streamHandle: root, kind: 'notes' } } });
     const second = new Y.Doc();
     Y.applyUpdate(second, Y.encodeStateAsUpdate(first));
 
-    addDocumentStreamToPrivateIndex(first, 'shared.docx', docStream);
-    addDocumentStreamToPrivateIndex(second, 'shared.docx', docStream);
+    await addDocumentStreamToPrivateIndex(first, matterHandle, 'shared.docx', docStream);
+    await addDocumentStreamToPrivateIndex(second, matterHandle, 'shared.docx', docStream);
     Y.applyUpdate(first, Y.encodeStateAsUpdate(second));
     Y.applyUpdate(second, Y.encodeStateAsUpdate(first));
     // Replaying the same encrypted root updates must not change the one mapping.
@@ -84,14 +86,14 @@ describe('encrypted FirmMatterPrivateIndex', () => {
     expect(readFirmMatterPrivateIndex(second)?.streams['shared.docx']).toEqual({ streamHandle: docStream, kind: 'document' });
   });
 
-  it('reads legacy streams and the versioned directory as one map, with the new directory winning', () => {
+  it('reads legacy streams and the versioned directory as one map, with the new directory winning', async () => {
     const doc = new Y.Doc();
     seedLegacyIndex(doc, {
       _notes: { streamHandle: root, kind: 'notes' },
       'first.docx': { streamHandle: docStream, kind: 'document' },
     });
     const replacement = parseStreamHandle(`sh2_${'C'.repeat(43)}`);
-    addDocumentStreamToPrivateIndex(doc, 'first.docx', replacement);
+    await addDocumentStreamToPrivateIndex(doc, matterHandle, 'first.docx', replacement);
 
     expect(readFirmMatterPrivateIndex(doc)?.streams).toEqual({
       _notes: { streamHandle: root, kind: 'notes' },
@@ -101,7 +103,7 @@ describe('encrypted FirmMatterPrivateIndex', () => {
     expect(doc.getMap<unknown>(FIRM_PRIVATE_INDEX_STREAMS_V2_MAP)).toBeInstanceOf(Y.Map);
   });
 
-  it('concurrently upgrades two legacy clients and retains both newly added mappings in both merge directions', () => {
+  it('concurrently upgrades two legacy clients and retains both newly added mappings in both merge directions', async () => {
     const first = new Y.Doc();
     seedLegacyIndex(first, { _notes: { streamHandle: root, kind: 'notes' } });
     const legacyUpdate = Y.encodeStateAsUpdate(first);
@@ -115,8 +117,8 @@ describe('encrypted FirmMatterPrivateIndex', () => {
     // Both start with only the old object. The old nested-map migration lost
     // one of these writes because each client assigned a different Y.Map to
     // the same parent key.
-    addDocumentStreamToPrivateIndex(first, 'first.docx', firstStream);
-    addDocumentStreamToPrivateIndex(second, 'second.docx', secondStream);
+    await addDocumentStreamToPrivateIndex(first, matterHandle, 'first.docx', firstStream);
+    await addDocumentStreamToPrivateIndex(second, matterHandle, 'second.docx', secondStream);
     const firstUpdate = Y.encodeStateAsUpdate(first);
     const secondUpdate = Y.encodeStateAsUpdate(second);
     Y.applyUpdate(first, secondUpdate);
@@ -135,7 +137,7 @@ describe('encrypted FirmMatterPrivateIndex', () => {
     }
   });
 
-  it('keeps a legacy-only client readable and makes a repeated upgrade harmless', () => {
+  it('keeps a legacy-only client readable and makes a repeated upgrade harmless', async () => {
     const legacyOnly = new Y.Doc();
     seedLegacyIndex(legacyOnly, {
       _notes: { streamHandle: root, kind: 'notes' },
@@ -146,8 +148,8 @@ describe('encrypted FirmMatterPrivateIndex', () => {
       _notes: { streamHandle: root, kind: 'notes' },
       'legacy.docx': { streamHandle: docStream, kind: 'document' },
     });
-    addDocumentStreamToPrivateIndex(legacyOnly, 'new.docx', docStream);
-    addDocumentStreamToPrivateIndex(legacyOnly, 'new.docx', docStream);
+    await addDocumentStreamToPrivateIndex(legacyOnly, matterHandle, 'new.docx', docStream);
+    await addDocumentStreamToPrivateIndex(legacyOnly, matterHandle, 'new.docx', docStream);
     expect(readFirmMatterPrivateIndex(legacyOnly)?.streams).toMatchObject({
       _notes: { streamHandle: root, kind: 'notes' },
       'legacy.docx': { streamHandle: docStream, kind: 'document' },
@@ -155,7 +157,7 @@ describe('encrypted FirmMatterPrivateIndex', () => {
     });
   });
 
-  it('resolves concurrent additions of the same document deterministically', () => {
+  it('resolves concurrent additions of the same document deterministically', async () => {
     const first = new Y.Doc();
     seedLegacyIndex(first, { _notes: { streamHandle: root, kind: 'notes' } });
     const second = new Y.Doc();
@@ -163,8 +165,10 @@ describe('encrypted FirmMatterPrivateIndex', () => {
     const firstStream = parseStreamHandle(`sh2_${'G'.repeat(43)}`);
     const secondStream = parseStreamHandle(`sh2_${'H'.repeat(43)}`);
 
-    addDocumentStreamToPrivateIndex(first, 'shared.docx', firstStream);
-    addDocumentStreamToPrivateIndex(second, 'shared.docx', secondStream);
+    // Simulate two separate devices writing raw Yjs values concurrently. Their
+    // device-local TOFU shelves are intentionally not shared in this test.
+    first.getMap<unknown>(FIRM_PRIVATE_INDEX_STREAMS_V2_MAP).set('shared.docx', { streamHandle: firstStream, kind: 'document' });
+    second.getMap<unknown>(FIRM_PRIVATE_INDEX_STREAMS_V2_MAP).set('shared.docx', { streamHandle: secondStream, kind: 'document' });
     Y.applyUpdate(first, Y.encodeStateAsUpdate(second));
     Y.applyUpdate(second, Y.encodeStateAsUpdate(first));
 

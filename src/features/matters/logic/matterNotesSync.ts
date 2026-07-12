@@ -22,7 +22,7 @@ import { unwrapMatterKey } from '@/platform/firm/keyWrap';
 import { FirmApiError } from '@/platform/firm/FirmApiClient';
 import { parseMatterHandle, parseStreamHandle } from '@/platform/firm/contract';
 import type { MatterHandle } from '@/platform/firm/contract';
-import { readFirmMatterPrivateIndex } from '@/platform/firm/firmMatterPrivateIndex';
+import { observeDocumentStreamsForPinning, readFirmMatterPrivateIndex } from '@/platform/firm/firmMatterPrivateIndex';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useMatterSyncStore } from '@/platform/matter/matterSyncStore';
 import { useFirmStore } from '@/platform/firm/firmStore';
@@ -153,6 +153,13 @@ async function _buildMatterSyncClient(
   // the local display/client names.
   const privateIndex = readFirmMatterPrivateIndex(client.doc);
   if (privateIndex) {
+    const pinMismatches = await observeDocumentStreamsForPinning(client.doc, firmMatterId);
+    for (const mismatch of pinMismatches) {
+      console.error('[matterNotesSync] observed changed document stream mapping', {
+        matterHandle: firmMatterId,
+        ...mismatch,
+      });
+    }
     useMatterStore.getState().renameMatter(localMatterId, {
       name: privateIndex.displayName,
       client: privateIndex.clientName,

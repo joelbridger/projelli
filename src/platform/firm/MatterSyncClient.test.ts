@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import * as Y from 'yjs';
 import { MatterSyncClient, type WebSocketLike } from './MatterSyncClient';
 import { decryptUpdateV2, generateMatterKey, importMatterKey } from './matterCrypto';
@@ -89,6 +89,82 @@ describe('MatterSyncClient v2 socket privacy', () => {
     await client.rotateKey(epochTwoKey, 2);
     expect(client.getCursor()).toBe(7);
     expect(client.doc.getMap('notes').get('survives-rotation')).toBe('yes');
+    client.stop();
+  });
+
+  it('quarantines an authenticated but structurally invalid Yjs update and still applies the later update', async () => {
+    const matterHandle = parseMatterHandle(`mh2_${'T'.repeat(43)}`);
+    const streamHandle = parseStreamHandle(`sh2_${'U'.repeat(43)}`);
+    const keyB64 = await generateMatterKey();
+    const key = await importMatterKey(keyB64);
+    // This is valid AES-GCM ciphertext, but not a valid Yjs update payload.
+    const corruptCiphertext = await (await import('./matterCrypto')).encryptUpdateV2(
+      key, new Uint8Array([0xff]), { matterHandle, streamHandle, keyEpoch: 1 },
+    );
+    const later = new Y.Doc();
+    later.getMap('notes').set('later-update-survived', true);
+    const laterCiphertext = await (await import('./matterCrypto')).encryptUpdateV2(
+      key, Y.encodeStateAsUpdate(later), { matterHandle, streamHandle, keyEpoch: 1 },
+    );
+    const loud = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const client = new MatterSyncClient({
+      matterHandle, streamHandle, keyB64, keyEpoch: 1, seatToken: 'seat',
+      client: {
+        pullUpdates: () => Promise.resolve({ key_epoch: 1, since: 0, cursor: 2, latest_cursor: 2, has_more: false, updates: [
+          { cursor: 1, blob_id: 'corrupt-yjs', key_epoch: 1, ciphertext_b64: corruptCiphertext },
+          { cursor: 2, blob_id: 'later-valid', key_epoch: 1, ciphertext_b64: laterCiphertext },
+        ] }),
+        createSyncTicket: () => Promise.resolve({ ticket: 'ticket-only', expires_in_ms: 1000 }),
+        pushUpdate: () => Promise.resolve({ ok: true, cursor: 3, blob_id: 'new', key_epoch: 1, duplicate: false }),
+      } as never,
+      socketFactory: () => ({ send() {}, close() {}, onopen: null, onclose: null, onerror: null, onmessage: null }),
+    });
+
+    await client.start();
+    expect(client.getCursor()).toBe(2);
+    expect(client.doc.getMap('notes').get('later-update-survived')).toBe(true);
+    expect(loud).toHaveBeenCalledWith('[MatterSyncClient] quarantined corrupt remote update', expect.objectContaining({
+      reason: 'yjs_apply_failed', blobId: 'corrupt-yjs', cursor: 1,
+    }));
+    loud.mockRestore();
+    client.stop();
+  });
+
+  it('quarantines a current-epoch decrypt failure and still applies the later update', async () => {
+    const matterHandle = parseMatterHandle(`mh2_${'V'.repeat(43)}`);
+    const streamHandle = parseStreamHandle(`sh2_${'W'.repeat(43)}`);
+    const keyB64 = await generateMatterKey();
+    const key = await importMatterKey(keyB64);
+    const sealed = await (await import('./matterCrypto')).encryptUpdateV2(
+      key, Y.encodeStateAsUpdate(new Y.Doc()), { matterHandle, streamHandle, keyEpoch: 1 },
+    );
+    const tamperedCiphertext = `${sealed.slice(0, -1)}${sealed.endsWith('A') ? 'B' : 'A'}`;
+    const later = new Y.Doc();
+    later.getMap('notes').set('after-tamper', 'applied');
+    const laterCiphertext = await (await import('./matterCrypto')).encryptUpdateV2(
+      key, Y.encodeStateAsUpdate(later), { matterHandle, streamHandle, keyEpoch: 1 },
+    );
+    const loud = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const client = new MatterSyncClient({
+      matterHandle, streamHandle, keyB64, keyEpoch: 1, seatToken: 'seat',
+      client: {
+        pullUpdates: () => Promise.resolve({ key_epoch: 1, since: 0, cursor: 2, latest_cursor: 2, has_more: false, updates: [
+          { cursor: 1, blob_id: 'tampered-current-epoch', key_epoch: 1, ciphertext_b64: tamperedCiphertext },
+          { cursor: 2, blob_id: 'later-valid', key_epoch: 1, ciphertext_b64: laterCiphertext },
+        ] }),
+        createSyncTicket: () => Promise.resolve({ ticket: 'ticket-only', expires_in_ms: 1000 }),
+        pushUpdate: () => Promise.resolve({ ok: true, cursor: 3, blob_id: 'new', key_epoch: 1, duplicate: false }),
+      } as never,
+      socketFactory: () => ({ send() {}, close() {}, onopen: null, onclose: null, onerror: null, onmessage: null }),
+    });
+
+    await client.start();
+    expect(client.getCursor()).toBe(2);
+    expect(client.doc.getMap('notes').get('after-tamper')).toBe('applied');
+    expect(loud).toHaveBeenCalledWith('[MatterSyncClient] quarantined corrupt remote update', expect.objectContaining({
+      reason: 'decrypt_failed', blobId: 'tampered-current-epoch', cursor: 1,
+    }));
+    loud.mockRestore();
     client.stop();
   });
 

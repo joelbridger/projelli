@@ -4,7 +4,7 @@ vi.mock('@/platform/providers/fetchUtils', () => ({
   getCorsSafeFetch: () => Promise.resolve(fetch),
 }));
 
-import { FirmApiClient } from './FirmApiClient';
+import { FirmApiClient, FirmApiError, MAX_PULL_RESPONSE_BYTES } from './FirmApiClient';
 import { parseMatterHandle, parseStreamHandle } from './contract';
 
 const matterHandle = parseMatterHandle(`mh2_${'A'.repeat(43)}`);
@@ -86,5 +86,21 @@ describe('FirmApiClient v2 relay privacy', () => {
     expect(parseStreamHandle(streamHandle)).toBe(streamHandle);
     expect(() => parseMatterHandle('matter-semantic-123')).toThrow();
     expect(() => parseStreamHandle('sh2_short')).toThrow();
+  });
+
+  it('rejects an oversized pull response before buffering the whole body', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new Uint8Array(MAX_PULL_RESPONSE_BYTES + 1));
+          controller.close();
+        },
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    ))));
+    const client = new FirmApiClient({ getAccessToken: () => 'access', refreshAccessToken: () => Promise.resolve(null) });
+    await expect(client.pullUpdates(streamHandle, 0, 'seat')).rejects.toMatchObject({
+      code: 'response_too_large',
+    } satisfies Partial<FirmApiError>);
   });
 });

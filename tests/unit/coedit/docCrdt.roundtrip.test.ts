@@ -21,6 +21,7 @@
  *   must NOT rely on meta.id being non-empty from the CRDT.
  */
 import { describe, it, expect } from 'vitest';
+import * as Y from 'yjs';
 import { documentJsonToYDoc, yDocToDocumentJson } from '@/platform/firm/coedit/docCrdt';
 import type { DocumentJson, DocxParagraph, DocxInlineInsertion, DocxInlineDeletion } from '@/platform/types/docx';
 
@@ -67,6 +68,44 @@ const FIXTURE: DocumentJson = {
 // ---------------------------------------------------------------------------
 
 describe('docCrdt round-trip', () => {
+  it('turns malformed peer-owned Yjs shapes into safe empty/raw render data instead of throwing', () => {
+    const ydoc = new Y.Doc();
+    const body = ydoc.getArray<unknown>('body');
+    const malformedParagraph = new Y.Map<unknown>();
+    malformedParagraph.set('type', 'paragraph');
+    // Missing runs, an invalid text field, bad tracked-change children, and
+    // invalid opaque JSON previously reached unchecked `.toArray()` / JSON.parse.
+    const malformedRuns = new Y.Array<unknown>();
+    const malformedText = new Y.Map<unknown>();
+    malformedText.set('kind', 'text');
+    malformedText.set('text', 'not-a-ytext');
+    const malformedChange = new Y.Map<unknown>();
+    malformedChange.set('kind', 'ins');
+    malformedChange.set('subruns', 'not-an-array');
+    const malformedOpaque = new Y.Map<unknown>();
+    malformedOpaque.set('kind', 'opaque');
+    malformedOpaque.set('opaqueJson', '{not-json');
+    malformedRuns.push([malformedText, malformedChange, malformedOpaque]);
+    malformedParagraph.set('runs', malformedRuns);
+    const malformedRaw = new Y.Map<unknown>();
+    malformedRaw.set('type', 'raw');
+    body.push([malformedParagraph, malformedRaw, 'not-a-block']);
+
+    const rendered = yDocToDocumentJson(ydoc);
+    expect(rendered.body).toEqual([
+      {
+        kind: 'paragraph',
+        inlines: [
+          { kind: 'run', text: '' },
+          { kind: 'insertion', meta: { id: '', author: '', date: '' }, runs: [] },
+          { kind: 'raw', xml: '' },
+        ],
+      },
+      { kind: 'raw', xml: '' },
+      { kind: 'raw', xml: '' },
+    ]);
+  });
+
   it('DocumentJson → Y.Doc → DocumentJson preserves the modeled tree', () => {
     const ydoc = documentJsonToYDoc(FIXTURE);
     const back = yDocToDocumentJson(ydoc);

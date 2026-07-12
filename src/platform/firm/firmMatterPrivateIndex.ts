@@ -5,8 +5,9 @@
  * document IDs and are never copied into a relay path, query, body, or frame.
  */
 import * as Y from 'yjs';
-import type { StreamHandle } from './contract';
+import type { MatterHandle, StreamHandle } from './contract';
 import { generateStreamHandle, parseStreamHandle } from './contract';
+import { pinDocumentStreamOnFirstObservation } from './firmKeychain';
 
 export const FIRM_PRIVATE_INDEX_MAP = 'firm-private-index';
 /**
@@ -131,15 +132,20 @@ export function writeFirmMatterPrivateIndex(doc: Y.Doc, index: FirmMatterPrivate
  * Yjs carries this local change to peers when the root stream next syncs; an
  * unused handle never reaches the relay and therefore needs no cleanup.
  */
-export function addDocumentStreamToPrivateIndex(
+export async function addDocumentStreamToPrivateIndex(
   doc: Y.Doc,
+  matterHandle: MatterHandle,
   localDocumentId: string,
   streamHandle: StreamHandle,
-): void {
+): Promise<void> {
   const current = readFirmMatterPrivateIndex(doc);
   if (!current) throw new Error('Cannot add a document stream before the private index exists.');
   const existing = current.streams[localDocumentId];
   if (existing?.streamHandle === streamHandle) return;
+  const pinned = await pinDocumentStreamOnFirstObservation(matterHandle, localDocumentId, streamHandle);
+  if (pinned !== streamHandle) {
+    throw new Error('This document is already pinned to a different encrypted stream on this device.');
+  }
   const streamsMap = getStreamsV2Map(doc);
   doc.transact(() => {
     streamsMap.set(localDocumentId, { streamHandle, kind: 'document' });
@@ -150,13 +156,35 @@ export function addDocumentStreamToPrivateIndex(
  * Create an opaque stream handle locally and immediately record its encrypted
  * root-index mapping. The first actual ciphertext write binds it at the relay.
  */
-export function createDocumentStream(
+export async function createDocumentStream(
   doc: Y.Doc,
+  matterHandle: MatterHandle,
   localDocumentId: string,
-): StreamHandle {
+): Promise<StreamHandle> {
   const streamHandle = generateStreamHandle();
-  addDocumentStreamToPrivateIndex(doc, localDocumentId, streamHandle);
+  await addDocumentStreamToPrivateIndex(doc, matterHandle, localDocumentId, streamHandle);
   return streamHandle;
+}
+
+/**
+ * Pin document mappings when a device first opens an existing shared matter.
+ * A later mismatch is returned to the caller for loud diagnostics; this read
+ * path never mutates the shared CRDT or overwrites the local trusted value.
+ */
+export async function observeDocumentStreamsForPinning(
+  doc: Y.Doc,
+  matterHandle: MatterHandle,
+): Promise<Array<{ localDocumentId: string; pinnedStreamHandle: StreamHandle; observedStreamHandle: StreamHandle }>> {
+  const streams = readFirmMatterPrivateIndex(doc)?.streams ?? {};
+  const mismatches: Array<{ localDocumentId: string; pinnedStreamHandle: StreamHandle; observedStreamHandle: StreamHandle }> = [];
+  for (const [localDocumentId, stream] of Object.entries(streams)) {
+    if (stream.kind !== 'document') continue;
+    const pinnedStreamHandle = await pinDocumentStreamOnFirstObservation(matterHandle, localDocumentId, stream.streamHandle);
+    if (pinnedStreamHandle !== stream.streamHandle) {
+      mismatches.push({ localDocumentId, pinnedStreamHandle, observedStreamHandle: stream.streamHandle });
+    }
+  }
+  return mismatches;
 }
 
 /** Tombstone a local document mapping without exposing the local ID to the relay. */

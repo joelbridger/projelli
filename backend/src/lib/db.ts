@@ -43,6 +43,9 @@ import type {
 } from "./types.ts";
 import type { AssuredProvider, BillingMeta, ManagedProviderKey } from "./assured-types.ts";
 
+/** Keep a pull response comfortably below a client- or relay-crashing size. */
+export const MAX_MATTER_PULL_CIPHERTEXT_BYTES = 8 * 1024 * 1024;
+
 /** Database rows keep the envelope as bytes; API-facing types expose base64 only at the edge. */
 function toWrappedMatterKey(row: Omit<WrappedMatterKey, "wrapped_key_b64"> & { wrapped_key: Uint8Array }): WrappedMatterKey {
   const { wrapped_key, ...rest } = row;
@@ -1530,12 +1533,18 @@ export class Store {
    * catch-up. `sinceCursor = 0` returns the whole history. Bounded by `limit`.
    * `streamHandle` selects one opaque encrypted stream.
    */
-  getMatterUpdatesSince(matterHandle: string, streamHandle: string, sinceCursor: number, limit = 500): MatterUpdate[] {
+  getMatterUpdatesSince(
+    matterHandle: string,
+    streamHandle: string,
+    sinceCursor: number,
+    limit = 500,
+    byteLimit = MAX_MATTER_PULL_CIPHERTEXT_BYTES,
+  ): MatterUpdate[] {
     const rows = this.#db
       .query(
         `SELECT * FROM matter_updates WHERE matter_handle = ? AND stream_handle = ? AND id > ? ORDER BY id ASC LIMIT ?`,
       )
-      .all(matterHandle, streamHandle, sinceCursor, limit) as Array<{
+      .iterate(matterHandle, streamHandle, sinceCursor, limit) as Iterable<{
       id: number;
       matter_handle: string;
       org_id: string;
@@ -1546,7 +1555,18 @@ export class Store {
       key_epoch: number;
       created_at: string;
     }>;
-    return rows.map((r) => ({ ...r, ciphertext: new Uint8Array(r.ciphertext) }));
+    const updates: MatterUpdate[] = [];
+    let totalCiphertextBytes = 0;
+    for (const row of rows) {
+      const ciphertext = new Uint8Array(row.ciphertext);
+      // Every stored blob is capped at 1 MiB, so a valid single update always
+      // fits this 8 MiB page. Never fetch/materialize another row after this
+      // point: the byte budget protects relay memory, not only JSON output.
+      if (updates.length > 0 && totalCiphertextBytes + ciphertext.byteLength > byteLimit) break;
+      updates.push({ ...row, ciphertext });
+      totalCiphertextBytes += ciphertext.byteLength;
+    }
+    return updates;
   }
 
   /** Highest cursor currently stored for an opaque matter+stream pair (0 if none). */

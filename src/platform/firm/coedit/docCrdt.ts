@@ -112,7 +112,7 @@ export function documentJsonToYDoc(
   meta?: { matterId?: string; docId?: string; fileName?: string },
 ): Y.Doc {
   const ydoc = new Y.Doc();
-  const body = ydoc.getArray<Y.Map<unknown>>('body');
+  const body = ydoc.getArray<unknown>('body');
   const metaMap = ydoc.getMap<unknown>('meta');
 
   // Build the entire tree inside ONE transaction. Nested types are integrated
@@ -242,14 +242,29 @@ export function yDocToDocumentJson(ydoc: Y.Doc): DocumentJson {
   };
 }
 
-function readBlock(m: Y.Map<unknown>): DocxBlock {
-  if (m.get('type') === 'raw') {
-    return { kind: 'raw', xml: m.get('rawXml') as string };
+function isYMap(value: unknown): value is Y.Map<unknown> {
+  return value instanceof Y.Map;
+}
+
+function isYArray(value: unknown): value is Y.Array<unknown> {
+  return value instanceof Y.Array;
+}
+
+function isYText(value: unknown): value is Y.Text {
+  return value instanceof Y.Text;
+}
+
+/** Unknown CRDT shapes must render as inert empty/raw content, never throw. */
+function readBlock(value: unknown): DocxBlock {
+  if (!isYMap(value)) return { kind: 'raw', xml: '' };
+  if (value.get('type') === 'raw') {
+    const rawXml = value.get('rawXml');
+    return { kind: 'raw', xml: typeof rawXml === 'string' ? rawXml : '' };
   }
 
-  const propsXml = m.get('propsXml');
-  const runsArray = m.get('runs') as Y.Array<Y.Map<unknown>>;
-  const inlines: DocxInline[] = runsArray.toArray().map(readRun);
+  const propsXml = value.get('propsXml');
+  const runsArray = value.get('runs');
+  const inlines: DocxInline[] = isYArray(runsArray) ? runsArray.toArray().map(readRun) : [];
 
   const para: DocxParagraph = { kind: 'paragraph', inlines };
   // Only set propertiesXml when it is a string (undefined when absent, not null).
@@ -257,12 +272,15 @@ function readBlock(m: Y.Map<unknown>): DocxBlock {
   return para;
 }
 
-function readRun(m: Y.Map<unknown>): DocxInline {
+function readRun(value: unknown): DocxInline {
+  if (!isYMap(value)) return { kind: 'raw', xml: '' };
+  const m = value;
   const kind = m.get('kind') as string;
 
   if (kind === 'text') {
     // Use toJSON() — Y.Text.toJSON() is typed to return the plain-text string.
-    const text = (m.get('text') as Y.Text).toJSON();
+    const ytext = m.get('text');
+    const text = isYText(ytext) ? ytext.toJSON() : '';
     const propsXml = m.get('propsXml');
     // Use === true to handle the case where the key was never set (returns undefined).
     const preserveSpace = m.get('preserveSpace') === true;
@@ -273,10 +291,10 @@ function readRun(m: Y.Map<unknown>): DocxInline {
   }
 
   if (kind === 'ins' || kind === 'del') {
-    const author = m.get('author') as string;
-    const date = m.get('date') as string;
-    const subruns = (m.get('subruns') as Y.Array<Y.Map<unknown>>).toArray();
-    const runs: DocxRun[] = subruns.map(readSubRun);
+    const author = typeof m.get('author') === 'string' ? m.get('author') as string : '';
+    const date = typeof m.get('date') === 'string' ? m.get('date') as string : '';
+    const subruns = m.get('subruns');
+    const runs: DocxRun[] = isYArray(subruns) ? subruns.toArray().map(readSubRun) : [];
 
     // meta.id is intentionally empty — see CONTRACT at yDocToDocumentJson.
     if (kind === 'ins') {
@@ -298,21 +316,51 @@ function readRun(m: Y.Map<unknown>): DocxInline {
 
   if (kind === 'opaque') {
     // Deserialize opaque inlines (commentRange*, inline raw) back verbatim.
-    return JSON.parse(m.get('opaqueJson') as string) as DocxInline;
+    const opaqueJson = m.get('opaqueJson');
+    if (typeof opaqueJson === 'string') {
+      try {
+        const parsed = JSON.parse(opaqueJson) as unknown;
+        if (isDocxInline(parsed)) return parsed;
+      } catch {
+        // Malformed peer data becomes an inert raw inline below.
+      }
+    }
+    return { kind: 'raw', xml: '' };
   }
 
-  // Defensive fallback — should never be reached with well-formed CRDT data.
-  throw new Error(`docCrdt: unknown run kind '${kind}'`);
+  return { kind: 'raw', xml: '' };
 }
 
-function readSubRun(m: Y.Map<unknown>): DocxRun {
-  const text = (m.get('text') as Y.Text).toJSON();
+function readSubRun(value: unknown): DocxRun {
+  if (!isYMap(value)) return { text: '' };
+  const m = value;
+  const ytext = m.get('text');
+  const text = isYText(ytext) ? ytext.toJSON() : '';
   const propsXml = m.get('propsXml');
   const preserveSpace = m.get('preserveSpace') === true;
   const run: DocxRun = { text };
   if (preserveSpace) run.preserveSpace = true;
   if (typeof propsXml === 'string') run.propertiesXml = propsXml;
   return run;
+}
+
+function isDocxInline(value: unknown): value is DocxInline {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const inline = value as Record<string, unknown>;
+  if (inline['kind'] === 'run') return typeof inline['text'] === 'string';
+  if (inline['kind'] === 'raw') return typeof inline['xml'] === 'string';
+  if (inline['kind'] === 'commentRangeStart' || inline['kind'] === 'commentRangeEnd' || inline['kind'] === 'commentReference') {
+    return typeof inline['id'] === 'string';
+  }
+  if (inline['kind'] !== 'insertion' && inline['kind'] !== 'deletion') return false;
+  const meta = inline['meta'];
+  return !!meta && typeof meta === 'object' && !Array.isArray(meta)
+    && typeof (meta as Record<string, unknown>)['id'] === 'string'
+    && typeof (meta as Record<string, unknown>)['author'] === 'string'
+    && typeof (meta as Record<string, unknown>)['date'] === 'string'
+    && Array.isArray(inline['runs'])
+    && inline['runs'].every((run) => !!run && typeof run === 'object' && !Array.isArray(run)
+      && typeof (run as Record<string, unknown>)['text'] === 'string');
 }
 
 // ---------------------------------------------------------------------------

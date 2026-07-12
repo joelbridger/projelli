@@ -7,6 +7,7 @@ import {
   readFirmMatterPrivateIndex,
   tombstoneDocumentStreamFromPrivateIndex,
 } from './firmMatterPrivateIndex';
+import { pinDocumentStreamOnFirstObservation } from './firmKeychain';
 
 /**
  * Publish the encrypted tombstone first, then ask the relay's recorded owner
@@ -20,13 +21,36 @@ export async function tombstoneAndReleaseDocumentStream(input: {
   rootSync: MatterSyncClient;
   client: FirmApiClient;
 }): Promise<StreamHandle> {
+  // TOFU is intentionally local-only: on a device's first-ever observation,
+  // it trusts the then-current encrypted directory value. That cannot detect a
+  // mapping poisoned before this device joined; it does stop later rewrites
+  // from redirecting this device's destructive release to another stream.
   const stream = readFirmMatterPrivateIndex(input.doc)?.streams[input.localDocumentId];
   if (!stream || stream.kind !== 'document') throw new Error('Document stream is not available for release.');
+
+  const pinnedStreamHandle = await pinDocumentStreamOnFirstObservation(
+    input.matterHandle,
+    input.localDocumentId,
+    stream.streamHandle,
+  );
+  // Re-read the shared value immediately before the destructive operation.
+  // The device-local pin, not this mutable CRDT entry, is the authorization
+  // evidence for choosing which opaque relay stream may be released.
+  const current = readFirmMatterPrivateIndex(input.doc)?.streams[input.localDocumentId];
+  if (!current || current.kind !== 'document' || current.streamHandle !== pinnedStreamHandle) {
+    console.error('[releaseDocumentStream] blocked suspected document-stream redirection', {
+      matterHandle: input.matterHandle,
+      localDocumentId: input.localDocumentId,
+      pinnedStreamHandle,
+      observedStreamHandle: current?.streamHandle,
+    });
+    throw new Error('Document deletion was blocked because its encrypted stream mapping changed on this device.');
+  }
 
   tombstoneDocumentStreamFromPrivateIndex(input.doc, input.localDocumentId);
   // This is the important ordering: peers receive the encrypted directory
   // deletion before the relay drops the opaque document ciphertext/history.
   await input.rootSync.flush();
-  await input.client.releaseMatterStream(input.matterHandle, stream.streamHandle);
-  return stream.streamHandle;
+  await input.client.releaseMatterStream(input.matterHandle, pinnedStreamHandle);
+  return pinnedStreamHandle;
 }
