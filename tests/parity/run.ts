@@ -1303,51 +1303,67 @@ class DesktopParityApp implements ParityApp {
     if (field.kind !== 'customFieldDef') fail('Custom field definition changed kind unexpectedly');
   }
 
-  async emailDropbox(): Promise<void> {
-    const { householdId } = await this.setWorkspace(`email-dropbox-${this.token('workspace')}`);
-    // This is a DEV-only synthetic mailbox. It exercises the same list,
-    // suggestion, approval, local filing, and SQLCipher persistence path as a
-    // connected mailbox, without putting a real email account in the exam.
-    await this.eval(`history.replaceState({}, '', ${JSON.stringify(`${new URL(base).pathname}?mailFixture=1`)}); true`);
-    await this.openHome();
-    await this.click('crm-home-nav-email-dropbox');
-    for (const control of [
-      'crm-email-dropbox-folder',
-      'crm-email-dropbox-provider',
-      'crm-email-dropbox-save',
-      'crm-email-dropbox-check',
-      'crm-email-dropbox-private-note',
-    ]) await this.require(control);
-    await this.fill('crm-email-dropbox-folder', 'inbox');
-    await this.select('crm-email-dropbox-provider', 'm365');
-    await this.click('crm-email-dropbox-save');
-    await this.click('crm-email-dropbox-check');
-    await this.waitForControl('crm-email-dropbox-email-fix-1');
-    await this.select('crm-email-dropbox-household-fix-1', householdId);
-    await this.click('crm-email-dropbox-file-fix-1');
-    await this.requireText('Filed “Re: Annual review meeting” to Parity household.');
-    await this.waitForRecord(
-      (record) => record.kind === 'emailActivity' &&
-        record.messageId === 'fix-1' &&
-        record.householdId === householdId &&
-        record.source === 'client-side-email-dropbox',
-      'Filing a dropbox email did not create a local CRM activity record',
+  async activityConversation(): Promise<void> {
+    const { path, householdId } = await this.setWorkspace(
+      `activity-conversation-${this.token('workspace')}`
     );
-    if (!(await this.records()).some(
-      (record) => record.kind === 'emailDropboxConfig' && record.folderId === 'inbox'
-    )) fail('Saving the email dropbox did not create a local configuration record');
+    await this.openHome();
+    await this.click('crm-home-nav-activity');
+    const householdOptionDeadline = Date.now() + 10_000;
+    while (Date.now() < householdOptionDeadline) {
+      const available = await this.eval(`Array.from(document.querySelector('[data-testid="crm-activity-household"]')?.querySelectorAll('option') ?? []).some((option) => option.value === ${JSON.stringify(householdId)})`);
+      if (available) break;
+      await delay(150);
+    }
+    if (!await this.eval(`Array.from(document.querySelector('[data-testid="crm-activity-household"]')?.querySelectorAll('option') ?? []).some((option) => option.value === ${JSON.stringify(householdId)})`))
+      fail('The saved client was not available when recording firm activity');
+    await this.select('crm-activity-household', householdId);
+    await this.click('crm-firm-activity-create');
+    const activity = await this.waitForRecord(
+      (record) => record.kind === 'activityEvent' && record.householdId === householdId,
+      'Recording a client activity did not create a saved activity record'
+    );
+    const activityId = String(activity.id);
+    const comment = this.token('Parity activity comment');
+    await this.fill(`crm-activity-comment-input-${activityId}`, comment);
+    await this.click(`crm-activity-comment-save-${activityId}`);
+    const parent = await this.waitForRecord(
+      (record) => record.kind === 'activityComment' && record.activityId === activityId && record.body === comment && record.visibility === 'firm-wide',
+      'Posting a comment did not create a firm-wide saved comment record'
+    );
+    await this.waitForControl(`crm-activity-comment-reply-${String(parent.id)}`);
+    await this.click(`crm-activity-comment-reply-${String(parent.id)}`);
+    const reply = this.token('Parity activity reply');
+    await this.fill(`crm-activity-comment-input-${activityId}`, reply);
+    await this.click(`crm-activity-comment-save-${activityId}`);
+    await this.waitForRecord(
+      (record) => record.kind === 'activityComment' && record.activityId === activityId && record.body === reply && record.parentCommentId === parent.id,
+      'Replying did not create a saved threaded comment record'
+    );
+    await this.click(`crm-activity-reaction-${activityId}-👍`);
+    await this.waitForRecord(
+      (record) => record.kind === 'activityReaction' && record.activityId === activityId && record.emoji === '👍' && !record.removedAt,
+      'Adding a reaction did not create a saved reaction record'
+    );
     await this.restart();
-    await this.click('crm-home-nav-email-dropbox');
+    await this.openHome();
+    await this.click('crm-home-nav-activity');
+    await this.requireText(comment);
+    await this.requireText(reply);
+    await this.require(`crm-activity-reactions-${activityId}`);
     const afterRestart = await this.records();
-    if (!afterRestart.some(
-      (record) => record.kind === 'emailActivity' &&
-        record.messageId === 'fix-1' &&
-        record.householdId === householdId &&
-        record.source === 'client-side-email-dropbox',
-    )) fail('Filed dropbox email disappeared after native restart');
-    if (!afterRestart.some(
-      (record) => record.kind === 'emailDropboxConfig' && record.folderId === 'inbox'
-    )) fail('Email dropbox setup disappeared after native restart');
+    if (!afterRestart.some((record) => record.kind === 'activityComment' && record.activityId === activityId && record.body === comment))
+      fail('The activity comment disappeared after native restart');
+    if (!afterRestart.some((record) => record.kind === 'activityReaction' && record.activityId === activityId && record.emoji === '👍' && !record.removedAt))
+      fail('The activity reaction disappeared after native restart');
+    await this.clickSpineTab('matters');
+    await this.waitForControl(`crm-directory-household-${householdId}`);
+    await this.click(`crm-directory-household-${householdId}`);
+    await this.waitForControl('crm-household-record');
+    await this.click('crm-household-tab-timeline');
+    await this.requireText(comment);
+    await this.requireText(reply);
+    await this.require(`crm-activity-thread-${activityId}`);
   }
 
   async durableFeature(options: {

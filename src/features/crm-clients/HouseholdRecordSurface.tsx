@@ -28,6 +28,7 @@ import { ProposalCard } from './ProposalCard';
 import { RecordMetadataEditor } from './RecordMetadataEditor';
 import type { CrmEngineFreshness } from '@/platform/crm/store';
 import type { TimelineRecord } from '@/features/crm-timeline';
+import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import { ContactEditor } from './ContactEditor';
 import { householdTabRegistry, type HouseholdTab } from './tabRegistry';
 
@@ -68,6 +69,7 @@ export function HouseholdRecordSurface({
   onBack,
   timelineRecords = [],
   timelineFreshness,
+  onSaveActivityRecord,
 }: {
   household: HouseholdRecord;
   proposals?: readonly CrmProposal[];
@@ -76,6 +78,7 @@ export function HouseholdRecordSurface({
   onBack?: () => void;
   timelineRecords?: readonly TimelineRecord[];
   timelineFreshness?: CrmEngineFreshness;
+  onSaveActivityRecord?: (record: LiveCrmRecord) => Promise<unknown> | unknown;
 }) {
   const schedulingLinkUrl = household.schedulingLinkUrl;
   const [tab, setTab] = useState<HouseholdTab>('client_map');
@@ -197,6 +200,7 @@ export function HouseholdRecordSurface({
           ...(actions ? { actions } : {}),
           timelineRecords,
           ...(timelineFreshness ? { timelineFreshness } : {}),
+          ...(onSaveActivityRecord ? { onSaveActivityRecord } : {}),
           renderLegacySurface: (id: HouseholdTab) => legacyTabs[id as keyof typeof legacyTabs] ?? null,
         });
       })()}

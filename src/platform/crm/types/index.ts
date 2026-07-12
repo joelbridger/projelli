@@ -11,7 +11,7 @@ export type EntityKind =
   /** A file owned by the existing Documents workspace, never a CRM record. */
   | 'document'
   | 'workflowTemplate' | 'workflowInstance' | 'servicePolicy'
-  | 'activityEvent' | 'firmDoc' | 'tag' | 'customFieldDef'
+  | 'activityEvent' | 'activityComment' | 'activityReaction' | 'firmDoc' | 'tag' | 'customFieldDef'
   | 'opportunity' | 'pipelineDef' | 'stageDef' | 'proposalRecord' | 'legacyProject'
   | 'firmDirectoryEntry' | 'householdDirectoryShell' | 'intakeLink' | 'intakeSubmission'
   | 'importArchiveManifest' | 'savedView' | 'savedReport' | 'reportRun';
@@ -182,6 +182,10 @@ export interface PropagationTransactionPort { transact(payload: PropagationTrans
 export interface ServicePolicy extends CrmBase { kind: 'servicePolicy'; matterId: 'firm_home' | (string & {}); scope: 'firm-tier' | 'household-override'; tierName: string; meetingCadence?: 'monthly' | 'quarterly' | 'semiannual' | 'annual' | 'custom'; cadenceDays?: number; nextReviewDue?: string; reviewChecklistTemplateId?: string; schedulingLinkUrl?: string; appliesToHouseholdIds: string[]; description: string; }
 export type ActivityVerb = string;
 export interface ActivityEvent extends CrmBase { kind: 'activityEvent'; at: string; actor: ActorRef; verb: ActivityVerb; targetRef: EntityRef; householdId?: string; summary: string; payload: Record<string, unknown>; important: boolean; }
+/** Firm-wide discussion attached to one timeline activity. Replies always point to the root activity and optionally to their parent comment. */
+export interface ActivityComment extends CrmBase { kind: 'activityComment'; activityId: string; parentCommentId?: string; householdId?: string; body: string; author: ActorRef; visibility: 'firm-wide'; }
+/** One member's reaction state. Removing a reaction leaves an auditable tombstone instead of deleting history. */
+export interface ActivityReaction extends CrmBase { kind: 'activityReaction'; activityId: string; householdId?: string; emoji: string; userId: string; removedAt?: string; }
 export interface FirmDoc extends CrmBase { kind: 'firmDoc'; matterId: 'firm_home'; docType: 'process' | 'note-template' | 'report-layout' | 'ways-of-working' | 'other'; title: string; body: string; bodyRef?: string; tagIds: string[]; pinned: boolean; }
 export interface Tag extends CrmBase { kind: 'tag'; matterId: 'firm_home'; name: string; color?: string; category?: string; }
 export interface CustomFieldDef extends CrmBase { kind: 'customFieldDef'; matterId: 'firm_home'; appliesTo: EntityKind[]; key: string; label: string; fieldType: 'text' | 'number' | 'money' | 'date' | 'bool' | 'enum' | 'multi-enum'; options?: string[]; required: boolean; order: number; archived: boolean; }

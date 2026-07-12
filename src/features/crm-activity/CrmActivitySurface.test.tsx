@@ -7,7 +7,7 @@ const save = vi.fn().mockResolvedValue(undefined);
 let records: Record<string, unknown>[] = [];
 
 vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
-  useLiveCrmRecords: () => ({ records, save, error: null, workspaceRoot: '/tmp/test', sharedMatterId: 'firm_home' }),
+  useLiveCrmRecords: () => ({ records, save, reload: vi.fn(), error: null, workspaceRoot: '/tmp/test', sharedMatterId: 'firm_home' }),
 }));
 
 vi.mock('./notificationRuntime', () => ({ sendFirmMention: vi.fn().mockResolvedValue(true), pullFirmInbox: vi.fn().mockResolvedValue(false) }));
@@ -37,5 +37,16 @@ describe('CrmActivitySurface', () => {
     render(<CrmActivitySurface />);
     expect(screen.getByTestId('crm-firm-activity-feed')).toHaveTextContent('No firm activity yet');
     expect(screen.getByTestId('crm-notification-inbox')).toHaveTextContent('No notifications yet');
+  });
+
+  it('saves a firm-wide threaded comment and one durable reaction record', async () => {
+    records = [{ id: 'activity-1', kind: 'activityEvent', matterId: 'household-1', householdId: 'household-1', at: '2026-07-12T10:00:00.000Z', summary: 'Annual review was scheduled.' }];
+    save.mockClear();
+    render(<CrmActivitySurface />);
+    fireEvent.change(screen.getByTestId('crm-activity-comment-input-activity-1'), { target: { value: 'I will prepare the review packet.' } });
+    fireEvent.click(screen.getByTestId('crm-activity-comment-save-activity-1'));
+    await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({ kind: 'activityComment', activityId: 'activity-1', body: 'I will prepare the review packet.', visibility: 'firm-wide' })));
+    fireEvent.click(screen.getByTestId('crm-activity-reaction-activity-1-👍'));
+    await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({ kind: 'activityReaction', activityId: 'activity-1', emoji: '👍', userId: 'local-user' })));
   });
 });

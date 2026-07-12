@@ -20,7 +20,7 @@ export interface ParityApp {
   broadcast(): Promise<void>;
   firmDirectory(): Promise<void>;
   firmSetup(): Promise<void>;
-  emailDropbox(): Promise<void>;
+  activityConversation(): Promise<void>;
   durableFeature(options: { route: string; controls: string[]; action?: string; result?: string; recordKind?: string }): Promise<void>;
   migration(options: { action: 'crm-migration-run-import' | 'crm-redtail-import' | 'crm-salesforce-import'; externalId?: boolean; exportFile?: boolean; fullReview?: boolean }): Promise<void>;
 }
@@ -104,6 +104,8 @@ export const FEATURES: readonly ParityFeature[] = [
   live('Contact activity stream', 'contact-timeline', 'REPLICATE', 'timeline', (app) => app.contact({ household: true, notes: true, facts: true, timeline: true })),
   live('Firm-wide activity/dashboard feed', 'firm-activity-feed', 'REPLICATE', 'timeline', (app) => app.durableFeature({ route: 'crm-home-nav-activity', controls: ['crm-firm-activity-feed', 'crm-firm-activity-create'], action: 'crm-firm-activity-create', recordKind: 'activityEvent' })),
   live('@-mentioning', 'activity-mentions', 'REPLICATE', 'timeline', (app) => app.durableFeature({ route: 'crm-home-nav-timeline', controls: ['crm-timeline-mention', 'crm-timeline-post'], action: 'crm-timeline-post', recordKind: 'activityEvent' })),
+  live('Comments on activity', 'activity-comments', 'REPLICATE', 'timeline', (app) => app.activityConversation()),
+  live('Likes/emoji activity reactions', 'activity-reactions', 'REPLICATE', 'timeline', (app) => app.activityConversation()),
   live('Wealthbox itself (as a CRM to migrate FROM)', 'wealthbox-migration', 'REPLICATE', 'migration', (app) => app.migration({ action: 'crm-migration-run-import', fullReview: true })),
   live('Jump.ai', 'jump-replacement', 'REPLICATE', 'meetings', (app) => app.jumpMeeting()),
   live('Redtail', 'redtail-migration', 'REPLICATE', 'migration', (app) => app.migration({ action: 'crm-redtail-import' })),
@@ -165,8 +167,8 @@ export const SKIPPED_FEATURES: readonly SkippedFeature[] = [
   { matrixFeature: 'Contact Actions in Opportunity Workflows', reason: 'D23 excludes bulk contact actions from v1.' },
   { matrixFeature: 'Project record', reason: 'New multi-step work belongs in workflows; imported projects stay read-only legacy records.' },
   { matrixFeature: 'Emails land in Activity Stream, not the Email tab, for dropbox items', reason: 'This is a Wealthbox threading limitation, not behavior to copy.' },
-  { matrixFeature: 'Comments on activity', reason: 'D23 defers activity comments and reactions.' },
-  { matrixFeature: 'Likes/emoji activity reactions', reason: 'D23 defers activity comments and reactions.' },
+  { matrixFeature: 'Email broadcast', reason: 'Marketing blasts are outside the small-firm CRM scope.' },
+  { matrixFeature: 'File storage on records', reason: 'The existing Documents system owns files; CRM records link them.' },
   { matrixFeature: 'RightCapital', reason: 'Read-only reference integration is deferred until a pilot needs it.' },
   { matrixFeature: 'Charles Schwab', reason: 'Custodial feeds are out of scope for this CRM replacement phase.' },
   { matrixFeature: 'DocuSign', reason: 'D9 assigns it to the existing connector, not a new CRM feature.' },

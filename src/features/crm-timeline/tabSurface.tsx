@@ -7,5 +7,5 @@ export const timelineTab: HouseholdTabDescriptor = {
   label: 'Timeline',
   icon: Clock3,
   route: 'timeline',
-  Component: ({ household, timelineRecords, timelineFreshness, renderLegacySurface }) => timelineFreshness ? <HouseholdTimeline household={{ id: household.id, notes: household.notes, facts: household.facts }} records={timelineRecords} freshness={timelineFreshness} /> : <>{renderLegacySurface('timeline')}</>,
+  Component: ({ household, timelineRecords, timelineFreshness, onSaveActivityRecord, renderLegacySurface }) => timelineFreshness ? <HouseholdTimeline household={{ id: household.id, notes: household.notes, facts: household.facts }} records={timelineRecords} freshness={timelineFreshness} onSaveActivityRecord={onSaveActivityRecord} /> : <>{renderLegacySurface('timeline')}</>,
 };
