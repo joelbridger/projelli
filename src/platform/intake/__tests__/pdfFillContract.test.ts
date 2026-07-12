@@ -241,7 +241,7 @@ async function syncIssued(input: {
     loadPrivateKey: () => Promise.resolve(input.issued.bundle.privateKey),
     hasSubmission: () => Promise.resolve(false),
     rememberSubmission: () => Promise.resolve(),
-    isKnownSession: () => Promise.resolve(true),
+    getKnownSessionIds: () => Promise.resolve(['known-session']),
     rememberSession: () => Promise.resolve(),
     flagSubmission: (flag) => { flags.push(flag); return Promise.resolve(); },
     routeSubmission: (submission) => routeIntakeSubmission(submission, {

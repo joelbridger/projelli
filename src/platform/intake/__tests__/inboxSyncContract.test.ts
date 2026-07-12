@@ -349,7 +349,7 @@ describe('intake client to relay to advisor inbox contract', () => {
         useIntakeStore.getState().rememberSubmission(intakeId, submissionId);
         return Promise.resolve();
       },
-      isKnownSession: () => Promise.resolve(true),
+      getKnownSessionIds: () => Promise.resolve(['known-session']),
       rememberSession: () => Promise.resolve(),
       flagSubmission: (flag) => {
         flags.push(flag);

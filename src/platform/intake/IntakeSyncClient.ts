@@ -7,6 +7,7 @@ import {
   type SealedManifest,
 } from '@/platform/intake/intakeCrypto';
 import { hashPlaintextChunk } from '@/platform/intake/chunkHash';
+import { classifyDeviceIdentity } from '@/platform/intake/deviceIdentity/deviceIdentity';
 import type { ChunkUpload } from './intakeContract';
 
 export interface IntakeInboxSubmission {
@@ -65,7 +66,7 @@ export interface IntakeSyncClientOptions {
   loadPrivateKey: (intakeId: string) => Promise<CryptoKey>;
   hasSubmission: (submissionId: string) => Promise<boolean>;
   rememberSubmission: (submissionId: string) => Promise<void>;
-  isKnownSession: (intakeId: string, sessionId: string) => Promise<boolean>;
+  getKnownSessionIds: (intakeId: string) => Promise<readonly string[]>;
   rememberSession: (intakeId: string, sessionId: string) => Promise<void>;
   flagSubmission: (flag: IntakeSubmissionFlag) => Promise<void>;
   routeSubmission: (submission: RoutedIntakeSubmission) => Promise<IntakeRouteResult>;
@@ -106,7 +107,7 @@ export class IntakeSyncClient {
   private readonly loadPrivateKey: IntakeSyncClientOptions['loadPrivateKey'];
   private readonly hasSubmission: IntakeSyncClientOptions['hasSubmission'];
   private readonly rememberSubmission: IntakeSyncClientOptions['rememberSubmission'];
-  private readonly isKnownSession: IntakeSyncClientOptions['isKnownSession'];
+  private readonly getKnownSessionIds: IntakeSyncClientOptions['getKnownSessionIds'];
   private readonly rememberSession: IntakeSyncClientOptions['rememberSession'];
   private readonly flagSubmission: IntakeSyncClientOptions['flagSubmission'];
   private readonly routeSubmission: IntakeSyncClientOptions['routeSubmission'];
@@ -117,7 +118,7 @@ export class IntakeSyncClient {
     this.loadPrivateKey = options.loadPrivateKey;
     this.hasSubmission = options.hasSubmission;
     this.rememberSubmission = options.rememberSubmission;
-    this.isKnownSession = options.isKnownSession;
+    this.getKnownSessionIds = options.getKnownSessionIds;
     this.rememberSession = options.rememberSession;
     this.flagSubmission = options.flagSubmission;
     this.routeSubmission = options.routeSubmission;
@@ -179,7 +180,11 @@ export class IntakeSyncClient {
     }
 
     const sessionId = routed.manifest.session_id;
-    if (sessionId && !(await this.isKnownSession(submission.intake_id, sessionId))) {
+    const deviceIdentity = classifyDeviceIdentity(
+      sessionId,
+      await this.getKnownSessionIds(submission.intake_id),
+    );
+    if (deviceIdentity === 'new_device') {
       await this.flagSubmission(flagFromSubmission(submission, 'new_device', 'Submission came from a new device.'));
     }
 

@@ -243,7 +243,7 @@ describe("intake real page to relay to advisor flow", () => {
         loadPrivateKey: async () => bundle.privateKey,
         hasSubmission: async () => false,
         rememberSubmission: async () => {},
-        isKnownSession: async (_intakeId, sessionId) => knownSessions.has(sessionId),
+        getKnownSessionIds: async () => [...knownSessions],
         rememberSession: async (_intakeId, sessionId) => {
           knownSessions.add(sessionId);
         },
@@ -263,7 +263,7 @@ describe("intake real page to relay to advisor flow", () => {
       const result = await sync.syncOnce();
       expect(result.routed).toBe(3);
       expect(result.acked).toBe(3);
-      expect(flags).toEqual([firstSubmission.submissionId, thirdSubmission.submissionId]);
+      expect(flags).toEqual([thirdSubmission.submissionId]);
       expect(knownSessions).toEqual(new Set([sessionMarkerA, sessionMarkerB]));
 
       const typed = routed.find((entry) => entry.itemId === "item-ssn");
