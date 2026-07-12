@@ -9,7 +9,7 @@
  * `handleOpenRecentProject`, since useAutoResumeWorkspace relies on that to
  * stay safe.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { createRef } from 'react';
 
@@ -64,6 +64,10 @@ describe('useWorkspaceLifecycle — handleOpenRecentProject (QA-33)', () => {
     createFSBackendMock.mockReset();
     initializeMock.mockReset();
     useAppNavigationStore.getState().clear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('surfaces an honest, classified message when the credential service is unavailable', async () => {
@@ -155,5 +159,37 @@ describe('useWorkspaceLifecycle — handleOpenRecentProject (QA-33)', () => {
     });
 
     expect(useAppNavigationStore.getState().stack).toHaveLength(0);
+  });
+
+  it('opens the workspace when the encrypted Activity Log keychain call never returns', async () => {
+    vi.useFakeTimers();
+    const options = makeOptions();
+    options.auditServiceRef.current.hydrate = vi.fn(
+      () => new Promise<boolean>(() => undefined)
+    ) as never;
+    const service = {
+      getRootPath: () => '/new-workspace',
+      getBackend: () => null,
+      exists: vi.fn().mockResolvedValue(true),
+      mkdir: vi.fn().mockResolvedValue(undefined),
+      getFileTree: vi.fn().mockResolvedValue([]),
+      readFile: vi.fn(),
+      readFileBinary: vi.fn(),
+    };
+
+    const { result } = renderHook(() => useWorkspaceLifecycle(options));
+    let opening!: Promise<boolean>;
+    act(() => {
+      opening = result.current.handleWorkspaceSelected(service as never);
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+      await opening;
+    });
+
+    expect(options.setShowWorkspaceSelector).toHaveBeenCalledWith(false);
+    expect(options.setRootPath).toHaveBeenCalledWith('/new-workspace');
+    expect(options.setAuditIntegrity).toHaveBeenCalledWith(undefined);
   });
 });
