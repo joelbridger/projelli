@@ -80,7 +80,7 @@ vi.mock('@/platform/firm/firmKeychain', async (importOriginal) => {
     clearPromotionPending: vi.fn(() => { pendingRecord = null; return Promise.resolve(); }),
     releasePromotionPendingLease: vi.fn(() => Promise.resolve()),
     completePromotionPending: vi.fn((_id: string, _owner: string, record: Record<string, unknown>, orgId: string) => {
-      pendingRecord = { provisioningNonce: record.provisioningNonce, matterHandle: record.matterHandle, rootStreamHandle: record.rootStreamHandle, keyEpoch: record.keyEpoch, completed: true, orgId };
+      pendingRecord = { provisioningNonce: record["provisioningNonce"], matterHandle: record["matterHandle"], rootStreamHandle: record["rootStreamHandle"], keyEpoch: record["keyEpoch"], completed: true, orgId };
       return Promise.resolve();
     }),
   };

@@ -147,7 +147,29 @@ function promotionService(localMatterId: string): string {
 }
 
 export async function storePromotionPending(localMatterId: string, record: PromotionPendingRecord): Promise<void> {
-  await setSecret(promotionService(localMatterId), KC_PROMOTION_PENDING, JSON.stringify(record));
+  // A checkpoint write must never drop the lease. Callers rebuild this record as
+  // they learn each field, and a caller that omitted `leaseOwnerId` used to erase
+  // it — after which completePromotionPending found no owner and refused the
+  // window's OWN work ("another window is finishing this"), so every share failed.
+  // Preserve the lease here rather than trusting every present and future caller
+  // to remember it.
+  const existing = await rawPromotionPending(localMatterId);
+  let next = record;
+  if (existing && record.leaseOwnerId === undefined) {
+    try {
+      const current = JSON.parse(existing) as PromotionPendingRecord;
+      if (current.leaseOwnerId !== undefined) {
+        next = {
+          ...record,
+          leaseOwnerId: current.leaseOwnerId,
+          ...(current.leaseExpiresAt === undefined ? {} : { leaseExpiresAt: current.leaseExpiresAt }),
+        };
+      }
+    } catch {
+      // A corrupted record is handled by the claim path; write the new one as-is.
+    }
+  }
+  await setSecret(promotionService(localMatterId), KC_PROMOTION_PENDING, JSON.stringify(next));
 }
 
 const PROMOTION_LEASE_MS = 30_000;

@@ -529,7 +529,10 @@ describe('autoRepublishHeldMatterKeys', () => {
     expect(res.republishedMatterIds).toEqual([]);
     expect(res.fingerprints[matterHandle]).toBe(before);
     // And the device listing never asked the server for the walled user.
-    expect(devicesSpy).toHaveBeenCalledWith(expect.not.arrayContaining(['mallory']));
+    // Arity-proof: the client now threads an AbortSignal, so assert on the ARGUMENT
+    // rather than the whole call shape. The invariant is what matters — a walled
+    // member's user id must never even be QUERIED for devices.
+    expect(devicesSpy.mock.calls[0]?.[0]).not.toContain('mallory');
   });
 
   it('WALL: a drift republish never wraps keys to a walled member device, even when the relay injects them', async () => {

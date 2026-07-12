@@ -115,8 +115,14 @@ async function promoteMatterToSharedOnce(
       const provision = await boundedPromotionRequest('the relay setup', (signal) => client.createMatter(pending!.provisioningNonce, signal));
       // Persist the handle before generating a key or private index. If this
       // write itself crashes, the earlier nonce-only record still resumes it.
+      //
+      // SPREAD the claimed record — a checkpoint write must PRESERVE the lease
+      // (owner + expiry). Rebuilding the object from scratch dropped them, so
+      // completePromotionPending then found no lease owner on the record and
+      // refused this window's own work with "Another window is finishing this
+      // shared client": the promotion locked itself out and every share failed.
       pending = {
-        provisioningNonce: pending.provisioningNonce,
+        ...pending,
         matterHandle: provision.matter_handle,
         rootStreamHandle: provision.root_stream_handle,
         keyEpoch: provision.key_epoch,
