@@ -166,7 +166,10 @@ export function computeReport(records: readonly LiveCrmRecord[], kind: ReportKin
   const people = records.filter((record) => record.kind === 'person');
   const facts = records.filter((record) => record.kind === 'fact');
   const policies = records.filter((record) => record.kind === 'servicePolicy');
-  const sourcesConsidered = records.filter((record) => record.kind !== 'savedView').length;
+  // Saved recipes and prior run receipts describe reports; they are not client
+  // records the current answer was calculated from. Counting them made the
+  // on-screen provenance grow every time an advisor re-ran the same report.
+  const sourcesConsidered = records.filter((record) => !['savedView', 'savedReport', 'reportRun'].includes(record.kind)).length;
   const rows: ReportRow[] = [];
   const exclusions: string[] = [];
   const contactCutoff = new Date(now); contactCutoff.setUTCDate(contactCutoff.getUTCDate() - 183);

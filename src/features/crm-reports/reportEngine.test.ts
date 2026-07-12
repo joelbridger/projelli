@@ -42,4 +42,12 @@ describe('reportEngine', () => {
     expect(proposal.kind).toBe('no_contact_6mo');
     expect(proposal.query.filters).toEqual([]);
   });
+  it('does not present saved recipes or earlier runs as client-record sources', () => {
+    const report = computeReport([
+      ...records,
+      { id: 'saved-1', kind: 'savedReport', name: 'Follow-up list', reportKind: 'custom', query: { entity: 'household', filters: [] }, visibility: 'personal' },
+      { id: 'run-1', kind: 'reportRun', reportKind: 'custom', query: { entity: 'household', filters: [] }, calculatedAt: now.toISOString(), sourcesConsidered: 5, resultCount: 2 },
+    ], 'custom', { entity: 'household', filters: [] }, now);
+    expect(report.sourcesConsidered).toBe(records.length);
+  });
 });
