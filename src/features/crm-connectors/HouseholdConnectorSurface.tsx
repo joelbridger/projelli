@@ -64,12 +64,18 @@ function connectorActivity(
   };
 }
 
-function useHouseholdMatterId(householdId: string): string {
+function useHouseholdConnectorContext(household: HouseholdRecord): { matterId: string; schedulingLinkUrl?: string } {
   const live = useLiveCrmRecords();
   return useMemo(() => {
-    const record = live.records.find((candidate) => candidate.id === householdId);
-    return typeof record?.matterId === 'string' && record.matterId ? record.matterId : householdId;
-  }, [householdId, live.records]);
+    const record = live.records.find((candidate) => candidate.id === household.id);
+    const matterId = typeof record?.matterId === 'string' && record.matterId ? record.matterId : household.id;
+    const policyId = typeof record?.servicePolicyId === 'string' ? record.servicePolicyId : undefined;
+    const policy = policyId ? live.records.find((candidate) => candidate.kind === 'servicePolicy' && candidate.id === policyId) : undefined;
+    const schedulingLinkUrl = typeof policy?.schedulingLinkUrl === 'string'
+      ? policy.schedulingLinkUrl
+      : household.schedulingLinkUrl;
+    return { matterId, ...(schedulingLinkUrl ? { schedulingLinkUrl } : {}) };
+  }, [household.id, household.schedulingLinkUrl, live.records]);
 }
 
 function useTimelineLinks(householdId: string, matterId: string, items: readonly ConnectorItem[]) {
@@ -158,7 +164,7 @@ function HouseholdEmail({ household, matterId }: { household: HouseholdRecord; m
   </div>;
 }
 
-function HouseholdMeetings({ household, matterId }: { household: HouseholdRecord; matterId: string }) {
+function HouseholdMeetings({ household, matterId, schedulingLinkUrl }: { household: HouseholdRecord; matterId: string; schedulingLinkUrl?: string }) {
   const matters = useMatterStore((state) => state.matters);
   const [events, setEvents] = useState<readonly CalendarEventDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -189,7 +195,7 @@ function HouseholdMeetings({ household, matterId }: { household: HouseholdRecord
         <div><h2 style={{ margin: 0 }}>Meetings</h2><p style={{ marginBottom: 0 }}>Meetings stay in your connected calendar. This list shows meetings matched to {household.name}.</p></div>
         <Button size="sm" variant="secondary" iconLeft={RefreshCw} data-testid="crm-household-meetings-refresh" onClick={() => { void load().catch((reason: unknown) => { setError(reason instanceof Error ? reason.message : 'Could not load this household’s meetings.'); }); }}>Refresh</Button>
       </div>
-      {household.schedulingLinkUrl ? <p><Button size="sm" iconLeft={ExternalLink} data-testid="crm-household-scheduling-link" onClick={() => { window.open(household.schedulingLinkUrl, '_blank', 'noopener,noreferrer'); }}>Schedule with this household</Button></p> : <p data-testid="crm-household-scheduling-empty">A firm admin has not added a scheduling link for this service tier.</p>}
+      {schedulingLinkUrl ? <p><Button size="sm" iconLeft={ExternalLink} data-testid="crm-household-scheduling-link" onClick={() => { window.open(schedulingLinkUrl, '_blank', 'noopener,noreferrer'); }}>Schedule with this household</Button></p> : <p data-testid="crm-household-scheduling-empty">A firm admin has not added a scheduling link for this service tier.</p>}
       {loading ? <p data-testid="crm-household-meetings-loading">Loading household meetings…</p> : null}
       {error ? <p role="alert">{error}</p> : null}
       {!loading && !error && events.length === 0 ? <p data-testid="crm-household-meetings-empty">No meetings are linked to this household yet. Connect a calendar and teach the client match when needed.</p> : null}
@@ -205,6 +211,6 @@ function HouseholdMeetings({ household, matterId }: { household: HouseholdRecord
 }
 
 export function HouseholdConnectorSurface({ tab, household }: { tab: ConnectorTab; household: HouseholdRecord }) {
-  const matterId = useHouseholdMatterId(household.id);
-  return tab === 'email' ? <HouseholdEmail household={household} matterId={matterId} /> : <HouseholdMeetings household={household} matterId={matterId} />;
+  const { matterId, schedulingLinkUrl } = useHouseholdConnectorContext(household);
+  return tab === 'email' ? <HouseholdEmail household={household} matterId={matterId} /> : <HouseholdMeetings household={household} matterId={matterId} schedulingLinkUrl={schedulingLinkUrl} />;
 }
