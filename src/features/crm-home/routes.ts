@@ -22,6 +22,7 @@ export type CrmHomeRoute =
   | 'rollback-export'
   | 'search'
   | 'email'
+  | 'email-dropbox'
   | 'email-broadcast'
   | 'calendar'
   | 'timeline';

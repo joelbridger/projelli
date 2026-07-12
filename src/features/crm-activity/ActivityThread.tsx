@@ -27,6 +27,7 @@ export type ActivityReaction = LiveCrmRecord & {
   activityId: string;
   emoji: string;
   userId: string;
+  createdAt: string;
   removedAt?: string;
 };
 
@@ -37,7 +38,7 @@ export function commentsForActivity(records: readonly LiveCrmRecord[], activityI
 }
 
 export function reactionsForActivity(records: readonly LiveCrmRecord[], activityId: string): readonly ActivityReaction[] {
-  return records.filter((record): record is ActivityReaction => record.kind === 'activityReaction' && record['activityId'] === activityId && typeof record['emoji'] === 'string' && typeof record['userId'] === 'string' && !record['removedAt']);
+  return records.filter((record): record is ActivityReaction => record.kind === 'activityReaction' && record['activityId'] === activityId && typeof record['emoji'] === 'string' && typeof record['userId'] === 'string' && typeof record['createdAt'] === 'string' && !record['removedAt']);
 }
 
 function safeIdPart(value: string) {
@@ -75,7 +76,7 @@ function CommentLine({ comment, comments, onReply }: { comment: ActivityComment;
     <div><strong>{displayName(comment)}</strong><span style={{ color: 'var(--kp-text-faint)', fontSize: 'var(--kp-font-sm)' }}> · Firm-wide</span></div>
     <div>{comment.body}</div>
     {onReply ? <Button size="sm" variant="secondary" data-testid={`crm-activity-comment-reply-${comment.id}`} onClick={() => onReply(comment.id)}>Reply</Button> : null}
-    {replies.length ? <div style={{ display: 'grid', gap: 6, marginLeft: 20, paddingLeft: 12, borderLeft: '2px solid var(--kp-border)' }}>{replies.map((reply) => <CommentLine key={reply.id} comment={reply} comments={comments} onReply={onReply} />)}</div> : null}
+    {replies.length ? <div style={{ display: 'grid', gap: 6, marginLeft: 20, paddingLeft: 12, borderLeft: '2px solid var(--kp-border)' }}>{replies.map((reply) => <CommentLine key={reply.id} comment={reply} comments={comments} {...(onReply ? { onReply } : {})} />)}</div> : null}
   </div>;
 }
 
@@ -131,7 +132,7 @@ export function ActivityThread({
         return <Button key={emoji} size="sm" variant={mine ? 'primary' : 'secondary'} data-testid={`crm-activity-reaction-${activity.id}-${emoji}`} aria-label={`${mine ? 'Remove' : 'Add'} ${label} reaction`} disabled={readOnly || !onSave || !currentUser} iconLeft={Icon} onClick={() => { void toggleReaction(emoji); }}>{emoji} {count || label}</Button>;
       })}
     </div>
-    {comments.length ? <div data-testid={`crm-activity-comments-${activity.id}`}><strong>{comments.length === 1 ? '1 comment' : `${String(comments.length)} comments`}</strong>{roots.map((comment) => <CommentLine key={comment.id} comment={comment} comments={comments} onReply={readOnly ? undefined : setReplyTo} />)}</div> : <p data-testid={`crm-activity-comments-empty-${activity.id}`} style={{ color: 'var(--kp-text-faint)', fontSize: 'var(--kp-font-sm)', margin: 0 }}>No comments yet. Share context that will help your firm.</p>}
+    {comments.length ? <div data-testid={`crm-activity-comments-${activity.id}`}><strong>{comments.length === 1 ? '1 comment' : `${String(comments.length)} comments`}</strong>{roots.map((comment) => <CommentLine key={comment.id} comment={comment} comments={comments} {...(!readOnly ? { onReply: setReplyTo } : {})} />)}</div> : <p data-testid={`crm-activity-comments-empty-${activity.id}`} style={{ color: 'var(--kp-text-faint)', fontSize: 'var(--kp-font-sm)', margin: 0 }}>No comments yet. Share context that will help your firm.</p>}
     {!readOnly ? <div style={{ display: 'grid', gap: 6 }}>
       {replyTo ? <div style={{ color: 'var(--kp-text-faint)', fontSize: 'var(--kp-font-sm)' }}>Replying in this thread <button type="button" onClick={() => setReplyTo(undefined)} style={{ border: 0, background: 'transparent', color: 'var(--kp-assured)', cursor: 'pointer', padding: 0 }}>Cancel</button></div> : null}
       <textarea data-testid={`crm-activity-comment-input-${activity.id}`} aria-label="Add a comment" value={body} onChange={(event) => setBody(event.target.value)} placeholder="Add a comment for your firm" style={{ width: '100%', minHeight: 68 }} />

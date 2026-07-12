@@ -61,8 +61,8 @@ export function HouseholdTimeline({ household, records, freshness, onSaveActivit
     {entries.length === 0 ? <EmptyState icon={Clock3} title="No history matches these filters" body="Notes, facts, completed tasks, workflows, and linked email, meetings, and documents will appear here when they exist." /> : entries.map((entry) => <Card key={entry.id} variant="raised" data-testid={`crm-timeline-entry-${entry.id}`}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}><strong>{entry.summary}</strong><span>{labels[entry.type]}</span></div>
       <p style={{ marginBottom: 6 }}>{formatDate(entry.at)} · {entry.who}</p>
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}><SourceLink source={entry.source} onOpen={setOpenedSource} />{entry.provenance.map((item) => <SourceLink key={`${item.kind}:${item.id}`} source={item} onOpen={setOpenedSource} />)}</div>
-      {entry.type === 'activity' ? (() => { const activity = records.find((record) => record.kind === 'activityEvent' && record.id === entry.source.id); return activity ? <ActivityThread activity={activity as LiveCrmRecord} records={records as readonly LiveCrmRecord[]} currentUser={currentUser} onSave={onSaveActivityRecord} readOnly={!onSaveActivityRecord} /> : null; })() : null}
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}><SourceLink source={entry.source} onOpen={openSource} />{entry.provenance.map((item) => <SourceLink key={`${item.kind}:${item.id}`} source={item} onOpen={openSource} />)}</div>
+      {entry.type === 'activity' ? (() => { const activity = records.find((record) => record.kind === 'activityEvent' && record.id === entry.source.id); return activity ? <ActivityThread activity={activity as LiveCrmRecord} records={records as readonly LiveCrmRecord[]} currentUser={currentUser} {...(onSaveActivityRecord ? { onSave: onSaveActivityRecord } : {})} readOnly={!onSaveActivityRecord} /> : null; })() : null}
     </Card>)}
     {openedSource ? <Card variant="raised" data-testid="crm-timeline-source-detail">
       <h2>{openedSource.label}</h2>

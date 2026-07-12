@@ -4,6 +4,7 @@ import type { CrmHomeRoute } from './routes';
 import { activitySurface } from '@/features/crm-activity/surface';
 import { calendarSurface, emailSurface } from '@/features/crm-connectors/surface';
 import { emailBroadcastSurface } from '@/features/crm-connectors/broadcastSurface';
+import { emailDropboxSurface } from '@/features/crm-connectors/dropboxSurface';
 import { todaySurface } from '@/features/crm-today/surface';
 import { tasksSurface } from '@/features/crm-tasks/surface';
 import { propagationSurface, workflowsSurface } from '@/features/crm-workflows/surface';

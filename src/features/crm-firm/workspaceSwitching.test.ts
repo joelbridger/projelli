@@ -35,7 +35,7 @@ describe('firm workspace switching', () => {
     const visits: string[] = [];
     const first = new Promise<boolean>((resolve) => { setTimeout(() => resolve(true), 0); });
     const select = vi.fn()
-      .mockImplementationOnce(async (service: { initialize: unknown }) => { visits.push('first'); return first; })
+      .mockImplementationOnce(async () => { visits.push('first'); return first; })
       .mockImplementationOnce(async () => { visits.push('second'); return true; });
     const unregister = registerFirmWorkspaceSwitcher(select);
     await Promise.all([openFirmWorkspace('/firms/a'), openFirmWorkspace('/firms/b')]);

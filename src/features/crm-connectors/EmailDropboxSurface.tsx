@@ -4,6 +4,7 @@ import { Inbox, MailCheck, RefreshCw, Save, ShieldCheck } from 'lucide-react';
 import { Button, Card } from '@/ui/kp';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
+import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import {
   mailListMessages,
   mailRetagMessageMatter,
@@ -15,6 +16,18 @@ type DropboxConfig = {
   folderId: string;
   provider: string;
   account: string;
+};
+
+type HouseholdLiveRecord = LiveCrmRecord & {
+  kind: 'household';
+  name: string;
+};
+
+type EmailDropboxConfigRecord = LiveCrmRecord & {
+  kind: 'emailDropboxConfig';
+  folderId?: unknown;
+  provider?: unknown;
+  account?: unknown;
 };
 
 const CONFIG_ID = 'email-dropbox-config:current-user';
@@ -29,10 +42,18 @@ function displayDate(value: string | null): string {
 
 function householdChoices(records: ReturnType<typeof useLiveCrmRecords>['records']): readonly DropboxHousehold[] {
   return records.flatMap((record) =>
-    record.kind === 'household' && typeof record.name === 'string' && record.name.trim()
+    isHouseholdLiveRecord(record) && record.name.trim()
       ? [{ id: record.id, name: record.name }]
       : [],
   );
+}
+
+function isHouseholdLiveRecord(record: LiveCrmRecord): record is HouseholdLiveRecord {
+  return record.kind === 'household' && typeof record['name'] === 'string';
+}
+
+function isEmailDropboxConfigRecord(record: LiveCrmRecord): record is EmailDropboxConfigRecord {
+  return record.kind === 'emailDropboxConfig';
 }
 
 /**
@@ -43,7 +64,7 @@ function householdChoices(records: ReturnType<typeof useLiveCrmRecords>['records
 export function EmailDropboxSurface() {
   const live = useLiveCrmRecords();
   const households = useMemo(() => householdChoices(live.records), [live.records]);
-  const savedConfig = live.records.find((record) => record.id === CONFIG_ID && record.kind === 'emailDropboxConfig');
+  const savedConfig = live.records.find((record): record is EmailDropboxConfigRecord => record.id === CONFIG_ID && isEmailDropboxConfigRecord(record));
   const [config, setConfig] = useState<DropboxConfig>(defaultConfig);
   const [emails, setEmails] = useState<readonly MailListItem[]>([]);
   const [selectedHouseholds, setSelectedHouseholds] = useState<Record<string, string>>({});
@@ -111,10 +132,13 @@ export function EmailDropboxSurface() {
     }
     setError(null);
     try {
+      const now = new Date().toISOString();
       await live.save({
         id: CONFIG_ID,
         kind: 'emailDropboxConfig',
         matterId: 'firm_home',
+        createdAt: typeof savedConfig?.createdAt === 'string' ? savedConfig.createdAt : now,
+        updatedAt: now,
         folderId,
         provider: config.provider,
         account: config.account.trim(),
@@ -128,6 +152,10 @@ export function EmailDropboxSurface() {
 
   async function fileEmail(email: MailListItem) {
     const householdId = selectedHouseholds[email.id];
+    if (!householdId) {
+      setError('Choose the client this email belongs to before filing it.');
+      return;
+    }
     const household = households.find((candidate) => candidate.id === householdId);
     if (!household) {
       setError('Choose the client this email belongs to before filing it.');
@@ -136,13 +164,16 @@ export function EmailDropboxSurface() {
     setError(null);
     try {
       // This changes only local encrypted mail filing. It never sends an email
-      // or copies its body to a server.
+    // or copies its body to a server.
       await mailRetagMessageMatter(email.id, householdId);
+      const now = new Date().toISOString();
       await live.save({
         id: `email-dropbox:${email.id}:${householdId}`,
         kind: 'emailActivity',
         matterId: householdId,
         householdId,
+        createdAt: now,
+        updatedAt: now,
         messageId: email.id,
         provider: email.provider,
         account: email.account,
