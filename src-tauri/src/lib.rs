@@ -425,6 +425,7 @@ pub fn run() {
                 // the renderer only after the host has proved it is a real
                 // directory. JSON encoding keeps unusual but valid path
                 // characters from becoming executable script text.
+                #[cfg(debug_assertions)]
                 let builder = if let Some(workspace) = explicit_launch_workspace() {
                     let workspace_json = serde_json::to_string(&workspace)
                         .expect("serializing a workspace path cannot fail");
@@ -434,6 +435,13 @@ pub fn run() {
                 } else {
                     builder
                 };
+
+                // A release build deliberately has no command-line or
+                // environment workspace override at all. This makes the
+                // automation-only capability impossible to invoke in shipped
+                // binaries, even if an environment variable is present.
+                #[cfg(not(debug_assertions))]
+                let builder = builder;
 
                 #[cfg(all(windows, debug_assertions))]
                 let builder = {
@@ -526,6 +534,7 @@ pub fn run() {
 /// launch. `--workspace <dir>` takes precedence over `LANTERN_WORKSPACE`.
 /// Invalid or absent values deliberately return `None`, preserving the normal
 /// first-run picker rather than creating or opening an unexpected folder.
+#[cfg(debug_assertions)]
 fn explicit_launch_workspace() -> Option<String> {
     let cli_workspace = workspace_argument(std::env::args_os().skip(1));
     let candidate = cli_workspace
@@ -540,6 +549,7 @@ fn explicit_launch_workspace() -> Option<String> {
     }
 }
 
+#[cfg(any(debug_assertions, test))]
 fn workspace_argument<I>(args: I) -> Option<std::path::PathBuf>
 where
     I: IntoIterator<Item = std::ffi::OsString>,
@@ -559,10 +569,24 @@ where
     None
 }
 
+#[cfg(any(debug_assertions, test))]
 fn canonical_existing_directory(path: std::path::PathBuf) -> Option<std::path::PathBuf> {
-    path.is_dir()
-        .then(|| std::fs::canonicalize(path).ok())
-        .flatten()
+    use std::path::Component;
+
+    // This debug-only convenience must never quietly turn a visibly-relative
+    // input into a different folder. It also refuses a symlink at the root so
+    // automation cannot disguise the workspace it is about to open.
+    if path
+        .components()
+        .any(|component| matches!(component, Component::ParentDir))
+    {
+        return None;
+    }
+    let metadata = std::fs::symlink_metadata(&path).ok()?;
+    if !metadata.is_dir() || metadata.file_type().is_symlink() {
+        return None;
+    }
+    std::fs::canonicalize(path).ok()
 }
 
 #[cfg(test)]
@@ -608,5 +632,35 @@ mod launch_workspace_tests {
             canonical_existing_directory(directory.path().join("missing")),
             None
         );
+    }
+
+    #[test]
+    fn rejects_parent_traversal_even_when_the_resolved_directory_exists() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        std::fs::create_dir(directory.path().join("child")).expect("child directory");
+        let traversal = directory.path().join("child").join("..");
+        assert_eq!(canonical_existing_directory(traversal), None);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_symlinked_workspace_roots() {
+        use std::os::unix::fs::symlink;
+
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let target = directory.path().join("target");
+        let link = directory.path().join("workspace-link");
+        std::fs::create_dir(&target).expect("target directory");
+        symlink(&target, &link).expect("workspace symlink");
+        assert_eq!(canonical_existing_directory(link), None);
+    }
+
+    #[cfg(not(debug_assertions))]
+    #[test]
+    fn release_build_rejects_the_workspace_override_at_compile_time() {
+        // This test only compiles in a non-debug test build. The host injection
+        // and explicit_launch_workspace() are both cfg(debug_assertions), so
+        // no release binary can read --workspace or LANTERN_WORKSPACE.
+        assert!(!cfg!(debug_assertions));
     }
 }

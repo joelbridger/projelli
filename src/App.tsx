@@ -22,6 +22,7 @@ import { useTestModeWorkspace } from '@/app/lifecycle/useTestModeWorkspace';
 import {
   getExplicitLaunchWorkspace,
   shouldShowFirstRunForLaunch,
+  shouldUseExplicitLaunchWorkspace,
 } from '@/app/lifecycle/explicitLaunchWorkspace';
 import { useKeyboardShortcuts } from '@/app/commands/useKeyboardShortcuts';
 import { useAppCommands } from '@/app/commands/useAppCommands';
@@ -199,10 +200,7 @@ const IS_DEMO_MODE =
   ((typeof __LANTERN_DEMO__ !== 'undefined' && __LANTERN_DEMO__) ||
     (window as unknown as { __lanternDemo?: boolean }).__lanternDemo === true);
 
-// Set by the native host only when the caller explicitly supplied an existing
-// workspace folder with `--workspace` or `LANTERN_WORKSPACE`. This is not a
-// general first-run bypass: without the native signal, onboarding and the
-// workspace picker retain their normal behavior.
+// Set by a DEBUG native host only. The reader rejects it in production builds.
 const EXPLICIT_LAUNCH_WORKSPACE = getExplicitLaunchWorkspace();
 
 /**
@@ -260,10 +258,7 @@ function App() {
 function AppShell() {
   const { t } = useTranslation();
   const [showWorkspaceSelector, setShowWorkspaceSelector] = useState(
-    !IS_TEST_MODE && !IS_DEMO_MODE && !EXPLICIT_LAUNCH_WORKSPACE
-  );
-  const [isOpeningExplicitWorkspace, setIsOpeningExplicitWorkspace] = useState(
-    Boolean(EXPLICIT_LAUNCH_WORKSPACE)
+    !IS_TEST_MODE && !IS_DEMO_MODE
   );
   const [demoOpenFailed, setDemoOpenFailed] = useState(false);
   const {
@@ -319,6 +314,13 @@ function AppShell() {
   // workspace (matching the wizard's documented first-run condition), and
   // suppressed in test/demo modes. `?forceOnboarding=true` forces it for QA.
   const [showFirstRun, setShowFirstRun] = useState(false);
+  // Wait for Recents to hydrate so this cannot steal a normal reopen-last launch.
+  const [explicitLaunchDecisionComplete, setExplicitLaunchDecisionComplete] =
+    useState(!EXPLICIT_LAUNCH_WORKSPACE);
+  const [explicitWorkspaceForFirstRun, setExplicitWorkspaceForFirstRun] =
+    useState<string | null>(null);
+  const recentWorkspacesAtLaunch = useWorkspaceStore((s) => s.recentWorkspaces);
+  const recentWorkspacesLoadedAtLaunch = useWorkspaceStore((s) => s.recentWorkspacesLoaded);
 
   // ConnectorSourcePanels is only rendered (and its chunk fetched) once a
   // connector citation is actually clicked — rendering it unconditionally,
@@ -341,20 +343,37 @@ function AppShell() {
   // hooks so they fire from the source of the state change.
   useEffect(() => {
     void sendEvent('app_launch');
+  }, []);
+
+  useEffect(() => {
+    if (!recentWorkspacesLoadedAtLaunch) return;
+    setExplicitWorkspaceForFirstRun(
+      shouldUseExplicitLaunchWorkspace({
+        hasCandidate: Boolean(EXPLICIT_LAUNCH_WORKSPACE),
+        onboardingComplete: hasCompletedOnboarding(),
+        recentWorkspacesLoaded: recentWorkspacesLoadedAtLaunch,
+        noRecentWorkspaces: recentWorkspacesAtLaunch.length === 0,
+        isTestMode: IS_TEST_MODE,
+        isDemoMode: IS_DEMO_MODE,
+      }) ? EXPLICIT_LAUNCH_WORKSPACE : null,
+    );
+    setExplicitLaunchDecisionComplete(true);
+  }, [recentWorkspacesLoadedAtLaunch, recentWorkspacesAtLaunch.length]);
+
+  useEffect(() => {
+    if (!recentWorkspacesLoadedAtLaunch || !explicitLaunchDecisionComplete) return;
     // Mount the wizard after a tiny delay so the workspace selector gets to
     // render first — the wizard then layers over it as a full-screen overlay,
     // honoring the existing path-input vs file-picker flow underneath.
     const forceOnboarding =
       typeof window !== 'undefined' &&
       window.location.search.includes('forceOnboarding=true');
-    const noRecentWorkspaces =
-      useWorkspaceStore.getState().recentWorkspaces.length === 0;
     const shouldShow = shouldShowFirstRunForLaunch({
       onboardingComplete: hasCompletedOnboarding(),
-      noRecentWorkspaces,
+      noRecentWorkspaces: recentWorkspacesAtLaunch.length === 0,
       isTestMode: IS_TEST_MODE,
       isDemoMode: IS_DEMO_MODE,
-      hasExplicitWorkspace: Boolean(EXPLICIT_LAUNCH_WORKSPACE),
+      hasExplicitWorkspace: Boolean(explicitWorkspaceForFirstRun),
       forceOnboarding,
     });
     if (shouldShow) {
@@ -362,7 +381,7 @@ function AppShell() {
       return () => clearTimeout(id);
     }
     return undefined;
-  }, []);
+  }, [recentWorkspacesLoadedAtLaunch, explicitLaunchDecisionComplete, recentWorkspacesAtLaunch.length, explicitWorkspaceForFirstRun]);
 
   // v1.6: auto-show feature tour on first launch (post-first-run wizard) once
   // the sidebar testids exist in the DOM. Persistent flag stops re-triggering.
@@ -375,7 +394,7 @@ function AppShell() {
     window.location.search.includes('forceTour=true');
   useEffect(() => {
     if (
-      (IS_TEST_MODE || IS_DEMO_MODE || EXPLICIT_LAUNCH_WORKSPACE) &&
+      (IS_TEST_MODE || IS_DEMO_MODE || explicitWorkspaceForFirstRun) &&
       !FORCE_TOUR
     )
       return;
@@ -384,7 +403,7 @@ function AppShell() {
     if (showFirstRun) return;
     const timeoutId = setTimeout(() => setTourOpen(true), 800);
     return () => clearTimeout(timeoutId);
-  }, [FORCE_TOUR, featureTour.shouldAutoShow, showFirstRun]);
+  }, [FORCE_TOUR, featureTour.shouldAutoShow, showFirstRun, explicitWorkspaceForFirstRun]);
   const workspaceServiceRef = useRef<WorkspaceService | null>(null);
   const fileSystemWatcherRef = useRef<FileSystemWatcher | null>(null);
 
@@ -1176,33 +1195,6 @@ function AppShell() {
     confirm,
   });
 
-  // An explicit workspace uses the same guarded lifecycle as a recent
-  // workspace. The native host supplies this value only after checking that
-  // it is an existing directory, so no picker is needed on first run.
-  useEffect(() => {
-    if (!EXPLICIT_LAUNCH_WORKSPACE) return undefined;
-
-    let cancelled = false;
-    let workspaceCommitted = false;
-    const unsubscribe = useWorkspaceStore.subscribe((state) => {
-      if (state.rootPath !== EXPLICIT_LAUNCH_WORKSPACE) return;
-      workspaceCommitted = true;
-      setIsOpeningExplicitWorkspace(false);
-    });
-    void (async () => {
-      await handleOpenRecentProject(EXPLICIT_LAUNCH_WORKSPACE);
-      // A failed open falls back to the ordinary selector. A successful open
-      // normally clears the loader as soon as the lifecycle commits rootPath;
-      // this is a final safety net for implementations that do not emit it.
-      if (!cancelled && !workspaceCommitted) setIsOpeningExplicitWorkspace(false);
-    })();
-
-    return () => {
-      cancelled = true;
-      unsubscribe();
-    };
-  }, [handleOpenRecentProject]);
-
   // Boot: silently reopen the last workspace when "Reopen last workspace" is
   // on, instead of always showing the picker (only Tauri can do this without
   // a fresh user gesture — browser directory handles need a picker click).
@@ -1243,7 +1235,8 @@ function AppShell() {
     isEligibleEnvironment:
       !IS_TEST_MODE &&
       !IS_DEMO_MODE &&
-      !EXPLICIT_LAUNCH_WORKSPACE &&
+      (!EXPLICIT_LAUNCH_WORKSPACE || explicitLaunchDecisionComplete) &&
+      !explicitWorkspaceForFirstRun &&
       isTauriEnvironment(),
     settingsHydrated,
     recentWorkspacesLoaded,
@@ -1924,20 +1917,6 @@ function AppShell() {
     );
   }
 
-  // Keep the picker and first-run overlay off-screen while an explicitly
-  // requested workspace is opening. If it cannot open, the normal selector
-  // returns with the lifecycle's plain-language error.
-  if (!IS_TEST_MODE && isOpeningExplicitWorkspace) {
-    return (
-      <div
-        data-testid="explicit-workspace-loading"
-        className="fixed inset-0 z-50 flex items-center justify-center bg-white dark:bg-white"
-      >
-        <AppLogo height={48} />
-      </div>
-    );
-  }
-
   if (
     !IS_TEST_MODE &&
     (showWorkspaceSelector || !rootPath || showFirstRun) &&
@@ -1975,6 +1954,7 @@ function AppShell() {
           externalError={workspaceOpenError}
           onExternalErrorShown={dismissWorkspaceOpenError}
           promptForPath={prompt}
+          autoOpenWorkspacePath={explicitWorkspaceForFirstRun}
         />
         {firstRunOverlay}
         {/* The shared confirm dialog must be mounted in THIS branch too, not

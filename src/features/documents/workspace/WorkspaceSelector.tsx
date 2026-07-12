@@ -97,6 +97,8 @@ export interface WorkspaceSelectorProps {
     defaultValue?: string,
     options?: Omit<PromptOptions, 'defaultValue'>,
   ) => Promise<string | null>;
+  /** Debug first-run automation; uses the normal picker open path below. */
+  autoOpenWorkspacePath?: string | null;
 }
 
 /** Max recent workspaces to show without expanding */
@@ -200,6 +202,7 @@ export function WorkspaceSelector({
   externalError,
   onExternalErrorShown,
   promptForPath,
+  autoOpenWorkspacePath,
 }: WorkspaceSelectorProps) {
   const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
@@ -211,6 +214,10 @@ export function WorkspaceSelector({
   // open/create stamps a monotonic token at its start; a hand-off is dropped
   // unless its token is still the latest.
   const openTokenRef = useRef(0);
+  const autoOpenStartedRef = useRef(false);
+  const openWorkspacePathRef = useRef<
+    ((workspacePath: string, token?: number) => Promise<void>) | null
+  >(null);
 
   // Absorb a failed silent auto-resume into this component's own error
   // banner, then tell the source to reset so it doesn't re-fire the same
@@ -338,6 +345,25 @@ export function WorkspaceSelector({
     // switch is irrevocable.
     await onWorkspaceSelected(service);
   };
+  openWorkspacePathRef.current = openWorkspacePath;
+
+  // Automation enters through the same picker route, preserving migration,
+  // vault locking, validation, and the single root-commit boundary.
+  useEffect(() => {
+    if (!autoOpenWorkspacePath || !isTauri || autoOpenStartedRef.current) return;
+    autoOpenStartedRef.current = true;
+    const token = ++openTokenRef.current;
+    setIsLoading(true);
+    setError(null);
+    const openWorkspace = openWorkspacePathRef.current;
+    if (!openWorkspace) return;
+    void openWorkspace(autoOpenWorkspacePath, token)
+      .catch((err: unknown) => {
+        console.error('[WorkspaceSelector] Failed to open debug launch workspace:', err);
+        setError(err instanceof Error ? err.message : 'Failed to open workspace');
+      })
+      .finally(() => setIsLoading(false));
+  }, [autoOpenWorkspacePath, isTauri]);
 
   /** Called by VaultLockedPrompt when the vault is successfully unlocked. */
   const handleVaultUnlocked = async () => {
