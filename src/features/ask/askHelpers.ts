@@ -16,6 +16,7 @@ import {
 } from '@/platform/rag/sourceProvenance';
 import type { WorkspaceSource } from '@/platform/types/ai';
 import type { RagHit } from '@/platform/utils/tauri-commands';
+import type { DateConflictFlag, DatedFact, SourceDate } from '@/platform/retrieval/dates';
 import { buildDatedWorkspaceSources } from '@/platform/retrieval/dates';
 import { createProvider } from '@/platform/providers/providerFactory';
 import { resolveAvailableLocalGenerationProvider } from '@/platform/providers/resolveLocalProvider';
@@ -171,6 +172,12 @@ export interface AnswerCitation {
    * `@/platform/rag/sourceProvenance`.
    */
   provenance?: RecognizedProvenance;
+  /** B1: source-time metadata from the retrieved hit, when safely known. */
+  sourceDate?: SourceDate;
+  /** B1: the source's explicit dated claim, including visible authority context. */
+  datedFact?: DatedFact;
+  /** B1: incompatible dated evidence supplied by retrieval; never inferred by the UI. */
+  dateConflict?: DateConflictFlag;
 }
 
 /**
@@ -1059,6 +1066,9 @@ function citationFromHit(
     ...(hit.id !== undefined ? { id: hit.id } : {}),
     ...(hit.matterId !== undefined ? { matterId: hit.matterId } : {}),
     ...(provenance ? { provenance } : {}),
+    ...(hit.sourceDate !== undefined ? { sourceDate: hit.sourceDate } : {}),
+    ...(hit.datedFact !== undefined ? { datedFact: hit.datedFact } : {}),
+    ...(hit.dateConflict !== undefined ? { dateConflict: hit.dateConflict } : {}),
   };
 }
 

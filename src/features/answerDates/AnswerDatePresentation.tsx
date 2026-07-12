@@ -1,13 +1,9 @@
 import { CalendarClock, Flag, ShieldCheck } from 'lucide-react';
+import type { AnswerCitation } from '@/features/ask/askHelpers';
 
 /**
- * A small, deliberately defensive date view for Ask citations.
- *
- * The RAG date contract is extended in a parallel lane. This component receives
- * the existing citation list as unknown values so persisted answers without any
- * date metadata continue to render exactly as they do today. Once a citation
- * carries a supported optional date field, it appears here without requiring a
- * migration of old answers.
+ * A small date view for Ask citations. Date fields remain optional so saved,
+ * older answers without source-time metadata stay visually unchanged.
  */
 type DateRow = {
   label: string;
@@ -26,76 +22,20 @@ type ConflictEvidenceRow = {
   authorityReason: string | null;
 };
 
-const DATE_FIELDS = [
-  'citationDate',
-  'documentDate',
-  'sourceDate',
-  'asOfDate',
-  'effectiveDate',
-  'date',
-  'updatedAt',
-] as const;
-
-const DATE_VALUE_FIELDS = ['value', 'iso', 'date', 'timestamp'] as const;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
-function readText(value: unknown): string | null {
-  if (typeof value === 'string' && value.trim()) return value.trim();
-  if (!isRecord(value)) return null;
-
-  for (const key of DATE_VALUE_FIELDS) {
-    const nested = value[key];
-    if (typeof nested === 'string' && nested.trim()) return nested.trim();
-  }
-  return null;
-}
-
-function readDate(citation: Record<string, unknown>): { value: string; time: number } | null {
-  for (const field of DATE_FIELDS) {
-    const value = readText(citation[field]);
-    if (!value) continue;
-    const time = Date.parse(value);
-    if (!Number.isNaN(time)) return { value, time };
-  }
-  return null;
-}
-
-function isAuthoritative(citation: Record<string, unknown>): boolean {
-  if (citation.authoritative === true || citation.isAuthoritative === true) return true;
-  const authority = citation.dateAuthority ?? citation.authority;
-  return authority === 'authoritative' || authority === 'primary';
-}
-
-function hasConflict(citation: Record<string, unknown>): boolean {
-  return citation.hasDateConflict === true || citation.dateConflict === true || isRecord(citation.dateConflict) || citation.conflict === true;
-}
-
-function citationLabel(citation: Record<string, unknown>, index: number): string {
-  const label = citation.label ?? citation.path ?? citation.sourceId;
-  return typeof label === 'string' && label.trim() ? label.trim() : `Source ${String(index + 1)}`;
-}
-
-function toDateRows(citations: readonly unknown[]): DateRow[] {
+function toDateRows(citations: readonly AnswerCitation[]): DateRow[] {
   return citations.flatMap((citation, index) => {
-    if (!isRecord(citation)) return [];
-    const date = readDate(citation);
-    if (!date) return [];
+    const value = citation.sourceDate?.value;
+    if (!value) return [];
+    const time = Date.parse(value);
+    if (Number.isNaN(time)) return [];
     return [{
-      label: citationLabel(citation, index),
-      date: date.value,
-      time: date.time,
-      authoritative: isAuthoritative(citation),
-      conflict: hasConflict(citation),
+      label: citation.label.trim() || `Source ${String(index + 1)}`,
+      date: value,
+      time,
+      authoritative: citation.datedFact?.authorityReason !== undefined,
+      conflict: citation.dateConflict !== undefined,
     }];
   }).sort((a, b) => a.time - b.time);
-}
-
-function textAt(record: Record<string, unknown>, key: string): string | null {
-  const value = record[key];
-  return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
 /**
@@ -103,33 +43,30 @@ function textAt(record: Record<string, unknown>, key: string): string | null {
  * retrieval layer it already contains the exact incompatible evidence set; do
  * not infer a conflict from two merely different dates.
  */
-function conflictEvidence(citations: readonly unknown[]): ConflictEvidenceRow[] {
+function conflictEvidence(citations: readonly AnswerCitation[]): ConflictEvidenceRow[] {
   const seen = new Set<string>();
   const rows: ConflictEvidenceRow[] = [];
 
   for (const citation of citations) {
-    if (!isRecord(citation) || !isRecord(citation.dateConflict)) continue;
-    const factKey = textAt(citation.dateConflict, 'factKey') ?? 'cited record';
-    const evidence = citation.dateConflict.evidence;
-    if (!Array.isArray(evidence)) continue;
+    const conflict = citation.dateConflict;
+    if (!conflict) continue;
 
-    for (const item of evidence) {
-      if (!isRecord(item)) continue;
-      const sourceDate = isRecord(item.sourceDate) ? readText(item.sourceDate) : null;
-      const time = sourceDate ? Date.parse(sourceDate) : Number.NaN;
-      const sourceId = textAt(item, 'sourceId') ?? textAt(item, 'path') ?? 'source';
-      const value = textAt(item, 'value') ?? 'Value not recorded';
+    for (const item of conflict.evidence) {
+      const sourceDate = item.sourceDate.value;
+      const time = sourceDate === null ? Number.NaN : Date.parse(sourceDate);
+      const sourceId = item.sourceId;
+      const value = item.value;
       if (!sourceDate || Number.isNaN(time)) continue;
-      const key = `${factKey}|${sourceId}|${sourceDate}|${value}`;
+      const key = `${conflict.factKey}|${sourceId}|${sourceDate}|${value}`;
       if (seen.has(key)) continue;
       seen.add(key);
       rows.push({
-        factKey,
-        label: textAt(item, 'path') ?? sourceId,
+        factKey: conflict.factKey,
+        label: item.path,
         value,
         date: sourceDate,
         time,
-        authorityReason: textAt(item, 'authorityReason'),
+        authorityReason: item.authorityReason ?? null,
       });
     }
   }
@@ -152,14 +89,14 @@ function formatDate(value: string): string {
  * The dated slice of an answer. It is intentionally absent when no cited source
  * has a usable date, keeping older and undated answers visually unchanged.
  */
-export function AnswerDatePresentation({ citations }: { citations: readonly unknown[] }) {
+export function AnswerDatePresentation({ citations }: { citations: readonly AnswerCitation[] }) {
   const rows = toDateRows(citations);
   if (rows.length === 0) return null;
 
   const newest = rows.at(-1)!;
   const authoritative = rows.filter((row) => row.authoritative).at(-1);
   const evidence = conflictEvidence(citations);
-  const newestEvidence = evidence.toSorted((a, b) => a.time - b.time).at(-1);
+  const newestEvidence = evidence.slice().sort((a, b) => a.time - b.time).at(-1);
   // The retrieval contract keeps authority as advisor-readable context, never a
   // hidden score. A source with that stated context is surfaced alongside the
   // newest record so "newer" is never silently treated as "better".
