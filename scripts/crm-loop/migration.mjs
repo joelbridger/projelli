@@ -107,13 +107,16 @@ try {
   run(['waitfor', 'Import finished', '45']);
   screenshot('01-import-finished.png');
   run(['click', 'crm-migration-fidelity']);
-  run(['waitfor', 'Attachments: 0% via API']);
+  run(['waitfor', 'Not ready to switch yet']);
+  run(['waitfor', 'notes we could not bring over']);
   const matrix = run([
     'eval',
     "document.querySelectorAll('[data-testid^=crm-fidelity-row-]').length",
   ]);
   if (Number(matrix.trim()) < 15)
     throw new Error(`Expected every fidelity row, received ${matrix.trim()}.`);
+  run(['click', 'crm-migration-open-note-gaps']);
+  run(['waitfor', 'Notes to check']);
   screenshot('02-fidelity-report.png');
 
   run(['click', 'crm-migration-workflow-fallback']);
