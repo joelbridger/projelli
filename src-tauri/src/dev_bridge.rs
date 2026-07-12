@@ -27,6 +27,10 @@ const MAX_REQUEST_BYTES: usize = 1024 * 1024;
 pub struct DevBridgeState {
     next_id: AtomicU64,
     pending: Mutex<HashMap<String, oneshot::Sender<EvalResult>>>,
+    /// A WebView executes injected snippets on one UI thread.  Keeping bridge
+    /// requests in order prevents a fast form fill/click sequence from racing
+    /// React's event processing and losing an otherwise valid action.
+    eval_lock: tokio::sync::Mutex<()>,
 }
 
 impl Default for DevBridgeState {
@@ -34,6 +38,7 @@ impl Default for DevBridgeState {
         Self {
             next_id: AtomicU64::new(1),
             pending: Mutex::new(HashMap::new()),
+            eval_lock: tokio::sync::Mutex::new(()),
         }
     }
 }
@@ -265,6 +270,7 @@ async fn eval_in_main_webview(
         .ok_or_else(|| "main webview is not available".to_string())?;
 
     let state = app.state::<DevBridgeState>();
+    let _eval_guard = state.eval_lock.lock().await;
     let id = state.next_id.fetch_add(1, Ordering::Relaxed).to_string();
     let (sender, receiver) = oneshot::channel();
 
