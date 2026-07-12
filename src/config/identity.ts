@@ -175,3 +175,8 @@ export const VAULT_METADATA_FILENAME = `.${APP_NS}-vault.json`;
 
 /** Relative path of the MCP session scope file inside a workspace. */
 export const MCP_SESSION_SCOPE_REL_PATH = `${WORKSPACE_DATA_DIR}/mcp-session-scope.json`;
+
+/** Relative path of the durable matter/client-organization file inside a
+ *  workspace. The workspace folder is the SOURCE OF TRUTH for matter records
+ *  (localStorage is only a fast cache) — see `matterWorkspaceFile.ts`. */
+export const MATTERS_WORKSPACE_REL_PATH = `${WORKSPACE_DATA_DIR}/matters.json`;

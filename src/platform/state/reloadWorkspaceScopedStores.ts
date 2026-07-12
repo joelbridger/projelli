@@ -14,7 +14,10 @@
  */
 
 import { setActiveWorkspaceScopeRoot } from '@/platform/state/workspaceScope';
-import { useMatterStore } from '@/platform/matter/matterStore';
+import {
+  useMatterStore,
+  hydrateMattersFromWorkspaceDisk,
+} from '@/platform/matter/matterStore';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { useClientGroupStore } from '@/platform/matter/clientGroupStore';
 
@@ -46,4 +49,14 @@ export function reloadWorkspaceScopedStores(root: string | null): void {
     clientMapHubTab: null,
     pendingMeetingOpen: null,
   });
+  // 2026-07 durability fix: the localStorage rehydrate above only loaded the
+  // FAST CACHE. The workspace's own `.lantern/matters.json` is the source of
+  // truth — load it (async; disk wins when present, and a cache-only legacy
+  // install gets its records committed to disk once). Ordering with any
+  // subsequent persist write is handled by the matter store's serial disk
+  // queue + hydrate gate, so this can never race a write into clobbering the
+  // file. The active WorkspaceService is already pointed at `root` on every
+  // entry path (it is set before `setRootPath` fires this reload).
+  // eslint-disable-next-line lantern-async/no-silent-failure -- the hydrate runs on the matter store's serial disk queue, which catches + logs every failure; the returned promise never rejects
+  if (root) void hydrateMattersFromWorkspaceDisk(root);
 }
