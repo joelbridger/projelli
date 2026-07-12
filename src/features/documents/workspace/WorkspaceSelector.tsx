@@ -130,7 +130,7 @@ function RecentWorkspacesSection({
         type="button"
         className="flex items-center gap-2 text-sm font-medium mb-3 group"
         style={{ color: '#475569' }}
-        onClick={() => setExpanded((prev) => !prev)}
+        onClick={() => { setExpanded((prev) => !prev); }}
       >
         <ChevronRight
           className={cn(
@@ -159,7 +159,7 @@ function RecentWorkspacesSection({
                   data-testid="recent-workspace-row"
                   className="w-full px-4 py-3 text-left transition-colors hover:bg-slate-50"
                   disabled={isLoading || !isTauri}
-                  onClick={() => onOpen(workspace.path)}
+                  onClick={() => { onOpen(workspace.path); }}
                 >
                   <div className="font-medium text-sm" style={{ color: '#111F35' }}>
                     {workspace.name}
@@ -178,7 +178,7 @@ function RecentWorkspacesSection({
               type="button"
               className="w-full px-4 py-2 text-xs text-left transition-colors hover:bg-slate-50"
               style={{ color: '#475569' }}
-              onClick={() => setExpanded(true)}
+              onClick={() => { setExpanded(true); }}
             >
               Show all ({workspaces.length})
             </button>
@@ -362,7 +362,7 @@ export function WorkspaceSelector({
         console.error('[WorkspaceSelector] Failed to open debug launch workspace:', err);
         setError(err instanceof Error ? err.message : 'Failed to open workspace');
       })
-      .finally(() => setIsLoading(false));
+      .finally(() => { setIsLoading(false); });
   }, [autoOpenWorkspacePath, isTauri]);
 
   /** Called by VaultLockedPrompt when the vault is successfully unlocked. */
@@ -401,11 +401,11 @@ export function WorkspaceSelector({
         }
 
         console.log('[WorkspaceSelector] Selected path from dialog:', selectedPath);
-        await openWorkspacePath(selectedPath as string, token);
+        await openWorkspacePath(selectedPath, token);
       } else {
         if (!WebFSBackend.isSupported()) {
           setError(
-            typeof window !== 'undefined' && window.isSecureContext === false
+            typeof window !== 'undefined' && !window.isSecureContext
               ? `Opening a folder from a browser needs a secure (https) connection. The desktop app does this natively. To use it in a browser, open ${BRAND.name} over https or on localhost.`
               : `This browser does not support opening folders. Please use Chrome, Edge, or Opera, or use the ${BRAND.name} desktop app.`,
           );
@@ -463,7 +463,7 @@ export function WorkspaceSelector({
           return;
         }
 
-        rootPath = selectedPath as string;
+        rootPath = selectedPath;
         // createIfMissing: this is the create-new flow, so the chosen folder is
         // created here instead of throwing if it isn't already there. This is
         // the fix for BUG-002's chicken-and-egg (existence required before the
@@ -476,7 +476,7 @@ export function WorkspaceSelector({
       } else {
         if (!WebFSBackend.isSupported()) {
           setError(
-            typeof window !== 'undefined' && window.isSecureContext === false
+            typeof window !== 'undefined' && !window.isSecureContext
               ? `Opening a folder from a browser needs a secure (https) connection. The desktop app does this natively. To use it in a browser, open ${BRAND.name} over https or on localhost.`
               : `This browser does not support opening folders. Please use Chrome, Edge, or Opera, or use the ${BRAND.name} desktop app.`,
           );
@@ -609,12 +609,12 @@ export function WorkspaceSelector({
               <VaultLockedPrompt
                 workspace={lockedWorkspacePath}
                 onUnlocked={handleVaultUnlocked}
-                onEscapeHatch={() => setShowEscapeHatch(true)}
+                onEscapeHatch={() => { setShowEscapeHatch(true); }}
               />
               <button
                 type="button"
                 className="mt-4 text-xs text-slate-500 hover:text-slate-700 underline underline-offset-2"
-                onClick={() => setLockedWorkspacePath(null)}
+                onClick={() => { setLockedWorkspacePath(null); }}
               >
                 Back to workspace selection
               </button>
