@@ -1141,6 +1141,60 @@ class DesktopParityApp implements ParityApp {
     fail(message);
   }
 
+  async workspaces(): Promise<void> {
+    const firstPath = `${workspaceRoot}/firm-space-a-${this.token('spaces')}`;
+    const secondPath = `${workspaceRoot}/firm-space-b-${this.token('spaces')}`;
+    const firstClient = this.token('Space A client');
+    const secondClient = this.token('Space B client');
+
+    const openWorkspaces = async () => {
+      await this.openFirm();
+      await this.click('crm-firm-route-workspaces');
+      await this.waitForControl('crm-workspaces-surface');
+    };
+    const create = async (path: string) => {
+      await this.fill('crm-workspace-new-path', path);
+      await this.click('crm-workspace-create');
+      await this.waitForCrmReady(path);
+    };
+    const open = async (path: string) => {
+      const testId = await this.eval(`(() => {
+        const row = Array.from(document.querySelectorAll('[data-workspace-path]')).find((node) => node.getAttribute('data-workspace-path') === ${JSON.stringify(path)});
+        return row?.querySelector('button[data-testid]')?.getAttribute('data-testid') ?? null;
+      })()`);
+      if (typeof testId !== 'string') fail(`No visible firm-space switch control exists for ${path}`);
+      await this.click(testId);
+      await this.waitForCrmReady(path);
+    };
+
+    await openWorkspaces();
+    await this.require('crm-workspace-isolation-promise');
+    await create(firstPath);
+    await this.eval(`window.__TAURI_INTERNALS__.invoke('crm_live_upsert', { record: { id: ${JSON.stringify(`workspace-client-a-${this.token('id')}`)}, kind: 'household', matterId: 'workspace-a', name: ${JSON.stringify(firstClient)}, status: 'active' } })`);
+    if (!(await this.records()).some((record) => record.name === firstClient))
+      fail('The first firm space did not save its client.');
+
+    await openWorkspaces();
+    await create(secondPath);
+    if ((await this.records()).some((record) => record.name === firstClient))
+      fail('A client from the first firm space appeared in the second firm space.');
+    await this.eval(`window.__TAURI_INTERNALS__.invoke('crm_live_upsert', { record: { id: ${JSON.stringify(`workspace-client-b-${this.token('id')}`)}, kind: 'household', matterId: 'workspace-b', name: ${JSON.stringify(secondClient)}, status: 'active' } })`);
+    if (!(await this.records()).some((record) => record.name === secondClient))
+      fail('The second firm space did not save its client.');
+
+    await this.restart();
+    await this.waitForCrmReady(secondPath);
+    const afterRestart = await this.records();
+    if (!afterRestart.some((record) => record.name === secondClient) || afterRestart.some((record) => record.name === firstClient))
+      fail('The second firm space did not stay isolated after the native restart.');
+
+    await openWorkspaces();
+    await open(firstPath);
+    const firstAgain = await this.records();
+    if (!firstAgain.some((record) => record.name === firstClient) || firstAgain.some((record) => record.name === secondClient))
+      fail('Switching back mixed the two firm spaces.');
+  }
+
   async firmDirectory(): Promise<void> {
     await this.setWorkspace(`firm-directory-${this.token('setup')}`);
     await this.openFirm();

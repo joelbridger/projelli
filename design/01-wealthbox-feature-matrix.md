@@ -204,7 +204,7 @@ every external write; light theme; `matter`/`matter_id` never renamed.*
 | Member / Admin / Owner roles | Three-tier role system; Admins/Owners manage custom fields and workspace config | Basic | R (Users resource) | not mentioned | REPLICATE — a simple 2-3 role model fits a ≤10-seat firm |
 | Teams | Named subgroups within a workspace for grouping/visibility (Basic=3 teams, Premier=unlimited) | Basic | R (Teams resource) | E-021 region implies an informal "team" already (JBW + Seattle + Philip) | REPLICATE |
 | Groups / visibility restrictions | Restrict a contact or activity's visibility to a specific group only | Basic | UNVERIFIED | not mentioned | REPLICATE — maps onto the existing ethical-wall ACL machinery already built for the E2EE relay (feasibility doc §2) |
-| Multiple Workspaces | Silo different books of business into separate environments, toggle between them | Premier (5) / Enterprise (unlimited) | R | not mentioned | **SKIP — enterprise/multi-book scale is out of the ≤10-seat target** (charter pre-made decision 4) |
+| Multiple Workspaces | Silo different books of business into separate environments, toggle between them | Premier (5) / Enterprise (unlimited) | R | not mentioned | REPLICATE — advisors can create and switch between separate encrypted firm spaces; records never cross the boundary |
 | Org Admin cross-workspace user management | Centralized admin console managing users across many workspaces | Premier Enterprise | UNVERIFIED | not mentioned | **SKIP — same reason, enterprise-only feature** |
 | Default permissions per user | Admin sets a user's default data-visibility permissions | Basic | UNVERIFIED | not mentioned | REPLICATE — small-firm version only (a handful of toggles, not a permissions engine) |
 

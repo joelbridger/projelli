@@ -13,6 +13,7 @@ export type CrmHomeRoute =
   | 'firm-setup'
   | 'fields-tags'
   | 'intake-links'
+  | 'workspaces'
   | 'migration'
   | 'fidelity'
   | 'workflow-recreation'
