@@ -4,6 +4,8 @@ import { MatterSyncClient, type WebSocketLike } from './MatterSyncClient';
 import { decryptUpdateV2, generateMatterKey, importMatterKey } from './matterCrypto';
 import { parseMatterHandle, parseStreamHandle } from './contract';
 
+const opaqueBlobId = (character: string): string => `bh2_${character.repeat(43)}`;
+
 describe('MatterSyncClient v2 socket privacy', () => {
   it('opens the fixed ticket-only socket URL and accepts identifier-free frames', async () => {
     const urls: string[] = [];
@@ -43,7 +45,7 @@ describe('MatterSyncClient v2 socket privacy', () => {
     const fakeClient = {
       pullUpdates: () => Promise.resolve({
         key_epoch: 1, since: 0, cursor: 1, latest_cursor: 1, has_more: false,
-        updates: [{ cursor: 1, blob_id: 'legacy-blob', key_epoch: 1, ciphertext_b64 }],
+        updates: [{ cursor: 1, blob_id: opaqueBlobId('L'), key_epoch: 1, ciphertext_b64 }],
       }),
       createSyncTicket: () => Promise.resolve({ ticket: 'ticket-only', expires_in_ms: 1000 }),
       pushUpdate: () => Promise.resolve({ ok: true, cursor: 2, blob_id: 'new', key_epoch: 1, duplicate: false }),
@@ -74,7 +76,7 @@ describe('MatterSyncClient v2 socket privacy', () => {
       matterHandle, streamHandle, keyB64: epochOneKey, keyEpoch: 1, seatToken: 'seat',
       client: {
         pullUpdates: (_stream: string, since: number) => Promise.resolve(since === 0
-          ? { key_epoch: 2, since, cursor: 7, latest_cursor: 7, has_more: false, updates: [{ cursor: 7, blob_id: 'epoch-two-first', key_epoch: 2, ciphertext_b64 }] }
+          ? { key_epoch: 2, since, cursor: 7, latest_cursor: 7, has_more: false, updates: [{ cursor: 7, blob_id: opaqueBlobId('E'), key_epoch: 2, ciphertext_b64 }] }
           : { key_epoch: 2, since, cursor: since, latest_cursor: 7, has_more: false, updates: [] }),
         createSyncTicket: () => Promise.resolve({ ticket: 'ticket-only', expires_in_ms: 1000 }),
         pushUpdate: () => Promise.resolve({ ok: true, cursor: 8, blob_id: 'new', key_epoch: 2, duplicate: false }),
@@ -112,8 +114,8 @@ describe('MatterSyncClient v2 socket privacy', () => {
       matterHandle, streamHandle, keyB64, keyEpoch: 1, seatToken: 'seat',
       client: {
         pullUpdates: () => Promise.resolve({ key_epoch: 1, since: 0, cursor: 2, latest_cursor: 2, has_more: false, updates: [
-          { cursor: 1, blob_id: 'corrupt-yjs', key_epoch: 1, ciphertext_b64: corruptCiphertext },
-          { cursor: 2, blob_id: 'later-valid', key_epoch: 1, ciphertext_b64: laterCiphertext },
+          { cursor: 1, blob_id: opaqueBlobId('C'), key_epoch: 1, ciphertext_b64: corruptCiphertext },
+          { cursor: 2, blob_id: opaqueBlobId('D'), key_epoch: 1, ciphertext_b64: laterCiphertext },
         ] }),
         createSyncTicket: () => Promise.resolve({ ticket: 'ticket-only', expires_in_ms: 1000 }),
         pushUpdate: () => Promise.resolve({ ok: true, cursor: 3, blob_id: 'new', key_epoch: 1, duplicate: false }),
@@ -126,9 +128,9 @@ describe('MatterSyncClient v2 socket privacy', () => {
     expect(client.getCursor()).toBe(2);
     expect(client.doc.getMap('notes').get('later-update-survived')).toBe(true);
     expect(loud).toHaveBeenCalledWith('[MatterSyncClient] quarantined corrupt remote update', expect.objectContaining({
-      reason: 'yjs_apply_failed', blobId: 'corrupt-yjs', cursor: 1,
+      reason: 'yjs_apply_failed', blobId: opaqueBlobId('C'), cursor: 1,
     }));
-    expect(onUpdateQuarantined).toHaveBeenCalledWith({ reason: 'yjs_apply_failed', blobId: 'corrupt-yjs' });
+    expect(onUpdateQuarantined).toHaveBeenCalledWith({ reason: 'yjs_apply_failed', blobId: opaqueBlobId('C') });
     loud.mockRestore();
     client.stop();
   });
@@ -153,8 +155,8 @@ describe('MatterSyncClient v2 socket privacy', () => {
       matterHandle, streamHandle, keyB64, keyEpoch: 1, seatToken: 'seat',
       client: {
         pullUpdates: () => Promise.resolve({ key_epoch: 1, since: 0, cursor: 2, latest_cursor: 2, has_more: false, updates: [
-          { cursor: 1, blob_id: 'tampered-current-epoch', key_epoch: 1, ciphertext_b64: tamperedCiphertext },
-          { cursor: 2, blob_id: 'later-valid', key_epoch: 1, ciphertext_b64: laterCiphertext },
+          { cursor: 1, blob_id: opaqueBlobId('T'), key_epoch: 1, ciphertext_b64: tamperedCiphertext },
+          { cursor: 2, blob_id: opaqueBlobId('V'), key_epoch: 1, ciphertext_b64: laterCiphertext },
         ] }),
         createSyncTicket: () => Promise.resolve({ ticket: 'ticket-only', expires_in_ms: 1000 }),
         pushUpdate: () => Promise.resolve({ ok: true, cursor: 3, blob_id: 'new', key_epoch: 1, duplicate: false }),
@@ -167,7 +169,7 @@ describe('MatterSyncClient v2 socket privacy', () => {
     expect(client.getCursor()).toBe(2);
     expect(client.doc.getMap('notes').get('after-tamper')).toBe('applied');
     expect(loud).toHaveBeenCalledWith('[MatterSyncClient] quarantined corrupt remote update', expect.objectContaining({
-      reason: 'decrypt_failed', blobId: 'tampered-current-epoch', cursor: 1,
+      reason: 'decrypt_failed', blobId: opaqueBlobId('T'), cursor: 1,
     }));
     loud.mockRestore();
     client.stop();
@@ -192,8 +194,8 @@ describe('MatterSyncClient v2 socket privacy', () => {
       matterHandle, streamHandle, keyB64: currentKeyB64, keyEpoch: 2, seatToken: 'seat',
       client: {
         pullUpdates: () => Promise.resolve({ key_epoch: 2, since: 0, cursor: 2, latest_cursor: 2, has_more: false, updates: [
-          { cursor: 1, blob_id: 'unrecoverable-old-epoch', key_epoch: 1, ciphertext_b64: oldCiphertext },
-          { cursor: 2, blob_id: 'later-valid', key_epoch: 2, ciphertext_b64: laterCiphertext },
+          { cursor: 1, blob_id: opaqueBlobId('O'), key_epoch: 1, ciphertext_b64: oldCiphertext },
+          { cursor: 2, blob_id: opaqueBlobId('P'), key_epoch: 2, ciphertext_b64: laterCiphertext },
         ] }),
         createSyncTicket: () => Promise.resolve({ ticket: 'ticket-only', expires_in_ms: 1000 }),
         pushUpdate: () => Promise.resolve({ ok: true, cursor: 3, blob_id: 'new', key_epoch: 2, duplicate: false }),
@@ -206,9 +208,97 @@ describe('MatterSyncClient v2 socket privacy', () => {
     expect(client.getCursor()).toBe(2);
     expect(client.doc.getMap('notes').get('after-superseded-epoch')).toBe('applied');
     expect(loud).toHaveBeenCalledWith('[MatterSyncClient] skipped remote update sealed under a superseded key epoch', expect.objectContaining({
-      reason: 'epoch_superseded', blobId: 'unrecoverable-old-epoch', cursor: 1,
+      reason: 'epoch_superseded', blobId: opaqueBlobId('O'), cursor: 1,
     }));
-    expect(onUpdateQuarantined).toHaveBeenCalledWith({ reason: 'epoch_superseded', blobId: 'unrecoverable-old-epoch' });
+    expect(onUpdateQuarantined).toHaveBeenCalledWith({ reason: 'epoch_superseded', blobId: opaqueBlobId('O') });
+    loud.mockRestore();
+    client.stop();
+  });
+
+  it('quarantines an invalid pulled blob ID without surfacing it, then applies the later update', async () => {
+    const matterHandle = parseMatterHandle(`mh2_${'Q'.repeat(43)}`);
+    const streamHandle = parseStreamHandle(`sh2_${'R'.repeat(43)}`);
+    const keyB64 = await generateMatterKey();
+    const key = await importMatterKey(keyB64);
+    const later = new Y.Doc();
+    later.getMap('notes').set('after-invalid-pulled-id', 'applied');
+    const laterCiphertext = await (await import('./matterCrypto')).encryptUpdateV2(
+      key, Y.encodeStateAsUpdate(later), { matterHandle, streamHandle, keyEpoch: 1 },
+    );
+    const invalidBlobId = 'CLIENT_SECRET_NIMBUS';
+    const loud = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const onUpdateQuarantined = vi.fn();
+    const client = new MatterSyncClient({
+      matterHandle, streamHandle, keyB64, keyEpoch: 1, seatToken: 'seat',
+      client: {
+        pullUpdates: () => Promise.resolve({ key_epoch: 1, since: 0, cursor: 2, latest_cursor: 2, has_more: false, updates: [
+          { cursor: 1, blob_id: invalidBlobId, key_epoch: 1, ciphertext_b64: 'unused' },
+          { cursor: 2, blob_id: opaqueBlobId('S'), key_epoch: 1, ciphertext_b64: laterCiphertext },
+        ] }),
+        createSyncTicket: () => Promise.resolve({ ticket: 'ticket-only', expires_in_ms: 1000 }),
+        pushUpdate: () => Promise.resolve({ ok: true, cursor: 3, blob_id: 'new', key_epoch: 1, duplicate: false }),
+      } as never,
+      callbacks: { onUpdateQuarantined },
+      socketFactory: () => ({ send() {}, close() {}, onopen: null, onclose: null, onerror: null, onmessage: null }),
+    });
+
+    await client.start();
+
+    expect(client.getCursor()).toBe(2);
+    expect(client.doc.getMap('notes').get('after-invalid-pulled-id')).toBe('applied');
+    expect(loud).toHaveBeenCalledWith('[MatterSyncClient] quarantined remote update with invalid blob id', {
+      reason: 'invalid_blob_id', matterHandle, streamHandle, cursor: 1,
+    });
+    expect(onUpdateQuarantined).toHaveBeenCalledWith({ reason: 'invalid_blob_id' });
+    expect(JSON.stringify(loud.mock.calls)).not.toContain(invalidBlobId);
+    expect(JSON.stringify(onUpdateQuarantined.mock.calls)).not.toContain(invalidBlobId);
+    loud.mockRestore();
+    client.stop();
+  });
+
+  it('quarantines an invalid live-frame blob ID without surfacing it, then applies the later update', async () => {
+    const matterHandle = parseMatterHandle(`mh2_${'U'.repeat(43)}`);
+    const streamHandle = parseStreamHandle(`sh2_${'V'.repeat(43)}`);
+    const keyB64 = await generateMatterKey();
+    const key = await importMatterKey(keyB64);
+    const later = new Y.Doc();
+    later.getMap('notes').set('after-invalid-live-id', 'applied');
+    const laterCiphertext = await (await import('./matterCrypto')).encryptUpdateV2(
+      key, Y.encodeStateAsUpdate(later), { matterHandle, streamHandle, keyEpoch: 1 },
+    );
+    const invalidBlobId = 'CLIENT_SECRET_NIMBUS';
+    const loud = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const onUpdateQuarantined = vi.fn();
+    let socket: WebSocketLike | undefined;
+    const client = new MatterSyncClient({
+      matterHandle, streamHandle, keyB64, keyEpoch: 1, seatToken: 'seat',
+      client: {
+        pullUpdates: () => Promise.resolve({ key_epoch: 1, since: 0, cursor: 0, latest_cursor: 0, has_more: false, updates: [] }),
+        createSyncTicket: () => Promise.resolve({ ticket: 'ticket-only', expires_in_ms: 1000 }),
+        pushUpdate: () => Promise.resolve({ ok: true, cursor: 3, blob_id: 'new', key_epoch: 1, duplicate: false }),
+      } as never,
+      callbacks: { onUpdateQuarantined },
+      socketFactory: () => {
+        socket = { send() {}, close() {}, onopen: null, onclose: null, onerror: null, onmessage: null };
+        return socket;
+      },
+    });
+
+    await client.start();
+    socket?.onmessage?.({ data: JSON.stringify({ type: 'ready', backlog: 0, latest_cursor: 0, subscribers: 1 }) });
+    socket?.onmessage?.({ data: JSON.stringify({ type: 'update', cursor: 1, blob_id: invalidBlobId, key_epoch: 1, ciphertext_b64: 'unused' }) });
+    socket?.onmessage?.({ data: JSON.stringify({ type: 'update', cursor: 2, blob_id: opaqueBlobId('W'), key_epoch: 1, ciphertext_b64: laterCiphertext }) });
+
+    await vi.waitFor(() => {
+      expect(client.getCursor()).toBe(2);
+      expect(client.doc.getMap('notes').get('after-invalid-live-id')).toBe('applied');
+    });
+    expect(loud).toHaveBeenCalledWith('[MatterSyncClient] quarantined remote update with invalid blob id', {
+      reason: 'invalid_blob_id', matterHandle, streamHandle, cursor: 1,
+    });
+    expect(onUpdateQuarantined).toHaveBeenCalledWith({ reason: 'invalid_blob_id' });
+    expect(JSON.stringify(loud.mock.calls)).not.toContain(invalidBlobId);
+    expect(JSON.stringify(onUpdateQuarantined.mock.calls)).not.toContain(invalidBlobId);
     loud.mockRestore();
     client.stop();
   });

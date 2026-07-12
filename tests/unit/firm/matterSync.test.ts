@@ -556,8 +556,8 @@ describe('MatterSyncClient E2EE convergence', () => {
         }),
       };
     };
-    const first = await makeUpdate(1, 'first-new-epoch', 'first');
-    const second = await makeUpdate(2, 'second-new-epoch', 'second');
+    const first = await makeUpdate(1, `bh2_${'F'.repeat(43)}`, 'first');
+    const second = await makeUpdate(2, `bh2_${'S'.repeat(43)}`, 'second');
     let relayUpdates: Array<typeof first> = [];
     const pullUpdates = vi.fn(async (_stream: StreamHandle, since: number): Promise<PullUpdatesResponse> => ({
       key_epoch: 2, since, cursor: relayUpdates.at(-1)?.cursor ?? since,

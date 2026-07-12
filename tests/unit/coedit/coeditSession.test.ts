@@ -17,6 +17,7 @@ import * as Y from 'yjs';
 import { openCoeditSession, closeCoeditSession, type CoeditSessionOptions } from '@/platform/firm/coedit/coeditSession';
 import { documentJsonToYDoc, editRunText } from '@/platform/firm/coedit/docCrdt';
 import { generateMatterKey } from '@/platform/firm/matterCrypto';
+import { createOpaqueBlobId } from '@/platform/firm/opaqueBlobId';
 import type { DocumentJson, DocxParagraph } from '@/platform/types/docx';
 import type { WebSocketLike } from '@/platform/firm/MatterSyncClient';
 import type { PushUpdateResponse, PullUpdatesResponse } from '@/platform/firm/contract';
@@ -128,7 +129,7 @@ class FakeDocRelay {
     const cryptoKey = await importMatterKey(keyB64);
     const update = Y.encodeStateAsUpdate(doc);
     const ciphertext_b64 = await encryptUpdateV2(cryptoKey, update, { keyEpoch: 1, matterHandle, streamHandle });
-    const blob_id = `blob_preload_${Math.random().toString(36).slice(2)}`;
+    const blob_id = createOpaqueBlobId();
     this.push(blob_id, ciphertext_b64, 1, docId);
   }
 }

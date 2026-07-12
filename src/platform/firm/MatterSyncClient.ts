@@ -29,7 +29,7 @@ import * as Y from 'yjs';
 import { FirmApiError, type FirmApiClient } from './FirmApiClient';
 import { encryptUpdateV2, decryptUpdateV2, importMatterKey } from './matterCrypto';
 import { getMatterSyncSocketUrl } from './firmConfig';
-import { createOpaqueBlobId } from './opaqueBlobId';
+import { createOpaqueBlobId, isOpaqueBlobId } from './opaqueBlobId';
 import type { MatterHandle, StreamHandle, SyncFrame } from './contract';
 
 export type SyncStatus =
@@ -49,6 +49,9 @@ export interface MatterSyncCallbacks {
   onUpdateQuarantined?: (info: {
     reason: 'decrypt_failed' | 'epoch_superseded' | 'yjs_apply_failed';
     blobId: string;
+  } | {
+    /** An untrusted relay value failed opaque-handle validation. It is never surfaced. */
+    reason: 'invalid_blob_id';
   }) => void;
   /**
    * The relay reported a `key_epoch` newer than ours. The host must rotate the
@@ -359,6 +362,14 @@ export class MatterSyncClient {
     updates: Array<{ cursor: number; blob_id: string; key_epoch: number; ciphertext_b64: string }>,
   ): Promise<boolean> {
     for (const u of updates) {
+      // The relay is untrusted. Never pass an arbitrary relay-supplied ID to
+      // crypto, local logs, or callbacks; an invalid ID is permanently corrupt
+      // just like an unauthenticated ciphertext, so quarantine and advance.
+      if (!isOpaqueBlobId(u.blob_id)) {
+        this.logInvalidBlobId(u.cursor);
+        this.cursor = u.cursor;
+        continue;
+      }
       const applied = await this.applyBlob(u.ciphertext_b64, u.key_epoch, u.blob_id, u.cursor);
       if (!applied) return false;
       this.cursor = u.cursor;
@@ -428,6 +439,20 @@ export class MatterSyncClient {
       detail,
     });
     this.callbacks.onUpdateQuarantined?.({ reason, blobId });
+  }
+
+  /**
+   * Quarantine an invalid relay-provided blob ID without ever retaining or
+   * surfacing its raw, attacker-controlled text.
+   */
+  private logInvalidBlobId(cursor: number): void {
+    console.error('[MatterSyncClient] quarantined remote update with invalid blob id', {
+      reason: 'invalid_blob_id',
+      matterHandle: this.matterHandle,
+      streamHandle: this.streamHandle,
+      cursor,
+    });
+    this.callbacks.onUpdateQuarantined?.({ reason: 'invalid_blob_id' });
   }
 
   /**
@@ -691,6 +716,14 @@ export class MatterSyncClient {
         return;
       }
       this.socketReadyCursor = null;
+    }
+    // Validate before the relay-provided ID can reach any later handling,
+    // including quarantine logging or callback payloads. Advancing the cursor
+    // keeps one permanently malformed live frame from wedging the stream.
+    if (!isOpaqueBlobId(frame.blob_id)) {
+      this.logInvalidBlobId(frame.cursor);
+      if (frame.cursor > this.cursor) this.cursor = frame.cursor;
+      return;
     }
     if (frame.key_epoch > this.keyEpoch) {
       this.callbacks.onKeyEpochAdvanced?.(frame.key_epoch);
