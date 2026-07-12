@@ -8,6 +8,7 @@ export default defineConfig({
   resolve: { alias: { '@': path.resolve(__dirname, '../..') } },
   test: {
     environment: 'jsdom',
+    include: [path.resolve(__dirname, '*.test.tsx')],
     setupFiles: [path.resolve(__dirname, '../crm-home/testSetup.ts')],
   },
 });
