@@ -121,18 +121,44 @@ export const FEATURES: readonly ParityFeature[] = [
   live('External Unique ID field for import linking', 'migration-external-id', 'REPLICATE', 'migration', (app) => app.migration({ action: 'crm-migration-run-import', externalId: true })),
   live('REST API (OAuth2 + token auth)', 'wealthbox-api-connection', 'REPLICATE', 'migration', (app) => app.migration({ action: 'crm-migration-run-import' })),
   pending('Native webhooks', 'native-collaboration-push', 'IMPROVE', 'collaboration', 'Needs a two-seat, local-only push fixture; a single desktop app cannot prove peer delivery.'),
+
+  // ---------------------------------------------------------------------------
+  // W89 GAP FEATURES — previously SKIPPED, reinstated 2026-07-12 on Jameson's
+  // acceptance bar: "the app can do EVERYTHING Wealthbox can."
+  //
+  // These are declared here BEFORE their lanes finish, on purpose. The matrix
+  // defines the acceptance contract; the lane implements to it. Until a lane
+  // lands its test hooks these read NOT BUILT — which is the honest answer, and
+  // is exactly the point: the denominator is 79, not 69. A feature we build but
+  // do not measure is a rumour, and the first person to discover whether it
+  // works would be Jameson, by clicking on it.
+  // ---------------------------------------------------------------------------
+  live('File storage on records', 'crm-file-attachments', 'REPLICATE', 'documents', (app) => app.durableFeature({ route: 'crm-home-nav-attachments', controls: ['crm-attachments-panel', 'crm-attachment-add', 'crm-attachment-row'], action: 'crm-attachment-add', result: 'Attached', recordKind: 'attachmentLink' })),
+  live('BCC Email Dropbox', 'crm-bcc-dropbox', 'IMPROVE', 'email', (app) => app.durableFeature({ route: 'crm-home-nav-email', controls: ['crm-dropbox-address', 'crm-dropbox-capture-row'], action: 'crm-dropbox-capture-run', result: 'Captured', recordKind: 'emailCapture' })),
+  live('Email broadcast', 'crm-email-broadcast', 'REPLICATE', 'email', (app) => app.durableFeature({ route: 'crm-home-nav-email', controls: ['crm-broadcast-compose', 'crm-broadcast-audience', 'crm-broadcast-review'], action: 'crm-broadcast-save', result: 'Broadcast saved', recordKind: 'broadcast' })),
+  live('Comments on activity', 'activity-comments', 'REPLICATE', 'timeline', (app) => app.durableFeature({ route: 'crm-home-nav-activity', controls: ['crm-activity-comment-input', 'crm-activity-comment-post', 'crm-activity-comment-row'], action: 'crm-activity-comment-post', result: 'Parity comment', recordKind: 'activityComment' })),
+  live('Likes/emoji activity reactions', 'activity-reactions', 'REPLICATE', 'timeline', (app) => app.durableFeature({ route: 'crm-home-nav-activity', controls: ['crm-activity-reaction-picker', 'crm-activity-reaction-count'], action: 'crm-activity-reaction-add', recordKind: 'activityReaction' })),
+  live('Project record', 'project-record', 'REPLICATE', 'workflows', (app) => app.durableFeature({ route: 'crm-home-nav-projects', controls: ['crm-project-create', 'crm-project-name', 'crm-project-row'], action: 'crm-project-create', result: 'Parity project', recordKind: 'project' })),
+  live('Contact Actions in Opportunity Workflows', 'opportunity-contact-actions', 'REPLICATE', 'pipeline', (app) => app.durableFeature({ route: 'crm-home-nav-pipeline', controls: ['crm-opportunity-contact-action', 'crm-opportunity-action-result'], action: 'crm-opportunity-contact-action', result: 'Action recorded', recordKind: 'contactAction' })),
+  live('Self-service CSV/Excel/vCard/Outlook import', 'csv-import', 'REPLICATE', 'migration', (app) => app.durableFeature({ route: 'crm-home-nav-migration', controls: ['crm-csv-import-start', 'crm-csv-map-columns', 'crm-csv-import-summary'], action: 'crm-csv-import-run', result: 'Imported', recordKind: 'household' })),
+  live('Multiple Workspaces', 'multiple-workspaces', 'REPLICATE', 'firm setup', (app) => app.durableFeature({ route: 'crm-home-nav-firm-setup', controls: ['crm-workspace-list', 'crm-workspace-create', 'crm-workspace-switch'], action: 'crm-workspace-create', result: 'Parity workspace', recordKind: 'workspace' })),
+  live('Org Admin cross-workspace user management', 'org-admin', 'REPLICATE', 'firm setup', (app) => app.durableFeature({ route: 'crm-home-nav-firm-setup', controls: ['crm-org-admin-panel', 'crm-org-admin-user-row', 'crm-org-admin-assign'], action: 'crm-org-admin-assign', result: 'Access updated', recordKind: 'orgAssignment' })),
+
+  // Found 2026-07-12, and it is its own lesson. This row is BUILT — the
+  // Propagation review surface and its controls have existed for days — but the
+  // matrix parser only recognised a verdict cell that began with the literal
+  // word REPLICATE/IMPROVE/SKIP, and this row's title was bold. So it matched
+  // neither list and fell out of BOTH: never measured, never even reported as
+  // unmeasured. A feature must not be able to disappear from the scoreboard
+  // because of how somebody formatted a table cell. The parser now strips
+  // emphasis; this is the 80th feature.
+  live('Template-edit propagation to open instances', 'workflow-propagation', 'IMPROVE', 'workflows', (app) => app.durableFeature({ route: 'crm-home-nav-propagation', controls: ['crm-propagation-review-required', 'crm-propagation-apply', 'crm-propagation-undo'], action: 'crm-propagation-apply', result: 'Applied', recordKind: 'workflowInstance' })),
 ];
 
 // SKIPs stay visible, but they do not inflate or reduce the replacement score.
 export const SKIPPED_FEATURES: readonly SkippedFeature[] = [
-  { matrixFeature: 'Contact Actions in Opportunity Workflows', reason: 'D23 excludes bulk contact actions from v1.' },
-  { matrixFeature: 'Project record', reason: 'New multi-step work belongs in workflows; imported projects stay read-only legacy records.' },
-  { matrixFeature: 'BCC Email Dropbox', reason: 'Server-side plaintext capture conflicts with the E2EE charter.' },
+  { matrixFeature: 'iOS / Android native apps', reason: 'Mobile is a charter exclusion. (Also hidden from the parser by bold formatting until 2026-07-12.)' },
   { matrixFeature: 'Emails land in Activity Stream, not the Email tab, for dropbox items', reason: 'This is a Wealthbox threading limitation, not behavior to copy.' },
-  { matrixFeature: 'Email broadcast', reason: 'Marketing blasts are outside the small-firm CRM scope.' },
-  { matrixFeature: 'Comments on activity', reason: 'D23 defers activity comments and reactions.' },
-  { matrixFeature: 'Likes/emoji activity reactions', reason: 'D23 defers activity comments and reactions.' },
-  { matrixFeature: 'File storage on records', reason: 'The existing Documents system owns files; CRM records link them.' },
   { matrixFeature: 'RightCapital', reason: 'Read-only reference integration is deferred until a pilot needs it.' },
   { matrixFeature: 'Charles Schwab', reason: 'Custodial feeds are out of scope for this CRM replacement phase.' },
   { matrixFeature: 'DocuSign', reason: 'D9 assigns it to the existing connector, not a new CRM feature.' },
@@ -144,5 +170,4 @@ export const SKIPPED_FEATURES: readonly SkippedFeature[] = [
   { matrixFeature: 'Zapier (meta-integration, powers many of the above)', reason: 'No evidence of need for a ≤10-seat firm.' },
   { matrixFeature: 'Caller ID from Wealthbox contacts', reason: 'Dialer and phone infrastructure are a charter exclusion.' },
   { matrixFeature: 'Click-to-call', reason: 'Dialer and phone infrastructure are a charter exclusion.' },
-  { matrixFeature: 'Self-service CSV/Excel/vCard/Outlook import', reason: 'D9 keeps the Wealthbox migration wizard as the v1 import path.' },
 ];

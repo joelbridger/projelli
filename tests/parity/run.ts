@@ -203,9 +203,15 @@ function matrixInventory(): { active: string[]; skipped: string[] } {
   ).split('\n')) {
     if (!line.startsWith('|')) continue;
     const columns = line.split('|').map((value) => value.trim());
-    const verdict = columns.at(-2) ?? '';
+    // Strip markdown emphasis before classifying. A verdict written as
+    // "**SKIP — ...**" used to fail this test silently, which dropped the row
+    // from BOTH lists: the feature became invisible to the scoreboard without
+    // any error. A feature must never be able to fall out of the matrix because
+    // of how it was formatted.
+    const verdict = (columns.at(-2) ?? '').replace(/^[*_\s]+/, '');
     if (!/^(REPLICATE|IMPROVE|SKIP)/.test(verdict)) continue;
-    (verdict.startsWith('SKIP') ? skipped : active).push(columns[1] ?? '');
+    const name = (columns[1] ?? '').replace(/^[*_\s]+|[*_\s]+$/g, '');
+    (verdict.startsWith('SKIP') ? skipped : active).push(name);
   }
   return { active, skipped };
 }
