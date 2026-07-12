@@ -14,7 +14,7 @@ export type EntityKind =
   | 'activityEvent' | 'firmDoc' | 'tag' | 'customFieldDef'
   | 'opportunity' | 'pipelineDef' | 'stageDef' | 'proposalRecord' | 'legacyProject'
   | 'firmDirectoryEntry' | 'householdDirectoryShell' | 'intakeLink' | 'intakeSubmission'
-  | 'importArchiveManifest' | 'savedView';
+  | 'importArchiveManifest' | 'savedView' | 'savedReport' | 'reportRun';
 
 export interface ActorRef { userId: string; seat?: string; display: string; kind: 'user' | 'ai' | 'system' | 'import'; }
 export interface Provenance { origin: 'user' | 'ai' | 'import' | 'connector' | 'meeting' | 'system'; sources: SourceRef[]; importBatchId?: string; note?: string; }
@@ -215,5 +215,9 @@ export type ReportKind = 'no_contact_6mo' | 'attention_vs_fee' | 'birthdays' | '
 /** `fields` controls the columns or details shown by a saved view. */
 export interface ViewQuery { entity: EntityKind; filters: FilterClause[]; fields?: string[]; sort?: { field: string; dir: 'asc' | 'desc' }[]; groupBy?: string; }
 export interface SavedView extends CrmBase { kind: 'savedView'; matterId: 'firm_home' | (string & {}); name: string; surface: 'tasks' | 'households' | 'opportunities' | 'accounts' | 'report'; visibility: 'personal' | 'firm'; query: ViewQuery; layout: 'table' | 'kanban' | 'list'; reportKind?: ReportKind; }
+/** A saved report is a reusable recipe, never a frozen copy of client data. */
+export interface SavedReport extends CrmBase { kind: 'savedReport'; matterId: 'firm_home' | (string & {}); name: string; visibility: 'personal' | 'firm'; reportKind: ReportKind; query: ViewQuery; layout: 'table'; }
+/** An audit-friendly record that a report was calculated. Result rows remain live. */
+export interface ReportRun extends CrmBase { kind: 'reportRun'; matterId: 'firm_home' | (string & {}); reportKind: ReportKind; query: ViewQuery; calculatedAt: string; sourcesConsidered: number; resultCount: number; }
 
-export type CrmEntity = Household | Person | Account | Fact | Note | Task | WorkflowTemplate | WorkflowInstance | ServicePolicy | ActivityEvent | FirmDoc | Tag | CustomFieldDef | Opportunity | PipelineDef | StageDef | ProposalRecord | LegacyProject | FirmDirectoryEntry | HouseholdDirectoryShell | IntakeLink | IntakeSubmission | ImportArchiveManifest | SavedView;
+export type CrmEntity = Household | Person | Account | Fact | Note | Task | WorkflowTemplate | WorkflowInstance | ServicePolicy | ActivityEvent | FirmDoc | Tag | CustomFieldDef | Opportunity | PipelineDef | StageDef | ProposalRecord | LegacyProject | FirmDirectoryEntry | HouseholdDirectoryShell | IntakeLink | IntakeSubmission | ImportArchiveManifest | SavedView | SavedReport | ReportRun;

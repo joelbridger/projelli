@@ -12,6 +12,8 @@ export interface ParityApp {
   task(options: { recurrence?: boolean; priority?: boolean; assignee?: boolean; activity?: boolean; unified?: boolean; triage?: boolean }): Promise<void>;
   contact(options: { person?: boolean; household?: boolean; relationship?: boolean; roles?: boolean; ownership?: boolean; tags?: boolean; notes?: boolean; internal?: boolean; account?: boolean; addresses?: boolean; facts?: boolean }): Promise<void>;
   workflow(options: { template?: boolean; instance?: boolean; schedule?: boolean; outcomes?: boolean; comments?: boolean; library?: boolean; meetingProposal?: boolean }): Promise<void>;
+  pipeline(options: { opportunity?: boolean; pipeline?: boolean; stage?: boolean; workflowTrigger?: boolean }): Promise<void>;
+  report(options: { kind: 'no_contact_6mo' | 'attention_vs_fee' | 'custom' | 'ai' }): Promise<void>;
   durableFeature(options: { route: string; controls: string[]; action?: string; result?: string; recordKind?: string }): Promise<void>;
 }
 
@@ -77,18 +79,18 @@ export const FEATURES: readonly ParityFeature[] = [
   live('Workflow outcomes (branch/restart/complete)', 'workflow-outcomes', 'REPLICATE', 'workflows', (app) => app.workflow({ template: true, outcomes: true })),
   live('Coworker commenting on workflow steps', 'workflow-comments', 'REPLICATE', 'workflows', (app) => app.workflow({ template: true, instance: true, comments: true })),
   live('Jump → Wealthbox workflow trigger', 'meeting-workflow-proposal', 'REPLICATE', 'workflows', (app) => app.workflow({ meetingProposal: true })),
-  live('Opportunity record', 'opportunity-record', 'REPLICATE', 'pipelines', (app) => app.durableFeature({ route: 'crm-home-nav-pipeline', controls: ['crm-pipeline-new', 'crm-opportunity-save'], action: 'crm-opportunity-save', recordKind: 'opportunity' })),
-  live('Opportunity pipelines', 'opportunity-pipelines', 'REPLICATE', 'pipelines', (app) => app.durableFeature({ route: 'crm-home-nav-pipeline', controls: ['crm-pipeline-settings', 'crm-pipeline-save'], action: 'crm-pipeline-save', recordKind: 'pipelineDef' })),
-  live('Opportunity stages', 'opportunity-stages', 'REPLICATE', 'pipelines', (app) => app.durableFeature({ route: 'crm-home-nav-pipeline', controls: ['crm-pipeline-settings', 'crm-pipeline-stage-save'], action: 'crm-pipeline-stage-save', recordKind: 'stageDef' })),
-  live('Launch workflow from new opportunity', 'opportunity-workflow-trigger', 'REPLICATE', 'pipelines', (app) => app.durableFeature({ route: 'crm-home-nav-pipeline', controls: ['crm-pipeline-stage-trigger-save'], action: 'crm-pipeline-stage-trigger-save', recordKind: 'stageTriggerRule' })),
+  live('Opportunity record', 'opportunity-record', 'REPLICATE', 'pipelines', (app) => app.pipeline({ opportunity: true })),
+  live('Opportunity pipelines', 'opportunity-pipelines', 'REPLICATE', 'pipelines', (app) => app.pipeline({ pipeline: true })),
+  live('Opportunity stages', 'opportunity-stages', 'REPLICATE', 'pipelines', (app) => app.pipeline({ stage: true })),
+  live('Launch workflow from new opportunity', 'opportunity-workflow-trigger', 'REPLICATE', 'pipelines', (app) => app.pipeline({ workflowTrigger: true })),
   live('Calendar / events', 'crm-calendar', 'REPLICATE', 'calendar', (app) => app.durableFeature({ route: 'crm-home-nav-calendar', controls: ['crm-calendar-new-event', 'crm-calendar-event-save'], action: 'crm-calendar-event-save', recordKind: 'event' })),
   live('Calendly integration for scheduling links', 'service-tier-scheduling', 'IMPROVE', 'firm setup', (app) => app.durableFeature({ route: 'crm-home-nav-firm-setup', controls: ['crm-service-policy-scheduling-link', 'crm-service-policy-save'], action: 'crm-service-policy-save', recordKind: 'servicePolicy' })),
   live('Email sync (Gmail/Outlook)', 'crm-email-sync', 'REPLICATE', 'email', (app) => app.durableFeature({ route: 'crm-home-nav-email', controls: ['crm-email-sync', 'crm-email-client-link'], action: 'crm-email-sync', recordKind: 'emailActivity' })),
-  live('Automated/canned reports', 'canned-reports', 'REPLICATE', 'reports', (app) => app.durableFeature({ route: 'crm-home-nav-reports', controls: ['crm-report-run', 'crm-report-no-contact-in-6-months'], action: 'crm-report-run', result: 'Computed just now', recordKind: 'reportRun' })),
-  live('Dynamic/custom reports', 'custom-reports', 'REPLICATE', 'reports', (app) => app.durableFeature({ route: 'crm-home-nav-reports', controls: ['crm-report-builder', 'crm-report-save'], action: 'crm-report-save', recordKind: 'savedReport' })),
-  live('AI for Reports (prompt-built reports)', 'ai-reports', 'IMPROVE', 'reports', (app) => app.durableFeature({ route: 'crm-home-nav-reports', controls: ['crm-report-ai-prompt', 'crm-report-ai-run'], action: 'crm-report-ai-run', recordKind: 'reportRun' })),
-  live('Client-neglect / no-recent-interaction report', 'client-neglect-report', 'IMPROVE', 'reports', (app) => app.durableFeature({ route: 'crm-home-nav-reports', controls: ['crm-report-no-contact-in-6-months', 'crm-report-run'], action: 'crm-report-run', result: 'Computed just now', recordKind: 'reportRun' })),
-  live('Attention-vs-fee report', 'attention-fee-report', 'IMPROVE', 'reports', (app) => app.durableFeature({ route: 'crm-home-nav-reports', controls: ['crm-report-attention-vs-fee', 'crm-report-run'], action: 'crm-report-run', result: 'Computed just now', recordKind: 'reportRun' })),
+  live('Automated/canned reports', 'canned-reports', 'REPLICATE', 'reports', (app) => app.report({ kind: 'no_contact_6mo' })),
+  live('Dynamic/custom reports', 'custom-reports', 'REPLICATE', 'reports', (app) => app.report({ kind: 'custom' })),
+  live('AI for Reports (prompt-built reports)', 'ai-reports', 'IMPROVE', 'reports', (app) => app.report({ kind: 'ai' })),
+  live('Client-neglect / no-recent-interaction report', 'client-neglect-report', 'IMPROVE', 'reports', (app) => app.report({ kind: 'no_contact_6mo' })),
+  live('Attention-vs-fee report', 'attention-fee-report', 'IMPROVE', 'reports', (app) => app.report({ kind: 'attention_vs_fee' })),
   live('Contact activity stream', 'contact-timeline', 'REPLICATE', 'timeline', (app) => app.durableFeature({ route: 'crm-home-nav-timeline', controls: ['crm-timeline-event', 'crm-timeline-filter'], recordKind: 'activityEvent' })),
   live('Firm-wide activity/dashboard feed', 'firm-activity-feed', 'REPLICATE', 'timeline', (app) => app.durableFeature({ route: 'crm-home-nav-today', controls: ['crm-firm-activity-feed'], recordKind: 'activityEvent' })),
   live('@-mentioning', 'activity-mentions', 'REPLICATE', 'timeline', (app) => app.durableFeature({ route: 'crm-home-nav-timeline', controls: ['crm-timeline-mention', 'crm-timeline-post'], action: 'crm-timeline-post', recordKind: 'activityEvent' })),
@@ -101,7 +103,7 @@ export const FEATURES: readonly ParityFeature[] = [
   live('Calendly', 'calendly-replacement', 'IMPROVE', 'firm setup', (app) => app.durableFeature({ route: 'crm-home-nav-firm-setup', controls: ['crm-service-policy-scheduling-link', 'crm-service-policy-save'], action: 'crm-service-policy-save', recordKind: 'servicePolicy' })),
   pending('Box / Dropbox / Google Drive', 'document-connectors', 'REPLICATE', 'documents', 'The existing document connectors have no CRM-record linking acceptance path yet.'),
   pending('AI Notetaker (launched fall 2025, native iOS recording April 2026)', 'ai-notetaker', 'REPLICATE', 'meetings', 'Needs a deterministic meeting-capture fixture that proves the saved note is linked to its client.'),
-  live('AI for Reports', 'ai-reports-suite', 'IMPROVE', 'reports', (app) => app.durableFeature({ route: 'crm-home-nav-reports', controls: ['crm-report-ai-prompt', 'crm-report-ai-run'], action: 'crm-report-ai-run', recordKind: 'reportRun' })),
+  live('AI for Reports', 'ai-reports-suite', 'IMPROVE', 'reports', (app) => app.report({ kind: 'ai' })),
   pending('Agents (early access, March 2026)', 'ai-monitoring', 'IMPROVE', 'tasks', 'No approval-visible monitoring result exists to exercise; autonomous action is intentionally excluded.'),
   pending('Playbooks (early access, March 2026)', 'ai-playbooks', 'REPLICATE', 'workflows', 'Needs a deterministic approved-playbook fixture rather than a model call.'),
   pending('AI Assistant (early access, March 2026)', 'crm-ai-assistant', 'REPLICATE', 'search', 'Needs an offline CRM-aware answer fixture with cited records before this can be proved safely.'),
