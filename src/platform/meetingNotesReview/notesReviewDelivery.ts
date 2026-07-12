@@ -241,16 +241,23 @@ export function makeNotesReviewRepository(
     try {
       return await input.workspace.readFile(path);
     } catch (error) {
-      if (
-        error instanceof Error &&
-        /not found|enoent|does not exist/i.test(error.message)
-      )
-        return '';
+      // TauriFSBackend wraps its underlying filesystem error in a
+      // FileOperationError. Its outer message is always "Failed to read file",
+      // so inspect the cause for the real missing-file signal.
+      if (isMissingFileError(error)) return '';
       throw error;
     }
   }
 
   return { load, approve };
+}
+
+function isMissingFileError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const causeMessage = error.cause instanceof Error ? error.cause.message : '';
+  return /not found|enoent|does not exist/i.test(
+    `${error.message}\n${causeMessage}`
+  );
 }
 
 function isHeading(line: string): boolean {
