@@ -35,6 +35,14 @@ const intakeMocks = vi.hoisted(() => ({
   ),
 }));
 
+const firmState = vi.hoisted(() => ({
+  seatToken: 'seat-test' as string | null,
+  accessToken: 'access-test' as string | null,
+  session: { org: { name: 'North Star Planning' } } as {
+    org: { name: string };
+  } | null,
+}));
+
 vi.mock('@/platform/fs/workspaceStore', () => ({
   useWorkspaceStore: (
     sel: (s: { rootPath: string | null; fileTree: unknown[] }) => unknown
@@ -49,16 +57,11 @@ vi.mock('@/platform/fs/activeWorkspaceService', () => ({
 vi.mock('@/platform/firm/firmStore', () => ({
   useFirmStore: (
     sel: (s: {
-      seatToken: string;
-      accessToken: string;
-      session: { org: { name: string } };
+      seatToken: string | null;
+      accessToken: string | null;
+      session: { org: { name: string } } | null;
     }) => unknown
-  ) =>
-    sel({
-      seatToken: 'seat-test',
-      accessToken: 'access-test',
-      session: { org: { name: 'North Star Planning' } },
-    }),
+  ) => sel(firmState),
 }));
 
 vi.mock('@/platform/intake/createIntake', () => ({
@@ -71,6 +74,9 @@ function reset() {
   useMatterStore.setState({ matters: [], activeMatterId: null });
   useIntakeStore.getState().resetForTests();
   intakeMocks.createAdvisorIntake.mockClear();
+  firmState.seatToken = 'seat-test';
+  firmState.accessToken = 'access-test';
+  firmState.session = { org: { name: 'North Star Planning' } };
   setMatterAuditEmitter(() => undefined);
 }
 
@@ -123,6 +129,41 @@ describe('NewClientDialog', () => {
       { matterId: matters[0]!.id, surface: 'matters' },
     ]);
 
+    window.removeEventListener(EV_MATTER_LAUNCH, onLaunch);
+  });
+
+  it('creates a local client with no firm account, seat, or firm API call', async () => {
+    firmState.seatToken = null;
+    firmState.accessToken = null;
+    firmState.session = null;
+    const launches: Array<{ matterId?: string; surface?: string }> = [];
+    const onLaunch = (event: Event) => {
+      launches.push((event as CustomEvent).detail);
+    };
+    window.addEventListener(EV_MATTER_LAUNCH, onLaunch);
+    const onOpenChange = vi.fn();
+
+    render(<NewClientDialog open={true} onOpenChange={onOpenChange} />);
+    fireEvent.change(screen.getByTestId('new-client-name'), {
+      target: { value: 'Solo Household' },
+    });
+    fireEvent.click(screen.getByTestId('new-client-next'));
+    fireEvent.click(screen.getByTestId('new-client-review'));
+    fireEvent.click(screen.getByTestId('new-client-create'));
+
+    await waitFor(() =>
+      expect(useMatterStore.getState().matters).toHaveLength(1)
+    );
+    expect(useMatterStore.getState().matters[0]?.name).toBe('Solo Household');
+    expect(intakeMocks.createAdvisorIntake).not.toHaveBeenCalled();
+    expect(useMatterStore.getState().clientMapHubTab).toBe('overview');
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(launches).toEqual([
+      {
+        matterId: useMatterStore.getState().matters[0]?.id,
+        surface: 'matters',
+      },
+    ]);
     window.removeEventListener(EV_MATTER_LAUNCH, onLaunch);
   });
 

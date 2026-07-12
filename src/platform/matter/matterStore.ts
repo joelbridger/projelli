@@ -55,9 +55,17 @@ import {
 import { isAbsolutePath, joinWorkspacePath } from '@/platform/fs/appPath';
 import {
   workspaceScopeSuffix,
+  workspaceScopeId,
   getActiveWorkspaceScopeRoot,
 } from '@/platform/state/workspaceScope';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+import { getActiveWorkspaceService } from '@/platform/fs/activeWorkspaceService';
+import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
+import {
+  readMattersWorkspaceFile,
+  writeMattersWorkspaceFile,
+  backupCorruptMattersWorkspaceFile,
+} from '@/platform/matter/matterWorkspaceFile';
 import {
   purgeDeletedMatterForWorkspace,
   usePendingDeletedMatterStore,
@@ -842,6 +850,11 @@ const multiKeyMatterStorage: PersistStorage<PersistedMatterState> = {
   },
   setItem: (_name, value): void => {
     writeScopedMatterEnvelopes(scopedMatterKeys(), value.state, value.version ?? MATTERS_VERSION);
+    // WORKSPACE-DISK WRITE-THROUGH (2026-07 durability fix): localStorage is
+    // only a fast cache — every persisted change is also committed to the open
+    // workspace's own `.lantern/matters.json` so a browser-profile wipe can
+    // never destroy the client organization. See the disk-sync section below.
+    scheduleMattersWorkspaceDiskWrite(value.state, value.version ?? MATTERS_VERSION);
   },
   removeItem: (): void => {
     const keys = scopedMatterKeys();
@@ -852,8 +865,336 @@ const multiKeyMatterStorage: PersistStorage<PersistedMatterState> = {
     } catch {
       /* ignore */
     }
+    // Deliberately does NOT delete the workspace's matters file: removeItem
+    // only clears the profile-side CACHE (persist.clearStorage). The durable
+    // on-disk source of truth is never destroyed automatically.
   },
 };
+
+// ─────────────────────────────────────────────────────────────────────
+// Workspace-disk durability (2026-07 data-loss fix)
+//
+// Matter/client organization used to live ONLY in browser-profile-scoped
+// localStorage. Reproduced on the real Windows bench: a WebView2 profile
+// reset (or a user's cache clear / reinstall / new machine) permanently
+// destroyed ALL client organization across every workspace — the document
+// files re-indexed fine but showed "No clients yet". The workspace's own
+// folder is now the SOURCE OF TRUTH (`.lantern/matters.json`, written through
+// WorkspaceService like every other app write); the scoped localStorage keys
+// above remain only a fast synchronous cache for boot.
+//
+// Lifecycle per workspace open (`reloadWorkspaceScopedStores` →
+// `hydrateMattersFromWorkspaceDisk`):
+//   - disk file present  → it wins: schema-migrate + apply to the store (the
+//     resulting persist refreshes the localStorage cache);
+//   - disk file absent   → the just-rehydrated cache (scoped keys, or the
+//     QA-93 legacy-global migration) is committed to disk ONCE — the one-time
+//     migration for pre-fix installs;
+//   - disk file corrupt  → raw bytes are backed up beside it, then the cache
+//     copy rebuilds it (organization is never silently destroyed);
+//   - disk file unreadable (I/O error) → the cache stays in charge for the
+//     session and ALL disk writes for that workspace stay blocked, so a file
+//     we couldn't read is never clobbered.
+//
+// All disk operations run through ONE serial queue so a write scheduled while
+// the hydrate read is in flight can never interleave with it. Writes for a
+// workspace are gated on that workspace's hydrate having completed
+// (`diskHydratedScopes`) — otherwise the empty just-booted store state could
+// race ahead of the hydrate and overwrite a good disk file with nothing.
+// ─────────────────────────────────────────────────────────────────────
+
+let mattersDiskQueue: Promise<void> = Promise.resolve();
+/** Scopes whose disk hydrate has completed — the write gate. */
+const diskHydratedScopes = new Set<string>();
+/** Last JSON committed to disk per scope, to skip no-op writes (persist fires
+ *  on every setState, including ones that don't change the persisted slices). */
+const lastDiskWriteJsonByScope = new Map<string, string>();
+
+function enqueueMattersDiskOp(op: () => Promise<void>): Promise<void> {
+  const next = mattersDiskQueue.then(op).catch((err: unknown) => {
+    console.warn('[matterStore] workspace matters-file operation failed:', err);
+  });
+  mattersDiskQueue = next;
+  return next;
+}
+
+/** Await all queued workspace-disk work (tests + shutdown-style callers). */
+export function flushMattersWorkspaceDiskWrites(): Promise<void> {
+  return mattersDiskQueue;
+}
+
+/** Test seam: forget all module-level disk-sync bookkeeping, as a fresh app
+ *  process would. Production code never calls this. */
+export function __resetMattersWorkspaceDiskSyncForTests(): void {
+  mattersDiskQueue = Promise.resolve();
+  diskHydratedScopes.clear();
+  lastDiskWriteJsonByScope.clear();
+}
+
+/** The open workspace's service, ONLY when the active scope, the active
+ *  WorkspaceService, and the requested root all agree on the same workspace
+ *  identity — the guard that keeps a disk op from ever touching a different
+ *  workspace than the state it carries (workspace-switch races). */
+function resolveWorkspaceDiskTarget(
+  root: string,
+): { service: WorkspaceService; scopeId: string } | null {
+  const scopeId = workspaceScopeId(root);
+  const activeRoot = getActiveWorkspaceScopeRoot();
+  if (!activeRoot || workspaceScopeId(activeRoot) !== scopeId) return null;
+  const service = getActiveWorkspaceService();
+  if (!service) return null;
+  const serviceRoot = service.getRootPath();
+  if (!serviceRoot || workspaceScopeId(serviceRoot) !== scopeId) return null;
+  return { service, scopeId };
+}
+
+/** One canonical serialization for the change-detection compare (same key
+ *  order as `partialize`, so an echo write after hydrate matches exactly). */
+function serializeDiskState(state: PersistedMatterState, version: number): string {
+  return JSON.stringify({
+    version,
+    state: {
+      matters: state.matters,
+      activeMatterId: state.activeMatterId,
+      snapshots: state.snapshots,
+      cache: state.cache,
+    },
+  });
+}
+
+/** Write-through: commit the persisted slices to the open workspace's matters
+ *  file. Fire-and-forget from the storage adapter's setItem; serialized on the
+ *  disk queue; gated on the scope's hydrate (see the section doc above).
+ *
+ *  The target (root + service) is resolved AT SCHEDULE TIME, and the queued op
+ *  writes to that captured target even if the ACTIVE workspace has moved on by
+ *  the time it runs. This matters at a fast workspace switch: the final change
+ *  of the outgoing workspace may still be in the queue when the new scope
+ *  activates, and dropping it would strand that change in the localStorage
+ *  cache — which the next disk-wins open of that workspace would discard.
+ *  Writing to the captured (still-valid) service is always workspace-correct:
+ *  the state was serialized under that same scope. */
+function scheduleMattersWorkspaceDiskWrite(state: PersistedMatterState, version: number): void {
+  const root = getActiveWorkspaceScopeRoot();
+  if (!root) return; // no workspace open → legacy global keys stay cache-only
+  const target = resolveWorkspaceDiskTarget(root);
+  if (!target) return; // no matching service (browser/test) → cache-only, pre-fix behavior
+  const json = serializeDiskState(state, version);
+  // eslint-disable-next-line lantern-async/no-silent-failure -- enqueueMattersDiskOp catches internally (logs every failure); its returned promise never rejects
+  void enqueueMattersDiskOp(async () => {
+    if (!diskHydratedScopes.has(target.scopeId)) return; // never write before hydrate
+    if (lastDiskWriteJsonByScope.get(target.scopeId) === json) return; // no-op change
+    await writeMattersWorkspaceFile(target.service, root, {
+      matters: state.matters,
+      activeMatterId: state.activeMatterId,
+      snapshots: state.snapshots,
+      cache: state.cache,
+    }, version);
+    lastDiskWriteJsonByScope.set(target.scopeId, json);
+  });
+}
+
+/** Coerce a schema-migrated (but still untrusted — it came off disk) envelope
+ *  state into a well-formed PersistedMatterState. */
+function sanitizeDiskMatterState(migrated: PersistedMatterState | undefined): PersistedMatterState {
+  const matters = Array.isArray(migrated?.matters) ? migrated.matters : [];
+  let activeMatterId =
+    typeof migrated?.activeMatterId === 'string' ? migrated.activeMatterId : null;
+  if (activeMatterId && !matters.some((m) => m.id === activeMatterId)) activeMatterId = null;
+  return {
+    matters,
+    activeMatterId,
+    snapshots:
+      migrated?.snapshots && typeof migrated.snapshots === 'object' ? migrated.snapshots : {},
+    cache: migrated?.cache && typeof migrated.cache === 'object' ? migrated.cache : {},
+  };
+}
+
+/**
+ * Load the workspace's durable matter organization from ITS OWN on-disk file,
+ * making the workspace folder the source of truth (see the section doc above
+ * for the four outcomes). Called by `reloadWorkspaceScopedStores` right after
+ * the synchronous localStorage rehydrate at every workspace open; safe to call
+ * when no matching WorkspaceService is active (browser mode, tests) — it
+ * simply leaves the cache in charge, which is the pre-fix behavior.
+ */
+export function hydrateMattersFromWorkspaceDisk(root: string): Promise<void> {
+  // Snapshot the persisted slices SYNCHRONOUSLY at the call — i.e. immediately
+  // after the caller's rehydrate, when the store holds exactly the localStorage
+  // cache. Two jobs: (1) detect any user mutation that lands between workspace
+  // open and the disk read finishing (Codex P1 — an unconditional disk-wins
+  // apply would silently drop a just-created client), and (2) hold THIS
+  // workspace's pure cache copy for the corrupt-rebuild path, which must never
+  // read the live store after an await (a workspace switch during the backup
+  // write would make the live store hold a DIFFERENT workspace's records —
+  // writing those into this workspace's file would cross the
+  // client-confidentiality boundary; Codex P1).
+  const pre = useMatterStore.getState();
+  const preSnapshot: PersistedMatterState = {
+    matters: pre.matters,
+    activeMatterId: pre.activeMatterId,
+    snapshots: pre.snapshots,
+    cache: pre.cache,
+  };
+  return enqueueMattersDiskOp(async () => {
+    const target = resolveWorkspaceDiskTarget(root);
+    if (!target) return;
+    // CLOSE the write gate for the duration of this hydrate. The scope may
+    // still be marked hydrated from an EARLIER visit this session; without
+    // this, a read failure below would return early with the stale gate open
+    // and later writes could overwrite the very file we couldn't read (Codex
+    // re-review P1). Writes queued BEFORE this op already ran (queue order),
+    // so nothing legitimate is dropped; the gate re-opens on every branch
+    // that establishes a trustworthy disk state.
+    diskHydratedScopes.delete(target.scopeId);
+
+    const result = await readMattersWorkspaceFile(target.service, root);
+    // The workspace may have switched while the read was in flight — never
+    // apply one workspace's records under another's scope.
+    if (!resolveWorkspaceDiskTarget(root)) return;
+
+    if (result.status === 'error') {
+      console.error(
+        '[matterStore] workspace matters file exists but could not be read; ' +
+          'keeping the cached copy for this session and blocking overwrites of the file:',
+        result.error,
+      );
+      return; // NOT marked hydrated → the write gate keeps the file safe
+    }
+
+    if (result.status === 'ok') {
+      let applied = sanitizeDiskMatterState(migrateMatters(result.state, result.version));
+      // Did the user mutate matter state since workspace open (created,
+      // edited, or deleted a client in the instant before the disk read
+      // finished)? Strict disk-wins would silently undo that. Three-way merge
+      // with the pre-open cache snapshot as the common base (Codex re-review
+      // P1 — creations alone weren't enough, edits/deletions of existing
+      // records count too):
+      //   - id in the live store        → STORE version (edits + creations
+      //     win; the cache base ≈ disk in every state where an existing
+      //     record could have been edited);
+      //   - id on disk, not in store:
+      //       · the cache KNEW it   → the user deleted it just now → honor
+      //         the deletion;
+      //       · the cache didn't    → a disk-only record the store never saw
+      //         (fresh-profile restore) → restore it.
+      // Deliberately not a field-level merge — the window is one small file
+      // read at workspace open.
+      const now = useMatterStore.getState();
+      const mutatedDuringRead =
+        now.matters !== preSnapshot.matters ||
+        now.activeMatterId !== preSnapshot.activeMatterId ||
+        now.snapshots !== preSnapshot.snapshots ||
+        now.cache !== preSnapshot.cache;
+      if (mutatedDuringRead) {
+        const storeIds = new Set(now.matters.map((m) => m.id));
+        const baseIds = new Set(preSnapshot.matters.map((m) => m.id));
+        const diskOnlyRestores = applied.matters.filter(
+          (m) => !storeIds.has(m.id) && !baseIds.has(m.id),
+        );
+        const matters = [...now.matters, ...diskOnlyRestores];
+        const keptIds = new Set(matters.map((m) => m.id));
+        const activeMatterId =
+          now.activeMatterId && keptIds.has(now.activeMatterId)
+            ? now.activeMatterId
+            : applied.activeMatterId && keptIds.has(applied.activeMatterId)
+              ? applied.activeMatterId
+              : null;
+        applied = {
+          matters,
+          activeMatterId,
+          snapshots: {
+            ...pickByIds(applied.snapshots, keptIds),
+            ...pickByIds(now.snapshots, keptIds),
+          },
+          cache: {
+            ...pickByIds(applied.cache, keptIds),
+            ...pickByIds(now.cache, keptIds),
+          },
+        };
+      }
+      const needsDiskCommit = mutatedDuringRead || result.recoveredFromBackup === true;
+      // Open the write gate BEFORE setState. When nothing changed and the main
+      // file was read directly, also prime the change detector so the persist
+      // echo refreshes the localStorage cache without an identical disk
+      // re-write. When the union added records — or the state was recovered
+      // from the .bak sibling and the MAIN file is missing — leave the
+      // detector unprimed so the echo COMMITS the applied state to disk.
+      diskHydratedScopes.add(target.scopeId);
+      if (!needsDiskCommit) {
+        lastDiskWriteJsonByScope.set(target.scopeId, serializeDiskState(applied, MATTERS_VERSION));
+      }
+      useMatterStore.setState({
+        matters: applied.matters,
+        activeMatterId: applied.activeMatterId,
+        snapshots: applied.snapshots,
+        cache: applied.cache,
+      });
+      return;
+    }
+
+    if (result.status === 'corrupt') {
+      console.error(
+        '[matterStore] workspace matters file was unreadable; backing it up and rebuilding from the cached copy',
+      );
+      const backedUp = await backupCorruptMattersWorkspaceFile(target.service, root, result.raw);
+      if (!backedUp) {
+        // The corrupt bytes are the ONLY copy of whatever that file held.
+        // Without a successful backup, rebuilding over it would destroy it
+        // (Codex re-review P2). Keep the cache in charge for this session and
+        // leave the write gate closed so nothing overwrites the file.
+        console.error(
+          '[matterStore] corrupt matters file could NOT be backed up; leaving it untouched and blocking overwrites this session',
+        );
+        return;
+      }
+      // The backup was an await — revalidate before touching anything else
+      // (a switch during it must not write another workspace's records here).
+      if (!resolveWorkspaceDiskTarget(root)) return;
+      // Rebuild from the pre-read cache snapshot (NOT the live store — see the
+      // snapshot comment above), even when it's empty: the corrupt bytes are
+      // safely backed up and the main file must become readable again.
+      await writeMattersWorkspaceFile(target.service, root, {
+        matters: preSnapshot.matters,
+        activeMatterId: preSnapshot.activeMatterId,
+        snapshots: preSnapshot.snapshots,
+        cache: preSnapshot.cache,
+      }, MATTERS_VERSION);
+      if (resolveWorkspaceDiskTarget(root)) {
+        diskHydratedScopes.add(target.scopeId);
+        lastDiskWriteJsonByScope.set(
+          target.scopeId,
+          serializeDiskState(preSnapshot, MATTERS_VERSION),
+        );
+      }
+      return;
+    }
+
+    // absent: the just-rehydrated cache is the best copy there is. Commit it
+    // to the workspace folder once — the one-time migration for installs from
+    // before this fix. (No awaits since the last revalidation, so the live
+    // store is still this workspace's state.)
+    diskHydratedScopes.add(target.scopeId);
+    const s = useMatterStore.getState();
+    const snapshot: PersistedMatterState = {
+      matters: s.matters,
+      activeMatterId: s.activeMatterId,
+      snapshots: s.snapshots,
+      cache: s.cache,
+    };
+    if (snapshot.matters.length === 0) {
+      // Nothing to migrate — don't dirty a workspace that has no organization.
+      return;
+    }
+    await writeMattersWorkspaceFile(target.service, root, {
+      matters: snapshot.matters,
+      activeMatterId: snapshot.activeMatterId,
+      snapshots: snapshot.snapshots,
+      cache: snapshot.cache,
+    }, MATTERS_VERSION);
+    lastDiskWriteJsonByScope.set(target.scopeId, serializeDiskState(snapshot, MATTERS_VERSION));
+  });
+}
 
 /**
  * Schema migration for the persisted matters slice (v1 -> v10). Extracted from

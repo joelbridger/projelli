@@ -225,7 +225,11 @@
       "partial-error": "Some facts still need review.",
       "amount-required": "Enter a final amount before approving this fact.",
       "amount-invalid": "The final amount must be zero or more.",
-      "confidence": { "high": "High", "medium": "Medium", "low": "Low" }
+      "confidence": {
+        "high": "High",
+        "medium": "Medium",
+        "low": "Low"
+      }
     },
     "quarantine": {
       "title": "Email needs your careful review",
@@ -2068,7 +2072,8 @@
       "review-link-note": "This link works for 30 days. You can extend or turn it off anytime.",
       "open-email-draft": "Open email draft",
       "cancel": "Cancel",
-      "create": "Create {{entity}}"
+      "create": "Create {{entity}}",
+      "solo-note": "This {{entity}} will be created on this device. You can add their details anytime."
     },
     "group": {
       "new-title": "New group",

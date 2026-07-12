@@ -2521,7 +2521,8 @@
       "household-template": "Vorlage für neuen Haushalt",
       "review-greeting": "Hallo {{name}}, richten wir Ihren Haushalt ein.",
       "review-link-note": "Dieser Link funktioniert 30 Tage lang. Sie können ihn jederzeit verlängern oder deaktivieren.",
-      "open-email-draft": "E-Mail-Entwurf öffnen"
+      "open-email-draft": "E-Mail-Entwurf öffnen",
+      "solo-note": "Dieser {{entity}} wird auf diesem Gerät erstellt. Details können Sie jederzeit ergänzen."
     },
     "group": {
       "new-title": "Neue Gruppe",
@@ -4136,7 +4137,11 @@
       "partial-error": "Einige Fakten müssen noch geprüft werden.",
       "amount-required": "Geben Sie vor der Freigabe einen Endbetrag ein.",
       "amount-invalid": "Der Endbetrag muss null oder größer sein.",
-      "confidence": { "high": "Hoch", "medium": "Mittel", "low": "Niedrig" }
+      "confidence": {
+        "high": "Hoch",
+        "medium": "Mittel",
+        "low": "Niedrig"
+      }
     },
     "quarantine": {
       "title": "E-Mail braucht Ihre sorgfältige Prüfung",
