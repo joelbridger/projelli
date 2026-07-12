@@ -21,7 +21,7 @@ PORT="${1:?usage: launch-app.sh <bridge-port> <workspace-dir>}"
 WORKSPACE="${2:?usage: launch-app.sh <bridge-port> <workspace-dir>}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 VITE_PORT="${LANTERN_VITE_PORT:-5174}"
-BIN="$ROOT/src-tauri/target/debug/lantern"
+BIN="${LANTERN_APP_BINARY:-$ROOT/src-tauri/target/debug/lantern}"
 # A git worktree has its own source tree but can safely use the already-built
 # debug binary from the primary checkout when it has not changed Rust code.
 # This keeps live UI verification from starting an unnecessary cargo build.
@@ -72,6 +72,11 @@ export XDG_CONFIG_HOME="$WORKSPACE/.config"
 export XDG_DATA_HOME="$WORKSPACE/.data"
 export LANTERN_DEV_BRIDGE_PORT="$PORT"
 export LANTERN_WORKSPACE_ROOT="$WORKSPACE"
+# Automated desktop runs should exercise the real startup and persistence
+# path, without a decorative welcome/tour layer swallowing their first click.
+# The debug Tauri window reads this once before the renderer loads. Set it to
+# 0 only when a test deliberately needs to cover first-run onboarding.
+export LANTERN_TEST_MODE="${LANTERN_TEST_MODE:-1}"
 # `launch-app.sh` is the headless, debug-only real-app harness.  Its virtual
 # display has no desktop keychain service, so CRM SQLCipher's production
 # keychain lookup can block indefinitely before the first record is opened.

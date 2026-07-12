@@ -63,11 +63,7 @@ pub async fn crm_core_commit_propagation(state: State<'_, CrmState>, payload: Pr
     }).await.map_err(|error| error.to_string())?.map_err(|error| error.to_string())
 }
 
-/// Save one durable CRM collection document.  The renderer supplies a typed
-/// record payload, but SQLCipher remains the only persistence boundary.
-#[tauri::command]
-pub async fn crm_live_upsert(state: State<'_, CrmState>, mut record: Value) -> Result<Value, String> {
-    let workspace = workspace(&state).await?;
+fn normalize_live_record(mut record: Value) -> Result<Value, String> {
     let object = record.as_object_mut().ok_or("CRM live record must be an object")?;
     let id = object.get("id").and_then(Value::as_str).filter(|value| !value.trim().is_empty()).ok_or("CRM live record requires id")?;
     let kind = object.get("kind").and_then(Value::as_str).filter(|value| !value.trim().is_empty()).ok_or("CRM live record requires kind")?;
@@ -81,10 +77,37 @@ pub async fn crm_live_upsert(state: State<'_, CrmState>, mut record: Value) -> R
     object.entry("matterId".to_string()).or_insert_with(|| Value::String("firm".to_string()));
     object.entry("createdAt".to_string()).or_insert_with(|| Value::String(now.clone()));
     object.insert("updatedAt".to_string(), Value::String(now));
+    Ok(record)
+}
+
+/// Save one durable CRM collection document.  The renderer supplies a typed
+/// record payload, but SQLCipher remains the only persistence boundary.
+#[tauri::command]
+pub async fn crm_live_upsert(state: State<'_, CrmState>, record: Value) -> Result<Value, String> {
+    let workspace = workspace(&state).await?;
+    let record = normalize_live_record(record)?;
     let saved = record.clone();
     tokio::task::spawn_blocking(move || CrmCoreStore::open(&workspace)?.upsert_live_record(&saved))
         .await.map_err(|error| error.to_string())?.map_err(|error| error.to_string())?;
     Ok(record)
+}
+
+/// Seed several durable collection documents through one real SQLCipher-store
+/// opening. This keeps shared test fixtures fast without bypassing the same
+/// validation and persistence path used by individual app writes.
+#[tauri::command]
+pub async fn crm_live_upsert_many(state: State<'_, CrmState>, records: Vec<Value>) -> Result<Vec<Value>, String> {
+    let workspace = workspace(&state).await?;
+    let records = records.into_iter().map(normalize_live_record).collect::<Result<Vec<_>, _>>()?;
+    let saved = records.clone();
+    tokio::task::spawn_blocking(move || {
+        let store = CrmCoreStore::open(&workspace)?;
+        for record in saved {
+            store.upsert_live_record(&record)?;
+        }
+        Ok::<(), anyhow::Error>(())
+    }).await.map_err(|error| error.to_string())?.map_err(|error| error.to_string())?;
+    Ok(records)
 }
 
 /// Return the encrypted collection documents required to render the CRM

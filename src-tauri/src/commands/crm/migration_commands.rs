@@ -233,10 +233,12 @@ pub async fn crm_migration_import(
                                 .or_else(|| value.as_str().map(str::to_string))
                         })
                     {
-                        if let Some(household_id) = contact_households.get(&household_source_id) {
+                        if let Some(household_id) =
+                            contact_households.get(&household_source_id).cloned()
+                        {
                             contact_households
                                 .insert(record.source_id.clone(), household_id.clone());
-                            live["householdId"] = Value::String(household_id.clone());
+                            live["householdId"] = Value::String(household_id);
                         }
                     }
                 }
@@ -368,10 +370,11 @@ pub async fn crm_migration_import(
         let source_type = live["sourcePayload"]
             .get("field_type")
             .and_then(Value::as_str)
-            .unwrap_or("text_field");
+            .unwrap_or("text_field")
+            .to_string();
         live["label"] = Value::String(label.clone());
         live["key"] = Value::String(format!("wealthbox_{}", record.source_id));
-        live["fieldType"] = Value::String(custom_field_type(source_type).into());
+        live["fieldType"] = Value::String(custom_field_type(&source_type).into());
         live["appliesTo"] = json!(["household", "person"]);
         live["archived"] = Value::Bool(false);
         store
@@ -462,7 +465,8 @@ pub async fn crm_migration_export(
         return Err("Unknown migration export type.".into());
     }
     let workspace = workspace(&state).await?;
-    let store = tokio::task::spawn_blocking(move || CrmCoreStore::open(&workspace))
+    let store_workspace = workspace.clone();
+    let store = tokio::task::spawn_blocking(move || CrmCoreStore::open(&store_workspace))
         .await
         .map_err(|error| error.to_string())?
         .map_err(|error| error.to_string())?;

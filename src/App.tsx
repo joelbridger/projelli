@@ -174,9 +174,16 @@ const loadConnectorSourcePanels = () =>
 
 // Module-level constants so the onboarding/tour effects have stable deps
 // and never need to be listed in exhaustive-deps disable comments.
-const IS_TEST_MODE =
+// `?testMode=true` predates the desktop harness and deliberately installs an
+// in-memory workspace for browser component/E2E tests. `LANTERN_TEST_MODE=1`
+// is different: it only removes first-run decoration so desktop runs still
+// use their selected folder and the real encrypted store.
+const IS_LEGACY_TEST_MODE =
   typeof window !== 'undefined' &&
   window.location.search.includes('testMode=true');
+const IS_AUTOMATION_TEST_MODE =
+  typeof window !== 'undefined' && window.__LANTERN_TEST_MODE__ === true;
+const IS_TEST_MODE = IS_LEGACY_TEST_MODE || IS_AUTOMATION_TEST_MODE;
 // `__LANTERN_DEMO__` is substituted to `true` at build time by
 // vite.config.web-demo.ts. We must read it here (not just the runtime
 // `window.__lanternDemo` flag) because this const is evaluated at module
@@ -836,7 +843,7 @@ function AppShell() {
   }, [rootPath, setFileTree]);
 
   useTestModeWorkspace({
-    isTestMode: IS_TEST_MODE,
+    isTestMode: IS_LEGACY_TEST_MODE,
     rootPath,
     setRootPath,
     openFile,
