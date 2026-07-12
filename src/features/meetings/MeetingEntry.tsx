@@ -5,11 +5,30 @@
  */
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronLeft, Trash2, Check, Pencil, Copy, Download, FileText, MoreVertical, Send } from 'lucide-react';
+import {
+  ChevronLeft,
+  Trash2,
+  Check,
+  Pencil,
+  Copy,
+  Download,
+  FileText,
+  MoreVertical,
+  Send,
+} from 'lucide-react';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { arrayBufferToDataUrl } from '@/platform/utils/file-utils';
-import { AudioPlayer, type AudioPlayerHandle } from '@/features/dictation/audio/AudioPlayer';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/ui/dialog';
+import {
+  AudioPlayer,
+  type AudioPlayerHandle,
+} from '@/features/dictation/audio/AudioPlayer';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/ui/dialog';
 import { Button as DialogButton } from '@/ui/button';
 import {
   DropdownMenu,
@@ -23,21 +42,40 @@ import { TranscriptViewer } from './TranscriptViewer';
 import { SpeakerNamesPanel } from './SpeakerNamesPanel';
 import { MeetingSendPanel } from './MeetingSendPanel';
 import { AuditService } from '@/platform/audit/AuditService';
-import { markMeetingReviewed, updateMeetingJson, retryMeetingNotes, retryMeetingTranscript, ensureMeetingNoticeVerified, resolveMatterFolder } from './meetingStore';
+import {
+  markMeetingReviewed,
+  updateMeetingJson,
+  retryMeetingNotes,
+  retryMeetingTranscript,
+  ensureMeetingNoticeVerified,
+  resolveMatterFolder,
+} from './meetingStore';
 import type { MeetingMeta } from './meetingStore';
 import { NoticeTrail } from './NoticeTrail';
 import { makeConsentLedger } from './consentLedger';
 import type { NoticeEntry } from './noticeLedger';
 import { useNoticeSettings } from './noticeSettings';
-import { meetingDisplayTitle, meetingTypeLabel, formatMeetingDate, formatMeetingDuration } from './meetingDisplay';
+import {
+  meetingDisplayTitle,
+  meetingTypeLabel,
+  formatMeetingDate,
+  formatMeetingDuration,
+} from './meetingDisplay';
 import { mmss } from './meetingSources';
 import { makeMeetingTypesStore, BUILT_IN_TYPES } from './meetingTypes';
 import type { TranscriptFile } from '@/platform/types/meeting';
 import type { TFunction } from 'i18next';
-import { markdownToDocxBytes, applyLetterheadIfConfigured, extractDocxText } from '@/platform/utils/docx-io';
+import {
+  markdownToDocxBytes,
+  applyLetterheadIfConfigured,
+  extractDocxText,
+} from '@/platform/utils/docx-io';
 import { docxConvertToPdf } from '@/platform/utils/docx-commands';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { readTauriFile } from '@/platform/fs/tauriFsPlugin';
+import { MeetingNotesReview } from '@/platform/meetingNotesReview/MeetingNotesReview';
+import { meetingNoteOutboundGate } from './outboundNoteGate';
+import { deriveNoticeState } from './noticeLedger';
 import { useFirm } from '@/platform/hooks/useFirm';
 import { buildResolvedProviderForGlance } from '@/platform/matter/matterAtAGlance';
 import { MeetingTemplatePanel } from './MeetingTemplatePanel';
@@ -66,33 +104,50 @@ export interface MeetingEntryProps {
 
 const audit = new AuditService('meetings');
 
-function consentLabel(meta: MeetingMeta | null, t: (k: string) => string): string | null {
+function consentLabel(
+  meta: MeetingMeta | null,
+  t: (k: string) => string
+): string | null {
   if (!meta?.consent) return null;
-  const modeLabel = meta.consent.mode === 'one-party' ? t('meetings.entry.consent-one-party') : t('meetings.entry.consent-two-party');
+  const modeLabel =
+    meta.consent.mode === 'one-party'
+      ? t('meetings.entry.consent-one-party')
+      : t('meetings.entry.consent-two-party');
   return `${t('meetings.entry.consent-noted')}: ${modeLabel}`;
 }
 
 /** "Jun 30, 2026 · 41 min" — the meta the advisor scans for, kept apart from
  *  the human title (the raw folder name never renders; see meetingDisplay). */
-function dateDurationLine(meta: MeetingMeta | null, t: TFunction): string | null {
+function dateDurationLine(
+  meta: MeetingMeta | null,
+  t: TFunction
+): string | null {
   if (!meta) return null;
-  const parts = [formatMeetingDate(meta.startedAt), formatMeetingDuration(meta.durationMs, t)].filter(Boolean);
+  const parts = [
+    formatMeetingDate(meta.startedAt),
+    formatMeetingDuration(meta.durationMs, t),
+  ].filter(Boolean);
   return parts.length ? parts.join(' · ') : null;
 }
 
 type MeetingEntryTab = 'recording' | 'transcript' | 'summary';
 
 function sanitizeFileStem(value: string): string {
-  return value
-    .trim()
-    .replace(/[\\/:*?"<>|]+/g, '-')
-    .replace(/\s+/g, ' ')
-    .slice(0, 80)
-    .replace(/[.\s-]+$/g, '') || 'meeting';
+  return (
+    value
+      .trim()
+      .replace(/[\\/:*?"<>|]+/g, '-')
+      .replace(/\s+/g, ' ')
+      .slice(0, 80)
+      .replace(/[.\s-]+$/g, '') || 'meeting'
+  );
 }
 
 function toExactArrayBuffer(bytes: Uint8Array): ArrayBuffer {
-  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+  return bytes.buffer.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength
+  );
 }
 
 function transcriptToText(transcript: TranscriptFile | null): string {
@@ -106,7 +161,18 @@ function transcriptLooksSilent(transcript: TranscriptFile | null): boolean {
   return !!transcript && transcript.segments.every((seg) => !seg.text.trim());
 }
 
-export function MeetingEntry({ matterId, meetingDir, folderName, clientName, workspaceRoot, onBack, initialSeekMs, workspaceService, onChanged, showBackButton = true }: MeetingEntryProps) {
+export function MeetingEntry({
+  matterId,
+  meetingDir,
+  folderName,
+  clientName,
+  workspaceRoot,
+  onBack,
+  initialSeekMs,
+  workspaceService,
+  onChanged,
+  showBackButton = true,
+}: MeetingEntryProps) {
   const { t } = useTranslation();
   const firm = useFirm();
   const [meta, setMeta] = useState<MeetingMeta | null>(null);
@@ -132,9 +198,18 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
   const didInitialSeek = useRef(false);
   const meetingLoadToken = useRef(0);
   const { policy: noticePolicy } = useNoticeSettings();
-  const matter = useMatterStore((state) => state.matters.find((candidate) => candidate.id === matterId) ?? null);
+  const matter = useMatterStore(
+    (state) =>
+      state.matters.find((candidate) => candidate.id === matterId) ?? null
+  );
   const hasTranscript = transcript !== null;
   const summaryReady = hasNotes && summaryText.trim().length > 0;
+  const crmBlockedReason = meetingNoteOutboundGate({
+    reviewedAt: meta?.reviewedAt,
+    notesError: meta?.notesError,
+    noticeStatus: deriveNoticeState(notices).status,
+    policy: noticePolicy,
+  });
 
   useEffect(() => {
     const token = ++meetingLoadToken.current;
@@ -177,7 +252,9 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
         if (isCurrentLoad()) setHasNotes(notesExists);
         if (notesExists) {
           try {
-            const notesBytes = await ws.readFileBinary(`${meetingDir}/notes.docx`);
+            const notesBytes = await ws.readFileBinary(
+              `${meetingDir}/notes.docx`
+            );
             const extracted = await extractDocxText(notesBytes);
             if (isCurrentLoad()) setSummaryText(extracted.plainText.trim());
           } catch {
@@ -205,7 +282,9 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
         }
       }
     })();
-    return () => { meetingLoadToken.current += 1; };
+    return () => {
+      meetingLoadToken.current += 1;
+    };
   }, [meetingDir, workspaceService, initialSeekMs]);
 
   // Recording Notice Kit — the per-client ledger for this meeting's notices.
@@ -228,18 +307,24 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
   // and the trail is cleared on every meeting switch.
   const noticeLoadToken = useRef(0);
 
-  const loadNotices = useCallback(async (token: number) => {
-    const ws = workspaceService;
-    if (!ws) return;
-    let loaded: NoticeEntry[];
-    try {
-      loaded = await makeConsentLedger(ws, () => matterFolder).noticesForMeeting(meetingDir);
-    } catch {
-      if (token === noticeLoadToken.current) setNotices([]);
-      return; // failed read — leave the cleared state; never show a stale trail.
-    }
-    if (token === noticeLoadToken.current) setNotices(loaded);
-  }, [workspaceService, matterFolder, meetingDir]);
+  const loadNotices = useCallback(
+    async (token: number) => {
+      const ws = workspaceService;
+      if (!ws) return;
+      let loaded: NoticeEntry[];
+      try {
+        loaded = await makeConsentLedger(
+          ws,
+          () => matterFolder
+        ).noticesForMeeting(meetingDir);
+      } catch {
+        if (token === noticeLoadToken.current) setNotices([]);
+        return; // failed read — leave the cleared state; never show a stale trail.
+      }
+      if (token === noticeLoadToken.current) setNotices(loaded);
+    },
+    [workspaceService, matterFolder, meetingDir]
+  );
 
   // Verify the spoken notice (idempotent; no-ops until the transcript exists)
   // and load THIS meeting's notice trail. Clears the trail immediately on a
@@ -257,17 +342,20 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     });
   }, [meetingDir, matterId, transcript, loadNotices, onChanged]);
 
-  const handleRecordNotice = useCallback(async (entry: NoticeEntry) => {
-    const ws = workspaceService;
-    if (!ws) return;
-    try {
-      await makeConsentLedger(ws, () => matterFolder).recordNotice(entry);
-      await loadNotices(noticeLoadToken.current);
-      onChanged?.();
-    } catch {
-      setNotices([]);
-    }
-  }, [workspaceService, matterFolder, loadNotices, onChanged]);
+  const handleRecordNotice = useCallback(
+    async (entry: NoticeEntry) => {
+      const ws = workspaceService;
+      if (!ws) return;
+      try {
+        await makeConsentLedger(ws, () => matterFolder).recordNotice(entry);
+        await loadNotices(noticeLoadToken.current);
+        onChanged?.();
+      } catch {
+        setNotices([]);
+      }
+    },
+    [workspaceService, matterFolder, loadNotices, onChanged]
+  );
 
   const handleSeek = useCallback((ms: number) => {
     setSeekMs(ms);
@@ -280,7 +368,8 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
   // true instead, guarded so it only runs the one time (not on every
   // subsequent hasAudio-true render).
   useEffect(() => {
-    if (initialSeekMs === undefined || didInitialSeek.current || !hasAudio) return;
+    if (initialSeekMs === undefined || didInitialSeek.current || !hasAudio)
+      return;
     didInitialSeek.current = true;
     audioRef.current?.seek(initialSeekMs);
   }, [initialSeekMs, hasAudio]);
@@ -292,11 +381,17 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     setAudioSrc(null);
     setHasAudio(false);
     onChanged?.();
-    void audit.logDurable('meeting_audio_deleted', 'Meeting audio deleted (transcript kept)', {
-      metadata: { matterId, meetingDir },
-    }).catch((err: unknown) => {
-      setExportNotice(err instanceof Error ? err.message : String(err));
-    });
+    void audit
+      .logDurable(
+        'meeting_audio_deleted',
+        'Meeting audio deleted (transcript kept)',
+        {
+          metadata: { matterId, meetingDir },
+        }
+      )
+      .catch((err: unknown) => {
+        setExportNotice(err instanceof Error ? err.message : String(err));
+      });
   }, [matterId, meetingDir, workspaceService, onChanged]);
 
   const handleMarkReviewed = useCallback(async () => {
@@ -337,7 +432,9 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
       setHasNotes(notesExists);
       if (notesExists) {
         try {
-          const notesBytes = await ws.readFileBinary(`${meetingDir}/notes.docx`);
+          const notesBytes = await ws.readFileBinary(
+            `${meetingDir}/notes.docx`
+          );
           const extracted = await extractDocxText(notesBytes);
           if (isCurrentLoad()) setSummaryText(extracted.plainText.trim());
         } catch {
@@ -392,20 +489,34 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
 
   const handleSaveType = useCallback(async () => {
     const entered = typeInput.trim();
-    if (!entered || !meta || !workspaceService) { setEditingType(false); return; }
+    if (!entered || !meta || !workspaceService) {
+      setEditingType(false);
+      return;
+    }
     // The input shows the human label, never the internal id — map a label
     // back to its built-in type id; anything else is saved as a custom type.
     const typeId =
-      BUILT_IN_TYPES.find((id) => meetingTypeLabel(id, t).toLowerCase() === entered.toLowerCase()) ?? entered;
-    const updated = await updateMeetingJson(meetingDir, (current) => ({ ...current, typeId }));
-    await makeMeetingTypesStore(workspaceService).learnCorrection(meta.calendarTitle ?? folderName, typeId);
+      BUILT_IN_TYPES.find(
+        (id) => meetingTypeLabel(id, t).toLowerCase() === entered.toLowerCase()
+      ) ?? entered;
+    const updated = await updateMeetingJson(meetingDir, (current) => ({
+      ...current,
+      typeId,
+    }));
+    await makeMeetingTypesStore(workspaceService).learnCorrection(
+      meta.calendarTitle ?? folderName,
+      typeId
+    );
     if (updated) setMeta(updated);
     setEditingType(false);
     onChanged?.();
   }, [typeInput, meta, meetingDir, folderName, workspaceService, t, onChanged]);
 
   const handleSaveTitle = useCallback(async () => {
-    if (!meta || !workspaceService) { setRenaming(false); return; }
+    if (!meta || !workspaceService) {
+      setRenaming(false);
+      return;
+    }
     const entered = titleInput.trim();
     const updated = await updateMeetingJson(meetingDir, (current) => {
       if (entered) return { ...current, customTitle: entered };
@@ -428,17 +539,20 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     return `# ${title}\n\n${summaryText.trim()}`;
   }, [meta, summaryReady, summaryText, t]);
 
-  const uniqueExportPath = useCallback(async (stem: string, ext: 'docx' | 'pdf'): Promise<string> => {
-    const ws = workspaceService;
-    if (!ws) return `${documentsDir}/${stem}.${ext}`;
-    let candidate = `${documentsDir}/${stem}.${ext}`;
-    let suffix = 2;
-    while (await ws.exists(candidate)) {
-      candidate = `${documentsDir}/${stem} ${String(suffix)}.${ext}`;
-      suffix += 1;
-    }
-    return candidate;
-  }, [workspaceService, documentsDir]);
+  const uniqueExportPath = useCallback(
+    async (stem: string, ext: 'docx' | 'pdf'): Promise<string> => {
+      const ws = workspaceService;
+      if (!ws) return `${documentsDir}/${stem}.${ext}`;
+      let candidate = `${documentsDir}/${stem}.${ext}`;
+      let suffix = 2;
+      while (await ws.exists(candidate)) {
+        candidate = `${documentsDir}/${stem} ${String(suffix)}.${ext}`;
+        suffix += 1;
+      }
+      return candidate;
+    },
+    [workspaceService, documentsDir]
+  );
 
   const exportSummaryDocx = useCallback(async (): Promise<string | null> => {
     const ws = workspaceService;
@@ -450,7 +564,14 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     const finalBytes = await applyLetterheadIfConfigured(bytes);
     await ws.writeFileBinary(path, toExactArrayBuffer(finalBytes));
     return path;
-  }, [workspaceService, summaryReady, meta, t, uniqueExportPath, summaryMarkdown]);
+  }, [
+    workspaceService,
+    summaryReady,
+    meta,
+    t,
+    uniqueExportPath,
+    summaryMarkdown,
+  ]);
 
   const buildSummaryDocxBytes = useCallback(async (): Promise<Uint8Array> => {
     if (!summaryReady) throw new Error(t('meetings.entry.summary-not-ready'));
@@ -459,18 +580,21 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     return applyLetterheadIfConfigured(bytes);
   }, [summaryReady, meta, t, summaryMarkdown]);
 
-  const runExport = useCallback(async (kind: string, work: () => Promise<string | null>) => {
-    setExporting(kind);
-    setExportNotice(null);
-    try {
-      const path = await work();
-      if (path) setExportNotice(t('meetings.entry.export-saved', { path }));
-    } catch (err) {
-      setExportNotice(err instanceof Error ? err.message : String(err));
-    } finally {
-      setExporting(null);
-    }
-  }, [t]);
+  const runExport = useCallback(
+    async (kind: string, work: () => Promise<string | null>) => {
+      setExporting(kind);
+      setExportNotice(null);
+      try {
+        const path = await work();
+        if (path) setExportNotice(t('meetings.entry.export-saved', { path }));
+      } catch (err) {
+        setExportNotice(err instanceof Error ? err.message : String(err));
+      } finally {
+        setExporting(null);
+      }
+    },
+    [t]
+  );
 
   const handleExportSummaryDocx = useCallback(() => {
     void runExport('summary-docx', exportSummaryDocx).catch((err: unknown) => {
@@ -482,7 +606,9 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     void runExport('summary-pdf', async () => {
       const ws = workspaceService;
       if (!ws) return null;
-      const tempStem = sanitizeFileStem(`${meetingDisplayTitle(meta, t)} summary`);
+      const tempStem = sanitizeFileStem(
+        `${meetingDisplayTitle(meta, t)} summary`
+      );
       const tempDocxPath = `${meetingDir}/.summary-pdf-${String(Date.now())}-${Math.random().toString(36).slice(2)}.docx`;
       try {
         const finalBytes = await buildSummaryDocxBytes();
@@ -498,7 +624,15 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     }).catch((err: unknown) => {
       setExportNotice(err instanceof Error ? err.message : String(err));
     });
-  }, [workspaceService, runExport, meta, t, meetingDir, buildSummaryDocxBytes, uniqueExportPath]);
+  }, [
+    workspaceService,
+    runExport,
+    meta,
+    t,
+    meetingDir,
+    buildSummaryDocxBytes,
+    uniqueExportPath,
+  ]);
 
   const handleExportTranscript = useCallback(() => {
     void runExport('transcript', async () => {
@@ -520,113 +654,314 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     a.click();
   }, [audioSrc, meta, t]);
 
-  const handleSendChanged = useCallback((updated: MeetingMeta) => {
-    setMeta(updated);
-    onChanged?.();
-  }, [onChanged]);
+  const handleSendChanged = useCallback(
+    (updated: MeetingMeta) => {
+      setMeta(updated);
+      onChanged?.();
+    },
+    [onChanged]
+  );
 
   return (
     <div
       data-testid="meeting-entry"
-      style={{ display: 'flex', flexDirection: 'column', height: '100%', flex: 1, minHeight: 0, overflow: 'hidden' }}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        flex: 1,
+        minHeight: 0,
+        overflow: 'hidden',
+      }}
     >
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--kp-divider)' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, minWidth: 0 }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: 8,
+          padding: 'var(--kp-surface-header-pad)',
+          borderBottom: '1px solid var(--kp-divider)',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 8,
+            minWidth: 0,
+          }}
+        >
           {showBackButton && (
-            <button type="button" data-testid="meeting-entry-back" onClick={onBack} style={{ border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', marginTop: 2 }}>
+            <button
+              type="button"
+              data-testid="meeting-entry-back"
+              onClick={onBack}
+              style={{
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+                display: 'flex',
+                marginTop: 2,
+              }}
+            >
               <ChevronLeft style={{ width: 18, height: 18 }} />
             </button>
           )}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 4,
+              minWidth: 0,
+            }}
+          >
             {/* First line: meeting title only (item 8) — the client + Meetings
                 breadcrumb is dropped; the rail already says where you are. */}
             {renaming ? (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <span
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+              >
                 <input
                   data-testid="meeting-title-input"
                   value={titleInput}
-                  onChange={(e) => { setTitleInput(e.target.value); }}
+                  onChange={(e) => {
+                    setTitleInput(e.target.value);
+                  }}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') void handleSaveTitle().catch((err: unknown) => {
-                      setExportNotice(err instanceof Error ? err.message : String(err));
-                    });
+                    if (e.key === 'Enter')
+                      void handleSaveTitle().catch((err: unknown) => {
+                        setExportNotice(
+                          err instanceof Error ? err.message : String(err)
+                        );
+                      });
                     if (e.key === 'Escape') setRenaming(false);
                   }}
-                  style={{ fontSize: 'var(--kp-font-md)', border: '1px solid var(--kp-divider)', borderRadius: 'var(--radius-sm)', padding: '3px 6px' }}
+                  style={{
+                    fontSize: 'var(--kp-font-md)',
+                    border: '1px solid var(--kp-divider)',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '3px 6px',
+                  }}
                 />
-                <button type="button" data-testid="meeting-title-save" onClick={() => { void handleSaveTitle().catch((err: unknown) => { setExportNotice(err instanceof Error ? err.message : String(err)); }); }} style={{ border: 'none', background: 'transparent', color: 'var(--kp-accent)', cursor: 'pointer', display: 'inline-flex' }}>
+                <button
+                  type="button"
+                  data-testid="meeting-title-save"
+                  onClick={() => {
+                    void handleSaveTitle().catch((err: unknown) => {
+                      setExportNotice(
+                        err instanceof Error ? err.message : String(err)
+                      );
+                    });
+                  }}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    color: 'var(--kp-accent)',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                  }}
+                >
                   <Check style={{ width: 14, height: 14 }} />
                 </button>
               </span>
             ) : (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                <span style={{ color: 'var(--kp-navy)', fontWeight: 'var(--kp-weight-semibold)', fontSize: 'var(--kp-font-md)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meetingDisplayTitle(meta, t)}</span>
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  minWidth: 0,
+                }}
+              >
+                <span
+                  style={{
+                    color: 'var(--kp-navy)',
+                    fontWeight: 'var(--kp-weight-semibold)',
+                    fontSize: 'var(--kp-font-md)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {meetingDisplayTitle(meta, t)}
+                </span>
                 <button
                   type="button"
                   data-testid="meeting-title-rename"
                   aria-label={t('meetings.entry.rename')}
                   title={t('meetings.entry.rename')}
-                  onClick={() => { setTitleInput(meetingDisplayTitle(meta, t)); setRenaming(true); }}
-                  style={{ border: 'none', background: 'transparent', color: 'var(--color-muted-foreground)', cursor: 'pointer', display: 'inline-flex', padding: 2, flex: 'none' }}
+                  onClick={() => {
+                    setTitleInput(meetingDisplayTitle(meta, t));
+                    setRenaming(true);
+                  }}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    color: 'var(--color-muted-foreground)',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    padding: 2,
+                    flex: 'none',
+                  }}
                 >
                   <Pencil style={{ width: 13, height: 13 }} />
                 </button>
               </span>
             )}
             {/* Second line: date + duration + compact status chips (item 8). */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
-              {dateDurationLine(meta, t) && <span>{dateDurationLine(meta, t)}</span>}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                flexWrap: 'wrap',
+                fontSize: 'var(--kp-font-xs)',
+                color: 'var(--color-muted-foreground)',
+              }}
+            >
+              {dateDurationLine(meta, t) && (
+                <span>{dateDurationLine(meta, t)}</span>
+              )}
               {consentLabel(meta, t) && (
-                <Badge variant="neutral" size="sm">{consentLabel(meta, t)}</Badge>
+                <Badge variant="neutral" size="sm">
+                  {consentLabel(meta, t)}
+                </Badge>
               )}
               {meta?.typeId && !editingType && (
-                <span data-testid="meeting-type-chip" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                  <Badge variant="neutral" size="sm">{meetingTypeLabel(meta.typeId, t)}</Badge>
+                <span
+                  data-testid="meeting-type-chip"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}
+                >
+                  <Badge variant="neutral" size="sm">
+                    {meetingTypeLabel(meta.typeId, t)}
+                  </Badge>
                   <button
                     type="button"
                     data-testid="meeting-type-change"
                     aria-label={t('meetings.entry.type-change')}
                     title={t('meetings.entry.type-change')}
-                    onClick={() => { setTypeInput(meta.typeId ? meetingTypeLabel(meta.typeId, t) : ''); setEditingType(true); }}
-                    style={{ border: 'none', background: 'transparent', color: 'var(--color-muted-foreground)', cursor: 'pointer', display: 'inline-flex', padding: 0 }}
+                    onClick={() => {
+                      setTypeInput(
+                        meta.typeId ? meetingTypeLabel(meta.typeId, t) : ''
+                      );
+                      setEditingType(true);
+                    }}
+                    style={{
+                      border: 'none',
+                      background: 'transparent',
+                      color: 'var(--color-muted-foreground)',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      padding: 0,
+                    }}
                   >
                     <Pencil style={{ width: 11, height: 11 }} />
                   </button>
                 </span>
               )}
               {editingType && (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}
+                >
                   <input
                     data-testid="meeting-type-input"
                     value={typeInput}
-                    onChange={(e) => { setTypeInput(e.target.value); }}
+                    onChange={(e) => {
+                      setTypeInput(e.target.value);
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') void handleSaveType();
                       if (e.key === 'Escape') setEditingType(false);
                     }}
-                    style={{ fontSize: 'var(--kp-font-xs)', border: '1px solid var(--kp-divider)', borderRadius: 'var(--radius-sm)', padding: '2px 6px' }}
+                    style={{
+                      fontSize: 'var(--kp-font-xs)',
+                      border: '1px solid var(--kp-divider)',
+                      borderRadius: 'var(--radius-sm)',
+                      padding: '2px 6px',
+                    }}
                   />
-                  <button type="button" data-testid="meeting-type-save" onClick={() => { void handleSaveType(); }} style={{ border: 'none', background: 'transparent', color: 'var(--kp-accent)', cursor: 'pointer', fontSize: 'inherit', fontFamily: 'inherit', padding: 0 }}>
+                  <button
+                    type="button"
+                    data-testid="meeting-type-save"
+                    onClick={() => {
+                      void handleSaveType();
+                    }}
+                    style={{
+                      border: 'none',
+                      background: 'transparent',
+                      color: 'var(--kp-accent)',
+                      cursor: 'pointer',
+                      fontSize: 'inherit',
+                      fontFamily: 'inherit',
+                      padding: 0,
+                    }}
+                  >
                     <Check style={{ width: 12, height: 12 }} />
                   </button>
                 </span>
               )}
               {meta?.reviewedAt && (
-                <Badge variant="neutral" size="sm" data-testid="meeting-reviewed-chip">{t('meetings.entry.reviewed')}</Badge>
+                <Badge
+                  variant="neutral"
+                  size="sm"
+                  data-testid="meeting-reviewed-chip"
+                >
+                  {t('meetings.entry.reviewed')}
+                </Badge>
               )}
             </div>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 'none' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            flex: 'none',
+          }}
+        >
           {/* Send (item 1): primary output action, disabled until reviewed. */}
           {meta && (
             <button
               type="button"
               data-testid="meeting-entry-send"
-              onClick={() => { setSendOpen(true); }}
+              onClick={() => {
+                setSendOpen(true);
+              }}
               disabled={!meta.reviewedAt}
-              title={!meta.reviewedAt ? t('meetings.entry.send-review-first') : undefined}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)', background: meta.reviewedAt ? 'var(--kp-accent)' : 'transparent', color: meta.reviewedAt ? 'var(--color-primary-foreground)' : 'var(--color-muted-foreground)', borderRadius: 'var(--radius-md)', padding: '6px 12px', fontSize: 'var(--kp-font-xs)', fontWeight: 'var(--kp-weight-semibold)', cursor: meta.reviewedAt ? 'pointer' : 'not-allowed', opacity: meta.reviewedAt ? 1 : 0.6, fontFamily: 'inherit' }}
+              title={
+                !meta.reviewedAt
+                  ? t('meetings.entry.send-review-first')
+                  : undefined
+              }
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                border: '1px solid var(--kp-divider)',
+                background: meta.reviewedAt
+                  ? 'var(--kp-accent)'
+                  : 'transparent',
+                color: meta.reviewedAt
+                  ? 'var(--color-primary-foreground)'
+                  : 'var(--color-muted-foreground)',
+                borderRadius: 'var(--radius-md)',
+                padding: '6px 12px',
+                fontSize: 'var(--kp-font-xs)',
+                fontWeight: 'var(--kp-weight-semibold)',
+                cursor: meta.reviewedAt ? 'pointer' : 'not-allowed',
+                opacity: meta.reviewedAt ? 1 : 0.6,
+                fontFamily: 'inherit',
+              }}
             >
               <Send style={{ width: 13, height: 13 }} />
               {t('meetings.entry.send-action')}
@@ -637,8 +972,25 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
             <button
               type="button"
               data-testid="meeting-entry-mark-reviewed"
-              onClick={() => { void handleMarkReviewed().catch((err: unknown) => { setExportNotice(err instanceof Error ? err.message : String(err)); }); }}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: 'var(--kp-font-xs)', cursor: 'pointer', fontFamily: 'inherit' }}
+              onClick={() => {
+                void handleMarkReviewed().catch((err: unknown) => {
+                  setExportNotice(
+                    err instanceof Error ? err.message : String(err)
+                  );
+                });
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                border: '1px solid var(--kp-divider)',
+                background: 'transparent',
+                borderRadius: 'var(--radius-md)',
+                padding: '6px 10px',
+                fontSize: 'var(--kp-font-xs)',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
             >
               <Check style={{ width: 12, height: 12 }} />
               {t('meetings.entry.mark-reviewed')}
@@ -652,14 +1004,26 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
                 data-testid="meeting-entry-actions-menu"
                 aria-label={t('meetings.entry.actions-menu')}
                 title={t('meetings.entry.actions-menu')}
-                style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 8px', cursor: 'pointer', color: 'var(--kp-navy)' }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  border: '1px solid var(--kp-divider)',
+                  background: 'transparent',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '6px 8px',
+                  cursor: 'pointer',
+                  color: 'var(--kp-navy)',
+                }}
               >
                 <MoreVertical style={{ width: 15, height: 15 }} />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               {hasAudio && (
-                <DropdownMenuItem data-testid="meeting-audio-download" onClick={handleDownloadAudio}>
+                <DropdownMenuItem
+                  data-testid="meeting-audio-download"
+                  onClick={handleDownloadAudio}
+                >
                   <Download className="h-3.5 w-3.5 mr-2" />
                   {t('meetings.entry.download-audio')}
                 </DropdownMenuItem>
@@ -667,7 +1031,12 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
               <DropdownMenuItem
                 data-testid="meeting-transcript-copy"
                 disabled={!transcript}
-                onClick={() => { void copyText(transcriptToText(transcript), t('meetings.entry.transcript-copied')); }}
+                onClick={() => {
+                  void copyText(
+                    transcriptToText(transcript),
+                    t('meetings.entry.transcript-copied')
+                  );
+                }}
               >
                 <Copy className="h-3.5 w-3.5 mr-2" />
                 {t('meetings.entry.copy-transcript')}
@@ -683,7 +1052,12 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
               <DropdownMenuItem
                 data-testid="meeting-summary-copy"
                 disabled={!summaryReady}
-                onClick={() => { void copyText(summaryText.trim(), t('meetings.entry.summary-copied')); }}
+                onClick={() => {
+                  void copyText(
+                    summaryText.trim(),
+                    t('meetings.entry.summary-copied')
+                  );
+                }}
               >
                 <Copy className="h-3.5 w-3.5 mr-2" />
                 {t('meetings.entry.copy-summary')}
@@ -710,10 +1084,14 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
                   <DropdownMenuItem
                     data-testid="meeting-entry-delete-audio"
                     className="text-destructive focus:text-destructive"
-                    onClick={() => { setConfirmingDelete(true); }}
+                    onClick={() => {
+                      setConfirmingDelete(true);
+                    }}
                   >
                     <Trash2 className="h-3.5 w-3.5 mr-2" />
-                    {hasTranscript ? t('meetings.entry.delete-audio') : t('meetings.entry.delete-audio-no-transcript')}
+                    {hasTranscript
+                      ? t('meetings.entry.delete-audio')
+                      : t('meetings.entry.delete-audio-no-transcript')}
                   </DropdownMenuItem>
                 </>
               )}
@@ -722,19 +1100,37 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
         </div>
       </div>
 
-      <div style={{ borderBottom: '1px solid var(--kp-divider)', padding: '10px var(--kp-gutter) 0', display: 'flex', gap: 6 }}>
+      <div
+        style={{
+          borderBottom: '1px solid var(--kp-divider)',
+          padding: '10px var(--kp-gutter) 0',
+          display: 'flex',
+          gap: 6,
+        }}
+      >
         <button
           type="button"
           data-testid="meeting-subtab-recording"
-          onClick={() => { setActiveTab('recording'); }}
+          onClick={() => {
+            setActiveTab('recording');
+          }}
           style={{
             border: 'none',
-            borderBottom: activeTab === 'recording' ? '2px solid var(--kp-accent)' : '2px solid transparent',
+            borderBottom:
+              activeTab === 'recording'
+                ? '2px solid var(--kp-accent)'
+                : '2px solid transparent',
             background: 'transparent',
-            color: activeTab === 'recording' ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
+            color:
+              activeTab === 'recording'
+                ? 'var(--kp-navy)'
+                : 'var(--color-muted-foreground)',
             fontFamily: 'inherit',
             fontSize: 'var(--kp-font-sm)',
-            fontWeight: activeTab === 'recording' ? 'var(--kp-weight-semibold)' : 'var(--kp-weight-regular)',
+            fontWeight:
+              activeTab === 'recording'
+                ? 'var(--kp-weight-semibold)'
+                : 'var(--kp-weight-regular)',
             padding: '8px 10px',
             cursor: 'pointer',
           }}
@@ -744,15 +1140,26 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
         <button
           type="button"
           data-testid="meeting-subtab-transcript"
-          onClick={() => { setActiveTab('transcript'); }}
+          onClick={() => {
+            setActiveTab('transcript');
+          }}
           style={{
             border: 'none',
-            borderBottom: activeTab === 'transcript' ? '2px solid var(--kp-accent)' : '2px solid transparent',
+            borderBottom:
+              activeTab === 'transcript'
+                ? '2px solid var(--kp-accent)'
+                : '2px solid transparent',
             background: 'transparent',
-            color: activeTab === 'transcript' ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
+            color:
+              activeTab === 'transcript'
+                ? 'var(--kp-navy)'
+                : 'var(--color-muted-foreground)',
             fontFamily: 'inherit',
             fontSize: 'var(--kp-font-sm)',
-            fontWeight: activeTab === 'transcript' ? 'var(--kp-weight-semibold)' : 'var(--kp-weight-regular)',
+            fontWeight:
+              activeTab === 'transcript'
+                ? 'var(--kp-weight-semibold)'
+                : 'var(--kp-weight-regular)',
             padding: '8px 10px',
             cursor: 'pointer',
           }}
@@ -762,15 +1169,26 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
         <button
           type="button"
           data-testid="meeting-subtab-summary"
-          onClick={() => { setActiveTab('summary'); }}
+          onClick={() => {
+            setActiveTab('summary');
+          }}
           style={{
             border: 'none',
-            borderBottom: activeTab === 'summary' ? '2px solid var(--kp-accent)' : '2px solid transparent',
+            borderBottom:
+              activeTab === 'summary'
+                ? '2px solid var(--kp-accent)'
+                : '2px solid transparent',
             background: 'transparent',
-            color: activeTab === 'summary' ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
+            color:
+              activeTab === 'summary'
+                ? 'var(--kp-navy)'
+                : 'var(--color-muted-foreground)',
             fontFamily: 'inherit',
             fontSize: 'var(--kp-font-sm)',
-            fontWeight: activeTab === 'summary' ? 'var(--kp-weight-semibold)' : 'var(--kp-weight-regular)',
+            fontWeight:
+              activeTab === 'summary'
+                ? 'var(--kp-weight-semibold)'
+                : 'var(--kp-weight-regular)',
             padding: '8px 10px',
             cursor: 'pointer',
           }}
@@ -779,9 +1197,19 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
         </button>
       </div>
 
-      <div data-testid="meeting-entry-tab-scroll" style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+      <div
+        data-testid="meeting-entry-tab-scroll"
+        style={{ flex: 1, minHeight: 0, overflow: 'auto' }}
+      >
         {exportNotice && (
-          <div data-testid="meeting-entry-export-notice" style={{ padding: '8px var(--kp-gutter) 0', color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)' }}>
+          <div
+            data-testid="meeting-entry-export-notice"
+            style={{
+              padding: '8px var(--kp-gutter) 0',
+              color: 'var(--color-muted-foreground)',
+              fontSize: 'var(--kp-font-xs)',
+            }}
+          >
             {exportNotice}
           </div>
         )}
@@ -803,101 +1231,277 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
 
         <div style={{ padding: 'var(--kp-gutter)' }}>
           {activeTab === 'recording' && (
-            <div data-testid="meeting-recording-tab" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-md)' }}>
-            {hasAudio && audioSrc ? (
-              <AudioPlayer ref={audioRef} audioSrc={audioSrc} filename={meetingDisplayTitle(meta, t)} compact />
-            ) : meta?.recordingError && !hasAudio ? (
-              <div data-testid="meeting-entry-recording-incomplete" style={{ color: 'var(--kp-navy)', fontSize: 'var(--kp-font-sm)' }}>
-                {t('meetings.entry.recording-incomplete')}
-              </div>
-            ) : (
-              <div data-testid="meeting-entry-no-audio" style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-sm)' }}>
-                {t('meetings.entry.no-audio')}
-              </div>
-            )}
-            {transcriptLooksSilent(transcript) && (
-              <div data-testid="meeting-entry-no-one-spoke" style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-sm)' }}>
-                {t('meetings.entry.no-one-spoke')}
-              </div>
-            )}
+            <div
+              data-testid="meeting-recording-tab"
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 'var(--kp-space-md)',
+              }}
+            >
+              {hasAudio && audioSrc ? (
+                <AudioPlayer
+                  ref={audioRef}
+                  audioSrc={audioSrc}
+                  filename={meetingDisplayTitle(meta, t)}
+                  compact
+                />
+              ) : meta?.recordingError && !hasAudio ? (
+                <div
+                  data-testid="meeting-entry-recording-incomplete"
+                  style={{
+                    color: 'var(--kp-navy)',
+                    fontSize: 'var(--kp-font-sm)',
+                  }}
+                >
+                  {t('meetings.entry.recording-incomplete')}
+                </div>
+              ) : (
+                <div
+                  data-testid="meeting-entry-no-audio"
+                  style={{
+                    color: 'var(--color-muted-foreground)',
+                    fontSize: 'var(--kp-font-sm)',
+                  }}
+                >
+                  {t('meetings.entry.no-audio')}
+                </div>
+              )}
+              {transcriptLooksSilent(transcript) && (
+                <div
+                  data-testid="meeting-entry-no-one-spoke"
+                  style={{
+                    color: 'var(--color-muted-foreground)',
+                    fontSize: 'var(--kp-font-sm)',
+                  }}
+                >
+                  {t('meetings.entry.no-one-spoke')}
+                </div>
+              )}
             </div>
           )}
 
           {activeTab === 'transcript' && (
-            <div data-testid="meeting-transcript-tab" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-md)' }}>
-            {transcript ? (
-              <>
-                <TranscriptViewer transcript={transcript} onSeek={handleSeek} {...(seekMs !== undefined ? { activeMs: seekMs } : {})} />
-                <div style={{ marginTop: 'var(--kp-space-lg)' }}>
-                  <SpeakerNamesPanel meetingDir={meetingDir} matterId={matterId} workspaceRoot={workspaceRoot} />
-                </div>
-                {workspaceService && firm.org && (
-                  <MeetingTemplatePanel
-                    workspace={workspaceService}
-                    firmId={firm.org.org_id}
-                    canManageTemplates={firm.role === 'admin'}
-                    meetingDir={meetingDir}
+            <div
+              data-testid="meeting-transcript-tab"
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 'var(--kp-space-md)',
+              }}
+            >
+              {transcript ? (
+                <>
+                  <TranscriptViewer
                     transcript={transcript}
-                    clientName={clientName}
-                    getProvider={async () => {
-                      const resolved = await buildResolvedProviderForGlance();
-                      return createPreparedMeetingTemplateFillProvider({ matterId, resolved });
-                    }}
+                    onSeek={handleSeek}
+                    {...(seekMs !== undefined ? { activeMs: seekMs } : {})}
                   />
-                )}
-              </>
-            ) : meta?.transcriptError ? (
-              <div data-testid="meeting-entry-transcript-failed" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-sm)' }}>
-                <div style={{ color: 'var(--kp-navy)', fontSize: 'var(--kp-font-sm)' }}>
-                  {meta.transcriptError.kind === 'not-installed' && t('meetings.entry.transcript-failed-not-installed')}
-                  {meta.transcriptError.kind === 'timeout' && t('meetings.entry.transcript-failed-timeout')}
-                  {meta.transcriptError.kind === 'error' && t('meetings.entry.transcript-failed-error')}
+                  <div style={{ marginTop: 'var(--kp-space-lg)' }}>
+                    <SpeakerNamesPanel
+                      meetingDir={meetingDir}
+                      matterId={matterId}
+                      workspaceRoot={workspaceRoot}
+                    />
+                  </div>
+                  {workspaceService && firm.org && (
+                    <MeetingTemplatePanel
+                      workspace={workspaceService}
+                      firmId={firm.org.org_id}
+                      canManageTemplates={firm.role === 'admin'}
+                      meetingDir={meetingDir}
+                      transcript={transcript}
+                      clientName={clientName}
+                      getProvider={async () => {
+                        const resolved = await buildResolvedProviderForGlance();
+                        return createPreparedMeetingTemplateFillProvider({
+                          matterId,
+                          resolved,
+                        });
+                      }}
+                    />
+                  )}
+                </>
+              ) : meta?.transcriptError ? (
+                <div
+                  data-testid="meeting-entry-transcript-failed"
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 'var(--kp-space-sm)',
+                  }}
+                >
+                  <div
+                    style={{
+                      color: 'var(--kp-navy)',
+                      fontSize: 'var(--kp-font-sm)',
+                    }}
+                  >
+                    {meta.transcriptError.kind === 'not-installed' &&
+                      t('meetings.entry.transcript-failed-not-installed')}
+                    {meta.transcriptError.kind === 'timeout' &&
+                      t('meetings.entry.transcript-failed-timeout')}
+                    {meta.transcriptError.kind === 'error' &&
+                      t('meetings.entry.transcript-failed-error')}
+                  </div>
+                  <button
+                    type="button"
+                    data-testid="meeting-entry-retry-transcript"
+                    onClick={() => {
+                      void handleRetryTranscript();
+                    }}
+                    disabled={retryingTranscript}
+                    style={{
+                      alignSelf: 'flex-start',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      border: '1px solid var(--kp-divider)',
+                      background: 'transparent',
+                      borderRadius: 'var(--radius-md)',
+                      padding: '6px 10px',
+                      fontSize: 'var(--kp-font-xs)',
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    {retryingTranscript
+                      ? t('meetings.entry.retrying-transcript')
+                      : t('meetings.tab.retry-button')}
+                  </button>
                 </div>
-                <button type="button" data-testid="meeting-entry-retry-transcript" onClick={() => { void handleRetryTranscript(); }} disabled={retryingTranscript} style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: 'var(--kp-font-xs)', cursor: 'pointer', fontFamily: 'inherit' }}>
-                  {retryingTranscript ? t('meetings.entry.retrying-transcript') : t('meetings.tab.retry-button')}
-                </button>
-              </div>
-            ) : meta?.recordingError && !hasAudio ? (
-              <div data-testid="meeting-entry-recording-incomplete-transcript" style={{ color: 'var(--kp-navy)', fontSize: 'var(--kp-font-sm)' }}>
-                {t('meetings.entry.recording-incomplete')}
-              </div>
-            ) : (
-              <div data-testid="meeting-entry-transcript-pending" style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-sm)' }}>
-                {t('meetings.entry.transcript-pending')}
-              </div>
-            )}
+              ) : meta?.recordingError && !hasAudio ? (
+                <div
+                  data-testid="meeting-entry-recording-incomplete-transcript"
+                  style={{
+                    color: 'var(--kp-navy)',
+                    fontSize: 'var(--kp-font-sm)',
+                  }}
+                >
+                  {t('meetings.entry.recording-incomplete')}
+                </div>
+              ) : (
+                <div
+                  data-testid="meeting-entry-transcript-pending"
+                  style={{
+                    color: 'var(--color-muted-foreground)',
+                    fontSize: 'var(--kp-font-sm)',
+                  }}
+                >
+                  {t('meetings.entry.transcript-pending')}
+                </div>
+              )}
             </div>
           )}
 
           {activeTab === 'summary' && (
-            <div data-testid="meeting-summary-tab" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-md)' }}>
-            {summaryReady ? (
-              <pre data-testid="meeting-summary-text" style={{ whiteSpace: 'pre-wrap', margin: 0, fontFamily: 'inherit', color: 'var(--kp-navy)', fontSize: 'var(--kp-font-sm)', lineHeight: 1.6 }}>
-                {summaryText.trim()}
-              </pre>
-            ) : hasNotes ? (
-              <div data-testid="meeting-entry-summary-not-ready" style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-sm)' }}>
-                {t('meetings.entry.summary-not-ready')}
-              </div>
-            ) : meta?.notesError ? (
-              <div data-testid="meeting-entry-notes-failed" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-sm)' }}>
-                <div style={{ color: 'var(--kp-navy)', fontSize: 'var(--kp-font-sm)' }}>
-                  {meta.notesError.kind === 'gate-blocked' && t('meetings.entry.notes-failed-blocked')}
-                  {meta.notesError.kind === 'timeout' && t('meetings.entry.notes-failed-timeout')}
-                  {meta.notesError.kind === 'error' && t('meetings.entry.notes-failed-error')}
+            <div
+              data-testid="meeting-summary-tab"
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 'var(--kp-space-md)',
+              }}
+            >
+              {summaryReady ? (
+                <>
+                  <MeetingNotesReview
+                    meetingDir={meetingDir}
+                    matterId={matterId}
+                    summaryText={summaryText}
+                    workspaceService={workspaceService}
+                    {...(crmBlockedReason
+                      ? {
+                          crmBlockedReason:
+                            'Mark this meeting reviewed before sending a CRM update.',
+                        }
+                      : {})}
+                  />
+                  <pre
+                    data-testid="meeting-summary-text"
+                    style={{
+                      whiteSpace: 'pre-wrap',
+                      margin: 0,
+                      fontFamily: 'inherit',
+                      color: 'var(--kp-navy)',
+                      fontSize: 'var(--kp-font-sm)',
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    {summaryText.trim()}
+                  </pre>
+                </>
+              ) : hasNotes ? (
+                <div
+                  data-testid="meeting-entry-summary-not-ready"
+                  style={{
+                    color: 'var(--color-muted-foreground)',
+                    fontSize: 'var(--kp-font-sm)',
+                  }}
+                >
+                  {t('meetings.entry.summary-not-ready')}
                 </div>
-                <button type="button" data-testid="meeting-entry-retry-notes" onClick={() => { void handleRetryNotes(); }} disabled={retryingNotes} style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: 'var(--kp-font-xs)', cursor: 'pointer', fontFamily: 'inherit' }}>
-                  {retryingNotes ? t('meetings.entry.retrying-notes') : t('meetings.tab.retry-button')}
-                </button>
-              </div>
-            ) : (
-              <div data-testid="meeting-entry-notes-pending" style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-sm)' }}>
-                {t('meetings.entry.notes-pending')}
-              </div>
-            )}
+              ) : meta?.notesError ? (
+                <div
+                  data-testid="meeting-entry-notes-failed"
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 'var(--kp-space-sm)',
+                  }}
+                >
+                  <div
+                    style={{
+                      color: 'var(--kp-navy)',
+                      fontSize: 'var(--kp-font-sm)',
+                    }}
+                  >
+                    {meta.notesError.kind === 'gate-blocked' &&
+                      t('meetings.entry.notes-failed-blocked')}
+                    {meta.notesError.kind === 'timeout' &&
+                      t('meetings.entry.notes-failed-timeout')}
+                    {meta.notesError.kind === 'error' &&
+                      t('meetings.entry.notes-failed-error')}
+                  </div>
+                  <button
+                    type="button"
+                    data-testid="meeting-entry-retry-notes"
+                    onClick={() => {
+                      void handleRetryNotes();
+                    }}
+                    disabled={retryingNotes}
+                    style={{
+                      alignSelf: 'flex-start',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      border: '1px solid var(--kp-divider)',
+                      background: 'transparent',
+                      borderRadius: 'var(--radius-md)',
+                      padding: '6px 10px',
+                      fontSize: 'var(--kp-font-xs)',
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    {retryingNotes
+                      ? t('meetings.entry.retrying-notes')
+                      : t('meetings.tab.retry-button')}
+                  </button>
+                </div>
+              ) : (
+                <div
+                  data-testid="meeting-entry-notes-pending"
+                  style={{
+                    color: 'var(--color-muted-foreground)',
+                    fontSize: 'var(--kp-font-sm)',
+                  }}
+                >
+                  {t('meetings.entry.notes-pending')}
+                </div>
+              )}
             </div>
           )}
-
         </div>
       </div>
 
@@ -905,11 +1509,23 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
           the header Send action, so sending never crowds the review tabs. */}
       <SlidePanel
         open={sendOpen && !!meta}
-        onClose={() => { setSendOpen(false); }}
+        onClose={() => {
+          setSendOpen(false);
+        }}
         width={520}
         closeLabel={t('common.actions.cancel')}
         data-testid="meeting-send-drawer"
-        title={<span style={{ color: 'var(--kp-navy)', fontWeight: 'var(--kp-weight-semibold)', fontSize: 'var(--kp-font-md)' }}>{t('meetings.entry.tab-send-to-team')}</span>}
+        title={
+          <span
+            style={{
+              color: 'var(--kp-navy)',
+              fontWeight: 'var(--kp-weight-semibold)',
+              fontSize: 'var(--kp-font-md)',
+            }}
+          >
+            {t('meetings.entry.tab-send-to-team')}
+          </span>
+        }
       >
         {meta && (
           <MeetingSendPanel
@@ -933,15 +1549,27 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
       {/* Deleting the only recording of a client meeting is irreversible —
           destructive ops always confirm (core app rule; UX review B7). */}
       <Dialog open={confirmingDelete} onOpenChange={setConfirmingDelete}>
-        <DialogContent className="sm:max-w-[400px]" data-testid="delete-audio-confirm">
+        <DialogContent
+          className="sm:max-w-[400px]"
+          data-testid="delete-audio-confirm"
+        >
           <DialogHeader>
-            <DialogTitle>{t('meetings.entry.delete-audio-confirm-title')}</DialogTitle>
+            <DialogTitle>
+              {t('meetings.entry.delete-audio-confirm-title')}
+            </DialogTitle>
           </DialogHeader>
           <p style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--kp-navy)' }}>
-            {hasTranscript ? t('meetings.entry.delete-audio-confirm-body') : t('meetings.entry.delete-audio-confirm-body-no-transcript')}
+            {hasTranscript
+              ? t('meetings.entry.delete-audio-confirm-body')
+              : t('meetings.entry.delete-audio-confirm-body-no-transcript')}
           </p>
           <DialogFooter>
-            <DialogButton variant="secondary" onClick={() => { setConfirmingDelete(false); }}>
+            <DialogButton
+              variant="secondary"
+              onClick={() => {
+                setConfirmingDelete(false);
+              }}
+            >
               {t('meetings.dictation.cancel')}
             </DialogButton>
             <DialogButton

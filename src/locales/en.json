@@ -2898,6 +2898,10 @@
       "failed": "Could not prepare this briefing: {{error}}",
       "unknown-error": "unknown error"
     },
+    "review": {
+      "title": "Review notes",
+      "approve-description": "Nothing is added anywhere until you approve each item."
+    },
     "speakers": {
       "title": "Who is speaking?",
       "run": "Separate speakers",

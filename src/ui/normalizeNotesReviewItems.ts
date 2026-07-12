@@ -1,4 +1,4 @@
-import type { NotesReviewDestination, NotesReviewItem } from './types';
+import type { NotesReviewDestination, NotesReviewItem } from './notesReview';
 
 const DESTINATIONS: readonly NotesReviewDestination[] = ['task', 'crm', 'client-note', 'internal'];
 
