@@ -12,7 +12,7 @@
 
 import { CrmHome } from '@/features/crm-home';
 import { ClientsSurface } from '@/features/crm-clients';
-import { CrmSearchSurface } from '@/features/crm-search';
+import { CrmAskSurface } from '@/features/crm-ask';
 import { DocumentsHome } from '@/features/documents/DocumentsHome';
 import { AssociateHome } from '@/features/workflows/AssociateHome';
 import { LazyBoundary } from '@/ui/LazyBoundary';
@@ -484,7 +484,7 @@ export function AppSurfaceRouter({
       ) : sidebarActiveTab === 'matters' ? (
         <ClientsSurface />
       ) : sidebarActiveTab === 'search' ? (
-        <CrmSearchSurface />
+        <CrmAskSurface />
       ) : sidebarActiveTab === 'email' ? (
         buildEmailWorkspace({})
       ) : sidebarActiveTab === 'files' ? (
