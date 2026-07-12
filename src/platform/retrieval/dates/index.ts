@@ -9,4 +9,5 @@ export type {
 export { buildDatedWorkspaceSources } from './assemble';
 export { flagDatedEvidenceConflicts } from './conflicts';
 export { normalizeSourceDate } from './sourceDates';
+export { prepareDatedRagHits } from './assemble';
 export { AnswerDatePresentation } from './AnswerDatePresentation';

@@ -33,6 +33,7 @@ import {
   stripBlockMarkers,
 } from './answerBlockMarkers';
 import { normalizeNumericCitations } from '@/platform/rag/workspaceCommand';
+import { prepareDatedRagHits } from '@/platform/retrieval/dates';
 import type { WorkspaceSource } from '@/platform/types/ai';
 import type { RagHit } from '@/platform/utils/tauri-commands';
 
@@ -194,7 +195,11 @@ export function bindAnswerBlocks(
   hits: RagHit[],
   expectedMatterId: string | null = null,
 ): BoundAnswerBlocks {
-  const hasHits = hits.length > 0;
+  // Smart Ask follows a different binding route from Files-only Ask. Prepare
+  // its hits here too, so both routes pass the same date fields and conflict
+  // warning into their visible citations.
+  const datedHits = prepareDatedRagHits(hits);
+  const hasHits = datedHits.length > 0;
   const rawBlocks = splitRawBlocks(raw, hasHits);
   const acc = newCitationBindAccumulator();
   const blocks: AnswerBlock[] = [];
@@ -217,8 +222,8 @@ export function bindAnswerBlocks(
     // silently deleting user-visible prose. No-op for filename citations (cloud)
     // and when nothing was retrieved.
     const text = bindCitationsCore(
-      normalizeNumericCitations(rawText, hits),
-      hits,
+      normalizeNumericCitations(rawText, datedHits),
+      datedHits,
       expectedMatterId,
       acc,
     );
@@ -280,7 +285,12 @@ export function bindAnswerBlocks(
   const survivors = acc.citations.filter((c) => kept.has(c.n));
   const renum = renumberBlocksAndCitations(blocks, survivors);
   const answer = renum.blocks.map((b) => b.text).join('\n\n').trim();
-  return { blocks: renum.blocks, answer, citations: renum.citations, sources: buildWorkspaceSources(hits) };
+  return {
+    blocks: renum.blocks,
+    answer,
+    citations: renum.citations,
+    sources: buildWorkspaceSources(datedHits),
+  };
 }
 
 /* -------------------------------------------------------------------------- */

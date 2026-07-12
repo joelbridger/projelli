@@ -1,6 +1,19 @@
 import type { WorkspaceSource } from '@/platform/types/ai';
+// Loads B1's single, shared date fields onto RagHit for every TypeScript
+// project, including the intentionally small contract-check project.
+import '@/platform/rag/types';
 import type { RagHit } from '@/platform/utils/tauri-commands';
 import { flagDatedEvidenceConflicts } from './conflicts';
+
+/**
+ * Prepares the exact retrieval hits that an answer binds to. This is the
+ * important boundary for Ask: citations are created from hits, not from the
+ * separate saved-source list. Decorating here means a live citation and its
+ * saved source always carry the same normalized date and conflict context.
+ */
+export function prepareDatedRagHits(hits: RagHit[]): RagHit[] {
+  return flagDatedEvidenceConflicts(hits);
+}
 
 /**
  * The single hit-assembly adapter for date metadata. It is deliberately a
@@ -8,7 +21,7 @@ import { flagDatedEvidenceConflicts } from './conflicts';
  * readable while new mail, document, and CRM adapters can add `sourceDate`.
  */
 export function buildDatedWorkspaceSources(hits: RagHit[]): WorkspaceSource[] {
-  return flagDatedEvidenceConflicts(hits).map((hit) => ({
+  return prepareDatedRagHits(hits).map((hit) => ({
     path: hit.path,
     chunkText: hit.chunkText,
     score: hit.score,
