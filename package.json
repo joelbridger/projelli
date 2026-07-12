@@ -33,6 +33,7 @@
     "test:fidelity": "bun run tests/wbsim/fidelity.ts",
     "test:parity": "bun run tests/parity/run.ts",
     "test:acceptance": "node tests/acceptance/run.mjs",
+    "test:chaos": "node tests/chaos/run.mjs",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "typecheck:tests": "tsc -p tsconfig.test.json --noEmit",
