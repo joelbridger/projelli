@@ -29,6 +29,8 @@ export interface RequestsBoardProps {
   onOpenLinkSignals?: (row: RequestRow) => void;
   onReviewItems?: (row: RequestRow) => void;
   onCopyLink?: (row: RequestRow) => Promise<void> | void;
+  /** Opens the client request where encrypted local signing details are available. */
+  onOpenSignature?: (row: RequestRow) => void;
   renderNudgeSlot?: (row: RequestRow) => ReactNode;
   renderLinkSignals?: (row: RequestRow) => ReactNode;
   renderEmailReplySignals?: (row: RequestRow) => ReactNode;
@@ -53,6 +55,7 @@ export function RequestsBoard({
   onOpenLinkSignals,
   onReviewItems,
   onCopyLink,
+  onOpenSignature,
   renderNudgeSlot,
   renderLinkSignals,
   renderEmailReplySignals,
@@ -181,6 +184,7 @@ export function RequestsBoard({
                 {...(renderLinkSignals ? { renderLinkSignals } : {})}
                 {...(renderEmailReplySignals ? { renderEmailReplySignals } : {})}
               />
+              {onOpenSignature && intakesById[row.requestId]?.requestItems?.some((item) => item.t === 'signature' && item.grade === 'docusign') ? <div style={{ padding: '8px 18px 0' }}><Button size="sm" variant="secondary" onClick={() => { onOpenSignature(row); }}>{t('intake.signature.send-for-signature')}</Button></div> : null}
             </div>
             );
           })}

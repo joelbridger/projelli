@@ -127,6 +127,16 @@ describe('PDF template composer and golden dry fill', () => {
     expect(() => {
       assertSendableRequest([
         {
+          t: 'pdf_fill',
+          item_id: 'signature-source',
+          label: 'Signature source form',
+          help_text: '',
+          required: true,
+          subject: 'household',
+          prefill: [],
+          template,
+        },
+        {
           t: 'signature',
           item_id: 'signature',
           label: 'Sign',
@@ -134,6 +144,12 @@ describe('PDF template composer and golden dry fill', () => {
           required: true,
           subject: 'household',
           grade: 'docusign',
+          source_pdf_fill_item_id: 'signature-source',
+          tab_map: {
+            signatureTab: { page: 1, rect: { x: 0.1, y: 0.1, width: 0.2, height: 0.1 } },
+            dateSignedTab: { page: 1, rect: { x: 0.1, y: 0.25, width: 0.2, height: 0.1 } },
+            signerNameTab: { page: 1, rect: { x: 0.1, y: 0.4, width: 0.2, height: 0.1 } },
+          },
         },
       ]);
     }).toThrow();

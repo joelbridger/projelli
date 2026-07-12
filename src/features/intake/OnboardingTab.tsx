@@ -8,6 +8,9 @@ import {
 
 import { Button } from '@/ui/button';
 import type { IntakeRecord } from '@/platform/intake/intakeStore';
+import type { SignatureStatus } from '@/platform/intake/docusignSignature/signatureRecord';
+import { SendForSignatureDialog } from './docusignSigning/SendForSignatureDialog';
+import { requestItemDisplayLabel, requestItemStatusLabel } from './requestItemLabels';
 import {
   intakeFactList,
   intakeFactPurge,
@@ -40,6 +43,9 @@ export interface OnboardingTabProps {
   onOpenFile?: (path: string) => void;
   workspaceService?: WorkspaceService | null | undefined;
   matterFolderPath?: string | undefined;
+  /** Encrypted-local signature state is loaded by the caller, never put in intake persistence. */
+  signatureStatuses?: Record<string, SignatureStatus | undefined>;
+  onSendForSignature?: (input: { intake: IntakeRecord; signatureItemId: string; signerName: string; signerEmail: string }) => Promise<void> | void;
 }
 
 function formatDate(value: string): string {
@@ -50,37 +56,6 @@ function formatDate(value: string): string {
     day: 'numeric',
     year: 'numeric',
   });
-}
-
-function statusLabel(state: string): string {
-  switch (state) {
-    case 'received':
-      return 'received';
-    case 'accepted':
-      return 'accepted';
-    case 'needs_followup':
-      return 'needs another look';
-    case 'not_needed':
-      return 'not needed';
-    case 'provided':
-      return 'provided';
-    default:
-      return 'not started';
-  }
-}
-
-function requestItemStatusLabel(intake: IntakeRecord, itemId: string, state: string): string {
-  const requestItem = intake.requestItems?.find((candidate) => candidate.item_id === itemId);
-  if (requestItem?.t !== 'pdf_fill') return statusLabel(state);
-  if (state === 'received') return 'Form returned';
-  if (state === 'needs_followup') return 'Needs follow-up';
-  return 'Form ready';
-}
-
-function requestItemDisplayLabel(intake: IntakeRecord, itemId: string, fallback: string): string {
-  return intake.requestItems?.find((candidate) => candidate.item_id === itemId)?.t === 'pdf_fill'
-    ? 'Form'
-    : fallback;
 }
 
 function provenanceColor(channel: string): {
@@ -161,11 +136,14 @@ export function OnboardingTab({
   onOpenFile,
   workspaceService,
   matterFolderPath,
+  signatureStatuses,
+  onSendForSignature,
 }: OnboardingTabProps) {
   const { t } = useTranslation();
   const [facts, setFacts] = useState<MaskedClientFact[]>([]);
   const [revealed, setRevealed] = useState<Record<string, string>>({});
   const [phoneWalkthroughOpen, setPhoneWalkthroughOpen] = useState(false);
+  const [signatureDialogItemId, setSignatureDialogItemId] = useState<string | null>(null);
   const [actionError, setActionError] = useState('');
 
   useEffect(() => {
@@ -361,7 +339,7 @@ export function OnboardingTab({
                       fontSize: 12,
                     }}
                   >
-                    {requestItemStatusLabel(intake, item.itemId, item.state)}
+                    {requestItemStatusLabel(intake, item.itemId, item.state, signatureStatuses)}
                     {item.provenance?.at
                       ? ` · ${formatDate(item.provenance.at)}`
                       : ''}
@@ -378,9 +356,17 @@ export function OnboardingTab({
                     View
                   </Button>
                 ) : null}
+                {(() => {
+                  const signature = intake.requestItems?.find((candidate) => candidate.item_id === item.itemId);
+                  if (signature?.t !== 'signature' || signature.grade !== 'docusign') return null;
+                  const source = intake.items.find((candidate) => candidate.itemId === signature.source_pdf_fill_item_id);
+                  const canSend = source?.state === 'received' && (signatureStatuses?.[signature.item_id] === undefined || ['not_ready', 'ready_to_send', 'needs_followup', 'declined', 'voided'].includes(signatureStatuses[signature.item_id] ?? 'not_ready'));
+                  return <Button type="button" variant="outline" size="sm" disabled={!canSend || !onSendForSignature} onClick={() => { setSignatureDialogItemId(signature.item_id); }}>{t('intake.signature.send-for-signature')}</Button>;
+                })()}
               </div>
             ))}
           </div>
+          {signatureDialogItemId ? <SendForSignatureDialog open signerName={intake.clientFirstName} signerEmail={intake.clientEmail ?? ''} {...(signatureStatuses?.[signatureDialogItemId] !== undefined ? { status: signatureStatuses[signatureDialogItemId] } : {})} canSend={Boolean(onSendForSignature)} onOpenChange={(open) => { if (!open) setSignatureDialogItemId(null); }} onConfirm={({ name, email }) => onSendForSignature?.({ intake, signatureItemId: signatureDialogItemId, signerName: name, signerEmail: email })} /> : null}
         </section>
 
         <aside style={{ display: 'grid', gap: 12, minWidth: 0 }}>

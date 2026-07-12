@@ -21,7 +21,7 @@ export interface FileIntakeDocumentOptions {
   matterFolderPath: string;
   requestSlug?: string;
   /** A receiver-owned destination for a verified completed PDF form. */
-  folder?: 'request' | 'pdf_form';
+  folder?: 'request' | 'pdf_form' | 'signature';
   fileName: string;
   bytes: Uint8Array;
   /** Present only for a document request that is eligible for extraction. */
@@ -40,11 +40,19 @@ export function intakePdfFormFolder(matterFolderPath: string, requestSlug: strin
   return `${intakeRequestFolder(matterFolderPath, requestSlug)}/forms`;
 }
 
+/** A verified DocuSign result is always kept beside, never over, its source form. */
+export function intakeSignaturesFolder(matterFolderPath: string, requestSlug: string): string {
+  return `${intakeRequestFolder(matterFolderPath, requestSlug)}/signatures`;
+}
+
 export async function fileIntakeDocument(options: FileIntakeDocumentOptions): Promise<string> {
   let folder: string;
   if (options.folder === 'pdf_form') {
     if (options.requestSlug === undefined) throw new Error('A completed PDF form needs a request folder.');
     folder = intakePdfFormFolder(options.matterFolderPath, options.requestSlug);
+  } else if (options.folder === 'signature') {
+    if (options.requestSlug === undefined) throw new Error('A signed form needs a request folder.');
+    folder = intakeSignaturesFolder(options.matterFolderPath, options.requestSlug);
   } else {
     folder = options.requestSlug === undefined
       ? intakeOnboardingFolder(options.matterFolderPath)

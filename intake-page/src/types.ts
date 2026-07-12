@@ -32,6 +32,18 @@ export interface ResumeState {
   pdf_fill_drafts?: Record<string, Record<string, string>>;
 }
 
+/** Local-only UI state. It is never sent through the relay or saved in resume state. */
+export type SigningLaunchUiStatus =
+  | 'checking'
+  | 'unavailable'
+  | 'ready'
+  | 'waiting'
+  | 'confirming'
+  | 'cancelled'
+  | 'declined'
+  | 'expired'
+  | 'error';
+
 export type AnswerPayload =
   | { kind: 'typed'; value: string | number; display_value?: string }
   | { kind: 'guided'; answer: Record<string, unknown> }

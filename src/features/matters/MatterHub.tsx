@@ -31,6 +31,12 @@ import { createAdvisorIntake } from '@/platform/intake/createIntake';
 import type { FormRequest } from '@/platform/intake/types';
 import { b64ToBytes } from '@/platform/intake/pageSeal';
 import { useFirmStore } from '@/platform/firm/firmStore';
+import { createDocusignAuthorizationProvider } from '@/platform/docusignSigning/capabilityClient';
+import { registerDocusignEnvelope } from '@/platform/docusignSigning/envelopeRegistration';
+import { DirectDocusignAdapter } from '@/platform/docusignSigning/docusignAdapter';
+import { DocusignLaunchRelayClient } from '@/platform/docusignSigning/launchRelayClient';
+import { startDocusignSignature } from '@/platform/docusignSigning/signatureWorkflow';
+import type { PdfCompletionReceipt } from '@/platform/intake/pdfTemplates/templateContract';
 import { BRAND } from '@/config/brand';
 import { FirmApiClient } from '@/platform/firm/FirmApiClient';
 import { publishIntakeKeyToMembers } from '@/platform/intake/intakeKeyShare';
@@ -231,6 +237,36 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
   // MatterHub only passes the requested meeting down; ClientMeetingsTab owns the
   // master-detail selection so the rail never disappears.
   const [initialSelectedMeeting, setInitialSelectedMeeting] = useState<{ dir: string; folderName: string; startMs?: number } | null>(null);
+
+  const handleSendForSignature = useCallback(async ({ intake, signatureItemId, signerName, signerEmail }: { intake: import('@/platform/intake/intakeStore').IntakeRecord; signatureItemId: string; signerName: string; signerEmail: string }) => {
+    if (!workspaceService || !seatToken || !matter?.folderPaths[0] || !intake.requestSlug || !intake.requestItems) throw new Error('A workspace, an active Firm seat, and this request’s local files are required before sending for signature.');
+    const signature = intake.requestItems.find((item) => item.item_id === signatureItemId);
+    if (!signature || signature.t !== 'signature' || signature.grade !== 'docusign') throw new Error('This request has no reviewed DocuSign signature item.');
+    const source = intake.items.find((item) => item.itemId === signature.source_pdf_fill_item_id);
+    const completion = source?.pdfCompletion;
+    if (!source?.filePath || !completion || !completion.completedAt || !completion.pageVersion) throw new Error('The completed source form and its protected receipt are required before sending.');
+    const receipt: PdfCompletionReceipt = { issuedItemId: signature.source_pdf_fill_item_id, templateId: completion.templateId, templateVersion: completion.templateVersion, sourceSha256: completion.sourceSha256, completedSha256: completion.completedSha256, completedAt: completion.completedAt, pageVersion: completion.pageVersion };
+    const provider = createDocusignAuthorizationProvider({ intakeId: intake.intakeId, seatToken, accessToken, templateId: completion.templateId });
+    const adapter = new DirectDocusignAdapter(provider);
+    const relayOptions = { seatToken, ...(accessToken ? { accessToken } : {}) };
+    await startDocusignSignature({
+      intakeId: intake.intakeId,
+      sourceFilePath: source.filePath,
+      receipt,
+      workspaceService,
+      request: { request_id: intake.intakeId, schema_version: 1, matter_id: intake.matterId, kind: intake.kind ?? 'onboarding', items: intake.requestItems },
+      signatureItemId,
+      requestActive: intake.status === 'active',
+      matterFolderPath: matter.folderPaths[0],
+      requestSlug: intake.requestSlug,
+      signerName,
+      signerEmail,
+      returnUrl: `${window.location.origin}/docusign-signing-return`,
+      adapter,
+      launchRelay: new DocusignLaunchRelayClient(relayOptions),
+      registerEnvelope: (envelopeId) => registerDocusignEnvelope({ intakeId: intake.intakeId, envelopeId, ...relayOptions }),
+    });
+  }, [accessToken, matter?.folderPaths, seatToken, workspaceService]);
 
   // Honor + consume a pending sub-tab request. Reactive on `pendingHubTab` so it
   // handles a quick-action targeting the SAME already-open client (no remount).
@@ -927,6 +963,7 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
               onShareWithTeam={handleShareIntakeWithTeam}
               {...(workspaceService !== undefined ? { workspaceService } : {})}
               matterFolderPath={matter.folderPaths[0] ?? ''}
+              onSendForSignature={handleSendForSignature}
             />
           </div>
         )}

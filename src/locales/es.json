@@ -4044,6 +4044,10 @@
       "phone-call-description": "Repasen juntos la misma lista, paso a paso.",
       "start-phone-walkthrough": "Iniciar guía por teléfono"
     },
+    "signature": {
+      "send-for-signature": "Enviar para firma",
+      "send-description": "Esto envía el formulario completado y el nombre y correo electrónico del firmante directamente a DocuSign."
+    },
     "phone": {
       "title": "Guía por teléfono",
       "step-description": "Paso {{step}} de {{total}}. Complete esto con {{client}} durante la llamada.",

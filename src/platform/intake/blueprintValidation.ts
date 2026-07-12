@@ -1,6 +1,7 @@
 import type { RequestItem } from './types';
 import type { RequestBlueprint } from './blueprintTypes';
 import { assertValidPdfTemplateDescriptor } from './pdfTemplates/templateValidation';
+import { assertValidDocusignTabMap } from './docusignSignature/tabMap';
 
 export class BlueprintValidationError extends Error {
   constructor(message: string) {
@@ -115,11 +116,25 @@ export function copyBlueprintItem(item: RequestItem): RequestItem {
           : { sealed_source_pdf_b64: item.sealed_source_pdf_b64 }),
       };
     case 'signature':
+      if (item.grade === 'native_clicksign') {
+        throw new BlueprintValidationError('native_clicksign signature items are not supported.');
+      }
+      try {
+        assertValidDocusignTabMap(item.tab_map);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown tab map validation error.';
+        throw new BlueprintValidationError(`DocuSign signature tab map is not approved: ${message}`);
+      }
       return {
         t: 'signature',
         ...common,
-        grade: item.grade,
-        ...(item.document_ref ? { document_ref: item.document_ref } : {}),
+        grade: 'docusign',
+        source_pdf_fill_item_id: item.source_pdf_fill_item_id,
+        tab_map: {
+          signatureTab: { page: item.tab_map.signatureTab.page, rect: { ...item.tab_map.signatureTab.rect } },
+          dateSignedTab: { page: item.tab_map.dateSignedTab.page, rect: { ...item.tab_map.dateSignedTab.rect } },
+          signerNameTab: { page: item.tab_map.signerNameTab.page, rect: { ...item.tab_map.signerNameTab.rect } },
+        },
       };
   }
 }
@@ -138,6 +153,7 @@ export function assertValidRequestBlueprint(blueprint: RequestBlueprint): void {
   }
 
   const itemIds = new Set<string>();
+  const pdfItemsById = new Map<string, Extract<RequestItem, { t: 'pdf_fill' }>>();
   for (const item of blueprint.items) {
     requireText(item.item_id, 'Item id');
     requireText(item.label, 'Item label');
@@ -161,7 +177,32 @@ export function assertValidRequestBlueprint(blueprint: RequestBlueprint): void {
         const message = error instanceof Error ? error.message : 'Unknown template validation error.';
         throw new BlueprintValidationError(`Blueprint PDF template is not approved: ${message}`);
       }
+      pdfItemsById.set(item.item_id, item);
     }
+  }
+  const signatureSources = new Set<string>();
+  for (const item of blueprint.items) {
+    if (item.t !== 'signature') continue;
+    if (item.grade === 'native_clicksign') {
+      throw new BlueprintValidationError('native_clicksign signature items are not supported.');
+    }
+    if (typeof item.source_pdf_fill_item_id !== 'string' || !item.source_pdf_fill_item_id.trim()) {
+      throw new BlueprintValidationError('DocuSign signature source_pdf_fill_item_id is required.');
+    }
+    const source = pdfItemsById.get(item.source_pdf_fill_item_id);
+    if (!source) {
+      throw new BlueprintValidationError('DocuSign signature source_pdf_fill_item_id must reference a pdf_fill item in this blueprint.');
+    }
+    if (signatureSources.has(item.source_pdf_fill_item_id)) {
+      throw new BlueprintValidationError('Only one DocuSign signature item may target a pdf_fill item.');
+    }
+    try {
+      assertValidDocusignTabMap(item.tab_map, source.template);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown tab map validation error.';
+      throw new BlueprintValidationError(`DocuSign signature tab map is not approved: ${message}`);
+    }
+    signatureSources.add(item.source_pdf_fill_item_id);
   }
 }
 

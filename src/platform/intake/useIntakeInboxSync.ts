@@ -426,7 +426,7 @@ async function routePdfFillSubmission(
       fileName: `completed-form-${submission.submissionId}.pdf`,
       bytes,
     });
-    return { filePath };
+    return { filePath, pdfCompletion: receipt };
   } catch (error) {
     // PdfToolingFailure means our own PDF tooling broke, not that this
     // client's submission is unsafe or mismatched - never file that under
@@ -475,6 +475,7 @@ function markSubmissionReceived(
     provenance,
     ...(result.factId ? { factId: result.factId } : {}),
     ...(result.filePath ? { filePath: result.filePath } : {}),
+    ...(result.pdfCompletion ? { pdfCompletion: result.pdfCompletion } : {}),
   });
   store.addReceivedItem(submission.intakeId, {
     itemId: item.itemId,
@@ -483,6 +484,7 @@ function markSubmissionReceived(
     provenance,
     ...(result.factId ? { factId: result.factId } : {}),
     ...(result.filePath ? { filePath: result.filePath } : {}),
+    ...(result.pdfCompletion ? { pdfCompletion: result.pdfCompletion } : {}),
     ...receivedWarning,
   });
   store.setLastClientActivity(submission.intakeId, submission.submittedAt);

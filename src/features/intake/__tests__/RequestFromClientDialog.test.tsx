@@ -281,6 +281,11 @@ describe('RequestFromClientDialog', () => {
         template.version
       );
     });
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('button', { name: 'Add to request' })
+      ).toBeNull();
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Review request' }));
     fireEvent.click(
       await screen.findByRole('button', { name: 'Send request' })
@@ -357,6 +362,27 @@ describe('RequestFromClientDialog', () => {
       defaultKind: 'standing',
       items: [
         {
+          t: 'pdf_fill',
+          item_id: 'signature-source',
+          label: 'Signature source form',
+          help_text: '',
+          required: true,
+          subject: 'primary',
+          prefill: [],
+          template: {
+            templateId: 'template_signature_source_01',
+            version: 1,
+            kind: 'acroform',
+            sourceSha256: 'a'.repeat(64),
+            sourceArtifactRef: 'sealed-artifact:signaturesource0001',
+            outputFileStem: 'signature-source',
+            maxOutputBytes: 1024,
+            fields: {
+              name: { kind: 'acroform', field_id: 'name', acroform_field: 'Name', pdf_field_type: 'text' },
+            },
+          },
+        },
+        {
           t: 'signature',
           item_id: 'signature',
           label: 'Sign form',
@@ -364,6 +390,12 @@ describe('RequestFromClientDialog', () => {
           required: true,
           subject: 'primary',
           grade: 'docusign',
+          source_pdf_fill_item_id: 'signature-source',
+          tab_map: {
+            signatureTab: { page: 1, rect: { x: 0.1, y: 0.1, width: 0.2, height: 0.1 } },
+            dateSignedTab: { page: 1, rect: { x: 0.1, y: 0.25, width: 0.2, height: 0.1 } },
+            signerNameTab: { page: 1, rect: { x: 0.1, y: 0.4, width: 0.2, height: 0.1 } },
+          },
         },
       ],
     };
