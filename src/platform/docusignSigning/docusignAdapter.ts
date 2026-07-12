@@ -113,7 +113,10 @@ export class DirectDocusignAdapter {
     if (!input.envelopeId || !input.signerName.trim() || !input.signerEmail.trim() || !input.clientUserId.trim()) {
       throw new Error('Envelope id, signer name, signer email, and client user id are required.');
     }
-    return this.withAuthorization((authorization, fetchFn) => this.createRecipientViewWithAuthorization(authorization, fetchFn, input));
+    return this.withAuthorization((authorization, fetchFn) => {
+      if (input.returnUrl !== authorization.allowedReturnUrl) throw new Error('DocuSign return URL is not the broker-allowed URL.');
+      return this.createRecipientViewWithAuthorization(authorization, fetchFn, input);
+    });
   }
 
   async createEnvelopeAndRecipientView(input: DocusignEnvelopeInput): Promise<DocusignEnvelopeResult> {
