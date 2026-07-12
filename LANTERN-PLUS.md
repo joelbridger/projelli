@@ -4,11 +4,17 @@
 (internally now called **Lantern**), branched from the true `keepance-3.0` tip
 (`000060cf`, fetched fresh from GitHub) onto the branch **`lantern-plus`**.
 
-**Status (2026-07-04): feature-complete.** All five waves (0-4) of the Jump
-feature-parity program are merged, and the full real-Windows verification pass
-has run clean — see `docs/PRODUCT-JOURNEY.md`'s 2026-07-04 entries for the
-detailed story. Work in this folder now is QA, hardening, and cleanup, not new
-feature waves.
+**Status (2026-07-12): landed work is now in `lp/ux-simplify-v1` at
+`8105d3c8`.** The original five Jump-parity waves (0-4) remain merged and
+Windows-checked. Since then, the complete Lantern Intake program (W1-W10) has
+landed via `f4c66ce8`; the post-fold feature batch via `052ecf5f`; and the
+DocuSign signing work via `698ff0d8`. The three follow-on integration lanes
+are also landed: dated evidence (`871f9e45`), firm meeting templates
+(`cf289dfd`), and reviewed meeting notes (`8105d3c8`). The mail re-index
+repair follow-ups landed in `63a93502` and `92898bdc`.
+
+This is a landed-code record, not a release claim. Firm relay and Offline Mode
+remain pending work; do not mark either complete from this status update.
 
 ## Why it exists
 
@@ -52,4 +58,11 @@ Two efforts run in parallel and must not collide:
 
 ## Open items (cross-lane dependencies)
 
-- `TODO(wave-3-merge)`: Wave 4 Track A's `SpeakerNamesPanel` (`src/features/meetings/SpeakerNamesPanel.tsx`) is built, tested, and exported but not yet mounted anywhere — it needs Wave 3's `MeetingEntry.tsx` transcript viewer (a separate in-flight lane) to exist first. Once Wave 3 merges into `lantern-plus`, mount `<SpeakerNamesPanel meetingDir={...} matterId={...} workspaceRoot={...} onApplied={reindex} />` in the transcript viewer per Wave 4 Track A Task 12 Step 6 (`docs/plans/lantern-plus/2026-07-02-wave-4-depth.md`).
+- **Meeting viewer wiring:** the former `TODO(wave-3-merge)` mount is no
+  longer blocked: `SpeakerNamesPanel` is mounted in `MeetingEntry` by
+  `3a8c1ad0`, which is contained in the current tip. The separate Wave 4
+  transcript re-index callback (`onApplied={reindex}`) is not wired at this
+  tip, so that narrower part of Task 12 Step 6 remains open.
+- **Separate pending work:** firm relay and Offline Mode remain pending. This
+  document does not infer completion for either from nearby intake or egress
+  changes.

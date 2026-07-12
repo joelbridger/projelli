@@ -27,6 +27,25 @@
 
 Dependencies: 2–6 all sit on Wave 1's rails. 3 and 4 share the extraction/proposal card patterns (build 3 before 4). 5 and 6 are independent of 3–4. Waves 7–10 (the Addendum 1 generalization) sit on Wave 1's forward-compatible `FormRequest` schema and Wave 2's board; 8–10 are independent of each other after 7, except 9 consumes 8's filled PDFs when both exist. DocuSign credentials (Jameson's vendor task) gate Wave 9's ship, not its build.
 
+## Status ledger — synced 2026-07-12
+
+- [x] **W1-W10 are landed in the main program fold:** `f4c66ce8` merged the
+  complete intake program, its fixes, and the scrub seam into
+  `lp/ux-simplify-v1`.
+- [x] **Wave 9 DocuSign signing is landed:** `698ff0d8` merged the signing
+  batch, including the advisor, client-page, and signing-broker lanes.
+- [x] **Post-fold integration is landed:** the ten-feature batch is
+  `052ecf5f`; dated evidence is `871f9e45`; firm meeting templates are
+  `cf289dfd`; and reviewed meeting-note delivery is `8105d3c8`.
+- [x] **Mail re-index repair follow-ups are landed:** `63a93502` and
+  `92898bdc`.
+- [ ] **Firm relay remains pending.**
+- [ ] **Offline Mode remains pending.**
+
+These entries describe merged source only. They do not say the related vendor
+credentials are configured, that a release has shipped, or that either pending
+item is complete.
+
 ---
 
 ## Wave 1 — the smallest honest slice (locked by the brief)

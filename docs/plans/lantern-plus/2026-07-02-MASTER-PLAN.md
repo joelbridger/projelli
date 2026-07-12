@@ -67,6 +67,24 @@ WASAPI for Wave 3, sherpa-onnx sidecar for Wave 4); nothing else without a plan 
    main line after Jameson's explicit go.
 10. **No time estimates** in any doc or report — relative sizes only.
 
+## Program status — synced 2026-07-12
+
+This plan's Wave 0-4 scope is landed. The original program was already
+feature-complete and Windows-checked; the current merged application tip is
+`lp/ux-simplify-v1` at `8105d3c8`.
+
+- **Landed:** Intake W1-W10, including the complete fold and its fixes
+  (`f4c66ce8`); the ten-feature post-fold batch (`052ecf5f`); DocuSign signing
+  (`698ff0d8`); and the mail re-index repair follow-ups (`63a93502`,
+  `92898bdc`).
+- **Landed integration lanes:** dated evidence (`871f9e45`), firm meeting
+  templates (`cf289dfd`), and reviewed meeting-note delivery (`8105d3c8`).
+- **Still pending:** firm relay and Offline Mode. These are not made complete
+  by any of the merges above.
+
+The wave descriptions below are the original implementation record. They do
+not turn a merged implementation into a production release.
+
 ## The waves
 
 | Wave | Plan file | Size | Delivers |
