@@ -562,8 +562,7 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
                 </>
               ) : (
                 <div className="mt-1 text-sm text-slate-600">
-                  This client will be created on this device. You can add their
-                  details anytime.
+                  {t('matter.new-client.solo-note', { entity: entityLabel.one })}
                 </div>
               )}
             </div>
