@@ -92,8 +92,10 @@ fixture source → required completeness → allowed skip reasons (XD-18).
   records + optional manual conversion to workflows — never auto-converted.
 - Calendar/email/files: EXISTING subsystems own them (calendar connector, mail store,
   documents); CRM links via `EntityRef` only; no second event/email entity (XD-16).
-  **BCC-dropbox capture: documented exclusion** — server-side plaintext capture conflicts
-  with the E2EE charter; revisit only with a client-side alternative.
+  **BCC-dropbox capture: client-side alternative** — the advisor uses a dedicated
+  folder or label in their already-connected mailbox. The app checks it locally,
+  suggests a client, and files only after the advisor approves; no plaintext email
+  reaches a server.
 - Users/Teams/permissions: existing firm-admin rails own identity/roles; 02 gets a small
   `FirmDirectoryEntry` read-model + import mapping table; no new permission entities
   (XD-17).
@@ -243,8 +245,8 @@ REPORTS the protected rest — no compare/decide dialog for protected cells). Fr
 states: Live / Syncing (visible lower-bound wording) / Last synced / Offline. Notification
 UI discloses the real relay metadata (recipient, timestamps, size band, delivery/ack
 timing, opaque ids) and ordinary read/unread is LOCAL device state. Firm setup is a shell
-over existing admin rails (`FirmDirectoryEntry` stays display-only). BCC-dropbox promises
-are REMOVED from 04 (D9 exclusion stands). Migration UI gains the two mandatory fallback
+over existing admin rails (`FirmDirectoryEntry` stays display-only). The Email Dropbox
+surface uses the D9 client-side flow, not server-side capture. Migration UI gains the two mandatory fallback
 surfaces (in-flight-workflow operator checklist + per-client attachment exported-or-gap
 accounting), the parallel-run "mirror" is limited to readable templates + activity traces,
 and 06's Day-1 corpus + envelope-revocation tests conform (XD2-6/7).
