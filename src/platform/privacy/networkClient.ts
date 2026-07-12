@@ -29,6 +29,7 @@ import {
   recordNetworkEgressReceipt,
   type NetworkEgressResult,
 } from '@/platform/privacy/networkEgressReceipt';
+import { getCorsSafeFetch } from '@/platform/providers/fetchUtils';
 
 export const OFFLINE_MODE_BLOCKED_CODE = 'OFFLINE_MODE_BLOCKED';
 
@@ -283,14 +284,11 @@ async function recheck(
 }
 
 async function egressFetchTransport(): Promise<typeof globalThis.fetch> {
-  const useTauriHttp =
-    typeof window !== 'undefined' &&
-    '__TAURI__' in window &&
-    !import.meta.env.DEV;
-  if (!useTauriHttp) return globalThis.fetch.bind(globalThis);
-
-  const plugin = await import('@tauri-apps/plugin-http');
-  return plugin.fetch as typeof globalThis.fetch;
+  // This boundary adds policy checks; it must not replace the application's
+  // established transport choice. In particular, the relay already relies on
+  // this handoff for its production CORS-safe transport and its test relay.
+  // Do not signal AI-provider activity for non-provider egress here.
+  return getCorsSafeFetch({ signalEgress: false });
 }
 
 function isManualRedirect(response: Response): boolean {
@@ -410,8 +408,14 @@ async function egressFetchWithPolicy(
   keepActiveForBody: boolean
 ): Promise<Response> {
   // Browser development intentionally has no desktop Offline Mode guarantee.
-  // Keep its historical Vite-proxy and relative-URL behavior exactly intact.
-  if (!isTauri()) return globalThis.fetch(input, init);
+  // Keep its historical Vite-proxy and relative-URL behavior exactly intact,
+  // including the app's established CORS-safe fetch seam. The seam resolves
+  // to native fetch in browser development, while preserving the relay's
+  // long-standing transport injection in contract tests.
+  if (!isTauri()) {
+    const transport = await egressFetchTransport();
+    return transport(input, init);
+  }
 
   const { operation, destination, active } = await authorize(
     operationId,
