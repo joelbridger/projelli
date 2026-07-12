@@ -376,6 +376,22 @@ export interface FetchMatterKeysResponse {
   wrapped_key_b64: string;
 }
 
+/** Firm-only, per-device wrapped intake private-key grants. */
+export interface PublishIntakeKeysRequest {
+  epoch: number;
+  wrapped: WrappedKeyEntry[];
+}
+
+export interface PublishIntakeKeysResponse {
+  ok: true;
+  stored: number;
+}
+
+export interface FetchIntakeKeysResponse {
+  epoch: number;
+  wrapped_key_b64: string;
+}
+
 /** Response for POST /org/admins — org admin users (used for escrow). */
 export interface OrgAdminEntry {
   user_id: string;
@@ -481,6 +497,8 @@ export const FIRM_ENDPOINTS = {
   listMatterMembers: '/matter/:id/members/list',
   publishMatterKeys: '/matter/:id/keys/publish',
   fetchMatterKeys: '/matter/:id/keys/fetch',
+  publishIntakeKeys: '/intake/:id/keys',
+  fetchIntakeKeys: '/intake/:id/keys',
   setWall: '/matter/:id/wall/set',
   clearWall: '/matter/:id/wall/clear',
   pushUpdate: '/matter/:id/updates',

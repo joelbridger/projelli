@@ -3,14 +3,17 @@ use crate::commands::mail::crypto::encrypt_with_key;
 use crate::commands::mail::graph::{page_continuation, Continuation, DeltaGone, GraphClient};
 use crate::commands::mail::model::{BodyContentType, MailMessage};
 use crate::commands::mail::normalize::to_markdown;
-use crate::commands::mail::provider::{Cursor, MailProvider, RemoteFolder};
 #[cfg(test)]
 use crate::commands::mail::provider::ChangePage;
+use crate::commands::mail::provider::{Cursor, MailProvider, RemoteFolder};
 use crate::commands::mail::store::{encrypted_blob_relative_path, MailRecord, MailStore};
 use std::path::Path;
 
 #[derive(Debug, Default, PartialEq)]
-pub struct PageStats { pub written: u32, pub removed: u32 }
+pub struct PageStats {
+    pub written: u32,
+    pub removed: u32,
+}
 
 /// Run a blocking closure without stalling the async runtime when we can.
 ///
@@ -37,22 +40,36 @@ const MAX_DELTA_RESETS: u32 = 3;
 
 #[cfg(test)]
 fn safe_filename(id: &str) -> String {
-    id.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '_' }).collect()
+    id.chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+        .collect()
 }
 
 /// Apply one delta page to the store + disk. Idempotent: replays are harmless
 /// because upsert is by id and tombstone is a no-op when absent.
 #[cfg(test)]
-pub fn apply_page(store: &dyn MailStore, workspace_root: &Path, folder_id: &str,
-                  page: &serde_json::Value) -> anyhow::Result<PageStats> {
+pub fn apply_page(
+    store: &dyn MailStore,
+    workspace_root: &Path,
+    folder_id: &str,
+    page: &serde_json::Value,
+) -> anyhow::Result<PageStats> {
     let mut stats = PageStats::default();
-    let items = page.get("value").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+    let items = page
+        .get("value")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
     for item in &items {
         let id = item.get("id").and_then(|s| s.as_str()).unwrap_or("");
-        if id.is_empty() { continue; }
+        if id.is_empty() {
+            continue;
+        }
         if MailMessage::is_removed(item) {
             if let Some(rel) = store.tombstone(id)? {
-                let _ = std::fs::remove_file(crate::commands::data_dir::resolve_workspace_relative(workspace_root, &rel));
+                let _ = std::fs::remove_file(
+                    crate::commands::data_dir::resolve_workspace_relative(workspace_root, &rel),
+                );
                 stats.removed += 1;
             }
             continue;
@@ -62,16 +79,23 @@ pub fn apply_page(store: &dyn MailStore, workspace_root: &Path, folder_id: &str,
             // Microsoft Graph (untrusted). safe_filename is an allowlist (only
             // ASCII alphanumerics survive), so "../" / path separators can never
             // escape the workspace, regardless of what Graph returns.
-            let rel = format!("Mail/{}/{}.md", safe_filename(folder_id), safe_filename(&msg.id));
+            let rel = format!(
+                "Mail/{}/{}.md",
+                safe_filename(folder_id),
+                safe_filename(&msg.id)
+            );
             let abs = workspace_root.join(&rel);
-            if let Some(p) = abs.parent() { std::fs::create_dir_all(p)?; }
+            if let Some(p) = abs.parent() {
+                std::fs::create_dir_all(p)?;
+            }
             std::fs::write(&abs, to_markdown(&msg))?;
             // Legacy Phase-1 import helper. Production sync uses apply_page_enc
             // with EncryptedMailStore; this path remains only for migration/test
             // coverage of old Mail/*.md artifacts.
             let snippet_source = match msg.body_content_type {
-                BodyContentType::Html =>
-                    crate::commands::mail::normalize::html_to_text(&msg.body_text),
+                BodyContentType::Html => {
+                    crate::commands::mail::normalize::html_to_text(&msg.body_text)
+                }
                 BodyContentType::Text => msg.body_text.clone(),
             };
             let snippet: String = snippet_source
@@ -80,15 +104,22 @@ pub fn apply_page(store: &dyn MailStore, workspace_root: &Path, folder_id: &str,
                 .take(200)
                 .collect();
             store.upsert(&MailRecord {
-                id: msg.id.clone(), folder_id: folder_id.to_string(),
+                id: msg.id.clone(),
+                folder_id: folder_id.to_string(),
                 internet_message_id: msg.internet_message_id.clone(),
-                relative_path: rel, received_date_time: msg.received_date_time.clone(),
-                provider: String::new(), account: String::new(),
+                relative_path: rel,
+                received_date_time: msg.received_date_time.clone(),
+                provider: String::new(),
+                account: String::new(),
                 subject: msg.subject.clone(),
                 from_addr: msg.from_address.clone().unwrap_or_default(),
                 from_name: msg.from_name.clone().unwrap_or_default(),
                 snippet,
                 has_attachments: msg.has_attachments,
+                thread_id: msg.thread_id.clone(),
+                auth_result: msg.auth_result.clone(),
+                attachment_refs: msg.attachments.clone(),
+                attachments_unsupported: msg.attachments_unsupported,
             })?;
             stats.written += 1;
         }
@@ -125,9 +156,14 @@ where
 {
     let mut stats = PageStats::default();
     for id in removed_ids {
-        if id.is_empty() { continue; }
+        if id.is_empty() {
+            continue;
+        }
         if let Some(rel) = store.tombstone(id)? {
-            let _ = std::fs::remove_file(crate::commands::data_dir::resolve_workspace_relative(workspace_root, &rel));
+            let _ = std::fs::remove_file(crate::commands::data_dir::resolve_workspace_relative(
+                workspace_root,
+                &rel,
+            ));
             tombstone_callback(id);
             stats.removed += 1;
         }
@@ -160,8 +196,7 @@ where
         // Newlines are collapsed to spaces; HTML bodies are stripped to text first
         // so the snippet shows readable prose rather than raw markup.
         let snippet_source = match msg.body_content_type {
-            BodyContentType::Html =>
-                crate::commands::mail::normalize::html_to_text(&msg.body_text),
+            BodyContentType::Html => crate::commands::mail::normalize::html_to_text(&msg.body_text),
             BodyContentType::Text => msg.body_text.clone(),
         };
         let snippet: String = snippet_source
@@ -182,6 +217,10 @@ where
             from_name: msg.from_name.clone().unwrap_or_default(),
             snippet,
             has_attachments: msg.has_attachments,
+            thread_id: msg.thread_id.clone(),
+            auth_result: msg.auth_result.clone(),
+            attachment_refs: msg.attachments.clone(),
+            attachments_unsupported: msg.attachments_unsupported,
         });
         pending_index.push((msg.id.clone(), markdown));
         stats.written += 1;
@@ -247,19 +286,37 @@ where
     F: Fn(&str, &str, &str),
     T: Fn(&str),
 {
-    let items = page.get("value").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+    let items = page
+        .get("value")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
     let mut messages: Vec<MailMessage> = Vec::new();
     let mut removed_ids: Vec<String> = Vec::new();
     for item in &items {
         let id = item.get("id").and_then(|s| s.as_str()).unwrap_or("");
-        if id.is_empty() { continue; }
+        if id.is_empty() {
+            continue;
+        }
         if MailMessage::is_removed(item) {
             removed_ids.push(id.to_string());
         } else if let Some(m) = MailMessage::from_graph(item) {
             messages.push(m);
         }
     }
-    apply_messages_enc(store, workspace_root, folder_id, provider, account, matter_id, &messages, &removed_ids, key, index_callback, tombstone_callback)
+    apply_messages_enc(
+        store,
+        workspace_root,
+        folder_id,
+        provider,
+        account,
+        matter_id,
+        &messages,
+        &removed_ids,
+        key,
+        index_callback,
+        tombstone_callback,
+    )
 }
 
 /// G7: Migration — remove the plaintext `Mail/` directory written by Phase 1.
@@ -296,12 +353,15 @@ pub fn migrate_plaintext(workspace_root: &Path) {
 /// and the test can pass a no-op.
 #[cfg(test)]
 pub async fn sync_folder<F: Fn(u32, u32) + Send>(
-    client: &GraphClient, store: &(dyn MailStore + Sync), workspace_root: &Path,
-    folder_id: &str, emit: &F,
+    client: &GraphClient,
+    store: &(dyn MailStore + Sync),
+    workspace_root: &Path,
+    folder_id: &str,
+    emit: &F,
 ) -> anyhow::Result<PageStats> {
     let mut url = match store.get_cursor(folder_id)? {
-        Some(saved) => saved,                       // resume (deltaLink or interrupted nextLink)
-        None => client.delta_start_url(folder_id),  // fresh backfill
+        Some(saved) => saved, // resume (deltaLink or interrupted nextLink)
+        None => client.delta_start_url(folder_id), // fresh backfill
     };
     let mut total = PageStats::default();
     let mut delta_gone_count = 0u32;
@@ -325,11 +385,18 @@ pub async fn sync_folder<F: Fn(u32, u32) + Send>(
             Err(e) => return Err(e),
         };
         let s = apply_page(store, workspace_root, folder_id, &page)?;
-        total.written += s.written; total.removed += s.removed;
+        total.written += s.written;
+        total.removed += s.removed;
         emit(total.written, total.removed);
         match page_continuation(&page) {
-            Continuation::Next(next) => { store.set_cursor(folder_id, &next)?; url = next; }
-            Continuation::Delta(delta) => { store.set_cursor(folder_id, &delta)?; break; }
+            Continuation::Next(next) => {
+                store.set_cursor(folder_id, &next)?;
+                url = next;
+            }
+            Continuation::Delta(delta) => {
+                store.set_cursor(folder_id, &delta)?;
+                break;
+            }
             Continuation::End => break,
         }
     }
@@ -383,7 +450,8 @@ where
                     current.iter().map(|s| s.as_str()).collect();
                 let local_ids = store.ids_in_folder(provider.kind(), account, &folder.id)?;
                 for local_id in local_ids {
-                    if !current_set.contains(local_id.as_str()) && !removed_ids.contains(&local_id) {
+                    if !current_set.contains(local_id.as_str()) && !removed_ids.contains(&local_id)
+                    {
                         removed_ids.push(local_id);
                     }
                 }
@@ -393,12 +461,30 @@ where
         // P2.3 row 5: run the blocking apply (disk writes + SQLite txn) off the
         // async executor on a multi-threaded runtime so a large sync does not
         // stall other tasks; inline on a current-thread runtime (see run_blocking).
-        let s = run_blocking(|| apply_messages_enc(store, workspace_root, &folder.id, provider.kind(), account, matter_id, &page.messages, &removed_ids, key, index_callback, tombstone_callback))?;
+        let s = run_blocking(|| {
+            apply_messages_enc(
+                store,
+                workspace_root,
+                &folder.id,
+                provider.kind(),
+                account,
+                matter_id,
+                &page.messages,
+                &removed_ids,
+                key,
+                index_callback,
+                tombstone_callback,
+            )
+        })?;
         total.written += s.written;
         total.removed += s.removed;
         emit(total.written, total.removed);
-        if let Some(tok) = &page.next { store.set_cursor(&cursor_key, tok)?; }
-        if page.done { break; }
+        if let Some(tok) = &page.next {
+            store.set_cursor(&cursor_key, tok)?;
+        }
+        if page.done {
+            break;
+        }
         cursor = Cursor::from_token(page.next);
     }
     Ok(total)
@@ -408,13 +494,13 @@ where
 mod tests {
     use super::*;
     use crate::commands::mail::store::{MailRecord, MailStore};
-    use std::sync::Mutex;
     use std::collections::HashMap;
+    use std::sync::Mutex;
 
     #[derive(Default)]
     struct FakeStore {
-        msgs: Mutex<HashMap<String,MailRecord>>,
-        cursors: Mutex<HashMap<String,String>>,
+        msgs: Mutex<HashMap<String, MailRecord>>,
+        cursors: Mutex<HashMap<String, String>>,
         // Simulates a mid-page transaction failure (e.g. disk full on commit)
         // so tests can assert nothing downstream of the batch commit runs.
         fail_batch: std::sync::atomic::AtomicBool,
@@ -423,34 +509,81 @@ mod tests {
         call_log: Mutex<Vec<String>>,
     }
     impl MailStore for FakeStore {
-        fn upsert(&self, r:&MailRecord)->anyhow::Result<()> { self.msgs.lock().unwrap().insert(r.id.clone(), r.clone()); Ok(()) }
-        fn upsert_batch(&self, recs:&[MailRecord])->anyhow::Result<()> {
-            self.call_log.lock().unwrap().push("upsert_batch".to_string());
+        fn upsert(&self, r: &MailRecord) -> anyhow::Result<()> {
+            self.msgs.lock().unwrap().insert(r.id.clone(), r.clone());
+            Ok(())
+        }
+        fn upsert_batch(&self, recs: &[MailRecord]) -> anyhow::Result<()> {
+            self.call_log
+                .lock()
+                .unwrap()
+                .push("upsert_batch".to_string());
             if self.fail_batch.load(std::sync::atomic::Ordering::SeqCst) {
                 return Err(anyhow::anyhow!("simulated batch commit failure"));
             }
-            for r in recs { self.upsert(r)?; }
+            for r in recs {
+                self.upsert(r)?;
+            }
             Ok(())
         }
-        fn tombstone(&self, id:&str)->anyhow::Result<Option<String>> { Ok(self.msgs.lock().unwrap().remove(id).map(|r| r.relative_path)) }
-        fn contains(&self, id:&str)->anyhow::Result<bool> { Ok(self.msgs.lock().unwrap().contains_key(id)) }
-        fn get_record(&self, id:&str)->anyhow::Result<Option<MailRecord>> { Ok(self.msgs.lock().unwrap().get(id).cloned()) }
-        fn ids_in_folder(&self, provider:&str, account:&str, folder_id:&str)->anyhow::Result<Vec<String>> {
-            Ok(self.msgs.lock().unwrap().values()
-                .filter(|r| (provider.is_empty() || r.provider == provider)
-                    && (account.is_empty() || r.account == account)
-                    && (folder_id.is_empty() || r.folder_id == folder_id))
-                .map(|r| r.id.clone()).collect())
+        fn tombstone(&self, id: &str) -> anyhow::Result<Option<String>> {
+            Ok(self
+                .msgs
+                .lock()
+                .unwrap()
+                .remove(id)
+                .map(|r| r.relative_path))
         }
-        fn count(&self)->anyhow::Result<i64> { Ok(self.msgs.lock().unwrap().len() as i64) }
-        fn get_message_matter(&self, id:&str)->anyhow::Result<Option<String>> {
-            self.call_log.lock().unwrap().push(format!("get_message_matter:{id}"));
+        fn contains(&self, id: &str) -> anyhow::Result<bool> {
+            Ok(self.msgs.lock().unwrap().contains_key(id))
+        }
+        fn get_record(&self, id: &str) -> anyhow::Result<Option<MailRecord>> {
+            Ok(self.msgs.lock().unwrap().get(id).cloned())
+        }
+        fn ids_in_folder(
+            &self,
+            provider: &str,
+            account: &str,
+            folder_id: &str,
+        ) -> anyhow::Result<Vec<String>> {
+            Ok(self
+                .msgs
+                .lock()
+                .unwrap()
+                .values()
+                .filter(|r| {
+                    (provider.is_empty() || r.provider == provider)
+                        && (account.is_empty() || r.account == account)
+                        && (folder_id.is_empty() || r.folder_id == folder_id)
+                })
+                .map(|r| r.id.clone())
+                .collect())
+        }
+        fn count(&self) -> anyhow::Result<i64> {
+            Ok(self.msgs.lock().unwrap().len() as i64)
+        }
+        fn get_message_matter(&self, id: &str) -> anyhow::Result<Option<String>> {
+            self.call_log
+                .lock()
+                .unwrap()
+                .push(format!("get_message_matter:{id}"));
             Ok(None)
         }
-        fn get_cursor(&self, f:&str)->anyhow::Result<Option<String>> { Ok(self.cursors.lock().unwrap().get(f).cloned()) }
-        fn set_cursor(&self, f:&str, c:&str)->anyhow::Result<()> { self.cursors.lock().unwrap().insert(f.into(), c.into()); Ok(()) }
-        fn list_messages(&self, _q:&crate::commands::mail::store::MailListQuery)->anyhow::Result<crate::commands::mail::store::MailListPage> {
-            Ok(crate::commands::mail::store::MailListPage { items: vec![], total: 0 })
+        fn get_cursor(&self, f: &str) -> anyhow::Result<Option<String>> {
+            Ok(self.cursors.lock().unwrap().get(f).cloned())
+        }
+        fn set_cursor(&self, f: &str, c: &str) -> anyhow::Result<()> {
+            self.cursors.lock().unwrap().insert(f.into(), c.into());
+            Ok(())
+        }
+        fn list_messages(
+            &self,
+            _q: &crate::commands::mail::store::MailListQuery,
+        ) -> anyhow::Result<crate::commands::mail::store::MailListPage> {
+            Ok(crate::commands::mail::store::MailListPage {
+                items: vec![],
+                total: 0,
+            })
         }
     }
 
@@ -463,11 +596,26 @@ mod tests {
             { "id":"m2","@removed":{"reason":"deleted"} }
         ]});
         // pre-seed m2 so the tombstone has something to remove
-        store.upsert(&MailRecord{ id:"m2".into(), folder_id:"inbox".into(), internet_message_id:None,
-            relative_path:"Mail/inbox/m2.md".into(), received_date_time:None,
-            provider:String::new(), account:String::new(),
-            subject:String::new(), from_addr:String::new(), from_name:String::new(),
-            snippet:String::new(), has_attachments:false }).unwrap();
+        store
+            .upsert(&MailRecord {
+                id: "m2".into(),
+                folder_id: "inbox".into(),
+                internet_message_id: None,
+                relative_path: "Mail/inbox/m2.md".into(),
+                received_date_time: None,
+                provider: String::new(),
+                account: String::new(),
+                subject: String::new(),
+                from_addr: String::new(),
+                from_name: String::new(),
+                snippet: String::new(),
+                has_attachments: false,
+                thread_id: None,
+                auth_result: Default::default(),
+                attachment_refs: Vec::new(),
+                attachments_unsupported: false,
+            })
+            .unwrap();
         let stats = apply_page(&store, dir.path(), "inbox", &page).unwrap();
         assert_eq!(stats.written, 1);
         assert_eq!(stats.removed, 1);
@@ -511,15 +659,21 @@ mod tests {
             &page,
             &key,
             &|_id: &str, _text: &str, _m: &str| {}, // stub index callback
-            &|_id: &str| {},               // stub tombstone callback
-        ).unwrap();
+            &|_id: &str| {},                        // stub tombstone callback
+        )
+        .unwrap();
 
         assert_eq!(stats.written, 1);
         // NO plaintext .md anywhere under Mail/
-        assert!(!dir.path().join("Mail").exists(),
-            "plaintext Mail/ dir must NOT exist when apply_page_enc is used");
+        assert!(
+            !dir.path().join("Mail").exists(),
+            "plaintext Mail/ dir must NOT exist when apply_page_enc is used"
+        );
         // An encrypted blob exists under .lantern/mail/blobs/
-        let blob_dir = dir.path().join(format!("{}/mail/blobs", crate::identity::WORKSPACE_DATA_DIR));
+        let blob_dir = dir.path().join(format!(
+            "{}/mail/blobs",
+            crate::identity::WORKSPACE_DATA_DIR
+        ));
         let blobs: Vec<_> = std::fs::read_dir(&blob_dir)
             .expect("blobs dir must exist")
             .filter_map(|e| e.ok())
@@ -532,7 +686,10 @@ mod tests {
         let raw = std::fs::read(&blob_path).unwrap();
         let decrypted = crate::commands::mail::crypto::decrypt_with_key(&raw, &key).unwrap();
         let text = String::from_utf8(decrypted).unwrap();
-        assert!(text.contains("See you at 10am."), "decrypted body must contain original text");
+        assert!(
+            text.contains("See you at 10am."),
+            "decrypted body must contain original text"
+        );
     }
 
     #[test]
@@ -543,22 +700,35 @@ mod tests {
 
         // Pre-seed: write a blob and register it.
         let blob_rel = {
-            let blob_dir = dir.path().join(format!("{}/mail/blobs", crate::identity::WORKSPACE_DATA_DIR));
+            let blob_dir = dir.path().join(format!(
+                "{}/mail/blobs",
+                crate::identity::WORKSPACE_DATA_DIR
+            ));
             std::fs::create_dir_all(&blob_dir).unwrap();
             let enc = crate::commands::mail::crypto::encrypt_with_key(b"old body", &key).unwrap();
             std::fs::write(blob_dir.join("m2.enc"), &enc).unwrap();
             ".lantern/mail/blobs/m2.enc".to_string()
         };
-        store.upsert(&crate::commands::mail::store::MailRecord {
-            id: "m2".into(), folder_id: "inbox".into(),
-            internet_message_id: None,
-            relative_path: blob_rel.clone(),
-            received_date_time: None,
-            provider: "m365".into(), account: "default".into(),
-            subject: String::new(), from_addr: String::new(),
-            from_name: String::new(), snippet: String::new(),
-            has_attachments: false,
-        }).unwrap();
+        store
+            .upsert(&crate::commands::mail::store::MailRecord {
+                id: "m2".into(),
+                folder_id: "inbox".into(),
+                internet_message_id: None,
+                relative_path: blob_rel.clone(),
+                received_date_time: None,
+                provider: "m365".into(),
+                account: "default".into(),
+                subject: String::new(),
+                from_addr: String::new(),
+                from_name: String::new(),
+                snippet: String::new(),
+                has_attachments: false,
+                thread_id: None,
+                auth_result: Default::default(),
+                attachment_refs: Vec::new(),
+                attachments_unsupported: false,
+            })
+            .unwrap();
 
         let page = serde_json::json!({ "value": [
             { "id":"m2", "@removed": { "reason":"deleted" } }
@@ -566,18 +736,34 @@ mod tests {
         let tombstoned_ids = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
         let tombstoned_ids2 = tombstoned_ids.clone();
         let stats = apply_page_enc(
-            &store, dir.path(), "inbox", "m365", "default",
-            crate::commands::rag::store::UNASSIGNED_MATTER, &page, &key,
+            &store,
+            dir.path(),
+            "inbox",
+            "m365",
+            "default",
+            crate::commands::rag::store::UNASSIGNED_MATTER,
+            &page,
+            &key,
             &|_id, _text, _m| {},
-            &|id: &str| { tombstoned_ids2.lock().unwrap().push(id.to_string()); },
-        ).unwrap();
+            &|id: &str| {
+                tombstoned_ids2.lock().unwrap().push(id.to_string());
+            },
+        )
+        .unwrap();
 
         assert_eq!(stats.removed, 1);
-        assert!(!dir.path().join(&blob_rel).exists(), ".enc blob must be deleted");
+        assert!(
+            !dir.path().join(&blob_rel).exists(),
+            ".enc blob must be deleted"
+        );
         assert!(!store.contains("m2").unwrap());
         // S3: tombstone_callback must have been called with the deleted id.
         let ids = tombstoned_ids.lock().unwrap();
-        assert_eq!(ids.as_slice(), &["m2"], "tombstone_callback must be called for deleted message");
+        assert_eq!(
+            ids.as_slice(),
+            &["m2"],
+            "tombstone_callback must be called for deleted message"
+        );
     }
 
     #[test]
@@ -590,22 +776,39 @@ mod tests {
         ]});
 
         // Use Arc<Mutex<Vec>> to collect from the closure.
-        let captured = std::sync::Arc::new(std::sync::Mutex::new(Vec::<(String, String, String)>::new()));
+        let captured =
+            std::sync::Arc::new(std::sync::Mutex::new(Vec::<(String, String, String)>::new()));
         let cap2 = captured.clone();
         apply_page_enc(
-            &store, dir.path(), "inbox", "m365", "default", "matter_acme", &page, &key,
+            &store,
+            dir.path(),
+            "inbox",
+            "m365",
+            "default",
+            "matter_acme",
+            &page,
+            &key,
             &|id: &str, text: &str, matter: &str| {
-                cap2.lock().unwrap().push((id.to_string(), text.to_string(), matter.to_string()));
+                cap2.lock()
+                    .unwrap()
+                    .push((id.to_string(), text.to_string(), matter.to_string()));
             },
             &|_id: &str| {}, // stub tombstone callback
-        ).unwrap();
+        )
+        .unwrap();
 
         let pairs = captured.lock().unwrap();
         assert_eq!(pairs.len(), 1);
         assert_eq!(pairs[0].0, "m3");
-        assert!(pairs[0].1.contains("Index me!"), "callback receives plaintext");
+        assert!(
+            pairs[0].1.contains("Index me!"),
+            "callback receives plaintext"
+        );
         // The resolved matter id is forwarded to the index callback at index time.
-        assert_eq!(pairs[0].2, "matter_acme", "callback receives the resolved matter id");
+        assert_eq!(
+            pairs[0].2, "matter_acme",
+            "callback receives the resolved matter id"
+        );
     }
 
     #[test]
@@ -615,14 +818,27 @@ mod tests {
         let key = [0x11u8; 32];
         let mut m = crate::commands::mail::model::MailMessage::from_graph(&serde_json::json!({
             "id":"mm1","subject":"Hi","body":{"contentType":"text","content":"hello world"}
-        })).unwrap();
+        }))
+        .unwrap();
         m.account = "acct".into();
         let captured = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
         let cap2 = captured.clone();
-        let stats = apply_messages_enc(&store, dir.path(), "inbox", "imap", "acct",
-            crate::commands::rag::store::UNASSIGNED_MATTER, &[m], &[], &key,
-            &|id: &str, _t: &str, _m: &str| { cap2.lock().unwrap().push(id.to_string()); },
-            &|_id: &str| {}).unwrap();
+        let stats = apply_messages_enc(
+            &store,
+            dir.path(),
+            "inbox",
+            "imap",
+            "acct",
+            crate::commands::rag::store::UNASSIGNED_MATTER,
+            &[m],
+            &[],
+            &key,
+            &|id: &str, _t: &str, _m: &str| {
+                cap2.lock().unwrap().push(id.to_string());
+            },
+            &|_id: &str| {},
+        )
+        .unwrap();
         assert_eq!(stats.written, 1);
         assert!(store.contains("mm1").unwrap());
         assert_eq!(captured.lock().unwrap().as_slice(), &["mm1"]);
@@ -641,24 +857,44 @@ mod tests {
     #[test]
     fn apply_messages_enc_does_not_index_when_batch_commit_fails() {
         let store = FakeStore::default();
-        store.fail_batch.store(true, std::sync::atomic::Ordering::SeqCst);
+        store
+            .fail_batch
+            .store(true, std::sync::atomic::Ordering::SeqCst);
         let dir = tempfile::TempDir::new().unwrap();
         let key = [0x33u8; 32];
         let m = crate::commands::mail::model::MailMessage::from_graph(&serde_json::json!({
             "id":"orphan1","subject":"Hi","body":{"contentType":"text","content":"hello"}
-        })).unwrap();
+        }))
+        .unwrap();
         let indexed = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
         let indexed2 = indexed.clone();
 
-        let result = apply_messages_enc(&store, dir.path(), "inbox", "imap", "acct",
-            crate::commands::rag::store::UNASSIGNED_MATTER, &[m], &[], &key,
-            &|id: &str, _t: &str, _m: &str| { indexed2.lock().unwrap().push(id.to_string()); },
-            &|_id: &str| {});
+        let result = apply_messages_enc(
+            &store,
+            dir.path(),
+            "inbox",
+            "imap",
+            "acct",
+            crate::commands::rag::store::UNASSIGNED_MATTER,
+            &[m],
+            &[],
+            &key,
+            &|id: &str, _t: &str, _m: &str| {
+                indexed2.lock().unwrap().push(id.to_string());
+            },
+            &|_id: &str| {},
+        );
 
-        assert!(result.is_err(), "a failed batch commit must propagate as Err");
+        assert!(
+            result.is_err(),
+            "a failed batch commit must propagate as Err"
+        );
         assert!(indexed.lock().unwrap().is_empty(),
             "index_callback must not fire for any message on this page when the batch commit fails — no orphaned searchable mail");
-        assert!(!store.contains("orphan1").unwrap(), "message must not be durably stored either");
+        assert!(
+            !store.contains("orphan1").unwrap(),
+            "message must not be durably stored either"
+        );
     }
 
     /// Adversarial-review follow-up: deferring index_callback to after the
@@ -676,16 +912,33 @@ mod tests {
         let key = [0x44u8; 32];
         let m = crate::commands::mail::model::MailMessage::from_graph(&serde_json::json!({
             "id":"m-order","subject":"Hi","body":{"contentType":"text","content":"hello"}
-        })).unwrap();
+        }))
+        .unwrap();
 
-        apply_messages_enc(&store, dir.path(), "inbox", "imap", "acct", "matter-folder",
-            &[m], &[], &key,
+        apply_messages_enc(
+            &store,
+            dir.path(),
+            "inbox",
+            "imap",
+            "acct",
+            "matter-folder",
+            &[m],
+            &[],
+            &key,
             &|_id: &str, _t: &str, _m: &str| {},
-            &|_id: &str| {}).unwrap();
+            &|_id: &str| {},
+        )
+        .unwrap();
 
         let log = store.call_log.lock().unwrap();
-        let batch_pos = log.iter().position(|e| e == "upsert_batch").expect("upsert_batch must be called");
-        let matter_pos = log.iter().position(|e| e == "get_message_matter:m-order").expect("get_message_matter must be called");
+        let batch_pos = log
+            .iter()
+            .position(|e| e == "upsert_batch")
+            .expect("upsert_batch must be called");
+        let matter_pos = log
+            .iter()
+            .position(|e| e == "get_message_matter:m-order")
+            .expect("get_message_matter must be called");
         assert!(matter_pos > batch_pos,
             "matter override must be resolved AFTER the batch commit, not while building records — \
              call order was {log:?}");
@@ -721,7 +974,8 @@ mod tests {
             &key,
             &|_id, _text, _matter| {},
             &|_id| {},
-        ).unwrap();
+        )
+        .unwrap();
         apply_messages_enc(
             &store,
             dir.path(),
@@ -734,9 +988,14 @@ mod tests {
             &key,
             &|_id, _text, _matter| {},
             &|_id| {},
-        ).unwrap();
+        )
+        .unwrap();
 
-        assert_eq!(store.count().unwrap(), 2, "same UID in different folders must store two rows");
+        assert_eq!(
+            store.count().unwrap(),
+            2,
+            "same UID in different folders must store two rows"
+        );
     }
 
     // S3 tests ----------------------------------------------------------------
@@ -751,20 +1010,33 @@ mod tests {
 
         // Pre-seed two messages.
         for id in ["del1", "del2", "kept1"] {
-            let blob_dir = dir.path().join(format!("{}/mail/blobs", crate::identity::WORKSPACE_DATA_DIR));
+            let blob_dir = dir.path().join(format!(
+                "{}/mail/blobs",
+                crate::identity::WORKSPACE_DATA_DIR
+            ));
             std::fs::create_dir_all(&blob_dir).unwrap();
             let enc = crate::commands::mail::crypto::encrypt_with_key(b"body", &key).unwrap();
             std::fs::write(blob_dir.join(format!("{}.enc", id)), &enc).unwrap();
-            store.upsert(&crate::commands::mail::store::MailRecord {
-                id: id.to_string(), folder_id: "inbox".into(),
-                internet_message_id: None,
-                relative_path: format!(".lantern/mail/blobs/{}.enc", id),
-                received_date_time: None,
-                provider: "m365".into(), account: "default".into(),
-                subject: String::new(), from_addr: String::new(),
-                from_name: String::new(), snippet: String::new(),
-                has_attachments: false,
-            }).unwrap();
+            store
+                .upsert(&crate::commands::mail::store::MailRecord {
+                    id: id.to_string(),
+                    folder_id: "inbox".into(),
+                    internet_message_id: None,
+                    relative_path: format!(".lantern/mail/blobs/{}.enc", id),
+                    received_date_time: None,
+                    provider: "m365".into(),
+                    account: "default".into(),
+                    subject: String::new(),
+                    from_addr: String::new(),
+                    from_name: String::new(),
+                    snippet: String::new(),
+                    has_attachments: false,
+                    thread_id: None,
+                    auth_result: Default::default(),
+                    attachment_refs: Vec::new(),
+                    attachments_unsupported: false,
+                })
+                .unwrap();
         }
 
         let page = serde_json::json!({ "value": [
@@ -776,17 +1048,29 @@ mod tests {
         let tombstoned_ids = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
         let tombstoned_ids2 = tombstoned_ids.clone();
         let stats = apply_page_enc(
-            &store, dir.path(), "inbox", "m365", "default",
-            crate::commands::rag::store::UNASSIGNED_MATTER, &page, &key,
+            &store,
+            dir.path(),
+            "inbox",
+            "m365",
+            "default",
+            crate::commands::rag::store::UNASSIGNED_MATTER,
+            &page,
+            &key,
             &|_id, _text, _m| {},
-            &|id: &str| { tombstoned_ids2.lock().unwrap().push(id.to_string()); },
-        ).unwrap();
+            &|id: &str| {
+                tombstoned_ids2.lock().unwrap().push(id.to_string());
+            },
+        )
+        .unwrap();
 
         assert_eq!(stats.removed, 2);
         let mut ids = tombstoned_ids.lock().unwrap().clone();
         ids.sort();
-        assert_eq!(ids, vec!["del1", "del2"],
-            "tombstone_callback must be called exactly once per deleted message");
+        assert_eq!(
+            ids,
+            vec!["del1", "del2"],
+            "tombstone_callback must be called exactly once per deleted message"
+        );
         // kept1 was not in the page, so it must not be in the tombstoned set.
         assert!(!ids.contains(&"kept1".to_string()));
     }
@@ -806,14 +1090,25 @@ mod tests {
         let tombstoned_ids = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
         let tombstoned_ids2 = tombstoned_ids.clone();
         let stats = apply_page_enc(
-            &store, dir.path(), "inbox", "m365", "default",
-            crate::commands::rag::store::UNASSIGNED_MATTER, &page, &key,
+            &store,
+            dir.path(),
+            "inbox",
+            "m365",
+            "default",
+            crate::commands::rag::store::UNASSIGNED_MATTER,
+            &page,
+            &key,
             &|_id, _text, _m| {},
-            &|id: &str| { tombstoned_ids2.lock().unwrap().push(id.to_string()); },
-        ).unwrap();
+            &|id: &str| {
+                tombstoned_ids2.lock().unwrap().push(id.to_string());
+            },
+        )
+        .unwrap();
 
-        assert_eq!(stats.removed, 0,
-            "removed count must be 0 when the tombstoned id is not in the store");
+        assert_eq!(
+            stats.removed, 0,
+            "removed count must be 0 when the tombstoned id is not in the store"
+        );
         assert!(
             tombstoned_ids.lock().unwrap().is_empty(),
             "tombstone_callback must NOT be called for ids not in the store"
@@ -932,7 +1227,10 @@ mod tests {
 
         // Plaintext artifacts removed.
         assert!(!dir.path().join("Mail").exists(), "Mail/ must be deleted");
-        assert!(!dir.path().join(".lantern/mail.db").exists(), "mail.db must be deleted");
+        assert!(
+            !dir.path().join(".lantern/mail.db").exists(),
+            "mail.db must be deleted"
+        );
         // Encrypted artifacts preserved.
         assert!(
             dir.path().join(".lantern/mail-enc.db").exists(),
@@ -1010,7 +1308,10 @@ mod tests {
         let store = FakeStore::default();
         let dir = tempfile::TempDir::new().unwrap();
         let res = sync_folder(&client, &store, dir.path(), "inbox", &|_w, _r| {}).await;
-        assert!(res.is_err(), "repeated 410 must error out, not spin forever");
+        assert!(
+            res.is_err(),
+            "repeated 410 must error out, not spin forever"
+        );
     }
 
     // ── F1: sync_folder_provider deletion-diff reconciliation ────────────────
@@ -1067,6 +1368,10 @@ mod tests {
                 from_name: String::new(),
                 snippet: String::new(),
                 has_attachments: false,
+                thread_id: None,
+                auth_result: Default::default(),
+                attachment_refs: Vec::new(),
+                attachments_unsupported: false,
             })
             .unwrap();
     }
@@ -1090,23 +1395,47 @@ mod tests {
         };
 
         let dir = tempfile::TempDir::new().unwrap();
-        let folder = RemoteFolder { id: "INBOX".into(), display_name: "INBOX".into() };
+        let folder = RemoteFolder {
+            id: "INBOX".into(),
+            display_name: "INBOX".into(),
+        };
         let key = [0x77u8; 32];
         let tombstoned = std::sync::Arc::new(Mutex::new(Vec::<String>::new()));
         let tombstoned2 = tombstoned.clone();
 
         let stats = sync_folder_provider(
-            &provider, &store, dir.path(), &folder, "acct",
-            crate::commands::rag::store::UNASSIGNED_MATTER, &key,
+            &provider,
+            &store,
+            dir.path(),
+            &folder,
+            "acct",
+            crate::commands::rag::store::UNASSIGNED_MATTER,
+            &key,
             &|_w, _r| {},
             &|_id, _text, _m| {},
-            &|id: &str| { tombstoned2.lock().unwrap().push(id.to_string()); },
-        ).await.unwrap();
+            &|id: &str| {
+                tombstoned2.lock().unwrap().push(id.to_string());
+            },
+        )
+        .await
+        .unwrap();
 
-        assert_eq!(stats.removed, 1, "id2 must be tombstoned via the UID-diff reconciliation");
-        assert!(store.contains("imap:acct:id1").unwrap(), "id1 (still on server) must survive");
-        assert!(!store.contains("imap:acct:id2").unwrap(), "id2 (missing on server) must be removed");
-        assert_eq!(tombstoned.lock().unwrap().as_slice(), &["imap:acct:id2".to_string()]);
+        assert_eq!(
+            stats.removed, 1,
+            "id2 must be tombstoned via the UID-diff reconciliation"
+        );
+        assert!(
+            store.contains("imap:acct:id1").unwrap(),
+            "id1 (still on server) must survive"
+        );
+        assert!(
+            !store.contains("imap:acct:id2").unwrap(),
+            "id2 (missing on server) must be removed"
+        );
+        assert_eq!(
+            tombstoned.lock().unwrap().as_slice(),
+            &["imap:acct:id2".to_string()]
+        );
     }
 
     #[tokio::test]
@@ -1129,18 +1458,31 @@ mod tests {
         };
 
         let dir = tempfile::TempDir::new().unwrap();
-        let folder = RemoteFolder { id: "INBOX".into(), display_name: "INBOX".into() };
+        let folder = RemoteFolder {
+            id: "INBOX".into(),
+            display_name: "INBOX".into(),
+        };
         let key = [0x77u8; 32];
 
         let stats = sync_folder_provider(
-            &provider, &store, dir.path(), &folder, "acct",
-            crate::commands::rag::store::UNASSIGNED_MATTER, &key,
+            &provider,
+            &store,
+            dir.path(),
+            &folder,
+            "acct",
+            crate::commands::rag::store::UNASSIGNED_MATTER,
+            &key,
             &|_w, _r| {},
             &|_id, _text, _m| {},
             &|_id: &str| {},
-        ).await.unwrap();
+        )
+        .await
+        .unwrap();
 
-        assert_eq!(stats.removed, 0, "no reconciliation must happen when current_ids returns None");
+        assert_eq!(
+            stats.removed, 0,
+            "no reconciliation must happen when current_ids returns None"
+        );
         assert!(store.contains("imap:acct:id1").unwrap());
         assert!(store.contains("imap:acct:id2").unwrap());
     }

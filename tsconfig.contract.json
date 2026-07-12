@@ -2,7 +2,7 @@
   "extends": "./tsconfig.test.json",
   "compilerOptions": {
     "noEmit": true,
-    "types": ["vitest/globals"],
+    "types": ["vitest/globals", "node", "vite/client"],
     "noUnusedLocals": false,
     "noUnusedParameters": false
   },
@@ -12,8 +12,9 @@
   ],
   "include": [
     "src/platform/intake/**/*.ts",
-    "intake-page/src/**/*.ts",
-    "backend/test/intake-e2e.test.ts",
-    "backend/test/contracts/**/*.test.ts"
+    "src/platform/types/*.d.ts"
+  ],
+  "exclude": [
+    "src/platform/intake/**/*.test.ts"
   ]
 }

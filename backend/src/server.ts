@@ -10,7 +10,7 @@
  * headers (the desktop webview calls from tauri://localhost).
  */
 
-import { config } from "./lib/config.ts";
+import { clientIpFromPeer, config } from "./lib/config.ts";
 import { getStore } from "./lib/db.ts";
 import { json, error, preflight, startRateLimitGc } from "./lib/http.ts";
 import { hashPassword, generateLicenseKey, hmacHash } from "./lib/crypto.ts";
@@ -40,6 +40,24 @@ import {
   handleSyncTicket,
   authorizeSyncConnect,
 } from "./routes/matters.ts";
+import {
+  handleAckIntake,
+  handleCreateIntake,
+  handleExtendIntake,
+  handleGetIntakeBlob,
+  handleIntakeBundle,
+  handleIntakeInbox,
+  handleFetchIntakeKey,
+  handleListGrantedIntakes,
+  handlePublishIntakeKeys,
+  handleListUploadedIntakeChunks,
+  handleRegenerateIntake,
+  handleReplaceIntakeChecklist,
+  handleRevokeIntake,
+  handleSaveIntakeState,
+  handleSubmitIntakeItem,
+  handleUploadIntakeChunk,
+} from "./routes/intake.ts";
 import { fanout, FanoutHub, toUpdateFrame, type Subscriber } from "./lib/matters.ts";
 import { startSyncTicketGc } from "./lib/syncTickets.ts";
 import { startSsoStateGc } from "./lib/ssoState.ts";
@@ -80,6 +98,13 @@ function matchMatter(path: string): { id: string; rest: string } | null {
   return { id: decodeURIComponent(m[1]!), rest: m[2] ?? "" };
 }
 
+/** Extract `/intake/:id/...` the same way matchMatter handles matter routes. */
+function matchIntake(path: string): { id: string; rest: string } | null {
+  const m = path.match(/^\/intake\/([^/]+)(?:\/(.*))?$/);
+  if (!m) return null;
+  return { id: decodeURIComponent(m[1]!), rest: m[2] ?? "" };
+}
+
 /**
  * Build the Bun.serve options for a given Store + fan-out hub. Factored out (vs.
  * an inline object) so tests can boot an isolated server on an ephemeral port
@@ -98,7 +123,7 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
       const url = new URL(req.url);
       const path = url.pathname;
       const method = req.method;
-      const ip = srv.requestIP(req)?.address ?? "unknown";
+      const ip = clientIpFromPeer(srv.requestIP(req)?.address, req.headers.get("x-forwarded-for"));
 
       if (method === "OPTIONS") return preflight();
 
@@ -141,6 +166,35 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
         // Admin: matter collection.
         if (path === "/org/matters" && method === "POST") return await handleCreateMatter(req, store);
         if (path === "/org/matters/list" && method === "POST") return handleListMatters(req, store);
+
+        // --- Lantern Intake relay (write-only public mailbox) ---
+        if (path === "/intake" && method === "POST") return await handleCreateIntake(req, store);
+        if (path === "/intake/granted" && method === "GET") return handleListGrantedIntakes(req, store);
+        const ii = matchIntake(path);
+        if (ii) {
+          if (ii.rest === "keys" && method === "POST") return await handlePublishIntakeKeys(req, store, ii.id);
+          if (ii.rest === "keys" && method === "GET") return handleFetchIntakeKey(req, store, ii.id);
+          if (ii.rest === "checklist" && method === "PUT") return await handleReplaceIntakeChecklist(req, store, ii.id);
+          if (ii.rest === "inbox" && method === "GET") return handleIntakeInbox(req, store, ii.id);
+          const blob = ii.rest.match(/^blob\/([^/]+)$/);
+          if (blob && method === "GET") return handleGetIntakeBlob(req, store, ii.id, decodeURIComponent(blob[1]!));
+          if (ii.rest === "ack" && method === "POST") return await handleAckIntake(req, store, ii.id);
+          if (ii.rest === "revoke" && method === "POST") return handleRevokeIntake(req, store, ii.id);
+          if (ii.rest === "extend" && method === "POST") return await handleExtendIntake(req, store, ii.id);
+          if (ii.rest === "regenerate" && method === "POST") return await handleRegenerateIntake(req, store, ii.id);
+          if (ii.rest === "bundle" && method === "GET") return handleIntakeBundle(req, store, ii.id, ip);
+          if (ii.rest === "state" && method === "PUT") return await handleSaveIntakeState(req, store, ii.id, ip);
+          const item = ii.rest.match(/^item\/([^/]+)\/(chunk|chunks|submit)$/);
+          if (item && item[2] === "chunks" && method === "GET") {
+            return handleListUploadedIntakeChunks(req, store, ii.id, decodeURIComponent(item[1]!), ip);
+          }
+          if (item && item[2] === "chunk" && method === "POST") {
+            return await handleUploadIntakeChunk(req, store, ii.id, decodeURIComponent(item[1]!), ip);
+          }
+          if (item && item[2] === "submit" && method === "POST") {
+            return await handleSubmitIntakeItem(req, store, ii.id, decodeURIComponent(item[1]!), ip);
+          }
+        }
 
         // --- Health (open) ---
         if (path === "/healthz" && method === "GET") {
@@ -268,6 +322,7 @@ maybeBootstrap(store);
 startRateLimitGc();
 startSyncTicketGc();
 startSsoStateGc();
+startIntakeRetentionSweep(store);
 
 const server = Bun.serve<SyncSocketData>(buildServeOptions(store, fanout));
 
@@ -306,3 +361,19 @@ async function maybeBootstrap(store: Store): Promise<void> {
 }
 
 export { server };
+
+/**
+ * A single-instance relay can sweep locally. Run once at boot and daily after
+ * that; the database operation only deletes expired mailbox rows and cascades
+ * their opaque ciphertext. The log intentionally contains a count, not ids.
+ */
+function startIntakeRetentionSweep(store: Store): ReturnType<typeof setInterval> {
+  const sweep = () => {
+    const result = store.purgeExpiredIntakeCiphertext();
+    if (result.deleted_intakes > 0) console.info(`[intake-retention] deleted ${result.deleted_intakes} expired mailbox(es)`);
+  };
+  sweep();
+  const timer = setInterval(sweep, 24 * 60 * 60 * 1000);
+  if (typeof timer.unref === "function") timer.unref();
+  return timer;
+}

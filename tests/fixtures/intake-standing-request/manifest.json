@@ -1,0 +1,64 @@
+{
+  "fixture_set": "intake-standing-request",
+  "synthetic": true,
+  "blueprint": {
+    "blueprintId": "annual-review-update-fixture",
+    "schemaVersion": 1,
+    "label": "Annual review update",
+    "source": "firm_saved",
+    "defaultKind": "standing",
+    "items": [
+      {
+        "t": "guided_question",
+        "item_id": "annual-income-guided",
+        "label": "Annual income check",
+        "help_text": "Share a current yearly estimate.",
+        "required": true,
+        "subject": "primary",
+        "prompt": "What is your current annual income estimate?",
+        "response_format": "money",
+        "fact_kind": "income_annual"
+      },
+      {
+        "t": "doc_upload",
+        "item_id": "annual-supporting-file",
+        "label": "Annual review document",
+        "help_text": "Add one supporting document.",
+        "required": true,
+        "subject": "primary",
+        "accepted_mime_types": ["application/pdf"],
+        "max_files": 1,
+        "max_bytes": 4096
+      },
+      {
+        "t": "typed_field",
+        "item_id": "beneficiary-check",
+        "label": "Beneficiary check",
+        "help_text": "Confirm the beneficiary name.",
+        "required": false,
+        "subject": "primary",
+        "fact_kind": "beneficiary",
+        "input": "text"
+      }
+    ]
+  },
+  "client_fact_seed": {
+    "matter_id": "fixture-matter-annual",
+    "subject": "primary",
+    "fact_kind": "income_annual",
+    "status": "active",
+    "value": { "amount": 42424, "currency": "USD" }
+  },
+  "upload": {
+    "file": "annual-review-support.pdf",
+    "file_name": "annual-review-support.pdf",
+    "mime_type": "application/pdf",
+    "expected_request_folder": "generated standing-request folder"
+  },
+  "expected_routed_outcome": {
+    "fact_kind": "income_annual",
+    "fact_subject": "primary",
+    "provenance_channel": "intake_link",
+    "verification": "client_stated"
+  }
+}

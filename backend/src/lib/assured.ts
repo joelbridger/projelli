@@ -50,11 +50,11 @@ import { OpaqueBody, type AssuredProvider, type ForwardTarget, type UsageCounts 
 function baseUrlFor(provider: AssuredProvider): string {
   switch (provider) {
     case "anthropic":
-      return (process.env.ASSURED_ANTHROPIC_BASE_URL || "https://api.anthropic.com").replace(/\/+$/, "");
+      return (process.env["ASSURED_ANTHROPIC_BASE_URL"] || "https://api.anthropic.com").replace(/\/+$/, "");
     case "openai":
-      return (process.env.ASSURED_OPENAI_BASE_URL || "https://api.openai.com").replace(/\/+$/, "");
+      return (process.env["ASSURED_OPENAI_BASE_URL"] || "https://api.openai.com").replace(/\/+$/, "");
     case "google":
-      return (process.env.ASSURED_GOOGLE_BASE_URL || "https://generativelanguage.googleapis.com").replace(/\/+$/, "");
+      return (process.env["ASSURED_GOOGLE_BASE_URL"] || "https://generativelanguage.googleapis.com").replace(/\/+$/, "");
   }
 }
 
@@ -141,7 +141,7 @@ export async function scanUsage(stream: ReadableStream<Uint8Array>, provider: As
     if (!obj || typeof obj !== "object") return;
     const o = obj as Record<string, any>;
     if (provider === "anthropic") {
-      const startUsage = o?.message?.usage ?? (o?.type === "message_start" ? o?.message?.usage : undefined);
+      const startUsage = o?.["message"]?.usage ?? (o?.["type"] === "message_start" ? o?.["message"]?.usage : undefined);
       if (startUsage?.input_tokens != null) input_tokens = Number(startUsage.input_tokens) || input_tokens;
       if (o?.usage?.input_tokens != null) input_tokens = Number(o.usage.input_tokens) || input_tokens;
       if (o?.usage?.output_tokens != null) output_tokens = Math.max(output_tokens, Number(o.usage.output_tokens) || 0);

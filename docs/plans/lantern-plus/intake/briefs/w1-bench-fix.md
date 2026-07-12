@@ -1,0 +1,25 @@
+# CODEX FIX BRIEF — Wave 1 BENCH FAIL (P0): intake links crash blank + regenerate 404
+
+You are a Codex fix agent in worktree /home/jameson/lp-bench (branch lp/intake-benchfix). The Wave-1 Legion bench found a CRITICAL bug: **every real intake link opens to a blank page and crashes** (`TypeError: Cannot read properties of undefined (reading 'accent')`) — no client can onboard. Plus the regenerate route 404s. Fix all three parts below, TDD, commit on this branch. Do NOT push. TS/backend only (no Rust).
+
+## Root cause (traced)
+The client page `intake-page/src/App.tsx` unconditionally reads `checklist.firm.accent` / `checklist.firm.name` / `checklist.firm.next_steps` (the `IntakeChecklist.firm` object, `intake-page/src/types.ts`). But the desktop PRODUCER (`src/features/matters/NewClientDialog.tsx` → `src/platform/intake/createIntake.ts`) seals a plain `FormRequest` (items + `confirmations:{}`) and NEVER attaches a `firm` object → `checklist.firm` is undefined on every real link → crash. This is a producer↔page contract mismatch (the recurring lesson: the two sides were never exercised together with real branding).
+
+## Fixes (do ALL)
+
+### (a1) PRODUCER seals a COMPLETE firm object — `createIntake.ts` / `NewClientDialog.tsx`
+Before sealing the checklist, build the full `IntakeChecklist` shape the page expects: `{ ...formRequest, firm: { name, accent, next_steps, ...any other field intake-page/src/types.ts's IntakeChecklist.firm declares }, confirmations: {} }`. Source: firm NAME from the firm session (`NewClientDialog` already has `firmName` from `useFirmStore(...org?.name)`), accent from the firm/brand config (`BRAND.accent` in `src/config/brand.ts` = `#ef233c`, or a firm-configured accent if one exists), `next_steps` from the locked template's "what happens next" content. Match `intake-page/src/types.ts` `IntakeChecklist.firm` field-for-field. Thread the firm object through `createAdvisorIntake`/`createIntake` so it's part of the sealed checklist ciphertext.
+
+### (a2) PAGE renders gracefully when branding is ABSENT — `intake-page/src/App.tsx` (+ page types)
+Defense in depth: the page must NEVER crash on a missing/partial `firm`. Every read of `checklist.firm.*` must tolerate `firm` being undefined or missing fields — use a defensive default theme (a neutral default accent, a sensible default firm name like the product/brand name, empty next_steps) so an older/partial link still renders a usable page instead of a blank crash. Centralize: e.g. `const firm = normalizeFirm(checklist.firm)` returning a fully-populated object with safe defaults, and read from that everywhere. `safeAccentColor` already exists — make it (and name/next_steps) tolerate undefined.
+
+### (b) Implement the regenerate route — `backend/src/routes/intake.ts` + `backend/src/server.ts`
+`POST /intake/:id/regenerate` has NO route (falls through to 404); the advisor's `IntakeRelayClient.regenerateIntake` calls it. Implement it (advisor-authenticated, same as extend/revoke), with the re-seal semantics from ARCHITECTURE + the design review: it REPLACES the intake's auth-token hash (from the new `token_b64`/`t_auth`) AND the `checklist_ciphertext` + `state_ciphertext` with the new bundle the advisor sends (the new link's `k_page`-sealed ciphertexts), keeping already-received submissions. Wire it in `server.ts`'s `matchIntake` router next to `revoke`/`extend`. Match the request body the client sends (`{ token_b64|auth_token, checklist_ciphertext_b64, state_ciphertext_b64 }` — check `IntakeRelayClient.regenerateIntake` + `IntakeUpdateBundleRequest`). Backend `bun test` covers it (a regenerate → old token 410s, new token opens the re-sealed bundle).
+
+### (c) Extend the contract/E2E test so PRODUCER-built checklist → REAL page is covered
+This bug escaped because no test ran the real producer's sealed checklist through the real page. Add/extend a test (in `backend/test/` E2E or a producer↔page contract test) that: builds a checklist via the REAL producer path (createAdvisorIntake with a firm object), and asserts the REAL page code path can read `firm.accent`/`firm.name`/`firm.next_steps` from the opened bundle WITHOUT crashing; PLUS a defensive case (a checklist with `firm` absent → the page normalizes to defaults, no throw). Also cover the regenerate round-trip (old link dies, new link opens the re-sealed checklist).
+
+## Done bar
+- A real producer-built link OPENS and renders branding (no `firm.accent` crash); a branding-absent link renders a safe default (never crashes). Regenerate route works (old token 410, new token opens re-sealed bundle).
+- No secret/PII to the relay (unchanged). Never rename matter/matter_id. Light theme, no em dashes/time estimates.
+- GREEN before done: `cd backend && bun test`; the intake-page test suite (`npm --prefix intake-page test` + `npm --prefix intake-page run typecheck`); `npx vitest run src/platform/intake src/features/intake`; `npx tsc --noEmit`; `npm run typecheck:tests`; `node scripts/eslint-gate.mjs`. Commit on this branch. Do NOT push.

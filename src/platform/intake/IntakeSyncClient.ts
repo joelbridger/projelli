@@ -1,0 +1,283 @@
+import {
+  importContentKey,
+  openItemChunk,
+  openManifest,
+  unwrapContentKey,
+  verifySubmissionIntegrity,
+  type SealedManifest,
+} from '@/platform/intake/intakeCrypto';
+import { hashPlaintextChunk } from '@/platform/intake/chunkHash';
+import type { ChunkUpload } from './intakeContract';
+
+export interface IntakeInboxSubmission {
+  cursor: number;
+  intake_id: string;
+  item_id: string;
+  submission_id: string;
+  submitted_at: string;
+  manifest_ciphertext_b64: string;
+  wrapped_content_key_b64: string;
+  chunks: ChunkUpload[];
+}
+
+export interface IntakeInboxPage {
+  cursor: number;
+  has_more: boolean;
+  submissions: IntakeInboxSubmission[];
+}
+
+export interface IntakeRelayInboxClient {
+  fetchInbox(sinceCursor: number): Promise<IntakeInboxPage>;
+  ackSubmission(intakeId: string, submissionId: string, cursor: number): Promise<void>;
+}
+
+export type IntakeSubmissionFlagKind =
+  | 'integrity_mismatch'
+  | 'duplicate'
+  | 'new_device'
+  | 'routing_failed';
+
+export interface IntakeSubmissionFlag {
+  kind: IntakeSubmissionFlagKind;
+  intakeId: string;
+  itemId: string;
+  submissionId: string;
+  reason: string;
+  at: string;
+}
+
+export interface RoutedIntakeSubmission {
+  intakeId: string;
+  itemId: string;
+  submissionId: string;
+  submittedAt: string;
+  manifest: SealedManifest;
+  plaintextBytes: Uint8Array[];
+}
+
+export interface IntakeRouteResult {
+  factId?: string;
+  filePath?: string;
+}
+
+export interface IntakeSyncClientOptions {
+  relay: IntakeRelayInboxClient;
+  loadPrivateKey: (intakeId: string) => Promise<CryptoKey>;
+  hasSubmission: (submissionId: string) => Promise<boolean>;
+  rememberSubmission: (submissionId: string) => Promise<void>;
+  isKnownSession: (intakeId: string, sessionId: string) => Promise<boolean>;
+  rememberSession: (intakeId: string, sessionId: string) => Promise<void>;
+  flagSubmission: (flag: IntakeSubmissionFlag) => Promise<void>;
+  routeSubmission: (submission: RoutedIntakeSubmission) => Promise<IntakeRouteResult>;
+  initialCursor?: number;
+}
+
+export interface IntakeSyncResult {
+  pulled: number;
+  routed: number;
+  acked: number;
+  duplicates: number;
+  rejected: number;
+  cursor: number;
+}
+
+type IntakeProcessSubmissionResult = Omit<IntakeSyncResult, 'pulled' | 'cursor'> & {
+  ackedCursor?: number;
+};
+
+function flagFromSubmission(
+  submission: IntakeInboxSubmission,
+  kind: IntakeSubmissionFlagKind,
+  reason: string,
+): IntakeSubmissionFlag {
+  return {
+    kind,
+    reason,
+    intakeId: submission.intake_id,
+    itemId: submission.item_id,
+    submissionId: submission.submission_id,
+    at: submission.submitted_at,
+  };
+}
+
+export class IntakeSyncClient {
+  private cursor: number;
+  private readonly relay: IntakeRelayInboxClient;
+  private readonly loadPrivateKey: IntakeSyncClientOptions['loadPrivateKey'];
+  private readonly hasSubmission: IntakeSyncClientOptions['hasSubmission'];
+  private readonly rememberSubmission: IntakeSyncClientOptions['rememberSubmission'];
+  private readonly isKnownSession: IntakeSyncClientOptions['isKnownSession'];
+  private readonly rememberSession: IntakeSyncClientOptions['rememberSession'];
+  private readonly flagSubmission: IntakeSyncClientOptions['flagSubmission'];
+  private readonly routeSubmission: IntakeSyncClientOptions['routeSubmission'];
+
+  constructor(options: IntakeSyncClientOptions) {
+    this.cursor = options.initialCursor ?? 0;
+    this.relay = options.relay;
+    this.loadPrivateKey = options.loadPrivateKey;
+    this.hasSubmission = options.hasSubmission;
+    this.rememberSubmission = options.rememberSubmission;
+    this.isKnownSession = options.isKnownSession;
+    this.rememberSession = options.rememberSession;
+    this.flagSubmission = options.flagSubmission;
+    this.routeSubmission = options.routeSubmission;
+  }
+
+  getCursor(): number {
+    return this.cursor;
+  }
+
+  async syncOnce(): Promise<IntakeSyncResult> {
+    const totals: IntakeSyncResult = {
+      pulled: 0,
+      routed: 0,
+      acked: 0,
+      duplicates: 0,
+      rejected: 0,
+      cursor: this.cursor,
+    };
+
+    for (;;) {
+      const page = await this.relay.fetchInbox(this.cursor);
+      totals.pulled += page.submissions.length;
+      for (const submission of page.submissions) {
+        const result = await this.processSubmission(submission);
+        totals.routed += result.routed;
+        totals.acked += result.acked;
+        totals.duplicates += result.duplicates;
+        totals.rejected += result.rejected;
+        if (result.ackedCursor == null) {
+          totals.cursor = this.cursor;
+          return totals;
+        }
+        this.cursor = Math.max(this.cursor, result.ackedCursor);
+        totals.cursor = this.cursor;
+      }
+      totals.cursor = this.cursor;
+      if (!page.has_more) break;
+    }
+    return totals;
+  }
+
+  private async processSubmission(
+    submission: IntakeInboxSubmission,
+  ): Promise<IntakeProcessSubmissionResult> {
+    const totals = { routed: 0, acked: 0, duplicates: 0, rejected: 0 };
+    let routed: RoutedIntakeSubmission;
+    try {
+      routed = await this.decryptAndVerify(submission);
+    } catch (error) {
+      await this.flagSubmission(
+        flagFromSubmission(
+          submission,
+          'integrity_mismatch',
+          error instanceof Error ? error.message : 'Submission failed integrity checks.',
+        ),
+      );
+      totals.rejected += 1;
+      return totals;
+    }
+
+    const sessionId = routed.manifest.session_id;
+    if (sessionId && !(await this.isKnownSession(submission.intake_id, sessionId))) {
+      await this.flagSubmission(flagFromSubmission(submission, 'new_device', 'Submission came from a new device.'));
+    }
+
+    if (await this.hasSubmission(routed.manifest.submission_id)) {
+      await this.flagSubmission(flagFromSubmission(submission, 'duplicate', 'Submission was already filed locally.'));
+      await this.relay.ackSubmission(submission.intake_id, submission.submission_id, submission.cursor);
+      totals.duplicates += 1;
+      totals.acked += 1;
+      return { ...totals, ackedCursor: submission.cursor };
+    }
+
+    try {
+      await this.routeSubmission(routed);
+      await this.rememberSubmission(routed.manifest.submission_id);
+      if (sessionId) await this.rememberSession(submission.intake_id, sessionId);
+      await this.relay.ackSubmission(submission.intake_id, submission.submission_id, submission.cursor);
+    } catch (error) {
+      await this.flagSubmission(
+        flagFromSubmission(
+          submission,
+          'routing_failed',
+          error instanceof Error
+            ? error.message
+            : 'Submission could not be filed safely.',
+        ),
+      );
+      totals.rejected += 1;
+      return totals;
+    }
+    totals.routed += 1;
+    totals.acked += 1;
+    return { ...totals, ackedCursor: submission.cursor };
+  }
+
+  private async decryptAndVerify(submission: IntakeInboxSubmission): Promise<RoutedIntakeSubmission> {
+    const privateKey = await this.loadPrivateKey(submission.intake_id);
+    const contentKeyB64 = await unwrapContentKey(submission.wrapped_content_key_b64, privateKey);
+    const contentKey = await importContentKey(contentKeyB64);
+    const ids = {
+      intakeId: submission.intake_id,
+      itemId: submission.item_id,
+      submissionId: submission.submission_id,
+    };
+    const openedManifest = await openManifest(contentKey, submission.manifest_ciphertext_b64, ids);
+    if (!openedManifest.ok) {
+      throw new Error(`Manifest failed integrity checks: ${openedManifest.reason}.`);
+    }
+
+    const expectedChunkCount = openedManifest.manifest.chunk_count;
+    const chunksByIndex = new Map<number, ChunkUpload>();
+    for (const chunk of submission.chunks) {
+      if (
+        chunk.intake_id !== submission.intake_id ||
+        chunk.item_id !== submission.item_id ||
+        chunk.submission_id !== submission.submission_id
+      ) {
+        throw new Error('Chunk envelope does not match its enclosing submission.');
+      }
+      if (!Number.isSafeInteger(chunk.index) || chunk.index < 0 || chunk.index >= expectedChunkCount) {
+        throw new Error(`Chunk ${String(chunk.index)} is outside the manifest range.`);
+      }
+      if (chunksByIndex.has(chunk.index)) {
+        throw new Error(`Chunk ${String(chunk.index)} is duplicated.`);
+      }
+      chunksByIndex.set(chunk.index, chunk);
+    }
+
+    const plaintextBytes: Uint8Array[] = [];
+    const chunkAADSids: string[] = [];
+    for (let index = 0; index < expectedChunkCount; index += 1) {
+      const chunk = chunksByIndex.get(index);
+      if (!chunk) throw new Error(`Chunk ${String(index)} is missing.`);
+      const opened = await openItemChunk(contentKey, chunk.ciphertext_b64, {
+        intakeId: submission.intake_id,
+        itemId: submission.item_id,
+        submissionId: submission.submission_id,
+        index,
+      });
+      if (!opened.ok) throw new Error(`Chunk ${String(index)} failed integrity checks: ${opened.reason}.`);
+      const expectedHash = openedManifest.manifest.chunk_hashes[index];
+      const actualHash = await hashPlaintextChunk(opened.data);
+      if (actualHash !== expectedHash) {
+        throw new Error(`Chunk ${String(index)} hash mismatch.`);
+      }
+      plaintextBytes.push(opened.data);
+      chunkAADSids.push(submission.submission_id);
+    }
+
+    const verified = verifySubmissionIntegrity(submission.submission_id, openedManifest.manifest, chunkAADSids);
+    if (!verified.ok) throw new Error(`Submission integrity mismatch: ${verified.reason}.`);
+
+    return {
+      intakeId: submission.intake_id,
+      itemId: submission.item_id,
+      submissionId: submission.submission_id,
+      submittedAt: submission.submitted_at,
+      manifest: openedManifest.manifest,
+      plaintextBytes,
+    };
+  }
+}

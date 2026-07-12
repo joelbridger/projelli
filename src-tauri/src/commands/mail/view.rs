@@ -12,19 +12,7 @@
 
 use serde::Serialize;
 
-/// One attachment, surfaced as a name only (opening attachments is a follow-up;
-/// v1 mail is read-only and lists attachment names, not their bytes).
-#[derive(Debug, Clone, Serialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct AttachmentRef {
-    /// Stable provider-specific attachment id. Used by `mail_get_attachment`
-    /// to fetch the bytes on demand without re-parsing the MIME tree.
-    /// Graph attachments: the `@odata.id` / attachment `id` field.
-    /// Gmail attachments: the `attachmentId` from the MIME part body.
-    /// IMAP attachments: the part number string (e.g. "2", "1.2").
-    pub id: String,
-    pub name: String,
-}
+use crate::commands::mail::model::{MailAttachmentRef, MailAuthResult};
 
 /// A decrypted, structured email message ready for the read-only viewer.
 /// Every field is plain text; `body` is the stripped-to-text body (HTML emails
@@ -43,13 +31,14 @@ pub struct MailView {
     /// ISO-8601 received timestamp when present.
     pub date: Option<String>,
     pub provider: Option<String>,
+    pub account: Option<String>,
+    pub thread_id: Option<String>,
+    pub auth_result: MailAuthResult,
     /// Plain-text body (everything after the frontmatter + leading `# subject`).
     pub body: String,
     pub has_attachments: bool,
-    /// Attachment names. Empty in v1 (the sync layer does not yet persist
-    /// per-attachment metadata); kept so the viewer can render a list when it
-    /// does, and so `has_attachments` has a place to grow into.
-    pub attachments: Vec<AttachmentRef>,
+    pub attachments_unsupported: bool,
+    pub attachments: Vec<MailAttachmentRef>,
     /// BUG-013: the matter this message is currently filed under, looked up from
     /// the RAG store by `mail_get_message`. `None` when the message isn't filed
     /// to any matter yet (or isn't indexed). Parsed views default to `None`;
@@ -118,7 +107,12 @@ impl MailView {
         let mut cc: Vec<String> = Vec::new();
         let mut date: Option<String> = None;
         let mut provider: Option<String> = None;
+        let mut account: Option<String> = None;
+        let mut thread_id: Option<String> = None;
+        let mut auth_result = MailAuthResult::missing();
         let mut has_attachments = false;
+        let mut attachments_unsupported = false;
+        let mut attachments: Vec<MailAttachmentRef> = Vec::new();
 
         // Walk the fenced frontmatter block only. The first `---` opens it, the
         // next closes it; everything after is the body.
@@ -158,8 +152,31 @@ impl MailView {
                                     provider = Some(p);
                                 }
                             }
+                            "account" => {
+                                let a = unquote(val);
+                                if !a.is_empty() {
+                                    account = Some(a);
+                                }
+                            }
+                            "thread_id" => {
+                                let t = unquote(val);
+                                if !t.is_empty() {
+                                    thread_id = Some(t);
+                                }
+                            }
                             "has_attachments" => {
                                 has_attachments = val.trim() == "true";
+                            }
+                            "attachments_unsupported" => {
+                                attachments_unsupported = val.trim() == "true";
+                            }
+                            "auth_result" => {
+                                let raw = unquote(val);
+                                auth_result = serde_json::from_str(&raw).unwrap_or_default();
+                            }
+                            "attachments" => {
+                                let raw = unquote(val);
+                                attachments = serde_json::from_str(&raw).unwrap_or_default();
                             }
                             _ => {}
                         }
@@ -189,7 +206,11 @@ impl MailView {
         }
 
         // Trim leading blank lines left between the heading and the body.
-        while body_lines.first().map(|l| l.trim().is_empty()).unwrap_or(false) {
+        while body_lines
+            .first()
+            .map(|l| l.trim().is_empty())
+            .unwrap_or(false)
+        {
             body_lines.remove(0);
         }
         let body = body_lines.join("\n").trim_end().to_string();
@@ -202,9 +223,13 @@ impl MailView {
             cc,
             date,
             provider,
+            account,
+            thread_id,
+            auth_result,
             body,
             has_attachments,
-            attachments: Vec::new(),
+            attachments_unsupported,
+            attachments,
             // Set by `mail_get_message` after the RAG-store matter lookup; the
             // pure markdown parse has no matter information.
             matter_id: None,
@@ -228,15 +253,27 @@ mod tests {
             from_name: Some("Pat H".into()),
             from_address: Some("pat@hender.com".into()),
             to: vec![
-                Recipient { name: Some("Me".into()), address: Some("me@firm.com".into()) },
-                Recipient { name: None, address: Some("legal@firm.com".into()) },
+                Recipient {
+                    name: Some("Me".into()),
+                    address: Some("me@firm.com".into()),
+                },
+                Recipient {
+                    name: None,
+                    address: Some("legal@firm.com".into()),
+                },
             ],
-            cc: vec![Recipient { name: Some("Boss".into()), address: Some("boss@firm.com".into()) }],
+            cc: vec![Recipient {
+                name: Some("Boss".into()),
+                address: Some("boss@firm.com".into()),
+            }],
             folders: vec![],
             thread_id: Some("conv-9".into()),
             provider: "m365".into(),
             account: String::new(),
             has_attachments: true,
+            attachments_unsupported: false,
+            auth_result: Default::default(),
+            attachments: Vec::new(),
             body_content_type: BodyContentType::Text,
             body_text: "Confirming May 14. The closing is at 10am.".into(),
         }
@@ -253,6 +290,7 @@ mod tests {
         assert_eq!(v.cc, vec!["Boss <boss@firm.com>"]);
         assert_eq!(v.date.as_deref(), Some("2026-05-01T14:30:00Z"));
         assert_eq!(v.provider.as_deref(), Some("m365"));
+        assert_eq!(v.thread_id.as_deref(), Some("conv-9"));
         assert!(v.has_attachments);
         // The body must NOT include the frontmatter or the `# Closing date` heading.
         assert_eq!(v.body, "Confirming May 14. The closing is at 10am.");
@@ -290,6 +328,34 @@ mod tests {
         let v = MailView::from_markdown(&m.id, &md);
         assert!(!v.has_attachments);
         assert!(v.attachments.is_empty());
+    }
+
+    #[test]
+    fn parses_auth_result_and_attachment_refs_from_frontmatter() {
+        let mut m = sample_message();
+        m.auth_result = crate::commands::mail::model::MailAuthResult {
+            dkim: crate::commands::mail::model::MailAuthVerdict::Pass,
+            spf: crate::commands::mail::model::MailAuthVerdict::Pass,
+            dmarc: crate::commands::mail::model::MailAuthVerdict::Pass,
+            aligned: true,
+            source: crate::commands::mail::model::MailAuthSource::Graph,
+        };
+        m.attachments = vec![crate::commands::mail::model::MailAttachmentRef::new(
+            "att-1",
+            "license.pdf",
+            Some("application/pdf".into()),
+            Some(12),
+            crate::commands::mail::model::MailAttachmentKind::File,
+        )];
+        let md = to_markdown(&m);
+        let v = MailView::from_markdown(&m.id, &md);
+        assert_eq!(
+            v.auth_result.dmarc,
+            crate::commands::mail::model::MailAuthVerdict::Pass
+        );
+        assert_eq!(v.attachments.len(), 1);
+        assert_eq!(v.attachments[0].id, "att-1");
+        assert_eq!(v.attachments[0].filename, "license.pdf");
     }
 
     #[test]

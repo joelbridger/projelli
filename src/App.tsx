@@ -103,6 +103,9 @@ import type { TrashedItem } from '@/platform/history/TrashService';
 import type { AuditEntry } from '@/platform/types/audit';
 import { AuditService } from '@/platform/audit/AuditService';
 import { setEmailAuditEmitter } from '@/features/email/EmailViewer';
+import { setIntakeNudgeAuditEmitter } from '@/platform/intake/nudgeAudit';
+import { setIntakeEmailReplyAuditEmitter } from '@/platform/intake/emailReplyAudit';
+import { setIntakeDocumentExtractionAuditEmitter } from '@/platform/intake/documentExtractionAudit';
 import type { AuditIntegrityVerdict } from '@/platform/utils/tauri-commands';
 import {
   getOrCreateSampleMatter,
@@ -1577,6 +1580,16 @@ function AppShell() {
     },
     [addAuditEntry]
   );
+  // Intake's audit-emitter contracts predate addAuditEntry's async fold-in
+  // (it now resolves the created AuditEntry, for callers elsewhere that
+  // chain off it) and are typed Promise<void> - neither Intake emitter uses
+  // the resolved value, only the completion, so this adapter just discards it.
+  const awaitAuditEntry = useCallback(
+    async (entry: Omit<AuditEntry, 'id' | 'timestamp'>): Promise<void> => {
+      await addAuditEntry(entry);
+    },
+    [addAuditEntry]
+  );
 
   useEffect(() => {
     setMatterAuditEmitter(emitAuditEntry);
@@ -1597,6 +1610,28 @@ function AppShell() {
       setEmailAuditEmitter(null);
     };
   }, [emitAuditEntry]);
+
+  useEffect(() => {
+    setIntakeNudgeAuditEmitter(emitAuditEntry);
+    return () => {
+      setIntakeNudgeAuditEmitter(null);
+    };
+  }, [emitAuditEntry]);
+
+  useEffect(() => {
+    // Email-reply filing waits for this promise before any file or fact write.
+    setIntakeEmailReplyAuditEmitter(awaitAuditEntry);
+    return () => {
+      setIntakeEmailReplyAuditEmitter(null);
+    };
+  }, [awaitAuditEntry]);
+
+  useEffect(() => {
+    setIntakeDocumentExtractionAuditEmitter(awaitAuditEntry);
+    return () => {
+      setIntakeDocumentExtractionAuditEmitter(null);
+    };
+  }, [awaitAuditEntry]);
 
   // Handle save audio recording (extracted to useAudioRecording)
   const { handleSaveAudioRecording } = useAudioRecording({

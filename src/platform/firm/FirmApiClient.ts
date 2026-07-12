@@ -46,6 +46,9 @@ import {
   type PublishMatterKeysRequest,
   type PublishMatterKeysResponse,
   type FetchMatterKeysResponse,
+  type PublishIntakeKeysRequest,
+  type PublishIntakeKeysResponse,
+  type FetchIntakeKeysResponse,
   type ListOrgAdminsResponse,
   type MatterMineResponse,
   type PublicUser,
@@ -356,6 +359,24 @@ export class FirmApiClient {
     return this.request<FetchMatterKeysResponse>(
       FIRM_ENDPOINTS.fetchMatterKeys.replace(':id', encodeURIComponent(matterId)),
       { method: 'POST', auth: true, body: { device_id: deviceId }, headers: { 'X-Seat-Token': seatToken } },
+    );
+  }
+
+  publishIntakeKeys(
+    intakeId: string,
+    matterId: string,
+    payload: PublishIntakeKeysRequest,
+  ): Promise<PublishIntakeKeysResponse> {
+    return this.request<PublishIntakeKeysResponse>(
+      FIRM_ENDPOINTS.publishIntakeKeys.replace(':id', encodeURIComponent(intakeId)),
+      { method: 'POST', auth: true, body: { matter_id: matterId, ...payload } },
+    );
+  }
+
+  fetchIntakeKeys(intakeId: string, deviceId: string, seatToken: string): Promise<FetchIntakeKeysResponse> {
+    return this.request<FetchIntakeKeysResponse>(
+      FIRM_ENDPOINTS.fetchIntakeKeys.replace(':id', encodeURIComponent(intakeId)),
+      { method: 'GET', auth: true, headers: { 'X-Seat-Token': seatToken, 'X-Device-Id': deviceId } },
     );
   }
 

@@ -27,6 +27,11 @@ import { workspacePath } from '@/platform/fs/appPath';
 import { isWorkflowFilePath } from '@/features/workflows/engine/workflowFile';
 import { useEditorStore } from '@/platform/state/editorStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
+import { useIntakeInboxSync } from '@/platform/intake/useIntakeInboxSync';
+import { useEmailReplyIngestion } from '@/platform/intake/useEmailReplyIngestion';
+import { resolveEmailProvider } from '@/features/email/resolveEmailProvider';
+import { useDocumentExtractionIngestion } from '@/platform/intake/useDocumentExtractionIngestion';
+import { resolveDocumentExtractionProvider } from '@/features/intake/resolveDocumentExtractionProvider';
 import { openRunArtifactFromWorkflows } from '@/app/shell/openRunArtifactFromWorkflows';
 import {
   resolveClientDocumentFolderPaths,
@@ -286,6 +291,13 @@ export function AppSurfaceRouter({
   activeMatter,
   settingsPageFocus,
 }: AppSurfaceRouterProps) {
+  useIntakeInboxSync({ workspaceService: workspaceServiceRef.current });
+  useEmailReplyIngestion({ resolveEmailProvider });
+  useDocumentExtractionIngestion({
+    resolveDocumentExtractionProvider,
+    workspaceService: workspaceServiceRef.current,
+  });
+
   // Privacy Center + Activity Log are nested as sections inside the Settings
   // screen (the gear opens Settings). Built here so SettingsContent stays
   // decoupled from these surfaces' data wiring.

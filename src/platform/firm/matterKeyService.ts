@@ -65,7 +65,7 @@ export async function forgetMatterKey(matterId: string): Promise<void> {
 
 // ── Cross-member key distribution (implements the deferred follow-up) ───────
 
-interface EligibleDevice {
+export interface EligibleDevice {
   user_id: string;
   device_id: string;
   pubkey_jwk: JsonWebKey;
@@ -80,7 +80,7 @@ interface EligibleDevice {
  * returned a walled user's device (a walled admin, or a misbehaving relay),
  * it never becomes eligible for a wrapped key.
  */
-async function eligibleDevices(
+export async function eligibleDevices(
   client: FirmApiClient,
   matterId: string,
 ): Promise<{ devices: EligibleDevice[]; walledSkipped: number }> {
