@@ -201,7 +201,7 @@ describe('firmStore seat activation', () => {
       { match: /seat-pubkey$/, res: () => textResponse(200, PUBLIC_PEM) },
     ]);
 
-    const res = await useFirmStore.getState().activateSeat('KEEP-XXXX-XXXX-XXXX-XXXX', 'Work laptop');
+    const res = await useFirmStore.getState().activateSeat('KEEP-XXXX-XXXX-XXXX-XXXX');
     expect(res.ok).toBe(true);
 
     // Seat token in keychain.

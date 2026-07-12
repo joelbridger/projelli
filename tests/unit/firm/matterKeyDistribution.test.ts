@@ -116,8 +116,8 @@ describe('publishMatterKeyToMembers', () => {
     // Stub fetchOrgUserDevices: return devices for alice + bob
     vi.spyOn(client, 'fetchOrgUserDevices').mockResolvedValue({
       devices: [
-        { user_id: 'alice', device_id: 'alice-device-1', pubkey_jwk: alice.publicJwk, label: 'Alice laptop' },
-        { user_id: 'bob', device_id: 'bob-device-1', pubkey_jwk: bob.publicJwk, label: 'Bob laptop' },
+        { user_id: 'alice', device_id: 'alice-device-1', pubkey_jwk: alice.publicJwk },
+        { user_id: 'bob', device_id: 'bob-device-1', pubkey_jwk: bob.publicJwk },
       ],
     });
 
@@ -162,12 +162,12 @@ describe('publishMatterKeyToMembers', () => {
     });
 
     vi.spyOn(client, 'fetchOrgUserDevices').mockImplementation(async (userIds: string[]) => {
-      const allDevices: Array<{ user_id: string; device_id: string; pubkey_jwk: JsonWebKey; label: string }> = [];
+      const allDevices: Array<{ user_id: string; device_id: string; pubkey_jwk: JsonWebKey }> = [];
       if (userIds.includes('member-user')) {
-        allDevices.push({ user_id: 'member-user', device_id: 'member-d1', pubkey_jwk: member.publicJwk, label: 'member laptop' });
+        allDevices.push({ user_id: 'member-user', device_id: 'member-d1', pubkey_jwk: member.publicJwk });
       }
       if (userIds.includes('admin-user')) {
-        allDevices.push({ user_id: 'admin-user', device_id: 'admin-d1', pubkey_jwk: admin.publicJwk, label: 'admin laptop' });
+        allDevices.push({ user_id: 'admin-user', device_id: 'admin-d1', pubkey_jwk: admin.publicJwk });
       }
       return { devices: allDevices };
     });
@@ -355,8 +355,8 @@ describe('autoRepublishHeldMatterKeys', () => {
     // Alice now has TWO devices; the recorded fingerprint only knew the first.
     vi.spyOn(client, 'fetchOrgUserDevices').mockResolvedValue({
       devices: [
-        { user_id: 'alice', device_id: 'alice-d1', pubkey_jwk: alice.publicJwk, label: 'laptop' },
-        { user_id: 'alice', device_id: 'alice-d2', pubkey_jwk: alice.publicJwk, label: 'new desktop' },
+        { user_id: 'alice', device_id: 'alice-d1', pubkey_jwk: alice.publicJwk },
+        { user_id: 'alice', device_id: 'alice-d2', pubkey_jwk: alice.publicJwk },
       ],
     });
     const publishSpy = vi
@@ -400,7 +400,7 @@ describe('autoRepublishHeldMatterKeys', () => {
     vi.spyOn(client, 'listOrgAdmins').mockResolvedValue({ admins: [] });
     vi.spyOn(client, 'fetchOrgUserDevices').mockResolvedValue({
       devices: [
-        { user_id: 'alice', device_id: 'alice-d1', pubkey_jwk: alice.publicJwk, label: 'laptop' },
+        { user_id: 'alice', device_id: 'alice-d1', pubkey_jwk: alice.publicJwk },
       ],
     });
     const publishSpy = vi.spyOn(client, 'publishMatterKeys');
@@ -458,7 +458,7 @@ describe('autoRepublishHeldMatterKeys', () => {
     vi.spyOn(client, 'listOrgAdmins').mockResolvedValue({ admins: [] });
     vi.spyOn(client, 'fetchOrgUserDevices').mockResolvedValue({
       devices: [
-        { user_id: 'alice', device_id: 'alice-d1', pubkey_jwk: alice.publicJwk, label: 'laptop' },
+        { user_id: 'alice', device_id: 'alice-d1', pubkey_jwk: alice.publicJwk },
       ],
     });
     const publishSpy = vi
@@ -508,9 +508,9 @@ describe('autoRepublishHeldMatterKeys', () => {
     // new one) even though a correct server is only asked for non-walled users.
     const devicesSpy = vi.spyOn(client, 'fetchOrgUserDevices').mockResolvedValue({
       devices: [
-        { user_id: 'alice', device_id: 'alice-d1', pubkey_jwk: alice.publicJwk, label: 'laptop' },
-        { user_id: 'mallory', device_id: 'mallory-d1', pubkey_jwk: mallory.publicJwk, label: 'old' },
-        { user_id: 'mallory', device_id: 'mallory-d2', pubkey_jwk: mallory.publicJwk, label: 'NEW device' },
+        { user_id: 'alice', device_id: 'alice-d1', pubkey_jwk: alice.publicJwk },
+        { user_id: 'mallory', device_id: 'mallory-d1', pubkey_jwk: mallory.publicJwk },
+        { user_id: 'mallory', device_id: 'mallory-d2', pubkey_jwk: mallory.publicJwk },
       ],
     });
     const publishSpy = vi.spyOn(client, 'publishMatterKeys');
@@ -558,10 +558,10 @@ describe('autoRepublishHeldMatterKeys', () => {
     // injects walled mallory's devices into the listing response.
     vi.spyOn(client, 'fetchOrgUserDevices').mockResolvedValue({
       devices: [
-        { user_id: 'alice', device_id: 'alice-d1', pubkey_jwk: alice.publicJwk, label: 'laptop' },
-        { user_id: 'alice', device_id: 'alice-d2', pubkey_jwk: alice.publicJwk, label: 'new desktop' },
-        { user_id: 'mallory', device_id: 'mallory-d1', pubkey_jwk: mallory.publicJwk, label: 'old' },
-        { user_id: 'mallory', device_id: 'mallory-d2', pubkey_jwk: mallory.publicJwk, label: 'NEW device' },
+        { user_id: 'alice', device_id: 'alice-d1', pubkey_jwk: alice.publicJwk },
+        { user_id: 'alice', device_id: 'alice-d2', pubkey_jwk: alice.publicJwk },
+        { user_id: 'mallory', device_id: 'mallory-d1', pubkey_jwk: mallory.publicJwk },
+        { user_id: 'mallory', device_id: 'mallory-d2', pubkey_jwk: mallory.publicJwk },
       ],
     });
     let publishPayload: { epoch: number; wrapped: Array<{ user_id: string; device_id: string }> } | null = null;

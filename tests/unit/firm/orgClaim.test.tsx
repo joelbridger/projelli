@@ -218,7 +218,7 @@ describe('FirmSignIn — claim panel validation', () => {
   it('happy path: after claim the user is signed in and the activation form is shown', async () => {
     const LICENSE = 'KEEP-UI-HAPPY';
     fetchMock
-      .mockResolvedValueOnce(claimOk(LICENSE))
+      .mockResolvedValueOnce(claimOk())
       .mockRejectedValueOnce(new Error('offline')); // getSeatPublicKey (non-fatal)
 
     render(<FirmSignIn />);
