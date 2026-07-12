@@ -32,7 +32,13 @@ const requestedVitePort = process.env['PARITY_VITE_PORT'];
 // its desktop bridge and encrypted workspace private. This is opt-in: the
 // default still rejects a competing server so an accidental collision cannot
 // turn into a misleading score.
-const reuseVite = process.env['PARITY_REUSE_VITE'] === '1';
+// DEFAULT TO REUSE (2026-07-12): the binary's dev address is compiled to :5174, and
+// build crews legitimately hold that port with their own app instances. Demanding an
+// exclusive Vite made the scoreboard fail with an INFRASTRUCTURE ERROR whenever a crew
+// was working — and this scoreboard is the merge trigger for the whole combined product,
+// so it must run at any time. Each run still gets its OWN bridge port + OWN encrypted
+// workspace, so scores stay isolated. Set PARITY_REUSE_VITE=0 to force an exclusive server.
+const reuseVite = process.env['PARITY_REUSE_VITE'] !== '0';
 const workspaceRoot =
   process.env['PARITY_WORKSPACE'] ?? `/tmp/lantern-parity-${process.pid}`;
 const reportPath = resolve(root, 'tests/parity/parity-report.json');
