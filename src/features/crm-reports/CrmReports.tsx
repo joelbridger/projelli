@@ -148,7 +148,7 @@ export function CrmReports() {
       <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
         <label>Sort by <select data-testid="crm-report-sort-field" value={query.sort?.[0]?.field ?? 'name'} onChange={(event) => setQuery((current) => ({ ...current, sort: [{ field: event.target.value, dir: current.sort?.[0]?.dir ?? 'asc' }] }))}>{REPORTABLE_FIELDS.map((field) => <option key={field} value={field}>{fieldLabels[field]}</option>)}</select></label>
         <label>Order <select data-testid="crm-report-sort-direction" value={query.sort?.[0]?.dir ?? 'asc'} onChange={(event) => setQuery((current) => ({ ...current, sort: [{ field: current.sort?.[0]?.field ?? 'name', dir: event.target.value as 'asc' | 'desc' }] }))}><option value="asc">A to Z</option><option value="desc">Z to A</option></select></label>
-        <label>Group <select data-testid="crm-report-group-by" value={query.groupBy ?? ''} onChange={(event) => setQuery((current) => ({ ...current, ...(event.target.value ? { groupBy: event.target.value } : { groupBy: undefined }) }))}><option value="">No group</option>{REPORTABLE_FIELDS.filter((field) => field !== 'name').map((field) => <option key={field} value={field}>{fieldLabels[field]}</option>)}</select></label>
+        <label>Group <select data-testid="crm-report-group-by" value={query.groupBy ?? ''} onChange={(event) => setQuery((current) => { const { groupBy: _groupBy, ...withoutGroup } = current; return event.target.value ? { ...current, groupBy: event.target.value } : withoutGroup; })}><option value="">No group</option>{REPORTABLE_FIELDS.filter((field) => field !== 'name').map((field) => <option key={field} value={field}>{fieldLabels[field]}</option>)}</select></label>
       </div>
       {query.filters.map((filter, index) => <div key={`${filter.field}-${index}`} data-testid={`crm-report-filter-${index}`} style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
         <select data-testid={`crm-report-filter-field-${index}`} value={filter.field} onChange={(event) => updateFilter(index, { field: event.target.value })}>{REPORTABLE_FIELDS.map((field) => <option key={field} value={field}>{fieldLabels[field]}</option>)}</select>
@@ -162,7 +162,7 @@ export function CrmReports() {
       <strong>Saved reports</strong>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>{savedViews.map((view) => <Button key={view.id} size="sm" variant="secondary" data-testid={`crm-report-saved-${view.id}`} onClick={() => {
         const savedKind = typeof view['reportKind'] === 'string' ? view['reportKind'] as ReportKind : 'custom';
-        const savedQuery = view['query'] && typeof view['query'] === 'object' ? view['query'] as ReportQuery : { entity: 'household', filters: [] };
+        const savedQuery: ReportQuery = view['query'] && typeof view['query'] === 'object' ? view['query'] as ReportQuery : { entity: 'household', filters: [] };
         run(savedKind, savedQuery);
       }}>{typeof view['name'] === 'string' ? view['name'] : 'Saved report'} · {view['visibility'] === 'firm' ? 'Shared with firm' : 'Personal'}</Button>)}</div>
     </section>}
