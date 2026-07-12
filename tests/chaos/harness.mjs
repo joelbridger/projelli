@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -24,19 +24,41 @@ export class RealApp {
     this.workspace = null;
     this.port = null;
     this.child = null;
+    this.appPidFile = null;
   }
 
   async start({ workspace = this.workspace, port = this.port } = {}) {
     this.workspace = workspace ?? await mkdtemp(path.join(tmpdir(), `lantern-chaos-${this.label}-`));
     this.port = port ?? await reservePort();
+    this.appPidFile = path.join(this.workspace, '.chaos-app.pid');
+    await rm(this.appPidFile, { force: true });
     const launcher = path.join(this.root, 'scripts/crm-loop/launch-app.sh');
     this.child = spawn('bash', [launcher, String(this.port), this.workspace], {
       cwd: this.root,
-      env: { ...process.env, LANTERN_DEV_BRIDGE_PORT: String(this.port) },
+      env: {
+        ...process.env,
+        LANTERN_DEV_BRIDGE_PORT: String(this.port),
+        // A fresh CRM screen can legitimately be busy opening its encrypted
+        // workspace.  The bridge's normal five-second UI-eval budget is too
+        // short for that first real disk open and would mislabel a slow read
+        // as lost data.
+        LANTERN_DEV_BRIDGE_TIMEOUT_MS: '30000',
+        LANTERN_APP_PID_FILE: this.appPidFile,
+      },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     await this.waitForBridge();
+    await this.openMountedCrmScreen();
     return this;
+  }
+
+  async openMountedCrmScreen() {
+    // Test mode bypasses the native folder-picker welcome screen only.  It
+    // does not mock the desktop shell or CRM commands; bootCrmHome below
+    // immediately replaces test mode's placeholder root with this case's
+    // fresh on-disk workspace before reading or writing CRM data.
+    await this.eval(`window.location.replace('/?testMode=true')`);
+    await this.waitForTestid('crm-home', 20_000);
   }
 
   async waitForBridge(timeout = 20_000) {
@@ -100,13 +122,29 @@ export class RealApp {
 
   async kill() {
     if (!this.child || this.child.exitCode !== null) return;
-    this.child.kill('SIGKILL');
-    // A broken GUI shutdown must not hang the test process forever. SIGKILL is
-    // intentionally final; after a short grace period we continue teardown.
+    // `launch-app.sh` starts Lantern in the background.  A shell-only kill
+    // leaves the actual application alive, which would turn a supposed power
+    // cut into an uninterrupted save.  The launcher publishes its child PID
+    // solely for this test harness, so SIGKILL targets Lantern itself.
+    try {
+      const pid = Number.parseInt(await readFile(this.appPidFile, 'utf8'), 10);
+      if (!Number.isSafeInteger(pid) || pid <= 1) throw new Error('launcher did not publish the desktop app PID');
+      process.kill(pid, 'SIGKILL');
+    } catch (error) {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'ESRCH') {
+        // It was already gone: this is still a hard-stop result.
+      } else {
+        throw error;
+      }
+    }
+    // Let the launcher clean up its private virtual display.  If its shell is
+    // wedged, stop only that wrapper after the short grace period.
+    this.child.kill('SIGTERM');
     await Promise.race([
       new Promise((resolve) => this.child.once('exit', resolve)),
       pause(2_000),
     ]);
+    if (this.child.exitCode === null) this.child.kill('SIGKILL');
   }
 
   async relaunch() {

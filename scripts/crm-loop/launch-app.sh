@@ -101,4 +101,5 @@ cleanup() {
 trap cleanup EXIT INT TERM
 "$BIN" &
 APP_PID="$!"
+[ -z "${LANTERN_APP_PID_FILE:-}" ] || printf '%s\n' "$APP_PID" > "$LANTERN_APP_PID_FILE"
 wait "$APP_PID"

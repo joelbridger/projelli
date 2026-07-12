@@ -1,44 +1,67 @@
-# Real-app chaos findings — 2026-07-12
+# Real-app chaos findings — 2026-07-12, round 2
 
-This test suite starts the actual desktop application through its debug bridge,
-uses a fresh on-disk workspace for every case, and kills the application with
-`SIGKILL`. It does not replace the encrypted store with a mock.
+## Verdict: RED
 
-## Run result
+`npm run test:chaos` now launches the real desktop app, reaches the mounted
+CRM screen, gives every case its own on-disk encrypted workspace, and sends
+`SIGKILL` to the actual Lantern process rather than merely stopping its shell
+launcher. Test-mode only skips the native folder-picker welcome screen; before
+any CRM read or write, the mounted screen is pointed at the case's real
+workspace. No CRM store, Tauri command, or crash boundary is mocked.
 
-`npm run test:chaos` was run on 2026-07-12. It started a real app process,
-connected to the real desktop bridge, and then stopped at the required visible
-screen check: `crm-home` never mounted after the workspace was set.
+The suite remains deliberately red. A green result is not justified until all
+eight boundaries below are proved in the running app.
 
-Every named crash test therefore reports `DATALOSS:` and exits red. This is
-deliberate. Running hidden Tauri commands after the visible app has failed to
-open would prove an engine, not an advisor's real workflow.
+## What ran
 
-Once the workspace-to-CRM-screen blocker is fixed, the runner proceeds to:
+The named scenarios were run twice on 2026-07-12.
 
-- confirm a live-record save survives a fresh desktop process;
-- cut power during a live-record request and accept only no record or a
-  complete record;
-- interrupt a fabricated Wealthbox import, resume it, and require the
-  attachment `0% via API` fidelity row.
+The first complete run reached every scenario. One result passed:
 
-## DATALOSS findings left red on purpose
+| Scenario | Result | Exact result |
+| --- | --- | --- |
+| Client save requested, then SIGKILL | PASS | The app reopened the same encrypted workspace. The unconfirmed record was either absent or complete; it was never malformed. |
 
-1. **Propagation apply is not wired to its transactional outbox.** The core has
-   a transaction that can put instance state, immutable operations, activity,
-   and notification intent together. The running workflow screen saves live
-   records separately instead. A hard stop can therefore leave the two user
-   promises apart. The test reports `DATALOSS:` until the visible Apply action
-   uses the one transaction.
-2. **Offline queue survival is not proven in the real app.** The screen-level
-   record flow has no persisted offline mutation queue plus relay acknowledgement
-   to observe after a restart. It must not be described as crash-safe syncing.
-3. **Checkpoint/compaction is not a mounted CRM app operation.** Engine-level
-   checks do not prove a desktop process survives the actual storage-maintenance
-   boundary. A real command and a visible recovery state are needed.
-4. **Disk-full and read-only storage have no deterministic fault injection.**
-   A chmod trick is not a disk-full test. The test remains red until the store
-   can be made to return a genuine write failure and the desktop UI reports it.
+The other real-screen operations could not make a safe claim:
 
-Run with `npm run test:chaos`. Any `DATALOSS:` line is a release-blocking data
-integrity finding, not a flaky test and not an invitation to weaken the check.
+| Scenario | Result | Precise reason |
+| --- | --- | --- |
+| Client save confirmed, then SIGKILL | DATALOSS | The desktop bridge timed out while the confirmed-save assertion was running. The suite did not see a durable record, so it must not claim the visible “saved” result survived. |
+| Task create, then complete, with SIGKILL at both boundaries | DATALOSS | The real-app evaluation failed at the desktop bridge (`eval@[native code]`). No complete-or-cleanly-absent task result was proved. |
+| Migration import while records land | DATALOSS | The desktop bridge timed out before the interrupted import could be resumed and checked. No clean resumption claim is safe. |
+| Propagation apply | DATALOSS | The visible Apply flow does not use the transactional boundary that commits workflow instance, immutable operations, activity, and notification intent together. A crash can split the workflow from its notification. |
+| Offline edits queued, then crash and relay return | DATALOSS | The mounted CRM has no durable offline mutation queue plus relay acknowledgement that can be checked after relaunch. |
+| Checkpoint/compaction, then SIGKILL | DATALOSS | There is no mounted CRM checkpoint or compaction operation to crash at and reopen. |
+| Disk full and read-only workspace | DATALOSS | There is no deterministic real write-failure hook. Permission changes are not a disk-full test, so a loud, honest failure was not proved. |
+
+The immediate repeat also reached all eight names and exited `1`. Its first
+six cases all stopped at the desktop bridge's fixed five-second `eval` timeout,
+despite the harness requesting a 30-second bridge budget; the final two
+reported the same missing-boundary findings. This is an additional reliability
+problem in the real-app test path, not evidence that data is safe. It does not
+weaken any red finding above.
+
+## DATALOSS release blockers
+
+1. **DATALOSS: propagation can split the user promise.** Wire the screen's
+   real Apply action to `crm_core_commit_propagation`, then kill it while the
+   operation is in flight and prove the reopened store contains both sides or
+   neither.
+2. **DATALOSS: offline work has no durable queue proof.** Persist each queued
+   edit before saying it is queued, retain its acknowledgement state, and
+   prove delivery after a crash and reconnect.
+3. **DATALOSS: checkpoint/compaction has no real-screen crash boundary.** Add
+   a real operation and a visible recovery state; engine-only tests are not
+   enough.
+4. **DATALOSS: disk-full/read-only errors are unproved.** Add deterministic
+   storage fault injection that reaches the real save screen and asserts a
+   clear error without a false “saved” message.
+5. **DATALOSS: the desktop bridge is not reliable enough to prove the first
+   three persistence paths.** Its five-second JavaScript evaluation timeout
+   can end a real assertion before the app answers. Fix the bridge deadline or
+   expose a bounded, observable readiness signal, then rerun the confirmed
+   client save, task, and import crashes until each yields a durable result.
+
+Run with `npm run test:chaos`. Any `DATALOSS:` line is a release-blocking
+integrity finding. It must be fixed and re-proved, never skipped or changed
+to a passing assertion.
