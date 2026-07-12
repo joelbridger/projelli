@@ -31,9 +31,9 @@ export function createDocusignAuthorizationProvider(options: DocusignCapabilityO
     const body: unknown = await response.json();
     if (!body || typeof body !== 'object') throw new Error('DocuSign authorization response was malformed.');
     const parsed = body as Record<string, unknown>;
-    if (!validText(parsed['access_token']) || !validText(parsed['account_id']) || !validText(parsed['base_uri']) || !validText(parsed['expires_at'])) {
+    if (!validText(parsed['access_token']) || !validText(parsed['account_id']) || !validText(parsed['base_uri']) || !validText(parsed['expires_at']) || !validText(parsed['return_url'])) {
       throw new Error('DocuSign authorization response was incomplete.');
     }
-    return { accessToken: parsed['access_token'], accountId: parsed['account_id'], baseUri: parsed['base_uri'], expiresAt: parsed['expires_at'] };
+    return { accessToken: parsed['access_token'], accountId: parsed['account_id'], baseUri: parsed['base_uri'], expiresAt: parsed['expires_at'], allowedReturnUrl: parsed['return_url'] };
   };
 }

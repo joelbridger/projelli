@@ -33,7 +33,7 @@ describe('direct DocuSign adapter', () => {
   it('uses the broker-provided account URI and sends the exact completed bytes only to DocuSign', async () => {
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ envelopeId: 'env-1' }), { status: 201 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ url: 'https://demo.docusign.net/Signing/view' }), { status: 201 }));
-    const adapter = new DirectDocusignAdapter(() => Promise.resolve({ accessToken: 'short-lived', accountId: 'acct-1', baseUri: 'https://demo.docusign.net', expiresAt: new Date(Date.now() + 60_000).toISOString() }));
+    const adapter = new DirectDocusignAdapter(() => Promise.resolve({ accessToken: 'short-lived', accountId: 'acct-1', baseUri: 'https://demo.docusign.net', expiresAt: new Date(Date.now() + 60_000).toISOString(), allowedReturnUrl: 'https://lantern.test/return' }));
     const pdf = new TextEncoder().encode('exact flattened bytes');
     await expect(adapter.createEnvelopeAndRecipientView({ pdfBytes: pdf, signerName: 'Synthetic Signer', signerEmail: 'synthetic@example.test', requestId: 'request-1', signatureItemId: 'signature-1', clientUserId: 'lantern-abcd', tabMap, returnUrl: 'https://lantern.test/return' })).resolves.toEqual({ envelopeId: 'env-1', recipientViewUrl: 'https://demo.docusign.net/Signing/view' });
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -54,9 +54,17 @@ describe('direct DocuSign adapter', () => {
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ envelopeId: 'env-1' }), { status: 201 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ url: 'https://demo.docusign.net/Signing/view' }), { status: 201 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ envelopeId: 'env-1' }), { status: 201 }));
-    const adapter = new DirectDocusignAdapter(() => Promise.resolve({ accessToken: 'short-lived', accountId: 'acct-1', baseUri: 'https://demo.docusign.net', expiresAt: new Date(Date.now() + 60_000).toISOString() }));
+    const adapter = new DirectDocusignAdapter(() => Promise.resolve({ accessToken: 'short-lived', accountId: 'acct-1', baseUri: 'https://demo.docusign.net', expiresAt: new Date(Date.now() + 60_000).toISOString(), allowedReturnUrl: 'https://lantern.test/return' }));
     const input = { pdfBytes: new TextEncoder().encode('pdf'), signerName: 'Signer', signerEmail: 's@example.test', requestId: 'r', signatureItemId: 's', clientUserId: 'client', tabMap, returnUrl: 'https://lantern.test/return' };
     await adapter.createEnvelopeAndRecipientView(input);
     await expect(adapter.createEnvelopeAndRecipientView(input)).rejects.toThrow(/already generated/iu);
+  });
+
+  it('refuses a return URL that does not exactly match the broker pin before contacting DocuSign', async () => {
+    const adapter = new DirectDocusignAdapter(() => Promise.resolve({ accessToken: 'short-lived', accountId: 'acct-1', baseUri: 'https://demo.docusign.net', expiresAt: new Date(Date.now() + 60_000).toISOString(), allowedReturnUrl: 'https://lantern.test/return' }));
+    const input = { pdfBytes: new TextEncoder().encode('pdf'), signerName: 'Signer', signerEmail: 's@example.test', requestId: 'r', signatureItemId: 's', clientUserId: 'client', tabMap, returnUrl: 'https://untrusted.test/return' };
+
+    await expect(adapter.createEnvelopeAndRecipientView(input)).rejects.toThrow('DocuSign return URL is not the broker-allowed URL.');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

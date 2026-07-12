@@ -110,6 +110,7 @@ describe('Wave 9 signature contract gate', () => {
     const adapter = new DirectDocusignAdapter(() => Promise.resolve({
       accessToken: 'short-lived-token', accountId: 'account-1', baseUri: 'https://demo.docusign.net',
       expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      allowedReturnUrl: 'https://lantern.test/return',
     }));
     const source = new Uint8Array([1, 2, 3]);
     await expect(adapter.createEnvelopeAndRecipientView({
