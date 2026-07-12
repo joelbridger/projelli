@@ -14,7 +14,7 @@ import {
   storePromotionPending,
   type PromotionPendingRecord,
 } from '@/platform/firm/firmKeychain';
-import type { FirmApiClient } from '@/platform/firm/FirmApiClient';
+import { FirmApiError, type FirmApiClient } from '@/platform/firm/FirmApiClient';
 import type { MatterHandle } from '@/platform/firm/contract';
 
 export type PromoteMatterResult =
@@ -34,11 +34,14 @@ export async function promoteMatterToShared(
 ): Promise<PromoteMatterResult> {
   const { linkFirmMatter } = useMatterStore.getState();
   const seatToken = useFirmStore.getState().seatToken;
+  // Declared outside the try so the catch can distinguish a definite rejection
+  // (archive the shell) from an unknown outcome (keep it and resume).
+  let pending: PromotionPendingRecord | null = null;
   try {
     // Never create a visible relay shell unless this device can complete the
     // first authenticated write that makes the shell usable.
     if (!seatToken) throw new Error('A valid firm seat is required to share a client.');
-    let pending = await loadPromotionPending(matterId);
+    pending = await loadPromotionPending(matterId);
     if (!pending) {
       const provision = await client.createMatter();
       const keyB64 = await createLocalMatterKey(provision.matter_handle);
@@ -91,10 +94,20 @@ export async function promoteMatterToShared(
     await clearPromotionPending(matterId);
     return { status: 'shared', matterId, firmMatterId: handle, orgId };
   } catch (err) {
-    // Do not erase the only local key or pending record on an unknown network
-    // outcome. A later run reuses the exact shell and root write, rather than
-    // creating a second shell. Confirmed cleanup is handled by an explicit
-    // retry path after the user chooses to stop sharing.
+    // A DEFINITE rejection (the relay answered 4xx) and an UNKNOWN outcome
+    // (timeout, abort, network) demand opposite handling — collapsing them is
+    // how you get either an orphaned shell or a destroyed key:
+    //
+    //   definite  -> nothing committed. Archive the shell now so it cannot leak
+    //                or consume quota, and drop the pending record.
+    //   unknown   -> the write may have landed. Keep the pending record and the
+    //                only local key; a later run resumes the SAME shell rather
+    //                than creating a second one. Never archive on a guess.
+    if (pending && err instanceof FirmApiError && err.status >= 400 && err.status < 500) {
+      await client.archiveMatter(pending.matterHandle as MatterHandle).catch(() => undefined);
+      await forgetMatterKey(pending.matterHandle as MatterHandle);
+      await clearPromotionPending(matterId);
+    }
     return { status: 'failed', matterId, error: err instanceof Error ? err.message : String(err) };
   }
 }

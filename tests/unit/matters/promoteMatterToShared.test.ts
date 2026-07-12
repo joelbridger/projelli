@@ -47,6 +47,7 @@ vi.mock('@/features/matters/matterManagerDialogHelpers', () => ({
   audit: { append: (...a: unknown[]) => append(...a) },
 }));
 
+import { FirmApiError } from '@/platform/firm/FirmApiClient';
 import { promoteMatterToShared } from '@/features/matters/logic/promoteMatterToShared';
 import type { MatterHandle, StreamHandle } from '@/platform/firm/contract';
 
@@ -60,8 +61,25 @@ const makeClient = () => ({
   archiveMatter: vi.fn().mockResolvedValue({ ok: true }),
 });
 
+
+// The promotion pending record is DURABLE by design (it is what lets an unknown
+// network outcome resume the same shell). That durability leaks across tests, so
+// stub it with per-test state — otherwise one test's leftover record makes the
+// next test skip creation and silently "succeed".
+let pendingRecord: unknown = null;
+vi.mock('@/platform/firm/firmKeychain', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/platform/firm/firmKeychain')>();
+  return {
+    ...actual,
+    loadPromotionPending: vi.fn(() => Promise.resolve(pendingRecord)),
+    storePromotionPending: vi.fn((_id: string, record: unknown) => { pendingRecord = record; return Promise.resolve(); }),
+    clearPromotionPending: vi.fn(() => { pendingRecord = null; return Promise.resolve(); }),
+  };
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
+  pendingRecord = null;
   storeMatters = [{ id: 'm1' }];
 });
 
@@ -88,14 +106,27 @@ describe('promoteMatterToShared', () => {
     expect(append).toHaveBeenCalledWith(expect.objectContaining({ type: 'matter_shared' }));
   });
 
-  it('rolls back the link on failure and returns a failed result', async () => {
+  it('DEFINITE rejection: archives the shell and forgets the key (nothing committed)', async () => {
+    const client = makeClient();
+    publishMatterKeyToMembers.mockRejectedValueOnce(new FirmApiError(400, 'invalid_v2_payload', 'relay rejected'));
+    storeMatters = [{ id: 'm1', firmMatterId: MATTER }];
+    const r = await promoteMatterToShared('m1', 'Acme', client as never);
+    expect(r).toMatchObject({ status: 'failed', matterId: 'm1' });
+    expect(client.archiveMatter).toHaveBeenCalledWith(MATTER);
+    expect(forgetMatterKey).toHaveBeenCalledWith(MATTER);
+  });
+
+  it('UNKNOWN outcome: keeps the shell and the key so a later run can resume', async () => {
+    // A timeout/network error may have COMMITTED the write. Archiving on a guess
+    // would destroy a live shared client, and forgetting the key would make it
+    // unrecoverable. Keep both; the durable pending record resumes the same shell.
     const client = makeClient();
     publishMatterKeyToMembers.mockRejectedValueOnce(new Error('relay down'));
     storeMatters = [{ id: 'm1', firmMatterId: MATTER }];
     const r = await promoteMatterToShared('m1', 'Acme', client as never);
     expect(r).toEqual({ status: 'failed', matterId: 'm1', error: 'relay down' });
-    expect(client.archiveMatter).toHaveBeenCalledWith(MATTER);
-    expect(forgetMatterKey).toHaveBeenCalledWith(MATTER);
+    expect(client.archiveMatter).not.toHaveBeenCalled();
+    expect(forgetMatterKey).not.toHaveBeenCalled();
   });
 
   it('does not unlink on failure if the link was never set', async () => {

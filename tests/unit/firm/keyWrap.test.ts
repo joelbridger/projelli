@@ -194,11 +194,16 @@ describe('keyWrap — wire format', () => {
     expect(bytes.length).toBeGreaterThanOrEqual(142);
   });
 
-  it('version byte is 0x01', async () => {
+  it('carries the versioned envelope magic so the relay can reject non-envelopes', async () => {
+    // The relay stores wrapped keys as an opaque BLOB and validates this envelope
+    // before accepting it. Without the magic + version prefix, a hostile client
+    // could publish readable text (e.g. a client's name) as a "wrapped key" and
+    // read it back — the injection channel closed in the round-L sweep.
     const { publicJwk } = await getOrCreateDeviceKeypair();
     const matterKeyB64 = await randomMatterKeyB64();
     const wrapped = await wrapMatterKey(matterKeyB64, publicJwk, 1);
     const bytes = Array.from(atob(wrapped), (c) => c.charCodeAt(0));
-    expect(bytes[0]).toBe(1);
+    expect(bytes.slice(0, 3)).toEqual([0x4c, 0x57, 0x4b]); // "LWK"
+    expect(bytes[3]).toBe(1); // version
   });
 });

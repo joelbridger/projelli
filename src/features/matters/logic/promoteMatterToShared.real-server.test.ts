@@ -14,6 +14,7 @@ vi.mock('@/platform/firm/deviceKeys', () => ({ registerDevice: mocks.registerDev
 vi.mock('@/features/matters/matterManagerDialogHelpers', () => ({ audit: { append: mocks.append } }));
 vi.mock('@/platform/firm/firmStore', () => ({ useFirmStore: { getState: () => mocks.firmState } }));
 
+import { FirmApiError } from '@/platform/firm/FirmApiClient';
 import { promoteMatterToShared } from './promoteMatterToShared';
 
 type Relay = { base: string; token: string; seatToken: string; orgId: string };
@@ -40,7 +41,7 @@ async function startRelay(): Promise<Relay> {
   });
 }
 
-function realRelayClient(failRootPush = false) {
+function realRelayClient(failRootPush: false | 'unknown' | 'definite' = false) {
   let lastHandle = '';
   let lastRootStream = '';
   const request = async (path: string, body: unknown, seat = false) => {
@@ -59,7 +60,8 @@ function realRelayClient(failRootPush = false) {
     },
     activateMatter: (handle: string) => request(`/v2/firm/matters/${handle}/activate`, {}),
     pushUpdate: (handle: string, stream: string, blobId: string, ciphertext: string, seatToken: string, keyEpoch: number) => {
-      if (failRootPush) return Promise.reject(new Error('forced root write failure'));
+      if (failRootPush === 'unknown') return Promise.reject(new Error('forced network failure (outcome unknown)'));
+      if (failRootPush === 'definite') return Promise.reject(new FirmApiError(400, 'invalid_v2_payload', 'relay rejected the root write'));
       return request(`/v2/firm/matters/${handle}/streams/${stream}/updates`, { blob_id: blobId, ciphertext_b64: ciphertext, seat_token: seatToken, key_epoch: keyEpoch });
     },
     archiveMatter: (handle: string) => request(`/v2/firm/matters/${handle}/archive`, {}),
@@ -91,9 +93,19 @@ describe('promoteMatterToShared against a real Bun relay', () => {
     const matters = await list.json() as { matters: Array<{ matter_handle: string; status: string }> };
     expect(matters.matters.find((matter) => matter.matter_handle === good.lastHandle)?.status).toBe('active');
 
-    const failed = realRelayClient(true);
-    await expect(promoteMatterToShared('local-failed-client', 'CLIENT_SECRET_NIMBUS', failed as never)).resolves.toMatchObject({ status: 'failed' });
-    const afterFailure = await (await fetch(`${relay.base}/v2/firm/matters/list`, { method: 'POST', headers: { authorization: `Bearer ${relay.token}`, 'content-type': 'application/json' }, body: '{}' })).json() as { matters: Array<{ matter_handle: string; status: string }> };
-    expect(afterFailure.matters.find((matter) => matter.matter_handle === failed.lastHandle)?.status).toBe('archived');
+    // A DEFINITE relay rejection means nothing committed: archive the shell so it
+    // cannot leak or hold quota.
+    const rejected = realRelayClient('definite');
+    await expect(promoteMatterToShared('local-rejected-client', 'CLIENT_SECRET_NIMBUS', rejected as never)).resolves.toMatchObject({ status: 'failed' });
+    const afterReject = await (await fetch(`${relay.base}/v2/firm/matters/list`, { method: 'POST', headers: { authorization: `Bearer ${relay.token}`, 'content-type': 'application/json' }, body: '{}' })).json() as { matters: Array<{ matter_handle: string; status: string }> };
+    expect(afterReject.matters.find((matter) => matter.matter_handle === rejected.lastHandle)?.status).toBe('archived');
+
+    // An UNKNOWN outcome (network) may have committed the root write. Archiving on
+    // a guess would destroy a live shared client, so the shell must SURVIVE and stay
+    // resumable from the durable pending record.
+    const unknown = realRelayClient('unknown');
+    await expect(promoteMatterToShared('local-unknown-client', 'CLIENT_SECRET_NIMBUS', unknown as never)).resolves.toMatchObject({ status: 'failed' });
+    const afterUnknown = await (await fetch(`${relay.base}/v2/firm/matters/list`, { method: 'POST', headers: { authorization: `Bearer ${relay.token}`, 'content-type': 'application/json' }, body: '{}' })).json() as { matters: Array<{ matter_handle: string; status: string }> };
+    expect(afterUnknown.matters.find((matter) => matter.matter_handle === unknown.lastHandle)?.status).not.toBe('archived');
   });
 });
