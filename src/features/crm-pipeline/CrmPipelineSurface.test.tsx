@@ -32,6 +32,27 @@ describe('CrmPipelineSurface', () => {
     expect((save.mock.calls as [LiveCrmRecord][]).some(([record]) => record.kind === 'workflowInstance')).toBe(false);
   });
 
+  it('creates a complete opportunity through the visible record form', async () => {
+    const save = vi.fn().mockResolvedValue(undefined);
+    render(<CrmPipelineSurface route="pipeline" onNavigate={vi.fn()} data={data([household, pipeline, discovery], save)} />);
+    fireEvent.click(screen.getByTestId('crm-pipeline-new'));
+    fireEvent.change(screen.getByTestId('crm-opportunity-name'), { target: { value: 'Morgan estate plan' } });
+    fireEvent.change(screen.getByTestId('crm-opportunity-amount'), { target: { value: '650000' } });
+    fireEvent.change(screen.getByTestId('crm-opportunity-fee'), { target: { value: '6500' } });
+    fireEvent.click(screen.getByTestId('crm-opportunity-save'));
+    await waitFor(() => {
+      expect(save).toHaveBeenCalledWith(expect.objectContaining({
+        kind: 'opportunity',
+        name: 'Morgan estate plan',
+        householdId: 'household-1',
+        pipelineId: 'pipeline-1',
+        stageId: 'stage-discovery',
+        amount: { value: 650000, currency: 'USD' },
+        fee: { value: 6500, currency: 'USD' },
+      }));
+    });
+  });
+
   it('persists pipeline and stage configuration through the supplied live-record writer', () => {
     const save = vi.fn().mockResolvedValue(undefined);
     render(<CrmPipelineSurface route="pipeline-settings" onNavigate={vi.fn()} data={data([], save)} />);
