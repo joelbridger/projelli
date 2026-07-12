@@ -148,7 +148,7 @@ describe('meeting store', () => {
     const writeFile = vi.fn(async (p: string, content: string) => {
       files.set(normalized(p), content);
     });
-    const writeFileBinary = vi.fn(async () => {});
+    const writeFileBinary = vi.fn(async (_path: string, _content: ArrayBuffer) => {});
     setMeetingsWorkspaceService({
       readFile,
       writeFile,
@@ -307,7 +307,7 @@ describe('meeting store — notes generation never hangs and never fails silentl
       readFile,
       writeFile,
       exists,
-      writeFileBinary: vi.fn(async () => {}),
+      writeFileBinary: vi.fn(async (_path: string, _content: ArrayBuffer) => {}),
     } as never);
     return { files };
   }
@@ -482,7 +482,7 @@ describe('meeting store — a transcript.json that exists but cannot be read/par
       exists,
       readFile,
       writeFile,
-      writeFileBinary: vi.fn(async () => {}),
+      writeFileBinary: vi.fn(async (_path: string, _content: ArrayBuffer) => {}),
     } as never);
     return { files };
   }
@@ -605,7 +605,12 @@ describe('meeting store — transcription never fails silently (QA-40)', () => {
       files.set(p, content);
     });
     const exists = vi.fn(async (p: string) => files.has(p));
-    setMeetingsWorkspaceService({ readFile, writeFile, exists, writeFileBinary: vi.fn(async () => {}) } as never);
+    setMeetingsWorkspaceService({
+      readFile,
+      writeFile,
+      exists,
+      writeFileBinary: vi.fn(async (_path: string, _content: ArrayBuffer) => {}),
+    } as never);
     return { files };
   }
 
