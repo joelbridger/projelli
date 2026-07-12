@@ -93,7 +93,7 @@ export const FEATURES: readonly ParityFeature[] = [
   live('Opportunity pipelines', 'opportunity-pipelines', 'REPLICATE', 'pipelines', (app) => app.pipeline({ pipeline: true })),
   live('Opportunity stages', 'opportunity-stages', 'REPLICATE', 'pipelines', (app) => app.pipeline({ stage: true })),
   live('Launch workflow from new opportunity', 'opportunity-workflow-trigger', 'REPLICATE', 'pipelines', (app) => app.pipeline({ workflowTrigger: true })),
-  live('Contact actions in opportunity workflows', 'opportunity-workflow-contact-actions', 'REPLICATE', 'pipelines', (app) => app.pipeline({ opportunity: true, contactActions: true })),
+  live('Contact Actions in Opportunity Workflows', 'opportunity-workflow-contact-actions', 'REPLICATE', 'pipelines', (app) => app.pipeline({ opportunity: true, contactActions: true })),
   live('Calendar / events', 'crm-calendar', 'REPLICATE', 'calendar', (app) => app.durableFeature({ route: 'crm-home-nav-calendar', controls: ['crm-calendar-new-event', 'crm-calendar-event-save'], action: 'crm-calendar-event-save', recordKind: 'event' })),
   live('Calendly integration for scheduling links', 'service-tier-scheduling', 'IMPROVE', 'firm setup', (app) => app.durableFeature({ route: 'crm-home-nav-firm-setup', controls: ['crm-service-policy-scheduling-link', 'crm-service-policy-save'], action: 'crm-service-policy-save', recordKind: 'servicePolicy' })),
   live('Email sync (Gmail/Outlook)', 'crm-email-sync', 'REPLICATE', 'email', (app) => app.durableFeature({ route: 'crm-home-nav-email', controls: ['crm-email-sync', 'crm-email-client-link'], action: 'crm-email-sync', recordKind: 'emailActivity' })),
@@ -144,15 +144,8 @@ export const FEATURES: readonly ParityFeature[] = [
   // do not measure is a rumour, and the first person to discover whether it
   // works would be Jameson, by clicking on it.
   // ---------------------------------------------------------------------------
-  live('File storage on records', 'crm-file-attachments', 'REPLICATE', 'documents', (app) => app.durableFeature({ route: 'crm-home-nav-attachments', controls: ['crm-attachments-panel', 'crm-attachment-add', 'crm-attachment-row'], action: 'crm-attachment-add', result: 'Attached', recordKind: 'attachmentLink' })),
   live('BCC Email Dropbox', 'crm-bcc-dropbox', 'IMPROVE', 'email', (app) => app.durableFeature({ route: 'crm-home-nav-email', controls: ['crm-dropbox-address', 'crm-dropbox-capture-row'], action: 'crm-dropbox-capture-run', result: 'Captured', recordKind: 'emailCapture' })),
-  live('Email broadcast', 'crm-email-broadcast', 'REPLICATE', 'email', (app) => app.durableFeature({ route: 'crm-home-nav-email', controls: ['crm-broadcast-compose', 'crm-broadcast-audience', 'crm-broadcast-review'], action: 'crm-broadcast-save', result: 'Broadcast saved', recordKind: 'broadcast' })),
-  live('Comments on activity', 'activity-comments', 'REPLICATE', 'timeline', (app) => app.durableFeature({ route: 'crm-home-nav-activity', controls: ['crm-activity-comment-input', 'crm-activity-comment-post', 'crm-activity-comment-row'], action: 'crm-activity-comment-post', result: 'Parity comment', recordKind: 'activityComment' })),
-  live('Likes/emoji activity reactions', 'activity-reactions', 'REPLICATE', 'timeline', (app) => app.durableFeature({ route: 'crm-home-nav-activity', controls: ['crm-activity-reaction-picker', 'crm-activity-reaction-count'], action: 'crm-activity-reaction-add', recordKind: 'activityReaction' })),
   live('Project record', 'project-record', 'REPLICATE', 'workflows', (app) => app.durableFeature({ route: 'crm-home-nav-projects', controls: ['crm-project-create', 'crm-project-name', 'crm-project-row'], action: 'crm-project-create', result: 'Parity project', recordKind: 'project' })),
-  live('Contact Actions in Opportunity Workflows', 'opportunity-contact-actions', 'REPLICATE', 'pipeline', (app) => app.durableFeature({ route: 'crm-home-nav-pipeline', controls: ['crm-opportunity-contact-action', 'crm-opportunity-action-result'], action: 'crm-opportunity-contact-action', result: 'Action recorded', recordKind: 'contactAction' })),
-  live('Self-service CSV/Excel/vCard/Outlook import', 'csv-import', 'REPLICATE', 'migration', (app) => app.durableFeature({ route: 'crm-home-nav-migration', controls: ['crm-csv-import-start', 'crm-csv-map-columns', 'crm-csv-import-summary'], action: 'crm-csv-import-run', result: 'Imported', recordKind: 'household' })),
-  live('Multiple Workspaces', 'multiple-workspaces', 'REPLICATE', 'firm setup', (app) => app.durableFeature({ route: 'crm-home-nav-firm-setup', controls: ['crm-workspace-list', 'crm-workspace-create', 'crm-workspace-switch'], action: 'crm-workspace-create', result: 'Parity workspace', recordKind: 'workspace' })),
   live('Org Admin cross-workspace user management', 'org-admin', 'REPLICATE', 'firm setup', (app) => app.durableFeature({ route: 'crm-home-nav-firm-setup', controls: ['crm-org-admin-panel', 'crm-org-admin-user-row', 'crm-org-admin-assign'], action: 'crm-org-admin-assign', result: 'Access updated', recordKind: 'orgAssignment' })),
 
   // Found 2026-07-12, and it is its own lesson. This row is BUILT — the
@@ -168,10 +161,8 @@ export const FEATURES: readonly ParityFeature[] = [
 
 // SKIPs stay visible, but they do not inflate or reduce the replacement score.
 export const SKIPPED_FEATURES: readonly SkippedFeature[] = [
-  { matrixFeature: 'Project record', reason: 'New multi-step work belongs in workflows; imported projects stay read-only legacy records.' },
+  { matrixFeature: 'iOS / Android native apps', reason: 'Mobile is a charter exclusion. (Hidden from the matrix parser by bold formatting until 2026-07-12.)' },
   { matrixFeature: 'Emails land in Activity Stream, not the Email tab, for dropbox items', reason: 'This is a Wealthbox threading limitation, not behavior to copy.' },
-  { matrixFeature: 'Email broadcast', reason: 'Marketing blasts are outside the small-firm CRM scope.' },
-  { matrixFeature: 'File storage on records', reason: 'The existing Documents system owns files; CRM records link them.' },
   { matrixFeature: 'RightCapital', reason: 'Read-only reference integration is deferred until a pilot needs it.' },
   { matrixFeature: 'Charles Schwab', reason: 'Custodial feeds are out of scope for this CRM replacement phase.' },
   { matrixFeature: 'DocuSign', reason: 'D9 assigns it to the existing connector, not a new CRM feature.' },
