@@ -7,7 +7,7 @@ import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import { sendFirmMention, pullFirmInbox } from './notificationRuntime';
 import { useFirmStore } from '@/platform/firm/firmStore';
-import { ActivityThread } from '@/platform/crm/ActivityThread';
+import { ActivityThread } from './ActivityThread';
 
 const panelStyle = { border: '1px solid var(--kp-border)', borderRadius: 'var(--radius-lg)', background: 'var(--kp-surface)', padding: 'var(--kp-space-md)' } as const;
 const mutedStyle = { color: 'var(--kp-text-faint)', fontSize: 'var(--kp-font-sm)' } as const;
