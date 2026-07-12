@@ -292,7 +292,7 @@ describe('EmailViewer', () => {
     expect(await screen.findByTestId('email-filed-matter')).toHaveTextContent(/Acme v\. Beta/);
     expect(await screen.findByTestId('email-file-result')).toHaveTextContent('mail.viewer.filed-success');
     expect(await screen.findByTestId('email-file-search-repair-pending')).toHaveTextContent(
-      /Search is updating\. This email will not appear in search results until it is ready/,
+      'mail.viewer.search-repair-pending',
     );
     await openFilingPicker();
     expect(screen.getByTestId('file-to-matter-btn-m1')).toHaveAttribute('aria-pressed', 'true');

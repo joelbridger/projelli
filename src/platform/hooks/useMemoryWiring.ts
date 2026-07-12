@@ -1253,7 +1253,11 @@ export function startPendingMailRagRetagRecovery(
       if (isStopped() || remainingCount === 0) return;
       // A failed read, a failed repair, or a newer durable filing all retry.
       scheduleRetry(attempt);
-    })();
+    })().catch((err: unknown) => {
+      if (isStopped()) return;
+      console.warn('Pending email search repair failed unexpectedly; retrying:', err);
+      scheduleRetry(attempt);
+    });
   };
 
   attempt();
