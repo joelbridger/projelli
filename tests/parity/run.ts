@@ -1043,6 +1043,7 @@ class DesktopParityApp implements ParityApp {
     pipeline?: boolean;
     stage?: boolean;
     workflowTrigger?: boolean;
+    contactActions?: boolean;
   }): Promise<void> {
     const { householdId } = await this.setWorkspace(
       `pipeline-${this.token('setup')}`
@@ -1101,6 +1102,7 @@ class DesktopParityApp implements ParityApp {
           'Saving the workflow suggestion did not persist the stage trigger'
         );
     }
+    let opportunityId: string | undefined;
     if (options.opportunity) {
       await this.click('crm-pipeline-back');
       await this.click('crm-pipeline-new');
@@ -1109,15 +1111,49 @@ class DesktopParityApp implements ParityApp {
       await this.select('crm-opportunity-household', householdId);
       await this.click('crm-opportunity-save');
       await delay(200);
-      if (
-        !(await this.records()).some(
-          (record) =>
-            record.kind === 'opportunity' &&
-            record.name === opportunityName &&
-            record.pipelineId === pipeline.id
-        )
-      )
+      const opportunity = (await this.records()).find(
+        (record) =>
+          record.kind === 'opportunity' &&
+          record.name === opportunityName &&
+          record.pipelineId === pipeline.id
+      );
+      if (!opportunity)
         fail('Saving the opportunity did not create an opportunity record');
+      if (typeof opportunity.id !== 'string')
+        fail('Saving the opportunity did not create a usable opportunity id');
+      opportunityId = opportunity.id;
+    }
+    if (options.contactActions) {
+      if (!opportunityId) fail('Contact actions need a saved opportunity');
+      await this.click(`crm-opportunity-edit-${opportunityId}`);
+      await this.fill('crm-opportunity-action-title', 'Mark as qualified');
+      await this.fill('crm-opportunity-action-field', 'Prospect status');
+      await this.fill('crm-opportunity-action-value', 'Qualified');
+      await this.click('crm-opportunity-action-add');
+      await this.click('crm-opportunity-save');
+      await delay(200);
+      await this.click(`crm-opportunity-action-prepare-${opportunityId}-0`);
+      await delay(200);
+      const proposed = (await this.records()).find(
+        (record) =>
+          record.kind === 'crm_opportunity_contact_action_proposal' &&
+          record.opportunityId === opportunityId &&
+          record.state === 'pending'
+      );
+      if (!proposed)
+        fail('Preparing a contact action did not create an approval record');
+      const beforeApproval = (await this.records()).find(
+        (record) => record.id === householdId
+      );
+      if ((beforeApproval?.customFields as Record<string, unknown> | undefined)?.['Prospect status'])
+        fail('Preparing a contact action changed the contact before approval');
+      await this.click(`crm-opportunity-action-approve-${opportunityId}-0`);
+      await delay(200);
+      const approvedHousehold = (await this.records()).find(
+        (record) => record.id === householdId
+      );
+      if ((approvedHousehold?.customFields as Record<string, unknown> | undefined)?.['Prospect status'] !== 'Qualified')
+        fail('Approving a contact action did not update the contact field');
     }
     await this.restart();
     const afterRestart = await this.records();
@@ -1133,6 +1169,15 @@ class DesktopParityApp implements ParityApp {
       )
     )
       fail('Stage disappeared after native restart');
+    if (options.contactActions && opportunityId) {
+      const restartedOpportunity = afterRestart.find((record) => record.id === opportunityId);
+      const contactActions = restartedOpportunity?.contactActionSteps;
+      if (!Array.isArray(contactActions) || contactActions[0]?.state !== 'complete')
+        fail('Approved contact action disappeared after native restart');
+      const restartedHousehold = afterRestart.find((record) => record.id === householdId);
+      if ((restartedHousehold?.customFields as Record<string, unknown> | undefined)?.['Prospect status'] !== 'Qualified')
+        fail('Approved contact field change disappeared after native restart');
+    }
   }
 
   async report(options: {

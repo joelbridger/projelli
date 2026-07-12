@@ -15,7 +15,7 @@ export interface ParityApp {
   workflow(options: { template?: boolean; instance?: boolean; schedule?: boolean; outcomes?: boolean; comments?: boolean; library?: boolean; meetingProposal?: boolean }): Promise<void>;
   jumpMeeting(): Promise<void>;
   approvedPlaybook(): Promise<void>;
-  pipeline(options: { opportunity?: boolean; pipeline?: boolean; stage?: boolean; workflowTrigger?: boolean }): Promise<void>;
+  pipeline(options: { opportunity?: boolean; pipeline?: boolean; stage?: boolean; workflowTrigger?: boolean; contactActions?: boolean }): Promise<void>;
   report(options: { kind: 'no_contact_6mo' | 'attention_vs_fee' | 'custom' | 'ai' }): Promise<void>;
   broadcast(): Promise<void>;
   firmDirectory(): Promise<void>;
@@ -93,6 +93,7 @@ export const FEATURES: readonly ParityFeature[] = [
   live('Opportunity pipelines', 'opportunity-pipelines', 'REPLICATE', 'pipelines', (app) => app.pipeline({ pipeline: true })),
   live('Opportunity stages', 'opportunity-stages', 'REPLICATE', 'pipelines', (app) => app.pipeline({ stage: true })),
   live('Launch workflow from new opportunity', 'opportunity-workflow-trigger', 'REPLICATE', 'pipelines', (app) => app.pipeline({ workflowTrigger: true })),
+  live('Contact actions in opportunity workflows', 'opportunity-workflow-contact-actions', 'REPLICATE', 'pipelines', (app) => app.pipeline({ opportunity: true, contactActions: true })),
   live('Calendar / events', 'crm-calendar', 'REPLICATE', 'calendar', (app) => app.durableFeature({ route: 'crm-home-nav-calendar', controls: ['crm-calendar-new-event', 'crm-calendar-event-save'], action: 'crm-calendar-event-save', recordKind: 'event' })),
   live('Calendly integration for scheduling links', 'service-tier-scheduling', 'IMPROVE', 'firm setup', (app) => app.durableFeature({ route: 'crm-home-nav-firm-setup', controls: ['crm-service-policy-scheduling-link', 'crm-service-policy-save'], action: 'crm-service-policy-save', recordKind: 'servicePolicy' })),
   live('Email sync (Gmail/Outlook)', 'crm-email-sync', 'REPLICATE', 'email', (app) => app.durableFeature({ route: 'crm-home-nav-email', controls: ['crm-email-sync', 'crm-email-client-link'], action: 'crm-email-sync', recordKind: 'emailActivity' })),
@@ -166,7 +167,6 @@ export const FEATURES: readonly ParityFeature[] = [
 
 // SKIPs stay visible, but they do not inflate or reduce the replacement score.
 export const SKIPPED_FEATURES: readonly SkippedFeature[] = [
-  { matrixFeature: 'Contact Actions in Opportunity Workflows', reason: 'D23 excludes bulk contact actions from v1.' },
   { matrixFeature: 'Project record', reason: 'New multi-step work belongs in workflows; imported projects stay read-only legacy records.' },
   { matrixFeature: 'Emails land in Activity Stream, not the Email tab, for dropbox items', reason: 'This is a Wealthbox threading limitation, not behavior to copy.' },
   { matrixFeature: 'Email broadcast', reason: 'Marketing blasts are outside the small-firm CRM scope.' },
