@@ -65,6 +65,15 @@ export default defineConfig({
     watch: {
       ignored: ['**/src-tauri/**'],
     },
+    // Worktrees share the installed packages from the program root.  Let the
+    // development server serve Vite's small runtime helper from that shared
+    // package folder, otherwise the desktop window loads a blank page.
+    fs: {
+      allow: [
+        path.resolve(__dirname),
+        path.resolve(__dirname, '../../node_modules'),
+      ],
+    },
     // Proxy API requests to bypass CORS in development
     // These proxies forward requests from the browser to the AI API servers
     proxy: {
