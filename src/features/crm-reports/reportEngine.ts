@@ -6,6 +6,7 @@ export interface ReportRow {
   householdName: string;
   values: Record<string, string>;
   sourceIds: readonly string[];
+  group?: string;
 }
 
 export interface ComputedReport {
@@ -26,6 +27,19 @@ export const REPORT_TITLES: Record<ReportKind, string> = {
   review_due: 'Review due',
   custom: 'Custom report',
 };
+
+/** Extra display choices are deliberately data only, never an executable query. */
+export type ReportQuery = ViewQuery & { fields?: readonly string[] };
+
+export const REPORTABLE_FIELDS = [
+  'name',
+  'status',
+  'serviceTier',
+  'primaryAdvisor',
+  'nextReviewDue',
+  'lastContactAt',
+  'activityCount',
+] as const;
 
 type Household = LiveCrmRecord & { name?: string };
 
@@ -116,24 +130,38 @@ function applies(value: unknown, filter: FilterClause): boolean {
   return false;
 }
 
-function customRows(households: readonly Household[], query: ViewQuery, activities: readonly LiveCrmRecord[], now: Date): ReportRow[] {
+function customRows(households: readonly Household[], query: ReportQuery, activities: readonly LiveCrmRecord[]): ReportRow[] {
   const mapped = households.map((household) => {
-    const lastContact = activities.filter((activity) => householdIdFor(activity) === household.id).map((activity) => asDate(activity['at'])).filter((date): date is Date => Boolean(date)).sort((a, b) => b.getTime() - a.getTime())[0];
+    const householdActivities = activities.filter((activity) => householdIdFor(activity) === household.id);
+    const lastContact = householdActivities.map((activity) => asDate(activity['at'])).filter((date): date is Date => Boolean(date)).sort((a, b) => b.getTime() - a.getTime())[0];
     return {
       household,
       fields: {
-        name: displayName(household), status: String(household['status'] ?? household['lifecycle'] ?? ''), serviceTier: String(household['serviceTier'] ?? ''), primaryAdvisor: String(household['primaryAdvisor'] ?? ''), nextReviewDue: String(household['nextReviewDue'] ?? household['nextReview'] ?? ''), lastContactAt: iso(lastContact), age: String(now.getUTCFullYear()),
+        name: displayName(household),
+        status: String(household['status'] ?? household['lifecycle'] ?? ''),
+        serviceTier: String(household['serviceTier'] ?? ''),
+        primaryAdvisor: String(household['primaryAdvisor'] ?? ''),
+        nextReviewDue: String(household['nextReviewDue'] ?? household['nextReview'] ?? ''),
+        lastContactAt: iso(lastContact),
+        activityCount: String(householdActivities.length),
       } as Record<string, string>,
-      sourceIds: [household.id, ...activities.filter((activity) => householdIdFor(activity) === household.id).map((activity) => activity.id)],
+      sourceIds: [household.id, ...householdActivities.map((activity) => activity.id)],
     };
   }).filter(({ fields }) => query.filters.every((filter) => applies(fields[filter.field], filter)));
   const sorted = [...mapped];
   for (const sort of [...(query.sort ?? [])].reverse()) sorted.sort((left, right) => (left.fields[sort.field] ?? '').localeCompare(right.fields[sort.field] ?? '') * (sort.dir === 'desc' ? -1 : 1));
-  return sorted.map(({ household, fields, sourceIds }) => ({ householdId: household.id, householdName: fields.name, values: fields, sourceIds }));
+  const visibleFields = query.fields?.length ? query.fields : REPORTABLE_FIELDS;
+  return sorted.map(({ household, fields, sourceIds }) => ({
+    householdId: household.id,
+    householdName: fields.name,
+    values: Object.fromEntries(visibleFields.filter((field) => field !== 'name').map((field) => [field, fields[field] ?? 'Not recorded'])),
+    sourceIds,
+    ...(query.groupBy ? { group: fields[query.groupBy] || 'Not recorded' } : {}),
+  }));
 }
 
 /** Computes from the currently decrypted records. It intentionally never saves results. */
-export function computeReport(records: readonly LiveCrmRecord[], kind: ReportKind, query: ViewQuery = { entity: 'household', filters: [] }, now = new Date()): ComputedReport {
+export function computeReport(records: readonly LiveCrmRecord[], kind: ReportKind, query: ReportQuery = { entity: 'household', filters: [] }, now = new Date()): ComputedReport {
   const households = records.filter((record): record is Household => record.kind === 'household');
   const activities = records.filter((record) => record.kind === 'activityEvent');
   const people = records.filter((record) => record.kind === 'person');
@@ -144,7 +172,7 @@ export function computeReport(records: readonly LiveCrmRecord[], kind: ReportKin
   const exclusions: string[] = [];
   const contactCutoff = new Date(now); contactCutoff.setUTCDate(contactCutoff.getUTCDate() - 183);
 
-  if (kind === 'custom') rows.push(...customRows(households, query, activities, now));
+  if (kind === 'custom') rows.push(...customRows(households, query, activities));
   if (kind === 'no_contact_6mo') for (const household of households) {
     const contacts = activities.filter((activity) => householdIdFor(activity) === household.id).map((activity) => asDate(activity['at'])).filter((date): date is Date => Boolean(date));
     const latest = contacts.sort((a, b) => b.getTime() - a.getTime())[0];
