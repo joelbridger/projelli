@@ -71,9 +71,18 @@ vi.mock('@/platform/firm/firmKeychain', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/platform/firm/firmKeychain')>();
   return {
     ...actual,
+    claimPromotionPending: vi.fn(async () => {
+      if (!pendingRecord) pendingRecord = { provisioningNonce: `pn2_${'A'.repeat(43)}`, leaseOwnerId: 'owner', leaseExpiresAt: Date.now() + 30_000 };
+      return { record: pendingRecord, ownerId: 'owner', owned: !(pendingRecord as { completed?: boolean }).completed };
+    }),
     loadPromotionPending: vi.fn(() => Promise.resolve(pendingRecord)),
     storePromotionPending: vi.fn((_id: string, record: unknown) => { pendingRecord = record; return Promise.resolve(); }),
     clearPromotionPending: vi.fn(() => { pendingRecord = null; return Promise.resolve(); }),
+    releasePromotionPendingLease: vi.fn(() => Promise.resolve()),
+    completePromotionPending: vi.fn((_id: string, _owner: string, record: Record<string, unknown>, orgId: string) => {
+      pendingRecord = { provisioningNonce: record.provisioningNonce, matterHandle: record.matterHandle, rootStreamHandle: record.rootStreamHandle, keyEpoch: record.keyEpoch, completed: true, orgId };
+      return Promise.resolve();
+    }),
   };
 });
 
@@ -88,17 +97,17 @@ describe('promoteMatterToShared', () => {
     const client = makeClient();
     const r = await promoteMatterToShared('m1', 'Acme', client as never);
     expect(r).toEqual({ status: 'shared', matterId: 'm1', firmMatterId: MATTER, orgId: 'org_1' });
-    expect(client.createMatter).toHaveBeenCalledWith(expect.stringMatching(/^pn2_[A-Za-z0-9_-]{43}$/));
+    expect(client.createMatter).toHaveBeenCalledWith(expect.stringMatching(/^pn2_[A-Za-z0-9_-]{43}$/), expect.any(AbortSignal));
     expect(createLocalMatterKey).toHaveBeenCalledWith(MATTER);
     expect(writeFirmMatterPrivateIndex).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       streams: { _notes: { streamHandle: ROOT, kind: 'notes' } },
     }));
-    expect(client.pushUpdate).toHaveBeenCalledWith(MATTER, ROOT, expect.any(String), 'encrypted-root-index', 'seat-token', 1);
-    expect(client.activateMatter).toHaveBeenCalledWith(MATTER);
+    expect(client.pushUpdate).toHaveBeenCalledWith(MATTER, ROOT, expect.any(String), 'encrypted-root-index', 'seat-token', 1, expect.any(AbortSignal));
+    expect(client.activateMatter).toHaveBeenCalledWith(MATTER, expect.any(AbortSignal));
     expect(linkFirmMatter).toHaveBeenCalledWith('m1', { firmMatterId: MATTER, rootStreamHandle: ROOT, orgId: 'org_1', role: 'owner' });
-    expect(registerDevice).toHaveBeenCalledWith(client);
+    expect(registerDevice).toHaveBeenCalledWith(client, expect.any(AbortSignal));
     expect(publishMatterKeyToMembers).toHaveBeenCalledTimes(1);
-    expect(publishMatterKeyToMembers).toHaveBeenCalledWith(client, MATTER, 1);
+    expect(publishMatterKeyToMembers).toHaveBeenCalledWith(client, MATTER, 1, expect.any(AbortSignal));
     expect(client.createMatter.mock.invocationCallOrder[0]).toBeLessThan(createLocalMatterKey.mock.invocationCallOrder[0]!);
     expect(createLocalMatterKey.mock.invocationCallOrder[0]).toBeLessThan(client.activateMatter.mock.invocationCallOrder[0]!);
     expect(client.activateMatter.mock.invocationCallOrder[0]).toBeLessThan(client.pushUpdate.mock.invocationCallOrder[0]!);
@@ -112,7 +121,7 @@ describe('promoteMatterToShared', () => {
     storeMatters = [{ id: 'm1', firmMatterId: MATTER }];
     const r = await promoteMatterToShared('m1', 'Acme', client as never);
     expect(r).toMatchObject({ status: 'failed', matterId: 'm1' });
-    expect(client.archiveMatter).toHaveBeenCalledWith(MATTER);
+    expect(client.archiveMatter).toHaveBeenCalledWith(MATTER, expect.any(AbortSignal));
     expect(forgetMatterKey).toHaveBeenCalledWith(MATTER);
   });
 

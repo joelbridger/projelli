@@ -11,8 +11,10 @@
 // Default service namespace is `com.lantern.app`. Callers may override
 // when storing keys for scoped features later (e.g. `com.lantern.sync`).
 
+use fs2::FileExt;
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
+use sha2::{Digest, Sha256};
+use std::{fs::{self, OpenOptions}, path::PathBuf, time::Duration};
 
 use crate::identity;
 
@@ -292,6 +294,60 @@ pub async fn keychain_delete(service: Option<String>, key: String) -> Result<(),
         Err(keyring::Error::NoEntry) => Ok(()),
         Err(e) => Err(map_keyring_error(&e)),
     }
+}
+
+/// Result of an atomic keychain compare-and-set. `current` lets a caller that
+/// lost the race adopt the winning durable record instead of inventing a new
+/// one. The lock file contains only a hash of service/key, never a secret.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KeychainCompareAndSetResult {
+    swapped: bool,
+    current: Option<String>,
+}
+
+fn compare_and_set_lock_path(service: &str, key: &str) -> Result<PathBuf, KeychainError> {
+    let mut digest = Sha256::new();
+    digest.update(service.as_bytes());
+    digest.update([0]);
+    digest.update(key.as_bytes());
+    let name = hex::encode(digest.finalize());
+    let base = dirs::data_local_dir().unwrap_or_else(std::env::temp_dir)
+        .join("Lantern").join("keychain-cas-locks");
+    fs::create_dir_all(&base).map_err(|e| KeychainError::Other(format!("could not create keychain CAS lock directory: {e}")))?;
+    Ok(base.join(name))
+}
+
+/// Atomically compare an entry with `expected` (`None` means absent) and set
+/// it to `value` only on a match. A filesystem advisory lock makes this a true
+/// cross-window *and* cross-process operation; it is intentionally held only
+/// for the local read/compare/write, never across network work.
+#[tauri::command]
+pub async fn keychain_compare_and_set(
+    service: Option<String>,
+    key: String,
+    expected: Option<String>,
+    value: String,
+) -> Result<KeychainCompareAndSetResult, KeychainError> {
+    let svc = resolve_service(service);
+    validate_renderer_service_access(&svc)?;
+    let lock_path = compare_and_set_lock_path(&svc, &key)?;
+    let lock = OpenOptions::new().create(true).read(true).write(true).open(lock_path)
+        .map_err(|e| KeychainError::Other(format!("could not open keychain CAS lock: {e}")))?;
+    lock.lock_exclusive().map_err(|e| KeychainError::Other(format!("could not lock keychain CAS entry: {e}")))?;
+
+    let entry = entry(&svc, &key)?;
+    let current = match entry.get_password() {
+        Ok(value) => Some(value),
+        Err(keyring::Error::NoEntry) => None,
+        Err(e) => return Err(map_keyring_error(&e)),
+    };
+    let swapped = current == expected;
+    if swapped {
+        entry.set_password(&value).map_err(|e| map_keyring_error(&e))?;
+    }
+    lock.unlock().map_err(|e| KeychainError::Other(format!("could not unlock keychain CAS entry: {e}")))?;
+    Ok(KeychainCompareAndSetResult { swapped, current })
 }
 
 #[cfg(test)]

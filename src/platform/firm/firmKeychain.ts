@@ -21,7 +21,7 @@
  * unit-testable; it is NEVER the storage on a real install.
  */
 
-import { keychainGet, keychainSet, keychainDelete } from '@/platform/utils/tauri-commands';
+import { keychainCompareAndSet, keychainGet, keychainSet, keychainDelete } from '@/platform/utils/tauri-commands';
 import { isTauri } from '@tauri-apps/api/core';
 import { kcUserService, kcMatterService, KC_FALLBACK_PREFIX } from '@/config/identity';
 
@@ -134,6 +134,12 @@ export interface PromotionPendingRecord {
    * Older receipts without this field are pre-root-write receipts.
    */
   rootWriteAccepted?: boolean;
+  /** A finished receipt lets another window adopt the same local linkage. */
+  completed?: boolean;
+  orgId?: string;
+  /** Short durable ownership lease. It is never a substitute for the receipt. */
+  leaseOwnerId?: string;
+  leaseExpiresAt?: number;
 }
 
 function promotionService(localMatterId: string): string {
@@ -142,6 +148,137 @@ function promotionService(localMatterId: string): string {
 
 export async function storePromotionPending(localMatterId: string, record: PromotionPendingRecord): Promise<void> {
   await setSecret(promotionService(localMatterId), KC_PROMOTION_PENDING, JSON.stringify(record));
+}
+
+const PROMOTION_LEASE_MS = 30_000;
+
+function newLeaseOwnerId(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function validPromotionRecord(value: unknown): value is PromotionPendingRecord {
+  if (!value || typeof value !== 'object') return false;
+  const record = value as PromotionPendingRecord;
+  return typeof record.provisioningNonce === 'string';
+}
+
+async function rawPromotionPending(localMatterId: string): Promise<string | null> {
+  return getSecret(promotionService(localMatterId), KC_PROMOTION_PENDING);
+}
+
+async function compareAndSetPromotionPending(
+  localMatterId: string,
+  expected: string | null,
+  next: PromotionPendingRecord,
+): Promise<{ swapped: boolean; current: string | null }> {
+  const service = promotionService(localMatterId);
+  const value = JSON.stringify(next);
+  if (isTauri()) return keychainCompareAndSet(KC_PROMOTION_PENDING, expected, value, service);
+
+  // Browser/dev uses the platform's cross-tab exclusive lock around the same
+  // durable localStorage compare-and-set. Production desktop uses the native
+  // OS-wide lock above. Modern Chromium (including the app's WebView) has it.
+  const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined;
+  const run = async () => {
+    const current = await rawPromotionPending(localMatterId);
+    if (current !== expected) return { swapped: false, current };
+    await setSecret(service, KC_PROMOTION_PENDING, value);
+    return { swapped: true, current };
+  };
+  if (locks) return locks.request(`lantern-promotion:${localMatterId}`, { mode: 'exclusive' }, run);
+  // Test-only/non-browser fallback. Real desktop never reaches this path.
+  return run();
+}
+
+export interface PromotionClaim {
+  record: PromotionPendingRecord;
+  ownerId: string;
+  owned: boolean;
+}
+
+/**
+ * Atomically create or take over the durable promotion receipt. A losing
+ * window receives the winning receipt to adopt; it must never mint a nonce.
+ */
+export async function claimPromotionPending(localMatterId: string): Promise<PromotionClaim> {
+  const ownerId = newLeaseOwnerId();
+  for (;;) {
+    const raw = await rawPromotionPending(localMatterId);
+    const now = Date.now();
+    if (!raw) {
+      const record: PromotionPendingRecord = {
+        provisioningNonce: `pn2_${base64UrlRandom(32)}`,
+        leaseOwnerId: ownerId,
+        leaseExpiresAt: now + PROMOTION_LEASE_MS,
+      };
+      const result = await compareAndSetPromotionPending(localMatterId, null, record);
+      if (result.swapped) return { record, ownerId, owned: true };
+      continue;
+    }
+    let record: PromotionPendingRecord;
+    try { record = JSON.parse(raw) as PromotionPendingRecord; } catch { throw new Error('The saved sharing retry record is corrupted.'); }
+    if (!validPromotionRecord(record)) throw new Error('The saved sharing retry record is corrupted.');
+    if (record.completed) return { record, ownerId, owned: false };
+    if (typeof record.leaseExpiresAt === 'number' && record.leaseExpiresAt > now && record.leaseOwnerId) {
+      return { record, ownerId, owned: false };
+    }
+    // A crashed owner may be replaced only by preserving every checkpoint,
+    // especially the provisioning nonce/opaque handle/key recovery material.
+    const adopted = { ...record, leaseOwnerId: ownerId, leaseExpiresAt: now + PROMOTION_LEASE_MS };
+    const result = await compareAndSetPromotionPending(localMatterId, raw, adopted);
+    if (result.swapped) return { record: adopted, ownerId, owned: true };
+  }
+}
+
+/** Give up the short execution lease without deleting recovery material. */
+export async function releasePromotionPendingLease(
+  localMatterId: string,
+  ownerId: string,
+): Promise<void> {
+  const raw = await rawPromotionPending(localMatterId);
+  if (!raw) return;
+  try {
+    const record = JSON.parse(raw) as PromotionPendingRecord;
+    if (record.leaseOwnerId !== ownerId || record.completed) return;
+    const { leaseOwnerId: _leaseOwnerId, leaseExpiresAt: _leaseExpiresAt, ...unleased } = record;
+    await compareAndSetPromotionPending(localMatterId, raw, unleased);
+  } catch {
+    // A corrupt receipt is handled by the explicit load/claim error path.
+  }
+}
+
+/** Keep a compact terminal receipt so another window can adopt its linkage. */
+export async function completePromotionPending(
+  localMatterId: string,
+  ownerId: string,
+  record: PromotionPendingRecord,
+  orgId: string,
+): Promise<void> {
+  const raw = await rawPromotionPending(localMatterId);
+  if (!raw) throw new Error('The saved sharing retry record disappeared.');
+  const current = JSON.parse(raw) as PromotionPendingRecord;
+  if (current.leaseOwnerId !== ownerId) throw new Error('Another window is finishing this shared client.');
+  const terminal: PromotionPendingRecord = {
+    provisioningNonce: record.provisioningNonce,
+    matterHandle: record.matterHandle!,
+    rootStreamHandle: record.rootStreamHandle!,
+    keyEpoch: record.keyEpoch!,
+    rootWriteAccepted: true,
+    completed: true,
+    orgId,
+  };
+  const result = await compareAndSetPromotionPending(localMatterId, raw, terminal);
+  if (!result.swapped) throw new Error('Another window is finishing this shared client.');
+}
+
+function base64UrlRandom(byteCount: number): string {
+  const bytes = new Uint8Array(byteCount);
+  crypto.getRandomValues(bytes);
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/u, '');
 }
 
 export async function loadPromotionPending(localMatterId: string): Promise<PromotionPendingRecord | null> {

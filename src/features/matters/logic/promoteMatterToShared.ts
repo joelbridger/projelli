@@ -7,10 +7,12 @@ import { audit } from '@/features/matters/matterManagerDialogHelpers';
 import { encryptUpdateV2, importMatterKey } from '@/platform/firm/matterCrypto';
 import { writeFirmMatterPrivateIndex } from '@/platform/firm/firmMatterPrivateIndex';
 import { useFirmStore } from '@/platform/firm/firmStore';
-import { createOpaqueBlobId, createOpaqueProvisioningNonce } from '@/platform/firm/opaqueBlobId';
+import { createOpaqueBlobId } from '@/platform/firm/opaqueBlobId';
 import {
+  claimPromotionPending,
   clearPromotionPending,
-  loadPromotionPending,
+  completePromotionPending,
+  releasePromotionPendingLease,
   storePromotionPending,
   type PromotionPendingRecord,
 } from '@/platform/firm/firmKeychain';
@@ -26,6 +28,33 @@ export type PromoteMatterResult =
 // one nonce, one relay shell, and one result. The keychain receipt remains the
 // crash/restart guard; this only closes the in-process race.
 const promotionsInFlight = new Map<string, Promise<PromoteMatterResult>>();
+
+/** Each relay request gets a finite turn. A lost response is an unknown outcome,
+ * so the durable receipt survives and the next click resumes the same shell. */
+export const PROMOTION_REQUEST_TIMEOUT_MS = 20_000;
+let promotionRequestTimeoutMs = PROMOTION_REQUEST_TIMEOUT_MS;
+
+/** Test seam: production always uses the fixed 20-second relay deadline. */
+export function _setPromotionRequestTimeoutForTests(timeoutMs: number): void {
+  promotionRequestTimeoutMs = timeoutMs;
+}
+
+async function boundedPromotionRequest<T>(
+  step: string,
+  request: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => {
+    const error = new Error(`Sharing ${step} timed out. Please try again.`);
+    error.name = 'TimeoutError';
+    controller.abort(error);
+  }, promotionRequestTimeoutMs);
+  try {
+    return await request(controller.signal);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 /**
  * Ordered v2 promotion:
@@ -60,20 +89,30 @@ async function promoteMatterToSharedOnce(
   // Declared outside the try so the catch can distinguish a definite rejection
   // (archive the shell) from an unknown outcome (keep it and resume).
   let pending: PromotionPendingRecord | null = null;
+  let leaseOwnerId: string | null = null;
   try {
     // Never create a visible relay shell unless this device can complete the
     // first authenticated write that makes the shell usable.
     if (!seatToken) throw new Error('A valid firm seat is required to share a client.');
-    pending = await loadPromotionPending(matterId);
-    if (!pending) {
-      // This is deliberately the first durable step. If the relay commits but
-      // its response is lost (or this device dies before saving the returned
-      // handle), this nonce lets the next run ask for the SAME shell.
-      pending = { provisioningNonce: createOpaqueProvisioningNonce() };
-      await storePromotionPending(matterId, pending);
+    // The receipt is the cross-window lock. Do not use a read-then-write here:
+    // another JavaScript window may be doing exactly the same thing.
+    for (;;) {
+      const claim = await claimPromotionPending(matterId);
+      pending = claim.record;
+      leaseOwnerId = claim.ownerId;
+      if (pending.completed) {
+        if (!pending.matterHandle || !pending.rootStreamHandle) throw new Error('The saved sharing receipt is incomplete.');
+        const orgId = pending.orgId ?? useFirmStore.getState().session?.org?.org_id ?? '';
+        linkFirmMatter(matterId, { firmMatterId: pending.matterHandle as MatterHandle, rootStreamHandle: pending.rootStreamHandle as never, orgId, role: 'owner' });
+        return { status: 'shared', matterId, firmMatterId: pending.matterHandle as MatterHandle, orgId };
+      }
+      if (claim.owned) break;
+      // The other window has a live lease. Let it finish or expire; then claim
+      // and resume the exact saved nonce/handle, never make another shell.
+      await new Promise<void>((resolve) => setTimeout(resolve, 100));
     }
     if (!pending.matterHandle) {
-      const provision = await client.createMatter(pending.provisioningNonce);
+      const provision = await boundedPromotionRequest('the relay setup', (signal) => client.createMatter(pending!.provisioningNonce, signal));
       // Persist the handle before generating a key or private index. If this
       // write itself crashes, the earlier nonce-only record still resumes it.
       pending = {
@@ -124,27 +163,27 @@ async function promoteMatterToSharedOnce(
     // Repeated activation is intentionally tolerated by the pending record:
     // if the first response was lost, the following idempotent root write is
     // the confirmation path rather than a reason to create another shell.
-    await client.activateMatter(handle).catch((error: unknown) => {
+    await boundedPromotionRequest('activation', (signal) => client.activateMatter(handle, signal)).catch((error: unknown) => {
       if (error instanceof Error && /404|matter_not_found/.test(error.message)) return;
       throw error;
     });
     if (!pending.rootWriteAccepted) {
-      await client.pushUpdate(handle, rootStreamHandle as never, pending.rootBlobId, pending.rootCiphertextB64, seatToken, keyEpoch);
+      await boundedPromotionRequest('the encrypted first save', (signal) => client.pushUpdate(handle, rootStreamHandle as never, pending!.rootBlobId!, pending!.rootCiphertextB64!, seatToken, keyEpoch, signal));
       // The relay now has encrypted client data. Persist this phase before any
       // later work so a fresh session knows to resume, never destroy, it.
       pending = { ...pending, rootWriteAccepted: true };
       await storePromotionPending(matterId, pending);
     }
-    await registerDevice(client);
-    await publishMatterKeyToMembers(client, handle, keyEpoch);
+    await boundedPromotionRequest('device registration', (signal) => registerDevice(client, signal));
+    await boundedPromotionRequest('key sharing', (signal) => publishMatterKeyToMembers(client, handle, keyEpoch, signal));
 
     const orgId = useFirmStore.getState().session?.org?.org_id ?? '';
+    await completePromotionPending(matterId, leaseOwnerId!, pending, orgId);
     linkFirmMatter(matterId, { firmMatterId: handle, rootStreamHandle: rootStreamHandle as never, orgId, role: 'owner' });
     audit.append({
       type: 'matter_shared', timestamp: new Date().toISOString(),
       payload: { matter_id: matterId, firm_matter_id: handle, ...(orgId ? { org_id: orgId } : {}), detail: 'shared locally' },
     });
-    await clearPromotionPending(matterId);
     return { status: 'shared', matterId, firmMatterId: handle, orgId };
   } catch (err) {
     // A DEFINITE rejection (the relay answered 4xx) and an UNKNOWN outcome
@@ -160,7 +199,7 @@ async function promoteMatterToSharedOnce(
     if (pending && !pending.rootWriteAccepted && err instanceof FirmApiError && err.status >= 400 && err.status < 500) {
       if (pending.matterHandle) {
         try {
-          await client.archiveMatter(pending.matterHandle as MatterHandle);
+          await boundedPromotionRequest('relay cleanup', (signal) => client.archiveMatter(pending!.matterHandle as MatterHandle, signal));
         // eslint-disable-next-line lantern-async/no-silent-failure -- cleanup is deliberately best-effort after a definite rejection before any client data is committed.
         } catch {
           // Best-effort cleanup after a definite rejection. Clearing the local
@@ -171,5 +210,10 @@ async function promoteMatterToSharedOnce(
       await clearPromotionPending(matterId);
     }
     return { status: 'failed', matterId, error: err instanceof Error ? err.message : String(err) };
+  } finally {
+    // A timeout/abort never deletes recovery material, but it must not leave a
+    // local waiter stuck behind this window. The next attempt adopts the same
+    // durable receipt immediately (or after a crash, when its lease expires).
+    if (leaseOwnerId) await releasePromotionPendingLease(matterId, leaseOwnerId);
   }
 }

@@ -240,14 +240,14 @@ export async function getDevicePrivateKey(): Promise<CryptoKey> {
  *
  * Sends: POST /device/register { device_id, machine_id, label, pubkey_jwk }
  */
-export async function registerDevice(client: FirmApiClient): Promise<void> {
+export async function registerDevice(client: FirmApiClient, signal?: AbortSignal): Promise<void> {
   const { deviceId, publicJwk } = await getOrCreateDeviceKeypair();
 
   // machine_id and label are best-effort; they help the admin identify devices.
   const machineId = deviceId; // Use deviceId as stable machine_id (no Tauri machine API needed)
   const label = typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 80) : `${BRAND.name} Desktop`;
 
-  await client.registerDevice(deviceId, machineId, label, publicJwk);
+  await client.registerDevice(deviceId, machineId, label, publicJwk, signal);
 }
 
 /** Reset the in-memory cache (for testing only). */

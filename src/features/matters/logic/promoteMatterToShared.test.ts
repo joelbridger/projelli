@@ -19,6 +19,15 @@ vi.mock('@/platform/firm/firmStore', () => ({
   useFirmStore: { getState: () => mocks.firmState },
 }));
 vi.mock('@/platform/firm/firmKeychain', () => ({
+  claimPromotionPending: async (id: string) => {
+    let record = mocks.promotionPendingByMatter.get(id);
+    if (!record) {
+      record = { provisioningNonce: `pn2_${'A'.repeat(43)}`, leaseOwnerId: `owner-${id}`, leaseExpiresAt: Date.now() + 30_000 };
+      mocks.promotionPendingByMatter.set(id, record);
+      mocks.promotionPending = record;
+    }
+    return { record, ownerId: `owner-${id}`, owned: !record['completed'] };
+  },
   loadPromotionPending: (id: string) => Promise.resolve(mocks.promotionPendingByMatter.get(id) ?? null),
   storePromotionPending: async (id: string, value: Record<string, unknown>) => {
     await Promise.resolve();
@@ -31,9 +40,15 @@ vi.mock('@/platform/firm/firmKeychain', () => ({
     mocks.promotionPending = value;
   },
   clearPromotionPending: (id: string) => { mocks.promotionPendingByMatter.delete(id); mocks.promotionPending = null; mocks.clearPromotionPending(); return Promise.resolve(); },
+  releasePromotionPendingLease: vi.fn(() => Promise.resolve()),
+  completePromotionPending: async (id: string, _owner: string, record: Record<string, unknown>, orgId: string) => {
+    const complete = { provisioningNonce: record['provisioningNonce'], matterHandle: record['matterHandle'], rootStreamHandle: record['rootStreamHandle'], keyEpoch: record['keyEpoch'], rootWriteAccepted: true, completed: true, orgId };
+    mocks.promotionPendingByMatter.set(id, complete);
+    mocks.promotionPending = complete;
+  },
 }));
 
-import { promoteMatterToShared } from './promoteMatterToShared';
+import { _setPromotionRequestTimeoutForTests, promoteMatterToShared } from './promoteMatterToShared';
 
 const matterHandle = parseMatterHandle(`mh2_${'P'.repeat(43)}`);
 const rootStreamHandle = parseStreamHandle(`sh2_${'Q'.repeat(43)}`);
@@ -45,7 +60,7 @@ async function generatedKey(): Promise<string> {
 function successfulClient() {
   return {
     createMatter: vi.fn((_provisioningNonce: string) => Promise.resolve({ matter_handle: matterHandle, root_stream_handle: rootStreamHandle, key_epoch: 1 as const, status: 'provisioning' as const })),
-    pushUpdate: vi.fn(() => Promise.resolve({ ok: true as const, cursor: 1, blob_id: 'x', key_epoch: 1, duplicate: false })),
+    pushUpdate: vi.fn((..._args: unknown[]) => Promise.resolve({ ok: true as const, cursor: 1, blob_id: 'x', key_epoch: 1, duplicate: false })),
     activateMatter: vi.fn(() => Promise.resolve({ ok: true as const })),
     archiveMatter: vi.fn(() => Promise.resolve({ ok: true as const })),
   };
@@ -100,12 +115,34 @@ describe('promoteMatterToShared v2 ordering', () => {
     };
     const result = await promoteMatterToShared('local-matter-77', 'CLIENT_SECRET_NIMBUS', client as never);
     expect(result.status).toBe('failed');
-    expect(client.activateMatter).toHaveBeenCalledWith(matterHandle);
+    expect(client.activateMatter).toHaveBeenCalledWith(matterHandle, expect.any(AbortSignal));
     expect(mocks.linkFirmMatter).not.toHaveBeenCalled();
     expect(client.archiveMatter).not.toHaveBeenCalled();
     expect(mocks.forgetMatterKey).not.toHaveBeenCalled();
     expect(mocks.promotionPending?.['matterHandle']).toBe(matterHandle);
     expect(typeof mocks.promotionPending?.['keyB64']).toBe('string');
+  });
+
+  it('aborts a hung relay write, releases the local waiter, and retries the same saved shell', async () => {
+    _setPromotionRequestTimeoutForTests(1);
+    try {
+      const client = successfulClient();
+      let hang = true;
+      client.pushUpdate.mockImplementation((...args: unknown[]) => {
+        const signal = args[6] as AbortSignal;
+        return hang
+        ? new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }))
+        : Promise.resolve({ ok: true, cursor: 1, blob_id: 'x', key_epoch: 1, duplicate: false });
+      });
+
+      await expect(promoteMatterToShared('local-timeout', 'CLIENT_SECRET_NIMBUS', client as never)).resolves.toMatchObject({ status: 'failed', error: expect.stringContaining('timed out') });
+      expect(mocks.promotionPendingByMatter.get('local-timeout')).toMatchObject({ matterHandle, keyB64: expect.any(String) });
+      hang = false;
+      await expect(promoteMatterToShared('local-timeout', 'CLIENT_SECRET_NIMBUS', client as never)).resolves.toMatchObject({ status: 'shared', firmMatterId: matterHandle });
+      expect(client.createMatter).toHaveBeenCalledTimes(1);
+    } finally {
+      _setPromotionRequestTimeoutForTests(20_000);
+    }
   });
 
   it('coalesces simultaneous sharing of one local client into one shell and one handle', async () => {
@@ -155,7 +192,7 @@ describe('promoteMatterToShared v2 ordering', () => {
 
     const first = await promoteMatterToShared('local-matter-77', 'CLIENT_SECRET_NIMBUS', client as never);
     expect(first.status).toBe('failed');
-    expect(mocks.promotionPending && Object.keys(mocks.promotionPending)).toEqual(['provisioningNonce']);
+    expect(mocks.promotionPending).toMatchObject({ provisioningNonce: expect.any(String), leaseOwnerId: expect.any(String), leaseExpiresAt: expect.any(Number) });
     expect(mocks.promotionPending?.['provisioningNonce']).toMatch(/^pn2_[A-Za-z0-9_-]{43}$/);
 
     const retry = await promoteMatterToShared('local-matter-77', 'CLIENT_SECRET_NIMBUS', client as never);
@@ -177,7 +214,7 @@ describe('promoteMatterToShared v2 ordering', () => {
     mocks.failHandleCheckpointOnce = true;
 
     await expect(promoteMatterToShared('local-matter-77', 'CLIENT_SECRET_NIMBUS', client as never)).resolves.toMatchObject({ status: 'failed', error: 'local handle checkpoint interrupted' });
-    expect(mocks.promotionPending && Object.keys(mocks.promotionPending)).toEqual(['provisioningNonce']);
+    expect(mocks.promotionPending).toMatchObject({ provisioningNonce: expect.any(String), leaseOwnerId: expect.any(String), leaseExpiresAt: expect.any(Number) });
     expect(typeof mocks.promotionPending?.['provisioningNonce']).toBe('string');
 
     await expect(promoteMatterToShared('local-matter-77', 'CLIENT_SECRET_NIMBUS', client as never)).resolves.toMatchObject({ status: 'shared', firmMatterId: matterHandle });
@@ -240,7 +277,7 @@ describe('promoteMatterToShared v2 ordering', () => {
 
     await expect(promoteMatterToShared('local-matter-77', 'CLIENT_SECRET_NIMBUS', client as never)).resolves.toMatchObject({ status: 'failed' });
 
-    expect(client.archiveMatter).toHaveBeenCalledWith(matterHandle);
+    expect(client.archiveMatter).toHaveBeenCalledWith(matterHandle, expect.any(AbortSignal));
     expect(mocks.forgetMatterKey).toHaveBeenCalledWith(matterHandle);
     expect(mocks.clearPromotionPending).toHaveBeenCalledWith();
     expect(mocks.promotionPendingByMatter.get('local-matter-77')).toBeUndefined();

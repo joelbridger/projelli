@@ -83,9 +83,10 @@ interface EligibleDevice {
 async function eligibleDevices(
   client: FirmApiClient,
   matterHandle: MatterHandle,
+  signal?: AbortSignal,
 ): Promise<{ devices: EligibleDevice[]; walledSkipped: number }> {
   // Fetch the member roster + wall list.
-  const membersResp = await client.listMatterMembers(matterHandle);
+  const membersResp = await client.listMatterMembers(matterHandle, signal);
   const walledUserIds = new Set(membersResp.walls.map((w) => w.user_id));
 
   // Determine the set of user IDs to wrap for:
@@ -95,14 +96,14 @@ async function eligibleDevices(
     .filter((uid) => !walledUserIds.has(uid));
 
   // Fetch org admins for escrow.
-  const adminResp = await client.listOrgAdmins();
+  const adminResp = await client.listOrgAdmins(signal);
   const adminUserIds = adminResp.admins.map((a) => a.user_id);
 
   // Union of members + admins (admins may already be members).
   const allUserIds = Array.from(new Set([...memberUserIds, ...adminUserIds]));
 
   // Fetch devices for all users, then drop walled users' devices.
-  const devicesResp = await client.fetchOrgUserDevices(allUserIds);
+  const devicesResp = await client.fetchOrgUserDevices(allUserIds, signal);
 
   const devices: EligibleDevice[] = [];
   let walledSkipped = 0;
@@ -133,6 +134,7 @@ export async function publishMatterKeyToMembers(
   client: FirmApiClient,
   matterHandle: MatterHandle,
   epoch: number,
+  signal?: AbortSignal,
 ): Promise<{ published: number; skippedWalled: number }> {
   // 1. Load local matter key (must exist; caller is the holder).
   const matterKeyB64 = await loadMatterKey(matterHandle);
@@ -144,7 +146,7 @@ export async function publishMatterKeyToMembers(
   }
 
   // 2. Roster + escrow + device expansion (walled users' devices dropped).
-  const { devices, walledSkipped } = await eligibleDevices(client, matterHandle);
+  const { devices, walledSkipped } = await eligibleDevices(client, matterHandle, signal);
 
   // 3. Wrap the matter key for each eligible device.
   const wrapped: Array<{ user_id: string; device_id: string; wrapped_key_b64: string }> = [];
@@ -158,7 +160,7 @@ export async function publishMatterKeyToMembers(
   }
 
   // 4. POST the publish payload.
-  await client.publishMatterKeys(matterHandle, { epoch, wrapped });
+  await client.publishMatterKeys(matterHandle, { epoch, wrapped }, signal);
 
   return { published: wrapped.length, skippedWalled: walledSkipped };
 }

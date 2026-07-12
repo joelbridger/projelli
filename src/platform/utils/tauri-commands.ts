@@ -335,6 +335,26 @@ export async function keychainDelete(
   return invoke<void>('keychain_delete', { service, key });
 }
 
+/** Atomically replace a keychain value only when it still equals `expected`.
+ *
+ * Unlike a read followed by `keychainSet`, this is safe when two app windows
+ * race. The native side holds an OS-wide short lock for the comparison and
+ * write, and returns the value it found for the losing window to adopt.
+ */
+export async function keychainCompareAndSet(
+  key: string,
+  expected: string | null,
+  value: string,
+  service?: string,
+): Promise<{ swapped: boolean; current: string | null }> {
+  if (!isTauri()) {
+    throw new Error('keychain is only available in the desktop app.');
+  }
+  return invoke<{ swapped: boolean; current: string | null }>('keychain_compare_and_set', {
+    service, key, expected, value,
+  });
+}
+
 /** Set or replace the active workspace root the RAG indexer points at.
  *  Must be called once when the user opens a workspace, before any other
  *  `rag_*` command. */

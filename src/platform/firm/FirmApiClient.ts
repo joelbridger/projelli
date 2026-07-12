@@ -238,7 +238,7 @@ export class FirmApiClient {
 
   // --- matters ---------------------------------------------------------------
   /** Provision an empty opaque shell. Client names and local IDs never cross this boundary. */
-  createMatter(provisioningNonce: string): Promise<CreateMatterResponse> {
+  createMatter(provisioningNonce: string, signal?: AbortSignal): Promise<CreateMatterResponse> {
     if (!OPAQUE_PROVISIONING_NONCE_PATTERN.test(provisioningNonce)) {
       throw new Error('Invalid opaque provisioning retry receipt.');
     }
@@ -246,23 +246,24 @@ export class FirmApiClient {
       method: 'POST',
       auth: true,
       body: { provisioning_nonce: provisioningNonce },
+      ...(signal ? { signal } : {}),
     });
   }
 
-  activateMatter(matterHandle: MatterHandle): Promise<{ ok: true }> {
+  activateMatter(matterHandle: MatterHandle, signal?: AbortSignal): Promise<{ ok: true }> {
     const handle = parseMatterHandle(matterHandle);
     return this.request<{ ok: true }>(
       FIRM_ENDPOINTS.activateMatter.replace(':matter_handle', encodeURIComponent(handle)),
-      { method: 'POST', auth: true, body: {} },
+      { method: 'POST', auth: true, body: {}, ...(signal ? { signal } : {}) },
     );
   }
 
   /** Hide an activated shell again when promotion cannot finish safely. */
-  archiveMatter(matterHandle: MatterHandle): Promise<{ ok: true }> {
+  archiveMatter(matterHandle: MatterHandle, signal?: AbortSignal): Promise<{ ok: true }> {
     const handle = parseMatterHandle(matterHandle);
     return this.request<{ ok: true }>(
       FIRM_ENDPOINTS.archiveMatter.replace(':matter_handle', encodeURIComponent(handle)),
-      { method: 'POST', auth: true, body: {} },
+      { method: 'POST', auth: true, body: {}, ...(signal ? { signal } : {}) },
     );
   }
 
@@ -295,11 +296,11 @@ export class FirmApiClient {
     });
   }
 
-  listMatterMembers(matterHandle: MatterHandle): Promise<MatterMembersResponse> {
+  listMatterMembers(matterHandle: MatterHandle, signal?: AbortSignal): Promise<MatterMembersResponse> {
     const handle = parseMatterHandle(matterHandle);
     return this.request<MatterMembersResponse>(
       FIRM_ENDPOINTS.listMatterMembers.replace(':matter_handle', encodeURIComponent(handle)),
-      { method: 'POST', auth: true, body: {} },
+      { method: 'POST', auth: true, body: {}, ...(signal ? { signal } : {}) },
     );
   }
 
@@ -342,6 +343,7 @@ export class FirmApiClient {
     machineId: string,
     label: string,
     pubkeyJwk: JsonWebKey,
+    signal?: AbortSignal,
   ): Promise<RegisterDeviceResponse> {
     return this.request<RegisterDeviceResponse>(FIRM_ENDPOINTS.deviceRegister, {
       method: 'POST',
@@ -352,21 +354,24 @@ export class FirmApiClient {
         label,
         pubkey_jwk: pubkeyJwk,
       },
+      ...(signal ? { signal } : {}),
     });
   }
 
-  fetchOrgUserDevices(userIds: string[]): Promise<FetchOrgUserDevicesResponse> {
+  fetchOrgUserDevices(userIds: string[], signal?: AbortSignal): Promise<FetchOrgUserDevicesResponse> {
     return this.request<FetchOrgUserDevicesResponse>(FIRM_ENDPOINTS.orgUserDevices, {
       method: 'POST',
       auth: true,
       body: { user_ids: userIds },
+      ...(signal ? { signal } : {}),
     });
   }
 
-  listOrgAdmins(): Promise<ListOrgAdminsResponse> {
+  listOrgAdmins(signal?: AbortSignal): Promise<ListOrgAdminsResponse> {
     return this.request<ListOrgAdminsResponse>(FIRM_ENDPOINTS.orgAdmins, {
       method: 'POST',
       auth: true,
+      ...(signal ? { signal } : {}),
     });
   }
 
@@ -385,10 +390,11 @@ export class FirmApiClient {
   publishMatterKeys(
     matterHandle: MatterHandle,
     payload: PublishMatterKeysRequest,
+    signal?: AbortSignal,
   ): Promise<PublishMatterKeysResponse> {
     return this.request<PublishMatterKeysResponse>(
       FIRM_ENDPOINTS.publishMatterKeys.replace(':matter_handle', encodeURIComponent(parseMatterHandle(matterHandle))),
-      { method: 'POST', auth: true, body: payload },
+      { method: 'POST', auth: true, body: payload, ...(signal ? { signal } : {}) },
     );
   }
 
