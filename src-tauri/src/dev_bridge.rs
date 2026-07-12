@@ -4,13 +4,20 @@ use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Manager, State};
 use tokio::sync::oneshot;
 
 const HOST: &str = "127.0.0.1";
 const DEFAULT_PORT: u16 = 9250;
-const DEFAULT_TIMEOUT_MS: u64 = 5_000;
+/// Keep ordinary DOM probes fast, but do not make a legitimate asynchronous
+/// desktop operation (such as opening the encrypted CRM store) look like a
+/// broken WebView.  Test runners can tighten or extend this with
+/// `LANTERN_DEV_BRIDGE_TIMEOUT_MS`, and individual requests still take
+/// precedence via `?timeout_ms=`.
+const DEFAULT_TIMEOUT_MS: u64 = 20_000;
+const MIN_TIMEOUT_MS: u64 = 100;
+const MAX_TIMEOUT_MS: u64 = 120_000;
 
 /// The bridge port. Overridable so several debug app instances can run side by
 /// side on one machine (each with its own workspace), which is what lets live
@@ -27,10 +34,6 @@ const MAX_REQUEST_BYTES: usize = 1024 * 1024;
 pub struct DevBridgeState {
     next_id: AtomicU64,
     pending: Mutex<HashMap<String, oneshot::Sender<EvalResult>>>,
-    /// A WebView executes injected snippets on one UI thread.  Keeping bridge
-    /// requests in order prevents a fast form fill/click sequence from racing
-    /// React's event processing and losing an otherwise valid action.
-    eval_lock: tokio::sync::Mutex<()>,
 }
 
 impl Default for DevBridgeState {
@@ -38,7 +41,6 @@ impl Default for DevBridgeState {
         Self {
             next_id: AtomicU64::new(1),
             pending: Mutex::new(HashMap::new()),
-            eval_lock: tokio::sync::Mutex::new(()),
         }
     }
 }
@@ -110,8 +112,15 @@ pub fn dev_bridge_result(
 }
 
 fn handle_stream(mut stream: TcpStream, app: AppHandle) {
+    // `/eval` deliberately keeps its HTTP connection open while JavaScript
+    // awaits Tauri work.  A five-second socket deadline used to cut that
+    // connection off even when the request's own timeout was longer.  Header
+    // reads stay bounded, while the response can accommodate the largest
+    // accepted per-request eval budget plus a small serialization margin.
     let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
-    let _ = stream.set_write_timeout(Some(Duration::from_secs(5)));
+    let _ = stream.set_write_timeout(Some(Duration::from_millis(
+        MAX_TIMEOUT_MS.saturating_add(1_000),
+    )));
 
     let request = match read_request(&mut stream) {
         Ok(request) => request,
@@ -270,7 +279,11 @@ async fn eval_in_main_webview(
         .ok_or_else(|| "main webview is not available".to_string())?;
 
     let state = app.state::<DevBridgeState>();
-    let _eval_guard = state.eval_lock.lock().await;
+    // Do not hold a global lock while the page awaits an async Tauri command.
+    // The previous lock made a slow store open block every later probe/click;
+    // then an innocent readiness check hit the five-second default and hid the
+    // actual source of the wait.  The pending-result map already keys every
+    // request by id, and callers that need ordering await each response.
     let id = state.next_id.fetch_add(1, Ordering::Relaxed).to_string();
     let (sender, receiver) = oneshot::channel();
 
@@ -290,7 +303,8 @@ async fn eval_in_main_webview(
         return Err(format!("webview eval failed: {error}"));
     }
 
-    let timeout = Duration::from_millis(timeout_ms.max(1));
+    let started = Instant::now();
+    let timeout = Duration::from_millis(timeout_ms.max(MIN_TIMEOUT_MS));
     let result = match tokio::time::timeout(timeout, receiver).await {
         Ok(Ok(result)) => result,
         Ok(Err(_)) => return Err("dev bridge result channel closed".to_string()),
@@ -303,6 +317,14 @@ async fn eval_in_main_webview(
             return Err(format!("eval timed out after {timeout_ms}ms"));
         }
     };
+
+    let elapsed = started.elapsed();
+    if elapsed > Duration::from_secs(1) {
+        log::debug!(
+            "[dev-bridge] eval id={id} completed in {}ms",
+            elapsed.as_millis()
+        );
+    }
 
     if !result.ok {
         return Err(result.error.unwrap_or_else(|| "eval failed".to_string()));
@@ -392,7 +414,20 @@ fn timeout_ms(query: &HashMap<String, String>) -> u64 {
     query
         .get("timeout_ms")
         .and_then(|value| value.parse::<u64>().ok())
+        .map(clamp_timeout_ms)
+        .unwrap_or_else(default_timeout_ms)
+}
+
+fn default_timeout_ms() -> u64 {
+    std::env::var("LANTERN_DEV_BRIDGE_TIMEOUT_MS")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .map(clamp_timeout_ms)
         .unwrap_or(DEFAULT_TIMEOUT_MS)
+}
+
+fn clamp_timeout_ms(timeout_ms: u64) -> u64 {
+    timeout_ms.clamp(MIN_TIMEOUT_MS, MAX_TIMEOUT_MS)
 }
 
 fn js_string(value: &str) -> String {
