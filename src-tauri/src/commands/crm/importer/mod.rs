@@ -5,11 +5,13 @@
 //! records.  It does not replace the ordinary read-only connector.
 
 pub mod archive;
+pub mod export;
 pub mod fetchers;
 pub mod fidelity;
 pub mod pipeline;
 
 pub use archive::*;
+pub use export::*;
 pub use fetchers::*;
 pub use fidelity::*;
 pub use pipeline::*;

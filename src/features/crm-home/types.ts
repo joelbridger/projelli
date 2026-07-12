@@ -150,6 +150,9 @@ export interface ExportJobStatus {
   exportedAt?: string | undefined;
   manifestId?: string | undefined;
   reconciliationReportId?: string | undefined;
+  filePath?: string | undefined;
+  byteLength?: number | undefined;
+  sha256?: string | undefined;
 }
 
 export interface CrmMigrationData {
