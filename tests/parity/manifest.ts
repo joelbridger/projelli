@@ -20,6 +20,7 @@ export interface ParityApp {
   firmSetup(): Promise<void>;
   durableFeature(options: { route: string; controls: string[]; action?: string; result?: string; recordKind?: string }): Promise<void>;
   migration(options: { action: 'crm-migration-run-import' | 'crm-redtail-import' | 'crm-salesforce-import'; externalId?: boolean; exportFile?: boolean; fullReview?: boolean }): Promise<void>;
+  selfServiceContactImport(): Promise<void>;
 }
 
 export interface ParityFeature {
@@ -119,6 +120,7 @@ export const FEATURES: readonly ParityFeature[] = [
   live('White-glove migration service', 'guided-migration', 'REPLICATE', 'migration', (app) => app.migration({ action: 'crm-migration-run-import', fullReview: true })),
   live('Data portability / export', 'migration-export', 'REPLICATE', 'migration', (app) => app.migration({ action: 'crm-migration-run-import', exportFile: true })),
   live('External Unique ID field for import linking', 'migration-external-id', 'REPLICATE', 'migration', (app) => app.migration({ action: 'crm-migration-run-import', externalId: true })),
+  live('Self-service CSV/Excel/vCard/Outlook import', 'self-service-contact-import', 'REPLICATE', 'migration', (app) => app.selfServiceContactImport()),
   live('REST API (OAuth2 + token auth)', 'wealthbox-api-connection', 'REPLICATE', 'migration', (app) => app.migration({ action: 'crm-migration-run-import' })),
   pending('Native webhooks', 'native-collaboration-push', 'IMPROVE', 'collaboration', 'Needs a two-seat, local-only push fixture; a single desktop app cannot prove peer delivery.'),
 ];
@@ -144,5 +146,4 @@ export const SKIPPED_FEATURES: readonly SkippedFeature[] = [
   { matrixFeature: 'Zapier (meta-integration, powers many of the above)', reason: 'No evidence of need for a ≤10-seat firm.' },
   { matrixFeature: 'Caller ID from Wealthbox contacts', reason: 'Dialer and phone infrastructure are a charter exclusion.' },
   { matrixFeature: 'Click-to-call', reason: 'Dialer and phone infrastructure are a charter exclusion.' },
-  { matrixFeature: 'Self-service CSV/Excel/vCard/Outlook import', reason: 'D9 keeps the Wealthbox migration wizard as the v1 import path.' },
 ];
