@@ -29,6 +29,8 @@ describe('FirmSetupSurface', () => {
     expect(screen.getByTestId('crm-firm-directory')).toHaveTextContent('Maya Patel');
     expect(screen.getByTestId('crm-firm-directory')).toHaveTextContent('Owner');
     expect(screen.getByTestId('crm-firm-directory')).toHaveTextContent('Client service');
+    expect(screen.getByTestId('crm-firm-role-directory-1')).toHaveTextContent('Owner');
+    expect(screen.getByTestId('crm-firm-team-directory-1')).toHaveTextContent('Client service');
     expect(screen.queryByTestId('crm-firm-team-save')).not.toBeInTheDocument();
   });
 
