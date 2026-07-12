@@ -71,10 +71,25 @@ describe('CrmHome', () => {
       activity: [{ id: 'activity-1', summary: 'Task created', at: new Date().toISOString() }],
       actions: { decideApproval },
     })} />);
-    expect(screen.getByTestId('crm-today-triage')).toHaveTextContent(/1 due or overdue item from 1 open task/i);
+    expect(screen.getByTestId('crm-today-triage')).toHaveTextContent(/add active firm members to make a capacity-based plan/i);
     expect(screen.getByTestId('crm-recent-activity')).toHaveTextContent(/task created/i);
     fireEvent.click(screen.getByTestId('crm-approval-approve-proposal-1'));
     expect(decideApproval).toHaveBeenCalledWith(expect.objectContaining({ id: 'proposal-1' }), 'approved');
+  });
+
+  it('uses real firm members for assignment and puts workflow steps in the same work list', () => {
+    const completeWorkflowWorkItem = vi.fn();
+    render(<CrmHome adapter={adapter({
+      tasks: [{ id: 'task-1', title: 'Call client', assigneeUserId: null, status: 'open', priority: 'normal' }],
+      firmMembers: [{ userId: 'maya', displayName: 'Maya Patel', title: 'Advisor' }],
+      workflowWorkItems: [{ id: 'workflow-1:step-1', instanceId: 'workflow-1', stepId: 'step-1', title: 'Confirm transfer', householdId: 'hh-1', householdLabel: 'Henderson household', assigneeUserId: 'maya', assigneeLabel: 'Maya Patel', status: 'open', priority: 'normal' }],
+      actions: { completeWorkflowWorkItem },
+    })} initialRoute="tasks" />);
+    expect(screen.getByTestId('crm-workflow-work-workflow-1:step-1')).toHaveTextContent(/workflow step/i);
+    fireEvent.click(screen.getByTestId('crm-workflow-work-complete-workflow-1:step-1'));
+    expect(completeWorkflowWorkItem).toHaveBeenCalledWith(expect.objectContaining({ instanceId: 'workflow-1', stepId: 'step-1' }));
+    fireEvent.click(screen.getByTestId('crm-task-open-task-1'));
+    expect(screen.getByTestId('crm-task-assignee')).toHaveTextContent(/maya patel/i);
   });
 
   it('blocks Apply until every concurrent propagation decision is explicitly reviewed', () => {

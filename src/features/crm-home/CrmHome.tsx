@@ -24,6 +24,7 @@ import { Button } from '@/ui/kp';
 import { getCrmEngineFreshness, subscribeCrmEngineFreshness } from '@/platform/crm/store';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import { CrmPipelineSurface } from '@/features/crm-pipeline';
+import { buildCapacityTriage, nextRecurringDue, type DailyWorkItem } from '@/platform/crm/tasks';
 import { createMigrationExport, runWealthboxMigration } from '@/platform/crm/migration';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import {
@@ -55,6 +56,8 @@ import type {
   CrmApproval,
   CrmActivity,
   CrmTaskSavedView,
+  CrmFirmMember,
+  CrmWorkflowWorkItem,
   AttachmentAccountingRecord,
   ExportJobStatus,
   MigrationFidelityReport,
@@ -183,45 +186,48 @@ function HomeRail({ route, onNavigate }: { route: CrmHomeRoute; onNavigate: (rou
   </aside>;
 }
 
-function taskDay(task: CrmTask): string | null { return task.dueAt?.slice(0, 10) ?? null; }
 function todayKey(): string { return new Date().toISOString().slice(0, 10); }
-function isOpenTask(task: CrmTask): boolean { return task.status !== 'done' && task.status !== 'cancelled'; }
-function priorityRank(task: CrmTask): number { return task.priority === 'high' ? 0 : task.priority === 'normal' ? 1 : 2; }
+type CrmDailyWorkItem = (CrmTask | CrmWorkflowWorkItem) & DailyWorkItem;
+function workLabel(item: CrmDailyWorkItem): string { return item.kind === 'workflow_step' ? 'Workflow step' : 'Task'; }
+function workHousehold(item: CrmDailyWorkItem): string | undefined { return item.householdLabel; }
 
-function Today({ tasks, approvals, activity, freshness, onNavigate, onUpdateTask, onDecideApproval }: { tasks: readonly CrmTask[]; approvals: readonly CrmApproval[]; activity: readonly CrmActivity[]; freshness: CrmFreshnessState; onNavigate: (r: CrmHomeRoute) => void; onUpdateTask: (task: CrmTask) => void | Promise<void>; onDecideApproval: (approval: CrmApproval, decision: 'approved' | 'rejected') => void | Promise<void> }) {
+function Today({ tasks, workItems, firmMembers, approvals, activity, freshness, onNavigate, onCompleteWorkItem, onDecideApproval }: { tasks: readonly CrmTask[]; workItems: readonly CrmDailyWorkItem[]; firmMembers: readonly CrmFirmMember[]; approvals: readonly CrmApproval[]; activity: readonly CrmActivity[]; freshness: CrmFreshnessState; onNavigate: (r: CrmHomeRoute) => void; onCompleteWorkItem: (item: CrmDailyWorkItem) => void | Promise<void>; onDecideApproval: (approval: CrmApproval, decision: 'approved' | 'rejected') => void | Promise<void> }) {
   const [reviewing, setReviewing] = useState(false);
   const today = todayKey();
-  const open = tasks.filter(isOpenTask);
-  const dueNow = open.filter((task) => { const due = taskDay(task); return due !== null && due <= today; }).sort((left, right) => (taskDay(left) ?? '').localeCompare(taskDay(right) ?? '') || priorityRank(left) - priorityRank(right));
+  const plan = buildCapacityTriage(workItems, firmMembers.map((member) => member.userId), today);
+  const open = plan.ranked;
+  const dueNow = plan.fitsToday;
   const pendingApprovals = approvals.filter((approval) => approval.state === 'pending');
   const recentActivity = [...activity].sort((left, right) => right.at.localeCompare(left.at)).slice(0, 6);
-  const hasAnyWork = tasks.length > 0 || approvals.length > 0 || activity.length > 0;
+  const hasAnyWork = workItems.length > 0 || approvals.length > 0 || activity.length > 0;
   return <Screen title="Today" description="Your morning plan" Icon={LayoutDashboard} action={<Button data-testid="crm-today-review" iconLeft={ClipboardList} onClick={() => { setReviewing(true); }}>Review today’s plan</Button>}>
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}><AskBar /><FreshnessBanner freshness={freshness} /></div>
-    {!hasAnyWork ? <section data-testid="crm-today-first-use" style={panelStyle}><strong>No work yet. Add a client to begin.</strong><p style={mutedStyle}>Once client work is saved, this page will calculate today’s priorities from it.</p></section> : <section data-testid="crm-today-triage" style={panelStyle}><strong>Today, realistically</strong><p style={mutedStyle}>{dueNow.length === 0 ? 'Your firm is clear for today.' : `${String(dueNow.length)} due or overdue item${dueNow.length === 1 ? '' : 's'} from ${String(open.length)} open task${open.length === 1 ? '' : 's'}.`}</p>{dueNow.map((task) => <div key={task.id} data-testid={`crm-today-task-${task.id}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '8px 0', borderTop: '1px solid var(--kp-border)' }}><span><strong>{task.title}</strong><span style={mutedStyle}> · {(taskDay(task) ?? today) < today ? 'Overdue' : 'Due today'}{task.householdLabel ? ` · ${task.householdLabel}` : ''}</span></span><Button size="sm" variant="secondary" data-testid={`crm-today-complete-${task.id}`} onClick={() => { void onUpdateTask({ ...task, status: 'done' }); }}>Complete</Button></div>)}<Button variant="secondary" data-testid="crm-today-review-inline" onClick={() => { setReviewing(true); }}>Review</Button></section>}
-    {reviewing && <section data-testid="crm-today-review-panel" style={{ ...panelStyle, borderColor: 'var(--kp-assured)' }}><strong>Review today’s plan</strong><p style={mutedStyle}>Only due and overdue work is suggested. Saving changes updates the real task.</p>{dueNow.length === 0 ? <p style={mutedStyle}>Nothing needs attention today.</p> : dueNow.map((task) => <div key={task.id} style={{ display: 'flex', gap: 8, justifyContent: 'space-between', padding: '8px 0', borderTop: '1px solid var(--kp-border)' }}><span>{task.title}</span><Button size="sm" variant="secondary" data-testid={`crm-today-keep-${task.id}`} onClick={() => { void onUpdateTask(task); }}>Keep today</Button></div>)}</section>}
+    {!hasAnyWork ? <section data-testid="crm-today-first-use" style={panelStyle}><strong>No work yet.</strong><p style={mutedStyle}>Add a task or start a workflow to build today’s plan.</p></section> : <section data-testid="crm-today-triage" style={panelStyle}><strong>Today, realistically</strong><p style={mutedStyle}>{plan.hasCapacitySignal ? `${String(plan.fitsToday.length)} of ${String(open.length)} open item${open.length === 1 ? '' : 's'} fit the first pass for ${String(plan.activeMemberCount)} active firm member${plan.activeMemberCount === 1 ? '' : 's'}. ${String(plan.suggestedLater.length)} suggested for later.` : 'Add active firm members to make a capacity-based plan. All saved work is still shown below.'}</p>{(plan.hasCapacitySignal ? dueNow : open).map((item) => <div key={item.id} data-testid={`crm-today-task-${item.id}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '8px 0', borderTop: '1px solid var(--kp-border)' }}><span><strong>{item.title}</strong><span style={mutedStyle}> · {workLabel(item)}{item.dueAt ? ` · ${item.dueAt.slice(0, 10) < today ? 'Overdue' : item.dueAt.slice(0, 10) === today ? 'Due today' : `Due ${item.dueAt.slice(0, 10)}`}` : ''}{workHousehold(item) ? ` · ${workHousehold(item)}` : ''}</span></span><Button size="sm" variant="secondary" data-testid={`crm-today-complete-${item.id}`} onClick={() => { void onCompleteWorkItem(item); }}>Complete</Button></div>)}<Button variant="secondary" data-testid="crm-today-review-inline" onClick={() => { setReviewing(true); }}>Review</Button></section>}
+    {reviewing && <section data-testid="crm-today-review-panel" style={{ ...panelStyle, borderColor: 'var(--kp-assured)' }}><strong>Review today’s plan</strong><p style={mutedStyle}>{plan.hasCapacitySignal ? 'The plan uses active firm members and current open work. It never moves work by itself.' : 'Add active firm members before this page can make a capacity plan.'}</p>{dueNow.length === 0 ? <p style={mutedStyle}>Nothing is planned yet.</p> : dueNow.map((item) => <div key={item.id} style={{ display: 'flex', gap: 8, justifyContent: 'space-between', padding: '8px 0', borderTop: '1px solid var(--kp-border)' }}><span>{item.title}</span><Button size="sm" variant="secondary" data-testid={`crm-today-keep-${item.id}`} onClick={() => undefined}>Keep today</Button></div>)}</section>}
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}><section data-testid="crm-approval-queue" style={panelStyle}><strong>Waiting for you</strong><p style={mutedStyle}>{pendingApprovals.length === 0 ? 'No approvals are waiting.' : `${String(pendingApprovals.length)} approval${pendingApprovals.length === 1 ? '' : 's'} waiting.`}</p>{pendingApprovals.map((approval) => <div key={approval.id} data-testid={`crm-approval-${approval.id}`} style={{ borderTop: '1px solid var(--kp-border)', paddingTop: 8, marginTop: 8 }}><strong>{approval.title}</strong>{approval.householdLabel && <span style={mutedStyle}> · {approval.householdLabel}</span>}<p style={mutedStyle}>{approval.rationale ?? 'Review this proposed change.'}</p><Button size="sm" data-testid={`crm-approval-approve-${approval.id}`} onClick={() => { void onDecideApproval(approval, 'approved'); }}>Approve</Button><Button size="sm" variant="secondary" data-testid={`crm-approval-dismiss-${approval.id}`} style={{ marginLeft: 8 }} onClick={() => { void onDecideApproval(approval, 'rejected'); }}>Dismiss</Button></div>)}{approvals.some((approval) => approval.state !== 'pending') && <p data-testid="crm-approval-history" style={mutedStyle}>Decided proposals stay in history and can be reviewed later.</p>}<Button variant="secondary" size="sm" data-testid="crm-today-open-propagation" onClick={() => { onNavigate('propagation'); }}>Review workflow updates</Button></section><section data-testid="crm-recent-activity" style={panelStyle}><strong>Recent firm activity</strong>{recentActivity.length === 0 ? <p style={mutedStyle}>No recorded activity yet.</p> : recentActivity.map((event) => <p key={event.id} data-testid={`crm-activity-${event.id}`} style={mutedStyle}>{event.summary} · {new Date(event.at).toLocaleString()}</p>)}</section></div>
   </Screen>;
 }
 
-function Tasks({ tasks, households, savedViews, freshness, onUpdateTask, onSaveView }: { tasks: readonly CrmTask[]; households: readonly { id: string; name: string }[]; savedViews: readonly CrmTaskSavedView[]; freshness: CrmFreshnessState; onUpdateTask: (task: CrmTask) => void | Promise<void>; onSaveView: (view: CrmTaskSavedView) => void | Promise<void> }) {
+function Tasks({ tasks, workflowWorkItems, firmMembers, households, savedViews, freshness, onUpdateTask, onCompleteWorkflowWorkItem, onSaveView }: { tasks: readonly CrmTask[]; workflowWorkItems: readonly CrmWorkflowWorkItem[]; firmMembers: readonly CrmFirmMember[]; households: readonly { id: string; name: string }[]; savedViews: readonly CrmTaskSavedView[]; freshness: CrmFreshnessState; onUpdateTask: (task: CrmTask) => void | Promise<void>; onCompleteWorkflowWorkItem: (item: CrmWorkflowWorkItem) => void | Promise<void>; onSaveView: (view: CrmTaskSavedView) => void | Promise<void> }) {
   const [view, setView] = useState<'list' | 'board'>('list');
   const [filter, setFilter] = useState('');
   const [editing, setEditing] = useState<CrmTask | null>(null);
   const [savingView, setSavingView] = useState(false);
   const [viewName, setViewName] = useState('');
   const filtered = tasks.filter((task) => task.title.toLowerCase().includes(filter.toLowerCase()));
-  const dueToday = tasks.filter((task) => { const due = taskDay(task); return isOpenTask(task) && due !== null && due <= todayKey(); }).length;
+  const filteredWorkflowSteps = workflowWorkItems.filter((item) => item.title.toLowerCase().includes(filter.toLowerCase()));
+  const workItems: readonly CrmDailyWorkItem[] = [...filtered, ...filteredWorkflowSteps];
+  const plan = buildCapacityTriage([...tasks, ...workflowWorkItems] as readonly CrmDailyWorkItem[], firmMembers.map((member) => member.userId));
   const advance = (task: CrmTask) => { void onUpdateTask({ ...task, status: task.status === 'done' ? 'open' : 'done' }); };
   const newTask = () => { setEditing({ id: `new-task-${crypto.randomUUID()}`, title: '', body: '', assigneeUserId: null, status: 'open', priority: 'normal', contextRefs: [] }); };
-  return <Screen title="Tasks" description="Commitments that fit real time" Icon={ListChecks} action={<Button data-testid="crm-task-new" iconLeft={Plus} onClick={newTask} disabled={households.length === 0}>New task</Button>}>
+  return <Screen title="Tasks" description="One work list for tasks and workflow steps" Icon={ListChecks} action={<Button data-testid="crm-task-new" iconLeft={Plus} onClick={newTask}>New task</Button>}>
     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}><AskBar /><button data-testid="crm-task-list-view" onClick={() => { setView('list'); }} aria-pressed={view === 'list'}>List</button><button data-testid="crm-task-board-view" onClick={() => { setView('board'); }} aria-pressed={view === 'board'}>Board</button><input data-testid="crm-task-search" aria-label="Search tasks" value={filter} onChange={(event) => { setFilter(event.target.value); }} placeholder="Search tasks" /> <Button variant="secondary" size="sm" data-testid="crm-task-save-view-open" onClick={() => { setSavingView(true); }}>Save view</Button></div>
     {savingView && <section style={panelStyle}><label>Saved view name <input data-testid="crm-task-view-name" value={viewName} onChange={(event) => { setViewName(event.target.value); }} /></label><Button data-testid="crm-task-save-view" disabled={!viewName.trim()} style={{ marginLeft: 8 }} onClick={() => { void (async () => { await onSaveView({ id: `saved-view-${crypto.randomUUID()}`, name: viewName.trim(), layout: view === 'board' ? 'kanban' : 'list', ...(filter ? { search: filter } : {}) }); setSavingView(false); setViewName(''); })(); }}>Save</Button></section>}
     {savedViews.length > 0 && <section data-testid="crm-task-saved-views" style={panelStyle}><strong>Saved views</strong>{savedViews.map((saved) => <Button key={saved.id} size="sm" variant="secondary" data-testid={`crm-task-view-${saved.id}`} style={{ marginLeft: 8 }} onClick={() => { setView(saved.layout === 'kanban' ? 'board' : 'list'); setFilter(saved.search ?? ''); }}>{saved.name}</Button>)}</section>}
-    {households.length === 0 && <section data-testid="crm-tasks-first-use" style={panelStyle}><strong>No work yet. Add a client to begin.</strong><p style={mutedStyle}>Tasks need a client link, so the first task starts after a client exists.</p></section>}
-    <section data-testid="crm-task-triage-count" style={panelStyle}><strong>{dueToday === 0 ? 'No tasks due or overdue today.' : `${String(dueToday)} task${dueToday === 1 ? '' : 's'} due or overdue today.`}</strong></section><FreshnessBanner freshness={freshness} />
-    {view === 'list' ? <div data-testid="crm-task-list" style={panelStyle}>{filtered.length === 0 ? <p>{tasks.length === 0 ? 'No tasks yet.' : 'No tasks match these filters.'}</p> : filtered.map((task) => <TaskRow key={task.id} task={task} onComplete={() => { advance(task); }} onOpen={() => { setEditing(task); }} />)}</div> : <TaskBoard tasks={filtered} onOpen={setEditing} onMove={(task, status) => { void onUpdateTask({ ...task, status }); }} />}
-    {editing && <TaskDetail task={editing} households={households} onClose={() => { setEditing(null); }} onSave={onUpdateTask} />}
+    {tasks.length === 0 && workflowWorkItems.length === 0 && <section data-testid="crm-tasks-first-use" style={panelStyle}><strong>No work yet.</strong><p style={mutedStyle}>Create a task or start a workflow. A task can be for one client or the whole firm.</p></section>}
+    <section data-testid="crm-task-triage-count" style={panelStyle}><strong>{plan.hasCapacitySignal ? `${String(plan.fitsToday.length)} of ${String(plan.ranked.length)} open items fit the first daily plan.` : 'Add active firm members to make a capacity-based daily plan.'}</strong></section><FreshnessBanner freshness={freshness} />
+    {view === 'list' ? <div data-testid="crm-task-list" style={panelStyle}>{workItems.length === 0 ? <p>{tasks.length === 0 && workflowWorkItems.length === 0 ? 'No work yet.' : 'No work matches these filters.'}</p> : <>{filtered.map((task) => <TaskRow key={task.id} task={task} onComplete={() => { advance(task); }} onOpen={() => { setEditing(task); }} />)}{filteredWorkflowSteps.map((item) => <WorkflowWorkRow key={item.id} item={item} onComplete={() => { void onCompleteWorkflowWorkItem(item); }} />)}</>}</div> : <TaskBoard tasks={filtered} onOpen={setEditing} onMove={(task, status) => { void onUpdateTask({ ...task, status }); }} />}
+    {editing && <TaskDetail task={editing} households={households} firmMembers={firmMembers} onClose={() => { setEditing(null); }} onSave={onUpdateTask} />}
   </Screen>;
 }
 
@@ -229,12 +235,16 @@ function TaskRow({ task, onComplete, onOpen }: { task: CrmTask; onComplete: () =
   return <div style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--kp-border)' }}><button data-testid={`crm-task-complete-${task.id}`} aria-label={`Complete ${task.title}`} onClick={onComplete}>{task.status === 'done' ? '✓' : '□'}</button><button data-testid={`crm-task-open-${task.id}`} onClick={onOpen} style={{ background: 'transparent', border: 0, textAlign: 'left', flex: 1, cursor: 'pointer' }}><strong>{task.title}</strong><span style={mutedStyle}> · {task.householdLabel ?? 'No client'} · {task.priority} · {task.dueLabel ?? 'No due date'} · {task.assigneeLabel ?? task.assigneeUserId ?? 'Unassigned'}{task.recurrence ? ' · Recurring' : ''}</span></button></div>;
 }
 
+function WorkflowWorkRow({ item, onComplete }: { item: CrmWorkflowWorkItem; onComplete: () => void }) {
+  return <div data-testid={`crm-workflow-work-${item.id}`} style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--kp-border)' }}><button data-testid={`crm-workflow-work-complete-${item.id}`} aria-label={`Complete ${item.title}`} onClick={onComplete}>□</button><span style={{ flex: 1 }}><strong>{item.title}</strong><span style={mutedStyle}> · Workflow step · {item.householdLabel} · {item.assigneeLabel ?? item.assigneeUserId ?? 'Unassigned'}</span></span></div>;
+}
+
 function TaskBoard({ tasks, onOpen, onMove }: { tasks: readonly CrmTask[]; onOpen: (task: CrmTask) => void; onMove: (task: CrmTask, status: CrmTask['status']) => void }) {
   const columns: readonly [CrmTask['status'], string][] = [['open', 'To do'], ['in_progress', 'In progress'], ['blocked', 'Blocked'], ['done', 'Done']];
   return <div data-testid="crm-task-board" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(180px, 1fr))', gap: 10, overflowX: 'auto' }}>{columns.map(([status, label]) => <section key={status} style={panelStyle}><strong>{label}</strong>{tasks.filter((task) => task.status === status).map((task) => <button key={task.id} data-testid={`crm-task-board-${task.id}`} onClick={() => { onOpen(task); }} onDoubleClick={() => { onMove(task, status === 'done' ? 'open' : 'done'); }} style={{ display: 'block', width: '100%', marginTop: 8, padding: 8, textAlign: 'left', border: '1px solid var(--kp-border)', borderRadius: 6, background: 'white' }}>{task.title}</button>)}</section>)}</div>;
 }
 
-function TaskDetail({ task, households, onClose, onSave }: { task: CrmTask; households: readonly { id: string; name: string }[]; onClose: () => void; onSave: (task: CrmTask) => void | Promise<void> }) {
+function TaskDetail({ task, households, firmMembers, onClose, onSave }: { task: CrmTask; households: readonly { id: string; name: string }[]; firmMembers: readonly CrmFirmMember[]; onClose: () => void; onSave: (task: CrmTask) => void | Promise<void> }) {
   const [draft, setDraft] = useState(task);
   const [saving, setSaving] = useState(false);
   const householdId = draft.householdId ?? draft.contextRefs?.[0] ?? '';
@@ -242,7 +252,7 @@ function TaskDetail({ task, households, onClose, onSave }: { task: CrmTask; hous
   const setRecurrence = (freq: string) => { setDraft({ ...draft, recurrence: freq ? { freq: freq as NonNullable<CrmTask['recurrence']>['freq'], interval: draft.recurrence?.interval ?? 1, regenerateOnComplete: true } : undefined }); };
   const recurrence = draft.recurrence;
   const save = async () => { setSaving(true); try { await onSave(draft); onClose(); } finally { setSaving(false); } };
-  return <aside data-testid="crm-task-detail" aria-label="Task detail" style={{ ...panelStyle, position: 'fixed', right: 20, top: 80, maxWidth: 420, boxShadow: 'var(--kp-shadow-2)', zIndex: 5, display: 'grid', gap: 8 }}><h2 style={{ marginTop: 0 }}>Task detail</h2><label>Title<input data-testid="crm-task-title-input" value={draft.title} onChange={(event) => { setDraft({ ...draft, title: event.target.value }); }} /></label><label>Notes<textarea data-testid="crm-task-body" value={draft.body ?? ''} onChange={(event) => { setDraft({ ...draft, body: event.target.value }); }} /></label><label>Client<select data-testid="crm-task-household" value={householdId} onChange={(event) => { selectHousehold(event.target.value); }}><option value="">Choose a client</option>{households.map((household) => <option key={household.id} value={household.id}>{household.name}</option>)}</select></label><label>Assignee ID<input data-testid="crm-task-assignee" value={draft.assigneeUserId ?? ''} onChange={(event) => { setDraft({ ...draft, assigneeUserId: event.target.value || null, assigneeLabel: event.target.value || undefined }); }} /></label><label>Status<select data-testid="crm-task-status" value={draft.status} onChange={(event) => { setDraft({ ...draft, status: event.target.value as CrmTask['status'] }); }}><option value="open">To do</option><option value="in_progress">In progress</option><option value="blocked">Blocked</option><option value="done">Done</option></select></label><label>Priority<select data-testid="crm-task-priority" value={draft.priority} onChange={(event) => { setDraft({ ...draft, priority: event.target.value as CrmTask['priority'] }); }}><option value="high">High</option><option value="normal">Normal</option><option value="low">Low</option></select></label><label>Due date<input data-testid="crm-task-due" type="date" value={draft.dueAt ?? ''} onChange={(event) => { const due = event.target.value; setDraft({ ...draft, dueAt: due || undefined, dueLabel: due || undefined }); }} /></label><label>Repeat<select data-testid="crm-task-recurrence" value={recurrence?.freq ?? ''} onChange={(event) => { setRecurrence(event.target.value); }}><option value="">Does not repeat</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="yearly">Yearly</option></select></label>{recurrence && <label>Every <input data-testid="crm-task-recurrence-interval" type="number" min="1" value={recurrence.interval} onChange={(event) => { setDraft({ ...draft, recurrence: { ...recurrence, interval: Math.max(1, Number(event.target.value) || 1) } }); }} /></label>}<p style={mutedStyle}>One assignee. Notes live in the task body. Tasks have no comments.</p><div style={{ display: 'flex', gap: 8 }}><Button data-testid="crm-task-save" disabled={saving || !draft.title.trim() || (draft.id.startsWith('new-task-') && !householdId)} onClick={() => { void save(); }}>{saving ? 'Saving…' : 'Save local change'}</Button><Button variant="secondary" onClick={onClose}>Close</Button></div></aside>;
+  return <aside data-testid="crm-task-detail" aria-label="Task detail" style={{ ...panelStyle, position: 'fixed', right: 20, top: 80, maxWidth: 420, boxShadow: 'var(--kp-shadow-2)', zIndex: 5, display: 'grid', gap: 8 }}><h2 style={{ marginTop: 0 }}>Task detail</h2><label>Title<input data-testid="crm-task-title-input" value={draft.title} onChange={(event) => { setDraft({ ...draft, title: event.target.value }); }} /></label><label>Notes<textarea data-testid="crm-task-body" value={draft.body ?? ''} onChange={(event) => { setDraft({ ...draft, body: event.target.value }); }} /></label><label>Client<select data-testid="crm-task-household" value={householdId} onChange={(event) => { selectHousehold(event.target.value); }}><option value="">Whole firm</option>{households.map((household) => <option key={household.id} value={household.id}>{household.name}</option>)}</select></label><label>Assignee<select data-testid="crm-task-assignee" value={draft.assigneeUserId ?? ''} onChange={(event) => { const member = firmMembers.find((item) => item.userId === event.target.value); setDraft({ ...draft, assigneeUserId: member?.userId ?? null, assigneeLabel: member?.displayName }); }}><option value="">Unassigned</option>{firmMembers.map((member) => <option key={member.userId} value={member.userId}>{member.displayName}{member.title ? ` · ${member.title}` : ''}</option>)}</select></label>{firmMembers.length === 0 && <p data-testid="crm-task-no-members" style={mutedStyle}>No active firm members are available to assign yet.</p>}<label>Status<select data-testid="crm-task-status" value={draft.status} onChange={(event) => { setDraft({ ...draft, status: event.target.value as CrmTask['status'] }); }}><option value="open">To do</option><option value="in_progress">In progress</option><option value="blocked">Blocked</option><option value="done">Done</option></select></label><label>Priority<select data-testid="crm-task-priority" value={draft.priority} onChange={(event) => { setDraft({ ...draft, priority: event.target.value as CrmTask['priority'] }); }}><option value="high">High</option><option value="normal">Normal</option><option value="low">Low</option></select></label><label>Due date<input data-testid="crm-task-due" type="date" value={draft.dueAt ?? ''} onChange={(event) => { const due = event.target.value; setDraft({ ...draft, dueAt: due || undefined, dueLabel: due || undefined }); }} /></label><label>Repeat<select data-testid="crm-task-recurrence" value={recurrence?.freq ?? ''} onChange={(event) => { setRecurrence(event.target.value); }}><option value="">Does not repeat</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="yearly">Yearly</option></select></label>{recurrence && <label>Every <input data-testid="crm-task-recurrence-interval" type="number" min="1" value={recurrence.interval} onChange={(event) => { setDraft({ ...draft, recurrence: { ...recurrence, interval: Math.max(1, Number(event.target.value) || 1) } }); }} /></label>}<p style={mutedStyle}>One assignee. Notes live in the task body. Tasks have no comments.</p><div style={{ display: 'flex', gap: 8 }}><Button data-testid="crm-task-save" disabled={saving || !draft.title.trim()} onClick={() => { void save(); }}>{saving ? 'Saving…' : 'Save local change'}</Button><Button variant="secondary" onClick={onClose}>Close</Button></div></aside>;
 }
 
 function Workflows({ freshness, onNavigate }: { freshness: CrmFreshnessState; onNavigate: (route: CrmHomeRoute) => void }) {
@@ -450,7 +460,19 @@ function ConnectedCrmHome({ adapter, initialRoute = 'today', preview = false, wo
   const reportUndo = useCallback(() => { const result = activeAdapter.actions.undoPropagation?.() ?? { restored: 0, protectedCells: [] }; setUndoReport(result.protectedCells.length ? `${String(result.restored)} untouched derived cells restored. Protected cells kept: ${result.protectedCells.join(', ')}.` : `${String(result.restored)} untouched derived cells restored. No protected cells needed to stay.`); }, [activeAdapter]);
   useEffect(() => { const onKeyDown = (event: KeyboardEvent) => { if ((event.target as HTMLElement | null)?.tagName === 'INPUT') return; if (event.key === 'g') { (window as Window & { __crmGo?: boolean }).__crmGo = true; return; } if ((window as Window & { __crmGo?: boolean }).__crmGo) { const key = event.key.toLowerCase(); const destination = key === 'h' ? 'today' : key === 't' ? 'tasks' : key === 'w' ? 'workflows' : key === 'p' ? 'pipeline' : key === 'r' ? 'reports' : key === 'f' ? 'firm-setup' : key === 'm' ? 'migration' : null; if (destination) { event.preventDefault(); jump(destination); } (window as Window & { __crmGo?: boolean }).__crmGo = false; } if (event.key === '/' && route !== 'tasks') { document.querySelector<HTMLInputElement>('[data-testid="crm-ask-input"]')?.focus(); } if (route === 'propagation' && event.key.toLowerCase() === 'u') { event.preventDefault(); reportUndo(); } }; window.addEventListener('keydown', onKeyDown); return () => { window.removeEventListener('keydown', onKeyDown); }; }, [activeAdapter, reportUndo, route]);
   const notificationPanel = <aside aria-label="Notifications" style={{ position: 'absolute', right: 20, top: 56, width: 340, zIndex: 10, ...panelStyle, boxShadow: 'var(--kp-shadow-2)' }}><strong>Notifications ({String(approvals.filter((approval) => approval.state === 'pending').length)})</strong><p style={mutedStyle}>Approval decisions are shown in Today. This device keeps ordinary read state locally.</p><p style={mutedStyle}>The relay exposes delivery timing and opaque envelope IDs, never message content.</p><Button data-testid="crm-notifications-read" variant="secondary" onClick={() => { setNotificationsRead(true); activeAdapter.actions.markNotificationsRead?.(); }}>{notificationsRead ? 'Marked read on this device' : 'Mark all read on this device'}</Button></aside>;
-  const content = route === 'today' ? <Today tasks={activeAdapter.tasks} approvals={approvals} activity={activity} freshness={freshness} onNavigate={jump} onUpdateTask={updateTask} onDecideApproval={(approval, decision) => activeAdapter.actions.decideApproval?.(approval, decision)} /> : route === 'tasks' ? <Tasks tasks={activeAdapter.tasks} households={activeAdapter.households ?? []} savedViews={savedTaskViews} freshness={freshness} onUpdateTask={updateTask} onSaveView={(view) => activeAdapter.actions.saveTaskView?.(view)} /> : route === 'workflows' ? workflowData && workflowHouseholds && saveLiveRecord ? <LiveWorkflows data={workflowData} households={workflowHouseholds} onSave={saveLiveRecord} onNavigate={jump} /> : <Workflows freshness={freshness} onNavigate={jump} /> : route === 'propagation' ? workflowData && saveLiveRecord ? <LivePropagationReview data={workflowData} onSave={saveLiveRecord} /> : <PropagationReview offers={offers} freshness={freshness} onApply={(selected) => activeAdapter.actions.applyPropagation?.(selected)} onUndo={reportUndo} undoReport={undoReport} /> : route === 'pipeline' || route === 'pipeline-settings' ? <CrmPipelineSurface route={route} onNavigate={jump} /> : route === 'reports' ? <Reports freshness={freshness} /> : route === 'fields-tags' ? <FieldsTags /> : route === 'intake-links' ? <IntakeLinks /> : route === 'migration' || route === 'fidelity' || route === 'workflow-recreation' || route === 'attachment-accounting' || route === 'archive-export' || route === 'rollback-export' ? <Migration route={route} freshness={freshness} migration={activeAdapter.migration} onNavigate={jump} actions={activeAdapter.actions} /> : <FirmSetup onNavigate={jump} freshness={freshness} />;
+   const workflowWorkItems = activeAdapter.workflowWorkItems ?? [];
+   const firmMembers = activeAdapter.firmMembers ?? [];
+   const completeWorkItem = async (item: CrmDailyWorkItem) => {
+     if (item.kind === 'workflow_step') await activeAdapter.actions.completeWorkflowWorkItem?.(item);
+     else await updateTask({ ...item, status: 'done' });
+   };
+  const workflowWorkItems = activeAdapter.workflowWorkItems ?? [];
+  const firmMembers = activeAdapter.firmMembers ?? [];
+  const completeWorkItem = async (item: CrmDailyWorkItem) => {
+    if (item.kind === 'workflow_step') await activeAdapter.actions.completeWorkflowWorkItem?.(item);
+    else await updateTask({ ...item, status: 'done' });
+  };
+  const content = route === 'today' ? <Today tasks={activeAdapter.tasks} workItems={[...activeAdapter.tasks, ...workflowWorkItems] as readonly CrmDailyWorkItem[]} firmMembers={firmMembers} approvals={approvals} activity={activity} freshness={freshness} onNavigate={jump} onCompleteWorkItem={completeWorkItem} onDecideApproval={(approval, decision) => activeAdapter.actions.decideApproval?.(approval, decision)} /> : route === 'tasks' ? <Tasks tasks={activeAdapter.tasks} workflowWorkItems={workflowWorkItems} firmMembers={firmMembers} households={activeAdapter.households ?? []} savedViews={savedTaskViews} freshness={freshness} onUpdateTask={updateTask} onCompleteWorkflowWorkItem={(item) => activeAdapter.actions.completeWorkflowWorkItem?.(item)} onSaveView={(view) => activeAdapter.actions.saveTaskView?.(view)} /> : route === 'workflows' ? workflowData && workflowHouseholds && saveLiveRecord ? <LiveWorkflows data={workflowData} households={workflowHouseholds} onSave={saveLiveRecord} onNavigate={jump} /> : <Workflows freshness={freshness} onNavigate={jump} /> : route === 'propagation' ? workflowData && saveLiveRecord ? <LivePropagationReview data={workflowData} onSave={saveLiveRecord} /> : <PropagationReview offers={offers} freshness={freshness} onApply={(selected) => activeAdapter.actions.applyPropagation?.(selected)} onUndo={reportUndo} undoReport={undoReport} /> : route === 'pipeline' || route === 'pipeline-settings' ? <CrmPipelineSurface route={route} onNavigate={jump} /> : route === 'reports' ? <Reports freshness={freshness} /> : route === 'fields-tags' ? <FieldsTags /> : route === 'intake-links' ? <IntakeLinks /> : route === 'migration' || route === 'fidelity' || route === 'workflow-recreation' || route === 'attachment-accounting' || route === 'archive-export' || route === 'rollback-export' ? <Migration route={route} freshness={freshness} migration={activeAdapter.migration} onNavigate={jump} actions={activeAdapter.actions} /> : <FirmSetup onNavigate={jump} freshness={freshness} />;
   const [showNotifications, setShowNotifications] = useState(false);
   return <div data-testid="crm-home" style={{ display: 'flex', height: '100%', minHeight: 0, position: 'relative', background: 'var(--color-background)' }}>{preview && <div data-testid="crm-home-preview-label" role="status" style={{ position: 'absolute', zIndex: 20, right: 16, bottom: 12, ...panelStyle, padding: 8, borderColor: 'var(--kp-direct)' }}>Preview mode. Not connected to CRM data.</div>}<HomeRail route={route} onNavigate={jump} /><div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', position: 'relative' }}>{content}<button data-testid="crm-notifications-button" aria-label="Open notifications" onClick={() => { setShowNotifications((open) => !open); }} style={{ position: 'absolute', top: 15, right: 18, border: 0, background: 'transparent', cursor: 'pointer', color: 'var(--kp-navy)' }}><Bell size={20} /> <span aria-label={`${String(approvals.filter((approval) => approval.state === 'pending').length)} notifications`}>{String(approvals.filter((approval) => approval.state === 'pending').length)}</span></button>{showNotifications && notificationPanel}</div></div>;
 }
@@ -460,6 +482,7 @@ export function CrmHome({ adapter, preview = false, initialRoute }: CrmHomeProps
   const live = useLiveCrmRecords();
   useEffect(() => subscribeCrmEngineFreshness(setFreshness), []);
   const households = live.records.filter((record) => record.kind === 'household' && typeof record['name'] === 'string').map((record) => ({ id: record.id, name: record['name'] as string }));
+  const firmMembers: readonly CrmFirmMember[] = live.records.filter((record) => record.kind === 'firmDirectoryEntry' && record['active'] === true && typeof record['userId'] === 'string' && typeof record['displayName'] === 'string').map((record) => ({ userId: record['userId'] as string, displayName: record['displayName'] as string, ...(typeof record['title'] === 'string' ? { title: record['title'] } : {}) }));
   const householdName = (id: string | undefined) => households.find((household) => household.id === id)?.name;
   const contextIds = (record: Record<string, unknown>): string[] => Array.isArray(record['contextRefs']) ? record['contextRefs'].flatMap((value) => typeof value === 'string' ? [value] : value && typeof value === 'object' && typeof (value as { id?: unknown }).id === 'string' ? [(value as { id: string }).id] : []) : [];
   const householdIdFor = (record: Record<string, unknown>): string | undefined => {
@@ -477,7 +500,7 @@ export function CrmHome({ adapter, preview = false, initialRoute }: CrmHomeProps
       title: typeof record['title'] === 'string' ? record['title'] : 'Untitled task',
       ...(typeof record['body'] === 'string' ? { body: record['body'] } : {}),
       assigneeUserId: typeof record['assigneeUserId'] === 'string' ? record['assigneeUserId'] : null,
-      ...(typeof record['assigneeLabel'] === 'string' ? { assigneeLabel: record['assigneeLabel'] } : {}),
+      ...(firmMembers.find((member) => member.userId === record['assigneeUserId']) ? { assigneeLabel: firmMembers.find((member) => member.userId === record['assigneeUserId'])?.displayName } : {}),
       status: record['status'] === 'in_progress' || record['status'] === 'blocked' || record['status'] === 'done' || record['status'] === 'cancelled' ? record['status'] : 'open',
       priority: record['priority'] === 'high' || record['priority'] === 'low' ? record['priority'] : 'normal',
       ...(householdId ? { householdId, householdLabel: householdName(householdId) } : {}),
@@ -486,6 +509,29 @@ export function CrmHome({ adapter, preview = false, initialRoute }: CrmHomeProps
       contextRefs: contextIds(record),
     };
   });
+  const liveWorkflowWorkItems: readonly CrmWorkflowWorkItem[] = workflowRecords(live.records).instances.flatMap((instance) => Object.values(instance.snapshot.steps)
+    .filter((step) => !step.hiddenByTemplateRemoval && step.status !== 'done')
+    .map((step) => {
+      const assigneeUserId = step.assigneeUserId ?? null;
+      const member = firmMembers.find((candidate) => candidate.userId === assigneeUserId);
+      const dueValue = stepValue(instance, step.stepId, 'dueOffset');
+      const offset = typeof dueValue === 'number' ? dueValue : undefined;
+      const started = new Date(instance['createdAt'] ?? new Date().toISOString());
+      if (offset !== undefined) started.setUTCDate(started.getUTCDate() + offset);
+      return {
+        id: `${instance.id}:${step.stepId}`,
+        instanceId: instance.id,
+        stepId: step.stepId,
+        title: liveStepTitle(instance, step.stepId),
+        householdId: instance.householdId,
+        householdLabel: instance.householdLabel,
+        assigneeUserId,
+        ...(member ? { assigneeLabel: member.displayName } : {}),
+        status: step.status === 'in_progress' ? 'in_progress' : 'open',
+        priority: 'normal' as const,
+        ...(offset !== undefined ? { dueAt: started.toISOString().slice(0, 10) } : {}),
+      };
+    }));
   const liveApprovals: readonly CrmApproval[] = live.records.filter((record) => record.kind === 'proposalRecord').map((record) => {
     const householdId = householdIdFor(record);
     const proposalKind = typeof record['proposalKind'] === 'string' ? record['proposalKind'].replaceAll('_', ' ') : 'proposed change';
@@ -531,44 +577,43 @@ export function CrmHome({ adapter, preview = false, initialRoute }: CrmHomeProps
       ...(typeof record?.['failureReason'] === 'string' ? { failureReason: record['failureReason'] } : {}),
     };
   });
-  const recordActivity = async (summary: string, task?: CrmTask) => {
+  const recordActivity = async (summary: string, task?: CrmTask, verb = 'task.updated') => {
     const now = new Date().toISOString();
-    await live.save({ id: `activity-${crypto.randomUUID()}`, kind: 'activityEvent', matterId: 'firm_home', at: now, summary, actor: { userId: 'local-user', displayName: 'You' }, targetRef: task ? { kind: 'task', id: task.id, ...(task.householdId ? { matterId: task.householdId } : {}) } : { kind: 'firmDoc', id: 'firm_home' }, ...(task?.householdId ? { householdId: task.householdId } : {}), payload: {}, important: false });
-  };
-  const nextRecurringDue = (due: string | undefined, recurrence: NonNullable<CrmTask['recurrence']>): string | undefined => {
-    if (!due) return undefined;
-    const date = new Date(`${due.slice(0, 10)}T12:00:00Z`);
-    const amount = recurrence.interval;
-    if (recurrence.freq === 'daily') date.setUTCDate(date.getUTCDate() + amount);
-    else if (recurrence.freq === 'weekly') date.setUTCDate(date.getUTCDate() + amount * 7);
-    else if (recurrence.freq === 'monthly') date.setUTCMonth(date.getUTCMonth() + amount);
-    else date.setUTCFullYear(date.getUTCFullYear() + amount);
-    return date.toISOString().slice(0, 10);
+    await live.save({ id: `activity-${crypto.randomUUID()}`, kind: 'activityEvent', matterId: 'firm_home', at: now, summary, actor: { userId: 'local-user', displayName: 'You' }, verb, targetRef: task ? { kind: 'task', id: task.id, ...(task.householdId ? { matterId: task.householdId } : {}) } : { kind: 'firmDoc', id: 'firm_home' }, ...(task?.householdId ? { householdId: task.householdId } : {}), payload: task ? { taskId: task.id, status: task.status } : {}, important: false });
   };
   const saveTask = async (task: CrmTask) => {
     const householdId = task.householdId ?? task.contextRefs?.[0];
-    if (!householdId) throw new Error('Choose a client before saving a task.');
     const previous = liveTasks.find((item) => item.id === task.id);
-    const householdRef = { kind: 'household', id: householdId, matterId: householdId };
-    await live.save({ id: task.id, kind: 'task', matterId: 'firm_home', title: task.title.trim(), body: task.body ?? '', assigneeUserId: task.assigneeUserId, status: task.status, ...(task.dueAt ? { due: task.dueAt } : {}), priority: task.priority, ...(task.recurrence ? { recurrence: task.recurrence } : {}), householdRef, contextRefs: [householdRef], customFields: {} });
-    await recordActivity(task.status === 'done' && previous?.status !== 'done' ? `Completed task: ${task.title}` : previous ? `Updated task: ${task.title}` : `Created task: ${task.title}`, { ...task, householdId });
+    const householdRef = householdId ? { kind: 'household', id: householdId, matterId: householdId } : null;
+    await live.save({ id: task.id, kind: 'task', matterId: 'firm_home', title: task.title.trim(), body: task.body ?? '', assigneeUserId: task.assigneeUserId, status: task.status, ...(task.dueAt ? { due: task.dueAt } : {}), priority: task.priority, ...(task.recurrence ? { recurrence: task.recurrence } : {}), householdRef, contextRefs: householdRef ? [householdRef] : [], customFields: {} });
+    await recordActivity(task.status === 'done' && previous?.status !== 'done' ? `Completed task: ${task.title}` : previous ? `Updated task: ${task.title}` : `Created task: ${task.title}`, { ...task, ...(householdId ? { householdId } : {}) }, task.status === 'done' && previous?.status !== 'done' ? 'task.completed' : previous ? 'task.updated' : 'task.created');
     if (task.status === 'done' && previous?.status !== 'done' && task.recurrence?.regenerateOnComplete) {
       const dueAt = nextRecurringDue(task.dueAt, task.recurrence);
       const child: CrmTask = { ...task, id: `task-${crypto.randomUUID()}`, status: 'open', ...(dueAt ? { dueAt, dueLabel: dueAt } : {}) };
-      await live.save({ id: child.id, kind: 'task', matterId: 'firm_home', title: child.title, body: child.body ?? '', assigneeUserId: child.assigneeUserId, status: 'open', ...(dueAt ? { due: dueAt } : {}), priority: child.priority, recurrence: child.recurrence, householdRef, contextRefs: [householdRef], customFields: {} });
+      await live.save({ id: child.id, kind: 'task', matterId: 'firm_home', title: child.title, body: child.body ?? '', assigneeUserId: child.assigneeUserId, status: 'open', ...(dueAt ? { due: dueAt } : {}), priority: child.priority, recurrence: child.recurrence, householdRef, contextRefs: householdRef ? [householdRef] : [], customFields: {} });
       await recordActivity(`Created next recurring task: ${child.title}`, child);
     }
+  };
+  const completeWorkflowWorkItem = async (item: CrmWorkflowWorkItem) => {
+    const instance = workflowRecords(live.records).instances.find((candidate) => candidate.id === item.instanceId);
+    if (!instance) throw new Error('That workflow step is no longer available.');
+    await live.save(completeWorkflowStep(instance, item.stepId));
+    const now = new Date().toISOString();
+    await live.save({ id: `activity-${crypto.randomUUID()}`, kind: 'activityEvent', matterId: 'firm_home', at: now, summary: `Completed workflow step: ${item.title}`, actor: { userId: 'local-user', displayName: 'You' }, verb: 'workflow.step.done', targetRef: { kind: 'workflowInstance', id: item.instanceId, matterId: item.householdId }, householdId: item.householdId, payload: { stepId: item.stepId }, important: false });
   };
   const liveAdapter: CrmHomeAdapter = {
     ...emptyEngineAdapter(freshness),
     tasks: liveTasks,
     households,
+    firmMembers,
+    workflowWorkItems: liveWorkflowWorkItems,
     approvals: liveApprovals,
     activity: liveActivity,
     savedTaskViews,
     migration: { workflowChecklists: liveWorkflowChecklists, attachmentAccounting: liveAttachmentAccounting, exports: liveExports, ...(liveReport ? { report: liveReport } : {}) },
     actions: {
       updateTask: saveTask,
+      completeWorkflowWorkItem,
       recordWorkflowChecklist: async (record) => {
         if (record.decision !== 'recreate') {
           await live.save({ ...record, kind: 'migration_workflow_checklist', matterId: 'firm' });
