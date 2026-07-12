@@ -573,7 +573,7 @@ describe('standing request receiver-owned contract', () => {
       loadPrivateKey: () => Promise.resolve(standing.bundle.privateKey),
       hasSubmission: () => Promise.resolve(false),
       rememberSubmission: () => Promise.resolve(),
-      isKnownSession: () => Promise.resolve(true),
+      getKnownSessionIds: () => Promise.resolve(['known-session']),
       rememberSession: () => Promise.resolve(),
       flagSubmission: () => Promise.resolve(),
       routeSubmission: (submission) =>
@@ -686,7 +686,7 @@ describe('standing request receiver-owned contract', () => {
       loadPrivateKey: () => Promise.resolve(standing.bundle.privateKey),
       hasSubmission: () => Promise.resolve(false),
       rememberSubmission: () => Promise.resolve(),
-      isKnownSession: () => Promise.resolve(true),
+      getKnownSessionIds: () => Promise.resolve(['known-session']),
       rememberSession: () => Promise.resolve(),
       flagSubmission: () => Promise.resolve(),
       routeSubmission: (submission) =>
@@ -906,7 +906,7 @@ describe('standing request receiver-owned contract', () => {
           ),
         hasSubmission: () => Promise.resolve(false),
         rememberSubmission: () => Promise.resolve(),
-        isKnownSession: () => Promise.resolve(true),
+        getKnownSessionIds: () => Promise.resolve(['known-session']),
         rememberSession: () => Promise.resolve(),
         flagSubmission: (flag) => {
           flags.push(flag.kind);

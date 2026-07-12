@@ -281,10 +281,11 @@ export const useSettingsStore = create<SettingsState>()(
 
       importSettings: (json: string): boolean => {
         try {
-          const parsed = JSON.parse(json) as Record<string, unknown>;
-          if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+          const parsedUnknown: unknown = JSON.parse(json);
+          if (typeof parsedUnknown !== 'object' || parsedUnknown === null || Array.isArray(parsedUnknown)) {
             return false;
           }
+          const parsed = parsedUnknown as Record<string, unknown>;
           // BUG-026: validate each value against the schema (type + options +
           // range), not just the key name — a wrong-typed value (e.g. fontSize:
           // "huge") must not be accepted. And MERGE into the current values
@@ -385,10 +386,16 @@ function migrateLegacySettings(): void {
 // alone never fires (proven live 2026-07-06: a long-lived install still had
 // `_migrated: false` persisted). Run immediately when already hydrated;
 // subscribe only for the async-storage case.
-if (useSettingsStore.persist.hasHydrated()) {
+// Some non-browser consumers only use the settings defaults and provide a
+// minimal Zustand store without persistence (for example, the relay's Bun
+// contract harness). There is no stored state to migrate in that environment.
+const settingsPersistence = (useSettingsStore as { persist?: typeof useSettingsStore.persist }).persist;
+if (!settingsPersistence) {
+  migrateLegacySettings();
+} else if (settingsPersistence.hasHydrated()) {
   migrateLegacySettings();
 } else {
-  const unsub = useSettingsStore.persist.onFinishHydration(() => {
+  const unsub = settingsPersistence.onFinishHydration(() => {
     migrateLegacySettings();
     unsub();
   });

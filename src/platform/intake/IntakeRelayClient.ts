@@ -1,5 +1,5 @@
 import { getFirmApiBase } from '@/platform/firm/firmConfig';
-import { getCorsSafeFetch } from '@/platform/providers/fetchUtils';
+import { egressFetch } from '@/platform/privacy/networkClient';
 import type { IntakeInboxPage, IntakeInboxSubmission } from './IntakeSyncClient';
 import type { ChunkUpload } from './intakeContract';
 
@@ -82,6 +82,14 @@ export class IntakeRelayClient {
     return headers;
   }
 
+  /** Give the egress boundary an absolute destination, including in Vite dev. */
+  private url(path: string): string {
+    const value = `${this.baseUrl}${path}`;
+    if (/^https?:\/\//iu.test(value)) return value;
+    if (typeof window !== 'undefined') return new URL(value, window.location.origin).toString();
+    throw new Error('The intake relay needs an absolute URL outside the desktop app.');
+  }
+
   private async responseError(res: Response): Promise<Error> {
     let text = '';
     try {
@@ -101,8 +109,7 @@ export class IntakeRelayClient {
     path: string,
     init: { method: string; body?: unknown; headers?: Record<string, string> }
   ): Promise<T> {
-    const fetchFn = await getCorsSafeFetch({ signalEgress: false });
-    const res = await fetchFn(`${this.baseUrl}${path}`, {
+    const res = await egressFetch('intake-relay', this.url(path), {
       method: init.method,
       headers: { ...this.authHeaders(init.body !== undefined), ...init.headers },
       ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
@@ -118,9 +125,9 @@ export class IntakeRelayClient {
     intakeId: string,
     blobId: number
   ): Promise<string> {
-    const fetchFn = await getCorsSafeFetch({ signalEgress: false });
-    const res = await fetchFn(
-      `${this.baseUrl}/intake/${encodeURIComponent(intakeId)}/blob/${encodeURIComponent(String(blobId))}`,
+    const res = await egressFetch(
+      'intake-relay',
+      this.url(`/intake/${encodeURIComponent(intakeId)}/blob/${encodeURIComponent(String(blobId))}`),
       {
         method: 'GET',
         headers: this.authHeaders(),

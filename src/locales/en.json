@@ -586,9 +586,9 @@
         "free": "Free"
       },
       "packs": {
-        "legal": "Legal Practice",
-        "tax": "Tax Practice",
-        "consulting": "Consulting Practice"
+        "legal": "Legal workflows",
+        "tax": "Tax workflows",
+        "consulting": "Consulting workflows"
       },
       "active-pack": "Profession pack: {{pack}}",
       "all-packs": "All profession packs included",
@@ -620,7 +620,7 @@
         "multi-model": "Multi-model comparison",
         "commercial": "Commercial use license",
         "updates": "Continuous updates, legal-content maintenance, and security patches",
-        "one-pack": "All practice workflow templates (Professional)",
+        "one-pack": "All firm workflow templates (Professional)",
         "all-packs": "Shared clients, admin console, and assured zero-retention routing (Firm)"
       }
     },
@@ -643,7 +643,7 @@
         "field-workflow-id": "Which workflow template you ran (the template id, not the output).",
         "field-search-count": "How many searches you ran. No query text.",
         "field-install-id": "Your anonymous install id plus app version and platform.",
-        "endpoint-note": "Endpoint: forms.lanternplatform.app/api/forms/lantern/design-partner-event. Used only to improve the product for your practice."
+        "endpoint-note": "Endpoint: forms.lanternplatform.app/api/forms/lantern/design-partner-event. Used only to improve the product for your firm."
       },
       "telemetry": {
         "title": "Usage stats",
@@ -654,7 +654,7 @@
         "field-install-id": "<c>install_id</c>: a random UUID generated on this machine (visible below). Not tied to your email or license.",
         "field-app-version": "<c>app_version</c>, <c>platform</c>: which build of {{productName}}, and macOS / Windows / Linux.",
         "field-event": "<c>event</c>: one of <c>app_launch</c>, <c>trial_start</c>, <c>trial_end</c>, <c>license_activated</c>, <c>license_deactivated</c>.",
-        "field-license-tier": "<c>license_tier</c> (when relevant): trial, personal, professional, practice.",
+        "field-license-tier": "<c>license_tier</c> (when relevant): trial, personal, professional, firm.",
         "endpoint-note": "Endpoint: <c>forms.lanternplatform.app/api/forms/lantern/app-event</c>. JSONL stored on {{productNamePossessive}} server. Used only for funnel metrics and roadmap decisions.",
         "install-id-display": "Your install ID: <c>{{id}}</c>"
       },
@@ -836,12 +836,12 @@
     },
     "selector": {
       "browser-reselect-note": "Recent workspaces require re-selecting the folder due to browser security.",
-      "tagline": "Your practice folder. Your files. Your machine.",
+      "tagline": "Your firm folder. Your files. Your machine.",
       "open-existing-hint": "Select a workspace folder",
       "picker-unresponsive-open": "The folder picker didn't respond. Type the folder path instead.",
       "picker-unresponsive-create": "The folder picker didn't respond. Type the folder path where your new workspace should be created.",
       "manual-path-title": "Type the folder path",
-      "manual-path-placeholder": "e.g. C:\\Users\\you\\Documents\\MyPractice"
+      "manual-path-placeholder": "e.g. C:\\Users\\you\\Documents\\MyFirm"
     },
     "grid": {
       "empty-folder-hint": "This folder contains no files or subfolders"
@@ -994,7 +994,7 @@
         },
         "advisors": {
           "label": "Advisors",
-          "description": "Advisory practice workflows and client management"
+          "description": "Advisor workflows and client management, so that client work stays organized."
         },
         "research": {
           "label": "Research",
@@ -1261,8 +1261,8 @@
   },
   "onboarding": {
     "workspace-picker": {
-      "picker-unresponsive-own-data": "The folder picker didn't respond. Type the folder path where your practice files should live.",
-      "picker-unresponsive-sample": "The folder picker didn't respond. Type the folder path where your sample practice should be created."
+      "picker-unresponsive-own-data": "The folder picker didn't respond. Type the folder path where your firm files should live.",
+      "picker-unresponsive-sample": "The folder picker didn't respond. Type the folder path where your sample firm should be created."
     },
     "v2": {
       "nav": {
@@ -1276,16 +1276,16 @@
         "headline": "The AI you're actually allowed to use with client data.",
         "flow": {
           "connect": {
-            "title": "Connect your practice",
-            "body": "Files stay on your machine. Email and CRM are read directly from your accounts."
+            "title": "Connect your firm",
+            "body": "Bring together your files, email, and CRM, so that you can ask about client work in one place."
           },
           "client-map": {
             "title": "It builds a Client Map",
-            "body": "Every household is cited from your own records."
+            "body": "Link each household to its source records, so that you can check every answer."
           },
           "ask": {
             "title": "Ask anything",
-            "body": "Answers come with sources you can open."
+            "body": "Ask across client work, so that every answer points to a source you can open."
           }
         },
         "trust-line": "Your files stay on your computer. Cloud AI goes straight to your own provider account, not through us.",
@@ -1294,11 +1294,11 @@
       },
       "choose": {
         "headline": "How do you want to start?",
-        "help": "You can explore a ready-made sample practice right now, or point {{productName}} at your own data. You can always switch later.",
+        "help": "You can explore a ready-made sample firm right now, or point {{productName}} at your own data. You can always switch later.",
         "sample": {
           "badge": "Recommended",
-          "title": "Start with a sample practice",
-          "help": "Land in a populated practice: the Hendricks Household, with real documents and a ready Client Map, so you can ask a cited question in your first minute.",
+          "title": "Start with a sample firm",
+          "help": "Explore the Hendricks Household with real documents and a ready Client Map, so that you can ask a cited question in your first minute.",
           "bullet-1": "A worked household you can explore",
           "bullet-2": "A filled, cited Client Map",
           "bullet-3": "No real client data needed",
@@ -1307,8 +1307,8 @@
         },
         "own": {
           "title": "Connect my own data",
-          "help": "Choose a folder for your practice. In the next steps you can connect your email, files, and Wealthbox so {{productName}} builds Client Maps from your real clients.",
-          "bullet-1": "Pick where your practice lives",
+          "help": "Choose a folder for your firm. Then connect your email, files, and Wealthbox so that {{productName}} can build Client Maps from your real client work.",
+          "bullet-1": "Pick where your firm lives",
           "bullet-2": "Import email, files, and Wealthbox next",
           "bullet-3": "Your files stay on your machine, not ours",
           "loading": "Opening",
@@ -1394,7 +1394,7 @@
         }
       },
       "connect": {
-        "headline": "2. Connect your practice",
+        "headline": "2. Connect your firm",
         "pills": {
           "encrypted": "Encrypted in transit",
           "device": "Files stay on your device",
@@ -1474,8 +1474,8 @@
         "coming-soon-label": "Coming soon",
         "works-with": {
           "title": "Start with CRM, email, and files",
-          "body": "Most of what matters is already in your CRM, email and files, and {{productName}} reads it right there. It can also read plan reports or notes you save from other tools, but your CRM and email are the main sources.",
-          "disclaimer": "{{productName}} reads saved files and notes. It is not an official integration with those tools, and their names belong to their owners."
+          "body": "{{productName}} reads the files you already have: CRM notes, email, OneDrive or SharePoint folders, PDFs, and Word files. It cites those files in answers, so that you can check where each answer came from.",
+          "disclaimer": "{{productName}} reads saved files and notes from your own folders."
         }
       },
       "firm": {
@@ -1536,8 +1536,8 @@
       "back": "Back",
       "welcome": {
         "title": "Welcome to {{productName}}",
-        "subtitle": "The private place your practice lives, that answers you back.",
-        "body-1": "{{productName}} keeps your clients' files, documents, and imported email on your own machine. Ask a question across your whole practice and get back a cited answer you can verify. Your files stay real files in a folder you control.",
+        "subtitle": "The private place your firm lives, that answers you back.",
+        "body-1": "{{productName}} keeps your clients' files, documents, and imported email on your own machine. Ask a question across your whole firm, so that you get a cited answer you can verify. Your files stay real files in a folder you control.",
         "body-2": "Setup takes about 2 minutes. I'll help you pick a folder for your work, connect your AI provider account (optional), and run your first workflow.",
         "step-1": "Step 1. Pick a folder for your work",
         "step-2": "Step 2. Connect your AI provider account (optional)",
@@ -1571,7 +1571,7 @@
         "subtitle": "See a real deliverable come together in seconds.",
         "body-1": "The fastest way to see what {{productName}} does is to run a workflow. Pick any template from the Workflows tab, answer the questions it asks, and watch it produce a finished Word document in your folder.",
         "step-1": "Click <s>Workflows</s> in the sidebar",
-        "step-2": "Pick any template that fits your practice",
+        "step-2": "Pick any template that fits your firm",
         "step-3": "Answer the questions and click <s>Generate</s>",
         "outcome": "You'll get back finished work as real Word documents, ready to open, edit, and send to clients.",
         "populate-toggle": "Add {{count}} sample client files to get started",
@@ -1979,8 +1979,10 @@
       "header-suffix-files-only": "from your files only",
       "empty-hint": "No file sources for this answer.",
       "footer-note": "No file sources for this answer.",
-      "provenance-title": "This is an exported snapshot, not a live connection.",
-      "provenance-stale-title": "This exported snapshot may be out of date. Re-export from the tool for the latest.",
+      "provenance-title": "{{productName}} reads the files you already have. This is not a live connection.",
+      "provenance-file": "Reads the file you already have",
+      "provenance-file-date": "Reads the file you already have · {{date}}",
+      "provenance-stale-title": "This file may be out of date. Add a newer file when you have one.",
       "provenance-stale-suffix": "may be out of date",
       "status": {
         "verified": "Verified",
@@ -3325,5 +3327,10 @@
       "confidentiality-column": "Sensitive",
       "confidentiality-badge": "Sensitive"
     }
+  },
+  "answer-dates": {
+    "title": "Dates in the cited records",
+    "conflict-flagged": "Date conflict flagged.",
+    "review-records": "Check the cited records before relying on either date."
   }
 }

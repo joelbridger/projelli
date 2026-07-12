@@ -132,7 +132,7 @@ describe('IntakeSyncClient', () => {
       loadPrivateKey: vi.fn(() => Promise.resolve(built.privateKey)),
       hasSubmission: vi.fn(() => Promise.resolve(false)),
       rememberSubmission: vi.fn(() => Promise.resolve()),
-      isKnownSession: vi.fn(() => Promise.resolve(true)),
+      getKnownSessionIds: vi.fn(() => Promise.resolve(['known-session'])),
       rememberSession: vi.fn(() => Promise.resolve()),
       flagSubmission: vi.fn(() => Promise.resolve()),
       routeSubmission,
@@ -177,7 +177,7 @@ describe('IntakeSyncClient', () => {
       loadPrivateKey: vi.fn(() => Promise.resolve(built.privateKey)),
       hasSubmission: vi.fn(() => Promise.resolve(false)),
       rememberSubmission: vi.fn(() => Promise.resolve()),
-      isKnownSession: vi.fn(() => Promise.resolve(true)),
+      getKnownSessionIds: vi.fn(() => Promise.resolve(['known-session'])),
       rememberSession: vi.fn(() => Promise.resolve()),
       flagSubmission,
       routeSubmission,
@@ -218,7 +218,7 @@ describe('IntakeSyncClient', () => {
       loadPrivateKey: vi.fn(() => Promise.resolve(built.privateKey)),
       hasSubmission: vi.fn(() => Promise.resolve(false)),
       rememberSubmission: vi.fn(() => Promise.resolve()),
-      isKnownSession: vi.fn(() => Promise.resolve(true)),
+      getKnownSessionIds: vi.fn(() => Promise.resolve(['known-session'])),
       rememberSession: vi.fn(() => Promise.resolve()),
       flagSubmission,
       routeSubmission: vi.fn(() => Promise.reject(new Error('answer could not be filed safely'))),
@@ -260,7 +260,7 @@ describe('IntakeSyncClient', () => {
       loadPrivateKey: vi.fn(() => Promise.resolve(built.privateKey)),
       hasSubmission: vi.fn(() => Promise.resolve(false)),
       rememberSubmission: vi.fn(() => Promise.resolve()),
-      isKnownSession: vi.fn(() => Promise.resolve(true)),
+      getKnownSessionIds: vi.fn(() => Promise.resolve(['known-session'])),
       rememberSession: vi.fn(() => Promise.resolve()),
       flagSubmission,
       routeSubmission,
@@ -300,7 +300,7 @@ describe('IntakeSyncClient', () => {
       loadPrivateKey: vi.fn(() => Promise.resolve(built.privateKey)),
       hasSubmission: vi.fn(() => Promise.resolve(false)),
       rememberSubmission: vi.fn(() => Promise.resolve()),
-      isKnownSession: vi.fn(() => Promise.resolve(true)),
+      getKnownSessionIds: vi.fn(() => Promise.resolve(['known-session'])),
       rememberSession: vi.fn(() => Promise.resolve()),
       flagSubmission: vi.fn(() => Promise.resolve()),
       routeSubmission,
@@ -334,7 +334,7 @@ describe('IntakeSyncClient', () => {
       loadPrivateKey: vi.fn(() => Promise.resolve(built.privateKey)),
       hasSubmission: vi.fn(() => Promise.resolve(false)),
       rememberSubmission: vi.fn(() => Promise.resolve()),
-      isKnownSession: vi.fn(() => Promise.resolve(true)),
+      getKnownSessionIds: vi.fn(() => Promise.resolve(['known-session'])),
       rememberSession: vi.fn(() => Promise.resolve()),
       flagSubmission: vi.fn(() => Promise.resolve()),
       routeSubmission,
@@ -366,7 +366,7 @@ describe('IntakeSyncClient', () => {
       loadPrivateKey: vi.fn(() => Promise.resolve(built.privateKey)),
       hasSubmission: vi.fn(() => Promise.resolve(true)),
       rememberSubmission: vi.fn(() => Promise.resolve()),
-      isKnownSession: vi.fn(() => Promise.resolve(false)),
+      getKnownSessionIds: vi.fn(() => Promise.resolve(['existing-session'])),
       rememberSession: vi.fn(() => Promise.resolve()),
       flagSubmission,
       routeSubmission: vi.fn(() => Promise.resolve({ factId: 'fact-1' })),
@@ -384,7 +384,7 @@ describe('IntakeSyncClient', () => {
     expect(relay.ackSubmission).toHaveBeenCalledOnce();
   });
 
-  it('remembers a sealed session marker after routing so only a different marker re-flags', async () => {
+  it('trusts the first sealed session marker, then flags only a different marker', async () => {
     const keypair = await generateIntakeKeypair();
     const first = await sealedSubmission({ submissionId: 'submission-a1', sessionId: 'session-a', keypair });
     const second = await sealedSubmission({ submissionId: 'submission-a2', sessionId: 'session-a', keypair });
@@ -404,7 +404,7 @@ describe('IntakeSyncClient', () => {
       loadPrivateKey: vi.fn(() => Promise.resolve(keypair.privateKey)),
       hasSubmission: vi.fn(() => Promise.resolve(false)),
       rememberSubmission: vi.fn(() => Promise.resolve()),
-      isKnownSession: vi.fn((_intakeId: string, sessionId: string) => Promise.resolve(knownSessions.has(sessionId))),
+      getKnownSessionIds: vi.fn(() => Promise.resolve([...knownSessions])),
       rememberSession: vi.fn((_intakeId: string, sessionId: string) => {
         knownSessions.add(sessionId);
         return Promise.resolve();
@@ -417,7 +417,7 @@ describe('IntakeSyncClient', () => {
     });
 
     await sync.syncOnce();
-    expect(flags).toEqual(['submission-a1', 'submission-b1']);
+    expect(flags).toEqual(['submission-b1']);
     expect(knownSessions).toEqual(new Set(['session-a', 'session-b']));
   });
 });

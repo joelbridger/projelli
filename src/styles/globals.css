@@ -91,6 +91,9 @@
   --kp-success: #059669; --kp-success-bg: #e6f5ee; --kp-success-line: #8fc9b0;
   --kp-success-text: #0a5c43;
   --kp-warning: #b45309; --kp-warning-bg: #fbf0e2; --kp-warning-line: #e3bf8a;
+  --kp-date-conflict-border: #e3b878;
+  --kp-date-conflict-bg: #fef6e6;
+  --kp-date-conflict-text: #754b00;
 
   /* Connector logo paint. These are brand marks, not app theme colours. */
   --connector-gmail-blue: #4285f4;
