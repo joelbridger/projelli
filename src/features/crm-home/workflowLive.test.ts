@@ -1,13 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
+  addWorkflowStepNote,
   applyWorkflowOffer,
   completeWorkflowStep,
+  createMeetingWorkflowProposal,
   createTemplate,
   offerForInstance,
   publishTemplateUpdate,
   renameWorkflowStepLocally,
+  startScheduledWorkflows,
   startWorkflow,
   undoWorkflowApply,
+  updateWorkflowTemplate,
 } from './workflowLive';
 
 describe('saved CRM workflow wiring', () => {
@@ -30,5 +34,40 @@ describe('saved CRM workflow wiring', () => {
     expect(undone.protectedCells).toContain(`${added.id}:title`);
     expect(undone.protectedCells).toContain(`${added.id}:added-step`);
     expect(undone.instance.snapshot.steps[template.steps[0]!.id]!.status).toBe('done');
+  });
+
+  it('keeps comments and chosen workflow paths in the saved instance', () => {
+    const template = createTemplate('Review', ['Prepare', 'Meet', 'Follow up']);
+    const first = template.steps[0]!;
+    const next = template.steps[1]!;
+    const configured = updateWorkflowTemplate(template, { outcomes: { [first.id]: [{ id: 'held', label: 'Meeting held', nextStepId: next.id }] } });
+    const started = startWorkflow(configured, { id: 'household-1', label: 'River household' });
+    const noted = addWorkflowStepNote(started, first.id, 'Client asked for a tax projection.');
+    const completed = completeWorkflowStep(noted, first.id, 'held');
+
+    expect(completed.snapshot.steps[first.id]!.stepNotes).toContain('Client asked for a tax projection.');
+    expect(completed.snapshot.steps[first.id]!.outcome).toBe('Meeting held');
+    expect(completed.snapshot.steps[next.id]!.status).toBe('in_progress');
+  });
+
+  it('starts a selected household once for each scheduled run', () => {
+    const template = createTemplate('Annual review', ['Prepare review']);
+    const configured = updateWorkflowTemplate(template, { schedule: { frequency: 'annual', timezone: 'UTC', startsAt: '2026-01-01', householdIds: ['h-1'], enabled: true } });
+    const first = startScheduledWorkflows(configured, [{ id: 'h-1', label: 'River household' }], new Date('2026-07-12T12:00:00Z'));
+    const repeat = startScheduledWorkflows(first.template, [{ id: 'h-1', label: 'River household' }], new Date('2026-07-12T13:00:00Z'));
+
+    expect(first.instances).toHaveLength(1);
+    expect(first.instances[0]!.scheduleRunKey).toBe('2026');
+    expect(repeat.instances).toHaveLength(0);
+  });
+
+  it('makes a meeting-based launch a reviewable proposal instead of starting work', () => {
+    const template = createTemplate('Trade request', ['Review request']);
+    const proposal = createMeetingWorkflowProposal({ id: 'meeting-1', kind: 'activityEvent', matterId: 'h-1', summary: 'Discussed an account transfer' }, template, { id: 'h-1', label: 'River household' });
+
+    expect(proposal.kind).toBe('proposalRecord');
+    expect(proposal.proposalKind).toBe('workflow_launch');
+    expect(proposal.state).toBe('pending');
+    expect(proposal.contextRefs).toEqual([{ kind: 'activityEvent', id: 'meeting-1', matterId: 'h-1' }]);
   });
 });

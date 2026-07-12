@@ -9,13 +9,23 @@ import {
 import { UNTOUCHED, type PropagationEngineOffer, type PropagationTransactionPayload, type WorkflowInstanceSnapshot, type WorkflowTemplateSnapshot } from '@/platform/crm/types';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 
-export type WorkflowStepDraft = { id: string; title: string; role: string; dueOffset: number; required: boolean };
+export type WorkflowStepOutcomeDraft = { id: string; label: string; nextStepId?: string; restartAtStepId?: string };
+export type WorkflowStepDraft = { id: string; title: string; role: string; dueOffset: number; required: boolean; outcomes: WorkflowStepOutcomeDraft[] };
+export type WorkflowScheduleDraft = {
+  frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'annual';
+  timezone: string;
+  startsAt: string;
+  householdIds: string[];
+  enabled: boolean;
+};
 export type LiveWorkflowTemplate = LiveCrmRecord & {
   kind: 'crm_workflow_template'; name: string; snapshot: WorkflowTemplateSnapshot; steps: WorkflowStepDraft[];
+  schedule?: WorkflowScheduleDraft; scheduledRunKeys?: string[];
 };
 export type LiveWorkflowInstance = LiveCrmRecord & {
   kind: 'crm_workflow_instance'; templateId: string; householdId: string; householdLabel: string; name: string;
-  snapshot: WorkflowInstanceSnapshot; lastApplyEventId?: string;
+  snapshot: WorkflowInstanceSnapshot; lastApplyEventId?: string; outcomesByStep?: Record<string, WorkflowStepOutcomeDraft[]>;
+  scheduleRunKey?: string; status?: 'open' | 'completed' | 'cancelled';
 };
 export type LiveWorkflowOffer = LiveCrmRecord & {
   kind: 'crm_workflow_offer'; templateId: string; householdLabel: string; revisionLabel: string; engineOffer: PropagationEngineOffer;
@@ -36,6 +46,7 @@ export function workflowRecords(records: readonly LiveCrmRecord[]) {
     templates: records.filter((record): record is LiveWorkflowTemplate => record.kind === 'crm_workflow_template' && typeof record['name'] === 'string' && Boolean(record['snapshot'])),
     instances: records.filter((record): record is LiveWorkflowInstance => record.kind === 'crm_workflow_instance' && typeof record['templateId'] === 'string' && Boolean(record['snapshot'])),
     offers: records.filter((record): record is LiveWorkflowOffer => record.kind === 'crm_workflow_offer' && typeof record['templateId'] === 'string' && Boolean(record['engineOffer'])),
+    meetings: records.filter((record) => record.kind === 'activityEvent' && typeof record['verb'] === 'string' && record['verb'].startsWith('meeting.')),
   };
 }
 
@@ -47,6 +58,7 @@ export function createTemplate(name: string, titles: readonly string[]): LiveWor
     role: index === 0 ? 'Operations' : index === 1 ? 'Advisor' : 'Client service',
     dueOffset: index,
     required: true,
+    outcomes: [],
   }));
   const rootRevisionId = `${templateId}-starting-steps`;
   return {
@@ -77,8 +89,8 @@ function captureTransaction() {
   return { transaction: { transact(next: PropagationTransactionPayload) { payload = next; } }, payload: () => payload };
 }
 
-export function startWorkflow(template: LiveWorkflowTemplate, household: { id: string; label: string }): LiveWorkflowInstance {
-  const instanceId = unique('workflow-instance');
+export function startWorkflow(template: LiveWorkflowTemplate, household: { id: string; label: string }, options?: { id?: string; scheduleRunKey?: string }): LiveWorkflowInstance {
+  const instanceId = options?.id ?? unique('workflow-instance');
   const base: WorkflowInstanceSnapshot = { id: instanceId, acceptedRevisionIds: [], displayedRevisionSet: { revisionIds: [] }, steps: {}, decisionLedger: [], propagationEvents: [] };
   const offer = createOffer(template.snapshot, base, unique('workflow-start'));
   const capture = captureTransaction();
@@ -92,16 +104,82 @@ export function startWorkflow(template: LiveWorkflowTemplate, household: { id: s
     householdLabel: household.label,
     name: template.name,
     snapshot: applied.instance,
+    outcomesByStep: Object.fromEntries(template.steps.map((step) => [step.id, step.outcomes])),
+    ...(options?.scheduleRunKey ? { scheduleRunKey: options.scheduleRunKey } : {}),
+    status: 'open',
   };
 }
 
-export function completeWorkflowStep(instance: LiveWorkflowInstance, stepId: string): LiveWorkflowInstance {
+export function completeWorkflowStep(instance: LiveWorkflowInstance, stepId: string, outcomeId?: string): LiveWorkflowInstance {
   const next = clone(instance);
   const step = next.snapshot.steps[stepId];
   if (!step) throw new Error('This workflow step no longer exists.');
-  if (!step.completionOperations.length) step.completionOperations.push({ completionId: unique('complete'), completedBy: 'local-advisor', completedAt: now(), sourceOperationId: unique('manual-complete') });
+  const outcome = outcomeId ? next.outcomesByStep?.[stepId]?.find((item) => item.id === outcomeId) : undefined;
+  if (outcomeId && !outcome) throw new Error('This workflow outcome is no longer available.');
+  if (!step.completionOperations.length) step.completionOperations.push({ completionId: unique('complete'), completedBy: 'local-advisor', completedAt: now(), ...(outcome ? { outcome: outcome.label } : {}), sourceOperationId: unique('manual-complete') });
   step.status = 'done';
+  step.outcome = outcome?.label;
+  if (outcome?.nextStepId && next.snapshot.steps[outcome.nextStepId]) next.snapshot.steps[outcome.nextStepId].status = 'in_progress';
+  if (outcome?.restartAtStepId && next.snapshot.steps[outcome.restartAtStepId]) next.snapshot.steps[outcome.restartAtStepId].status = 'in_progress';
+  const completed = Boolean(outcome && !outcome.nextStepId && !outcome.restartAtStepId);
+  return { ...next, snapshot: reconcileTemplateRemovals(next.snapshot), ...(completed ? { status: 'completed' as const } : {}) };
+}
+
+export function addWorkflowStepNote(instance: LiveWorkflowInstance, stepId: string, note: string): LiveWorkflowInstance {
+  const trimmed = note.trim();
+  if (!trimmed) return instance;
+  const next = clone(instance);
+  const step = next.snapshot.steps[stepId];
+  if (!step) throw new Error('This workflow step no longer exists.');
+  const entry = `You · ${new Date().toLocaleString()}\n${trimmed}`;
+  step.stepNotes = step.stepNotes ? `${step.stepNotes}\n\n${entry}` : entry;
   return { ...next, snapshot: reconcileTemplateRemovals(next.snapshot) };
+}
+
+export function updateWorkflowTemplate(template: LiveWorkflowTemplate, change: { schedule?: WorkflowScheduleDraft; outcomes?: Record<string, WorkflowStepOutcomeDraft[]> }): LiveWorkflowTemplate {
+  return {
+    ...template,
+    ...(change.schedule ? { schedule: change.schedule } : {}),
+    ...(change.outcomes ? { steps: template.steps.map((step) => ({ ...step, outcomes: change.outcomes?.[step.id] ?? step.outcomes })) } : {}),
+  };
+}
+
+function scheduledRunKey(schedule: WorkflowScheduleDraft, at: Date): string | null {
+  const start = new Date(schedule.startsAt);
+  if (Number.isNaN(start.getTime()) || start.getTime() > at.getTime()) return null;
+  const year = at.getUTCFullYear();
+  const month = at.getUTCMonth() + 1;
+  if (schedule.frequency === 'daily') return `${year}-${String(month).padStart(2, '0')}-${String(at.getUTCDate()).padStart(2, '0')}`;
+  if (schedule.frequency === 'weekly') return `${year}-w${Math.floor((Date.UTC(year, month - 1, at.getUTCDate()) - Date.UTC(year, 0, 1)) / 604800000)}`;
+  if (schedule.frequency === 'monthly') return `${year}-${String(month).padStart(2, '0')}`;
+  if (schedule.frequency === 'quarterly') return `${year}-q${String(Math.floor((month - 1) / 3) + 1)}`;
+  return String(year);
+}
+
+/** Client-side scheduler: each device can safely make the same deterministic
+ * instance record; the live record bridge upserts it rather than duplicating it. */
+export function startScheduledWorkflows(template: LiveWorkflowTemplate, households: readonly { id: string; label: string }[], at = new Date()) {
+  const schedule = template.schedule;
+  if (!schedule?.enabled) return { template, instances: [] as LiveWorkflowInstance[] };
+  const runKey = scheduledRunKey(schedule, at);
+  if (!runKey || (template.scheduledRunKeys ?? []).includes(runKey)) return { template, instances: [] as LiveWorkflowInstance[] };
+  const selected = households.filter((household) => schedule.householdIds.includes(household.id));
+  if (!selected.length) return { template, instances: [] as LiveWorkflowInstance[] };
+  const instances = selected.map((household) => startWorkflow(template, household, { id: `scheduled-${template.id}-${household.id}-${runKey}`, scheduleRunKey: runKey }));
+  return { template: { ...template, scheduledRunKeys: [...(template.scheduledRunKeys ?? []), runKey] }, instances };
+}
+
+export function createMeetingWorkflowProposal(meeting: LiveCrmRecord, template: LiveWorkflowTemplate, household: { id: string; label: string }): LiveCrmRecord {
+  const summary = typeof meeting.summary === 'string' ? meeting.summary : 'Meeting follow-up';
+  return {
+    id: unique('workflow-proposal'), kind: 'proposalRecord', matterId: 'firm_home', title: `Review proposed ${template.name} workflow`,
+    householdRef: { kind: 'household', id: household.id, matterId: household.id }, proposalKind: 'workflow_launch',
+    proposedMutation: { kind: 'workflow_launch', workflowTemplateId: template.id },
+    proposedBy: { userId: 'meeting-ai', display: 'Meeting assistant', kind: 'ai' },
+    rationale: `Meeting notes suggest “${template.name}” may help: ${summary}`,
+    contextRefs: [{ kind: 'activityEvent', id: meeting.id, matterId: typeof meeting.matterId === 'string' ? meeting.matterId : undefined }],
+    state: 'pending', source: { origin: 'meeting', sources: [] }, createdAt: now(), updatedAt: now(),
+  };
 }
 
 /** A person can tailor an open household workflow. This is deliberately a
