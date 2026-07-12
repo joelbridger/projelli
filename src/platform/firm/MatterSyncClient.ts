@@ -34,6 +34,23 @@ import type { MatterHandle, StreamHandle, SyncFrame } from './contract';
 
 /** Must match the relay's MAX_UPDATE_BYTES (backend/src/lib/matters.ts). */
 const MAX_UPDATE_BYTES = 1024 * 1024;
+/** Largest legitimate base64 encoding of MAX_UPDATE_BYTES, with no whitespace. */
+const MAX_UPDATE_BASE64_CHARS = 4 * Math.ceil(MAX_UPDATE_BYTES / 3);
+/**
+ * A hard ceiling on the RAW (pre-whitespace-stripping) string length, checked before any
+ * regex or counting work runs on it. Without this, a hostile relay could pad a small,
+ * otherwise-valid ciphertext with an unbounded amount of whitespace — atob() and the
+ * whitespace-aware size estimate below both ignore it correctly, but building the match
+ * array (or even just holding the string) over hundreds of megabytes of padding is itself
+ * a memory/CPU exhaustion vector that must be rejected BEFORE any of that work happens.
+ * Generous enough to admit legitimate data plus a full data-length's worth of incidental
+ * whitespace, nowhere near "unbounded."
+ */
+const MAX_RAW_CIPHERTEXT_CHARS = MAX_UPDATE_BASE64_CHARS * 2;
+/** The exact whitespace set the HTML "forgiving-base64" decode algorithm (atob) ignores —
+ *  deliberately narrower than `\s`, which also matches non-breaking space, line/paragraph
+ *  separators, and BOM that atob does NOT ignore. */
+const ATOB_IGNORED_WHITESPACE = /[\t\n\f\r ]/g;
 
 function isSafeCursor(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && !Object.is(value, -0);
@@ -46,13 +63,16 @@ function isSafeCursor(value: unknown): value is number {
  * oversized. `floor(dataLength * 3/4)` ignores padding entirely, which can only ever
  * OVER-estimate the true decoded size, so this can never let a genuinely oversized
  * payload through, and at worst is a couple of bytes over-strict at the exact boundary.
- * Counts only non-whitespace characters: atob() (the eventual decoder) ignores ASCII
- * whitespace, so a raw-length count would let a hostile relay pad a small, otherwise-valid
- * ciphertext with whitespace to make a legitimate update look oversized and get skipped.
+ * Rejects on RAW length first (before any whitespace counting) so a hostile relay cannot
+ * force unbounded work by padding with whitespace; only then subtracts exactly the
+ * whitespace atob() itself ignores — a raw-length count would let a hostile relay pad a
+ * small, otherwise-valid ciphertext with whitespace to make a legitimate update look
+ * oversized and get skipped.
  */
 function exceedsUpdateByteLimit(ciphertextB64: unknown): boolean {
   if (typeof ciphertextB64 !== 'string') return true;
-  const dataLength = ciphertextB64.length - (ciphertextB64.match(/\s/g)?.length ?? 0);
+  if (ciphertextB64.length > MAX_RAW_CIPHERTEXT_CHARS) return true;
+  const dataLength = ciphertextB64.length - (ciphertextB64.match(ATOB_IGNORED_WHITESPACE)?.length ?? 0);
   return Math.floor((dataLength * 3) / 4) > MAX_UPDATE_BYTES;
 }
 

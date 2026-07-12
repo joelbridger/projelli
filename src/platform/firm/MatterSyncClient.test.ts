@@ -476,6 +476,50 @@ describe('MatterSyncClient v2 socket privacy', () => {
     client.stop();
   });
 
+  it('rejects a live frame padded past the raw-length ceiling before counting whitespace', async () => {
+    // Ignoring whitespace for the SIZE ESTIMATE must not mean tolerating an
+    // unbounded amount of it — building the whitespace match array (or even
+    // just holding the string) over hundreds of megabytes of padding is
+    // itself a memory/CPU exhaustion vector, so a raw-length ceiling must
+    // reject grossly oversized frames before any whitespace counting runs.
+    const matterHandle = parseMatterHandle(`mh2_${'Z'.repeat(43)}`);
+    const streamHandle = parseStreamHandle(`sh2_${'0'.repeat(43)}`);
+    const keyB64 = await generateMatterKey();
+    const key = await importMatterKey(keyB64);
+    const validCiphertext = await matterCrypto.encryptUpdateV2(
+      key, Y.encodeStateAsUpdate(new Y.Doc()), { matterHandle, streamHandle, keyEpoch: 1 },
+    );
+    // Comfortably past MAX_RAW_CIPHERTEXT_CHARS (2x the max legitimate
+    // ciphertext length), well beyond any incidental whitespace tolerance.
+    const grosslyPadded = `${validCiphertext}${' '.repeat(3_000_000)}`;
+    const onUpdateQuarantined = vi.fn();
+    let socket: WebSocketLike | undefined;
+    const client = new MatterSyncClient({
+      matterHandle, streamHandle, keyB64, keyEpoch: 1, seatToken: 'seat',
+      client: {
+        pullUpdates: () => Promise.resolve({ key_epoch: 1, since: 0, cursor: 0, latest_cursor: 0, has_more: false, updates: [] }),
+        createSyncTicket: () => Promise.resolve({ ticket: 'ticket-only', expires_in_ms: 1000 }),
+        pushUpdate: () => Promise.resolve({ ok: true, cursor: 3, blob_id: 'new', key_epoch: 1, duplicate: false }),
+      } as never,
+      callbacks: { onUpdateQuarantined },
+      socketFactory: () => {
+        socket = { send() {}, close() {}, onopen: null, onclose: null, onerror: null, onmessage: null };
+        return socket;
+      },
+    });
+
+    await client.start();
+    socket?.onmessage?.({ data: JSON.stringify({ type: 'ready', backlog: 0, latest_cursor: 0, subscribers: 1 }) });
+    socket?.onmessage?.({ data: JSON.stringify({
+      type: 'update', cursor: 1, blob_id: opaqueBlobId('Q'), key_epoch: 1, ciphertext_b64: grosslyPadded,
+    }) });
+
+    await vi.waitFor(() => {
+      expect(onUpdateQuarantined).toHaveBeenCalledWith({ reason: 'ciphertext_too_large', blobId: opaqueBlobId('Q') });
+    });
+    client.stop();
+  });
+
   it('flushes only writes present at its starting marker, even while later edits keep arriving', async () => {
     let resolveFirstPush: (() => void) | undefined;
     let pushes = 0;
