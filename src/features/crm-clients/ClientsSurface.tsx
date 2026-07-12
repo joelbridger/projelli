@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import { DirectorySurface } from './DirectorySurface';
@@ -69,6 +69,27 @@ export function ClientsSurface({
 }) {
   const live = useLiveCrmRecords();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectionKey = live.workspaceRoot
+    ? `lantern:crm:selected-household:${live.workspaceRoot}`
+    : null;
+
+  // Reopen the household an advisor was working in after a real desktop
+  // restart. The selection is only navigation state; the household itself and
+  // every field still come from the encrypted CRM store below.
+  useEffect(() => {
+    if (!selectionKey) {
+      setSelectedId(null);
+      return;
+    }
+    setSelectedId(localStorage.getItem(selectionKey));
+  }, [selectionKey]);
+
+  const selectHousehold = useCallback((id: string | null) => {
+    setSelectedId(id);
+    if (!selectionKey) return;
+    if (id) localStorage.setItem(selectionKey, id);
+    else localStorage.removeItem(selectionKey);
+  }, [selectionKey]);
   const lastSyncedAt = live.freshness.kind === 'last-synced' || live.freshness.kind === 'syncing'
     ? live.freshness.lastSyncedAt
     : undefined;
@@ -123,7 +144,7 @@ export function ClientsSurface({
       <HouseholdRecordSurface
         household={current}
         proposals={proposals}
-        onBack={() => { setSelectedId(null); }}
+        onBack={() => { selectHousehold(null); }}
         onSaveHousehold={saveHousehold}
         timelineRecords={live.records as readonly TimelineRecord[]}
         timelineFreshness={live.freshness}
@@ -152,7 +173,7 @@ export function ClientsSurface({
     <DirectorySurface
       households={effectiveHouseholds}
       people={effectivePeople}
-      actions={{ ...actions, onOpenHousehold: setSelectedId }}
+      actions={{ ...actions, onOpenHousehold: selectHousehold }}
       onCreateHousehold={async (name) => {
         const id = `household:${crypto.randomUUID()}`;
         await live.save({
@@ -172,7 +193,7 @@ export function ClientsSurface({
           customFields: [],
           tags: [],
         });
-        setSelectedId(id);
+        selectHousehold(id);
       }}
       error={live.error}
     />

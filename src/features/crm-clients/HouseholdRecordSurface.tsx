@@ -459,7 +459,7 @@ function ClientMap({ household, onEditPerson, onDeleteFact }: { household: House
         <h2>People</h2>
         <p>
           <strong>Household members:</strong>{' '}
-          {household.members.length ? household.members.map((person) => <span key={person.id} style={{ display: 'block' }}><button type="button" data-testid={`crm-person-edit-${person.id}`} onClick={() => onEditPerson(person)}>{person.name}</button>{person.householdRole ? ` (${person.householdRole})` : ''}{person.emails?.length ? ` · ${person.emails.find((email) => email.primary)?.address ?? person.emails[0]?.address}` : ''}</span>) : 'None'}
+          {household.members.length ? household.members.map((person) => <span key={person.id} style={{ display: 'block' }}><button type="button" data-testid={`crm-person-edit-${person.id}`} onClick={() => onEditPerson(person)}>{person.name}</button>{person.householdRole ? ` (${person.householdRole})` : ''}{person.roles.length ? ` · ${person.roles.join(', ')}` : ''}{person.emails?.length ? ` · ${person.emails.find((email) => email.primary)?.address ?? person.emails[0]?.address}` : ''}{person.phones?.length ? ` · ${person.phones.find((phone) => phone.primary)?.address ?? person.phones[0]?.address}` : ''}{person.addresses?.length ? <span style={{ display: 'block', color: 'var(--color-slate-600)' }}>{person.addresses.find((address) => address.primary)?.address ?? person.addresses[0]?.address}</span> : null}</span>) : 'None'}
         </p>
         <p>
           <strong>External parties:</strong>{' '}
