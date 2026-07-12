@@ -35,14 +35,14 @@ function makeWorkspace() {
   return {
     files,
     workspace: {
-      exists: vi.fn(async (path: string) => files.has(path)),
-      readFile: vi.fn(async (path: string) => {
+      exists: vi.fn((path: string) => Promise.resolve(files.has(path))),
+      readFile: vi.fn((path: string) => {
         const value = files.get(path);
-        if (value === undefined) throw new Error('ENOENT');
-        return value;
+        return value === undefined ? Promise.reject(new Error('ENOENT')) : Promise.resolve(value);
       }),
-      writeFile: vi.fn(async (path: string, content: string) => {
+      writeFile: vi.fn((path: string, content: string) => {
         files.set(path, content);
+        return Promise.resolve();
       }),
     },
   };
@@ -57,8 +57,8 @@ function renderPanel(workspace: ReturnType<typeof makeWorkspace>['workspace']) {
       meetingDir="Clients/Ada/Meetings/2026-07-12-review"
       transcript={transcript}
       clientName="Ada"
-      getProvider={async () => ({
-        send: async () => ({
+      getProvider={() => Promise.resolve({
+        send: () => Promise.resolve({
           content: JSON.stringify({
             sections: [
               {
@@ -140,12 +140,9 @@ describe('MeetingTemplatePanel', () => {
     await waitFor(() => {
       expect(screen.getByTestId('meeting-template-fill')).toBeInTheDocument();
     });
-    expect(
-      JSON.parse(
-        files.get(
-          'Clients/Ada/Meetings/2026-07-12-review/template-notes.json'
-        ) ?? '{}'
-      ).clientFacing
-    ).toEqual({});
+    const restored = JSON.parse(
+      files.get('Clients/Ada/Meetings/2026-07-12-review/template-notes.json') ?? '{}'
+    ) as { clientFacing?: Record<string, unknown> };
+    expect(restored.clientFacing).toEqual({});
   });
 });

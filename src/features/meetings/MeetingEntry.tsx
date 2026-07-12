@@ -39,8 +39,9 @@ import { docxConvertToPdf } from '@/platform/utils/docx-commands';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { readTauriFile } from '@/platform/fs/tauriFsPlugin';
 import { useFirm } from '@/platform/hooks/useFirm';
-import { buildProviderForGlance } from '@/platform/matter/matterAtAGlance';
+import { buildResolvedProviderForGlance } from '@/platform/matter/matterAtAGlance';
 import { MeetingTemplatePanel } from './MeetingTemplatePanel';
+import { createPreparedMeetingTemplateFillProvider } from './meetingTemplateAi';
 
 export interface MeetingEntryProps {
   matterId: string;
@@ -839,8 +840,8 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
                     transcript={transcript}
                     clientName={clientName}
                     getProvider={async () => {
-                      const provider = await buildProviderForGlance();
-                      return { send: async (prompt, options) => provider.sendMessage(prompt, options) };
+                      const resolved = await buildResolvedProviderForGlance();
+                      return createPreparedMeetingTemplateFillProvider({ matterId, resolved });
                     }}
                   />
                 )}
