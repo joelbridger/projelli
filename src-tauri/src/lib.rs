@@ -419,6 +419,22 @@ pub fn run() {
                 let builder =
                     tauri::WebviewWindowBuilder::from_config(app.handle(), window_config)?;
 
+                // A workspace supplied on the command line (or through the
+                // dedicated environment variable) is an automation affordance,
+                // not a replacement for normal first-run onboarding. Pass it to
+                // the renderer only after the host has proved it is a real
+                // directory. JSON encoding keeps unusual but valid path
+                // characters from becoming executable script text.
+                let builder = if let Some(workspace) = explicit_launch_workspace() {
+                    let workspace_json = serde_json::to_string(&workspace)
+                        .expect("serializing a workspace path cannot fail");
+                    builder.initialization_script(format!(
+                        "window.__LANTERN_WORKSPACE__ = {workspace_json};"
+                    ))
+                } else {
+                    builder
+                };
+
                 #[cfg(all(windows, debug_assertions))]
                 let builder = {
                     let browser_args = crate::webview_env::debug_webview_browser_args("main");
@@ -504,4 +520,93 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+/// Returns an explicitly requested, existing workspace directory for this
+/// launch. `--workspace <dir>` takes precedence over `LANTERN_WORKSPACE`.
+/// Invalid or absent values deliberately return `None`, preserving the normal
+/// first-run picker rather than creating or opening an unexpected folder.
+fn explicit_launch_workspace() -> Option<String> {
+    let cli_workspace = workspace_argument(std::env::args_os().skip(1));
+    let candidate = cli_workspace
+        .or_else(|| std::env::var_os("LANTERN_WORKSPACE").map(std::path::PathBuf::from))?;
+
+    match canonical_existing_directory(candidate) {
+        Some(path) => path.into_os_string().into_string().ok(),
+        None => {
+            log::warn!("[launch-workspace] ignoring missing or invalid explicit workspace");
+            None
+        }
+    }
+}
+
+fn workspace_argument<I>(args: I) -> Option<std::path::PathBuf>
+where
+    I: IntoIterator<Item = std::ffi::OsString>,
+{
+    let mut args = args.into_iter();
+    while let Some(argument) = args.next() {
+        if argument == "--workspace" {
+            return args.next().map(std::path::PathBuf::from);
+        }
+        if let Some(value) = argument
+            .to_str()
+            .and_then(|value| value.strip_prefix("--workspace="))
+        {
+            return Some(std::path::PathBuf::from(value));
+        }
+    }
+    None
+}
+
+fn canonical_existing_directory(path: std::path::PathBuf) -> Option<std::path::PathBuf> {
+    path.is_dir()
+        .then(|| std::fs::canonicalize(path).ok())
+        .flatten()
+}
+
+#[cfg(test)]
+mod launch_workspace_tests {
+    use super::{canonical_existing_directory, workspace_argument};
+    use std::ffi::OsString;
+
+    #[test]
+    fn reads_a_separate_workspace_argument() {
+        assert_eq!(
+            workspace_argument([
+                OsString::from("--workspace"),
+                OsString::from("/tmp/lantern")
+            ]),
+            Some("/tmp/lantern".into())
+        );
+    }
+
+    #[test]
+    fn reads_an_equals_workspace_argument() {
+        assert_eq!(
+            workspace_argument([OsString::from("--workspace=/tmp/lantern")]),
+            Some("/tmp/lantern".into())
+        );
+    }
+
+    #[test]
+    fn ignores_unrelated_arguments() {
+        assert_eq!(
+            workspace_argument([OsString::from("--other"), OsString::from("value")]),
+            None
+        );
+    }
+
+    #[test]
+    fn accepts_only_an_existing_directory() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        assert_eq!(
+            canonical_existing_directory(directory.path().to_path_buf()),
+            Some(std::fs::canonicalize(directory.path()).expect("canonical directory"))
+        );
+        assert_eq!(
+            canonical_existing_directory(directory.path().join("missing")),
+            None
+        );
+    }
 }

@@ -19,6 +19,10 @@ import { useWorkspaceLifecycle } from '@/app/lifecycle/useWorkspaceLifecycle';
 import { useAutoResumeWorkspace } from '@/app/lifecycle/useAutoResumeWorkspace';
 import { usePreStartLocalAi } from '@/app/lifecycle/usePreStartLocalAi';
 import { useTestModeWorkspace } from '@/app/lifecycle/useTestModeWorkspace';
+import {
+  getExplicitLaunchWorkspace,
+  shouldShowFirstRunForLaunch,
+} from '@/app/lifecycle/explicitLaunchWorkspace';
 import { useKeyboardShortcuts } from '@/app/commands/useKeyboardShortcuts';
 import { useAppCommands } from '@/app/commands/useAppCommands';
 import { useDialogManager } from '@/app/dialogs/useDialogManager';
@@ -195,6 +199,12 @@ const IS_DEMO_MODE =
   ((typeof __LANTERN_DEMO__ !== 'undefined' && __LANTERN_DEMO__) ||
     (window as unknown as { __lanternDemo?: boolean }).__lanternDemo === true);
 
+// Set by the native host only when the caller explicitly supplied an existing
+// workspace folder with `--workspace` or `LANTERN_WORKSPACE`. This is not a
+// general first-run bypass: without the native signal, onboarding and the
+// workspace picker retain their normal behavior.
+const EXPLICIT_LAUNCH_WORKSPACE = getExplicitLaunchWorkspace();
+
 /**
  * QA-15: the browser build has no per-workspace localStorage namespacing —
  * two tabs on the same origin silently clobber each other's saved state
@@ -250,7 +260,10 @@ function App() {
 function AppShell() {
   const { t } = useTranslation();
   const [showWorkspaceSelector, setShowWorkspaceSelector] = useState(
-    !IS_TEST_MODE && !IS_DEMO_MODE
+    !IS_TEST_MODE && !IS_DEMO_MODE && !EXPLICIT_LAUNCH_WORKSPACE
+  );
+  const [isOpeningExplicitWorkspace, setIsOpeningExplicitWorkspace] = useState(
+    Boolean(EXPLICIT_LAUNCH_WORKSPACE)
   );
   const [demoOpenFailed, setDemoOpenFailed] = useState(false);
   const {
@@ -336,12 +349,14 @@ function AppShell() {
       window.location.search.includes('forceOnboarding=true');
     const noRecentWorkspaces =
       useWorkspaceStore.getState().recentWorkspaces.length === 0;
-    const shouldShow =
-      (!hasCompletedOnboarding() &&
-        noRecentWorkspaces &&
-        !IS_TEST_MODE &&
-        !IS_DEMO_MODE) ||
-      forceOnboarding;
+    const shouldShow = shouldShowFirstRunForLaunch({
+      onboardingComplete: hasCompletedOnboarding(),
+      noRecentWorkspaces,
+      isTestMode: IS_TEST_MODE,
+      isDemoMode: IS_DEMO_MODE,
+      hasExplicitWorkspace: Boolean(EXPLICIT_LAUNCH_WORKSPACE),
+      forceOnboarding,
+    });
     if (shouldShow) {
       const id = setTimeout(() => setShowFirstRun(true), 1200);
       return () => clearTimeout(id);
@@ -359,7 +374,11 @@ function AppShell() {
     typeof window !== 'undefined' &&
     window.location.search.includes('forceTour=true');
   useEffect(() => {
-    if ((IS_TEST_MODE || IS_DEMO_MODE) && !FORCE_TOUR) return;
+    if (
+      (IS_TEST_MODE || IS_DEMO_MODE || EXPLICIT_LAUNCH_WORKSPACE) &&
+      !FORCE_TOUR
+    )
+      return;
     if (!FORCE_TOUR && !featureTour.shouldAutoShow) return;
     // Do not open the tour while the onboarding overlay is open.
     if (showFirstRun) return;
@@ -1157,6 +1176,33 @@ function AppShell() {
     confirm,
   });
 
+  // An explicit workspace uses the same guarded lifecycle as a recent
+  // workspace. The native host supplies this value only after checking that
+  // it is an existing directory, so no picker is needed on first run.
+  useEffect(() => {
+    if (!EXPLICIT_LAUNCH_WORKSPACE) return undefined;
+
+    let cancelled = false;
+    let workspaceCommitted = false;
+    const unsubscribe = useWorkspaceStore.subscribe((state) => {
+      if (state.rootPath !== EXPLICIT_LAUNCH_WORKSPACE) return;
+      workspaceCommitted = true;
+      setIsOpeningExplicitWorkspace(false);
+    });
+    void (async () => {
+      await handleOpenRecentProject(EXPLICIT_LAUNCH_WORKSPACE);
+      // A failed open falls back to the ordinary selector. A successful open
+      // normally clears the loader as soon as the lifecycle commits rootPath;
+      // this is a final safety net for implementations that do not emit it.
+      if (!cancelled && !workspaceCommitted) setIsOpeningExplicitWorkspace(false);
+    })();
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [handleOpenRecentProject]);
+
   // Boot: silently reopen the last workspace when "Reopen last workspace" is
   // on, instead of always showing the picker (only Tauri can do this without
   // a fresh user gesture — browser directory handles need a picker click).
@@ -1195,7 +1241,10 @@ function AppShell() {
   );
   const isAutoResumingWorkspace = useAutoResumeWorkspace({
     isEligibleEnvironment:
-      !IS_TEST_MODE && !IS_DEMO_MODE && isTauriEnvironment(),
+      !IS_TEST_MODE &&
+      !IS_DEMO_MODE &&
+      !EXPLICIT_LAUNCH_WORKSPACE &&
+      isTauriEnvironment(),
     settingsHydrated,
     recentWorkspacesLoaded,
     startupBehavior,
@@ -1868,6 +1917,20 @@ function AppShell() {
     return (
       <div
         data-testid="workspace-auto-resume-loading"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-white dark:bg-white"
+      >
+        <AppLogo height={48} />
+      </div>
+    );
+  }
+
+  // Keep the picker and first-run overlay off-screen while an explicitly
+  // requested workspace is opening. If it cannot open, the normal selector
+  // returns with the lifecycle's plain-language error.
+  if (!IS_TEST_MODE && isOpeningExplicitWorkspace) {
+    return (
+      <div
+        data-testid="explicit-workspace-loading"
         className="fixed inset-0 z-50 flex items-center justify-center bg-white dark:bg-white"
       >
         <AppLogo height={48} />
