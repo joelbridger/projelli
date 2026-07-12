@@ -40,6 +40,7 @@ This is a sandbox where breaking things is acceptable.
   other resource the mainline session could be using** — this program runs on this server
   + Codex only. When the 06 test campaign's Layer 3 needs the Legion bench, coordinate
   through BOARD.md and get an explicit go first.
+- **🚨 SUBAGENT ROUTING (Jameson, 2026-07-12 — REAFFIRMED + SHARPENED):** **ALL crew/helper work is CODEX** (`codex-task`, gpt-5.6-terra, high). Codex tokens are plentiful; Claude tokens are scarce. **Never spawn Claude subagents for crew work.** If a lane is genuinely correctness-critical and MUST be Claude, it runs **Sonnet 5 — never Fable** — and the coordinator states a one-line justification in its check-in. Effort tiers: hold current settings until Jameson confirms. The only Anthropic model in this program remains the Fable 5 coordinator itself (planning, review, merging).
 - **🚨 MODEL ROUTING (Jameson's explicit rule for this program, 2026-07-11):** ALL work —
   design lanes, build lanes, test lanes, investigations — is done by **Codex
   (`codex-task`, gpt-5.6-terra, high reasoning effort)**. The ONLY Anthropic model in the
