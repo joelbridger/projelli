@@ -66,7 +66,7 @@ beforeEach(() => {
 });
 
 describe('promoteMatterToShared', () => {
-  it('shares a matter in private order: provision, key, root index, activate, then publish', async () => {
+  it('shares a matter in relay-safe order: provision, key, activate, root index, then publish', async () => {
     const client = makeClient();
     const r = await promoteMatterToShared('m1', 'Acme', client as never);
     expect(r).toEqual({ status: 'shared', matterId: 'm1', firmMatterId: MATTER, orgId: 'org_1' });
@@ -82,8 +82,8 @@ describe('promoteMatterToShared', () => {
     expect(publishMatterKeyToMembers).toHaveBeenCalledTimes(1);
     expect(publishMatterKeyToMembers).toHaveBeenCalledWith(client, MATTER, 1);
     expect(client.createMatter.mock.invocationCallOrder[0]).toBeLessThan(createLocalMatterKey.mock.invocationCallOrder[0]!);
-    expect(createLocalMatterKey.mock.invocationCallOrder[0]).toBeLessThan(client.pushUpdate.mock.invocationCallOrder[0]!);
-    expect(client.pushUpdate.mock.invocationCallOrder[0]).toBeLessThan(client.activateMatter.mock.invocationCallOrder[0]!);
+    expect(createLocalMatterKey.mock.invocationCallOrder[0]).toBeLessThan(client.activateMatter.mock.invocationCallOrder[0]!);
+    expect(client.activateMatter.mock.invocationCallOrder[0]).toBeLessThan(client.pushUpdate.mock.invocationCallOrder[0]!);
     expect(client.activateMatter.mock.invocationCallOrder[0]).toBeLessThan(registerDevice.mock.invocationCallOrder[0]!);
     expect(append).toHaveBeenCalledWith(expect.objectContaining({ type: 'matter_shared' }));
   });

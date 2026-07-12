@@ -262,6 +262,14 @@ export class FirmApiClient {
     );
   }
 
+  /** Owner-only release after the encrypted root index has tombstoned a document stream. */
+  releaseMatterStream(matterHandle: MatterHandle, streamHandle: StreamHandle): Promise<{ ok: true }> {
+    return this.request<{ ok: true }>(
+      FIRM_ENDPOINTS.releaseMatterStream.replace(':matter_handle', encodeURIComponent(parseMatterHandle(matterHandle))),
+      { method: 'POST', auth: true, body: { stream_handle: parseStreamHandle(streamHandle) } },
+    );
+  }
+
   listMatters(): Promise<ListMattersResponse> {
     return this.request<ListMattersResponse>(FIRM_ENDPOINTS.listMatters, {
       method: 'POST',

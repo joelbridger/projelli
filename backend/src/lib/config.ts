@@ -151,6 +151,8 @@ export const config = {
 
   /** Includes the root notes stream. A stream counts only after its first write. */
   firmMatterStreamCap: num("FIRM_MATTER_STREAM_CAP", 1024, { min: 1 }),
+  /** Maximum non-root streams one active seat may allocate in a matter. */
+  firmMatterStreamsPerSeat: num("FIRM_MATTER_STREAMS_PER_SEAT", 256, { min: 1 }),
   /** Every push is seat-rate-limited; unused client handles never reach the relay. */
   firmMatterStreamWriteRateLimitMax: num("FIRM_MATTER_STREAM_WRITE_RATE_LIMIT_MAX", 30, { min: 1 }),
   firmMatterStreamWriteRateLimitWindowSeconds: num("FIRM_MATTER_STREAM_WRITE_RATE_LIMIT_WINDOW_SECONDS", 60, { min: 1 }),

@@ -482,6 +482,7 @@ export const FIRM_ENDPOINTS = {
   listMatters: '/v2/firm/matters/list',
   activateMatter: '/v2/firm/matters/:matter_handle/activate',
   archiveMatter: '/v2/firm/matters/:matter_handle/archive',
+  releaseMatterStream: '/v2/firm/matters/:matter_handle/streams/release',
   addMatterMember: '/v2/firm/matters/:matter_handle/members/add',
   removeMatterMember: '/v2/firm/matters/:matter_handle/members/remove',
   listMatterMembers: '/v2/firm/matters/:matter_handle/members/list',

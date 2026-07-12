@@ -290,10 +290,10 @@ describe("archived matter relay denial", () => {
     // Every explicitly legal edge, including no-op transitions.
     expect(update(provisioningSelf.matter_handle, "provisioning").changes).toBe(1);
     expect(update(provisioningToActive.matter_handle, "active").changes).toBe(1);
-    expect(update(provisioningToArchived.matter_handle, "archived").changes).toBe(1);
+    expect(update(provisioningToArchived.matter_handle, "archived").changes).toBeGreaterThan(0);
     expect(update(activeSelf.matter_handle, "active").changes).toBe(1);
-    expect(update(activeToArchived.matter_handle, "archived").changes).toBe(1);
-    expect(update(archivedSelf.matter_handle, "archived").changes).toBe(1);
+    expect(update(activeToArchived.matter_handle, "archived").changes).toBeGreaterThan(0);
+    expect(update(archivedSelf.matter_handle, "archived").changes).toBeGreaterThan(0);
 
     // Every illegal edge is rejected: backwards, resurrection, and malformed.
     expect(() => update(activeSelf.matter_handle, "provisioning")).toThrow(/invalid_matter_status_transition/);
@@ -306,8 +306,25 @@ describe("archived matter relay denial", () => {
     // This is the hostile delete+reinsert sequence: foreign keys are disabled,
     // but retained streams/updates/wrapped keys still make the delete abort.
     attacker.exec("PRAGMA foreign_keys = OFF;");
-    expect(() => attacker.query("DELETE FROM matters WHERE matter_handle = ?").run(f.matter.matter_handle)).toThrow(/archived_matter_data_retained/);
-    expect(() => attacker.query("INSERT INTO matters (matter_handle, org_id, root_stream_handle, status, key_epoch, created_at) VALUES (?, ?, ?, 'active', 1, 'now')").run(f.matter.matter_handle, f.org.org_id, f.matter.root_stream_handle)).toThrow(/UNIQUE constraint failed/);
+    expect(() => attacker.query("DELETE FROM matters WHERE matter_handle = ?").run(f.matter.matter_handle)).toThrow(/archived_matter_deletion_forbidden/);
+    expect(() => attacker.query("INSERT INTO matters (matter_handle, org_id, root_stream_handle, status, key_epoch, created_at) VALUES (?, ?, ?, 'active', 1, 'now')").run(f.matter.matter_handle, f.org.org_id, f.matter.root_stream_handle)).toThrow(/archived_matter_handle_tombstoned|UNIQUE constraint failed/);
+    attacker.close();
+    rmSync(path, { force: true });
+  });
+
+  test("an archived handle remains tombstoned after raw child cleanup and rejects INSERT OR REPLACE", () => {
+    const path = `/tmp/firm-relay-tombstone-${crypto.randomUUID()}.sqlite`;
+    const f = fixture(path);
+    f.store.archiveMatter(f.matter.matter_handle);
+    f.store.close();
+    const attacker = new Database(path);
+    attacker.exec("PRAGMA foreign_keys = OFF");
+    attacker.query("DELETE FROM matter_updates WHERE matter_handle = ?").run(f.matter.matter_handle);
+    attacker.query("DELETE FROM wrapped_matter_keys WHERE matter_handle = ?").run(f.matter.matter_handle);
+    attacker.query("DELETE FROM matter_members WHERE matter_handle = ?").run(f.matter.matter_handle);
+    attacker.query("DELETE FROM ethical_walls WHERE matter_handle = ?").run(f.matter.matter_handle);
+    attacker.query("DELETE FROM matter_streams WHERE matter_handle = ?").run(f.matter.matter_handle);
+    expect(() => attacker.query("INSERT OR REPLACE INTO matters (matter_handle, org_id, root_stream_handle, status, key_epoch, created_at) VALUES (?, ?, ?, 'active', 1, 'now')").run(f.matter.matter_handle, f.org.org_id, f.matter.root_stream_handle)).toThrow(/archived_matter_handle_tombstoned|archived_matter_deletion_forbidden/);
     attacker.close();
     rmSync(path, { force: true });
   });

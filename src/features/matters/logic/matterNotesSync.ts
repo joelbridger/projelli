@@ -36,6 +36,8 @@ const clientCache = new Map<string, MatterSyncClient>();
  * The entry is deleted on null/error resolution so a retry can try again.
  */
 const pendingCache = new Map<string, Promise<MatterSyncClient | null>>();
+/** One key-refresh loop per local matter; notifications may arrive out of order. */
+const keyRotationCache = new Map<string, { targetEpoch: number; promise: Promise<void> }>();
 
 /**
  * Ensure a running MatterSyncClient exists for the given matter. Returns null
@@ -180,47 +182,71 @@ async function _buildMatterSyncClient(
  * a stale key, then stops the sync client. The next open attempt will show the
  * true fail-closed panel rather than a half-alive client.
  */
-async function handleKeyEpochAdvanced(
+export async function handleKeyEpochAdvanced(
   localMatterId: string,
   firmMatterId: MatterHandle,
   firmClient: ReturnType<ReturnType<typeof useFirmStore.getState>['client']>,
   client: MatterSyncClient,
   newEpoch: number,
 ): Promise<void> {
-  try {
+  const existing = keyRotationCache.get(localMatterId);
+  if (existing) {
+    existing.targetEpoch = Math.max(existing.targetEpoch, newEpoch);
+    return existing.promise;
+  }
+
+  const state = { targetEpoch: newEpoch, promise: Promise.resolve() };
+  state.promise = (async () => {
     const seatToken = useFirmStore.getState().seatToken ?? '';
     const { deviceId } = await getOrCreateDeviceKeypair();
 
-    // Clear the old keychain entry first so obtainMatterKey does a fresh server
-    // fetch rather than returning the stale epoch's blob.
-    await clearMatterKey(firmMatterId);
+    for (;;) {
+      // Clear the old keychain entry first so obtainMatterKey does a fresh server
+      // fetch rather than returning the stale epoch's blob.
+      await clearMatterKey(firmMatterId);
 
-    let fetchResp: { epoch: number; wrapped_key_b64: string };
-    try {
-      fetchResp = await firmClient.fetchMatterKeys(firmMatterId, deviceId, seatToken);
-    } catch (err) {
-      if (err instanceof FirmApiError && (err.status === 403 || err.status === 404)) {
-        // Walled (403) or key not published for new epoch (404) — fail closed.
-        // The old key has already been cleared above, so the next ensureMatterSync
-        // will hit the server again and surface the proper fail-closed panel.
-        stopMatterSync(localMatterId);
-        return;
+      let fetchResp: { epoch: number; wrapped_key_b64: string };
+      try {
+        fetchResp = await firmClient.fetchMatterKeys(firmMatterId, deviceId, seatToken);
+      } catch (err) {
+        if (err instanceof FirmApiError && (err.status === 403 || err.status === 404)) {
+          // Walled (403) or key not published for new epoch (404) — fail closed.
+          // The old key has already been cleared above, so the next ensureMatterSync
+          // will hit the server again and surface the proper fail-closed panel.
+          stopMatterSync(localMatterId);
+          return;
+        }
+        throw err;
       }
-      throw err;
-    }
 
-    const newKeyB64 = await unwrapMatterKey(fetchResp.wrapped_key_b64, fetchResp.epoch);
-    await storeMatterKey(firmMatterId, newKeyB64);
-    await client.rotateKey(newKeyB64, newEpoch);
-  } catch (err) {
+      // The notification is only a hint. The fetch response is authoritative:
+      // its wrapped key and epoch are one atomic server snapshot.
+      const newKeyB64 = await unwrapMatterKey(fetchResp.wrapped_key_b64, fetchResp.epoch);
+      await storeMatterKey(firmMatterId, newKeyB64);
+      await client.rotateKey(newKeyB64, fetchResp.epoch);
+
+      // A second removal/wall can advance the epoch between fetch and rotate.
+      // Re-check and repeat from the newly fetched key rather than tagging it
+      // with the stale notification epoch.
+      const mine = await firmClient.matterMine(seatToken);
+      const observedEpoch = mine.matters.find((matter) => matter.matter_handle === firmMatterId)?.key_epoch ?? fetchResp.epoch;
+      state.targetEpoch = Math.max(state.targetEpoch, observedEpoch);
+      if (state.targetEpoch <= fetchResp.epoch) return;
+    }
+  })().catch((err: unknown) => {
     console.error('[matterNotesSync] key epoch advance failed:', err);
     useMatterSyncStore.getState().setStatus(localMatterId, 'error');
-  }
+  }).finally(() => {
+    keyRotationCache.delete(localMatterId);
+  });
+  keyRotationCache.set(localMatterId, state);
+  return state.promise;
 }
 
 /** Stop and remove the sync client for a matter. Idempotent. */
 export function stopMatterSync(localMatterId: string): void {
   pendingCache.delete(localMatterId);
+  keyRotationCache.delete(localMatterId);
   const client = clientCache.get(localMatterId);
   if (!client) return;
   client.stop();
@@ -231,6 +257,7 @@ export function stopMatterSync(localMatterId: string): void {
 /** Stop all running sync clients (e.g. on sign-out). */
 export function stopAll(): void {
   pendingCache.clear();
+  keyRotationCache.clear();
   for (const [id, client] of clientCache.entries()) {
     try {
       client.stop();

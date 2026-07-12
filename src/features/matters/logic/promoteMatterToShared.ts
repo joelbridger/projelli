@@ -20,7 +20,7 @@ function blobId(): string {
 
 /**
  * Ordered v2 promotion:
- * provision opaque shell → local key → encrypted root private index → activate
+ * provision opaque shell → local key → activate → encrypted root private index
  * → device registration/key distribution → local linkage. The original local
  * Matter.id and all human-readable details remain entirely on this device.
  */
@@ -40,6 +40,11 @@ export async function promoteMatterToShared(
     handle = provision.matter_handle;
     const keyB64 = await createLocalMatterKey(handle);
 
+    // The relay deliberately denies every write while a shell is provisioning.
+    // Activate before the first ciphertext reaches it; the catch block below
+    // makes this still all-or-nothing from the local user's point of view.
+    await client.activateMatter(handle);
+
     const root = new Y.Doc();
     writeFirmMatterPrivateIndex(root, {
       version: 1,
@@ -54,8 +59,6 @@ export async function promoteMatterToShared(
       streamHandle: provision.root_stream_handle,
     });
     await client.pushUpdate(handle, provision.root_stream_handle, blobId(), ciphertext, seatToken, provision.key_epoch);
-
-    await client.activateMatter(handle);
     await registerDevice(client);
     await publishMatterKeyToMembers(client, handle, provision.key_epoch);
 

@@ -135,6 +135,10 @@ export class MatterSyncClient {
   private keyB64: string;
   private keyEpoch: number;
   private cursor = 0;
+  /** One pull at a time; a key rotation waits for it then re-pulls. */
+  private catchUpPromise: Promise<void> | null = null;
+  /** Key rotations must never race each other or their follow-up catch-up. */
+  private rotationQueue: Promise<void> = Promise.resolve();
   private presenceCount = 0;
   private status: SyncStatus = 'idle';
   private socket: WebSocketLike | null = null;
@@ -247,10 +251,24 @@ export class MatterSyncClient {
    * here; subsequent decrypts/encrypts use it.
    */
   async rotateKey(newKeyB64: string, newEpoch: number): Promise<void> {
-    this.keyB64 = newKeyB64;
-    this.keyEpoch = newEpoch;
-    this.cryptoKey = null;
-    await this.ensureKey();
+    const rotation = this.rotationQueue.then(async () => {
+      // A delayed notification must never roll a newer key backwards.
+      if (newEpoch < this.keyEpoch) return;
+      this.keyB64 = newKeyB64;
+      this.keyEpoch = newEpoch;
+      this.cryptoKey = null;
+      await this.ensureKey();
+
+      // A newer-epoch blob may have stopped an in-flight pull. Wait for that
+      // pull to finish, then begin again at the last *applied* cursor.
+      const inFlight = this.catchUpPromise;
+      if (inFlight) await inFlight;
+      await this.catchUp();
+    });
+    // Keep the queue usable after a transient network failure, while returning
+    // the real error to the caller that requested this rotation.
+    this.rotationQueue = rotation.then(() => undefined, () => undefined);
+    return rotation;
   }
 
   /** Update the epoch only (e.g. after the host confirms it now holds the key). */
@@ -285,6 +303,17 @@ export class MatterSyncClient {
 
   /** Pull all updates after `cursor`, decrypt, apply. Filtered to this.docId. */
   private async catchUp(): Promise<void> {
+    if (this.catchUpPromise) return this.catchUpPromise;
+    const pull = this.doCatchUp();
+    this.catchUpPromise = pull;
+    try {
+      await pull;
+    } finally {
+      if (this.catchUpPromise === pull) this.catchUpPromise = null;
+    }
+  }
+
+  private async doCatchUp(): Promise<void> {
     this.setStatus('catching-up');
     try {
       let pages = 0;
@@ -294,8 +323,11 @@ export class MatterSyncClient {
         if (res.key_epoch > this.keyEpoch) {
           this.callbacks.onKeyEpochAdvanced?.(res.key_epoch);
         }
-        await this.applyPulled(res.updates);
-        this.cursor = Math.max(this.cursor, res.cursor);
+        const fullyApplied = await this.applyPulled(res.updates);
+        // Never acknowledge a cursor beyond ciphertext we could open. A later
+        // rotation starts from this last applied position and gets the blob
+        // again instead of permanently losing it.
+        if (!fullyApplied) break;
         pages += 1;
         if (!res.has_more || pages >= this.maxCatchupPages) break;
       }
@@ -306,20 +338,22 @@ export class MatterSyncClient {
 
   private async applyPulled(
     updates: Array<{ cursor: number; blob_id: string; key_epoch: number; ciphertext_b64: string }>,
-  ): Promise<void> {
+  ): Promise<boolean> {
     for (const u of updates) {
-      await this.applyBlob(u.ciphertext_b64, u.key_epoch, u.blob_id);
+      const applied = await this.applyBlob(u.ciphertext_b64, u.key_epoch, u.blob_id);
+      if (!applied) return false;
       this.cursor = Math.max(this.cursor, u.cursor);
     }
+    return true;
   }
 
   /** Decrypt one blob and apply it to the Yjs doc (origin = remote). */
-  private async applyBlob(ciphertextB64: string, blobEpoch: number, blobId: string): Promise<void> {
+  private async applyBlob(ciphertextB64: string, blobEpoch: number, blobId: string): Promise<boolean> {
     // A blob sealed under a newer epoch than we hold: we can't decrypt it yet.
     // Signal the host to rotate; skip for now (we'll re-pull after rotation).
     if (blobEpoch > this.keyEpoch) {
       this.callbacks.onKeyEpochAdvanced?.(blobEpoch);
-      return;
+      return false;
     }
     const key = await this.ensureKey();
     const res = await decryptUpdateV2(key, ciphertextB64, {
@@ -329,7 +363,7 @@ export class MatterSyncClient {
       // Could be an older-epoch blob our current key can't open, or tampering.
       // Skip it rather than crash the sync loop (CRDT tolerates gaps; a full
       // re-key + re-pull recovers state).
-      return;
+      return false;
     }
     Y.applyUpdate(this.doc, res.update, this.remoteOrigin);
     if (this.ownBlobIds.has(blobId)) {
@@ -337,6 +371,7 @@ export class MatterSyncClient {
     } else {
       this.callbacks.onRemoteUpdate?.(this.doc);
     }
+    return true;
   }
 
   /**
@@ -565,8 +600,9 @@ export class MatterSyncClient {
     if (frame.key_epoch > this.keyEpoch) {
       this.callbacks.onKeyEpochAdvanced?.(frame.key_epoch);
     }
-    await this.applyBlob(frame.ciphertext_b64, frame.key_epoch, frame.blob_id);
-    this.cursor = Math.max(this.cursor, frame.cursor);
+    if (await this.applyBlob(frame.ciphertext_b64, frame.key_epoch, frame.blob_id)) {
+      this.cursor = Math.max(this.cursor, frame.cursor);
+    }
   }
 
   /** Stop sync and detach the Yjs listener. Idempotent. The Yjs doc is kept. */

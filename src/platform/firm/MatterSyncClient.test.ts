@@ -59,6 +59,39 @@ describe('MatterSyncClient v2 socket privacy', () => {
     client.stop();
   });
 
+  it('does not advance past a newer-epoch blob, then applies it after the fetched key rotates', async () => {
+    const matterHandle = parseMatterHandle(`mh2_${'R'.repeat(43)}`);
+    const streamHandle = parseStreamHandle(`sh2_${'S'.repeat(43)}`);
+    const epochOneKey = await generateMatterKey();
+    const epochTwoKey = await generateMatterKey();
+    const source = new Y.Doc();
+    source.getMap('notes').set('survives-rotation', 'yes');
+    const ciphertext_b64 = await (await import('./matterCrypto')).encryptUpdateV2(
+      await importMatterKey(epochTwoKey), Y.encodeStateAsUpdate(source), { matterHandle, streamHandle, keyEpoch: 2 },
+    );
+    const requestedEpochs: number[] = [];
+    const client = new MatterSyncClient({
+      matterHandle, streamHandle, keyB64: epochOneKey, keyEpoch: 1, seatToken: 'seat',
+      client: {
+        pullUpdates: (_stream: string, since: number) => Promise.resolve(since === 0
+          ? { key_epoch: 2, since, cursor: 7, latest_cursor: 7, has_more: false, updates: [{ cursor: 7, blob_id: 'epoch-two-first', key_epoch: 2, ciphertext_b64 }] }
+          : { key_epoch: 2, since, cursor: since, latest_cursor: 7, has_more: false, updates: [] }),
+        createSyncTicket: () => Promise.resolve({ ticket: 'ticket-only', expires_in_ms: 1000 }),
+        pushUpdate: () => Promise.resolve({ ok: true, cursor: 8, blob_id: 'new', key_epoch: 2, duplicate: false }),
+      } as never,
+      callbacks: { onKeyEpochAdvanced: (epoch) => requestedEpochs.push(epoch) },
+      socketFactory: () => ({ send() {}, close() {}, onopen: null, onclose: null, onerror: null, onmessage: null }),
+    });
+
+    await client.start();
+    expect(client.getCursor()).toBe(0);
+    expect(requestedEpochs).toContain(2);
+    await client.rotateKey(epochTwoKey, 2);
+    expect(client.getCursor()).toBe(7);
+    expect(client.doc.getMap('notes').get('survives-rotation')).toBe('yes');
+    client.stop();
+  });
+
   it('flushes only writes present at its starting marker, even while later edits keep arriving', async () => {
     let resolveFirstPush: (() => void) | undefined;
     let pushes = 0;

@@ -31,6 +31,7 @@ import {
   handleCreateMatter,
   handleListMatters,
   handleArchiveMatter,
+  handleReleaseMatterStream,
   handleAddMatterMember,
   handleRemoveMatterMember,
   handleListMatterMembers,
@@ -210,6 +211,7 @@ export function buildServeOptions(store: Store, hub: FanoutHub, traffic?: RelayT
           if (mm.rest === "wall/set" && method === "POST") return await handleSetWall(req, store, mm.handle);
           if (mm.rest === "wall/clear" && method === "POST") return await handleClearWall(req, store, mm.handle);
           if (mm.rest === "archive" && method === "POST") return await handleArchiveMatter(req, store, mm.handle, hub);
+          if (mm.rest === "streams/release" && method === "POST") return await handleReleaseMatterStream(req, store, mm.handle);
           // Phase 1: wrapped matter-key distribution.
           if (mm.rest === "keys/publish" && method === "POST") return await handlePublishMatterKeys(req, store, mm.handle);
           if (mm.rest === "keys/fetch" && method === "POST") return await handleFetchMatterKey(req, store, mm.handle);

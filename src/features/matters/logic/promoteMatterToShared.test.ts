@@ -56,7 +56,7 @@ describe('promoteMatterToShared v2 ordering', () => {
     mocks.registerDevice.mockResolvedValue(undefined);
   });
 
-  it('seals encrypted root details before activating the opaque shell', async () => {
+  it('activates before its first relay write, then seals the encrypted root details', async () => {
     const order: string[] = [];
     const client = {
       createMatter: vi.fn(() => { order.push('provision'); return Promise.resolve({ matter_handle: matterHandle, root_stream_handle: rootStreamHandle, key_epoch: 1, status: 'provisioning' as const }); }),
@@ -65,12 +65,12 @@ describe('promoteMatterToShared v2 ordering', () => {
     };
     const result = await promoteMatterToShared('local-matter-77', 'CLIENT_SECRET_NIMBUS', client as never);
     expect(result.status).toBe('shared');
-    expect(order).toEqual(['provision', 'root-index', 'activate']);
+    expect(order).toEqual(['provision', 'activate', 'root-index']);
     expect(JSON.stringify(client.pushUpdate.mock.calls)).not.toContain('CLIENT_SECRET_NIMBUS');
     expect(mocks.linkFirmMatter).toHaveBeenCalledWith('local-matter-77', expect.objectContaining({ firmMatterId: matterHandle, rootStreamHandle }));
   });
 
-  it('does not activate or link a failed provisioning record', async () => {
+  it('archives an activated shell when its first root write fails', async () => {
     const client = {
       createMatter: vi.fn(() => Promise.resolve({ matter_handle: matterHandle, root_stream_handle: rootStreamHandle, key_epoch: 1, status: 'provisioning' as const })),
       pushUpdate: vi.fn(() => Promise.reject(new Error('root write failed'))),
@@ -79,7 +79,7 @@ describe('promoteMatterToShared v2 ordering', () => {
     };
     const result = await promoteMatterToShared('local-matter-77', 'CLIENT_SECRET_NIMBUS', client as never);
     expect(result.status).toBe('failed');
-    expect(client.activateMatter).not.toHaveBeenCalled();
+    expect(client.activateMatter).toHaveBeenCalledWith(matterHandle);
     expect(mocks.linkFirmMatter).not.toHaveBeenCalled();
     expect(client.archiveMatter).toHaveBeenCalledWith(matterHandle);
     expect(mocks.forgetMatterKey).toHaveBeenCalledWith(matterHandle);
@@ -115,7 +115,7 @@ describe('promoteMatterToShared v2 ordering', () => {
 
     await expectFailedThenRetryable(client, 'root write failed');
 
-    expect(client.activateMatter).toHaveBeenCalledTimes(1);
+    expect(client.activateMatter).toHaveBeenCalledTimes(2);
     expect(client.archiveMatter).toHaveBeenCalledWith(matterHandle);
     expect(mocks.publishMatterKeyToMembers).toHaveBeenCalledTimes(1);
   });

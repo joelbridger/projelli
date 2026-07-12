@@ -90,6 +90,7 @@ export type AuditAction =
   // ---- chunk 2: matters / ethical walls / E2EE sync relay --------------------
   | "matter.create"
   | "matter.archive"
+  | "matter.stream.release"
   | "matter.activate"
   | "matter.member.add"
   | "matter.member.remove"
