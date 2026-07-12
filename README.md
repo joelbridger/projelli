@@ -18,7 +18,7 @@ It combines:
 - **Email intelligence.** Import Outlook, Gmail, or IMAP into one local index and actually find anything, with a citation, even when native search fails.
 - **Data connectors.** Read-only connectors pull a client's files and records into the local index from OneDrive/SharePoint, Microsoft 365 and Gmail email, the Wealthbox CRM, and Calendly — all shipping today. (More CRM and document sources are staged behind vendor access.)
 - **Local-first and BYOK.** Your data stays on your machine and your API keys live in your OS keychain. AI requests go straight from your machine to your provider under your own key, or through a firm zero-retention proxy in Assured mode. Advisor Prep Hero never holds your keys, sees your data, or routes content through a server of ours.
-- **A firm tier with end-to-end-encrypted collaboration.** Shared clients, SSO, information barriers enforced by key denial, and live multi-user .docx co-editing where the relay only ever stores ciphertext.
+- **A firm tier for encrypted collaboration.** Shared clients, SSO, information barriers enforced by key denial, and live multi-user .docx co-editing. Your client data is encrypted on your device; the relay stores only ciphertext and opaque handles and never sees client names or documents.
 - **Profession workflow packs** for the real work financial advisors do (plus secondary law, tax, and consulting packs).
 
 The pitch in one sentence: the private place your whole practice lives and answers you back, where your clients' data never leaves your control and every answer is cited.
@@ -113,7 +113,7 @@ Advisor Prep Hero is local-first by design.
 - Your files live in a folder on your machine that you choose, optionally inside an AES-256-GCM encrypted vault.
 - API keys are stored in your OS keychain (Keychain on macOS, Credential Manager on Windows, Secret Service on Linux).
 - AI calls go directly from your machine to your provider (Claude, OpenAI, Google, or a local model), or through the firm zero-retention proxy in Assured mode.
-- Advisor Prep Hero's servers never see your files, your prompts, or your responses. Firm collaboration syncs only end-to-end-encrypted blobs; the relay can never read content.
+- Advisor Prep Hero's servers never see your files, your prompts, or your responses. For Firm collaboration, your client data is encrypted on your device; the relay stores only ciphertext and opaque handles and never sees client names or documents.
 - We do not hold a SOC 2 report or a signed DPA today. The privacy story is verifiable by architecture, and our honest current posture is documented at [keepance.com/security](https://keepance.com/security).
 
 Privacy policy: [https://keepance.com/legal/privacy](https://keepance.com/legal/privacy)

@@ -74,7 +74,7 @@ export function privacyCenterSecurityOverviewMarkdown(): string {
     '',
     'AI keys are stored in the operating system keychain. Lantern never holds AI keys and never charges for AI usage.',
     '',
-    'Shared firm workspaces sync only as end-to-end encrypted data. The relay can only see ciphertext. Information barriers are enforced by withholding keys, not by hiding records in the interface.',
+    'Your client data is encrypted on your device; the relay stores only ciphertext and opaque handles and never sees client names or documents. Information barriers are enforced by withholding keys, not by hiding records in the interface.',
     '',
     '## Current assurance status',
     '',
