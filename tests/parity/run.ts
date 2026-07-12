@@ -1016,13 +1016,14 @@ class DesktopParityApp implements ParityApp {
     for (const control of options.controls) await this.require(control);
     if (options.action) await this.click(options.action);
     if (options.result) await this.requireText(options.result);
-    if (
-      options.recordKind &&
-      !(await this.records()).some(
-        (record) => record.kind === options.recordKind
-      )
-    )
-      fail(`Action did not create a ${options.recordKind} record`);
+    // A desktop save crosses the renderer, Tauri command boundary, and encrypted
+    // store.  Do not mistake that real asynchronous commit for a missing record.
+    // This still requires the exact durable record before proceeding to restart.
+    if (options.recordKind)
+      await this.waitForRecord(
+        (record) => record.kind === options.recordKind,
+        `Action did not create a ${options.recordKind} record`
+      );
     await this.restart();
     await this.click(options.route);
     for (const control of options.controls) await this.require(control);
