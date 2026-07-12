@@ -48,18 +48,23 @@ export interface EmailAccount {
   label: string;
 }
 
-/** Email import / sync progress. */
+/** Email import / sync progress. `credentialsAvailable` is machine-wide;
+ * `connected` is deliberately narrower and means this workspace has actually
+ * received email data. */
 export interface EmailProgress {
   connected: boolean;
+  credentialsAvailable: boolean;
   accounts: EmailAccount[];
   syncing: boolean;
   /** Cumulative messages imported this session; `null` until the first sync. */
   messagesImported: number | null;
 }
 
-/** Wealthbox CRM sync progress. */
+/** Wealthbox CRM sync progress. `credentialsAvailable` is machine-wide;
+ * `connected` means this workspace has actually received CRM data. */
 export interface CrmProgress {
   connected: boolean;
+  credentialsAvailable: boolean;
   syncing: boolean;
   householdsProcessed: number;
   recordsIndexed: number;
@@ -113,8 +118,8 @@ export const EMPTY_SETUP_PROGRESS: SetupProgress = {
     localLlm: { state: 'none', percent: null },
     searchModel: { state: 'none', percent: null },
   },
-  email: { connected: false, accounts: [], syncing: false, messagesImported: null },
-  crm: { connected: false, syncing: false, householdsProcessed: 0, recordsIndexed: 0 },
+  email: { connected: false, credentialsAvailable: false, accounts: [], syncing: false, messagesImported: null },
+  crm: { connected: false, credentialsAvailable: false, syncing: false, householdsProcessed: 0, recordsIndexed: 0 },
   fileIndex: { indexing: false, processed: null, total: null, percent: null },
   oneDrive: { syncing: false, status: 'idle', itemsChecked: null, itemsImported: null },
   clientMap: { total: 0, built: 0, building: 0, pending: 0 },

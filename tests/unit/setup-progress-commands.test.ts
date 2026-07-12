@@ -20,12 +20,12 @@ describe('isImportingContent — QA-90', () => {
   });
 
   it('is true while email is syncing', () => {
-    const p = progressWith({ email: { connected: true, accounts: [], syncing: true, messagesImported: 1 } });
+    const p = progressWith({ email: { connected: true, credentialsAvailable: true, accounts: [], syncing: true, messagesImported: 1 } });
     expect(isImportingContent(p)).toBe(true);
   });
 
   it('is true while Wealthbox CRM is syncing', () => {
-    const p = progressWith({ crm: { connected: true, syncing: true, householdsProcessed: 1, recordsIndexed: 1 } });
+    const p = progressWith({ crm: { connected: true, credentialsAvailable: true, syncing: true, householdsProcessed: 1, recordsIndexed: 1 } });
     expect(isImportingContent(p)).toBe(true);
   });
 
@@ -41,8 +41,8 @@ describe('isImportingContent — QA-90', () => {
 
   it('is false once every source has finished', () => {
     const p = progressWith({
-      email: { connected: true, accounts: [], syncing: false, messagesImported: 100 },
-      crm: { connected: true, syncing: false, householdsProcessed: 5, recordsIndexed: 20 },
+      email: { connected: true, credentialsAvailable: true, accounts: [], syncing: false, messagesImported: 100 },
+      crm: { connected: true, credentialsAvailable: true, syncing: false, householdsProcessed: 5, recordsIndexed: 20 },
       oneDrive: { syncing: false, status: 'done', itemsChecked: 10, itemsImported: 10 },
       fileIndex: { indexing: false, processed: 10, total: 10, percent: 100 },
     });
