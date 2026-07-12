@@ -107,6 +107,7 @@ describe('MatterSyncClient v2 socket privacy', () => {
       key, Y.encodeStateAsUpdate(later), { matterHandle, streamHandle, keyEpoch: 1 },
     );
     const loud = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const onUpdateQuarantined = vi.fn();
     const client = new MatterSyncClient({
       matterHandle, streamHandle, keyB64, keyEpoch: 1, seatToken: 'seat',
       client: {
@@ -117,6 +118,7 @@ describe('MatterSyncClient v2 socket privacy', () => {
         createSyncTicket: () => Promise.resolve({ ticket: 'ticket-only', expires_in_ms: 1000 }),
         pushUpdate: () => Promise.resolve({ ok: true, cursor: 3, blob_id: 'new', key_epoch: 1, duplicate: false }),
       } as never,
+      callbacks: { onUpdateQuarantined },
       socketFactory: () => ({ send() {}, close() {}, onopen: null, onclose: null, onerror: null, onmessage: null }),
     });
 
@@ -126,6 +128,7 @@ describe('MatterSyncClient v2 socket privacy', () => {
     expect(loud).toHaveBeenCalledWith('[MatterSyncClient] quarantined corrupt remote update', expect.objectContaining({
       reason: 'yjs_apply_failed', blobId: 'corrupt-yjs', cursor: 1,
     }));
+    expect(onUpdateQuarantined).toHaveBeenCalledWith({ reason: 'yjs_apply_failed', blobId: 'corrupt-yjs' });
     loud.mockRestore();
     client.stop();
   });
@@ -145,6 +148,7 @@ describe('MatterSyncClient v2 socket privacy', () => {
       key, Y.encodeStateAsUpdate(later), { matterHandle, streamHandle, keyEpoch: 1 },
     );
     const loud = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const onUpdateQuarantined = vi.fn();
     const client = new MatterSyncClient({
       matterHandle, streamHandle, keyB64, keyEpoch: 1, seatToken: 'seat',
       client: {
@@ -155,6 +159,7 @@ describe('MatterSyncClient v2 socket privacy', () => {
         createSyncTicket: () => Promise.resolve({ ticket: 'ticket-only', expires_in_ms: 1000 }),
         pushUpdate: () => Promise.resolve({ ok: true, cursor: 3, blob_id: 'new', key_epoch: 1, duplicate: false }),
       } as never,
+      callbacks: { onUpdateQuarantined },
       socketFactory: () => ({ send() {}, close() {}, onopen: null, onclose: null, onerror: null, onmessage: null }),
     });
 
@@ -182,6 +187,7 @@ describe('MatterSyncClient v2 socket privacy', () => {
       await importMatterKey(currentKeyB64), Y.encodeStateAsUpdate(later), { matterHandle, streamHandle, keyEpoch: 2 },
     );
     const loud = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const onUpdateQuarantined = vi.fn();
     const client = new MatterSyncClient({
       matterHandle, streamHandle, keyB64: currentKeyB64, keyEpoch: 2, seatToken: 'seat',
       client: {
@@ -192,6 +198,7 @@ describe('MatterSyncClient v2 socket privacy', () => {
         createSyncTicket: () => Promise.resolve({ ticket: 'ticket-only', expires_in_ms: 1000 }),
         pushUpdate: () => Promise.resolve({ ok: true, cursor: 3, blob_id: 'new', key_epoch: 2, duplicate: false }),
       } as never,
+      callbacks: { onUpdateQuarantined },
       socketFactory: () => ({ send() {}, close() {}, onopen: null, onclose: null, onerror: null, onmessage: null }),
     });
 
@@ -201,6 +208,7 @@ describe('MatterSyncClient v2 socket privacy', () => {
     expect(loud).toHaveBeenCalledWith('[MatterSyncClient] skipped remote update sealed under a superseded key epoch', expect.objectContaining({
       reason: 'epoch_superseded', blobId: 'unrecoverable-old-epoch', cursor: 1,
     }));
+    expect(onUpdateQuarantined).toHaveBeenCalledWith({ reason: 'epoch_superseded', blobId: 'unrecoverable-old-epoch' });
     loud.mockRestore();
     client.stop();
   });

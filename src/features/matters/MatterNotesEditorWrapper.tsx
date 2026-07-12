@@ -15,6 +15,7 @@ import { ensureMatterSync, getMatterSyncClient } from '@/features/matters/logic/
 import { MatterNotesEditor } from '@/features/matters/MatterNotesEditor';
 import { useMatterSyncStatus, useMatterSyncStore } from '@/platform/matter/matterSyncStore';
 import type { MatterSyncClient } from '@/platform/firm/MatterSyncClient';
+import { Callout } from '@/ui/kp/Callout';
 
 interface MatterNotesEditorWrapperProps {
   localMatterId: string;
@@ -34,9 +35,11 @@ export function MatterNotesEditorWrapper({
   // Subscribe to sync status so we detect when stopMatterSync evicts our client
   // (e.g. after a key-epoch advance fails with 403/walled).
   const syncStatus = useMatterSyncStatus(localMatterId);
+  const quarantinedUpdate = useMatterStore((s) => s.quarantinedUpdateByMatterId[localMatterId]);
 
   useEffect(() => {
     if (!matter) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- this is the prop-driven empty state for a deleted client.
       setLoading(false);
       return;
     }
@@ -91,11 +94,21 @@ export function MatterNotesEditorWrapper({
   }
 
   return (
-    <MatterNotesEditor
-      matter={matter}
-      syncClient={syncClient}
-      {...(workspaceService != null ? { workspaceService } : {})}
-      {...(className != null ? { className } : {})}
-    />
+    <div className={`flex h-full min-h-0 flex-col ${className ?? ''}`}>
+      {quarantinedUpdate && (
+        <Callout
+          variant="error"
+          onDismiss={() => { useMatterSyncStore.getState().clearQuarantinedUpdate(localMatterId); }}
+        >
+          {t('matter.notes.sync-content-skipped')}
+        </Callout>
+      )}
+      <MatterNotesEditor
+        matter={matter}
+        syncClient={syncClient}
+        {...(workspaceService != null ? { workspaceService } : {})}
+        className="min-h-0 flex-1"
+      />
+    </div>
   );
 }

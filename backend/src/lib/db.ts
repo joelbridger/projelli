@@ -508,14 +508,49 @@ export class Store {
     if (existingMatterCols.some((c) => c.name === "matter_id")) this.migrateFirmRelayToV2();
     this.#db.exec(SCHEMA);
     // Existing v2 relay databases predate the durable binding table. Their
-    // current wrapped rows already represent the first-publish binding, so
-    // preserve it before any later epoch cleanup can remove those rows.
-    this.#db.exec(`
-      INSERT OR IGNORE INTO intake_handle_bindings (intake_handle, matter_handle, org_id, created_at)
-      SELECT intake_handle, matter_handle, org_id, MIN(created_at)
-      FROM wrapped_intake_keys
-      GROUP BY intake_handle
-    `);
+    // current wrapped rows represent the first-publish binding only when one
+    // handle maps to exactly one org/matter pair. An old schema allowed the
+    // astronomically unlikely cross-org collision, so never guess in that
+    // case: leave it unbound and make the startup warning visible instead.
+    // The cheap anti-join avoids grouping the whole key table on normal boots.
+    const needsIntakeBindingBackfill = (this.#db.query(`
+      SELECT EXISTS(
+        SELECT 1 FROM wrapped_intake_keys AS wik
+        WHERE NOT EXISTS (
+          SELECT 1 FROM intake_handle_bindings AS ihb
+          WHERE ihb.intake_handle = wik.intake_handle
+        )
+      ) AS pending
+    `).get() as { pending: number }).pending === 1;
+    if (needsIntakeBindingBackfill) {
+      const ambiguous = this.#db.query(`
+        SELECT intake_handle
+        FROM wrapped_intake_keys AS wik
+        WHERE NOT EXISTS (
+          SELECT 1 FROM intake_handle_bindings AS ihb
+          WHERE ihb.intake_handle = wik.intake_handle
+        )
+        GROUP BY intake_handle
+        HAVING COUNT(DISTINCT org_id || X'1F' || matter_handle) > 1
+      `).all() as Array<{ intake_handle: string }>;
+      if (ambiguous.length > 0) {
+        console.error('[Store] skipped ambiguous intake-handle binding backfill', {
+          count: ambiguous.length,
+          intakeHandles: ambiguous.map(({ intake_handle }) => intake_handle),
+        });
+      }
+      this.#db.exec(`
+        INSERT OR IGNORE INTO intake_handle_bindings (intake_handle, matter_handle, org_id, created_at)
+        SELECT intake_handle, MIN(matter_handle), MIN(org_id), MIN(created_at)
+        FROM wrapped_intake_keys AS wik
+        WHERE NOT EXISTS (
+          SELECT 1 FROM intake_handle_bindings AS ihb
+          WHERE ihb.intake_handle = wik.intake_handle
+        )
+        GROUP BY intake_handle
+        HAVING COUNT(DISTINCT org_id || X'1F' || matter_handle) = 1
+      `);
+    }
     // Device names are local-only. Remove values accepted by older relay
     // builds before any endpoint can return or audit them.
     this.#db.exec("UPDATE devices SET label = ''; UPDATE seats SET machine_label = NULL;");

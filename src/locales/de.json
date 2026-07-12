@@ -2724,6 +2724,7 @@
       "status-offline": "Offline",
       "status-error": "Synchronisierungsfehler",
       "status-idle": "Nicht synchronisiert",
+      "sync-content-skipped": "Ein Teil der geteilten Inhalte konnte nicht synchronisiert werden. Du kannst deine Notizen weiter nutzen, aber ein Teil der Aktualisierung eines Kollegen wurde übersprungen.",
       "send-to-wealthbox": "An Wealthbox senden",
       "sent-to-wealthbox": "Für die Wealthbox-Prüfung eingereiht",
       "review-now": "Jetzt prüfen",

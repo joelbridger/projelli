@@ -7,6 +7,79 @@ const paths: string[] = [];
 afterEach(() => paths.splice(0).forEach((path) => rmSync(path, { force: true })));
 
 describe("file-backed v1 firm relay reset", () => {
+  test("backfills only an unambiguous old intake handle and leaves a cross-org collision unbound", () => {
+    const path = `/tmp/intake-handle-binding-${crypto.randomUUID()}.sqlite`;
+    paths.push(path);
+    const initial = new Store(path);
+    const orgA = initial.createOrg({ name: "A", plan: "practice", packs: [], seat_limit: 2 });
+    const orgB = initial.createOrg({ name: "B", plan: "practice", packs: [], seat_limit: 2 });
+    const adminA = initial.createUser({ org_id: orgA.org_id, email: "admin-a@migration.test", password_hash: "x", role: "admin" });
+    const matterA = initial.createMatter({ org_id: orgA.org_id });
+    const matterB = initial.createMatter({ org_id: orgB.org_id });
+    initial.activateProvisioningMatter(matterA.matter_handle);
+    initial.activateProvisioningMatter(matterB.matter_handle);
+    initial.upsertDevice({ device_id: "admin-a-device", user_id: adminA.user_id, org_id: orgA.org_id, machine_id: "admin-a-machine", label: "", pubkey_jwk: "{}" });
+    initial.close();
+
+    const collision = `ih2_${"C".repeat(43)}`;
+    const legacy = new Database(path);
+    legacy.exec("DROP TABLE intake_handle_bindings");
+    const legacyRows: Array<{ matter: string; org: string; user: string; device: string }> = [
+      { matter: matterA.matter_handle, org: orgA.org_id, user: adminA.user_id, device: "legacy-a-device" },
+      { matter: matterB.matter_handle, org: orgB.org_id, user: "legacy-b-user", device: "legacy-b-device" },
+    ];
+    for (const { matter, org, user, device } of legacyRows) {
+      legacy.query(`INSERT INTO wrapped_intake_keys (intake_handle, matter_handle, org_id, epoch, user_id, device_id, wrapped_key, published_by, created_at)
+        VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)`)
+        .run(collision, matter, org, user, device, new Uint8Array([1]), user, "2026-01-01T00:00:00.000Z");
+    }
+    legacy.close();
+
+    const reopened = new Store(path);
+    try {
+      const inspector = reopened.inspectReadOnly();
+      expect(inspector.all("SELECT intake_handle FROM intake_handle_bindings WHERE intake_handle = ?", collision)).toEqual([]);
+      expect(reopened.publishWrappedIntakeKeys({
+        intake_handle: collision, matter_handle: matterA.matter_handle, org_id: orgA.org_id, epoch: 1, published_by: adminA.user_id,
+        wrapped: [{ user_id: adminA.user_id, device_id: "admin-a-device", wrapped_key: new Uint8Array([2]) }],
+      })).toMatchObject({ stored: 1 });
+    } finally {
+      reopened.close();
+    }
+  });
+
+  test("backfills one old intake binding across epochs and recipients", () => {
+    const path = `/tmp/intake-handle-binding-normal-${crypto.randomUUID()}.sqlite`;
+    paths.push(path);
+    const initial = new Store(path);
+    const org = initial.createOrg({ name: "Normal", plan: "practice", packs: [], seat_limit: 2 });
+    const matter = initial.createMatter({ org_id: org.org_id });
+    initial.close();
+
+    const handle = `ih2_${"N".repeat(43)}`;
+    const legacy = new Database(path);
+    legacy.exec("DROP TABLE intake_handle_bindings");
+    const legacyRows: Array<{ epoch: number; user: string; device: string; createdAt: string }> = [
+      { epoch: 1, user: "user-one", device: "device-one", createdAt: "2026-01-02T00:00:00.000Z" },
+      { epoch: 2, user: "user-two", device: "device-two", createdAt: "2026-01-01T00:00:00.000Z" },
+    ];
+    for (const { epoch, user, device, createdAt } of legacyRows) {
+      legacy.query(`INSERT INTO wrapped_intake_keys (intake_handle, matter_handle, org_id, epoch, user_id, device_id, wrapped_key, published_by, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run(handle, matter.matter_handle, org.org_id, epoch, user, device, new Uint8Array([1]), user, createdAt);
+    }
+    legacy.close();
+
+    const reopened = new Store(path);
+    try {
+      expect(reopened.inspectReadOnly().all("SELECT intake_handle, matter_handle, org_id, created_at FROM intake_handle_bindings WHERE intake_handle = ?", handle)).toEqual([
+        { intake_handle: handle, matter_handle: matter.matter_handle, org_id: org.org_id, created_at: "2026-01-01T00:00:00.000Z" },
+      ]);
+    } finally {
+      reopened.close();
+    }
+  });
+
   test("drops a manifest table left by an already-v2 bridge build", () => {
     const path = `/tmp/firm-relay-v2-bridge-${crypto.randomUUID()}.sqlite`;
     paths.push(path);

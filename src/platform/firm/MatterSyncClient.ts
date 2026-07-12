@@ -45,6 +45,11 @@ export interface MatterSyncCallbacks {
   onStatus?: (status: SyncStatus) => void;
   /** Fired when a Yjs update from a peer has been applied (for UI refresh). */
   onRemoteUpdate?: (doc: Y.Doc) => void;
+  /** A remote update was permanently skipped but sync can continue. */
+  onUpdateQuarantined?: (info: {
+    reason: 'decrypt_failed' | 'epoch_superseded' | 'yjs_apply_failed';
+    blobId: string;
+  }) => void;
   /**
    * The relay reported a `key_epoch` newer than ours. The host must rotate the
    * local matter key to the new epoch (provision/fetch) and then call
@@ -405,10 +410,6 @@ export class MatterSyncClient {
     return true;
   }
 
-  /**
-   * There is no callback or audit channel on MatterSyncCallbacks, so use the
-   * app's established visible diagnostic path while keeping the editor alive.
-   */
   private logQuarantinedUpdate(
     reason: 'decrypt_failed' | 'epoch_superseded' | 'yjs_apply_failed',
     blobId: string,
@@ -426,6 +427,7 @@ export class MatterSyncClient {
       cursor: cursor ?? this.cursor,
       detail,
     });
+    this.callbacks.onUpdateQuarantined?.({ reason, blobId });
   }
 
   /**

@@ -154,17 +154,44 @@ function documentStreamPinKey(localDocumentId: string): string {
   return `${KC_DOCUMENT_STREAM_PIN_PREFIX}${utf8ToB64(localDocumentId).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')}`;
 }
 
-const RETIRED_DOCUMENT_STREAM_PIN = JSON.stringify({ retired: true });
+interface RetiredDocumentStreamPin {
+  retired: true;
+  handle?: StreamHandle;
+}
 
 export class RetiredDocumentStreamPinError extends Error {
-  constructor() {
-    super('This local document ID was retired. Refusing to trust a replacement stream mapping.');
+  readonly handle: StreamHandle | null;
+  readonly canResumeDeletion: boolean;
+
+  constructor(handle: StreamHandle | null = null, canResumeDeletion = false) {
+    super(canResumeDeletion
+      ? 'This local document ID was retired while deletion was in progress. Its original stream can only be released to finish that deletion.'
+      : 'This local document ID was retired. Refusing to trust a replacement stream mapping.');
     this.name = 'RetiredDocumentStreamPinError';
+    this.handle = handle;
+    this.canResumeDeletion = canResumeDeletion;
   }
 }
 
-function isRetiredDocumentStreamPin(raw: string): boolean {
-  return raw === RETIRED_DOCUMENT_STREAM_PIN;
+function parseRetiredDocumentStreamPin(raw: string): RetiredDocumentStreamPin | null {
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || (parsed as { retired?: unknown }).retired !== true) return null;
+    const handle = (parsed as { handle?: unknown }).handle;
+    if (typeof handle !== 'string') return { retired: true };
+    return { retired: true, handle: parseStreamHandle(handle) };
+  } catch {
+    return null;
+  }
+}
+
+function retiredDocumentStreamPin(handle: StreamHandle): string {
+  return JSON.stringify({ retired: true, handle: parseStreamHandle(handle) });
+}
+
+function retiredPinError(pin: RetiredDocumentStreamPin, observed?: StreamHandle): RetiredDocumentStreamPinError {
+  const canResumeDeletion = pin.handle !== undefined && (observed === undefined || pin.handle === observed);
+  return new RetiredDocumentStreamPinError(pin.handle ?? null, canResumeDeletion);
 }
 
 /** Return this device's pinned opaque stream handle, if any. A retired ID is never reusable. */
@@ -174,7 +201,8 @@ export async function getPinnedDocumentStream(
 ): Promise<StreamHandle | null> {
   const raw = await getSecret(documentStreamPinService(matterHandle), documentStreamPinKey(localDocumentId));
   if (raw === null) return null;
-  if (isRetiredDocumentStreamPin(raw)) throw new RetiredDocumentStreamPinError();
+  const retired = parseRetiredDocumentStreamPin(raw);
+  if (retired) throw retiredPinError(retired);
   try {
     return parseStreamHandle(raw);
   } catch {
@@ -195,8 +223,16 @@ export async function retirePinnedDocumentStream(
   const key = documentStreamPinKey(localDocumentId);
   for (;;) {
     const current = await getSecret(service, key);
-    if (isRetiredDocumentStreamPin(current ?? '')) return;
-    const result = await compareAndSetSecret(service, key, current, RETIRED_DOCUMENT_STREAM_PIN);
+    const retired = current === null ? null : parseRetiredDocumentStreamPin(current);
+    if (retired) return;
+    if (current === null) throw new Error('Cannot retire a document stream that was never pinned.');
+    let handle: StreamHandle;
+    try {
+      handle = parseStreamHandle(current);
+    } catch {
+      throw new Error('The saved document stream pin is invalid. Refusing destructive release.');
+    }
+    const result = await compareAndSetSecret(service, key, current, retiredDocumentStreamPin(handle));
     if (result.swapped) return;
   }
 }
@@ -216,7 +252,8 @@ export async function pinDocumentStreamOnFirstObservation(
   for (;;) {
     const current = await getSecret(service, key);
     if (current !== null) {
-      if (isRetiredDocumentStreamPin(current)) throw new RetiredDocumentStreamPinError();
+      const retired = parseRetiredDocumentStreamPin(current);
+      if (retired) throw retiredPinError(retired, wanted);
       try {
         return parseStreamHandle(current);
       } catch {

@@ -1870,6 +1870,7 @@
       "status-offline": "Offline",
       "status-error": "Sync error",
       "status-idle": "Not synced",
+      "sync-content-skipped": "Some shared content could not be synced. Your notes can still be used, but part of a teammate’s update was skipped.",
       "send-to-wealthbox": "Send to Wealthbox",
       "sent-to-wealthbox": "Queued for Wealthbox review",
       "review-now": "Review now"

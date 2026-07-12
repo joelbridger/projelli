@@ -211,6 +211,16 @@ describe('encrypted FirmMatterPrivateIndex', () => {
     await expect(getPinnedDocumentStream(matterHandle, 'draft.docx')).rejects.toThrow('retired');
   });
 
+  it('gives document creation a clear error when its local document ID was already retired', async () => {
+    const doc = new Y.Doc();
+    writeFirmMatterPrivateIndex(doc, { version: 1, clientName: 'x', displayName: 'x', streams: { _notes: { streamHandle: root, kind: 'notes' } } });
+    await addDocumentStreamToPrivateIndex(doc, matterHandle, 'deleted.docx', docStream);
+    await tombstoneDocumentStreamFromPrivateIndex(doc, matterHandle, 'deleted.docx');
+
+    await expect(createDocumentStream(doc, matterHandle, 'deleted.docx'))
+      .rejects.toThrow('already used and deleted. Choose a different one');
+  });
+
   it('pins a genuinely new local document ID on its first observation', async () => {
     const doc = new Y.Doc();
     const freshStream = parseStreamHandle(`sh2_${'P'.repeat(43)}`);

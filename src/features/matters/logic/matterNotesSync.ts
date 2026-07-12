@@ -141,6 +141,9 @@ async function _buildMatterSyncClient(
         // Remote update applied to the doc — store status already set by onStatus.
         // Callers bind to the Y.Text/Y.Doc directly for live content updates.
       },
+      onUpdateQuarantined: ({ reason }) => {
+        useMatterSyncStore.getState().reportQuarantinedUpdate(localMatterId, reason);
+      },
       onKeyEpochAdvanced: ((newEpoch: number) => handleKeyEpochAdvanced(localMatterId, firmMatterId, firmClient, client, newEpoch)) as unknown as (newEpoch: number) => void,
     },
   });

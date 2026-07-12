@@ -94,6 +94,22 @@ cryptographically random and are not sent or listed by this branch, but if the
 real Intake flow can leak or reuse one across parties, that limitation needs
 its own design pass before shipping.**
 
+## Known follow-up workstream (Jameson-approved, queued post-merge)
+
+This branch does not — and cannot — make the firm relay's key distribution
+resistant to a **hostile or compromised relay operator**. A hostile relay can
+still insert its own device into a firm and be handed the matter key through
+the normal, unauthenticated device-key exchange (see
+`prep/HOSTILE-RELAY-ESCALATION.md` in the coordination repo for the full
+writeup). This is a pre-existing gap, not something the intake-key work above
+introduces, and it applies equally to intake keys and matter keys. Jameson has
+approved merging this branch anyway (it is a strict privacy improvement) and
+has queued **hostile-relay hardening** — device-key verification / safety
+numbers, a tamper-evident hash-chained update log, and AAD-bound authorship —
+as the first workstream after this merge lands. Until that ships, avoid
+unqualified "end-to-end encrypted" language in anything that references the
+intake-key exchange or the firm relay generally.
+
 ## Verify the port
 
 1. Run `cd backend && bun test` and confirm `backend/test/intake-keys.test.ts`

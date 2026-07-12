@@ -104,7 +104,7 @@ function makeMockClient(doc?: Y.Doc): MatterSyncClient {
 
 // Reset stores before each test.
 function resetStores() {
-  useMatterSyncStore.setState({ statusByMatterId: {} });
+  useMatterSyncStore.setState({ statusByMatterId: {}, quarantinedUpdateByMatterId: {} });
   useMatterStore.setState({ matters: [], activeMatterId: null });
   useEditorStore.setState({ openTabs: [], activeTabPath: null });
   useCrmWriteQueueStore.setState({ items: [] });
@@ -355,6 +355,21 @@ describe('MatterNotesEditor', () => {
     );
     // Should have rendered the editor.
     expect(screen.getByTestId('matter-notes-editor')).toBeInTheDocument();
+  });
+
+  it('MatterNotesEditorWrapper visibly warns when sync had to skip shared content', async () => {
+    const matter = makeMatter();
+    useMatterStore.getState().createMatter({
+      name: matter.name, client: matter.client, folderPaths: matter.folderPaths,
+      firmMatterId: matter.firmMatterId!, orgId: matter.orgId!, role: matter.role!, shared: matter.shared!,
+    });
+    const createdMatter = useMatterStore.getState().matters[0]!;
+    mockEnsureMatterSync.mockResolvedValueOnce(makeMockClient());
+    useMatterSyncStore.getState().reportQuarantinedUpdate(createdMatter.id, 'epoch_superseded');
+
+    render(<MatterNotesEditorWrapper localMatterId={createdMatter.id} />);
+
+    expect(await screen.findByText(/Some shared content could not be synced/i)).toBeInTheDocument();
   });
 
   // ── QA-45: ensureMatterSync REJECTING must not leave the wrapper loading forever ──

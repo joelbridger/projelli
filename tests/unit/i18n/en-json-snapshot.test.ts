@@ -61,7 +61,7 @@ describe('en.json structure snapshot', () => {
         "local-ai-settings": 8,
         "mail": 155,
         "marketplace": 14,
-        "matter": 323,
+        "matter": 324,
         "media": 100,
         "meetings": 257,
         "memory": 6,

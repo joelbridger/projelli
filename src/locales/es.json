@@ -2724,6 +2724,7 @@
       "status-offline": "Sin conexión",
       "status-error": "Error de sincronización",
       "status-idle": "Sin sincronizar",
+      "sync-content-skipped": "No se pudo sincronizar parte del contenido compartido. Aún puedes usar tus notas, pero se omitió parte de una actualización de un compañero.",
       "send-to-wealthbox": "Enviar a Wealthbox",
       "sent-to-wealthbox": "En cola para revisión de Wealthbox",
       "review-now": "Revisar ahora",

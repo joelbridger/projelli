@@ -70,7 +70,7 @@ import { getSampleMatterName } from '@/platform/matter/samples/sampleMatterDemo'
 import { useClientGroupStore } from '@/platform/matter/clientGroupStore';
 import type { MatterUiSnapshot } from '@/platform/matter/matterUiStore';
 import type { MatterAtAGlanceEntry } from '@/platform/matter/matterAtAGlanceStore';
-import type { MatterSyncStatus } from '@/platform/matter/matterSyncStore';
+import type { MatterSyncStatus, MatterSyncQuarantineReason } from '@/platform/matter/matterSyncStore';
 import type { MatterAtAGlanceResult } from '@/platform/matter/matterAtAGlance';
 import { SK_MATTERS, SK_MATTER_UI_SNAPSHOTS, SK_MATTER_AT_A_GLANCE } from '@/config/identity';
 
@@ -425,7 +425,11 @@ interface MatterState {
   // ── Sync slice (EPHEMERAL — never persisted) ──────────────────────────────
   /** Live sync status keyed by LOCAL matter id (not firmMatterId). */
   statusByMatterId: Record<string, MatterSyncStatus>;
+  /** Visible warning when an encrypted remote update could not be recovered. */
+  quarantinedUpdateByMatterId: Record<string, MatterSyncQuarantineReason>;
   setStatus: (matterId: string, status: MatterSyncStatus) => void;
+  reportQuarantinedUpdate: (matterId: string, reason: MatterSyncQuarantineReason) => void;
+  clearQuarantinedUpdate: (matterId: string) => void;
   clearMatter: (matterId: string) => void;
   clear: () => void;
 
@@ -1102,12 +1106,15 @@ export const useMatterStore = create<MatterState>()(
           const snapshots = { ...state.snapshots };
           const cache = { ...state.cache };
           const statusByMatterId = { ...state.statusByMatterId };
+          const quarantinedUpdateByMatterId = { ...state.quarantinedUpdateByMatterId };
           // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
           delete snapshots[id];
           // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
           delete cache[id];
           // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
           delete statusByMatterId[id];
+          // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+          delete quarantinedUpdateByMatterId[id];
           return {
             matters: state.matters.filter((m) => m.id !== id),
             // If the deleted matter was active, fall back to the all-matters scope.
@@ -1117,6 +1124,7 @@ export const useMatterStore = create<MatterState>()(
             snapshots,
             cache,
             statusByMatterId,
+            quarantinedUpdateByMatterId,
           };
         });
         // Prune the now-deleted client from every rail group. This lives HERE
@@ -1595,18 +1603,33 @@ export const useMatterStore = create<MatterState>()(
 
       // ── Sync slice (ephemeral) ───────────────────────────────────────────
       statusByMatterId: {},
+      quarantinedUpdateByMatterId: {},
       setStatus: (matterId, status) =>
         set((state) => ({
           statusByMatterId: { ...state.statusByMatterId, [matterId]: status },
         })),
+      reportQuarantinedUpdate: (matterId, reason) =>
+        set((state) => ({
+          quarantinedUpdateByMatterId: { ...state.quarantinedUpdateByMatterId, [matterId]: reason },
+        })),
+      clearQuarantinedUpdate: (matterId) =>
+        set((state) => {
+          const next = { ...state.quarantinedUpdateByMatterId };
+          // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+          delete next[matterId];
+          return { quarantinedUpdateByMatterId: next };
+        }),
       clearMatter: (matterId) =>
         set((state) => {
           const next = { ...state.statusByMatterId };
+          const quarantined = { ...state.quarantinedUpdateByMatterId };
           // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
           delete next[matterId];
-          return { statusByMatterId: next };
+          // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+          delete quarantined[matterId];
+          return { statusByMatterId: next, quarantinedUpdateByMatterId: quarantined };
         }),
-      clear: () => set({ statusByMatterId: {} }),
+      clear: () => set({ statusByMatterId: {}, quarantinedUpdateByMatterId: {} }),
 
       // ── Client Map nav slice (ephemeral) ─────────────────────────────────
       clientMapHubId: null,

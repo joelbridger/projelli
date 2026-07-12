@@ -162,7 +162,14 @@ export async function createDocumentStream(
   localDocumentId: string,
 ): Promise<StreamHandle> {
   const streamHandle = generateStreamHandle();
-  await addDocumentStreamToPrivateIndex(doc, matterHandle, localDocumentId, streamHandle);
+  try {
+    await addDocumentStreamToPrivateIndex(doc, matterHandle, localDocumentId, streamHandle);
+  } catch (error) {
+    if (error instanceof RetiredDocumentStreamPinError) {
+      throw new Error('This document name or ID was already used and deleted. Choose a different one.');
+    }
+    throw error;
+  }
   return streamHandle;
 }
 
@@ -209,7 +216,16 @@ export async function tombstoneDocumentStreamFromPrivateIndex(
   localDocumentId: string,
 ): Promise<void> {
   const current = readFirmMatterPrivateIndex(doc);
-  if (!current || !current.streams[localDocumentId]) return;
+  const stream = current?.streams[localDocumentId];
+  if (!stream) return;
+  if (stream.kind !== 'document') throw new Error('Cannot tombstone a non-document stream.');
+  try {
+    await pinDocumentStreamOnFirstObservation(matterHandle, localDocumentId, stream.streamHandle);
+  } catch (error) {
+    // A matching remembered handle means this is the safe second half of a
+    // crash-interrupted deletion. A different one is still a redirection.
+    if (!(error instanceof RetiredDocumentStreamPinError) || !error.canResumeDeletion) throw error;
+  }
   await retirePinnedDocumentStream(matterHandle, localDocumentId);
   doc.transact(() => {
     const legacyStreams = readLegacyStreams(doc.getMap<unknown>(FIRM_PRIVATE_INDEX_MAP).get('streams'));
