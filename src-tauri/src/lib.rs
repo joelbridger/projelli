@@ -28,6 +28,19 @@ mod dev_bridge;
 // second webview is created with mismatched options. See the module docs.
 pub mod webview_env;
 
+/// A debug-only, startup-only bridge from the process environment to the
+/// renderer. The webview executes this before its application JavaScript, so
+/// `App.tsx` can decide whether first-run decoration should render without a
+/// later flash or a synthetic click. Release builds never compile this path.
+#[cfg(debug_assertions)]
+fn test_mode_initialization_script() -> Option<&'static str> {
+    matches!(
+        std::env::var("LANTERN_TEST_MODE").ok().as_deref(),
+        Some("1") | Some("true") | Some("TRUE")
+    )
+    .then_some("window.__LANTERN_TEST_MODE__ = true;")
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -229,6 +242,7 @@ pub fn run() {
             commands::crm::core_commands::crm_core_record_applied,
             commands::crm::core_commands::crm_core_commit_propagation,
             commands::crm::core_commands::crm_live_upsert,
+            commands::crm::core_commands::crm_live_upsert_many,
             commands::crm::core_commands::crm_live_list,
             commands::crm::search::crm_search,
             commands::crm::migration_commands::crm_migration_import,
@@ -398,9 +412,14 @@ pub fn run() {
                 // WebView2 0x8007139F (ERROR_INVALID_STATE). Single source of
                 // truth: `crate::webview_env::webview_browser_args`.
                 let browser_args = crate::webview_env::webview_browser_args();
-                tauri::WebviewWindowBuilder::from_config(app.handle(), window_config)?
-                    .additional_browser_args(&browser_args)
-                    .build()?;
+                let window = tauri::WebviewWindowBuilder::from_config(app.handle(), window_config)?
+                    .additional_browser_args(&browser_args);
+                #[cfg(debug_assertions)]
+                let window = match test_mode_initialization_script() {
+                    Some(script) => window.initialization_script(script),
+                    None => window,
+                };
+                window.build()?;
 
                 #[cfg(debug_assertions)]
                 crate::dev_bridge::start(app.handle().clone());
