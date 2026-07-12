@@ -7,6 +7,13 @@
  */
 
 export type EgressCategory =
+  | 'local-ai'
+  | 'cloud-ai'
+  | 'licensing'
+  | 'telemetry'
+  | 'diagnostics'
+  | 'navigation'
+  | 'intake-sync'
   | 'connector-authentication'
   | 'connector-import'
   | 'connector-write'
@@ -15,7 +22,11 @@ export type EgressCategory =
   | 'product-maintenance'
   | 'external-client';
 
-export type EgressDataClass = 'content' | 'metadata' | 'credential' | 'binary-download';
+export type EgressDataClass =
+  | 'content'
+  | 'metadata'
+  | 'credential'
+  | 'binary-download';
 
 export type EgressConsent = 'approved' | 'declined' | 'not-required';
 

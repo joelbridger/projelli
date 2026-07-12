@@ -9,7 +9,10 @@
 
 import { createApproval } from './egressFollowups/approval';
 import { formatInventoryMarkdown } from './egressFollowups/inventory';
-import { createReceipt, type BuildEgressReceiptInput } from './egressFollowups/receipt';
+import {
+  createReceipt,
+  type BuildEgressReceiptInput,
+} from './egressFollowups/receipt';
 import { EGRESS_RED_TEAM_FIXTURES } from './egressFollowups/redTeamFixtures';
 import { validateSourceManifest } from './egressFollowups/sourceManifest';
 import type {
@@ -33,11 +36,14 @@ export type {
 } from './egressFollowups/types';
 
 const HTTPS = ['https'] as const;
+const HTTP_OR_HTTPS = ['http', 'https'] as const;
 const IMAPS = ['imaps'] as const;
 const SMTPS = ['smtps'] as const;
 
 function connectorOperation(
-  operation: Omit<EgressOperation, 'destination'> & { destination: Partial<EgressOperation['destination']> },
+  operation: Omit<EgressOperation, 'destination'> & {
+    destination: Partial<EgressOperation['destination']>;
+  }
 ): EgressOperation {
   const destination = {
     allowedSchemes: HTTPS,
@@ -56,12 +62,188 @@ function connectorOperation(
   };
 }
 
+// These are the previously registered Offline Mode sinks, expressed in the
+// whole-app contract format. Keep them here rather than maintaining a second
+// registry, so one lookup can both block unregistered traffic and describe it
+// honestly to the person using Lantern.
+const offlineModeOperations = [
+  connectorOperation({
+    id: 'local-loopback',
+    category: 'local-ai',
+    title: 'Use a local AI server',
+    approvalText:
+      'This sends the selected AI request to the local AI server running on this device.',
+    dataSummary: 'The prompt and selected AI context stay on this device.',
+    dataClasses: ['content'],
+    recipient: 'The local AI server on this device',
+    requiresFinalApproval: false,
+    destination: {
+      allowedSchemes: HTTP_OR_HTTPS,
+      allowedOrigins: ['127.0.0.1', '::1'],
+    },
+  }),
+  connectorOperation({
+    id: 'cloud-ai',
+    category: 'cloud-ai',
+    title: 'Use cloud AI',
+    approvalText:
+      'This sends the selected AI request to the AI provider you configured.',
+    dataSummary:
+      'The prompt, selected AI context, and provider credential needed to answer.',
+    dataClasses: ['content', 'metadata', 'credential'],
+    recipient: 'The AI provider you configured',
+    requiresFinalApproval: false,
+    destination: {
+      allowedOrigins: [
+        'api.anthropic.com',
+        'api.openai.com',
+        'generativelanguage.googleapis.com',
+      ],
+    },
+  }),
+  connectorOperation({
+    id: 'license-api',
+    category: 'licensing',
+    title: 'Activate or validate a license',
+    approvalText:
+      'This contacts Lantern’s licensing service to activate or validate your license.',
+    dataSummary: 'License and device-validation metadata.',
+    dataClasses: ['metadata', 'credential'],
+    recipient: 'Lantern licensing',
+    requiresFinalApproval: false,
+    destination: { allowedOrigins: ['licenses.lanternplatform.app'] },
+  }),
+  connectorOperation({
+    id: 'firm-seat-validation',
+    category: 'licensing',
+    title: 'Validate a firm seat',
+    approvalText: 'This contacts Lantern’s firm service to validate this seat.',
+    dataSummary: 'Firm-seat validation metadata and credential.',
+    dataClasses: ['metadata', 'credential'],
+    recipient: 'Lantern firm seat validation',
+    requiresFinalApproval: false,
+    destination: { allowedOrigins: ['api.lanternplatform.app'] },
+  }),
+  connectorOperation({
+    id: 'updater-github-releases',
+    category: 'product-maintenance',
+    title: 'Check for app updates',
+    approvalText:
+      'This contacts GitHub to check for or download a signed Lantern update.',
+    dataSummary: 'App version and update download metadata. No client files.',
+    dataClasses: ['metadata', 'binary-download'],
+    recipient: 'GitHub Releases',
+    requiresFinalApproval: false,
+    destination: {
+      allowedOrigins: ['github.com', 'release-assets.githubusercontent.com'],
+      redirects: 'allow-listed-only',
+    },
+  }),
+  connectorOperation({
+    id: 'marketplace-manifest',
+    category: 'product-maintenance',
+    title: 'Refresh the template marketplace catalog',
+    approvalText:
+      'This contacts the configured marketplace catalog source to download its catalog.',
+    dataSummary: 'Marketplace catalog request metadata. No client files.',
+    dataClasses: ['metadata', 'binary-download'],
+    recipient: 'The Lantern template marketplace',
+    requiresFinalApproval: false,
+    destination: { allowedOrigins: ['raw.githubusercontent.com'] },
+  }),
+  connectorOperation({
+    id: 'marketplace-package',
+    category: 'product-maintenance',
+    title: 'Download a marketplace package',
+    approvalText: 'This downloads the marketplace package you selected.',
+    dataSummary: 'The selected package and download metadata. No client files.',
+    dataClasses: ['content', 'metadata'],
+    recipient: 'The Lantern template marketplace',
+    requiresFinalApproval: true,
+    destination: { allowedOrigins: ['raw.githubusercontent.com'] },
+  }),
+  connectorOperation({
+    id: 'telemetry',
+    category: 'telemetry',
+    title: 'Send optional telemetry',
+    approvalText: 'This sends the optional telemetry you enabled to Lantern.',
+    dataSummary: 'Optional app-use metadata. No client files.',
+    dataClasses: ['metadata'],
+    recipient: 'Lantern telemetry',
+    requiresFinalApproval: true,
+    destination: { allowedOrigins: ['forms.lanternplatform.app'] },
+  }),
+  connectorOperation({
+    id: 'diagnostics',
+    category: 'diagnostics',
+    title: 'Send optional diagnostics',
+    approvalText:
+      'This sends the optional diagnostic information you enabled to Lantern.',
+    dataSummary: 'Optional app diagnostic metadata. No client files.',
+    dataClasses: ['metadata'],
+    recipient: 'Lantern diagnostics',
+    requiresFinalApproval: true,
+    destination: { allowedOrigins: ['forms.lanternplatform.app'] },
+  }),
+  connectorOperation({
+    id: 'external-navigation',
+    category: 'navigation',
+    title: 'Open an external link',
+    approvalText:
+      'This opens the external address you selected in your browser.',
+    dataSummary: 'The external address you selected.',
+    dataClasses: ['metadata'],
+    recipient: 'The website you selected',
+    requiresFinalApproval: true,
+    destination: { userSelectedHost: true, rejectPrivateNetwork: true },
+  }),
+  connectorOperation({
+    id: 'bug-report',
+    category: 'diagnostics',
+    title: 'Send a bug report',
+    approvalText:
+      'This sends the bug report and the details you chose to include to Lantern.',
+    dataSummary: 'The bug-report text and selected diagnostic information.',
+    dataClasses: ['content', 'metadata'],
+    recipient: 'Lantern support',
+    requiresFinalApproval: true,
+    destination: { allowedOrigins: ['forms.lanternplatform.app'] },
+  }),
+  connectorOperation({
+    id: 'ai-setup-help',
+    category: 'diagnostics',
+    title: 'Ask for AI setup help',
+    approvalText:
+      'This sends the AI setup help request and the details you chose to include to Lantern.',
+    dataSummary: 'The help request and selected diagnostic information.',
+    dataClasses: ['content', 'metadata'],
+    recipient: 'Lantern support',
+    requiresFinalApproval: true,
+    destination: { allowedOrigins: ['forms.lanternplatform.app'] },
+  }),
+  connectorOperation({
+    id: 'intake-relay',
+    category: 'intake-sync',
+    title: 'Use the encrypted client intake relay',
+    approvalText:
+      'This contacts Lantern’s encrypted client intake relay to create or receive encrypted intake data.',
+    dataSummary:
+      'Encrypted intake content, relay metadata, and the credential needed to authenticate the device.',
+    dataClasses: ['content', 'metadata', 'credential'],
+    recipient: 'Lantern encrypted client intake relay',
+    requiresFinalApproval: false,
+    destination: { allowedOrigins: ['api.lanternplatform.app'] },
+  }),
+] satisfies readonly EgressOperation[];
+
 const operations = [
+  ...offlineModeOperations,
   connectorOperation({
     id: 'mail-auth-microsoft',
     category: 'connector-authentication',
     title: 'Connect Microsoft 365 mail',
-    approvalText: 'This opens Microsoft sign-in so Lantern can connect the mailbox you choose.',
+    approvalText:
+      'This opens Microsoft sign-in so Lantern can connect the mailbox you choose.',
     dataSummary: 'Microsoft sign-in details and the permission you approve.',
     dataClasses: ['metadata', 'credential'],
     recipient: 'Microsoft',
@@ -72,7 +254,8 @@ const operations = [
     id: 'mail-auth-google',
     category: 'connector-authentication',
     title: 'Connect Gmail',
-    approvalText: 'This opens Google sign-in so Lantern can connect the mailbox you choose.',
+    approvalText:
+      'This opens Google sign-in so Lantern can connect the mailbox you choose.',
     dataSummary: 'Google sign-in details and the permission you approve.',
     dataClasses: ['metadata', 'credential'],
     recipient: 'Google',
@@ -83,7 +266,8 @@ const operations = [
     id: 'mail-sync-microsoft',
     category: 'connector-import',
     title: 'Import Microsoft 365 mail',
-    approvalText: 'This contacts Microsoft 365 and downloads the mail and attachments you selected.',
+    approvalText:
+      'This contacts Microsoft 365 and downloads the mail and attachments you selected.',
     dataSummary: 'Mail messages, headers, attachments, and mailbox metadata.',
     dataClasses: ['content', 'metadata', 'credential'],
     recipient: 'Microsoft 365',
@@ -94,7 +278,8 @@ const operations = [
     id: 'mail-sync-gmail',
     category: 'connector-import',
     title: 'Import Gmail',
-    approvalText: 'This contacts Gmail and downloads the mail and attachments you selected.',
+    approvalText:
+      'This contacts Gmail and downloads the mail and attachments you selected.',
     dataSummary: 'Mail messages, headers, attachments, and mailbox metadata.',
     dataClasses: ['content', 'metadata', 'credential'],
     recipient: 'Gmail',
@@ -105,8 +290,10 @@ const operations = [
     id: 'mail-sync-imap',
     category: 'connector-import',
     title: 'Import IMAP mail',
-    approvalText: 'This contacts the secure IMAP server you chose and downloads mail from that account.',
-    dataSummary: 'Mail messages, headers, and mailbox metadata from the selected account.',
+    approvalText:
+      'This contacts the secure IMAP server you chose and downloads mail from that account.',
+    dataSummary:
+      'Mail messages, headers, and mailbox metadata from the selected account.',
     dataClasses: ['content', 'metadata', 'credential'],
     recipient: 'The IMAP server you selected',
     requiresFinalApproval: true,
@@ -120,19 +307,25 @@ const operations = [
     id: 'mail-send',
     category: 'outgoing-email',
     title: 'Send email',
-    approvalText: 'Sending contacts the selected mail service with the recipients, subject, message, and attachments shown above.',
-    dataSummary: 'Recipient addresses, subject, message body, and selected attachments.',
+    approvalText:
+      'Sending contacts the selected mail service with the recipients, subject, message, and attachments shown above.',
+    dataSummary:
+      'Recipient addresses, subject, message body, and selected attachments.',
     dataClasses: ['content', 'metadata', 'credential'],
     recipient: 'The selected mail service and the recipients you approve',
     requiresFinalApproval: true,
-    destination: { allowedOrigins: ['graph.microsoft.com', 'gmail.googleapis.com'] },
+    destination: {
+      allowedOrigins: ['graph.microsoft.com', 'gmail.googleapis.com'],
+    },
   }),
   connectorOperation({
     id: 'mail-send-imap',
     category: 'outgoing-email',
     title: 'Send email through IMAP mail',
-    approvalText: 'Sending contacts the secure mail server you chose with the recipients, subject, message, and attachments shown above.',
-    dataSummary: 'Recipient addresses, subject, message body, and selected attachments.',
+    approvalText:
+      'Sending contacts the secure mail server you chose with the recipients, subject, message, and attachments shown above.',
+    dataSummary:
+      'Recipient addresses, subject, message body, and selected attachments.',
     dataClasses: ['content', 'metadata', 'credential'],
     recipient: 'The SMTP server and recipients you approve',
     requiresFinalApproval: true,
@@ -146,18 +339,22 @@ const operations = [
     id: 'mail-save-draft',
     category: 'outgoing-email',
     title: 'Save email draft',
-    approvalText: 'This saves the draft shown above to the mailbox you selected. It does not send the email.',
+    approvalText:
+      'This saves the draft shown above to the mailbox you selected. It does not send the email.',
     dataSummary: 'Draft recipients, subject, and message body.',
     dataClasses: ['content', 'metadata', 'credential'],
     recipient: 'The selected mail service',
     requiresFinalApproval: true,
-    destination: { allowedOrigins: ['graph.microsoft.com', 'gmail.googleapis.com'] },
+    destination: {
+      allowedOrigins: ['graph.microsoft.com', 'gmail.googleapis.com'],
+    },
   }),
   connectorOperation({
     id: 'calendar-sync-microsoft',
     category: 'connector-import',
     title: 'Import Outlook calendar',
-    approvalText: 'This contacts Outlook Calendar and downloads the events you selected.',
+    approvalText:
+      'This contacts Outlook Calendar and downloads the events you selected.',
     dataSummary: 'Event titles, times, invitees, meeting links, and notes.',
     dataClasses: ['content', 'metadata', 'credential'],
     recipient: 'Microsoft Outlook Calendar',
@@ -168,7 +365,8 @@ const operations = [
     id: 'calendar-sync-google',
     category: 'connector-import',
     title: 'Import Google Calendar',
-    approvalText: 'This contacts Google Calendar and downloads the events you selected.',
+    approvalText:
+      'This contacts Google Calendar and downloads the events you selected.',
     dataSummary: 'Event titles, times, invitees, meeting links, and notes.',
     dataClasses: ['content', 'metadata', 'credential'],
     recipient: 'Google Calendar',
@@ -179,7 +377,8 @@ const operations = [
     id: 'calendar-import-ics',
     category: 'connector-import',
     title: 'Import an ICS calendar link',
-    approvalText: 'This contacts the calendar link you pasted and downloads its event feed.',
+    approvalText:
+      'This contacts the calendar link you pasted and downloads its event feed.',
     dataSummary: 'The pasted calendar address and the events it returns.',
     dataClasses: ['content', 'metadata'],
     recipient: 'The calendar host in the link you pasted',
@@ -190,7 +389,8 @@ const operations = [
     id: 'crm-sync-wealthbox',
     category: 'connector-import',
     title: 'Import Wealthbox',
-    approvalText: 'This contacts Wealthbox and downloads the client records you selected.',
+    approvalText:
+      'This contacts Wealthbox and downloads the client records you selected.',
     dataSummary: 'Client records, notes, tasks, events, and account metadata.',
     dataClasses: ['content', 'metadata', 'credential'],
     recipient: 'Wealthbox',
@@ -201,8 +401,10 @@ const operations = [
     id: 'crm-write-wealthbox',
     category: 'connector-write',
     title: 'Write back to Wealthbox',
-    approvalText: 'This sends only the approved note, task, or field update to the selected Wealthbox client record.',
-    dataSummary: 'The approved write and the chosen Wealthbox record reference.',
+    approvalText:
+      'This sends only the approved note, task, or field update to the selected Wealthbox client record.',
+    dataSummary:
+      'The approved write and the chosen Wealthbox record reference.',
     dataClasses: ['content', 'metadata', 'credential'],
     recipient: 'Wealthbox',
     requiresFinalApproval: true,
@@ -212,7 +414,8 @@ const operations = [
     id: 'crm-sync-salesforce',
     category: 'connector-import',
     title: 'Import Salesforce',
-    approvalText: 'This contacts the Salesforce organization you connected and downloads the records you selected.',
+    approvalText:
+      'This contacts the Salesforce organization you connected and downloads the records you selected.',
     dataSummary: 'Selected CRM records and connection metadata.',
     dataClasses: ['content', 'metadata', 'credential'],
     recipient: 'Your Salesforce organization',
@@ -223,7 +426,8 @@ const operations = [
     id: 'crm-sync-redtail',
     category: 'connector-import',
     title: 'Import Redtail CRM',
-    approvalText: 'This contacts Redtail CRM and downloads the records you selected.',
+    approvalText:
+      'This contacts Redtail CRM and downloads the records you selected.',
     dataSummary: 'Selected CRM records and connection metadata.',
     dataClasses: ['content', 'metadata', 'credential'],
     recipient: 'Redtail CRM',
@@ -234,7 +438,8 @@ const operations = [
     id: 'files-sync-onedrive',
     category: 'connector-import',
     title: 'Import OneDrive or SharePoint files',
-    approvalText: 'This contacts Microsoft and downloads the files and folders you selected.',
+    approvalText:
+      'This contacts Microsoft and downloads the files and folders you selected.',
     dataSummary: 'File names, folder metadata, and selected document bytes.',
     dataClasses: ['content', 'metadata', 'credential'],
     recipient: 'Microsoft OneDrive or SharePoint',
@@ -245,7 +450,8 @@ const operations = [
     id: 'files-sync-box',
     category: 'connector-import',
     title: 'Import Box files',
-    approvalText: 'This contacts Box and downloads the files and folders you selected.',
+    approvalText:
+      'This contacts Box and downloads the files and folders you selected.',
     dataSummary: 'File names, folder metadata, and selected document bytes.',
     dataClasses: ['content', 'metadata', 'credential'],
     recipient: 'Box',
@@ -256,7 +462,8 @@ const operations = [
     id: 'files-sync-sharefile',
     category: 'connector-import',
     title: 'Import ShareFile files',
-    approvalText: 'This contacts the ShareFile account you connected and downloads the selected files.',
+    approvalText:
+      'This contacts the ShareFile account you connected and downloads the selected files.',
     dataSummary: 'File names, folder metadata, and selected document bytes.',
     dataClasses: ['content', 'metadata', 'credential'],
     recipient: 'Your ShareFile account',
@@ -267,18 +474,23 @@ const operations = [
     id: 'docusign-import',
     category: 'connector-import',
     title: 'Import DocuSign envelopes',
-    approvalText: 'This contacts DocuSign and downloads the envelopes and documents you selected.',
-    dataSummary: 'Envelope details, recipients, audit events, and selected document bytes.',
+    approvalText:
+      'This contacts DocuSign and downloads the envelopes and documents you selected.',
+    dataSummary:
+      'Envelope details, recipients, audit events, and selected document bytes.',
     dataClasses: ['content', 'metadata', 'credential'],
     recipient: 'DocuSign',
     requiresFinalApproval: false,
-    destination: { allowedOrigins: ['account-d.docusign.com', 'www.docusign.net'] },
+    destination: {
+      allowedOrigins: ['account-d.docusign.com', 'www.docusign.net'],
+    },
   }),
   connectorOperation({
     id: 'jotform-import',
     category: 'connector-import',
     title: 'Import Jotform submissions',
-    approvalText: 'This contacts Jotform and downloads the forms and submissions you selected.',
+    approvalText:
+      'This contacts Jotform and downloads the forms and submissions you selected.',
     dataSummary: 'Form definitions and selected submission data.',
     dataClasses: ['content', 'metadata', 'credential'],
     recipient: 'Jotform',
@@ -295,7 +507,8 @@ const operations = [
     id: 'calendly-import',
     category: 'connector-import',
     title: 'Import Calendly events',
-    approvalText: 'This contacts Calendly and downloads the scheduling information you selected.',
+    approvalText:
+      'This contacts Calendly and downloads the scheduling information you selected.',
     dataSummary: 'Scheduled events, invitees, and event details.',
     dataClasses: ['content', 'metadata', 'credential'],
     recipient: 'Calendly',
@@ -306,7 +519,8 @@ const operations = [
     id: 'addepar-import',
     category: 'connector-import',
     title: 'Import Addepar data',
-    approvalText: 'This contacts Addepar and downloads the accounts and reports you selected.',
+    approvalText:
+      'This contacts Addepar and downloads the accounts and reports you selected.',
     dataSummary: 'Client, account, portfolio, and selected report data.',
     dataClasses: ['content', 'metadata', 'credential'],
     recipient: 'Addepar',
@@ -317,7 +531,8 @@ const operations = [
     id: 'zocks-import',
     category: 'connector-import',
     title: 'Import Zocks meetings',
-    approvalText: 'This contacts Zocks and downloads the meeting records you selected.',
+    approvalText:
+      'This contacts Zocks and downloads the meeting records you selected.',
     dataSummary: 'Meeting records, transcripts, and account metadata.',
     dataClasses: ['content', 'metadata', 'credential'],
     recipient: 'Zocks',
@@ -328,8 +543,10 @@ const operations = [
     id: 'assured-ai',
     category: 'assured-inference',
     title: 'Use Assured AI',
-    approvalText: 'This sends your prompt through Lantern’s zero-retention service before it reaches your firm’s AI provider. Lantern says it does not retain the prompt or answer, but the bytes still pass through that service.',
-    dataSummary: 'The prompt, selected AI context, and the provider request needed to answer.',
+    approvalText:
+      'This sends your prompt through Lantern’s zero-retention service before it reaches your firm’s AI provider. Lantern says it does not retain the prompt or answer, but the bytes still pass through that service.',
+    dataSummary:
+      'The prompt, selected AI context, and the provider request needed to answer.',
     dataClasses: ['content', 'metadata', 'credential'],
     recipient: 'Lantern’s zero-retention service, then your firm’s AI provider',
     requiresFinalApproval: true,
@@ -339,29 +556,39 @@ const operations = [
     id: 'app-update-download',
     category: 'product-maintenance',
     title: 'Check for or download an app update',
-    approvalText: 'This contacts GitHub to check for a signed Lantern update or download one you approve.',
+    approvalText:
+      'This contacts GitHub to check for a signed Lantern update or download one you approve.',
     dataSummary: 'App version and update download metadata. No client files.',
     dataClasses: ['metadata', 'binary-download'],
     recipient: 'GitHub Releases',
     requiresFinalApproval: false,
-    destination: { allowedOrigins: ['github.com', 'release-assets.githubusercontent.com'], redirects: 'allow-listed-only' },
+    destination: {
+      allowedOrigins: ['github.com', 'release-assets.githubusercontent.com'],
+      redirects: 'allow-listed-only',
+    },
   }),
   connectorOperation({
     id: 'local-model-download',
     category: 'product-maintenance',
     title: 'Download a local AI model',
-    approvalText: 'This downloads the local AI model you selected. It does not upload client files.',
+    approvalText:
+      'This downloads the local AI model you selected. It does not upload client files.',
     dataSummary: 'Model selection and download metadata. No client files.',
     dataClasses: ['metadata', 'binary-download'],
     recipient: 'The model download service shown before download',
     requiresFinalApproval: true,
-    destination: { userSelectedHost: true, rejectPrivateNetwork: true, redirects: 'allow-listed-only' },
+    destination: {
+      userSelectedHost: true,
+      rejectPrivateNetwork: true,
+      redirects: 'allow-listed-only',
+    },
   }),
   connectorOperation({
     id: 'marketplace-catalog-download',
     category: 'product-maintenance',
     title: 'Refresh the template marketplace',
-    approvalText: 'This contacts the Lantern template marketplace to download its catalog.',
+    approvalText:
+      'This contacts the Lantern template marketplace to download its catalog.',
     dataSummary: 'Marketplace catalog request metadata. No client files.',
     dataClasses: ['metadata', 'binary-download'],
     recipient: 'The Lantern template marketplace',
@@ -372,8 +599,10 @@ const operations = [
     id: 'marketplace-package-download',
     category: 'product-maintenance',
     title: 'Download a marketplace template',
-    approvalText: 'This downloads the template package you selected from the Lantern marketplace.',
-    dataSummary: 'The selected template package and download metadata. No client files.',
+    approvalText:
+      'This downloads the template package you selected from the Lantern marketplace.',
+    dataSummary:
+      'The selected template package and download metadata. No client files.',
     dataClasses: ['metadata', 'binary-download'],
     recipient: 'The Lantern template marketplace',
     requiresFinalApproval: true,
@@ -383,8 +612,10 @@ const operations = [
     id: 'mcp-external-client-session',
     category: 'external-client',
     title: 'Allow an external AI client to read this client',
-    approvalText: 'This lets the named external AI client read the selected client’s files until the session expires. That client may have its own network rules.',
-    dataSummary: 'The selected client’s files, search results, and approved tool output.',
+    approvalText:
+      'This lets the named external AI client read the selected client’s files until the session expires. That client may have its own network rules.',
+    dataSummary:
+      'The selected client’s files, search results, and approved tool output.',
     dataClasses: ['content', 'metadata'],
     recipient: 'The named external AI client',
     requiresFinalApproval: true,
@@ -393,10 +624,12 @@ const operations = [
 ] satisfies readonly EgressOperation[];
 
 export const EGRESS_OPERATIONS: ReadonlyMap<string, EgressOperation> = new Map(
-  operations.map((operation) => [operation.id, operation]),
+  operations.map((operation) => [operation.id, operation])
 );
 
-export function getEgressOperation(operationId: string): EgressOperation | undefined {
+export function getEgressOperation(
+  operationId: string
+): EgressOperation | undefined {
   return EGRESS_OPERATIONS.get(operationId);
 }
 
@@ -407,14 +640,17 @@ export function createEgressApproval(operationId: string): EgressApproval {
 }
 
 export function buildEgressReceipt(
-  input: Omit<BuildEgressReceiptInput, 'operation'> & { operationId: string },
+  input: Omit<BuildEgressReceiptInput, 'operation'> & { operationId: string }
 ): EgressReceipt {
   const operation = getEgressOperation(input.operationId);
-  if (!operation) throw new Error(`Unknown egress operation: ${input.operationId}`);
+  if (!operation)
+    throw new Error(`Unknown egress operation: ${input.operationId}`);
   return createReceipt({ ...input, operation });
 }
 
-export function validateEgressSourceManifest(entries: readonly EgressSourceManifestEntry[]): string[] {
+export function validateEgressSourceManifest(
+  entries: readonly EgressSourceManifestEntry[]
+): string[] {
   return validateSourceManifest(entries, new Set(EGRESS_OPERATIONS.keys()));
 }
 
@@ -422,7 +658,9 @@ export function formatEgressInventoryMarkdown(): string {
   return formatInventoryMarkdown([...EGRESS_OPERATIONS.values()]);
 }
 
-export type DestinationValidation = { ok: true } | { ok: false; reason: string };
+export type DestinationValidation =
+  | { ok: true }
+  | { ok: false; reason: string };
 
 function isPrivateOrIpLiteral(hostname: string): boolean {
   const host = hostname.toLowerCase().replace(/^\[|\]$/g, '');
@@ -451,9 +689,13 @@ function isPrivateOrIpLiteral(hostname: string): boolean {
  * handling belongs at the HTTP client: `deny` means any redirect is an error;
  * `allow-listed-only` must re-run this check for each redirect target.
  */
-export function validateEgressDestination(operationId: string, rawDestination: string): DestinationValidation {
+export function validateEgressDestination(
+  operationId: string,
+  rawDestination: string
+): DestinationValidation {
   const operation = getEgressOperation(operationId);
-  if (!operation) return { ok: false, reason: `Unknown egress operation: ${operationId}` };
+  if (!operation)
+    return { ok: false, reason: `Unknown egress operation: ${operationId}` };
 
   let url: URL;
   try {
@@ -464,30 +706,48 @@ export function validateEgressDestination(operationId: string, rawDestination: s
 
   const scheme = url.protocol.slice(0, -1).toLowerCase();
   if (!operation.destination.allowedSchemes.includes(scheme)) {
-    return { ok: false, reason: `Scheme ${scheme} is not allowed for ${operationId}` };
+    return {
+      ok: false,
+      reason: `Scheme ${scheme} is not allowed for ${operationId}`,
+    };
   }
   if (url.username || url.password) {
-    return { ok: false, reason: 'Destination must not include URL credentials' };
+    return {
+      ok: false,
+      reason: 'Destination must not include URL credentials',
+    };
   }
   if (operation.destination.forbidCredentialQuery) {
     const credentialQuery = [...url.searchParams.keys()].some((key) =>
-      /(?:api[_-]?key|access[_-]?token|bearer|token|password|secret)/i.test(key),
+      /(?:api[_-]?key|access[_-]?token|bearer|token|password|secret)/i.test(key)
     );
     if (credentialQuery) {
-      return { ok: false, reason: 'Credentials must not be placed in the URL query string' };
+      return {
+        ok: false,
+        reason: 'Credentials must not be placed in the URL query string',
+      };
     }
   }
 
-  const hostname = url.hostname.toLowerCase();
+  const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
   if (operation.destination.userSelectedHost) {
     if (!hostname) return { ok: false, reason: 'A host is required' };
-    if (operation.destination.rejectPrivateNetwork && isPrivateOrIpLiteral(hostname)) {
-      return { ok: false, reason: 'Private-network and IP-literal destinations are not allowed' };
+    if (
+      operation.destination.rejectPrivateNetwork &&
+      isPrivateOrIpLiteral(hostname)
+    ) {
+      return {
+        ok: false,
+        reason: 'Private-network and IP-literal destinations are not allowed',
+      };
     }
     return { ok: true };
   }
   if (!operation.destination.allowedOrigins.includes(hostname)) {
-    return { ok: false, reason: `Host ${hostname} is not allowed for ${operationId}` };
+    return {
+      ok: false,
+      reason: `Host ${hostname} is not allowed for ${operationId}`,
+    };
   }
   return { ok: true };
 }

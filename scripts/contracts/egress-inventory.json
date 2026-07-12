@@ -1,0 +1,16 @@
+{
+  "rust": {
+    "operations": [
+      "addepar-sync", "box-sync", "calendly-sync", "docusign-oauth", "docusign-sync", "external-navigation", "gmail-oauth", "gmail-sync", "google-calendar-oauth", "google-calendar-sync", "ics-calendar-sync", "imap-sync", "jotform-sync", "license-validation", "local-llama", "local-llm-model-download", "mcp-external-client-export", "meeting-auto-join", "ollama", "onedrive-oauth", "onedrive-sync", "outlook-calendar-oauth", "outlook-calendar-sync", "outlook-mail-oauth", "outlook-mail-sync", "rag-model-download", "redtail-oauth", "redtail-sync", "reranker-model-download", "salesforce-oauth", "salesforce-sync", "sharefile-sync", "smtp-send", "voice-model-download", "wealthbox-sync", "wealthbox-write", "zocks-sync"
+    ],
+    "receiptTest": "src-tauri/src/network_policy.rs::every_registered_operation_has_receipt_metadata",
+    "boundaryTest": "src-tauri/src/network_policy.rs::offline_mode_blocks_every_registered_non_loopback_operation"
+  },
+  "renderer": {
+    "operations": [
+      "ai-setup-help", "assured-ai", "bug-report", "cloud-ai", "diagnostics", "external-navigation", "firm-seat-validation", "intake-relay", "license-api", "local-loopback", "marketplace-manifest", "marketplace-package", "telemetry", "updater-github-releases"
+    ],
+    "receiptTest": "tests/unit/privacy/networkEgressReceipt.test.ts::can make a safe receipt for every renderer registry operation",
+    "boundaryTest": "tests/unit/privacy/networkClient.test.ts::blocks every registered off-device operation before transport"
+  }
+}

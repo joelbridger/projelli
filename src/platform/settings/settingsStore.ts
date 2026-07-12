@@ -385,10 +385,16 @@ function migrateLegacySettings(): void {
 // alone never fires (proven live 2026-07-06: a long-lived install still had
 // `_migrated: false` persisted). Run immediately when already hydrated;
 // subscribe only for the async-storage case.
-if (useSettingsStore.persist.hasHydrated()) {
+// Some non-browser consumers only use the settings defaults and provide a
+// minimal Zustand store without persistence (for example, the relay's Bun
+// contract harness). There is no stored state to migrate in that environment.
+const settingsPersistence = useSettingsStore.persist;
+if (!settingsPersistence) {
+  migrateLegacySettings();
+} else if (settingsPersistence.hasHydrated()) {
   migrateLegacySettings();
 } else {
-  const unsub = useSettingsStore.persist.onFinishHydration(() => {
+  const unsub = settingsPersistence.onFinishHydration(() => {
     migrateLegacySettings();
     unsub();
   });

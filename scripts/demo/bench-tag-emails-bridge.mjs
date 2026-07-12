@@ -30,7 +30,16 @@ const MAX_ENCODED_EVAL_CHARS = Number(
 const POLL_MS = 500;
 const TAG_POLL_MS = 1000;
 const TAG_TIMEOUT_MS = Number(process.env.BRIDGE_TAG_TIMEOUT_MS || 20 * 60_000);
+const TAG_INVOKE_TIMEOUT_MS = Number(
+  process.env.BRIDGE_TAG_INVOKE_TIMEOUT_MS || 5_000
+);
 const VERIFY_SAMPLE_SIZE = 5;
+// This harness files the full-practice mailbox only. Read the scoped store the
+// app says is active, rather than whichever workspace wrote a key first.
+// A wrong workspace must fail closed.
+const DEMO_WORKSPACE_SCOPE_SUFFIX =
+  process.env.DEMO_WORKSPACE_SCOPE_SUFFIX ||
+  '::ws:c:/Users/james/Documents/Beacon Ridge Demo';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -80,6 +89,22 @@ function bridgeEval(js, options = {}) {
     );
   }
   return bridgeGet(`${BRIDGE_BASE}/eval?js=${encoded}`, options);
+}
+
+function readActiveMatterState() {
+  const state = bridgeEval(
+    "(()=>{const suffix=String(window.__lanternWorkspaceScopeSuffix||'');const key='lantern:matters'+suffix;return{suffix,key,raw:localStorage.getItem(key)||''}})()",
+    { timeoutSec: 8 }
+  );
+  if (state?.suffix !== DEMO_WORKSPACE_SCOPE_SUFFIX) {
+    throw new Error(
+      `refusing to tag: active workspace scope ${JSON.stringify(state?.suffix || '')} is not the full-practice demo scope ${JSON.stringify(DEMO_WORKSPACE_SCOPE_SUFFIX)}`
+    );
+  }
+  if (!state.raw) {
+    throw new Error(`refusing to tag: active matter store ${state.key} is empty`);
+  }
+  return state;
 }
 
 function bridgeHealth() {
@@ -181,8 +206,8 @@ function stageArray(varName, rows) {
 
 function startTagExecutor() {
   const js =
-    "(()=>{const I0=window.__TAURI__?.core?.invoke||window.__TAURI__?.invoke,I=(c,a)=>Promise.race([I0(c,a),new Promise((_,rj)=>setTimeout(()=>rj(new Error('invoke timeout 30s: '+c)),30000))]),P=Array.isArray(window.__TAGPLAN)?window.__TAGPLAN:[],R=o=>{window.__TAGRESULT={...window.__TAGRESULT,...o,updatedAt:new Date().toISOString()}},F=(e,x)=>{const r=window.__TAGRESULT;r.failureCount++;if(r.failures.length<100)r.failures.push({messageId:e?.messageId,matterId:e?.matterId,error:String(x?.message||x).slice(0,240)})};window.__TAGRESULT={done:false,total:P.length,processed:0,newlyTagged:0,alreadyOk:0,failureCount:0,failures:[],startedAt:new Date().toISOString(),updatedAt:new Date().toISOString()};if(!I){R({done:true,error:'Tauri invoke bridge is not available'});return window.__TAGRESULT}(async()=>{for(const e of P){try{let c=null;try{const v=await I('mail_get_message',{id:e.messageId});c=v?.matterId||v?.matter_id||null}catch(_){}await I('mail_retag_message_matter',{messageId:e.messageId,matterId:e.matterId});if(c===e.matterId)window.__TAGRESULT.alreadyOk++;else window.__TAGRESULT.newlyTagged++}catch(x){F(e,x)}window.__TAGRESULT.processed++;if(window.__TAGRESULT.processed%10===0)R({})}R({done:true})})().catch(x=>R({done:true,error:String(x?.message||x).slice(0,500)}));return{started:true,total:P.length}})()";
-  return bridgeEval(js);
+    `(()=>{const I0=window.__TAURI__?.core?.invoke||window.__TAURI__?.invoke,I=(c,a)=>Promise.race([I0(c,a),new Promise((_,rj)=>setTimeout(()=>rj(new Error('invoke timeout ${TAG_INVOKE_TIMEOUT_MS}ms: '+c)),${TAG_INVOKE_TIMEOUT_MS}))]),P=Array.isArray(window.__TAGPLAN)?window.__TAGPLAN:[],R=o=>{window.__TAGRESULT={...window.__TAGRESULT,...o,updatedAt:new Date().toISOString()}},F=(e,x)=>{const r=window.__TAGRESULT;r.failureCount++;if(r.failures.length<100)r.failures.push({messageId:e?.messageId,matterId:e?.matterId,error:String(x?.message||x).slice(0,240)})},G=async e=>{for(let n=0;n<5;n++){try{const v=await I('mail_get_message',{id:e.messageId});if((v?.matterId||v?.matter_id||null)===e.matterId)return true}catch(_){}await new Promise(r=>setTimeout(r,500))}return false};window.__TAGRESULT={done:false,total:P.length,processed:0,newlyTagged:0,alreadyOk:0,durableVerifiedAfterTimeout:0,failureCount:0,failures:[],startedAt:new Date().toISOString(),updatedAt:new Date().toISOString()};if(!I){R({done:true,error:'Tauri invoke bridge is not available'});return window.__TAGRESULT}(async()=>{for(const e of P){try{let c=null;try{const v=await I('mail_get_message',{id:e.messageId});c=v?.matterId||v?.matter_id||null}catch(_){}if(c===e.matterId)window.__TAGRESULT.alreadyOk++;else{try{await I('mail_retag_message_matter',{messageId:e.messageId,matterId:e.matterId});window.__TAGRESULT.newlyTagged++}catch(x){if(await G(e)){window.__TAGRESULT.newlyTagged++;window.__TAGRESULT.durableVerifiedAfterTimeout++}else throw x}}}catch(x){F(e,x)}window.__TAGRESULT.processed++;if(window.__TAGRESULT.processed%10===0)R({})}R({done:true})})().catch(x=>R({done:true,error:String(x?.message||x).slice(0,500)}));return{started:true,total:P.length}})()`;
+  return bridgeEval(js, { allowOversize: true });
 }
 
 async function pollTagResult(total) {
@@ -227,21 +252,18 @@ let exitCode = 0;
 try {
   console.log(`bridge health: ${JSON.stringify(bridgeHealth())}`);
 
-  const [roster, mattersRaw] = await Promise.all([
+  const [roster, matterState] = await Promise.all([
     loadRoster(),
-    Promise.resolve(
-      bridgeEval("localStorage.getItem(Object.keys(localStorage).find(k=>/^(lantern|keepance):matters/.test(k))||'lantern:matters')||''", {
-        timeoutSec: 8,
-      })
-    ),
+    Promise.resolve(readActiveMatterState()),
   ]);
 
   const householdsBySlug = buildHouseholdsBySlug(roster);
   const { records: outboxRecords, missingRoster } =
     await loadOutbox(householdsBySlug);
-  const matters = parseStoredMatters(mattersRaw);
+  const matters = parseStoredMatters(matterState.raw);
   const context = buildTaggingContext(roster, outboxRecords, matters);
 
+  console.log(`loaded active matter store: ${matterState.key}`);
   console.log(`loaded roster households: ${roster.length}`);
   console.log(`loaded outbox messages: ${outboxRecords.length}`);
   console.log(`loaded app matters: ${matters.length}`);
