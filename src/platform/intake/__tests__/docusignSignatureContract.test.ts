@@ -130,6 +130,10 @@ describe('Wave 9 signature contract gate', () => {
       dateSignedTabs: [{ pageNumber: '1', xPosition: '61', yPosition: '198', width: '122', height: '79' }],
       fullNameTabs: [{ pageNumber: '1', xPosition: '61', yPosition: '317', width: '122', height: '79' }],
     });
+    await expect(adapter.createRecipientView({
+      envelopeId: 'envelope-1', signerName: 'Synthetic Signer', signerEmail: 'synthetic@example.test', clientUserId: 'lantern-client', returnUrl: 'https://lantern.test/return',
+    })).rejects.toThrow(/already generated/iu);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('round-trips a sealed launch record as ciphertext-only relay data', async () => {

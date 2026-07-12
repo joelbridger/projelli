@@ -22,6 +22,14 @@ export interface DocusignEnvelopeInput {
   tabMap: ResolvedDocusignTabMap;
   returnUrl: string;
 }
+/** Inputs needed to generate one embedded recipient view for an existing envelope. */
+export interface DocusignRecipientViewInput {
+  envelopeId: string;
+  signerName: string;
+  signerEmail: string;
+  clientUserId: string;
+  returnUrl: string;
+}
 export interface DocusignEnvelopeResult { envelopeId: string; recipientViewUrl: string; }
 export interface DocusignRetrievedCompletion { envelopeId: string; signedPdf: Uint8Array; certificate: Uint8Array; }
 /** Envelope states returned by DocuSign's envelope-status endpoint. */
@@ -76,6 +84,36 @@ export class DirectDocusignAdapter {
     }
   }
 
+  private async createRecipientViewWithAuthorization(
+    authorization: DocusignAuthorization,
+    fetchFn: typeof fetch,
+    input: DocusignRecipientViewInput,
+  ): Promise<DocusignEnvelopeResult> {
+    const viewKey = `${authorization.accountId}:${input.envelopeId}`;
+    if (this.recipientViewGeneratedFor.has(viewKey)) throw new Error('A recipient view was already generated for this envelope.');
+    assertLocalOnlyAllowsExternal('Send for DocuSign signature');
+    const viewResponse = await fetchFn(`${authorization.baseUri}/restapi/v2.1/accounts/${encodeURIComponent(authorization.accountId)}/envelopes/${encodeURIComponent(input.envelopeId)}/views/recipient`, {
+      method: 'POST', headers: { Authorization: `Bearer ${authorization.accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ returnUrl: input.returnUrl, authenticationMethod: 'none', email: input.signerEmail, userName: input.signerName, clientUserId: input.clientUserId, recipientId: '1' }),
+    });
+    if (!viewResponse.ok) throw new Error(`DocuSign recipient view failed with HTTP ${String(viewResponse.status)}.`);
+    const view = await viewResponse.json() as { url?: unknown };
+    if (typeof view.url !== 'string' || !/^https:\/\/.+\.docusign\.net\//iu.test(view.url)) throw new Error('DocuSign returned an unsafe recipient view URL.');
+    this.recipientViewGeneratedFor.add(viewKey);
+    return { envelopeId: input.envelopeId, recipientViewUrl: view.url };
+  }
+
+  /**
+   * Generates one recipient view only. Kept public so real integrations can
+   * prove the one-time-view guard without creating another envelope.
+   */
+  async createRecipientView(input: DocusignRecipientViewInput): Promise<DocusignEnvelopeResult> {
+    if (!input.envelopeId || !input.signerName.trim() || !input.signerEmail.trim() || !input.clientUserId.trim()) {
+      throw new Error('Envelope id, signer name, signer email, and client user id are required.');
+    }
+    return this.withAuthorization((authorization, fetchFn) => this.createRecipientViewWithAuthorization(authorization, fetchFn, input));
+  }
+
   async createEnvelopeAndRecipientView(input: DocusignEnvelopeInput): Promise<DocusignEnvelopeResult> {
     if (!input.signerName.trim() || !input.signerEmail.trim()) throw new Error('Signer name and email are required.');
     return this.withAuthorization(async (authorization, fetchFn) => {
@@ -87,18 +125,13 @@ export class DirectDocusignAdapter {
       if (!envelopeResponse.ok) throw new Error(`DocuSign envelope creation failed with HTTP ${String(envelopeResponse.status)}.`);
       const envelope = await envelopeResponse.json() as { envelopeId?: unknown };
       if (typeof envelope.envelopeId !== 'string' || !envelope.envelopeId) throw new Error('DocuSign did not return an envelope id.');
-      const viewKey = `${authorization.accountId}:${envelope.envelopeId}`;
-      if (this.recipientViewGeneratedFor.has(viewKey)) throw new Error('A recipient view was already generated for this envelope.');
-      assertLocalOnlyAllowsExternal('Send for DocuSign signature');
-      const viewResponse = await fetchFn(`${baseUri}/restapi/v2.1/accounts/${encodeURIComponent(authorization.accountId)}/envelopes/${encodeURIComponent(envelope.envelopeId)}/views/recipient`, {
-        method: 'POST', headers: { Authorization: `Bearer ${authorization.accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ returnUrl: input.returnUrl, authenticationMethod: 'none', email: input.signerEmail, userName: input.signerName, clientUserId: input.clientUserId, recipientId: '1' }),
+      return this.createRecipientViewWithAuthorization(authorization, fetchFn, {
+        envelopeId: envelope.envelopeId,
+        signerName: input.signerName,
+        signerEmail: input.signerEmail,
+        clientUserId: input.clientUserId,
+        returnUrl: input.returnUrl,
       });
-      if (!viewResponse.ok) throw new Error(`DocuSign recipient view failed with HTTP ${String(viewResponse.status)}.`);
-      const view = await viewResponse.json() as { url?: unknown };
-      if (typeof view.url !== 'string' || !/^https:\/\/.+\.docusign\.net\//iu.test(view.url)) throw new Error('DocuSign returned an unsafe recipient view URL.');
-      this.recipientViewGeneratedFor.add(viewKey);
-      return { envelopeId: envelope.envelopeId, recipientViewUrl: view.url };
     });
   }
 

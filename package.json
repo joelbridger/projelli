@@ -32,6 +32,7 @@
     "tauri:dev": "tauri dev",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "test:docusign-sandbox-roundtrip": "vitest run tests/live/docusignSandboxRoundtrip.test.ts tests/live/docusignSandboxCreds.test.ts",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "typecheck:tests": "tsc -p tsconfig.test.json --noEmit",
