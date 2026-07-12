@@ -2227,26 +2227,43 @@ pub async fn crm_sync_all(
     // Run the full backfill (fetch → ingest → index). The cancel flag is polled
     // between matters so the UI's Stop button interrupts a long sync.
     let client = client_for(provider, token).map_err(|e| e.to_string())?;
-    let backfill_result = engine::backfill(
-        client.as_ref(),
-        &store,
-        &workspace,
-        &matter_hashmap,
-        &state.cancel,
-        &rag_key,
-        &state.progress_households,
+    // A frontend timeout is useful for keeping the button honest, but it
+    // cannot cancel a Tauri invoke already running in the desktop process.
+    // Bound the actual engine too, so an abandoned/stuck request releases the
+    // sync slot and a retry can really start instead of being told a phantom
+    // sync is still in progress. Ten minutes leaves room for a sizeable CRM
+    // import while ruling out the observed many-minute silent spinner.
+    const CRM_SYNC_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10 * 60);
+    let backfill_result = tokio::time::timeout(
+        CRM_SYNC_TIMEOUT,
+        engine::backfill(
+            client.as_ref(),
+            &store,
+            &workspace,
+            &matter_hashmap,
+            &state.cancel,
+            &rag_key,
+            &state.progress_households,
+        ),
     )
     .await;
     emitter.abort();
 
     let report = match backfill_result {
-        Ok(r) => r,
-        Err(e) => {
+        Ok(Ok(r)) => r,
+        Ok(Err(e)) => {
             let _ = app.emit(
                 CRM_SYNC_PROGRESS_EVENT,
                 serde_json::json!({ "status": "error" }),
             );
             return Err(e.to_string());
+        }
+        Err(_) => {
+            let _ = app.emit(
+                CRM_SYNC_PROGRESS_EVENT,
+                serde_json::json!({ "status": "error" }),
+            );
+            return Err("Wealthbox sync took longer than 10 minutes and was stopped. Try Sync now again.".into());
         }
     };
 
