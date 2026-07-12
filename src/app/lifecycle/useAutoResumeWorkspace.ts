@@ -41,6 +41,12 @@ export interface UseAutoResumeWorkspaceOptions {
   startupBehavior: string;
   recentWorkspaces: AutoResumeRecentWorkspace[];
   /**
+   * The workspace root that the app has committed. Opening a workspace also
+   * performs several best-effort loads; they must not keep the app's boot
+   * curtain up once the workspace itself is safe to use.
+   */
+  activeWorkspacePath?: string | null;
+  /**
    * Preflight check: does the target workspace have a locked encrypted vault?
    * A locked vault needs the picker's VaultLockedPrompt UI to unlock — silently
    * auto-opening it would boot straight into failing file reads with no way to
@@ -67,6 +73,7 @@ export function useAutoResumeWorkspace(options: UseAutoResumeWorkspaceOptions): 
     recentWorkspacesLoaded,
     startupBehavior,
     recentWorkspaces,
+    activeWorkspacePath,
     isWorkspaceVaultLocked,
     openWorkspace,
   } = options;
@@ -82,6 +89,22 @@ export function useAutoResumeWorkspace(options: UseAutoResumeWorkspaceOptions): 
   // nothing to reopen) would look like "ready to resume" again and silently
   // reopen that just-opened workspace a second time.
   const attempted = useRef(false);
+  const resumingTarget = useRef<string | null>(null);
+
+  // `handleWorkspaceSelected` commits the root before it completes optional
+  // hydration (activity history, saved tabs, source cards, and similar work).
+  // The old code hid the shell until all of that returned. A slow local
+  // service then made an already-open workspace look like the CRM vanished.
+  // The committed root is the shell's hard prerequisite, so reveal it then.
+  useEffect(() => {
+    if (
+      isResuming &&
+      resumingTarget.current !== null &&
+      activeWorkspacePath === resumingTarget.current
+    ) {
+      setIsResuming(false);
+    }
+  }, [activeWorkspacePath, isResuming]);
 
   useEffect(() => {
     if (!isEligibleEnvironment || attempted.current) return;
@@ -106,6 +129,8 @@ export function useAutoResumeWorkspace(options: UseAutoResumeWorkspaceOptions): 
         return;
       }
 
+      resumingTarget.current = target;
+
       let vaultLocked = false;
       try {
         vaultLocked = await isWorkspaceVaultLocked(target);
@@ -123,6 +148,7 @@ export function useAutoResumeWorkspace(options: UseAutoResumeWorkspaceOptions): 
       try {
         await openWorkspace(target);
       } finally {
+        resumingTarget.current = null;
         setIsResuming(false);
       }
     })();

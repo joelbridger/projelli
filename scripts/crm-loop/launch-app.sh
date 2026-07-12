@@ -58,14 +58,12 @@ export XDG_CONFIG_HOME="$WORKSPACE/.config"
 export XDG_DATA_HOME="$WORKSPACE/.data"
 export LANTERN_DEV_BRIDGE_PORT="$PORT"
 export LANTERN_WORKSPACE_ROOT="$WORKSPACE"
-# The CRM core is encrypted and normally gets its key from the operating
-# system's password vault.  These debug instances run headlessly, where that
-# vault can wait forever for a desktop session that does not exist.  The Rust
-# core has an explicit test-only key override for this exact environment; use
-# a stable, non-secret test key so a fresh workspace can really open, save,
-# and reopen its SQLCipher records.  A caller may still supply a different
-# test key for isolation.
-export LANTERN_HEADLESS_TEST_CRM_CORE_MASTER_KEY_HEX="${LANTERN_HEADLESS_TEST_CRM_CORE_MASTER_KEY_HEX:-8f4d3b0e7a9c12d6e5f18924ab70cd3e4f8a15b2c6d9037e1a5f0c8b2d4e6f90}"
+# `launch-app.sh` is the headless, debug-only real-app harness.  Its virtual
+# display has no desktop keychain service, so CRM SQLCipher's production
+# keychain lookup can block indefinitely before the first record is opened.
+# Give this harness its documented deterministic test key; release builds do
+# not run through this script and still require the OS keychain.
+export LANTERN_HEADLESS_TEST_CRM_CORE_MASTER_KEY_HEX="${LANTERN_HEADLESS_TEST_CRM_CORE_MASTER_KEY_HEX:-7f4ed0c8f58b2434a61d9ec2d6b5c3a1e9f8071625344b7ca09d1e2f3a4b5c6d}"
 mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME"
 
 echo "app instance: bridge=127.0.0.1:$PORT workspace=$WORKSPACE"
