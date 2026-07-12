@@ -97,14 +97,49 @@ describe('extractDocumentFacts', () => {
       providerId: 'test-provider',
     });
 
-    expect(auditEntries).toHaveLength(2);
+    // Fold note: routing through the real promptPreparation layer adds one
+    // more entry here - its own 'prompt_preparation' scrub receipt, logged
+    // before the model call - on top of the pre-fold 'egress' + 'model_call'
+    // pair. It carries only finding categories/counts and a decision enum,
+    // never prompt content, so the no-leak assertions below still apply to
+    // all three entries.
+    expect(auditEntries).toHaveLength(3);
     const auditJson = JSON.stringify(auditEntries);
     expect(auditJson).toContain('"action":"egress"');
     expect(auditJson).toContain('"action":"model_call"');
+    expect(auditJson).toContain('"action":"prompt_preparation"');
     expect(auditJson).toContain('"classifier":"document_extraction"');
     expect(auditJson).toContain('"matterId":"matter-code"');
     expect(auditJson).toContain('"requestId":"request-code"');
     expect(auditJson).not.toContain('120000');
     expect(auditJson).not.toContain('Annual income');
+  });
+
+  it('blocks extraction (never calls the provider) when the document text carries a secret', async () => {
+    const structuredOutput = vi.fn().mockResolvedValue({ facts: [] });
+    const provider = providerWithFacts([]);
+    provider.structuredOutput = structuredOutput;
+
+    // Background mode always blocks on a finding rather than opening a
+    // dialog (this is unattended extraction work, not advisor-clicked) - the
+    // plan requires the item be left for review, not silently skipped or
+    // silently sent anyway.
+    await expect(
+      extractDocumentFacts({
+        readResult: {
+          status: 'read',
+          pages: [{ page: 1, text: 'Annual income: $120,000. Account password: hunter2-super-secret.', extraction: 'text' }],
+        },
+        classification: { kind: 'pay_stub', confidence: 'high', sourceRefs: [], evidence: [] },
+        matterId: 'matter-code',
+        requestId: 'request-code',
+        intakeId: 'intake-code',
+        sourcePath: 'Clients/A/source.pdf',
+        provider,
+        providerId: 'test-provider',
+      })
+    ).rejects.toThrow('prompt_review_required');
+
+    expect(structuredOutput).not.toHaveBeenCalled();
   });
 });

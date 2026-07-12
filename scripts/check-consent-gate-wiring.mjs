@@ -50,7 +50,7 @@ const repoRoot = join(__dirname, '..');
 /** A module is a "file-content sender" when it BOTH retrieves file content AND
  *  sends to a provider. Both must be present in the same module. */
 const RETRIEVE_RE = /MemoryService\.retrieve\s*\(/;
-const SEND_RE = /sendMessageStreaming|\.sendMessage\s*\(|sendWithEgressAudit\s*\(|runWithEgressAudit\s*\(/;
+const SEND_RE = /sendMessageStreaming|\.sendMessage\s*\(|sendWithEgressAudit\s*\(|runWithEgressAudit\s*\(|sendPrepared(?:Message|Streaming|Structured)WithEgressAudit\s*\(/;
 /** Presence of the consent gate: the ambient-retrieval decision function or the
  *  core predicate, imported from the shared fileAccessConsent module. */
 const GATE_RE = /resolveWorkspaceRetrieval|fileToolsAllowed/;

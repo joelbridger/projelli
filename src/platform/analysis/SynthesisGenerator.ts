@@ -3,7 +3,7 @@
 
 import type { Provider, StructuredOutputOptions, OutputSchema } from '@/platform/providers/Provider';
 import type { Contradiction } from './ContradictionDetector';
-import { runWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
+import { sendPreparedStructuredWithEgressAudit } from '@/platform/privacy/promptPreparation';
 
 /**
  * A synthesized document combining multiple sources
@@ -149,7 +149,7 @@ Maintain objectivity and don't favor any source without justification.`,
     };
 
     const metadata = this.provider.getMetadata();
-    const result = await runWithEgressAudit<{
+    const result = await sendPreparedStructuredWithEgressAudit<{
       title: string;
       content: string;
       sections: Array<{
@@ -171,26 +171,13 @@ Maintain objectivity and don't favor any source without justification.`,
       provider: this.provider,
       providerId: metadata.providerId ?? 'unknown',
       model: metadata.model,
-      operation: () =>
-        this.provider.structuredOutput<{
-          title: string;
-          content: string;
-          sections: Array<{
-            heading: string;
-            content: string;
-            sourceAgreement: string;
-            citations: string[];
-            notes?: string;
-          }>;
-          resolvedContradictions: Array<{
-            contradictionId: string;
-            resolution: string;
-            rationale: string;
-            preferredSource?: string;
-          }>;
-          unresolvedContradictions: string[];
-          confidence: number;
-        }>(prompt, structuredOptions),
+      surface: 'generic_synthesis',
+      prompt,
+      options: structuredOptions,
+      parts: [
+        { id: 'prompt', origin: 'workflow_input', label: 'Synthesis request', text: prompt },
+        ...sources.map((source, index) => ({ id: `source-${String(index)}`, origin: 'workflow_file' as const, label: `Source ${String(index + 1)}`, text: source.text })),
+      ],
     });
 
     return {

@@ -17,11 +17,13 @@ import { ProviderError } from './Provider';
 import type { ChatAttachment } from '@/platform/types/ai';
 import { getCorsSafeFetch, safeJsonParse, redactUrl } from './fetchUtils';
 import { assertCloudSendAllowed } from '@/platform/privacy/cloudSendGuard';
+import { assertCloudPreparation } from '@/platform/privacy/promptPreparationGuard';
 import { sanitizeForPrompt } from '@/platform/utils/prompt-security';
 import { applyAssuredRoute, type AssuredRoute } from '@/platform/firm/assuredInference';
 import { isVisionModel } from './vision-capability';
 import { bytesToBase64 } from './providerUtils';
 import { extractPdfText } from '@/lib/pdf-extract';
+import { prepareBackgroundSystemInstruction, prepareToolResultContinuation, scanPromptPart } from '@/platform/privacy/promptPreparation';
 import { getMaxContextTokens } from './context-limits';
 import {
   abortAwareSleep,
@@ -234,8 +236,8 @@ export class GeminiProvider implements Provider {
       return [{ text: prompt }];
     }
     const parts: GeminiPart[] = [];
-    for (const { att, bytes } of attachmentBytes) {
-      const block = await this.formatAttachmentForRequest(att, bytes);
+    for (const { att, bytes, extractedText } of attachmentBytes) {
+      const block = await this.formatAttachmentForRequest(att, bytes, extractedText);
       if ('_text_extract' in block) {
         // PDF text-extract: inject extracted text as a text part.
         // Prompt-injection defense (Codex injection audit #3): attacker-
@@ -264,6 +266,7 @@ export class GeminiProvider implements Provider {
   ): Promise<ProviderResponse> {
     // CENTRAL CHOKE: never send to a cloud AI in private mode (fail-closed).
     assertCloudSendAllowed('google');
+    assertCloudPreparation(options?.preparationStamp, 'google');
     const contents: GeminiContent[] = [
       {
         role: 'user',
@@ -278,7 +281,8 @@ export class GeminiProvider implements Provider {
     // Build system instruction with AI Rules prepended if available
     let systemInstruction = options?.systemPrompt || '';
     if (this.aiRules) {
-      systemInstruction = this.aiRules + (systemInstruction ? `\n\n---\n\n${systemInstruction}` : '');
+      const preparedRules = prepareBackgroundSystemInstruction(this.aiRules);
+      systemInstruction = preparedRules + (systemInstruction ? `\n\n---\n\n${systemInstruction}` : '');
     }
 
     if (systemInstruction) {
@@ -337,29 +341,24 @@ export class GeminiProvider implements Provider {
       for (const part of functionCallParts) {
         const call = part.functionCall;
         if (!call) continue;
+        let toolResult: Record<string, unknown>;
         try {
           const result = await this.toolExecutor(call.name, call.args);
-          responseParts.push({
-            functionResponse: {
-              name: call.name,
-              // Gemini requires the response to be a JSON object — wrap scalar
-              // results so the API accepts them.
-              response:
-                result && typeof result === 'object' && !Array.isArray(result)
-                  ? (result as Record<string, unknown>)
-                  : { result },
-            },
-          });
+          // Gemini requires the response to be a JSON object — wrap scalar
+          // results so the API accepts them.
+          toolResult = result && typeof result === 'object' && !Array.isArray(result)
+            ? result as Record<string, unknown>
+            : { result };
         } catch (error) {
-          responseParts.push({
-            functionResponse: {
-              name: call.name,
-              response: {
-                error: error instanceof Error ? error.message : String(error),
-              },
-            },
-          });
+          toolResult = { error: error instanceof Error ? error.message : String(error) };
         }
+        // Do not catch a preparation block as if it were a tool failure.
+        responseParts.push({
+          functionResponse: {
+            name: call.name,
+            response: JSON.parse(prepareToolResultContinuation(JSON.stringify(toolResult))) as Record<string, unknown>,
+          },
+        });
       }
 
       contents.push({
@@ -423,6 +422,7 @@ export class GeminiProvider implements Provider {
   ): Promise<ProviderResponse> {
     // CENTRAL CHOKE: never send to a cloud AI in private mode (fail-closed).
     assertCloudSendAllowed('google');
+    assertCloudPreparation(options.preparationStamp, 'google');
     const { onChunk, signal, ...sendOpts } = options;
 
     const contents: GeminiContent[] = [{ role: 'user', parts: await this.buildUserParts(prompt, sendOpts.attachmentBytes) }];
@@ -430,7 +430,8 @@ export class GeminiProvider implements Provider {
 
     let systemInstruction = sendOpts.systemPrompt || '';
     if (this.aiRules) {
-      systemInstruction = this.aiRules + (systemInstruction ? `\n\n---\n\n${systemInstruction}` : '');
+      const preparedRules = prepareBackgroundSystemInstruction(this.aiRules);
+      systemInstruction = preparedRules + (systemInstruction ? `\n\n---\n\n${systemInstruction}` : '');
     }
     if (systemInstruction) {
       request.systemInstruction = { parts: [{ text: systemInstruction }] };
@@ -548,6 +549,7 @@ export class GeminiProvider implements Provider {
   ): Promise<T> {
     // CENTRAL CHOKE: never send to a cloud AI in private mode (fail-closed).
     assertCloudSendAllowed('google');
+    assertCloudPreparation(options.preparationStamp, 'google');
     // Gemini doesn't have native JSON schema support like OpenAI, so include
     // the schema directly in the prompt and ask for only that JSON object.
     const jsonPrompt = `${prompt}
@@ -562,6 +564,7 @@ IMPORTANT: Respond ONLY with the JSON object. No markdown, no code blocks.`;
       temperature: options.temperature ?? 0.1,
       ...(options.maxTokens !== undefined ? { maxTokens: options.maxTokens } : {}),
       ...(options.signal ? { signal: options.signal } : {}),
+      ...(options.preparationStamp ? { preparationStamp: options.preparationStamp } : {}),
     });
 
     try {
@@ -672,9 +675,11 @@ IMPORTANT: Respond ONLY with the JSON object. No markdown, no code blocks.`;
    */
   async formatAttachmentForRequest(
     att: ChatAttachment,
-    bytes: Uint8Array
+    bytes: Uint8Array,
+    extractedText?: string,
   ): Promise<ProviderContentBlock> {
     if (att.type === 'image') {
+      requireScannableAttachment(att, extractedText);
       return {
         inlineData: {
           mimeType: att.mimeType,
@@ -684,11 +689,11 @@ IMPORTANT: Respond ONLY with the JSON object. No markdown, no code blocks.`;
     }
 
     if (att.type === 'pdf') {
-      const result = await extractPdfText(bytes);
+      const { text, pageCount } = await readScannablePdf(att, bytes);
       return {
         _text_extract: {
-          text: result.pages.join('\n\n'),
-          pageCount: result.pageCount,
+          text,
+          pageCount,
           fileName: att.fileName,
         },
       } satisfies TextExtractBlock;
@@ -717,6 +722,39 @@ IMPORTANT: Respond ONLY with the JSON object. No markdown, no code blocks.`;
   supportsNativePdf(_model: string): boolean {
     return false;
   }
+}
+
+function requireScannableAttachment(att: ChatAttachment, extractedText?: string): void {
+  const scan = scanPromptPart({
+    id: 'attachment',
+    origin: 'attachment_binary',
+    label: att.fileName,
+    attachment: { canRedact: false, ...(extractedText !== undefined ? { extractedText } : {}) },
+  });
+  if (scan.blocked) throw new Error('unscannable_attachment');
+  if (scan.findings.length) throw new Error('prompt_review_required');
+}
+
+async function readScannablePdf(
+  att: ChatAttachment,
+  bytes: Uint8Array,
+): Promise<{ text: string; pageCount: number }> {
+  let result: Awaited<ReturnType<typeof extractPdfText>>;
+  try {
+    result = await extractPdfText(bytes);
+  } catch {
+    throw new Error('unscannable_attachment');
+  }
+  const text = result.pages.join('\n\n');
+  const scan = scanPromptPart({
+    id: 'attachment',
+    origin: 'attachment_text',
+    label: att.fileName,
+    attachment: { extractedText: text, canRedact: false },
+  });
+  if (scan.blocked) throw new Error('unscannable_attachment');
+  if (scan.findings.length) throw new Error('prompt_review_required');
+  return { text, pageCount: result.pageCount };
 }
 
 /**

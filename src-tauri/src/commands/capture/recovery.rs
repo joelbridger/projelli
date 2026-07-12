@@ -1,6 +1,7 @@
 use super::session::{finalize_session, SessionManifest};
 use crate::commands::pathguard::display_path;
 use anyhow::Result;
+use std::future::Future;
 use std::path::{Path, PathBuf};
 
 #[derive(serde::Serialize, Clone, Debug)]
@@ -131,6 +132,28 @@ pub async fn capture_recover(
     workspace: String,
     meeting_dir: String,
 ) -> Result<super::engine::CaptureStopResult, String> {
+    capture_recover_with_audit(
+        workspace,
+        meeting_dir,
+        |workspace, matter_id, action, description| {
+            super::engine::append_capture_audit(workspace, matter_id, action, description)
+        },
+    )
+    .await
+}
+
+/// Recover a recording, then attempt its required completion audit entry.
+/// The audit is deliberately best-effort: audio recovery must remain usable
+/// if the OS keychain or encrypted audit store is unavailable.
+async fn capture_recover_with_audit<F, Fut>(
+    workspace: String,
+    meeting_dir: String,
+    append_audit: F,
+) -> Result<super::engine::CaptureStopResult, String>
+where
+    F: FnOnce(PathBuf, String, &'static str, String) -> Fut,
+    Fut: Future<Output = anyhow::Result<()>>,
+{
     // Path safety: meeting_dir comes back from the renderer (orphan list /
     // deep link) — never touch the filesystem before confirming it's really
     // inside this workspace.
@@ -148,13 +171,16 @@ pub async fn capture_recover(
     // row, or a crash-recovered meeting silently undercounts in the
     // client's confidentiality report.
     if let Some(matter_id) = matter_id {
-        super::engine::append_capture_audit_best_effort(
+        if let Err(e) = append_audit(
             Path::new(&workspace).to_path_buf(),
             matter_id,
             "meeting_recorded",
             format!("Meeting recording recovered after a crash and saved at {}", display_path(&audio)),
         )
-        .await;
+        .await
+        {
+            log::warn!("capture audit append failed (non-fatal): {e:#}");
+        }
     }
     Ok(super::engine::CaptureStopResult {
         meeting_dir: display_path(&dir),
@@ -335,9 +361,12 @@ mod tests {
         // deletes .capture/session.json as part of finalizing.
         assert_eq!(SessionManifest::load(&meeting).unwrap().matter_id, "m-audit-recover");
 
-        let result = capture_recover(
+        let result = capture_recover_with_audit(
             ws.path().to_string_lossy().into_owned(),
             meeting.to_string_lossy().into_owned(),
+            |_workspace, _matter_id, _action, _description| async {
+                anyhow::bail!("simulated unavailable keychain")
+            },
         )
         .await
         .unwrap();

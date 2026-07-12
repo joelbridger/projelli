@@ -1,5 +1,5 @@
 import type { Provider } from '@/platform/providers/Provider';
-import { runWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
+import { sendPreparedStructuredWithEgressAudit } from './intakeAiPreparedSend';
 import type { DocumentClassification, DocumentExtractionProposal, DocumentReadResult, IntakeDocumentSourceRef } from './documentExtractionTypes';
 import { logIntakeDocumentExtractionAudit } from './documentExtractionAudit';
 import { logIntakeEmailReplyAudit } from './emailReplyAudit';
@@ -85,7 +85,7 @@ export async function extractDocumentFacts(options: DocumentExtractionEngineOpti
   const readResult = options.readResult;
   const prompt = documentExtractionPrompt(readResult, options.classification);
   const model = options.provider.getMetadata().model;
-  const result = await runWithEgressAudit<ModelResult>({
+  const result = await sendPreparedStructuredWithEgressAudit<ModelResult>({
     provider: options.provider,
     providerId: options.providerId,
     model,
@@ -95,7 +95,10 @@ export async function extractDocumentFacts(options: DocumentExtractionEngineOpti
       const documentAuditLog = logIntakeDocumentExtractionAudit(entry);
       if (!documentAuditLog) void logIntakeEmailReplyAudit(entry);
     },
-    operation: () => options.provider.structuredOutput<ModelResult>(prompt, { schema: DOCUMENT_EXTRACTION_SCHEMA, temperature: 0, maxTokens: 700 }),
+    surface: 'intake_document_fact_extraction',
+    prompt,
+    background: true,
+    options: { schema: DOCUMENT_EXTRACTION_SCHEMA, temperature: 0, maxTokens: 700 },
     modelCall: () => ({
       action: 'model_call',
       description: 'Extracted income/spending candidates from a filed document.',

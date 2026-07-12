@@ -235,6 +235,48 @@ describe('useEmailReplyIngestion', () => {
     }));
   });
 
+  it('blocks the model classifier (never calls the provider) and falls back deterministically when the reply body carries a secret', async () => {
+    useSettingsStore.getState().setSetting('intake.emailReplyAiClassificationEnabled', true);
+    useSettingsStore.getState().setSetting('confidentialityMode', 'direct');
+    const listMessages = vi.fn().mockResolvedValue({
+      items: [mailListItem()],
+      total: 1,
+    });
+    const getMessage = vi.fn().mockResolvedValue(
+      mailView({ body: 'License attached. By the way, password: hunter2-super-secret for the portal.' })
+    );
+    const structuredOutputCalls: Parameters<Provider['structuredOutput']>[] = [];
+    const provider: Provider = {
+      getMetadata: () => ({ model: 'test-email-model' }),
+      sendMessage: () => Promise.reject(new Error('The classifier test does not send a chat message.')),
+      structuredOutput: <T,>(prompt: string, options: StructuredOutputOptions): Promise<T> => {
+        structuredOutputCalls.push([prompt, options]);
+        return Promise.resolve({ confidence: 'high' } as T);
+      },
+      formatAttachmentForRequest: () => {
+        throw new Error('The classifier test does not use attachments.');
+      },
+      supportsAttachment: () => false,
+    };
+    const resolveEmailProvider = vi.fn().mockResolvedValue({
+      provider,
+      providerId: 'openai',
+      assuredAvailable: false,
+    });
+
+    await expect(
+      processEmailReplyMessages({ listMessages, getMessage, resolveEmailProvider })
+    ).resolves.toBeUndefined();
+
+    // Background mode always blocks on a finding rather than opening a
+    // dialog (this is automatic mail-sync work, not advisor-clicked) - so
+    // the provider must never have been reached at all.
+    expect(structuredOutputCalls).toHaveLength(0);
+    const proposals = await emailReplyProposalList('matter-1');
+    expect(proposals).toHaveLength(1);
+    expect(proposals[0]?.items[0]?.confidence).toBe('high');
+  });
+
   it('uses deterministic classification without resolving a provider while AI classification is off', async () => {
     const listMessages = vi.fn().mockResolvedValue({
       items: [mailListItem()],

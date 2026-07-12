@@ -4,17 +4,17 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Security and data handling | Advisor Prep Hero</title>
-  <meta name="description" content="How Advisor Prep Hero handles your data: local-first storage, OS keychain key management, append-only audit log, opt-in telemetry, and honest disclosure of what we don't have yet. Forwardable to a CCO or IT reviewer.">
+  <meta name="description" content="How Advisor Prep Hero handles your data: local files, optional end-to-end encrypted firm sharing, direct or local AI, OS keychain key management, and an honest audit trail. Forwardable to a CCO or IT reviewer.">
   <link rel="canonical" href="https://advisorprephero.com/security">
   <meta name="robots" content="index, follow">
   <meta property="og:type" content="article">
   <meta property="og:url" content="https://advisorprephero.com/security">
   <meta property="og:title" content="Security and data handling | Advisor Prep Hero">
-  <meta property="og:description" content="How Advisor Prep Hero handles your data: local-first storage, OS keychain key management, append-only audit log, and opt-in telemetry. Forwardable to a CCO or IT reviewer.">
+  <meta property="og:description" content="How Advisor Prep Hero handles your data: local files, optional encrypted firm sharing, direct or local AI, OS keychain key management, and an honest audit trail.">
   <meta property="og:image" content="https://advisorprephero.com/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Security and data handling | Advisor Prep Hero">
-  <meta name="twitter:description" content="How Advisor Prep Hero handles your data: local-first, BYOK, OS keychain key storage, append-only audit log, opt-in telemetry. Honest about what we don't have yet.">
+  <meta name="twitter:description" content="How Advisor Prep Hero handles your data: local files, optional encrypted firm sharing, direct or local AI, OS keychain key storage, and an honest audit trail.">
   <meta name="twitter:image" content="https://advisorprephero.com/og-image.png">
   <link href="https://api.fontshare.com/v2/css?f[]=satoshi@800,700,400&display=swap" rel="stylesheet">
   <script defer data-domain="advisorprephero.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
@@ -98,92 +98,108 @@
 <body>
 <div class="container">
   <h1>Security and data handling.</h1>
-  <p class="meta">Updated 2026-06-08 · Forwardable to a CCO, IT reviewer, or malpractice carrier</p>
+  <p class="meta">Updated 2026-07-10 · Forwardable to a CCO, IT reviewer, or malpractice carrier</p>
 
   <div class="summary">
-    <p><strong>The short version.</strong> Your documents and data are stored on your machine. Your API key is in your OS keychain. AI requests go directly from your machine to your chosen provider. Advisor Prep Hero's servers are not in the data path. With a local model such as Ollama, nothing leaves your machine at all. This page states our current posture honestly, including what we don't have yet.</p>
+    <p><strong>The short version.</strong> I built Advisor Prep Hero so private client work lives in a folder you control. Your AI key stays in your computer's keychain. In Direct mode, AI requests go straight to your provider. In Local-only mode, no AI prompt or file goes to a cloud AI. Firm sharing is different: if you choose to share a client, shared notes and documents you co-edit travel through an end-to-end encrypted relay for your colleagues. This page separates those paths plainly.</p>
   </div>
 
-  <p>This page is written for attorneys, CPAs, consultants, and the IT or compliance staff who review tools on their behalf. It covers where data is stored, who can see it, how API keys are handled, what the audit trail looks like, and what certifications and agreements we currently hold (and don't). If you have a specific technical question not answered here, email <a href="mailto:security@keepance.com">security@keepance.com</a>.</p>
+  <p>This page is for advisors and the IT or compliance people who review tools for them. It covers where data lives, who can read it, how keys work, what the audit trail records, and where a Firm plan changes the picture. If a question is not answered here, email <a href="mailto:security@keepance.com">security@keepance.com</a>.</p>
 
-  <h2>What Advisor Prep Hero does with your data</h2>
+  <h2>What I do with your data</h2>
 
   <div class="check-grid">
     <div class="check-item">
       <div class="check-icon"></div>
       <div class="check-item-text">
-        <strong>Documents stay on your machine</strong>
-        <p>Advisor Prep Hero stores all your notes, drafts, chat histories, and workspace files as plain files in a folder you choose on your own hard drive. No Advisor Prep Hero server holds a copy.</p>
+        <strong>Private work stays on your machine</strong>
+        <p>By default, your workspace is a folder you choose on your own computer. Your private files live there, and your imported email and search index stay on your computer. Word <code>.docx</code> is the main document format. Markdown is still available for utility text files, but it is not the whole product.</p>
       </div>
     </div>
     <div class="check-item">
       <div class="check-icon"></div>
       <div class="check-item-text">
         <strong>API keys in your OS keychain</strong>
-        <p>When you configure a cloud AI provider, Advisor Prep Hero stores your API key in the OS keychain: macOS Keychain, Windows Credential Manager, or Linux libsecret. Keys are never written to a config file in plaintext and never transmitted to Advisor Prep Hero's servers.</p>
+        <p>When you configure Anthropic, OpenAI, or Google for Direct mode, I store your key in your computer's secure keychain: Keychain on macOS, Credential Manager on Windows, and the Secret Service on Linux. Your Direct-mode key is not sent to my servers.</p>
       </div>
     </div>
     <div class="check-item">
       <div class="check-icon"></div>
       <div class="check-item-text">
-        <strong>AI requests go directly to your provider</strong>
-        <p>When you send a message to a cloud AI provider (Anthropic, OpenAI, Google), the request travels from your machine directly to that provider's API using your key. Advisor Prep Hero's servers are not in this path and never see the content of your prompts or responses.</p>
+        <strong>Direct AI requests go to your provider</strong>
+        <p>In Direct mode, a request to Anthropic, OpenAI, or Google travels from your computer straight to that provider with your key. I am not in the middle of that request. The provider receives the prompt and any file content you choose to include.</p>
       </div>
     </div>
     <div class="check-item">
       <div class="check-icon"></div>
       <div class="check-item-text">
-        <strong>Local model option: nothing leaves your machine</strong>
-        <p>When you configure Advisor Prep Hero to use a local model (such as Ollama running on your machine), AI inference runs entirely on your hardware. No data reaches any external server. This path is available to any Advisor Prep Hero user and is the appropriate choice for content that must not leave your machine. Note: cloud BYOK keys still send your prompt to the cloud provider; only the local model path produces zero external egress.</p>
+        <strong>Local AI keeps AI work on your computer</strong>
+        <p>With the built-in local model or Ollama in Local-only mode, the AI runs on your computer. No AI prompt or file is sent to a cloud AI. That setting does not turn off a connector or Firm sharing that you have separately chosen to use.</p>
       </div>
     </div>
     <div class="check-item">
       <div class="check-icon"></div>
       <div class="check-item-text">
-        <strong>Email stays local and encrypted at rest</strong>
-        <p>If you use Advisor Prep Hero's email import feature, imported messages are encrypted at rest on your device and searchable locally. Email is never routed through a Advisor Prep Hero server.</p>
+        <strong>Imported email is encrypted on your device</strong>
+        <p>If you import email, it is kept in an encrypted local database on your computer and searched there. The same confidentiality choice you make for AI requests applies when imported email is used as context.</p>
       </div>
     </div>
     <div class="check-item">
       <div class="check-icon"></div>
       <div class="check-item-text">
-        <strong>Append-only audit log</strong>
-        <p>Advisor Prep Hero writes an append-only log of every AI action: timestamp, model, files included, and output produced. The log lives on your machine, is per-workspace, and can be produced for any matter on request. It is retained as long as your workspace folder exists.</p>
+        <strong>Local audit trail</strong>
+        <p>Advisor Prep Hero records AI actions in an append-only audit log on your computer. The log is encrypted at rest, shows the action's destination and relevant source context, and is there for you or your reviewer to inspect.</p>
       </div>
     </div>
     <div class="check-item">
       <div class="check-icon"></div>
       <div class="check-item-text">
-        <strong>Telemetry is opt-in; default is nothing</strong>
-        <p>The Advisor Prep Hero desktop app collects no usage telemetry by default. If you choose to enable anonymous usage reporting in Settings, it can be turned off at any time. The marketing site uses <a href="https://plausible.io" target="_blank" rel="noopener">Plausible Analytics</a> (no individual tracking, no cookies).</p>
+        <strong>Firm sharing is optional and encrypted</strong>
+        <p>Firm members can choose to share a client. Only the shared notes and documents they co-edit are sent through the relay. Each shared client has its own encryption key, held by authorized members' computers. The relay stores encrypted data, not readable client content. Your other files, email, and search index stay on your computer.</p>
+      </div>
+    </div>
+    <div class="check-item">
+      <div class="check-icon"></div>
+      <div class="check-item-text">
+        <strong>Analytics are opt-in</strong>
+        <p>The desktop app does not send analytics unless you turn them on in Settings. If you do, it sends a random install ID, app version, platform, and lifecycle events. It does not send file content, prompts, or email. This marketing site uses <a href="https://plausible.io" target="_blank" rel="noopener">Plausible Analytics</a>.</p>
       </div>
     </div>
   </div>
 
   <h2>What the data flow actually looks like</h2>
 
-  <p>Two paths are possible depending on which AI provider you configure:</p>
+  <p>Your choices matter. These are the main paths in the desktop app:</p>
 
-  <h3>Path A: Cloud provider (Anthropic, OpenAI, Google) with your API key</h3>
+  <h3>Path A: Direct cloud AI with your key</h3>
   <ol>
-    <li>You type a prompt in Advisor Prep Hero.</li>
-    <li>Advisor Prep Hero reads your API key from the OS keychain.</li>
-    <li>Your machine sends the prompt directly to the provider's API endpoint, under your account.</li>
+    <li>You choose a cloud AI provider and type a prompt in Advisor Prep Hero.</li>
+    <li>Advisor Prep Hero reads your key from your computer's keychain.</li>
+    <li>Your computer sends the prompt and selected context directly to that provider's API, under your account.</li>
     <li>The provider returns a response directly to your machine.</li>
-    <li>Advisor Prep Hero saves the conversation to a file in your workspace folder.</li>
+    <li>Advisor Prep Hero saves the result in your local workspace.</li>
   </ol>
-  <p>Who has a copy: you and the AI provider. Advisor Prep Hero is not in this path.</p>
-  <p>Your prompts are governed by your chosen provider's API data-processing terms, not consumer product terms. Neither Anthropic nor OpenAI uses API inputs to train models by default. See each provider's current API usage policy for the precise retention and data-handling terms.</p>
+  <p>Who can read the request: you and the AI provider you chose. Their handling of it is governed by your agreement and settings with that provider. I do not make that choice for you.</p>
 
-  <h3>Path B: Local model (Ollama or similar)</h3>
+  <h3>Path B: Local AI on your computer</h3>
   <ol>
-    <li>You type a prompt in Advisor Prep Hero.</li>
-    <li>Advisor Prep Hero sends the prompt to the local model running on your machine (typically at <code>localhost:11434</code> for Ollama).</li>
+    <li>You select Local-only mode and type a prompt.</li>
+    <li>Advisor Prep Hero sends the prompt to the local model on your computer.</li>
     <li>The model generates a response on your hardware.</li>
-    <li>Advisor Prep Hero saves the conversation to a file in your workspace folder.</li>
+    <li>Advisor Prep Hero saves the result in your local workspace.</li>
   </ol>
-  <p>Who has a copy: you. No network call is made.</p>
-  <p>This is the strictest posture available. Nothing reaches any external server. If your professional obligations, an NDA, or client instructions prohibit any external data transmission, the local model path meets that requirement literally.</p>
+  <p>Who can read that AI request: you. No AI prompt or file is sent to a cloud AI. A separately configured connector or shared Firm client can still make its own network connection, so turn those off too if your rule is that no client content may leave the computer.</p>
+
+  <h3>Path C: Optional Firm sharing</h3>
+  <ol>
+    <li>A Firm member explicitly shares a client with the firm.</li>
+    <li>Shared notes and documents being co-edited are encrypted on the member's computer.</li>
+    <li>The encrypted update is sent to the relay so authorized colleagues can receive it.</li>
+    <li>Each authorized colleague decrypts it on their own computer.</li>
+  </ol>
+  <p>Who can read the shared content: the people authorized for that client. The relay stores ciphertext and does not hold the key needed to read it. A firm can also use single sign-on with Microsoft Entra ID, Google Workspace, or another OIDC-compatible identity provider.</p>
+
+  <!-- Copy review note, 2026-07-10: This page makes no claim about a provider's retention or training terms, independent security testing, certification, or general availability of any separately described proxy service. Those facts cannot be established from this repository alone. -->
 
   <h2>Data flow comparison</h2>
 
@@ -191,131 +207,126 @@
     <thead>
       <tr>
         <th>Question</th>
-        <th>Cloud BYOK (Anthropic / OpenAI / Google)</th>
-        <th>Local model (Ollama)</th>
+        <th>Direct cloud AI</th>
+        <th>Local AI</th>
+        <th>Optional Firm sharing</th>
       </tr>
     </thead>
     <tbody>
       <tr>
-        <td>Documents stored on a Advisor Prep Hero server?</td>
+        <td>Private files, email, and search index</td>
         <td><span class="pill no">No</span></td>
         <td><span class="pill no">No</span></td>
+        <td><span class="pill no">Stay local</span></td>
       </tr>
       <tr>
-        <td>API key visible to Advisor Prep Hero?</td>
-        <td><span class="pill no">No</span></td>
+        <td>AI prompt or selected file context</td>
+        <td><span class="pill partial">Sent to your provider</span></td>
+        <td><span class="pill no">Stays on your computer</span></td>
         <td>N/A</td>
       </tr>
       <tr>
-        <td>Prompts visible to Advisor Prep Hero?</td>
-        <td><span class="pill no">No</span></td>
-        <td><span class="pill no">No</span></td>
+        <td>Shared notes and co-edited documents</td>
+        <td>N/A</td>
+        <td>N/A</td>
+        <td><span class="pill partial">Encrypted relay copy</span></td>
       </tr>
       <tr>
-        <td>Data leaves your machine?</td>
-        <td><span class="pill partial">Yes, to provider</span></td>
+        <td>AI key visible to Advisor Prep Hero</td>
         <td><span class="pill no">No</span></td>
+        <td>N/A</td>
+        <td>N/A</td>
       </tr>
       <tr>
-        <td>AI provider sees prompt?</td>
-        <td><span class="pill partial">Yes (under your API account)</span></td>
+        <td>Can the relay read shared client content?</td>
         <td><span class="pill no">No</span></td>
+        <td><span class="pill no">No</span></td>
+        <td><span class="pill no">No, encrypted</span></td>
       </tr>
       <tr>
-        <td>Provider trains on inputs (default)?</td>
-        <td><span class="pill no">No (API tier)</span></td>
-        <td><span class="pill no">No</span></td>
-      </tr>
-      <tr>
-        <td>Audit log on your machine?</td>
+        <td>Local audit trail</td>
         <td><span class="pill yes">Yes</span></td>
         <td><span class="pill yes">Yes</span></td>
-      </tr>
-      <tr>
-        <td>Works offline?</td>
-        <td><span class="pill no">No (AI calls require network)</span></td>
         <td><span class="pill yes">Yes</span></td>
       </tr>
     </tbody>
   </table>
 
-  <h2>What Advisor Prep Hero's servers do handle</h2>
+  <h2>What my services do handle</h2>
 
-  <p>A few narrow functions do go through Advisor Prep Hero infrastructure:</p>
+  <p>Advisor Prep Hero is local-first, not server-free. Depending on what you turn on, my services handle these narrow jobs:</p>
 
   <ul>
-    <li><strong>License validation.</strong> When you activate a license, Advisor Prep Hero checks your license key against our license server (LemonSqueezy). This call contains your license key only, not your workspace data.</li>
-    <li><strong>Update checks.</strong> The app periodically checks GitHub Releases for a newer version manifest. This is a GET request that contains no user data.</li>
-    <li><strong>The web demo (keepance.com homepage).</strong> The five-message demo on the marketing site runs through a Advisor Prep Hero-managed proxy that holds a shared API key. This exists so visitors can try the interface without an API key. The desktop app does not use this proxy once you install it and add your own key. Do not put client data into the web demo.</li>
+    <li><strong>License activation and update checks.</strong> The app contacts the relevant service to confirm a license or look for a new version. These requests do not include your workspace content.</li>
+    <li><strong>Firm sign-in and administration.</strong> Firm accounts, seats, invitations, and single sign-on settings need a service so the right people can join the right firm.</li>
+    <li><strong>Firm collaboration.</strong> When a client is shared, the relay stores encrypted updates for that shared client's notes and co-edited documents. It is not a readable server-side workspace.</li>
+    <li><strong>The browser demo.</strong> The public demo can send messages through a shared relay when a visitor has not added their own key. Do not put client data in the browser demo. The desktop app's Direct mode does not use that relay.</li>
+    <li><strong>Optional analytics and support.</strong> Analytics are off until you enable them. A message you deliberately send through a support or bug-report form goes to support.</li>
   </ul>
 
-  <p>That is the complete list. Everything else stays on your machine.</p>
+  <p>External connectors are separate again. When you connect Outlook, Gmail, OneDrive, a CRM, or another source, the app talks to that source from your computer and imports the data locally. That connection follows the permissions and privacy terms of the service you connected.</p>
 
   <h2>Key storage</h2>
 
-  <p>Advisor Prep Hero uses the OS-native keychain to store API keys:</p>
+  <p>Advisor Prep Hero uses your operating system's keychain to store your own cloud AI keys:</p>
 
   <ul>
-    <li><strong>macOS:</strong> macOS Keychain (the same store used by Safari and 1Password).</li>
+    <li><strong>macOS:</strong> Keychain.</li>
     <li><strong>Windows:</strong> Windows Credential Manager.</li>
-    <li><strong>Linux:</strong> libsecret (GNOME Keyring or KWallet depending on your desktop).</li>
+    <li><strong>Linux:</strong> the Secret Service.</li>
   </ul>
 
-  <p>Keys are never written to application config files in plaintext, never logged, and never included in any diagnostic or crash report. If you delete the app, the key remains in your keychain under your control and must be removed from there if you want it gone.</p>
+  <p>I don't put those keys in a plain-text app configuration file or send your own cloud key to my servers. The browser demo and the Firm-only managed-key path are different services, and are called out before you use them.</p>
 
 
-  <h2>What we don't have yet</h2>
+  <h2>What I don't have yet</h2>
 
   <div class="honest-box">
-    <h3>Current gaps: honest disclosure for reviewers</h3>
+    <h3>Current limits, stated plainly</h3>
     <ul>
-      <li><strong>No SOC 2 certification.</strong> Advisor Prep Hero has not completed a SOC 2 Type I or Type II audit. We do not hold any active SOC 2 report. We are evaluating whether to pursue this; the SOC 2 question in the FAQ below explains our thinking. If SOC 2 is a hard requirement for your vendor approval process, we cannot satisfy that requirement today.</li>
-      <li><strong>No signed DPA.</strong> We do not have a standard signed Data Processing Agreement available for customer execution yet. A draft template is in preparation and under legal review. If your organization requires a signed DPA before procurement, contact <a href="mailto:legal@keepance.com">legal@keepance.com</a> and we will update you on timeline.</li>
-      <li><strong>No penetration test report.</strong> We have not commissioned an independent third-party penetration test. The codebase is open source at <a href="https://github.com/keepance/keepance" target="_blank" rel="noopener">github.com/keepance/keepance</a> and can be reviewed directly.</li>
-      <li><strong>No enterprise SSO / SAML.</strong> Advisor Prep Hero is a single-user desktop application. There is no enterprise directory integration today.</li>
+      <li><strong>No unqualified security promises.</strong> I will not tell you that a local-first design makes every risk disappear. Your device, your chosen AI provider, your connectors, and your firm's own controls still matter.</li>
+      <li><strong>Firm sharing is not the same as a private workspace.</strong> It is an opt-in collaboration feature. It sends encrypted shared material through a relay so authorized colleagues can work together.</li>
+      <li><strong>A DPA needs real review.</strong> A template is available on request, but it must be reviewed by qualified counsel before anyone signs it.</li>
+      <li><strong>Cloud AI has its own rules.</strong> Direct mode sends content to the provider you choose. Review that provider's agreement and settings before you use it with client data.</li>
     </ul>
   </div>
 
-  <p>We believe being direct about these gaps is more useful than burying them. The security story for Advisor Prep Hero is architectural: most of the threats that SOC 2 and a DPA guard against (unauthorized access to vendor servers, vendor breach, data shared with third parties) are substantially reduced by having no vendor servers in your data path to begin with. That's a meaningful substitute posture, not a compliance certification. They are different things, and we're not going to pretend otherwise.</p>
+  <p>I would rather give you the real tradeoff than a polished answer. Keep private work local if it belongs only on your computer. Use Firm sharing only when the right colleagues need access. Use a local model when no AI prompt or file should reach a cloud AI.</p>
 
   <h2>Frequently asked questions</h2>
 
   <div class="faq">
     <details>
       <summary>Can Advisor Prep Hero read my documents?</summary>
-      <p>No. Your documents are stored as files on your hard drive in the folder you chose. Advisor Prep Hero does not upload them to any server. The app reads them locally to display them in the editor. The only time any content leaves your machine is when you send a specific message to a cloud AI provider, and at that point it goes directly to the provider under your account, not through Advisor Prep Hero.</p>
+      <p>I do not receive a readable copy of your private workspace. The app reads files locally to show and search them. If you choose Direct cloud AI, your selected content goes to that provider. If you choose Firm sharing, authorized colleagues can read the shared material after their computers decrypt it. The relay cannot.</p>
     </details>
     <details>
-      <summary>If I use Anthropic as my AI provider, does Anthropic train on my prompts?</summary>
-      <p>No. The API tier (which is what BYOK tools like Advisor Prep Hero use) does not train on inputs by default per Anthropic's commercial API terms. This is different from Claude.ai consumer accounts, which have different terms. Read <a href="https://www.anthropic.com/legal/commercial-terms" target="_blank" rel="noopener">Anthropic's Commercial Terms of Service</a> for the current precise language.</p>
+      <summary>What does my cloud AI provider receive?</summary>
+      <p>In Direct mode, the provider receives your prompt and the file content you chose to include. Its retention, training, and account controls come from your agreement and settings with that provider. I do not change those terms, so review them before you use cloud AI with client data.</p>
     </details>
     <details>
       <summary>What if I want literally nothing to leave my machine?</summary>
-      <p>Use the local model path. Configure Advisor Prep Hero to use Ollama with an open-weight model (Llama, Mistral, Phi, or similar) running on your hardware. With a local model configured, Advisor Prep Hero makes no outbound AI calls. Your prompts are processed entirely on your machine. This is the appropriate setup for content that must not reach any external server, period.</p>
+      <p>Use Local-only mode with the built-in local model or Ollama. That keeps AI prompts and files off cloud AI. Also do not use Firm sharing or an external connector for that client, because those are separate connections you control.</p>
     </details>
     <details>
       <summary>Is there a server-side copy of my workspace?</summary>
-      <p>No. There is no cloud sync, no backup to Advisor Prep Hero's servers, and no account-linked storage. Your workspace exists only in the folder you chose on your machine. If your hard drive fails and you have no local backup, your workspace is gone. We recommend disk encryption (FileVault on macOS, BitLocker on Windows) and a local backup routine on top of Advisor Prep Hero.</p>
+      <p>Your private workspace is not copied to a readable Advisor Prep Hero server. Firm sharing does create encrypted relay copies of shared notes and co-edited documents, so colleagues can collaborate. It is not a general cloud backup for the rest of your workspace. Keep your own backup routine for the files on your computer.</p>
     </details>
     <details>
       <summary>What is in the audit log?</summary>
-      <p>The append-only audit log records: timestamp, AI model used, the list of files included as context, and the output produced. It does not capture the full prompt text by default (that is in the .aichat file). The log is per-workspace, stored on your machine, and can be exported as plain text. It is retained as long as your workspace folder exists.</p>
+      <p>The local audit log records AI actions and the information needed to understand where the action went and what source context was used. It is append-only and encrypted at rest on your computer. The app gives you the record so you can inspect it with a compliance reviewer.</p>
     </details>
     <details>
       <summary>Do you have a Data Processing Agreement?</summary>
-      <p>Not a finalized, signed version yet. A draft template is in preparation under legal review. If you need a DPA for vendor approval, email <a href="mailto:legal@keepance.com">legal@keepance.com</a>. Because Advisor Prep Hero does not process your data on its servers (it's stored on your machine), the traditional DPA framing that governs a cloud SaaS processor does not apply cleanly to our architecture. We'll work through the appropriate framing with counsel.</p>
-    </details>
-    <details>
-      <summary>Do you have SOC 2?</summary>
-      <p>No. We do not hold a SOC 2 report today. If you need to understand our controls in detail, the source code is open at <a href="https://github.com/keepance/keepance" target="_blank" rel="noopener">github.com/keepance/keepance</a>. The short architectural answer: a SOC 2 audit focuses heavily on controls around a vendor's server-side data processing. Because we don't process your data server-side, most of the controls an auditor would test simply don't apply. We're evaluating whether to pursue an audit scoped to the parts that do (license server, update server, web demo proxy). That's a cost and timeline decision that isn't finalized yet.</p>
+      <p>There is a template available on request. It needs review by qualified counsel before execution, especially when a firm plans to use shared collaboration or a managed AI route. Email <a href="mailto:legal@keepance.com">legal@keepance.com</a> for it.</p>
     </details>
     <details>
       <summary>What happens to my data if Advisor Prep Hero shuts down?</summary>
-      <p>Nothing changes. Your files are on your machine in plain Markdown and .aichat (JSON) format. They don't move. If Advisor Prep Hero disappears tomorrow, you still have your files, readable with any text editor. This is a deliberate design choice: your data should outlive the tool.</p>
+      <p>Your private files remain in the folder you chose. A Word <code>.docx</code> file remains a Word file and can be opened outside Advisor Prep Hero. Text files remain ordinary files too. That answer is about private local work, not a promise about a separate Firm collaboration service.</p>
     </details>
     <details>
       <summary>Do you support multi-user or enterprise deployments?</summary>
-      <p>The Practice tier licenses up to five seats on the same machine or within one organization, but each instance runs independently as a desktop app. There is no centralized server, no shared database, no SSO, and no admin console today. Enterprise directory integration (SAML, LDAP) is not on the current roadmap. If that's a requirement, we aren't the right fit yet.</p>
+      <p>Yes, on the Firm plan. It includes an admin console, seats, client-by-client sharing, and single sign-on through Microsoft Entra ID, Google Workspace, or another OIDC-compatible identity provider. Shared material is end-to-end encrypted; the relay stores ciphertext rather than a readable shared client database.</p>
     </details>
   </div>
 
@@ -323,12 +334,12 @@
 
   <p>For security questions, vulnerability reports, or compliance review requests: <a href="mailto:security@keepance.com">security@keepance.com</a>. For DPA or legal questions: <a href="mailto:legal@keepance.com">legal@keepance.com</a>.</p>
 
-  <p>If you are a CCO, IT reviewer, or malpractice carrier and need specific architectural documentation, I'm happy to answer questions directly. The goal is to give you an accurate picture, not a polished one.</p>
+  <p>If you are a CCO, IT reviewer, or malpractice carrier and need specific architectural documentation, I will answer directly. The goal is an accurate picture, not a polished one.</p>
 
   <div class="next-read">
     <h3>Related reading</h3>
     <ul>
-      <li><a href="/ai-workspace-privacy">AI workspace privacy: a data flow guide for attorneys, CPAs, and consultants</a></li>
+      <li><a href="/ai-workspace-privacy">AI workspace privacy: a data flow guide for financial advisors</a></li>
       <li><a href="/byok-ai">BYOK AI: what bring-your-own-key means in practice</a></li>
       <li><a href="/local-first-ai-workspace">What is a local-first AI workspace?</a></li>
       <li><a href="/local-model-setup">Setting up a local AI model with Advisor Prep Hero</a></li>
@@ -338,7 +349,7 @@
 
   <div class="cta-card">
     <h3>An AI workspace designed around your data staying yours</h3>
-    <p>Local-first. BYOK. No Advisor Prep Hero servers in the data path. Try it free for 30 days.</p>
+    <p>Private local work. Direct AI with your own key. Optional encrypted Firm collaboration. Try it free for 30 days.</p>
     <a href="/#pricing" class="cta-btn">Get Advisor Prep Hero</a>
   </div>
 </div>

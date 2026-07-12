@@ -44,34 +44,37 @@ describe('Lantern Intake IT Gatekeeper Pack claims discipline', () => {
     expect(intakePack).toContain('the firm remains the regulated entity');
   });
 
-  it('does not promise automatic expiry deletion before it exists', () => {
-    expect(intakePack).not.toContain(
-      'cleaned up at expiry plus a 30-day grace window'
-    );
-    expect(intakePack).not.toContain(
-      'cleans up expired intake ciphertext after a 30-day grace window'
-    );
+  it('describes the automatic expiry deletion sweep accurately, without promising instant deletion', () => {
+    // Fold note (2026-07): the sweep is real (confirmed against
+    // backend/src/server.ts's startIntakeRetentionSweep - boot + daily,
+    // deletes intakes past expires_at), so this guard now checks the doc
+    // claims it correctly - present, but bounded by the sweep's own
+    // up-to-24-hour cadence - rather than checking for its absence.
     expect(intakePack).toContain(
       "the relay deletes ciphertext when the advisor's app acknowledges a durable local save"
     );
-    expect(intakePack).toContain(
-      'automatic deletion of unacknowledged ciphertext at expiry is a planned hardening item, not yet implemented'
+    expect(intakePack).toContain('daily retention sweep');
+    expect(intakePack).not.toMatch(
+      /deletes? .*ciphertext .*(instantly|immediately) .*(at|on) expiry/
     );
     expect(intakePack).toContain(
-      'should not rely on automatic server-side expiry deletion for retention decisions today'
+      "up to a 24-hour window between a link's expiry and its ciphertext actually being deleted"
     );
   });
 
-  it('does not promise a new-device indicator for every session before it is wired', () => {
+  it('describes the new-device indicator accurately, including its known first-submission limitation', () => {
+    // Fold note (2026-07): the session-marker mechanism is wired end-to-end
+    // (confirmed against IntakeSyncClient.ts's isKnownSession check), so
+    // this guard now checks the doc names the one real known gap - a
+    // false-positive on the client's own first submission - rather than
+    // hedging that the whole mechanism isn't wired yet.
     expect(intakePack).not.toMatch(
       /every submission from (a )?(previously unseen |new )?session has a new-device indicator/
     );
     expect(intakePack).toContain('the advisor sees each submission with its provenance');
+    expect(intakePack).toContain('new-device indicator');
     expect(intakePack).toContain(
-      'a new-device indicator is raised when a session marker is present'
-    );
-    expect(intakePack).toContain(
-      'always-on per-session marker is a planned item and is not yet fully wired end-to-end'
+      "a known limitation currently causes the client's own first-ever submission on a link to sometimes flag as a new device"
     );
   });
 });

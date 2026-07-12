@@ -37,6 +37,7 @@ import {
   isMicrosoftSignInExpiredError,
   MICROSOFT_SIGNIN_EXPIRED_MESSAGE,
 } from '@/platform/connectors/microsoft/microsoftAuthError';
+import { IntegrationHonestyCard } from '@/platform/connectors/IntegrationHonestyCard';
 import type { Matter } from '@/platform/types/matter';
 import { brandText } from '@/config/brandText';
 
@@ -434,6 +435,7 @@ export function OneDriveConnect() {
         OneDrive and SharePoint documents
         <InfoHelp content={brandText("Imports documents from any OneDrive or SharePoint folder named after one of your clients. Lantern downloads those files into the client's folder on this device, so they appear in the client's Documents and become searchable. Read-only in the cloud: Lantern only asks Microsoft for files. It never edits, uploads, moves, or deletes anything in OneDrive or SharePoint.")} />
       </h3>
+      <IntegrationHonestyCard connectorId="onedrive-sharepoint" />
       {localOnly && (
         <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
           Local-only mode is on, so OneDrive sync is paused. Switch out of

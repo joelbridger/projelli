@@ -74,6 +74,12 @@ const INTERNAL_EXACT_SERVICES: &[&str] = &[
     // (`lantern-calendly-enc`) and any future Calendly-scoped secret are
     // covered by CALENDLY_SERVICE_PREFIX below.
     identity::CALENDLY_SERVICE,
+    // External write-back ledger (RightCapital/Holistiplan planning sockets,
+    // Wave 1) SQLCipher master key. codex-review flagged (2026-07-10) that
+    // this new service was missing from the denylist, letting any renderer
+    // code read or delete the ledger's encryption key directly through the
+    // generic keychain bridge.
+    identity::WRITEBACK_ENC_SERVICE,
 ];
 const INTERNAL_SERVICE_PREFIXES: &[&str] = &[
     // Vault VMKs are Rust-owned. Firm collaboration keys use
@@ -385,6 +391,9 @@ mod tests {
             // Calendly: API token slot (exact) + SQLCipher DB key (prefix).
             identity::CALENDLY_SERVICE,
             identity::CALENDLY_ENC_SERVICE,
+            // External write-back ledger (RightCapital/Holistiplan planning
+            // sockets, Wave 1) SQLCipher master key.
+            identity::WRITEBACK_ENC_SERVICE,
             // Future connectors under the same namespaces must be denied by default.
             &future_crm,
             &future_onedrive,

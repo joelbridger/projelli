@@ -8,7 +8,8 @@
 import type { Provider } from '@/platform/providers/Provider';
 import { buildResolvedProviderForGlance } from '@/platform/matter/matterAtAGlance';
 import { AuditService } from '@/platform/audit/AuditService';
-import { sendWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
+import { sendPreparedMessageWithEgressAudit } from '@/platform/privacy/promptPreparation';
+import { modelAuditMetrics } from '@/platform/privacy/sendWithEgressAudit';
 import type { AuditEntry } from '@/platform/types/audit';
 import type { GeneratedBrief } from './generateBrief';
 
@@ -99,20 +100,21 @@ export async function agendaMarkdownFromBrief(
   }
   try {
     const model = provider.getMetadata().model;
-    const res = await sendWithEgressAudit({
+    const prompt = `Client: ${opts.clientLabel}\nMeeting: ${opts.eventTitle}\n<internal_brief>\n${brief.markdown}\n</internal_brief>`;
+    const res = await sendPreparedMessageWithEgressAudit({
       provider,
       providerId,
       model,
-      prompt: `Client: ${opts.clientLabel}\nMeeting: ${opts.eventTitle}\n<internal_brief>\n${brief.markdown}\n</internal_brief>`,
+      prompt,
       options: { systemPrompt: SYSTEM_PROMPT, maxTokens: 700 },
+      surface: 'meeting_agenda_rewrite',
+      parts: [
+        { id: 'prompt', origin: 'meeting', label: 'Agenda request', text: prompt },
+        { id: 'brief', origin: 'meeting', label: 'Meeting brief', text: brief.markdown },
+      ],
       onAuditLog: onAgendaAuditLog,
       scope: { kind: 'matter', matterId: opts.matterId },
-      modelCall: {
-        description: `Agenda rewrite for ${opts.eventTitle}`,
-        inputs: { eventTitle: opts.eventTitle },
-        outputs: (response) => ({ contentLength: response.content.length }),
-        metadata: { feature: 'meeting_agenda', provider: providerId },
-      },
+      modelCall: (response) => ({ action: 'model_call', description: `Agenda rewrite for ${opts.eventTitle}`, model, inputs: { eventTitle: opts.eventTitle }, outputs: { contentLength: response.content.length }, userDecision: 'auto', metadata: { feature: 'meeting_agenda', provider: providerId }, ...modelAuditMetrics(response), provider: providerId }),
     });
     const md = res.content.trim();
     const wellFormed = REQUIRED_SECTIONS.every((s) => md.includes(s));

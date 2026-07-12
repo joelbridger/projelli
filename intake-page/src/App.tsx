@@ -110,7 +110,7 @@ function isHueChannel(token: string): boolean {
 function splitCssFunctionArgs(value: string, name: string): string[] | null {
   const match = value.match(new RegExp(`^${name}\\(([^()]*)\\)$`, 'iu'));
   if (!match) return null;
-  const parts = match[1].split(',').map((part) => part.trim());
+  const parts = (match[1] ?? '').split(',').map((part) => part.trim());
   if (parts.some((part) => part.length === 0)) return null;
   return parts;
 }
@@ -118,13 +118,13 @@ function splitCssFunctionArgs(value: string, name: string): string[] | null {
 function isSafeRgbColor(value: string): boolean {
   const parts = splitCssFunctionArgs(value, 'rgba?');
   if (!parts || (parts.length !== 3 && parts.length !== 4)) return false;
-  return parts.slice(0, 3).every(isRgbChannel) && (parts.length === 3 || isAlphaChannel(parts[3]));
+  return parts.slice(0, 3).every(isRgbChannel) && (parts.length === 3 || isAlphaChannel(parts[3] ?? ''));
 }
 
 function isSafeHslColor(value: string): boolean {
   const parts = splitCssFunctionArgs(value, 'hsla?');
   if (!parts || (parts.length !== 3 && parts.length !== 4)) return false;
-  return isHueChannel(parts[0]) && isCssPercent(parts[1]) && isCssPercent(parts[2]) && (parts.length === 3 || isAlphaChannel(parts[3]));
+  return isHueChannel(parts[0] ?? '') && isCssPercent(parts[1] ?? '') && isCssPercent(parts[2] ?? '') && (parts.length === 3 || isAlphaChannel(parts[3] ?? ''));
 }
 
 function safeAccentColor(accent: unknown): string {
@@ -246,7 +246,7 @@ function warningMessage(classification: Extract<Tier1Classification, { verdict: 
 
 function getIntakeIdFromPath(): string | null {
   const match = window.location.pathname.match(/^\/i\/([^/]+)/u);
-  return match ? decodeURIComponent(match[1]) : null;
+  return match ? decodeURIComponent(match[1] ?? '') : null;
 }
 
 async function hasModernWebCrypto(): Promise<boolean> {
@@ -560,12 +560,9 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
           singlePayload.kind === 'files' &&
           pending?.completed_sha256 === singlePayload.pdf_completion_receipt?.completedSha256
         );
-        const resumeSubmissionId = supportsResumableFileUpload && matchingPdfResume && allowResume && !replacingItemId
-          ? pending?.submission_id
-          : undefined;
-        const resumeContentKeyB64 = supportsResumableFileUpload && matchingPdfResume && allowResume && !replacingItemId
-          ? pending?.content_key_b64
-          : undefined;
+        const canResume = supportsResumableFileUpload && matchingPdfResume && allowResume && !replacingItemId;
+        const resumeSubmissionId = canResume ? pending?.submission_id : undefined;
+        const resumeContentKeyB64 = canResume ? pending?.content_key_b64 : undefined;
         await submitAnswer({
           intakeId,
           intakePubRaw,
@@ -573,8 +570,8 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
           payload: singlePayload,
           relay,
           sessionId,
-          resumeSubmissionId,
-          resumeContentKeyB64,
+          ...(resumeSubmissionId !== undefined ? { resumeSubmissionId } : {}),
+          ...(resumeContentKeyB64 !== undefined ? { resumeContentKeyB64 } : {}),
           onPendingUpload: async (pendingUpload) => {
             if (itemToSubmit.t !== 'doc_upload' && itemToSubmit.t !== 'pdf_fill') return;
             try {
@@ -701,7 +698,7 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
         <ProvidedScreen
           item={item}
           local={localSubmitted.has(item.item_id)}
-          confirmation={sessionConfirmations[item.item_id]}
+          {...(sessionConfirmations[item.item_id] !== undefined ? { confirmation: sessionConfirmations[item.item_id] } : {})}
           phoneCompleted={resume.phone_completed_item_ids?.includes(item.item_id) ?? false}
           phoneLabel={journeyText(journey.phone_walkthrough_label, checklist, firm)}
           onReplace={() => setReplacingItemId(item.item_id)}
@@ -712,8 +709,8 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
           key={`${item.item_id}:${replacingItemId ?? 'new'}`}
           item={item}
           firmName={firm.name}
-          pendingUpload={resume.pending_uploads?.[item.item_id]}
-          pdfFillDraft={resume.pdf_fill_drafts?.[item.item_id]}
+          {...(resume.pending_uploads?.[item.item_id] !== undefined ? { pendingUpload: resume.pending_uploads[item.item_id] } : {})}
+          {...(resume.pdf_fill_drafts?.[item.item_id] !== undefined ? { pdfFillDraft: resume.pdf_fill_drafts[item.item_id] } : {})}
           onPdfFillDraftChange={(values) => {
             if (item.t !== 'pdf_fill') return;
             void saveResume((current) => ({
@@ -876,7 +873,7 @@ function CompletionScreen({ checklist, firm, resume }: { checklist: IntakeCheckl
       <p>{journeyText(journey.completion.nothing_needed, checklist, firm)}</p>
       <JourneyTimeline journey={journey} currentId={resume.current_milestone_id ?? 'reviewing'} />
       <TeamBlock checklist={checklist} firm={firm} />
-      <HandoffNotice checklist={checklist} firm={firm} handoffPerson={resume.handoff_person_name} />
+      <HandoffNotice checklist={checklist} firm={firm} {...(resume.handoff_person_name !== undefined ? { handoffPerson: resume.handoff_person_name } : {})} />
       <section className="help-block"><h2>{journey.welcome.help_heading}</h2><p>{journey.help_contact_label}</p></section>
     </section>
   );
@@ -891,7 +888,7 @@ function ResumeBanner({ checklist, firm, resume }: { checklist: IntakeChecklist;
 
 function JourneyStatusScreen({ checklist, firm, resume, state }: { checklist: IntakeChecklist; firm: IntakeFirm; resume: ResumeState; state: Exclude<NonNullable<ResumeState['journey_state']>, 'not_started' | 'in_progress'> }): JSX.Element {
   const copy = firm.journey.resume[state];
-  return <section className="panel"><p className="eyebrow">{firm.name}</p><h1 tabIndex={-1}>{journeyText(copy.heading, checklist, firm)}</h1><p>{journeyText(copy.body, checklist, firm)}</p><JourneyTimeline journey={firm.journey} currentId={state === 'signature_ready' ? 'signature_or_transfer' : state === 'active_client' ? 'active_client' : state} /><TeamBlock checklist={checklist} firm={firm} /><HandoffNotice checklist={checklist} firm={firm} handoffPerson={resume.handoff_person_name} /><section className="help-block"><h2>{firm.journey.welcome.help_heading}</h2><p>{firm.journey.help_contact_label}</p></section></section>;
+  return <section className="panel"><p className="eyebrow">{firm.name}</p><h1 tabIndex={-1}>{journeyText(copy.heading, checklist, firm)}</h1><p>{journeyText(copy.body, checklist, firm)}</p><JourneyTimeline journey={firm.journey} currentId={state === 'signature_ready' ? 'signature_or_transfer' : state === 'active_client' ? 'active_client' : state} /><TeamBlock checklist={checklist} firm={firm} /><HandoffNotice checklist={checklist} firm={firm} {...(resume.handoff_person_name !== undefined ? { handoffPerson: resume.handoff_person_name } : {})} /><section className="help-block"><h2>{firm.journey.welcome.help_heading}</h2><p>{firm.journey.help_contact_label}</p></section></section>;
 }
 
 function JourneyTimeline({ journey, currentId, compact = false }: { journey: WelcomeJourney; currentId: string; compact?: boolean }): JSX.Element {
@@ -933,15 +930,16 @@ function ItemInputScreen({
 }): JSX.Element {
   if (item.t === 'typed_field') return <TypedFieldScreen item={item} firmName={firmName} busy={busy} onSubmit={onSubmit} onSkip={onSkip} />;
   if (item.t === 'doc_upload') {
-    return <DocUploadScreen item={item} pendingUpload={pendingUpload} relay={relay} busy={busy} onSubmit={onSubmit} onSkip={onSkip} />;
+    return <DocUploadScreen item={item} {...(pendingUpload !== undefined ? { pendingUpload } : {})} relay={relay} busy={busy} onSubmit={onSubmit} onSkip={onSkip} />;
   }
   if (item.t === 'guided_question') return <GuidedQuestionScreen item={item} busy={busy} onSubmit={onSubmit} onSkip={onSkip} />;
   if (item.t === 'pdf_fill') {
+    const sourceBytes = sealedPdfSourceBytes(item);
     return <PdfFillScreen
       item={item}
       firmName={firmName}
-      sourceBytes={sealedPdfSourceBytes(item)}
-      draft={pdfFillDraft}
+      {...(sourceBytes !== undefined ? { sourceBytes } : {})}
+      {...(pdfFillDraft !== undefined ? { draft: pdfFillDraft } : {})}
       busy={busy}
       onDraftChange={onPdfFillDraftChange}
       onSubmit={onSubmit}
@@ -988,7 +986,7 @@ function TypedFieldScreen({
     if (isSsn) payloadValue = cleanSsn;
     if (isNumeric && parsedNumber !== null) payloadValue = parsedNumber;
     const confirmation = isSsn ? `(ending in ${cleanSsn.slice(-4)})` : undefined;
-    onSubmit({ kind: 'typed', value: payloadValue, display_value: isSsn ? undefined : value }, confirmation);
+    onSubmit({ kind: 'typed', value: payloadValue, ...(isSsn ? {} : { display_value: value }) }, confirmation);
   }
 
   return (
@@ -1204,7 +1202,10 @@ function DocUploadScreen({
         tier: 'tier1' as const,
         slot_index: Number(slotIndex),
         warning_reason: classification.reason,
-        expected: classification.reason === 'wrong_side_of_license' ? classification.expected.side : classification.expected.kind,
+        // ExpectedDocument.side is optional even on the wrong_side_of_license
+        // reason (the type doesn't encode that correlation), so fall back to
+        // .kind rather than ever sending an undefined `expected` field.
+        expected: classification.reason === 'wrong_side_of_license' ? (classification.expected.side ?? classification.expected.kind) : classification.expected.kind,
         observed: classification.observed,
         ...(classification.side ? { side: classification.side } : {}),
         kept_anyway: Boolean(acknowledgedWarnings[Number(slotIndex)]),
@@ -1257,7 +1258,7 @@ function DocUploadScreen({
           const warning = classification?.verdict === 'warn' ? classification : undefined;
           return (
             <div className="upload-slot" key={slotName}>
-              <p>{isLicenseSide ? `${slotName[0].toUpperCase()}${slotName.slice(1)} side` : item.label}</p>
+              <p>{isLicenseSide ? `${(slotName[0] ?? '').toUpperCase()}${slotName.slice(1)} side` : item.label}</p>
               <input
                 id={captureId}
                 className="sr-only"

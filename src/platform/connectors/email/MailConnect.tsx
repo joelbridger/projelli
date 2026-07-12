@@ -12,6 +12,7 @@ import {
   MICROSOFT_SIGNIN_EXPIRED_MESSAGE,
 } from '@/platform/connectors/microsoft/microsoftAuthError';
 import { brandText } from '@/config/brandText';
+import { IntegrationHonestyCard } from '@/platform/connectors/IntegrationHonestyCard';
 
 export function MailConnect() {
   const { t } = useTranslation();
@@ -29,7 +30,7 @@ export function MailConnect() {
 
   // G6: check OS full-disk encryption status on mount. Best-effort; never blocks.
   useEffect(() => {
-    mailFdeStatus().then((s) => setFdeStatus(s.status)).catch(() => {});
+    mailFdeStatus().then((s) => { setFdeStatus(s.status); }).catch(() => {});
   }, []);
 
   // Sync-stall watchdog: if progress is 'syncing' and written count hasn't changed
@@ -42,8 +43,8 @@ export function MailConnect() {
     // Clear any prior stall warning on each progress event, so a sync that
     // resumes drops the "may have expired" message instead of leaving it stuck.
     setSyncStalled(false);
-    const timer = setTimeout(() => setSyncStalled(true), 90_000);
-    return () => clearTimeout(timer);
+    const timer = setTimeout(() => { setSyncStalled(true); }, 90_000);
+    return () => { clearTimeout(timer); };
   }, [progress?.status, progress?.written]);
 
   // Reconnect: a stale/hung sync holds the backend single-sync guard, so cancel
@@ -67,7 +68,7 @@ export function MailConnect() {
       // Pass the current mail->matter mapping so synced mail is scoped at
       // index time (unmapped folders fall back to "unassigned"). Scope the sync
       // to "m365" so connecting Microsoft never runs (or fails on) a Gmail token.
-      mailSyncAll(buildMailMatterMap(getMatters()), 'm365').catch((err) => {
+      mailSyncAll(buildMailMatterMap(getMatters()), 'm365').catch((err: unknown) => {
         setConnectError(typeof err === 'string' ? err : err instanceof Error ? err.message : 'Mail sync could not start. Please try again.');
       });
     } catch (err) {
@@ -121,6 +122,7 @@ export function MailConnect() {
         Microsoft 365 email
         <InfoHelp content={brandText('Bring your Outlook mail into Lantern so you can actually find it. Your mail is encrypted and stays on this machine. Requires the Lantern desktop app.')} />
       </h3>
+      <IntegrationHonestyCard connectorId="email" />
       {fdeStatus === 'off' && (
         <p className="mt-2 text-xs text-amber-700 bg-amber-50 rounded px-2 py-1">
           {t('mail.connect.fde-warning')}

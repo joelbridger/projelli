@@ -18,6 +18,7 @@
  */
 
 import { sanitizeForPrompt } from '@/platform/utils/prompt-security';
+import type { PromptPart } from '@/platform/privacy/promptPreparation';
 
 /**
  * Codex review catch (P2): this MUST mirror `WRITABLE_FIELDS` in
@@ -64,6 +65,14 @@ function mergePrompt(existingValue: string, newValue: string): string {
   ].join('\n');
 }
 
+export interface PreparedFieldBlendRequest {
+  prompt: string;
+  parts: PromptPart[];
+  surface: 'crm_field_blend';
+  /** This helper has no UI, so a future sender must use background blocking. */
+  background: true;
+}
+
 type ComposeFieldBlendArgs =
   | {
       field: string;
@@ -75,8 +84,11 @@ type ComposeFieldBlendArgs =
       field: string;
       existingValue: string;
       newValue: string;
-      /** Audited model sender. It must log egress before the model call. */
-      send: (prompt: string) => Promise<string>;
+      /**
+       * Prepared model sender. The future CRM wire-up must pass this request
+       * to sendPreparedMessageWithEgressAudit, never directly to a provider.
+       */
+      send: (request: PreparedFieldBlendRequest) => Promise<string>;
     };
 
 export async function composeFieldBlend(args: ComposeFieldBlendArgs): Promise<string> {
@@ -91,5 +103,14 @@ export async function composeFieldBlend(args: ComposeFieldBlendArgs): Promise<st
   }
 
   const prompt = mergePrompt(existingValue, newValue);
-  return send(prompt);
+  return send({
+    prompt,
+    surface: 'crm_field_blend',
+    background: true,
+    parts: [
+      { id: 'prompt', origin: 'workflow_input', label: 'CRM blend request', text: prompt },
+      { id: 'crm-existing', origin: 'client_map', label: 'Existing CRM narrative', text: existingValue },
+      { id: 'crm-incoming', origin: 'meeting', label: 'Incoming CRM narrative', text: newValue },
+    ],
+  });
 }

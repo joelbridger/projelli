@@ -110,6 +110,7 @@ import type { AuditIntegrityVerdict } from '@/platform/utils/tauri-commands';
 import {
   getOrCreateSampleMatter,
   setMatterAuditEmitter,
+  setMatterAuditEmitterAsync,
   useMatterStore,
   useActiveMatter,
   useMatters,
@@ -1515,7 +1516,7 @@ function AppShell() {
   // persisted row and the on-screen row describe the same event. Append-only on
   // both sides: we only ever prepend a new entry.
   const addAuditEntry = useCallback(
-    async (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => {
+    async (entry: Omit<AuditEntry, 'id' | 'timestamp'>): Promise<AuditEntry> => {
       const options = {
         ...(entry.model !== undefined ? { model: entry.model } : {}),
         inputs: entry.inputs,
@@ -1547,7 +1548,7 @@ function AppShell() {
         } catch {
           // The action audit already persisted; integrity refresh is best-effort UI.
         }
-        return;
+        return newEntry;
       }
       const { entry: newEntry, persisted } =
         auditServiceRef.current.logDurablePending(
@@ -1569,6 +1570,7 @@ function AppShell() {
         })
         .then(setAuditIntegrity)
         .catch(() => undefined);
+      return newEntry;
     },
     []
   );
@@ -1578,13 +1580,25 @@ function AppShell() {
     },
     [addAuditEntry]
   );
+  // Intake's audit-emitter contracts predate addAuditEntry's async fold-in
+  // (it now resolves the created AuditEntry, for callers elsewhere that
+  // chain off it) and are typed Promise<void> - neither Intake emitter uses
+  // the resolved value, only the completion, so this adapter just discards it.
+  const awaitAuditEntry = useCallback(
+    async (entry: Omit<AuditEntry, 'id' | 'timestamp'>): Promise<void> => {
+      await addAuditEntry(entry);
+    },
+    [addAuditEntry]
+  );
 
   useEffect(() => {
     setMatterAuditEmitter(emitAuditEntry);
+    setMatterAuditEmitterAsync(addAuditEntry);
     return () => {
       setMatterAuditEmitter(null);
+      setMatterAuditEmitterAsync(null);
     };
-  }, [emitAuditEntry]);
+  }, [addAuditEntry, emitAuditEntry]);
 
   // EmailViewer's only parent (MainPanel.tsx) isn't wired with an onAuditLog
   // prop, so it reaches the live Activity Log / confidentiality report the
@@ -1606,18 +1620,18 @@ function AppShell() {
 
   useEffect(() => {
     // Email-reply filing waits for this promise before any file or fact write.
-    setIntakeEmailReplyAuditEmitter(addAuditEntry);
+    setIntakeEmailReplyAuditEmitter(awaitAuditEntry);
     return () => {
       setIntakeEmailReplyAuditEmitter(null);
     };
-  }, [addAuditEntry]);
+  }, [awaitAuditEntry]);
 
   useEffect(() => {
-    setIntakeDocumentExtractionAuditEmitter(addAuditEntry);
+    setIntakeDocumentExtractionAuditEmitter(awaitAuditEntry);
     return () => {
       setIntakeDocumentExtractionAuditEmitter(null);
     };
-  }, [addAuditEntry]);
+  }, [awaitAuditEntry]);
 
   // Handle save audio recording (extracted to useAudioRecording)
   const { handleSaveAudioRecording } = useAudioRecording({

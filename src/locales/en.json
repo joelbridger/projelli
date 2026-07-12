@@ -2583,6 +2583,12 @@
     }
   },
   "privacy": {
+    "prompt-preparation": {
+      "title": "Review private links",
+      "description_one": "I found {{count}} private access link in the material for this AI request. I made a safe copy with the private parts hidden. Send that safe copy?",
+      "description_other": "I found {{count}} private access links in the material for this AI request. I made a safe copy with the private parts hidden. Send that safe copy?",
+      "send-redacted-copy": "Send redacted copy"
+    },
     "egress": {
       "local": {
         "label": "On your machine. No cloud AI",

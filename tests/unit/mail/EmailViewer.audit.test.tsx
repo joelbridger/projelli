@@ -105,8 +105,9 @@ vi.mock('@/platform/providers/resolveLocalProvider', () => ({
 // This mock captures the opts (esp. `provider`/`assured`) so tests can prove
 // the ACTUAL route the provider was built with, not just the app's
 // confidentiality-mode setting.
+const cloudSendMessage = vi.fn(async () => ({ content: 'Cloud draft.' }));
 const createProviderMock = vi.fn((opts: { provider: string; apiKey?: string; model?: string; assured?: unknown }) => ({
-  sendMessage: vi.fn(async () => ({ content: 'Cloud draft.' })),
+  sendMessage: cloudSendMessage,
   getMetadata: vi.fn(() => ({ model: opts.model ?? 'claude-haiku-4-5-20251001' })), // no providerId — real cloud providers never set one
   __opts: opts,
 }));
@@ -130,8 +131,17 @@ import type { AuditEntry } from '@/platform/types/audit';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { CONFIDENTIALITY_MODE_SETTING_KEY } from '@/platform/privacy/egress';
 import { CONFIDENTIALITY_CHOICE_MADE_KEY } from '@/platform/privacy/resolvePersonalEgressDefault';
+import { setPromptDecisionBroker } from '@/platform/privacy/promptPreparation';
 
 const emitterSpy = vi.fn((_entry: Omit<AuditEntry, 'id' | 'timestamp'>) => {});
+
+function latestEgressEntry(): Omit<AuditEntry, 'id' | 'timestamp'> {
+  const entry = emitterSpy.mock.calls
+    .map(([candidate]) => candidate as Omit<AuditEntry, 'id' | 'timestamp'>)
+    .find((candidate) => candidate.action === 'egress');
+  if (!entry) throw new Error('expected an egress audit entry');
+  return entry;
+}
 
 async function openReplyComposer() {
   fireEvent.click(screen.getByTestId('reply-open-btn'));
@@ -178,7 +188,7 @@ describe('EmailViewer — AI-draft audit (egress)', () => {
 
     await waitFor(() => expect(emitterSpy).toHaveBeenCalled());
 
-    const entry = emitterSpy.mock.calls[0]![0];
+    const entry = latestEgressEntry();
     expect(entry.action).toBe('egress');
     const metadata = entry.metadata;
     expect(metadata['messageId']).toBe('AAMk-xyz');
@@ -211,8 +221,33 @@ describe('EmailViewer — AI-draft audit (egress)', () => {
     });
 
     await waitFor(() => expect(emitterSpy).toHaveBeenCalled());
-    const entry = emitterSpy.mock.calls[0]![0];
+    const entry = latestEgressEntry();
     expect(entry.metadata['scope']).toBeUndefined();
+  });
+
+  it('sends a redacted email copy after the advisor chooses the safe copy', async () => {
+    useSettingsStore.setState({ values: {} });
+    useSettingsStore.getState().setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, 'direct');
+    useSettingsStore.getState().setSetting(CONFIDENTIALITY_CHOICE_MADE_KEY, true);
+    mockGetKey.mockImplementation(async (provider: string) => provider === 'anthropic' ? 'sk-ant-test' : null);
+    setPromptDecisionBroker(() => Promise.resolve('send_redacted_copy'));
+    try {
+      mockMailGetMessage.mockResolvedValue(sampleMessage({
+        body: 'Review https://example.test/i/abc#intake-secret before the meeting.',
+      }));
+      render(<EmailViewer sourceId="AAMk-xyz" />);
+      await screen.findByTestId('email-reply-area');
+      await act(async () => {
+        fireEvent.click(screen.getByTestId('reply-draft-ai-btn'));
+      });
+      await waitFor(() => expect(cloudSendMessage).toHaveBeenCalledTimes(1));
+      const [sentPrompt] = cloudSendMessage.mock.calls[0] as unknown as [string];
+      expect(sentPrompt).not.toContain('intake-secret');
+    } finally {
+      setPromptDecisionBroker();
+      mockGetKey.mockImplementation(async () => null);
+      useSettingsStore.setState({ values: {} });
+    }
   });
 
   it('still scopes by matterId (without a name) when the matter is filed but not in the current list (e.g. archived)', async () => {
@@ -226,7 +261,7 @@ describe('EmailViewer — AI-draft audit (egress)', () => {
     });
 
     await waitFor(() => expect(emitterSpy).toHaveBeenCalled());
-    const entry = emitterSpy.mock.calls[0]![0];
+    const entry = latestEgressEntry();
     expect(entry.metadata['scope']).toEqual({ kind: 'matter', matterId: 'm-archived' });
   });
 
@@ -276,7 +311,7 @@ describe('EmailViewer — AI-draft audit records the ACTUAL assured route (indep
     });
 
     await waitFor(() => expect(emitterSpy).toHaveBeenCalled());
-    const entry = emitterSpy.mock.calls[0]![0];
+    const entry = latestEgressEntry();
     expect(entry.metadata['mode']).toBe('assured');
     expect(entry.metadata['destination']).toBe('assured-proxy');
     expect(entry.metadata['dataLeaves']).toBe(true);
@@ -312,7 +347,7 @@ describe('EmailViewer — AI-draft audit records the ACTUAL assured route (indep
     });
 
     await waitFor(() => expect(emitterSpy).toHaveBeenCalled());
-    const entry = emitterSpy.mock.calls[0]![0];
+    const entry = latestEgressEntry();
     expect(entry.metadata['provider']).toBe('openai');
     expect(entry.metadata['destination']).toBe('assured-proxy');
     expect(createProviderMock).toHaveBeenLastCalledWith(
@@ -347,7 +382,7 @@ describe('EmailViewer — AI-draft audit records the ACTUAL assured route (indep
     });
 
     await waitFor(() => expect(emitterSpy).toHaveBeenCalled());
-    const entry = emitterSpy.mock.calls[0]![0];
+    const entry = latestEgressEntry();
     expect(entry.metadata['mode']).toBe('assured');
     expect(entry.metadata['destination']).toBe('assured-proxy');
   });
@@ -368,7 +403,7 @@ describe('EmailViewer — AI-draft audit records the ACTUAL assured route (indep
     });
 
     await waitFor(() => expect(emitterSpy).toHaveBeenCalled());
-    const entry = emitterSpy.mock.calls[0]![0];
+    const entry = latestEgressEntry();
     // The whole point of Assured is a firm-managed key the user never pastes
     // in — this must NOT silently fall back to the local model just because
     // no personal key is configured.
@@ -390,7 +425,7 @@ describe('EmailViewer — AI-draft audit records the ACTUAL assured route (indep
     });
 
     await waitFor(() => expect(emitterSpy).toHaveBeenCalled());
-    const entry = emitterSpy.mock.calls[0]![0];
+    const entry = latestEgressEntry();
     // Independent reviewer catch (P1): `mode` must reflect what ACTUALLY
     // happened, not the raw app-wide setting — otherwise a client
     // confidentiality report would claim this BYOK-direct fallback was
