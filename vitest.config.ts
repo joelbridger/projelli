@@ -12,6 +12,17 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
+    // BOX DISCIPLINE (Jameson, 2026-07-12): many crews share one 20-core box.
+    // Unbounded vitest workers stacked ~40 processes and doubled load — suites
+    // then run SLOWER, not faster. A hard cap here binds every crew mechanically,
+    // because a rule that lives only in a brief is not a mechanism.
+    pool: 'forks',
+    poolOptions: {
+      forks: { maxForks: Number(process.env.VITEST_MAX_FORKS ?? 4), minForks: 1 },
+      threads: { maxThreads: Number(process.env.VITEST_MAX_FORKS ?? 4), minThreads: 1 },
+    },
+    maxWorkers: Number(process.env.VITEST_MAX_FORKS ?? 4),
+    maxConcurrency: 4,
     setupFiles: ['./tests/setup.ts'],
     include: ['tests/**/*.{test,spec}.{ts,tsx}', 'src/**/*.{test,spec}.{ts,tsx}'],
     exclude: ['tests/e2e/**', 'tests/campaign/**'],
