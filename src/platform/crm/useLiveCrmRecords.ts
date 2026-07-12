@@ -17,6 +17,11 @@ import {
   stopLiveRecordRelay,
 } from './liveRecordRelay';
 
+// Several CRM surfaces can be mounted at once inside the Home shell. A write
+// from one surface must refresh the others too; otherwise a migration-created
+// workflow exists in SQLCipher but the Workflows screen still says it is empty.
+export const LIVE_CRM_RECORDS_CHANGED = 'lantern:crm-live-records-changed';
+
 /** Keeps a mounted CRM screen in step with the encrypted record store. */
 export function useLiveCrmRecords() {
   const workspaceRoot = useWorkspaceStore((state) => state.rootPath);
@@ -50,6 +55,11 @@ export function useLiveCrmRecords() {
   }, [workspaceRoot]);
   useEffect(() => { void reload(); }, [reload]);
   useEffect(() => {
+    const refresh = () => { void reload(); };
+    window.addEventListener(LIVE_CRM_RECORDS_CHANGED, refresh);
+    return () => window.removeEventListener(LIVE_CRM_RECORDS_CHANGED, refresh);
+  }, [reload]);
+  useEffect(() => {
     if (!sharedMatterId || !workspaceRoot) {
       stopLiveRecordRelay();
       return;
@@ -77,6 +87,7 @@ export function useLiveCrmRecords() {
       return exists ? current.map((item) => item.id === saved.id ? saved : item) : [...current, saved];
     });
     publishLiveRecord(saved);
+    window.dispatchEvent(new Event(LIVE_CRM_RECORDS_CHANGED));
     return saved;
   }, [sharedMatterId, workspaceRoot]);
   return { records, save, reload, error, workspaceRoot, freshness, sharedMatterId };
