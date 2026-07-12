@@ -22,7 +22,7 @@ vi.mock('@/platform/matter/matterStore', () => ({ useMatterStore: { getState: ()
 vi.mock('@/platform/matter/matterSyncStore', () => ({ useMatterSyncStore: { getState: () => ({ setStatus: mocks.setStatus, clearMatter: vi.fn() }) } }));
 vi.mock('@/platform/firm/firmStore', () => ({ useFirmStore: { getState: () => mocks.firmState, subscribe: vi.fn() } }));
 
-import { ensureMatterSync, getMatterSyncClient, handleKeyEpochAdvanced, stopAll } from './matterNotesSync';
+import { ensureMatterSync, getMatterSyncClient, handleKeyEpochAdvanced, stopAll, stopMatterSync } from './matterNotesSync';
 
 describe('matterNotesSync key rotation race', () => {
   beforeEach(() => {
@@ -102,4 +102,118 @@ describe('matterNotesSync key rotation race', () => {
     expect(getMatterSyncClient(localMatter.id)).toBeNull();
     expect(mocks.createClient).toHaveBeenCalledTimes(1);
   });
+
+  it('stops and discards a client that finishes starting after sign-out', async () => {
+    const localMatter = sharedMatter('sign-out-during-startup');
+    const { client: firstClient, start: firstStart } = gatedClient();
+    const { client: secondClient } = readyClient();
+    mocks.obtainMatterKey.mockResolvedValue('key');
+    mocks.firmState.client.mockReturnValue({});
+    mocks.createClient.mockReturnValueOnce(firstClient).mockReturnValueOnce(secondClient);
+
+    const firstOpen = ensureMatterSync(localMatter as never, 1);
+    await vi.waitFor(() => { expect(firstStart).toHaveBeenCalledOnce(); });
+
+    stopAll();
+    firstStart.release();
+
+    await expect(firstOpen).resolves.toBeNull();
+    expect(firstClient.stop).toHaveBeenCalledOnce();
+    expect(getMatterSyncClient(localMatter.id)).toBeNull();
+
+    await expect(ensureMatterSync(localMatter as never, 1)).resolves.toBe(secondClient);
+    expect(getMatterSyncClient(localMatter.id)).toBe(secondClient);
+  });
+
+  it('stops and discards a client that finishes starting after leaving a matter', async () => {
+    const localMatter = sharedMatter('leave-during-startup');
+    const { client: firstClient, start: firstStart } = gatedClient();
+    const { client: secondClient } = readyClient();
+    mocks.obtainMatterKey.mockResolvedValue('key');
+    mocks.firmState.client.mockReturnValue({});
+    mocks.createClient.mockReturnValueOnce(firstClient).mockReturnValueOnce(secondClient);
+
+    const firstOpen = ensureMatterSync(localMatter as never, 1);
+    await vi.waitFor(() => { expect(firstStart).toHaveBeenCalledOnce(); });
+
+    stopMatterSync(localMatter.id);
+    firstStart.release();
+
+    await expect(firstOpen).resolves.toBeNull();
+    expect(firstClient.stop).toHaveBeenCalledOnce();
+    expect(getMatterSyncClient(localMatter.id)).toBeNull();
+
+    await expect(ensureMatterSync(localMatter as never, 1)).resolves.toBe(secondClient);
+    expect(getMatterSyncClient(localMatter.id)).toBe(secondClient);
+  });
+
+  it('does not let a stale startup overwrite a rapid re-sign-in client', async () => {
+    const localMatter = sharedMatter('rapid-resign-in');
+    const { client: firstClient, start: firstStart } = gatedClient();
+    const { client: secondClient, start: secondStart } = gatedClient();
+    mocks.obtainMatterKey.mockResolvedValue('key');
+    mocks.firmState.client.mockReturnValue({});
+    mocks.createClient.mockReturnValueOnce(firstClient).mockReturnValueOnce(secondClient);
+
+    const firstOpen = ensureMatterSync(localMatter as never, 1);
+    await vi.waitFor(() => { expect(firstStart).toHaveBeenCalledOnce(); });
+
+    stopMatterSync(localMatter.id);
+    const secondOpen = ensureMatterSync(localMatter as never, 1);
+    await vi.waitFor(() => { expect(secondStart).toHaveBeenCalledOnce(); });
+
+    firstStart.release();
+    await expect(firstOpen).resolves.toBeNull();
+    expect(firstClient.stop).toHaveBeenCalledOnce();
+
+    secondStart.release();
+    await expect(secondOpen).resolves.toBe(secondClient);
+    expect(secondClient).not.toBe(firstClient);
+    expect(getMatterSyncClient(localMatter.id)).toBe(secondClient);
+  });
 });
+
+function sharedMatter(id: string): {
+  id: string;
+  shared: boolean;
+  firmMatterId: ReturnType<typeof parseMatterHandle>;
+  rootStreamHandle: string;
+  name: string;
+  client: string;
+} {
+  return {
+    id,
+    shared: true,
+    firmMatterId: parseMatterHandle(`mh2_${'A'.repeat(43)}`),
+    rootStreamHandle: `sh2_${'B'.repeat(43)}`,
+    name: 'Private client',
+    client: 'Client',
+  };
+}
+
+function readyClient(): { client: { start: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn>; doc: ReturnType<typeof testDocument> } } {
+  const start = vi.fn().mockResolvedValue(undefined);
+  return { client: { start, stop: vi.fn(), doc: testDocument() } };
+}
+
+function gatedClient(): {
+  client: { start: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn>; doc: ReturnType<typeof testDocument> };
+  start: ReturnType<typeof vi.fn> & { release: () => void };
+} {
+  let release: (() => void) | undefined;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const start = vi.fn(async () => gate) as ReturnType<typeof vi.fn> & { release: () => void };
+  start.release = () => release?.();
+  return { client: { start, stop: vi.fn(), doc: testDocument() }, start };
+}
+
+function testDocument(): {
+  getMap: () => { get: (key: string) => string | undefined; set: (key: string, value: string) => void };
+  transact: (callback: () => void) => void;
+} {
+  const values = new Map<string, string>();
+  return {
+    getMap: () => ({ get: (key) => values.get(key), set: (key, value) => { values.set(key, value); } }),
+    transact: (callback) => { callback(); },
+  };
+}

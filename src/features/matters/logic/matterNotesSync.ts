@@ -37,7 +37,17 @@ const abortedClients = new WeakSet<MatterSyncClient>();
  * the same construction promise and never double-construct a WebSocket client.
  * The entry is deleted on null/error resolution so a retry can try again.
  */
-const pendingCache = new Map<string, Promise<MatterSyncClient | null>>();
+const pendingCache = new Map<string, { generation: number; promise: Promise<MatterSyncClient | null> }>();
+/** Bumped on every teardown of a matter's sync client; invalidates any build in flight for it. */
+const matterGeneration = new Map<string, number>();
+
+function currentGeneration(matterId: string): number {
+  return matterGeneration.get(matterId) ?? 0;
+}
+
+function bumpGeneration(matterId: string): void {
+  matterGeneration.set(matterId, currentGeneration(matterId) + 1);
+}
 /** One key-refresh loop per local matter; notifications may arrive out of order. */
 const keyRotationCache = new Map<string, { targetEpoch: number; promise: Promise<void> }>();
 /** A burst of real rotations is possible; an unbounded loop is never safe. */
@@ -80,24 +90,29 @@ export function ensureMatterSync(
   //    Caching the Promise at entry prevents double-construction under concurrent
   //    awaits (e.g. React StrictMode double-effect).
   const pending = pendingCache.get(localMatterId);
-  if (pending) return pending;
+  if (pending?.generation === currentGeneration(localMatterId)) return pending.promise;
 
+  const generation = currentGeneration(localMatterId);
   const promise = _buildMatterSyncClient(localMatter, keyEpoch, seatToken, firmState).then(
     (client) => {
-      pendingCache.delete(localMatterId);
+      if (pendingCache.get(localMatterId)?.promise === promise) pendingCache.delete(localMatterId);
       // A key-rotation denial can arrive while client.start() is still pending.
       // Do not turn that stopped instance into the cached singleton once start
-      // settles; the next open must perform the normal fail-closed key check.
-      if (!client || abortedClients.has(client)) return null;
+      // settles. A teardown can also invalidate a build before it reaches the
+      // cache, so stop that orphaned client instead of reviving its session.
+      if (!client || abortedClients.has(client) || generation !== currentGeneration(localMatterId)) {
+        client?.stop();
+        return null;
+      }
       clientCache.set(localMatterId, client);
       return client;
     },
     (err: unknown) => {
-      pendingCache.delete(localMatterId);
+      if (pendingCache.get(localMatterId)?.promise === promise) pendingCache.delete(localMatterId);
       throw err;
     },
   );
-  pendingCache.set(localMatterId, promise);
+  pendingCache.set(localMatterId, { generation, promise });
   return promise;
 }
 
@@ -285,7 +300,7 @@ export async function handleKeyEpochAdvanced(
 
 /** Stop and remove the sync client for a matter. Idempotent. */
 export function stopMatterSync(localMatterId: string, specificClient?: MatterSyncClient): void {
-  pendingCache.delete(localMatterId);
+  bumpGeneration(localMatterId);
   keyRotationCache.delete(localMatterId);
   const client = specificClient ?? clientCache.get(localMatterId);
   if (!client) return;
@@ -297,13 +312,13 @@ function stopMatterSyncClient(localMatterId: string, client: MatterSyncClient): 
   abortedClients.add(client);
   client.stop();
   if (clientCache.get(localMatterId) === client) clientCache.delete(localMatterId);
-  pendingCache.delete(localMatterId);
   useMatterSyncStore.getState().clearMatter(localMatterId);
 }
 
 /** Stop all running sync clients (e.g. on sign-out). */
 export function stopAll(): void {
-  pendingCache.clear();
+  const matterIds = new Set([...clientCache.keys(), ...pendingCache.keys()]);
+  for (const id of matterIds) bumpGeneration(id);
   keyRotationCache.clear();
   for (const [id, client] of clientCache.entries()) {
     try {
@@ -314,6 +329,7 @@ export function stopAll(): void {
     useMatterSyncStore.getState().clearMatter(id);
   }
   clientCache.clear();
+  pendingCache.clear();
 }
 
 /** Retrieve the cached client for a matter (null if not started). */
