@@ -16,7 +16,6 @@ import { useCrmSync } from '@/platform/connectors/crm/useCrmSync';
 import { useCrmStore } from '@/platform/connectors/crm/crmStore';
 import {
   CRM_LIST_HOUSEHOLDS_TIMEOUT_MS,
-  CRM_SYNC_COMMAND_TIMEOUT_MS,
   CrmCancelledError,
   CrmTimeoutError,
   createCrmCancelGate,
@@ -97,7 +96,11 @@ export function WealthboxConnect() {
 
   // Mirror progress into syncing flag.
   useEffect(() => {
-    if (progress?.status === 'syncing') {
+    if (
+      progress?.status === 'connecting' ||
+      progress?.status === 'syncing' ||
+      progress?.status === 'stopping'
+    ) {
       setSyncing(true);
     } else if (
       progress?.status === 'done' ||
@@ -288,25 +291,17 @@ export function WealthboxConnect() {
           buildCrmMatterMap(getMatters()),
           'wealthbox'
         );
-        // The household list has its own shorter bound above. Once the user
-        // confirms, the complete backend import (fetch, encrypted local save,
-        // and search indexing) also gets a hard ceiling. Without this second
-        // bound, a command that starts but never settles leaves this screen on
-        // "Syncing..." indefinitely even though the button did dispatch it.
-        const report = await withCrmTimeout(
-          crmSyncAll(map),
-          'sync',
-          CRM_SYNC_COMMAND_TIMEOUT_MS
-        );
+        // Rust owns the ten-minute timeout for the full import.  It requests a
+        // safe stop and waits for its current network/embedding work to exit
+        // before this promise settles, keeping Retry disabled until it is safe.
+        const report = await crmSyncAll(map);
         setLastSyncReport({
           householdsProcessed: report.householdsProcessed,
           recordsIndexed: report.recordsIndexed,
         });
       } catch (err) {
         const reason =
-          err instanceof CrmTimeoutError
-            ? "Wealthbox did not finish within 10 minutes and was stopped"
-            : typeof err === 'string'
+          typeof err === 'string'
             ? err
             : err instanceof Error
               ? err.message
@@ -576,7 +571,9 @@ export function WealthboxConnect() {
             {syncing && (
               <div className="flex items-center gap-3">
                 <p>
-                  {progress?.status === 'syncing' ? (
+                  {progress?.status === 'stopping' ? (
+                    'Stopping safely…'
+                  ) : progress?.status === 'syncing' ? (
                     <>
                       Syncing...
                       {progress.households !== undefined &&
@@ -585,7 +582,7 @@ export function WealthboxConnect() {
                         `, ${String(progress.records)} records`}
                     </>
                   ) : (
-                    'Connecting to Wealthbox...'
+                    'Checking your Wealthbox households…'
                   )}
                 </p>
                 <button

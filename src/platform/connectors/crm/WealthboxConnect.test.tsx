@@ -1,7 +1,6 @@
 import '@/i18n';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { CRM_SYNC_COMMAND_TIMEOUT_MS } from './crmTimeout';
 
 const controls = vi.hoisted(() => ({
   crmListHouseholds: vi.fn(),
@@ -105,21 +104,29 @@ describe('WealthboxConnect sync', () => {
     expect(screen.getByTestId('wealthbox-sync-now')).not.toBeDisabled();
   });
 
-  it('stops an unresponsive sync and leaves a visible retry path', async () => {
+  it('keeps retry disabled until the Rust command has finished stopping safely', async () => {
     controls.crmListHouseholds.mockResolvedValue([{ id: 'household-1', name: 'Avery Family' }]);
-    controls.crmSyncAll.mockImplementation(() => new Promise(() => {}));
+    let finishSync: ((value: { householdsProcessed: number; recordsIndexed: number }) => void) | undefined;
+    controls.crmSyncAll.mockImplementation(() => new Promise((resolve) => {
+      finishSync = resolve;
+    }));
 
     await renderConnectedConnector();
-    vi.useFakeTimers();
     fireEvent.click(screen.getByTestId('wealthbox-sync-now'));
 
-    await act(async () => { await Promise.resolve(); });
+    await waitFor(() => {
+      expect(controls.crmSyncAll).toHaveBeenCalledTimes(1);
+    });
+    expect(screen.getByTestId('wealthbox-sync-now')).toBeDisabled();
+    fireEvent.click(screen.getByTestId('wealthbox-sync-now'));
     expect(controls.crmSyncAll).toHaveBeenCalledTimes(1);
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(CRM_SYNC_COMMAND_TIMEOUT_MS);
+      if (!finishSync) throw new Error('sync resolver was not set');
+      finishSync({ householdsProcessed: 1, recordsIndexed: 4 });
+      await Promise.resolve();
     });
-
-    expect(screen.getByText(/did not finish within 10 minutes and was stopped/i)).toBeTruthy();
-    expect(screen.getByTestId('wealthbox-sync-now')).not.toBeDisabled();
+    await waitFor(() => {
+      expect(screen.getByTestId('wealthbox-sync-now')).not.toBeDisabled();
+    });
   });
 });

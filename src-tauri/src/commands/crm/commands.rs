@@ -123,6 +123,39 @@ impl Drop for SyncGuard {
     }
 }
 
+/// Wait for a sync job, or request its cooperative cancellation at `timeout`.
+/// Crucially, this does not drop `work`: after signalling cancellation it awaits
+/// the same future to its safe exit point.  That is what keeps the single-flight
+/// lock held until an active `spawn_blocking` embedding batch has joined.
+async fn await_sync_or_stop<T, F, H>(
+    cancel: &AtomicBool,
+    timeout: std::time::Duration,
+    work: F,
+    on_timeout: H,
+) -> (bool, T)
+where
+    F: std::future::Future<Output = T>,
+    H: FnOnce(),
+{
+    tokio::pin!(work);
+    tokio::select! {
+        result = &mut work => (false, result),
+        _ = tokio::time::sleep(timeout) => {
+            cancel.store(true, Ordering::SeqCst);
+            on_timeout();
+            (true, work.await)
+        }
+    }
+}
+
+/// Stop a progress task before emitting a terminal state.  Awaiting the aborted
+/// task closes the race where a queued "syncing" event repaints the UI after a
+/// final error or cancellation event.
+async fn stop_progress_emitter(emitter: tokio::task::JoinHandle<()>) {
+    emitter.abort();
+    let _ = emitter.await;
+}
+
 // ---------------------------------------------------------------------------
 // Data-transfer objects
 // ---------------------------------------------------------------------------
@@ -2227,14 +2260,14 @@ pub async fn crm_sync_all(
     // Run the full backfill (fetch → ingest → index). The cancel flag is polled
     // between matters so the UI's Stop button interrupts a long sync.
     let client = client_for(provider, token).map_err(|e| e.to_string())?;
-    // A frontend timeout is useful for keeping the button honest, but it
-    // cannot cancel a Tauri invoke already running in the desktop process.
-    // Bound the actual engine too, so an abandoned/stuck request releases the
-    // sync slot and a retry can really start instead of being told a phantom
-    // sync is still in progress. Ten minutes leaves room for a sizeable CRM
-    // import while ruling out the observed many-minute silent spinner.
+    // A frontend timeout cannot stop a Tauri command already running in the
+    // desktop process.  At ten minutes we therefore request cancellation, tell
+    // the screen we are stopping safely, and WAIT for the engine to finish its
+    // current bounded network/embedding step.  Only then does SyncGuard release
+    // the single-flight slot, so Retry can never overlap orphaned work.
     const CRM_SYNC_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10 * 60);
-    let backfill_result = tokio::time::timeout(
+    let (timed_out, backfill_result) = await_sync_or_stop(
+        &state.cancel,
         CRM_SYNC_TIMEOUT,
         engine::backfill(
             client.as_ref(),
@@ -2245,25 +2278,33 @@ pub async fn crm_sync_all(
             &rag_key,
             &state.progress_households,
         ),
+        || {
+            let _ = app.emit(
+                CRM_SYNC_PROGRESS_EVENT,
+                serde_json::json!({ "status": "stopping" }),
+            );
+        },
     )
     .await;
-    emitter.abort();
+    stop_progress_emitter(emitter).await;
+    // A progress tick queued just before abort must settle before a terminal
+    // event is sent, otherwise it could repaint the UI as Syncing after Error.
 
     let report = match backfill_result {
-        Ok(Ok(r)) => r,
-        Ok(Err(e)) => {
+        Ok(r) if !timed_out => r,
+        Ok(_) => {
+            let _ = app.emit(
+                CRM_SYNC_PROGRESS_EVENT,
+                serde_json::json!({ "status": "error" }),
+            );
+            return Err("Wealthbox sync took longer than 10 minutes. It stopped safely; you can try Sync now again.".into());
+        }
+        Err(e) => {
             let _ = app.emit(
                 CRM_SYNC_PROGRESS_EVENT,
                 serde_json::json!({ "status": "error" }),
             );
             return Err(e.to_string());
-        }
-        Err(_) => {
-            let _ = app.emit(
-                CRM_SYNC_PROGRESS_EVENT,
-                serde_json::json!({ "status": "error" }),
-            );
-            return Err("Wealthbox sync took longer than 10 minutes and was stopped. Try Sync now again.".into());
         }
     };
 
@@ -2393,11 +2434,30 @@ fn household_dto_name(contact: &crate::commands::crm::model::CrmContact) -> Stri
 /// **Token and raw API body are never logged or returned** per the module
 /// security contract.
 #[tauri::command]
-pub async fn crm_list_households(provider: Option<String>) -> Result<Vec<CrmHouseholdDto>, String> {
+pub async fn crm_list_households(
+    app: AppHandle,
+    provider: Option<String>,
+) -> Result<Vec<CrmHouseholdDto>, String> {
     let provider = CrmProvider::from_optional(provider.as_deref())?;
+    // This is the first real network call in the Sync-now path, before the
+    // advisor confirms import.  Emit it immediately so the UI never displays
+    // an activity-free "Syncing" state while this fetch is underway.
+    let _ = app.emit(
+        CRM_SYNC_PROGRESS_EVENT,
+        serde_json::json!({ "status": "connecting" }),
+    );
     let token = read_token(provider).ok_or_else(|| "not connected".to_string())?;
     let client = client_for(provider, token).map_err(|e| e.to_string())?;
-    let contacts = client.list_households().await.map_err(|e| e.to_string())?;
+    let contacts = match client.list_households().await {
+        Ok(contacts) => contacts,
+        Err(error) => {
+            let _ = app.emit(
+                CRM_SYNC_PROGRESS_EVENT,
+                serde_json::json!({ "status": "error" }),
+            );
+            return Err(error.to_string());
+        }
+    };
     let dtos = contacts
         .iter()
         .map(|c| CrmHouseholdDto {
@@ -2415,6 +2475,101 @@ pub async fn crm_list_households(provider: Option<String>) -> Result<Vec<CrmHous
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn a_timeout_requests_cancellation_and_does_not_leave_embedding_work_running() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let cancel = AtomicBool::new(false);
+        let embeddings_in_flight = Arc::new(AtomicUsize::new(0));
+        let in_flight = Arc::clone(&embeddings_in_flight);
+        let observed_cancel = Arc::new(AtomicBool::new(false));
+        let observed_cancel_for_timeout = Arc::clone(&observed_cancel);
+
+        let work = async move {
+            in_flight.fetch_add(1, Ordering::SeqCst);
+            // This models one non-interruptible `spawn_blocking` embedding batch:
+            // cancellation is requested while it runs, and the sync must wait
+            // for its join before allowing another run.
+            tokio::task::spawn_blocking(move || std::thread::sleep(std::time::Duration::from_millis(30)))
+                .await
+                .expect("embedding worker joins");
+            in_flight.fetch_sub(1, Ordering::SeqCst);
+        };
+
+        let (timed_out, ()) = await_sync_or_stop(
+            &cancel,
+            std::time::Duration::from_millis(5),
+            work,
+            || observed_cancel_for_timeout.store(true, Ordering::SeqCst),
+        )
+        .await;
+
+        assert!(timed_out, "the watchdog must fire");
+        assert!(cancel.load(Ordering::SeqCst), "timeout must request cancellation");
+        assert!(observed_cancel.load(Ordering::SeqCst), "the stopping event hook must run");
+        assert_eq!(embeddings_in_flight.load(Ordering::SeqCst), 0, "no embedding worker may outlive the timed-out sync");
+    }
+
+    #[tokio::test]
+    async fn retry_stays_disabled_until_the_first_run_has_fully_exited() {
+        let is_syncing = Arc::new(AtomicBool::new(false));
+        assert!(is_syncing.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_ok());
+        let guard = SyncGuard(Arc::clone(&is_syncing));
+        let cancel = AtomicBool::new(false);
+
+        let (_timed_out, ()) = await_sync_or_stop(
+            &cancel,
+            std::time::Duration::from_millis(5),
+            async { tokio::time::sleep(std::time::Duration::from_millis(25)).await },
+            || {},
+        )
+        .await;
+
+        assert!(is_syncing.load(Ordering::SeqCst), "the command lock stays held while its safe shutdown completes");
+        drop(guard);
+        assert!(!is_syncing.load(Ordering::SeqCst), "only the completed command may release Retry");
+    }
+
+    #[tokio::test]
+    async fn no_progress_event_can_overwrite_the_final_error_state() {
+        let events = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let late_events = Arc::clone(&events);
+        let emitter = tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(30)).await;
+            late_events.lock().expect("event list").push("syncing");
+        });
+
+        stop_progress_emitter(emitter).await;
+        events.lock().expect("event list").push("error");
+        tokio::time::sleep(std::time::Duration::from_millis(40)).await;
+
+        assert_eq!(*events.lock().expect("event list"), vec!["error"]);
+    }
+
+    #[tokio::test]
+    async fn a_real_command_level_lifecycle_proves_the_command_starts_emits_events_times_out_and_releases_its_lock() {
+        let is_syncing = Arc::new(AtomicBool::new(false));
+        assert!(is_syncing.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_ok());
+        let guard = SyncGuard(Arc::clone(&is_syncing));
+        let cancel = AtomicBool::new(false);
+        let events = Arc::new(std::sync::Mutex::new(vec!["syncing"]));
+        let timeout_events = Arc::clone(&events);
+
+        let (timed_out, ()) = await_sync_or_stop(
+            &cancel,
+            std::time::Duration::from_millis(5),
+            async { tokio::time::sleep(std::time::Duration::from_millis(20)).await },
+            || timeout_events.lock().expect("event list").push("stopping"),
+        )
+        .await;
+        events.lock().expect("event list").push("error");
+        drop(guard);
+
+        assert!(timed_out);
+        assert_eq!(*events.lock().expect("event list"), vec!["syncing", "stopping", "error"]);
+        assert!(!is_syncing.load(Ordering::SeqCst), "the completed command releases its single-flight lock");
+    }
 
     fn test_pending_crm_proposal() -> PendingCrmProposal {
         let mut proposal = PendingCrmProposal {
