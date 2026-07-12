@@ -13,7 +13,8 @@ export type EntityKind =
   | 'workflowTemplate' | 'workflowInstance' | 'servicePolicy'
   | 'activityEvent' | 'firmDoc' | 'tag' | 'customFieldDef'
   | 'opportunity' | 'pipelineDef' | 'stageDef' | 'proposalRecord' | 'legacyProject'
-  | 'firmDirectoryEntry' | 'householdDirectoryShell' | 'intakeLink' | 'intakeSubmission'
+  | 'firmDirectoryEntry' | 'firmWorkspaceSummary' | 'firmSeatSummary'
+  | 'householdDirectoryShell' | 'intakeLink' | 'intakeSubmission'
   | 'importArchiveManifest' | 'savedView' | 'savedReport' | 'reportRun';
 
 export interface ActorRef { userId: string; seat?: string; display: string; kind: 'user' | 'ai' | 'system' | 'import'; }
@@ -194,7 +195,11 @@ export type ProposalMutation = { kind: 'workflow_launch'; workflowTemplateId: st
 export interface ProposalRecord extends CrmBase { kind: 'proposalRecord'; householdRef: EntityRef | null; proposalKind: ProposalMutation['kind']; proposedMutation: ProposalMutation; proposedBy: ActorRef; rationale: string; contextRefs: EntityRef[]; state: 'pending' | 'approved' | 'rejected' | 'expired'; decidedAt?: string; decidedBy?: ActorRef; appliedEntityRef?: EntityRef; }
 export interface LegacyProjectWorkflowLaunch { launchId: string; workflowInstanceId: string; workflowTemplateId: string; launchedAt: string; launchedBy: ActorRef; }
 export interface LegacyProject extends CrmBase { kind: 'legacyProject'; householdLinks: HouseholdLink[]; anchorHouseholdId?: string; unlinked: boolean; title: string; status?: string; description?: string; sourcePayload: Record<string, unknown>; manualWorkflowLaunches: LegacyProjectWorkflowLaunch[]; }
-export interface FirmDirectoryEntry extends CrmBase { kind: 'firmDirectoryEntry'; matterId: 'firm_home'; userId: string; displayName: string; email?: string; title?: string; active: boolean; teamLabels: string[]; }
+export interface FirmDirectoryEntry extends CrmBase { kind: 'firmDirectoryEntry'; matterId: 'firm_home'; userId: string; displayName: string; email?: string; title?: string; active: boolean; teamLabels: string[]; /** Read-only workspace access copied from firm administration. */ workspaceIds?: string[]; restrictedWorkspaceIds?: string[]; }
+/** Read-only projection of the existing firm-admin workspace list. */
+export interface FirmWorkspaceSummary extends CrmBase { kind: 'firmWorkspaceSummary'; matterId: 'firm_home'; name: string; status: 'active' | 'archived'; memberIds: string[]; restrictedMemberIds?: string[]; }
+/** Read-only projection of a firm-admin seat. Never an entitlement source. */
+export interface FirmSeatSummary extends CrmBase { kind: 'firmSeatSummary'; matterId: 'firm_home'; memberId: string; deviceName: string; status: 'active' | 'revoked'; lastSeenAt?: string; }
 export interface RawArchiveEntry { rawRecordId: string; requestPath: string; captureLayerVersion: string; fixtureCorpusIdentity: string; capturedAt: string; responseSha256: string; byteLength: number; typedOutcome: 'landed' | 'skipped' | 'rejected'; targetEntityRef?: EntityRef; skipReason?: string; resultingExternalRefs: ExternalRef[]; }
 export interface ImportArchiveManifest extends CrmBase { kind: 'importArchiveManifest'; matterId: 'firm_home'; importBatchId: string; provider: string; capturedAt: string; sourceWorkspaceLabel: string; records: RawArchiveEntry[]; finalizedAt?: string; manifestSha256?: string; }
 export interface HouseholdDirectoryShell extends CrmBase { kind: 'householdDirectoryShell'; matterId: 'firm_home'; householdRef: EntityRef; operationalStatus: Household['status']; }
@@ -220,4 +225,4 @@ export interface SavedReport extends CrmBase { kind: 'savedReport'; matterId: 'f
 /** An audit-friendly record that a report was calculated. Result rows remain live. */
 export interface ReportRun extends CrmBase { kind: 'reportRun'; matterId: 'firm_home' | (string & {}); reportKind: ReportKind; query: ViewQuery; calculatedAt: string; sourcesConsidered: number; resultCount: number; }
 
-export type CrmEntity = Household | Person | Account | Fact | Note | Task | WorkflowTemplate | WorkflowInstance | ServicePolicy | ActivityEvent | FirmDoc | Tag | CustomFieldDef | Opportunity | PipelineDef | StageDef | ProposalRecord | LegacyProject | FirmDirectoryEntry | HouseholdDirectoryShell | IntakeLink | IntakeSubmission | ImportArchiveManifest | SavedView | SavedReport | ReportRun;
+export type CrmEntity = Household | Person | Account | Fact | Note | Task | WorkflowTemplate | WorkflowInstance | ServicePolicy | ActivityEvent | FirmDoc | Tag | CustomFieldDef | Opportunity | PipelineDef | StageDef | ProposalRecord | LegacyProject | FirmDirectoryEntry | FirmWorkspaceSummary | FirmSeatSummary | HouseholdDirectoryShell | IntakeLink | IntakeSubmission | ImportArchiveManifest | SavedView | SavedReport | ReportRun;

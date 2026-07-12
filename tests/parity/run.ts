@@ -507,6 +507,10 @@ class DesktopParityApp implements ParityApp {
       useWorkspaceStore.getState().setRootPath(${JSON.stringify(path)});
       await invoke('crm_live_upsert', { record: { id: ${JSON.stringify(householdId)}, kind: 'household', matterId: ${JSON.stringify(householdId)}, name: 'Parity household', status: 'active' } });
       await invoke('crm_live_upsert', { record: { id: 'parity-firm-member', kind: 'firmDirectoryEntry', matterId: 'firm_home', userId: 'parity-user', displayName: 'Parity teammate', title: 'Owner', teamLabels: ['Client service'], active: true } });
+      await invoke('crm_live_upsert', { record: { id: 'parity-workspace-advisory', kind: 'firmWorkspaceSummary', matterId: 'firm_home', name: 'Northcrest Advisory', status: 'active', memberIds: ['parity-user'], restrictedMemberIds: [] } });
+      await invoke('crm_live_upsert', { record: { id: 'parity-workspace-retirement', kind: 'firmWorkspaceSummary', matterId: 'firm_home', name: 'Retirement Services', status: 'active', memberIds: ['parity-user'], restrictedMemberIds: ['parity-user'] } });
+      await invoke('crm_live_upsert', { record: { id: 'parity-firm-member', kind: 'firmDirectoryEntry', matterId: 'firm_home', userId: 'parity-user', displayName: 'Parity teammate', email: 'teammate@example.com', title: 'Owner', teamLabels: ['Client service'], workspaceIds: ['parity-workspace-advisory', 'parity-workspace-retirement'], active: true } });
+      await invoke('crm_live_upsert', { record: { id: 'parity-seat-laptop', kind: 'firmSeatSummary', matterId: 'firm_home', memberId: 'parity-user', deviceName: 'Parity laptop', status: 'active', lastSeenAt: new Date().toISOString() } });
       await invoke('crm_live_upsert', { record: { id: 'parity-meeting', kind: 'activityEvent', matterId: 'firm_home', verb: 'meeting.captured', summary: 'Parity review meeting', at: new Date().toISOString() } });
       return true;
     })()`);
@@ -1161,6 +1165,38 @@ class DesktopParityApp implements ParityApp {
       await this.requireText(text);
     if (!(await this.records()).some((record) => record.kind === 'firmDirectoryEntry'))
       fail('The firm-admin member read-model disappeared after native restart');
+  }
+
+  async orgAdmin(): Promise<void> {
+    await this.setWorkspace(`org-admin-${this.token('setup')}`);
+    await this.openHome();
+    await this.click('crm-home-nav-firm-organization');
+    await this.waitForControl('crm-org-admin-surface');
+    for (const control of [
+      'crm-org-admin-summary',
+      'crm-org-admin-workspaces',
+      'crm-org-admin-members',
+      'crm-org-admin-seats',
+      'crm-org-admin-source-notice',
+    ]) await this.require(control);
+    for (const text of ['Northcrest Advisory', 'Retirement Services', 'Parity teammate', 'Owner', 'Parity laptop'])
+      await this.requireText(text);
+    const beforeRestart = await this.records();
+    for (const kind of ['firmWorkspaceSummary', 'firmDirectoryEntry', 'firmSeatSummary']) {
+      if (!beforeRestart.some((record) => record.kind === kind))
+        fail(`The firm overview did not persist its ${kind} read-model record`);
+    }
+    await this.restart();
+    await this.openHome();
+    await this.click('crm-home-nav-firm-organization');
+    await this.waitForControl('crm-org-admin-surface');
+    for (const text of ['Northcrest Advisory', 'Retirement Services', 'Parity teammate', 'Owner', 'Parity laptop'])
+      await this.requireText(text);
+    const afterRestart = await this.records();
+    for (const kind of ['firmWorkspaceSummary', 'firmDirectoryEntry', 'firmSeatSummary']) {
+      if (!afterRestart.some((record) => record.kind === kind))
+        fail(`The firm overview ${kind} record disappeared after native restart`);
+    }
   }
 
   async firmSetup(): Promise<void> {

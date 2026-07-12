@@ -17,6 +17,7 @@ export interface ParityApp {
   pipeline(options: { opportunity?: boolean; pipeline?: boolean; stage?: boolean; workflowTrigger?: boolean }): Promise<void>;
   report(options: { kind: 'no_contact_6mo' | 'attention_vs_fee' | 'custom' | 'ai' }): Promise<void>;
   firmDirectory(): Promise<void>;
+  orgAdmin(): Promise<void>;
   firmSetup(): Promise<void>;
   durableFeature(options: { route: string; controls: string[]; action?: string; result?: string; recordKind?: string }): Promise<void>;
   migration(options: { action: 'crm-migration-run-import' | 'crm-redtail-import' | 'crm-salesforce-import'; externalId?: boolean; exportFile?: boolean; fullReview?: boolean }): Promise<void>;
@@ -116,6 +117,7 @@ export const FEATURES: readonly ParityFeature[] = [
   live('Teams', 'firm-teams', 'REPLICATE', 'firm setup', (app) => app.firmDirectory()),
   live('Groups / visibility restrictions', 'firm-visibility', 'REPLICATE', 'firm setup', (app) => app.firmDirectory()),
   live('Default permissions per user', 'firm-permissions', 'REPLICATE', 'firm setup', (app) => app.firmDirectory()),
+  live('Org Admin cross-workspace user management', 'org-admin-cross-workspace', 'REPLICATE', 'firm setup', (app) => app.orgAdmin()),
   live('White-glove migration service', 'guided-migration', 'REPLICATE', 'migration', (app) => app.migration({ action: 'crm-migration-run-import', fullReview: true })),
   live('Data portability / export', 'migration-export', 'REPLICATE', 'migration', (app) => app.migration({ action: 'crm-migration-run-import', exportFile: true })),
   live('External Unique ID field for import linking', 'migration-external-id', 'REPLICATE', 'migration', (app) => app.migration({ action: 'crm-migration-run-import', externalId: true })),

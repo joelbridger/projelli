@@ -6,8 +6,7 @@ import { calendarSurface, emailSurface } from '@/features/crm-connectors/surface
 import { todaySurface } from '@/features/crm-today/surface';
 import { tasksSurface } from '@/features/crm-tasks/surface';
 import { propagationSurface, workflowsSurface } from '@/features/crm-workflows/surface';
-import { intakeLinksSurface } from '@/features/crm-firm/surface';
-import { firmFieldsSurface, firmSurface } from '@/features/crm-firm/surface';
+import { firmFieldsSurface, firmOrganizationSurface, firmSurface, intakeLinksSurface } from '@/features/crm-firm/surface';
 import { archiveExportSurface, attachmentAccountingSurface, fidelitySurface, migrationSurface, rollbackExportSurface, workflowRecreationSurface } from '@/features/crm-migration/surface';
 import { pipelineSettingsSurface, pipelineSurface } from '@/features/crm-pipeline/surface';
 import { reportsSurface } from '@/features/crm-reports/surface';
@@ -37,6 +36,7 @@ export const crmHomeSurfaceRegistry: readonly CrmHomeSurfaceDescriptor[] = [
   attachmentAccountingSurface,
   fidelitySurface,
   firmSurface,
+  firmOrganizationSurface,
   firmFieldsSurface,
   intakeLinksSurface,
   migrationSurface,
