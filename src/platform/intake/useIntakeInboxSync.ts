@@ -547,8 +547,8 @@ async function syncOneIntake(
       useIntakeStore.getState().rememberSubmission(intake.intakeId, submissionId);
       return Promise.resolve();
     },
-    isKnownSession: (intakeId, sessionId) => Promise.resolve(
-      useIntakeStore.getState().intakesById[intakeId]?.knownSessionIds.includes(sessionId) ?? false,
+    getKnownSessionIds: (intakeId) => Promise.resolve(
+      useIntakeStore.getState().intakesById[intakeId]?.knownSessionIds ?? [],
     ),
     rememberSession: (intakeId, sessionId) => {
       useIntakeStore.getState().rememberSession(intakeId, sessionId);

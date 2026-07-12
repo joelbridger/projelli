@@ -843,7 +843,7 @@ describe('useIntakeInboxSync wiring helpers', () => {
       loadPrivateKey: vi.fn().mockResolvedValue(privateKey),
       hasSubmission: vi.fn().mockResolvedValue(false),
       rememberSubmission: vi.fn().mockResolvedValue(undefined),
-      isKnownSession: vi.fn().mockResolvedValue(true),
+      getKnownSessionIds: vi.fn().mockResolvedValue(['known-session']),
       rememberSession: vi.fn().mockResolvedValue(undefined),
       flagSubmission: vi.fn().mockResolvedValue(undefined),
       routeSubmission: (submission) => routeIntakeSubmission(submission, {
