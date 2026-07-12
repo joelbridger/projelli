@@ -114,8 +114,12 @@ export function HouseholdRecordSurface({
         </div>
         <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
           <Badge variant="neutral">{household.lifecycle}</Badge>
-          <Badge variant="neutral">Owned by {household.primaryAdvisor}</Badge>
-          <Badge variant="neutral">{household.ownership}</Badge>
+          <Badge variant="neutral" data-testid="crm-household-primary-advisor">
+            Owned by {household.primaryAdvisor}
+          </Badge>
+          <Badge variant="neutral" data-testid="crm-household-ownership">
+            {household.ownership}
+          </Badge>
           <Badge variant="featured">{household.serviceTier}</Badge>
           {household.nextReview ? (
             <Badge variant="neutral">Next review {household.nextReview}</Badge>
@@ -400,6 +404,7 @@ function ClientMap({ household, onEditPerson, onDeleteFact }: { household: House
           household.facts.map((fact) => (
             <div
               key={fact.id}
+              data-testid={`crm-household-fact-${fact.id}`}
               style={{ padding: '8px 0', borderTop: '1px solid var(--color-slate-200)' }}
             >
               <strong>
@@ -442,7 +447,7 @@ function ClientMap({ household, onEditPerson, onDeleteFact }: { household: House
       <Card variant="raised" data-testid="crm-household-accounts">
         <h2>Accounts</h2>
         {household.accounts.map((account) => (
-          <div key={account.id}>
+          <div key={account.id} data-testid={`crm-household-account-${account.id}`}>
             <strong>
               {account.custodian} · {account.type}{' '}
               {account.lastFour ? `· •${account.lastFour}` : ''}
@@ -459,7 +464,7 @@ function ClientMap({ household, onEditPerson, onDeleteFact }: { household: House
         <h2>People</h2>
         <p>
           <strong>Household members:</strong>{' '}
-          {household.members.length ? household.members.map((person) => <span key={person.id} style={{ display: 'block' }}><button type="button" data-testid={`crm-person-edit-${person.id}`} onClick={() => onEditPerson(person)}>{person.name}</button>{person.householdRole ? ` (${person.householdRole})` : ''}{person.roles.length ? ` · ${person.roles.join(', ')}` : ''}{person.emails?.length ? ` · ${person.emails.find((email) => email.primary)?.address ?? person.emails[0]?.address}` : ''}{person.phones?.length ? ` · ${person.phones.find((phone) => phone.primary)?.address ?? person.phones[0]?.address}` : ''}{person.addresses?.length ? <span style={{ display: 'block', color: 'var(--color-slate-600)' }}>{person.addresses.find((address) => address.primary)?.address ?? person.addresses[0]?.address}</span> : null}</span>) : 'None'}
+          {household.members.length ? household.members.map((person) => <span key={person.id} data-testid={`crm-household-person-${person.id}`} style={{ display: 'block' }}><button type="button" data-testid={`crm-person-edit-${person.id}`} onClick={() => onEditPerson(person)}>{person.name}</button>{person.householdRole ? <span data-testid={`crm-person-household-role-${person.id}`}> ({person.householdRole})</span> : null}{person.roles.length ? <span data-testid={`crm-person-roles-${person.id}`}> · {person.roles.join(', ')}</span> : null}{person.emails?.length ? <span data-testid={`crm-person-email-${person.id}`}> · {person.emails.find((email) => email.primary)?.address ?? person.emails[0]?.address}</span> : null}{person.phones?.length ? <span data-testid={`crm-person-phone-${person.id}`}> · {person.phones.find((phone) => phone.primary)?.address ?? person.phones[0]?.address}</span> : null}{person.addresses?.length ? <span data-testid={`crm-person-address-${person.id}`} style={{ display: 'block', color: 'var(--color-slate-600)' }}>{person.addresses.find((address) => address.primary)?.address ?? person.addresses[0]?.address}</span> : null}</span>) : 'None'}
         </p>
         <p>
           <strong>External parties:</strong>{' '}
