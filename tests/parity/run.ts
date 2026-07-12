@@ -246,6 +246,22 @@ class DesktopParityApp implements ParityApp {
     // because that skips the lifecycle commit which dismisses it.  The old
     // shortcut therefore made every parity feature fail before a CRM screen
     // could mount.
+    const firstRendererDeadline = Date.now() + 30_000;
+    let rendererReady = false;
+    while (Date.now() < firstRendererDeadline) {
+      try {
+        await this.eval('document.readyState');
+        rendererReady = true;
+        break;
+      } catch {
+        // The desktop bridge comes up before the WebView has its first page.
+        // Polling the real renderer prevents a slow cold start from becoming
+        // a fictional feature failure.
+        await delay(150);
+      }
+    }
+    if (!rendererReady)
+      throw new InfrastructureError('The desktop renderer did not become ready');
     await this.eval(`(() => {
       localStorage.setItem('lantern_onboarding_complete', 'true');
       localStorage.setItem('keepance_feature_tour_dismissed', 'true');
@@ -453,6 +469,7 @@ class DesktopParityApp implements ParityApp {
     account?: boolean;
     addresses?: boolean;
     facts?: boolean;
+    timeline?: boolean;
   }): Promise<void> {
     const { path } = await this.setWorkspace('contacts');
     const household = this.token('Parity household');
@@ -512,10 +529,19 @@ class DesktopParityApp implements ParityApp {
     if (options.facts) {
       await this.require('crm-household-add-fact');
       await this.click('crm-household-add-fact');
+      await this.fill('crm-fact-label', 'Parity remembered fact');
+      await this.fill('crm-fact-value', 'October');
+      await this.fill('crm-fact-source', 'Parity review meeting');
+      await this.click('crm-fact-save');
+    }
+    if (options.timeline) {
+      await this.click('crm-household-tab-timeline');
+      await this.require('crm-household-timeline');
+      if (options.notes) await this.requireText('Parity note');
     }
     await this.restart();
     await this.eval(
-      `(async () => { const { useWorkspaceStore } = await import('/src/platform/fs/workspaceStore.ts'); useWorkspaceStore.getState().setRootPath(${JSON.stringify(path)}); return true; })()`
+      `(async () => { const invoke = window.__TAURI_INTERNALS__?.invoke; if (!invoke) throw new Error('Tauri invoke is unavailable'); await invoke('crm_set_workspace', { path: ${JSON.stringify(path)} }); const { useWorkspaceStore } = await import('/src/platform/fs/workspaceStore.ts'); useWorkspaceStore.getState().setRootPath(${JSON.stringify(path)}); return true; })()`
     );
     await this.click('spine-nav-matters');
     await this.requireText(household);
@@ -756,6 +782,36 @@ class DesktopParityApp implements ParityApp {
       fail('Saved report disappeared after native restart');
   }
 
+  async customField(): Promise<void> {
+    await this.setWorkspace(`custom-field-${this.token('setup')}`);
+    await this.openHome();
+    await this.click('crm-home-nav-firm-setup');
+    await this.require('crm-field-create');
+    await this.click('crm-field-create');
+    const label = this.token('Parity custom field');
+    const key = `parity_${this.sequence}`;
+    await this.fill('crm-field-label', label);
+    await this.fill('crm-field-key', key);
+    await this.click('crm-field-save');
+    await this.waitForText(label);
+    if (
+      !(await this.records()).some(
+        (record) => record.kind === 'customFieldDef' && record.label === label
+      )
+    )
+      fail('Saving a custom field did not create a field definition');
+    await this.restart();
+    await this.openHome();
+    await this.click('crm-home-nav-firm-setup');
+    await this.requireText(label);
+    if (
+      !(await this.records()).some(
+        (record) => record.kind === 'customFieldDef' && record.label === label
+      )
+    )
+      fail('Custom field disappeared after native restart');
+  }
+
   async durableFeature(options: {
     route: string;
     controls: string[];
@@ -826,7 +882,10 @@ try {
     ['run', 'dev', '--', '--port', String(vitePort), '--strictPort'],
     process.env
   );
-  const end = Date.now() + 30_000;
+  // A cold Vite cache can take a little over thirty seconds on the shared
+  // build machine.  Keep the parity runner honest by waiting for the real
+  // server instead of calling a healthy app an infrastructure failure.
+  const end = Date.now() + 60_000;
   while (!(await portReady(vitePort))) {
     if (Date.now() > end) {
       throw new InfrastructureError(`Vite did not start on port ${vitePort}`);
