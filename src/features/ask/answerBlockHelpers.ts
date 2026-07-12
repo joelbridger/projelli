@@ -130,6 +130,108 @@ function scrubCitationMarkers(text: string): string {
 
 /** A raw `[file paragraph N]` / `[file page N]` / `[file §N]` citation marker. */
 const RAW_CITATION_MARKER_RE = /\[[^[\]\n]+?\s+(?:paragraph\s+|page\s+|§\s*)\d+\]/i;
+const RAW_CITATION_MARKER_GLOBAL_RE = /\[[^[\]\n]+?\s+(?:paragraph\s+|page\s+|§\s*)\d+\]/gi;
+
+interface CitationRecoverySegment {
+  text: string;
+  hasSourceMarker: boolean;
+}
+
+/**
+ * Split a GENERAL block around the sentence(s) a raw citation can support.
+ *
+ * A cloud model can mislabel a file-backed sentence as GENERAL. Recovering its
+ * valid citation is useful, but promoting the entire block would put any
+ * surrounding general advice under the file-backed trust label. Keep this
+ * deliberately conservative: only a sentence that contains a citation (or the
+ * preceding sentence when the citation is a standalone attribution) is eligible
+ * for the files-binding path. Everything else stays general.
+ */
+function splitGeneralBlockForCitationRecovery(text: string): CitationRecoverySegment[] {
+  RAW_CITATION_MARKER_GLOBAL_RE.lastIndex = 0;
+  const markers = [...text.matchAll(RAW_CITATION_MARKER_GLOBAL_RE)];
+  if (markers.length === 0) return [{ text, hasSourceMarker: false }];
+
+  const spans = markers.map((marker) => {
+    const markerStart = marker.index;
+    const markerEnd = markerStart + marker[0].length;
+    return {
+      start: sentenceStartForCitation(text, markerStart),
+      end: sentenceEndAfterCitation(text, markerEnd),
+    };
+  }).sort((a, b) => a.start - b.start);
+
+  // A sentence can cite more than one source. Merge overlapping spans so it
+  // stays one files block with all of its citations.
+  const merged: Array<{ start: number; end: number }> = [];
+  for (const span of spans) {
+    const previous = merged[merged.length - 1];
+    if (previous && span.start <= previous.end) {
+      previous.end = Math.max(previous.end, span.end);
+    } else {
+      merged.push({ ...span });
+    }
+  }
+
+  const segments: CitationRecoverySegment[] = [];
+  let cursor = 0;
+  for (const span of merged) {
+    const general = text.slice(cursor, span.start).trim();
+    if (general) segments.push({ text: general, hasSourceMarker: false });
+    const cited = text.slice(span.start, span.end).trim();
+    if (cited) segments.push({ text: cited, hasSourceMarker: true });
+    cursor = span.end;
+  }
+  const general = text.slice(cursor).trim();
+  if (general) segments.push({ text: general, hasSourceMarker: false });
+  return segments;
+}
+
+function sentenceStartForCitation(text: string, citationStart: number): number {
+  // "Fact. [source paragraph 2]" puts the marker after the sentence it
+  // supports. Include that sentence rather than promoting a bare marker.
+  const beforeCitation = text.slice(0, citationStart);
+  const standaloneAttribution = /[.!?][\p{Pe}\p{Pf}"'\s]*$/u.exec(beforeCitation);
+  const searchFrom = standaloneAttribution
+    ? citationStart - standaloneAttribution[0].length
+    : citationStart;
+  return sentenceStartBefore(text, searchFrom);
+}
+
+function sentenceStartBefore(text: string, from: number): number {
+  for (let i = from - 1; i >= 0; i--) {
+    const char = text[i];
+    if (char === '\n') return skipWhitespace(text, i + 1);
+    if (isSentenceTerminator(text, i)) return skipWhitespace(text, i + 1);
+  }
+  return 0;
+}
+
+function sentenceEndAfterCitation(text: string, citationEnd: number): number {
+  for (let i = citationEnd; i < text.length; i++) {
+    if (text[i] === '\n') return i;
+    if (isSentenceTerminator(text, i)) {
+      let end = i + 1;
+      while (end < text.length && /[\p{Pe}\p{Pf}"']/u.test(text[end] ?? '')) end++;
+      return end;
+    }
+  }
+  return text.length;
+}
+
+function isSentenceTerminator(text: string, index: number): boolean {
+  const char = text[index];
+  if (char !== '.' && char !== '!' && char !== '?') return false;
+  // Do not split "$100.65" in half. A filename's dot is not followed by
+  // whitespace, so it is naturally ignored by the caller's citation bounds.
+  return char !== '.' || !(/\d/.test(text[index - 1] ?? '') && /\d/.test(text[index + 1] ?? ''));
+}
+
+function skipWhitespace(text: string, from: number): number {
+  let i = from;
+  while (i < text.length && /\s/.test(text[i] ?? '')) i++;
+  return i;
+}
 
 /**
  * A number-keyed citation as a small local model emits it: `[1 paragraph 3]`,
@@ -265,10 +367,29 @@ export function bindAnswerBlocks(
     // becomes properly-cited files content — recovering the citations the model
     // did emit — or honest uncited general prose. Genuinely brief absence
     // statements keep their nothing-found label.
+    // Cloud models sometimes put a genuinely cited, file-backed sentence in a
+    // GENERAL block. Local models commonly omit block markers, so their same
+    // sentence takes the inferred FILES path; cloud answers used to have their
+    // valid citation scrubbed solely because of that label difference. Promote
+    // only blocks that carry a citation-shaped source marker, then let the
+    // normal binder prove it resolves to an in-scope retrieved chunk. A made-up
+    // or out-of-scope citation still falls through to the existing scrubbed
+    // general block, so this never turns an untrusted claim green.
+    const generalBlockHasSourceMarker =
+      rb.kind === 'general' &&
+      RAW_CITATION_MARKER_RE.test(rb.text);
     const treatAsFiles =
       rb.kind === 'files' ||
+      generalBlockHasSourceMarker ||
       (rb.kind === 'nothing-found' && nothingFoundBlockHasRealContent(rb.text));
-    if (treatAsFiles) {
+    if (generalBlockHasSourceMarker) {
+      // Recover only citation-bounded segments. The rest of this GENERAL block
+      // remains general even when a neighbouring sentence verifies.
+      for (const segment of splitGeneralBlockForCitationRecovery(rb.text)) {
+        if (segment.hasSourceMarker) blocks.push(...bindAsFilesBlock(segment.text));
+        else blocks.push({ kind: 'general', text: scrubCitationMarkers(segment.text), citations: [] });
+      }
+    } else if (treatAsFiles) {
       blocks.push(...bindAsFilesBlock(rb.text));
     } else {
       blocks.push({ kind: rb.kind, text: scrubCitationMarkers(rb.text), citations: [] });

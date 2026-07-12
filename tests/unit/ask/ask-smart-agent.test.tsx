@@ -239,6 +239,25 @@ describe('Ask-smart (source-aware advisor agent)', () => {
     expect(document.body.textContent).toContain('$100.65');
   });
 
+  it('keeps a retrieved citation when a cloud answer mislabels file evidence as general', async () => {
+    // Anthropic and OpenAI can follow the smart-answer block protocol but put a
+    // file-backed statement under GENERAL. The real Ask pipeline must recover
+    // the valid citation instead of silently presenting the answer as uncited.
+    h.retrieve.mockResolvedValue([geicoHit]);
+    h.answer.text = [
+      BLOCK_MARKERS.general,
+      'GEICO tendered its policy limit of $100.65 [geico-demand.docx paragraph 2].',
+    ].join('\n');
+
+    await ask('What did GEICO tender?');
+
+    await waitFor(() => {
+      expect(screen.getByTestId(/^ask-block-label-files(-checking)?$/)).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('ask-citation-chip-1')).toBeInTheDocument();
+    expect(document.body.textContent).toContain('$100.65');
+  });
+
   it('splits a trailing general sentence out of a files block (mixed-block guard)', async () => {
     h.retrieve.mockResolvedValue([geicoHit]);
     h.answer.text = [
