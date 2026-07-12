@@ -16,9 +16,10 @@ import { SURFACES } from './golden-loop.manifest.mjs';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '../..');
 const verifyPersisted = process.argv.includes('--verify-persisted');
+const checkManifestOnly = process.argv.includes('--check-manifest');
 const registeredDrivers = [
   ...new Set(
-    SURFACES.flatMap((surface) => (surface.driver ? [surface.driver] : []))
+    SURFACES.flatMap((surface) => surface.drivers)
   ),
 ];
 const actualDrivers = readdirSync(here).filter(
@@ -64,7 +65,7 @@ const missingManifestRoutes = declaredRoutes.filter(
 const staleManifestRoutes = SURFACES.filter(
   (surface) => !declaredRoutes.includes(surface.id)
 ).map((surface) => surface.id);
-const missingDrivers = SURFACES.filter((surface) => !surface.driver).map(
+const missingDrivers = SURFACES.filter((surface) => !surface.drivers?.length).map(
   (surface) => surface.id
 );
 const missingFiles = registeredDrivers.filter(
@@ -86,16 +87,18 @@ const run = (file) =>
   });
 
 let failed = 0;
-for (const file of registeredDrivers) {
-  console.log(
-    `\n=== GOLDEN LOOP${verifyPersisted ? ' PERSISTENCE' : ''}: ${file} ===`
-  );
-  const code = await run(file);
-  if (code !== 0) {
-    console.error(`❌ ${file} FAILED (exit ${code})`);
-    failed += 1;
-  } else {
-    console.log(`✅ ${file} passed`);
+if (!checkManifestOnly) {
+  for (const file of registeredDrivers) {
+    console.log(
+      `\n=== GOLDEN LOOP${verifyPersisted ? ' PERSISTENCE' : ''}: ${file} ===`
+    );
+    const code = await run(file);
+    if (code !== 0) {
+      console.error(`❌ ${file} FAILED (exit ${code})`);
+      failed += 1;
+    } else {
+      console.log(`✅ ${file} passed`);
+    }
   }
 }
 

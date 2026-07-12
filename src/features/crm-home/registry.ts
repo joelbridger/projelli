@@ -14,7 +14,7 @@ import { firmFieldsSurface, firmSurface } from '@/features/crm-firm/surface';
 import { archiveExportSurface, attachmentAccountingSurface, fidelitySurface, migrationSurface, rollbackExportSurface, workflowRecreationSurface } from '@/features/crm-migration/surface';
 import { pipelineSettingsSurface, pipelineSurface } from '@/features/crm-pipeline/surface';
 import { reportsSurface } from '@/features/crm-reports/surface';
-import { searchSurface } from '@/features/crm-search/surface';
+import { viewsSurface } from '@/features/crm-views/surface';
 
 export interface CrmHomeSurfaceDescriptor {
   id: string;
@@ -28,7 +28,7 @@ export interface CrmHomeSurfaceDescriptor {
 /**
  * The only shared list for home surfaces. Feature folders own their descriptor;
  * a lane adds its descriptor here without editing CrmHome. Keep entries sorted
- * by id and append only the feature-owned descriptor import above.
+ * by id; each entry is a feature-owned descriptor imported from `surface.tsx`.
  */
 export const crmHomeSurfaceRegistry: readonly CrmHomeSurfaceDescriptor[] = [
   activitySurface,
@@ -45,9 +45,9 @@ export const crmHomeSurfaceRegistry: readonly CrmHomeSurfaceDescriptor[] = [
   propagationSurface,
   reportsSurface,
   rollbackExportSurface,
-  searchSurface,
   tasksSurface,
   todaySurface,
+  viewsSurface,
   workflowRecreationSurface,
   workflowsSurface,
 ];

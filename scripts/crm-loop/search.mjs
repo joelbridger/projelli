@@ -41,6 +41,8 @@ try {
     cwd: process.cwd(), env: { ...process.env, DESKTOP_CDP_PORT: process.env.DESKTOP_CDP_PORT || '9268', CRM_LOOP_WORKSPACE: workspace }, stdio: 'inherit',
   });
   await click('spine-nav-search');
+  await waitFor('crm-ask-surface');
+  await click('crm-record-search-tab');
   await waitFor('crm-search-surface');
   await fill('crm-search-query', query);
   await click('crm-search-submit');
