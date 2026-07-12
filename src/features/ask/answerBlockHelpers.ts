@@ -212,7 +212,7 @@ function sentenceEndAfterCitation(text: string, citationEnd: number): number {
     if (text[i] === '\n') return i;
     if (isSentenceTerminator(text, i)) {
       let end = i + 1;
-      while (end < text.length && /[\p{Pe}\p{Pf}"']/.test(text[end] ?? '')) end++;
+      while (end < text.length && /[\p{Pe}\p{Pf}"']/u.test(text[end] ?? '')) end++;
       return end;
     }
   }
