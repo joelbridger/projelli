@@ -1,8 +1,8 @@
 import type { ComponentType } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import type { CrmHomeRoute } from './CrmHome';
-import { activitySurface } from '@/features/crm-activity/surface';
-import { crmAskSurface } from '@/features/crm-ask/surface';
+import { activitySurface, timelineSurface } from '@/features/crm-activity/surface';
+import { calendarSurface, emailSurface } from '@/features/crm-connectors/surface';
 import {
   intakeLinksSurface,
   propagationSurface,
@@ -15,6 +15,7 @@ import { archiveExportSurface, attachmentAccountingSurface, fidelitySurface, mig
 import { pipelineSettingsSurface, pipelineSurface } from '@/features/crm-pipeline/surface';
 import { reportsSurface } from '@/features/crm-reports/surface';
 import { viewsSurface } from '@/features/crm-views/surface';
+import { searchSurface } from '@/features/crm-search/surface';
 
 export interface CrmHomeSurfaceDescriptor {
   id: string;
@@ -33,7 +34,8 @@ export interface CrmHomeSurfaceDescriptor {
 export const crmHomeSurfaceRegistry: readonly CrmHomeSurfaceDescriptor[] = [
   activitySurface,
   archiveExportSurface,
-  crmAskSurface,
+  calendarSurface,
+  emailSurface,
   attachmentAccountingSurface,
   fidelitySurface,
   firmSurface,
@@ -45,7 +47,9 @@ export const crmHomeSurfaceRegistry: readonly CrmHomeSurfaceDescriptor[] = [
   propagationSurface,
   reportsSurface,
   rollbackExportSurface,
+  searchSurface,
   tasksSurface,
+  timelineSurface,
   todaySurface,
   viewsSurface,
   workflowRecreationSurface,

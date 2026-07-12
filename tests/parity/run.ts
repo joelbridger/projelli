@@ -368,7 +368,7 @@ class DesktopParityApp implements ParityApp {
     await this.setWorkspace(`feature-${this.token('route')}`);
     await this.click(options.route);
     for (const control of options.controls) await this.require(control);
-    if (options.action) await this.click(options.action);
+    if (options.action) { await this.click(options.action); await delay(250); }
     if (options.result) await this.requireText(options.result);
     if (options.recordKind && !(await this.records()).some((record) => record.kind === options.recordKind)) fail(`Action did not create a ${options.recordKind} record`);
     await this.restart();

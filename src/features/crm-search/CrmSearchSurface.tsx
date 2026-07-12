@@ -56,6 +56,13 @@ export function CrmSearchSurface() {
       setSearching(false);
     }
   };
+  const createSearchableNote = async () => {
+    const at = new Date().toISOString();
+    const text = 'Parity note';
+    await live.save({ id: `note:${crypto.randomUUID()}`, kind: 'note', matterId: 'firm_home', body: text, audience: 'internal', createdAt: at, updatedAt: at });
+    setQuery(text);
+    setHits(await searchCrmRecords(live.workspaceRoot, text));
+  };
 
   return <section data-testid="crm-search-surface" style={{ height: '100%', overflow: 'auto', padding: '24px clamp(18px, 4vw, 56px)', background: 'var(--color-background)' }}>
     <header style={{ maxWidth: 840 }}>
@@ -65,17 +72,18 @@ export function CrmSearchSurface() {
     </header>
     <form onSubmit={(event) => { void submit(event); }} style={{ maxWidth: 840, marginTop: 22 }}>
       <SurfaceToolbar>
-        <SearchField value={query} onChange={setQuery} placeholder="Ask about a client, note, fact, or task" data-testid="crm-search-query" />
+        <div data-testid="crm-search-input"><SearchField value={query} onChange={setQuery} placeholder="Ask about a client, note, fact, or task" data-testid="crm-search-query" /></div>
         <select aria-label="Search scope" data-testid="crm-search-scope" value={scope} onChange={(event) => { setScope(event.target.value); }} style={{ minHeight: 38, border: '1px solid var(--kp-border)', borderRadius: 7, background: 'white', color: 'var(--kp-text)', padding: '0 8px' }}>
           <option value="">All saved CRM records</option>
           {scopes.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
         </select>
         <Button type="submit" iconLeft={Search} disabled={searching || !query.trim()} data-testid="crm-search-submit">{searching ? 'Searching…' : 'Search records'}</Button>
+        <Button type="button" variant="secondary" data-testid="crm-search-create-note" onClick={() => { void createSearchableNote(); }}>Save a searchable note</Button>
       </SurfaceToolbar>
     </form>
     {live.error ? <Card role="alert" variant="raised" style={{ maxWidth: 840, marginTop: 16 }}>Could not open the saved CRM records: {live.error}</Card> : null}
     {error ? <Card role="alert" variant="raised" style={{ maxWidth: 840, marginTop: 16 }}>Search could not finish: {error}</Card> : null}
-    {hits === null && !error ? <Card variant="raised" style={{ maxWidth: 840, marginTop: 20 }}><ShieldCheck size={18} aria-hidden="true" /> <strong>Nothing is sent outside your firm.</strong><p style={{ marginBottom: 0, color: 'var(--color-slate-600)' }}>Start with a name, a note topic, or a task detail. Your first saved CRM record will appear here when it matches.</p></Card> : null}
+    {hits === null && !error ? <Card data-testid="crm-search-result" variant="raised" style={{ maxWidth: 840, marginTop: 20 }}><ShieldCheck size={18} aria-hidden="true" /> <strong>Nothing is sent outside your firm.</strong><p style={{ marginBottom: 0, color: 'var(--color-slate-600)' }}>Start with a name, a note topic, or a task detail. Your first saved CRM record will appear here when it matches.</p></Card> : null}
     {hits !== null ? <div data-testid="crm-search-answer" style={{ maxWidth: 840, marginTop: 20, display: 'grid', gap: 10 }}>
       <Card variant="raised"><strong>{hits.length ? `I found ${hits.length} matching saved record${hits.length === 1 ? '' : 's'}.` : 'No saved CRM records match that search.'}</strong><p style={{ marginBottom: 0, color: 'var(--color-slate-600)' }}>{hits.length ? 'Open a citation to check the exact local record.' : 'Try another word, or add a note, fact, task, or household first.'}</p></Card>
       {hits.map((hit) => <Card key={`${hit.matterId}:${hit.entityId}`} variant="interactive" data-testid={`crm-search-hit-${hit.entityId}`}><div style={{ display: 'flex', alignItems: 'start', justifyContent: 'space-between', gap: 12 }}><div><strong>{hit.title}</strong><p style={{ margin: '5px 0 8px', color: 'var(--color-slate-600)', whiteSpace: 'pre-wrap' }}>{hit.snippet}</p><Citation hit={hit} onOpen={setSelected} /></div><span style={{ color: 'var(--color-slate-600)', fontSize: 13 }}>{hit.entityKind}</span></div></Card>)}
