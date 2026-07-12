@@ -67,4 +67,12 @@ describe('direct DocuSign adapter', () => {
     await expect(adapter.createEnvelopeAndRecipientView(input)).rejects.toThrow('DocuSign return URL is not the broker-allowed URL.');
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it('refuses a mismatched return URL on the standalone recipient-view path too, before contacting DocuSign', async () => {
+    const adapter = new DirectDocusignAdapter(() => Promise.resolve({ accessToken: 'short-lived', accountId: 'acct-1', baseUri: 'https://demo.docusign.net', expiresAt: new Date(Date.now() + 60_000).toISOString(), allowedReturnUrl: 'https://lantern.test/return' }));
+    const input = { envelopeId: 'env-1', signerName: 'Signer', signerEmail: 's@example.test', clientUserId: 'client', returnUrl: 'https://untrusted.test/return' };
+
+    await expect(adapter.createRecipientView(input)).rejects.toThrow('DocuSign return URL is not the broker-allowed URL.');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });
