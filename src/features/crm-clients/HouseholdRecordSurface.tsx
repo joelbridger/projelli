@@ -30,6 +30,7 @@ import { HouseholdTimeline } from '@/features/crm-timeline';
 import type { CrmEngineFreshness } from '@/platform/crm/store';
 import type { TimelineRecord } from '@/features/crm-timeline';
 import { ContactEditor } from './ContactEditor';
+import { HouseholdConnectorSurface } from '@/features/crm-connectors/HouseholdConnectorSurface';
 
 type HouseholdTab =
   | 'client_map'
@@ -214,14 +215,15 @@ export function HouseholdRecordSurface({
           records={timelineRecords}
           freshness={timelineFreshness}
         />
+      ) : tab === 'email' || tab === 'meetings' ? (
+        <HouseholdConnectorSurface tab={tab} household={household} {...(actions ? { actions } : {})} />
       ) : (
         <ExistingSurface
           tab={tab}
           household={household}
           proposals={sourceProposals}
           {...(actions ? { actions } : {})}
-        />
-      )}
+        />}
       <SlidePanel
         open={addOpen}
         onClose={() => { setAddOpen(false); }}
