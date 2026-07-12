@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-07-12T14:26:23.659Z",
+  "generatedAt": "2026-07-12T14:35:20.368Z",
   "source": "design/01-wealthbox-feature-matrix.md",
   "totalFeatures": 69,
   "skippedFeatures": 20,
-  "verified": 24,
+  "verified": 22,
   "results": [
     {
       "id": "contact-person",
@@ -11,7 +11,7 @@
       "area": "contacts",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Expected visible text: Parity household-1783866278133-3"
+      "detail": "Expected visible text: Parity household-1783866810520-3"
     },
     {
       "id": "contact-household",
@@ -91,7 +91,7 @@
       "area": "contacts",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Expected visible text: Parity household-1783866289810-32"
+      "detail": "Expected visible text: Parity household-1783866822584-32"
     },
     {
       "id": "typed-objects",
@@ -131,7 +131,7 @@
       "area": "timeline",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Expected visible text: Parity household-1783866296072-46"
+      "detail": "Expected visible text: Parity household-1783866829151-46"
     },
     {
       "id": "internal-note-wall",
@@ -179,7 +179,7 @@
       "area": "contacts",
       "verdict": "IMPROVE",
       "status": "FAILING",
-      "detail": "Expected visible text: Parity household-1783866304457-60"
+      "detail": "Expected visible text: Parity household-1783866837546-60"
     },
     {
       "id": "task-change-trail",
@@ -370,8 +370,8 @@
       "name": "Firm-wide activity/dashboard feed",
       "area": "timeline",
       "verdict": "REPLICATE",
-      "status": "BUILT",
-      "detail": "Passed against the running desktop app and survived native restart."
+      "status": "FAILING",
+      "detail": "Action did not create a activityEvent record"
     },
     {
       "id": "activity-mentions",
@@ -427,7 +427,7 @@
       "area": "timeline",
       "verdict": "IMPROVE",
       "status": "FAILING",
-      "detail": "Expected visible text: Parity household-1783866365389-143"
+      "detail": "Expected visible text: Parity household-1783866900043-143"
     },
     {
       "id": "calendly-replacement",
@@ -498,8 +498,8 @@
       "name": "Teams",
       "area": "firm setup",
       "verdict": "REPLICATE",
-      "status": "BUILT",
-      "detail": "Passed against the running desktop app and survived native restart."
+      "status": "FAILING",
+      "detail": "Action did not create a team record"
     },
     {
       "id": "firm-visibility",
