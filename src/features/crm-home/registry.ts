@@ -1,18 +1,20 @@
 import type { ComponentType } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import type { CrmHomeRoute } from './CrmHome';
+import { activitySurface } from '@/features/crm-activity/surface';
+import { crmAskSurface } from '@/features/crm-ask/surface';
 import {
   intakeLinksSurface,
   propagationSurface,
   tasksSurface,
   todaySurface,
   workflowsSurface,
-} from './surfaces';
-import { pipelineSettingsSurface, pipelineSurface } from '@/features/crm-pipeline/surface';
-import { reportsSurface } from '@/features/crm-reports/surface';
+} from './surface';
 import { firmFieldsSurface, firmSurface } from '@/features/crm-firm/surface';
 import { archiveExportSurface, attachmentAccountingSurface, fidelitySurface, migrationSurface, rollbackExportSurface, workflowRecreationSurface } from '@/features/crm-migration/surface';
-import { crmAskSurface } from '@/features/crm-ask/surface';
+import { pipelineSettingsSurface, pipelineSurface } from '@/features/crm-pipeline/surface';
+import { reportsSurface } from '@/features/crm-reports/surface';
+import { searchSurface } from '@/features/crm-search/surface';
 
 export interface CrmHomeSurfaceDescriptor {
   id: string;
@@ -25,24 +27,27 @@ export interface CrmHomeSurfaceDescriptor {
 
 /**
  * The only shared list for home surfaces. Feature folders own their descriptor;
- * a lane adds its descriptor here without editing CrmHome.
+ * a lane adds its descriptor here without editing CrmHome. Keep entries sorted
+ * by id and append only the feature-owned descriptor import above.
  */
 export const crmHomeSurfaceRegistry: readonly CrmHomeSurfaceDescriptor[] = [
-  todaySurface,
-  tasksSurface,
-  workflowsSurface,
-  propagationSurface,
-  pipelineSurface,
-  pipelineSettingsSurface,
-  reportsSurface,
+  activitySurface,
+  archiveExportSurface,
+  crmAskSurface,
+  attachmentAccountingSurface,
+  fidelitySurface,
   firmSurface,
   firmFieldsSurface,
   intakeLinksSurface,
   migrationSurface,
-  fidelitySurface,
-  workflowRecreationSurface,
-  attachmentAccountingSurface,
-  archiveExportSurface,
+  pipelineSurface,
+  pipelineSettingsSurface,
+  propagationSurface,
+  reportsSurface,
   rollbackExportSurface,
-  crmAskSurface,
+  searchSurface,
+  tasksSurface,
+  todaySurface,
+  workflowRecreationSurface,
+  workflowsSurface,
 ];

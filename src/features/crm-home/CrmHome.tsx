@@ -75,6 +75,7 @@ export type CrmHomeRoute =
   | 'pipeline'
   | 'pipeline-settings'
   | 'reports'
+  | 'activity'
   | 'firm-setup'
   | 'fields-tags'
   | 'intake-links'
@@ -446,7 +447,6 @@ function ConnectedCrmHome({ adapter, initialRoute = 'today', preview = false, wo
   // The screen receives engine-derived data only; preview data is opt-in above.
   const activeAdapter = adapter;
   const [route, setRoute] = useState<CrmHomeRoute>(initialRoute);
-  const [notificationsRead, setNotificationsRead] = useState(false);
   const [undoReport, setUndoReport] = useState<string | null>(null);
   const freshness = activeAdapter.freshness;
   const offers = activeAdapter.offers;
@@ -457,7 +457,6 @@ function ConnectedCrmHome({ adapter, initialRoute = 'today', preview = false, wo
   const jump = (next: CrmHomeRoute) => { setRoute(next); };
   const reportUndo = useCallback(() => { const result = activeAdapter.actions.undoPropagation?.() ?? { restored: 0, protectedCells: [] }; setUndoReport(result.protectedCells.length ? `${String(result.restored)} untouched derived cells restored. Protected cells kept: ${result.protectedCells.join(', ')}.` : `${String(result.restored)} untouched derived cells restored. No protected cells needed to stay.`); }, [activeAdapter]);
   useEffect(() => { const onKeyDown = (event: KeyboardEvent) => { if ((event.target as HTMLElement | null)?.tagName === 'INPUT') return; if (event.key === 'g') { (window as Window & { __crmGo?: boolean }).__crmGo = true; return; } if ((window as Window & { __crmGo?: boolean }).__crmGo) { const key = event.key.toLowerCase(); const destination = key === 'h' ? 'today' : key === 't' ? 'tasks' : key === 'w' ? 'workflows' : key === 'p' ? 'pipeline' : key === 'r' ? 'reports' : key === 'f' ? 'firm-setup' : key === 'm' ? 'migration' : null; if (destination) { event.preventDefault(); jump(destination); } (window as Window & { __crmGo?: boolean }).__crmGo = false; } if (event.key === '/' && route !== 'tasks') { document.querySelector<HTMLInputElement>('[data-testid="crm-ask-input"]')?.focus(); } if (route === 'propagation' && event.key.toLowerCase() === 'u') { event.preventDefault(); reportUndo(); } }; window.addEventListener('keydown', onKeyDown); return () => { window.removeEventListener('keydown', onKeyDown); }; }, [activeAdapter, reportUndo, route]);
-  const notificationPanel = <aside aria-label="Notifications" style={{ position: 'absolute', right: 20, top: 56, width: 340, zIndex: 10, ...panelStyle, boxShadow: 'var(--kp-shadow-2)' }}><strong>Notifications ({String(approvals.filter((approval) => approval.state === 'pending').length)})</strong><p style={mutedStyle}>Approval decisions are shown in Today. This device keeps ordinary read state locally.</p><p style={mutedStyle}>The relay exposes delivery timing and opaque envelope IDs, never message content.</p><Button data-testid="crm-notifications-read" variant="secondary" onClick={() => { setNotificationsRead(true); activeAdapter.actions.markNotificationsRead?.(); }}>{notificationsRead ? 'Marked read on this device' : 'Mark all read on this device'}</Button></aside>;
   const workflowWorkItems = activeAdapter.workflowWorkItems ?? [];
   const firmMembers = activeAdapter.firmMembers ?? [];
   const completeWorkItem = async (item: CrmDailyWorkItem) => {
@@ -476,8 +475,7 @@ function ConnectedCrmHome({ adapter, initialRoute = 'today', preview = false, wo
   const selectedSurface = crmHomeSurfaceRegistry.find((surface) => surface.route === route)
     ?? crmHomeSurfaceRegistry.find((surface) => surface.route === 'firm-setup')!;
   const content = <CrmHomeSurfaceContext.Provider value={{ navigate: (next) => { jump(next as CrmHomeRoute); }, renderLegacySurface: (id) => legacySurfaceContent[id as keyof typeof legacySurfaceContent] ?? null }}>{createElement(selectedSurface.Component)}</CrmHomeSurfaceContext.Provider>;
-  const [showNotifications, setShowNotifications] = useState(false);
-  return <div data-testid="crm-home" style={{ display: 'flex', height: '100%', minHeight: 0, position: 'relative', background: 'var(--color-background)' }}>{preview && <div data-testid="crm-home-preview-label" role="status" style={{ position: 'absolute', zIndex: 20, right: 16, bottom: 12, ...panelStyle, padding: 8, borderColor: 'var(--kp-direct)' }}>Preview mode. Not connected to CRM data.</div>}<HomeRail route={route} onNavigate={jump} /><div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', position: 'relative' }}>{content}<button data-testid="crm-notifications-button" aria-label="Open notifications" onClick={() => { setShowNotifications((open) => !open); }} style={{ position: 'absolute', top: 15, right: 18, border: 0, background: 'transparent', cursor: 'pointer', color: 'var(--kp-navy)' }}><Bell size={20} /> <span aria-label={`${String(approvals.filter((approval) => approval.state === 'pending').length)} notifications`}>{String(approvals.filter((approval) => approval.state === 'pending').length)}</span></button>{showNotifications && notificationPanel}</div></div>;
+  return <div data-testid="crm-home" style={{ display: 'flex', height: '100%', minHeight: 0, position: 'relative', background: 'var(--color-background)' }}>{preview && <div data-testid="crm-home-preview-label" role="status" style={{ position: 'absolute', zIndex: 20, right: 16, bottom: 12, ...panelStyle, padding: 8, borderColor: 'var(--kp-direct)' }}>Preview mode. Not connected to CRM data.</div>}<HomeRail route={route} onNavigate={jump} /><div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', position: 'relative' }}>{content}<button data-testid="crm-notifications-button" aria-label="Open notifications" onClick={() => { jump('activity'); }} style={{ position: 'absolute', top: 15, right: 18, border: 0, background: 'transparent', cursor: 'pointer', color: 'var(--kp-navy)' }}><Bell size={20} /> <span aria-label="Open notifications">Notifications</span></button></div></div>;
 }
 
 export function CrmHome({ adapter, preview = false, initialRoute }: CrmHomeProps) {
