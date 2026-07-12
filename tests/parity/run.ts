@@ -1303,6 +1303,53 @@ class DesktopParityApp implements ParityApp {
     if (field.kind !== 'customFieldDef') fail('Custom field definition changed kind unexpectedly');
   }
 
+  async emailDropbox(): Promise<void> {
+    const { householdId } = await this.setWorkspace(`email-dropbox-${this.token('workspace')}`);
+    // This is a DEV-only synthetic mailbox. It exercises the same list,
+    // suggestion, approval, local filing, and SQLCipher persistence path as a
+    // connected mailbox, without putting a real email account in the exam.
+    await this.eval(`history.replaceState({}, '', ${JSON.stringify(`${new URL(base).pathname}?mailFixture=1`)}); true`);
+    await this.openHome();
+    await this.click('crm-home-nav-email-dropbox');
+    for (const control of [
+      'crm-email-dropbox-folder',
+      'crm-email-dropbox-provider',
+      'crm-email-dropbox-save',
+      'crm-email-dropbox-check',
+      'crm-email-dropbox-private-note',
+    ]) await this.require(control);
+    await this.fill('crm-email-dropbox-folder', 'inbox');
+    await this.select('crm-email-dropbox-provider', 'm365');
+    await this.click('crm-email-dropbox-save');
+    await this.click('crm-email-dropbox-check');
+    await this.waitForControl('crm-email-dropbox-email-fix-1');
+    await this.select('crm-email-dropbox-household-fix-1', householdId);
+    await this.click('crm-email-dropbox-file-fix-1');
+    await this.requireText('Filed “Re: Annual review meeting” to Parity household.');
+    await this.waitForRecord(
+      (record) => record.kind === 'emailActivity' &&
+        record.messageId === 'fix-1' &&
+        record.householdId === householdId &&
+        record.source === 'client-side-email-dropbox',
+      'Filing a dropbox email did not create a local CRM activity record',
+    );
+    if (!(await this.records()).some(
+      (record) => record.kind === 'emailDropboxConfig' && record.folderId === 'inbox'
+    )) fail('Saving the email dropbox did not create a local configuration record');
+    await this.restart();
+    await this.click('crm-home-nav-email-dropbox');
+    const afterRestart = await this.records();
+    if (!afterRestart.some(
+      (record) => record.kind === 'emailActivity' &&
+        record.messageId === 'fix-1' &&
+        record.householdId === householdId &&
+        record.source === 'client-side-email-dropbox',
+    )) fail('Filed dropbox email disappeared after native restart');
+    if (!afterRestart.some(
+      (record) => record.kind === 'emailDropboxConfig' && record.folderId === 'inbox'
+    )) fail('Email dropbox setup disappeared after native restart');
+  }
+
   async durableFeature(options: {
     route: string;
     controls: string[];
