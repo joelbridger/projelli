@@ -291,9 +291,9 @@ mod tests {
             source_id: Some("mail:message-42".into()),
             source_date: Some(SourceDate {
                 value: Some("2026-07-10T14:30:00.000Z".into()),
-                kind: "received".into(),
+                kind: SourceDateKind::Received,
                 raw_value: None,
-                confidence: "source".into(),
+                confidence: SourceDateConfidence::Source,
             }),
             ..sample_hit()
         };
@@ -301,6 +301,15 @@ mod tests {
         assert_eq!(value["sourceDate"]["value"], "2026-07-10T14:30:00.000Z");
         assert_eq!(value["sourceDate"]["kind"], "received");
         assert_eq!(value["sourceDate"]["confidence"], "source");
+    }
+
+    #[test]
+    fn date_wire_contract_rejects_free_form_labels() {
+        let invalid = r#"{
+          "path":"/w/doc.md", "chunkText":"para", "score":0.87, "paragraphIndex":3,
+          "sourceDate":{"value":"2026-07-10T14:30:00.000Z","kind":"made-up","confidence":"certain"}
+        }"#;
+        assert!(serde_json::from_str::<Hit>(invalid).is_err(), "IPC dates must reject labels outside the TypeScript union");
     }
 
     #[test]

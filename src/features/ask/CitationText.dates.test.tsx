@@ -48,6 +48,56 @@ function datedHits(): RagHit[] {
 }
 
 describe('CitationText dated Ask evidence', () => {
+  it('takes a rag_retrieve-shaped mail, CRM, and file response through citations, save/reload, and honest rendering', () => {
+    // This is the complete renderer half of the desktop path. These are the
+    // exact camelCase fields returned by Rust's `rag_retrieve`, not a separate
+    // citation-only test shape.
+    const retrieved: RagHit[] = [
+      {
+        id: 'mail-date', sourceId: 'mail:message-42', path: 'mail:message-42', sourceType: 'mail',
+        chunkText: 'The client confirmed the review date.', score: 0.98, paragraphIndex: 0, matterId: 'jordan',
+        sourceDate: { value: '2026-07-10T14:30:00.000Z', kind: 'received', confidence: 'source' },
+        datedFact: { key: 'mail-message:<message-42>:received-date', value: '2026-07-10T14:30:00Z' },
+      },
+      {
+        id: 'crm-date', sourceId: 'crm:note:42', path: 'crm:note:42', sourceType: 'crm',
+        chunkText: 'CRM note says the account review is complete.', score: 0.97, paragraphIndex: 0, matterId: 'jordan',
+        sourceDate: { value: '2026-07-11T14:30:00.000Z', kind: 'updated', confidence: 'source' },
+        datedFact: { key: 'crm-record:note:42:updated-date', value: '2026-07-11T14:30:00Z' },
+      },
+      {
+        id: 'file-date', sourceId: '/clients/jordan/notes.docx', path: '/clients/jordan/notes.docx', sourceType: 'docx',
+        chunkText: 'Local notes for the review.', score: 0.96, paragraphIndex: 0, matterId: 'jordan',
+        sourceDate: { value: '2026-07-12T14:30:00.000Z', kind: 'document-modified', confidence: 'derived' },
+      },
+      {
+        id: 'malformed-mail-date', sourceId: 'mail:legacy', path: 'mail:legacy', sourceType: 'mail',
+        chunkText: 'An old imported email with an unreadable date.', score: 0.95, paragraphIndex: 0, matterId: 'jordan',
+        sourceDate: { value: null, rawValue: 'last Tuesday', kind: 'received', confidence: 'source' },
+      },
+    ];
+    const bound = bindAnswerBlocks(
+      '[[BLOCK:FILES]]\nThe mail, CRM note, local file, and legacy mail were retrieved. [mail:message-42 paragraph 0] [crm:note:42 paragraph 0] [notes.docx paragraph 0] [mail:legacy paragraph 0]',
+      retrieved,
+      'jordan',
+    );
+    const restored = reconstructTurns(JSON.parse(JSON.stringify([
+      { role: 'user', content: 'What changed?', timestamp: '2026-07-12T12:00:00.000Z' },
+      {
+        role: 'assistant', content: bound.answer, timestamp: '2026-07-12T12:00:01.000Z',
+        askCitations: bound.citations, askSources: bound.sources,
+        askBlocks: bound.blocks.map((block) => ({ kind: block.kind, text: block.text })),
+      },
+    ])) as ChatMessage[])[0];
+
+    render(<CitationText text={restored?.answer ?? ''} citations={restored?.citations ?? []} selected={null} onSelect={() => undefined} />);
+    // The malformed date is retained in saved evidence but never turned into a
+    // made-up timeline date; the three valid source dates remain after reload.
+    expect(screen.getAllByTestId(/answer-citation-date-chip-/)).toHaveLength(3);
+    expect(screen.getByTestId('answer-citation-date-chip-3')).toHaveTextContent('Local file metadata · Jul 12, 2026');
+    expect(screen.getByTestId('answer-date-timeline')).not.toHaveTextContent('last Tuesday');
+  });
+
   it('shows dated conflict evidence from a real Ask binding and after reload', () => {
     const bound = bindAnswerBlocks(
       '[[BLOCK:FILES]]\nWhat is Jordan’s umbrella limit? [Signed policy.pdf paragraph 0] The carrier later says $5 million. [Carrier email.eml paragraph 0]',

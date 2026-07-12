@@ -12,6 +12,7 @@ type DateRow = {
   time: number;
   authoritative: boolean;
   conflict: boolean;
+  localFileMetadata: boolean;
 };
 
 type ConflictEvidenceRow = {
@@ -35,6 +36,9 @@ function toDateRows(citations: readonly DateableCitation[]): DateRow[] {
       time,
       authoritative: citation.datedFact?.authorityReason !== undefined,
       conflict: citation.dateConflict !== undefined,
+      // Filesystem mtime tells us when this local copy changed. It does not
+      // prove when the document itself was written, so say that plainly.
+      localFileMetadata: citation.sourceDate?.confidence === 'derived',
     }];
   }).sort((a, b) => a.time - b.time);
 }
@@ -162,7 +166,7 @@ export function AnswerDatePresentation({ citations }: { citations: readonly Date
                 whiteSpace: 'nowrap',
               }}
             >
-              {formatDate(row.date)}
+              {row.localFileMetadata ? `Local file metadata · ${formatDate(row.date)}` : formatDate(row.date)}
             </span>
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, color: 'var(--kp-text-dim)' }}>
               {row.label}

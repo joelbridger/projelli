@@ -35,7 +35,7 @@ describe('AnswerDatePresentation', () => {
 
     expect(screen.getByTestId('answer-date-timeline').textContent).toContain('Dates in the cited records');
     expect(screen.getByTestId('answer-citation-date-chip-1').textContent).toContain('Jan 8, 2026');
-    expect(screen.getByTestId('answer-citation-date-chip-2').textContent).toContain('Jun 12, 2026');
+    expect(screen.getByTestId('answer-citation-date-chip-2').textContent).toContain('Local file metadata · Jun 12, 2026');
   });
 
   it('flags a disagreement while keeping both the newest and authoritative dates visible', () => {
