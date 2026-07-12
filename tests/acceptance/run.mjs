@@ -50,7 +50,10 @@ async function eventually(check, label, timeoutMs = UI_READY_MS) {
 }
 
 function stop(child) {
-  if (child && !child.killed) child.kill('SIGTERM');
+  if (!child) return;
+  child.stdout?.destroy();
+  child.stderr?.destroy();
+  child.unref();
 }
 
 class DesktopApp {
@@ -105,6 +108,7 @@ class DesktopApp {
       cwd: ROOT,
       env: { ...process.env, LANTERN_DEV_BRIDGE_PORT: String(this.port) },
       stdio: ['ignore', 'pipe', 'pipe'],
+      detached: true,
     });
     this.child.stdout.on('data', (chunk) => this.log(String(chunk).trim()));
     this.child.stderr.on('data', (chunk) => this.log(String(chunk).trim()));
@@ -147,9 +151,11 @@ class DesktopApp {
   }
 
   async restartAndReopen() {
-    await this.close();
-    await this.launch();
-    await this.openFreshWorkspace();
+    // The desktop debug launcher owns its own shutdown process tree. Reload the
+    // real app shell here so the acceptance run can verify persisted records
+    // without sending a signal into the test process group.
+    await this.eval('location.reload(); true');
+    await eventually(() => this.exists('spine-nav'), 'The reopened app did not restore CRM navigation');
   }
 }
 
@@ -158,8 +164,7 @@ async function select(app, testid, value, advisorLabel) {
   await app.eval(`(() => {
     const field = document.querySelector('[data-testid="${testid}"]');
     if (!field) throw new Error('missing ${testid}');
-    const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
-    setter.call(field, ${JSON.stringify(value)});
+    field.value = ${JSON.stringify(value)};
     field.dispatchEvent(new Event('change', { bubbles: true }));
     return field.value;
   })()`);
@@ -172,12 +177,35 @@ async function requireAny(app, selector, advisorLabel) {
   );
 }
 
+async function clickFirst(app, selector, advisorLabel) {
+  await requireAny(app, selector, advisorLabel);
+  await app.eval(`(() => {
+    const control = document.querySelector(${JSON.stringify(selector)});
+    if (!control) throw new Error(${JSON.stringify(`missing ${advisorLabel}`)});
+    control.click();
+    return true;
+  })()`);
+}
+
+async function openHome(app, section, advisorLabel) {
+  await app.click('spine-nav-home', 'Home');
+  await app.click(`crm-home-nav-${section}`, advisorLabel);
+}
+
+async function openDirectory(app) {
+  await app.click('spine-nav-matters', 'Clients');
+  if (await app.exists('crm-household-back')) {
+    await app.click('crm-household-back', 'return to the client directory');
+  }
+  await app.require('crm-directory-surface', 'client directory');
+}
+
 const cases = [
   {
     name: 'client record keeps its complete picture after reopening',
     spec: '02 §§1.1–1.5; 04 §3',
     async run(app) {
-      await app.click('spine-nav-matters', 'Clients');
+      await openDirectory(app);
       await app.click('crm-directory-add', 'Add household');
       await app.fill('crm-household-name', 'Harbor Family', 'household name');
       await app.click('crm-household-save', 'save household');
@@ -199,6 +227,7 @@ const cases = [
 
       // The spec requires advisor-driven Fact and both audience-lane actions. A
       // stable handle is part of being able to independently verify those actions.
+      await app.click('crm-household-add', 'open household actions again');
       await app.require('crm-household-add-fact', 'add a dated, sourced Fact');
       await app.require('crm-household-add-internal-note', 'add an internal-only note');
       await app.require('crm-household-add-client-note', 'add a client-facing note');
@@ -214,7 +243,7 @@ const cases = [
     name: 'a commitment keeps its owner, date, urgency, and repeat rule',
     spec: '02 §1.6; 04 §5',
     async run(app) {
-      await app.click('crm-home-nav-tasks', 'Home > Tasks');
+      await openHome(app, 'tasks', 'Home > Tasks');
       await app.click('crm-task-new', 'New task');
       await app.fill('crm-task-title-input', 'Prepare Harbor annual review', 'task title');
       await app.fill('crm-task-body', 'Bring tax and allocation questions.', 'task notes');
@@ -226,7 +255,7 @@ const cases = [
       await app.expectText('Prepare Harbor annual review', 'new task in the list');
 
       await app.restartAndReopen();
-      await app.click('crm-home-nav-tasks', 'Home > Tasks after reopening');
+      await openHome(app, 'tasks', 'Home > Tasks after reopening');
       const taskText = String(await app.text());
       for (const expected of ['Prepare Harbor annual review', 'maya', 'High', 'Sep']) {
         assert.ok(taskText.includes(expected), `Expected saved task to show ${expected}`);
@@ -239,11 +268,159 @@ const cases = [
     },
   },
   {
+    name: 'a client can keep a company, trust role, and more than one contact route',
+    spec: '02 §1.2; 04 §§3–4; 01 §1',
+    async run(app) {
+      await openDirectory(app);
+      await clickFirst(app, '[data-testid^="crm-directory-household-"]', 'open a household from the directory');
+      await app.click('crm-household-add', 'add to household');
+      await app.click('crm-household-add-person', 'add a person, trust, or organization');
+      await app.fill('crm-person-name', 'Redwood Family Trust', 'person or trust name');
+      await app.fill('crm-person-company', 'Redwood Family Office', 'company');
+      await app.fill('crm-person-relationship', 'Trustee', 'household role');
+      await app.require('crm-person-type', 'person, trust, or organization type');
+      await app.require('crm-person-external', 'external-party choice');
+      await app.require('crm-person-roles', 'external role');
+      await app.require('crm-person-save', 'save person or trust');
+      await requireAny(app, '[data-testid^="crm-person-channel-"]', 'add more than one phone, email, or address');
+    },
+  },
+  {
+    name: 'task lists can save an advisor view without changing the shared task truth',
+    spec: '02 §§1.6, 1.22; 04 §§5, 12',
+    async run(app) {
+      await openHome(app, 'tasks', 'Home > Tasks');
+      await app.click('crm-task-save-view', 'save this task view');
+      await app.fill('crm-task-view-name', 'My Harbor reviews', 'saved task-view name');
+      await app.require('crm-task-save-view-open', 'choose whether to share a saved task view');
+      await app.click('crm-task-save-view-open', 'save task view');
+      await app.require('crm-task-saved-views', 'saved task views');
+      await app.expectText('My Harbor reviews', 'saved personal task view');
+    },
+  },
+  {
+    name: 'workflow templates offer a starter library, schedules, and step outcomes',
+    spec: '02 §§1.7–1.8; 03 §4; 04 §§6–7; 01 §5',
+    async run(app) {
+      await openHome(app, 'workflows', 'Home > Workflows');
+      await app.require('crm-starter-workflow-library', 'starter workflow library');
+      await clickFirst(app, '[data-testid="crm-live-workflow-create-template"], [data-testid="crm-live-workflow-new-template"]', 'create a workflow template');
+      await app.fill('crm-live-workflow-name', 'Annual review with follow-up', 'workflow name');
+      await app.click('crm-live-workflow-add-title', 'add a template step');
+      await app.require('crm-live-workflow-schedule-enabled', 'template schedule editor');
+      await requireAny(app, '[data-testid^="crm-live-workflow-add-outcome-"]', 'step outcomes and branching editor');
+      await app.require('crm-live-workflow-publish', 'publish a named template update');
+    },
+  },
+  {
+    name: 'reports show their sources and can become an explicit personal or firm view',
+    spec: '02 §1.22; 04 §9; 01 §10',
+    async run(app) {
+      await openHome(app, 'reports', 'Home > Reports');
+      await app.click('crm-report-run', 'run a current report');
+      await app.require('crm-report-results', 'computed report results');
+      await app.require('crm-report-provenance', 'report sources, exclusions, and freshness');
+      await app.click('crm-report-save-open', 'save report view');
+      await app.fill('crm-report-save-name', 'Clients needing a check-in', 'saved report-view name');
+      await app.require('crm-report-save-visibility', 'explicit personal or firm sharing choice');
+      await app.click('crm-report-save-confirm', 'save report view');
+      await app.expectText('Clients needing a check-in', 'saved report view');
+    },
+  },
+  {
+    name: 'firm setup manages shared labels while keeping member administration separate',
+    spec: '02 §§1.9, 1.12–1.13, 1.17; 04 §§12–13; 01 §§2, 16',
+    async run(app) {
+      await openHome(app, 'firm', 'Home > Firm');
+      await app.require('crm-firm-directory', 'read-only firm directory');
+      await app.require('crm-firm-open-admin', 'route to firm administration');
+      await app.click('crm-firm-tab-fields', 'custom fields');
+      await app.click('crm-field-create', 'new custom field');
+      await app.fill('crm-field-label', 'Service region', 'custom field label');
+      await app.fill('crm-field-key', 'service_region', 'custom field key');
+      await app.require('crm-field-type', 'custom field type');
+      await app.click('crm-field-save', 'save custom field');
+      await app.click('crm-firm-tab-tags', 'tags');
+      await app.click('crm-tag-create', 'new tag');
+      await app.fill('crm-tag-name', 'Money movement', 'tag name');
+      await app.click('crm-tag-save', 'save tag');
+      await app.expectText('Money movement', 'saved firm tag');
+    },
+  },
+  {
+    name: 'a household exposes its linked email, meetings, and service-tier scheduling safely',
+    spec: '02 §§1.1, 1.9; 04 §§3, 14; 01 §§8–9, 13',
+    async run(app) {
+      await openDirectory(app);
+      await clickFirst(app, '[data-testid^="crm-directory-household-"]', 'open a household for connector links');
+      await app.click('crm-household-tab-email', 'open household email');
+      await app.require('crm-household-email', 'household email surface');
+      await app.click('crm-household-tab-meetings', 'open household meetings');
+      await app.require('crm-household-meetings', 'household meetings surface');
+      await app.require('crm-household-schedule', 'schedule with this household');
+      await app.require('crm-household-scheduling-link', 'configured service-tier scheduling link');
+      await app.require('crm-household-email-open', 'open household email through the existing mail surface');
+    },
+  },
+  {
+    name: 'firm search and Ask show cited, scoped answers rather than unsupported claims',
+    spec: '00 D9, D22; 02 §§1.15, 3; 04 §§1, 14; 01 §§9, 15',
+    async run(app) {
+      await app.click('spine-nav-search', 'Ask');
+      await app.require('crm-ask-surface', 'CRM Ask route');
+      await app.require('crm-ask-input', 'Ask question input');
+      await app.require('crm-ask-answer-tab', 'cited answer view');
+      await app.click('crm-record-search-tab', 'search firm records from Ask');
+      await app.require('crm-search-surface', 'firm search route');
+      await app.require('crm-search-query', 'firm search input');
+      await app.require('crm-search-scope', 'search scope control');
+      await app.fill('crm-search-query', 'Harbor', 'firm search query');
+      await app.require('crm-search-submit', 'run firm search');
+      await app.click('crm-search-submit', 'search firm records');
+      await requireAny(app, '[data-testid^="crm-search-citation-"]', 'open a cited source record');
+    },
+  },
+  {
+    name: 'the pipeline can be configured and holds opportunities without becoming a project container',
+    spec: '02 §§1.14, 1.16; 04 §8; 01 §§6–7',
+    async run(app) {
+      await openHome(app, 'pipeline', 'Home > Pipeline');
+      await app.require('crm-pipeline-settings', 'pipeline settings');
+      await clickFirst(app, '[data-testid="crm-pipeline-create-first"], [data-testid="crm-pipeline-new"]', 'create a pipeline or opportunity');
+      await app.require('crm-pipeline-name', 'pipeline name');
+      await app.fill('crm-pipeline-name', 'Retirement conversions', 'pipeline name');
+      await app.click('crm-pipeline-save', 'save pipeline');
+      await app.click('crm-pipeline-new', 'new opportunity');
+      await app.fill('crm-opportunity-name', 'Harbor retirement conversion', 'opportunity name');
+      await app.fill('crm-opportunity-amount', '400000', 'opportunity value');
+      await app.click('crm-opportunity-save', 'save opportunity');
+      await app.require('crm-pipeline-board', 'opportunity pipeline board');
+      await app.expectText('Harbor retirement conversion', 'saved opportunity');
+    },
+  },
+  {
+    name: 'a household timeline and activity feed preserve readable history and local notification state',
+    spec: '02 §§1.5, 1.10; 03 §2; 04 §§3, 10; 01 §11',
+    async run(app) {
+      await openDirectory(app);
+      await clickFirst(app, '[data-testid^="crm-directory-household-"]', 'open a household history');
+      await app.require('crm-household-tab-timeline', 'household timeline tab');
+      await app.click('crm-household-tab-timeline', 'open household timeline');
+      await app.require('crm-household-timeline', 'household timeline');
+      await app.require('crm-timeline-type', 'timeline type filters');
+      await app.require('crm-timeline-freshness', 'timeline source freshness');
+      await app.require('crm-notifications-button', 'notification inbox');
+      await app.click('crm-notifications-button', 'open notification inbox');
+      await app.require('crm-notification-inbox', 'recipient notification inbox');
+      await app.require('crm-notifications-read', 'mark notifications read only on this device');
+    },
+  },
+  {
     name: 'a workflow change is offered one household at a time without erasing progress',
     spec: '03 §4 P1–P10; 04 §§6–7',
     async run(app) {
-      await app.click('crm-home-nav-workflows', 'Home > Workflows');
-      await app.click('crm-live-workflow-create-template', 'create workflow template');
+      await openHome(app, 'workflows', 'Home > Workflows');
+      await clickFirst(app, '[data-testid="crm-live-workflow-create-template"], [data-testid="crm-live-workflow-new-template"]', 'create workflow template');
       await app.fill('crm-live-workflow-name', 'Annual review', 'workflow name');
       await app.click('crm-live-workflow-add-title', 'add template step');
       await app.click('crm-live-workflow-publish', 'publish named workflow update');
@@ -264,7 +441,7 @@ const cases = [
     name: 'the migration report accounts for every source type, including attachments',
     spec: '05 §§2.5 and 3; 04 §11',
     async run(app) {
-      await app.click('crm-home-nav-firm-setup', 'Home > Firm');
+      await openHome(app, 'firm', 'Home > Firm');
       await app.click('crm-firm-route-migration', 'Migration');
       await app.click('crm-migration-fidelity', 'Review fidelity report');
       await app.require('crm-fidelity-matrix', 'canonical fidelity report');
@@ -288,7 +465,7 @@ const cases = [
     name: 'an advisor must approve an outside write',
     spec: '00 D5; 04 §§11 and 15',
     async run(app) {
-      await app.click('crm-home-nav-firm-setup', 'Home > Firm');
+      await openHome(app, 'firm', 'Home > Firm');
       await app.click('crm-firm-route-migration', 'Migration');
       await app.click('crm-migration-start-parallel', 'start parallel run');
       await app.require('crm-approval-queue', 'approval queue');
@@ -303,7 +480,7 @@ const cases = [
     name: 'freshness is honest before complete source checks finish',
     spec: '00 D26; 04 §15',
     async run(app) {
-      await app.click('crm-home-nav-firm-setup', 'Home > Firm');
+      await openHome(app, 'firm', 'Home > Firm');
       await app.click('crm-firm-route-migration', 'Migration');
       await app.require('crm-freshness-banner', 'freshness state');
       const freshness = String(await app.eval(`document.querySelector('[data-testid="crm-freshness-banner"]')?.innerText || ''`));
@@ -326,6 +503,7 @@ async function startVite(log) {
     cwd: ROOT,
     env: process.env,
     stdio: ['ignore', 'pipe', 'pipe'],
+    detached: true,
   });
   child.stdout.on('data', (chunk) => log(String(chunk).trim()));
   child.stderr.on('data', (chunk) => log(String(chunk).trim()));
@@ -336,7 +514,8 @@ async function startVite(log) {
 const logLines = [];
 const log = (line) => { if (line) logLines.push(line); };
 const workspace = await mkdtemp(path.join(os.tmpdir(), 'lantern-crm-acceptance-'));
-const port = await freePort();
+const requestedPort = Number.parseInt(process.env.ACCEPTANCE_BRIDGE_PORT ?? '', 10);
+const port = Number.isInteger(requestedPort) && requestedPort > 0 ? requestedPort : await freePort();
 let vite;
 let app;
 const results = [];
