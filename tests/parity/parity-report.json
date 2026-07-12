@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-07-12T14:35:20.368Z",
+  "generatedAt": "2026-07-12T16:13:17.774Z",
   "source": "design/01-wealthbox-feature-matrix.md",
   "totalFeatures": 69,
   "skippedFeatures": 20,
-  "verified": 22,
+  "verified": 26,
   "results": [
     {
       "id": "contact-person",
@@ -11,7 +11,7 @@
       "area": "contacts",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Expected visible text: Parity household-1783866810520-3"
+      "detail": "Expected visible text: Parity household-1783872641423-3"
     },
     {
       "id": "contact-household",
@@ -83,7 +83,7 @@
       "area": "firm setup",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Missing required control: crm-firm-custom-field-new"
+      "detail": "The custom-field value or tag disappeared after native restart"
     },
     {
       "id": "tags",
@@ -91,7 +91,7 @@
       "area": "contacts",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Expected visible text: Parity household-1783866822584-32"
+      "detail": "The custom-field value or tag disappeared after native restart"
     },
     {
       "id": "typed-objects",
@@ -99,7 +99,7 @@
       "area": "contacts",
       "verdict": "IMPROVE",
       "status": "FAILING",
-      "detail": "Missing required control: crm-directory-add"
+      "detail": "Expected visible text: Parity household-1783872658041-38"
     },
     {
       "id": "contact-notes",
@@ -131,7 +131,7 @@
       "area": "timeline",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Expected visible text: Parity household-1783866829151-46"
+      "detail": "Expected visible text: Parity household-1783872663533-49"
     },
     {
       "id": "internal-note-wall",
@@ -179,7 +179,7 @@
       "area": "contacts",
       "verdict": "IMPROVE",
       "status": "FAILING",
-      "detail": "Expected visible text: Parity household-1783866837546-60"
+      "detail": "Expected visible text: Parity household-1783872671984-63"
     },
     {
       "id": "task-change-trail",
@@ -314,8 +314,8 @@
       "name": "Email sync (Gmail/Outlook)",
       "area": "email",
       "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "Action did not create a emailActivity record"
+      "status": "BUILT",
+      "detail": "Passed against the running desktop app and survived native restart."
     },
     {
       "id": "canned-reports",
@@ -363,15 +363,15 @@
       "area": "timeline",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Missing required control: crm-timeline-event"
+      "detail": "Expected visible text: Parity household-1783872742041-132"
     },
     {
       "id": "firm-activity-feed",
       "name": "Firm-wide activity/dashboard feed",
       "area": "timeline",
       "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "Action did not create a activityEvent record"
+      "status": "BUILT",
+      "detail": "Passed against the running desktop app and survived native restart."
     },
     {
       "id": "activity-mentions",
@@ -427,7 +427,7 @@
       "area": "timeline",
       "verdict": "IMPROVE",
       "status": "FAILING",
-      "detail": "Expected visible text: Parity household-1783866900043-143"
+      "detail": "Expected visible text: Parity household-1783872764500-147"
     },
     {
       "id": "calendly-replacement",
@@ -490,16 +490,16 @@
       "name": "Member / Admin / Owner roles",
       "area": "firm setup",
       "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "Action did not create a firmMember record"
+      "status": "BUILT",
+      "detail": "Passed against the running desktop app and survived native restart."
     },
     {
       "id": "firm-teams",
       "name": "Teams",
       "area": "firm setup",
       "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "Action did not create a team record"
+      "status": "BUILT",
+      "detail": "Passed against the running desktop app and survived native restart."
     },
     {
       "id": "firm-visibility",
@@ -507,7 +507,7 @@
       "area": "firm setup",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Action did not create a group record"
+      "detail": "Expected visible text: Parity teammate"
     },
     {
       "id": "firm-permissions",
@@ -515,7 +515,7 @@
       "area": "firm setup",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Action did not create a permissionPolicy record"
+      "detail": "Expected visible text: Parity teammate"
     },
     {
       "id": "guided-migration",

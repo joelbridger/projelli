@@ -5,7 +5,8 @@
  * desktop bridge, and every passing assertion must restart the native app.
  */
 import { spawn, type ChildProcess } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -37,6 +38,22 @@ const workspaceRoot =
 const reportPath = resolve(root, 'tests/parity/parity-report.json');
 const base = `http://127.0.0.1:${port}`;
 const delay = (ms: number) => new Promise((done) => setTimeout(done, ms));
+let migrationBaseUrl: string | undefined;
+
+async function freePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = createServer();
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      server.close((error) => {
+        if (error) reject(error);
+        else if (address && typeof address === 'object') resolve(address.port);
+        else reject(new Error('Could not reserve a simulator port'));
+      });
+    });
+  });
+}
 // The desktop bridge accepts a timeout per request. Use the same generous
 // ceiling as the launch harness so a cold encrypted store is not confused
 // with a failing feature.
@@ -934,6 +951,84 @@ class DesktopParityApp implements ParityApp {
     )
       fail(`${options.recordKind} record disappeared after native restart`);
   }
+
+  async migration(options: {
+    action: 'crm-migration-run-import' | 'crm-redtail-import' | 'crm-salesforce-import';
+    externalId?: boolean;
+    exportFile?: boolean;
+    fullReview?: boolean;
+  }): Promise<void> {
+    if (!migrationBaseUrl) fail('Migration simulator was not started');
+    await this.setWorkspace(`migration-${this.token('workspace')}`);
+    await this.openHome();
+    await this.click('crm-home-nav-firm-setup');
+    await this.click('crm-firm-route-migration');
+    for (const control of [
+      'crm-migration-base-url',
+      'crm-migration-source-id-map',
+      options.action,
+      'crm-migration-fidelity',
+    ]) await this.require(control);
+    await this.fill('crm-migration-base-url', migrationBaseUrl);
+    if (options.externalId) {
+      await this.fill('crm-migration-source-id-map', 'wealthbox_external_id');
+      if (await this.eval(`document.querySelector('[data-testid="crm-migration-source-id-map"]')?.value`) !== 'wealthbox_external_id')
+        fail('The outside-ID mapping field did not retain its value');
+    }
+    await this.click(options.action);
+    await this.waitForText('Import finished');
+    const imported = await this.records();
+    for (const kind of ['household', 'note', 'task', 'migration_report'])
+      if (!imported.some((record) => record.kind === kind))
+        fail(`Migration did not create a real ${kind} record`);
+
+    await this.click('crm-migration-fidelity');
+    await this.require('crm-migration-fidelity-report');
+    await this.requireText('0% via API');
+    const fidelityRows = Number(await this.eval(
+      `document.querySelectorAll('[data-testid^="crm-fidelity-row-"]').length`
+    ));
+    if (fidelityRows < 15)
+      fail(`The fidelity report hid rows: expected every source type, saw ${String(fidelityRows)}`);
+
+    if (options.fullReview) {
+      await this.click('crm-migration-workflow-fallback');
+      const workflowFallbacks = Number(await this.eval(
+        `document.querySelectorAll('[data-testid^="crm-workflow-record-"]').length`
+      ));
+      if (!workflowFallbacks)
+        fail('The open-workflow fallback did not present a saved checklist');
+      await this.click('crm-home-nav-firm-setup');
+      await this.click('crm-firm-route-migration');
+      await this.click('crm-migration-fidelity');
+      await this.click('crm-migration-attachment-fallback');
+      const attachmentFallbacks = Number(await this.eval(
+        `document.querySelectorAll('[data-testid^="crm-attachment-record-save-"]').length`
+      ));
+      if (!attachmentFallbacks)
+        fail('The attachment fallback did not present a saved accounting record');
+    }
+
+    if (options.exportFile) {
+      await this.click('crm-home-nav-firm-setup');
+      await this.click('crm-firm-route-migration');
+      await this.click('crm-migration-archive');
+      await this.click('crm-export-create');
+      await this.waitForText('Exported archive file.');
+      const archive = (await this.records()).find(
+        (record) => record.kind === 'migration_export' && record.exportKind === 'archive'
+      );
+      if (typeof archive?.filePath !== 'string' || !existsSync(archive.filePath))
+        fail('Archive export reported success but did not create a real file');
+    }
+
+    await this.restart();
+    await this.click('crm-home-nav-firm-setup');
+    await this.click('crm-firm-route-migration');
+    await this.require('crm-migration-run-import');
+    if (!(await this.records()).some((record) => record.kind === 'migration_report'))
+      fail('Migration report disappeared after native restart');
+  }
 }
 
 function printScoreboard(results: readonly Result[]): void {
@@ -953,6 +1048,8 @@ function printScoreboard(results: readonly Result[]): void {
 
 let vite: ChildProcess | undefined;
 let desktop: ChildProcess | undefined;
+let wbsim: ChildProcess | undefined;
+let viteOutput = '';
 const results: Result[] = [];
 let infrastructureError: string | undefined;
 try {
@@ -977,13 +1074,26 @@ try {
       process.env
     );
   }
+  vite = start(
+    'npm',
+    ['run', 'dev', '--', '--port', String(vitePort), '--strictPort'],
+    process.env
+  );
+  vite.stdout?.on('data', (chunk: Buffer) => {
+    viteOutput = `${viteOutput}${chunk.toString()}`.slice(-4_000);
+  });
+  vite.stderr?.on('data', (chunk: Buffer) => {
+    viteOutput = `${viteOutput}${chunk.toString()}`.slice(-4_000);
+  });
   // A cold Vite cache can take a little over thirty seconds on the shared
   // build machine.  Keep the parity runner honest by waiting for the real
   // server instead of calling a healthy app an infrastructure failure.
   const end = Date.now() + 60_000;
   while (!(await portReady(vitePort))) {
     if (Date.now() > end) {
-      throw new InfrastructureError(`Vite did not start on port ${vitePort}`);
+      throw new InfrastructureError(
+        `Vite did not start on port ${vitePort}${viteOutput ? `: ${viteOutput.trim()}` : ''}`
+      );
     }
     await delay(200);
   }
@@ -999,6 +1109,28 @@ try {
   await waitForBridge();
   const app = new DesktopParityApp();
   await app.ready();
+  const simulatorPort = await freePort();
+  migrationBaseUrl = `http://127.0.0.1:${String(simulatorPort)}/v1`;
+  wbsim = start('bun', ['tests/wbsim/server.ts'], {
+    ...process.env,
+    WBSIM_PORT: String(simulatorPort),
+  });
+  const simulatorDeadline = Date.now() + 30_000;
+  while (Date.now() < simulatorDeadline) {
+    try {
+      if ((await fetch(`${migrationBaseUrl}/contacts?per_page=1`)).ok) break;
+    } catch {
+      // The simulator has not bound its local port yet.
+    }
+    await delay(150);
+  }
+  try {
+    if (!(await fetch(`${migrationBaseUrl}/contacts?per_page=1`)).ok)
+      throw new InfrastructureError('The fabricated Wealthbox source did not become ready');
+  } catch (error) {
+    if (error instanceof InfrastructureError) throw error;
+    throw new InfrastructureError('The fabricated Wealthbox source did not become ready');
+  }
   for (const feature of FEATURES) {
     if (feature.pending) {
       results.push({
@@ -1069,6 +1201,7 @@ try {
   }
   stop(desktop);
   stop(vite);
+  stop(wbsim);
 }
 
 process.exitCode =

@@ -4,7 +4,10 @@ import { invoke } from '@tauri-apps/api/core';
 import { ClipboardList, Download, FileArchive, Save } from 'lucide-react';
 import { Button } from '@/ui/kp';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
-import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
+import {
+  LIVE_CRM_RECORDS_CHANGED,
+  useLiveCrmRecords,
+} from '@/platform/crm/useLiveCrmRecords';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import { createTemplate, startWorkflow } from '@/features/crm-home/workflowLive';
 import type { CrmHomeSurfaceDescriptor } from '@/features/crm-home/registry';
@@ -50,6 +53,10 @@ function MigrationSurface() {
     try {
       const result = await invoke<{ imported: number; unchanged: number }>('crm_migration_import', { baseUrl: baseUrl.trim() });
       await live.reload();
+      // The importer writes through Rust, outside this surface hook's normal
+      // save path. Tell the always-mounted Home shell to reload too, so the
+      // imported client and recreated-workflow records appear immediately.
+      window.dispatchEvent(new Event(LIVE_CRM_RECORDS_CHANGED));
       setSource(nextSource); setView('fidelity');
       setStatus(`Import finished. ${result.imported} records were checked; ${result.unchanged} were already here, so the re-run changed nothing.`);
     } catch (error) {

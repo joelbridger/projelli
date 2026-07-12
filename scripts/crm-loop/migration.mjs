@@ -21,7 +21,12 @@ const shots = process.env.CRM_LOOP_SCREENSHOTS_DIR
 mkdirSync(shots, { recursive: true });
 const env = {
   ...process.env,
-  DESKTOP_CDP_PORT: process.env.DESKTOP_CDP_PORT ?? '9250',
+  // In Linux bridge mode the selected bridge port is also the desktop-drive
+  // port.  Keeping the legacy 9250 default here silently sent this live
+  // migration proof to another agent's app whenever a lane chose its own
+  // bridge port.
+  DESKTOP_CDP_PORT:
+    process.env.DESKTOP_CDP_PORT ?? process.env.LANTERN_DEV_BRIDGE_PORT ?? '9250',
 };
 const workspace = process.env.CRM_LOOP_WORKSPACE;
 const run = (args, timeout = 90_000) =>

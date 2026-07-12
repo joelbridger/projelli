@@ -17,6 +17,7 @@ export interface ParityApp {
   firmDirectory(): Promise<void>;
   firmSetup(): Promise<void>;
   durableFeature(options: { route: string; controls: string[]; action?: string; result?: string; recordKind?: string }): Promise<void>;
+  migration(options: { action: 'crm-migration-run-import' | 'crm-redtail-import' | 'crm-salesforce-import'; externalId?: boolean; exportFile?: boolean; fullReview?: boolean }): Promise<void>;
 }
 
 export interface ParityFeature {
@@ -96,10 +97,10 @@ export const FEATURES: readonly ParityFeature[] = [
   live('Contact activity stream', 'contact-timeline', 'REPLICATE', 'timeline', (app) => app.contact({ household: true, notes: true, facts: true, timeline: true })),
   live('Firm-wide activity/dashboard feed', 'firm-activity-feed', 'REPLICATE', 'timeline', (app) => app.durableFeature({ route: 'crm-home-nav-activity', controls: ['crm-firm-activity-feed', 'crm-firm-activity-create'], action: 'crm-firm-activity-create', recordKind: 'activityEvent' })),
   live('@-mentioning', 'activity-mentions', 'REPLICATE', 'timeline', (app) => app.durableFeature({ route: 'crm-home-nav-timeline', controls: ['crm-timeline-mention', 'crm-timeline-post'], action: 'crm-timeline-post', recordKind: 'activityEvent' })),
-  live('Wealthbox itself (as a CRM to migrate FROM)', 'wealthbox-migration', 'REPLICATE', 'migration', (app) => app.durableFeature({ route: 'crm-home-nav-firm-setup', controls: ['crm-firm-route-migration', 'crm-migration-run-import', 'crm-migration-fidelity'], action: 'crm-migration-run-import', recordKind: 'migration_report' })),
+  live('Wealthbox itself (as a CRM to migrate FROM)', 'wealthbox-migration', 'REPLICATE', 'migration', (app) => app.migration({ action: 'crm-migration-run-import', fullReview: true })),
   pending('Jump.ai', 'jump-replacement', 'REPLICATE', 'meetings', 'The CRM-linked meeting fixture has not been exposed through the desktop bridge yet.'),
-  live('Redtail', 'redtail-migration', 'REPLICATE', 'migration', (app) => app.durableFeature({ route: 'crm-home-nav-firm-setup', controls: ['crm-redtail-import', 'crm-migration-fidelity'], action: 'crm-redtail-import', recordKind: 'migration_report' })),
-  live('Salesforce', 'salesforce-migration', 'REPLICATE', 'migration', (app) => app.durableFeature({ route: 'crm-home-nav-firm-setup', controls: ['crm-salesforce-import', 'crm-migration-fidelity'], action: 'crm-salesforce-import', recordKind: 'migration_report' })),
+  live('Redtail', 'redtail-migration', 'REPLICATE', 'migration', (app) => app.migration({ action: 'crm-redtail-import' })),
+  live('Salesforce', 'salesforce-migration', 'REPLICATE', 'migration', (app) => app.migration({ action: 'crm-salesforce-import' })),
   live('Microsoft Outlook / Gmail', 'outlook-gmail', 'REPLICATE', 'email', (app) => app.durableFeature({ route: 'crm-home-nav-email', controls: ['crm-email-sync', 'crm-email-client-link'], action: 'crm-email-sync', recordKind: 'emailActivity' })),
   live('Microsoft Teams', 'teams-replacement', 'IMPROVE', 'timeline', (app) => app.contact({ household: true, notes: true, internal: true })),
   live('Calendly', 'calendly-replacement', 'IMPROVE', 'firm setup', (app) => app.durableFeature({ route: 'crm-home-nav-firm-setup', controls: ['crm-service-policy-scheduling-link', 'crm-service-policy-save'], action: 'crm-service-policy-save', recordKind: 'servicePolicy' })),
@@ -113,10 +114,10 @@ export const FEATURES: readonly ParityFeature[] = [
   live('Teams', 'firm-teams', 'REPLICATE', 'firm setup', (app) => app.firmDirectory()),
   live('Groups / visibility restrictions', 'firm-visibility', 'REPLICATE', 'firm setup', (app) => app.firmDirectory()),
   live('Default permissions per user', 'firm-permissions', 'REPLICATE', 'firm setup', (app) => app.firmDirectory()),
-  live('White-glove migration service', 'guided-migration', 'REPLICATE', 'migration', (app) => app.durableFeature({ route: 'crm-home-nav-firm-setup', controls: ['crm-firm-route-migration', 'crm-migration-run-import', 'crm-migration-fidelity'], action: 'crm-migration-run-import', recordKind: 'migrationReport' })),
-  live('Data portability / export', 'migration-export', 'REPLICATE', 'migration', (app) => app.durableFeature({ route: 'crm-home-nav-firm-setup', controls: ['crm-migration-archive', 'crm-export-create'], action: 'crm-export-create', recordKind: 'exportArchive' })),
-  live('External Unique ID field for import linking', 'migration-external-id', 'REPLICATE', 'migration', (app) => app.durableFeature({ route: 'crm-home-nav-firm-setup', controls: ['crm-migration-source-id-map', 'crm-migration-run-import'], action: 'crm-migration-run-import', recordKind: 'migrationReport' })),
-  live('REST API (OAuth2 + token auth)', 'wealthbox-api-connection', 'REPLICATE', 'migration', (app) => app.durableFeature({ route: 'crm-home-nav-firm-setup', controls: ['crm-migration-base-url', 'crm-migration-run-import'], action: 'crm-migration-run-import', recordKind: 'migrationReport' })),
+  live('White-glove migration service', 'guided-migration', 'REPLICATE', 'migration', (app) => app.migration({ action: 'crm-migration-run-import', fullReview: true })),
+  live('Data portability / export', 'migration-export', 'REPLICATE', 'migration', (app) => app.migration({ action: 'crm-migration-run-import', exportFile: true })),
+  live('External Unique ID field for import linking', 'migration-external-id', 'REPLICATE', 'migration', (app) => app.migration({ action: 'crm-migration-run-import', externalId: true })),
+  live('REST API (OAuth2 + token auth)', 'wealthbox-api-connection', 'REPLICATE', 'migration', (app) => app.migration({ action: 'crm-migration-run-import' })),
   pending('Native webhooks', 'native-collaboration-push', 'IMPROVE', 'collaboration', 'Needs a two-seat, local-only push fixture; a single desktop app cannot prove peer delivery.'),
 ];
 
