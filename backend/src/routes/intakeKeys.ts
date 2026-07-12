@@ -61,6 +61,8 @@ export async function handleFetchIntakeKey(req: Request, store: Store, intakeHan
   const body = await readStrictV2Payload(req, v2BodyKeys("fetchIntakeKeys"));
   const auth = authSeat(req, store);
   if (!auth.ok) return auth.resp;
+  const fetchRate = rateLimit(auth.claims.org_id, "firm_intake_key_fetch", { max: config.firmMatterIntakeFetchRateLimitMax, windowSeconds: config.firmMatterStreamWriteRateLimitWindowSeconds });
+  if (!fetchRate.ok) return error("rate_limited", 429);
   if (!body || !isNonEmptyString(body.device_id, 128) || !store.getDevice(body.device_id, auth.claims.sub)) return error("invalid_v2_payload", 400);
   const fetched = store.fetchWrappedIntakeKeyForAccess({ intake_handle: intakeHandle, org_id: auth.claims.org_id, user_id: auth.claims.sub, role: auth.claims.role, device_id: body.device_id });
   if (!fetched.ok) {

@@ -337,6 +337,7 @@ export function stopAll(): void {
   for (const id of matterIds) bumpGeneration(id);
   keyRotationCache.clear();
   for (const [id, client] of clientCache.entries()) {
+    abortedClients.add(client);
     try {
       client.stop();
     } catch {

@@ -1,6 +1,7 @@
 /** Opaque, seat-gated intake key exchange: no readable intake or matter IDs cross the relay. */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Store } from "../src/lib/db.ts";
+import { config } from "../src/lib/config.ts";
 import { FanoutHub } from "../src/lib/matters.ts";
 import { issueAuthTokens, mintSeatToken } from "../src/lib/services.ts";
 import { buildServeOptions } from "../src/server.ts";
@@ -61,6 +62,45 @@ describe("opaque intake key routes", () => {
 
     const fetched = await post(`/v2/firm/intake/${intakeHandle}/keys/fetch`, { device_id: "member-device" }, memberToken, { "x-seat-token": memberSeat });
     expect(fetched).toMatchObject({ status: 200, body: { epoch: 1, wrapped_key_b64: wrappedEnvelope } });
+  });
+
+  test("rate-limits repeated valid intake-key fetches without writing more audit rows", async () => {
+    const originalFetchRateMax = config.firmMatterIntakeFetchRateLimitMax;
+    config.firmMatterIntakeFetchRateLimitMax = 1;
+    try {
+      const org = store.createOrg({ name: "Fetch rate limit", plan: "practice", packs: ["advisor"], seat_limit: 2 });
+      const admin = store.createUser({ org_id: org.org_id, email: "fetch-admin@intake.test", password_hash: "x", role: "admin" });
+      const member = store.createUser({ org_id: org.org_id, email: "fetch-member@intake.test", password_hash: "x", role: "member" });
+      const deviceId = "fetch-member-device";
+      const handle = `ih2_${"F".repeat(43)}`;
+      store.upsertDevice({ device_id: deviceId, user_id: member.user_id, org_id: org.org_id, machine_id: "fetch-member-machine", label: "", pubkey_jwk: "{}" });
+      const seat = store.activateSeat({ org_id: org.org_id, user_id: member.user_id, machine_id: "fetch-member-machine", machine_label: null, seat_limit: 2 });
+      if (!seat.ok) throw new Error("test seat activation failed");
+      const matter = store.createMatter({ org_id: org.org_id });
+      store.addMatterMember({ matter_handle: matter.matter_handle, user_id: admin.user_id, org_id: org.org_id, role: "owner" });
+      store.addMatterMember({ matter_handle: matter.matter_handle, user_id: member.user_id, org_id: org.org_id, role: "editor" });
+      store.activateProvisioningMatter(matter.matter_handle);
+      const adminAccess = issueAuthTokens(store, admin).access_token;
+      const memberAccess = issueAuthTokens(store, member).access_token;
+      const memberSeatToken = mintSeatToken(store.getOrg(org.org_id)!, member, seat.seat).token;
+
+      expect((await post(`/v2/firm/intake/${handle}/keys/publish`, {
+        matter_handle: matter.matter_handle,
+        epoch: 1,
+        wrapped: [{ user_id: member.user_id, device_id: deviceId, wrapped_key_b64: wrappedEnvelope }],
+      }, adminAccess)).status).toBe(200);
+
+      const auditBeforeFetch = store.listAudit(org.org_id).length;
+      expect((await post(`/v2/firm/intake/${handle}/keys/fetch`, { device_id: deviceId }, memberAccess, { "x-seat-token": memberSeatToken })).status).toBe(200);
+      const auditAfterAllowedFetch = store.listAudit(org.org_id).length;
+      const limited = await post(`/v2/firm/intake/${handle}/keys/fetch`, { device_id: deviceId }, memberAccess, { "x-seat-token": memberSeatToken });
+
+      expect(auditAfterAllowedFetch).toBe(auditBeforeFetch + 2);
+      expect(limited).toEqual({ status: 429, body: { error: "rate_limited" } });
+      expect(store.listAudit(org.org_id)).toHaveLength(auditAfterAllowedFetch);
+    } finally {
+      config.firmMatterIntakeFetchRateLimitMax = originalFetchRateMax;
+    }
   });
 
   test("member removal deletes only that matter's wrapped intake-key rows", async () => {

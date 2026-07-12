@@ -161,6 +161,8 @@ export const config = {
   firmMatterIntakeHandleCap: num("FIRM_MATTER_INTAKE_HANDLE_CAP", 1024, { min: 1 }),
   /** Per-firm intake-key publish budget; it uses the shared firm write-rate window above. */
   firmMatterIntakePublishRateLimitMax: num("FIRM_MATTER_INTAKE_PUBLISH_RATE_LIMIT_MAX", 30, { min: 1 }),
+  /** Per-firm intake-key fetch budget; it uses the shared firm write-rate window above. */
+  firmMatterIntakeFetchRateLimitMax: num("FIRM_MATTER_INTAKE_FETCH_RATE_LIMIT_MAX", 30, { min: 1 }),
 
   // Assured inference proxy (chunk 3). Per-IP request cap + an upstream timeout.
   // The cap bounds abuse; the timeout severs a hung provider connection so a

@@ -16,6 +16,9 @@ local Intake ID may go over the network.
 Both endpoints require the normal Bearer login token. Fetch also requires an
 active seat token in the `X-Seat-Token` header.
 
+`matterKeys.ts`'s `handleFetchMatterKey` has the same older missing fetch-rate
+limit and is a good small follow-up, but it is not a regression in this branch.
+
 | Purpose | Request | Success response |
 | --- | --- | --- |
 | Publish wrapped keys | `POST /v2/firm/intake/:intake_handle/keys/publish` with `{ matter_handle, epoch, wrapped: [{ user_id, device_id, wrapped_key_b64 }] }` | `{ ok: true, stored }` |

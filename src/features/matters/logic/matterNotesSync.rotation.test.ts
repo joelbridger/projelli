@@ -4,7 +4,7 @@ import { FirmApiError } from '@/platform/firm/FirmApiClient';
 
 const mocks = vi.hoisted(() => ({
   obtainMatterKey: vi.fn(), clearMatterKey: vi.fn(), storeMatterKey: vi.fn(), getDevice: vi.fn(), unwrap: vi.fn(), createClient: vi.fn(),
-  setStatus: vi.fn(), firmState: { seatToken: 'seat-token' as string | null, client: vi.fn() },
+  setStatus: vi.fn(), clearMatter: vi.fn(), firmState: { seatToken: 'seat-token' as string | null, client: vi.fn() },
 }));
 
 vi.mock('@/platform/firm/matterKeyService', () => ({ obtainMatterKey: mocks.obtainMatterKey }));
@@ -19,7 +19,7 @@ vi.mock('@/platform/firm/MatterSyncClient', () => ({
 }));
 vi.mock('@/platform/firm/firmMatterPrivateIndex', () => ({ readFirmMatterPrivateIndex: vi.fn() }));
 vi.mock('@/platform/matter/matterStore', () => ({ useMatterStore: { getState: () => ({}) } }));
-vi.mock('@/platform/matter/matterSyncStore', () => ({ useMatterSyncStore: { getState: () => ({ setStatus: mocks.setStatus, clearMatter: vi.fn() }) } }));
+vi.mock('@/platform/matter/matterSyncStore', () => ({ useMatterSyncStore: { getState: () => ({ setStatus: mocks.setStatus, clearMatter: mocks.clearMatter }) } }));
 vi.mock('@/platform/firm/firmStore', () => ({ useFirmStore: { getState: () => mocks.firmState, subscribe: vi.fn() } }));
 
 import { ensureMatterSync, getMatterSyncClient, handleKeyEpochAdvanced, stopAll, stopMatterSync } from './matterNotesSync';
@@ -97,6 +97,33 @@ describe('matterNotesSync key rotation race', () => {
     expect(clientA.stop).toHaveBeenCalledOnce();
     expect(clientB.stop).not.toHaveBeenCalled();
     expect(mocks.setStatus).not.toHaveBeenCalledWith(localMatterId, 'error');
+  });
+
+  it('abandons an in-flight key rotation when sign-out stops its cached client', async () => {
+    const localMatter = sharedMatter('sign-out-during-rotation');
+    const staleFetch = deferred<{ epoch: number; wrapped_key_b64: string }>();
+    const client = { ...readyClient().client, rotateKey: vi.fn(), stop: vi.fn() };
+    const firmClient = { fetchMatterKeys: vi.fn(() => staleFetch.promise), matterMine: vi.fn() };
+    mocks.obtainMatterKey.mockResolvedValue('initial-key');
+    mocks.firmState.client.mockReturnValue(firmClient);
+    mocks.createClient.mockReturnValue(client);
+
+    await expect(ensureMatterSync(localMatter as never, 1)).resolves.toBe(client);
+
+    const rotation = handleKeyEpochAdvanced(localMatter.id, localMatter.firmMatterId, firmClient as never, client as never, 2);
+    await vi.waitFor(() => { expect(firmClient.fetchMatterKeys).toHaveBeenCalledOnce(); });
+    const clearCallsBeforeSignOut = mocks.clearMatterKey.mock.calls.length;
+
+    stopAll();
+    staleFetch.reject(new FirmApiError(403, 'forbidden', 'denied'));
+    await rotation;
+
+    expect(client.stop).toHaveBeenCalledOnce();
+    expect(mocks.clearMatter).toHaveBeenCalledExactlyOnceWith(localMatter.id);
+    expect(mocks.clearMatterKey).toHaveBeenCalledTimes(clearCallsBeforeSignOut);
+    expect(mocks.storeMatterKey).not.toHaveBeenCalled();
+    expect(client.rotateKey).not.toHaveBeenCalled();
+    expect(mocks.setStatus).not.toHaveBeenCalledWith(localMatter.id, 'error');
   });
 
   it('keeps a newer pending rotation coalesced when an older rotation finishes', async () => {
