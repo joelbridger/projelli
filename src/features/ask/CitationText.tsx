@@ -2,6 +2,7 @@ import { CheckCircle2, AlertTriangle, Mail } from 'lucide-react';
 import type { CSSProperties, ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import type { AnswerCitation } from './askHelpers';
+import { AnswerDatePresentation } from '@/platform/retrieval/dates';
 
 /* -------------------------------------------------------------------------- */
 /* CitationText — the Ask answer renderer (matches the demo Ask answer body).  */
@@ -156,6 +157,7 @@ export function CitationText({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <AnswerDatePresentation citations={citations} />
       {blocks.map((block, bi) => {
         const email = block.match(/^```email\n([\s\S]*?)```$/);
         if (email) {
