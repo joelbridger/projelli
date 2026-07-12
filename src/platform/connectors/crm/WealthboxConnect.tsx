@@ -100,6 +100,10 @@ export function WealthboxConnect() {
 
   // Mirror progress into syncing flag.
   useEffect(() => {
+    // While the Import/Cancel question is open, no run is active — a late
+    // "connecting" event from the finished household check must not repaint
+    // the syncing state over the open question.
+    if (awaitingImportConfirmation) return;
     if (
       progress?.status === 'connecting' ||
       progress?.status === 'syncing' ||
@@ -115,7 +119,7 @@ export function WealthboxConnect() {
       // Stop button leaves it stuck on "Syncing…" with Disconnect disabled.
       setSyncing(false);
     }
-  }, [progress?.status]);
+  }, [progress?.status, awaitingImportConfirmation]);
 
   // Connect/sync stall watchdog: while a Wealthbox network call is genuinely
   // in flight with no progress to show, reassure the user after ~20s instead

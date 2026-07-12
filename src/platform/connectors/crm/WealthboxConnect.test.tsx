@@ -9,6 +9,30 @@ const controls = vi.hoisted(() => ({
   createMatter: vi.fn(() => ({ id: 'new-client' })),
 }));
 
+// Stateful progress mock: tests can emit progress events into the rendered
+// component the way the real crm store does, to prove late events cannot
+// repaint state over an open Import/Cancel question.
+const crmProgress = vi.hoisted(() => {
+  type Progress = { status: string; households?: number; records?: number } | null;
+  let value: Progress = null;
+  const listeners = new Set<() => void>();
+  return {
+    get: (): Progress => value,
+    set(next: Progress) {
+      value = next;
+      listeners.forEach((l) => l());
+    },
+    subscribe(l: () => void) {
+      listeners.add(l);
+      return () => listeners.delete(l);
+    },
+    reset() {
+      value = null;
+      listeners.clear();
+    },
+  };
+});
+
 vi.mock('@tauri-apps/api/core', () => ({ isTauri: () => true }));
 vi.mock('@/platform/utils/wealthbox-commands', () => ({
   crmConnect: vi.fn(),
@@ -20,12 +44,18 @@ vi.mock('@/platform/utils/wealthbox-commands', () => ({
   crmCancelSync: vi.fn(),
 }));
 vi.mock('@/platform/connectors/crm/useCrmSync', () => ({ useCrmSync: () => {} }));
-vi.mock('@/platform/connectors/crm/crmStore', () => ({
-  useCrmStore: Object.assign(
-    (selector: (state: { progress: null }) => unknown) => selector({ progress: null }),
-    { getState: () => ({ startRun: vi.fn(), finishRun: vi.fn(), setProgress: vi.fn() }) },
-  ),
-}));
+vi.mock('@/platform/connectors/crm/crmStore', async () => {
+  const { useSyncExternalStore } = await import('react');
+  return {
+    useCrmStore: Object.assign(
+      (selector: (state: { progress: unknown }) => unknown) =>
+        selector({
+          progress: useSyncExternalStore(crmProgress.subscribe, crmProgress.get),
+        }),
+      { getState: () => ({ startRun: vi.fn(), finishRun: vi.fn(), setProgress: vi.fn() }) },
+    ),
+  };
+});
 vi.mock('@/platform/matter/matterStore', () => ({
   getMatters: () => [],
   useMatterStore: (selector: (state: Record<string, unknown>) => unknown) => selector({
@@ -64,6 +94,7 @@ describe('WealthboxConnect sync', () => {
     controls.crmListHouseholds.mockReset();
     controls.crmSyncAll.mockReset();
     controls.createMatter.mockClear();
+    crmProgress.set(null);
   });
 
   afterEach(() => {
@@ -144,5 +175,24 @@ describe('WealthboxConnect sync', () => {
     expect(screen.queryByText('Checking your Wealthbox households…')).toBeNull();
     expect(screen.getByTestId('wealthbox-sync-now')).toHaveTextContent('Choose Import or Cancel');
     expect(controls.crmSyncAll).not.toHaveBeenCalled();
+  });
+
+  it('ignores a late connecting event while Import or Cancel is open', async () => {
+    controls.crmListHouseholds.mockResolvedValue([{ id: 'household-1', name: 'Avery Family' }]);
+
+    await renderConnectedConnector();
+    fireEvent.click(screen.getByTestId('wealthbox-sync-now'));
+    expect(await screen.findByTestId('confirm-dialog')).toBeTruthy();
+
+    // A delayed progress event from the already-finished household check
+    // arrives while the question is open — it must NOT repaint "Syncing".
+    await act(async () => {
+      crmProgress.set({ status: 'connecting' });
+      await Promise.resolve();
+    });
+
+    expect(screen.getByTestId('wealthbox-sync-now')).toHaveTextContent('Choose Import or Cancel');
+    expect(screen.queryByText(/Syncing/)).toBeNull();
+    expect(screen.getByTestId('wealthbox-awaiting-import-confirmation')).toBeTruthy();
   });
 });
