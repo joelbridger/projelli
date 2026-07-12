@@ -404,7 +404,7 @@ function WorkflowFallbackChecklist({ records, onRecord }: { records: readonly Mi
   const [drafts, setDrafts] = useState(records);
   const [saved, setSaved] = useState<ReadonlySet<string>>(() => new Set());
   const update = (id: string, change: Partial<MigrationWorkflowChecklist>) => { setDrafts((current) => current.map((record) => record.id === id ? { ...record, ...change } : record)); };
-  const complete = (record: MigrationWorkflowChecklist) => record.evidenceReviewed && record.selectedCurrentStep && ((record.decision === 'recreate' && record.resultingInstanceLabel) || (record.decision === 'gap' && record.gapReason));
+  const complete = (record: MigrationWorkflowChecklist) => record.evidenceReviewed && record.selectedCurrentStep && (record.decision === 'recreate' || (record.decision === 'gap' && record.gapReason));
   const recordChecklist = async (record: MigrationWorkflowChecklist) => { await onRecord(record); setSaved((current) => new Set(current).add(record.id)); };
   return <Screen title="In-flight workflow re-creation" description="Required through cutover" Icon={Workflow}><p style={mutedStyle}>Every affected client is listed. The source API does not supply open-workflow state, so an operator selects the current step and records a resulting instance or a trace gap.</p>{drafts.map((record) => <section key={record.id} data-testid={`crm-workflow-checklist-${record.id}`} style={panelStyle}><strong>{record.clientLabel} · {record.sourceTemplateLabel}</strong><p style={mutedStyle}>Evidence: {record.activityEvidence.join(' · ') || 'No readable trace available'}</p><label><input data-testid={`crm-workflow-evidence-${record.id}`} type="checkbox" checked={Boolean(record.evidenceReviewed)} onChange={(event) => { update(record.id, { evidenceReviewed: event.target.checked }); }} /> I reviewed the available workflow evidence</label><label style={{ display: 'block', marginTop: 8 }}>Current step <select data-testid={`crm-workflow-step-${record.id}`} value={record.selectedCurrentStep ?? ''} onChange={(event) => { update(record.id, { selectedCurrentStep: event.target.value }); }}><option value="">Choose the current step</option>{record.availableSteps.map((step) => <option key={step}>{step}</option>)}</select></label><div style={{ display: 'flex', gap: 8, marginTop: 8 }}><Button size="sm" variant={record.decision === 'recreate' ? 'primary' : 'secondary'} onClick={() => { update(record.id, { decision: 'recreate' }); }}>Create resulting instance</Button><Button size="sm" variant={record.decision === 'gap' ? 'primary' : 'secondary'} onClick={() => { update(record.id, { decision: 'gap' }); }}>Record trace gap</Button></div>{record.decision === 'recreate' ? <label style={{ display: 'block', marginTop: 8 }}>Resulting Lantern instance <input data-testid={`crm-workflow-instance-${record.id}`} value={record.resultingInstanceLabel ?? ''} onChange={(event) => { update(record.id, { resultingInstanceLabel: event.target.value }); }} /></label> : record.decision === 'gap' ? <label style={{ display: 'block', marginTop: 8 }}>Gap reason <input data-testid={`crm-workflow-gap-${record.id}`} value={record.gapReason ?? ''} onChange={(event) => { update(record.id, { gapReason: event.target.value }); }} /></label> : null}<Button data-testid={`crm-workflow-record-${record.id}`} style={{ marginTop: 10 }} disabled={!complete(record)} onClick={() => { void recordChecklist(record); }}>Record this client’s checklist</Button>{saved.has(record.id) && <p data-testid={`crm-workflow-recorded-${record.id}`} role="status">Checklist recorded</p>}</section>)}</Screen>;
 }
@@ -483,6 +483,7 @@ export function CrmHome({ adapter, preview = false, initialRoute }: CrmHomeProps
   const savedTaskViews: readonly CrmTaskSavedView[] = live.records.filter((record) => record.kind === 'savedView' && record['surface'] === 'tasks').map((record) => ({ id: record.id, name: typeof record['name'] === 'string' ? record['name'] : 'Saved view', layout: record['layout'] === 'kanban' || record['layout'] === 'table' ? record['layout'] : 'list', ...(typeof (record['query'] as { search?: unknown } | undefined)?.search === 'string' ? { search: (record['query'] as { search: string }).search } : {}) }));
   const liveWorkflowChecklists: readonly MigrationWorkflowChecklist[] = live.records.filter((record) => record.kind === 'migration_workflow_checklist').map((record) => ({
     id: record.id,
+    ...(typeof record['householdId'] === 'string' ? { householdId: record['householdId'] } : {}),
     clientLabel: typeof record['clientLabel'] === 'string' ? record['clientLabel'] : 'Imported client',
     sourceTemplateLabel: typeof record['sourceTemplateLabel'] === 'string' ? record['sourceTemplateLabel'] : 'Imported workflow',
     activityEvidence: Array.isArray(record['activityEvidence']) ? record['activityEvidence'].filter((item): item is string => typeof item === 'string') : [],
@@ -556,7 +557,27 @@ export function CrmHome({ adapter, preview = false, initialRoute }: CrmHomeProps
     migration: { workflowChecklists: liveWorkflowChecklists, attachmentAccounting: liveAttachmentAccounting, exports: liveExports, ...(liveReport ? { report: liveReport } : {}) },
     actions: {
       updateTask: saveTask,
-      recordWorkflowChecklist: async (record) => { await live.save({ ...record, kind: 'migration_workflow_checklist', matterId: 'firm' }); },
+      recordWorkflowChecklist: async (record) => {
+        if (record.decision !== 'recreate') {
+          await live.save({ ...record, kind: 'migration_workflow_checklist', matterId: 'firm' });
+          return;
+        }
+        const household = (record.householdId ? households.find((item) => item.id === record.householdId) : undefined)
+          ?? households.find((item) => item.name === record.clientLabel);
+        if (!household) throw new Error('Choose the client for this imported workflow before creating it.');
+        if (!record.selectedCurrentStep || !record.availableSteps.includes(record.selectedCurrentStep)) throw new Error('Choose the workflow’s current step before creating it.');
+        let template = workflowRecords(live.records).templates.find((item) => item.name === record.sourceTemplateLabel);
+        if (!template) {
+          if (!record.availableSteps.length) throw new Error('This imported workflow has no readable steps. Record it as a trace gap instead.');
+          template = createTemplate(record.sourceTemplateLabel, record.availableSteps);
+          await live.save(template);
+        }
+        let instance = startWorkflow(template, { id: household.id, label: household.name });
+        const currentStepIndex = template.steps.findIndex((step) => step.title === record.selectedCurrentStep);
+        for (const step of template.steps.slice(0, Math.max(0, currentStepIndex))) instance = completeWorkflowStep(instance, step.id);
+        await live.save(instance);
+        await live.save({ ...record, householdId: household.id, kind: 'migration_workflow_checklist', matterId: 'firm', resultingInstanceLabel: instance.name, resultingWorkflowInstanceRef: instance.id });
+      },
       recordAttachmentAccounting: async (record) => { await live.save({ ...record, kind: 'migration_attachment_accounting', matterId: 'firm' }); },
       createExport: (kind) => { void createMigrationExport(live.workspaceRoot, kind).then(() => live.reload()); },
       retryExport: (kind) => { void createMigrationExport(live.workspaceRoot, kind).then(() => live.reload()); },

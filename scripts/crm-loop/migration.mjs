@@ -52,14 +52,20 @@ try {
 
   run(['click', 'crm-migration-workflow-fallback']);
   const workflowSave = JSON.parse(run(['eval', "JSON.stringify(Array.from(document.querySelectorAll('[data-testid^=crm-workflow-record-]')).map(x => x.getAttribute('data-testid')))"]));
-  if (!workflowSave.length) throw new Error('No in-flight workflow checklist was saved.');
-  const workflowId = workflowSave[0].replace('crm-workflow-record-', '');
-  run(['click', `crm-workflow-evidence-${workflowId}`]);
-  run(['eval', `document.querySelector('[data-testid="crm-workflow-step-${workflowId}"]').value = document.querySelector('[data-testid="crm-workflow-step-${workflowId}"]').options[1].value; document.querySelector('[data-testid="crm-workflow-step-${workflowId}"]').dispatchEvent(new Event('change', { bubbles: true }))`]);
-  run(['eval', "Array.from(document.querySelectorAll('button')).find((button) => button.textContent.includes('Create resulting instance'))?.click()"]);
-  run(['type', `crm-workflow-instance-${workflowId}`, 'Recreated imported workflow']);
-  run(['click', `crm-workflow-record-${workflowId}`]);
-  run(['waitfor', 'Checklist recorded']);
+  if (workflowSave.length) {
+    const workflowId = workflowSave[0].replace('crm-workflow-record-', '');
+    const stepCount = Number(run(['eval', `document.querySelector('[data-testid="crm-workflow-step-${workflowId}"]').options.length`]).trim());
+    if (stepCount < 2) throw new Error('A workflow checklist was created without readable source steps. It must be recorded as a trace gap, not recreated.');
+    run(['click', `crm-workflow-evidence-${workflowId}`]);
+    run(['eval', `document.querySelector('[data-testid="crm-workflow-step-${workflowId}"]').value = document.querySelector('[data-testid="crm-workflow-step-${workflowId}"]').options[1].value; document.querySelector('[data-testid="crm-workflow-step-${workflowId}"]').dispatchEvent(new Event('change', { bubbles: true }))`]);
+    run(['eval', "Array.from(document.querySelectorAll('button')).find((button) => button.textContent.includes('Create resulting instance'))?.click()"]);
+    run(['type', `crm-workflow-instance-${workflowId}`, 'Recreated imported workflow']);
+    run(['click', `crm-workflow-record-${workflowId}`]);
+    run(['waitfor', 'Checklist recorded']);
+    run(['click', 'crm-home-nav-workflows']);
+    const instances = Number(run(['eval', "document.querySelectorAll('[data-testid^=crm-live-workflow-instance-]').length"]).trim());
+    if (!instances) throw new Error('The checklist was saved, but no real Lantern workflow instance was created.');
+  }
 
   run(['click', 'crm-home-nav-firm-setup']); run(['click', 'crm-firm-route-migration']); run(['click', 'crm-migration-attachment-fallback']);
   const attachmentSave = JSON.parse(run(['eval', "JSON.stringify(Array.from(document.querySelectorAll('[data-testid^=crm-attachment-record-save-]')).map(x => x.getAttribute('data-testid')))"]));

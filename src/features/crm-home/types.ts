@@ -122,6 +122,7 @@ export interface PropagationApplyOffer {
 
 export interface MigrationWorkflowChecklist {
   id: string;
+  householdId?: string | undefined;
   clientLabel: string;
   sourceTemplateLabel: string;
   activityEvidence: readonly string[];

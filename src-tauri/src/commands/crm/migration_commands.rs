@@ -308,7 +308,33 @@ pub async fn crm_migration_import(
                     unchanged += 1;
                 }
                 if kind == "workflow" || kind == "legacy_project" {
-                    workflow_rows.push(json!({ "id": format!("migration-workflow:{}", live["sourceId"].as_str().unwrap_or("unknown")), "kind": "migration_workflow_checklist", "clientLabel": "Imported client", "sourceTemplateLabel": label, "activityEvidence": ["Imported workflow or project trace"], "availableSteps": ["Review imported trace", "Create the matching workflow"], "decision": "pending" }));
+                    let household_id = linked_household_id(&record.payload, &contact_households);
+                    let client_label = household_id
+                        .as_ref()
+                        .and_then(|id| {
+                            households
+                                .iter()
+                                .find(|(candidate, _)| candidate == id)
+                                .map(|(_, name)| name.clone())
+                        })
+                        .unwrap_or_else(|| "Client not identified from the source trace".into());
+                    let available_steps = record
+                        .payload
+                        .get("steps")
+                        .and_then(Value::as_array)
+                        .map(|steps| {
+                            steps
+                                .iter()
+                                .filter_map(|step| {
+                                    step.get("name")
+                                        .and_then(Value::as_str)
+                                        .or_else(|| step.get("title").and_then(Value::as_str))
+                                        .map(str::to_string)
+                                })
+                                .collect::<Vec<_>>()
+                        })
+                        .unwrap_or_default();
+                    workflow_rows.push(json!({ "id": format!("migration-workflow:{}", live["sourceId"].as_str().unwrap_or("unknown")), "kind": "migration_workflow_checklist", "matterId": "firm", "clientLabel": client_label, "householdId": household_id, "sourceTemplateLabel": label, "activityEvidence": ["Imported workflow or project trace"], "availableSteps": available_steps, "decision": "pending" }));
                 }
             }
             if count < IMPORTER_PAGE_SIZE {
