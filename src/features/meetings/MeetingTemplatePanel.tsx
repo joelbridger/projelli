@@ -5,6 +5,7 @@
  * note never enters the client-facing renderer or a client-facing save path.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { FilePlus2, Pencil, Plus, Sparkles } from 'lucide-react';
 import { Button, Badge } from '@/ui/kp';
 import type { TranscriptFile } from '@/platform/types/meeting';
@@ -57,10 +58,6 @@ function emptyNotes(): SavedTemplateNotes {
   return { schemaVersion: 1, internal: {}, clientFacing: {} };
 }
 
-function audienceLabel(audience: MeetingTemplateAudience): string {
-  return audience === 'internal' ? 'Internal only' : 'Client-facing';
-}
-
 /** Read saved template results without treating a bad/missing note file as a
  * template or as client-visible data. */
 async function loadSavedNotes(
@@ -91,6 +88,7 @@ export function MeetingTemplatePanel({
   clientName,
   getProvider,
 }: MeetingTemplatePanelProps) {
+  const { t } = useTranslation();
   const storage = useMemo(
     () => makeMeetingTemplateStorage(workspace),
     [workspace]
@@ -117,6 +115,16 @@ export function MeetingTemplatePanel({
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const selectedTemplate = templates.find((template) => template.id === selectedId);
+
+  const showUnexpectedError = useCallback((cause: unknown) => {
+    setError(cause instanceof Error ? cause.message : 'Could not complete that meeting-template action.');
+  }, []);
+
+  const audienceLabel = (audience: MeetingTemplateAudience): string =>
+    audience === 'internal'
+      ? t('meetings.templates.audience-internal')
+      : t('meetings.templates.audience-client-facing');
 
   const loadTemplates = useCallback(async () => {
     if (!firmId) {
@@ -141,8 +149,8 @@ export function MeetingTemplatePanel({
   }, [firmId, storage]);
 
   useEffect(() => {
-    void loadTemplates();
-  }, [loadTemplates]);
+    void loadTemplates().catch(showUnexpectedError);
+  }, [loadTemplates, showUnexpectedError]);
 
   const resetEditor = () => {
     setForm({
@@ -307,7 +315,7 @@ export function MeetingTemplatePanel({
               fontWeight: 'var(--kp-weight-semibold)',
             }}
           >
-            Meeting templates
+            {t('meetings.templates.title')}
           </div>
           <div
             style={{
@@ -316,8 +324,7 @@ export function MeetingTemplatePanel({
               marginTop: 2,
             }}
           >
-            Fill a firm layout from this transcript, then review it before it is
-            saved.
+            {t('meetings.templates.description')}
           </div>
         </div>
         {canManageTemplates && !showEditor && (
@@ -354,9 +361,9 @@ export function MeetingTemplatePanel({
             <input
               data-testid="meeting-template-name"
               value={form.name}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, name: event.target.value }))
-              }
+              onChange={(event) => {
+                setForm((current) => ({ ...current, name: event.target.value }));
+              }}
             />
           </label>
           <label
@@ -367,15 +374,15 @@ export function MeetingTemplatePanel({
               data-testid="meeting-template-audience"
               disabled={Boolean(form.id)}
               value={form.audience}
-              onChange={(event) =>
+              onChange={(event) => {
                 setForm((current) => ({
                   ...current,
                   audience: event.target.value as MeetingTemplateAudience,
-                }))
-              }
+                }));
+              }}
             >
-              <option value="internal">Internal only</option>
-              <option value="client-facing">Client-facing</option>
+              <option value="internal">{audienceLabel('internal')}</option>
+              <option value="client-facing">{audienceLabel('client-facing')}</option>
             </select>
           </label>
           {form.blocks.map((block, index) => (
@@ -389,7 +396,7 @@ export function MeetingTemplatePanel({
                 data-testid={`meeting-template-block-label-${block.id}`}
                 placeholder="Section title"
                 value={block.label}
-                onChange={(event) =>
+                onChange={(event) => {
                   setForm((current) => ({
                     ...current,
                     blocks: current.blocks.map((item, i) =>
@@ -397,15 +404,15 @@ export function MeetingTemplatePanel({
                         ? { ...item, label: event.target.value }
                         : item
                     ),
-                  }))
-                }
+                  }));
+                }}
               />
               <input
                 aria-label={`Section ${String(index + 1)} instruction`}
                 data-testid={`meeting-template-block-instruction-${block.id}`}
                 placeholder="What should this section cover?"
                 value={block.instruction}
-                onChange={(event) =>
+                onChange={(event) => {
                   setForm((current) => ({
                     ...current,
                     blocks: current.blocks.map((item, i) =>
@@ -413,14 +420,14 @@ export function MeetingTemplatePanel({
                         ? { ...item, instruction: event.target.value }
                         : item
                     ),
-                  }))
-                }
+                  }));
+                }}
               />
               <label style={{ fontSize: 'var(--kp-font-xs)' }}>
                 <input
                   type="checkbox"
                   checked={block.required}
-                  onChange={(event) =>
+                  onChange={(event) => {
                     setForm((current) => ({
                       ...current,
                       blocks: current.blocks.map((item, i) =>
@@ -428,8 +435,8 @@ export function MeetingTemplatePanel({
                           ? { ...item, required: event.target.checked }
                           : item
                       ),
-                    }))
-                  }
+                    }));
+                  }}
                 />{' '}
                 Required
               </label>
@@ -440,12 +447,12 @@ export function MeetingTemplatePanel({
               data-testid="meeting-template-add-block"
               size="sm"
               variant="ghost"
-              onClick={() =>
+              onClick={() => {
                 setForm((current) => ({
                   ...current,
                   blocks: [...current.blocks, makeBlock(current.blocks.length)],
-                }))
-              }
+                }));
+              }}
             >
               Add section
             </Button>
@@ -455,7 +462,7 @@ export function MeetingTemplatePanel({
               loading={busy}
               iconLeft={FilePlus2}
               onClick={() => {
-                void saveTemplate();
+                void saveTemplate().catch(showUnexpectedError);
               }}
             >
               {form.id ? 'Save changes' : 'Create template'}
@@ -484,7 +491,9 @@ export function MeetingTemplatePanel({
           <select
             data-testid="meeting-template-select"
             value={selectedId}
-            onChange={(event) => setSelectedId(event.target.value)}
+            onChange={(event) => {
+              setSelectedId(event.target.value);
+            }}
           >
             {templates.map((template) => (
               <option key={template.id} value={template.id}>
@@ -498,23 +507,20 @@ export function MeetingTemplatePanel({
             loading={busy}
             iconLeft={Sparkles}
             onClick={() => {
-              void fillTemplate();
+              void fillTemplate().catch(showUnexpectedError);
             }}
           >
-            Fill from transcript
+            {t('meetings.templates.fill')}
           </Button>
-          {canManageTemplates &&
-            templates.find((template) => template.id === selectedId) && (
+          {canManageTemplates && selectedTemplate && (
               <Button
                 data-testid="meeting-template-edit"
                 size="sm"
                 variant="ghost"
                 iconLeft={Pencil}
-                onClick={() =>
-                  editTemplate(
-                    templates.find((template) => template.id === selectedId)!
-                  )
-                }
+                onClick={() => {
+                  editTemplate(selectedTemplate);
+                }}
               >
                 Edit
               </Button>
@@ -548,7 +554,7 @@ export function MeetingTemplatePanel({
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <strong>Review before saving</strong>
+            <strong>{t('meetings.templates.review-title')}</strong>
             <Badge
               size="sm"
               variant={
@@ -566,8 +572,7 @@ export function MeetingTemplatePanel({
                 color: 'var(--color-muted-foreground)',
               }}
             >
-              This note stays inside Lantern. It cannot be saved as a
-              client-facing note.
+              {t('meetings.templates.internal-note')}
             </div>
           )}
           {draft.note.sections.map((section) => (
@@ -587,16 +592,18 @@ export function MeetingTemplatePanel({
               size="sm"
               loading={busy}
               onClick={() => {
-                void saveReviewedNote();
+                void saveReviewedNote().catch(showUnexpectedError);
               }}
             >
-              Save reviewed note
+              {t('meetings.templates.save-reviewed-note')}
             </Button>
             <Button
               data-testid="meeting-template-discard-reviewed"
               size="sm"
               variant="ghost"
-              onClick={() => setDraft(null)}
+              onClick={() => {
+                setDraft(null);
+              }}
             >
               Discard
             </Button>

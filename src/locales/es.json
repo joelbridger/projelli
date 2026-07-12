@@ -3734,6 +3734,16 @@
       "resolve-menu": "Resolver aviso",
       "details": "Detalles"
     },
+    "templates": {
+      "title": "Plantillas de reunión",
+      "description": "Completa un diseño de la firma con esta transcripción y revísalo antes de guardarlo.",
+      "fill": "Completar desde la transcripción",
+      "review-title": "Revisar antes de guardar",
+      "internal-note": "Esta nota permanece dentro de {{productName}}. No se puede guardar como una nota para el cliente.",
+      "save-reviewed-note": "Guardar nota revisada",
+      "audience-internal": "Solo interno",
+      "audience-client-facing": "Para el cliente"
+    },
     "notice-card": {
       "offer-label": "¿Añadir la Tarjeta de Aviso a esta reunión?",
       "offer-explain": "Un participante en tu ordenador muestra a todos que la reunión se está grabando. No graba nada y se va cuando termina la grabación.",
