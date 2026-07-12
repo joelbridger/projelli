@@ -44,17 +44,53 @@ fn write_new_file(path: &Path, bytes: &[u8]) -> Result<WrittenExport> {
         .parent()
         .context("migration export has no parent directory")?;
     fs::create_dir_all(parent).context("create migration export folder")?;
-    // A batch export is immutable evidence.  Never quietly replace a prior
-    // archive with a new one under the same name.
-    if path.exists() {
-        anyhow::bail!("migration export already exists: {}", path.display());
+    // A batch export is immutable evidence. A person may safely ask for a
+    // second copy, but we must never quietly replace the first one. Pick the
+    // next free numbered name and create it atomically so a retry is useful
+    // even if the first attempt already made a file.
+    let stem = path
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .context("migration export has no filename stem")?;
+    let extension = path.extension().and_then(|value| value.to_str());
+    for copy in 0usize.. {
+        let name = if copy == 0 {
+            match extension {
+                Some(extension) => format!("{stem}.{extension}"),
+                None => stem.to_string(),
+            }
+        } else {
+            match extension {
+                Some(extension) => format!("{stem}-{copy}.{extension}"),
+                None => format!("{stem}-{copy}"),
+            }
+        };
+        let candidate = parent.join(name);
+        match fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&candidate)
+        {
+            Ok(mut file) => {
+                use std::io::Write;
+                file.write_all(bytes)
+                    .with_context(|| format!("write migration export {}", candidate.display()))?;
+                file.sync_all()
+                    .with_context(|| format!("sync migration export {}", candidate.display()))?;
+                return Ok(WrittenExport {
+                    path: candidate,
+                    byte_length: bytes.len(),
+                    sha256: hex::encode(Sha256::digest(bytes)),
+                });
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => {
+                return Err(error)
+                    .with_context(|| format!("create migration export {}", candidate.display()));
+            }
+        }
     }
-    fs::write(path, bytes).with_context(|| format!("write migration export {}", path.display()))?;
-    Ok(WrittenExport {
-        path: path.to_path_buf(),
-        byte_length: bytes.len(),
-        sha256: hex::encode(Sha256::digest(bytes)),
-    })
+    unreachable!("unbounded export copy sequence always returns or errors")
 }
 
 /// Writes a decrypted, portable archive. The manifest is inside the package,
@@ -200,6 +236,19 @@ mod tests {
         let body = fs::read_to_string(&written.path).unwrap();
         assert!(body.contains("\"Ada, Advisor\""));
         assert!(body.contains("Source ID"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn retry_keeps_the_first_export_and_writes_a_new_copy() {
+        let root = temp_workspace("retry");
+        let record = json!({ "id": "person:1", "label": "Ada", "sourceType": "contact", "sourceId": "1", "sourcePayload": { "type": "person" } });
+        let first = write_rollback_csv(&root, "batch-1", &[record.clone()]).unwrap();
+        let second = write_rollback_csv(&root, "batch-1", &[record]).unwrap();
+        assert!(first.path.exists());
+        assert!(second.path.exists());
+        assert_ne!(first.path, second.path);
+        assert_eq!(fs::read(&first.path).unwrap(), fs::read(&second.path).unwrap());
         fs::remove_dir_all(root).unwrap();
     }
 

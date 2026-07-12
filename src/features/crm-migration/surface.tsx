@@ -18,7 +18,7 @@ const panel = {
 } as const;
 
 type MatrixRow = { sourceType: string; fetched: number; imported: number; skipped: number; rejected: number; plainReason?: string | null };
-type MigrationReport = LiveCrmRecord & { kind: 'migration_report'; matrix?: MatrixRow[]; attachments?: { viaApi?: string; affected?: number; exported?: number; gaps?: number; unaccounted?: number }; message?: string };
+type MigrationReport = LiveCrmRecord & { kind: 'migration_report'; sourceProvider?: string; externalIdField?: string; matrix?: MatrixRow[]; attachments?: { viaApi?: string; affected?: number; exported?: number; gaps?: number; unaccounted?: number }; message?: string };
 type Checklist = LiveCrmRecord & { kind: 'migration_workflow_checklist'; clientLabel?: string; sourceTemplateLabel?: string; availableSteps?: string[]; decision?: string };
 type AttachmentRecord = LiveCrmRecord & { kind: 'migration_attachment_accounting'; clientLabel?: string; status?: string; gapReason?: string; gapOwnerUserId?: string };
 type ExportRecord = LiveCrmRecord & { kind: 'migration_export'; exportKind?: string; status?: string; filePath?: string; byteLength?: number };
@@ -40,7 +40,7 @@ function MigrationSurface() {
   const [latestExport, setLatestExport] = useState<ExportRecord | null>(null);
 
   const reports = asRecords<MigrationReport>(live.records, 'migration_report');
-  const report = reports.at(-1);
+  const report = reports.find((item) => item.sourceProvider === source.toLowerCase()) ?? reports.at(-1);
   const checklists = asRecords<Checklist>(live.records, 'migration_workflow_checklist');
   const attachments = asRecords<AttachmentRecord>(live.records, 'migration_attachment_accounting');
   const exports = asRecords<ExportRecord>(live.records, 'migration_export');
@@ -51,7 +51,7 @@ function MigrationSurface() {
   const importSource = async (nextSource: string) => {
     setBusy(true); setStatus(null);
     try {
-      const result = await invoke<{ imported: number; unchanged: number }>('crm_migration_import', { baseUrl: baseUrl.trim() });
+      const result = await invoke<{ imported: number; unchanged: number }>('crm_migration_import', { baseUrl: baseUrl.trim(), source: nextSource.toLowerCase(), sourceIdField: sourceIdMap.trim() });
       await live.reload();
       // The importer writes through Rust, outside this surface hook's normal
       // save path. Tell the always-mounted Home shell to reload too, so the
@@ -122,7 +122,7 @@ function MigrationSurface() {
         <Button data-testid="crm-salesforce-import" variant="secondary" disabled={busy} onClick={() => void importSource('Salesforce')}>Import Salesforce sample</Button>
         <Button data-testid="crm-migration-fidelity" variant="secondary" onClick={() => setView('fidelity')}>Review fidelity</Button>
       </div>
-      <small>Stable outside ID: {sourceIdMap || 'external_id'} · current sample: {source}</small>
+      <small>Stable outside ID: {report?.externalIdField ?? (sourceIdMap || 'external_id')} · current sample: {source}</small>
     </section>
 
     {view === 'fidelity' && <section style={panel} data-testid="crm-migration-fidelity-report">
