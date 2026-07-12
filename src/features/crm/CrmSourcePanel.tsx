@@ -4,15 +4,14 @@
  *
  * When the user clicks a `crm:` citation in a Client Map, `dispatchOpenSource`
  * fires a `lantern:open-crm` window CustomEvent with `{ sourceId, snippet? }`.
- * This component listens for that event and shows a lightweight read-only panel
- * with the Wealthbox record id and the cited snippet.
- *
- * TODO(crm-viewer): replace the static display with a live fetch from
- * `crm_get_record(sourceId)` so the panel shows the full stored record text.
+ * This component listens for that event and opens the exact decrypted local
+ * record when this seat has access to it.
  */
 import { useEffect, useState } from 'react';
 import { X, Database } from 'lucide-react';
 import { EV_OPEN_CRM } from '@/config/identity';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+import { loadLiveCrmRecords, type LiveCrmRecord } from '@/platform/crm/liveRecords';
 
 interface CrmSourceState {
   sourceId: string;
@@ -21,17 +20,36 @@ interface CrmSourceState {
 
 export function CrmSourcePanel() {
   const [source, setSource] = useState<CrmSourceState | null>(null);
+  const [record, setRecord] = useState<LiveCrmRecord | null>(null);
+  const workspaceRoot = useWorkspaceStore((state) => state.rootPath);
 
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<{ sourceId?: string; snippet?: string } | null>).detail;
       const sourceId = detail?.sourceId;
       if (!sourceId) return;
+      setRecord(null);
       setSource({ sourceId, snippet: detail.snippet });
     };
     window.addEventListener(EV_OPEN_CRM, handler);
     return () => { window.removeEventListener(EV_OPEN_CRM, handler); };
   }, []);
+
+  useEffect(() => {
+    if (!source || !workspaceRoot) return;
+    const parts = source.sourceId.split(':');
+    const entityId = parts.length >= 3 ? parts.slice(2).join(':') : null;
+    if (!entityId) return;
+    let cancelled = false;
+    void loadLiveCrmRecords(workspaceRoot)
+      .then((records) => {
+        if (!cancelled) setRecord(records.find((item) => item.id === entityId) ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setRecord(null);
+      });
+    return () => { cancelled = true; };
+  }, [source, workspaceRoot]);
 
   if (!source) return null;
 
@@ -54,7 +72,7 @@ export function CrmSourcePanel() {
       <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
         <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
           <Database className="h-4 w-4 text-slate-500" aria-hidden="true" />
-          Wealthbox record
+          CRM record
         </div>
         <button
           type="button"
@@ -80,11 +98,15 @@ export function CrmSourcePanel() {
           </blockquote>
         )}
 
-        {/* TODO(crm-viewer): add a "View full record" action that fetches and displays
-            the complete stored Wealthbox record text via a future crm_get_record command. */}
-        <p className="text-xs text-slate-400">
-          Full record detail coming in a future update.
-        </p>
+        {record ? (
+          <pre data-testid="crm-citation-record" className="max-h-72 overflow-auto rounded-md bg-slate-50 p-3 text-xs text-slate-700">
+            {JSON.stringify(record, null, 2)}
+          </pre>
+        ) : (
+          <p className="text-xs text-slate-400">
+            This record is not available to this seat.
+          </p>
+        )}
       </div>
     </div>
   );

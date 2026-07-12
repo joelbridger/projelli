@@ -12,8 +12,13 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
-    // A full Windows run can also launch the intake-page fallback build; leave it process headroom.
-    maxWorkers: process.platform === 'win32' ? 2 : undefined,
+    // BOX DISCIPLINE (Jameson, 2026-07-12): many crews share one 20-core box.
+    // Unbounded vitest workers stacked ~40 processes and doubled load — suites
+    // then run SLOWER, not faster. A hard cap here binds every crew mechanically,
+    // because a rule that lives only in a brief is not a mechanism.
+    pool: 'forks',
+    maxWorkers: Number(process.env.VITEST_MAX_FORKS ?? (process.platform === 'win32' ? 2 : 4)),
+    maxConcurrency: 4,
     setupFiles: ['./tests/setup.ts'],
     // `vitest --changed` follows static imports. These files shape tests at
     // runtime or globally, so any change must re-run the whole suite.

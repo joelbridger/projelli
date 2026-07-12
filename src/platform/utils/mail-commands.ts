@@ -345,12 +345,12 @@ export interface MailListPage {
   total: number;
 }
 
-/** True when the dev fixture flag (?mailFixture=1) is set in a browser (non-Tauri) DEV build.
- *  Lets the email surface render populated in the dev server for review/QA. */
+/** True when the dev fixture flag (?mailFixture=1) is present in a DEV build.
+ *  Lets the email surfaces render populated without a real mailbox, including
+ *  in the desktop parity drive. Production builds never take this path. */
 function mailFixtureEnabled(): boolean {
   return (
     import.meta.env.DEV &&
-    !isTauri() &&
     typeof window !== 'undefined' &&
     new URLSearchParams(window.location.search).get('mailFixture') === '1'
   );
@@ -639,6 +639,7 @@ export async function mailRetagMessageMatter(
   messageId: string,
   matterId: string,
 ): Promise<MailRetagResult> {
+  if (mailFixtureEnabled()) return { filedCount: 1, searchRepairPending: false };
   if (!isTauri()) return { filedCount: 1, searchRepairPending: false };
   return withLiveMailRetagHold([messageId], (expectedWorkspace) =>
     invoke<MailRetagResult>('mail_retag_message_matter', {
@@ -655,6 +656,7 @@ export async function mailRetagMessagesMatter(
   messageIds: string[],
   matterId: string,
 ): Promise<MailRetagResult> {
+  if (mailFixtureEnabled()) return { filedCount: messageIds.length, searchRepairPending: false };
   if (!isTauri()) return { filedCount: messageIds.length, searchRepairPending: false };
   return withLiveMailRetagHold(messageIds, (expectedWorkspace) =>
     invoke<MailRetagResult>('mail_retag_messages_matter', {

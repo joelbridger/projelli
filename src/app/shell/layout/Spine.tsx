@@ -1,6 +1,6 @@
 /**
  * Spine — the matter-centric navy "Spine" nav, brand-matched to lantern.com.
- * The 3-tab IA: Client Map · Ask · Workflows. Documents, Email, Activity Log,
+ * The CRM 3-tab IA: Home · Clients · Ask. Documents, Email, Activity Log,
  * Privacy Center, and Settings are reached via the gear menu, the Ask source
  * filter, and Client Map quick actions — they stay routable content surfaces,
  * just not rail tabs. The binder spine of the case file.
@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Sparkles,
-  ListChecks,
+  Home,
   Map as MapIcon,
   Plus,
   ChevronDown,
@@ -48,6 +48,7 @@ import {
 } from '@/config/identity';
 
 type SpineTab =
+  | 'home'
   | 'matters'
   | 'files'
   | 'search'
@@ -146,18 +147,18 @@ export function Spine({
     }
   }, [clientSearchExpanded, clientsOpen]);
 
-  // The 3-tab IA. The internal ids are KEPT (matters/search/workflows) so the
-  // surface router + testids are unchanged; only the labels and placement move.
+  // D11: the only primary destinations are Home, Clients, and Ask.
   // Documents/Email/Activity Log/Privacy Center/Settings are reached via the
   // gear menu, Ask source filter, and Client Map quick actions — they stay
   // routable content ids (see `content` below), just not rail tabs.
   const nav: { id: SpineTab; label: string; Icon: LucideIcon }[] = [
-    { id: 'matters', label: t('spine.nav.client-map'), Icon: MapIcon },
+    { id: 'home', label: 'Home', Icon: Home },
+    { id: 'matters', label: 'Clients', Icon: MapIcon },
     { id: 'search', label: t('spine.nav.ask'), Icon: Sparkles },
-    { id: 'workflows', label: t('spine.nav.workflows'), Icon: ListChecks },
   ];
 
   const content: Record<SpineTab, React.ReactNode> = {
+    home: undefined,
     matters: mattersContent,
     files: fileTreeContent,
     search: searchContent,

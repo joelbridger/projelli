@@ -55,6 +55,13 @@ import { setIntakeFactsWorkspace } from '@/platform/intake/factsStore';
 // still be allowed to open.
 const WORKSPACE_OPEN_TIMEOUT_MS = 30_000;
 const WORKSPACE_OPEN_LABEL = 'Opening the workspace';
+// The encrypted Activity Log is important, but it is not required to mount a
+// workspace. On Linux/headless systems an unavailable desktop keychain can
+// leave the native keyring call blocked indefinitely. Keep the app usable and
+// leave the log unavailable for this session rather than trapping the user on
+// the workspace-opening screen.
+const AUDIT_HYDRATE_TIMEOUT_MS = 5_000;
+const AUDIT_HYDRATE_LABEL = 'Opening the encrypted Activity Log';
 
 function parseAuditEntryRecord(rec: AuditEntryRecord): AuditEntry {
   // payloadJson is a full AuditEntry (the same shape the encrypted store
@@ -290,16 +297,32 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
         let auditWorkspaceReady = false;
         try {
           auditWorkspaceReady =
-            await auditServiceRef.current.hydrate(newRootPath);
+            await withTimeout(
+              auditServiceRef.current.hydrate(newRootPath),
+              AUDIT_HYDRATE_TIMEOUT_MS,
+              AUDIT_HYDRATE_LABEL
+            );
           if (auditWorkspaceReady) {
             const loaded = auditServiceRef.current.getAll().slice().reverse(); // store is oldest-first; UI shows newest-first
             setAuditEntries(loaded);
-            setAuditIntegrity(await auditServiceRef.current.verifyIntegrity());
+            // This opens the same encrypted database a second time, so it
+            // needs the same bound. An unavailable keychain must not turn a
+            // successful workspace open back into an endless spinner.
+            setAuditIntegrity(
+              await withTimeout(
+                auditServiceRef.current.verifyIntegrity(),
+                AUDIT_HYDRATE_TIMEOUT_MS,
+                AUDIT_HYDRATE_LABEL
+              )
+            );
           } else {
             setAuditIntegrity(undefined);
           }
         } catch (err) {
-          console.warn('[App] Audit store hydrate failed:', err);
+          console.warn(
+            '[App] Encrypted Activity Log unavailable; opening workspace without its history for this session:',
+            err
+          );
           setAuditIntegrity(undefined);
         }
         // Wave 4 Track D — enforce this workspace's retention policy at most once

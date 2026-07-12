@@ -380,6 +380,30 @@ export class FirmApiClient {
     );
   }
 
+  // --- sealed CRM notifications --------------------------------------------
+  notifySend(payload: {
+    orgId: string; recipientUserId: string; envelopeId: string; ciphertextB64: string;
+    transientScope: { matter_id: string }; keyHint: string; idempotencyKey: string;
+    retentionUntilTerminal: boolean; expiresAt: string | null; seatToken: string;
+  }): Promise<{ ok: true }> {
+    return this.request<{ ok: true }>(FIRM_ENDPOINTS.notifySend, {
+      method: 'POST', auth: true, headers: { 'X-Seat-Token': payload.seatToken }, body: {
+        org_id: payload.orgId, recipient_user_id: payload.recipientUserId, envelope_id: payload.envelopeId,
+        ciphertext_b64: payload.ciphertextB64, transient_scope: payload.transientScope,
+        key_hint: payload.keyHint, idempotency_key: payload.idempotencyKey,
+        retention_until_terminal: payload.retentionUntilTerminal, expires_at: payload.expiresAt,
+      },
+    });
+  }
+
+  notifyInbox(orgId: string, since: number, seatToken: string): Promise<{ envelopes: Array<{ seq: number; envelope_id: string; created_at: string; expires_at: string | null; key_hint: string; ciphertext_b64: string }> }> {
+    return this.request(FIRM_ENDPOINTS.notifyInbox, { method: 'GET', auth: true, headers: { 'X-Seat-Token': seatToken }, query: { org_id: orgId, since: String(since) } });
+  }
+
+  notifyAck(orgId: string, deviceId: string, upToCursor: number, seatToken: string): Promise<{ ok: true }> {
+    return this.request(FIRM_ENDPOINTS.notifyAck, { method: 'POST', auth: true, headers: { 'X-Seat-Token': seatToken }, body: { org_id: orgId, device_id: deviceId, up_to_cursor: upToCursor } });
+  }
+
   // --- E2EE relay ------------------------------------------------------------
   /**
    * Push one encrypted CRDT update blob.

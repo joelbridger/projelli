@@ -65,6 +65,7 @@ const fakeWorkspaceService = {
   getRootPath: () => '/ws',
   writeFile: vi.fn(async () => {}),
   exists: vi.fn(async () => false),
+  getFileTree: vi.fn(async () => []),
 };
 vi.mock('@/platform/fs/WorkspaceService', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/platform/fs/WorkspaceService')>();

@@ -9,9 +9,8 @@
  *   - the SourcePanel source card (the whole card is the click target now; the
  *     old separate "Open email"/"Open in editor" buttons were folded into the
  *     card to match the demo Sources column)
- * and that a document citation keeps its (separate) editor escalation via
- * keepance:matter-launch, while un-scopeable (no matterId) and CRM citations are
- * not openable at all (the card is not a button, so a click dispatches nothing).
+ * and that a document citation keeps its separate editor escalation while a
+ * CRM citation opens the matching CRM record, never the document viewer.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
@@ -120,7 +119,7 @@ describe('SourcePanel — email reading view', () => {
     );
   });
 
-  it('a CRM citation is not openable as a document (crm: has its own route)', () => {
+  it('a CRM citation opens its CRM record and never the document route', () => {
     const crmCite: AnswerCitation = {
       n: 1,
       label: 'Household',
@@ -131,16 +130,20 @@ describe('SourcePanel — email reading view', () => {
       matterId: 'matter_demo_brennan',
     };
     const onLaunch = vi.fn();
+    const onOpenCrm = vi.fn();
     window.addEventListener('lantern:matter-launch', onLaunch as EventListener);
+    window.addEventListener('lantern:open-crm', onOpenCrm as EventListener);
     renderPanel(crmCite);
     const card = screen.getByTestId('source-card');
-    expect(card).not.toHaveAttribute('role', 'button');
+    expect(card).toHaveAttribute('role', 'button');
     fireEvent.click(card);
     expect(onLaunch).not.toHaveBeenCalled();
+    expect(onOpenCrm).toHaveBeenCalledTimes(1);
     window.removeEventListener(
       'lantern:matter-launch',
       onLaunch as EventListener
     );
+    window.removeEventListener('lantern:open-crm', onOpenCrm as EventListener);
   });
 });
 

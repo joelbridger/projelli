@@ -53,7 +53,9 @@ lantern-docx = { path = "crates/lantern-docx" }
 lantern-vault = { path = "crates/lantern-vault" }
 zeroize = "1"
 cpal = "0.15"
-keepawake = "0.5"
+# 0.6 uses the maintained objc2 bindings on macOS. The older 0.5 line pulls
+# apple-sys, whose generated bindings fail with current Xcode/macOS SDKs.
+keepawake = "0.6"
 # Wave 3a (meeting capture) and Wave 4 Track A (diarization) both read/write
 # WAV — 3.5 satisfies both (a superset of the plain "3" Wave 3a needs).
 hound = "3.5"

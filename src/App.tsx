@@ -36,6 +36,7 @@ import { useFileImport } from '@/app/fileOps/useFileImport';
 import { getSettingsActions } from '@/app/hooks/getSettingsActions';
 import { useTabOpening } from '@/app/lifecycle/useTabOpening';
 import { WorkspaceSelector } from '@/features/documents/workspace/WorkspaceSelector';
+import { registerFirmWorkspaceSwitcher } from '@/features/crm-firm/workspaceSwitching';
 
 import { AppShellNav } from '@/app/shell/layout/AppShellNav';
 import { SettingsGearButton } from '@/app/shell/layout/SettingsGearButton';
@@ -186,9 +187,16 @@ const loadConnectorSourcePanels = () =>
 
 // Module-level constants so the onboarding/tour effects have stable deps
 // and never need to be listed in exhaustive-deps disable comments.
-const IS_TEST_MODE =
+// `?testMode=true` predates the desktop harness and deliberately installs an
+// in-memory workspace for browser component/E2E tests. `LANTERN_TEST_MODE=1`
+// is different: it only removes first-run decoration so desktop runs still
+// use their selected folder and the real encrypted store.
+const IS_LEGACY_TEST_MODE =
   typeof window !== 'undefined' &&
   window.location.search.includes('testMode=true');
+const IS_AUTOMATION_TEST_MODE =
+  typeof window !== 'undefined' && window.__LANTERN_TEST_MODE__ === true;
+const IS_TEST_MODE = IS_LEGACY_TEST_MODE || IS_AUTOMATION_TEST_MODE;
 // `__LANTERN_DEMO__` is substituted to `true` at build time by
 // vite.config.web-demo.ts. We must read it here (not just the runtime
 // `window.__lanternDemo` flag) because this const is evaluated at module
@@ -202,6 +210,11 @@ const IS_DEMO_MODE =
 
 // Set by a DEBUG native host only. The reader rejects it in production builds.
 const EXPLICIT_LAUNCH_WORKSPACE = getExplicitLaunchWorkspace();
+// The onboarding picker is another entrance to the same workspace-opening
+// flow as the regular selector. Keep its non-interactive work bounded too, so
+// its button can show a useful error instead of staying at "Opening…" forever.
+const ONBOARDING_WORKSPACE_OPEN_TIMEOUT_MS = 30_000;
+const ONBOARDING_WORKSPACE_OPEN_LABEL = 'Opening the workspace';
 
 /**
  * QA-15: the browser build has no per-workspace localStorage namespacing —
@@ -427,9 +440,9 @@ function AppShell() {
     null
   );
 
-  // Sidebar state. The shell lands on the Client Map (matter-centric home).
+  // D11: Home is the landing surface; Clients and Ask are the other two tabs.
   const [sidebarActiveTab, setSidebarActiveTab] =
-    useState<AppSurface>('matters');
+    useState<AppSurface>('home');
   const [settingsPageFocus, setSettingsPageFocus] = useState<{
     category?: SettingCategory;
     key: number;
@@ -904,7 +917,7 @@ function AppShell() {
   }, [rootPath, setFileTree]);
 
   useTestModeWorkspace({
-    isTestMode: IS_TEST_MODE,
+    isTestMode: IS_LEGACY_TEST_MODE,
     rootPath,
     setRootPath,
     openFile,
@@ -1195,6 +1208,8 @@ function AppShell() {
     confirm,
   });
 
+  useEffect(() => registerFirmWorkspaceSwitcher(handleWorkspaceSelected), [handleWorkspaceSelected]);
+
   // Boot: silently reopen the last workspace when "Reopen last workspace" is
   // on, instead of always showing the picker (only Tauri can do this without
   // a fresh user gesture — browser directory handles need a picker click).
@@ -1242,6 +1257,7 @@ function AppShell() {
     recentWorkspacesLoaded,
     startupBehavior,
     recentWorkspaces,
+    activeWorkspacePath: rootPath,
     isWorkspaceVaultLocked,
     openWorkspace: handleOpenRecentProject,
   });
@@ -1304,7 +1320,6 @@ function AppShell() {
               );
             }
             if (!selected) return { ok: false, cancelled: true };
-            backend = await createFSBackend(selected);
             chosen = selected;
           } else {
             const webBackend = createWebFSBackend();
@@ -1312,10 +1327,31 @@ function AppShell() {
             backend = webBackend;
             chosen = '/' + handle.name;
           }
-          const svc = createWorkspaceService();
-          await svc.initialize(backend, chosen, {
-            createDefaultStructure: true,
-          });
+          // Keep this path in lockstep with WorkspaceSelector's new-workspace
+          // flow. The old onboarding-only version opened strictly, skipped the
+          // readability check, and had no timeout around native setup. An
+          // empty chosen folder could therefore leave this scene's busy state
+          // waiting on a never-settling native call instead of surfacing an
+          // honest retryable error.
+          const svc = await withTimeout(
+            (async () => {
+              const selectedBackend = isTauriEnvironment()
+                ? await createFSBackend(chosen, { createIfMissing: true })
+                : backend;
+              if (!selectedBackend) {
+                throw new Error('Could not prepare the selected workspace folder.');
+              }
+              const candidate = createWorkspaceService();
+              await candidate.initialize(selectedBackend, chosen, {
+                createIfMissing: true,
+                createDefaultStructure: true,
+              });
+              await candidate.getFileTree();
+              return candidate;
+            })(),
+            ONBOARDING_WORKSPACE_OPEN_TIMEOUT_MS,
+            ONBOARDING_WORKSPACE_OPEN_LABEL,
+          );
           // Wire the workspace into the app (sets rootPath, audit, file tree...).
           // The handler can abort (unsaved-changes guard on an already-open
           // workspace); treat that as the user cancelling this onboarding step.

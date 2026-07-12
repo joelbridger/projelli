@@ -149,6 +149,8 @@ export const EV_OPEN_AUDIT_LOG                   = `${APP_NS}:open-audit-log`;
 export const EV_MATTER_LAUNCH                    = `${APP_NS}:matter-launch`;
 export const EV_OPEN_EMAIL                       = `${APP_NS}:open-email`;
 export const EV_OPEN_CRM                         = `${APP_NS}:open-crm`;
+/** Open an existing workspace file from a CRM document link. */
+export const EV_OPEN_CRM_DOCUMENT                = `${APP_NS}:open-crm-document`;
 export const EV_OPEN_ONEDRIVE                    = `${APP_NS}:open-onedrive`;
 export const EV_OPEN_ESIGN                       = `${APP_NS}:open-esign`;
 export const EV_OPEN_MEETING                     = `${APP_NS}:open-meeting`;

@@ -64,6 +64,7 @@ step "Rust tests"      bash -c "cd src-tauri && CI=1 cargo test --workspace --lo
 if [ "$FULL" -eq 1 ]; then
   step "L1 browser E2E (sharded)" bash ./scripts/run-e2e-suite.sh en 6
   step "L2 desktop harness"       npm run test:desktop
+  step "Golden CRM app loop"      npm run test:goldenloop
 fi
 
 echo ""

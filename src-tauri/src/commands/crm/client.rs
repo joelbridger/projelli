@@ -26,8 +26,10 @@ use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 use anyhow::Context;
+use async_trait::async_trait;
 
 use crate::commands::crm::model::{CrmContact, CrmEvent, CrmNote, CrmTask, DEFAULT_PER_PAGE};
+use crate::commands::crm::importer::fetchers::{RawHttpResponse, RawWealthboxTransport};
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -137,44 +139,40 @@ impl WealthboxClient {
         path: &str,
         query: &[(&str, String)],
     ) -> anyhow::Result<serde_json::Value> {
-        let url = if path.starts_with("http") {
-            path.to_string()
-        } else {
-            format!("{}{}", self.base, path)
-        };
+        let query = query.iter().map(|(key, value)| ((*key).to_string(), value.clone())).collect::<Vec<_>>();
+        let raw = self.get_raw_response(path, &query).await?;
+        serde_json::from_slice(&raw.response_bytes).context("parse Wealthbox JSON response")
+    }
 
+    /// Returns verbatim response bytes for the importer before JSON parsing.
+    /// The shared rate gate and status-only logging remain the sole transport
+    /// path, so capture cannot create a second request limiter or leak PII.
+    pub async fn get_raw_response(
+        &self,
+        path: &str,
+        query: &[(String, String)],
+    ) -> anyhow::Result<RawHttpResponse> {
+        let url = if path.starts_with("http") { path.to_string() } else { format!("{}{}", self.base, path) };
         for attempt in 0..MAX_429_RETRIES {
             self.rate_gate().await;
-
             let mut req = self.http.get(&url).header("ACCESS_TOKEN", &self.token);
-            for (k, v) in query {
-                req = req.query(&[(*k, v.as_str())]);
-            }
-            let resp = req.send().await.context("Wealthbox HTTP send")?;
-
-            if resp.status().as_u16() == 429 {
-                let ra = resp
-                    .headers()
-                    .get("Retry-After")
-                    .and_then(|v| v.to_str().ok())
-                    .map(String::from);
-                tokio::time::sleep(retry_delay(ra.as_deref(), attempt)).await;
+            for (key, value) in query { req = req.query(&[(key.as_str(), value.as_str())]); }
+            let response = req.send().await.context("Wealthbox HTTP send")?;
+            if response.status().as_u16() == 429 {
+                let retry_after = response.headers().get("Retry-After").and_then(|value| value.to_str().ok()).map(String::from);
+                tokio::time::sleep(retry_delay(retry_after.as_deref(), attempt)).await;
                 continue;
             }
-
-            let status = resp.status();
-            let body = resp.text().await.context("read Wealthbox response body")?;
+            let status = response.status();
+            let response_bytes = response.bytes().await.context("read Wealthbox response body")?.to_vec();
             if !status.is_success() {
-                // Status + endpoint only — body is NEVER logged (may contain advisor/client PII).
+                // Raw bytes are intentionally neither logged nor returned on failure.
                 log::warn!("Wealthbox request failed: HTTP {} at {}", status, path);
                 anyhow::bail!("Wealthbox request failed (HTTP {})", status);
             }
-            return serde_json::from_str(&body).context("parse Wealthbox JSON response");
+            return Ok(RawHttpResponse { request_path: path.to_string(), response_bytes });
         }
-        anyhow::bail!(
-            "Wealthbox: throttled past retry budget ({} attempts)",
-            MAX_429_RETRIES
-        )
+        anyhow::bail!("Wealthbox: throttled past retry budget ({} attempts)", MAX_429_RETRIES)
     }
 
     /// POST `path` with a JSON `body`, returning the parsed JSON response.
@@ -551,6 +549,15 @@ impl WealthboxClient {
         }
         cache.teams_loaded = true;
         Ok(cache.teams.get(&id).cloned())
+    }
+}
+
+/// The importer receives the original response bytes, never a re-serialized
+/// JSON value. Capture persistence happens in its append-only encrypted store.
+#[async_trait]
+impl RawWealthboxTransport for WealthboxClient {
+    async fn get_raw(&self, path: &str, query: &[(String, String)]) -> anyhow::Result<RawHttpResponse> {
+        self.get_raw_response(path, query).await
     }
 }
 

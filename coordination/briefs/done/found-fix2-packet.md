@@ -1,0 +1,11 @@
+# Foundation lane — fix round 2 (re-review residuals; scope ruling included)
+
+**Coordinator scope ruling on the BLOCKER (assured badge/send mismatch):** the underlying inconsistency (email prefers the firm Assured route; Ask + Workflows prefer personal BYOK) is a PRE-EXISTING product behavior bug, out of scope for this UI program — it is filed separately for a dedicated lane. Do NOT rewire Ask/Workflows provider selection. Instead make the badge honest about TODAY'S behavior, per the reviewer's alternative:
+
+1. BLOCKER (conservative resolution): the GLOBAL resolver answer must mirror the Ask/Workflows reality — personal BYOK wins over assured in the global badge; drop the global assured-preference you added in round 1 but KEEP the destination enum + assuredAvailable in the return shape. Email's ACTION-TIME indicators (its send/AI-search trust notes) must reflect email's own resolution (assured-preferred) — surface flag or email's own resolver output. Matrix test: assured configured + personal key present → global badge = cloud/BYOK (matches what Ask sends) AND email's action-time note = assured. Document the ruling in a comment on the resolver.
+2. MAJOR: `local-pending` (and any badge sentinel) must never enter real-provider code paths. Separate the badge status type from provider ids; fix the leaks at MainPanel.tsx:357 and resolveRedlineProvider.ts:49 (they cast the hook result into redline/inline-edit provider resolution). Type-level guarantee preferred (sentinel not assignable to ProviderId).
+3. MAJOR: "Local AI setting up" can go stale — useActiveEgressProvider.ts:82 listens only for key/default changes while local-model readiness signals through useLocalLlmModelStatus.ts:132. Subscribe/refresh the egress hook on the local-model-ready event so the badge flips to "Using local AI" without a reload.
+4. Residual of old finding 3: resolveEmailProvider.ts:39,143 still builds Ollama without the strict reachability probe — align it to the same shared probe Ask/badge use.
+5. MINOR: remove/modernize the leftover `querySelector('[data-testid="egress-indicator"]')` in the mocked cloud-send test branch.
+
+TDD per item. Scoped checks, push lp/ux-found, append "## Fix round 2" to found.done.md, write marker coordination/briefs/done/found.fix2.md. Stop after.

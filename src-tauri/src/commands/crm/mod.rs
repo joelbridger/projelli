@@ -7,12 +7,19 @@
 //! object-level sync engine.
 
 pub mod client;
+pub mod core_model;
+pub mod core_commands;
+pub mod core_schema;
+pub mod core_store;
 pub mod commands;
 pub mod engine;
+pub mod importer;
+pub mod migration_commands;
 pub mod model;
 pub mod provider;
 pub mod redtail;
 pub mod render;
+pub mod search;
 pub mod salesforce;
 pub mod source;
 pub mod store;

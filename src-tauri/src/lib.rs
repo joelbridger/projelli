@@ -17,14 +17,29 @@ pub mod identity;
 // per-request sidecars both satisfy via appropriate no-ops.
 pub mod sidecars;
 // Cross-cutting utilities (process helpers, etc.).
+pub mod util;
+// The Windows bench's local-only automation bridge. This module is absent from
+// release artifacts, so port 9250 can never be opened by a production build.
 #[cfg(debug_assertions)]
 mod dev_bridge;
-pub mod util;
 // Shared WebView2 additional-browser-args string used by EVERY webview window
 // (main + Notice Card companion). Centralized so the windows are byte-identical,
 // which is what prevents the 0x8007139F (ERROR_INVALID_STATE) crash when a
 // second webview is created with mismatched options. See the module docs.
 pub mod webview_env;
+
+/// A debug-only, startup-only bridge from the process environment to the
+/// renderer. The webview executes this before its application JavaScript, so
+/// `App.tsx` can decide whether first-run decoration should render without a
+/// later flash or a synthetic click. Release builds never compile this path.
+#[cfg(debug_assertions)]
+fn test_mode_initialization_script() -> Option<&'static str> {
+    matches!(
+        std::env::var("LANTERN_TEST_MODE").ok().as_deref(),
+        Some("1") | Some("true") | Some("TRUE")
+    )
+    .then_some("window.__LANTERN_TEST_MODE__ = true;")
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -263,6 +278,18 @@ pub fn run() {
             commands::writeback::commands::external_write_approve_proposal,
             commands::writeback::commands::external_write_list_proposals,
             commands::writeback::commands::external_write_delete_proposal,
+            commands::crm::commands::crm_create_note,
+            commands::crm::commands::crm_create_task,
+            commands::crm::commands::crm_update_field,
+            commands::crm::core_commands::crm_core_cursor,
+            commands::crm::core_commands::crm_core_record_applied,
+            commands::crm::core_commands::crm_core_commit_propagation,
+            commands::crm::core_commands::crm_live_upsert,
+            commands::crm::core_commands::crm_live_upsert_many,
+            commands::crm::core_commands::crm_live_list,
+            commands::crm::search::crm_search,
+            commands::crm::migration_commands::crm_migration_import,
+            commands::crm::migration_commands::crm_migration_export,
             // OneDrive / SharePoint document connector (read-only Graph import).
             commands::onedrive::commands::onedrive_set_workspace,
             commands::onedrive::commands::onedrive_connect,
@@ -434,6 +461,15 @@ pub fn run() {
                     ))
                 } else {
                     builder
+                };
+
+                // CRM test drives need a visible test-mode flag as well as the
+                // optional workspace path above. Tauri keeps both startup
+                // scripts, so neither automation contract replaces the other.
+                #[cfg(debug_assertions)]
+                let builder = match test_mode_initialization_script() {
+                    Some(script) => builder.initialization_script(script),
+                    None => builder,
                 };
 
                 // A release build deliberately has no command-line or

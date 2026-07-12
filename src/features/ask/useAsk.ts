@@ -88,6 +88,7 @@ import {
   useStillImporting,
   isImportStatusUnsettled,
 } from './useStillImporting';
+import { retrieveCrmAskHits } from '@/features/crm-ask/retrieval';
 import {
   trimForLocalContext,
   LOCAL_CONTEXT_TOO_LONG_MESSAGE,
@@ -204,6 +205,10 @@ export interface UseAskProps {
   ) => void | Promise<void>;
   /** App-level audit sink. When omitted, Ask still works but does not log. */
   onAuditLog?: AuditLogSink;
+  /** CRM Ask uses this to offer a separately approved fact or task proposal. */
+  onAnswerCompleted?: (turn: AskTurn) => void;
+  /** A CRM answer must be evidence-only, never a general un-cited answer. */
+  forceFilesOnly?: boolean;
 }
 
 export function useAsk({
@@ -212,6 +217,8 @@ export function useAsk({
   onPrefillConsumed,
   onOpenFileAtPath,
   onAuditLog,
+  onAnswerCompleted,
+  forceFilesOnly = false,
 }: UseAskProps) {
   const activeMatter = useActiveMatter();
   const hasActiveMatter = Boolean(activeMatter);
@@ -412,21 +419,23 @@ export function useAsk({
   // Files-only mode lock (Decision 6) — view+behaviour state, persisted. Default
   // OFF (smart). When ON, handleAsk uses the strict files-only prompt, keeps the
   // no-evidence decline, and skips block provenance (flat cited rendering).
-  const [filesOnly, setFilesOnlyState] = useState<boolean>(() => {
+  const [filesOnlyPreference, setFilesOnlyState] = useState<boolean>(() => {
     try {
       return localStorage.getItem(ASK_FILES_ONLY_KEY) === '1';
     } catch {
       return false;
     }
   });
+  const filesOnly = forceFilesOnly || filesOnlyPreference;
   const setFilesOnly = useCallback((next: boolean) => {
+    if (forceFilesOnly) return;
     setFilesOnlyState(next);
     try {
       localStorage.setItem(ASK_FILES_ONLY_KEY, next ? '1' : '0');
     } catch {
       /* ignore storage failures (private mode / quota) */
     }
-  }, []);
+  }, [forceFilesOnly]);
 
   // QA-90 — whether a content import (email/CRM/OneDrive/file indexing) is
   // active right now. Read fresh inside handleAsk's retrieval-evidence gate so
@@ -938,6 +947,19 @@ export function useAsk({
           );
         }
 
+        // CRM rows join Ask through the same RagHit adapter as documents and
+        // email. The backend applies the single-client SQLCipher FTS scope; the
+        // adapter repeats that check fail-closed before anything can reach a
+        // prompt or citation. CRM remains useful even while document indexing is
+        // turned off, because its encrypted search projection is independent.
+        failedStage = 'retrieval';
+        const crmHits = await retrieveCrmAskHits(
+          rootPath,
+          q,
+          retrievalScope.kind === 'matter' ? retrievalScope.matterId : null,
+        );
+        hits = [...hits, ...crmHits];
+
         if (abort.signal.aborted) return;
 
         /* BUG-016: retrieval-evidence gate (FILES-ONLY mode).
@@ -1007,7 +1029,7 @@ export function useAsk({
 
         // Ask-smart (Decision 3): only files-only mode dead-ends on no evidence;
         // smart mode proceeds and leads with an honest nothing-found block.
-        if (filesOnly && memoryEnabled && hits.length === 0) {
+        if (filesOnly && (memoryEnabled || forceFilesOnly) && hits.length === 0) {
           emitDecline(NO_EVIDENCE_DECLINE);
           return;
         }
@@ -1064,7 +1086,7 @@ export function useAsk({
               }
               // Only files-only mode dead-ends when that empties the evidence;
               // smart mode proceeds (leads with an honest nothing-found block).
-              if (filesOnly && memoryEnabled && hits.length === 0) {
+              if (filesOnly && (memoryEnabled || forceFilesOnly) && hits.length === 0) {
                 emitDecline(NO_EVIDENCE_DECLINE);
                 return;
               }
@@ -1731,6 +1753,7 @@ export function useAsk({
         // so we do NOT call setSelectedTurnIdx / setSelected inside the updater — doing so
         // inside the functional updater can leave them out of sync for one frame.
         setTurns((prev) => [...prev, completedTurn]);
+        onAnswerCompleted?.(completedTurn);
         setStreamingTurn(null);
         setStatus('done');
         pendingQuestionRef.current = null;
@@ -1843,6 +1866,8 @@ export function useAsk({
       onAuditLog,
       buildAuditScope,
       confirmExportConsent,
+      onAnswerCompleted,
+      forceFilesOnly,
     ]
   );
 

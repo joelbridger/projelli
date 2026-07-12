@@ -142,6 +142,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `Spine.tsx`. New events: `lantern:open-client-settings`, `lantern:open-new-group`.
     The New Group dialog shows already-selected clients as persistent removable
     chips, so the search filter never hides what's already in the group.
+- **Golden CRM loop is now a required full-gate check.** `npm run test:goldenloop`
+  starts an isolated headless desktop app, drives every registered CRM surface,
+  restarts it on the same temporary workspace, and then checks saved data again.
+  Its manifest fails closed for missing or unregistered surface drivers, and it
+  removes its app, virtual screen, web server, and temporary files on every
+  exit. Files: `scripts/test-goldenloop.mjs`, `scripts/crm-loop/run-all.mjs`,
+  `scripts/crm-loop/golden-loop.manifest.mjs`, `scripts/crm-loop/launch-app.sh`,
+  `scripts/gate.sh`, `package.json`.
 - **UI Iteration System — a foundation so UI can be re-skinned fast and safely,
   round after round, without a full manual re-test each time.** Four machine
   checks (`scripts/ui-system/`, documented in `scripts/ui-system/README.md`):

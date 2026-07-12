@@ -1,0 +1,183 @@
+ testing testing yeah why don't you click through and give me a thought so this
+ is a prototype and I want you just to click through it and think out loud and
+ it's kind of weird to think out loud like we don't do that a lot like as humans
+ and so just whatever you think as you go through I'm interested in hearing can
+ be anything you can ask me questions I may not be able to answer them right now
+ but I'll let you know that as you go and I want you to look at this as if you
+ were like at work basically so not like with your team or anything maybe you
+ had just downloaded this and you're just and you're checking it out basically
+ okay is that cool all right okay cool so it's kind of cool like the animations
+ those stand out to me it's kind of a lot of animation
+ connect your AI and files advise your prep here build client maps ask anything
+ with sources I don't really know what the our server never sees your documents
+ or prompts and it kind of looks like there's no Wi-Fi like it looks like
+ something's broken okay the Wi-Fi um vault I really don't know what that
+ encryption like what that means okay cloud AI providers are sock to certified
+ that is great I don't know what that is but I know that that's good okay how do
+ you want to start service simple practice connect around data a worked
+ household you can explore what does worked household what do you think it
+ means talk a little loud for the um sorry a worked household you can explore is
+ it like an example a filled-sided client map nothing leaves your computer
+ let's see I didn't read the other one connect my own data pick where your
+ practice lives import you email files and wealth box next your data stays on
+ your machine okay so here's the recommended yeah well oh so it says
+ recommended yeah what would you do here land in a populated practice the
+ Hendrix household with real documents and are ready client maps you can ask
+ a cited question in your first minute so I guess I'm thinking maybe this is an
+ example use sample choose a folder for your sample practice you can go ahead
+ and select select folder here ideally this wouldn't give you a pop-up like
+ this but that it would just go straight into a sample practice so you can just
+ say what did you say so imagine that that didn't pop up
+ okay use chat do it you clotted Gemini
+ providers don't train on your data and remember to think out loud like if you
+ having any thoughts as you go okay questions I guess at this point I would
+ maybe be nervous if I was signing up for this as an individual like sort of just
+ like is this allowed at my firm okay do you have any thoughts about like how
+ you would who you talked to about it or or no you just kind of have a concern
+ yeah I would talk to like our chief compliance officer our compliance team
+ and just probably ask if this is okay they're building out an AI code of
+ conduct for what we can do with chat GPT and stuff so I don't know that would
+ just be it and how does that process usually go for like a new piece of
+ software for like a compliance check on the new pieces up where usually they
+ would check that like we like I probably wouldn't adopt any personal software
+ like I have never done that I suppose it's always been firm wide and someone's
+ always kind of looked into it okay and if there's been like a concern about
+ compliance then our compliance team looks into it okay and determines if it's
+ appropriate or not for us to use so they kind of you send it to them and they
+ would basically look into it themselves mm-hmm they might have to set up a
+ meeting with the people we also have like someone that we pay software yeah
+ the software team we also have a compliance guy that we pay named Eric who
+ who like really knows compliance rules inside and out so then oftentimes things
+ even get run up the chain to Eric who does he work for he works for some
+ compliance firm so they do compliance for like many RAs like ours
+ actually advising yes I can look up their name
+ okay yeah it's okay yeah okay pick your provider then get your key so would you
+ do you would you do this before getting it checked out for compliance or would
+ you stop here and quit yeah I would quit okay okay um and when you when you would
+ tell go to your team what would you tell them basically like if you like what
+ would I say like oh we should adopt this because it does like or yeah that's
+ okay because we haven't like looked at the features yet like up to this point I
+ guess what do you what do you think this does and I know that's kind of loaded
+ because you already know a little bit about this but it seems to me like there
+ hasn't been a lot to sell you on it or like what what are you thinking around
+ that like yeah a private AI that knows your
+ clients well like just the the name like advisor prep hero I don't know I know
+ it's here to help me I guess I'm a little confused like what exactly it's
+ gonna do for me okay just based on what I've seen so far and right now you're
+ looking at the very intro screen right yeah yeah I went back to the intro
+ screen cuz like what is a client map I don't know where I'm supposed to be
+ joining the process like if I was already down the sales funnel like I
+ already learned about this and this is me just signing up you know or if I
+ don't know anything if I don't know anything about it then I don't at this
+ point I don't really know much about what it does okay honestly okay I think
+ something that's confusing is like pick your provider I'm now on screen that's
+ labeled one connect your AI so like it gives me the option to use chat GPT
+ cloud or Gemini but like open AI like I don't think of that as chat GPT like I
+ want to say like chat GPT okay cloud and Gemini okay create a fee let's see I'm
+ clicking on the API key I assume I'm logging in as you
+ I can give you the code okay
+ two nine six one four four okay so then we go to create a key I believe it
+ says where's the onboarding screen right here created for key paste it below okay
+ so pretend you made a key in it it popped up as this bottom row actually
+ let's say let's say it popped up as this top row is this the key
+ API key oh is it this oh so you know it so yeah so we won't do another one
+ because that would kind of mess up my account here so what happens when you
+ create a key is it pops up with a one-time code and it's this code but it won't
+ show you it ever again okay so the idea is I have a key here you can use and so
+ I'll give you that key as if you just made it basically
+ it is 901 did you want to quit right now would you be willing to do like 10
+ minutes sure is that okay thank you yeah Claude API key so I'll bring this in
+ yeah we'll go to like 910 okay
+ what would you do next I click on continue
+ wait I think this is kind of interesting I'm looking at the screen connect your
+ AI and I'm looking at the used local AI something appealing about it is that
+ it has a check mark by completely secure in parentheses nothing leaves so that
+ does make me wonder like what I'm signing up for on the other end the other side
+ what do you mean by that what you're signing up for on the other side like
+ if I've used the used chat to be clotted Gemini to sign up but like does that
+ mean it's not completely secure or does that mean that something leaves I see
+ what what what what would you think or or are you not sure I am not sure but I
+ would guess like if it's highlighted like that that like this right side was
+ completely secure and nothing leaves like that does feel kind of appealing even
+ though I know I just set up the API key okay what would you do now I might look
+ at the local AI one I might look at this tell me more local AI's run entirely on
+ your own computer it's free and fully private so nothing ever leaves your
+ machine it's one time download of about 2.5 gigabytes it's great to answer in
+ questions across lots of your files though not as strong on complex reasoning
+ you can switch to cloud AI anytime I mean that does sound appealing just
+ because of how private it is so I'm clicking on that and then I get screen
+ to securely connect your data where it looks like I can connect Microsoft Gmail
+ OneDrive and Whelpbox so I'll just stop here real quick thank you so much for
+ your feedback so far so we won't click around everything on this page but I'd
+ love to get your just like high-level impressions of what you're seeing here
+ just kind of overall and if there's anything that stands out I'm just
+ understanding this to be like this is helping to integrate email OneDrive CRM
+ again if I was on my own I would be like wondering if this was okay to link
+ up yeah from a compliance perspective and some periodically like it will be
+ reviewed like what APIs we have connected so okay I am I would assume
+ currently I would assume it would show up in one of those reviews like maybe
+ annually or something manually so I don't know if I would like that would be a
+ concern like if I connected us in some way that I wasn't supposed to yeah
+ okay already use right capital or jump that's cool advisor prep hero also reads
+ the plan reports and meeting notes you export or save from tools like right
+ capital and jump once they land in files email or folders you just connected it
+ files each one to the right client shows when it was exported and cites it in
+ answers is not an official integration with these tools and their names along
+ to their owners so you're reading the information icon about right capital or
+ jump what do you think about what you just read I think it's cool that
+ integrates with right capital and jump because we use both of those when it
+ says advisor prep hero also reads the plan reports I'm wondering what that is
+ I don't recognize that term I'm thinking maybe that's like a plan that was
+ exported from right capital but we really don't do that and meeting notes you
+ export or save from tools like right capital and jump so one of my questions
+ was where did they have to be saved but then it seems to answer that either in
+ files emails or folders you just connected so ours are in our CRM is where
+ ours get saved but so because our CRM is already linked I'm assuming that things
+ could be found and you said because our CRM's already linked why did you say
+ that because well I would assume we would link it up because it shows that we
+ can link up what the box earlier on the screen I see earlier in the screen yeah
+ but like I would maybe ask like if I had like an onboarding specialist helping me
+ get signed up I might ask that question would you expect an onboarding specialist
+ yes from advisor prep hero yes okay and what why do you say that have you had
+ other onboarding people help you what's it do you have an example that you could
+ share like like jump just most of the time like that you'll talk to sales for
+ software and they'll get a yes and then they'll send you to like someone who
+ will help you get started and then that person tends to like help you give
+ support help make sure like you're set up they'll maybe like do a demo or
+ training or something like that for a while like a live call usually yeah with
+ the whole team or parts of the team generally for us it's parts of the team
+ but it could be the whole team and it's like do you record it to show everyone
+ or sometimes only some people are using it sometimes only some people are using
+ it okay well no sometimes yeah it's just like basically the key players get
+ trained from the software company themselves and whoever's interested and
+ then typically like it kind of trickles down to the other team members later
+ okay and I need to know basis cool cool so just for time I'll have you hit
+ continue okay coming soon this is cool that it's going to integrate with
+ Holistic plan why do you say that because we use Holistic plan okay and we also
+ use DocuSign so I'm curious like how it will integrate stuff all right so this
+ is just a progress screen that shows you like everything connecting let's say
+ you did connect files and like CRM and so this would just show the progress of
+ that go ahead and click continue to the app okay and in the in just the last
+ minutes I want you to go through this this 11 this 11 step kind of like
+ onboarding and just think out loud as you go and this isn't a test or anything
+ you really can just say whatever you're thinking as you go through okay quick
+ look at the new layout advisory prep here is built around your clients not
+ loose files this tour covers the main areas worth knowing skip any time with
+ escape step back with the left arrow key you can restart okay one question if
+ you're doing this on your own would you go through this or skip I would for sure
+ do it you for sure do it yeah do you think people on your team would as well
+ yes okay I mean that just seems they think like me but yeah yeah your client
+ map because my fear is that I wouldn't be able to find this again the tour oh if
+ I wanted it later like it feels like it's now or never because it's very hard
+ to find these again after your first if you skip the tour you can't put them
+ again is there any other reason you're doing the tour like it's it sounds like
+ you're about to read every word of your planning on reading all the words is
+ that right yeah cool mm-hmm okay is there any reason for that like what why
+ would I read all the words yeah do you want me to not read the words no I'm
+ just curious I don't know I don't know what this is gonna do so I feel like my
+ job right now is figuring out like all the ways this can help me and so I
+ better read every word because it might give me a little clues about things that
+ I hadn't considered that it could do for me okay up to this point and then are you
+ also concerned about like are you are you concerned about anything is that is
+ are you like reading through it because of like any concerns you have about the
+ oh no I really have

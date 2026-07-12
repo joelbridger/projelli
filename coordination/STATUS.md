@@ -1,5 +1,56 @@
 # Lantern-Plus Coordination STATUS
 
+## UPDATE 2026-07-09 ~05:20 — RESEARCH-DRIVEN PRODUCT PUSH (coordinator-12)
+
+- ⭐ USER RESEARCH (wife onboarding, 2026-07-08): 3 clips transcribed LOCALLY, analyzed. Two-pillar buying model (compliance gate FIRST); our local-first architecture = the answer to her #1 pain. GTM playbook: XYPN approved-list (Jump path), herd-adoption logos, Microsoft-adjacency, court Synergy Compliance, CCO pack. Private in docs/user-research/ (audio gitignored). Published + memory (project_advisor_user_research).
+- SEC/RIA COMPLIANCE RESEARCH: the 10-item checklist of what Synergy/CCO needs mapped to SEC rules (Reg S-P 2024 amendments = concrete bar; no explicit AI-software rule). Local-first = structural advantage. coordination/reports/sec-ria-compliance-research.md, published.
+- COMPLIANCE & SECURITY PACK: drafting (docs/partnerships/compliance-pack/) — the CCO deliverable + onboarding CTA target.
+- ONBOARDING REFRAME (feat/onboarding-reframe): hero "The AI you're actually allowed to use with client data" + new ComplianceScene "Why you can use this when you can't use ChatGPT" + "For your compliance officer" CTA + provider consumer-names + shield (not wifi) icon + re-findable tour. Built, full gate green. Design docs/plans/onboarding-reframe.md. NOT merged (present first).
+- CALENDAR (feat/calendly-scheduling): Phase 1 (availability engine, TDD) + Phase 2 (advisor Scheduling surface — top-bar calendar icon → rail+content, SurfaceHeader, booking-link card, availability, meeting types, live slot preview). Design-reviewed by Fable via screenshots: looks native/good; timezone polish (UTC→advisor-local) IN FLIGHT. Plans docs/plans/calendly-*.
+- AWAITING JAMESON: see the new onboarding + calendar visuals; Plaid go/no-go; UI preview approve-all; assured-routing merge; deploy calls (booking page = commercial).
+## UPDATE 2026-07-09 ~02:00 — DEMO BUGS FIXED + JUMP-PARITY PHASE 1 BUILDS DONE (coordinator-12)
+
+- DEMO BUGS (Jameson hit on clean-slate walkthrough, FIXED + shipped to Legion v5): (1) OneDrive disconnect crash "cannot read properties of null" → null-guard in OneDriveConnect.tsx (backend null result = clean disconnect). (2) Anthropic key showed disconnected after nav-back → NOT real loss; AiScene never re-checked keychain on remount → added mount hasKey() restore. Both @lp/ux-simplify-v1, 23 tests green.
+- CLEAN SLATE root cause: OneDrive/M365 token was under the OLD "keepance-docs-ms" keychain service (pre-rename), not "lantern-" — earlier wipes missed it. Cleared keepance-{docs-ms,mail-ms,mail-gmail,crm,calendar} tokens + AI keys + localStorage via app keychain_delete over CDP. Legion restarted clean; connect step now truly empty. Local AI left "ready" per Jameson (no live download tonight).
+- NOTICE CARD name = "⏺ Recording · Advisor Prep Hero" ({product} token). Rail widths unified.
+- JUMP PARITY: Calendly nav CONFIRMED (top-bar calendar icon → full screen w/ standard rail+content). Phase 1 builds DONE on isolated feature branches (NOT in the preview): feat/calendly-scheduling @37df6661 (availability domain + slot math, 12 tests), feat/schwab-prefill @e802d32d (8 account-type field maps + prefill flow, typecheck clean). UX plan + design-system-alignment doc: docs/plans/calendly-scheduling-{plan,UX-plan}.md.
+- SCHWAB CREATIVE PATH approved → applying to ALL gated connectors (Redtail/Salesforce/Orion/etc.); connector-strategy research RUNNING. Design-system-docs refresh RUNNING (were stale pre-overhaul). Schwab partnership drafts in docs/partnerships/.
+- AWAITING JAMESON: Calendly Option-A build go (planned, P1 done); Plaid go/no-go (fast Schwab-data win); UI preview approve-all; assured-routing merge; intro cards blue-vs-red (left balanced).
+## UPDATE 2026-07-09 ~01:20 — DEMO PREP + JUMP-PARITY PLANNING (coordinator-12)
+
+- DEMO (tonight): Legion clean-slated (all AI keys deleted via app keychain + all localStorage cleared) → boots to the restored intro (3 blue-illustration cards, red brand accents) + clean ChooseStart. Connector logos (M365/Gmail/OneDrive/Wealthbox) shipped to connect step. Notice Card now shows "⏺ Recording · Advisor Prep Hero" ({product} token, brand-swappable). Rail widths unified (one --kp-rail-width token). All on lp/ux-simplify-v1, shipped to Legion (v4), verified clean+live. Legion left PRISTINE for Jameson.
+- ⭐ NOTICE CARD: default name template changed to show the product name (was advisor-name only). Jameson wanted "recorded by Advisor Prep Hero" visible.
+- JUMP PARITY (Jameson wants to compete head-on): plan published (jameworld.com/claudereports "Beating Jump"). Calendly clone: ~60% of plumbing exists (calendar READ, email send, UTC times); MISSING = calendar WRITE + scopes (ReadWrite, users reconnect) + meeting-link creation + booking domain (all net-new). KEY DECISION for Jameson: where the public booking page lives (rec: Option A privacy-preserving on the firm backend api.lanternplatform.app, stores only busy/free + slug, never client data). Schwab account-opening: prefill-paperwork half buildable NOW (docx engine + CRM + DocuSign exist); one-click-Schwab = DAO behind Schwab approved-partner program (~1yr relationship/security/legal). Research saved in coordination/reports/{calendly-build-seams,schwab-integration-research,jump-parity-plan}.md.
+- AWAITING JAMESON: (1) Calendly hosting decision A vs B → then I build; (2) go on Schwab prefill build + partner-application drafting; (3) still-open: approve-all on the v2 UI preview; assured-routing lane (built, gated); intro cards blue-vs-red.
+## UPDATE 2026-07-09 — FB2 COMPLETE: preview v2 live on the Legion @ de6a46cd (coordinator-12)
+
+- All 7 FB2 lanes merged; gate: 7,108 tests + all guards green (final run: locale-only delta after full pass). Gallery v2 at the same artifact URL. Legion verified serving v2 (new-client dialog + APH logo probed).
+- Brand: APH restored via swappable single-source system (brand/README swap guide). Onboarding reverted to pre-preview screens per Jameson.
+- My personal review: add-client flow + groups PASS (chips fix verified in gallery shot 21).
+- Parallel work banked: robot-script grip audit (running), assured-routing lane BUILT-AHEAD in ~/lp-assured (lp/assured-routing — merge GATED on Jameson approval), assured spec in coordination/reports/.
+- AWAITING: Jameson verdict on preview v2 (approve all → merge to lantern-plus main | name items).
+## UPDATE 2026-07-09 ~00:15 — PREVIEW LIVE ON THE LEGION; Jameson reviewing; first bench catch fixed (coordinator-12)
+
+- Legion runs lp/ux-simplify-v1 (src+public shipped, app restarted, served code verified). Gallery: https://claude.ai/code/artifact/e011c99b-9ac0-4d40-9d77-c9dab7005573
+- BENCH CATCH #1 (Jameson): chrome lane hid a `matters.length > 7` threshold in the Spine client search (C2 violation my diff review missed; my rig had 4 sample clients, his bench 26). FIXED @ebedb8ff+: threshold removed, empty-blur collapse added, 26-client + blur regression tests. Shipped + verified live.
+- LESSONS: (1) screenshot rigs must include a LARGE-dataset variant — threshold bugs are invisible with small samples; (2) never pipe typecheck output through tail in a && chain (masks exit code — nearly shipped a broken test).
+- AWAITING: Jameson verdict on the gallery/bench (approve all | drop items | rework screen). Approval = merge preview → lantern-plus (frozen) + Legion stays as-is.
+## UPDATE 2026-07-08 ~23:20 — UX-SIMPLIFICATION PREVIEW COMPLETE: GATE GREEN, gallery live, Legion syncing (coordinator-12)
+
+- ALL 9 lanes merged into lp/ux-simplify-v1 @ 9ca9e907 (pushed+verified). FULL GATE GREEN: 7,059 tests passed / 0 failed (4 skipped), typecheck+tests-typecheck clean, i18n complete (es/de backfilled to 1,967 keys via Codex), eslint/token/handle guards green (21 handle removals documented in handles.migrations.json), cargo 28 tests ok (brand files regenerated).
+- Review economics: every lane cross-reviewed (Codex-built→Fable review; Opus-built→Codex adversarial review). Fix rounds: meetings ×2 (send-safety: serialized autosave + unmount flush, confirmed-snapshot send, restored suggestions, sender reviewedAt guard), found ×2 + coordinator test repair (single-source egress: mode-tagged hook, destination enum incl. assured, strict local probe, distinct testids, clickable pill). Pre-existing PRODUCT bug filed in QUESTIONS-FOR-JAMESON: Ask/Workflows ignore firm Assured routes (email honors them) — needs its own lane + Jameson read.
+- Brand: INTERIM plain-text Lantern wordmark at brand/assets (old mascot/wordmark read the retired name); real logo design = Jameson. Icon PNGs unchanged.
+- Before/after gallery (12 pairs): https://claude.ai/code/artifact/e011c99b-9ac0-4d40-9d77-c9dab7005573 (NEW url — old gallery artifact was deleted). Enhanced audit report: jameworld.com/claudereports 2026-07-08.
+- Legion syncing to the PREVIEW branch (rollback = re-run legion-sync from ~/lantern-plus main tip). lantern-plus main is FROZEN until Jameson approves the visuals; approval = merge lp/ux-simplify-v1 → lantern-plus (fast, gate already green).
+- Housekeeping: integration worktree ~/lp-ux-integrate holds the preview checkout + lp-dev tmux serves it on :5173; 9 lane worktrees ~/lp-ux-* retained until approval (drop-lane surgery may need them).
+## UPDATE 2026-07-08 ~17:15 — UX-SIMPLIFICATION BUILD LAUNCHED (coordinator-12, Fable pass)
+
+- Fable re-audit of the Codex UX report DONE: all 7 audits read + spot-checked (accurate); app visually inspected via fresh browser-mode screenshots (testMode=true&seedDemo=true, capture set in coordinator scratchpad current-ui/).
+- New findings F1-F9 + corrections C1-C4 in reports/ux-simplification-2026-07-08/FABLE-ENHANCED.md. Headline: F1 contradictory egress pills (top bar "No AI connected" vs Ask "Using local AI" simultaneously) → single-source egress mandated.
+- Enhanced report published for Jameson: jameworld.com/claudereports (2026-07-08 enhanced audit).
+- BUILD: integration branch lp/ux-simplify-v1 @ e3b91b52 (pushed). 9 lanes, 9 worktrees ~/lp-ux-*, briefs in coordination/briefs/ux-*.md (common rules in ux-common.md). Fleet: tmux cc-lantern-ux-{found,meetings}=Opus4.8, {chrome,ask,clientmap,documents,email,workflows,copy}=Sonnet5, all effort high.
+- Merge protocol: per-lane Codex adversarial review in worktree → coordinator merges serially into lp/ux-simplify-v1 (found first, copy last) → ONE full gate in tmux → AFTER screenshots (same capture method) → before/after gallery artifact → Legion preview sync ONLY after gate green. NO merge to lantern-plus until Jameson approves the visuals.
+- Dev server tmux lp-dev running (:5173) — reused for after-captures; kill when program ends.
 ## UPDATE 2026-07-08 ~16:20 — COORDINATOR-12 TOOK OVER (coordinator-11 process died after its 05:30 wrap; no work lost)
 
 - Coordinator-11 ended CLEAN: tip 75202fb4 pushed+verified, Legion live, rails unified, UX-minimalism report published. Nothing was mid-flight.

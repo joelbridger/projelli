@@ -1,0 +1,156 @@
+ yeah so based on what you're saying like I think we need to do more selling in
+ the intro and it sounds like you would go through the
+ tour which is cool every word do some more explaining throughout sounds like
+ there's some but it but it also sounds like you needed a stamp to even start
+ basically yeah stamp of approval unless it was a live demo a lot about AI - like
+ what assume up to this point like I've had AI making a few spreadsheets and I've
+ asked it reasoning questions and it's written me some emails you know like
+ I see yeah I'm trying to figure out like what the AI is going to do and what it
+ can do and stuff yeah when you when you've done other software have how have
+ they explained how they do their stuff to have videos do they show you live in
+ person like a demo live they always demo it live they will sometimes send like
+ like video links beforehand or just the their website like if you're looking at
+ their website I feel like there's oftentimes just moving like animations
+ yeah animations of how it works and looking through kind of high-level overview
+ they really have to tell you what it is in very simple terms like is it a CRM
+ is it a this like is it replacing something is it something new like what
+ is it so I think that's really helpful when you know what it is and what like
+ kind of how to categorize it and you know like what all it can link to I think is
+ really helpful upfront and they also one thing that is important is like a
+ good support like support tools so like a support page that has like a lot of
+ like questions or demos or videos or you know like a help section of the
+ website with yes because you sent me an article today that was a help jump help
+ that explained to that whole feature right and and you guys look at those yeah
+ and support might be you know like that's become something that Seattle has
+ specifically asked about at our firm when we sign up for new software is like
+ what does support look like when we have issues like who do we contact do we
+ have a specific contact do we you know like how trying to get at how good is
+ your support team does it have a lot of turnover that kind of thing so support
+ might be an element that we need to address
+ no we can take a look at the kind of the inside of the app tomorrow I think it's
+ an interesting thing because this is still a damp a prototype so it's it is
+ tough to have like final marketing materials because you kind of make those
+ once it's done like a final video or help section for instance and so I think
+ what I'll do tomorrow is like give you a basic set a basic pitch and then have
+ you click around with that pitch in mind yeah I think where we're going is
+ basically that this will replace jump and and do it better but it's still
+ pretty early so but I think I think that's kind of what probably the pitch will be
+ so it'll be I'm really interested to kind of think to hear about it and don't do
+ any like research for for tomorrow or anything because I just want to hear
+ about what you currently know about jump and how you've used it and how you've
+ interacted with them and stuff and what you would think about this replacing
+ that and what it would need and stuff yeah and one quick thing about AI like
+ right now we are not allowed to upload a client's file like let's say there's
+ an insurance document we are now allowed to upload that insurance
+ document to check GPT for analysis and who's who made that rule our compliance
+ team that's that's what they've said right now they're working on like a more
+ in-depth like summary of what we can do and what we can't do but we don't have
+ that yet so right now I I'm not allowed to do that and then who's your compliance
+ team is that one person on your team it's our CCO Jessica and she has an
+ assistant on our team Seattle and then we also have like a professional paid
+ assistant that they paid two thousand dollars a month or two is this the
+ compliance guy Eric interesting so so potentially they are thinking through
+ a way to upload sensitive documents to check GPT to ask about it is that you
+ said it's plan that they're gonna be talking about they're trying to limit us
+ I mean to my knowledge like they've said do not do this like we need to figure
+ out what is okay and not okay to upload to check GPT but at this point we do not
+ we don't know believe it's okay to do that okay so when you say that they're
+ saying like we need to figure that out have they taken any concrete steps to
+ like brainstorm working on like coming up with a like paperwork that will come
+ out like a like publishing something that they'll then circulate to the team that
+ will tell us all the specific rules of what we can't do okay interesting but I
+ haven't got the feeling that they're gonna be like oh now you're fine to
+ upload files to AI so I don't know yeah okay it's kind of like an unknown
+ situation right now yeah have you wanted to ask AI like do you think that would
+ be valuable if there was a secure AI of course private AI yeah so when you
+ remember or like thinking back to the onboarding which were those first screens
+ that we click through today like the first screen said a private AI that
+ knows your clients mm-hmm what do you think about that based on what we're
+ talking about right now yeah I think that's cool I don't know quite like what
+ exactly that means you know what I liked everything it said like runs on your
+ computer it doesn't share anything so it's very secure
+ a private AI that knows your clients yeah so it sounds like there's some
+ confusion about exactly what that means like what is there is there anything you
+ would want that to mean or is it intriguing or is it just straight
+ confusing or is it concerning well like right now I feel like we're kind of in
+ a little bit of a fear of AI mode you know like you like I feel like it's part
+ of my job to protect client information from going into say chat
+ to PT that's our AI that we use you know so I even I even I don't even all the
+ time use like their first names if I'm like having it dropped in an email for
+ me mm-hmm so like that's kind of the point that I'm at right now even though
+ that's allowed but you definitely can't do first name last name right so I just
+ I'm coming in with a very cautionary lens because I don't feel like we
+ personally have been greenlit to even let AI know someone's first and last
+ name let alone their address or their date of birth or what cars they drive
+ or how old their kids are or their social security numbers from looking at
+ a tax return or something like that you know yeah definitely stuff so totally
+ and do you have any insight into your compliance team or your compliance is
+ persons process for getting things approved especially around AI so is that
+ a black box you don't know about that's a good question I know that they like
+ work with our the person that they pay to help with compliance that guy is
+ hard to get stuff through like if you imagine chicken little this guy is
+ falling like you know there's like did better best and this guy is always on
+ like level Fort Knox best security and so sometimes it's like unreasonable a
+ little bit you know but sometimes if we don't know like sometimes you just take
+ him at face value like he'll say oh you need to have clients sign this document
+ every time you do XYZ thing and we just think it's like a requirement like we
+ have to dig sometimes to realize oh that's just his preferred method that's not
+ actually like required by the SEC so for our I don't know if that's every team
+ but I do think like compliance people tend to be really anal and very like
+ worried about what could go wrong something that maybe would be helpful to
+ know as far as background for compliance people is that for instance our CCO could
+ be sued personally for negligence in regards to compliance so it's not just
+ like us as a business but like it's like there's a very personal risk that they
+ take on by being the CCO wow so they do try to take it seriously it is a pain
+ in the butt no one really likes compliance and I feel like that's kind of
+ why things move slow and why there's a cautionary you know just caution a lot
+ of cautionary and also our compliance people are not at the peak of technology
+ I wouldn't say that so they don't they I don't think they know all of this like
+ tons and tons about AI just in the back of their you know and and they're not
+ tending to be like I think the profile that type of a person is not like it
+ pushed the envelope how far can we go they're more like how close can you stay
+ to safety yeah yeah yeah that makes oh totally that makes so much sense yeah and
+ that is very helpful do you um has do you do you know if you're just with the
+ specifics around compliance I understand there's a lot of like
+ concern if you're so do you know do you know if there's if you've been told
+ anything by your by Eric about what a piece of technology needs to be
+ compliant his thing is called synergy synergy compliance okay it just came to
+ me what does that mean hey no sorry the that's his company synergy compliance
+ and they're specifically for financially for firms RA yeah okay cool synergy
+ compliance and then also their consultants basically yes and another one
+ is XYPN they also have an outsourcing like compliance like you can hire them
+ to be your compliance officer I believe so cool a lot of compliance if it starts
+ off kind of boilerplate language you pick it up from someone like and then you
+ have to kind of like try to make it your own because it's supposed to reflect
+ like what you actually do as a firm here actual policies okay but you asked me
+ different questions no that's okay yeah you know that's great yeah my specific
+ question was like have you heard anything from Eric about what a piece of
+ technology needs to be compliant I no talk to AI or just anything anything
+ yeah I think there's some level of security I think it seems that if a lot
+ of other firms have adopted it that really helps because I think if you
+ were to get in trouble by the SEC you could you know kind of say well everybody
+ else is doing it like we thought we could do it a little bit yeah for some
+ reason I don't know why but that would just stick or that logic seems to help
+ the cause there's certain security things it seems like Microsoft is secure so
+ anything within the Microsoft suite is like fine okay I don't know a lot of
+ that and were you around when other things that you use were approved and do
+ you remember how that process went so like things like right capital or wealth
+ box or have you just been using those since the start like yeah I personally
+ been using those from the start those come as a starting package when you're
+ part of the XYPN membership so your membership actually gets you a discount
+ on some of those softwares and so I I think I would assume that they do some
+ of the like work like they do some of the testing they do some of the like
+ security feature analysis or whatever and make sure that it's good so if you
+ could see that like you know XYPN is recommending it or it comes with your
+ XYPN membership I mean it would be absolutely shocking if that was not a
+ safe technology that you could use and do you exclusively use software that's
+ been approved by XYPN or is there any that do you that you know of that are
+ not on that list that you're using I mean I think jump was not on that list
+ initially but like we met jump at an XYPN conference so yeah I think now they
+ are I think they probably spent a while not now yeah but if we were some of
+ Jump's first clients then we joined them probably before they were actually on
+ a like a list do you know what that process was like to get them approved
+ through compliance that's the same question okay cool no I think I've
+ exhausted here I think you've remembered what you remembered some good stuff so
+ thank you so much yeah is that good any other thoughts that you're having oh
+ we better stop the recording

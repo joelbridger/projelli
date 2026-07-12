@@ -59,6 +59,7 @@ Output:
 
 ```text
 No ESLint regression vs baseline. (43 fingerprint(s) cleaned up vs baseline)
+✅ No ESLint regression vs baseline. (43 fingerprint(s) cleaned up vs baseline)
 ```
 
 ### `git diff --check`

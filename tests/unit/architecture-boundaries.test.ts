@@ -36,6 +36,12 @@ const ALLOWED_FEATURE_EDGES = new Set<string>([
   'account->firm',        // account/licensing surfaces firm seat state
   'account->settings',    // account window opens settings sections
   'ask->matters',         // Ask is matter-scoped (active matter context)
+  'ask->crm',             // Ask adds client-scoped CRM records to the same consent/audit/citation pipeline
+  'crm->ask',             // CRM Ask reuses the primary Ask safety rails and citation contracts
+  'crm->email',           // CRM broadcast reuses the hardened mail provider resolver
+  'crm->firm',            // CRM firm setup composes the existing firm administration surface
+  'crm-connectors->crm-views', // Broadcast uses the saved-view query language to define its recipient list
+  'crm-connectors->email', // Broadcast reuses the hardened mail AI provider resolver; delivery still uses the platform mail connector
   'documents->firm',      // file navigator shows privilege/vault affordances
   'matters->documents',   // Client Map export reuses the documents feature's PDF pipeline (R4)
   'privacy->documents',   // Privacy Center export reuses the documents feature's PDF pipeline (FB2 settings)
@@ -74,7 +80,11 @@ function layerOf(rel: string): Layer | null {
   return top in RANK ? (top as Layer) : null;
 }
 function featureOf(rel: string): string {
-  return rel.split('/')[1] ?? '';
+  const feature = rel.split('/')[1] ?? '';
+  // The extracted CRM screens are one product surface split into small folders
+  // for maintainability. Treat them as one feature boundary; their registry,
+  // tabs, timeline, search, and connectors are designed to compose each other.
+  return feature.startsWith('crm-') ? 'crm' : feature;
 }
 const SPEC_RE =
   /(?:import|export)[^'"`]*?from\s*['"`](@\/[^'"`]+)['"`]|import\s*\(\s*['"`](@\/[^'"`]+)['"`]\s*\)/g;

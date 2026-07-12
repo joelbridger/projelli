@@ -390,7 +390,7 @@ describe('CrmWriteReviewCard', () => {
     const approveBtn = screen.getByRole('button', { name: /approve 1 change/i });
     expect(approveBtn).toBeDisabled();
 
-    fireEvent.click(screen.getByTestId('crm-household-111'));
+    fireEvent.click(screen.getByTestId('crm-write-review-household-111'));
     expect(approveBtn).not.toBeDisabled();
   });
 
@@ -425,8 +425,8 @@ describe('CrmWriteReviewCard', () => {
     // Exactly one (Wealthbox) household remains, so it auto-selects and no
     // picker/empty-state renders.
     expect(screen.queryByText(/link this client to a wealthbox household first/i)).not.toBeInTheDocument();
-    expect(screen.queryByTestId('crm-household-sfdc:001XYZ')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('crm-household-redtail:rt-1')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('crm-write-review-household-sfdc:001XYZ')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('crm-write-review-household-redtail:rt-1')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /approve 1 change/i }));
     await waitFor(() => { expect(crmApproveWriteProposal).toHaveBeenCalledTimes(1); });
@@ -504,7 +504,7 @@ describe('CrmWriteReviewCard', () => {
     // pre-connected (null-render) state. Waiting for the actual element is
     // what guarantees the state update has already applied.
     fireEvent.click(await screen.findByTestId('crm-write-card-collapsed'));
-    fireEvent.click(screen.getByTestId('crm-household-111'));
+    fireEvent.click(screen.getByTestId('crm-write-review-household-111'));
     expect(screen.getByRole('button', { name: /approve 1 change/i })).not.toBeDisabled();
 
     // Same instance, switched to a different client with unrelated households.
@@ -514,7 +514,7 @@ describe('CrmWriteReviewCard', () => {
     // Approve must be disabled again — no household carried over from A.
     expect(screen.getByRole('button', { name: /approve 1 change/i })).toBeDisabled();
 
-    fireEvent.click(screen.getByTestId('crm-household-333'));
+    fireEvent.click(screen.getByTestId('crm-write-review-household-333'));
     fireEvent.click(screen.getByRole('button', { name: /approve 1 change/i }));
     await waitFor(() => { expect(crmApproveWriteProposal).toHaveBeenCalledTimes(1); });
     // The write that actually fired must target B's household, never A's.

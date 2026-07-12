@@ -56,24 +56,32 @@ if (existsSync(TRAINEDDATA)) {
 async function download() {
   console.log(`downloading ${TRAINEDDATA} from tessdata_fast@4.1.0...`);
   mkdirSync(dirname(TRAINEDDATA), { recursive: true });
-  await new Promise((resolve, reject) => {
-    function get(url, depth = 0) {
-      if (depth > 5) { reject(new Error('too many redirects')); return; }
-      https.get(url, (res) => {
-        if (res.statusCode === 301 || res.statusCode === 302) {
-          get(res.headers.location, depth + 1);
-        } else if (res.statusCode === 200) {
-          const out = createWriteStream(TRAINEDDATA);
-          res.pipe(out);
-          out.on('finish', resolve);
-          out.on('error', reject);
-        } else {
-          reject(new Error(`HTTP ${res.statusCode} fetching ${url}`));
-        }
-      }).on('error', reject);
-    }
-    get(TRAINEDDATA_URL);
-  });
+  // Node keeps HTTPS sockets alive by default. A build has no reason to retain
+  // this one-off download connection, and a retained socket can otherwise keep
+  // `prebuild` alive long after the file and checksum are complete.
+  const agent = new https.Agent({ keepAlive: false });
+  try {
+    await new Promise((resolve, reject) => {
+      function get(url, depth = 0) {
+        if (depth > 5) { reject(new Error('too many redirects')); return; }
+        https.get(url, { agent }, (res) => {
+          if (res.statusCode === 301 || res.statusCode === 302) {
+            get(res.headers.location, depth + 1);
+          } else if (res.statusCode === 200) {
+            const out = createWriteStream(TRAINEDDATA);
+            res.pipe(out);
+            out.on('finish', resolve);
+            out.on('error', reject);
+          } else {
+            reject(new Error(`HTTP ${res.statusCode} fetching ${url}`));
+          }
+        }).on('error', reject);
+      }
+      get(TRAINEDDATA_URL);
+    });
+  } finally {
+    agent.destroy();
+  }
   const actual = await sha256file(TRAINEDDATA);
   if (actual !== TRAINEDDATA_SHA256) {
     throw new Error(

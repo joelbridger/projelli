@@ -11,9 +11,10 @@
  * delegates rendering to the appropriate surface component.
  */
 
-import { useEffect, useMemo, type ReactNode } from 'react';
-import { MattersHome } from '@/features/matters/MattersHome';
-import { Ask } from '@/features/ask/Ask';
+import { useEffect } from 'react';
+import { CrmHome } from '@/features/crm-home';
+import { ClientsSurface } from '@/features/crm-clients';
+import { CrmAskSurface } from '@/features/crm-ask';
 import { DocumentsHome } from '@/features/documents/DocumentsHome';
 import { AssociateHome } from '@/features/workflows/AssociateHome';
 import { SchedulingHome } from '@/features/scheduling/SchedulingHome';
@@ -33,11 +34,6 @@ import { resolveEmailProvider } from '@/features/email/resolveEmailProvider';
 import { useDocumentExtractionIngestion } from '@/platform/intake/useDocumentExtractionIngestion';
 import { resolveDocumentExtractionProvider } from '@/features/intake/resolveDocumentExtractionProvider';
 import { openRunArtifactFromWorkflows } from '@/app/shell/openRunArtifactFromWorkflows';
-import {
-  resolveClientDocumentFolderPaths,
-  shouldBackfillClientDocumentFolder,
-  shouldPersistExistingClientDocumentFolder,
-} from '@/app/shell/clientDocumentFolderPaths';
 
 import type { AppSurface } from '@/app/lifecycle/useGlobalEventBus';
 import {
@@ -63,6 +59,7 @@ import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { TrashRetentionPeriod } from '@/features/documents/TrashPanel';
 import type { Matter } from '@/platform/types/matter';
 import {
+  EV_OPEN_CRM_DOCUMENT,
   EV_OPEN_ACCOUNT,
   EV_OPEN_EMAIL,
   SK_FIRM_NAME,
@@ -179,53 +176,6 @@ type BuildDocumentsHomeOptions = {
   ensureScopeFolderMatterId?: string;
 };
 
-function ClientDocumentsSurface({
-  hubMatter,
-  matters,
-  rootPath,
-  fileTree,
-  renderDocumentsHome,
-}: {
-  hubMatter: Matter | null;
-  matters: Matter[];
-  rootPath: string | null | undefined;
-  fileTree: FileNode[];
-  renderDocumentsHome: (opts: BuildDocumentsHomeOptions) => ReactNode;
-}) {
-  const scopeFolderPaths = useMemo(
-    () =>
-      resolveClientDocumentFolderPaths({
-        matter: hubMatter,
-        matters,
-        workspaceRoot: rootPath,
-      }),
-    [hubMatter, matters, rootPath],
-  );
-  const shouldPersistExistingFolder = shouldPersistExistingClientDocumentFolder(
-    hubMatter,
-    scopeFolderPaths,
-    fileTree,
-    rootPath,
-  );
-  const matterId = hubMatter?.id;
-
-  useEffect(() => {
-    if (!matterId || !shouldPersistExistingFolder) return;
-    const latestMatter = useMatterStore.getState().matters.find((matter) => matter.id === matterId);
-    if (!shouldBackfillClientDocumentFolder(latestMatter, scopeFolderPaths)) return;
-    useMatterStore.getState().setFolderPaths(matterId, scopeFolderPaths);
-  }, [matterId, scopeFolderPaths, shouldPersistExistingFolder]);
-
-  return renderDocumentsHome({
-    embedded: true,
-    scopeFolderPaths,
-    ...(matterId ? { scopeMatterId: matterId } : {}),
-    ...(matterId && shouldBackfillClientDocumentFolder(hubMatter, scopeFolderPaths)
-      ? { ensureScopeFolderMatterId: matterId }
-      : {}),
-  });
-}
-
 export function AppSurfaceRouter({
   sidebarActiveTab,
   askPrefill,
@@ -233,7 +183,6 @@ export function AppSurfaceRouter({
   documentsView,
   setDocumentsView,
   setSidebarActiveTab,
-  mattersSurfaceMode,
   setMattersSurfaceMode,
   pushNavigationSnapshot,
   currentExecution,
@@ -249,7 +198,6 @@ export function AppSurfaceRouter({
   repairAuditSeal,
   apiKeys,
   rootPath,
-  fileTree,
   trashItems,
   trashStats,
   trashRetentionPeriod,
@@ -298,6 +246,23 @@ export function AppSurfaceRouter({
     workspaceService: workspaceServiceRef.current,
   });
 
+  // CRM document links are only pointers. Opening one must use the normal
+  // Documents viewer, so format-specific editors and save behavior stay in
+  // their existing home.
+  useEffect(() => {
+    const openCrmDocument = (event: Event) => {
+      const detail = (event as CustomEvent<{ path?: unknown; name?: unknown }>).detail;
+      if (!detail || typeof detail.path !== 'string' || !detail.path) return;
+      const name = typeof detail.name === 'string' && detail.name ? detail.name : detail.path.split(/[\\/]/).pop() || detail.path;
+      void handleFileOpen(detail.path, name).then((opened) => {
+        if (!opened) return;
+        setDocumentsView('editor');
+        setSidebarActiveTab('files');
+      });
+    };
+    window.addEventListener(EV_OPEN_CRM_DOCUMENT, openCrmDocument);
+    return () => window.removeEventListener(EV_OPEN_CRM_DOCUMENT, openCrmDocument);
+  }, [handleFileOpen, setDocumentsView, setSidebarActiveTab]);
   // Privacy Center + Activity Log are nested as sections inside the Settings
   // screen (the gear opens Settings). Built here so SettingsContent stays
   // decoupled from these surfaces' data wiring.
@@ -586,49 +551,12 @@ export function AppSurfaceRouter({
 
   return (
     <>
-      {sidebarActiveTab === 'matters' ? (
-        <MattersHome
-          onAuditLog={addAuditEntry}
-          renderClientDocuments={(hubMatter) =>
-            // Use the EXACT matter MatterHub is rendering (passed in), not the
-            // outer `activeMatter` closure, which can lag behind the hub's client
-            // on a switch. This guarantees `scopeFolderPaths`/`scopeMatterId`
-            // describe the client actually on screen (2026-07-01 re-fix).
-            (
-              <ClientDocumentsSurface
-                hubMatter={hubMatter}
-                matters={useMatterStore.getState().matters}
-                rootPath={rootPath}
-                fileTree={fileTree}
-                renderDocumentsHome={buildDocumentsHome}
-              />
-            )
-          }
-          renderClientEmail={() =>
-            buildEmailWorkspace({
-              embedded: true,
-              ...(activeMatter ? { scopeMatterId: activeMatter.id } : {}),
-            })
-          }
-          renderClientActivity={(activityOptions) =>
-            buildActivity(
-              activeMatter
-                ? {
-                    scopeMatterId: activeMatter.id,
-                    ...(activityOptions?.clientMapSectionKey ? {
-                      clientMapSectionKey: activityOptions.clientMapSectionKey,
-                      ...(activityOptions.clientMapSectionTitle ? { clientMapSectionTitle: activityOptions.clientMapSectionTitle } : {}),
-                    } : {}),
-                  }
-                : {}
-            )
-          }
-          workspaceService={workspaceServiceRef.current}
-          clientMapMode={mattersSurfaceMode}
-          onClientMapModeChange={setMattersSurfaceMode}
-        />
+      {sidebarActiveTab === 'home' ? (
+        <CrmHome />
+      ) : sidebarActiveTab === 'matters' ? (
+        <ClientsSurface />
       ) : sidebarActiveTab === 'search' ? (
-        <Ask
+        <CrmAskSurface
           onSaveToDocument={async (content) => {
             if (!workspaceServiceRef.current || !rootPath) return;
             // Word-first: AI answers save as a real .docx (not markdown).
@@ -686,12 +614,6 @@ export function AppSurfaceRouter({
           onPrefillConsumed={() => setAskPrefill(null)}
           onAuditLog={addAuditEntry}
           onOpenFileAtPath={(p, _paragraphIndex, snippet, matterId) => {
-            // Wave 2 — email relocation: an email citation in an Ask answer opens
-            // the light EmailViewer reading view (via lantern:open-email, the
-            // same path the .aichat chat uses). Without this the Ask surface
-            // dispatched nothing, so email citations were a dead click. Document
-            // citations keep their in-place SourcePanel passage; their dedicated
-            // citation viewer lands in Wave 3.
             if (typeof p === 'string' && p.startsWith('mail:')) {
               window.dispatchEvent(
                 new CustomEvent(EV_OPEN_EMAIL, { detail: { sourceId: p } })

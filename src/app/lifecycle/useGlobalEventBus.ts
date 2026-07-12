@@ -67,6 +67,7 @@ const ACCOUNT_CATEGORIES = new Set<SettingCategory>([
 ]);
 
 const ALLOWED_SURFACES = new Set([
+  'home',
   'search',
   'files',
   'email',
@@ -77,6 +78,7 @@ const ALLOWED_SURFACES = new Set([
   'matters',
 ] as const);
 type AllowedSurface =
+  | 'home'
   | 'search'
   | 'files'
   | 'email'

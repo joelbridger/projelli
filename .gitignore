@@ -95,3 +95,10 @@ scripts/*tmp*.mjs
 scripts/ask_and_watch.mjs
 scripts/click_text_tmp.mjs
 scripts/*_capture*.mjs
+
+# User research audio + raw transcripts — PRIVATE, never commit (personal voice recordings)
+docs/user-research/**/*.m4a
+docs/user-research/**/*.wav
+docs/user-research/**/*.mp3
+docs/user-research/**/*-raw-transcript.txt
+tests/parity/parity-report.json

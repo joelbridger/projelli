@@ -28,7 +28,19 @@ import {
   localOnlyEgressVerdict,
 } from './robot/fixtures/egressGuard.mjs';
 
-const PORT = process.env.DESKTOP_CDP_PORT || '9223';
+// The Tauri debug bridge port. Overridable (matching the app's
+// LANTERN_DEV_BRIDGE_PORT) so several app instances can be driven side by side.
+const BRIDGE_PORT = process.env.LANTERN_DEV_BRIDGE_PORT || '9250';
+// Keep the command-line driver and the Rust bridge on the same configurable
+// deadline.  A test can still pass a more specific `timeout_ms` to one bridge
+// request, but normal driving should never silently fall back to an old,
+// hard-coded five-second limit.
+const BRIDGE_TIMEOUT_MS = process.env.LANTERN_DEV_BRIDGE_TIMEOUT_MS || '20000';
+// In Linux bridge mode callers set LANTERN_DEV_BRIDGE_PORT for BOTH the app
+// and this driver.  Keep DESKTOP_CDP_PORT as an explicit override for the
+// Windows CDP path, but never silently dial its old 9223 default after a
+// caller has selected a bridge port.
+const PORT = process.env.DESKTOP_CDP_PORT || BRIDGE_PORT;
 const CDP_HOSTS = (process.env.DESKTOP_CDP_HOSTS || process.env.DESKTOP_CDP_HOST || '127.0.0.1,localhost,[::1]')
   .split(',')
   .map((host) => host.trim())
@@ -145,6 +157,86 @@ async function readStdinText() {
 }
 
 const [cmd, ...args] = process.argv.slice(2);
+// Linux Tauri uses the debug-only local bridge rather than Chromium CDP.  Keep
+// the same small CLI so desktop checks do not silently fall back to a browser
+// mock just because the host is not Windows.
+async function bridgeRequest(path, params = {}) {
+  const url = new URL(`http://127.0.0.1:${PORT}${path}`);
+  for (const [key, value] of Object.entries(params)) url.searchParams.set(key, String(value));
+  if (path === '/eval' && !url.searchParams.has('timeout_ms')) {
+    url.searchParams.set('timeout_ms', BRIDGE_TIMEOUT_MS);
+  }
+  // A Vite hot reload or a real desktop relaunch can land between the bridge
+  // accepting a request and the WebView becoming ready to evaluate it. Retry
+  // only that short, known transient instead of misreporting a healthy screen
+  // as unwired. All ordinary selector/action failures still surface directly.
+  let lastError;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      const response = await fetch(url);
+      const body = await response.json();
+      if (response.ok && body.ok) return body.result;
+      const error = new Error(body.error || `Desktop bridge ${path} failed`);
+      if (!String(error.message).includes('eval code@')) throw error;
+      lastError = error;
+    } catch (error) {
+      if (!(error instanceof Error) || (!error.message.includes('eval code@') && !error.message.includes('fetch failed'))) throw error;
+      lastError = error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+  throw lastError ?? new Error(`Desktop bridge ${path} failed`);
+}
+
+async function runBridge() {
+  switch (cmd) {
+    case 'pages':
+      console.log(JSON.stringify([{ url: await bridgeRequest('/url'), title: 'Tauri desktop app' }], null, 2));
+      break;
+    case 'url':
+      console.log(await bridgeRequest('/url'));
+      break;
+    case 'snapshot': {
+      const data = await bridgeRequest('/eval', { js: `Array.from(document.querySelectorAll('[data-testid], button, a, [role="button"], input, textarea')).map((e) => ({ testid: e.getAttribute('data-testid') || undefined, tag: e.tagName.toLowerCase(), text: (e.textContent || e.getAttribute('aria-label') || e.getAttribute('placeholder') || '').trim().slice(0, 60) || undefined })).filter((x) => x.testid || x.text).slice(0, 250)` });
+      console.log(JSON.stringify(data, null, 2));
+      break;
+    }
+    case 'click':
+      await bridgeRequest('/click', { testid: args[0] });
+      console.log('clicked [data-testid="' + args[0] + '"]');
+      break;
+    case 'type':
+    case 'type-stdin': {
+      const value = cmd === 'type-stdin' ? await readStdinText() : (args[1] ?? '');
+      await bridgeRequest('/fill', { testid: args[0], text: value });
+      if (args.includes('--submit')) {
+        await bridgeRequest('/eval', { js: `document.querySelector('[data-testid="${args[0]}"]')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))` });
+      }
+      console.log('typed into [data-testid="' + args[0] + '"]');
+      break;
+    }
+    case 'eval':
+      console.log(JSON.stringify(await bridgeRequest('/eval', { js: args[0] }), null, 2));
+      break;
+    case 'waitfor': {
+      const deadline = Date.now() + (Number(args[1]) || 15) * 1000;
+      while (Date.now() < deadline) {
+        const text = await bridgeRequest('/eval', { js: 'document.body.innerText' });
+        if (String(text).includes(args[0])) { console.log('found: ' + args[0]); return; }
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      throw new Error(`Timed out waiting for text: ${args[0]}`);
+    }
+    case 'screenshot':
+      throw new Error('The Linux desktop bridge cannot capture pixels itself. Use the X display screenshot helper for this debug run.');
+    default:
+      throw new Error(`unknown command: ${cmd}`);
+  }
+}
+
+if (PORT === BRIDGE_PORT || process.env.LANTERN_DEV_BRIDGE_PORT) {
+  await runBridge();
+} else {
 const browser = await getBrowser();
 try {
   if (cmd === 'pages') {
@@ -244,4 +336,5 @@ try {
 } finally {
   // Disconnect CDP WITHOUT closing the app (connectOverCDP.close() only detaches).
   await browser.close().catch(() => {});
+}
 }

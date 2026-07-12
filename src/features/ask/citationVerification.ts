@@ -251,7 +251,8 @@ export function useCitationVerification(
   }, [importUnsettled]);
 
   const eligible = citations.filter(
-    (c): c is AnswerCitation & { id: string; matterId: string } => Boolean(c.id && c.matterId),
+    (c): c is AnswerCitation & { id: string; matterId: string } =>
+      c.sourceType !== 'crm' && Boolean(c.id && c.matterId),
   );
   const signature = eligible.map((c) => verifyKey(c.id, c.matterId, c.excerpt)).join('|');
 
@@ -371,6 +372,11 @@ export function citationTrustState(
   cite: AnswerCitation,
   verdicts: ReadonlyMap<string, RealVerdict>,
 ): CitationTrustState {
+  // CRM search already resolved this exact encrypted local record before it
+  // entered the prompt. It is not a RAG chunk, so sending it to the RAG
+  // verifier would create a false negative. Its click-through record lookup is
+  // the matching local verification path.
+  if (cite.sourceType === 'crm') return cite.grounded ? 'verified' : 'unverified';
   if (!cite.id || !cite.matterId) return 'checking';
   const v = verdicts.get(verifyKey(cite.id, cite.matterId, cite.excerpt));
   if (v === undefined) return 'checking';

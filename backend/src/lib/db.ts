@@ -204,6 +204,98 @@ CREATE INDEX IF NOT EXISTS idx_matter_updates_matter ON matter_updates(matter_id
 CREATE UNIQUE INDEX IF NOT EXISTS idx_matter_updates_blob ON matter_updates(matter_id, doc_id, blob_id);
 
 -- =====================================================================
+-- CRM relay envelopes (03 §2). The primary tables intentionally match the
+-- frozen contract exactly. Sender identity, sender seat, matter scope, type,
+-- and operation links are deliberately absent.
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS notify_envelopes (
+  org_id TEXT NOT NULL,
+  seq INTEGER NOT NULL,
+  recipient_user_id TEXT NOT NULL,
+  envelope_id TEXT NOT NULL,
+  ciphertext BLOB NOT NULL,
+  created_at TEXT NOT NULL,
+  expires_at TEXT,
+  retention_until_terminal BOOLEAN NOT NULL DEFAULT FALSE,
+  terminal_at TEXT,
+  PRIMARY KEY(org_id, seq),
+  UNIQUE(org_id, recipient_user_id, envelope_id)
+);
+CREATE TABLE IF NOT EXISTS notify_device_acks (
+  org_id TEXT NOT NULL,
+  recipient_user_id TEXT NOT NULL,
+  device_id TEXT NOT NULL,
+  acked_through INTEGER NOT NULL,
+  PRIMARY KEY(org_id, recipient_user_id, device_id)
+);
+CREATE INDEX IF NOT EXISTS idx_notify_inbox ON notify_envelopes(org_id, recipient_user_id, seq);
+
+-- The key hint and retry token are routing metadata required by the wire API,
+-- not envelope content. Neither table contains a sender, scope, type, or
+-- operation reference.
+CREATE TABLE IF NOT EXISTS notify_envelope_delivery (
+  org_id TEXT NOT NULL,
+  recipient_user_id TEXT NOT NULL,
+  envelope_id TEXT NOT NULL,
+  key_hint TEXT NOT NULL,
+  PRIMARY KEY(org_id, recipient_user_id, envelope_id)
+);
+CREATE TABLE IF NOT EXISTS notify_idempotency (
+  org_id TEXT NOT NULL,
+  idempotency_key TEXT NOT NULL,
+  recipient_user_id TEXT NOT NULL,
+  envelope_id TEXT NOT NULL,
+  seq INTEGER NOT NULL,
+  PRIMARY KEY(org_id, idempotency_key)
+);
+
+-- =====================================================================
+-- Checkpoint relay control plane (03 §6.1). The relay stores encrypted
+-- manifest/chunk/receipt blobs plus only the allowed plaintext control fields.
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS checkpoint_manifests (
+  matter_id TEXT NOT NULL REFERENCES matters(matter_id),
+  org_id TEXT NOT NULL,
+  doc_id TEXT NOT NULL,
+  generation INTEGER NOT NULL,
+  frontier INTEGER NOT NULL,
+  retention_eligible BOOLEAN NOT NULL DEFAULT FALSE,
+  manifest_ciphertext BLOB NOT NULL,
+  published_at TEXT NOT NULL,
+  PRIMARY KEY(matter_id, doc_id, generation)
+);
+CREATE TABLE IF NOT EXISTS checkpoint_chunks (
+  matter_id TEXT NOT NULL,
+  doc_id TEXT NOT NULL,
+  generation INTEGER NOT NULL,
+  chunk_index INTEGER NOT NULL,
+  ciphertext BLOB NOT NULL,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY(matter_id, doc_id, generation, chunk_index)
+);
+CREATE TABLE IF NOT EXISTS checkpoint_validation_receipts (
+  matter_id TEXT NOT NULL,
+  org_id TEXT NOT NULL,
+  doc_id TEXT NOT NULL,
+  generation INTEGER NOT NULL,
+  validator_user_id TEXT NOT NULL,
+  validator_device_id TEXT NOT NULL,
+  signed_receipt BLOB NOT NULL,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY(matter_id, doc_id, generation, validator_user_id)
+);
+CREATE TABLE IF NOT EXISTS checkpoint_archives (
+  matter_id TEXT NOT NULL,
+  org_id TEXT NOT NULL,
+  doc_id TEXT NOT NULL,
+  generation INTEGER NOT NULL,
+  frontier INTEGER NOT NULL,
+  manifest_ciphertext BLOB NOT NULL,
+  archived_at TEXT NOT NULL,
+  PRIMARY KEY(matter_id, doc_id, generation)
+);
+
+-- =====================================================================
 -- Chunk 3: Assured zero-retention inference proxy (DECISION.md §5).
 --
 -- org_provider_keys: ONE managed provider key per (org, provider), stored
@@ -1853,12 +1945,151 @@ export class Store {
     return rows.map((r) => ({ ...r, ciphertext: new Uint8Array(r.ciphertext) }));
   }
 
+  /**
+   * Fetch one bounded catch-up page strictly after `sinceCursor` and no later
+   * than an already-captured subscription watermark. The upper bound is what
+   * lets a live socket finish historical replay without racing a concurrent
+   * writer: rows after `throughCursor` arrive through the subscriber instead.
+   */
+  getMatterUpdatesThrough(
+    matterId: string,
+    sinceCursor: number,
+    throughCursor: number,
+    limit = 500,
+    docId = "_notes",
+  ): MatterUpdate[] {
+    const rows = this.db
+      .query(
+        `SELECT * FROM matter_updates
+         WHERE matter_id = ? AND doc_id = ? AND id > ? AND id <= ?
+         ORDER BY id ASC LIMIT ?`,
+      )
+      .all(matterId, docId, sinceCursor, throughCursor, limit) as Array<{
+      id: number;
+      matter_id: string;
+      org_id: string;
+      doc_id: string;
+      blob_id: string;
+      ciphertext: Uint8Array;
+      author_seat: string;
+      key_epoch: number;
+      created_at: string;
+    }>;
+    return rows.map((r) => ({ ...r, ciphertext: new Uint8Array(r.ciphertext) }));
+  }
+
+  /** Count a bounded historical range without loading its opaque blobs. */
+  countMatterUpdatesThrough(matterId: string, sinceCursor: number, throughCursor: number, docId = "_notes"): number {
+    const row = this.db
+      .query(
+        `SELECT COUNT(*) AS count FROM matter_updates
+         WHERE matter_id = ? AND doc_id = ? AND id > ? AND id <= ?`,
+      )
+      .get(matterId, docId, sinceCursor, throughCursor) as { count: number };
+    return row.count;
+  }
+
   /** Highest cursor currently stored for a matter+doc stream (0 if none). */
   latestMatterCursor(matterId: string, docId = "_notes"): number {
     const r = this.db
       .query(`SELECT MAX(id) AS m FROM matter_updates WHERE matter_id = ? AND doc_id = ?`)
       .get(matterId, docId) as { m: number | null };
     return r.m ?? 0;
+  }
+
+  // ---- Sealed notification envelopes (03 §2) -----------------------------
+  appendNotifyEnvelope(input: { org_id: string; recipient_user_id: string; envelope_id: string; ciphertext: Uint8Array; key_hint: string; idempotency_key: string; retention_until_terminal: boolean }): { envelope: { seq: number; envelope_id: string; created_at: string; expires_at: string | null }; duplicate: boolean; conflict: boolean } {
+    const now = this.nowIso();
+    const expiresAt = input.retention_until_terminal ? null : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const find = (seq: number) => this.db.query(`SELECT seq, envelope_id, created_at, expires_at FROM notify_envelopes WHERE org_id = ? AND seq = ?`).get(input.org_id, seq) as { seq: number; envelope_id: string; created_at: string; expires_at: string | null };
+    const txn = this.db.transaction(() => {
+      const idem = this.db.query(`SELECT recipient_user_id, envelope_id, seq FROM notify_idempotency WHERE org_id = ? AND idempotency_key = ?`).get(input.org_id, input.idempotency_key) as { recipient_user_id: string; envelope_id: string; seq: number } | null;
+      if (idem) return idem.recipient_user_id !== input.recipient_user_id || idem.envelope_id !== input.envelope_id ? { envelope: find(idem.seq), duplicate: false, conflict: true } : { envelope: find(idem.seq), duplicate: true, conflict: false };
+      const existing = this.db.query(`SELECT seq FROM notify_envelopes WHERE org_id = ? AND recipient_user_id = ? AND envelope_id = ?`).get(input.org_id, input.recipient_user_id, input.envelope_id) as { seq: number } | null;
+      if (existing) {
+        this.db.query(`INSERT INTO notify_idempotency (org_id, idempotency_key, recipient_user_id, envelope_id, seq) VALUES (?, ?, ?, ?, ?)`)
+          .run(input.org_id, input.idempotency_key, input.recipient_user_id, input.envelope_id, existing.seq);
+        return { envelope: find(existing.seq), duplicate: true, conflict: false };
+      }
+      const max = this.db.query(`SELECT COALESCE(MAX(seq), 0) AS seq FROM notify_envelopes WHERE org_id = ?`).get(input.org_id) as { seq: number };
+      const seq = max.seq + 1;
+      this.db.query(`INSERT INTO notify_envelopes (org_id, seq, recipient_user_id, envelope_id, ciphertext, created_at, expires_at, retention_until_terminal, terminal_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)`)
+        .run(input.org_id, seq, input.recipient_user_id, input.envelope_id, input.ciphertext, now, expiresAt, input.retention_until_terminal ? 1 : 0);
+      this.db.query(`INSERT INTO notify_envelope_delivery (org_id, recipient_user_id, envelope_id, key_hint) VALUES (?, ?, ?, ?)`)
+        .run(input.org_id, input.recipient_user_id, input.envelope_id, input.key_hint);
+      this.db.query(`INSERT INTO notify_idempotency (org_id, idempotency_key, recipient_user_id, envelope_id, seq) VALUES (?, ?, ?, ?, ?)`)
+        .run(input.org_id, input.idempotency_key, input.recipient_user_id, input.envelope_id, seq);
+      return { envelope: find(seq), duplicate: false, conflict: false };
+    });
+    return txn.immediate() as { envelope: { seq: number; envelope_id: string; created_at: string; expires_at: string | null }; duplicate: boolean; conflict: boolean };
+  }
+
+  getNotifyInbox(orgId: string, recipientUserId: string, since: number, limit = 500): Array<{ seq: number; envelope_id: string; created_at: string; expires_at: string | null; key_hint: string; ciphertext: Uint8Array }> {
+    const rows = this.db.query(`SELECT e.seq, e.envelope_id, e.created_at, e.expires_at, d.key_hint, e.ciphertext FROM notify_envelopes e JOIN notify_envelope_delivery d ON d.org_id = e.org_id AND d.recipient_user_id = e.recipient_user_id AND d.envelope_id = e.envelope_id WHERE e.org_id = ? AND e.recipient_user_id = ? AND e.seq > ? AND (e.expires_at IS NULL OR e.expires_at > ?) ORDER BY e.seq ASC LIMIT ?`)
+      .all(orgId, recipientUserId, since, this.nowIso(), limit) as Array<{ seq: number; envelope_id: string; created_at: string; expires_at: string | null; key_hint: string; ciphertext: Uint8Array }>;
+    return rows.map((r) => ({ ...r, ciphertext: new Uint8Array(r.ciphertext) }));
+  }
+
+  latestNotifyCursor(orgId: string, recipientUserId: string): number {
+    const r = this.db.query(`SELECT COALESCE(MAX(seq), 0) AS seq FROM notify_envelopes WHERE org_id = ? AND recipient_user_id = ?`).get(orgId, recipientUserId) as { seq: number };
+    return r.seq;
+  }
+
+  acknowledgeNotify(orgId: string, recipientUserId: string, deviceId: string, upToCursor: number): number {
+    const existing = this.db.query(`SELECT acked_through FROM notify_device_acks WHERE org_id = ? AND recipient_user_id = ? AND device_id = ?`).get(orgId, recipientUserId, deviceId) as { acked_through: number } | null;
+    const acked = Math.max(existing?.acked_through ?? 0, upToCursor);
+    this.db.query(`INSERT INTO notify_device_acks (org_id, recipient_user_id, device_id, acked_through) VALUES (?, ?, ?, ?) ON CONFLICT(org_id, recipient_user_id, device_id) DO UPDATE SET acked_through = MAX(acked_through, excluded.acked_through)`).run(orgId, recipientUserId, deviceId, acked);
+    this.releaseTerminalNotifyRetention(orgId, recipientUserId);
+    return acked;
+  }
+
+  markNotifyTerminal(orgId: string, recipientUserId: string, envelopeId: string): boolean {
+    const res = this.db.query(`UPDATE notify_envelopes SET terminal_at = COALESCE(terminal_at, ?) WHERE org_id = ? AND recipient_user_id = ? AND envelope_id = ? AND retention_until_terminal = TRUE`).run(this.nowIso(), orgId, recipientUserId, envelopeId);
+    if (res.changes) this.releaseTerminalNotifyRetention(orgId, recipientUserId);
+    return res.changes > 0;
+  }
+
+  private releaseTerminalNotifyRetention(orgId: string, recipientUserId: string): void {
+    const devices = this.db.query(`SELECT d.device_id FROM devices d JOIN users u ON u.user_id = d.user_id WHERE d.org_id = ? AND d.user_id = ? AND u.status = 'active'`).all(orgId, recipientUserId) as Array<{ device_id: string }>;
+    if (!devices.length) return;
+    const terminal = this.db.query(`SELECT seq FROM notify_envelopes WHERE org_id = ? AND recipient_user_id = ? AND retention_until_terminal = TRUE AND terminal_at IS NOT NULL`).all(orgId, recipientUserId) as Array<{ seq: number }>;
+    for (const row of terminal) {
+      const allAcked = devices.every((device) => ((this.db.query(`SELECT acked_through FROM notify_device_acks WHERE org_id = ? AND recipient_user_id = ? AND device_id = ?`).get(orgId, recipientUserId, device.device_id) as { acked_through: number } | null)?.acked_through ?? 0) >= row.seq);
+      if (allAcked) this.db.query(`UPDATE notify_envelopes SET retention_until_terminal = FALSE WHERE org_id = ? AND seq = ?`).run(orgId, row.seq);
+    }
+  }
+
+  hasCurrentMatterKeyGrant(matterId: string, userId: string): boolean {
+    return this.db.query(`SELECT 1 FROM wrapped_matter_keys k JOIN matters m ON m.matter_id = k.matter_id WHERE k.matter_id = ? AND k.user_id = ? AND k.epoch = m.key_epoch LIMIT 1`).get(matterId, userId) !== null;
+  }
+
+  // ---- Checkpoint control plane (03 §6.1) --------------------------------
+  putCheckpointChunk(input: { matter_id: string; doc_id: string; generation: number; chunk_index: number; ciphertext: Uint8Array }): void {
+    this.db.query(`INSERT INTO checkpoint_chunks (matter_id, doc_id, generation, chunk_index, ciphertext, created_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(matter_id, doc_id, generation, chunk_index) DO NOTHING`).run(input.matter_id, input.doc_id, input.generation, input.chunk_index, input.ciphertext, this.nowIso());
+  }
+
+  publishCheckpointManifest(input: { matter_id: string; org_id: string; doc_id: string; generation: number; frontier: number; retention_eligible: boolean; manifest_ciphertext: Uint8Array }): boolean {
+    const result = this.db.query(`INSERT INTO checkpoint_manifests (matter_id, org_id, doc_id, generation, frontier, retention_eligible, manifest_ciphertext, published_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(matter_id, doc_id, generation) DO NOTHING`).run(input.matter_id, input.org_id, input.doc_id, input.generation, input.frontier, input.retention_eligible ? 1 : 0, input.manifest_ciphertext, this.nowIso());
+    return result.changes > 0;
+  }
+
+  addCheckpointReceipt(input: { matter_id: string; org_id: string; doc_id: string; generation: number; validator_user_id: string; validator_device_id: string; signed_receipt: Uint8Array }): boolean {
+    const result = this.db.query(`INSERT INTO checkpoint_validation_receipts (matter_id, org_id, doc_id, generation, validator_user_id, validator_device_id, signed_receipt, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(matter_id, doc_id, generation, validator_user_id) DO NOTHING`).run(input.matter_id, input.org_id, input.doc_id, input.generation, input.validator_user_id, input.validator_device_id, input.signed_receipt, this.nowIso());
+    return result.changes > 0;
+  }
+
+  pruneCheckpointTail(input: { matter_id: string; org_id: string; doc_id: string; generation: number }): { ok: boolean; reason?: string; pruned?: number } {
+    const manifest = this.db.query(`SELECT frontier, retention_eligible, manifest_ciphertext FROM checkpoint_manifests WHERE matter_id = ? AND org_id = ? AND doc_id = ? AND generation = ?`).get(input.matter_id, input.org_id, input.doc_id, input.generation) as { frontier: number; retention_eligible: number; manifest_ciphertext: Uint8Array } | null;
+    if (!manifest) return { ok: false, reason: "manifest_not_found" };
+    if (!manifest.retention_eligible) return { ok: false, reason: "retention_not_eligible" };
+    const receipts = this.db.query(`SELECT COUNT(*) AS count FROM checkpoint_validation_receipts WHERE matter_id = ? AND org_id = ? AND doc_id = ? AND generation = ?`).get(input.matter_id, input.org_id, input.doc_id, input.generation) as { count: number };
+    if (receipts.count < 2) return { ok: false, reason: "two_receipts_required" };
+    const txn = this.db.transaction(() => {
+      // Archive executes before prune in the same durable transaction.
+      this.db.query(`INSERT INTO checkpoint_archives (matter_id, org_id, doc_id, generation, frontier, manifest_ciphertext, archived_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(matter_id, doc_id, generation) DO NOTHING`).run(input.matter_id, input.org_id, input.doc_id, input.generation, manifest.frontier, manifest.manifest_ciphertext, this.nowIso());
+      return this.db.query(`DELETE FROM matter_updates WHERE matter_id = ? AND org_id = ? AND doc_id = ? AND id <= ?`).run(input.matter_id, input.org_id, input.doc_id, manifest.frontier).changes;
+    });
+    return { ok: true, pruned: txn.immediate() as number };
   }
 
   // ===========================================================================

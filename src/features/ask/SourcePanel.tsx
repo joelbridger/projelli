@@ -8,7 +8,7 @@ import { formatExportDate, isStalePlan } from '@/platform/rag/sourceProvenance';
 import { formatSourceIdentity } from '@/platform/audit/sourceCapture';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { EXTERNAL_EXPORT_STALE_DAYS_KEY } from '@/platform/settings/schema';
-import { EV_OPEN_EMAIL, EV_MATTER_LAUNCH } from '@/config/identity';
+import { EV_OPEN_CRM, EV_OPEN_EMAIL, EV_MATTER_LAUNCH } from '@/config/identity';
 import { getFileIcon } from '@/platform/utils/fileIcons';
 import { useCitationVerification, verifyKey, type RealVerdict } from './citationVerification';
 
@@ -33,6 +33,14 @@ const PREVIEW_CHAR_LIMIT = 220;
 
 /** Open the cited source (document → contextual editor; email → reading view). */
 function openCitation(cite: AnswerCitation): void {
+  if (cite.path?.startsWith('crm:')) {
+    window.dispatchEvent(
+      new CustomEvent(EV_OPEN_CRM, {
+        detail: { sourceId: cite.path, snippet: cite.excerpt },
+      }),
+    );
+    return;
+  }
   if (cite.path?.startsWith('mail:')) {
     window.dispatchEvent(new CustomEvent(EV_OPEN_EMAIL, { detail: { sourceId: cite.path } }));
     return;
@@ -171,7 +179,7 @@ function SourceCard({
   const openable = onOpenCitation
     ? true
     : Boolean(
-        cite.path && (cite.path.startsWith('mail:') || (!cite.path.startsWith('crm:') && cite.matterId)),
+        cite.path && (cite.path.startsWith('crm:') || cite.path.startsWith('mail:') || cite.matterId),
       );
 
   // Only a REAL negative verdict (a proven mismatch) is a "problem" — pending,
@@ -542,7 +550,11 @@ export function SourcePanel({
           key={`${String(c.n)}:${c.id ?? c.path ?? ''}:${c.matterId ?? ''}`}
           cite={c}
           selected={c.n === selectedN}
-          verifyState={c.id && c.matterId ? (verdicts.get(verifyKey(c.id, c.matterId, c.excerpt)) ?? 'pending') : 'unavailable'}
+          verifyState={c.sourceType === 'crm'
+            ? (c.grounded ? 'verified' : 'unavailable')
+            : c.id && c.matterId
+              ? (verdicts.get(verifyKey(c.id, c.matterId, c.excerpt)) ?? 'pending')
+              : 'unavailable'}
           onSelect={onSelect}
           {...(onOpenCitation ? { onOpenCitation } : {})}
         />

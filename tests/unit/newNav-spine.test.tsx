@@ -18,20 +18,21 @@ vi.mock('@/platform/rag/matterResolver', () => ({
 
 describe('Spine — 3-tab shell', () => {
 
-  it('renders exactly the 3 primary tabs: Client Map, Ask, Workflows', () => {
+  it('renders exactly the 3 primary tabs: Home, Clients, Ask (D11)', () => {
     render(<Spine activeTab="matters" />);
+    expect(screen.getByTestId('spine-nav-home')).toBeTruthy();
     expect(screen.getByTestId('spine-nav-matters')).toBeTruthy();
     expect(screen.getByTestId('spine-nav-search')).toBeTruthy();
-    expect(screen.getByTestId('spine-nav-workflows')).toBeTruthy();
+    expect(screen.queryByTestId('spine-nav-workflows')).toBeNull();
   });
 
-  it('relabels the tabs (Client Map / Ask) while keeping internal ids', () => {
+  it('relabels the tabs (Home / Clients / Ask) while keeping internal ids', () => {
     render(<Spine activeTab="matters" />);
-    // react-i18next is mocked to `t = (key) => key` (matches the rest of this
-    // suite), so the rendered label is the i18n key itself — asserting on the
-    // key still proves the Client Map / Ask tab uses its own distinct key,
-    // and doing so through t() (not a hardcoded string) is the actual bug fix.
-    expect(screen.getByTestId('spine-nav-matters').textContent).toBe('spine.nav.client-map');
+    // Home/Clients are plain labels for now (their catalog keys land with the
+    // flagged translation-catalog work); Ask still goes through t(), and
+    // react-i18next is mocked to `t = (key) => key` in this suite.
+    expect(screen.getByTestId('spine-nav-home').textContent).toBe('Home');
+    expect(screen.getByTestId('spine-nav-matters').textContent).toBe('Clients');
     expect(screen.getByTestId('spine-nav-search').textContent).toBe('spine.nav.ask');
   });
 
@@ -42,6 +43,7 @@ describe('Spine — 3-tab shell', () => {
     expect(screen.queryByTestId('spine-nav-audit')).toBeNull();
     expect(screen.queryByTestId('spine-nav-privacy')).toBeNull();
     expect(screen.queryByTestId('spine-nav-settings')).toBeNull();
+    expect(screen.queryByTestId('spine-nav-workflows')).toBeNull();
   });
 
   it('still fires onTabChange with the internal id when a tab is clicked', () => {
@@ -65,9 +67,10 @@ describe('Spine — 3-tab shell', () => {
 
   it('collapsed mode shows the 3 primary tabs only', () => {
     render(<Spine activeTab="matters" collapsed />);
+    expect(screen.getByTestId('spine-nav-collapsed-home')).toBeTruthy();
     expect(screen.getByTestId('spine-nav-collapsed-matters')).toBeTruthy();
     expect(screen.getByTestId('spine-nav-collapsed-search')).toBeTruthy();
-    expect(screen.getByTestId('spine-nav-collapsed-workflows')).toBeTruthy();
+    expect(screen.queryByTestId('spine-nav-collapsed-workflows')).toBeNull();
     expect(screen.queryByTestId('spine-nav-collapsed-settings')).toBeNull();
   });
 });

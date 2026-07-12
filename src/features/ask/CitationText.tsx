@@ -3,6 +3,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import type { AnswerCitation } from './askHelpers';
 import { AnswerDatePresentation } from '@/platform/retrieval/dates';
+import { EV_OPEN_CRM } from '@/config/identity';
 
 /* -------------------------------------------------------------------------- */
 /* CitationText — the Ask answer renderer (matches the demo Ask answer body).  */
@@ -77,6 +78,14 @@ export function CitationText({
         data-verified={dataVerified}
         onClick={() => {
           onSelect(n);
+          if (cite?.path && (cite.sourceType === 'crm' || cite.path.startsWith('crm:'))) {
+            window.dispatchEvent(
+              new CustomEvent(EV_OPEN_CRM, {
+                detail: { sourceId: cite.path, snippet: cite.excerpt },
+              }),
+            );
+            return;
+          }
           if (onOpenFileAtPath && cite?.path) {
             const snippet = cite.excerpt || undefined;
             if (cite.matterId !== undefined) {
