@@ -102,6 +102,10 @@ describe('crm clients surfaces', () => {
     expect(screen.getByText('Client-facing')).toBeInTheDocument();
     expect(screen.getByTestId('crm-household-tag-priority')).toHaveTextContent('priority');
     expect(screen.getByTestId('crm-household-field-cf-1')).toHaveTextContent('Referral source');
+    expect(screen.getByTestId('crm-household-ownership')).toHaveTextContent('mine');
+    expect(screen.getByTestId('crm-household-fact-f-1')).toHaveTextContent('Income: $240,000');
+    expect(screen.getByTestId('crm-household-account-a-1')).toHaveTextContent('Wells Fargo');
+    expect(screen.getByTestId('crm-person-household-role-p-1')).toHaveTextContent('Spouse');
     fireEvent.click(screen.getByTestId('crm-household-schedule'));
     expect(onOpenSchedulingLink).toHaveBeenCalledWith(
       'https://calendar.example.test/henderson'
