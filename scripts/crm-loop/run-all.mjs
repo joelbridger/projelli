@@ -1,52 +1,104 @@
 #!/usr/bin/env node
 /**
- * The golden loop: drives every wired CRM surface in the RUNNING app through the
- * debug bridge, in the order an advisor would actually use them. Each lane's
- * driver is one step; a failing step stops the loop with a non-zero exit.
+ * Runs every registered golden-loop driver against an already-running desktop
+ * app. `scripts/test-goldenloop.mjs` owns process startup/restart/teardown.
  *
- * A surface with no driver counts as UNWIRED and fails the loop — this file is
- * the honest answer to "does the product actually work?", so it must never pass
- * by omission.
- *
- * Prereq: the app is running (`npm run tauri:dev`) with the debug bridge on 9250.
+ * The manifest is deliberately fail-closed: a CrmHomeRoute without a driver,
+ * a stale manifest entry, or a driver file not registered in the manifest is
+ * a failed loop, never a warning.
  */
 import { spawn } from 'node:child_process';
-import { readdirSync, existsSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { SURFACES } from './golden-loop.manifest.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const ORDER = ['clients.mjs', 'today-tasks.mjs', 'workflows.mjs', 'migration.mjs'];
-
-const present = ORDER.filter((f) => existsSync(path.join(here, f)));
-const missing = ORDER.filter((f) => !present.includes(f));
-const extra = readdirSync(here).filter(
-  (f) => f.endsWith('.mjs') && f !== 'run-all.mjs' && !ORDER.includes(f)
+const root = path.resolve(here, '../..');
+const verifyPersisted = process.argv.includes('--verify-persisted');
+const registeredDrivers = [
+  ...new Set(
+    SURFACES.flatMap((surface) => (surface.driver ? [surface.driver] : []))
+  ),
+];
+const actualDrivers = readdirSync(here).filter(
+  (file) =>
+    file.endsWith('.mjs') &&
+    !['run-all.mjs', 'golden-loop.manifest.mjs'].includes(file)
+);
+const routeSource = readFileSync(
+  path.join(root, 'src/features/crm-home/CrmHome.tsx'),
+  'utf8'
+);
+const declaredRoutes = [
+  ...new Set(
+    [...routeSource.matchAll(/^\s*\|\s*'([^']+)'/gm)].map((match) => match[1])
+  ),
+];
+const manifestRoutes = new Set(SURFACES.map((surface) => surface.id));
+const missingManifestRoutes = declaredRoutes.filter(
+  (route) => !manifestRoutes.has(route)
+);
+const staleManifestRoutes = SURFACES.filter(
+  (surface) => surface.id !== 'clients' && !declaredRoutes.includes(surface.id)
+).map((surface) => surface.id);
+const missingDrivers = SURFACES.filter((surface) => !surface.driver).map(
+  (surface) => surface.id
+);
+const missingFiles = registeredDrivers.filter(
+  (file) => !existsSync(path.join(here, file))
+);
+const unregisteredDrivers = actualDrivers.filter(
+  (file) => !registeredDrivers.includes(file)
 );
 
 const run = (file) =>
   new Promise((resolve) => {
-    const child = spawn('node', [path.join(here, file)], { stdio: 'inherit' });
+    const args = [
+      path.join(here, file),
+      ...(verifyPersisted ? ['--verify-persisted'] : []),
+    ];
+    const child = spawn('node', args, { stdio: 'inherit', env: process.env });
+    child.on('error', () => resolve(1));
     child.on('close', (code) => resolve(code ?? 1));
   });
 
 let failed = 0;
-for (const file of [...present, ...extra]) {
-  console.log(`\n=== GOLDEN LOOP: ${file} ===`);
+for (const file of registeredDrivers) {
+  console.log(
+    `\n=== GOLDEN LOOP${verifyPersisted ? ' PERSISTENCE' : ''}: ${file} ===`
+  );
   const code = await run(file);
   if (code !== 0) {
     console.error(`❌ ${file} FAILED (exit ${code})`);
     failed += 1;
-    break;
+  } else {
+    console.log(`✅ ${file} passed`);
   }
-  console.log(`✅ ${file} passed`);
 }
 
-if (missing.length)
-  console.warn(`\n⚠️  NOT YET WIRED (no driver): ${missing.join(', ')}`);
+const integrityFailures = [
+  missingDrivers.length &&
+    `surfaces without drivers: ${missingDrivers.join(', ')}`,
+  missingManifestRoutes.length &&
+    `CrmHomeRoute values absent from the manifest: ${missingManifestRoutes.join(', ')}`,
+  staleManifestRoutes.length &&
+    `manifest routes absent from CrmHomeRoute: ${staleManifestRoutes.join(', ')}`,
+  missingFiles.length &&
+    `registered driver files missing: ${missingFiles.join(', ')}`,
+  unregisteredDrivers.length &&
+    `driver files absent from the manifest: ${unregisteredDrivers.join(', ')}`,
+].filter(Boolean);
+if (integrityFailures.length) {
+  failed += integrityFailures.length;
+  console.error(
+    `\n❌ GOLDEN LOOP COVERAGE FAILED\n- ${integrityFailures.join('\n- ')}`
+  );
+}
+
 console.log(
-  failed === 0 && missing.length === 0
-    ? '\n🟢 GOLDEN LOOP: COMPLETE — every surface drives the real engines'
-    : `\n🔴 GOLDEN LOOP: INCOMPLETE (${failed} failed, ${missing.length} unwired)`
+  failed === 0
+    ? `\n🟢 GOLDEN LOOP ${verifyPersisted ? 'PERSISTENCE' : 'WRITE'}: COMPLETE`
+    : `\n🔴 GOLDEN LOOP ${verifyPersisted ? 'PERSISTENCE' : 'WRITE'}: INCOMPLETE (${failed} failures)`
 );
-process.exit(failed === 0 && missing.length === 0 ? 0 : 1);
+process.exit(failed === 0 ? 0 : 1);
