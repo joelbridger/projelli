@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   linkFirmMatter: vi.fn(), createLocalMatterKey: vi.fn(), forgetMatterKey: vi.fn(),
   publishMatterKeyToMembers: vi.fn(), registerDevice: vi.fn(), append: vi.fn(),
   promotionPending: null as Record<string, unknown> | null, storePromotionPending: vi.fn(), clearPromotionPending: vi.fn(),
+  failHandleCheckpointOnce: false,
   firmState: { seatToken: 'seat' as string | null, session: { org: { org_id: 'org' } } },
 }));
 
@@ -16,9 +17,17 @@ vi.mock('@/platform/firm/firmStore', () => ({
   useFirmStore: { getState: () => mocks.firmState },
 }));
 vi.mock('@/platform/firm/firmKeychain', () => ({
-  loadPromotionPending: async () => mocks.promotionPending,
-  storePromotionPending: async (_id: string, value: Record<string, unknown>) => { mocks.promotionPending = value; mocks.storePromotionPending(value); },
-  clearPromotionPending: async () => { mocks.promotionPending = null; mocks.clearPromotionPending(); },
+  loadPromotionPending: () => Promise.resolve(mocks.promotionPending),
+  storePromotionPending: async (_id: string, value: Record<string, unknown>) => {
+    await Promise.resolve();
+    mocks.storePromotionPending(value);
+    if (mocks.failHandleCheckpointOnce && 'matterHandle' in value) {
+      mocks.failHandleCheckpointOnce = false;
+      throw new Error('local handle checkpoint interrupted');
+    }
+    mocks.promotionPending = value;
+  },
+  clearPromotionPending: () => { mocks.promotionPending = null; mocks.clearPromotionPending(); return Promise.resolve(); },
 }));
 
 import { promoteMatterToShared } from './promoteMatterToShared';
@@ -32,7 +41,7 @@ async function generatedKey(): Promise<string> {
 
 function successfulClient() {
   return {
-    createMatter: vi.fn(() => Promise.resolve({ matter_handle: matterHandle, root_stream_handle: rootStreamHandle, key_epoch: 1 as const, status: 'provisioning' as const })),
+    createMatter: vi.fn((_provisioningNonce: string) => Promise.resolve({ matter_handle: matterHandle, root_stream_handle: rootStreamHandle, key_epoch: 1 as const, status: 'provisioning' as const })),
     pushUpdate: vi.fn(() => Promise.resolve({ ok: true as const, cursor: 1, blob_id: 'x', key_epoch: 1, duplicate: false })),
     activateMatter: vi.fn(() => Promise.resolve({ ok: true as const })),
     archiveMatter: vi.fn(() => Promise.resolve({ ok: true as const })),
@@ -61,6 +70,7 @@ describe('promoteMatterToShared v2 ordering', () => {
     mocks.publishMatterKeyToMembers.mockResolvedValue({ published: 1, skippedWalled: 0 });
     mocks.registerDevice.mockResolvedValue(undefined);
     mocks.promotionPending = null;
+    mocks.failHandleCheckpointOnce = false;
   });
 
   it('activates before its first relay write, then seals the encrypted root details', async () => {
@@ -90,7 +100,63 @@ describe('promoteMatterToShared v2 ordering', () => {
     expect(mocks.linkFirmMatter).not.toHaveBeenCalled();
     expect(client.archiveMatter).not.toHaveBeenCalled();
     expect(mocks.forgetMatterKey).not.toHaveBeenCalled();
-    expect(mocks.promotionPending).toEqual(expect.objectContaining({ matterHandle, keyB64: expect.any(String) }));
+    expect(mocks.promotionPending?.['matterHandle']).toBe(matterHandle);
+    expect(typeof mocks.promotionPending?.['keyB64']).toBe('string');
+  });
+
+  it('uses one durable retry receipt when a provision response is lost, returning the same shell without a second allocation', async () => {
+    const shells = new Map<string, { matter_handle: typeof matterHandle; root_stream_handle: typeof rootStreamHandle; key_epoch: 1; status: 'provisioning' }>();
+    const client = successfulClient();
+    client.createMatter.mockImplementation((nonce: string) => {
+      const shell = shells.get(nonce) ?? { matter_handle: matterHandle, root_stream_handle: rootStreamHandle, key_epoch: 1, status: 'provisioning' as const };
+      shells.set(nonce, shell);
+      return client.createMatter.mock.calls.length === 1
+        ? Promise.reject(new Error('provision response lost after commit'))
+        : Promise.resolve(shell);
+    });
+
+    const first = await promoteMatterToShared('local-matter-77', 'CLIENT_SECRET_NIMBUS', client as never);
+    expect(first.status).toBe('failed');
+    expect(mocks.promotionPending && Object.keys(mocks.promotionPending)).toEqual(['provisioningNonce']);
+    expect(mocks.promotionPending?.['provisioningNonce']).toMatch(/^pn2_[A-Za-z0-9_-]{43}$/);
+
+    const retry = await promoteMatterToShared('local-matter-77', 'CLIENT_SECRET_NIMBUS', client as never);
+    expect(retry).toMatchObject({ status: 'shared', firmMatterId: matterHandle });
+    expect(shells).toHaveLength(1);
+    const [firstNonce, secondNonce] = client.createMatter.mock.calls.map(([nonce]) => nonce);
+    expect(firstNonce).toMatch(/^pn2_[A-Za-z0-9_-]{43}$/);
+    expect(secondNonce).toBe(firstNonce);
+  });
+
+  it('keeps the nonce-only record when the device crashes before saving a returned handle, so retry still resumes one shell', async () => {
+    const shells = new Map<string, { matter_handle: typeof matterHandle; root_stream_handle: typeof rootStreamHandle; key_epoch: 1; status: 'provisioning' }>();
+    const client = successfulClient();
+    client.createMatter.mockImplementation((nonce: string) => {
+      const shell = shells.get(nonce) ?? { matter_handle: matterHandle, root_stream_handle: rootStreamHandle, key_epoch: 1, status: 'provisioning' as const };
+      shells.set(nonce, shell);
+      return Promise.resolve(shell);
+    });
+    mocks.failHandleCheckpointOnce = true;
+
+    await expect(promoteMatterToShared('local-matter-77', 'CLIENT_SECRET_NIMBUS', client as never)).resolves.toMatchObject({ status: 'failed', error: 'local handle checkpoint interrupted' });
+    expect(mocks.promotionPending && Object.keys(mocks.promotionPending)).toEqual(['provisioningNonce']);
+    expect(typeof mocks.promotionPending?.['provisioningNonce']).toBe('string');
+
+    await expect(promoteMatterToShared('local-matter-77', 'CLIENT_SECRET_NIMBUS', client as never)).resolves.toMatchObject({ status: 'shared', firmMatterId: matterHandle });
+    expect(shells).toHaveLength(1);
+  });
+
+  it('resumes a handle checkpoint after a crash before key generation instead of provisioning another shell', async () => {
+    mocks.promotionPending = {
+      provisioningNonce: `pn2_${'Z'.repeat(43)}`,
+      matterHandle,
+      rootStreamHandle,
+      keyEpoch: 1,
+    };
+    const client = successfulClient();
+
+    await expect(promoteMatterToShared('local-matter-77', 'CLIENT_SECRET_NIMBUS', client as never)).resolves.toMatchObject({ status: 'shared', firmMatterId: matterHandle });
+    expect(client.createMatter).not.toHaveBeenCalled();
   });
 
   it('keeps a failed provision invisible and allows a clean retry', async () => {

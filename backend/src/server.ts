@@ -12,7 +12,7 @@
 
 import { config } from "./lib/config.ts";
 import { getStore } from "./lib/db.ts";
-import { json, error, preflight, startRateLimitGc } from "./lib/http.ts";
+import { json, error, preflight, rejectOpaqueV2Preflight, startRateLimitGc } from "./lib/http.ts";
 import { validateV2RelayBoundary } from "./lib/v2Payload.ts";
 import { V2_FIRM_ROUTE_SPECS, isDeclaredV2FirmRoute, v2FirmRouteSpec } from "./lib/v2RouteInventory.ts";
 import { hashPassword, generateLicenseKey, hmacHash } from "./lib/crypto.ts";
@@ -177,10 +177,19 @@ export function buildServeOptions(store: Store, hub: FanoutHub, traffic?: RelayT
       const method = req.method;
       const ip = srv.requestIP(req)?.address ?? "unknown";
 
+      const isV2FirmPath = path.startsWith("/v2/firm/");
+      // Preflight routing is part of the inventory gate, not a separate early
+      // return. Keep this before *all* CORS headers so an undeclared URL never
+      // becomes an accepted browser route (or a tempting access-log exception).
+      if (isV2FirmPath && method === "OPTIONS") {
+        const requestedMethod = req.headers.get("access-control-request-method");
+        if (!requestedMethod || !isDeclaredV2FirmRoute(path, requestedMethod.toUpperCase())) return rejectOpaqueV2Preflight();
+      }
+
       // The v2 boundary runs even for a CORS preflight: an OPTIONS cannot reach a
       // handler, but its URL still reaches proxy/access logs, which is exactly the
       // disclosure this relay exists to prevent. Fail closed first, preflight after.
-      const v2Boundary = path.startsWith("/v2/firm/") ? await validateV2RelayBoundary(req) : null;
+      const v2Boundary = isV2FirmPath ? await validateV2RelayBoundary(req) : null;
       if (v2Boundary) return error(v2Boundary, 400);
 
       if (method === "OPTIONS") return preflight();
@@ -188,7 +197,7 @@ export function buildServeOptions(store: Store, hub: FanoutHub, traffic?: RelayT
       // The inventory is an allow-list, not merely documentation. A new v2
       // handler is unreachable until its route and every client field are in
       // the shared table that drives the hostile-client privacy proof.
-      if (path.startsWith("/v2/firm/") && !isDeclaredV2FirmRoute(path, method)) return error("not_found", 404);
+      if (isV2FirmPath && !isDeclaredV2FirmRoute(path, method)) return error("not_found", 404);
 
       try {
         // --- E2EE sync relay + matter ACL (chunk 2) ---
@@ -315,10 +324,11 @@ export function buildServeOptions(store: Store, hub: FanoutHub, traffic?: RelayT
       open(ws: Bun.ServerWebSocket<SyncSocketData>) {
         subscribeSyncSocket(store, hub, ws, traffic);
       },
-      message() {
-        // Inbound socket frames are ignored on purpose. Awareness/presence would
-        // ride a separate ephemeral channel; document writes use the HTTP relay so
-        // they pass the access gate + audit. (DECISION.md §1.)
+      message(ws: Bun.ServerWebSocket<SyncSocketData>) {
+        // This protocol is receive-only after the ticketed upgrade. Closing on
+        // any inbound frame proves hostile frame text cannot become a log, audit,
+        // database value, or echoed frame. Document writes use the HTTP relay.
+        ws.close(1008, "inbound_frames_not_supported");
       },
       close(ws: Bun.ServerWebSocket<SyncSocketData>) {
         const d = ws.data;

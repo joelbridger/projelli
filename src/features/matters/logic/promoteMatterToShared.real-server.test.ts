@@ -52,8 +52,8 @@ function realRelayClient(failRootPush: false | 'unknown' | 'definite' = false) {
   return {
     get lastHandle() { return lastHandle; },
     get lastRootStream() { return lastRootStream; },
-    createMatter: async () => {
-      const response = await request('/v2/firm/matters', {});
+    createMatter: async (provisioningNonce: string) => {
+      const response = await request('/v2/firm/matters', { provisioning_nonce: provisioningNonce });
       lastHandle = response['matter_handle'] as string;
       lastRootStream = response['root_stream_handle'] as string;
       return response;

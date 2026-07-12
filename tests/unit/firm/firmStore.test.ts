@@ -279,13 +279,13 @@ describe('firmStore admin actions hit the right endpoints', () => {
     });
 
     const client = useFirmStore.getState().client();
-    await client.createMatter();
+    await client.createMatter(`pn2_${'S'.repeat(43)}`);
     await client.addMatterMember(MATTER, 'user-2', 'editor');
     await client.setWall(MATTER, 'user-3');
     await client.setProviderKey('anthropic', 'sk-ant-MANAGED');
 
     expect(calls.find((c) => /\/v2\/firm\/matters$/.test(c.url))?.method).toBe('POST');
-    expect(calls.find((c) => /\/v2\/firm\/matters$/.test(c.url))?.body).toEqual({});
+    expect(calls.find((c) => /\/v2\/firm\/matters$/.test(c.url))?.body).toEqual({ provisioning_nonce: `pn2_${'S'.repeat(43)}` });
 
     const addCall = calls.find((c) => /members\/add$/.test(c.url));
     expect(addCall?.body).toEqual({ user_id: 'user-2', role: 'editor' });

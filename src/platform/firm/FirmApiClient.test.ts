@@ -43,7 +43,7 @@ describe('FirmApiClient v2 relay privacy', () => {
   it('keeps every v2 matter operation free of all six local-metadata sentinels', async () => {
     const client = new FirmApiClient({ getAccessToken: () => 'access', refreshAccessToken: () => Promise.resolve(null) });
     parsedResponses.push(
-      await client.createMatter(),
+      await client.createMatter(`pn2_${'C'.repeat(43)}`),
       await client.activateMatter(matterHandle),
       await client.listMatters(),
       await client.matterMine('seat'),

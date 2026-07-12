@@ -5,6 +5,8 @@
  */
 export const OPAQUE_BLOB_ID_PREFIX = 'bh2_';
 export const OPAQUE_BLOB_ID_PATTERN = /^bh2_[A-Za-z0-9_-]{43}$/;
+export const OPAQUE_PROVISIONING_NONCE_PREFIX = 'pn2_';
+export const OPAQUE_PROVISIONING_NONCE_PATTERN = /^pn2_[A-Za-z0-9_-]{43}$/;
 
 export function createOpaqueBlobId(): string {
   if (typeof crypto === 'undefined' || typeof crypto.getRandomValues !== 'function') {
@@ -18,4 +20,15 @@ export function createOpaqueBlobId(): string {
 
 export function isOpaqueBlobId(value: unknown): value is string {
   return typeof value === 'string' && OPAQUE_BLOB_ID_PATTERN.test(value);
+}
+
+/** A local retry receipt for exactly one opaque-shell provisioning attempt. */
+export function createOpaqueProvisioningNonce(): string {
+  if (typeof crypto === 'undefined' || typeof crypto.getRandomValues !== 'function') {
+    throw new Error('Secure random values are required for firm provisioning.');
+  }
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return `${OPAQUE_PROVISIONING_NONCE_PREFIX}${btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '')}`;
 }

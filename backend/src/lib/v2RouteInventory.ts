@@ -7,6 +7,7 @@
  */
 export type V2InputClass =
   | "strict-opaque-handle"
+  | "opaque-idempotency-token"
   | "numeric"
   | "server-derived"
   | "server-minted"
@@ -63,7 +64,7 @@ export type V2FirmRouteId =
 export const V2_FIRM_ROUTE_SPECS: readonly V2FirmRouteSpec[] = [
   { id: "matterMine", method: "POST", path: "/v2/firm/matters/mine", bodyKeys: [], inputs: emptyBody },
   { id: "listMatters", method: "POST", path: "/v2/firm/matters/list", bodyKeys: [], inputs: emptyBody },
-  { id: "createMatter", method: "POST", path: "/v2/firm/matters", bodyKeys: [], inputs: emptyBody },
+  { id: "createMatter", method: "POST", path: "/v2/firm/matters", bodyKeys: ["provisioning_nonce"], inputs: [{ location: "body", name: "provisioning_nonce", classification: "opaque-idempotency-token", rule: "Exactly pn2_ plus 43 URL-safe base64 characters. The relay stores only an HMAC of it so a retried provision returns the same opaque shell." }] },
   { id: "activateMatter", method: "POST", path: "/v2/firm/matters/:matter_handle/activate", bodyKeys: [], inputs: [matterPath] },
   { id: "archiveMatter", method: "POST", path: "/v2/firm/matters/:matter_handle/archive", bodyKeys: [], inputs: [matterPath] },
   { id: "releaseMatterStream", method: "POST", path: "/v2/firm/matters/:matter_handle/streams/release", bodyKeys: ["stream_handle"], inputs: [matterPath, { location: "body", name: "stream_handle", classification: "strict-opaque-handle", rule: "Exactly a sh2_ opaque handle owned by this matter." }] },
@@ -77,7 +78,7 @@ export const V2_FIRM_ROUTE_SPECS: readonly V2FirmRouteSpec[] = [
   { id: "pushUpdate", method: "POST", path: "/v2/firm/matters/:matter_handle/streams/:stream_handle/updates", bodyKeys: ["blob_id", "ciphertext_b64", "seat_token", "key_epoch"], inputs: [matterPath, streamPath, { location: "body", name: "blob_id", classification: "strict-opaque-handle", rule: "Exactly bh2_ plus 43 URL-safe base64 characters." }, { location: "body", name: "ciphertext_b64", classification: "binary-envelope", rule: "Canonical base64 ciphertext v2 envelope; only bytes are stored and fanned out." }, { location: "body", name: "seat_token", classification: "server-minted", rule: "Verified active-seat token; raw value is never stored or logged." }, { location: "body", name: "key_epoch", classification: "numeric", rule: "Positive integer only." }] },
   { id: "pullUpdates", method: "GET", path: "/v2/firm/streams/:stream_handle/updates", bodyKeys: [], inputs: [streamPath, { location: "query", name: "since (key)", classification: "verified-never-stored", rule: "The sole accepted query key is exact lowercase since." }, { location: "query", name: "since (value)", classification: "numeric", rule: "Safe non-negative integer only." }] },
   { id: "syncTicket", method: "POST", path: "/v2/firm/streams/:stream_handle/sync-ticket", bodyKeys: [], inputs: [streamPath] },
-  { id: "syncSocket", method: "GET", path: "/v2/firm/sync", bodyKeys: [], inputs: [{ location: "query", name: "ticket (key)", classification: "verified-never-stored", rule: "The sole accepted query key is exact lowercase ticket." }, { location: "query", name: "ticket (value)", classification: "server-minted", rule: "Exactly a server-minted 64-hex single-use ticket." }, { location: "header", name: "upgrade (name and value)", classification: "verified-never-stored", rule: "Only exact websocket upgrade is accepted; no client text is persisted or logged." }, { location: "websocket-frame", name: "inbound frame", classification: "verified-never-stored", rule: "Inbound frames are ignored and never stored, audited, logged, or echoed." }] },
+  { id: "syncSocket", method: "GET", path: "/v2/firm/sync", bodyKeys: [], inputs: [{ location: "query", name: "ticket (key)", classification: "verified-never-stored", rule: "The sole accepted query key is exact lowercase ticket." }, { location: "query", name: "ticket (value)", classification: "server-minted", rule: "Exactly a server-minted 64-hex single-use ticket." }, { location: "header", name: "upgrade (name and value)", classification: "verified-never-stored", rule: "Only exact websocket upgrade is accepted; no client text is persisted or logged." }, { location: "websocket-frame", name: "inbound frame", classification: "verified-never-stored", rule: "Every inbound frame is rejected by closing the socket; its text is never stored, audited, logged, or echoed." }] },
 ] as const;
 
 const SPECS_BY_ID = new Map(V2_FIRM_ROUTE_SPECS.map((spec) => [spec.id, spec]));

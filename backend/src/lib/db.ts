@@ -156,6 +156,17 @@ CREATE TABLE IF NOT EXISTS matters (
 );
 CREATE INDEX IF NOT EXISTS idx_matters_org ON matters(org_id);
 
+-- A provisioning retry key is a random client token, stored only as an HMAC.
+-- It is binding metadata, not client metadata: it lets a lost response resume
+-- the same opaque shell without ever storing a local client name or local ID.
+CREATE TABLE IF NOT EXISTS matter_provisioning_idempotency (
+  nonce_hash    TEXT PRIMARY KEY,
+  org_id        TEXT NOT NULL REFERENCES orgs(org_id),
+  user_id       TEXT NOT NULL REFERENCES users(user_id),
+  matter_handle TEXT NOT NULL UNIQUE REFERENCES matters(matter_handle),
+  created_at    TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS matter_streams (
   stream_handle     TEXT PRIMARY KEY,
   matter_handle     TEXT NOT NULL REFERENCES matters(matter_handle),
@@ -1171,6 +1182,48 @@ export class Store {
       this.#db.query("INSERT INTO matter_streams (stream_handle, matter_handle, created_at) VALUES (?, ?, ?)").run(m.root_stream_handle, m.matter_handle, m.created_at);
     });
     txn.immediate(); return m;
+  }
+
+  /**
+   * Create an empty shell once for one authenticated provision attempt.
+   * `nonce_hash` is already domain-separated and HMACed by the route, so the
+   * database never holds the client-generated token itself. The lookup and
+   * insertion share one IMMEDIATE transaction: a lost HTTP response can only
+   * resume this exact shell, never allocate a second one.
+   */
+  createMatterIdempotent(input: { org_id: string; user_id: string; nonce_hash: string }): { matter: Matter; created: boolean } {
+    const txn = this.#db.transaction(() => {
+      const existing = this.#db.query(`
+        SELECT m.* FROM matter_provisioning_idempotency i
+        JOIN matters m ON m.matter_handle = i.matter_handle
+        WHERE i.nonce_hash = ? AND i.org_id = ? AND i.user_id = ?
+      `).get(input.nonce_hash, input.org_id, input.user_id) as MatterRow | null;
+      if (existing) return { matter: toMatter(existing), created: false };
+
+      const matter: Matter = {
+        matter_handle: this.newHandle("mh2_"), org_id: input.org_id,
+        root_stream_handle: this.newHandle("sh2_"), status: "provisioning",
+        key_epoch: 1, created_at: this.nowIso(),
+      };
+      this.#db.query("INSERT INTO matters (matter_handle, org_id, root_stream_handle, status, key_epoch, created_at) VALUES (?, ?, ?, 'provisioning', 1, ?)")
+        .run(matter.matter_handle, matter.org_id, matter.root_stream_handle, matter.created_at);
+      this.#db.query("INSERT INTO matter_streams (stream_handle, matter_handle, created_at) VALUES (?, ?, ?)")
+        .run(matter.root_stream_handle, matter.matter_handle, matter.created_at);
+      // A retry must never discover a shell that exists but has no owner. Keep
+      // its owner binding and create audit row in this same transaction as the
+      // idempotency mapping and handles.
+      this.#db.query(`INSERT INTO matter_members (matter_handle, user_id, org_id, role, created_at)
+        VALUES (?, ?, ?, 'owner', ?)`)
+        .run(matter.matter_handle, input.user_id, matter.org_id, matter.created_at);
+      this.#db.query(`INSERT INTO matter_provisioning_idempotency (nonce_hash, org_id, user_id, matter_handle, created_at)
+        VALUES (?, ?, ?, ?, ?)`)
+        .run(input.nonce_hash, input.org_id, input.user_id, matter.matter_handle, matter.created_at);
+      this.#db.query(`INSERT INTO audit_events (org_id, actor_user_id, action, target, detail, ts)
+        VALUES (?, ?, 'matter.create', ?, ?, ?)`)
+        .run(matter.org_id, input.user_id, matter.matter_handle, JSON.stringify({ op: "create", epoch: 1 }), matter.created_at);
+      return { matter, created: true };
+    });
+    return txn.immediate() as { matter: Matter; created: boolean };
   }
 
   getMatter(matterHandle: string): Matter | null {

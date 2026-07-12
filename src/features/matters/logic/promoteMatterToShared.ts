@@ -7,7 +7,7 @@ import { audit } from '@/features/matters/matterManagerDialogHelpers';
 import { encryptUpdateV2, importMatterKey } from '@/platform/firm/matterCrypto';
 import { writeFirmMatterPrivateIndex } from '@/platform/firm/firmMatterPrivateIndex';
 import { useFirmStore } from '@/platform/firm/firmStore';
-import { createOpaqueBlobId } from '@/platform/firm/opaqueBlobId';
+import { createOpaqueBlobId, createOpaqueProvisioningNonce } from '@/platform/firm/opaqueBlobId';
 import {
   clearPromotionPending,
   loadPromotionPending,
@@ -23,7 +23,7 @@ export type PromoteMatterResult =
 
 /**
  * Ordered v2 promotion:
- * provision opaque shell → local key → activate → encrypted root private index
+ * durable local retry receipt → provision opaque shell → local key → activate → encrypted root private index
  * → device registration/key distribution → local linkage. The original local
  * Matter.id and all human-readable details remain entirely on this device.
  */
@@ -43,27 +43,47 @@ export async function promoteMatterToShared(
     if (!seatToken) throw new Error('A valid firm seat is required to share a client.');
     pending = await loadPromotionPending(matterId);
     if (!pending) {
-      const provision = await client.createMatter();
-      const keyB64 = await createLocalMatterKey(provision.matter_handle);
+      // This is deliberately the first durable step. If the relay commits but
+      // its response is lost (or this device dies before saving the returned
+      // handle), this nonce lets the next run ask for the SAME shell.
+      pending = { provisioningNonce: createOpaqueProvisioningNonce() };
+      await storePromotionPending(matterId, pending);
+    }
+    if (!pending.matterHandle) {
+      const provision = await client.createMatter(pending.provisioningNonce);
+      // Persist the handle before generating a key or private index. If this
+      // write itself crashes, the earlier nonce-only record still resumes it.
+      pending = {
+        provisioningNonce: pending.provisioningNonce,
+        matterHandle: provision.matter_handle,
+        rootStreamHandle: provision.root_stream_handle,
+        keyEpoch: provision.key_epoch,
+      };
+      await storePromotionPending(matterId, pending);
+    }
+    if (!pending.keyB64 || !pending.rootBlobId || !pending.rootCiphertextB64) {
+      const provision = pending as Required<Pick<PromotionPendingRecord, 'matterHandle' | 'rootStreamHandle' | 'keyEpoch'>> & PromotionPendingRecord;
+      const keyB64 = await createLocalMatterKey(provision.matterHandle as MatterHandle);
       const root = new Y.Doc();
       writeFirmMatterPrivateIndex(root, {
         version: 1,
         clientName,
         displayName: clientName,
-        streams: { _notes: { streamHandle: provision.root_stream_handle, kind: 'notes' } },
+        streams: { _notes: { streamHandle: provision.rootStreamHandle as never, kind: 'notes' } },
       });
       const key = await importMatterKey(keyB64);
       const rootCiphertextB64 = await encryptUpdateV2(key, Y.encodeStateAsUpdate(root), {
-        keyEpoch: provision.key_epoch,
-        matterHandle: provision.matter_handle,
-        streamHandle: provision.root_stream_handle,
+        keyEpoch: provision.keyEpoch,
+        matterHandle: provision.matterHandle,
+        streamHandle: provision.rootStreamHandle,
       });
       // Persist before activation: from here onward every uncertain server
       // result has one durable local handle, key, and idempotent root write.
       pending = {
-        matterHandle: provision.matter_handle,
-        rootStreamHandle: provision.root_stream_handle,
-        keyEpoch: provision.key_epoch,
+        provisioningNonce: provision.provisioningNonce,
+        matterHandle: provision.matterHandle,
+        rootStreamHandle: provision.rootStreamHandle,
+        keyEpoch: provision.keyEpoch,
         keyB64,
         rootBlobId: createOpaqueBlobId(),
         rootCiphertextB64,
@@ -71,13 +91,16 @@ export async function promoteMatterToShared(
       await storePromotionPending(matterId, pending);
     }
 
+    if (!pending.matterHandle || !pending.rootStreamHandle || !pending.keyEpoch || !pending.keyB64 || !pending.rootBlobId || !pending.rootCiphertextB64) {
+      throw new Error('The saved sharing retry record is incomplete.');
+    }
     const handle = pending.matterHandle as MatterHandle;
     const rootStreamHandle = pending.rootStreamHandle;
     // The relay deliberately denies every write while a shell is provisioning.
     // Repeated activation is intentionally tolerated by the pending record:
     // if the first response was lost, the following idempotent root write is
     // the confirmation path rather than a reason to create another shell.
-    await client.activateMatter(handle).catch((error) => {
+    await client.activateMatter(handle).catch((error: unknown) => {
       if (error instanceof Error && /404|matter_not_found/.test(error.message)) return;
       throw error;
     });
@@ -104,7 +127,13 @@ export async function promoteMatterToShared(
     //                only local key; a later run resumes the SAME shell rather
     //                than creating a second one. Never archive on a guess.
     if (pending && err instanceof FirmApiError && err.status >= 400 && err.status < 500) {
-      await client.archiveMatter(pending.matterHandle as MatterHandle).catch(() => undefined);
+      try {
+        await client.archiveMatter(pending.matterHandle as MatterHandle);
+      // eslint-disable-next-line lantern-async/no-silent-failure -- cleanup is deliberately best-effort after a definite rejection.
+      } catch {
+        // Best-effort cleanup after a definite rejection. Clearing the local
+        // record below still makes a later user attempt use a fresh nonce.
+      }
       await forgetMatterKey(pending.matterHandle as MatterHandle);
       await clearPromotionPending(matterId);
     }

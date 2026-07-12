@@ -119,12 +119,14 @@ async function deleteSecret(service: string, key: string): Promise<void> {
  * archive prevents a timeout from creating an unreachable second shell.
  */
 export interface PromotionPendingRecord {
-  matterHandle: string;
-  rootStreamHandle: string;
-  keyEpoch: number;
-  keyB64: string;
-  rootBlobId: string;
-  rootCiphertextB64: string;
+  /** Written before the first request. This survives a lost provision reply. */
+  provisioningNonce: string;
+  matterHandle?: string;
+  rootStreamHandle?: string;
+  keyEpoch?: number;
+  keyB64?: string;
+  rootBlobId?: string;
+  rootCiphertextB64?: string;
 }
 
 function promotionService(localMatterId: string): string {
@@ -140,9 +142,16 @@ export async function loadPromotionPending(localMatterId: string): Promise<Promo
   if (!raw) return null;
   try {
     const record = JSON.parse(raw) as PromotionPendingRecord;
-    if (typeof record.matterHandle !== 'string' || typeof record.rootStreamHandle !== 'string' ||
-      !Number.isInteger(record.keyEpoch) || typeof record.keyB64 !== 'string' ||
-      typeof record.rootBlobId !== 'string' || typeof record.rootCiphertextB64 !== 'string') return null;
+    if (typeof record.provisioningNonce !== 'string') return null;
+    const hasProvision = typeof record.matterHandle === 'string' && typeof record.rootStreamHandle === 'string' && Number.isInteger(record.keyEpoch);
+    const hasAnyProvision = record.matterHandle !== undefined || record.rootStreamHandle !== undefined || record.keyEpoch !== undefined;
+    const hasCrypto = typeof record.keyB64 === 'string' && typeof record.rootBlobId === 'string' && typeof record.rootCiphertextB64 === 'string';
+    const hasAnyCrypto = record.keyB64 !== undefined || record.rootBlobId !== undefined || record.rootCiphertextB64 !== undefined;
+    // There are three safe checkpoints: nonce-only before the request;
+    // provisioned handles before key/index work; and the complete encrypted
+    // root write. Anything between those shapes is corruption, not a state to
+    // guess through.
+    if ((hasAnyProvision && !hasProvision) || (hasAnyCrypto && (!hasCrypto || !hasProvision))) return null;
     return record;
   } catch {
     return null;

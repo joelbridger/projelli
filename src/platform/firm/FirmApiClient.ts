@@ -57,6 +57,7 @@ import {
   parseMatterHandle,
   parseStreamHandle,
 } from './contract';
+import { OPAQUE_PROVISIONING_NONCE_PATTERN } from './opaqueBlobId';
 
 export class FirmApiError extends Error {
   status: number;
@@ -237,11 +238,14 @@ export class FirmApiClient {
 
   // --- matters ---------------------------------------------------------------
   /** Provision an empty opaque shell. Client names and local IDs never cross this boundary. */
-  createMatter(): Promise<CreateMatterResponse> {
+  createMatter(provisioningNonce: string): Promise<CreateMatterResponse> {
+    if (!OPAQUE_PROVISIONING_NONCE_PATTERN.test(provisioningNonce)) {
+      throw new Error('Invalid opaque provisioning retry receipt.');
+    }
     return this.request<CreateMatterResponse>(FIRM_ENDPOINTS.createMatter, {
       method: 'POST',
       auth: true,
-      body: {},
+      body: { provisioning_nonce: provisioningNonce },
     });
   }
 

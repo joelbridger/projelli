@@ -73,6 +73,7 @@ async function responseJson(response: Response): Promise<Record<string, unknown>
 const validBlobId = `bh2_${"A".repeat(43)}`;
 const validWrappedEnvelope = Buffer.from([0x4c, 0x57, 0x4b, 1, 4, ...new Array(140).fill(0)]).toString("base64");
 const validCiphertextEnvelope = Buffer.from([2, ...new Array(28).fill(0)]).toString("base64");
+const provisioningNonce = () => `pn2_${Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url")}`;
 
 describe("firm relay privacy proof", () => {
   test("wrapped keys reject readable text and unregistered or foreign devices, and persist only binary envelopes", async () => {
@@ -262,7 +263,7 @@ describe("firm relay privacy proof", () => {
       return { status: response.status, body: await responseJson(response) };
     };
     try {
-      const created = await send("/v2/firm/matters", {});
+      const created = await send("/v2/firm/matters", { provisioning_nonce: provisioningNonce() });
       const matterHandle = created.body.matter_handle as string;
       const rootStream = created.body.root_stream_handle as string;
       await send(`/v2/firm/matters/${matterHandle}/activate`, {});
@@ -340,10 +341,79 @@ describe("firm relay privacy proof", () => {
         method: "OPTIONS",
         headers: { origin: "https://app.example.test", "access-control-request-method": "POST" },
       });
-      expect(activateResponse.status).toBe(400);
+      expect(activateResponse.status).toBe(404);
       const activateBody = await responseJson(activateResponse) as { error?: string };
-      expect(activateBody.error).toBe("invalid_v2_query");
+      expect(activateBody.error).toBe("not_found");
       expect(JSON.stringify(activateBody)).not.toContain(clientSecret);
+    } finally {
+      server.stop(true);
+      store.close();
+    }
+  });
+
+  test("only an inventoried path and its declared method can receive v2 CORS headers", async () => {
+    const { store } = fixture();
+    const logs: unknown[][] = [];
+    const original = console.error;
+    console.error = (...args: unknown[]) => { logs.push(args); };
+    const server = Bun.serve<SyncSocketData>(buildServeOptions(store, new FanoutHub()));
+    const base = `http://${server.hostname}:${server.port}`;
+    try {
+      // These all used to hit the unconditional OPTIONS return. They must use
+      // one constant CORS-free response so neither the raw path nor method is
+      // exposed by a special preflight route.
+      for (const [path, requestedMethod] of [
+        [`/v2/firm/CLIENT_SECRET_NIMBUS`, "POST"],
+        ["/v2/firm/matters/", "POST"],
+        ["/v2/firm/matters%2Fhidden", "POST"],
+        ["/v2/firm/matters", "GET"],
+        ["/v2/firm/matters", null],
+      ] as const) {
+        const response = await fetch(`${base}${path}`, {
+          method: "OPTIONS",
+          headers: { origin: "https://app.example.test", ...(requestedMethod ? { "access-control-request-method": requestedMethod } : {}) },
+        });
+        expect(response.status, path).toBe(404);
+        expect(response.headers.get("access-control-allow-origin"), path).toBeNull();
+        expect(await response.text(), path).toBe('{"error":"not_found"}');
+      }
+
+      const allowed = await fetch(`${base}/v2/firm/matters`, {
+        method: "OPTIONS",
+        headers: { origin: "https://app.example.test", "access-control-request-method": "POST" },
+      });
+      expect(allowed.status).toBe(204);
+      expect(allowed.headers.get("access-control-allow-origin")).toBe("*");
+      expect(JSON.stringify(logs)).not.toContain(clientSecret);
+    } finally {
+      console.error = original;
+      server.stop(true);
+      store.close();
+    }
+  });
+
+  test("a repeated opaque provisioning receipt returns one existing shell and stores no raw receipt", async () => {
+    const { store, admin, adminToken } = fixture();
+    const server = Bun.serve<SyncSocketData>(buildServeOptions(store, new FanoutHub()));
+    const base = `http://${server.hostname}:${server.port}`;
+    const nonce = provisioningNonce();
+    try {
+      const create = async () => {
+        const response = await fetch(`${base}/v2/firm/matters`, {
+          method: "POST",
+          headers: { authorization: `Bearer ${adminToken}`, "content-type": "application/json" },
+          body: JSON.stringify({ provisioning_nonce: nonce }),
+        });
+        expect(response.status).toBe(201);
+        return await responseJson(response) as { matter_handle: string; root_stream_handle: string };
+      };
+      const first = await create();
+      const retry = await create();
+      expect(retry).toEqual(first);
+      const db = store.inspectReadOnly();
+      expect(db.all("SELECT matter_handle FROM matter_provisioning_idempotency")).toEqual([{ matter_handle: first.matter_handle }]);
+      expect(db.all("SELECT 1 FROM matter_provisioning_idempotency WHERE instr(nonce_hash, ?) > 0", nonce)).toEqual([]);
+      expect(store.getMatterMember(first.matter_handle, admin.user_id)?.role).toBe("owner");
     } finally {
       server.stop(true);
       store.close();
@@ -357,7 +427,7 @@ describe("firm relay privacy proof", () => {
     const auth = { authorization: `Bearer ${adminToken}`, "x-seat-token": adminSeatToken };
     try {
       const create = await fetch(`${base}/v2/firm/matters`, {
-        method: "POST", headers: { "content-type": "application/json", ...auth }, body: "{}",
+        method: "POST", headers: { "content-type": "application/json", ...auth }, body: JSON.stringify({ provisioning_nonce: provisioningNonce() }),
       });
       const { matter_handle: matterHandle, root_stream_handle: rootStream } = await responseJson(create) as { matter_handle: string; root_stream_handle: string };
       expect((await fetch(`${base}/v2/firm/matters/${matterHandle}/activate`, {
@@ -375,8 +445,9 @@ describe("firm relay privacy proof", () => {
         method: "OPTIONS",
         headers: { origin: "https://app.example.test", "access-control-request-method": "POST" },
       });
-      expect(rejectedPreflight.status).toBe(400);
-      expect((await responseJson(rejectedPreflight)).error).toBe("invalid_v2_query");
+      expect(rejectedPreflight.status).toBe(404);
+      expect(rejectedPreflight.headers.get("access-control-allow-origin")).toBeNull();
+      expect((await responseJson(rejectedPreflight)).error).toBe("not_found");
 
       const pull = await fetch(`${base}${path}`, { headers: { origin: "https://app.example.test", ...auth } });
       expect(pull.status).toBe(200);
@@ -403,7 +474,7 @@ describe("firm relay privacy proof", () => {
     };
     try {
       const created = await fetch(`${base}/v2/firm/matters`, {
-        method: "POST", headers: { "content-type": "application/json", ...auth }, body: "{}",
+        method: "POST", headers: { "content-type": "application/json", ...auth }, body: JSON.stringify({ provisioning_nonce: provisioningNonce() }),
       });
       const { matter_handle: matterHandle, root_stream_handle: rootStream } = await responseJson(created) as { matter_handle: string; root_stream_handle: string };
       const routes = [
@@ -440,7 +511,7 @@ describe("firm relay privacy proof", () => {
     const auth = { authorization: `Bearer ${adminToken}`, "x-seat-token": adminSeatToken };
     try {
       const create = await fetch(`${base}/v2/firm/matters`, {
-        method: "POST", headers: { "content-type": "application/json", ...auth }, body: "{}",
+        method: "POST", headers: { "content-type": "application/json", ...auth }, body: JSON.stringify({ provisioning_nonce: provisioningNonce() }),
       });
       const { matter_handle: matterHandle, root_stream_handle: rootStream } = await responseJson(create) as { matter_handle: string; root_stream_handle: string };
       await fetch(`${base}/v2/firm/matters/${matterHandle}/activate`, {
@@ -519,7 +590,7 @@ describe("firm relay privacy proof", () => {
         documentId: documentName,
         path: "/Clients/CLIENT_SECRET_NIMBUS/doc-advisory-plan.docx",
       };
-      const created = await adminClient.createMatter();
+      const created = await adminClient.createMatter(provisioningNonce());
       await adminClient.activateMatter(created.matter_handle);
       await adminClient.addMatterMember(created.matter_handle, member.user_id, "editor");
       const wall = await adminClient.setWall(created.matter_handle, member.user_id);

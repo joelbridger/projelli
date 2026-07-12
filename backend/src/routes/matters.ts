@@ -3,6 +3,7 @@ import { json, error, isNonEmptyString, authenticate, rateLimit } from "../lib/h
 import { readStrictV2Payload } from "../lib/v2Payload.ts";
 import { v2BodyKeys } from "../lib/v2RouteInventory.ts";
 import { config } from "../lib/config.ts";
+import { hmacHash } from "../lib/crypto.ts";
 import { gateMatterAccess, resolveAccess, verifyActiveSeat, toUpdateFrame, fanout, MAX_UPDATE_BYTES, type FanoutHub } from "../lib/matters.ts";
 import { syncTickets, type SyncTicketStore } from "../lib/syncTickets.ts";
 import type { Store } from "../lib/db.ts";
@@ -13,7 +14,13 @@ const HANDLE = /^(?:mh2_|sh2_)[A-Za-z0-9_-]{43}$/;
 // the relay and other subscribers, so accepting a descriptive string here
 // would create a plaintext channel around the encrypted descriptor boundary.
 const BLOB_ID = /^bh2_[A-Za-z0-9_-]{43}$/;
+const PROVISIONING_NONCE = /^pn2_[A-Za-z0-9_-]{43}$/;
 const CIPHERTEXT_V2_BYTES_MIN = 1 + 12 + 16;
+// This is a transport-shape guard, not a claim that the relay can prove
+// encryption. An authorized client which already has plaintext and its key can
+// deliberately put readable bytes in its own payload; only the recipient can
+// authenticate/decrypt it. The relay's enforceable boundary is routing and ACL
+// metadata, plus preventing one client from causing another client's leak.
 const matterHandle = (value: string) => value.startsWith("mh2_") && HANDLE.test(value);
 const streamHandle = (value: string) => value.startsWith("sh2_") && HANDLE.test(value);
 const roles = new Set<MatterRole>(["owner", "editor", "viewer"]);
@@ -36,10 +43,15 @@ function sameOrgMatter(store: Store, orgId: string, handle: string) {
 export async function handleCreateMatter(req: Request, store: Store): Promise<Response> {
   const a = admin(req); if (!a.ok) return a.resp;
   const body = await readStrictV2Payload(req, v2BodyKeys("createMatter"));
-  if (body === null) return error("invalid_v2_payload", 400);
-  const matter = store.createMatter({ org_id: a.claims.org_id });
-  store.addMatterMember({ matter_handle: matter.matter_handle, user_id: a.claims.sub, org_id: a.claims.org_id, role: "owner" });
-  store.audit({ org_id: a.claims.org_id, actor_user_id: a.claims.sub, action: "matter.create", target: matter.matter_handle, detail: { op: "create", epoch: 1 } });
+  if (body === null || typeof body.provisioning_nonce !== "string" || !PROVISIONING_NONCE.test(body.provisioning_nonce)) return error("invalid_v2_payload", 400);
+  const result = store.createMatterIdempotent({
+    org_id: a.claims.org_id,
+    user_id: a.claims.sub,
+    // The relay keeps only a one-way, domain-separated retry key. It never
+    // stores the raw client nonce or any readable client identity.
+    nonce_hash: hmacHash(`firm-provision-v1:${a.claims.org_id}:${a.claims.sub}:${body.provisioning_nonce}`),
+  });
+  const matter = result.matter;
   return json({ matter_handle: matter.matter_handle, root_stream_handle: matter.root_stream_handle, key_epoch: 1, status: "provisioning" }, 201);
 }
 export async function handleListMatters(req: Request, store: Store): Promise<Response> {

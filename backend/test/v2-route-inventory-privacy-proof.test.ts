@@ -3,8 +3,10 @@
  *
  * Adding a relay route/field means adding it to V2_FIRM_ROUTE_SPECS first;
  * this test then automatically sends every sentinel through it. The checks
- * cover text and BLOB database columns, audit rows, caught server logs, HTTP
- * responses, and every observed WebSocket frame.
+ * cover every routing/protocol database column, audit rows, caught server
+ * logs, HTTP responses, and every observed WebSocket frame. Payload BLOBs are
+ * intentionally excluded: the relay cannot read them and cannot prove they
+ * are encrypted (see firm-relay-v2-only-reset.md).
  */
 import { describe, expect, test } from "bun:test";
 import { Store } from "../src/lib/db.ts";
@@ -50,6 +52,12 @@ function assertStoreAndAuditAreClean(store: Store): void {
     const table = `"${name.replaceAll('"', '""')}"`;
     const columns = db.all(`PRAGMA table_info(${table})`) as Array<{ name: string }>;
     for (const { name: columnName } of columns) {
+      // Ciphertext and wrapped-key BLOBs are opaque client payloads. An
+      // authorized client already has their plaintext/key and can deliberately
+      // place readable bytes there; a relay-side "encryption check" cannot
+      // prove otherwise. This proof covers every NON-payload field instead.
+      if ((name === "matter_updates" && columnName === "ciphertext") ||
+          (name === "wrapped_matter_keys" && columnName === "wrapped_key")) continue;
       const column = `"${columnName.replaceAll('"', '""')}"`;
       for (const sentinel of SENTINELS) {
         expect(db.all(`SELECT 1 FROM ${table} WHERE instr(CAST(${column} AS TEXT), ?) > 0`, sentinel), `${name}.${columnName}`).toHaveLength(0);
@@ -65,6 +73,7 @@ function concretePath(spec: V2FirmRouteSpec, matterHandle: string, streamHandle:
 
 function bodyFor(route: V2FirmRouteId, memberId: string, seat: string): Record<string, unknown> {
   switch (route) {
+    case "createMatter": return { provisioning_nonce: `pn2_${"N".repeat(43)}` };
     case "releaseMatterStream": return { stream_handle: `sh2_${"R".repeat(43)}` };
     case "addMatterMember": return { user_id: memberId, role: "editor" };
     case "removeMatterMember": return { user_id: memberId };
@@ -99,6 +108,8 @@ describe("v2 route inventory hostile-client privacy proof", () => {
     const server = Bun.serve<SyncSocketData>(buildServeOptions(store, new FanoutHub(), { onWebSocketFrame: (frame) => frames.push(frame) }));
     const base = `http://${server.hostname}:${server.port}`;
     try {
+      const exercised = new Set<string>();
+      const inputKey = (spec: V2FirmRouteSpec, input: { location: string; name: string }) => `${spec.id}:${input.location}:${input.name}`;
       expect(new Set(V2_FIRM_ROUTE_SPECS.map((route) => route.id)).size).toBe(V2_FIRM_ROUTE_SPECS.length);
       expect(V2_FIRM_ROUTE_SPECS.map((route) => route.path)).toEqual(expect.arrayContaining([
         "/v2/firm/matters", "/v2/firm/matters/:matter_handle/keys/publish", "/v2/firm/streams/:stream_handle/updates", "/v2/firm/sync",
@@ -136,10 +147,44 @@ describe("v2 route inventory hostile-client privacy proof", () => {
             });
             if (input.name.includes("all unlisted")) expect(response.status, `${spec.id} ${input.name}`).toBe(400);
             assertNoSentinels(await response.text(), `${spec.id} ${input.location}:${input.name} response`);
+            if (spec.inputs.includes(input as never)) exercised.add(inputKey(spec, input));
           }
 
         }
       }
+
+      // The WebSocket entry is not merely listed: mint a real one-time ticket,
+      // open a real socket, then send hostile text in its sole inbound field.
+      // The relay closes instead of parsing/echoing it, so it cannot leak into
+      // a log, audit record, DB field, or outgoing frame.
+      const syncSpec = V2_FIRM_ROUTE_SPECS.find((spec) => spec.id === "syncSocket");
+      if (!syncSpec) throw new Error("sync socket missing from route inventory");
+      // The HTTP table intentionally exercises destructive routes too, so use
+      // a fresh active matter for the real socket part of this proof.
+      const wsMatter = store.createMatter({ org_id: admin.org_id });
+      store.addMatterMember({ matter_handle: wsMatter.matter_handle, user_id: admin.user_id, org_id: admin.org_id, role: "owner" });
+      store.activateProvisioningMatter(wsMatter.matter_handle);
+      for (const sentinel of SENTINELS) {
+        const ticketResponse = await fetch(`${base}/v2/firm/streams/${wsMatter.root_stream_handle}/sync-ticket`, {
+          method: "POST", headers: { authorization: auth, "x-seat-token": seat, "content-type": "application/json" }, body: "{}",
+        });
+        expect(ticketResponse.status).toBe(200);
+        const { ticket } = await ticketResponse.json() as { ticket: string };
+        const close = await new Promise<{ code: number; reason: string }>((resolve, reject) => {
+          const socket = new WebSocket(`${base.replace("http", "ws")}/v2/firm/sync?ticket=${ticket}`);
+          const timer = setTimeout(() => reject(new Error("hostile websocket frame was not rejected")), 2_000);
+          socket.onopen = () => socket.send(JSON.stringify({ client_name: sentinel, matter_id: sentinel, doc_id: sentinel }));
+          socket.onclose = (event) => { clearTimeout(timer); resolve({ code: event.code, reason: event.reason }); };
+          socket.onerror = () => { clearTimeout(timer); reject(new Error("hostile websocket did not open")); };
+        });
+        expect(close).toEqual({ code: 1008, reason: "inbound_frames_not_supported" });
+        const frameInput = syncSpec.inputs.find((input) => input.location === "websocket-frame");
+        if (!frameInput) throw new Error("sync socket frame input missing from route inventory");
+        exercised.add(inputKey(syncSpec, frameInput));
+      }
+
+      const expectedInputs = new Set(V2_FIRM_ROUTE_SPECS.flatMap((spec) => spec.inputs.map((input) => inputKey(spec, input))));
+      expect(exercised, "every inventory input must be exercised by this proof").toEqual(expectedInputs);
 
       assertStoreAndAuditAreClean(store);
       assertNoSentinels(logs, "server logs");

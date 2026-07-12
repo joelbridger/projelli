@@ -11,8 +11,10 @@ const store = new Store(":memory:"), hub = new FanoutHub();
 const server = Bun.serve<SyncSocketData>(buildServeOptions(store, hub));
 const base = () => `http://${server.hostname}:${server.port}`;
 let admin = "", alice = "", bob = "", viewer = "", owner = "", carol = "", aliceSeat = "", bobSeat = "", viewerSeat = "", ownerSeat = "", carolSeat = "", aliceId = "", bobId = "", viewerId = "", ownerId = "", handle = "", root = "", otherHandle = "";
+const provisioningNonce = () => `pn2_${Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url")}`;
 const post = async (path:string, body:unknown = {}, token?:string, extra:Record<string,string> = {}) => {
-  const r = await fetch(base()+path,{method:"POST",headers:{"content-type":"application/json",...token?{authorization:`Bearer ${token}`}:{},...extra},body:JSON.stringify(body)});
+  const relayBody = path === "/v2/firm/matters" && JSON.stringify(body) === "{}" ? { provisioning_nonce: provisioningNonce() } : body;
+  const r = await fetch(base()+path,{method:"POST",headers:{"content-type":"application/json",...token?{authorization:`Bearer ${token}`}:{},...extra},body:JSON.stringify(relayBody)});
   return {status:r.status,body:await r.json().catch(()=>({})) as Record<string,any>};
 };
 const get = async (path:string, token?:string, seat?:string) => { const r=await fetch(base()+path,{headers:{...token?{authorization:`Bearer ${token}`}:{},...seat?{"x-seat-token":seat}:{}}}); return {status:r.status,body:await r.json().catch(()=>({})) as Record<string,any>}; };

@@ -26,6 +26,28 @@ The reset removes test/demo organizations, seats, relay data, and audit history
 from that database. This is intentional: it prevents old local client names or
 old ciphertext from surviving beside the v2-only relay.
 
+## What the relay privacy proof really guarantees
+
+The relay proves a narrow but useful thing: it never derives, stores, or sends
+readable client metadata in its routing or protocol parts. That includes URLs,
+query strings, headers, normal request and response fields, audit rows, log
+lines, database columns that are not payload storage, and WebSocket envelopes.
+The route inventory is the checklist the automated proof uses for this promise.
+
+The encrypted payload columns are different. They hold opaque bytes: update
+ciphertext and wrapped-key blobs. The relay has no content key, so it cannot
+look inside those bytes and cannot honestly prove that they are real ciphertext.
+It still checks the expected envelope *shape*. That catches ordinary mistakes
+and malformed data, but it is not an encryption test.
+
+An authorized client already has both the plaintext and the key. It can choose
+to put readable bytes in its own payload, and that only reveals data it already
+has. No relay-side check can stop a party from disclosing data it can read; a
+pretend “encryption check” would be security theatre. The protection the relay
+does provide is that it cannot read the routing metadata, cannot connect opaque
+handles to client names or local IDs, and does not let one client make another
+client's data leak.
+
 ## Why there is no in-app migration
 
 An in-app legacy migration bridge was built and then deliberately removed. It

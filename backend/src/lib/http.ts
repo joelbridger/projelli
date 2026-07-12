@@ -42,6 +42,18 @@ export function preflight(): Response {
   return new Response(null, { status: 204, headers: CORS_HEADERS });
 }
 
+/**
+ * Deliberately CORS-free constant answer for an invalid v2 preflight.  Do not
+ * use `error()` here: its normal CORS headers would turn an undeclared URL
+ * into a browser-visible route before the inventory can reject it.
+ */
+export function rejectOpaqueV2Preflight(): Response {
+  return new Response('{"error":"not_found"}', {
+    status: 404,
+    headers: { "content-type": "application/json" },
+  });
+}
+
 /** Parse a JSON body with a hard size cap. Returns null on any failure. */
 export async function readJson<T = Record<string, unknown>>(req: Request): Promise<T | null> {
   const len = Number(req.headers.get("content-length") ?? "0");
