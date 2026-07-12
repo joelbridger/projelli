@@ -609,7 +609,29 @@ class DesktopParityApp implements ParityApp {
     await this.click('spine-nav-matters');
     await this.waitForControl('crm-directory-surface');
     await this.requireText(household);
-    if (options.person) await this.requireText(person);
+    if (options.person) {
+      // A person belongs in the People directory, not in the default
+      // Households view.  Prove the front door end to end: deliberately open
+      // that view, search for the newly-created person, and require their
+      // actual directory row after the native restart.  Do not let a person
+      // merely surviving inside its household record count as a visible
+      // client.
+      await this.eval(`(() => {
+        const people = Array.from(document.querySelectorAll('button')).find(
+          (button) => button.textContent?.trim() === 'People'
+        );
+        if (!(people instanceof HTMLButtonElement))
+          throw new Error('The Clients directory has no People view');
+        people.click();
+        return true;
+      })()`);
+      await this.fill('crm-directory-search', person);
+      const listed = await this.eval(
+        `Array.from(document.querySelectorAll('[data-testid^="crm-directory-person-"]')).some((row) => row.textContent?.includes(${JSON.stringify(person)}))`
+      );
+      if (!listed)
+        fail('Saved person is missing from the Clients People directory after native restart');
+    }
     if (options.ownership) {
       await this.requireText('Platinum');
       await this.requireText('Parity advisor');
