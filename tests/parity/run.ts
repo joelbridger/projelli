@@ -8,7 +8,10 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import {
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
+  rmSync,
+  statSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -16,6 +19,7 @@ import { homedir } from 'node:os';
 import { createServer } from 'node:net';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
 import {
   FEATURES,
   SKIPPED_FEATURES,
@@ -24,30 +28,30 @@ import {
 } from './manifest';
 
 const root = resolve(fileURLToPath(new URL('../..', import.meta.url)));
+function stableWorktreePort(value: string): number {
+  let hash = 2166136261;
+  for (const character of value) {
+    hash ^= character.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return 15_000 + ((hash >>> 0) % 10_000);
+}
 // A parity run owns both ports. Fixed defaults let two simultaneous runs talk
 // to the wrong app, which turns a setup problem into a fake score.
-const defaultBridgePort = 20_000 + (process.pid % 20_000) * 2;
-const port = Number(
-  process.env['PARITY_BRIDGE_PORT'] ?? String(defaultBridgePort)
-);
-// The debug desktop binary has Tauri's development address compiled in as
-// :5174. A different Vite port means the bridge can start while its renderer
-// is blank, then every feature falsely fails.
-const vitePort = 5174;
-const requestedVitePort = process.env['PARITY_VITE_PORT'];
-// A lane may deliberately share the one compatible Vite server while keeping
-// its desktop bridge and encrypted workspace private. This is opt-in: the
-// default still rejects a competing server so an accidental collision cannot
-// turn into a misleading score.
-// DEFAULT TO REUSE (2026-07-12): the binary's dev address is compiled to :5174, and
-// build crews legitimately hold that port with their own app instances. Demanding an
-// exclusive Vite made the scoreboard fail with an INFRASTRUCTURE ERROR whenever a crew
-// was working — and this scoreboard is the merge trigger for the whole combined product,
-// so it must run at any time. Each run still gets its OWN bridge port + OWN encrypted
-// workspace, so scores stay isolated. Set PARITY_REUSE_VITE=0 to force an exclusive server.
-const reuseVite = process.env['PARITY_REUSE_VITE'] !== '0';
+const port = process.env['PARITY_BRIDGE_PORT']
+  ? Number(process.env['PARITY_BRIDGE_PORT'])
+  : await freePort();
+// Each worktree gets a stable private Vite port. The exact same value is baked
+// into the debug binary and its build receipt below, so the renderer can never
+// silently connect to a sibling worktree's server.
+const vitePort = process.env['PARITY_VITE_PORT']
+  ? Number(process.env['PARITY_VITE_PORT'])
+  : stableWorktreePort(root);
 const workspaceRoot =
   process.env['PARITY_WORKSPACE'] ?? `/tmp/lantern-parity-${process.pid}`;
+const preflight =
+  process.argv.includes('--preflight') ||
+  process.env['npm_config_preflight'] === 'true';
 const featureFilter = process.env['PARITY_FEATURE'];
 const reportPath = featureFilter
   ? `/tmp/lantern-parity-${featureFilter}-report.json`
@@ -56,19 +60,55 @@ const base = `http://127.0.0.1:${port}`;
 const delay = (ms: number) => new Promise((done) => setTimeout(done, ms));
 let migrationBaseUrl: string | undefined;
 
+const modelCache =
+  process.env['PARITY_MODEL_CACHE'] ??
+  resolve(homedir(), '.local/share/lantern/models/e5-small');
+const cargoTarget =
+  process.env['PARITY_CARGO_TARGET_DIR'] ??
+  '/mnt/devcache/cargo-target-crm-hermetic2';
+const binaryPath = resolve(cargoTarget, 'debug/lantern');
+const buildReceiptPath = resolve(
+  cargoTarget,
+  'debug/.lantern-parity-build.json'
+);
+const viteLeaseDir = `/tmp/lantern-parity-vite-${vitePort}.lock`;
+const xvfbDisplay = `:${30_000 + (process.pid % 20_000)}`;
+
 function shareMachineModelCache(): void {
   // A fresh parity data folder should isolate records and settings, not
   // re-download the same 465 MB read-only search model for every feature run.
   // Real Windows already has this machine-level model. Point the Linux run at
   // its known-good machine cache while keeping all writable app data private.
-  const source =
-    process.env['PARITY_MODEL_CACHE'] ??
-    resolve(homedir(), '.local/share/lantern/models/e5-small');
+  const source = modelCache;
   if (!existsSync(source)) return;
   const target = resolve(workspaceRoot, '.data/lantern/models/e5-small');
   if (existsSync(target)) return;
   mkdirSync(dirname(target), { recursive: true });
   symlinkSync(source, target, 'dir');
+}
+
+function directoryBytes(path: string): number {
+  let total = 0;
+  for (const entry of readdirSync(path, { withFileTypes: true })) {
+    const child = resolve(path, entry.name);
+    if (entry.isDirectory()) total += directoryBytes(child);
+    else if (entry.isFile()) total += statSync(child).size;
+  }
+  return total;
+}
+
+function verifyModelCache(): void {
+  if (!existsSync(modelCache)) {
+    throw new InfrastructureError(
+      `Machine model cache is missing at ${modelCache}; parity will not download the 465 MB model.`
+    );
+  }
+  const bytes = directoryBytes(modelCache);
+  if (bytes < 400_000_000) {
+    throw new InfrastructureError(
+      `Machine model cache at ${modelCache} is incomplete (${bytes} bytes; expected the cached 465 MB model).`
+    );
+  }
 }
 
 async function freePort(): Promise<number> {
@@ -88,7 +128,7 @@ async function freePort(): Promise<number> {
 // The desktop bridge accepts a timeout per request. Use the same generous
 // ceiling as the launch harness so a cold encrypted store is not confused
 // with a failing feature.
-const bridgeTimeoutMs = process.env['LANTERN_DEV_BRIDGE_TIMEOUT_MS'] ?? '20000';
+const bridgeTimeoutMs = process.env['LANTERN_DEV_BRIDGE_TIMEOUT_MS'] ?? '60000';
 
 type Result = {
   id: string;
@@ -194,6 +234,238 @@ function stop(child: ChildProcess | undefined): void {
   }
 }
 
+function errorText(error: unknown): string {
+  if (error instanceof Error) return error.message || error.stack || error.name;
+  const rendered = String(error);
+  return rendered || '(empty error value)';
+}
+
+function currentHead(): string {
+  try {
+    return execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: root,
+      encoding: 'utf8',
+    }).trim();
+  } catch (error) {
+    throw new InfrastructureError(
+      `Cannot read the current Git commit: ${errorText(error)}`
+    );
+  }
+}
+
+async function waitForExit(
+  child: ChildProcess,
+  timeoutMs: number
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (child.exitCode === null && child.signalCode === null) {
+    if (Date.now() >= deadline) {
+      stop(child);
+      throw new InfrastructureError(
+        `Process ${String(child.pid)} did not stop within ${timeoutMs} ms.`
+      );
+    }
+    await delay(100);
+  }
+}
+
+async function runBuild(head: string): Promise<void> {
+  mkdirSync(cargoTarget, { recursive: true });
+  let output = '';
+  const child = spawn(
+    'cargo',
+    ['build', '--manifest-path', 'src-tauri/Cargo.toml', '--locked'],
+    {
+      cwd: root,
+      env: {
+        ...process.env,
+        CARGO_TARGET_DIR: cargoTarget,
+        // Parity exercises the CRM desktop and never launches the optional
+        // Piper/llama sidecars. Fresh worktrees intentionally do not contain
+        // those large gitignored packaging files, so remove only externalBin
+        // from Tauri's debug-build config instead of borrowing another tree's
+        // files or failing a CRM measurement for an unused package asset.
+        TAURI_CONFIG: JSON.stringify({
+          build: { devUrl: `http://127.0.0.1:${vitePort}` },
+          bundle: { externalBin: [] },
+        }),
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }
+  );
+  const capture = (chunk: Buffer) => {
+    output = `${output}${chunk.toString()}`.slice(-8_000);
+  };
+  child.stdout?.on('data', capture);
+  child.stderr?.on('data', capture);
+  const code = await new Promise<number>((resolveCode, reject) => {
+    child.once('error', reject);
+    child.once('close', (exitCode) => resolveCode(exitCode ?? 1));
+  }).catch((error: unknown) => {
+    throw new InfrastructureError(
+      `Could not start the current-HEAD debug build: ${errorText(error)}`
+    );
+  });
+  if (code !== 0 || !existsSync(binaryPath)) {
+    throw new InfrastructureError(
+      `Could not build the debug binary for current HEAD ${head.slice(0, 12)} (exit ${code})${output ? `: ${output.trim()}` : '.'}`
+    );
+  }
+  writeFileSync(
+    buildReceiptPath,
+    `${JSON.stringify({ head, binaryPath, vitePort, builtAt: new Date().toISOString() }, null, 2)}\n`
+  );
+}
+
+async function ensureCurrentBinary(): Promise<'verified' | 'rebuilt'> {
+  const head = currentHead();
+  if (existsSync(binaryPath) && existsSync(buildReceiptPath)) {
+    try {
+      const receipt = JSON.parse(readFileSync(buildReceiptPath, 'utf8')) as {
+        head?: string;
+        binaryPath?: string;
+        vitePort?: number;
+      };
+      if (
+        receipt.head === head &&
+        receipt.binaryPath === binaryPath &&
+        receipt.vitePort === vitePort
+      )
+        return 'verified';
+    } catch {
+      // A broken receipt is the same as no receipt: rebuild, then write a good one.
+    }
+  }
+  await runBuild(head);
+  return 'rebuilt';
+}
+
+async function acquireViteLease(): Promise<void> {
+  const deadline = Date.now() + 120_000;
+  while (Date.now() < deadline) {
+    try {
+      mkdirSync(viteLeaseDir);
+      writeFileSync(resolve(viteLeaseDir, 'owner'), `${process.pid}\n`);
+      return;
+    } catch {
+      try {
+        const owner = Number(
+          readFileSync(resolve(viteLeaseDir, 'owner'), 'utf8').trim()
+        );
+        if (!Number.isFinite(owner)) throw new Error('invalid owner');
+        process.kill(owner, 0);
+      } catch {
+        rmSync(viteLeaseDir, { recursive: true, force: true });
+      }
+      await delay(200);
+    }
+  }
+  throw new InfrastructureError(
+    `Could not acquire the parity Vite lease at ${viteLeaseDir} within 120 seconds.`
+  );
+}
+
+function releaseViteLease(): void {
+  try {
+    const owner = readFileSync(resolve(viteLeaseDir, 'owner'), 'utf8').trim();
+    if (owner === String(process.pid))
+      rmSync(viteLeaseDir, { recursive: true, force: true });
+  } catch {
+    // It was never acquired, or a killed process already had its stale lease reclaimed.
+  }
+}
+
+function viteListenerRoot(): string | undefined {
+  try {
+    const output = execFileSync(
+      'lsof',
+      ['-nP', `-iTCP:${vitePort}`, '-sTCP:LISTEN', '-t'],
+      { encoding: 'utf8' }
+    ).trim();
+    const pid = output.split(/\s+/).find(Boolean);
+    return pid
+      ? execFileSync('readlink', ['-f', `/proc/${pid}/cwd`], {
+          encoding: 'utf8',
+        }).trim()
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function viteExecutable(): string {
+  try {
+    const packagePath = execFileSync(
+      'node',
+      ['-e', "process.stdout.write(require.resolve('vite/package.json'))"],
+      { cwd: root, encoding: 'utf8' }
+    ).trim();
+    const executable = resolve(dirname(packagePath), 'bin/vite.js');
+    if (!existsSync(executable)) throw new Error(`missing ${executable}`);
+    return executable;
+  } catch (error) {
+    throw new InfrastructureError(
+      `The locked Vite dependency cache is missing; install this worktree's npm dependencies (${errorText(error)}).`
+    );
+  }
+}
+
+async function assertViteHealthy(): Promise<void> {
+  if (!(await portReady(vitePort))) {
+    throw new InfrastructureError(
+      `Vite is not serving on the binary's compiled port ${vitePort}.`
+    );
+  }
+  const listenerRoot = viteListenerRoot();
+  if (!listenerRoot) {
+    throw new InfrastructureError(
+      `Vite answers on port ${vitePort}, but its owning process cannot be identified.`
+    );
+  }
+  if (resolve(listenerRoot) !== root) {
+    throw new InfrastructureError(
+      `Port ${vitePort} is serving a different worktree (${listenerRoot}); expected ${root}.`
+    );
+  }
+}
+
+async function ensureVite(): Promise<'verified' | 'started'> {
+  if (await portReady(vitePort)) {
+    await assertViteHealthy();
+    return 'verified';
+  }
+  vite = start(
+    'node',
+    [
+      viteExecutable(),
+      '--host',
+      '127.0.0.1',
+      '--port',
+      String(vitePort),
+      '--strictPort',
+    ],
+    process.env
+  );
+  vite.stdout?.on('data', (chunk: Buffer) => {
+    viteOutput = `${viteOutput}${chunk.toString()}`.slice(-4_000);
+  });
+  vite.stderr?.on('data', (chunk: Buffer) => {
+    viteOutput = `${viteOutput}${chunk.toString()}`.slice(-4_000);
+  });
+  const deadline = Date.now() + 60_000;
+  while (Date.now() < deadline) {
+    if (await portReady(vitePort)) {
+      await assertViteHealthy();
+      return 'started';
+    }
+    if (vite.exitCode !== null || vite.signalCode !== null) break;
+    await delay(200);
+  }
+  throw new InfrastructureError(
+    `Vite did not start on port ${vitePort}${viteOutput ? `: ${viteOutput.trim()}` : '.'}`
+  );
+}
+
 function matrixInventory(): { active: string[]; skipped: string[] } {
   const active: string[] = [];
   const skipped: string[] = [];
@@ -242,6 +514,7 @@ function validateManifest(): void {
 class DesktopParityApp implements ParityApp {
   restarts = 0;
   private sequence = 0;
+  private activeWorkspacePath = workspaceRoot;
 
   constructor(private readonly restartDesktopProcess: () => Promise<void>) {}
 
@@ -255,7 +528,10 @@ class DesktopParityApp implements ParityApp {
         // WebKit uses this empty-stack shape when a page or CRM surface swaps
         // underneath an evaluation. Retry only that known handoff; real app
         // errors keep their message and still fail immediately.
-        if (!/^@\s*eval code@/s.test(message) || Date.now() >= end) throw error;
+        const emptyWebKitHandoff =
+          /^@\s*eval code@/s.test(message) ||
+          /^(?:@\s*)?eval code@[\s\S]*eval@\[native code\]/.test(message);
+        if (!emptyWebKitHandoff || Date.now() >= end) throw error;
         await delay(50);
       }
     }
@@ -297,7 +573,9 @@ class DesktopParityApp implements ParityApp {
       return;
     }
     this.lastStep = `require(${JSON.stringify(expanded)} or ${JSON.stringify(collapsed)})`;
-    fail(`Missing required spine navigation control: ${expanded} or ${collapsed}`);
+    fail(
+      `Missing required spine navigation control: ${expanded} or ${collapsed}`
+    );
   }
   private async fill(testid: string, value: string): Promise<void> {
     this.lastStep = `fill(${JSON.stringify(arguments[0])})`;
@@ -468,9 +746,12 @@ class DesktopParityApp implements ParityApp {
       }
     }
     if (!rendererReady)
-      throw new InfrastructureError('The desktop renderer did not become ready');
+      throw new InfrastructureError(
+        'The desktop renderer did not become ready'
+      );
     const oldDocumentMarker = this.token('bootstrap-document');
-    await http('/eval', { js: `(() => {
+    await http('/eval', {
+      js: `(() => {
       window.__lanternParityDocumentMarker = ${JSON.stringify(oldDocumentMarker)};
       localStorage.setItem('lantern_onboarding_complete', 'true');
       localStorage.setItem('keepance_feature_tour_dismissed', 'true');
@@ -487,7 +768,8 @@ class DesktopParityApp implements ParityApp {
       // this is still a real fresh renderer, but the driver can observe it.
       setTimeout(() => location.reload(), 50);
       return true;
-    })()` });
+    })()`,
+    });
     await this.waitForStableShell(60_000, oldDocumentMarker);
     // The normal recent-workspace route above already opened a real workspace.
     // Do not race that reload by switching CRM stores during startup.
@@ -498,6 +780,7 @@ class DesktopParityApp implements ParityApp {
     name: string
   ): Promise<{ path: string; householdId: string }> {
     const path = `${workspaceRoot}/${name}`;
+    this.activeWorkspacePath = path;
     const householdId = `parity-household-${this.token(name)}`;
     await this.eval(`(async () => {
       const invoke = window.__TAURI_INTERNALS__?.invoke;
@@ -505,6 +788,11 @@ class DesktopParityApp implements ParityApp {
       await invoke('crm_set_workspace', { path: ${JSON.stringify(path)} });
       const { useWorkspaceStore } = await import('/src/platform/fs/workspaceStore.ts');
       useWorkspaceStore.getState().setRootPath(${JSON.stringify(path)});
+      localStorage.setItem('lantern_recent_workspaces', JSON.stringify([{
+        path: ${JSON.stringify(path)},
+        name: 'Parity feature workspace',
+        lastOpened: new Date().toISOString(),
+      }]));
       await invoke('crm_live_upsert', { record: { id: ${JSON.stringify(householdId)}, kind: 'household', matterId: ${JSON.stringify(householdId)}, name: 'Parity household', status: 'active' } });
       await invoke('crm_live_upsert', { record: { id: 'parity-firm-member', kind: 'firmDirectoryEntry', matterId: 'firm_home', userId: 'parity-user', displayName: 'Parity teammate', title: 'Owner', teamLabels: ['Client service'], active: true } });
       await invoke('crm_live_upsert', { record: { id: 'parity-meeting', kind: 'activityEvent', matterId: 'firm_home', verb: 'meeting.captured', summary: 'Parity review meeting', at: new Date().toISOString() } });
@@ -563,6 +851,25 @@ class DesktopParityApp implements ParityApp {
     await this.openSpace(route);
   }
 
+  private async openClientsDirectory(): Promise<void> {
+    await this.clickSpineTab('matters');
+    const deadline = Date.now() + 10_000;
+    let stableSince = 0;
+    while (Date.now() < deadline) {
+      if (await this.exists('crm-household-record')) {
+        stableSince = 0;
+        await this.click('crm-household-back');
+      } else if (await this.exists('crm-directory-surface')) {
+        if (!stableSince) stableSince = Date.now();
+        if (Date.now() - stableSince >= 750) return;
+      } else {
+        stableSince = 0;
+      }
+      await delay(150);
+    }
+    fail('The desktop app did not show the Clients directory');
+  }
+
   async restart(): Promise<void> {
     // Restart the whole desktop process through the Linux launcher. Letting
     // Tauri relaunch itself makes the launcher tear down the Xvfb screen that
@@ -596,6 +903,7 @@ class DesktopParityApp implements ParityApp {
       );
     this.restarts += 1;
     await this.waitForStableShell(60_000);
+    await this.waitForCrmReady(this.activeWorkspacePath);
     await this.openHome();
   }
 
@@ -711,15 +1019,28 @@ class DesktopParityApp implements ParityApp {
     facts?: boolean;
     timeline?: boolean;
   }): Promise<void> {
-    // Match the working Windows front door: use the one workspace the app
-    // normally opened. The old Linux driver opened a nested `contacts` store
-    // while auto-resume was still opening this one, racing two SQLCipher opens.
-    const path = workspaceRoot;
+    // Every Clients assertion gets an empty store. Reusing the root store made
+    // the next feature inherit the prior feature's selected household, so a
+    // restart could honestly show a real record but the wrong test record.
+    const path = `${workspaceRoot}/contacts-${this.token('workspace')}`;
+    this.activeWorkspacePath = path;
+    await this.eval(`(async () => {
+      const invoke = window.__TAURI_INTERNALS__?.invoke;
+      if (!invoke) throw new Error('Tauri invoke is unavailable');
+      await invoke('crm_set_workspace', { path: ${JSON.stringify(path)} });
+      const { useWorkspaceStore } = await import('/src/platform/fs/workspaceStore.ts');
+      useWorkspaceStore.getState().setRootPath(${JSON.stringify(path)});
+      localStorage.setItem('lantern_recent_workspaces', JSON.stringify([{
+        path: ${JSON.stringify(path)},
+        name: 'Parity Clients workspace',
+        lastOpened: new Date().toISOString(),
+      }]));
+      return true;
+    })()`);
     await this.waitForCrmReady(path);
     const household = this.token('Parity household');
     const person = this.token('Parity person');
-    await this.clickSpineTab('matters');
-    await this.waitForControl('crm-directory-surface');
+    await this.openClientsDirectory();
     await this.click('crm-directory-add');
     await this.fill('crm-household-name', household);
     await this.click('crm-household-save');
@@ -790,13 +1111,9 @@ class DesktopParityApp implements ParityApp {
     }
     await this.restart();
     await this.waitForCrmReady(path);
-    await this.clickSpineTab('matters');
     // Clients remembers the open household across restart. Return through its
     // visible Directory control before checking the People directory.
-    if (await this.exists('crm-household-record')) {
-      await this.click('crm-household-back');
-    }
-    await this.waitForControl('crm-directory-surface');
+    await this.openClientsDirectory();
     await this.requireText(household);
     if (options.person) {
       // A person belongs in the People directory, not in the default
@@ -815,11 +1132,21 @@ class DesktopParityApp implements ParityApp {
         return true;
       })()`);
       await this.fill('crm-directory-search', person);
-      const listed = await this.eval(
-        `Array.from(document.querySelectorAll('[data-testid^="crm-directory-person-"]')).some((row) => row.textContent?.includes(${JSON.stringify(person)}))`
-      );
+      const listedDeadline = Date.now() + 10_000;
+      let listed = false;
+      while (Date.now() < listedDeadline) {
+        listed = Boolean(
+          await this.eval(
+            `Array.from(document.querySelectorAll('[data-testid^="crm-directory-person-"]')).some((row) => row.textContent?.includes(${JSON.stringify(person)}))`
+          )
+        );
+        if (listed) break;
+        await delay(150);
+      }
       if (!listed)
-        fail('Saved person is missing from the Clients People directory after native restart');
+        fail(
+          'Saved person is missing from the Clients People directory after native restart'
+        );
     }
     if (options.ownership) {
       await this.requireText('Platinum');
@@ -930,7 +1257,9 @@ class DesktopParityApp implements ParityApp {
         record.title === `Review proposed ${title} workflow`
     );
     if (!proposal)
-      fail('Meeting fixture did not create an approval-visible workflow proposal');
+      fail(
+        'Meeting fixture did not create an approval-visible workflow proposal'
+      );
     await this.restart();
     await this.waitForCrmReady(path);
     const afterRestart = await this.records();
@@ -957,7 +1286,9 @@ class DesktopParityApp implements ParityApp {
         record.name === 'Annual review'
     );
     if (!playbook)
-      fail('Approved playbook fixture did not create a saved workflow template');
+      fail(
+        'Approved playbook fixture did not create a saved workflow template'
+      );
     await this.restart();
     await this.waitForCrmReady(path);
     const afterRestart = await this.records();
@@ -1118,14 +1449,14 @@ class DesktopParityApp implements ParityApp {
       fail('Saved report disappeared after native restart');
   }
 
-  private async openFirm(tab: 'setup' | 'fields' | 'tags' | 'values' = 'setup'): Promise<void> {
+  private async openFirm(
+    tab: 'setup' | 'fields' | 'tags' | 'values' = 'setup'
+  ): Promise<void> {
     await this.openHome();
     await this.click('crm-home-nav-firm-setup');
     await this.waitForControl('crm-firm-surface');
-    if (tab !== 'setup') {
-      await this.click(`crm-firm-tab-${tab}`);
-      await delay(150);
-    }
+    await this.click(`crm-firm-tab-${tab}`);
+    await delay(150);
   }
 
   private async waitForRecord(
@@ -1150,21 +1481,34 @@ class DesktopParityApp implements ParityApp {
       'crm-firm-visibility-read-model',
       'crm-firm-permissions-read-model',
       'crm-firm-open-admin',
-    ]) await this.require(control);
+    ])
+      await this.require(control);
     for (const text of ['Parity teammate', 'Owner', 'Client service'])
       await this.requireText(text);
-    if (!(await this.records()).some((record) => record.kind === 'firmDirectoryEntry'))
-      fail('The existing firm-admin directory did not provide a member read-model');
+    if (
+      !(await this.records()).some(
+        (record) => record.kind === 'firmDirectoryEntry'
+      )
+    )
+      fail(
+        'The existing firm-admin directory did not provide a member read-model'
+      );
     await this.restart();
     await this.openFirm();
     for (const text of ['Parity teammate', 'Owner', 'Client service'])
       await this.requireText(text);
-    if (!(await this.records()).some((record) => record.kind === 'firmDirectoryEntry'))
+    if (
+      !(await this.records()).some(
+        (record) => record.kind === 'firmDirectoryEntry'
+      )
+    )
       fail('The firm-admin member read-model disappeared after native restart');
   }
 
   async firmSetup(): Promise<void> {
-    const { householdId } = await this.setWorkspace(`firm-setup-${this.token('setup')}`);
+    const { householdId } = await this.setWorkspace(
+      `firm-setup-${this.token('setup')}`
+    );
     const fieldLabel = this.token('Parity custom field');
     const fieldKey = `parity_${this.sequence}`;
     const tagName = this.token('Parity tag');
@@ -1176,7 +1520,8 @@ class DesktopParityApp implements ParityApp {
     await this.click('crm-field-save');
     await this.waitForText(fieldLabel);
     const field = await this.waitForRecord(
-      (record) => record.kind === 'customFieldDef' && record.label === fieldLabel,
+      (record) =>
+        record.kind === 'customFieldDef' && record.label === fieldLabel,
       'Saving a custom field did not create a field definition'
     );
 
@@ -1197,9 +1542,13 @@ class DesktopParityApp implements ParityApp {
     await this.click(`crm-record-tag-${String(tag.id)}`);
     await this.click('crm-record-values-save');
     await this.waitForRecord(
-      (record) => record.id === householdId &&
-        (record.customFields as Record<string, { value?: unknown }> | undefined)?.[fieldKey]?.value === 'North' &&
-        Array.isArray(record.tagIds) && record.tagIds.includes(tag.id),
+      (record) =>
+        record.id === householdId &&
+        (
+          record.customFields as Record<string, { value?: unknown }> | undefined
+        )?.[fieldKey]?.value === 'North' &&
+        Array.isArray(record.tagIds) &&
+        record.tagIds.includes(tag.id),
       'Saving a custom-field value and tag did not update the selected record'
     );
 
@@ -1214,20 +1563,29 @@ class DesktopParityApp implements ParityApp {
     let appliedTag: unknown;
     const restoredValueDeadline = Date.now() + 10_000;
     do {
-      value = await this.eval(`document.querySelector('[data-testid="crm-record-value-${fieldKey}"]')?.value`);
-      appliedTag = await this.eval(`Boolean(document.querySelector('[data-testid="crm-record-tag-${String(tag.id)}"]:checked'))`);
+      value = await this.eval(
+        `document.querySelector('[data-testid="crm-record-value-${fieldKey}"]')?.value`
+      );
+      appliedTag = await this.eval(
+        `Boolean(document.querySelector('[data-testid="crm-record-tag-${String(tag.id)}"]:checked'))`
+      );
       if (value === 'North' && appliedTag) break;
       await delay(150);
     } while (Date.now() < restoredValueDeadline);
     if (value !== 'North' || !appliedTag)
       fail('The custom-field value or tag disappeared after native restart');
     await this.waitForRecord(
-      (record) => record.id === householdId &&
-        (record.customFields as Record<string, { value?: unknown }> | undefined)?.[fieldKey]?.value === 'North' &&
-        Array.isArray(record.tagIds) && record.tagIds.includes(tag.id),
+      (record) =>
+        record.id === householdId &&
+        (
+          record.customFields as Record<string, { value?: unknown }> | undefined
+        )?.[fieldKey]?.value === 'North' &&
+        Array.isArray(record.tagIds) &&
+        record.tagIds.includes(tag.id),
       'The saved custom-field value or tag record disappeared after native restart'
     );
-    if (field.kind !== 'customFieldDef') fail('Custom field definition changed kind unexpectedly');
+    if (field.kind !== 'customFieldDef')
+      fail('Custom field definition changed kind unexpectedly');
   }
 
   async durableFeature(options: {
@@ -1239,7 +1597,11 @@ class DesktopParityApp implements ParityApp {
   }): Promise<void> {
     await this.setWorkspace(`feature-${this.token('route')}`);
     await this.openHome(options.route);
-    if (!options.route.startsWith('clients') && !options.route.startsWith('crm-directory')) await this.click(options.route);
+    if (
+      !options.route.startsWith('clients') &&
+      !options.route.startsWith('crm-directory')
+    )
+      await this.click(options.route);
     for (const control of options.controls) await this.require(control);
     if (options.action) await this.click(options.action);
     if (options.result) await this.requireText(options.result);
@@ -1263,7 +1625,10 @@ class DesktopParityApp implements ParityApp {
   }
 
   async migration(options: {
-    action: 'crm-migration-run-import' | 'crm-redtail-import' | 'crm-salesforce-import';
+    action:
+      | 'crm-migration-run-import'
+      | 'crm-redtail-import'
+      | 'crm-salesforce-import';
     externalId?: boolean;
     exportFile?: boolean;
     fullReview?: boolean;
@@ -1278,11 +1643,16 @@ class DesktopParityApp implements ParityApp {
       'crm-migration-source-id-map',
       options.action,
       'crm-migration-fidelity',
-    ]) await this.require(control);
+    ])
+      await this.require(control);
     await this.fill('crm-migration-base-url', migrationBaseUrl);
     if (options.externalId) {
       await this.fill('crm-migration-source-id-map', 'wealthbox_external_id');
-      if (await this.eval(`document.querySelector('[data-testid="crm-migration-source-id-map"]')?.value`) !== 'wealthbox_external_id')
+      if (
+        (await this.eval(
+          `document.querySelector('[data-testid="crm-migration-source-id-map"]')?.value`
+        )) !== 'wealthbox_external_id'
+      )
         fail('The outside-ID mapping field did not retain its value');
     }
     await this.click(options.action);
@@ -1319,28 +1689,38 @@ class DesktopParityApp implements ParityApp {
     await this.click('crm-migration-fidelity');
     await this.require('crm-migration-fidelity-report');
     await this.requireText('0% via API');
-    const fidelityRows = Number(await this.eval(
-      `document.querySelectorAll('[data-testid^="crm-fidelity-row-"]').length`
-    ));
+    const fidelityRows = Number(
+      await this.eval(
+        `document.querySelectorAll('[data-testid^="crm-fidelity-row-"]').length`
+      )
+    );
     if (fidelityRows < 15)
-      fail(`The fidelity report hid rows: expected every source type, saw ${String(fidelityRows)}`);
+      fail(
+        `The fidelity report hid rows: expected every source type, saw ${String(fidelityRows)}`
+      );
 
     if (options.fullReview) {
       await this.click('crm-migration-workflow-fallback');
-      const workflowFallbacks = Number(await this.eval(
-        `document.querySelectorAll('[data-testid^="crm-workflow-record-"]').length`
-      ));
+      const workflowFallbacks = Number(
+        await this.eval(
+          `document.querySelectorAll('[data-testid^="crm-workflow-record-"]').length`
+        )
+      );
       if (!workflowFallbacks)
         fail('The open-workflow fallback did not present a saved checklist');
       await this.click('crm-home-nav-firm-setup');
       await this.click('crm-firm-route-migration');
       await this.click('crm-migration-fidelity');
       await this.click('crm-migration-attachment-fallback');
-      const attachmentFallbacks = Number(await this.eval(
-        `document.querySelectorAll('[data-testid^="crm-attachment-record-save-"]').length`
-      ));
+      const attachmentFallbacks = Number(
+        await this.eval(
+          `document.querySelectorAll('[data-testid^="crm-attachment-record-save-"]').length`
+        )
+      );
       if (!attachmentFallbacks)
-        fail('The attachment fallback did not present a saved accounting record');
+        fail(
+          'The attachment fallback did not present a saved accounting record'
+        );
     }
 
     if (options.exportFile) {
@@ -1350,9 +1730,13 @@ class DesktopParityApp implements ParityApp {
       await this.click('crm-export-create');
       await this.waitForText('Exported archive file.');
       const archive = (await this.records()).find(
-        (record) => record.kind === 'migration_export' && record.exportKind === 'archive'
+        (record) =>
+          record.kind === 'migration_export' && record.exportKind === 'archive'
       );
-      if (typeof archive?.filePath !== 'string' || !existsSync(archive.filePath))
+      if (
+        typeof archive?.filePath !== 'string' ||
+        !existsSync(archive.filePath)
+      )
         fail('Archive export reported success but did not create a real file');
     }
 
@@ -1360,7 +1744,11 @@ class DesktopParityApp implements ParityApp {
     await this.click('crm-home-nav-firm-setup');
     await this.click('crm-firm-route-migration');
     await this.require('crm-migration-run-import');
-    if (!(await this.records()).some((record) => record.kind === 'migration_report'))
+    if (
+      !(await this.records()).some(
+        (record) => record.kind === 'migration_report'
+      )
+    )
       fail('Migration report disappeared after native restart');
   }
 }
@@ -1384,11 +1772,54 @@ let vite: ChildProcess | undefined;
 let desktop: ChildProcess | undefined;
 let wbsim: ChildProcess | undefined;
 let viteOutput = '';
+let desktopOutput = '';
 const results: Result[] = [];
 let runFeatures: readonly ParityFeature[] = FEATURES;
 let infrastructureError: string | undefined;
+let currentPreflightCheck = 'runner startup';
+let viteLeaseHeld = false;
+
+function green(label: string, detail: string): void {
+  if (preflight) console.log(`✅ ${label}: ${detail}`);
+}
+
+function startDesktop(): ChildProcess {
+  const child = start(
+    'bash',
+    ['scripts/crm-loop/launch-app.sh', String(port), workspaceRoot],
+    {
+      ...process.env,
+      LANTERN_APP_BINARY: binaryPath,
+      LANTERN_DEV_BRIDGE_PORT: String(port),
+      LANTERN_VITE_PORT: String(vitePort),
+      LANTERN_XVFB_DISPLAY: xvfbDisplay,
+    }
+  );
+  const capture = (chunk: Buffer) => {
+    desktopOutput = `${desktopOutput}${chunk.toString()}`.slice(-6_000);
+  };
+  child.stdout?.on('data', capture);
+  child.stderr?.on('data', capture);
+  return child;
+}
+
+async function assertInfrastructureLive(): Promise<void> {
+  await assertViteHealthy();
+  if (!desktop || desktop.exitCode !== null || desktop.signalCode !== null) {
+    throw new InfrastructureError(
+      `The parity-owned desktop app exited unexpectedly${desktopOutput ? `: ${desktopOutput.trim()}` : '.'}`
+    );
+  }
+  await http('/health');
+}
+
 try {
+  currentPreflightCheck = 'manifest';
   validateManifest();
+  green(
+    'Manifest',
+    'every required feature has an acceptance check or an explicit pending reason'
+  );
   if (featureFilter) {
     runFeatures = FEATURES.filter((feature) => feature.id === featureFilter);
     if (runFeatures.length !== 1) {
@@ -1397,58 +1828,66 @@ try {
       );
     }
   }
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+    throw new InfrastructureError(
+      `PARITY_BRIDGE_PORT must be a valid TCP port; received ${String(port)}.`
+    );
+  }
+  if (!Number.isInteger(vitePort) || vitePort < 1 || vitePort > 65_535) {
+    throw new InfrastructureError(
+      `PARITY_VITE_PORT must be a valid TCP port; received ${String(vitePort)}.`
+    );
+  }
   mkdirSync(workspaceRoot, { recursive: true });
+  currentPreflightCheck = 'model cache';
+  verifyModelCache();
   shareMachineModelCache();
-  if (requestedVitePort && Number(requestedVitePort) !== vitePort) {
-    throw new InfrastructureError(
-      `The debug desktop binary is wired to Vite on ${vitePort}; PARITY_VITE_PORT=${requestedVitePort} cannot be used.`
-    );
-  }
-  if ((await portReady(port)) || (!reuseVite && (await portReady(vitePort)))) {
-    throw new InfrastructureError(
-      reuseVite
-        ? `Parity needs unused bridge port ${port}. Another desktop bridge is already answering there.`
-        : `Parity needs unused ports ${port} and ${vitePort}. Another app is already answering on one of them.`
-    );
-  }
-  if (!reuseVite) {
-    vite = start(
-      'npm',
-      ['run', 'dev', '--', '--port', String(vitePort), '--strictPort'],
-      process.env
-    );
-    vite.stdout?.on('data', (chunk: Buffer) => {
-      viteOutput = `${viteOutput}${chunk.toString()}`.slice(-4_000);
-    });
-    vite.stderr?.on('data', (chunk: Buffer) => {
-      viteOutput = `${viteOutput}${chunk.toString()}`.slice(-4_000);
-    });
-    // A cold Vite cache can take a little over thirty seconds on the shared
-    // build machine. Keep the parity runner honest by waiting for the real
-    // server instead of calling a healthy app an infrastructure failure.
-    const end = Date.now() + 60_000;
-    while (!(await portReady(vitePort))) {
-      if (Date.now() > end) {
-        throw new InfrastructureError(
-          `Vite did not start on port ${vitePort}${viteOutput ? `: ${viteOutput.trim()}` : ''}`
-        );
-      }
-      await delay(200);
-    }
-  } else if (!(await portReady(vitePort))) {
-    throw new InfrastructureError(
-      `Parity expected a shared Vite server on port ${vitePort}, but none is running.`
-    );
-  }
-  desktop = start(
-    'bash',
-    ['scripts/crm-loop/launch-app.sh', String(port), workspaceRoot],
-    {
-      ...process.env,
-      LANTERN_DEV_BRIDGE_PORT: String(port),
-      LANTERN_VITE_PORT: String(vitePort),
-    }
+  green(
+    'Fixtures',
+    `machine model cache is complete and linked into an empty private workspace`
   );
+  currentPreflightCheck = 'free bridge port';
+  if (await portReady(port)) {
+    throw new InfrastructureError(
+      `Parity needs unused bridge port ${port}. Another desktop bridge is already answering there.`
+    );
+  }
+  green('Private ports', `free bridge port ${port} reserved for this run`);
+
+  currentPreflightCheck = 'parity Vite lease';
+  await acquireViteLease();
+  viteLeaseHeld = true;
+  green(
+    'Concurrency',
+    `box test slot is held by npm and the Vite lease is private to this run`
+  );
+
+  currentPreflightCheck = 'current debug binary';
+  const binaryState = await ensureCurrentBinary();
+  green(
+    'Debug app',
+    `${binaryState} for current HEAD ${currentHead().slice(0, 12)}`
+  );
+
+  currentPreflightCheck = 'Vite dev server';
+  const viteState = await ensureVite();
+  green(
+    'Vite',
+    `${viteState} and healthy on the binary's compiled port ${vitePort}`
+  );
+  if (process.env['PARITY_TEST_KILL_VITE_DURING_SETUP'] === '1') {
+    if (!vite) {
+      throw new InfrastructureError(
+        'Vite kill-demo requires the runner to start Vite; port 5174 was already owned before setup.'
+      );
+    }
+    stop(vite);
+    await waitForExit(vite, 10_000);
+    await assertViteHealthy();
+  }
+
+  currentPreflightCheck = 'desktop app and CRM shell';
+  desktop = startDesktop();
   await waitForBridge();
   const app = new DesktopParityApp(async () => {
     const previousDesktop = desktop;
@@ -1470,18 +1909,18 @@ try {
         'The old desktop process did not stop before restart'
       );
     }
-    desktop = start(
-      'bash',
-      ['scripts/crm-loop/launch-app.sh', String(port), workspaceRoot],
-      {
-        ...process.env,
-        LANTERN_DEV_BRIDGE_PORT: String(port),
-        LANTERN_VITE_PORT: String(vitePort),
-      }
-    );
+    desktopOutput = '';
+    desktop = startDesktop();
     await waitForBridge();
   });
   await app.ready();
+  await assertInfrastructureLive();
+  green(
+    'Desktop app',
+    `private app, data folders, virtual display ${xvfbDisplay}, bridge health, and CRM shell are ready`
+  );
+
+  currentPreflightCheck = 'fabricated Wealthbox source';
   const simulatorPort = await freePort();
   migrationBaseUrl = `http://127.0.0.1:${String(simulatorPort)}/v1`;
   wbsim = start('bun', ['tests/wbsim/server.ts'], {
@@ -1499,12 +1938,28 @@ try {
   }
   try {
     if (!(await fetch(`${migrationBaseUrl}/contacts?per_page=1`)).ok)
-      throw new InfrastructureError('The fabricated Wealthbox source did not become ready');
+      throw new InfrastructureError(
+        'The fabricated Wealthbox source did not become ready'
+      );
   } catch (error) {
     if (error instanceof InfrastructureError) throw error;
-    throw new InfrastructureError('The fabricated Wealthbox source did not become ready');
+    throw new InfrastructureError(
+      'The fabricated Wealthbox source did not become ready'
+    );
+  }
+  green(
+    'Migration fixture',
+    `fabricated Wealthbox source is healthy on private port ${simulatorPort}`
+  );
+
+  if (preflight) {
+    console.log(
+      'PREFLIGHT: GREEN — every precondition passed; zero features scored.'
+    );
   }
   for (const feature of runFeatures) {
+    if (preflight) break;
+    await assertInfrastructureLive();
     if (feature.pending) {
       results.push({
         id: feature.id,
@@ -1519,6 +1974,7 @@ try {
     const before = app.restarts;
     try {
       await feature.assert!(app);
+      await assertInfrastructureLive();
       if (app.restarts === before) {
         fail('Assertion did not prove a native restart');
       }
@@ -1532,12 +1988,19 @@ try {
           'Passed against the running desktop app and survived native restart.',
       });
     } catch (error) {
-      if (error instanceof InfrastructureError) throw error;
+      if (error instanceof InfrastructureError) {
+        throw new InfrastructureError(
+          `While measuring ${feature.id} at ${app.lastStep}, the owned app became unavailable: ${errorText(error)}`
+        );
+      }
       // A scoreboard that says FAILING with an empty reason is not an instrument.
       // Record WHERE it broke (the last driver step), WHAT the app actually showed,
       // and any renderer error — so a failure can be acted on without a rerun.
       const raw = error instanceof Error ? error.message : String(error);
-      const stack = error instanceof Error && error.stack ? error.stack.split('\n').slice(0, 3).join(' | ') : '';
+      const stack =
+        error instanceof Error && error.stack
+          ? error.stack.split('\n').slice(0, 3).join(' | ')
+          : '';
       let onScreen = '';
       try {
         onScreen = (await app.text()).replace(/\s+/g, ' ').slice(0, 240);
@@ -1560,7 +2023,7 @@ try {
     }
   }
 } catch (error) {
-  infrastructureError = error instanceof Error ? error.message : String(error);
+  infrastructureError = errorText(error);
   // A score is only meaningful if every assertion had a working desktop app.
   // Do not turn a dead harness into dozens of fictional feature failures.
   results.length = 0;
@@ -1576,11 +2039,15 @@ try {
     skipped: featureFilter ? [] : SKIPPED_FEATURES,
     infrastructureError: infrastructureError ?? null,
   };
-  mkdirSync(resolve(root, 'tests/parity'), { recursive: true });
-  writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
+  if (!preflight) {
+    mkdirSync(resolve(root, 'tests/parity'), { recursive: true });
+    writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
+  }
   if (infrastructureError) {
+    if (preflight) console.error(`❌ ${currentPreflightCheck}: failed`);
     console.error(`INFRASTRUCTURE ERROR: ${infrastructureError}`);
-  } else {
+    if (preflight) console.error('PREFLIGHT: RED — zero features scored.');
+  } else if (!preflight) {
     printScoreboard(results);
   }
   try {
@@ -1591,6 +2058,13 @@ try {
   stop(desktop);
   stop(vite);
   stop(wbsim);
+  await Promise.all(
+    [desktop, vite, wbsim]
+      .filter((child): child is ChildProcess => Boolean(child))
+      .map((child) => waitForExit(child, 15_000).catch(() => undefined))
+  );
+  if (viteLeaseHeld) releaseViteLease();
+  rmSync(workspaceRoot, { recursive: true, force: true });
 }
 
 process.exitCode =

@@ -22,17 +22,8 @@ WORKSPACE="${2:?usage: launch-app.sh <bridge-port> <workspace-dir>}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 VITE_PORT="${LANTERN_VITE_PORT:-5174}"
 BIN="${LANTERN_APP_BINARY:-$ROOT/src-tauri/target/debug/lantern}"
-# A git worktree has its own source tree but can safely use the already-built
-# debug binary from the primary checkout when it has not changed Rust code.
-# This keeps live UI verification from starting an unnecessary cargo build.
-if [ ! -x "$BIN" ]; then
-  COMMON_GIT_DIR="$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
-  PRIMARY_ROOT="${COMMON_GIT_DIR%/.git}"
-  [ -n "$PRIMARY_ROOT" ] && [ -x "$PRIMARY_ROOT/src-tauri/target/debug/lantern" ] && BIN="$PRIMARY_ROOT/src-tauri/target/debug/lantern"
-fi
-
 [ -x "$BIN" ] || {
-  echo "No debug binary at $BIN — run: cargo build --manifest-path src-tauri/Cargo.toml" >&2
+  echo "INFRASTRUCTURE ERROR: This worktree's verified debug binary is missing at $BIN." >&2
   exit 1
 }
 curl -sf "http://127.0.0.1:${VITE_PORT}" >/dev/null || {
@@ -46,22 +37,24 @@ curl -sf "http://127.0.0.1:${VITE_PORT}" >/dev/null || {
 XVFB_PID=""
 if [ -z "${DISPLAY:-}" ]; then
   VDISP="${LANTERN_XVFB_DISPLAY:-:$((100 + PORT - 9250))}"
-  if ! xdpyinfo -display "$VDISP" >/dev/null 2>&1; then
-    Xvfb "$VDISP" -screen 0 1600x1000x24 -nolisten tcp >/dev/null 2>&1 &
-    XVFB_PID="$!"
-    if [ -n "${LANTERN_XVFB_PID_FILE:-}" ]; then
-      printf '%s\n' "$XVFB_PID" > "$LANTERN_XVFB_PID_FILE"
-    fi
-    deadline=$((SECONDS + 10))
-    until xdpyinfo -display "$VDISP" >/dev/null 2>&1; do
-      if ! kill -0 "$XVFB_PID" 2>/dev/null || [ "$SECONDS" -ge "$deadline" ]; then
-        echo "Xvfb did not become ready on $VDISP" >&2
-        exit 1
-      fi
-      # This polls the display's real readiness; it is not a fixed startup delay.
-      sleep 0.1
-    done
+  if xdpyinfo -display "$VDISP" >/dev/null 2>&1; then
+    echo "INFRASTRUCTURE ERROR: Virtual display $VDISP is already in use; refusing to share another run's screen." >&2
+    exit 1
   fi
+  Xvfb "$VDISP" -screen 0 1600x1000x24 -nolisten tcp >/dev/null 2>&1 &
+  XVFB_PID="$!"
+  if [ -n "${LANTERN_XVFB_PID_FILE:-}" ]; then
+    printf '%s\n' "$XVFB_PID" > "$LANTERN_XVFB_PID_FILE"
+  fi
+  deadline=$((SECONDS + 10))
+  until xdpyinfo -display "$VDISP" >/dev/null 2>&1; do
+    if ! kill -0 "$XVFB_PID" 2>/dev/null || [ "$SECONDS" -ge "$deadline" ]; then
+      echo "INFRASTRUCTURE ERROR: Xvfb did not become ready on $VDISP." >&2
+      exit 1
+    fi
+    # This polls the display's real readiness; it is not a fixed startup delay.
+    sleep 0.1
+  done
   export DISPLAY="$VDISP"
   echo "virtual display: $DISPLAY"
 fi
