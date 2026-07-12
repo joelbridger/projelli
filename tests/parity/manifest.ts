@@ -12,6 +12,7 @@ export interface ParityApp {
   task(options: { recurrence?: boolean; priority?: boolean; assignee?: boolean; activity?: boolean; unified?: boolean; triage?: boolean }): Promise<void>;
   contact(options: { person?: boolean; household?: boolean; relationship?: boolean; roles?: boolean; ownership?: boolean; tags?: boolean; notes?: boolean; internal?: boolean; account?: boolean; addresses?: boolean; facts?: boolean; timeline?: boolean }): Promise<void>;
   workflow(options: { template?: boolean; instance?: boolean; schedule?: boolean; outcomes?: boolean; comments?: boolean; library?: boolean; meetingProposal?: boolean }): Promise<void>;
+  jumpMeeting(): Promise<void>;
   pipeline(options: { opportunity?: boolean; pipeline?: boolean; stage?: boolean; workflowTrigger?: boolean }): Promise<void>;
   report(options: { kind: 'no_contact_6mo' | 'attention_vs_fee' | 'custom' | 'ai' }): Promise<void>;
   firmDirectory(): Promise<void>;
@@ -98,7 +99,7 @@ export const FEATURES: readonly ParityFeature[] = [
   live('Firm-wide activity/dashboard feed', 'firm-activity-feed', 'REPLICATE', 'timeline', (app) => app.durableFeature({ route: 'crm-home-nav-activity', controls: ['crm-firm-activity-feed', 'crm-firm-activity-create'], action: 'crm-firm-activity-create', recordKind: 'activityEvent' })),
   live('@-mentioning', 'activity-mentions', 'REPLICATE', 'timeline', (app) => app.durableFeature({ route: 'crm-home-nav-timeline', controls: ['crm-timeline-mention', 'crm-timeline-post'], action: 'crm-timeline-post', recordKind: 'activityEvent' })),
   live('Wealthbox itself (as a CRM to migrate FROM)', 'wealthbox-migration', 'REPLICATE', 'migration', (app) => app.migration({ action: 'crm-migration-run-import', fullReview: true })),
-  pending('Jump.ai', 'jump-replacement', 'REPLICATE', 'meetings', 'The CRM-linked meeting fixture has not been exposed through the desktop bridge yet.'),
+  live('Jump.ai', 'jump-replacement', 'REPLICATE', 'meetings', (app) => app.jumpMeeting()),
   live('Redtail', 'redtail-migration', 'REPLICATE', 'migration', (app) => app.migration({ action: 'crm-redtail-import' })),
   live('Salesforce', 'salesforce-migration', 'REPLICATE', 'migration', (app) => app.migration({ action: 'crm-salesforce-import' })),
   live('Microsoft Outlook / Gmail', 'outlook-gmail', 'REPLICATE', 'email', (app) => app.durableFeature({ route: 'crm-home-nav-email', controls: ['crm-email-sync', 'crm-email-client-link'], action: 'crm-email-sync', recordKind: 'emailActivity' })),

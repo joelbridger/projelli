@@ -905,6 +905,39 @@ class DesktopParityApp implements ParityApp {
     await this.waitForText(title);
   }
 
+  async jumpMeeting(): Promise<void> {
+    const { path, householdId } = await this.setWorkspace(
+      `jump-meeting-${this.token('workspace')}`
+    );
+    await this.openHome();
+    await this.waitForControl('crm-home-nav-workflows');
+    await this.click('crm-home-nav-workflows');
+    await this.click('crm-live-workflow-new-template');
+    const title = this.token('Parity meeting follow-up');
+    await this.fill('crm-live-workflow-name', title);
+    await this.fill('crm-live-workflow-step-title-1', 'Review meeting notes');
+    await this.click('crm-live-workflow-create-template');
+    await this.waitForControl('crm-live-workflow-meeting-proposal');
+    await this.require('crm-jump-meeting-fixture');
+    await this.select('crm-live-meeting-select', 'parity-meeting');
+    await this.select('crm-live-meeting-household', householdId);
+    await this.click('crm-live-meeting-propose-workflow');
+    const beforeRestart = await this.records();
+    const proposal = beforeRestart.find(
+      (record) =>
+        record.kind === 'proposalRecord' &&
+        record.proposalKind === 'workflow_launch' &&
+        record.title === `Review proposed ${title} workflow`
+    );
+    if (!proposal)
+      fail('Meeting fixture did not create an approval-visible workflow proposal');
+    await this.restart();
+    await this.waitForCrmReady(path);
+    const afterRestart = await this.records();
+    if (!afterRestart.some((record) => record.id === proposal.id))
+      fail('Meeting workflow proposal disappeared after native restart');
+  }
+
   async pipeline(options: {
     opportunity?: boolean;
     pipeline?: boolean;

@@ -676,10 +676,11 @@ export function LiveWorkflows({
               ))
             )}
           </section>
-          <section
-            data-testid="crm-live-workflow-meeting-proposal"
-            style={panelStyle}
-          >
+          <div data-testid="crm-jump-meeting-fixture">
+            <section
+              data-testid="crm-live-workflow-meeting-proposal"
+              style={panelStyle}
+            >
             <strong>Propose a workflow from a meeting</strong>
             <p style={mutedStyle}>
               Meeting content can suggest a workflow. It always waits for a
@@ -750,7 +751,8 @@ export function LiveWorkflows({
                 </Button>
               </>
             )}
-          </section>
+            </section>
+          </div>
         </>
       )}
     </Screen>
@@ -936,4 +938,3 @@ function LiveInstanceCard({
     </section>
   );
 }
-
