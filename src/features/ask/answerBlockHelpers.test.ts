@@ -458,6 +458,32 @@ describe('bindAnswerBlocks', () => {
     expect(result.citations).toEqual([]);
   });
 
+  it('keeps uncited leading general advice out of a recovered files block', () => {
+    const geicoHit = hit({
+      path: 'geico-demand.docx',
+      chunkText: 'GEICO tendered $100.65.',
+      paragraphIndex: 2,
+      id: 'geico-2',
+    });
+    // Regression from the adversarial review: this example must never put the
+    // Roth advice under the green file-backed label just because GEICO cites a
+    // retrieved document later in the same GENERAL block.
+    const raw = [
+      BLOCK_MARKERS.general,
+      'A backdoor Roth can be useful for higher earners.',
+      'GEICO tendered $100.65 [geico-demand.docx paragraph 2].',
+    ].join('\n');
+
+    const result = bindAnswerBlocks(raw, [geicoHit], 'webb');
+
+    expect(result.blocks.map((block) => block.kind)).toEqual(['general', 'files']);
+    expect(result.blocks[0]?.text).toContain('A backdoor Roth can be useful for higher earners.');
+    expect(result.blocks[0]?.citations).toEqual([]);
+    expect(result.blocks[1]?.text).toContain('GEICO tendered $100.65 {1}.');
+    expect(result.blocks[1]?.text).not.toContain('backdoor Roth');
+    expect(result.citations).toHaveLength(1);
+  });
+
   it('does not bind or chip inside a DRAFT block', () => {
     const raw = [
       BLOCK_MARKERS.draft,
