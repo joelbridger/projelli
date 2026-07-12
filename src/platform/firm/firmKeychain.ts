@@ -45,6 +45,7 @@ export const KC_SEAT_TOKEN = 'seat_token';
 export const KC_MATTER_KEY = 'content_key';
 const KC_PROMOTION_PENDING = 'promotion_pending';
 const KC_DOCUMENT_STREAM_PIN_PREFIX = 'document_stream_pin:';
+type CompareAndSetResult = { swapped: boolean; current: string | null };
 
 function fallbackAvailable(): boolean {
   return typeof localStorage !== 'undefined';
@@ -124,13 +125,15 @@ async function compareAndSetSecret(
 ): Promise<{ swapped: boolean; current: string | null }> {
   if (isTauri()) return keychainCompareAndSet(key, expected, next, service);
   const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined;
-  const run = async () => {
+  const run = async (): Promise<CompareAndSetResult> => {
     const current = await getSecret(service, key);
     if (current !== expected) return { swapped: false, current };
     await setSecret(service, key, next);
     return { swapped: true, current };
   };
-  if (locks) return locks.request(`lantern-firm-keychain:${service}:${key}`, { mode: 'exclusive' }, run);
+  // TypeScript's DOM declaration loses the callback result as `Promise<any>`.
+  // The Locks API resolves with exactly the typed value returned by `run`.
+  if (locks) return locks.request(`lantern-firm-keychain:${service}:${key}`, { mode: 'exclusive' }, run) as Promise<CompareAndSetResult>;
   // Test-only/non-browser fallback. Production desktop uses the native lock.
   return run();
 }

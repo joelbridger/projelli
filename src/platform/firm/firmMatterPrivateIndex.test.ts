@@ -157,7 +157,7 @@ describe('encrypted FirmMatterPrivateIndex', () => {
     });
   });
 
-  it('resolves concurrent additions of the same document deterministically', async () => {
+  it('resolves concurrent additions of the same document deterministically', () => {
     const first = new Y.Doc();
     seedLegacyIndex(first, { _notes: { streamHandle: root, kind: 'notes' } });
     const second = new Y.Doc();

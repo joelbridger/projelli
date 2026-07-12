@@ -321,8 +321,9 @@ function readRun(value: unknown): DocxInline {
       try {
         const parsed = JSON.parse(opaqueJson) as unknown;
         if (isDocxInline(parsed)) return parsed;
-      } catch {
+      } catch (error) {
         // Malformed peer data becomes an inert raw inline below.
+        console.error('[docCrdt] discarding malformed opaque inline', error);
       }
     }
     return { kind: 'raw', xml: '' };

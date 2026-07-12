@@ -86,13 +86,17 @@ export interface TokenSource {
   refreshAccessToken(): Promise<string | null>;
 }
 
+function hasHeaderGetter(value: unknown): value is Pick<Headers, 'get'> {
+  return typeof value === 'object' && value !== null
+    && typeof (value as { get?: unknown }).get === 'function';
+}
+
 async function readJson<T>(res: Response, maxBytes?: number): Promise<T> {
   // Some small unit-test response doubles intentionally expose only `text()`.
   // Real Fetch Responses always have Headers; a missing header object simply
   // means use the streaming byte counter below.
   const possibleHeaders = (res as unknown as { headers?: unknown }).headers;
-  const contentLength = maxBytes === undefined || !possibleHeaders || typeof possibleHeaders !== 'object'
-    || !('get' in possibleHeaders) || typeof possibleHeaders.get !== 'function'
+  const contentLength = maxBytes === undefined || !hasHeaderGetter(possibleHeaders)
     ? 0
     : Number(possibleHeaders.get('content-length') ?? '0');
   if (maxBytes !== undefined && Number.isFinite(contentLength) && contentLength > maxBytes) {
@@ -110,7 +114,6 @@ async function readJson<T>(res: Response, maxBytes?: number): Promise<T> {
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
-        if (!value) continue;
         total += value.byteLength;
         if (total > maxBytes) {
           await reader.cancel();
