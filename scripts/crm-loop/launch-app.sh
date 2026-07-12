@@ -20,6 +20,7 @@ set -euo pipefail
 PORT="${1:?usage: launch-app.sh <bridge-port> <workspace-dir>}"
 WORKSPACE="${2:?usage: launch-app.sh <bridge-port> <workspace-dir>}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+VITE_PORT="${LANTERN_VITE_PORT:-5174}"
 BIN="$ROOT/src-tauri/target/debug/lantern"
 # A git worktree has its own source tree but can safely use the already-built
 # debug binary from the primary checkout when it has not changed Rust code.
@@ -34,19 +35,32 @@ fi
   echo "No debug binary at $BIN — run: cargo build --manifest-path src-tauri/Cargo.toml" >&2
   exit 1
 }
-curl -sf "http://127.0.0.1:5174" >/dev/null || {
-  echo "Vite is not serving on :5174 — run 'npm run dev' first (one server serves every instance)." >&2
+curl -sf "http://127.0.0.1:${VITE_PORT}" >/dev/null || {
+  echo "Vite is not serving on :${VITE_PORT} — start it before launching the app." >&2
   exit 1
 }
 
 # A GUI app needs a display. Agent shells have none, so give each instance its
 # own virtual screen when DISPLAY is unset — this is what lets many lanes drive
 # real app windows headlessly, in parallel.
+XVFB_PID=""
 if [ -z "${DISPLAY:-}" ]; then
-  VDISP=":$((100 + PORT - 9250))"
+  VDISP="${LANTERN_XVFB_DISPLAY:-:$((100 + PORT - 9250))}"
   if ! xdpyinfo -display "$VDISP" >/dev/null 2>&1; then
     Xvfb "$VDISP" -screen 0 1600x1000x24 -nolisten tcp >/dev/null 2>&1 &
-    sleep 1
+    XVFB_PID="$!"
+    if [ -n "${LANTERN_XVFB_PID_FILE:-}" ]; then
+      printf '%s\n' "$XVFB_PID" > "$LANTERN_XVFB_PID_FILE"
+    fi
+    deadline=$((SECONDS + 10))
+    until xdpyinfo -display "$VDISP" >/dev/null 2>&1; do
+      if ! kill -0 "$XVFB_PID" 2>/dev/null || [ "$SECONDS" -ge "$deadline" ]; then
+        echo "Xvfb did not become ready on $VDISP" >&2
+        exit 1
+      fi
+      # This polls the display's real readiness; it is not a fixed startup delay.
+      sleep 0.1
+    done
   fi
   export DISPLAY="$VDISP"
   echo "virtual display: $DISPLAY"
@@ -67,4 +81,19 @@ export LANTERN_HEADLESS_TEST_CRM_CORE_MASTER_KEY_HEX="${LANTERN_HEADLESS_TEST_CR
 mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME"
 
 echo "app instance: bridge=127.0.0.1:$PORT workspace=$WORKSPACE"
-exec "$BIN"
+APP_PID=""
+cleanup() {
+  if [ -n "$APP_PID" ] && kill -0 "$APP_PID" 2>/dev/null; then
+    kill -TERM "$APP_PID" 2>/dev/null || true
+    wait "$APP_PID" 2>/dev/null || true
+  fi
+  if [ -n "$XVFB_PID" ] && kill -0 "$XVFB_PID" 2>/dev/null; then
+    kill -TERM "$XVFB_PID" 2>/dev/null || true
+    wait "$XVFB_PID" 2>/dev/null || true
+  fi
+  [ -z "${LANTERN_XVFB_PID_FILE:-}" ] || rm -f "$LANTERN_XVFB_PID_FILE"
+}
+trap cleanup EXIT INT TERM
+"$BIN" &
+APP_PID="$!"
+wait "$APP_PID"

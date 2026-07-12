@@ -34,6 +34,7 @@
     "test:parity": "bun run tests/parity/run.ts",
     "test:acceptance": "node tests/acceptance/run.mjs",
     "test:chaos": "node tests/chaos/run.mjs",
+    "test:goldenloop": "node scripts/test-goldenloop.mjs",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "typecheck:tests": "tsc -p tsconfig.test.json --noEmit",
