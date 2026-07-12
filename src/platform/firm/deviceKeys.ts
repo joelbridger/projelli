@@ -30,7 +30,6 @@ import { keychainGet, keychainSet } from '@/platform/utils/tauri-commands';
 import { isTauri } from '@tauri-apps/api/core';
 import { FirmApiClient } from './FirmApiClient';
 import { KC_DEVICE_META_SERVICE, KC_DEVICE_PREFIX, KC_FALLBACK_PREFIX } from '@/config/identity';
-import { BRAND } from '@/config/brand';
 
 // ── Service names & keychain keys -------------------------------------------
 
@@ -143,7 +142,7 @@ export function getOrCreateDeviceKeypair(): Promise<{
 
   pendingKeypair = _loadOrCreateDeviceKeypair().then(
     (result) => { pendingKeypair = null; return result; },
-    (err) => { pendingKeypair = null; throw err; },
+    (err: unknown) => { pendingKeypair = null; throw err; },
   );
   return pendingKeypair;
 }
@@ -238,16 +237,16 @@ export async function getDevicePrivateKey(): Promise<CryptoKey> {
  * times is safe (the server must tolerate duplicate device_ids from the same
  * user). The same keypair is always used.
  *
- * Sends: POST /device/register { device_id, machine_id, label, pubkey_jwk }
+ * Sends: POST /device/register { device_id, machine_id, pubkey_jwk }
  */
 export async function registerDevice(client: FirmApiClient, signal?: AbortSignal): Promise<void> {
   const { deviceId, publicJwk } = await getOrCreateDeviceKeypair();
 
-  // machine_id and label are best-effort; they help the admin identify devices.
+  // The device UUID is an opaque routing handle. A human device name remains
+  // local so the relay cannot become a source of client-readable metadata.
   const machineId = deviceId; // Use deviceId as stable machine_id (no Tauri machine API needed)
-  const label = typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 80) : `${BRAND.name} Desktop`;
 
-  await client.registerDevice(deviceId, machineId, label, publicJwk, signal);
+  await client.registerDevice(deviceId, machineId, publicJwk, signal);
 }
 
 /** Reset the in-memory cache (for testing only). */

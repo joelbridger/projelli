@@ -202,7 +202,7 @@ describe("assured proxy — provisioning + happy path", () => {
     await post("/org/users", { email, password: "member-password-123" }, adminAccess);
     const login = await post("/auth/login", { email, password: "member-password-123" });
     aliceAccess = login.json.access_token;
-    const act = await post("/org/activate", { license_key: licenseKey, machine_id: `m-${crypto.randomUUID()}` }, aliceAccess);
+    const act = await post("/org/activate", { license_key: licenseKey, machine_id: crypto.randomUUID() }, aliceAccess);
     expect(act.status).toBe(200);
     aliceSeat = act.json.seat_token;
   });
@@ -297,7 +297,7 @@ describe("assured proxy — provisioning + happy path", () => {
     await post("/org/users", { email, password: "member-password-123" }, adminAccess);
     const login = await post("/auth/login", { email, password: "member-password-123" });
     const bobAccess = login.json.access_token;
-    const act = await post("/org/activate", { license_key: licenseKey, machine_id: `m-${crypto.randomUUID()}` }, bobAccess);
+    const act = await post("/org/activate", { license_key: licenseKey, machine_id: crypto.randomUUID() }, bobAccess);
     const bobSeat = act.json.seat_token;
     // Alice's access JWT + Bob's seat token => rejected (verifyActiveSeat binds them).
     const r = await infer({ access: aliceAccess, seat: bobSeat, promptBody: { messages: [] } });
@@ -376,7 +376,7 @@ describe("assured proxy — ZERO-RETENTION GUARD (sentinel)", () => {
       const email = `u-${crypto.randomUUID()}@g.test`;
       await P("/org/users", { email, password: "member-password-123" }, adminAccess);
       const access = (await P("/auth/login", { email, password: "member-password-123" })).access_token;
-      const act = await P("/org/activate", { license_key: prov.license_key, machine_id: `m-${crypto.randomUUID()}` }, access);
+      const act = await P("/org/activate", { license_key: prov.license_key, machine_id: crypto.randomUUID() }, access);
       const seat = act.seat_token;
       await P("/assured/keys/set", { provider: "anthropic", api_key: "sk-ant-guardkey-zzzz9999" }, adminAccess);
 

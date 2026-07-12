@@ -15,7 +15,7 @@
  */
 
 import { getCorsSafeFetch } from '@/platform/providers/fetchUtils';
-import { getFirmApiBase, FIRM_APP_VERSION } from './firmConfig';
+import { getFirmApiBase } from './firmConfig';
 import {
   FIRM_ENDPOINTS,
   type LoginResponse,
@@ -208,7 +208,6 @@ export class FirmApiClient {
   activate(
     licenseKey: string,
     machineId: string,
-    machineLabel?: string,
   ): Promise<ActivateResponse> {
     return this.request<ActivateResponse>(FIRM_ENDPOINTS.activate, {
       method: 'POST',
@@ -216,8 +215,6 @@ export class FirmApiClient {
       body: {
         license_key: licenseKey,
         machine_id: machineId,
-        ...(machineLabel ? { machine_label: machineLabel } : {}),
-        app_version: FIRM_APP_VERSION,
       },
     });
   }
@@ -341,7 +338,6 @@ export class FirmApiClient {
   registerDevice(
     deviceId: string,
     machineId: string,
-    label: string,
     pubkeyJwk: JsonWebKey,
     signal?: AbortSignal,
   ): Promise<RegisterDeviceResponse> {
@@ -351,7 +347,6 @@ export class FirmApiClient {
       body: {
         device_id: deviceId,
         machine_id: machineId,
-        label,
         pubkey_jwk: pubkeyJwk,
       },
       ...(signal ? { signal } : {}),
@@ -510,7 +505,6 @@ export class FirmApiClient {
     licenseKey: string,
     email: string,
     password: string,
-    orgName?: string,
   ): Promise<import('./contract').OrgClaimResponse> {
     return this.request<import('./contract').OrgClaimResponse>(FIRM_ENDPOINTS.orgClaim, {
       method: 'POST',
@@ -518,7 +512,6 @@ export class FirmApiClient {
         license_key: licenseKey.trim(),
         email: email.trim(),
         password,
-        ...(orgName?.trim() ? { org_name: orgName.trim() } : {}),
       },
     });
   }

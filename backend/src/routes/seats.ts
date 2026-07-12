@@ -15,6 +15,7 @@
  */
 
 import { json, error, readJson, isNonEmptyString, authenticate } from "../lib/http.ts";
+import { isOpaqueUuid, readFirmPersistentPayload } from "../lib/firmPersistentRouteInventory.ts";
 import { activateSeatForUser, validateSeatToken, heartbeatSeat } from "../lib/services.ts";
 import type { Store } from "../lib/db.ts";
 
@@ -22,12 +23,11 @@ export async function handleActivate(req: Request, store: Store): Promise<Respon
   const auth = authenticate(req);
   if (!auth.ok) return error("unauthorized", 401, auth.reason);
 
-  const body = await readJson<{ license_key?: unknown; machine_id?: unknown; machine_label?: unknown; app_version?: unknown }>(req);
+  const body = await readFirmPersistentPayload(req, "activateSeat");
   if (!body) return error("invalid_json", 400);
-  if (!isNonEmptyString(body.license_key, 128) || !isNonEmptyString(body.machine_id, 128)) {
+  if (!isNonEmptyString(body.license_key, 128) || !isOpaqueUuid(body.machine_id)) {
     return error("missing_fields", 400);
   }
-  const machineLabel = isNonEmptyString(body.machine_label, 128) ? body.machine_label.trim() : null;
 
   const user = store.getUser(auth.claims.sub);
   if (!user) return error("unauthorized", 401, "user_not_found");
@@ -35,8 +35,8 @@ export async function handleActivate(req: Request, store: Store): Promise<Respon
   const result = activateSeatForUser(store, {
     user,
     licenseKey: body.license_key.trim(),
-    machineId: body.machine_id.trim(),
-    machineLabel,
+    machineId: body.machine_id,
+    machineLabel: null,
   });
   return json(result.body, result.http);
 }

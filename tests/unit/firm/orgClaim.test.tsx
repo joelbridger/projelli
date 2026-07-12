@@ -62,7 +62,7 @@ function jsonResponse(status: number, body: unknown): Response {
 }
 
 /** A minimal OrgClaimResponse. */
-function claimOk(licenseKey: string) {
+function claimOk() {
   return jsonResponse(200, {
     access_token: 'access-tok-claim',
     access_expires_at: new Date(Date.now() + 3600_000).toISOString(),
@@ -117,11 +117,11 @@ describe('claimOrg store action', () => {
 
     // /org/claim succeeds; /.well-known/seat-pubkey fails (non-fatal).
     fetchMock
-      .mockResolvedValueOnce(claimOk(LICENSE))
+      .mockResolvedValueOnce(claimOk())
       .mockRejectedValueOnce(new Error('offline')); // getSeatPublicKey
 
     const { claimOrg } = useFirmStore.getState();
-    const result = await claimOrg(LICENSE, 'admin@testfirm.com', 'hunter2hunter2', 'Test Firm LLC');
+    const result = await claimOrg(LICENSE, 'admin@testfirm.com', 'hunter2hunter2');
 
     expect(result.ok).toBe(true);
     expect(result.claimedLicenseKey).toBe(LICENSE);
@@ -151,7 +151,7 @@ describe('claimOrg store action', () => {
     expect(body.license_key).toBe(LICENSE);
     expect(body.email).toBe('admin@testfirm.com');
     expect(body.password).toBe('hunter2hunter2');
-    expect(body.org_name).toBe('Test Firm LLC');
+    expect(body.org_name).toBeUndefined();
 
     // No Authorization header: claim is a public endpoint.
     const headers = (init.headers ?? {}) as Record<string, string>;

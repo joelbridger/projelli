@@ -123,12 +123,8 @@ interface FirmState {
     licenseKey: string,
     email: string,
     password: string,
-    orgName?: string,
   ) => Promise<{ ok: boolean; error?: string; claimedLicenseKey?: string }>;
-  activateSeat: (
-    licenseKey: string,
-    machineLabel?: string,
-  ) => Promise<{ ok: boolean; error?: string; seatLimit?: SeatLimitExceededResponse }>;
+  activateSeat: (licenseKey: string) => Promise<{ ok: boolean; error?: string; seatLimit?: SeatLimitExceededResponse }>;
   signOut: () => Promise<void>;
   /** Re-hydrate secrets from the keychain for a previously signed-in user. */
   hydrate: () => Promise<void>;
@@ -334,11 +330,11 @@ export const useFirmStore = create<FirmState>()(
         await invoke('firm_sso_cancel');
       },
 
-      claimOrg: async (licenseKey, email, password, orgName) => {
+      claimOrg: async (licenseKey, email, password) => {
         set({ isLoading: true, error: null });
         try {
           const bare = new FirmApiClient();
-          const res: OrgClaimResponse = await bare.orgClaim(licenseKey, email, password, orgName);
+          const res: OrgClaimResponse = await bare.orgClaim(licenseKey, email, password);
           const user: PublicUser = res.user;
           await storeAuthTokens(user.user_id, res.access_token, res.refresh_token);
 
@@ -380,13 +376,13 @@ export const useFirmStore = create<FirmState>()(
         }
       },
 
-      activateSeat: async (licenseKey, machineLabel) => {
+      activateSeat: async (licenseKey) => {
         const session = get().session;
         if (!session) return { ok: false, error: 'Sign in first.' };
         set({ isLoading: true, error: null });
         try {
           const client = get().client();
-          const res = await client.activate(licenseKey.trim(), getMachineId(), machineLabel);
+          const res = await client.activate(licenseKey.trim(), getMachineId());
           await storeSeatToken(session.userId, res.seat_token);
 
           // Verify the freshly minted seat token offline against the public key.

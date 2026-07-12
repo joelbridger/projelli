@@ -1,8 +1,9 @@
 /**
  * Device-key registration and enumeration (Phase 1 firm desktop wiring).
  *
- *   POST /device/register       Bearer access          { device_id, machine_id, label, pubkey_jwk }
- *       -> upsert a P-256 device public key for the calling user.
+ *   POST /device/register       Bearer access          { device_id, machine_id, pubkey_jwk }
+ *       -> upsert a P-256 device public key for the calling user. Device labels
+ *          are local-only and rejected at this boundary.
  *
  *   POST /org/users/devices     Bearer access          { user_ids: string[] }
  *       -> return all registered devices for the listed users (same-org only).
@@ -19,7 +20,8 @@
  * crv=P-256, x+y present, no `d` field) — anything else is rejected 400.
  */
 
-import { json, error, readJson, isNonEmptyString, authenticate } from "../lib/http.ts";
+import { json, error, readJson, authenticate } from "../lib/http.ts";
+import { isOpaqueUuid, readFirmPersistentPayload } from "../lib/firmPersistentRouteInventory.ts";
 import type { Store } from "../lib/db.ts";
 
 // ---------------------------------------------------------------------------
@@ -48,16 +50,10 @@ export async function handleDeviceRegister(req: Request, store: Store): Promise<
   const auth = authenticate(req);
   if (!auth.ok) return error("unauthorized", 401, auth.reason);
 
-  const body = await readJson<{
-    device_id?: unknown;
-    machine_id?: unknown;
-    label?: unknown;
-    pubkey_jwk?: unknown;
-  }>(req);
+  const body = await readFirmPersistentPayload(req, "deviceRegister");
   if (!body) return error("invalid_json", 400);
-  if (!isNonEmptyString(body.device_id, 128)) return error("missing_fields", 400, "device_id");
-  if (!isNonEmptyString(body.machine_id, 128)) return error("missing_fields", 400, "machine_id");
-  if (!isNonEmptyString(body.label, 256)) return error("missing_fields", 400, "label");
+  if (!isOpaqueUuid(body.device_id)) return error("invalid_device_id", 400);
+  if (!isOpaqueUuid(body.machine_id)) return error("invalid_machine_id", 400);
 
   // Parse and validate the JWK.
   let jwk: unknown;
@@ -74,19 +70,18 @@ export async function handleDeviceRegister(req: Request, store: Store): Promise<
   const jwkText = JSON.stringify(jwk);
 
   store.upsertDevice({
-    device_id: body.device_id.trim(),
+    device_id: body.device_id,
     user_id: auth.claims.sub,
     org_id: auth.claims.org_id,
-    machine_id: body.machine_id.trim(),
-    label: body.label.trim(),
+    machine_id: body.machine_id,
     pubkey_jwk: jwkText,
   });
   store.audit({
     org_id: auth.claims.org_id,
     actor_user_id: auth.claims.sub,
     action: "device.register",
-    target: body.device_id.trim(),
-    detail: { machine_id: body.machine_id.trim() },
+    target: body.device_id,
+    detail: { machine_id: body.machine_id },
   });
 
   return json({ ok: true });
@@ -119,7 +114,6 @@ export async function handleListUsersDevices(req: Request, store: Store): Promis
       // pubkey_jwk is stored in the DB as a JSON string; parse it to an object
       // so callers receive a JsonWebKey object as expected by the contract.
       pubkey_jwk: typeof d.pubkey_jwk === "string" ? JSON.parse(d.pubkey_jwk) : d.pubkey_jwk,
-      label: d.label,
     })),
   });
 }

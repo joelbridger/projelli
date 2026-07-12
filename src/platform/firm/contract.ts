@@ -52,8 +52,6 @@ export interface MeResponse {
 export interface ActivateRequest {
   license_key: string;
   machine_id: string;
-  machine_label?: string;
-  app_version?: string;
 }
 export interface ActivateResponse {
   token: string;
@@ -94,7 +92,6 @@ export interface SeatSummary {
   seat_id: string;
   user_id: string;
   machine_id: string;
-  machine_label: string | null;
   status: 'active' | 'revoked';
   bound_at: string;
   last_seen: string;
@@ -335,7 +332,6 @@ export interface DeleteProviderKeyResponse {
 export interface RegisterDeviceRequest {
   device_id: string;
   machine_id: string;
-  label: string;
   pubkey_jwk: JsonWebKey;
 }
 
@@ -351,7 +347,6 @@ export interface DeviceRecord {
   user_id: string;
   device_id: string;
   pubkey_jwk: JsonWebKey;
-  label: string;
 }
 
 export interface FetchOrgUserDevicesResponse {
@@ -414,8 +409,6 @@ export interface OrgClaimRequest {
   license_key: string;
   email: string;
   password: string;
-  /** Optional: rename the org on first claim. */
-  org_name?: string;
 }
 
 export interface OrgClaimResponse extends AuthTokensResponse {

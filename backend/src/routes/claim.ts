@@ -2,7 +2,7 @@
  * Org claim route — self-serve activation of a provisioned-but-unclaimed org.
  *
  *   POST /org/claim   (no auth)
- *       { license_key, email, password, org_name? }
+ *       { license_key, email, password }
  *       -> { org, user, access_token, refresh_token, ... }
  *
  * When LemonSqueezy processes a Firm purchase, the webhook handler creates an
@@ -21,18 +21,14 @@
  *   - 400 for missing / invalid fields.
  */
 
-import { json, error, readJson, isEmail, isValidPassword } from "../lib/http.ts";
+import { json, error, isEmail, isValidPassword } from "../lib/http.ts";
 import { hashPassword, hmacHash } from "../lib/crypto.ts";
 import { issueAuthTokens, publicUser } from "../lib/services.ts";
+import { readFirmPersistentPayload } from "../lib/firmPersistentRouteInventory.ts";
 import type { Store } from "../lib/db.ts";
 
 export async function handleOrgClaim(req: Request, store: Store): Promise<Response> {
-  const body = await readJson<{
-    license_key?: unknown;
-    email?: unknown;
-    password?: unknown;
-    org_name?: unknown;
-  }>(req);
+  const body = await readFirmPersistentPayload(req, "orgClaim");
   if (!body) return error("invalid_json", 400);
   if (typeof body.license_key !== "string" || body.license_key.trim().length === 0) {
     return error("missing_fields", 400, "license_key");
@@ -59,18 +55,11 @@ export async function handleOrgClaim(req: Request, store: Store): Promise<Respon
     return error("email_taken", 409);
   }
 
-  // Determine the org name: from body (if provided) else keep existing.
-  const orgName =
-    typeof body.org_name === "string" && body.org_name.trim().length > 0 && body.org_name.length <= 256
-      ? body.org_name.trim()
-      : undefined;
-
   // The storage layer keeps claiming the org and creating its first admin in
   // one transaction, so a failed account cannot leave a claimed empty org.
   const passwordHash = await hashPassword(body.password);
   const adminUser = store.claimOrgAndCreateAdmin({
     org_id: org.org_id,
-    org_name: orgName,
     email: (body.email as string).trim(),
     password_hash: passwordHash,
   });

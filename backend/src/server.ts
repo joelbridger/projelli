@@ -15,6 +15,7 @@ import { getStore } from "./lib/db.ts";
 import { json, error, preflight, rejectOpaqueV2Preflight, startRateLimitGc } from "./lib/http.ts";
 import { validateV2RelayBoundary } from "./lib/v2Payload.ts";
 import { V2_FIRM_ROUTE_SPECS, isDeclaredV2FirmRoute, v2FirmRouteSpec } from "./lib/v2RouteInventory.ts";
+import { FIRM_PERSISTENT_ROUTE_SPECS, type FirmPersistentRouteId } from "./lib/firmPersistentRouteInventory.ts";
 import { hashPassword, generateLicenseKey, hmacHash } from "./lib/crypto.ts";
 import { handleLogin, handleRefresh, handleLogout, handleMe } from "./routes/auth.ts";
 import { handleActivate, handleSeatValidate, handleSeatHeartbeat } from "./routes/seats.ts";
@@ -61,6 +62,24 @@ import { handleSsoConfigSet, handleSsoConfigGet, handleSsoConfigDelete, handleSs
 import { handleLemonSqueezyWebhook } from "./routes/webhooks.ts";
 import { randomUUID } from "node:crypto";
 import type { Store } from "./lib/db.ts";
+
+/**
+ * Non-v2 firm routes which can write caller-provided data are dispatched from
+ * their executable input inventory. A new route must therefore get a table
+ * entry before it can become reachable, just like the opaque v2 relay routes.
+ */
+const FIRM_PERSISTENT_HANDLERS: Record<FirmPersistentRouteId, (req: Request, store: Store) => Promise<Response>> = {
+  deviceRegister: handleDeviceRegister,
+  activateSeat: handleActivate,
+  transferSeat: handleTransferSeat,
+  orgClaim: handleOrgClaim,
+};
+
+async function dispatchFirmPersistentRoute(path: string, method: string, req: Request, store: Store): Promise<Response | null> {
+  const spec = FIRM_PERSISTENT_ROUTE_SPECS.find((candidate) => candidate.path === path && candidate.method === method);
+  if (!spec) return null;
+  return FIRM_PERSISTENT_HANDLERS[spec.id](req, store);
+}
 
 /** Data attached to each sync WebSocket on upgrade (set by authorizeSyncConnect). */
 export interface SyncSocketData {
@@ -268,8 +287,10 @@ export function buildServeOptions(store: Store, hub: FanoutHub, traffic?: RelayT
         if (path === "/auth/sso/callback" && method === "GET") return await handleSsoCallback(req, store, ip);
         if (path === "/auth/sso/exchange" && method === "POST") return await handleSsoExchange(req, store, ip);
 
+        const persistentRouteResponse = await dispatchFirmPersistentRoute(path, method, req, store);
+        if (persistentRouteResponse) return persistentRouteResponse;
+
         // --- Licensing / seats (client-facing core) ---
-        if (path === "/org/activate" && method === "POST") return await handleActivate(req, store);
         if (path === "/seat/validate" && method === "POST") return await handleSeatValidate(req, store);
         if (path === "/seat/heartbeat" && method === "POST") return await handleSeatHeartbeat(req, store);
 
@@ -277,7 +298,6 @@ export function buildServeOptions(store: Store, hub: FanoutHub, traffic?: RelayT
         if (path === "/org/seats" && method === "POST") return await handleListSeats(req, store);
         if (path === "/org/seat/revoke" && method === "POST") return await handleRevokeSeat(req, store, hub);
         if (path === "/org/user/deprovision" && method === "POST") return await handleDeprovisionUser(req, store, hub);
-        if (path === "/org/seats/transfer" && method === "POST") return await handleTransferSeat(req, store);
         if (path === "/org/users" && method === "POST") return await handleCreateUser(req, store);
         if (path === "/org/users/list" && method === "POST") return handleListOrgUsers(req, store);
         if (path === "/org/audit" && (method === "POST" || method === "GET")) return handleAudit(req, store);
@@ -297,12 +317,8 @@ export function buildServeOptions(store: Store, hub: FanoutHub, traffic?: RelayT
         if (path === "/assured/billing" && method === "POST") return handleInferenceBilling(req, store);
 
         // --- Phase 1: device key registration ---
-        if (path === "/device/register" && method === "POST") return await handleDeviceRegister(req, store);
         if (path === "/org/users/devices" && method === "POST") return await handleListUsersDevices(req, store);
         if (path === "/org/admins" && method === "POST") return await handleListOrgAdmins(req, store);
-
-        // --- Phase 1: org claim (self-serve activation) ---
-        if (path === "/org/claim" && method === "POST") return await handleOrgClaim(req, store);
 
         // --- Phase 1: LemonSqueezy webhook ---
         if (path === "/webhooks/lemonsqueezy" && method === "POST") return await handleLemonSqueezyWebhook(req, store);

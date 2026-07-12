@@ -27,6 +27,7 @@ import { publicSeat, publicUser, mintSeatToken } from "../lib/services.ts";
 import type { Store } from "../lib/db.ts";
 import type { AccessTokenClaims, Plan, ProfessionPack } from "../lib/types.ts";
 import { fanout, type FanoutHub } from "../lib/matters.ts";
+import { isOpaqueUuid, readFirmPersistentPayload } from "../lib/firmPersistentRouteInventory.ts";
 
 /** Require admin role + return the verified claims, or an error Response. */
 function requireAdmin(req: Request): { ok: true; claims: AccessTokenClaims } | { ok: false; resp: Response } {
@@ -96,8 +97,8 @@ export async function handleDeprovisionUser(req: Request, store: Store, hub: Fan
 export async function handleTransferSeat(req: Request, store: Store): Promise<Response> {
   const a = requireAdmin(req);
   if (!a.ok) return a.resp;
-  const body = await readJson<{ from_seat_id?: unknown; to_user_id?: unknown; to_machine_id?: unknown; to_machine_label?: unknown }>(req);
-  if (!body || !isNonEmptyString(body.from_seat_id, 64) || !isNonEmptyString(body.to_user_id, 64) || !isNonEmptyString(body.to_machine_id, 128)) {
+  const body = await readFirmPersistentPayload(req, "transferSeat");
+  if (!body || !isNonEmptyString(body.from_seat_id, 64) || !isNonEmptyString(body.to_user_id, 64) || !isOpaqueUuid(body.to_machine_id)) {
     return error("missing_fields", 400);
   }
   const from = store.getSeat(body.from_seat_id);
@@ -109,12 +110,11 @@ export async function handleTransferSeat(req: Request, store: Store): Promise<Re
   if (toUser.org_id !== a.claims.org_id) return error("forbidden", 403, "cross_org");
   if (toUser.status !== "active") return error("user_deprovisioned", 403);
 
-  const label = isNonEmptyString(body.to_machine_label, 128) ? body.to_machine_label.trim() : null;
   const res = store.transferSeat({
     from_seat_id: from.seat_id,
     to_user_id: toUser.user_id,
-    to_machine_id: body.to_machine_id.trim(),
-    to_machine_label: label,
+    to_machine_id: body.to_machine_id,
+    to_machine_label: null,
   });
   if (!res.ok) return error("transfer_failed", 409, res.reason);
 

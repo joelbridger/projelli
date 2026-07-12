@@ -44,12 +44,8 @@ export interface UseFirmResult {
     licenseKey: string,
     email: string,
     password: string,
-    orgName?: string,
   ) => Promise<{ ok: boolean; error?: string; claimedLicenseKey?: string }>;
-  activateSeat: (
-    licenseKey: string,
-    machineLabel?: string,
-  ) => ReturnType<ReturnType<typeof useFirmStore.getState>['activateSeat']>;
+  activateSeat: (licenseKey: string) => ReturnType<ReturnType<typeof useFirmStore.getState>['activateSeat']>;
   signOut: () => Promise<void>;
 }
 

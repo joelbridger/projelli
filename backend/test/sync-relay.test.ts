@@ -1,7 +1,6 @@
 /** V2 HTTP/WebSocket relay proof.  Each case below ports a v1 relay proof to opaque handles. */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Store } from "../src/lib/db.ts";
-import { subscribeSyncSocket } from "../src/server.ts";
 import { FanoutHub, MAX_UPDATE_BYTES } from "../src/lib/matters.ts";
 import { buildServeOptions, subscribeSyncSocket, type SyncSocketData } from "../src/server.ts";
 import { SyncTicketStore } from "../src/lib/syncTickets.ts";
@@ -33,11 +32,11 @@ const open = (url:string) => new Promise<WebSocket>((resolve,reject)=>{const ws=
 beforeAll(async () => {
   const provision=await post("/admin/org",{name:"Relay test",plan:"practice",packs:["advisor"],seat_limit:8,admin_email:"admin@relay.test",admin_password:"password-123"});
   admin=(await post("/auth/login",{email:"admin@relay.test",password:"password-123"})).body.access_token;
-  const make=async(label:string)=>{const email=`${label}@relay.test`;const user=await post("/org/users",{email,password:"password-123"},admin);const auth=(await post("/auth/login",{email,password:"password-123"})).body.access_token;const active=await post("/org/activate",{license_key:provision.body.license_key,machine_id:`machine-${label}`},auth);return {id:user.body.user.user_id,auth,seat:active.body.seat_token};};
+  const make=async(label:string)=>{const email=`${label}@relay.test`;const user=await post("/org/users",{email,password:"password-123"},admin);const auth=(await post("/auth/login",{email,password:"password-123"})).body.access_token;const active=await post("/org/activate",{license_key:provision.body.license_key,machine_id:crypto.randomUUID()},auth);return {id:user.body.user.user_id,auth,seat:active.body.seat_token};};
   const a=await make("alice"), b=await make("bob"), v=await make("viewer"), o=await make("owner"); alice=a.auth;aliceSeat=a.seat;aliceId=a.id;bob=b.auth;bobSeat=b.seat;bobId=b.id;viewer=v.auth;viewerSeat=v.seat;viewerId=v.id;owner=o.auth;ownerSeat=o.seat;ownerId=o.id;
   const created=await post("/v2/firm/matters",{},admin);handle=created.body.matter_handle;root=created.body.root_stream_handle;await post(`/v2/firm/matters/${handle}/members/add`,{user_id:aliceId,role:"editor"},admin);await post(`/v2/firm/matters/${handle}/members/add`,{user_id:bobId,role:"editor"},admin);await post(`/v2/firm/matters/${handle}/members/add`,{user_id:viewerId,role:"viewer"},admin);await post(`/v2/firm/matters/${handle}/members/add`,{user_id:ownerId,role:"owner"},admin);await post(`/v2/firm/matters/${handle}/activate`,{},admin);
   const other=await post("/v2/firm/matters",{},admin);otherHandle=other.body.matter_handle;await post(`/v2/firm/matters/${otherHandle}/activate`,{},admin);
-  const p2=await post("/admin/org",{name:"Other",plan:"practice",packs:["advisor"],seat_limit:2,admin_email:"admin@other.test",admin_password:"password-123"}); const otherAdmin=(await post("/auth/login",{email:"admin@other.test",password:"password-123"})).body.access_token;const cu=await post("/org/users",{email:"carol@other.test",password:"password-123"},otherAdmin);carol=(await post("/auth/login",{email:"carol@other.test",password:"password-123"})).body.access_token;carolSeat=(await post("/org/activate",{license_key:p2.body.license_key,machine_id:"carol"},carol)).body.seat_token; expect(cu.status).toBe(201);
+  const p2=await post("/admin/org",{name:"Other",plan:"practice",packs:["advisor"],seat_limit:2,admin_email:"admin@other.test",admin_password:"password-123"}); const otherAdmin=(await post("/auth/login",{email:"admin@other.test",password:"password-123"})).body.access_token;const cu=await post("/org/users",{email:"carol@other.test",password:"password-123"},otherAdmin);carol=(await post("/auth/login",{email:"carol@other.test",password:"password-123"})).body.access_token;carolSeat=(await post("/org/activate",{license_key:p2.body.license_key,machine_id:crypto.randomUUID()},carol)).body.seat_token; expect(cu.status).toBe(201);
 });
 afterAll(()=>server.stop(true));
 

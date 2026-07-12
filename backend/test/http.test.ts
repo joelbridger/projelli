@@ -96,7 +96,7 @@ describe("full HTTP lifecycle", () => {
   });
 
   test("member 0 activates a seat and gets a signed seat token", async () => {
-    const r = await post("/org/activate", { license_key: licenseKey, machine_id: "machine-0", machine_label: "Laptop 0" }, memberAccess[0]);
+    const r = await post("/org/activate", { license_key: licenseKey, machine_id: "00000000-0000-4000-8000-000000000001" }, memberAccess[0]);
     expect(r.status).toBe(200);
     expect(r.json.tier).toBe("practice");
     expect(r.json.packs).toEqual(["advisor"]);
@@ -123,13 +123,13 @@ describe("full HTTP lifecycle", () => {
   });
 
   test("member 1 activates the second seat", async () => {
-    const r = await post("/org/activate", { license_key: licenseKey, machine_id: "machine-1" }, memberAccess[1]);
+    const r = await post("/org/activate", { license_key: licenseKey, machine_id: "00000000-0000-4000-8000-000000000002" }, memberAccess[1]);
     expect(r.status).toBe(200);
     expect(r.json.seats).toBe(2);
   });
 
   test("the N+1 activation (admin on a 3rd machine) is rejected with 409", async () => {
-    const r = await post("/org/activate", { license_key: licenseKey, machine_id: "machine-2" }, adminAccess);
+    const r = await post("/org/activate", { license_key: licenseKey, machine_id: "00000000-0000-4000-8000-000000000003" }, adminAccess);
     expect(r.status).toBe(409);
     expect(r.json.error).toBe("seat_limit_exceeded");
     expect(Array.isArray(r.json.seats)).toBe(true);

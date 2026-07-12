@@ -655,7 +655,7 @@ export function FirmAdminConsole() {
             >
               <span className="min-w-0">
                 <span className="font-medium">
-                  {s.machine_label ?? t('firm.admin.unnamed-device')}
+                  {t('firm.admin.unnamed-device')}
                 </span>
                 <span className="ml-2 text-muted-foreground font-mono text-[11px]">
                   {s.user_id.slice(0, 8)}
@@ -684,7 +684,7 @@ export function FirmAdminConsole() {
                           seat_id: s.seat_id,
                           ...(firm.org?.org_id ? { org_id: firm.org.org_id } : {}),
                           reason: 'admin_revoke',
-                          detail: `revoked seat ${s.seat_id.slice(0, 12)} (${s.machine_label ?? 'unnamed'})`,
+                          detail: `revoked seat ${s.seat_id.slice(0, 12)}`,
                         },
                       });
                       await loadSeats();

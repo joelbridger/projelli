@@ -91,12 +91,10 @@ export function FirmSignIn({ initialPanel }: FirmSignInProps = {}) {
   const [claimEmail, setClaimEmail] = useState('');
   const [claimPassword, setClaimPassword] = useState('');
   const [claimConfirm, setClaimConfirm] = useState('');
-  const [claimOrgName, setClaimOrgName] = useState('');
   const [claimSuccess, setClaimSuccess] = useState(false);
 
   // Seat activation panel state (pre-filled after claim)
   const [licenseKey, setLicenseKey] = useState('');
-  const [machineLabel, setMachineLabel] = useState('');
 
   // Shared error + seat-limit state
   const [localError, setLocalError] = useState<string | null>(null);
@@ -136,7 +134,6 @@ export function FirmSignIn({ initialPanel }: FirmSignInProps = {}) {
         claimLicenseKey,
         claimEmail,
         claimPassword,
-        claimOrgName || undefined,
       );
       if (!res.ok) {
         const raw = res.error ?? '';
@@ -162,7 +159,7 @@ export function FirmSignIn({ initialPanel }: FirmSignInProps = {}) {
     setLocalError(null);
     setSeatLimit(null);
     void (async () => {
-      const res = await firm.activateSeat(licenseKey, machineLabel || undefined);
+      const res = await firm.activateSeat(licenseKey);
       if (!res.ok) {
         setLocalError(res.error ?? 'Activation failed.');
         if (res.seatLimit) setSeatLimit(res.seatLimit);
@@ -271,18 +268,6 @@ export function FirmSignIn({ initialPanel }: FirmSignInProps = {}) {
                       required
                     />
                   </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="claim-org" className="text-xs">
-                      {t('firm.claim.org-name-label')}
-                    </Label>
-                    <Input
-                      id="claim-org"
-                      data-testid="firm-claim-org-name"
-                      value={claimOrgName}
-                      onChange={(e) => { setClaimOrgName(e.target.value); }}
-                      placeholder={t('firm.claim.org-name-placeholder')}
-                    />
-                  </div>
                   <Button
                     type="submit"
                     data-testid="firm-claim-submit"
@@ -312,16 +297,6 @@ export function FirmSignIn({ initialPanel }: FirmSignInProps = {}) {
                       onChange={(e) => { setLicenseKey(e.target.value); }}
                       placeholder="KEEP-XXXX-XXXX-XXXX-XXXX"
                       required
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="claim-activate-machine" className="text-xs">This device (optional)</Label>
-                    <Input
-                      id="claim-activate-machine"
-                      data-testid="firm-machine-label"
-                      value={machineLabel}
-                      onChange={(e) => { setMachineLabel(e.target.value); }}
-                      placeholder="Work laptop"
                     />
                   </div>
                   <Button type="submit" data-testid="firm-activate-submit" disabled={firm.isLoading} className="gap-1.5">
@@ -481,16 +456,6 @@ export function FirmSignIn({ initialPanel }: FirmSignInProps = {}) {
                   onChange={(e) => { setLicenseKey(e.target.value); }}
                   placeholder="KEEP-XXXX-XXXX-XXXX-XXXX"
                   required
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="firm-machine-label" className="text-xs">This device (optional)</Label>
-                <Input
-                  id="firm-machine-label"
-                  data-testid="firm-machine-label"
-                  value={machineLabel}
-                  onChange={(e) => { setMachineLabel(e.target.value); }}
-                  placeholder="Work laptop"
                 />
               </div>
               <Button type="submit" data-testid="firm-activate-submit" disabled={firm.isLoading} className="gap-1.5">

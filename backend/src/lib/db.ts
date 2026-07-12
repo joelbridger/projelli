@@ -475,6 +475,9 @@ export class Store {
     const existingMatterCols = this.#db.query("PRAGMA table_info(matters)").all() as Array<{ name: string }>;
     if (existingMatterCols.some((c) => c.name === "matter_id")) this.migrateFirmRelayToV2();
     this.#db.exec(SCHEMA);
+    // Device names are local-only. Remove values accepted by older relay
+    // builds before any endpoint can return or audit them.
+    this.#db.exec("UPDATE devices SET label = ''; UPDATE seats SET machine_label = NULL;");
     // Databases created before permanent archive tombstones need one safe,
     // one-way backfill before the reinsertion trigger becomes the authority.
     this.#db.exec("INSERT OR IGNORE INTO archived_matter_tombstones (matter_handle, archived_at) SELECT matter_handle, created_at FROM matters WHERE status = 'archived'");
@@ -1678,7 +1681,8 @@ export class Store {
     user_id: string;
     org_id: string;
     machine_id: string;
-    label: string;
+    /** Accepted only by trusted in-process fixtures; never persisted. */
+    label?: string;
     pubkey_jwk: string;
   }): Device {
     const now = this.nowIso();
@@ -1691,13 +1695,13 @@ export class Store {
            label      = excluded.label,
            pubkey_jwk = excluded.pubkey_jwk`,
       )
-      .run(input.device_id, input.user_id, input.org_id, input.machine_id, input.label, input.pubkey_jwk, now);
+      .run(input.device_id, input.user_id, input.org_id, input.machine_id, "", input.pubkey_jwk, now);
     return {
       device_id: input.device_id,
       user_id: input.user_id,
       org_id: input.org_id,
       machine_id: input.machine_id,
-      label: input.label,
+      label: "",
       pubkey_jwk: input.pubkey_jwk,
       created_at: now,
     };
