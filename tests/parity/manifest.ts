@@ -10,10 +10,11 @@ export type Verdict = 'REPLICATE' | 'IMPROVE';
 export interface ParityApp {
   ready(): Promise<void>;
   task(options: { recurrence?: boolean; priority?: boolean; assignee?: boolean; activity?: boolean; unified?: boolean; triage?: boolean }): Promise<void>;
-  contact(options: { person?: boolean; household?: boolean; relationship?: boolean; roles?: boolean; ownership?: boolean; tags?: boolean; notes?: boolean; internal?: boolean; account?: boolean; addresses?: boolean; facts?: boolean }): Promise<void>;
+  contact(options: { person?: boolean; household?: boolean; relationship?: boolean; roles?: boolean; ownership?: boolean; tags?: boolean; notes?: boolean; internal?: boolean; account?: boolean; addresses?: boolean; facts?: boolean; timeline?: boolean }): Promise<void>;
   workflow(options: { template?: boolean; instance?: boolean; schedule?: boolean; outcomes?: boolean; comments?: boolean; library?: boolean; meetingProposal?: boolean }): Promise<void>;
   pipeline(options: { opportunity?: boolean; pipeline?: boolean; stage?: boolean; workflowTrigger?: boolean }): Promise<void>;
   report(options: { kind: 'no_contact_6mo' | 'attention_vs_fee' | 'custom' | 'ai' }): Promise<void>;
+  customField(): Promise<void>;
   durableFeature(options: { route: string; controls: string[]; action?: string; result?: string; recordKind?: string }): Promise<void>;
 }
 
@@ -56,7 +57,7 @@ export const FEATURES: readonly ParityFeature[] = [
   live('"Ownership" (whose client is this)', 'contact-ownership', 'IMPROVE', 'contacts', (app) => app.contact({ household: true, ownership: true })),
   live('Multiple addresses/emails/phones per contact', 'contact-channels', 'REPLICATE', 'contacts', (app) => app.contact({ person: true, addresses: true })),
   live('Tags vs. custom fields not inherited household↔person', 'contact-fact-rollup', 'IMPROVE', 'contacts', (app) => app.contact({ household: true, facts: true })),
-  live('Custom fields', 'custom-fields', 'REPLICATE', 'firm setup', (app) => app.durableFeature({ route: 'crm-home-nav-firm-setup', controls: ['crm-firm-custom-field-new', 'crm-firm-custom-field-save'], action: 'crm-firm-custom-field-save', recordKind: 'customField' })),
+  live('Custom fields', 'custom-fields', 'REPLICATE', 'firm setup', (app) => app.customField()),
   live('Tags', 'tags', 'REPLICATE', 'contacts', (app) => app.contact({ household: true, tags: true })),
   live('Custom Objects', 'typed-objects', 'IMPROVE', 'contacts', (app) => app.contact({ household: true, account: true })),
   live('Notes on a contact', 'contact-notes', 'REPLICATE', 'contacts', (app) => app.contact({ household: true, notes: true })),
@@ -91,7 +92,7 @@ export const FEATURES: readonly ParityFeature[] = [
   live('AI for Reports (prompt-built reports)', 'ai-reports', 'IMPROVE', 'reports', (app) => app.report({ kind: 'ai' })),
   live('Client-neglect / no-recent-interaction report', 'client-neglect-report', 'IMPROVE', 'reports', (app) => app.report({ kind: 'no_contact_6mo' })),
   live('Attention-vs-fee report', 'attention-fee-report', 'IMPROVE', 'reports', (app) => app.report({ kind: 'attention_vs_fee' })),
-  live('Contact activity stream', 'contact-timeline', 'REPLICATE', 'timeline', (app) => app.durableFeature({ route: 'crm-home-nav-timeline', controls: ['crm-timeline-event', 'crm-timeline-filter'], recordKind: 'activityEvent' })),
+  live('Contact activity stream', 'contact-timeline', 'REPLICATE', 'timeline', (app) => app.contact({ household: true, notes: true, facts: true, timeline: true })),
   live('Firm-wide activity/dashboard feed', 'firm-activity-feed', 'REPLICATE', 'timeline', (app) => app.durableFeature({ route: 'crm-home-nav-activity', controls: ['crm-firm-activity-feed', 'crm-firm-activity-create'], action: 'crm-firm-activity-create', recordKind: 'activityEvent' })),
   live('@-mentioning', 'activity-mentions', 'REPLICATE', 'timeline', (app) => app.durableFeature({ route: 'crm-home-nav-timeline', controls: ['crm-timeline-mention', 'crm-timeline-post'], action: 'crm-timeline-post', recordKind: 'activityEvent' })),
   live('Wealthbox itself (as a CRM to migrate FROM)', 'wealthbox-migration', 'REPLICATE', 'migration', (app) => app.durableFeature({ route: 'crm-home-nav-firm-setup', controls: ['crm-firm-route-migration', 'crm-migration-run-import', 'crm-migration-fidelity'], action: 'crm-migration-run-import', recordKind: 'migrationReport' })),
