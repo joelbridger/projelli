@@ -32,6 +32,10 @@ const workspaceRoot =
 const reportPath = resolve(root, 'tests/parity/parity-report.json');
 const base = `http://127.0.0.1:${port}`;
 const delay = (ms: number) => new Promise((done) => setTimeout(done, ms));
+// The desktop bridge accepts a timeout per request. Use the same generous
+// ceiling as the launch harness so a cold encrypted store is not confused
+// with a failing feature.
+const bridgeTimeoutMs = process.env['LANTERN_DEV_BRIDGE_TIMEOUT_MS'] ?? '20000';
 
 type Result = {
   id: string;
@@ -60,6 +64,7 @@ async function http(
   const url = new URL(path, base);
   for (const [key, value] of Object.entries(query))
     url.searchParams.set(key, value);
+  if (path !== '/health') url.searchParams.set('timeout_ms', bridgeTimeoutMs);
   let response: Response;
   try {
     response = await fetch(url);
