@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import type { CrmHomeRoute } from './routes';
-import { activitySurface, timelineSurface } from '@/features/crm-activity/surface';
+import { activitySurface } from '@/features/crm-activity/surface';
 import { calendarSurface, emailSurface } from '@/features/crm-connectors/surface';
 import { todaySurface } from '@/features/crm-today/surface';
 import { tasksSurface } from '@/features/crm-tasks/surface';
@@ -13,6 +13,7 @@ import { pipelineSettingsSurface, pipelineSurface } from '@/features/crm-pipelin
 import { reportsSurface } from '@/features/crm-reports/surface';
 import { viewsSurface } from '@/features/crm-views/surface';
 import { searchSurface } from '@/features/crm-search/surface';
+import { timelineSurface } from '@/features/crm-timeline/surface';
 
 export interface CrmHomeSurfaceDescriptor {
   id: string;
