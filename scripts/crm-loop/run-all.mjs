@@ -16,7 +16,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const ORDER = ['clients.mjs', 'today-tasks.mjs', 'workflows.mjs', 'migration.mjs'];
+const ORDER = ['clients.mjs', 'today-tasks.mjs', 'workflows.mjs', 'migration.mjs', 'reports.mjs'];
 
 const present = ORDER.filter((f) => existsSync(path.join(here, f)));
 const missing = ORDER.filter((f) => !present.includes(f));
