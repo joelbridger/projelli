@@ -31,6 +31,7 @@ import { useFileImport } from '@/app/fileOps/useFileImport';
 import { getSettingsActions } from '@/app/hooks/getSettingsActions';
 import { useTabOpening } from '@/app/lifecycle/useTabOpening';
 import { WorkspaceSelector } from '@/features/documents/workspace/WorkspaceSelector';
+import { registerFirmWorkspaceSwitcher } from '@/features/crm-firm/workspaceSwitching';
 
 import { AppShellNav } from '@/app/shell/layout/AppShellNav';
 import { SettingsGearButton } from '@/app/shell/layout/SettingsGearButton';
@@ -1133,6 +1134,8 @@ function AppShell() {
     setChatFiles,
     confirm,
   });
+
+  useEffect(() => registerFirmWorkspaceSwitcher(handleWorkspaceSelected), [handleWorkspaceSelected]);
 
   // Boot: silently reopen the last workspace when "Reopen last workspace" is
   // on, instead of always showing the picker (only Tauri can do this without
