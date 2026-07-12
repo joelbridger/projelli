@@ -1980,7 +1980,7 @@ export class Store {
     epoch: number;
     published_by: string;
     wrapped: Array<{ user_id: string; device_id: string; wrapped_key: Uint8Array }>;
-  }): { stored: number; skipped: number } | { matterArchived: true } | { staleEpoch: true } | { matterNotFound: true } | { invalidRecipient: true } | { publisherUnauthorized: true } | { publisherWalled: true } | { intakeMatterMismatch: true } | { intakeLimitReached: true } {
+  }): { stored: number; skipped: number } | { matterArchived: true } | { staleEpoch: true } | { matterNotFound: true } | { invalidRecipient: true } | { publisherUnauthorized: true } | { publisherWalled: true } | { emptyBatch: true } | { intakeMatterMismatch: true } | { intakeLimitReached: true } {
     const txn = this.#db.transaction(() => {
       const matter = this.#db
         .query(`SELECT org_id, status, key_epoch FROM matters WHERE matter_handle = ?`)
@@ -1998,12 +1998,6 @@ export class Store {
         .get(input.matter_handle, input.published_by, input.org_id) as { role: MatterRole } | null;
       if (publisher?.role !== "admin" && publisherMembership?.role !== "owner") return { publisherUnauthorized: true as const };
 
-      const existing = this.#db
-        .query(`SELECT matter_handle, org_id FROM intake_handle_bindings WHERE intake_handle = ? LIMIT 1`)
-        .get(input.intake_handle) as { matter_handle: string; org_id: string } | null;
-      if (existing && (existing.org_id !== input.org_id || existing.matter_handle !== input.matter_handle)) return { intakeMatterMismatch: true as const };
-      if (!existing && this.countDistinctIntakeHandles(input.matter_handle) >= config.firmMatterIntakeHandleCap) return { intakeLimitReached: true as const };
-
       // Validate the entire recipient set before creating the one-way binding.
       // Returning from inside the insertion loop would otherwise commit an
       // incomplete first publication and permanently consume this handle.
@@ -2012,6 +2006,18 @@ export class Store {
         if (!user || user.org_id !== input.org_id || !this.getDevice(key.device_id, key.user_id)) return { invalidRecipient: true as const };
       }
 
+      // A permanent intake binding is valid only when this request will write
+      // at least one wrapped key. In particular, an all-walled batch must not
+      // consume one of the matter's finite handle slots.
+      const effectiveWrapped = input.wrapped.filter((key) => !this.isWalled(input.matter_handle, key.user_id));
+      if (effectiveWrapped.length === 0) return { emptyBatch: true as const };
+
+      const existing = this.#db
+        .query(`SELECT matter_handle, org_id FROM intake_handle_bindings WHERE intake_handle = ? LIMIT 1`)
+        .get(input.intake_handle) as { matter_handle: string; org_id: string } | null;
+      if (existing && (existing.org_id !== input.org_id || existing.matter_handle !== input.matter_handle)) return { intakeMatterMismatch: true as const };
+      if (!existing && this.countDistinctIntakeHandles(input.matter_handle) >= config.firmMatterIntakeHandleCap) return { intakeLimitReached: true as const };
+
       if (!existing) {
         this.#db
           .query(`INSERT INTO intake_handle_bindings (intake_handle, matter_handle, org_id, created_at) VALUES (?, ?, ?, ?)`)
@@ -2019,12 +2025,8 @@ export class Store {
       }
 
       let stored = 0;
-      let skipped = 0;
-      for (const key of input.wrapped) {
-        if (this.isWalled(input.matter_handle, key.user_id)) {
-          skipped++;
-          continue;
-        }
+      const skipped = input.wrapped.length - effectiveWrapped.length;
+      for (const key of effectiveWrapped) {
         this.#db
           .query(
             `INSERT INTO wrapped_intake_keys (intake_handle, matter_handle, org_id, epoch, user_id, device_id, wrapped_key, published_by, created_at)

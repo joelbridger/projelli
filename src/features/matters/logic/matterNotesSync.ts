@@ -29,6 +29,8 @@ import { useFirmStore } from '@/platform/firm/firmStore';
 
 /** One resolved client per local matter id (post-construction). */
 const clientCache = new Map<string, MatterSyncClient>();
+/** Clients denied a rotated key before (or after) cache insertion. */
+const abortedClients = new WeakSet<MatterSyncClient>();
 
 /**
  * Promise-singleton cache: keyed at function ENTRY so concurrent calls share
@@ -83,7 +85,11 @@ export function ensureMatterSync(
   const promise = _buildMatterSyncClient(localMatter, keyEpoch, seatToken, firmState).then(
     (client) => {
       pendingCache.delete(localMatterId);
-      if (client) clientCache.set(localMatterId, client);
+      // A key-rotation denial can arrive while client.start() is still pending.
+      // Do not turn that stopped instance into the cached singleton once start
+      // settles; the next open must perform the normal fail-closed key check.
+      if (!client || abortedClients.has(client)) return null;
+      clientCache.set(localMatterId, client);
       return client;
     },
     (err: unknown) => {
@@ -152,6 +158,11 @@ async function _buildMatterSyncClient(
 
   // Start sync (catch-up + WebSocket).
   await client.start();
+
+  // onKeyEpochAdvanced runs from MatterSyncClient while start() is in flight.
+  // A 403/404 rotation denial stops and marks this exact instance, even though
+  // it has not reached clientCache yet.
+  if (abortedClients.has(client)) return null;
 
   // A newly authorized device starts with a generic local placeholder. Once it
   // has the wrapped key and decrypts this root stream, only then may it learn
@@ -229,7 +240,8 @@ export async function handleKeyEpochAdvanced(
           // Walled (403) or key not published for new epoch (404) — fail closed.
           // The old key has already been cleared above, so the next ensureMatterSync
           // will hit the server again and surface the proper fail-closed panel.
-          stopMatterSync(localMatterId);
+          stopMatterSync(localMatterId, client);
+          useMatterSyncStore.getState().setStatus(localMatterId, 'error');
           return;
         }
         throw err;
@@ -259,7 +271,7 @@ export async function handleKeyEpochAdvanced(
     // Never let even a rapid sequence of genuine rotations spin indefinitely.
     // This matches the existing walled-key behavior: stop this client and
     // require a fresh, fail-closed start before syncing again.
-    stopMatterSync(localMatterId);
+    stopMatterSync(localMatterId, client);
     useMatterSyncStore.getState().setStatus(localMatterId, 'error');
   })().catch((err: unknown) => {
     console.error('[matterNotesSync] key epoch advance failed:', err);
@@ -272,13 +284,20 @@ export async function handleKeyEpochAdvanced(
 }
 
 /** Stop and remove the sync client for a matter. Idempotent. */
-export function stopMatterSync(localMatterId: string): void {
+export function stopMatterSync(localMatterId: string, specificClient?: MatterSyncClient): void {
   pendingCache.delete(localMatterId);
   keyRotationCache.delete(localMatterId);
-  const client = clientCache.get(localMatterId);
+  const client = specificClient ?? clientCache.get(localMatterId);
   if (!client) return;
+  stopMatterSyncClient(localMatterId, client);
+}
+
+/** Stop one known client instance, including one that has not been cached yet. */
+function stopMatterSyncClient(localMatterId: string, client: MatterSyncClient): void {
+  abortedClients.add(client);
   client.stop();
-  clientCache.delete(localMatterId);
+  if (clientCache.get(localMatterId) === client) clientCache.delete(localMatterId);
+  pendingCache.delete(localMatterId);
   useMatterSyncStore.getState().clearMatter(localMatterId);
 }
 

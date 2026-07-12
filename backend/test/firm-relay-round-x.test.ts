@@ -48,8 +48,8 @@ function recipient(user: { user_id: string }) {
   return { user_id: user.user_id, device_id: `${user.user_id}-device`, wrapped_key_b64: wrappedKeyB64 };
 }
 
-async function publishIntake(f: ReturnType<typeof fixture>, handle: string, wrapped = [recipient(f.keeper)]) {
-  return handlePublishIntakeKeys(request(f.adminToken, { matter_handle: f.matter.matter_handle, epoch: 1, wrapped }), f.store, handle);
+async function publishIntake(f: ReturnType<typeof fixture>, handle: string, wrapped = [recipient(f.keeper)], epoch = 1) {
+  return handlePublishIntakeKeys(request(f.adminToken, { matter_handle: f.matter.matter_handle, epoch, wrapped }), f.store, handle);
 }
 
 function storeCurrentKeys(f: ReturnType<typeof fixture>) {
@@ -98,6 +98,39 @@ describe("round X firm relay availability guards", () => {
     const rejected = await publishIntake(f, intakeHandle("C"));
     expect(rejected.status).toBe(429);
     expect(await rejected.json()).toEqual({ error: "rate_limited" });
+    f.store.close();
+  });
+
+  test("rejects 1,024 empty publishes without consuming permanent intake-handle capacity", async () => {
+    const f = fixture();
+    f.store.setEthicalWall({ matter_handle: f.matter.matter_handle, user_id: f.target.user_id, org_id: f.org.org_id, created_by: f.admin.user_id });
+    const epoch = f.store.getMatter(f.matter.matter_handle)!.key_epoch;
+
+    // An empty array is rejected at the route boundary before it can reach the
+    // binding path at all.
+    const emptyRequest = await publishIntake(f, intakeHandle("E"), []);
+    expect(emptyRequest.status).toBe(400);
+    expect(await emptyRequest.json()).toEqual({ error: "empty_wrapped_keys" });
+
+    // A batch that becomes empty after wall filtering reaches the store, but
+    // still must not claim any of the 1,024 permanent handle slots.
+    for (let i = 0; i < 1024; i += 1) {
+      const handle = `ih2_${i.toString(36).padStart(43, "E")}`;
+      expect(f.store.publishWrappedIntakeKeys({
+        intake_handle: handle,
+        matter_handle: f.matter.matter_handle,
+        org_id: f.org.org_id,
+        epoch,
+        published_by: f.admin.user_id,
+        wrapped: [{ user_id: f.target.user_id, device_id: `${f.target.user_id}-device`, wrapped_key: wrappedEnvelope }],
+      })).toEqual({ emptyBatch: true });
+    }
+    expect(f.store.countDistinctIntakeHandles(f.matter.matter_handle)).toBe(0);
+
+    const realPublish = await publishIntake(f, intakeHandle("Z"), [recipient(f.keeper)], epoch);
+    expect(realPublish.status).toBe(200);
+    expect(await realPublish.json()).toEqual({ ok: true, stored: 1 });
+    expect(f.store.countDistinctIntakeHandles(f.matter.matter_handle)).toBe(1);
     f.store.close();
   });
 

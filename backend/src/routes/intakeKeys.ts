@@ -25,6 +25,7 @@ export async function handlePublishIntakeKeys(req: Request, store: Store, intake
   if (!validIntakeHandle(intakeHandle)) return error("intake_not_found", 404);
   const body = await readStrictV2Payload(req, v2BodyKeys("publishIntakeKeys"));
   if (!body || !validMatterHandle(body.matter_handle) || !Number.isInteger(body.epoch) || typeof body.epoch !== "number" || !Array.isArray(body.wrapped) || body.wrapped.length > MAX_WRAPPED_KEYS_PER_PUBLISH || body.wrapped.some((item) => !item || typeof item !== "object" || Array.isArray(item) || Object.keys(item as Record<string, unknown>).some((key) => !["user_id", "device_id", "wrapped_key_b64"].includes(key)))) return error("invalid_v2_payload", 400);
+  if (body.wrapped.length === 0) return error("empty_wrapped_keys", 400);
 
   const wrapped: Array<{ user_id: string; device_id: string; wrapped_key: Uint8Array }> = [];
   for (const item of body.wrapped) {
@@ -47,6 +48,7 @@ export async function handlePublishIntakeKeys(req: Request, store: Store, intake
   if ("publisherWalled" in published) return error("forbidden", 403, "walled");
   if ("publisherUnauthorized" in published) return error("forbidden", 403, "admin_or_owner_required");
   if ("invalidRecipient" in published) return error("invalid_v2_payload", 400);
+  if ("emptyBatch" in published) return error("empty_wrapped_keys", 400);
   if ("staleEpoch" in published) return error("stale_epoch", 409);
   if ("intakeMatterMismatch" in published) return error("intake_matter_mismatch", 409);
   if ("intakeLimitReached" in published) return error("intake_limit_reached", 409);
