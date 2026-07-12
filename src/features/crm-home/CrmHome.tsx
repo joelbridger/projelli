@@ -26,6 +26,7 @@ import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import { CrmPipelineSurface } from '@/features/crm-pipeline';
 import { buildCapacityTriage, nextRecurringDue, type DailyWorkItem } from '@/platform/crm/tasks';
 import { CrmReports } from '@/features/crm-reports';
+import { FirmSetupSurface } from '@/features/crm-firm/FirmSetupSurface';
 import { createMigrationExport, runWealthboxMigration } from '@/platform/crm/migration';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import {
@@ -461,12 +462,6 @@ function ConnectedCrmHome({ adapter, initialRoute = 'today', preview = false, wo
   const reportUndo = useCallback(() => { const result = activeAdapter.actions.undoPropagation?.() ?? { restored: 0, protectedCells: [] }; setUndoReport(result.protectedCells.length ? `${String(result.restored)} untouched derived cells restored. Protected cells kept: ${result.protectedCells.join(', ')}.` : `${String(result.restored)} untouched derived cells restored. No protected cells needed to stay.`); }, [activeAdapter]);
   useEffect(() => { const onKeyDown = (event: KeyboardEvent) => { if ((event.target as HTMLElement | null)?.tagName === 'INPUT') return; if (event.key === 'g') { (window as Window & { __crmGo?: boolean }).__crmGo = true; return; } if ((window as Window & { __crmGo?: boolean }).__crmGo) { const key = event.key.toLowerCase(); const destination = key === 'h' ? 'today' : key === 't' ? 'tasks' : key === 'w' ? 'workflows' : key === 'p' ? 'pipeline' : key === 'r' ? 'reports' : key === 'f' ? 'firm-setup' : key === 'm' ? 'migration' : null; if (destination) { event.preventDefault(); jump(destination); } (window as Window & { __crmGo?: boolean }).__crmGo = false; } if (event.key === '/' && route !== 'tasks') { document.querySelector<HTMLInputElement>('[data-testid="crm-ask-input"]')?.focus(); } if (route === 'propagation' && event.key.toLowerCase() === 'u') { event.preventDefault(); reportUndo(); } }; window.addEventListener('keydown', onKeyDown); return () => { window.removeEventListener('keydown', onKeyDown); }; }, [activeAdapter, reportUndo, route]);
   const notificationPanel = <aside aria-label="Notifications" style={{ position: 'absolute', right: 20, top: 56, width: 340, zIndex: 10, ...panelStyle, boxShadow: 'var(--kp-shadow-2)' }}><strong>Notifications ({String(approvals.filter((approval) => approval.state === 'pending').length)})</strong><p style={mutedStyle}>Approval decisions are shown in Today. This device keeps ordinary read state locally.</p><p style={mutedStyle}>The relay exposes delivery timing and opaque envelope IDs, never message content.</p><Button data-testid="crm-notifications-read" variant="secondary" onClick={() => { setNotificationsRead(true); activeAdapter.actions.markNotificationsRead?.(); }}>{notificationsRead ? 'Marked read on this device' : 'Mark all read on this device'}</Button></aside>;
-   const workflowWorkItems = activeAdapter.workflowWorkItems ?? [];
-   const firmMembers = activeAdapter.firmMembers ?? [];
-   const completeWorkItem = async (item: CrmDailyWorkItem) => {
-     if (item.kind === 'workflow_step') await activeAdapter.actions.completeWorkflowWorkItem?.(item);
-     else await updateTask({ ...item, status: 'done' });
-   };
   const workflowWorkItems = activeAdapter.workflowWorkItems ?? [];
   const firmMembers = activeAdapter.firmMembers ?? [];
   const completeWorkItem = async (item: CrmDailyWorkItem) => {
