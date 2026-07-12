@@ -3128,6 +3128,16 @@
       "pill-copy-chat": "Copy chat notice",
       "details": "Details"
     },
+    "templates": {
+      "title": "Meeting templates",
+      "description": "Fill a firm layout from this transcript, then review it before it is saved.",
+      "fill": "Fill from transcript",
+      "review-title": "Review before saving",
+      "internal-note": "This note stays inside {{productName}}. It cannot be saved as a client-facing note.",
+      "save-reviewed-note": "Save reviewed note",
+      "audience-internal": "Internal only",
+      "audience-client-facing": "Client-facing"
+    },
     "notice-card": {
       "offer-label": "Show Notice Card",
       "offer-explain": "Shows everyone recording is on. Records nothing.",
