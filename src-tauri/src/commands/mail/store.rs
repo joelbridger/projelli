@@ -12,7 +12,7 @@
 use crate::commands::mail::model::{MailAttachmentRef, MailAuthResult};
 use crate::util::sync::lock_unpoison;
 use anyhow::{Context, Result};
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
@@ -450,6 +450,12 @@ pub trait MailStore: Send + Sync {
 /// `messages` upsert never touches it. (BUG-013.)
 pub fn message_matter_key(message_id: &str) -> String {
     format!("matter:{message_id}")
+}
+
+/// Versioned, source-level marker for a committed mail filing whose matching
+/// RAG scope update still needs repair.
+pub fn pending_rag_retag_key(message_id: &str) -> String {
+    format!("v1:pending_rag_retag:{message_id}")
 }
 
 fn legacy_imap_message_id(current_id: &str) -> Option<String> {
@@ -907,6 +913,196 @@ impl EncryptedMailStore {
     /// Persist (upsert) a message's manual matter filing. Idempotent.
     pub fn set_message_matter(&self, message_id: &str, matter_id: &str) -> Result<()> {
         self.set_meta(&message_matter_key(message_id), matter_id)
+    }
+
+    /// Verify every selected message and write every override in one SQLCipher
+    /// transaction. A missing id leaves no partial filing behind.
+    pub fn set_message_matter_batch(&self, message_ids: &[String], matter_id: &str) -> Result<()> {
+        if message_ids.is_empty() {
+            return Ok(());
+        }
+        let mut c = lock_unpoison(&self.conn);
+        let tx = c.transaction()?;
+        let mut missing = Vec::new();
+        {
+            let mut exists = tx.prepare("SELECT 1 FROM messages WHERE id = ?1 LIMIT 1")?;
+            for id in message_ids {
+                if !exists.exists([id])? {
+                    missing.push(id.clone());
+                }
+            }
+        }
+        if !missing.is_empty() {
+            anyhow::bail!("message(s) not found: {}", missing.join(", "));
+        }
+        {
+            let mut write = tx.prepare(
+                "INSERT INTO meta (key, value) VALUES (?1, ?2)
+                 ON CONFLICT(key) DO UPDATE SET value = ?2",
+            )?;
+            for id in message_ids {
+                write.execute(rusqlite::params![message_matter_key(id), matter_id])?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Atomically file every message and leave a source-level RAG repair marker
+    /// behind *before* any vector-table write is attempted.  The marker is part
+    /// of the same durable transaction as the filing, so a process crash in the
+    /// gap between SQLite commit and LanceDB update is recoverable on next open.
+    pub fn set_message_matter_batch_with_pending_rag_retag(
+        &self,
+        message_ids: &[String],
+        matter_id: &str,
+    ) -> Result<()> {
+        if message_ids.is_empty() {
+            return Ok(());
+        }
+        let mut c = lock_unpoison(&self.conn);
+        let tx = c.transaction()?;
+        let mut missing = Vec::new();
+        {
+            let mut exists = tx.prepare("SELECT 1 FROM messages WHERE id = ?1 LIMIT 1")?;
+            for id in message_ids {
+                if !exists.exists([id])? {
+                    missing.push(id.clone());
+                }
+            }
+        }
+        if !missing.is_empty() {
+            anyhow::bail!("message(s) not found: {}", missing.join(", "));
+        }
+        {
+            let mut filing = tx.prepare(
+                "INSERT INTO meta (key, value) VALUES (?1, ?2)
+                 ON CONFLICT(key) DO UPDATE SET value = ?2",
+            )?;
+            let mut pending = tx.prepare(
+                "INSERT INTO meta (key, value) VALUES (?1, ?2)
+                 ON CONFLICT(key) DO UPDATE SET value = ?2",
+            )?;
+            for id in message_ids {
+                filing.execute(rusqlite::params![message_matter_key(id), matter_id])?;
+                pending.execute(rusqlite::params![pending_rag_retag_key(id), matter_id])?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Record the exact mail sources whose RAG matter update failed.
+    pub fn mark_pending_rag_retag_batch(&self, message_ids: &[String], matter_id: &str) -> Result<()> {
+        if message_ids.is_empty() {
+            return Ok(());
+        }
+        let mut c = lock_unpoison(&self.conn);
+        let tx = c.transaction()?;
+        {
+            let mut write = tx.prepare(
+                "INSERT INTO meta (key, value) VALUES (?1, ?2)
+                 ON CONFLICT(key) DO UPDATE SET value = ?2",
+            )?;
+            for id in message_ids {
+                write.execute(rusqlite::params![pending_rag_retag_key(id), matter_id])?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Clear only the repair records for the target just written; an older retry
+    /// cannot erase a newer pending repair after a later re-file.
+    pub fn clear_pending_rag_retag_batch(&self, message_ids: &[String], matter_id: &str) -> Result<()> {
+        let mut c = lock_unpoison(&self.conn);
+        let tx = c.transaction()?;
+        {
+            let mut delete = tx.prepare("DELETE FROM meta WHERE key = ?1 AND value = ?2")?;
+            for id in message_ids {
+                delete.execute(rusqlite::params![pending_rag_retag_key(id), matter_id])?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Return each repair marker at its latest durable filing target. The read
+    /// and marker update share one SQLite transaction, so a stale retry can
+    /// never select an older target for its next vector-table write.
+    pub fn pending_rag_retags_at_current_target(&self) -> Result<Vec<(String, String)>> {
+        let mut c = lock_unpoison(&self.conn);
+        let tx = c.transaction()?;
+        let pending: Vec<String> = {
+            let mut stmt = tx.prepare(
+                "SELECT key FROM meta WHERE key LIKE 'v1:pending_rag_retag:%' ORDER BY key",
+            )?;
+            let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+            rows.collect::<rusqlite::Result<Vec<_>>>()?
+        };
+        let mut current = Vec::with_capacity(pending.len());
+        for pending_key in pending {
+            let message_id = pending_key
+                .trim_start_matches("v1:pending_rag_retag:")
+                .to_string();
+            let target: Option<String> = tx.query_row(
+                "SELECT value FROM meta WHERE key = ?1",
+                [message_matter_key(&message_id)],
+                |row| row.get(0),
+            ).optional()?;
+            match target {
+                Some(target) => {
+                    tx.execute(
+                        "UPDATE meta SET value = ?2 WHERE key = ?1",
+                        rusqlite::params![pending_key, target],
+                    )?;
+                    current.push((message_id, target));
+                }
+                None => {
+                    tx.execute("DELETE FROM meta WHERE key = ?1", [pending_key])?;
+                }
+            }
+        }
+        tx.commit()?;
+        Ok(current)
+    }
+
+    /// Clear a marker only if the marker and durable filing still match the
+    /// target just written. A newer re-file therefore cannot lose its marker.
+    pub fn clear_pending_rag_retag_batch_if_current(
+        &self,
+        message_ids: &[String],
+        matter_id: &str,
+    ) -> Result<usize> {
+        let mut c = lock_unpoison(&self.conn);
+        let tx = c.transaction()?;
+        let mut cleared = 0;
+        for id in message_ids {
+            cleared += tx.execute(
+                "DELETE FROM meta
+                 WHERE key = ?1 AND value = ?2
+                   AND EXISTS (
+                     SELECT 1 FROM meta AS filing
+                     WHERE filing.key = ?3 AND filing.value = ?2
+                   )",
+                rusqlite::params![pending_rag_retag_key(id), matter_id, message_matter_key(id)],
+            )?;
+        }
+        tx.commit()?;
+        Ok(cleared)
+    }
+
+    pub fn pending_rag_retags(&self) -> Result<Vec<(String, String)>> {
+        let c = lock_unpoison(&self.conn);
+        let mut stmt = c.prepare(
+            "SELECT key, value FROM meta WHERE key LIKE 'v1:pending_rag_retag:%' ORDER BY key",
+        )?;
+        let rows = stmt.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?;
+        rows.map(|row| {
+            let (key, matter_id) = row?;
+            Ok((key.trim_start_matches("v1:pending_rag_retag:").to_string(), matter_id))
+        })
+        .collect()
     }
 
     /// Clear a message's manual matter filing (unfile). No-op when absent.
@@ -1493,6 +1689,51 @@ mod tests {
             s2.get_message_matter("AAMk-2").unwrap().as_deref(),
             Some("matter-acme")
         );
+    }
+
+    #[test]
+    fn enc_batch_message_matter_is_all_or_nothing_when_one_id_is_missing() {
+        let (_dir, s) = enc_store();
+        s.upsert(&mk_rec("present-a", "inbox", "m365", "default")).unwrap();
+        s.upsert(&mk_rec("present-b", "inbox", "m365", "default")).unwrap();
+        s.set_message_matter("present-a", "matter-before").unwrap();
+        let ids = vec!["present-a".to_string(), "missing".to_string(), "present-b".to_string()];
+        assert!(s.set_message_matter_batch(&ids, "matter-after").is_err());
+        assert_eq!(s.get_message_matter("present-a").unwrap().as_deref(), Some("matter-before"));
+        assert_eq!(s.get_message_matter("present-b").unwrap(), None);
+    }
+
+    #[test]
+    fn enc_batch_filing_and_pending_repair_marker_commit_together() {
+        let (_dir, s) = enc_store();
+        s.upsert(&mk_rec("present-a", "inbox", "m365", "default")).unwrap();
+        s.upsert(&mk_rec("present-b", "inbox", "m365", "default")).unwrap();
+        let ids = vec!["present-a".to_string(), "present-b".to_string()];
+
+        s.set_message_matter_batch_with_pending_rag_retag(&ids, "matter-acme")
+            .unwrap();
+
+        assert_eq!(s.get_message_matter("present-a").unwrap().as_deref(), Some("matter-acme"));
+        assert_eq!(s.get_message_matter("present-b").unwrap().as_deref(), Some("matter-acme"));
+        assert_eq!(
+            s.pending_rag_retags().unwrap(),
+            vec![
+                ("present-a".to_string(), "matter-acme".to_string()),
+                ("present-b".to_string(), "matter-acme".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn enc_pending_rag_retags_are_source_scoped_durable_and_clearable() {
+        let (_dir, s) = enc_store();
+        let ids = vec!["mail-a".to_string(), "mail-b".to_string()];
+        s.mark_pending_rag_retag_batch(&ids, "matter-acme").unwrap();
+        assert_eq!(s.pending_rag_retags().unwrap().len(), 2);
+        s.clear_pending_rag_retag_batch(&["mail-a".to_string()], "matter-stale").unwrap();
+        assert_eq!(s.pending_rag_retags().unwrap().len(), 2);
+        s.clear_pending_rag_retag_batch(&["mail-a".to_string()], "matter-acme").unwrap();
+        assert_eq!(s.pending_rag_retags().unwrap(), vec![("mail-b".to_string(), "matter-acme".to_string())]);
     }
 
     #[test]

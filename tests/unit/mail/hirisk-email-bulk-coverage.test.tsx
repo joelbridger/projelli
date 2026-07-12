@@ -7,6 +7,7 @@ vi.mock('@/platform/utils/mail-commands', () => ({
   mailConnectedAccounts: vi.fn(),
   mailRetagFolderMatter: vi.fn(),
   mailRetagMessageMatter: vi.fn(),
+  mailRetagMessagesMatter: vi.fn(),
   mailSend: vi.fn(),
   MAIL_SYNC_EVENT: 'mail-sync-progress',
 }));
@@ -50,6 +51,7 @@ import {
   mailGetMessage,
   mailConnectedAccounts,
   mailRetagMessageMatter,
+  mailRetagMessagesMatter,
   mailRetagFolderMatter,
 } from '@/platform/utils/mail-commands';
 import { useActiveMatter, useMatters } from '@/platform/matter/matterStore';
@@ -61,6 +63,7 @@ const mockMailListMessages = mailListMessages as ReturnType<typeof vi.fn>;
 const mockMailGetMessage = mailGetMessage as unknown as ReturnType<typeof vi.fn>;
 const mockMailConnectedAccounts = mailConnectedAccounts as ReturnType<typeof vi.fn>;
 const mockMailRetagMessageMatter = mailRetagMessageMatter as ReturnType<typeof vi.fn>;
+const mockMailRetagMessagesMatter = mailRetagMessagesMatter as ReturnType<typeof vi.fn>;
 const mockMailRetagFolderMatter = mailRetagFolderMatter as ReturnType<typeof vi.fn>;
 const mockUseActiveMatter = useActiveMatter as ReturnType<typeof vi.fn>;
 const mockUseMatters = useMatters as ReturnType<typeof vi.fn>;
@@ -136,6 +139,7 @@ describe('High-risk email coverage', () => {
       });
     });
     mockMailRetagMessageMatter.mockResolvedValue(undefined);
+    mockMailRetagMessagesMatter.mockResolvedValue(2);
     mockMailRetagFolderMatter.mockResolvedValue(0);
     mockUseActiveMatter.mockReturnValue(null);
     mockUseMatters.mockReturnValue([
@@ -186,9 +190,12 @@ describe('High-risk email coverage', () => {
       await Promise.resolve();
     });
 
-    expect(mockMailRetagMessageMatter).toHaveBeenCalledTimes(2);
-    expect(mockMailRetagMessageMatter).toHaveBeenCalledWith('msg-alpha', 'matter-acme');
-    expect(mockMailRetagMessageMatter).toHaveBeenCalledWith('msg-beta', 'matter-acme');
+    expect(mockMailRetagMessagesMatter).toHaveBeenCalledTimes(1);
+    expect(mockMailRetagMessagesMatter).toHaveBeenCalledWith(
+      ['msg-alpha', 'msg-beta'],
+      'matter-acme',
+    );
+    expect(mockMailRetagMessageMatter).not.toHaveBeenCalled();
     expect(mockMailRetagFolderMatter).not.toHaveBeenCalled();
     expect(screen.queryByTestId('bulk-action-bar')).not.toBeInTheDocument();
   });

@@ -2749,6 +2749,7 @@
       "filed-to-another-client": "another client",
       "not-filed": "Not filed",
       "filed-success": "Filed",
+      "search-repair-pending": "Search is updating. This email will not appear in search results until it is ready.",
       "find-client": "Find client",
       "create-client-first": "Create a client first.",
       "no-matches": "No matches",

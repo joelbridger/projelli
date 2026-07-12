@@ -7,6 +7,12 @@
 
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import type { MailMatterMapEntry } from '@/platform/rag/matterResolver';
+import {
+  holdPendingMailRagRetagSources,
+  markPendingMailRagRetagLoading,
+  setPendingMailRagRetagSources,
+} from '@/platform/rag/pendingMailRagRetagHold';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 
 /**
  * True when a mail connect/sync error is the EXPECTED "this needs the desktop
@@ -631,10 +637,91 @@ export async function gmailDisconnect(): Promise<void> {
  *  No-op outside Tauri (fixture mode: resolves immediately). */
 export async function mailRetagMessageMatter(
   messageId: string,
-  matterId: string
-): Promise<void> {
-  if (!isTauri()) return;
-  await invoke('mail_retag_message_matter', { messageId, matterId });
+  matterId: string,
+): Promise<MailRetagResult> {
+  if (!isTauri()) return { filedCount: 1, searchRepairPending: false };
+  return withLiveMailRetagHold([messageId], (expectedWorkspace) =>
+    invoke<MailRetagResult>('mail_retag_message_matter', {
+      messageId,
+      matterId,
+      expectedWorkspace,
+    }),
+  );
+}
+
+/** File selected messages in one bounded desktop request. The backend performs
+ * one durable transaction and at most one LanceDB table update per 512 ids. */
+export async function mailRetagMessagesMatter(
+  messageIds: string[],
+  matterId: string,
+): Promise<MailRetagResult> {
+  if (!isTauri()) return { filedCount: messageIds.length, searchRepairPending: false };
+  return withLiveMailRetagHold(messageIds, (expectedWorkspace) =>
+    invoke<MailRetagResult>('mail_retag_messages_matter', {
+      messageIds,
+      matterId,
+      expectedWorkspace,
+    }),
+  );
+}
+
+/** A filing either has current search immediately or is safely queued for repair. */
+export interface MailRetagResult {
+  filedCount: number;
+  searchRepairPending: boolean;
+}
+
+export interface PendingMailRagRetag {
+  messageId: string;
+  sourceId: string;
+  matterId: string;
+}
+
+/** Exact mail sources held out of search until their durable filing is mirrored. */
+export async function mailListPendingRagRetags(): Promise<PendingMailRagRetag[]> {
+  if (!isTauri()) return [];
+  return invoke<PendingMailRagRetag[]>('mail_list_pending_rag_retags');
+}
+
+/**
+ * Protect mail from its old client scope for the full live filing window, then
+ * replace that temporary hold with the backend's durable repair markers. If the
+ * marker read itself fails, hold all mail rather than risking a stale result.
+ */
+async function withLiveMailRetagHold<T>(
+  messageIds: string[],
+  action: (expectedWorkspace: string) => Promise<T>,
+): Promise<T> {
+  const workspaceRoot = useWorkspaceStore.getState().rootPath;
+  if (!workspaceRoot) {
+    throw new Error('Choose a workspace before filing email.');
+  }
+  const sourceIds = messageIds
+    .map((id) => id.startsWith('mail:') ? id : `mail:${id}`);
+  const releaseLiveHold = holdPendingMailRagRetagSources(workspaceRoot, sourceIds);
+  try {
+    return await action(workspaceRoot);
+  } finally {
+    // Do not let a request from the old workspace alter the newly-opened one.
+    if (useWorkspaceStore.getState().rootPath === workspaceRoot) {
+      try {
+        const pending = await mailListPendingRagRetags();
+        setPendingMailRagRetagSources(workspaceRoot, pending.map((entry) => entry.sourceId));
+      } catch {
+        markPendingMailRagRetagLoading(workspaceRoot);
+      }
+    }
+    // This request releases only its own temporary hold. A second filing that
+    // is still in progress remains excluded even if this marker refresh did
+    // not yet see its durable repair row.
+    releaseLiveHold();
+  }
+}
+
+/** Retry only mail sources whose durable filing still has a pending RAG mirror. */
+export async function mailRepairPendingRagRetags(): Promise<number> {
+  if (!isTauri()) return 0;
+  return invoke<number>('mail_repair_pending_rag_retags');
 }
 
 /** Clear every email's "filed to this matter" tag for a matter being deleted

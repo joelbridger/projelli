@@ -197,6 +197,7 @@ export function EmailViewer({ sourceId, className, onOpenSettings, onSaveToWorks
     : null;
   const [filingMatter, setFilingMatter] = useState<string | null>(null);
   const [fileSuccess, setFileSuccess] = useState(false);
+  const [fileSearchRepairPending, setFileSearchRepairPending] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const [filePickerOpen, setFilePickerOpen] = useState(false);
   const [fileMatterSearch, setFileMatterSearch] = useState('');
@@ -242,6 +243,7 @@ export function EmailViewer({ sourceId, className, onOpenSettings, onSaveToWorks
     setReplyCcBccOpen(false);
     setFilingMatter(null);
     setFileSuccess(false);
+    setFileSearchRepairPending(false);
     setFileError(null);
     setFilePickerOpen(false);
     setFileMatterSearch('');
@@ -304,8 +306,9 @@ export function EmailViewer({ sourceId, className, onOpenSettings, onSaveToWorks
     setFilingMatter(matterId);
     setFileError(null);
     setFileSuccess(false);
+    setFileSearchRepairPending(false);
     try {
-      await mailRetagMessageMatter(targetId, matterId);
+      const result = await mailRetagMessageMatter(targetId, matterId);
       // QA-53: if the viewer moved to a different email while this filing ran,
       // drop the result — never mark the CURRENT (different) email filed here.
       if (fileTargetIdRef.current !== targetId) return false;
@@ -314,8 +317,11 @@ export function EmailViewer({ sourceId, className, onOpenSettings, onSaveToWorks
       // not only via the transient success flag.
       setMessage((prev) => (prev && prev.id === targetId ? { ...prev, matterId } : prev));
       setFileSuccess(true);
+      setFileSearchRepairPending(result.searchRepairPending);
       setTimeout(() => {
-        if (fileTargetIdRef.current === targetId) setFileSuccess(false);
+        if (fileTargetIdRef.current === targetId) {
+          setFileSuccess(false);
+        }
       }, 2500);
       return true;
     } catch (e: unknown) {
@@ -591,7 +597,21 @@ export function EmailViewer({ sourceId, className, onOpenSettings, onSaveToWorks
         </p>
       ) : null}
       {fileSuccess ? (
-        <p className="m-0 text-[11px] text-emerald-700">{t('mail.viewer.filed-success')}</p>
+        <p
+          className="m-0 text-[11px] text-emerald-700"
+          data-testid="email-file-result"
+        >
+          {t('mail.viewer.filed-success')}
+        </p>
+      ) : null}
+      {fileSearchRepairPending ? (
+        <p
+          className="m-0 flex items-center gap-1 text-[11px] text-amber-700"
+          data-testid="email-file-search-repair-pending"
+        >
+          <AlertTriangle className="h-3 w-3" />
+          {t('mail.viewer.search-repair-pending')}
+        </p>
       ) : null}
       {filePickerOpen ? (
         <Dropdown

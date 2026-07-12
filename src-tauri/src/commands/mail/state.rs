@@ -71,6 +71,8 @@ pub struct MailMatterMapEntry {
 }
 pub struct MailState {
     pub workspace: tokio::sync::Mutex<Option<std::path::PathBuf>>,
+    /// Serializes each durable manual filing with its matching RAG mirror.
+    pub retag_lock: tokio::sync::Mutex<()>,
     pub cancel: Arc<AtomicBool>,
     pub is_syncing: Arc<AtomicBool>,
     /// Separate from `cancel` (which cancels an in-flight mail *sync*): this
@@ -89,6 +91,7 @@ pub struct MailState {
 pub fn manage_state(app: &tauri::App) {
     app.manage(MailState {
         workspace: tokio::sync::Mutex::new(None),
+        retag_lock: tokio::sync::Mutex::new(()),
         cancel: Arc::new(AtomicBool::new(false)),
         is_syncing: Arc::new(AtomicBool::new(false)),
         oauth_cancel: Arc::new(AtomicBool::new(false)),

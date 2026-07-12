@@ -199,6 +199,7 @@ windows-sys = { version = "0.59", features = ["Win32_UI_Shell", "Win32_UI_Window
 libc = "0.2"
 
 [dev-dependencies]
+tauri = { version = "2.9.5", features = ["test"] }
 tokio = { version = "1", features = ["full", "test-util"] }
 # `tempfile` moved to [dependencies] above (voice.rs needs it outside tests
 # too now) — it's still available here for dev/test code, just not

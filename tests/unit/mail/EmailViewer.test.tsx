@@ -263,7 +263,7 @@ describe('EmailViewer', () => {
 
   it('reflects the filed matter immediately after filing, not via a transient flag', async () => {
     mockMailGetMessage.mockResolvedValue(sampleMessage({ matterId: null }));
-    mockMailRetagMessageMatter.mockResolvedValue(undefined);
+    mockMailRetagMessageMatter.mockResolvedValue({ filedCount: 1, searchRepairPending: false });
     render(<EmailViewer sourceId="AAMk-xyz" />);
     await screen.findByTestId('email-file-to-matter');
     await openFilingPicker();
@@ -275,6 +275,25 @@ describe('EmailViewer', () => {
 
     // The persistent filed indicator now shows and the button is marked current.
     expect(await screen.findByTestId('email-filed-matter')).toHaveTextContent(/Acme v\. Beta/);
+    expect(screen.queryByTestId('email-file-search-repair-pending')).not.toBeInTheDocument();
+    await openFilingPicker();
+    expect(screen.getByTestId('file-to-matter-btn-m1')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('honestly says when filing worked but search repair is still pending', async () => {
+    mockMailGetMessage.mockResolvedValue(sampleMessage({ matterId: null }));
+    mockMailRetagMessageMatter.mockResolvedValue({ filedCount: 1, searchRepairPending: true });
+    render(<EmailViewer sourceId="AAMk-xyz" />);
+    await screen.findByTestId('email-file-to-matter');
+    await openFilingPicker();
+
+    fireEvent.click(screen.getByTestId('file-to-matter-btn-m1'));
+
+    expect(await screen.findByTestId('email-filed-matter')).toHaveTextContent(/Acme v\. Beta/);
+    expect(await screen.findByTestId('email-file-result')).toHaveTextContent('mail.viewer.filed-success');
+    expect(await screen.findByTestId('email-file-search-repair-pending')).toHaveTextContent(
+      'mail.viewer.search-repair-pending',
+    );
     await openFilingPicker();
     expect(screen.getByTestId('file-to-matter-btn-m1')).toHaveAttribute('aria-pressed', 'true');
   });
