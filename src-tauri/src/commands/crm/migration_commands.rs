@@ -147,9 +147,34 @@ fn matrix_row(source_type: &str, fetched: usize, imported: usize, skipped: usize
 pub async fn crm_migration_import(
     state: State<'_, CrmState>,
     base_url: String,
+    source: Option<String>,
+    source_id_field: Option<String>,
 ) -> Result<Value, String> {
     if !(base_url.starts_with("http://") || base_url.starts_with("https://")) {
         return Err("The simulator address must start with http:// or https://.".into());
+    }
+    // These are prepared, fabricated samples rather than live Redtail or
+    // Salesforce connections.  Their source names still become durable
+    // provenance, so importing one cannot overwrite another sample's data.
+    let provider = match source
+        .as_deref()
+        .unwrap_or("wealthbox")
+        .trim()
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "wealthbox" => "wealthbox",
+        "redtail" => "redtail",
+        "salesforce" => "salesforce",
+        _ => return Err("Choose the Wealthbox, Redtail, or Salesforce sample source.".into()),
+    };
+    let batch_id = format!("{provider}-simulator");
+    let source_id_field = source_id_field
+        .unwrap_or_else(|| "external_id".into())
+        .trim()
+        .to_string();
+    if source_id_field.is_empty() {
+        return Err("Name the outside ID field used to match imported records.".into());
     }
     let workspace = workspace(&state).await?;
     let client = WealthboxClient::new_with_base("fabricated-token".into(), base_url);
@@ -192,9 +217,9 @@ pub async fn crm_migration_import(
                         })
                 {
                     *skipped.entry("note".into()).or_default() += 1;
-                    let fallback_id = format!("note:{}", record.source_id);
+                    let fallback_id = format!("{provider}:note:{}", record.source_id);
                     note_gap_rows.push(json!({
-                        "id": format!("migration-note-gap:{}", record.source_id),
+                        "id": format!("migration-note-gap:{provider}:{}", record.source_id),
                         "kind": "migration_note_gap",
                         "matterId": "firm",
                         "label": source_label(&record.payload, &fallback_id),
@@ -203,9 +228,9 @@ pub async fn crm_migration_import(
                     continue;
                 }
                 let kind = source_kind(record.source_type, &record.payload);
-                let id = format!("{}:{}", kind, record.source_id);
+                let id = format!("{provider}:{kind}:{}", record.source_id);
                 let label = source_label(&record.payload, &id);
-                let mut live = json!({ "id": id, "kind": kind, "matterId": "firm", "sourceType": record.source_type.as_str(), "sourceId": record.source_id, "label": label, "sourcePayload": record.payload });
+                let mut live = json!({ "id": id, "kind": kind, "matterId": "firm", "sourceType": record.source_type.as_str(), "sourceId": record.source_id, "externalId": record.source_id, "externalIdField": source_id_field, "sourceProvider": provider, "label": label, "sourcePayload": record.payload });
                 if kind == "household" {
                     let name = live
                         .get("label")
@@ -345,7 +370,7 @@ pub async fn crm_migration_import(
                                 .collect::<Vec<_>>()
                         })
                         .unwrap_or_default();
-                    workflow_rows.push(json!({ "id": format!("migration-workflow:{}", live["sourceId"].as_str().unwrap_or("unknown")), "kind": "migration_workflow_checklist", "matterId": "firm", "clientLabel": client_label, "householdId": household_id, "sourceTemplateLabel": label, "activityEvidence": ["Imported workflow or project trace"], "availableSteps": available_steps, "decision": "pending" }));
+                    workflow_rows.push(json!({ "id": format!("migration-workflow:{provider}:{}", live["sourceId"].as_str().unwrap_or("unknown")), "kind": "migration_workflow_checklist", "matterId": "firm", "clientLabel": client_label, "householdId": household_id, "sourceTemplateLabel": label, "activityEvidence": ["Imported workflow or project trace"], "availableSteps": available_steps, "decision": "pending", "sourceProvider": provider }));
                 }
             }
             if count < IMPORTER_PAGE_SIZE {
@@ -360,7 +385,7 @@ pub async fn crm_migration_import(
     for record in custom_fields.records {
         *fetched.entry("custom_field".into()).or_default() += 1;
         *imported.entry("custom_field".into()).or_default() += 1;
-        let live = json!({ "id": format!("custom_field:{}", record.source_id), "kind": "custom_field", "matterId": "firm", "sourceType": "custom_field", "sourceId": record.source_id, "sourcePayload": record.payload });
+        let live = json!({ "id": format!("{provider}:custom_field:{}", record.source_id), "kind": "custom_field", "matterId": "firm", "sourceType": "custom_field", "sourceId": record.source_id, "externalId": record.source_id, "externalIdField": source_id_field, "sourceProvider": provider, "sourcePayload": record.payload });
         let mut live = live;
         let label = live["sourcePayload"]
             .get("name")
@@ -373,7 +398,7 @@ pub async fn crm_migration_import(
             .unwrap_or("text_field")
             .to_string();
         live["label"] = Value::String(label.clone());
-        live["key"] = Value::String(format!("wealthbox_{}", record.source_id));
+        live["key"] = Value::String(format!("{provider}_{}", record.source_id));
         live["fieldType"] = Value::String(custom_field_type(&source_type).into());
         live["appliesTo"] = json!(["household", "person"]);
         live["archived"] = Value::Bool(false);
@@ -390,7 +415,7 @@ pub async fn crm_migration_import(
         for record in activity.fetched.records {
             *fetched.entry("activity".into()).or_default() += 1;
             *imported.entry("activity".into()).or_default() += 1;
-            let live = json!({ "id": format!("activity:{}", record.source_id), "kind": "activity", "matterId": "firm", "sourceType": "activity", "sourceId": record.source_id, "sourcePayload": record.payload });
+            let live = json!({ "id": format!("{provider}:activity:{}", record.source_id), "kind": "activity", "matterId": "firm", "sourceType": "activity", "sourceId": record.source_id, "externalId": record.source_id, "externalIdField": source_id_field, "sourceProvider": provider, "sourcePayload": record.payload });
             store
                 .upsert_live_record(&live)
                 .map_err(|error| error.to_string())?;
@@ -412,7 +437,7 @@ pub async fn crm_migration_import(
             .map_err(|error| error.to_string())?;
     }
     for (household_id, household_label) in &households {
-        let item = json!({ "id": format!("migration-attachment:{household_id}"), "kind": "migration_attachment_accounting", "matterId": "firm", "clientLabel": household_label, "status": "pending" });
+        let item = json!({ "id": format!("migration-attachment:{provider}:{household_id}"), "kind": "migration_attachment_accounting", "matterId": "firm", "clientLabel": household_label, "status": "pending", "sourceProvider": provider });
         store
             .upsert_live_record(&item)
             .map_err(|error| error.to_string())?;
@@ -444,7 +469,7 @@ pub async fn crm_migration_import(
         )
     })
     .collect::<Vec<_>>();
-    let report = json!({ "id": "migration-report:wealthbox", "kind": "migration_report", "matterId": "firm", "batchId": "wealthbox-simulator", "generatedAt": chrono::Utc::now().to_rfc3339(), "matrix": all_rows, "attachments": { "viaApi": "0% via API", "affected": households.len(), "exported": 0, "gaps": 0, "unaccounted": households.len() }, "workflows": { "checklists": workflow_count, "pending": workflow_count }, "message": "Import finished. The report below shows exactly what was brought over and what still needs a person to check." });
+    let report = json!({ "id": format!("migration-report:{provider}"), "kind": "migration_report", "matterId": "firm", "batchId": batch_id, "sourceProvider": provider, "externalIdField": source_id_field, "generatedAt": chrono::Utc::now().to_rfc3339(), "matrix": all_rows, "attachments": { "viaApi": "0% via API", "affected": households.len(), "exported": 0, "gaps": 0, "unaccounted": households.len() }, "workflows": { "checklists": workflow_count, "pending": workflow_count }, "message": format!("{provider} sample import finished. The report below shows exactly what was brought over and what still needs a person to check.") });
     store
         .upsert_live_record(&report)
         .map_err(|error| error.to_string())?;
@@ -452,7 +477,7 @@ pub async fn crm_migration_import(
         store.upsert_live_record(&json!({ "id": format!("migration-export:{kind}"), "kind": "migration_export", "matterId": "firm", "exportKind": kind, "status": "ready" })).map_err(|error| error.to_string())?;
     }
     Ok(
-        json!({ "batchId": "wealthbox-simulator", "imported": imported.values().sum::<usize>(), "unchanged": unchanged }),
+        json!({ "batchId": batch_id, "sourceProvider": provider, "imported": imported.values().sum::<usize>(), "unchanged": unchanged }),
     )
 }
 

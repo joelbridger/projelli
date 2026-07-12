@@ -1019,6 +1019,30 @@ class DesktopParityApp implements ParityApp {
     for (const kind of ['household', 'note', 'task', 'migration_report'])
       if (!imported.some((record) => record.kind === kind))
         fail(`Migration did not create a real ${kind} record`);
+    const sourceProvider =
+      options.action === 'crm-redtail-import'
+        ? 'redtail'
+        : options.action === 'crm-salesforce-import'
+          ? 'salesforce'
+          : 'wealthbox';
+    const report = imported.find(
+      (record) =>
+        record.kind === 'migration_report' &&
+        record.sourceProvider === sourceProvider
+    );
+    if (!report)
+      fail(`The ${sourceProvider} sample did not keep its source provenance`);
+    if (
+      options.externalId &&
+      (report.externalIdField !== 'wealthbox_external_id' ||
+        !imported.some(
+          (record) =>
+            record.kind === 'household' &&
+            record.externalIdField === 'wealthbox_external_id' &&
+            typeof record.externalId === 'string'
+        ))
+    )
+      fail('The selected outside-ID field did not persist on imported records');
 
     await this.click('crm-migration-fidelity');
     await this.require('crm-migration-fidelity-report');
