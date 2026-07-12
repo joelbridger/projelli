@@ -1546,6 +1546,70 @@ class DesktopParityApp implements ParityApp {
     if (!(await this.records()).some((record) => record.kind === 'migration_report'))
       fail('Migration report disappeared after native restart');
   }
+
+  async selfServiceContactImport(): Promise<void> {
+    await this.setWorkspace(`self-service-import-${this.token('workspace')}`);
+    await this.openHome();
+    await this.click('crm-home-nav-firm-setup');
+    await this.click('crm-firm-route-migration');
+    await this.click('crm-self-service-import-open');
+    await this.require('crm-self-service-file');
+    await this.eval(`(async () => {
+      const input = document.querySelector('[data-testid="crm-self-service-file"]');
+      if (!(input instanceof HTMLInputElement)) throw new Error('Contact file input is not available');
+      const csv = 'Full Name,Email Address,Mobile Phone,Company Name,External ID\\nAvery North,avery@example.test,555-0101,Northcrest Advisory,crm-avery-001\\nJordan Vale,jordan@example.test,555-0102,Northcrest Advisory,crm-jordan-002';
+      const transfer = new DataTransfer();
+      transfer.items.add(new File([csv], 'northcrest-contacts.csv', { type: 'text/csv' }));
+      Object.defineProperty(input, 'files', { value: transfer.files, configurable: true });
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      return true;
+    })()`);
+    await this.waitForControl('crm-self-service-preview');
+    for (const field of ['name', 'email', 'phone', 'company', 'externalId'])
+      await this.require(`crm-self-service-map-${field}`);
+    await this.click('crm-self-service-preview');
+    await this.require('crm-self-service-preview-table');
+    await this.requireText('Avery North');
+    await this.click('crm-self-service-import-confirm');
+    await this.requireText('Fetched 2. Landed 2. Nothing was lost.');
+    const imported = await this.records();
+    const avery = imported.find((record) => record.kind === 'household' && record.externalId === 'crm-avery-001');
+    if (!avery || avery.externalIdProvider !== 'self-service')
+      fail('Self-service import did not save a contact with its selected outside ID');
+    if (!imported.some((record) => record.kind === 'migration_report' && record.sourceProvider === 'self-service'))
+      fail('Self-service import did not save a fidelity report');
+
+    await this.click('crm-self-service-import-another');
+    await this.eval(`(async () => {
+      const input = document.querySelector('[data-testid="crm-self-service-file"]');
+      if (!(input instanceof HTMLInputElement)) throw new Error('Contact file input is not available for re-import');
+      const csv = 'Full Name,Email Address,Mobile Phone,Company Name,External ID\\nAvery North,avery@example.test,555-0101,Northcrest Advisory,crm-avery-001\\nJordan Vale,jordan@example.test,555-0102,Northcrest Advisory,crm-jordan-002';
+      const transfer = new DataTransfer();
+      transfer.items.add(new File([csv], 'northcrest-contacts.csv', { type: 'text/csv' }));
+      Object.defineProperty(input, 'files', { value: transfer.files, configurable: true });
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      return true;
+    })()`);
+    await this.click('crm-self-service-preview');
+    await this.click('crm-self-service-import-confirm');
+    await this.requireText('2 existing contacts were updated using the match key.');
+    const afterReimport = await this.records();
+    if (afterReimport.filter((record) => record.kind === 'household' && record.externalId === 'crm-avery-001').length !== 1)
+      fail('Re-import created a duplicate instead of using the selected outside ID');
+
+    await this.restart();
+    await this.click('crm-home-nav-firm-setup');
+    await this.click('crm-firm-route-migration');
+    await this.require('crm-self-service-import-open');
+    await this.require('crm-self-service-saved-report');
+    const afterRestart = await this.records();
+    if (!afterRestart.some((record) => record.kind === 'household' && record.externalId === 'crm-avery-001'))
+      fail('Self-service imported contact disappeared after native restart');
+    if (!afterRestart.some((record) => record.kind === 'migration_report' && record.sourceProvider === 'self-service'))
+      fail('Self-service import fidelity report disappeared after native restart');
+  }
 }
 
 function printScoreboard(results: readonly Result[]): void {

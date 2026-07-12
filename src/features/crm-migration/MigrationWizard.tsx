@@ -12,6 +12,7 @@ import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import { createTemplate, startWorkflow } from '@/features/crm-home/workflowLive';
 import { useCrmHomeSurfaceContext } from '@/features/crm-home/surfaceContext';
 import { AdapterMigrationWizard } from './AdapterMigrationWizard';
+import { SelfServiceImportWizard } from './SelfServiceImportWizard';
 
 const panel = {
   border: '1px solid var(--kp-border)', borderRadius: 'var(--radius-lg)',
@@ -39,9 +40,11 @@ function LiveMigrationWizard() {
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [latestExport, setLatestExport] = useState<ExportRecord | null>(null);
+  const [showSelfServiceImport, setShowSelfServiceImport] = useState(false);
 
   const reports = asRecords<MigrationReport>(live.records, 'migration_report');
   const report = reports.find((item) => item.sourceProvider === source.toLowerCase()) ?? reports.at(-1);
+  const selfServiceReport = reports.find((item) => item.sourceProvider === 'self-service');
   const checklists = asRecords<Checklist>(live.records, 'migration_workflow_checklist');
   const attachments = asRecords<AttachmentRecord>(live.records, 'migration_attachment_accounting');
   const exports = asRecords<ExportRecord>(live.records, 'migration_export');
@@ -110,8 +113,18 @@ function LiveMigrationWizard() {
   };
 
   const fidelityRows = useMemo(() => report?.matrix ?? [], [report]);
+  if (showSelfServiceImport) return <div data-testid="crm-migration-surface" style={{ padding: 'var(--kp-space-xl)', overflow: 'auto', width: '100%', display: 'grid', gap: 'var(--kp-space-md)', alignContent: 'start' }}>
+    <SurfaceHeader Icon={ClipboardList} title="Migration" description="Bring records over carefully, with a saved review trail" />
+    <SelfServiceImportWizard live={live} onClose={() => setShowSelfServiceImport(false)} />
+  </div>;
   return <div data-testid="crm-migration-surface" style={{ padding: 'var(--kp-space-xl)', overflow: 'auto', width: '100%', display: 'grid', gap: 'var(--kp-space-md)', alignContent: 'start' }}>
     <SurfaceHeader Icon={ClipboardList} title="Migration" description="Bring records over carefully, with a saved review trail" />
+    <section style={panel} data-testid="crm-self-service-import-start">
+      <h2 style={{ marginTop: 0 }}>Import a contact file</h2>
+      <p>Have a spreadsheet, vCard, or Outlook contacts export? Match its columns, preview the contacts, and save only when you are ready.</p>
+      <Button data-testid="crm-self-service-import-open" iconLeft={ClipboardList} onClick={() => setShowSelfServiceImport(true)}>Import CSV, Excel, vCard, or Outlook</Button>
+      {selfServiceReport && <p data-testid="crm-self-service-saved-report" style={{ marginBottom: 0 }}>Last saved contact import: {selfServiceReport.message ?? 'A contact import was completed.'}</p>}
+    </section>
     <section style={panel}>
       <h2 style={{ marginTop: 0 }}>Connect a source</h2>
       <p>Choose a prepared sample source, then import it into this encrypted workspace. Redtail and Salesforce samples use the same protected landing path; they are not live connections.</p>
