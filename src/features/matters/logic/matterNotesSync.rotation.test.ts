@@ -45,4 +45,17 @@ describe('matterNotesSync key rotation race', () => {
     expect(fetchMatterKeys).toHaveBeenCalledTimes(2);
     expect(mocks.storeMatterKey).toHaveBeenNthCalledWith(1, handle, 'key-3');
   });
+
+  it('stops after rotating to the fetched epoch when a relay hint is unreachable', async () => {
+    const handle = parseMatterHandle(`mh2_${'U'.repeat(43)}`);
+    const rotateKey = vi.fn().mockResolvedValue(undefined);
+    const fetchMatterKeys = vi.fn().mockResolvedValue({ epoch: 1, wrapped_key_b64: 'wrapped-1' });
+    const matterMine = vi.fn();
+
+    await handleKeyEpochAdvanced('local-client', handle, { fetchMatterKeys, matterMine } as never, { rotateKey } as never, 999);
+
+    expect(rotateKey).toHaveBeenCalledExactlyOnceWith('key-1', 1);
+    expect(fetchMatterKeys).toHaveBeenCalledTimes(1);
+    expect(matterMine).not.toHaveBeenCalled();
+  });
 });

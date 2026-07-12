@@ -32,6 +32,19 @@ import { getMatterSyncSocketUrl } from './firmConfig';
 import { createOpaqueBlobId, isOpaqueBlobId } from './opaqueBlobId';
 import type { MatterHandle, StreamHandle, SyncFrame } from './contract';
 
+/** Must match the relay's MAX_UPDATE_BYTES (backend/src/lib/matters.ts). */
+const MAX_UPDATE_BYTES = 1024 * 1024;
+/** Largest canonical base64 encoding that can decode to MAX_UPDATE_BYTES. */
+const MAX_UPDATE_BASE64_LENGTH = 4 * Math.ceil(MAX_UPDATE_BYTES / 3);
+
+function isSafeCursor(value: unknown): value is number {
+  return Number.isSafeInteger(value) && value >= 0;
+}
+
+function exceedsUpdateByteLimit(ciphertextB64: unknown): boolean {
+  return typeof ciphertextB64 === 'string' && ciphertextB64.length > MAX_UPDATE_BASE64_LENGTH;
+}
+
 export type SyncStatus =
   | 'idle'
   | 'connecting'
@@ -47,11 +60,11 @@ export interface MatterSyncCallbacks {
   onRemoteUpdate?: (doc: Y.Doc) => void;
   /** A remote update was permanently skipped but sync can continue. */
   onUpdateQuarantined?: (info: {
-    reason: 'decrypt_failed' | 'epoch_superseded' | 'yjs_apply_failed';
+    reason: 'decrypt_failed' | 'epoch_superseded' | 'yjs_apply_failed' | 'ciphertext_too_large';
     blobId: string;
   } | {
     /** An untrusted relay value failed opaque-handle validation. It is never surfaced. */
-    reason: 'invalid_blob_id';
+    reason: 'invalid_blob_id' | 'invalid_cursor';
   }) => void;
   /**
    * The relay reported a `key_epoch` newer than ours. The host must rotate the
@@ -362,6 +375,13 @@ export class MatterSyncClient {
     updates: Array<{ cursor: number; blob_id: string; key_epoch: number; ciphertext_b64: string }>,
   ): Promise<boolean> {
     for (const u of updates) {
+      // A cursor chooses our next replay position. Unlike a bad blob ID, there
+      // is no trusted value to advance to, so quarantine and leave the stream
+      // blocked rather than desynchronizing this client.
+      if (!isSafeCursor(u.cursor)) {
+        this.logInvalidCursor();
+        return false;
+      }
       // The relay is untrusted. Never pass an arbitrary relay-supplied ID to
       // crypto, local logs, or callbacks; an invalid ID is permanently corrupt
       // just like an unauthenticated ciphertext, so quarantine and advance.
@@ -422,13 +442,15 @@ export class MatterSyncClient {
   }
 
   private logQuarantinedUpdate(
-    reason: 'decrypt_failed' | 'epoch_superseded' | 'yjs_apply_failed',
+    reason: 'decrypt_failed' | 'epoch_superseded' | 'yjs_apply_failed' | 'ciphertext_too_large',
     blobId: string,
     cursor: number | undefined,
     detail: unknown,
   ): void {
     const message = reason === 'epoch_superseded'
       ? '[MatterSyncClient] skipped remote update sealed under a superseded key epoch'
+      : reason === 'ciphertext_too_large'
+        ? '[MatterSyncClient] quarantined oversized remote update'
       : '[MatterSyncClient] quarantined corrupt remote update';
     console.error(message, {
       reason,
@@ -453,6 +475,17 @@ export class MatterSyncClient {
       cursor,
     });
     this.callbacks.onUpdateQuarantined?.({ reason: 'invalid_blob_id' });
+  }
+
+  /** Never expose an invalid relay cursor, or use it to advance replay. */
+  private logInvalidCursor(): void {
+    console.error('[MatterSyncClient] quarantined remote update with invalid cursor', {
+      reason: 'invalid_cursor',
+      matterHandle: this.matterHandle,
+      streamHandle: this.streamHandle,
+      cursor: '[invalid relay cursor]',
+    });
+    this.callbacks.onUpdateQuarantined?.({ reason: 'invalid_cursor' });
   }
 
   /**
@@ -681,6 +714,12 @@ export class MatterSyncClient {
       return;
     }
     if (frame.type === 'ready') {
+      if (!isSafeCursor(frame.latest_cursor)) {
+        this.logInvalidCursor();
+        this.incomingCursorBlocked = true;
+        this.setStatus('offline');
+        return;
+      }
       // The server has subscribed us before sending this snapshot. Reconcile
       // through its high-water mark before any later live frame can move the
       // cursor. This also covers a replay page capped at 500 updates.
@@ -717,11 +756,26 @@ export class MatterSyncClient {
       }
       this.socketReadyCursor = null;
     }
+    // Validate before relay values can reach logging, callbacks, comparisons,
+    // or cursor advancement. There is no safe recovery position for a bad
+    // cursor, so leave this stream blocked instead of skipping past it.
+    if (!isSafeCursor(frame.cursor)) {
+      this.logInvalidCursor();
+      this.incomingCursorBlocked = true;
+      return;
+    }
     // Validate before the relay-provided ID can reach any later handling,
     // including quarantine logging or callback payloads. Advancing the cursor
     // keeps one permanently malformed live frame from wedging the stream.
     if (!isOpaqueBlobId(frame.blob_id)) {
       this.logInvalidBlobId(frame.cursor);
+      if (frame.cursor > this.cursor) this.cursor = frame.cursor;
+      return;
+    }
+    // Do this before base64 decoding or crypto. The relay limits stored blobs
+    // to 1 MiB, and live frames must enforce the same limit independently.
+    if (exceedsUpdateByteLimit(frame.ciphertext_b64)) {
+      this.logQuarantinedUpdate('ciphertext_too_large', frame.blob_id, frame.cursor, undefined);
       if (frame.cursor > this.cursor) this.cursor = frame.cursor;
       return;
     }

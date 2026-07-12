@@ -38,6 +38,8 @@ const clientCache = new Map<string, MatterSyncClient>();
 const pendingCache = new Map<string, Promise<MatterSyncClient | null>>();
 /** One key-refresh loop per local matter; notifications may arrive out of order. */
 const keyRotationCache = new Map<string, { targetEpoch: number; promise: Promise<void> }>();
+/** A burst of real rotations is possible; an unbounded loop is never safe. */
+const MAX_KEY_ROTATION_ATTEMPTS = 8;
 
 /**
  * Ensure a running MatterSyncClient exists for the given matter. Returns null
@@ -210,7 +212,11 @@ export async function handleKeyEpochAdvanced(
     const seatToken = useFirmStore.getState().seatToken ?? '';
     const { deviceId } = await getOrCreateDeviceKeypair();
 
-    for (;;) {
+    for (let attempt = 0; attempt < MAX_KEY_ROTATION_ATTEMPTS; attempt += 1) {
+      // Notifications are only hints from the untrusted relay. Remember the
+      // epoch that prompted this fetch so a fabricated high value cannot turn
+      // the cached hint into an unreachable retry target.
+      const requestedEpoch = state.targetEpoch;
       // Clear the old keychain entry first so obtainMatterKey does a fresh server
       // fetch rather than returning the stale epoch's blob.
       await clearMatterKey(firmMatterId);
@@ -235,6 +241,12 @@ export async function handleKeyEpochAdvanced(
       await storeMatterKey(firmMatterId, newKeyB64);
       await client.rotateKey(newKeyB64, fetchResp.epoch);
 
+      // fetchMatterKeys returns the key and its epoch as one authoritative
+      // server snapshot. If it is behind the relay hint, we have still rotated
+      // to the server's real current key; do not chase an attacker-controlled
+      // epoch forever. A later genuine advance will notify us again.
+      if (fetchResp.epoch < requestedEpoch) return;
+
       // A second removal/wall can advance the epoch between fetch and rotate.
       // Re-check and repeat from the newly fetched key rather than tagging it
       // with the stale notification epoch.
@@ -243,6 +255,12 @@ export async function handleKeyEpochAdvanced(
       state.targetEpoch = Math.max(state.targetEpoch, observedEpoch);
       if (state.targetEpoch <= fetchResp.epoch) return;
     }
+
+    // Never let even a rapid sequence of genuine rotations spin indefinitely.
+    // This matches the existing walled-key behavior: stop this client and
+    // require a fresh, fail-closed start before syncing again.
+    stopMatterSync(localMatterId);
+    useMatterSyncStore.getState().setStatus(localMatterId, 'error');
   })().catch((err: unknown) => {
     console.error('[matterNotesSync] key epoch advance failed:', err);
     useMatterSyncStore.getState().setStatus(localMatterId, 'error');

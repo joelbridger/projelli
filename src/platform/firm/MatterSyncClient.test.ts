@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as Y from 'yjs';
+import * as matterCrypto from './matterCrypto';
 import { MatterSyncClient, type WebSocketLike } from './MatterSyncClient';
 import { decryptUpdateV2, generateMatterKey, importMatterKey } from './matterCrypto';
 import { parseMatterHandle, parseStreamHandle } from './contract';
@@ -300,6 +301,93 @@ describe('MatterSyncClient v2 socket privacy', () => {
     expect(JSON.stringify(loud.mock.calls)).not.toContain(invalidBlobId);
     expect(JSON.stringify(onUpdateQuarantined.mock.calls)).not.toContain(invalidBlobId);
     loud.mockRestore();
+    client.stop();
+  });
+
+  it('quarantines an invalid live cursor without exposing or advancing to it', async () => {
+    const matterHandle = parseMatterHandle(`mh2_${'I'.repeat(43)}`);
+    const streamHandle = parseStreamHandle(`sh2_${'J'.repeat(43)}`);
+    const rawCursor = 'CLIENT_SECRET_NIMBUS';
+    const loud = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const onUpdateQuarantined = vi.fn();
+    let socket: WebSocketLike | undefined;
+    const client = new MatterSyncClient({
+      matterHandle, streamHandle, keyB64: await generateMatterKey(), keyEpoch: 1, seatToken: 'seat',
+      client: {
+        pullUpdates: () => Promise.resolve({ key_epoch: 1, since: 0, cursor: 0, latest_cursor: 0, has_more: false, updates: [] }),
+        createSyncTicket: () => Promise.resolve({ ticket: 'ticket-only', expires_in_ms: 1000 }),
+        pushUpdate: () => Promise.resolve({ ok: true, cursor: 1, blob_id: 'new', key_epoch: 1, duplicate: false }),
+      } as never,
+      callbacks: { onUpdateQuarantined },
+      socketFactory: () => {
+        socket = { send() {}, close() {}, onopen: null, onclose: null, onerror: null, onmessage: null };
+        return socket;
+      },
+    });
+
+    await client.start();
+    socket?.onmessage?.({ data: JSON.stringify({ type: 'ready', backlog: 0, latest_cursor: 0, subscribers: 1 }) });
+    socket?.onmessage?.({ data: JSON.stringify({ type: 'update', cursor: rawCursor, blob_id: 'also-invalid', key_epoch: 1, ciphertext_b64: 'unused' }) });
+
+    await vi.waitFor(() => {
+      expect(loud).toHaveBeenCalledWith('[MatterSyncClient] quarantined remote update with invalid cursor', {
+        reason: 'invalid_cursor', matterHandle, streamHandle, cursor: '[invalid relay cursor]',
+      });
+    });
+    expect(client.getCursor()).toBe(0);
+    expect(onUpdateQuarantined).toHaveBeenCalledWith({ reason: 'invalid_cursor' });
+    expect(JSON.stringify(loud.mock.calls)).not.toContain(rawCursor);
+    expect(JSON.stringify(onUpdateQuarantined.mock.calls)).not.toContain(rawCursor);
+    loud.mockRestore();
+    client.stop();
+  });
+
+  it('rejects an oversized live ciphertext before decrypting and still applies the next frame', async () => {
+    const matterHandle = parseMatterHandle(`mh2_${'K'.repeat(43)}`);
+    const streamHandle = parseStreamHandle(`sh2_${'L'.repeat(43)}`);
+    const keyB64 = await generateMatterKey();
+    const key = await importMatterKey(keyB64);
+    const later = new Y.Doc();
+    later.getMap('notes').set('after-oversized-live-frame', 'applied');
+    const laterCiphertext = await matterCrypto.encryptUpdateV2(
+      key, Y.encodeStateAsUpdate(later), { matterHandle, streamHandle, keyEpoch: 1 },
+    );
+    const decrypt = vi.spyOn(matterCrypto, 'decryptUpdateV2');
+    const onUpdateQuarantined = vi.fn();
+    let socket: WebSocketLike | undefined;
+    const client = new MatterSyncClient({
+      matterHandle, streamHandle, keyB64, keyEpoch: 1, seatToken: 'seat',
+      client: {
+        pullUpdates: () => Promise.resolve({ key_epoch: 1, since: 0, cursor: 0, latest_cursor: 0, has_more: false, updates: [] }),
+        createSyncTicket: () => Promise.resolve({ ticket: 'ticket-only', expires_in_ms: 1000 }),
+        pushUpdate: () => Promise.resolve({ ok: true, cursor: 3, blob_id: 'new', key_epoch: 1, duplicate: false }),
+      } as never,
+      callbacks: { onUpdateQuarantined },
+      socketFactory: () => {
+        socket = { send() {}, close() {}, onopen: null, onclose: null, onerror: null, onmessage: null };
+        return socket;
+      },
+    });
+
+    await client.start();
+    socket?.onmessage?.({ data: JSON.stringify({ type: 'ready', backlog: 0, latest_cursor: 0, subscribers: 1 }) });
+    socket?.onmessage?.({ data: JSON.stringify({
+      type: 'update', cursor: 1, blob_id: opaqueBlobId('M'), key_epoch: 1,
+      ciphertext_b64: 'A'.repeat((4 * Math.ceil((1024 * 1024) / 3)) + 1),
+    }) });
+
+    await vi.waitFor(() => {
+      expect(onUpdateQuarantined).toHaveBeenCalledWith({ reason: 'ciphertext_too_large', blobId: opaqueBlobId('M') });
+    });
+    expect(decrypt).not.toHaveBeenCalled();
+    expect(client.getCursor()).toBe(1);
+
+    socket?.onmessage?.({ data: JSON.stringify({ type: 'update', cursor: 2, blob_id: opaqueBlobId('N'), key_epoch: 1, ciphertext_b64: laterCiphertext }) });
+    await vi.waitFor(() => {
+      expect(client.getCursor()).toBe(2);
+      expect(client.doc.getMap('notes').get('after-oversized-live-frame')).toBe('applied');
+    });
+    decrypt.mockRestore();
     client.stop();
   });
 
