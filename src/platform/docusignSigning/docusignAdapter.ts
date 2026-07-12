@@ -50,6 +50,10 @@ export type DocusignEnvelopeStatus =
 const DOCUSIGN_ENVELOPE_STATUSES = new Set<DocusignEnvelopeStatus>([
   'created', 'sent', 'delivered', 'completed', 'declined', 'voided', 'timedout', 'processing', 'deleted', 'corrected',
 ]);
+const DOCUSIGN_SIGNER_RECIPIENT_ID = '1';
+// This records that Lantern performed no separate recipient authentication.
+// It is DocuSign's documented embedded-signing example value, not a delivery setting.
+const DOCUSIGN_EMBEDDED_AUTHENTICATION_METHOD = 'none';
 
 function parseDocusignEnvelopeStatus(value: unknown): DocusignEnvelopeStatus {
   if (typeof value !== 'string' || !DOCUSIGN_ENVELOPE_STATUSES.has(value as DocusignEnvelopeStatus)) {
@@ -65,6 +69,30 @@ function requireDocusignBaseUri(value: string): string {
 }
 function base64(bytes: Uint8Array): string { let value = ''; for (let index = 0; index < bytes.length; index += 0x8000) value += String.fromCharCode(...bytes.subarray(index, index + 0x8000)); return btoa(value); }
 function tab(position: DocusignTabPosition) { return { pageNumber: String(position.page), xPosition: String(position.xPosition), yPosition: String(position.yPosition), width: String(position.width), height: String(position.height) }; }
+function docusignErrorCode(response: Response): Promise<string> {
+  // DocuSign can return an empty or non-JSON response. Its short error code is
+  // safe to surface and is enough to diagnose a real sandbox failure.
+  return response.json()
+    .then((body: unknown) => {
+      const errorCode = body && typeof body === 'object' ? (body as Record<string, unknown>)['errorCode'] : undefined;
+      if (typeof errorCode !== 'string') return '';
+      return ` (${errorCode})`;
+    })
+    // eslint-disable-next-line lantern-async/no-silent-failure -- A non-JSON DocuSign error has no safe error code to surface; the HTTP status remains available.
+    .catch(() => '');
+}
+function recipientViewRequest(input: DocusignRecipientViewInput) {
+  // createRecipient identifies an embedded recipient by this exact identity:
+  // recipient ID + clientUserId + the original name/email pair.
+  return {
+    returnUrl: input.returnUrl,
+    authenticationMethod: DOCUSIGN_EMBEDDED_AUTHENTICATION_METHOD,
+    email: input.signerEmail,
+    userName: input.signerName,
+    clientUserId: input.clientUserId,
+    recipientId: DOCUSIGN_SIGNER_RECIPIENT_ID,
+  };
+}
 
 /** Direct desktop-to-DocuSign client. It never calls a Lantern endpoint with document or recipient data. */
 export class DirectDocusignAdapter {
@@ -96,9 +124,9 @@ export class DirectDocusignAdapter {
     assertLocalOnlyAllowsExternal('Send for DocuSign signature');
     const viewResponse = await fetchFn(`${authorization.baseUri}/restapi/v2.1/accounts/${encodeURIComponent(authorization.accountId)}/envelopes/${encodeURIComponent(input.envelopeId)}/views/recipient`, {
       method: 'POST', headers: { Authorization: `Bearer ${authorization.accessToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ returnUrl: input.returnUrl, authenticationMethod: 'none', email: input.signerEmail, userName: input.signerName, clientUserId: input.clientUserId, recipientId: '1' }),
+      body: JSON.stringify(recipientViewRequest(input)),
     });
-    if (!viewResponse.ok) throw new Error(`DocuSign recipient view failed with HTTP ${String(viewResponse.status)}.`);
+    if (!viewResponse.ok) throw new Error(`DocuSign recipient view failed with HTTP ${String(viewResponse.status)}${await docusignErrorCode(viewResponse)}.`);
     const view = await viewResponse.json() as { url?: unknown };
     if (typeof view.url !== 'string' || !/^https:\/\/.+\.docusign\.net\//iu.test(view.url)) throw new Error('DocuSign returned an unsafe recipient view URL.');
     this.recipientViewGeneratedFor.add(viewKey);
@@ -126,13 +154,10 @@ export class DirectDocusignAdapter {
       const baseUri = authorization.baseUri;
       const envelopeResponse = await fetchFn(`${baseUri}/restapi/v2.1/accounts/${encodeURIComponent(authorization.accountId)}/envelopes`, {
         method: 'POST', headers: { Authorization: `Bearer ${authorization.accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ emailSubject: 'Review and sign with DocuSign', status: 'sent', documents: [{ documentBase64: base64(input.pdfBytes), name: 'Completed form', fileExtension: 'pdf', documentId: '1' }], recipients: { signers: [{ name: input.signerName, email: input.signerEmail, recipientId: '1', routingOrder: '1', deliveryMethod: 'email', clientUserId: input.clientUserId, tabs: { signHereTabs: [tab(input.tabMap.signatureTab)], dateSignedTabs: [tab(input.tabMap.dateSignedTab)], fullNameTabs: [tab(input.tabMap.signerNameTab)] } }] } }),
+        body: JSON.stringify({ emailSubject: 'Review and sign with DocuSign', status: 'sent', documents: [{ documentBase64: base64(input.pdfBytes), name: 'Completed form', fileExtension: 'pdf', documentId: '1' }], recipients: { signers: [{ name: input.signerName, email: input.signerEmail, recipientId: DOCUSIGN_SIGNER_RECIPIENT_ID, clientUserId: input.clientUserId, tabs: { signHereTabs: [tab(input.tabMap.signatureTab)], dateSignedTabs: [tab(input.tabMap.dateSignedTab)], fullNameTabs: [tab(input.tabMap.signerNameTab)] } }] } }),
       });
       if (!envelopeResponse.ok) {
-        // eslint-disable-next-line lantern-async/no-silent-failure -- DocuSign may return a non-JSON error body; HTTP status remains the safe fallback.
-        const detail = await envelopeResponse.json().catch(() => null) as { errorCode?: unknown; message?: unknown } | null;
-        const code = typeof detail?.errorCode === 'string' ? ` (${detail.errorCode})` : '';
-        throw new Error(`DocuSign envelope creation failed with HTTP ${String(envelopeResponse.status)}${code}.`);
+        throw new Error(`DocuSign envelope creation failed with HTTP ${String(envelopeResponse.status)}${await docusignErrorCode(envelopeResponse)}.`);
       }
       const envelope = await envelopeResponse.json() as { envelopeId?: unknown };
       if (typeof envelope.envelopeId !== 'string' || !envelope.envelopeId) throw new Error('DocuSign did not return an envelope id.');

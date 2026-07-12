@@ -202,8 +202,7 @@ async function bootBackend(config: DocusignSandboxCredentials): Promise<BackendP
   delete environment['DOCUSIGN_SIGNING_PRODUCTION_RELEASE'];
   delete environment['DOCUSIGN_SIGNING_PRODUCTION_API_BASE_URI'];
   delete environment['DOCUSIGN_SIGNING_PRIVATE_KEY_PEM'];
-  const docusignEnvironment = { ...config };
-  delete docusignEnvironment.path;
+  const { path: _credentialsPath, ...docusignEnvironment } = config;
   Object.assign(environment, docusignEnvironment, {
     NODE_ENV: 'test', BUN_TEST: '1', HOST: '127.0.0.1', PORT: '0', DB_PATH: join(dbDirectory, 'broker.sqlite'),
     AUTH_RATE_LIMIT_MAX: '1000', RELAY_RATE_LIMIT_MAX: '1000',
@@ -292,10 +291,10 @@ async function completeRecipientCeremony(recipientViewUrl: string, allowedReturn
       // this real integration test cannot mistake the loading spinner for a
       // sender/form-editor view.
       for (let attempt = 0; attempt < 30; attempt += 1) {
+        await assertRecipientSigningView(session);
         lastSnapshot = await chrome(['snapshot', '--session', session]);
         ref = matchingRef(lastSnapshot, /^e\d+\s+button\s+(?:start|continue|adopt(?: and sign)?|sign|finish|complete)\s*$/iu);
         if (ref) {
-          await assertRecipientSigningView(session);
           break;
         }
         await new Promise((resolveWait) => setTimeout(resolveWait, 1_000));

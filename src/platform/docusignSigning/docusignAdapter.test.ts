@@ -13,9 +13,10 @@ interface DocusignEnvelopeRequest {
   documents: Array<{ documentBase64: string }>;
   recipients: {
     signers: Array<{
+      name: string;
+      email: string;
+      recipientId: string;
       clientUserId: string;
-      routingOrder: string;
-      deliveryMethod: string;
       tabs: {
         signHereTabs: unknown[];
         dateSignedTabs: unknown[];
@@ -28,6 +29,11 @@ interface DocusignEnvelopeRequest {
 function parseEnvelopeRequest(init: RequestInit): DocusignEnvelopeRequest {
   if (typeof init.body !== 'string') throw new Error('Expected the DocuSign request body to be JSON text.');
   return JSON.parse(init.body) as DocusignEnvelopeRequest;
+}
+
+function parseRequestBody(init: RequestInit): unknown {
+  if (typeof init.body !== 'string') throw new Error('Expected the DocuSign request body to be JSON text.');
+  return JSON.parse(init.body);
 }
 
 describe('direct DocuSign adapter', () => {
@@ -45,13 +51,31 @@ describe('direct DocuSign adapter', () => {
     const [signer] = body.recipients.signers;
     if (!document || !signer) throw new Error('Expected exactly one document and one signer.');
     expect(atob(document.documentBase64)).toBe('exact flattened bytes');
-    expect(signer.clientUserId).toBe('lantern-abcd');
-    expect(signer.routingOrder).toBe('1');
-    expect(signer.deliveryMethod).toBe('email');
+    expect(signer).toMatchObject({ name: 'Synthetic Signer', email: 'synthetic@example.test', recipientId: '1', clientUserId: 'lantern-abcd' });
+    expect(signer).not.toHaveProperty('routingOrder');
+    expect(signer).not.toHaveProperty('deliveryMethod');
     expect(signer.tabs.signHereTabs).toHaveLength(1);
     expect(signer.tabs.dateSignedTabs).toHaveLength(1);
     expect(signer.tabs.fullNameTabs).toHaveLength(1);
+    const [viewUrl, viewInit] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(viewUrl).toBe('https://demo.docusign.net/restapi/v2.1/accounts/acct-1/envelopes/env-1/views/recipient');
+    expect(parseRequestBody(viewInit)).toEqual({
+      returnUrl: 'https://lantern.test/return',
+      authenticationMethod: 'none',
+      email: 'synthetic@example.test',
+      userName: 'Synthetic Signer',
+      clientUserId: 'lantern-abcd',
+      recipientId: '1',
+    });
     expect(fetchMock.mock.calls.every(([callUrl]) => new URL(String(callUrl)).hostname.endsWith('.docusign.net'))).toBe(true);
+  });
+
+  it('reports DocuSign’s safe recipient-view error code for a later sandbox retry', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ errorCode: 'RECIPIENT_NOT_FOUND', message: 'private upstream detail' }), { status: 400 }));
+    const adapter = new DirectDocusignAdapter(() => Promise.resolve({ accessToken: 'short-lived', accountId: 'acct-1', baseUri: 'https://demo.docusign.net', expiresAt: new Date(Date.now() + 60_000).toISOString(), allowedReturnUrl: 'https://lantern.test/return' }));
+
+    await expect(adapter.createRecipientView({ envelopeId: 'env-1', signerName: 'Signer', signerEmail: 's@example.test', clientUserId: 'client', returnUrl: 'https://lantern.test/return' }))
+      .rejects.toThrow('DocuSign recipient view failed with HTTP 400 (RECIPIENT_NOT_FOUND).');
   });
 
   it('does not allow a second recipient-view URL for one envelope', async () => {
