@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Security and data handling | Advisor Prep Hero</title>
-  <meta name="description" content="How Advisor Prep Hero handles your data: local files, optional end-to-end encrypted firm sharing, direct or local AI, OS keychain key management, and an honest audit trail. Forwardable to a CCO or IT reviewer.">
+  <meta name="description" content="How Advisor Prep Hero handles your data: client data encrypted on your device, a relay that stores only ciphertext and opaque handles, direct or local AI, and an honest audit trail. Forwardable to a CCO or IT reviewer.">
   <link rel="canonical" href="https://advisorprephero.com/security">
   <meta name="robots" content="index, follow">
   <meta property="og:type" content="article">
@@ -101,7 +101,7 @@
   <p class="meta">Updated 2026-07-10 · Forwardable to a CCO, IT reviewer, or malpractice carrier</p>
 
   <div class="summary">
-    <p><strong>The short version.</strong> I built Advisor Prep Hero so private client work lives in a folder you control. Your AI key stays in your computer's keychain. In Direct mode, AI requests go straight to your provider. In Local-only mode, no AI prompt or file goes to a cloud AI. Firm sharing is different: if you choose to share a client, shared notes and documents you co-edit travel through an end-to-end encrypted relay for your colleagues. This page separates those paths plainly.</p>
+    <p><strong>The short version.</strong> I built Advisor Prep Hero so private client work lives in a folder you control. Your AI key stays in your computer's keychain. In Direct mode, AI requests go straight to your provider. In Local-only mode, no AI prompt or file goes to a cloud AI. Firm sharing is different: if you choose to share a client, your client data is encrypted on your device; the relay stores only ciphertext and opaque handles and never sees client names or documents. This page separates those paths plainly.</p>
   </div>
 
   <p>This page is for advisors and the IT or compliance people who review tools for them. It covers where data lives, who can read it, how keys work, what the audit trail records, and where a Firm plan changes the picture. If a question is not answered here, email <a href="mailto:security@keepance.com">security@keepance.com</a>.</p>
@@ -155,7 +155,7 @@
       <div class="check-icon"></div>
       <div class="check-item-text">
         <strong>Firm sharing is optional and encrypted</strong>
-        <p>Firm members can choose to share a client. Only the shared notes and documents they co-edit are sent through the relay. Each shared client has its own encryption key, held by authorized members' computers. The relay stores encrypted data, not readable client content. Your other files, email, and search index stay on your computer.</p>
+        <p>Firm members can choose to share a client. Only the shared notes and documents they co-edit are sent through the relay. Each shared client has its own encryption key, held by authorized members' computers. Your client data is encrypted on your device; the relay stores only ciphertext and opaque handles and never sees client names or documents. Your other files, email, and search index stay on your computer.</p>
       </div>
     </div>
     <div class="check-item">
@@ -197,7 +197,7 @@
     <li>The encrypted update is sent to the relay so authorized colleagues can receive it.</li>
     <li>Each authorized colleague decrypts it on their own computer.</li>
   </ol>
-  <p>Who can read the shared content: the people authorized for that client. The relay stores ciphertext and does not hold the key needed to read it. A firm can also use single sign-on with Microsoft Entra ID, Google Workspace, or another OIDC-compatible identity provider.</p>
+  <p>Who can read the shared content: the people authorized for that client. Your client data is encrypted on your device; the relay stores only ciphertext and opaque handles and never sees client names or documents. A firm can also use single sign-on with Microsoft Entra ID, Google Workspace, or another OIDC-compatible identity provider.</p>
 
   <!-- Copy review note, 2026-07-10: This page makes no claim about a provider's retention or training terms, independent security testing, certification, or general availability of any separately described proxy service. Those facts cannot be established from this repository alone. -->
 
@@ -259,7 +259,7 @@
   <ul>
     <li><strong>License activation and update checks.</strong> The app contacts the relevant service to confirm a license or look for a new version. These requests do not include your workspace content.</li>
     <li><strong>Firm sign-in and administration.</strong> Firm accounts, seats, invitations, and single sign-on settings need a service so the right people can join the right firm.</li>
-    <li><strong>Firm collaboration.</strong> When a client is shared, the relay stores encrypted updates for that shared client's notes and co-edited documents. It is not a readable server-side workspace.</li>
+    <li><strong>Firm collaboration.</strong> When a client is shared, client data is encrypted on the member's device; the relay stores only ciphertext and opaque handles and never sees client names or documents. It is not a readable server-side workspace.</li>
     <li><strong>The browser demo.</strong> The public demo can send messages through a shared relay when a visitor has not added their own key. Do not put client data in the browser demo. The desktop app's Direct mode does not use that relay.</li>
     <li><strong>Optional analytics and support.</strong> Analytics are off until you enable them. A message you deliberately send through a support or bug-report form goes to support.</li>
   </ul>
@@ -285,7 +285,7 @@
     <h3>Current limits, stated plainly</h3>
     <ul>
       <li><strong>No unqualified security promises.</strong> I will not tell you that a local-first design makes every risk disappear. Your device, your chosen AI provider, your connectors, and your firm's own controls still matter.</li>
-      <li><strong>Firm sharing is not the same as a private workspace.</strong> It is an opt-in collaboration feature. It sends encrypted shared material through a relay so authorized colleagues can work together.</li>
+      <li><strong>Firm sharing is not the same as a private workspace.</strong> It is an opt-in collaboration feature. Client data is encrypted on the member's device; the relay stores only ciphertext and opaque handles and never sees client names or documents while authorized colleagues work together.</li>
       <li><strong>A DPA needs real review.</strong> A template is available on request, but it must be reviewed by qualified counsel before anyone signs it.</li>
       <li><strong>Cloud AI has its own rules.</strong> Direct mode sends content to the provider you choose. Review that provider's agreement and settings before you use it with client data.</li>
     </ul>
@@ -298,7 +298,7 @@
   <div class="faq">
     <details>
       <summary>Can Advisor Prep Hero read my documents?</summary>
-      <p>I do not receive a readable copy of your private workspace. The app reads files locally to show and search them. If you choose Direct cloud AI, your selected content goes to that provider. If you choose Firm sharing, authorized colleagues can read the shared material after their computers decrypt it. The relay cannot.</p>
+      <p>I do not receive a readable copy of your private workspace. The app reads files locally to show and search them. If you choose Direct cloud AI, your selected content goes to that provider. If you choose Firm sharing, authorized colleagues can read the shared material after their computers decrypt it. Your client data is encrypted on your device; the relay stores only ciphertext and opaque handles and never sees client names or documents.</p>
     </details>
     <details>
       <summary>What does my cloud AI provider receive?</summary>
@@ -310,7 +310,7 @@
     </details>
     <details>
       <summary>Is there a server-side copy of my workspace?</summary>
-      <p>Your private workspace is not copied to a readable Advisor Prep Hero server. Firm sharing does create encrypted relay copies of shared notes and co-edited documents, so colleagues can collaborate. It is not a general cloud backup for the rest of your workspace. Keep your own backup routine for the files on your computer.</p>
+      <p>Your private workspace is not copied to a readable Advisor Prep Hero server. For Firm sharing, your client data is encrypted on your device; the relay stores only ciphertext and opaque handles and never sees client names or documents, so colleagues can collaborate. It is not a general cloud backup for the rest of your workspace. Keep your own backup routine for the files on your computer.</p>
     </details>
     <details>
       <summary>What is in the audit log?</summary>
@@ -326,7 +326,7 @@
     </details>
     <details>
       <summary>Do you support multi-user or enterprise deployments?</summary>
-      <p>Yes, on the Firm plan. It includes an admin console, seats, client-by-client sharing, and single sign-on through Microsoft Entra ID, Google Workspace, or another OIDC-compatible identity provider. Shared material is end-to-end encrypted; the relay stores ciphertext rather than a readable shared client database.</p>
+      <p>Yes, on the Firm plan. It includes an admin console, seats, client-by-client sharing, and single sign-on through Microsoft Entra ID, Google Workspace, or another OIDC-compatible identity provider. Your client data is encrypted on your device; the relay stores only ciphertext and opaque handles and never sees client names or documents.</p>
     </details>
   </div>
 

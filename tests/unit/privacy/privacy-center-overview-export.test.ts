@@ -13,4 +13,13 @@ describe('Privacy Center security overview export', () => {
     expect(text).toContain('Email fallback is a separate channel');
     expect(text).toContain('## Intake reviewer checklist');
   });
+
+  it('uses the scoped relay description for shared firm workspaces', () => {
+    const text = privacyCenterSecurityOverviewMarkdown();
+
+    expect(text).toContain('Your client data is encrypted on your device');
+    expect(text).toContain('ciphertext and opaque handles');
+    expect(text).toContain('never sees client names or documents');
+    expect(text).not.toContain('Shared firm workspaces sync only as end-to-end encrypted data');
+  });
 });

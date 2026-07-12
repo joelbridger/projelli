@@ -245,10 +245,11 @@ const SECTIONS: Section[] = [
     heading: 'Firm collaboration security',
     body: (
       <p>
-        Shared matters sync only as end-to-end encrypted data. The relay can
-        only ever see ciphertext. Information barriers are enforced by
-        withholding keys, not by hiding things in the interface. Single sign-on
-        is supported through your identity provider.
+        Your client data is encrypted on your device; the relay stores only
+        ciphertext and opaque handles and never sees client names or documents.
+        Information barriers are enforced by withholding keys, not by hiding
+        things in the interface. Single sign-on is supported through your
+        identity provider.
       </p>
     ),
   },

@@ -219,6 +219,14 @@ describe('FirmSecurityPack — required sections', () => {
     expect(text).toContain('Firm collaboration security');
   });
 
+  it('uses the scoped relay description for firm collaboration', () => {
+    const text = renderAndGetText();
+    expect(text).toContain('Your client data is encrypted on your device');
+    expect(text).toContain('ciphertext and opaque handles');
+    expect(text).toContain('never sees client names or documents');
+    expect(text).not.toContain('end-to-end encrypted data');
+  });
+
   it('has a "What to ask us" section', () => {
     const text = renderAndGetText();
     expect(text).toContain('What to ask us');
