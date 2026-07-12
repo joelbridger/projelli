@@ -257,6 +257,47 @@ describe('MatterSyncClient v2 socket privacy', () => {
     client.stop();
   });
 
+  it('rejects an oversized pulled ciphertext before decrypting and still applies the next update', async () => {
+    const matterHandle = parseMatterHandle(`mh2_${'T'.repeat(43)}`);
+    const streamHandle = parseStreamHandle(`sh2_${'U'.repeat(43)}`);
+    const keyB64 = await generateMatterKey();
+    const key = await importMatterKey(keyB64);
+    const later = new Y.Doc();
+    later.getMap('notes').set('after-oversized-pulled-update', 'applied');
+    const laterCiphertext = await matterCrypto.encryptUpdateV2(
+      key, Y.encodeStateAsUpdate(later), { matterHandle, streamHandle, keyEpoch: 1 },
+    );
+    const decrypt = vi.spyOn(matterCrypto, 'decryptUpdateV2');
+    const onUpdateQuarantined = vi.fn();
+    // A boundary-length canonical base64 string with zero padding decodes to
+    // 2 bytes over the 1 MiB limit — the exact case round FF caught.
+    const oversized = 'A'.repeat(1_398_104);
+    const client = new MatterSyncClient({
+      matterHandle, streamHandle, keyB64, keyEpoch: 1, seatToken: 'seat',
+      client: {
+        pullUpdates: () => Promise.resolve({ key_epoch: 1, since: 0, cursor: 2, latest_cursor: 2, has_more: false, updates: [
+          { cursor: 1, blob_id: opaqueBlobId('V'), key_epoch: 1, ciphertext_b64: oversized },
+          { cursor: 2, blob_id: opaqueBlobId('W'), key_epoch: 1, ciphertext_b64: laterCiphertext },
+        ] }),
+        createSyncTicket: () => Promise.resolve({ ticket: 'ticket-only', expires_in_ms: 1000 }),
+        pushUpdate: () => Promise.resolve({ ok: true, cursor: 3, blob_id: 'new', key_epoch: 1, duplicate: false }),
+      } as never,
+      callbacks: { onUpdateQuarantined },
+      socketFactory: () => ({ send() {}, close() {}, onopen: null, onclose: null, onerror: null, onmessage: null }),
+    });
+
+    await client.start();
+
+    expect(client.getCursor()).toBe(2);
+    expect(client.doc.getMap('notes').get('after-oversized-pulled-update')).toBe('applied');
+    expect(onUpdateQuarantined).toHaveBeenCalledWith({ reason: 'ciphertext_too_large', blobId: opaqueBlobId('V') });
+    // Only the following valid entry is ever decrypted — the oversized one never is.
+    expect(decrypt).toHaveBeenCalledTimes(1);
+    expect(decrypt).not.toHaveBeenCalledWith(expect.anything(), oversized, expect.anything());
+    decrypt.mockRestore();
+    client.stop();
+  });
+
   it('quarantines an invalid live-frame blob ID without surfacing it, then applies the later update', async () => {
     const matterHandle = parseMatterHandle(`mh2_${'U'.repeat(43)}`);
     const streamHandle = parseStreamHandle(`sh2_${'V'.repeat(43)}`);

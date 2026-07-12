@@ -34,21 +34,22 @@ import type { MatterHandle, StreamHandle, SyncFrame } from './contract';
 
 /** Must match the relay's MAX_UPDATE_BYTES (backend/src/lib/matters.ts). */
 const MAX_UPDATE_BYTES = 1024 * 1024;
-/** Largest canonical base64 encoding that can decode to MAX_UPDATE_BYTES. */
-const MAX_UPDATE_BASE64_LENGTH = 4 * Math.ceil(MAX_UPDATE_BYTES / 3);
-/** Same canonical-shape rule the relay enforces (backend/src/routes/matters.ts). */
-const CANONICAL_BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
 
 function isSafeCursor(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && !Object.is(value, -0);
 }
 
-/** True if the value is not safely decodable within MAX_UPDATE_BYTES. Rejects non-canonical
- *  base64 outright — the length bound only holds for properly padded input. */
+/**
+ * True if the value cannot possibly decode within MAX_UPDATE_BYTES. Deliberately does NOT
+ * validate base64 shape/padding — that would misclassify small malformed or tampered
+ * ciphertext (which must fall through to decrypt and fail there as `decrypt_failed`) as
+ * oversized. `floor(length * 3/4)` ignores padding entirely, which can only ever
+ * OVER-estimate the true decoded size, so this can never let a genuinely oversized
+ * payload through, and at worst is a couple of bytes over-strict at the exact boundary.
+ */
 function exceedsUpdateByteLimit(ciphertextB64: unknown): boolean {
   if (typeof ciphertextB64 !== 'string') return true;
-  if (!CANONICAL_BASE64.test(ciphertextB64) || ciphertextB64.length % 4 !== 0) return true;
-  return ciphertextB64.length > MAX_UPDATE_BASE64_LENGTH;
+  return Math.floor((ciphertextB64.length * 3) / 4) > MAX_UPDATE_BYTES;
 }
 
 export type SyncStatus =
@@ -400,6 +401,14 @@ export class MatterSyncClient {
       // just like an unauthenticated ciphertext, so quarantine and advance.
       if (!isOpaqueBlobId(u.blob_id)) {
         this.logInvalidBlobId(u.cursor);
+        this.cursor = u.cursor;
+        continue;
+      }
+      // The relay's page-size budget bounds the aggregate response, not any
+      // one entry within it — the same per-blob limit the live socket path
+      // enforces must apply here too, before this ciphertext is decrypted.
+      if (exceedsUpdateByteLimit(u.ciphertext_b64)) {
+        this.logQuarantinedUpdate('ciphertext_too_large', u.blob_id, u.cursor, undefined);
         this.cursor = u.cursor;
         continue;
       }
