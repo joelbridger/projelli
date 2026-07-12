@@ -1,3 +1,6 @@
+// Loads B1's single, shared date fields onto RagHit for every TypeScript
+// project, including the intentionally small contract-check project.
+import '@/platform/rag/types';
 import type { RagHit } from '@/platform/utils/tauri-commands';
 import type { DateConflictFlag, DatedEvidence, DatedFact, SourceDate } from './contracts';
 import { normalizeSourceDate, sourceDateTimestamp } from './sourceDates';

@@ -1,4 +1,7 @@
 import type { WorkspaceSource } from '@/platform/types/ai';
+// Loads B1's single, shared date fields onto RagHit for every TypeScript
+// project, including the intentionally small contract-check project.
+import '@/platform/rag/types';
 import type { RagHit } from '@/platform/utils/tauri-commands';
 import { flagDatedEvidenceConflicts } from './conflicts';
 
