@@ -3,8 +3,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { parseMatterHandle, parseStreamHandle } from './contract';
 import {
   addDocumentStreamToPrivateIndex, createDocumentStream, FIRM_PRIVATE_INDEX_MAP, FIRM_PRIVATE_INDEX_STREAMS_V2_MAP,
-  readFirmMatterPrivateIndex, writeFirmMatterPrivateIndex,
+  readFirmMatterPrivateIndex, tombstoneDocumentStreamFromPrivateIndex, writeFirmMatterPrivateIndex,
 } from './firmMatterPrivateIndex';
+import { getPinnedDocumentStream } from './firmKeychain';
 
 const matterHandle = parseMatterHandle(`mh2_${'M'.repeat(43)}`);
 const root = parseStreamHandle(`sh2_${'R'.repeat(43)}`);
@@ -176,5 +177,20 @@ describe('encrypted FirmMatterPrivateIndex', () => {
     const secondResult = readFirmMatterPrivateIndex(second)?.streams['shared.docx'];
     expect(firstResult).toEqual(secondResult);
     expect([firstStream, secondStream]).toContain(firstResult?.streamHandle);
+  });
+
+  it('erases only the tombstoned document stream pin from this matter', async () => {
+    const doc = new Y.Doc();
+    const secondStream = parseStreamHandle(`sh2_${'Z'.repeat(43)}`);
+    writeFirmMatterPrivateIndex(doc, { version: 1, clientName: 'x', displayName: 'x', streams: { _notes: { streamHandle: root, kind: 'notes' } } });
+    await addDocumentStreamToPrivateIndex(doc, matterHandle, 'deleted.docx', docStream);
+    await addDocumentStreamToPrivateIndex(doc, matterHandle, 'retained.docx', secondStream);
+    expect(await getPinnedDocumentStream(matterHandle, 'deleted.docx')).toBe(docStream);
+    expect(await getPinnedDocumentStream(matterHandle, 'retained.docx')).toBe(secondStream);
+
+    await tombstoneDocumentStreamFromPrivateIndex(doc, matterHandle, 'deleted.docx');
+
+    expect(await getPinnedDocumentStream(matterHandle, 'deleted.docx')).toBeNull();
+    expect(await getPinnedDocumentStream(matterHandle, 'retained.docx')).toBe(secondStream);
   });
 });

@@ -7,7 +7,7 @@
 import * as Y from 'yjs';
 import type { MatterHandle, StreamHandle } from './contract';
 import { generateStreamHandle, parseStreamHandle } from './contract';
-import { pinDocumentStreamOnFirstObservation } from './firmKeychain';
+import { deletePinnedDocumentStream, pinDocumentStreamOnFirstObservation } from './firmKeychain';
 
 export const FIRM_PRIVATE_INDEX_MAP = 'firm-private-index';
 /**
@@ -187,10 +187,15 @@ export async function observeDocumentStreamsForPinning(
   return mismatches;
 }
 
-/** Tombstone a local document mapping without exposing the local ID to the relay. */
-export function tombstoneDocumentStreamFromPrivateIndex(doc: Y.Doc, localDocumentId: string): void {
+/** Tombstone a local document mapping and erase its device-local routing pin. */
+export async function tombstoneDocumentStreamFromPrivateIndex(
+  doc: Y.Doc,
+  matterHandle: MatterHandle,
+  localDocumentId: string,
+): Promise<void> {
   const current = readFirmMatterPrivateIndex(doc);
   if (!current || !current.streams[localDocumentId]) return;
+  await deletePinnedDocumentStream(matterHandle, localDocumentId);
   doc.transact(() => {
     const legacyStreams = readLegacyStreams(doc.getMap<unknown>(FIRM_PRIVATE_INDEX_MAP).get('streams'));
     const streamsMap = getStreamsV2Map(doc);

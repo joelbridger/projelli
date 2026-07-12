@@ -2034,6 +2034,20 @@ export class Store {
       .run(matterHandle, epoch);
   }
 
+  /** Delete every wrapped intake key for one user on one matter, across epochs. */
+  deleteWrappedIntakeKeysForUser(matterHandle: string, userId: string): void {
+    this.#db
+      .query(`DELETE FROM wrapped_intake_keys WHERE matter_handle = ? AND user_id = ?`)
+      .run(matterHandle, userId);
+  }
+
+  /** Delete a stale wrapped intake-key publish set before the next key epoch. */
+  deleteWrappedIntakeKeysForEpoch(matterHandle: string, epoch: number): void {
+    this.#db
+      .query(`DELETE FROM wrapped_intake_keys WHERE matter_handle = ? AND epoch = ?`)
+      .run(matterHandle, epoch);
+  }
+
   // ===========================================================================
   // Chunk 4 — Webhook idempotency
   // ===========================================================================

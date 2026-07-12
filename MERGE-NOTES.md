@@ -88,6 +88,12 @@ not cover that case. Do not weaken these routes or make them public. That need
 requires a new, larger security design for an unauthenticated exchange and is
 outside this merge.**
 
+**The first successful publish also wins permanently: there is no recovery or
+rebind path if another party has already bound that opaque handle. Handles are
+cryptographically random and are not sent or listed by this branch, but if the
+real Intake flow can leak or reuse one across parties, that limitation needs
+its own design pass before shipping.**
+
 ## Verify the port
 
 1. Run `cd backend && bun test` and confirm `backend/test/intake-keys.test.ts`

@@ -47,7 +47,7 @@ export async function tombstoneAndReleaseDocumentStream(input: {
     throw new Error('Document deletion was blocked because its encrypted stream mapping changed on this device.');
   }
 
-  tombstoneDocumentStreamFromPrivateIndex(input.doc, input.localDocumentId);
+  await tombstoneDocumentStreamFromPrivateIndex(input.doc, input.matterHandle, input.localDocumentId);
   // This is the important ordering: peers receive the encrypted directory
   // deletion before the relay drops the opaque document ciphertext/history.
   await input.rootSync.flush();

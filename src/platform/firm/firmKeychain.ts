@@ -168,6 +168,14 @@ export async function getPinnedDocumentStream(
   }
 }
 
+/** Remove this device's document-stream pin. Missing pins are harmless. */
+export async function deletePinnedDocumentStream(
+  matterHandle: MatterHandle,
+  localDocumentId: string,
+): Promise<void> {
+  await deleteSecret(documentStreamPinService(matterHandle), documentStreamPinKey(localDocumentId));
+}
+
 /**
  * Atomically establish a pin on first observation. Later observations receive
  * the original value and must compare it before doing anything destructive.

@@ -15,6 +15,7 @@ let memberToken = "";
 let memberSeat = "";
 let matterHandle = "";
 let memberId = "";
+let adminId = "";
 
 async function post(path: string, body: unknown, token = adminToken, headers: Record<string, string> = {}) {
   const response = await fetch(`${base}${path}`, {
@@ -30,6 +31,7 @@ beforeAll(() => {
   const admin = store.createUser({ org_id: org.org_id, email: "admin@intake.test", password_hash: "x", role: "admin" });
   const member = store.createUser({ org_id: org.org_id, email: "member@intake.test", password_hash: "x", role: "member" });
   memberId = member.user_id;
+  adminId = admin.user_id;
   store.upsertDevice({ device_id: "member-device", user_id: member.user_id, org_id: org.org_id, machine_id: "member-machine", label: "", pubkey_jwk: "{}" });
   const seat = store.activateSeat({ org_id: org.org_id, user_id: member.user_id, machine_id: "member-machine", machine_label: null, seat_limit: 4 });
   if (!seat.ok) throw new Error("test seat activation failed");
@@ -59,6 +61,64 @@ describe("opaque intake key routes", () => {
 
     const fetched = await post(`/v2/firm/intake/${intakeHandle}/keys/fetch`, { device_id: "member-device" }, memberToken, { "x-seat-token": memberSeat });
     expect(fetched).toMatchObject({ status: 200, body: { epoch: 1, wrapped_key_b64: wrappedEnvelope } });
+  });
+
+  test("member removal deletes only that matter's wrapped intake-key rows", async () => {
+    const otherMatter = store.createMatter({ org_id: store.getMatter(matterHandle)!.org_id });
+    store.addMatterMember({ matter_handle: otherMatter.matter_handle, user_id: adminId, org_id: otherMatter.org_id, role: "owner" });
+    store.addMatterMember({ matter_handle: otherMatter.matter_handle, user_id: memberId, org_id: otherMatter.org_id, role: "editor" });
+    store.activateProvisioningMatter(otherMatter.matter_handle);
+    const removedHandle = `ih2_${"R".repeat(43)}`;
+    const retainedHandle = `ih2_${"S".repeat(43)}`;
+
+    expect((await post(`/v2/firm/intake/${removedHandle}/keys/publish`, {
+      matter_handle: matterHandle, epoch: 1,
+      wrapped: [{ user_id: memberId, device_id: "member-device", wrapped_key_b64: wrappedEnvelope }],
+    })).status).toBe(200);
+    expect((await post(`/v2/firm/intake/${retainedHandle}/keys/publish`, {
+      matter_handle: otherMatter.matter_handle, epoch: 1,
+      wrapped: [{ user_id: memberId, device_id: "member-device", wrapped_key_b64: wrappedEnvelope }],
+    })).status).toBe(200);
+
+    expect((await post(`/v2/firm/matters/${matterHandle}/members/remove`, { user_id: memberId })).status).toBe(200);
+    const rows = store.inspectReadOnly().all(
+      `SELECT intake_handle, matter_handle, user_id FROM wrapped_intake_keys WHERE intake_handle IN (?, ?) ORDER BY intake_handle`,
+      removedHandle,
+      retainedHandle,
+    ) as Array<{ intake_handle: string; matter_handle: string; user_id: string }>;
+    expect(rows).toEqual([{ intake_handle: retainedHandle, matter_handle: otherMatter.matter_handle, user_id: memberId }]);
+  });
+
+  test("walling a member deletes only that matter's wrapped intake-key rows", async () => {
+    const orgId = store.getMatter(matterHandle)!.org_id;
+    const walled = store.createUser({ org_id: orgId, email: "walled@intake.test", password_hash: "x", role: "member" });
+    store.upsertDevice({ device_id: "walled-device", user_id: walled.user_id, org_id: orgId, machine_id: "walled-machine", label: "", pubkey_jwk: "{}" });
+    const walledMatter = store.createMatter({ org_id: orgId });
+    const retainedMatter = store.createMatter({ org_id: orgId });
+    for (const target of [walledMatter, retainedMatter]) {
+      store.addMatterMember({ matter_handle: target.matter_handle, user_id: adminId, org_id: orgId, role: "owner" });
+      store.addMatterMember({ matter_handle: target.matter_handle, user_id: walled.user_id, org_id: orgId, role: "editor" });
+      store.activateProvisioningMatter(target.matter_handle);
+    }
+    const walledHandle = `ih2_${"W".repeat(43)}`;
+    const retainedHandle = `ih2_${"T".repeat(43)}`;
+
+    expect((await post(`/v2/firm/intake/${walledHandle}/keys/publish`, {
+      matter_handle: walledMatter.matter_handle, epoch: 1,
+      wrapped: [{ user_id: walled.user_id, device_id: "walled-device", wrapped_key_b64: wrappedEnvelope }],
+    })).status).toBe(200);
+    expect((await post(`/v2/firm/intake/${retainedHandle}/keys/publish`, {
+      matter_handle: retainedMatter.matter_handle, epoch: 1,
+      wrapped: [{ user_id: walled.user_id, device_id: "walled-device", wrapped_key_b64: wrappedEnvelope }],
+    })).status).toBe(200);
+
+    expect((await post(`/v2/firm/matters/${walledMatter.matter_handle}/wall/set`, { user_id: walled.user_id })).status).toBe(200);
+    const rows = store.inspectReadOnly().all(
+      `SELECT intake_handle, matter_handle, user_id FROM wrapped_intake_keys WHERE intake_handle IN (?, ?) ORDER BY intake_handle`,
+      retainedHandle,
+      walledHandle,
+    ) as Array<{ intake_handle: string; matter_handle: string; user_id: string }>;
+    expect(rows).toEqual([{ intake_handle: retainedHandle, matter_handle: retainedMatter.matter_handle, user_id: walled.user_id }]);
   });
 
   test("keeps the legacy readable intake key address unreachable", async () => {
