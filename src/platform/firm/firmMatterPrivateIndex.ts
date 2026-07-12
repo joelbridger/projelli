@@ -220,7 +220,10 @@ export async function tombstoneDocumentStreamFromPrivateIndex(
   if (!stream) return;
   if (stream.kind !== 'document') throw new Error('Cannot tombstone a non-document stream.');
   try {
-    await pinDocumentStreamOnFirstObservation(matterHandle, localDocumentId, stream.streamHandle);
+    const pinned = await pinDocumentStreamOnFirstObservation(matterHandle, localDocumentId, stream.streamHandle);
+    if (pinned !== stream.streamHandle) {
+      throw new Error('Document deletion was blocked because its encrypted stream mapping changed on this device.');
+    }
   } catch (error) {
     // A matching remembered handle means this is the safe second half of a
     // crash-interrupted deletion. A different one is still a redirection.

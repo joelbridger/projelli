@@ -194,6 +194,24 @@ describe('encrypted FirmMatterPrivateIndex', () => {
     expect(await getPinnedDocumentStream(matterHandle, 'retained.docx')).toBe(secondStream);
   });
 
+  it('blocks tombstoning when the shared mapping changed before this device ever deleted the document', async () => {
+    const doc = new Y.Doc();
+    const replacementStream = parseStreamHandle(`sh2_${'P'.repeat(43)}`);
+    writeFirmMatterPrivateIndex(doc, { version: 1, clientName: 'x', displayName: 'x', streams: { _notes: { streamHandle: root, kind: 'notes' } } });
+    await addDocumentStreamToPrivateIndex(doc, matterHandle, 'draft.docx', docStream);
+
+    // A hostile peer rewrites the shared directory BEFORE this device's first
+    // (and only) deletion attempt for this document — no crash, no prior
+    // retirement, just a straightforward redirection.
+    doc.getMap<unknown>(FIRM_PRIVATE_INDEX_STREAMS_V2_MAP).set('draft.docx', { streamHandle: replacementStream, kind: 'document' });
+
+    await expect(tombstoneDocumentStreamFromPrivateIndex(doc, matterHandle, 'draft.docx')).rejects.toThrow('changed on this device');
+
+    // Neither the original pin nor the shared directory entry may be touched.
+    expect(await getPinnedDocumentStream(matterHandle, 'draft.docx')).toBe(docStream);
+    expect(readFirmMatterPrivateIndex(doc)?.streams['draft.docx']).toEqual({ streamHandle: replacementStream, kind: 'document' });
+  });
+
   it('refuses to trust a replacement shared-directory mapping for a retired local document ID', async () => {
     const doc = new Y.Doc();
     const replacementStream = parseStreamHandle(`sh2_${'Q'.repeat(43)}`);
