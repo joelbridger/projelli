@@ -3,6 +3,7 @@
 import type { ConsentScope } from '@/platform/ai/fileAccessConsent';
 import type { AuditSourceIdentity } from '@/platform/types/audit';
 import type { EgressDestination } from '@/platform/privacy/egress';
+import type { DateConflictFlag, DatedFact, SourceDate } from '@/platform/retrieval/dates';
 
 /**
  * API key configuration for AI providers
@@ -82,6 +83,12 @@ export interface PersistedCitation {
   id?: string;
   /** WS3 — matter scope of the cited chunk. Absent pre-WS3. */
   matterId?: string;
+  /** B1 — source date retained so date chips survive reopening Ask. */
+  sourceDate?: SourceDate;
+  /** B1 — source-owned dated claim retained with the citation. */
+  datedFact?: DatedFact;
+  /** B1 — retrieval-supplied disagreement context; the UI never guesses this. */
+  dateConflict?: DateConflictFlag;
 }
 
 /**
