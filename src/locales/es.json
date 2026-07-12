@@ -2521,7 +2521,8 @@
       "household-template": "Plantilla de nuevo hogar",
       "review-greeting": "Hola {{name}}, vamos a configurar su hogar.",
       "review-link-note": "Este enlace funciona durante 30 días. Puede ampliarlo o desactivarlo cuando quiera.",
-      "open-email-draft": "Abrir borrador de correo"
+      "open-email-draft": "Abrir borrador de correo",
+      "solo-note": "Este {{entity}} se creará en este dispositivo. Puedes añadir sus datos en cualquier momento."
     },
     "group": {
       "new-title": "Nuevo grupo",
@@ -4136,7 +4137,11 @@
       "partial-error": "Algunos datos todavía necesitan revisión.",
       "amount-required": "Escribe un importe final antes de aprobar este dato.",
       "amount-invalid": "El importe final debe ser cero o mayor.",
-      "confidence": { "high": "Alta", "medium": "Media", "low": "Baja" }
+      "confidence": {
+        "high": "Alta",
+        "medium": "Media",
+        "low": "Baja"
+      }
     },
     "quarantine": {
       "title": "El correo necesita una revisión cuidadosa",
