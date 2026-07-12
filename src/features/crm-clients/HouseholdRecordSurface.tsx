@@ -187,7 +187,7 @@ export function HouseholdRecordSurface({
       />
       {tab === 'client_map' ? (
         <ClientMap household={household} />
-      ) : tab === 'email' || tab === 'meetings' ? <HouseholdConnectorSurface tab={tab} household={household} /> : <ExistingSurface
+      ) : tab === 'email' || tab === 'meetings' ? <HouseholdConnectorSurface tab={tab} household={household} actions={actions} /> : <ExistingSurface
           tab={tab}
           household={household}
           proposals={sourceProposals}

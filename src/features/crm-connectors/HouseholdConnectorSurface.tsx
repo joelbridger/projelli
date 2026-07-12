@@ -5,14 +5,14 @@
  * link, never a second copy of an email or calendar-event entity.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CalendarDays, ExternalLink, Paperclip, RefreshCw } from 'lucide-react';
+import { CalendarDays, ExternalLink, Mail, Paperclip, RefreshCw } from 'lucide-react';
 import { Button, Card } from '@/ui/kp';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { buildCalendarMatterMap, buildMailMatterMap, resolveMattersForCalendarEvent } from '@/platform/rag/matterResolver';
 import { calendarListEvents, type CalendarEventDto } from '@/platform/utils/calendar-commands';
 import { mailGetMessage, mailListMessagesByMatter, type MailListItem } from '@/platform/utils/mail-commands';
-import type { HouseholdRecord } from '@/features/crm-clients/adapters';
+import type { CrmClientsActions, HouseholdRecord } from '@/features/crm-clients/adapters';
 
 type ConnectorTab = 'email' | 'meetings';
 type ConnectorItem = {
@@ -100,7 +100,7 @@ function useTimelineLinks(householdId: string, matterId: string, items: readonly
   }, [householdId, items, live, matterId]);
 }
 
-function HouseholdEmail({ household, matterId }: { household: HouseholdRecord; matterId: string }) {
+function HouseholdEmail({ household, matterId, actions }: { household: HouseholdRecord; matterId: string; actions?: CrmClientsActions }) {
   const matters = useMatterStore((state) => state.matters);
   const [items, setItems] = useState<readonly MailListItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -146,7 +146,7 @@ function HouseholdEmail({ household, matterId }: { household: HouseholdRecord; m
     <Card variant="raised">
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         <div><h2 style={{ margin: 0 }}>Email</h2><p style={{ marginBottom: 0 }}>Email stays in your connected mail store. This list only shows email filed to {household.name}.</p></div>
-        <Button size="sm" variant="secondary" iconLeft={RefreshCw} data-testid="crm-household-email-refresh" onClick={() => { void load().catch((reason: unknown) => { setError(reason instanceof Error ? reason.message : 'Could not load this household’s email.'); }); }}>Refresh</Button>
+        <div style={{ display: 'flex', gap: 8 }}><Button size="sm" variant="secondary" iconLeft={RefreshCw} data-testid="crm-household-email-refresh" onClick={() => { void load().catch((reason: unknown) => { setError(reason instanceof Error ? reason.message : 'Could not load this household’s email.'); }); }}>Refresh</Button><Button size="sm" iconLeft={Mail} data-testid="crm-open-mail-surface" onClick={() => { actions?.onDraftEmail?.({ kind: 'open_mail_surface', householdRef: { kind: 'household', id: household.id, label: household.name }, contextRefs: [{ kind: 'household', id: household.id, label: household.name }], source: 'crm_household' }); }}>Draft email</Button></div>
       </div>
       {loading ? <p data-testid="crm-household-email-loading">Loading household email…</p> : null}
       {error ? <p role="alert">{error}</p> : null}
@@ -210,7 +210,7 @@ function HouseholdMeetings({ household, matterId, schedulingLinkUrl }: { househo
   </div>;
 }
 
-export function HouseholdConnectorSurface({ tab, household }: { tab: ConnectorTab; household: HouseholdRecord }) {
+export function HouseholdConnectorSurface({ tab, household, actions }: { tab: ConnectorTab; household: HouseholdRecord; actions?: CrmClientsActions }) {
   const { matterId, schedulingLinkUrl } = useHouseholdConnectorContext(household);
-  return tab === 'email' ? <HouseholdEmail household={household} matterId={matterId} /> : <HouseholdMeetings household={household} matterId={matterId} schedulingLinkUrl={schedulingLinkUrl} />;
+  return tab === 'email' ? <HouseholdEmail household={household} matterId={matterId} actions={actions} /> : <HouseholdMeetings household={household} matterId={matterId} schedulingLinkUrl={schedulingLinkUrl} />;
 }
