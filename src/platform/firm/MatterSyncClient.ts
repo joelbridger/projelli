@@ -111,22 +111,6 @@ type PushResult =
   | { kind: 'rejected'; error: FirmApiError }
   | { kind: 'unknown'; error: unknown };
 
-/**
- * True for frames that carry ciphertext and therefore must be applied in the
- * order received (the applied-through cursor only advances contiguously).
- * Presence/ready frames carry neither ciphertext nor a cursor.
- */
-function isSerialFrame(data: unknown): boolean {
-  try {
-    const text = typeof data === 'string' ? data : String(data);
-    return (JSON.parse(text) as { type?: unknown }).type === 'update';
-  } catch {
-    // An unparseable frame goes through the serial path so handleFrame owns the
-    // decision: never treat "cannot parse" as "safe to apply out of order".
-    return true;
-  }
-}
-
 export class MatterSyncClient {
   readonly doc: Y.Doc;
   private readonly matterHandle: MatterHandle;
@@ -168,6 +152,9 @@ export class MatterSyncClient {
   private incomingFrameQueue: Promise<void> = Promise.resolve();
   /** A failed peer frame is a cursor gap. Only a successful pull may clear it. */
   private incomingCursorBlocked = false;
+  /** The ready frame's durable server snapshot. Live cursor movement is illegal
+   * until HTTP/socket replay has applied through this point. */
+  private socketReadyCursor: number | null = null;
 
   constructor(opts: MatterSyncOptions) {
     this.matterHandle = opts.matterHandle;
@@ -500,6 +487,7 @@ export class MatterSyncClient {
   }
 
   private async reconnectNow(): Promise<void> {
+    await this.catchUp();
     await this.flushPendingUpdates();
     await this.openSocket();
   }
@@ -518,7 +506,7 @@ export class MatterSyncClient {
     // the WS URL (no credential in a WebSocket URL → nothing leaks to a log).
     let ticket: string;
     try {
-      const res = await this.client.createSyncTicket(this.streamHandle, this.seatToken);
+      const res = await this.client.createSyncTicket(this.streamHandle, this.seatToken, this.cursor);
       ticket = res.ticket;
     } catch {
       // Couldn't get a ticket (offline / auth lapsed): stay in catch-up-only
@@ -563,23 +551,16 @@ export class MatterSyncClient {
       // Connectivity is back — reset backoff and flush anything queued while
       // we were offline so teammates aren't silently missing changes.
       this.reconnectDelayMs = 0;
-      this.setStatus('live');
       void this.flushPendingUpdates();
     };
     ws.onmessage = (ev: { data: unknown }) => {
       if (this.socket !== ws) return;
-      // Only ciphertext-bearing frames need the serial queue: async decryption
-      // must not reorder them, because the applied-through cursor may only
-      // advance contiguously. Presence/ready carry no ciphertext and no cursor,
-      // so queueing them behind a slow decrypt would delay live presence for no
-      // benefit — apply them immediately.
-      if (isSerialFrame(ev.data)) {
-        this.incomingFrameQueue = this.incomingFrameQueue
-          .then(() => this.handleFrame(ev.data))
-          .catch(() => undefined);
-        return;
-      }
-      void this.handleFrame(ev.data);
+      // The ready snapshot and every following update share one queue. This
+      // prevents a newer live frame from overtaking the reconciliation it
+      // promises the socket will complete.
+      this.incomingFrameQueue = this.incomingFrameQueue
+        .then(() => this.handleFrame(ev.data))
+        .catch(() => undefined);
     };
     ws.onerror = () => {
       if (this.socket !== ws) return;
@@ -609,11 +590,20 @@ export class MatterSyncClient {
       return;
     }
     if (frame.type === 'ready') {
-      // The socket will replay backlog as `update` frames; we already caught up
-      // via HTTP, and applying duplicates is a no-op, so nothing to do here.
+      // The server has subscribed us before sending this snapshot. Reconcile
+      // through its high-water mark before any later live frame can move the
+      // cursor. This also covers a replay page capped at 500 updates.
+      this.socketReadyCursor = frame.latest_cursor;
       this.presenceCount = frame.subscribers;
       this.callbacks.onPresenceCount?.(frame.subscribers);
-      this.setStatus('live');
+      if (await this.reconcileThrough(frame.latest_cursor)) {
+        this.socketReadyCursor = null;
+        this.incomingCursorBlocked = false;
+        this.setStatus('live');
+      } else {
+        this.incomingCursorBlocked = true;
+        this.setStatus('offline');
+      }
       return;
     }
     if (frame.type === 'presence') {
@@ -626,6 +616,16 @@ export class MatterSyncClient {
     // Once a peer frame cannot be opened, later frames are not allowed to leap
     // over it. rotateKey() re-pulls from this last contiguous cursor.
     if (this.incomingCursorBlocked) return;
+    if (this.socketReadyCursor !== null && this.cursor < this.socketReadyCursor) {
+      // Defensive belt-and-suspenders: a ready reconciliation should run first
+      // because frames are queued, but never permit a live frame to leap over
+      // its promised replay snapshot if a future transport changes ordering.
+      if (!(await this.reconcileThrough(this.socketReadyCursor))) {
+        this.incomingCursorBlocked = true;
+        return;
+      }
+      this.socketReadyCursor = null;
+    }
     if (frame.key_epoch > this.keyEpoch) {
       this.callbacks.onKeyEpochAdvanced?.(frame.key_epoch);
     }
@@ -633,6 +633,24 @@ export class MatterSyncClient {
       if (frame.cursor > this.cursor) this.cursor = frame.cursor;
     } else {
       this.incomingCursorBlocked = true;
+    }
+  }
+
+  /** Pull until the server snapshot has been fully and successfully applied.
+   * This deliberately does not trust the 500-frame socket replay as complete. */
+  private async reconcileThrough(target: number): Promise<boolean> {
+    try {
+      while (this.cursor < target) {
+        const res = await this.client.pullUpdates(this.streamHandle, this.cursor, this.seatToken);
+        if (res.key_epoch > this.keyEpoch) this.callbacks.onKeyEpochAdvanced?.(res.key_epoch);
+        if (!(await this.applyPulled(res.updates))) return false;
+        // No result can prove a cursor gap has been filled. Stay blocked rather
+        // than letting a later live frame hide a missing encrypted blob.
+        if (res.updates.length === 0) return false;
+      }
+      return true;
+    } catch {
+      return false;
     }
   }
 

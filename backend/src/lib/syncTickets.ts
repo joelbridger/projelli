@@ -31,6 +31,9 @@ export interface SyncTicketBinding {
   orgId: string;
   userId: string;
   seatId: string;
+  /** Last cursor the client has durably applied. Socket replay starts strictly
+   * after this point, closing the HTTP-pull → socket-subscribe handoff. */
+  since: number;
   /** The caller's role at mint time, so a connect-time re-check uses the right
    *  access path (an org admin's access doesn't depend on matter membership). */
   role: UserRole;

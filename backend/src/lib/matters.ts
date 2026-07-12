@@ -173,6 +173,24 @@ export function verifyActiveSeat(
   return { ok: true, claims };
 }
 
+/** Re-check the durable seat/user/org binding carried by a redeemed socket
+ * ticket. Unlike verifyActiveSeat this has no raw bearer token to verify, but
+ * it performs the same liveness checks before a ticket can grant ciphertext. */
+export function verifyTicketSeatBinding(
+  store: Store,
+  expect: { seat_id: string; user_id: string; org_id: string },
+): SeatCheck {
+  const seat = store.getSeat(expect.seat_id);
+  if (!seat) return { ok: false, reason: "seat_not_found" };
+  if (seat.status !== "active") return { ok: false, reason: "seat_revoked" };
+  if (seat.user_id !== expect.user_id || seat.org_id !== expect.org_id) return { ok: false, reason: "seat_mismatch" };
+  const org = store.getOrg(expect.org_id);
+  if (!org || org.status !== "active") return { ok: false, reason: "org_suspended" };
+  const user = store.getUser(expect.user_id);
+  if (!user || user.status !== "active") return { ok: false, reason: "user_deprovisioned" };
+  return { ok: true, claims: { seat_id: seat.seat_id, user_id: seat.user_id, org_id: seat.org_id } as SeatTokenClaims };
+}
+
 // ---------------------------------------------------------------------------
 // Real-time fan-out hub (DECISION.md §1: the relay fans new updates to connected
 // `allowed` seats). Transport-agnostic: a subscriber is just a sink that takes a
@@ -202,6 +220,8 @@ export interface Subscriber {
   id: string;
   user_id: string;
   seat_id: string;
+  /** Organization is transport metadata only, used to evict suspended-org sockets. */
+  org_id?: string;
   /** Deliver a frame. Implementations must never throw; they swallow send errors. */
   send: (frame: UpdateFrame | PresenceFrame) => void;
   /** Archive-specific termination hook for a live WebSocket. */
@@ -217,7 +237,24 @@ export interface Subscriber {
  * own isolated subscriber set. A WS subscribed to docA will not receive docB frames.
  */
 export class FanoutHub {
+  private static readonly liveHubs = new Set<FanoutHub>();
   private byChannel = new Map<string, Map<string, Subscriber>>();
+
+  constructor() {
+    FanoutHub.liveHubs.add(this);
+  }
+
+  static evictSeatEverywhere(seatId: string): void {
+    for (const hub of FanoutHub.liveHubs) hub.evictSeat(seatId);
+  }
+
+  static evictUserEverywhere(userId: string): void {
+    for (const hub of FanoutHub.liveHubs) hub.evictUser(userId);
+  }
+
+  static evictOrgEverywhere(orgId: string): void {
+    for (const hub of FanoutHub.liveHubs) hub.evictOrg(orgId);
+  }
 
   private channelKey(matterHandle: string, streamHandle: string): string {
     return `${matterHandle}::${streamHandle}`;
@@ -274,6 +311,32 @@ export class FanoutHub {
       } catch {
         // Already-dead sockets need no further work.
       }
+    }
+  }
+
+  /** Close every socket held by one revoked seat, across all matters. */
+  evictSeat(seatId: string): void {
+    this.evictWhere((subscriber) => subscriber.seat_id === seatId);
+  }
+
+  /** Close every socket owned by a deprovisioned user. */
+  evictUser(userId: string): void {
+    this.evictWhere((subscriber) => subscriber.user_id === userId);
+  }
+
+  /** Close every socket in a suspended organization. */
+  evictOrg(orgId: string): void {
+    this.evictWhere((subscriber) => subscriber.org_id === orgId);
+  }
+
+  private evictWhere(matches: (subscriber: Subscriber, channelKey: string) => boolean): void {
+    for (const [key, subscribers] of this.byChannel) {
+      for (const [id, subscriber] of subscribers) {
+        if (!matches(subscriber, key)) continue;
+        subscribers.delete(id);
+        try { subscriber.close?.(); } catch { /* dead socket */ }
+      }
+      if (subscribers.size === 0) this.byChannel.delete(key);
     }
   }
 

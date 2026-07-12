@@ -44,7 +44,7 @@ import {
   handleSyncTicket,
   authorizeSyncConnect,
 } from "./routes/matters.ts";
-import { fanout, FanoutHub, gateMatterAccess, toUpdateFrame, type Subscriber } from "./lib/matters.ts";
+import { fanout, FanoutHub, gateMatterAccess, verifyTicketSeatBinding, toUpdateFrame, type Subscriber } from "./lib/matters.ts";
 import { startSyncTicketGc } from "./lib/syncTickets.ts";
 import { startSsoStateGc } from "./lib/ssoState.ts";
 import {
@@ -71,6 +71,7 @@ export interface SyncSocketData {
   userId: string;
   seatId: string;
   role: "admin" | "member";
+  since: number;
 }
 
 /**
@@ -120,11 +121,12 @@ export function subscribeSyncSocket(
   traffic?: RelayTrafficRecorder,
 ): void {
   const d = ws.data;
+  const seat = verifyTicketSeatBinding(store, { seat_id: d.seatId, user_id: d.userId, org_id: d.orgId });
   const access = gateMatterAccess(store, { org_id: d.orgId, user_id: d.userId, role: d.role }, d.matterHandle, "connect_subscribe");
   // A ticket can be redeemed before release and the release can commit before
   // Bun calls `open`; access alone is not enough because stream release does
   // not archive the enclosing matter.
-  if (!access.ok || !store.streamBelongsToMatter(d.streamHandle, d.matterHandle)) {
+  if (!seat.ok || !access.ok || !store.streamBelongsToMatter(d.streamHandle, d.matterHandle)) {
     ws.close(1008, "access_denied");
     return;
   }
@@ -136,6 +138,7 @@ export function subscribeSyncSocket(
     id: d.subId,
     user_id: d.userId,
     seat_id: d.seatId,
+    org_id: d.orgId,
     send: (frame) => {
       try {
         sendFrame(frame);
@@ -149,9 +152,9 @@ export function subscribeSyncSocket(
   hub.subscribe(d.matterHandle, sub, d.streamHandle);
   // Catch-up backlog (opaque bytes, base64; never logged).
   try {
-    const backlog = store.getMatterUpdatesSince(d.matterHandle, d.streamHandle, 0, 500);
+    const backlog = store.getMatterUpdatesSince(d.matterHandle, d.streamHandle, d.since, 500);
     const subscribers = hub.subscriberCount(d.matterHandle, d.streamHandle);
-    sendFrame({ type: "ready", backlog: backlog.length, latest_cursor: store.latestMatterCursor(d.matterHandle, d.streamHandle), subscribers });
+    sendFrame({ type: "ready", backlog: backlog.length, replay_from_cursor: d.since, latest_cursor: store.latestMatterCursor(d.matterHandle, d.streamHandle), subscribers });
     for (const u of backlog) sendFrame(toUpdateFrame(u));
   } catch {
     /* best-effort backlog */
@@ -272,8 +275,8 @@ export function buildServeOptions(store: Store, hub: FanoutHub, traffic?: RelayT
 
         // --- Admin (role=admin) ---
         if (path === "/org/seats" && method === "POST") return await handleListSeats(req, store);
-        if (path === "/org/seat/revoke" && method === "POST") return await handleRevokeSeat(req, store);
-        if (path === "/org/user/deprovision" && method === "POST") return await handleDeprovisionUser(req, store);
+        if (path === "/org/seat/revoke" && method === "POST") return await handleRevokeSeat(req, store, hub);
+        if (path === "/org/user/deprovision" && method === "POST") return await handleDeprovisionUser(req, store, hub);
         if (path === "/org/seats/transfer" && method === "POST") return await handleTransferSeat(req, store);
         if (path === "/org/users" && method === "POST") return await handleCreateUser(req, store);
         if (path === "/org/users/list" && method === "POST") return handleListOrgUsers(req, store);

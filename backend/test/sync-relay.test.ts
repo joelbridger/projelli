@@ -6,6 +6,7 @@ import { buildServeOptions, subscribeSyncSocket, type SyncSocketData } from "../
 import { SyncTicketStore } from "../src/lib/syncTickets.ts";
 import { rateLimit } from "../src/lib/http.ts";
 import { authorizeSyncConnect, handleArchiveMatter, handleReleaseMatterStream } from "../src/routes/matters.ts";
+import { handleDeprovisionUser, handleRevokeSeat } from "../src/routes/admin.ts";
 
 const store = new Store(":memory:"), hub = new FanoutHub();
 const server = Bun.serve<SyncSocketData>(buildServeOptions(store, hub));
@@ -23,7 +24,8 @@ const envelope = (bytes: Uint8Array) => { const out = new Uint8Array(29 + bytes.
 const push = (mh:string,sh:string, token:string,seat:string, blob:string, bytes:Uint8Array, epoch=1) => post(`/v2/firm/matters/${mh}/streams/${sh}/updates`,{blob_id:blobId(blob),ciphertext_b64:Buffer.from(envelope(bytes)).toString("base64"),seat_token:seat,key_epoch:epoch},token);
 const allocateLive = async () => { const stream=`sh2_${Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url")}`; const accepted=await push(handle,stream,alice,aliceSeat,`first-update-${crypto.randomUUID()}`,new Uint8Array([1])); expect(accepted.status).toBe(201); return stream; };
 const pull = (_mh:string,sh:string,token:string,seat:string,since=0) => get(`/v2/firm/streams/${sh}/updates?since=${since}`,token,seat);
-const ticket = (_mh:string,sh:string,token:string,seat:string) => post(`/v2/firm/streams/${sh}/sync-ticket`,{},token,{"x-seat-token":seat});
+const ticket = (_mh:string,sh:string,token:string,seat:string,since=0) => post(`/v2/firm/streams/${sh}/sync-ticket`,{since},token,{"x-seat-token":seat});
+const seatIdFor = (userId: string) => store.listSeats(store.getMatter(handle)!.org_id).find((seat) => seat.user_id === userId && seat.status === "active")!.seat_id;
 const wsUrl = (t:string) => `ws://${server.hostname}:${server.port}/v2/firm/sync?ticket=${encodeURIComponent(t)}`;
 const open = (url:string) => new Promise<WebSocket>((resolve,reject)=>{const ws=new WebSocket(url), timer=setTimeout(()=>reject(new Error("socket timeout")),3000);ws.onopen=()=>{clearTimeout(timer);resolve(ws)};ws.onerror=()=>{clearTimeout(timer);reject(new Error("socket error"))};});
 
@@ -58,8 +60,47 @@ describe("v2 encrypted relay: preserved HTTP, authorization, cursor, and socket 
   test("sync ticket rejects non-member",async()=>{expect((await ticket(handle,root,carol,carolSeat)).status).toBe(404);});
   test("ticket redeems exactly once",async()=>{const t=await ticket(handle,root,bob,bobSeat);const ws=await open(wsUrl(t.body.ticket));ws.close();await new Promise(r=>setTimeout(r,10));await expect(open(wsUrl(t.body.ticket))).rejects.toThrow();});
   test("socket URL carries ticket only",async()=>{const t=await ticket(handle,root,bob,bobSeat);const u=wsUrl(t.body.ticket);expect(u).toMatch(/\/v2\/firm\/sync\?ticket=/);expect(u).not.toContain(handle);expect(u).not.toContain(root);expect(u).not.toContain(bobSeat);expect(u).not.toContain(bob);});
-  test("expired ticket is rejected",()=>{const tickets=new SyncTicketStore(-1);const t=tickets.mint({matterHandle:handle,streamHandle:root,orgId:store.getMatter(handle)!.org_id,userId:bobId,seatId:"seat",role:"member"});expect(tickets.redeem(t.ticket)).toBeNull();});
-  test("ticket binding carries the requested opaque stream",()=>{const tickets=new SyncTicketStore();const t=tickets.mint({matterHandle:handle,streamHandle:root,orgId:store.getMatter(handle)!.org_id,userId:bobId,seatId:"seat",role:"member"});expect(tickets.redeem(t.ticket)).toMatchObject({matterHandle:handle,streamHandle:root});});
+  test("expired ticket is rejected",()=>{const tickets=new SyncTicketStore(-1);const t=tickets.mint({matterHandle:handle,streamHandle:root,orgId:store.getMatter(handle)!.org_id,userId:bobId,seatId:seatIdFor(bobId),role:"member",since:0});expect(tickets.redeem(t.ticket)).toBeNull();});
+  test("ticket binding carries the requested opaque stream",()=>{const tickets=new SyncTicketStore();const t=tickets.mint({matterHandle:handle,streamHandle:root,orgId:store.getMatter(handle)!.org_id,userId:bobId,seatId:seatIdFor(bobId),role:"member",since:17});expect(tickets.redeem(t.ticket)).toMatchObject({matterHandle:handle,streamHandle:root,since:17});});
+  test("real socket handoff replays from the HTTP cursor after a 501-update catch-up, with no skipped frame", async () => {
+    const matter = store.createMatter({ org_id: store.getMatter(handle)!.org_id });
+    store.activateProvisioningMatter(matter.matter_handle);
+    store.addMatterMember({ matter_handle: matter.matter_handle, user_id: aliceId, org_id: matter.org_id, role: "editor" });
+    store.addMatterMember({ matter_handle: matter.matter_handle, user_id: bobId, org_id: matter.org_id, role: "editor" });
+    // Seed via the real relay store, then exercise catch-up and WebSocket
+    // subscription through the actual Bun server. HTTP rate limits should not
+    // turn a 501-item handoff proof into a timing test.
+    for (let i = 0; i < 501; i += 1) {
+      expect(store.appendMatterUpdate({ matter_handle: matter.matter_handle, org_id: matter.org_id, stream_handle: matter.root_stream_handle, blob_id: blobId(`handoff-before-${i}`), ciphertext: envelope(new Uint8Array([i % 255])), author_seat: seatIdFor(aliceId), key_epoch: 1 })).toMatchObject({ duplicate: false });
+    }
+    const first = await pull(matter.matter_handle, matter.root_stream_handle, bob, bobSeat, 0);
+    expect(first.body.updates).toHaveLength(500);
+    expect(first.body.has_more).toBe(true);
+    const finalHttp = await pull(matter.matter_handle, matter.root_stream_handle, bob, bobSeat, first.body.cursor);
+    expect(finalHttp.body.updates).toHaveLength(1);
+    const handoffCursor = finalHttp.body.cursor as number;
+    const between = await push(matter.matter_handle, matter.root_stream_handle, alice, aliceSeat, "handoff-between-pull-and-subscribe", new Uint8Array([1]));
+    expect(between.status).toBe(201);
+    const t = await ticket(matter.matter_handle, matter.root_stream_handle, bob, bobSeat, handoffCursor);
+    expect(t.status).toBe(200);
+    const seen: any[] = [];
+    const ws = await new Promise<WebSocket>((resolve, reject) => {
+      const socket = new WebSocket(wsUrl(t.body.ticket));
+      const timer = setTimeout(() => reject(new Error("handoff socket timeout")), 3000);
+      socket.onmessage = (event) => {
+        const frame = JSON.parse(String(event.data)); seen.push(frame);
+        if (frame.type === "ready") void push(matter.matter_handle, matter.root_stream_handle, alice, aliceSeat, "handoff-after-subscribe", new Uint8Array([2]));
+        if (seen.filter((f) => f.type === "update").length >= 2) { clearTimeout(timer); resolve(socket); }
+      };
+      socket.onerror = () => { clearTimeout(timer); reject(new Error("handoff socket error")); };
+    });
+    try {
+      const updates = seen.filter((frame) => frame.type === "update");
+      expect(seen.find((frame) => frame.type === "ready")).toMatchObject({ replay_from_cursor: handoffCursor });
+      expect(updates.map((frame) => frame.blob_id)).toEqual([blobId("handoff-between-pull-and-subscribe"), blobId("handoff-after-subscribe")]);
+      expect(updates.map((frame) => frame.cursor)).toEqual([between.body.cursor, between.body.cursor + 1]);
+    } finally { ws.close(); }
+  }, 20_000);
   test("pull requires X-Seat-Token header",async()=>{expect((await get(`/v2/firm/streams/${root}/updates?since=0`,alice)).status).toBe(401);});
   test("normal rate-limit bucket permits a request",()=>expect(rateLimit(`relay-${crypto.randomUUID()}`,"proof",{max:2,windowSeconds:10}).ok).toBe(true));
   test("rate-limit exhaustion has 429 semantics",()=>{const ip=`relay-${crypto.randomUUID()}`;rateLimit(ip,"proof",{max:1,windowSeconds:10});expect(rateLimit(ip,"proof",{max:1,windowSeconds:10}).ok).toBe(false);});
@@ -85,7 +126,7 @@ describe("v2 encrypted relay: preserved HTTP, authorization, cursor, and socket 
     store.addMatterMember({ matter_handle: matter.matter_handle, user_id: aliceId, org_id: store.getMatter(handle)!.org_id, role: "editor" });
     expect(store.appendMatterUpdate({ matter_handle: matter.matter_handle, org_id: store.getMatter(handle)!.org_id, stream_handle: matter.root_stream_handle, blob_id: "pre-subscribe-backlog", ciphertext: new Uint8Array([1]), author_seat: "seat", key_epoch: 1 })).toMatchObject({ duplicate: false });
     const tickets = new SyncTicketStore();
-    const ticket = tickets.mint({ matterHandle: matter.matter_handle, streamHandle: matter.root_stream_handle, orgId: store.getMatter(handle)!.org_id, userId: aliceId, seatId: "seat", role: "member" });
+    const ticket = tickets.mint({ matterHandle: matter.matter_handle, streamHandle: matter.root_stream_handle, orgId: store.getMatter(handle)!.org_id, userId: aliceId, seatId: seatIdFor(aliceId), role: "member", since: 0 });
     const approved = authorizeSyncConnect(new Request(`http://relay.test/v2/firm/sync?ticket=${encodeURIComponent(ticket.ticket)}`), store, tickets);
     expect(approved.ok).toBe(true);
     if (!approved.ok) throw new Error("ticket should be approved before archive");
@@ -102,7 +143,7 @@ describe("v2 encrypted relay: preserved HTTP, authorization, cursor, and socket 
     store.activateProvisioningMatter(matter.matter_handle);
     store.addMatterMember({ matter_handle: matter.matter_handle, user_id: aliceId, org_id: store.getMatter(handle)!.org_id, role: "editor" });
     const isolatedHub = new FanoutHub(), frames: string[] = [], closed: Array<[number | undefined, string | undefined]> = [];
-    subscribeSyncSocket(store, isolatedHub, { data: { subId: "open-archive-socket", matterHandle: matter.matter_handle, streamHandle: matter.root_stream_handle, orgId: store.getMatter(handle)!.org_id, userId: aliceId, seatId: "seat", role: "member" }, send: (frame: string) => { frames.push(frame); return 0; }, close: (code?: number, reason?: string) => { closed.push([code, reason]); } } as unknown as Bun.ServerWebSocket<SyncSocketData>);
+    subscribeSyncSocket(store, isolatedHub, { data: { subId: "open-archive-socket", matterHandle: matter.matter_handle, streamHandle: matter.root_stream_handle, orgId: store.getMatter(handle)!.org_id, userId: aliceId, seatId: seatIdFor(aliceId), role: "member", since: 0 }, send: (frame: string) => { frames.push(frame); return 0; }, close: (code?: number, reason?: string) => { closed.push([code, reason]); } } as unknown as Bun.ServerWebSocket<SyncSocketData>);
     expect(frames.length).toBeGreaterThan(0);
     expect(isolatedHub.subscriberCount(matter.matter_handle, matter.root_stream_handle)).toBe(1);
     expect((await handleArchiveMatter(new Request("http://relay.test/v2/firm/route", { method: "POST", headers: { authorization: `Bearer ${admin}`, "content-type": "application/json" }, body: "{}" }), store, matter.matter_handle, isolatedHub)).status).toBe(200);
@@ -119,7 +160,7 @@ describe("v2 encrypted relay: preserved HTTP, authorization, cursor, and socket 
     const released = `sh2_${"R".repeat(43)}`;
     expect(store.appendMatterUpdate({ matter_handle: matter.matter_handle, org_id: store.getMatter(handle)!.org_id, stream_handle: released, blob_id: "release-proof", ciphertext: new Uint8Array([2, ...new Array(28).fill(0)]), author_seat: "seat", key_epoch: 1 })).toMatchObject({ duplicate: false });
     const tickets = new SyncTicketStore();
-    const preRelease = tickets.mint({ matterHandle: matter.matter_handle, streamHandle: released, orgId: store.getMatter(handle)!.org_id, userId: aliceId, seatId: "seat", role: "member" });
+    const preRelease = tickets.mint({ matterHandle: matter.matter_handle, streamHandle: released, orgId: store.getMatter(handle)!.org_id, userId: aliceId, seatId: seatIdFor(aliceId), role: "member", since: 0 });
     const isolatedHub = new FanoutHub(), closed: Array<[number | undefined, string | undefined]> = [];
     isolatedHub.subscribe(matter.matter_handle, { id: "released-socket", user_id: aliceId, seat_id: "seat", send: () => undefined, close: (code?: number, reason?: string) => { closed.push([code, reason]); } }, released);
     const response = await handleReleaseMatterStream(new Request("http://relay.test/v2/firm/route", { method: "POST", headers: { authorization: `Bearer ${admin}`, "content-type": "application/json" }, body: JSON.stringify({ stream_handle: released }) }), store, matter.matter_handle, isolatedHub);
@@ -127,6 +168,35 @@ describe("v2 encrypted relay: preserved HTTP, authorization, cursor, and socket 
     expect(closed).toEqual([[undefined, undefined]]);
     expect(isolatedHub.subscriberCount(matter.matter_handle, released)).toBe(0);
     expect(authorizeSyncConnect(new Request(`http://relay.test/v2/firm/sync?ticket=${preRelease.ticket}`), store, tickets).ok).toBe(false);
+  });
+
+  test("revoked seats, deprovisioned users, and suspended orgs cannot redeem or retain live sockets", async () => {
+    const orgId = store.getMatter(handle)!.org_id;
+    const tickets = new SyncTicketStore();
+    const preRevoke = tickets.mint({ matterHandle: handle, streamHandle: root, orgId, userId: bobId, seatId: seatIdFor(bobId), role: "member", since: 0 });
+    store.revokeSeat(seatIdFor(bobId), "test_revoke_before_redeem");
+    expect(authorizeSyncConnect(new Request(`http://relay.test/v2/firm/sync?ticket=${preRevoke.ticket}`), store, tickets).ok).toBe(false);
+
+    const isolatedHub = new FanoutHub();
+    const open = (subId: string, userId: string, seatId: string) => {
+      const frames: string[] = [], closed: string[] = [];
+      subscribeSyncSocket(store, isolatedHub, { data: { subId, matterHandle: handle, streamHandle: root, orgId, userId, seatId, role: "member", since: store.latestMatterCursor(handle, root) }, send: (frame: string) => { frames.push(frame); return 0; }, close: (_code?: number, reason?: string) => { closed.push(reason ?? "closed"); } } as unknown as Bun.ServerWebSocket<SyncSocketData>);
+      return { frames, closed };
+    };
+    const seatSocket = open("revoked-live", aliceId, seatIdFor(aliceId));
+    expect(seatSocket.frames.some((frame) => frame.includes('"type":"ready"'))).toBe(true);
+    expect((await handleRevokeSeat(new Request("http://relay.test/org/seat/revoke", { method: "POST", headers: { authorization: `Bearer ${admin}`, "content-type": "application/json" }, body: JSON.stringify({ seat_id: seatIdFor(aliceId) }) }), store, isolatedHub)).status).toBe(200);
+    isolatedHub.broadcast(handle, { type: "update", cursor: 999, blob_id: "after-seat-revoke", key_epoch: 1, author_seat: "x", created_at: "now", ciphertext_b64: "AQ==" }, root);
+    expect(seatSocket.closed).toHaveLength(1);
+    expect(seatSocket.frames.some((frame) => frame.includes("after-seat-revoke"))).toBe(false);
+
+    const userSocket = open("deprovisioned-live", ownerId, seatIdFor(ownerId));
+    expect((await handleDeprovisionUser(new Request("http://relay.test/org/user/deprovision", { method: "POST", headers: { authorization: `Bearer ${admin}`, "content-type": "application/json" }, body: JSON.stringify({ user_id: ownerId }) }), store, isolatedHub)).status).toBe(200);
+    expect(userSocket.closed).toHaveLength(1);
+
+    const orgSocket = open("suspended-live", viewerId, seatIdFor(viewerId));
+    store.setOrgStatus(orgId, "suspended");
+    expect(orgSocket.closed).toHaveLength(1);
   });
 
 });

@@ -56,7 +56,7 @@ describe('FirmApiClient v2 relay privacy', () => {
       await client.fetchMatterKeys(matterHandle, 'device-opaque', 'seat'),
       await client.pushUpdate(matterHandle, streamHandle, 'blob-opaque', 'ciphertext-opaque', 'seat', 1),
       await client.pullUpdates(streamHandle, 0, 'seat'),
-      await client.createSyncTicket(streamHandle, 'seat'),
+      await client.createSyncTicket(streamHandle, 'seat', 0),
     );
 
     for (const request of traffic) {

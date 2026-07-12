@@ -101,7 +101,7 @@ describe("archived matter relay denial", () => {
     const f = fixture();
     expect((await handlePushUpdate(pushRequest(f, "active-push"), f.store, f.matter.matter_handle, f.matter.root_stream_handle, "active-push")).status).toBe(201);
     expect((await handlePullUpdates(request(f.memberToken, {}, f.memberSeat), f.store, f.matter.matter_handle, f.matter.root_stream_handle, "active-pull")).status).toBe(200);
-    expect((await handleSyncTicket(request(f.memberToken, {}, f.memberSeat), f.store, f.matter.matter_handle, f.matter.root_stream_handle, "active-ticket", new SyncTicketStore())).status).toBe(200);
+    expect((await handleSyncTicket(request(f.memberToken, { since: 0 }, f.memberSeat), f.store, f.matter.matter_handle, f.matter.root_stream_handle, "active-ticket", new SyncTicketStore())).status).toBe(200);
     expect((await handleFetchMatterKey(request(f.memberToken, { device_id: "member-device" }, f.memberSeat), f.store, f.matter.matter_handle)).status).toBe(200);
     f.store.close();
   });
@@ -180,7 +180,7 @@ describe("archived matter relay denial", () => {
   test("archive cannot be reversed, and relay access remains denied", async () => {
     const f = fixture();
     const tickets = new SyncTicketStore();
-    const minted = await handleSyncTicket(request(f.memberToken, {}, f.memberSeat), f.store, f.matter.matter_handle, f.matter.root_stream_handle, "terminal-ticket", tickets);
+    const minted = await handleSyncTicket(request(f.memberToken, { since: 0 }, f.memberSeat), f.store, f.matter.matter_handle, f.matter.root_stream_handle, "terminal-ticket", tickets);
     expect(minted.status).toBe(200);
     const { ticket } = await minted.json() as { ticket: string };
 
@@ -189,7 +189,7 @@ describe("archived matter relay denial", () => {
     expect(f.store.getMatter(f.matter.matter_handle)?.status).toBe("archived");
     await expectOpaqueArchivedDenial(await handlePushUpdate(pushRequest(f, "terminal-push"), f.store, f.matter.matter_handle, f.matter.root_stream_handle, "terminal-push"));
     await expectOpaqueArchivedDenial(await handlePullUpdates(request(f.memberToken, {}, f.memberSeat), f.store, f.matter.matter_handle, f.matter.root_stream_handle, "terminal-pull"));
-    await expectOpaqueArchivedDenial(await handleSyncTicket(request(f.memberToken, {}, f.memberSeat), f.store, f.matter.matter_handle, f.matter.root_stream_handle, "terminal-ticket-after-archive", tickets));
+    await expectOpaqueArchivedDenial(await handleSyncTicket(request(f.memberToken, { since: 0 }, f.memberSeat), f.store, f.matter.matter_handle, f.matter.root_stream_handle, "terminal-ticket-after-archive", tickets));
     await expectOpaqueArchivedDenial(await handleFetchMatterKey(request(f.memberToken, { device_id: "member-device" }, f.memberSeat), f.store, f.matter.matter_handle));
     const connection = authorizeSyncConnect(new Request(`http://relay.test/v2/firm/sync?ticket=${encodeURIComponent(ticket)}`), f.store, tickets);
     expect(connection.ok).toBe(false);
@@ -215,14 +215,14 @@ describe("archived matter relay denial", () => {
   test("sync-ticket minting for an archived matter is denied", async () => {
     const f = fixture();
     f.store.archiveMatter(f.matter.matter_handle);
-    await expectOpaqueArchivedDenial(await handleSyncTicket(request(f.memberToken, {}, f.memberSeat), f.store, f.matter.matter_handle, f.matter.root_stream_handle, "archived-ticket", new SyncTicketStore()));
+    await expectOpaqueArchivedDenial(await handleSyncTicket(request(f.memberToken, { since: 0 }, f.memberSeat), f.store, f.matter.matter_handle, f.matter.root_stream_handle, "archived-ticket", new SyncTicketStore()));
     f.store.close();
   });
 
   test("a ticket minted before archive cannot open a WebSocket afterwards", async () => {
     const f = fixture();
     const tickets = new SyncTicketStore();
-    const minted = await handleSyncTicket(request(f.memberToken, {}, f.memberSeat), f.store, f.matter.matter_handle, f.matter.root_stream_handle, "prearchive-ticket", tickets);
+    const minted = await handleSyncTicket(request(f.memberToken, { since: 0 }, f.memberSeat), f.store, f.matter.matter_handle, f.matter.root_stream_handle, "prearchive-ticket", tickets);
     expect(minted.status).toBe(200);
     const { ticket } = await minted.json() as { ticket: string };
     f.store.archiveMatter(f.matter.matter_handle);
@@ -298,10 +298,10 @@ describe("archived matter relay denial", () => {
     const tickets = new SyncTicketStore();
     await expectOpaqueArchivedDenial(await handlePushUpdate(pushRequest(f, "provisioning-push"), f.store, f.matter.matter_handle, f.matter.root_stream_handle, "provisioning-push"));
     await expectOpaqueArchivedDenial(await handlePullUpdates(request(f.memberToken, {}, f.memberSeat), f.store, f.matter.matter_handle, f.matter.root_stream_handle, "provisioning-pull"));
-    await expectOpaqueArchivedDenial(await handleSyncTicket(request(f.memberToken, {}, f.memberSeat), f.store, f.matter.matter_handle, f.matter.root_stream_handle, "provisioning-ticket", tickets));
+    await expectOpaqueArchivedDenial(await handleSyncTicket(request(f.memberToken, { since: 0 }, f.memberSeat), f.store, f.matter.matter_handle, f.matter.root_stream_handle, "provisioning-ticket", tickets));
     await expectOpaqueArchivedDenial(await handleFetchMatterKey(request(f.memberToken, { device_id: "member-device" }, f.memberSeat), f.store, f.matter.matter_handle));
     await expectOpaqueArchivedDenial(await handlePublishMatterKeys(request(f.adminToken, { epoch: 1, wrapped: [] }), f.store, f.matter.matter_handle));
-    const { ticket } = tickets.mint({ matterHandle: f.matter.matter_handle, streamHandle: f.matter.root_stream_handle, orgId: f.org.org_id, userId: f.member.user_id, seatId: f.memberSeatId, role: "member" });
+    const { ticket } = tickets.mint({ matterHandle: f.matter.matter_handle, streamHandle: f.matter.root_stream_handle, orgId: f.org.org_id, userId: f.member.user_id, seatId: f.memberSeatId, role: "member", since: 0 });
     const connection = authorizeSyncConnect(new Request(`http://relay.test/v2/firm/sync?ticket=${ticket}`), f.store, tickets);
     expect(connection.ok).toBe(false);
     f.store.close();
@@ -321,10 +321,10 @@ describe("archived matter relay denial", () => {
     const tickets = new SyncTicketStore();
     await expectOpaqueArchivedDenial(await handlePushUpdate(pushRequest(f, "malformed-push"), f.store, f.matter.matter_handle, f.matter.root_stream_handle, "malformed-push"));
     await expectOpaqueArchivedDenial(await handlePullUpdates(request(f.memberToken, {}, f.memberSeat), f.store, f.matter.matter_handle, f.matter.root_stream_handle, "malformed-pull"));
-    await expectOpaqueArchivedDenial(await handleSyncTicket(request(f.memberToken, {}, f.memberSeat), f.store, f.matter.matter_handle, f.matter.root_stream_handle, "malformed-ticket", tickets));
+    await expectOpaqueArchivedDenial(await handleSyncTicket(request(f.memberToken, { since: 0 }, f.memberSeat), f.store, f.matter.matter_handle, f.matter.root_stream_handle, "malformed-ticket", tickets));
     await expectOpaqueArchivedDenial(await handleFetchMatterKey(request(f.memberToken, { device_id: "member-device" }, f.memberSeat), f.store, f.matter.matter_handle));
     await expectOpaqueArchivedDenial(await handlePublishMatterKeys(request(f.adminToken, { epoch: 1, wrapped: [] }), f.store, f.matter.matter_handle));
-    const { ticket } = tickets.mint({ matterHandle: f.matter.matter_handle, streamHandle: f.matter.root_stream_handle, orgId: f.org.org_id, userId: f.member.user_id, seatId: f.memberSeatId, role: "member" });
+    const { ticket } = tickets.mint({ matterHandle: f.matter.matter_handle, streamHandle: f.matter.root_stream_handle, orgId: f.org.org_id, userId: f.member.user_id, seatId: f.memberSeatId, role: "member", since: 0 });
     const connection = authorizeSyncConnect(new Request(`http://relay.test/v2/firm/sync?ticket=${ticket}`), f.store, tickets);
     expect(connection.ok).toBe(false);
     f.store.close();

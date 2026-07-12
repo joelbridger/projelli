@@ -166,7 +166,7 @@ describe("v2 route inventory hostile-client privacy proof", () => {
       store.activateProvisioningMatter(wsMatter.matter_handle);
       for (const sentinel of SENTINELS) {
         const ticketResponse = await fetch(`${base}/v2/firm/streams/${wsMatter.root_stream_handle}/sync-ticket`, {
-          method: "POST", headers: { authorization: auth, "x-seat-token": seat, "content-type": "application/json" }, body: "{}",
+          method: "POST", headers: { authorization: auth, "x-seat-token": seat, "content-type": "application/json" }, body: '{"since":0}',
         });
         expect(ticketResponse.status).toBe(200);
         const { ticket } = await ticketResponse.json() as { ticket: string };

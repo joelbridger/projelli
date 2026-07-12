@@ -532,7 +532,7 @@ describe("firm relay privacy proof", () => {
       }
 
       const ticketResponse = await fetch(`${base}/v2/firm/streams/${rootStream}/sync-ticket`, {
-        method: "POST", headers: { "content-type": "application/json", ...auth }, body: "{}",
+        method: "POST", headers: { "content-type": "application/json", ...auth }, body: '{"since":0}',
       });
       const { ticket } = await responseJson(ticketResponse) as { ticket: string };
       const socket = await new Promise<WebSocket>((resolve, reject) => {

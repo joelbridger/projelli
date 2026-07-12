@@ -452,13 +452,13 @@ export class FirmApiClient {
    * WS URL; the access/seat token never appears in a WebSocket URL.
    *
    */
-  createSyncTicket(streamHandle: StreamHandle, seatToken: string): Promise<SyncTicketResponse> {
+  createSyncTicket(streamHandle: StreamHandle, seatToken: string, since: number): Promise<SyncTicketResponse> {
     return this.request<SyncTicketResponse>(
       FIRM_ENDPOINTS.syncTicket.replace(':stream_handle', encodeURIComponent(parseStreamHandle(streamHandle))),
       {
         method: 'POST',
         auth: true,
-        body: {},
+        body: { since },
         headers: { 'X-Seat-Token': seatToken },
       },
     );

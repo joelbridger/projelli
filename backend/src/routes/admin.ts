@@ -26,6 +26,7 @@ import { hashPassword, generateLicenseKey, hmacHash } from "../lib/crypto.ts";
 import { publicSeat, publicUser, mintSeatToken } from "../lib/services.ts";
 import type { Store } from "../lib/db.ts";
 import type { AccessTokenClaims, Plan, ProfessionPack } from "../lib/types.ts";
+import { fanout, type FanoutHub } from "../lib/matters.ts";
 
 /** Require admin role + return the verified claims, or an error Response. */
 function requireAdmin(req: Request): { ok: true; claims: AccessTokenClaims } | { ok: false; resp: Response } {
@@ -51,7 +52,7 @@ export async function handleListSeats(req: Request, store: Store): Promise<Respo
   });
 }
 
-export async function handleRevokeSeat(req: Request, store: Store): Promise<Response> {
+export async function handleRevokeSeat(req: Request, store: Store, hub: FanoutHub = fanout): Promise<Response> {
   const a = requireAdmin(req);
   if (!a.ok) return a.resp;
   const body = await readJson<{ seat_id?: unknown; reason?: unknown }>(req);
@@ -64,12 +65,13 @@ export async function handleRevokeSeat(req: Request, store: Store): Promise<Resp
   const reason = isNonEmptyString(body.reason, 256) ? body.reason.trim() : "admin_revoked";
   const done = store.revokeSeat(seat.seat_id, reason);
   if (done) {
+    hub.evictSeat(seat.seat_id);
     store.audit({ org_id: seat.org_id, actor_user_id: a.claims.sub, action: "seat.revoke", target: seat.seat_id, detail: { reason } });
   }
   return json({ ok: true, seat_id: seat.seat_id, revoked: done });
 }
 
-export async function handleDeprovisionUser(req: Request, store: Store): Promise<Response> {
+export async function handleDeprovisionUser(req: Request, store: Store, hub: FanoutHub = fanout): Promise<Response> {
   const a = requireAdmin(req);
   if (!a.ok) return a.resp;
   const body = await readJson<{ user_id?: unknown }>(req);
@@ -83,6 +85,7 @@ export async function handleDeprovisionUser(req: Request, store: Store): Promise
   const seatsRevoked = store.revokeAllSeatsForUser(target.user_id, "user_deprovisioned");
   store.revokeAllRefreshTokensForUser(target.user_id);
   store.setUserStatus(target.user_id, "deprovisioned");
+  hub.evictUser(target.user_id);
   store.audit({ org_id: target.org_id, actor_user_id: a.claims.sub, action: "user.deprovision", target: target.user_id, detail: { seats_revoked: seatsRevoked } });
 
   // NOTE for chunk 2/3: this is also the signal to stop releasing per-matter

@@ -279,6 +279,8 @@ export interface SyncTicketResponse {
 export interface SyncReadyFrame {
   type: 'ready';
   backlog: number;
+  /** Cursor supplied in the ticket; socket replay begins strictly after it. */
+  replay_from_cursor: number;
   latest_cursor: number;
   /** Current subscriber count (including self) at the moment the socket joined. */
   subscribers: number;

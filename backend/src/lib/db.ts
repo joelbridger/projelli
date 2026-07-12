@@ -15,6 +15,7 @@
 import { Database, type SQLQueryBindings } from "bun:sqlite";
 import { randomBytes, randomUUID } from "node:crypto";
 import { config } from "./config.ts";
+import { FanoutHub } from "./matters.ts";
 import type {
   Org,
   User,
@@ -732,6 +733,7 @@ export class Store {
 
   setOrgStatus(orgId: string, status: OrgStatus): void {
     this.#db.query(`UPDATE orgs SET status = ? WHERE org_id = ?`).run(status, orgId);
+    if (status !== "active") FanoutHub.evictOrgEverywhere(orgId);
   }
 
   // ---- Users ---------------------------------------------------------------
@@ -783,6 +785,7 @@ export class Store {
 
   setUserStatus(userId: string, status: UserStatus): void {
     this.#db.query(`UPDATE users SET status = ? WHERE user_id = ?`).run(status, userId);
+    if (status !== "active") FanoutHub.evictUserEverywhere(userId);
   }
 
   /** Active admin users for an org. Clients use this to wrap matter keys to admin
@@ -985,6 +988,7 @@ export class Store {
     this.#db
       .query(`INSERT INTO revocations (seat_id, org_id, reason, revoked_at) VALUES (?, ?, ?, ?)`)
       .run(seatId, seat.org_id, reason, now);
+    FanoutHub.evictSeatEverywhere(seatId);
     return true;
   }
 
