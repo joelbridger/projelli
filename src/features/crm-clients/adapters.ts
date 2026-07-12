@@ -31,6 +31,8 @@ export interface CrmSource {
   id: string;
   label: string;
   asOf?: string;
+  /** A resolvable workspace, mail, CRM, or web location. */
+  ref?: string;
 }
 export interface CrmFact {
   id: string;
@@ -62,7 +64,14 @@ export interface CrmPerson {
   channel?: string;
   verifiedAt?: string;
   verifiedBy?: string;
+  companyName?: string;
+  jobTitle?: string;
+  addresses?: readonly CrmContactAddress[];
+  emails?: readonly CrmContactChannel[];
+  phones?: readonly CrmContactChannel[];
 }
+export interface CrmContactAddress { id: string; address: string; city: string; state: string; zip: string; kind: string; primary: boolean; }
+export interface CrmContactChannel { id: string; address: string; kind: string; primary: boolean; }
 export interface CrmNote {
   id: string;
   body: string;
