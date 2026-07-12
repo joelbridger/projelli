@@ -18,6 +18,7 @@ pub async fn delete_path(table: &Table, path: &str, key: &[u8; 32]) -> Result<()
 /// directly. P1.1: keeps the deleted-file purge correct on Windows, where the
 /// stored token is over a backslash path and normalization would mismatch.
 pub async fn delete_by_token(table: &Table, token: &str) -> Result<()> {
+    let _write = acquire_write_access(table).await?;
     let predicate = format!("path = '{}'", sql_escape(token));
     table
         .delete(&predicate)
@@ -34,6 +35,7 @@ pub async fn delete_by_token(table: &Table, token: &str) -> Result<()> {
 /// SQL-escaped to keep the predicate safe. Deleting `UNASSIGNED_MATTER` is
 /// refused: it would wipe every uncategorized chunk in the workspace.
 pub async fn delete_matter(table: &Table, matter_id: &str) -> Result<()> {
+    let _write = acquire_write_access(table).await?;
     let matter_id = validate_matter_id(matter_id)?;
     if matter_id == UNASSIGNED_MATTER {
         anyhow::bail!("refusing to delete the UNASSIGNED_MATTER bucket");
@@ -49,6 +51,7 @@ pub async fn delete_matter(table: &Table, matter_id: &str) -> Result<()> {
 /// Delete every chunk with the given source_type (e.g. "crm"). Used to purge
 /// an external connector's imported data when the user disconnects it.
 pub async fn delete_source_type(table: &Table, source_type: &str) -> Result<()> {
+    let _write = acquire_write_access(table).await?;
     let predicate = format!("source_type = '{}'", sql_escape(source_type));
     table
         .delete(&predicate)
@@ -222,6 +225,7 @@ async fn list_crm_provider_entries(
 /// what removed the churn. The slice form is kept so the same primitive can clear
 /// several matters at once (e.g. the empty-map / orphan purge).
 pub async fn delete_crm_for_matters(table: &Table, matter_ids: &[String]) -> Result<()> {
+    let _write = acquire_write_access(table).await?;
     let Some(predicate) = crm_delete_predicate(matter_ids) else {
         return Ok(());
     };
@@ -249,6 +253,7 @@ pub async fn delete_crm_for_matters_for_provider(
     if matter_ids.is_empty() {
         return Ok(());
     }
+    let _write = acquire_write_access(table).await?;
     let entries = list_crm_provider_entries(table, Some(matter_ids), provider_id, key).await?;
     let source_tokens: HashSet<String> = entries.into_iter().map(|(_, token)| token).collect();
     if source_tokens.is_empty() {
@@ -324,4 +329,3 @@ pub async fn list_crm_matters_for_provider(
     let entries = list_crm_provider_entries(table, None, provider_id, key).await?;
     Ok(entries.into_iter().map(|(matter, _)| matter).collect())
 }
-

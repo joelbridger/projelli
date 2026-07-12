@@ -43,6 +43,7 @@ const INTERNAL_EXACT_SERVICES: &[&str] = &[
     identity::AUDIT_ENC_SERVICE,
     identity::MAIL_ENC_SERVICE,
     identity::VECTORS_ENC_SERVICE,
+    identity::LEGACY_CRM_ENC_SERVICE,
     identity::INTAKE_FACTS_ENC_SERVICE,
     // Voiceprint store master key (Wave 4 Track A). Biometric data — the
     // renderer's generic keychain bridge must never read, write, or delete it.
@@ -371,6 +372,7 @@ mod tests {
             &crm_salesforce,
             &crm_redtail,
             identity::CRM_ENC_SERVICE,           // SQLCipher master key
+            identity::LEGACY_CRM_ENC_SERVICE,    // pre-Lantern DB key retained for migration
             identity::WEALTHBOX_LEGACY_SERVICE,  // legacy Wealthbox slot (exact)
             // Bonus connectors: token slot (exact) + SQLCipher DB key (prefix).
             identity::BOX_SERVICE,

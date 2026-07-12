@@ -6,6 +6,7 @@ use std::collections::HashSet;
 /// churn during the run (the "Auto cleanup every ~30s" the bench observed). Failure
 /// must NOT fail the sync — call sites treat it as best-effort.
 pub async fn optimize_after_bulk_write(table: &Table) -> Result<()> {
+    let _write = acquire_write_access(table).await?;
     table
         .optimize(lancedb::table::OptimizeAction::All)
         .await
@@ -43,6 +44,7 @@ pub const VECTOR_INDEX_MIN_ROWS: usize = 25_000;
 /// flat-scanned unindexed delta until the next rebuild/optimize, so results are
 /// always correct (never stale), only the delta is slower.
 pub async fn create_vector_index(table: &Table) -> Result<()> {
+    let _write = acquire_write_access(table).await?;
     use lancedb::index::vector::IvfFlatIndexBuilder;
     use lancedb::index::Index;
     use lancedb::DistanceType;
@@ -254,6 +256,7 @@ pub async fn retag_privilege_for_path(
     privilege: &str,
     key: &[u8; 32],
 ) -> Result<u64> {
+    let _write = acquire_write_access(table).await?;
     let privilege = validate_privilege(privilege)?;
     // VG-6e: tokenized predicate — the column holds the keyed token.
     let predicate = format!(
@@ -291,6 +294,7 @@ pub async fn retag_matter_for_path(
     matter_id: &str,
     key: &[u8; 32],
 ) -> Result<u64> {
+    let _write = acquire_write_access(table).await?;
     let matter_id = validate_matter_id(matter_id)?;
     // VG-6e: tokenized predicate — the column holds the keyed token.
     let predicate = format!(
@@ -338,6 +342,7 @@ pub async fn retag_matter_for_paths(
     if paths.is_empty() {
         return Ok(0);
     }
+    let _write = acquire_write_access(table).await?;
     let matter_id = validate_matter_id(matter_id)?;
     let value_expr = format!("'{}'", sql_escape(matter_id));
     let mut total = 0u64;

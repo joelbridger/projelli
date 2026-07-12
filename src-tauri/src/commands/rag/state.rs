@@ -442,6 +442,7 @@ pub async fn index_downloaded_document_bytes_as_source_type(
         .context("build downloaded document batch")?;
     let schema = batch.schema();
     use arrow_array::RecordBatchIterator;
+    let _write = store::acquire_write_access(table).await?;
     table
         .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
         .execute()

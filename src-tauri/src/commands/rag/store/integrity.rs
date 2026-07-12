@@ -326,6 +326,7 @@ pub async fn needs_migration(conn: &Connection, workspace_root: &Path) -> Result
 /// the 3.0 schema. Used by the one-time migration when `needs_migration` is true.
 /// No-op if the table doesn't exist.
 pub async fn drop_table(conn: &Connection) -> Result<()> {
+    let _write = acquire_connection_write_access(conn).await?;
     let names = conn
         .table_names()
         .execute()
@@ -338,4 +339,3 @@ pub async fn drop_table(conn: &Connection) -> Result<()> {
     }
     Ok(())
 }
-

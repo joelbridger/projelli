@@ -114,6 +114,9 @@ pub const ONEDRIVE_ENC_SERVICE: &str = concat!(app_ns!(), "-onedrive-enc");
 
 /// CRM connector DB encryption key service.
 pub const CRM_ENC_SERVICE: &str = concat!(app_ns!(), "-crm-enc");
+/// Pre-Lantern CRM database key. Read only to migrate encrypted upgrade data;
+/// never use for new writes once the current service has been repaired.
+pub const LEGACY_CRM_ENC_SERVICE: &str = "keepance-crm-enc";
 
 /// Intake facts SQLCipher database encryption key service.
 pub const INTAKE_FACTS_ENC_SERVICE: &str = concat!(app_ns!(), "-intake-facts-enc");

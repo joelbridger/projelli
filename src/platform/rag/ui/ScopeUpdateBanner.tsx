@@ -18,16 +18,45 @@
  * light-first UI. No em dashes (house copy rule).
  */
 
+import { useEffect, useState } from 'react';
 import { useScopeUpdateEntries } from '@/platform/rag/scopeUpdateStore';
+import { ragScopeWriteQueueDepth } from '@/platform/utils/tauri-commands';
+
+function PendingScopeUpdateMessage() {
+  const [queued, setQueued] = useState(false);
+
+  useEffect(() => {
+    let disposed = false;
+    const refresh = (): void => {
+      ragScopeWriteQueueDepth()
+        .then((depth) => {
+          if (!disposed) setQueued(depth > 0);
+        })
+        .catch(() => {
+          // Status lookup is only a hint. The operation has its own honest
+          // retry/failure path, so a polling hiccup falls back to "updating".
+          if (!disposed) setQueued(false);
+        });
+    };
+    refresh();
+    const timer = window.setInterval(refresh, 250);
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  return queued
+    ? 'Queued behind another search update. This will start as soon as the current update finishes.'
+    : 'Updating search scope. New privacy and client rules apply once this finishes.';
+}
 
 export function ScopeUpdateBanner() {
   const entries = useScopeUpdateEntries();
+
   if (entries.length === 0) return null;
 
   const anyFailed = entries.some((e) => e.status === 'failed');
-  const message = anyFailed
-    ? 'Search scope update failed - retrying. Some content is held out of search until it applies.'
-    : 'Updating search scope. New privacy and client rules apply once this finishes.';
 
   return (
     <div
@@ -48,7 +77,11 @@ export function ScopeUpdateBanner() {
         />
       )}
       <span className="min-w-0 truncate font-medium" data-testid="scope-update-message">
-        {message}
+        {anyFailed ? (
+          'Search scope update failed - retrying. Some content is held out of search until it applies.'
+        ) : (
+          <PendingScopeUpdateMessage />
+        )}
       </span>
     </div>
   );
