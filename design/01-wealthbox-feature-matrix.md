@@ -148,8 +148,8 @@ every external write; light theme; `matter`/`matter_id` never renamed.*
 | Contact activity stream | Chronological feed of everything on a contact (notes, tasks, events, emails) | Basic | R | E-100 — "your lives are really in Wealthbox tasks, workflows... and email" | REPLICATE — becomes the unified, dated, sourced timeline (charter §5.2) |
 | Firm-wide activity/dashboard feed | A home-page feed of firm activity across contacts | Basic | R | not mentioned | REPLICATE |
 | @-mentioning | Type "@" + a contact name from the publisher box to post a note about them without navigating to their record | Basic | UNVERIFIED | not mentioned directly (matches E-021's "notify everybody" pattern) | REPLICATE |
-| Comments on activity | Reply to an activity-stream item; visibility can be set to "everyone" | Basic | R only | not mentioned | SKIP for v1 — documented [D23 exclusion](00-master-spec.md): activity comments are deferred together with reactions; no v1 comment entity or composer is planned. |
-| Likes/emoji activity reactions | React to an activity-stream item | Basic | R only | not mentioned | SKIP for v1 — deferred with activity comments under [D23](00-master-spec.md); neither has a v1 contract or screen home. |
+| Comments on activity | Reply to an activity-stream item; visibility can be set to "everyone" | Basic | R only | not mentioned | REPLICATE — firm-wide threaded comments live under each activity item and remain visible on the linked client timeline. |
+| Likes/emoji activity reactions | React to an activity-stream item | Basic | R only | not mentioned | REPLICATE — firm members can add or remove a reaction on each activity item; reaction records are saved with the activity thread. |
 
 ## 12. Document storage
 

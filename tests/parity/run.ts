@@ -1230,6 +1230,69 @@ class DesktopParityApp implements ParityApp {
     if (field.kind !== 'customFieldDef') fail('Custom field definition changed kind unexpectedly');
   }
 
+  async activityConversation(): Promise<void> {
+    const { path, householdId } = await this.setWorkspace(
+      `activity-conversation-${this.token('workspace')}`
+    );
+    await this.openHome();
+    await this.click('crm-home-nav-activity');
+    const householdOptionDeadline = Date.now() + 10_000;
+    while (Date.now() < householdOptionDeadline) {
+      const available = await this.eval(`Array.from(document.querySelector('[data-testid="crm-activity-household"]')?.querySelectorAll('option') ?? []).some((option) => option.value === ${JSON.stringify(householdId)})`);
+      if (available) break;
+      await delay(150);
+    }
+    if (!await this.eval(`Array.from(document.querySelector('[data-testid="crm-activity-household"]')?.querySelectorAll('option') ?? []).some((option) => option.value === ${JSON.stringify(householdId)})`))
+      fail('The saved client was not available when recording firm activity');
+    await this.select('crm-activity-household', householdId);
+    await this.click('crm-firm-activity-create');
+    const activity = await this.waitForRecord(
+      (record) => record.kind === 'activityEvent' && record.householdId === householdId,
+      'Recording a client activity did not create a saved activity record'
+    );
+    const activityId = String(activity.id);
+    const comment = this.token('Parity activity comment');
+    await this.fill(`crm-activity-comment-input-${activityId}`, comment);
+    await this.click(`crm-activity-comment-save-${activityId}`);
+    const parent = await this.waitForRecord(
+      (record) => record.kind === 'activityComment' && record.activityId === activityId && record.body === comment && record.visibility === 'firm-wide',
+      'Posting a comment did not create a firm-wide saved comment record'
+    );
+    await this.waitForControl(`crm-activity-comment-reply-${String(parent.id)}`);
+    await this.click(`crm-activity-comment-reply-${String(parent.id)}`);
+    const reply = this.token('Parity activity reply');
+    await this.fill(`crm-activity-comment-input-${activityId}`, reply);
+    await this.click(`crm-activity-comment-save-${activityId}`);
+    await this.waitForRecord(
+      (record) => record.kind === 'activityComment' && record.activityId === activityId && record.body === reply && record.parentCommentId === parent.id,
+      'Replying did not create a saved threaded comment record'
+    );
+    await this.click(`crm-activity-reaction-${activityId}-👍`);
+    await this.waitForRecord(
+      (record) => record.kind === 'activityReaction' && record.activityId === activityId && record.emoji === '👍' && !record.removedAt,
+      'Adding a reaction did not create a saved reaction record'
+    );
+    await this.restart();
+    await this.openHome();
+    await this.click('crm-home-nav-activity');
+    await this.requireText(comment);
+    await this.requireText(reply);
+    await this.require(`crm-activity-reactions-${activityId}`);
+    const afterRestart = await this.records();
+    if (!afterRestart.some((record) => record.kind === 'activityComment' && record.activityId === activityId && record.body === comment))
+      fail('The activity comment disappeared after native restart');
+    if (!afterRestart.some((record) => record.kind === 'activityReaction' && record.activityId === activityId && record.emoji === '👍' && !record.removedAt))
+      fail('The activity reaction disappeared after native restart');
+    await this.clickSpineTab('matters');
+    await this.waitForControl(`crm-directory-household-${householdId}`);
+    await this.click(`crm-directory-household-${householdId}`);
+    await this.waitForControl('crm-household-record');
+    await this.click('crm-household-tab-timeline');
+    await this.requireText(comment);
+    await this.requireText(reply);
+    await this.require(`crm-activity-thread-${activityId}`);
+  }
+
   async durableFeature(options: {
     route: string;
     controls: string[];

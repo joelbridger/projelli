@@ -1,6 +1,7 @@
 import type { ComponentType, ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import type { CrmEngineFreshness } from '@/platform/crm/store';
+import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import type { TimelineRecord } from '@/features/crm-timeline';
 import type { CrmClientsActions, CrmProposal, HouseholdRecord } from './adapters';
 import { clientMapTab } from './clientMapTab';
@@ -17,6 +18,7 @@ export interface HouseholdTabSurfaceProps {
   actions?: CrmClientsActions;
   timelineRecords: readonly TimelineRecord[];
   timelineFreshness?: CrmEngineFreshness;
+  onSaveActivityRecord?: (record: LiveCrmRecord) => Promise<unknown> | unknown;
   renderLegacySurface: (id: HouseholdTab) => ReactNode;
 }
 

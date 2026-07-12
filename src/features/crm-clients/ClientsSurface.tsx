@@ -148,6 +148,7 @@ export function ClientsSurface({
         onSaveHousehold={saveHousehold}
         timelineRecords={live.records as readonly TimelineRecord[]}
         timelineFreshness={live.freshness}
+        onSaveActivityRecord={live.save}
         actions={{
           ...actions,
           onSaveNote: async (note, notifyFirm) => {
