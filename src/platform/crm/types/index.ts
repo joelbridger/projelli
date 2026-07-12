@@ -8,6 +8,8 @@ import type { CoreSectionKey, SourceRef } from '@/platform/clientMap/types';
 
 export type EntityKind =
   | 'household' | 'person' | 'account' | 'fact' | 'note' | 'task'
+  /** A file owned by the existing Documents workspace, never a CRM record. */
+  | 'document'
   | 'workflowTemplate' | 'workflowInstance' | 'servicePolicy'
   | 'activityEvent' | 'firmDoc' | 'tag' | 'customFieldDef'
   | 'opportunity' | 'pipelineDef' | 'stageDef' | 'proposalRecord' | 'legacyProject'
@@ -24,7 +26,11 @@ export type ExternalProvider =
   | (string & {});
 export interface ExternalRef { provider: ExternalProvider; sourceType: string; sourceId: string; scope: string; crmKey?: string; lastSyncedAt?: string; }
 export interface RawRecordRef { importBatchId: string; manifestId: string; rawRecordId: string; sha256: string; capturedAt: string; }
-export interface EntityRef { kind: EntityKind; id: string; matterId?: string; }
+/**
+ * A small pointer to another thing. `document` pointers use the existing
+ * workspace file path as their id; the CRM never makes a second file record.
+ */
+export interface EntityRef { kind: EntityKind; id: string; matterId?: string; label?: string; }
 export type Keyed<T> = Record<string, T>;
 export interface HlcStamp { wallMillis: number; logicalCounter: number; actorId: string; operationId: string; }
 

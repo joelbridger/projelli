@@ -27,11 +27,33 @@ function sourceList(input: unknown): TimelineSource[] {
 }
 
 function referencesHousehold(record: TimelineRecord, household: TimelineHousehold): boolean {
+  if (record.kind === 'household' && record.id === household.id) return true;
   if (text(value(record, 'householdId')) === household.id) return true;
   const householdRef = value(record, 'householdRef');
   if (householdRef && typeof householdRef === 'object' && text(value(householdRef as Record<string, unknown>, 'id')) === household.id) return true;
   if (['householdLinks', 'links', 'contextRefs'].some((key) => sourceList(value(record, key)).some((item) => item.kind === 'household' && item.id === household.id))) return true;
   return Boolean(household.matterId && record.matterId === household.matterId);
+}
+
+/** Document files live in Documents. CRM records store only these small refs. */
+function addDocumentLinkEntries(entries: TimelineEntry[], record: TimelineRecord, at: string, who: string, ownSource: TimelineSource) {
+  const documentRefs = ['contextRefs', 'links']
+    .flatMap((key) => sourceList(value(record, key)))
+    .filter((item) => item.kind === 'document');
+  documentRefs.forEach((document) => {
+    entries.push(entry('document', `document-link:${record.kind}:${record.id}:${document.id}`, at, who, `Linked document: ${document.label}`, source('document', document.id, document.label), [ownSource]));
+  });
+  if (record.kind !== 'household') return;
+  const notes = value(record, 'notes');
+  if (!Array.isArray(notes)) return;
+  notes.forEach((note, index) => {
+    if (!note || typeof note !== 'object') return;
+    const noteValue = note as Record<string, unknown>;
+    const noteAt = date(value(noteValue, 'updatedAt')) ?? date(value(noteValue, 'createdAt')) ?? at;
+    sourceList(value(noteValue, 'links')).filter((item) => item.kind === 'document').forEach((document) => {
+      entries.push(entry('document', `document-link:household-note:${record.id}:${String(value(noteValue, 'id') ?? index)}:${document.id}`, noteAt, who, `Linked document: ${document.label}`, source('document', document.id, document.label), [source('note', text(value(noteValue, 'id')) || `${record.id}:note:${index}`, text(value(noteValue, 'body'), 'Household note'))]));
+    });
+  });
 }
 
 function recordDate(record: TimelineRecord): string | null {
@@ -56,6 +78,7 @@ function addRecordEntries(entries: TimelineEntry[], record: TimelineRecord, hous
   const sourceValue = value(record, 'source');
   const provenance = sourceList(sourceValue && typeof sourceValue === 'object' ? value(sourceValue as Record<string, unknown>, 'sources') : value(record, 'sources'));
   const who = recordActor(record);
+  addDocumentLinkEntries(entries, record, at, who, ownSource);
   if (record.kind === 'activityEvent') {
     entries.push(entry('activity', record.id, at, who, text(value(record, 'summary'), 'Activity recorded'), ownSource, [...provenance, ...sourceList(value(record, 'targetRef'))]));
   } else if (record.kind === 'task' && value(record, 'status') === 'done') {
