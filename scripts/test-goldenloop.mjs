@@ -4,6 +4,7 @@
  * process and directory so CI can run it repeatedly without sharing state.
  */
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import os from 'node:os';
@@ -20,8 +21,10 @@ const xvfbPidFile = path.join(tempRoot, 'xvfb.pid');
 let vite;
 let app;
 let build;
+let sidecarFetch;
 let vitePort;
 let bridgePort;
+let displayNumber;
 const ownedXvfbPids = new Set();
 let tornDown = false;
 
@@ -38,8 +41,21 @@ const exitCode = (child) => {
     return Promise.resolve(child.exitCode ?? 1);
   }
   return new Promise((resolve) => {
-    child.once('error', () => resolve(1));
-    child.once('exit', (code) => resolve(code ?? 1));
+    let settled = false;
+    const done = (code) => {
+      if (settled) return;
+      settled = true;
+      clearInterval(checkExit);
+      resolve(code ?? 1);
+    };
+    const checkExit = setInterval(() => {
+      if (child.exitCode !== null || child.signalCode !== null) {
+        done(child.exitCode ?? 1);
+      }
+    }, 100);
+    child.once('error', () => done(1));
+    child.once('exit', done);
+    child.once('close', done);
   });
 };
 async function freePort() {
@@ -52,6 +68,13 @@ async function freePort() {
   if (!address || typeof address === 'string')
     throw new Error('Could not reserve a local port.');
   return address.port;
+}
+function freeDisplay(nearPort) {
+  for (let offset = 0; offset < 800; offset += 1) {
+    const candidate = 100 + ((nearPort + offset) % 800);
+    if (!existsSync(`/tmp/.X11-unix/X${candidate}`)) return candidate;
+  }
+  throw new Error('Could not find an unused Xvfb display number.');
 }
 async function waitFor(label, condition, timeoutMs = 30_000) {
   const deadline = Date.now() + timeoutMs;
@@ -71,6 +94,7 @@ async function waitFor(label, condition, timeoutMs = 30_000) {
 async function httpReady(port, pathName = '/') {
   const response = await fetch(`http://127.0.0.1:${port}${pathName}`);
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return true;
 }
 async function stop(child, name) {
   if (!child || child.exitCode !== null || child.signalCode !== null) return;
@@ -97,10 +121,12 @@ async function startApp() {
     {
       env: {
         LANTERN_VITE_PORT: String(vitePort),
-        LANTERN_XVFB_DISPLAY: `:${bridgePort}`,
+        LANTERN_XVFB_DISPLAY: `:${displayNumber}`,
         LANTERN_XVFB_PID_FILE: xvfbPidFile,
         CRM_LOOP_WORKSPACE: workspace,
         CRM_LOOP_SCREENSHOTS_DIR: screenshots,
+        // Always own a fresh virtual screen, even from an interactive shell.
+        DISPLAY: '',
       },
     }
   );
@@ -146,6 +172,7 @@ async function teardown() {
   await stop(app, 'desktop app');
   await stop(vite, 'Vite');
   await stop(build, 'debug-binary build');
+  await stop(sidecarFetch, 'Piper sidecar download');
   await ensureNoXvfb();
   await rm(tempRoot, { recursive: true, force: true });
   try {
@@ -173,9 +200,37 @@ try {
   vitePort = await freePort();
   bridgePort = await freePort();
   if (vitePort === bridgePort) bridgePort = await freePort();
+  displayNumber = freeDisplay(bridgePort);
   console.log(
-    `golden loop: vite=${vitePort} bridge=${bridgePort} workspace=${workspace}`
+    `golden loop: vite=${vitePort} bridge=${bridgePort} display=:${displayNumber} workspace=${workspace}`
   );
+
+  // Fresh worktrees omit this ignored runtime asset. Stage it automatically
+  // so a clean CI machine does not need a person to prepare the app first.
+  const binaries = path.join(root, 'src-tauri/binaries');
+  const piper = path.join(binaries, 'piper-x86_64-unknown-linux-gnu');
+  const llamaServer = path.join(
+    binaries,
+    'llama-server-x86_64-unknown-linux-gnu'
+  );
+  if (!existsSync(piper)) {
+    sidecarFetch = command('bash', ['scripts/fetch-piper-sidecar.sh'], {
+      env: { FETCH_PIPER_VOICE: '0' },
+    });
+    if (await exitCode(sidecarFetch)) {
+      throw new Error(
+        'Could not stage the Piper runtime required by the debug binary.'
+      );
+    }
+  }
+  if (!existsSync(llamaServer)) {
+    sidecarFetch = command('bash', ['scripts/fetch-llama-sidecar.sh']);
+    if (await exitCode(sidecarFetch)) {
+      throw new Error(
+        'Could not stage the local-AI runtime required by the debug binary.'
+      );
+    }
+  }
 
   // The binary is always a normal debug binary. TAURI_CONFIG only gives this
   // isolated run its own dev-server address, so concurrent CI jobs never share
@@ -204,7 +259,10 @@ try {
     String(vitePort),
     '--strictPort',
   ]);
-  await waitFor('Vite', () => httpReady(vitePort));
+  // `predev` may need to fetch the pinned OCR asset in a brand-new checkout.
+  // Wait for the server's real HTTP response rather than assuming a startup
+  // delay or racing the one-time preparation work.
+  await waitFor('Vite', () => httpReady(vitePort), 120_000);
 
   await startApp();
   const writeCode = await runLoop('write');

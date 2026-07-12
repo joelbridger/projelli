@@ -129,7 +129,7 @@ function customRows(households: readonly Household[], query: ViewQuery, activiti
   }).filter(({ fields }) => query.filters.every((filter) => applies(fields[filter.field], filter)));
   const sorted = [...mapped];
   for (const sort of [...(query.sort ?? [])].reverse()) sorted.sort((left, right) => (left.fields[sort.field] ?? '').localeCompare(right.fields[sort.field] ?? '') * (sort.dir === 'desc' ? -1 : 1));
-  return sorted.map(({ household, fields, sourceIds }) => ({ householdId: household.id, householdName: fields.name, values: fields, sourceIds }));
+  return sorted.map(({ household, fields, sourceIds }) => ({ householdId: household.id, householdName: fields['name'] ?? displayName(household), values: fields, sourceIds }));
 }
 
 /** Computes from the currently decrypted records. It intentionally never saves results. */
