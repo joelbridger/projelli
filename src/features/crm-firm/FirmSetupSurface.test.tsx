@@ -11,12 +11,25 @@ vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
 }));
 
 describe('FirmSetupSurface', () => {
-  it('starts honestly empty and explains that access is controlled through firm administration', () => {
+  it('starts honestly empty and keeps access authority in firm administration', () => {
     records = [];
     render(<FirmSetupSurface />);
     expect(screen.getByTestId('crm-firm-directory-empty')).toBeInTheDocument();
+    expect(screen.getByTestId('crm-firm-access-read-model')).toHaveTextContent(/only place to invite people/i);
+    expect(screen.getByTestId('crm-firm-visibility-read-model')).toHaveTextContent(/cannot create a group/i);
+    expect(screen.getByTestId('crm-firm-permissions-read-model')).toHaveTextContent(/one source of truth/i);
+    expect(screen.queryByTestId('crm-firm-member-role-save')).not.toBeInTheDocument();
     expect(screen.getByTestId('crm-ethical-wall-notice')).toHaveTextContent(/encryption key/i);
     expect(screen.queryByText('Maya Patel')).not.toBeInTheDocument();
+  });
+
+  it('shows roles and teams from the firm-admin directory without creating access records', () => {
+    records = [{ id: 'directory-1', kind: 'firmDirectoryEntry', matterId: 'firm_home', userId: 'maya', displayName: 'Maya Patel', title: 'Owner', teamLabels: ['Client service'], active: true }];
+    render(<FirmSetupSurface />);
+    expect(screen.getByTestId('crm-firm-directory')).toHaveTextContent('Maya Patel');
+    expect(screen.getByTestId('crm-firm-directory')).toHaveTextContent('Owner');
+    expect(screen.getByTestId('crm-firm-directory')).toHaveTextContent('Client service');
+    expect(screen.queryByTestId('crm-firm-team-save')).not.toBeInTheDocument();
   });
 
   it('saves a firm custom-field definition with its real record contract', async () => {

@@ -14,7 +14,8 @@ export interface ParityApp {
   workflow(options: { template?: boolean; instance?: boolean; schedule?: boolean; outcomes?: boolean; comments?: boolean; library?: boolean; meetingProposal?: boolean }): Promise<void>;
   pipeline(options: { opportunity?: boolean; pipeline?: boolean; stage?: boolean; workflowTrigger?: boolean }): Promise<void>;
   report(options: { kind: 'no_contact_6mo' | 'attention_vs_fee' | 'custom' | 'ai' }): Promise<void>;
-  customField(): Promise<void>;
+  firmDirectory(): Promise<void>;
+  firmSetup(): Promise<void>;
   durableFeature(options: { route: string; controls: string[]; action?: string; result?: string; recordKind?: string }): Promise<void>;
 }
 
@@ -57,8 +58,8 @@ export const FEATURES: readonly ParityFeature[] = [
   live('"Ownership" (whose client is this)', 'contact-ownership', 'IMPROVE', 'contacts', (app) => app.contact({ household: true, ownership: true })),
   live('Multiple addresses/emails/phones per contact', 'contact-channels', 'REPLICATE', 'contacts', (app) => app.contact({ person: true, addresses: true })),
   live('Tags vs. custom fields not inherited household↔person', 'contact-fact-rollup', 'IMPROVE', 'contacts', (app) => app.contact({ household: true, facts: true })),
-  live('Custom fields', 'custom-fields', 'REPLICATE', 'firm setup', (app) => app.customField()),
-  live('Tags', 'tags', 'REPLICATE', 'contacts', (app) => app.contact({ household: true, tags: true })),
+  live('Custom fields', 'custom-fields', 'REPLICATE', 'firm setup', (app) => app.firmSetup()),
+  live('Tags', 'tags', 'REPLICATE', 'contacts', (app) => app.firmSetup()),
   live('Custom Objects', 'typed-objects', 'IMPROVE', 'contacts', (app) => app.contact({ household: true, account: true })),
   live('Notes on a contact', 'contact-notes', 'REPLICATE', 'contacts', (app) => app.contact({ household: true, notes: true })),
   live('Pinned notes', 'pinned-notes-and-memory', 'IMPROVE', 'contacts', (app) => app.contact({ household: true, notes: true, facts: true })),
@@ -108,10 +109,10 @@ export const FEATURES: readonly ParityFeature[] = [
   pending('Agents (early access, March 2026)', 'ai-monitoring', 'IMPROVE', 'tasks', 'No approval-visible monitoring result exists to exercise; autonomous action is intentionally excluded.'),
   pending('Playbooks (early access, March 2026)', 'ai-playbooks', 'REPLICATE', 'workflows', 'Needs a deterministic approved-playbook fixture rather than a model call.'),
   pending('AI Assistant (early access, March 2026)', 'crm-ai-assistant', 'REPLICATE', 'search', 'Needs an offline CRM-aware answer fixture with cited records before this can be proved safely.'),
-  live('Member / Admin / Owner roles', 'firm-roles', 'REPLICATE', 'firm setup', (app) => app.durableFeature({ route: 'crm-home-nav-firm-setup', controls: ['crm-firm-member-invite', 'crm-firm-member-role-save'], action: 'crm-firm-member-role-save', recordKind: 'firmMember' })),
-  live('Teams', 'firm-teams', 'REPLICATE', 'firm setup', (app) => app.durableFeature({ route: 'crm-home-nav-firm-setup', controls: ['crm-firm-team-new', 'crm-firm-team-save'], action: 'crm-firm-team-save', recordKind: 'team' })),
-  live('Groups / visibility restrictions', 'firm-visibility', 'REPLICATE', 'firm setup', (app) => app.durableFeature({ route: 'crm-home-nav-firm-setup', controls: ['crm-firm-group-new', 'crm-firm-group-save'], action: 'crm-firm-group-save', recordKind: 'group' })),
-  live('Default permissions per user', 'firm-permissions', 'REPLICATE', 'firm setup', (app) => app.durableFeature({ route: 'crm-home-nav-firm-setup', controls: ['crm-firm-permission-save'], action: 'crm-firm-permission-save', recordKind: 'permissionPolicy' })),
+  live('Member / Admin / Owner roles', 'firm-roles', 'REPLICATE', 'firm setup', (app) => app.firmDirectory()),
+  live('Teams', 'firm-teams', 'REPLICATE', 'firm setup', (app) => app.firmDirectory()),
+  live('Groups / visibility restrictions', 'firm-visibility', 'REPLICATE', 'firm setup', (app) => app.firmDirectory()),
+  live('Default permissions per user', 'firm-permissions', 'REPLICATE', 'firm setup', (app) => app.firmDirectory()),
   live('White-glove migration service', 'guided-migration', 'REPLICATE', 'migration', (app) => app.durableFeature({ route: 'crm-home-nav-firm-setup', controls: ['crm-firm-route-migration', 'crm-migration-run-import', 'crm-migration-fidelity'], action: 'crm-migration-run-import', recordKind: 'migrationReport' })),
   live('Data portability / export', 'migration-export', 'REPLICATE', 'migration', (app) => app.durableFeature({ route: 'crm-home-nav-firm-setup', controls: ['crm-migration-archive', 'crm-export-create'], action: 'crm-export-create', recordKind: 'exportArchive' })),
   live('External Unique ID field for import linking', 'migration-external-id', 'REPLICATE', 'migration', (app) => app.durableFeature({ route: 'crm-home-nav-firm-setup', controls: ['crm-migration-source-id-map', 'crm-migration-run-import'], action: 'crm-migration-run-import', recordKind: 'migrationReport' })),

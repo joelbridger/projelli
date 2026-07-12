@@ -307,7 +307,7 @@ class DesktopParityApp implements ParityApp {
       const { useWorkspaceStore } = await import('/src/platform/fs/workspaceStore.ts');
       useWorkspaceStore.getState().setRootPath(${JSON.stringify(path)});
       await invoke('crm_live_upsert', { record: { id: ${JSON.stringify(householdId)}, kind: 'household', matterId: ${JSON.stringify(householdId)}, name: 'Parity household', status: 'active' } });
-      await invoke('crm_live_upsert', { record: { id: 'parity-firm-member', kind: 'firmDirectoryEntry', matterId: 'firm_home', userId: 'parity-user', displayName: 'Parity teammate', active: true } });
+      await invoke('crm_live_upsert', { record: { id: 'parity-firm-member', kind: 'firmDirectoryEntry', matterId: 'firm_home', userId: 'parity-user', displayName: 'Parity teammate', title: 'Owner', teamLabels: ['Client service'], active: true } });
       await invoke('crm_live_upsert', { record: { id: 'parity-meeting', kind: 'activityEvent', matterId: 'firm_home', verb: 'meeting.captured', summary: 'Parity review meeting', at: new Date().toISOString() } });
       return true;
     })()`);
@@ -782,34 +782,109 @@ class DesktopParityApp implements ParityApp {
       fail('Saved report disappeared after native restart');
   }
 
-  async customField(): Promise<void> {
-    await this.setWorkspace(`custom-field-${this.token('setup')}`);
+  private async openFirm(tab: 'setup' | 'fields' | 'tags' | 'values' = 'setup'): Promise<void> {
     await this.openHome();
     await this.click('crm-home-nav-firm-setup');
-    await this.require('crm-field-create');
-    await this.click('crm-field-create');
-    const label = this.token('Parity custom field');
-    const key = `parity_${this.sequence}`;
-    await this.fill('crm-field-label', label);
-    await this.fill('crm-field-key', key);
-    await this.click('crm-field-save');
-    await this.waitForText(label);
-    if (
-      !(await this.records()).some(
-        (record) => record.kind === 'customFieldDef' && record.label === label
-      )
-    )
-      fail('Saving a custom field did not create a field definition');
+    await this.waitForControl('crm-firm-surface');
+    if (tab !== 'setup') {
+      await this.click(`crm-firm-tab-${tab}`);
+      await delay(150);
+    }
+  }
+
+  private async waitForRecord(
+    predicate: (record: Record<string, unknown>) => boolean,
+    message: string
+  ): Promise<Record<string, unknown>> {
+    const end = Date.now() + 10_000;
+    while (Date.now() < end) {
+      const record = (await this.records()).find(predicate);
+      if (record) return record;
+      await delay(150);
+    }
+    fail(message);
+  }
+
+  async firmDirectory(): Promise<void> {
+    await this.setWorkspace(`firm-directory-${this.token('setup')}`);
+    await this.openFirm();
+    for (const control of [
+      'crm-firm-directory',
+      'crm-firm-access-read-model',
+      'crm-firm-visibility-read-model',
+      'crm-firm-permissions-read-model',
+      'crm-firm-open-admin',
+    ]) await this.require(control);
+    for (const text of ['Parity teammate', 'Owner', 'Client service'])
+      await this.requireText(text);
+    if (!(await this.records()).some((record) => record.kind === 'firmDirectoryEntry'))
+      fail('The existing firm-admin directory did not provide a member read-model');
     await this.restart();
-    await this.openHome();
-    await this.click('crm-home-nav-firm-setup');
-    await this.requireText(label);
-    if (
-      !(await this.records()).some(
-        (record) => record.kind === 'customFieldDef' && record.label === label
-      )
-    )
-      fail('Custom field disappeared after native restart');
+    await this.openFirm();
+    for (const text of ['Parity teammate', 'Owner', 'Client service'])
+      await this.requireText(text);
+    if (!(await this.records()).some((record) => record.kind === 'firmDirectoryEntry'))
+      fail('The firm-admin member read-model disappeared after native restart');
+  }
+
+  async firmSetup(): Promise<void> {
+    const { householdId } = await this.setWorkspace(`firm-setup-${this.token('setup')}`);
+    const fieldLabel = this.token('Parity custom field');
+    const fieldKey = `parity_${this.sequence}`;
+    const tagName = this.token('Parity tag');
+
+    await this.openFirm('fields');
+    await this.click('crm-field-create');
+    await this.fill('crm-field-label', fieldLabel);
+    await this.fill('crm-field-key', fieldKey);
+    await this.click('crm-field-save');
+    await this.waitForText(fieldLabel);
+    const field = await this.waitForRecord(
+      (record) => record.kind === 'customFieldDef' && record.label === fieldLabel,
+      'Saving a custom field did not create a field definition'
+    );
+
+    await this.openFirm('tags');
+    await this.click('crm-tag-create');
+    await this.fill('crm-tag-name', tagName);
+    await this.click('crm-tag-save');
+    await this.waitForText(tagName);
+    const tag = await this.waitForRecord(
+      (record) => record.kind === 'tag' && record.name === tagName,
+      'Saving a tag did not create a tag record'
+    );
+
+    await this.openFirm('values');
+    await this.select('crm-record-values-select', householdId);
+    await this.waitForControl(`crm-record-value-${fieldKey}`);
+    await this.fill(`crm-record-value-${fieldKey}`, 'North');
+    await this.click(`crm-record-tag-${String(tag.id)}`);
+    await this.click('crm-record-values-save');
+    await this.waitForRecord(
+      (record) => record.id === householdId &&
+        (record.customFields as Record<string, { value?: unknown }> | undefined)?.[fieldKey]?.value === 'North' &&
+        Array.isArray(record.tagIds) && record.tagIds.includes(tag.id),
+      'Saving a custom-field value and tag did not update the selected record'
+    );
+
+    await this.restart();
+    await this.openFirm('fields');
+    await this.requireText(fieldLabel);
+    await this.openFirm('tags');
+    await this.requireText(tagName);
+    await this.openFirm('values');
+    await this.select('crm-record-values-select', householdId);
+    const value = await this.eval(`document.querySelector('[data-testid="crm-record-value-${fieldKey}"]')?.value`);
+    const appliedTag = await this.eval(`Boolean(document.querySelector('[data-testid="crm-record-tag-${String(tag.id)}"]:checked'))`);
+    if (value !== 'North' || !appliedTag)
+      fail('The custom-field value or tag disappeared after native restart');
+    await this.waitForRecord(
+      (record) => record.id === householdId &&
+        (record.customFields as Record<string, { value?: unknown }> | undefined)?.[fieldKey]?.value === 'North' &&
+        Array.isArray(record.tagIds) && record.tagIds.includes(tag.id),
+      'The saved custom-field value or tag record disappeared after native restart'
+    );
+    if (field.kind !== 'customFieldDef') fail('Custom field definition changed kind unexpectedly');
   }
 
   async durableFeature(options: {
