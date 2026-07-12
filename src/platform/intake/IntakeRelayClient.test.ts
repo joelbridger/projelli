@@ -183,10 +183,11 @@ describe('IntakeRelayClient inbox methods', () => {
     for (const call of vi.mocked(egressFetch).mock.calls) {
       expect(call[0]).toBe('intake-relay');
     }
-    expect(egressFetch).toHaveBeenLastCalledWith(
-      'intake-relay',
-      'https://relay.example.test/intake/granted',
-      expect.objectContaining({ headers: expect.objectContaining({ 'X-Device-Id': 'device-1' }) }),
+    const lastRequest = vi.mocked(egressFetch).mock.lastCall;
+    expect(lastRequest?.[0]).toBe('intake-relay');
+    expect(lastRequest?.[1]).toBe('https://relay.example.test/intake/granted');
+    expect(lastRequest?.[2]?.headers).toEqual(
+      expect.objectContaining({ 'X-Device-Id': 'device-1' }),
     );
   });
 });
