@@ -31,13 +31,13 @@ function template(audience: 'internal' | 'client-facing') {
 }
 
 const provider = {
-  send: async () => ({ content: JSON.stringify({ sections: [{ id: 'summary', body: 'Plan review agreed.', citations: [12_000] }] }) }),
+  send: () => Promise.resolve({ content: JSON.stringify({ sections: [{ id: 'summary', body: 'Plan review agreed.', citations: [12_000] }] }) }),
 };
 
 describe('firm meeting templates', () => {
   it('keeps internal and client-facing notes as disjoint types', () => {
-    expectTypeOf<InternalMeetingNote>().not.toMatchTypeOf<ClientFacingMeetingNote>();
-    expectTypeOf<ClientFacingMeetingNote>().not.toMatchTypeOf<InternalMeetingNote>();
+    expectTypeOf<InternalMeetingNote>().not.toExtend<ClientFacingMeetingNote>();
+    expectTypeOf<ClientFacingMeetingNote>().not.toExtend<InternalMeetingNote>();
   });
 
   it('creates a client-renderable value only from a client-facing layout', async () => {
@@ -65,12 +65,14 @@ describe('firm meeting templates', () => {
   it('will not let a stored layout change lanes after a firm owns it', async () => {
     const files = new Map<string, string>();
     const storage = makeMeetingTemplateStorage({
-      readFile: async (path) => {
+      readFile: (path) => {
         const value = files.get(path);
-        if (value === undefined) throw new Error('ENOENT');
-        return value;
+        return value === undefined ? Promise.reject(new Error('ENOENT')) : Promise.resolve(value);
       },
-      writeFile: async (path, content) => { files.set(path, content); },
+      writeFile: (path, content) => {
+        files.set(path, content);
+        return Promise.resolve();
+      },
     });
     const internal = template('internal');
     await storage.save(internal);

@@ -18,7 +18,8 @@ export interface MeetingTemplateBlock {
 }
 
 interface FirmOwnedMeetingTemplateBase {
-  schemaVersion: typeof MEETING_TEMPLATE_SCHEMA_VERSION;
+  /** Kept broad so persisted, untrusted values are validated at this boundary. */
+  schemaVersion: number;
   id: string;
   firmId: string;
   name: string;
@@ -69,7 +70,7 @@ export interface InternalMeetingNote {
 }
 
 const CLIENT_FACING_NOTE_CAPABILITY = Symbol('client-facing-meeting-note');
-const clientFacingNotes = new WeakSet<object>();
+const clientFacingNotes = new WeakSet();
 
 /**
  * This symbol is intentionally private. Consumers cannot construct this type
@@ -143,9 +144,6 @@ export function assertValidFirmOwnedMeetingTemplate(
       throw new Error(`Meeting template ${name} must be a non-empty string.`);
     }
   }
-  if (template.audience !== 'internal' && template.audience !== 'client-facing') {
-    throw new Error('Meeting template audience must be internal or client-facing.');
-  }
   if (!Number.isSafeInteger(template.version) || template.version < 1) {
     throw new Error('Meeting template version must be a positive integer.');
   }
@@ -181,7 +179,7 @@ export function createClientFacingMeetingNote(
   template: ClientFacingFirmOwnedMeetingTemplate,
   sections: readonly MeetingTemplateSection[],
 ): ClientFacingMeetingNote {
-  const clientFacingCapability: true = true;
+  const clientFacingCapability = true as const;
   const note: ClientFacingMeetingNote = Object.freeze({
     audience: 'client-facing',
     templateId: template.id,

@@ -60,6 +60,7 @@ describe('en.json structure snapshot', () => {
       {
         "ai": 48,
         "analysis": 10,
+        "answer-dates": 3,
         "app": 2,
         "ask": 137,
         "audio": 1,

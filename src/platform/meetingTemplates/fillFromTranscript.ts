@@ -108,7 +108,7 @@ function parseTemplateSections(
       throw new Error('Meeting-template output used an unknown or duplicate layout block.');
     }
     const citations = section.citations.map((citation) => {
-      if (!Number.isSafeInteger(citation) || !transcriptTimestamps.has(citation)) {
+      if (typeof citation !== 'number' || !Number.isSafeInteger(citation) || !transcriptTimestamps.has(citation)) {
         throw new Error('Meeting-template output used a citation outside the transcript.');
       }
       return citation;

@@ -3323,5 +3323,10 @@
       "confidentiality-column": "Sensitive",
       "confidentiality-badge": "Sensitive"
     }
+  },
+  "answer-dates": {
+    "title": "Dates in the cited records",
+    "conflict-flagged": "Date conflict flagged.",
+    "review-records": "Check the cited records before relying on either date."
   }
 }

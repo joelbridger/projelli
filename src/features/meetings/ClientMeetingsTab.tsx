@@ -37,7 +37,6 @@ import {
   resolveNoticeEvidenceRule,
 } from './noticeCard/noticeCardSettings';
 import { deriveNoticeCardEvidence, type NoticeCardEvidence } from './noticeCard/noticeCardEvidence';
-import { NotesReviewPanel } from '@/features/notesReview';
 
 export interface MeetingSummary {
   dir: string;
@@ -660,7 +659,6 @@ export function ClientMeetingsTab({ matterId, matterFolder, workspaceService, in
         display: 'flex',
       }}
     >
-      <NotesReviewPanel />
       <RailShell
         header={
           <div data-testid="client-meetings-rail-header">

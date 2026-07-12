@@ -1,8 +1,9 @@
 import { CalendarClock, Flag, ShieldCheck } from 'lucide-react';
-import type { AnswerCitation } from '@/features/ask/askHelpers';
+import { useTranslation } from 'react-i18next';
+import type { DateableCitation } from './contracts';
 
 /**
- * A small date view for Ask citations. Date fields remain optional so saved,
+ * A small date view for citations. Date fields remain optional so saved,
  * older answers without source-time metadata stay visually unchanged.
  */
 type DateRow = {
@@ -22,7 +23,7 @@ type ConflictEvidenceRow = {
   authorityReason: string | null;
 };
 
-function toDateRows(citations: readonly AnswerCitation[]): DateRow[] {
+function toDateRows(citations: readonly DateableCitation[]): DateRow[] {
   return citations.flatMap((citation, index) => {
     const value = citation.sourceDate?.value;
     if (!value) return [];
@@ -43,7 +44,7 @@ function toDateRows(citations: readonly AnswerCitation[]): DateRow[] {
  * retrieval layer it already contains the exact incompatible evidence set; do
  * not infer a conflict from two merely different dates.
  */
-function conflictEvidence(citations: readonly AnswerCitation[]): ConflictEvidenceRow[] {
+function conflictEvidence(citations: readonly DateableCitation[]): ConflictEvidenceRow[] {
   const seen = new Set<string>();
   const rows: ConflictEvidenceRow[] = [];
 
@@ -89,11 +90,13 @@ function formatDate(value: string): string {
  * The dated slice of an answer. It is intentionally absent when no cited source
  * has a usable date, keeping older and undated answers visually unchanged.
  */
-export function AnswerDatePresentation({ citations }: { citations: readonly AnswerCitation[] }) {
+export function AnswerDatePresentation({ citations }: { citations: readonly DateableCitation[] }) {
+  const { t } = useTranslation();
   const rows = toDateRows(citations);
   if (rows.length === 0) return null;
 
-  const newest = rows.at(-1)!;
+  const newest = rows.at(-1);
+  if (!newest) return null;
   const authoritative = rows.filter((row) => row.authoritative).at(-1);
   const evidence = conflictEvidence(citations);
   const newestEvidence = evidence.slice().sort((a, b) => a.time - b.time).at(-1);
@@ -121,7 +124,7 @@ export function AnswerDatePresentation({ citations }: { citations: readonly Answ
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--kp-navy)' }}>
         <CalendarClock size={14} aria-hidden="true" />
-        <span style={{ fontSize: 12, fontWeight: 700 }}>Dates in the cited records</span>
+        <span style={{ fontSize: 12, fontWeight: 700 }}>{t('answer-dates.title')}</span>
       </div>
 
       <ol
@@ -165,7 +168,7 @@ export function AnswerDatePresentation({ citations }: { citations: readonly Answ
               {row.label}
             </span>
             {row.authoritative && (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, color: '#16654a', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, color: 'var(--kp-local)', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>
                 <ShieldCheck size={12} aria-hidden="true" />
                 Authoritative
               </span>
@@ -183,17 +186,17 @@ export function AnswerDatePresentation({ citations }: { citations: readonly Answ
             alignItems: 'flex-start',
             gap: 7,
             padding: '8px 9px',
-            border: '1px solid #e3b878',
+            border: '1px solid var(--kp-date-conflict-border)',
             borderRadius: 8,
-            background: '#fef6e6',
-            color: '#754b00',
+            background: 'var(--kp-date-conflict-bg)',
+            color: 'var(--kp-date-conflict-text)',
             fontSize: 12,
             lineHeight: 1.45,
           }}
         >
           <Flag size={14} aria-hidden="true" style={{ flex: 'none', marginTop: 1 }} />
           <span>
-            <strong>Date conflict flagged.</strong>{' '}
+            <strong>{t('answer-dates.conflict-flagged')}</strong>{' '}
             {newestEvidence ? (
               <>Newest record: {formatDate(newestEvidence.date)} — {newestEvidence.value}.</>
             ) : (
@@ -204,7 +207,7 @@ export function AnswerDatePresentation({ citations }: { citations: readonly Answ
             ) : authoritative ? (
               <>Authoritative record: {formatDate(authoritative.date)}.</>
             ) : (
-              <>Check the cited records before relying on either date.</>
+              <>{t('answer-dates.review-records')}</>
             )}
           </span>
         </div>

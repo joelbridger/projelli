@@ -4338,5 +4338,10 @@
         "saving": "Guardando"
       }
     }
+  },
+  "answer-dates": {
+    "title": "Fechas en los registros citados",
+    "conflict-flagged": "Se detectó un conflicto de fechas.",
+    "review-records": "Revisa los registros citados antes de confiar en cualquiera de las fechas."
   }
 }

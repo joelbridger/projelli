@@ -1,16 +1,11 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import type { AnswerCitation } from '@/features/ask/askHelpers';
+import type { DateableCitation } from './contracts';
 import { AnswerDatePresentation } from './AnswerDatePresentation';
 
-function citation(overrides: Partial<AnswerCitation> = {}): AnswerCitation {
+function citation(overrides: Partial<DateableCitation> = {}): DateableCitation {
   return {
-    n: 1,
     label: 'Source',
-    excerpt: 'Source excerpt',
-    path: 'Source.pdf',
-    locator: 'Source.pdf',
-    verified: true,
     ...overrides,
   };
 }

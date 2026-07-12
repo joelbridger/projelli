@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildWorkspaceSources } from '@/features/ask/askHelpers';
+import { buildDatedWorkspaceSources } from './assemble';
 import type { RagHit } from '@/platform/utils/tauri-commands';
 
 function hit(overrides: Partial<RagHit> = {}): RagHit {
@@ -16,7 +16,7 @@ function hit(overrides: Partial<RagHit> = {}): RagHit {
 
 describe('dated retrieval hits', () => {
   it('carries explicit mail, document, and CRM source dates into assembled sources', () => {
-    const sources = buildWorkspaceSources([
+    const sources = buildDatedWorkspaceSources([
       hit({
         id: 'mail',
         sourceId: 'mail:message-1',
@@ -45,7 +45,7 @@ describe('dated retrieval hits', () => {
   });
 
   it('flags both newer and older incompatible evidence without changing retrieval order', () => {
-    const sources = buildWorkspaceSources([
+    const sources = buildDatedWorkspaceSources([
       hit({
         id: 'signed-policy',
         sourceId: '/clients/jordan/signed-policy.pdf',
@@ -73,32 +73,34 @@ describe('dated retrieval hits', () => {
     ]);
 
     expect(sources.map((source) => source.id)).toEqual(['signed-policy', 'newer-email']);
-    expect(sources[0]!.dateConflict).toMatchObject({
+    const olderSource = sources.at(0);
+    const newerSource = sources.at(1);
+    expect(olderSource?.dateConflict).toMatchObject({
       relation: 'older-conflicts-with-newer',
       factKey: 'umbrella-limit',
-      evidence: expect.arrayContaining([
-        expect.objectContaining({ sourceId: '/clients/jordan/signed-policy.pdf', value: '$3 million' }),
-        expect.objectContaining({ sourceId: 'mail:carrier', value: '$5 million' }),
-      ]),
     });
-    expect(sources[1]!.dateConflict).toMatchObject({
+    expect(olderSource?.dateConflict?.evidence).toEqual(expect.arrayContaining([
+      expect.objectContaining({ sourceId: '/clients/jordan/signed-policy.pdf', value: '$3 million' }),
+      expect.objectContaining({ sourceId: 'mail:carrier', value: '$5 million' }),
+    ]));
+    expect(newerSource?.dateConflict).toMatchObject({
       relation: 'newer-conflicts-with-older',
       factKey: 'umbrella-limit',
-      evidence: expect.arrayContaining([
-        expect.objectContaining({ sourceId: '/clients/jordan/signed-policy.pdf', authorityReason: 'signed policy declaration' }),
-        expect.objectContaining({ sourceId: 'mail:carrier', authorityReason: 'email discussing a possible change' }),
-      ]),
     });
+    expect(newerSource?.dateConflict?.evidence).toEqual(expect.arrayContaining([
+      expect.objectContaining({ sourceId: '/clients/jordan/signed-policy.pdf', authorityReason: 'signed policy declaration' }),
+      expect.objectContaining({ sourceId: 'mail:carrier', authorityReason: 'email discussing a possible change' }),
+    ]));
   });
 
   it('leaves old or invalid date rows readable as Date unavailable', () => {
-    const [source] = buildWorkspaceSources([
+    const [source] = buildDatedWorkspaceSources([
       hit({
         sourceDate: { value: 'not-a-date', kind: 'received', rawValue: 'yesterday', confidence: 'source' },
       }),
     ]);
 
-    expect(source!.sourceDate).toEqual({
+    expect(source?.sourceDate).toEqual({
       value: null,
       kind: 'received',
       rawValue: 'yesterday',
@@ -107,7 +109,7 @@ describe('dated retrieval hits', () => {
   });
 
   it('does not call a simple date difference a conflict', () => {
-    const sources = buildWorkspaceSources([
+    const sources = buildDatedWorkspaceSources([
       hit({
         id: 'older-policy',
         sourceDate: { value: '2026-05-01T00:00:00Z', kind: 'effective', confidence: 'source' },

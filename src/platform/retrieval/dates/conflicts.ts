@@ -1,11 +1,12 @@
 import type { RagHit } from '@/platform/utils/tauri-commands';
-import type { DateConflictFlag, DatedEvidence } from './contracts';
+import type { DateConflictFlag, DatedEvidence, DatedFact, SourceDate } from './contracts';
 import { normalizeSourceDate, sourceDateTimestamp } from './sourceDates';
 
-type DatedHit = RagHit & { sourceDate: NonNullable<RagHit['sourceDate']> };
+type NormalizedHit = RagHit & { sourceDate: SourceDate };
+type DatedHit = NormalizedHit & { datedFact: DatedFact };
 
 function stableSourceId(hit: RagHit): string {
-  return hit.sourceId ?? hit.id ?? `${hit.path}#${hit.paragraphIndex}`;
+  return hit.sourceId ?? hit.id ?? `${hit.path}#${String(hit.paragraphIndex)}`;
 }
 
 function normalizedClaimPart(value: string): string {
@@ -16,10 +17,20 @@ function evidenceFromHit(hit: DatedHit): DatedEvidence {
   return {
     sourceId: stableSourceId(hit),
     path: hit.path,
-    value: hit.datedFact!.value,
+    value: hit.datedFact.value,
     sourceDate: hit.sourceDate,
-    ...(hit.datedFact!.authorityReason ? { authorityReason: hit.datedFact!.authorityReason } : {}),
+    ...(hit.datedFact.authorityReason ? { authorityReason: hit.datedFact.authorityReason } : {}),
   };
+}
+
+function isDatedHit(hit: NormalizedHit): hit is DatedHit {
+  return hit.datedFact !== undefined && sourceDateTimestamp(hit.sourceDate) !== null;
+}
+
+function datedTimestamp(hit: DatedHit): number {
+  const timestamp = sourceDateTimestamp(hit.sourceDate);
+  if (timestamp === null) throw new Error('Dated evidence requires a valid source date.');
+  return timestamp;
 }
 
 /**
@@ -28,14 +39,14 @@ function evidenceFromHit(hit: DatedHit): DatedEvidence {
  * real source dates; date difference alone is never treated as disagreement.
  */
 export function flagDatedEvidenceConflicts(hits: RagHit[]): RagHit[] {
-  const normalizedHits = hits.map((hit) => ({
+  const normalizedHits: NormalizedHit[] = hits.map((hit) => ({
     ...hit,
     sourceDate: normalizeSourceDate(hit.sourceDate),
   }));
 
   const groups = new Map<string, DatedHit[]>();
   for (const hit of normalizedHits) {
-    if (!hit.datedFact || sourceDateTimestamp(hit.sourceDate) == null) continue;
+    if (!isDatedHit(hit)) continue;
     const key = normalizedClaimPart(hit.datedFact.key);
     if (!key) continue;
     const group = groups.get(key) ?? [];
@@ -45,10 +56,10 @@ export function flagDatedEvidenceConflicts(hits: RagHit[]): RagHit[] {
 
   const conflictsBySource = new Map<string, DateConflictFlag>();
   for (const [factKey, group] of groups) {
-    if (new Set(group.map((hit) => normalizedClaimPart(hit.datedFact!.value))).size < 2) continue;
+    if (new Set(group.map((hit) => normalizedClaimPart(hit.datedFact.value))).size < 2) continue;
     const evidence = group
       .slice()
-      .sort((a, b) => sourceDateTimestamp(a.sourceDate)! - sourceDateTimestamp(b.sourceDate)!)
+      .sort((a, b) => datedTimestamp(a) - datedTimestamp(b))
       .map(evidenceFromHit);
 
     const newest = evidence.at(-1);

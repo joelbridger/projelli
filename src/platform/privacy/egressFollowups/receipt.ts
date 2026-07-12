@@ -21,6 +21,7 @@ function receiptHostname(rawDestination: string): string {
   try {
     const hostname = new URL(rawDestination).hostname.toLowerCase();
     if (hostname) return hostname;
+  // eslint-disable-next-line lantern-async/no-silent-failure -- Bare hostnames are valid receipt input, so URL parsing deliberately falls through to hostname validation.
   } catch {
     // A few non-HTTP clients hand us a hostname rather than a full URL.
   }

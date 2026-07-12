@@ -116,7 +116,7 @@ export function NotesReviewPanel({ rawItems = [], onApprove }: NotesReviewPanelP
               )}
 
               {receipt && (
-                <div data-testid={`notes-review-receipt-${item.id}`} role="status" style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 'var(--kp-space-sm)', color: receipt.status === 'recorded' ? 'var(--color-muted-foreground)' : 'var(--color-success, #19734a)', fontSize: 'var(--kp-font-xs)' }}>
+                <div data-testid={`notes-review-receipt-${item.id}`} role="status" style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 'var(--kp-space-sm)', color: receipt.status === 'recorded' ? 'var(--color-muted-foreground)' : 'var(--kp-success-text)', fontSize: 'var(--kp-font-xs)' }}>
                   <CheckCircle2 size={14} aria-hidden="true" />
                   {receipt.message}
                 </div>

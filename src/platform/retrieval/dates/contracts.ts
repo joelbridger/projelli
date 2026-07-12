@@ -60,3 +60,15 @@ export interface DateConflictFlag {
   relation: 'newer-conflicts-with-older' | 'older-conflicts-with-newer';
   evidence: DatedEvidence[];
 }
+
+/**
+ * The date-related slice of a citation needed by date presentation. Keeping
+ * this contract with retrieval lets any surface render dated evidence without
+ * importing another feature's Ask-specific citation model.
+ */
+export interface DateableCitation {
+  label: string;
+  sourceDate?: SourceDate;
+  datedFact?: DatedFact;
+  dateConflict?: DateConflictFlag;
+}

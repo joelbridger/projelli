@@ -2,7 +2,7 @@ import { CheckCircle2, AlertTriangle, Mail } from 'lucide-react';
 import type { CSSProperties, ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import type { AnswerCitation } from './askHelpers';
-import { AnswerDatePresentation } from '@/features/answerDates/AnswerDatePresentation';
+import { AnswerDatePresentation } from '@/platform/retrieval/dates';
 
 /* -------------------------------------------------------------------------- */
 /* CitationText — the Ask answer renderer (matches the demo Ask answer body).  */
