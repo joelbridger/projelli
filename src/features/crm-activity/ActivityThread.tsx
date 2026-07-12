@@ -115,7 +115,7 @@ export function ActivityThread({
     const existing = reactions.find((reaction) => reaction.emoji === emoji && reaction.userId === currentUser.userId);
     const now = new Date().toISOString();
     await onSave({
-      id: activityReactionId(activity.id, emoji, currentUser.userId),
+      id: existing?.id ?? activityReactionId(activity.id, emoji, currentUser.userId),
       kind: 'activityReaction',
       matterId: activity.matterId ?? 'firm_home',
       activityId: activity.id,
