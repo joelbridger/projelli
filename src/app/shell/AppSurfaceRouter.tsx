@@ -12,7 +12,7 @@
 
 import { CrmHome } from '@/features/crm-home';
 import { ClientsSurface } from '@/features/crm-clients';
-import { Ask } from '@/features/ask/Ask';
+import { CrmSearchSurface } from '@/features/crm-search';
 import { DocumentsHome } from '@/features/documents/DocumentsHome';
 import { AssociateHome } from '@/features/workflows/AssociateHome';
 import { LazyBoundary } from '@/ui/LazyBoundary';
@@ -32,7 +32,6 @@ import {
   resolveSavedDocumentPath,
   routeSavedAskDocument,
 } from '@/app/shell/routeSavedAskDocument';
-import { openMatterDocumentSource } from '@/app/shell/matterDocumentNavigation';
 import type { MattersSurfaceMode } from '@/platform/state/appNavigationStore';
 import type {
   WorkflowExecution,
@@ -51,7 +50,6 @@ import type { TrashRetentionPeriod } from '@/features/documents/TrashPanel';
 import type { Matter } from '@/platform/types/matter';
 import {
   EV_OPEN_ACCOUNT,
-  EV_OPEN_EMAIL,
   SK_FIRM_NAME,
 } from '@/config/identity';
 
@@ -219,6 +217,10 @@ export function AppSurfaceRouter({
   handleSettingsRestartOnboarding,
   activeMatter,
 }: AppSurfaceRouterProps) {
+  // CRM Ask currently has no document-chat prefill flow. Retain the shell
+  // contract while that separate feature remains routed from documents.
+  void askPrefill;
+  void setAskPrefill;
   // Privacy Center + Activity Log are nested as sections inside the Settings
   // screen (the gear opens Settings). Built here so SettingsContent stays
   // decoupled from these surfaces' data wiring.
@@ -482,93 +484,7 @@ export function AppSurfaceRouter({
       ) : sidebarActiveTab === 'matters' ? (
         <ClientsSurface />
       ) : sidebarActiveTab === 'search' ? (
-        <Ask
-          onSaveToDocument={async (content) => {
-            if (!workspaceServiceRef.current || !rootPath) return;
-            // Word-first: AI answers save as a real .docx (not markdown).
-            const { deriveFilenameFromMessage, resolveUniqueName } =
-              await import('@/platform/utils/fileDrop');
-            const { markdownToDocxBytes, docxBytesToDataUrl } =
-              await import('@/platform/utils/docx-io');
-            const firmName = (() => {
-              try {
-                return localStorage.getItem(SK_FIRM_NAME) ?? '';
-              } catch {
-                return '';
-              }
-            })();
-            const base = deriveFilenameFromMessage(content).replace(
-              /\.(md|markdown|txt)$/i,
-              ''
-            );
-            const targetDir = resolveSavedDocumentDirectory({
-              rootPath,
-              activeMatter,
-            });
-            const finalName = await resolveUniqueName(
-              workspaceServiceRef.current,
-              targetDir,
-              `${base}.docx`
-            );
-            const path = resolveSavedDocumentPath({
-              rootPath,
-              activeMatter,
-              fileName: finalName,
-            });
-            const bytes = await markdownToDocxBytes(content, finalName, {
-              firmName,
-            });
-            const buffer = new ArrayBuffer(bytes.byteLength);
-            new Uint8Array(buffer).set(bytes);
-            await workspaceServiceRef.current.writeFileBinary(path, buffer);
-            const tree = await workspaceServiceRef.current.getFileTree();
-            setFileTree(tree);
-            routeSavedAskDocument({
-              activeMatter,
-              savedDocument: {
-                path,
-                name: finalName,
-                content: docxBytesToDataUrl(bytes),
-              },
-              setDocumentsView,
-              setSidebarActiveTab,
-              setMattersSurfaceMode,
-              pushNavigationSnapshot,
-            });
-          }}
-          prefillRequest={askPrefill}
-          onPrefillConsumed={() => setAskPrefill(null)}
-          onAuditLog={addAuditEntry}
-          onOpenFileAtPath={(p, _paragraphIndex, snippet, matterId) => {
-            // Wave 2 — email relocation: an email citation in an Ask answer opens
-            // the light EmailViewer reading view (via lantern:open-email, the
-            // same path the .aichat chat uses). Without this the Ask surface
-            // dispatched nothing, so email citations were a dead click. Document
-            // citations keep their in-place SourcePanel passage; their dedicated
-            // citation viewer lands in Wave 3.
-            if (typeof p === 'string' && p.startsWith('mail:')) {
-              window.dispatchEvent(
-                new CustomEvent(EV_OPEN_EMAIL, { detail: { sourceId: p } })
-              );
-              return;
-            }
-            const citationMatterId = matterId ?? activeMatter?.id;
-            if (citationMatterId && typeof p === 'string') {
-              void openMatterDocumentSource({
-                matterId: citationMatterId,
-                ref: p,
-                ...(snippet ? { snippet } : {}),
-                service: workspaceServiceRef.current,
-                handlers: {
-                  setDocumentsView,
-                  setSidebarActiveTab,
-                  setMattersSurfaceMode,
-                  pushNavigationSnapshot,
-                },
-              });
-            }
-          }}
-        />
+        <CrmSearchSurface />
       ) : sidebarActiveTab === 'email' ? (
         buildEmailWorkspace({})
       ) : sidebarActiveTab === 'files' ? (
