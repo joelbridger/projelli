@@ -148,8 +148,8 @@ every external write; light theme; `matter`/`matter_id` never renamed.*
 | Contact activity stream | Chronological feed of everything on a contact (notes, tasks, events, emails) | Basic | R | E-100 — "your lives are really in Wealthbox tasks, workflows... and email" | REPLICATE — becomes the unified, dated, sourced timeline (charter §5.2) |
 | Firm-wide activity/dashboard feed | A home-page feed of firm activity across contacts | Basic | R | not mentioned | REPLICATE |
 | @-mentioning | Type "@" + a contact name from the publisher box to post a note about them without navigating to their record | Basic | UNVERIFIED | not mentioned directly (matches E-021's "notify everybody" pattern) | REPLICATE |
-| Comments on activity | Reply to an activity-stream item; visibility can be set to "everyone" | Basic | R only | not mentioned | SKIP for v1 — documented [D23 exclusion](00-master-spec.md): activity comments are deferred together with reactions; no v1 comment entity or composer is planned. |
-| Likes/emoji activity reactions | React to an activity-stream item | Basic | R only | not mentioned | SKIP for v1 — deferred with activity comments under [D23](00-master-spec.md); neither has a v1 contract or screen home. |
+| Comments on activity | Reply to an activity-stream item; visibility can be set to "everyone" | Basic | R only | not mentioned | SKIP for v1 — documented [D23 exclusion](00-master-spec.md): activity comments are deferred; no v1 comment entity or composer is planned. |
+| Likes/emoji activity reactions | React to an activity-stream item | Basic | R only | not mentioned | REPLICATE — each firm member can add or remove a reaction. The activity feed and client timeline show each emoji's total and, on hover, the people who reacted. Reactions are saved as firm records and survive an app restart. |
 
 ## 12. Document storage
 
@@ -235,13 +235,13 @@ including the two n/a "constraint, not a feature" rows in §18):
 
 | Verdict | Approx. count |
 |---|---|
-| **REPLICATE** | 52 |
+| **REPLICATE** | 53 |
 | **IMPROVE** | 18 |
-| **SKIP** | 23 |
+| **SKIP** | 22 |
 | **n/a** | 2 |
 | **Total** | 95 |
 
-SKIP breakdown by reason: mobile app / dialer infra (3 — the charter's own named example), enterprise/multi-workspace scale (2), D9/D23 exclusions (8: BCC Dropbox conflicts with E2EE; DocuSign tracking belongs to the existing connector; activity comments and reactions are deferred; generic CSV/vCard imports are deferred; Projects remain legacy-import records; Contact Actions bulk actions are excluded; and files stay in the existing Documents subsystem), out-of-scope external tools with zero JBW evidence of need (9: RightCapital, Schwab, JotForm-as-integration, AdvicePay, Orion/Black Diamond/Tamarac/Addepar, eMoney/MoneyGuide/Voyant, third-party AI-on-Wealthbox layers, Zapier, email-broadcast blasts), and one Wealthbox-own limitation not worth copying (dropbox emails are not threaded).
+SKIP breakdown by reason: mobile app / dialer infra (3 — the charter's own named example), enterprise/multi-workspace scale (2), D9/D23 exclusions (7: BCC Dropbox conflicts with E2EE; DocuSign tracking belongs to the existing connector; activity comments are deferred; generic CSV/vCard imports are deferred; Projects remain legacy-import records; Contact Actions bulk actions are excluded; and files stay in the existing Documents subsystem), out-of-scope external tools with zero JBW evidence of need (9: RightCapital, Schwab, JotForm-as-integration, AdvicePay, Orion/Black Diamond/Tamarac/Addepar, eMoney/MoneyGuide/Voyant, third-party AI-on-Wealthbox layers, Zapier, email-broadcast blasts), and one Wealthbox-own limitation not worth copying (dropbox emails are not threaded).
 
 ## (b) The 10 features that define parity in a sales conversation
 

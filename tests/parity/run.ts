@@ -1141,6 +1141,23 @@ class DesktopParityApp implements ParityApp {
     fail(message);
   }
 
+  private async waitForActivityReactionState(testid: string, selected: boolean, hasReaction: boolean): Promise<void> {
+    this.lastStep = `waitForActivityReactionState(${JSON.stringify(testid)})`;
+    const end = Date.now() + 10_000;
+    while (Date.now() < end) {
+      const state = await this.eval(`(() => { const button = document.querySelector('[data-testid="${testid}"]'); return { pressed: button?.getAttribute('aria-pressed'), text: button?.textContent, title: button?.getAttribute('title') }; })()`);
+      if (state && typeof state === 'object') {
+        const button = state as { pressed?: unknown; text?: unknown; title?: unknown };
+        const countMatches = hasReaction
+          ? String(button.text).includes('1') && String(button.title).includes('Parity teammate')
+          : !String(button.text).includes('1') && !String(button.title).includes('Parity teammate');
+        if (button.pressed === String(selected) && countMatches) return;
+      }
+      await delay(150);
+    }
+    fail(`Reaction control did not show the expected ${selected ? 'saved' : 'removed'} state`);
+  }
+
   async firmDirectory(): Promise<void> {
     await this.setWorkspace(`firm-directory-${this.token('setup')}`);
     await this.openFirm();
@@ -1260,6 +1277,47 @@ class DesktopParityApp implements ParityApp {
       )
     )
       fail(`${options.recordKind} record disappeared after native restart`);
+  }
+
+  async activityReaction(): Promise<void> {
+    await this.setWorkspace(`activity-reaction-${this.token('workspace')}`);
+    await this.openHome();
+    await this.click('crm-home-nav-activity');
+    await this.require('crm-firm-activity-create');
+    await this.click('crm-firm-activity-create');
+    const activity = await this.waitForRecord(
+      (record) => record.kind === 'activityEvent' && record.summary === 'Recorded a firm activity update',
+      'Recording activity did not create a saved activity item'
+    );
+    const activityId = typeof activity.id === 'string' ? activity.id : fail('Saved activity is missing its identifier');
+    const like = `crm-activity-reaction-like-${activityId}`;
+    await this.waitForControl(`crm-activity-reactions-${activityId}`);
+    await this.click(like);
+    const reaction = await this.waitForRecord(
+      (record) => record.kind === 'activityReaction' && record.activityId === activityId && record.userId === 'parity-user' && record.emoji === '👍' && record.active === true,
+      'Adding a reaction did not create a saved reaction'
+    );
+    await this.waitForActivityReactionState(like, true, true);
+    await this.click(like);
+    await this.waitForRecord(
+      (record) => record.id === reaction.id && record.kind === 'activityReaction' && record.active === false,
+      'Removing a reaction did not save the removal'
+    );
+    await this.waitForActivityReactionState(like, false, false);
+    await this.click(like);
+    await this.waitForRecord(
+      (record) => record.id === reaction.id && record.kind === 'activityReaction' && record.active === true,
+      'Adding the reaction again did not restore it'
+    );
+    await this.waitForActivityReactionState(like, true, true);
+    await this.restart();
+    await this.click('crm-home-nav-activity');
+    await this.waitForControl(`crm-activity-reactions-${activityId}`);
+    await this.waitForActivityReactionState(like, true, true);
+    await this.waitForRecord(
+      (record) => record.id === reaction.id && record.kind === 'activityReaction' && record.active === true,
+      'The reaction record disappeared after native restart'
+    );
   }
 
   async migration(options: {

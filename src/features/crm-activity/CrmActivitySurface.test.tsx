@@ -22,7 +22,7 @@ describe('CrmActivitySurface', () => {
     save.mockClear();
     render(<CrmActivitySurface />);
     expect(screen.getByTestId('crm-firm-activity-feed')).toHaveTextContent('Maya assigned a review task.');
-    expect(screen.getByTestId('crm-notification-inbox')).toHaveTextContent(/relay can see the recipient/i);
+    expect(screen.getByTestId('crm-notification-inbox')).toHaveTextContent(/notification details stay private/i);
     fireEvent.change(screen.getByTestId('crm-activity-note-body'), { target: { value: 'Please check the annual review.' } });
     fireEvent.click(screen.getByTestId('crm-activity-mention-maya'));
     expect(screen.getByTestId('crm-activity-mention-review')).toHaveTextContent('Maya');
@@ -37,5 +37,28 @@ describe('CrmActivitySurface', () => {
     render(<CrmActivitySurface />);
     expect(screen.getByTestId('crm-firm-activity-feed')).toHaveTextContent('No firm activity yet');
     expect(screen.getByTestId('crm-notification-inbox')).toHaveTextContent('No notifications yet');
+  });
+
+  it('adds and removes a saved emoji reaction, while showing the people who reacted', async () => {
+    records = [
+      { id: 'member-maya', kind: 'firmDirectoryEntry', userId: 'maya', displayName: 'Maya', active: true },
+      { id: 'member-oliver', kind: 'firmDirectoryEntry', userId: 'oliver', displayName: 'Oliver', active: true },
+      { id: 'activity-1', kind: 'activityEvent', matterId: 'firm_home', at: '2026-07-12T10:00:00.000Z', summary: 'Maya completed a review task.' },
+      { id: 'reaction-oliver', kind: 'activityReaction', activityId: 'activity-1', userId: 'oliver', displayName: 'Oliver', emoji: '👍', active: true },
+    ];
+    save.mockClear();
+    const { rerender } = render(<CrmActivitySurface />);
+
+    const like = screen.getByTestId('crm-activity-reaction-like-activity-1');
+    expect(like).toHaveTextContent('👍 1');
+    expect(like).toHaveAttribute('title', 'Like: Oliver');
+    fireEvent.click(like);
+    await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({ kind: 'activityReaction', activityId: 'activity-1', userId: 'maya', displayName: 'Maya', emoji: '👍', active: true })));
+
+    records = [...records, { id: 'activity-reaction:activity-1:maya:128077', kind: 'activityReaction', activityId: 'activity-1', userId: 'maya', displayName: 'Maya', emoji: '👍', active: true }];
+    rerender(<CrmActivitySurface />);
+    save.mockClear();
+    fireEvent.click(screen.getByTestId('crm-activity-reaction-like-activity-1'));
+    await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({ id: 'activity-reaction:activity-1:maya:128077', kind: 'activityReaction', active: false })));
   });
 });
