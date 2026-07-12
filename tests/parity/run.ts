@@ -12,6 +12,7 @@ import { FEATURES, SKIPPED_FEATURES, type ParityApp, type ParityFeature } from '
 
 const root = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 const port = Number(process.env.PARITY_BRIDGE_PORT ?? '9279');
+const vitePort = Number(process.env.PARITY_VITE_PORT ?? '5174');
 const workspaceRoot = process.env.PARITY_WORKSPACE ?? `/tmp/lantern-parity-${process.pid}`;
 const reportPath = resolve(root, 'tests/parity/parity-report.json');
 const base = `http://127.0.0.1:${port}`;
@@ -86,6 +87,15 @@ class DesktopParityApp implements ParityApp {
   private sequence = 0;
 
   private async eval(js: string): Promise<unknown> { return http('/eval', { js }); }
+  private async evalWhenRendererReady(js: string, label: string): Promise<unknown> {
+    const deadline = Date.now() + 30_000;
+    let lastError = 'renderer did not answer';
+    while (Date.now() < deadline) {
+      try { return await this.eval(js); } catch (error) { lastError = error instanceof Error ? error.message : String(error); }
+      await delay(150);
+    }
+    fail(`${label}: ${lastError}`);
+  }
   private async exists(testid: string): Promise<boolean> { return Boolean(await this.eval(`Boolean(document.querySelector('[data-testid="${testid}"]'))`)); }
   private async require(testid: string): Promise<void> {
     if (!await this.exists(testid)) fail(`Missing required control: ${testid}`);
@@ -106,7 +116,7 @@ class DesktopParityApp implements ParityApp {
     // because that skips the lifecycle commit which dismisses it.  The old
     // shortcut therefore made every parity feature fail before a CRM screen
     // could mount.
-    await this.eval(`(() => {
+    await this.evalWhenRendererReady(`(() => {
       localStorage.setItem('lantern_onboarding_complete', 'true');
       localStorage.setItem('keepance_feature_tour_dismissed', 'true');
       localStorage.setItem('keepance_feature_tour_completed', 'true');
@@ -116,9 +126,12 @@ class DesktopParityApp implements ParityApp {
         name: 'Parity verification firm',
         lastOpened: new Date().toISOString(),
       }]));
-      location.reload();
       return true;
-    })()`);
+    })()`, 'The desktop renderer did not become ready');
+    // A reload intentionally tears down the current WebView before the bridge
+    // can always return its response. Seed first, then tolerate that expected
+    // race and wait for the new renderer below.
+    try { await this.eval(`location.reload(); true`); } catch { /* reload ended the old renderer first */ }
     const shellDeadline = Date.now() + 30_000;
     while (Date.now() < shellDeadline) {
       try {
@@ -259,6 +272,98 @@ class DesktopParityApp implements ParityApp {
     await this.requireText(title);
   }
 
+  async pipeline(options: { opportunity?: boolean; pipeline?: boolean; stage?: boolean; workflowTrigger?: boolean }): Promise<void> {
+    const { householdId } = await this.setWorkspace(`pipeline-${this.token('setup')}`);
+    const pipelineName = this.token('Parity pipeline');
+    const stageName = this.token('Parity stage');
+    const templateId = `parity-workflow-template-${this.token('pipeline')}`;
+
+    if (options.workflowTrigger) {
+      await this.eval(`window.__TAURI_INTERNALS__.invoke('crm_live_upsert', { record: { id: ${JSON.stringify(templateId)}, kind: 'workflowTemplate', matterId: 'firm_home', name: 'Parity workflow template' } })`);
+    }
+    await this.click('crm-home-nav-pipeline');
+    await this.click('crm-pipeline-settings');
+    await this.fill('crm-pipeline-name', pipelineName);
+    await this.click('crm-pipeline-save');
+    await delay(200);
+    const pipeline = (await this.records()).find((record) => record.kind === 'pipelineDef' && record.name === pipelineName);
+    if (!pipeline || typeof pipeline.id !== 'string') fail('Saving a pipeline did not create a pipeline record');
+
+    await this.fill(`crm-stage-name-${pipeline.id}`, stageName);
+    await this.click(`crm-stage-save-${pipeline.id}`);
+    await delay(200);
+    const stage = (await this.records()).find((record) => record.kind === 'stageDef' && record.pipelineId === pipeline.id && record.name === stageName);
+    if (!stage || typeof stage.id !== 'string') fail('Saving a stage did not create a stage record');
+
+    if (options.workflowTrigger) {
+      await this.select(`crm-stage-workflow-${stage.id}`, templateId);
+      await this.click(`crm-stage-trigger-${stage.id}`);
+      await this.click(`crm-stage-trigger-save-${stage.id}`);
+      await delay(200);
+      const storedStage = (await this.records()).find((record) => record.id === stage.id);
+      const trigger = Array.isArray(storedStage?.triggerRules) ? storedStage.triggerRules.find((rule: unknown) => typeof rule === 'object' && rule !== null && (rule as { event?: unknown }).event === 'entered') as { enabled?: unknown; workflowTemplateId?: unknown } | undefined : undefined;
+      if (!trigger || trigger.enabled !== true || trigger.workflowTemplateId !== templateId) fail('Saving the workflow suggestion did not persist the stage trigger');
+    }
+
+    if (options.opportunity) {
+      await this.click('crm-pipeline-back');
+      await this.click('crm-pipeline-new');
+      const opportunityName = this.token('Parity opportunity');
+      await this.fill('crm-opportunity-name', opportunityName);
+      await this.select('crm-opportunity-household', householdId);
+      await this.click('crm-opportunity-save');
+      await delay(200);
+      if (!(await this.records()).some((record) => record.kind === 'opportunity' && record.name === opportunityName && record.pipelineId === pipeline.id)) fail('Saving the opportunity did not create an opportunity record');
+    }
+
+    await this.restart();
+    const afterRestart = await this.records();
+    if (!afterRestart.some((record) => record.id === pipeline.id && record.kind === 'pipelineDef')) fail('Pipeline disappeared after native restart');
+    if (!afterRestart.some((record) => record.id === stage.id && record.kind === 'stageDef')) fail('Stage disappeared after native restart');
+    if (options.workflowTrigger) {
+      const storedStage = afterRestart.find((record) => record.id === stage.id);
+      if (!Array.isArray(storedStage?.triggerRules) || !storedStage.triggerRules.some((rule: unknown) => typeof rule === 'object' && rule !== null && (rule as { enabled?: unknown; workflowTemplateId?: unknown }).enabled === true && (rule as { workflowTemplateId?: unknown }).workflowTemplateId === templateId)) fail('Workflow trigger disappeared after native restart');
+    }
+  }
+
+  async report(options: { kind: 'no_contact_6mo' | 'attention_vs_fee' | 'custom' | 'ai' }): Promise<void> {
+    const { householdId } = await this.setWorkspace(`report-${this.token('setup')}`);
+    await this.eval(`window.__TAURI_INTERNALS__.invoke('crm_live_upsert', { record: { id: ${JSON.stringify(householdId)}, kind: 'household', matterId: ${JSON.stringify(householdId)}, name: 'Parity reporting household', status: 'active', annualFee: { value: 1200, currency: 'USD' } } })`);
+    await this.click('crm-home-nav-reports');
+
+    if (options.kind === 'ai') {
+      await this.fill('crm-report-ai-prompt', 'Which clients need attention?');
+      await this.click('crm-report-ai-run');
+      await this.click('crm-report-ai-use-proposal');
+    } else if (options.kind === 'attention_vs_fee') {
+      await this.click('crm-report-attention-vs-fee');
+    } else if (options.kind === 'custom') {
+      await this.click('crm-report-builder');
+    } else {
+      await this.click('crm-report-no-contact-in-6-months');
+    }
+
+    await this.click('crm-report-run');
+    await this.requireText('Computed just now');
+    await delay(200);
+    if (!(await this.records()).some((record) => record.kind === 'reportRun')) fail('Running the report did not create a report-run record');
+
+    let savedReportName: string | undefined;
+    if (options.kind === 'custom') {
+      savedReportName = this.token('Parity saved report');
+      await this.click('crm-report-save');
+      await this.fill('crm-report-save-name', savedReportName);
+      await this.click('crm-report-save-confirm');
+      await delay(200);
+      if (!(await this.records()).some((record) => record.kind === 'savedReport' && record.name === savedReportName)) fail('Saving the report recipe did not create a saved report');
+    }
+
+    await this.restart();
+    const afterRestart = await this.records();
+    if (!afterRestart.some((record) => record.kind === 'reportRun')) fail('Report-run record disappeared after native restart');
+    if (savedReportName && !afterRestart.some((record) => record.kind === 'savedReport' && record.name === savedReportName)) fail('Saved report disappeared after native restart');
+  }
+
   async durableFeature(options: { route: string; controls: string[]; action?: string; result?: string; recordKind?: string }): Promise<void> {
     await this.setWorkspace(`feature-${this.token('route')}`);
     await this.click(options.route);
@@ -289,12 +394,12 @@ let infrastructureError: string | undefined;
 try {
   validateManifest();
   mkdirSync(workspaceRoot, { recursive: true });
-  if (!await portReady(5174)) {
-    vite = start('npm', ['run', 'dev', '--', '--port', '5174', '--strictPort'], process.env);
+  if (!await portReady(vitePort)) {
+    vite = start('npm', ['run', 'dev', '--', '--port', String(vitePort), '--strictPort'], process.env);
     const end = Date.now() + 30_000;
-    while (!await portReady(5174)) { if (Date.now() > end) fail('Vite did not start on port 5174'); await delay(200); }
+    while (!await portReady(vitePort)) { if (Date.now() > end) fail(`Vite did not start on port ${vitePort}`); await delay(200); }
   }
-  desktop = start('bash', ['scripts/crm-loop/launch-app.sh', String(port), workspaceRoot], { ...process.env, LANTERN_DEV_BRIDGE_PORT: String(port) });
+  desktop = start('bash', ['scripts/crm-loop/launch-app.sh', String(port), workspaceRoot], { ...process.env, LANTERN_DEV_BRIDGE_PORT: String(port), LANTERN_VITE_PORT: String(vitePort) });
   await waitForBridge();
   const app = new DesktopParityApp();
   await app.ready();

@@ -57,15 +57,28 @@ export function CrmReports() {
   const [visibility, setVisibility] = useState<'personal' | 'firm'>('personal');
   const [openedRow, setOpenedRow] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const savedViews = useMemo(
-    () => live.records.filter((record) => record.kind === 'savedView' && record['surface'] === 'report'),
+  const savedReports = useMemo(
+    () => live.records.filter((record) => record.kind === 'savedReport'),
     [live.records],
   );
-  const run = (nextKind = kind, nextQuery = query) => {
+  const run = async (nextKind = kind, nextQuery = query) => {
     setKind(nextKind);
     setQuery(nextQuery);
     setOpenedRow(null);
-    setResult(computeReport(live.records, nextKind, nextQuery));
+    const computed = computeReport(live.records, nextKind, nextQuery);
+    setResult(computed);
+    await live.save({
+      id: `report-run:${crypto.randomUUID()}`,
+      kind: 'reportRun',
+      matterId: live.sharedMatterId ?? 'firm_home',
+      reportKind: nextKind,
+      query: nextQuery,
+      calculatedAt: computed.calculatedAt,
+      sourcesConsidered: computed.sourcesConsidered,
+      resultCount: computed.rows.length,
+      createdAt: computed.calculatedAt,
+      updatedAt: computed.calculatedAt,
+    });
   };
   const startCustom = () => {
     setKind('custom');
@@ -93,10 +106,9 @@ export function CrmReports() {
     try {
       await live.save({
         id: `saved-report:${crypto.randomUUID()}`,
-        kind: 'savedView',
-        matterId: 'firm_home',
+        kind: 'savedReport',
+        matterId: live.sharedMatterId ?? 'firm_home',
         name,
-        surface: 'report',
         visibility,
         layout: 'table',
         reportKind: kind,
@@ -117,25 +129,25 @@ export function CrmReports() {
       Icon={BarChart3}
       title="Reports"
       description="Answers from the records your firm has saved"
-      actions={<div style={{ display: 'flex', gap: 8 }}><Button data-testid="crm-report-new-custom" variant="secondary" iconLeft={Plus} onClick={startCustom}>New report</Button><Button data-testid="crm-report-run" iconLeft={RefreshCw} onClick={() => run()}>Run report</Button></div>}
+      actions={<div style={{ display: 'flex', gap: 8 }}><Button data-testid="crm-report-builder" variant="secondary" iconLeft={Plus} onClick={startCustom}>New report</Button><Button data-testid="crm-report-run" iconLeft={RefreshCw} onClick={() => { void run(); }}>Run report</Button></div>}
     />
 
     <section style={panel}>
       <strong>Ask for a report</strong>
       <p style={muted}>Ask suggests a report recipe from your question. It does not run or save anything until you review it.</p>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <input data-testid="crm-report-ask-input" aria-label="Ask for a report" value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="Who needs attention this month?" style={{ flex: '1 1 280px' }} />
-        <Button variant="secondary" data-testid="crm-report-ask-propose" disabled={!question.trim()} onClick={() => setProposal(proposeReportFromQuestion(question))}>Propose report</Button>
+        <input data-testid="crm-report-ai-prompt" aria-label="Ask for a report" value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="Who needs attention this month?" style={{ flex: '1 1 280px' }} />
+        <Button variant="secondary" data-testid="crm-report-ai-run" disabled={!question.trim()} onClick={() => setProposal(proposeReportFromQuestion(question))}>Propose report</Button>
       </div>
       {proposal && <div data-testid="crm-report-ask-proposal" style={{ marginTop: 10, borderTop: '1px solid var(--kp-border)', paddingTop: 10 }}>
         <strong>Proposed: {REPORT_TITLES[proposal.kind]}</strong>
         <p style={muted}>{proposal.explanation}</p>
-        <Button data-testid="crm-report-ask-use-proposal" onClick={() => { setKind(proposal.kind); setQuery(proposal.query); setResult(null); }}>Use this proposal</Button>
+        <Button data-testid="crm-report-ai-use-proposal" onClick={() => { setKind(proposal.kind); setQuery(proposal.query); setResult(null); }}>Use this proposal</Button>
       </div>}
     </section>
 
     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-      {canned.map((item) => <Button key={item} size="sm" variant={kind === item ? 'primary' : 'secondary'} data-testid={`crm-report-${item}`} aria-pressed={kind === item} onClick={() => { setKind(item); setResult(null); }}>{REPORT_TITLES[item]}</Button>)}
+      {canned.map((item) => <Button key={item} size="sm" variant={kind === item ? 'primary' : 'secondary'} data-testid={item === 'no_contact_6mo' ? 'crm-report-no-contact-in-6-months' : item === 'attention_vs_fee' ? 'crm-report-attention-vs-fee' : `crm-report-${item}`} aria-pressed={kind === item} onClick={() => { setKind(item); setResult(null); }}>{REPORT_TITLES[item]}</Button>)}
       <Button size="sm" variant={kind === 'custom' ? 'primary' : 'secondary'} data-testid="crm-report-custom" aria-pressed={kind === 'custom'} onClick={startCustom}>Custom report</Button>
     </div>
 
@@ -158,12 +170,12 @@ export function CrmReports() {
       </div>)}
     </section>}
 
-    {savedViews.length > 0 && <section style={panel}>
+    {savedReports.length > 0 && <section style={panel}>
       <strong>Saved reports</strong>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>{savedViews.map((view) => <Button key={view.id} size="sm" variant="secondary" data-testid={`crm-report-saved-${view.id}`} onClick={() => {
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>{savedReports.map((view) => <Button key={view.id} size="sm" variant="secondary" data-testid={`crm-report-saved-${view.id}`} onClick={() => {
         const savedKind = typeof view['reportKind'] === 'string' ? view['reportKind'] as ReportKind : 'custom';
         const savedQuery: ReportQuery = view['query'] && typeof view['query'] === 'object' ? view['query'] as ReportQuery : { entity: 'household', filters: [] };
-        run(savedKind, savedQuery);
+        void run(savedKind, savedQuery);
       }}>{typeof view['name'] === 'string' ? view['name'] : 'Saved report'} · {view['visibility'] === 'firm' ? 'Shared with firm' : 'Personal'}</Button>)}</div>
     </section>}
 
@@ -171,7 +183,7 @@ export function CrmReports() {
       {!result ? <><strong>Ready when you are</strong><p style={muted}>Run a report to calculate from the current encrypted CRM records. Results are never stored as truth.</p></> : <>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
           <div><strong>{result.title}</strong><p data-testid="crm-report-provenance" style={muted}>Computed just now from {result.sourcesConsidered} decrypted record{result.sourcesConsidered === 1 ? '' : 's'} · {live.freshness.kind === 'offline' ? 'using local data while offline' : 'current local index'}</p></div>
-          <Button data-testid="crm-report-save-open" iconLeft={Save} onClick={() => setSaveOpen(true)}>Save this view</Button>
+          <Button data-testid="crm-report-save" iconLeft={Save} onClick={() => setSaveOpen(true)}>Save this view</Button>
         </div>
         {result.rows.length === 0 ? <p data-testid="crm-report-empty" style={muted}>No matching records yet.</p> : <div data-testid="crm-report-row-list">{[...groups.entries()].map(([group, rows]) => <div key={group}>{group && <h2 style={{ fontSize: 'var(--kp-font-md)', margin: '14px 0 0' }}>{query.groupBy ? `${fieldLabels[query.groupBy as keyof typeof fieldLabels] ?? query.groupBy}: ${group}` : group}</h2>}{rows.map((row) => <section key={row.householdId} data-testid={`crm-report-row-${row.householdId}`} style={{ borderTop: '1px solid var(--kp-border)', padding: '10px 0' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}><div><strong>{row.householdName}</strong><span style={muted}> · {Object.entries(row.values).map(([label, value]) => `${label}: ${value}`).join(' · ')}</span></div><Button size="sm" variant="secondary" data-testid={`crm-report-open-${row.householdId}`} onClick={() => setOpenedRow(openedRow === row.householdId ? null : row.householdId)}>{openedRow === row.householdId ? 'Hide source details' : 'Open source details'}</Button></div>

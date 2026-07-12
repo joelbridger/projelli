@@ -320,7 +320,7 @@ const cases = [
       await app.click('crm-report-run', 'run a current report');
       await app.require('crm-report-results', 'computed report results');
       await app.require('crm-report-provenance', 'report sources, exclusions, and freshness');
-      await app.click('crm-report-save-open', 'save report view');
+      await app.click('crm-report-save', 'save report view');
       await app.fill('crm-report-save-name', 'Clients needing a check-in', 'saved report-view name');
       await app.require('crm-report-save-visibility', 'explicit personal or firm sharing choice');
       await app.click('crm-report-save-confirm', 'save report view');
