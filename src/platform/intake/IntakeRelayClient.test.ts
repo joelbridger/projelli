@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { getCorsSafeFetch } from '@/platform/providers/fetchUtils';
+import { egressFetch } from '@/platform/privacy/networkClient';
 import { IntakeRelayClient } from './IntakeRelayClient';
 
-vi.mock('@/platform/providers/fetchUtils', () => ({
-  getCorsSafeFetch: vi.fn(),
+vi.mock('@/platform/privacy/networkClient', () => ({
+  egressFetch: vi.fn(),
 }));
 
 const fetchMock = vi.fn();
@@ -28,7 +28,8 @@ function bytesToB64(bytes: Uint8Array): string {
 describe('IntakeRelayClient inbox methods', () => {
   beforeEach(() => {
     fetchMock.mockReset();
-    vi.mocked(getCorsSafeFetch).mockResolvedValue(fetchMock as unknown as typeof fetch);
+    vi.mocked(egressFetch).mockReset();
+    vi.mocked(egressFetch).mockImplementation(fetchMock as typeof egressFetch);
   });
 
   it('fetches the advisor inbox blobs and assembles sync chunks in index order', async () => {
@@ -92,7 +93,8 @@ describe('IntakeRelayClient inbox methods', () => {
         ],
       }],
     });
-    expect(fetchMock).toHaveBeenCalledWith(
+    expect(egressFetch).toHaveBeenCalledWith(
+      'intake-relay',
       'https://relay.example.test/intake/intake-1/inbox?cursor=14',
       expect.objectContaining({
         method: 'GET',
@@ -102,8 +104,9 @@ describe('IntakeRelayClient inbox methods', () => {
         },
       }),
     );
-    expect(fetchMock).toHaveBeenNthCalledWith(
+    expect(egressFetch).toHaveBeenNthCalledWith(
       2,
+      'intake-relay',
       'https://relay.example.test/intake/intake-1/blob/101',
       expect.objectContaining({
         method: 'GET',
@@ -113,8 +116,9 @@ describe('IntakeRelayClient inbox methods', () => {
         },
       }),
     );
-    expect(fetchMock).toHaveBeenNthCalledWith(
+    expect(egressFetch).toHaveBeenNthCalledWith(
       3,
+      'intake-relay',
       'https://relay.example.test/intake/intake-1/blob/102',
       expect.objectContaining({
         method: 'GET',
@@ -135,7 +139,8 @@ describe('IntakeRelayClient inbox methods', () => {
 
     await client.ackSubmission('intake-1', 'submission-1', 22);
 
-    expect(fetchMock).toHaveBeenCalledWith(
+    expect(egressFetch).toHaveBeenCalledWith(
+      'intake-relay',
       'https://relay.example.test/intake/intake-1/ack',
       expect.objectContaining({
         method: 'POST',
@@ -148,6 +153,40 @@ describe('IntakeRelayClient inbox methods', () => {
           cursor: 22,
         }),
       }),
+    );
+  });
+
+  it('routes each link-management and granted-intake request through the intake relay sink', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ ok: true, intake_id: 'intake-1', expires_at: '2026-08-01T00:00:00.000Z' }))
+      .mockResolvedValueOnce(jsonResponse({ ok: true, expires_at: '2026-09-01T00:00:00.000Z' }))
+      .mockResolvedValueOnce(jsonResponse({ ok: true }))
+      .mockResolvedValueOnce(jsonResponse({ ok: true }))
+      .mockResolvedValueOnce(jsonResponse({ intakes: [] }));
+    const client = new IntakeRelayClient({
+      baseUrl: 'https://relay.example.test',
+      seatToken: 'seat-token',
+    });
+
+    await client.createIntake({
+      intake_id: 'intake-1', auth_token: 'opaque', expires_at: '2026-08-01T00:00:00.000Z',
+      checklist_ciphertext_b64: 'checklist', state_ciphertext_b64: 'state', checklist_version: 1,
+    });
+    await client.extendIntake('intake-1', '2026-09-01T00:00:00.000Z');
+    await client.revokeIntake('intake-1');
+    await client.regenerateIntake('intake-1', {
+      token_b64: 'token', checklist_ciphertext_b64: 'checklist', state_ciphertext_b64: 'state',
+    });
+    await client.listGrantedIntakes('device-1');
+
+    expect(egressFetch).toHaveBeenCalledTimes(5);
+    for (const call of vi.mocked(egressFetch).mock.calls) {
+      expect(call[0]).toBe('intake-relay');
+    }
+    expect(egressFetch).toHaveBeenLastCalledWith(
+      'intake-relay',
+      'https://relay.example.test/intake/granted',
+      expect.objectContaining({ headers: expect.objectContaining({ 'X-Device-Id': 'device-1' }) }),
     );
   });
 });

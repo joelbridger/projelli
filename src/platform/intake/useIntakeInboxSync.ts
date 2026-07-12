@@ -6,6 +6,11 @@ import { FirmApiClient } from '@/platform/firm/FirmApiClient';
 import { getOrCreateDeviceKeypair } from '@/platform/firm/deviceKeys';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
+import {
+  getNetworkPolicyStatus,
+  subscribeToOfflineModeChanges,
+  type NetworkPolicyStatus,
+} from '@/platform/privacy/offlineMode';
 import { IntakeRelayClient } from './IntakeRelayClient';
 import { obtainIntakeKey } from './intakeKeyShare';
 import {
@@ -692,9 +697,15 @@ export function useIntakeInboxSync(options: {
     if (!isTauri() || !seatToken || !options.workspaceService) return undefined;
     let running = false;
     let stopped = false;
+    // Start fail-closed: do not schedule a relay poll until the desktop policy
+    // tells us that Offline Mode is off. This also avoids a boot-time request
+    // when Offline Mode was enabled in a previous session.
+    let offline = true;
+    let latestPolicyGeneration = -1;
+    let intervalId: number | undefined;
     const relayClient = new IntakeRelayClient({ seatToken, accessToken });
     const run = (): void => {
-      if (running || stopped || !options.workspaceService) return;
+      if (running || stopped || offline || !options.workspaceService) return;
       running = true;
       void syncActiveIntakeInboxesOnce({
         relayClient,
@@ -708,14 +719,44 @@ export function useIntakeInboxSync(options: {
         });
     };
 
-    // LANE0-LIVE-SYNC-MOUNT
-    run();
-    const intervalId = window.setInterval(run, intervalMs);
-    window.addEventListener('focus', run);
+    const stopPolling = (): void => {
+      if (intervalId !== undefined) {
+        window.clearInterval(intervalId);
+        intervalId = undefined;
+      }
+      window.removeEventListener('focus', run);
+    };
+
+    const startPolling = (): void => {
+      if (stopped || offline || intervalId !== undefined) return;
+      // LANE0-LIVE-SYNC-MOUNT
+      run();
+      intervalId = window.setInterval(run, intervalMs);
+      window.addEventListener('focus', run);
+    };
+
+    const applyPolicy = (status: NetworkPolicyStatus): void => {
+      // A delayed status read must not restart the timer after a newer Offline
+      // Mode switch has already stopped it.
+      if (status.generation < latestPolicyGeneration) return;
+      latestPolicyGeneration = status.generation;
+      offline = status.offlineMode;
+      if (offline) stopPolling();
+      else startPolling();
+    };
+
+    const unsubscribe = subscribeToOfflineModeChanges(applyPolicy);
+    void getNetworkPolicyStatus()
+      .then(applyPolicy)
+      .catch((error: unknown) => {
+        // Leave the relay paused if the native source of truth cannot answer.
+        console.warn('[useIntakeInboxSync] Could not read Offline Mode status:', error);
+      });
+
     return () => {
       stopped = true;
-      window.clearInterval(intervalId);
-      window.removeEventListener('focus', run);
+      unsubscribe();
+      stopPolling();
     };
   }, [accessToken, intervalMs, options.workspaceService, seatToken]);
 }
