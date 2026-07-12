@@ -9,7 +9,8 @@ use tauri::{AppHandle, Manager, State};
 use tokio::sync::oneshot;
 
 const HOST: &str = "127.0.0.1";
-const PORT: u16 = 9250;
+const DEFAULT_PORT: u16 = 9250;
+const PORT_ENV: &str = "LANTERN_DEV_BRIDGE_PORT";
 const DEFAULT_TIMEOUT_MS: u64 = 5_000;
 const MAX_REQUEST_BYTES: usize = 1024 * 1024;
 
@@ -39,22 +40,30 @@ pub fn manage_state(app: &tauri::App) {
 
 pub fn start(app: AppHandle) {
     std::thread::spawn(move || {
-        let listener = match TcpListener::bind((HOST, PORT)) {
+        let requested_port = bridge_port_from_env(std::env::var(PORT_ENV).ok().as_deref());
+        let listener = match TcpListener::bind((HOST, requested_port)) {
             Ok(listener) => listener,
             Err(error) => {
-                log::error!("[dev-bridge] failed to listen on {HOST}:{PORT}: {error}");
+                log::error!("[dev-bridge] failed to listen on {HOST}:{requested_port}: {error}");
+                return;
+            }
+        };
+        let port = match listener.local_addr() {
+            Ok(address) => address.port(),
+            Err(error) => {
+                log::error!("[dev-bridge] failed to determine bound port: {error}");
                 return;
             }
         };
 
-        log::info!("[dev-bridge] listening on 127.0.0.1:9250");
+        log::info!("[dev-bridge] listening on {HOST}:{port}");
 
         for stream in listener.incoming() {
             match stream {
                 Ok(stream) => {
                     let app = app.clone();
                     std::thread::spawn(move || {
-                        handle_stream(stream, app);
+                        handle_stream(stream, app, port);
                     });
                 }
                 Err(error) => {
@@ -92,11 +101,11 @@ pub fn dev_bridge_result(
     }
 }
 
-fn handle_stream(mut stream: TcpStream, app: AppHandle) {
+fn handle_stream(mut stream: TcpStream, app: AppHandle, port: u16) {
     let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
     let _ = stream.set_write_timeout(Some(Duration::from_secs(5)));
 
-    let request = match read_request(&mut stream) {
+    let request = match read_request(&mut stream, port) {
         Ok(request) => request,
         Err(error) => {
             let _ = write_json(&mut stream, 400, json!({ "ok": false, "error": error }));
@@ -106,7 +115,7 @@ fn handle_stream(mut stream: TcpStream, app: AppHandle) {
 
     let response = match request {
         Request::Options => Ok(json!({ "ok": true })),
-        Request::Get { path, query } => route_request(&app, &path, &query),
+        Request::Get { path, query } => route_request(&app, &path, &query, port),
         Request::UnsupportedMethod(method) => Err(HttpError::new(
             405,
             format!("unsupported method {method}; use GET"),
@@ -131,9 +140,10 @@ fn route_request(
     app: &AppHandle,
     path: &str,
     query: &HashMap<String, String>,
+    port: u16,
 ) -> Result<Value, HttpError> {
     match path {
-        "/health" => Ok(json!({ "ok": true, "port": PORT })),
+        "/health" => Ok(json!({ "ok": true, "port": port })),
         "/eval" => {
             let js = required_query(query, "js")?;
             let timeout_ms = timeout_ms(query);
@@ -390,7 +400,7 @@ enum Request {
     UnsupportedMethod(String),
 }
 
-fn read_request(stream: &mut TcpStream) -> Result<Request, String> {
+fn read_request(stream: &mut TcpStream, port: u16) -> Result<Request, String> {
     let mut buf = Vec::with_capacity(4096);
     let mut chunk = [0u8; 1024];
 
@@ -423,7 +433,7 @@ fn read_request(stream: &mut TcpStream) -> Result<Request, String> {
 
     match method {
         "GET" => {
-            let (path, query) = parse_target(target);
+            let (path, query) = parse_target(target, port);
             Ok(Request::Get { path, query })
         }
         "OPTIONS" => Ok(Request::Options),
@@ -431,9 +441,9 @@ fn read_request(stream: &mut TcpStream) -> Result<Request, String> {
     }
 }
 
-fn parse_target(target: &str) -> (String, HashMap<String, String>) {
+fn parse_target(target: &str, port: u16) -> (String, HashMap<String, String>) {
     let target = target
-        .strip_prefix(&format!("http://{HOST}:{PORT}"))
+        .strip_prefix(&format!("http://{HOST}:{port}"))
         .unwrap_or(target);
     let (path, query) = match target.split_once('?') {
         Some((path, query)) => (path, query),
@@ -447,6 +457,12 @@ fn parse_target(target: &str) -> (String, HashMap<String, String>) {
     }
 
     (path.to_string(), parsed)
+}
+
+fn bridge_port_from_env(value: Option<&str>) -> u16 {
+    value
+        .and_then(|value| value.parse::<u16>().ok())
+        .unwrap_or(DEFAULT_PORT)
 }
 
 fn percent_decode(value: &str) -> String {
@@ -515,5 +531,26 @@ impl HttpError {
             status,
             message: message.into(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{bridge_port_from_env, DEFAULT_PORT};
+
+    #[test]
+    fn bridge_port_uses_default_when_unset() {
+        assert_eq!(bridge_port_from_env(None), DEFAULT_PORT);
+    }
+
+    #[test]
+    fn bridge_port_uses_default_when_invalid() {
+        assert_eq!(bridge_port_from_env(Some("not-a-port")), DEFAULT_PORT);
+        assert_eq!(bridge_port_from_env(Some("70000")), DEFAULT_PORT);
+    }
+
+    #[test]
+    fn bridge_port_uses_valid_environment_value() {
+        assert_eq!(bridge_port_from_env(Some("9251")), 9251);
     }
 }
