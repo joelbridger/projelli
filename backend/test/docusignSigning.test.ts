@@ -162,7 +162,9 @@ describe("JWT capability broker", () => {
       account_id: "account-id",
       base_uri: "https://demo.docusign.net",
       expires_at: new Date(now + 300_000).toISOString(),
+      return_url: "https://intake.lantern.test/signing-return",
     });
+    expect(one.body.return_url).toBe(d.signingConfig!.allowedReturnUrl);
     expect(two.body.access_token).toBe("token-2");
     expect(urls).toEqual(["https://account-d.docusign.com/oauth/token", "https://account-d.docusign.com/oauth/token"]);
     expect(d.brokerStore!.listWakeups(f.intakeId)).toEqual([]);

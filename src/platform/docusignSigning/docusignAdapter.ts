@@ -7,6 +7,8 @@ export interface DocusignAuthorization {
   accountId: string;
   baseUri: string;
   expiresAt: string;
+  /** The broker's pinned, allow-listed return URL; authoritative over caller input. */
+  allowedReturnUrl: string;
 }
 export type DocusignAuthorizationProvider = () => Promise<DocusignAuthorization>;
 export interface DocusignTabPosition { page: number; xPosition: number; yPosition: number; width: number; height: number; }
@@ -79,6 +81,7 @@ export class DirectDocusignAdapter {
   async createEnvelopeAndRecipientView(input: DocusignEnvelopeInput): Promise<DocusignEnvelopeResult> {
     if (!input.signerName.trim() || !input.signerEmail.trim()) throw new Error('Signer name and email are required.');
     return this.withAuthorization(async (authorization, fetchFn) => {
+      if (input.returnUrl !== authorization.allowedReturnUrl) throw new Error('DocuSign return URL is not the broker-allowed URL.');
       const baseUri = authorization.baseUri;
       const envelopeResponse = await fetchFn(`${baseUri}/restapi/v2.1/accounts/${encodeURIComponent(authorization.accountId)}/envelopes`, {
         method: 'POST', headers: { Authorization: `Bearer ${authorization.accessToken}`, 'Content-Type': 'application/json' },
