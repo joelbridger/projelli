@@ -7,7 +7,7 @@ import { EV_OPEN_CRM_DOCUMENT } from '@/config/identity';
 import { buildHouseholdTimeline } from './buildTimeline';
 import type { TimelineEntryType, TimelineHousehold, TimelineRecord, TimelineSource } from './types';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
-import { ActivityThread } from '@/platform/crm/ActivityThread';
+import { ActivityThread } from '@/features/crm-activity/ActivityThread';
 import { useFirmStore } from '@/platform/firm/firmStore';
 
 const labels: Record<TimelineEntryType | 'all', string> = { all: 'All activity', note: 'Notes', fact: 'Facts', task: 'Completed tasks', workflow: 'Workflows', activity: 'Activity', email: 'Email', meeting: 'Meetings', document: 'Documents' };
