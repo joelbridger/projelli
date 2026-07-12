@@ -248,9 +248,23 @@ class DesktopParityApp implements ParityApp {
   private async text(): Promise<string> {
     return String(await this.eval('document.body.innerText'));
   }
+  /**
+   * Require text to become visible to a real user.
+   *
+   * This used to check exactly ONCE, instantly after the click that saves a
+   * record — so a record that saved correctly and rendered a moment later was
+   * reported as a product failure. That single line reported the whole Clients
+   * front door as 0/15 while the product actually worked. It now polls, exactly
+   * like `waitForText`: it still demands the user SEES the record (the front
+   * door's real promise), it just stops confusing "not yet painted" with "broken".
+   */
   private async requireText(value: string): Promise<void> {
-    if (!(await this.text()).includes(value))
-      fail(`Expected visible text: ${value}`);
+    const end = Date.now() + 10_000;
+    while (Date.now() < end) {
+      if ((await this.text()).includes(value)) return;
+      await delay(150);
+    }
+    fail(`Expected visible text: ${value}`);
   }
   private async waitForText(value: string): Promise<void> {
     const end = Date.now() + 10_000;
