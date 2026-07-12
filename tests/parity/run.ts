@@ -27,6 +27,11 @@ const port = Number(
 // is blank, then every feature falsely fails.
 const vitePort = 5174;
 const requestedVitePort = process.env['PARITY_VITE_PORT'];
+// A lane may deliberately share the one compatible Vite server while keeping
+// its desktop bridge and encrypted workspace private. This is opt-in: the
+// default still rejects a competing server so an accidental collision cannot
+// turn into a misleading score.
+const reuseVite = process.env['PARITY_REUSE_VITE'] === '1';
 const workspaceRoot =
   process.env['PARITY_WORKSPACE'] ?? `/tmp/lantern-parity-${process.pid}`;
 const reportPath = resolve(root, 'tests/parity/parity-report.json');
@@ -480,9 +485,14 @@ class DesktopParityApp implements ParityApp {
     const household = this.token('Parity household');
     const person = this.token('Parity person');
     await this.click('spine-nav-matters');
+    await this.waitForControl('crm-directory-surface');
     await this.click('crm-directory-add');
     await this.fill('crm-household-name', household);
     await this.click('crm-household-save');
+    // Saving goes through SQLCipher and remounts Clients as the household
+    // record.  Seeing the name in the directory is not enough: wait for the
+    // actual record surface before trying its contact controls.
+    await this.waitForControl('crm-household-record');
     await this.requireText(household);
     if (options.ownership) {
       await this.click('crm-household-edit');
@@ -549,6 +559,7 @@ class DesktopParityApp implements ParityApp {
       `(async () => { const invoke = window.__TAURI_INTERNALS__?.invoke; if (!invoke) throw new Error('Tauri invoke is unavailable'); await invoke('crm_set_workspace', { path: ${JSON.stringify(path)} }); const { useWorkspaceStore } = await import('/src/platform/fs/workspaceStore.ts'); useWorkspaceStore.getState().setRootPath(${JSON.stringify(path)}); return true; })()`
     );
     await this.click('spine-nav-matters');
+    await this.waitForControl('crm-directory-surface');
     await this.requireText(household);
     if (options.person) await this.requireText(person);
     if (options.ownership) {
@@ -952,16 +963,20 @@ try {
       `The debug desktop binary is wired to Vite on ${vitePort}; PARITY_VITE_PORT=${requestedVitePort} cannot be used.`
     );
   }
-  if ((await portReady(port)) || (await portReady(vitePort))) {
+  if ((await portReady(port)) || (!reuseVite && (await portReady(vitePort)))) {
     throw new InfrastructureError(
-      `Parity needs unused ports ${port} and ${vitePort}. Another app is already answering on one of them.`
+      reuseVite
+        ? `Parity needs unused bridge port ${port}. Another desktop bridge is already answering there.`
+        : `Parity needs unused ports ${port} and ${vitePort}. Another app is already answering on one of them.`
     );
   }
-  vite = start(
-    'npm',
-    ['run', 'dev', '--', '--port', String(vitePort), '--strictPort'],
-    process.env
-  );
+  if (!reuseVite) {
+    vite = start(
+      'npm',
+      ['run', 'dev', '--', '--port', String(vitePort), '--strictPort'],
+      process.env
+    );
+  }
   // A cold Vite cache can take a little over thirty seconds on the shared
   // build machine.  Keep the parity runner honest by waiting for the real
   // server instead of calling a healthy app an infrastructure failure.
