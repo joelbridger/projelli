@@ -5,9 +5,16 @@
  * desktop bridge, and every passing assertion must restart the native app.
  */
 import { spawn, type ChildProcess } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { homedir } from 'node:os';
 import { createServer } from 'node:net';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   FEATURES,
@@ -41,10 +48,28 @@ const requestedVitePort = process.env['PARITY_VITE_PORT'];
 const reuseVite = process.env['PARITY_REUSE_VITE'] !== '0';
 const workspaceRoot =
   process.env['PARITY_WORKSPACE'] ?? `/tmp/lantern-parity-${process.pid}`;
-const reportPath = resolve(root, 'tests/parity/parity-report.json');
+const featureFilter = process.env['PARITY_FEATURE'];
+const reportPath = featureFilter
+  ? `/tmp/lantern-parity-${featureFilter}-report.json`
+  : resolve(root, 'tests/parity/parity-report.json');
 const base = `http://127.0.0.1:${port}`;
 const delay = (ms: number) => new Promise((done) => setTimeout(done, ms));
 let migrationBaseUrl: string | undefined;
+
+function shareMachineModelCache(): void {
+  // A fresh parity data folder should isolate records and settings, not
+  // re-download the same 465 MB read-only search model for every feature run.
+  // Real Windows already has this machine-level model. Point the Linux run at
+  // its known-good machine cache while keeping all writable app data private.
+  const source =
+    process.env['PARITY_MODEL_CACHE'] ??
+    resolve(homedir(), '.local/share/lantern/models/e5-small');
+  if (!existsSync(source)) return;
+  const target = resolve(workspaceRoot, '.data/lantern/models/e5-small');
+  if (existsSync(target)) return;
+  mkdirSync(dirname(target), { recursive: true });
+  symlinkSync(source, target, 'dir');
+}
 
 async function freePort(): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -92,7 +117,8 @@ async function http(
   const url = new URL(path, base);
   for (const [key, value] of Object.entries(query))
     url.searchParams.set(key, value);
-  if (path !== '/health') url.searchParams.set('timeout_ms', bridgeTimeoutMs);
+  if (path !== '/health' && !url.searchParams.has('timeout_ms'))
+    url.searchParams.set('timeout_ms', bridgeTimeoutMs);
   let response: Response;
   try {
     response = await fetch(url);
@@ -217,8 +243,22 @@ class DesktopParityApp implements ParityApp {
   restarts = 0;
   private sequence = 0;
 
+  constructor(private readonly restartDesktopProcess: () => Promise<void>) {}
+
   private async eval(js: string): Promise<unknown> {
-    return http('/eval', { js });
+    const end = Date.now() + 15_000;
+    while (true) {
+      try {
+        return await http('/eval', { js });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        // WebKit uses this empty-stack shape when a page or CRM surface swaps
+        // underneath an evaluation. Retry only that known handoff; real app
+        // errors keep their message and still fail immediately.
+        if (!/^@\s*eval code@/s.test(message) || Date.now() >= end) throw error;
+        await delay(50);
+      }
+    }
   }
   private async exists(testid: string): Promise<boolean> {
     return Boolean(
@@ -241,6 +281,13 @@ class DesktopParityApp implements ParityApp {
     this.lastStep = `fill(${JSON.stringify(arguments[0])})`;
     await this.require(testid);
     await http('/fill', { testid, text: value });
+    // The Linux bridge returns as soon as it dispatches the input event. React
+    // applies the controlled value on its next paint; clicking Submit before
+    // that paint sends the form's old empty value. Windows' Playwright drive
+    // naturally waits across this boundary, so explicitly match it here.
+    await this.eval(
+      `new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))`
+    );
   }
   private async select(testid: string, value: string): Promise<void> {
     await this.require(testid);
@@ -269,7 +316,13 @@ class DesktopParityApp implements ParityApp {
     this.lastStep = `requireText(${value})`;
     const end = Date.now() + 10_000;
     while (Date.now() < end) {
-      if ((await this.text()).includes(value)) return;
+      try {
+        if ((await this.text()).includes(value)) return;
+      } catch {
+        // Saving swaps the visible CRM surface. WebKit may cancel one screen
+        // read during that swap; the required text must still appear before
+        // the unchanged deadline.
+      }
       await delay(150);
     }
     fail(`Expected visible text: ${value}`);
@@ -277,7 +330,11 @@ class DesktopParityApp implements ParityApp {
   private async waitForText(value: string): Promise<void> {
     const end = Date.now() + 10_000;
     while (Date.now() < end) {
-      if ((await this.text()).includes(value)) return;
+      try {
+        if ((await this.text()).includes(value)) return;
+      } catch {
+        // Keep polling across a real renderer handoff.
+      }
       await delay(150);
     }
     fail(`Expected visible text: ${value}`);
@@ -286,7 +343,12 @@ class DesktopParityApp implements ParityApp {
     this.lastStep = `waitForControl(${JSON.stringify(arguments[0])})`;
     const end = Date.now() + 10_000;
     while (Date.now() < end) {
-      if (await this.exists(testid)) return;
+      try {
+        if (await this.exists(testid)) return;
+      } catch {
+        // A renderer handoff can cancel one bridge evaluation. The control is
+        // still required before the same ten-second deadline.
+      }
       await delay(150);
     }
     fail(`Missing required control: ${testid}`);
@@ -294,6 +356,73 @@ class DesktopParityApp implements ParityApp {
   private token(prefix: string): string {
     this.sequence += 1;
     return `${prefix}-${Date.now()}-${this.sequence}`;
+  }
+
+  private async waitForStableShell(
+    timeoutMs: number,
+    oldDocumentMarker?: string
+  ): Promise<void> {
+    this.lastStep = 'wait for workspace auto-resume to settle';
+    const deadline = Date.now() + timeoutMs;
+    let stableSince = 0;
+    while (Date.now() < deadline) {
+      try {
+        const state = (await this.eval(`(() => ({
+          isFresh: ${oldDocumentMarker === undefined ? 'true' : `window.__lanternParityDocumentMarker !== ${JSON.stringify(oldDocumentMarker)}`},
+          hasShell: Boolean(document.querySelector('[data-testid="spine-nav"]')),
+          isResuming: Boolean(document.querySelector('[data-testid="workspace-auto-resume-loading"]')),
+          hasPicker: Boolean(document.querySelector('[data-testid="workspace-selector-dialog"]')),
+        }))()`)) as {
+          isFresh?: boolean;
+          hasShell?: boolean;
+          isResuming?: boolean;
+          hasPicker?: boolean;
+        };
+        const ready =
+          state.isFresh &&
+          state.hasShell &&
+          !state.isResuming &&
+          !state.hasPicker;
+        if (ready) {
+          if (!stableSince) stableSince = Date.now();
+          if (Date.now() - stableSince >= 750) return;
+        } else {
+          stableSince = 0;
+        }
+      } catch {
+        stableSince = 0;
+      }
+      await delay(150);
+    }
+    throw new InfrastructureError(
+      'The desktop workspace did not finish its normal auto-resume'
+    );
+  }
+
+  private async waitForCrmReady(path: string): Promise<void> {
+    this.lastStep = 'wait for the CRM store to finish opening';
+    const deadline = Date.now() + 60_000;
+    while (Date.now() < deadline) {
+      try {
+        const records = await http('/eval', {
+          js: `(async () => {
+            const invoke = window.__TAURI_INTERNALS__?.invoke;
+            if (!invoke) throw new Error('Tauri invoke is unavailable');
+            const { useWorkspaceStore } = await import('/src/platform/fs/workspaceStore.ts');
+            if (useWorkspaceStore.getState().rootPath !== ${JSON.stringify(path)})
+              useWorkspaceStore.getState().setRootPath(${JSON.stringify(path)});
+            await invoke('crm_set_workspace', { path: ${JSON.stringify(path)} });
+            return invoke('crm_live_list');
+          })()`,
+          timeout_ms: '15000',
+        });
+        if (Array.isArray(records)) return;
+      } catch {
+        // The ordinary workspace lifecycle may still hold its short open lock.
+      }
+      await delay(150);
+    }
+    throw new InfrastructureError('The CRM store did not finish opening');
   }
 
   async ready(): Promise<void> {
@@ -318,7 +447,9 @@ class DesktopParityApp implements ParityApp {
     }
     if (!rendererReady)
       throw new InfrastructureError('The desktop renderer did not become ready');
-    await this.eval(`(() => {
+    const oldDocumentMarker = this.token('bootstrap-document');
+    await http('/eval', { js: `(() => {
+      window.__lanternParityDocumentMarker = ${JSON.stringify(oldDocumentMarker)};
       localStorage.setItem('lantern_onboarding_complete', 'true');
       localStorage.setItem('keepance_feature_tour_dismissed', 'true');
       localStorage.setItem('keepance_feature_tour_completed', 'true');
@@ -332,22 +463,12 @@ class DesktopParityApp implements ParityApp {
       // racy: WebKit tears down the evaluation before the dev bridge can send
       // its success response. Schedule the normal reload for the next turn so
       // this is still a real fresh renderer, but the driver can observe it.
-      setTimeout(() => location.reload(), 0);
+      setTimeout(() => location.reload(), 50);
       return true;
-    })()`);
-    const shellDeadline = Date.now() + 30_000;
-    while (Date.now() < shellDeadline) {
-      try {
-        if (await this.exists('spine-nav')) break;
-      } catch {
-        // The WebView is briefly unavailable while the real page reloads.
-      }
-      await delay(150);
-    }
-    if (!(await this.exists('spine-nav'))) {
-      fail('The desktop app never completed its normal fresh-workspace open');
-    }
-    await this.setWorkspace('startup');
+    })()` });
+    await this.waitForStableShell(60_000, oldDocumentMarker);
+    // The normal recent-workspace route above already opened a real workspace.
+    // Do not race that reload by switching CRM stores during startup.
     await this.openHome();
   }
 
@@ -421,22 +542,38 @@ class DesktopParityApp implements ParityApp {
   }
 
   async restart(): Promise<void> {
-    // A renderer reload is not enough. This triggers Tauri's real relaunch and
-    // waits for its fresh local bridge before the assertion continues.
-    try {
-      await this.eval(
-        `(async () => { const { relaunch } = await import('@tauri-apps/plugin-process'); await relaunch(); return true; })()`
-      );
-    } catch {
-      /* expected: old bridge dies first */
-    }
-    await waitForBridge(30);
-    this.restarts += 1;
-    const shellDeadline = Date.now() + 15_000;
-    while (Date.now() < shellDeadline) {
-      if (await this.exists('spine-nav')) break;
+    // Restart the whole desktop process through the Linux launcher. Letting
+    // Tauri relaunch itself makes the launcher tear down the Xvfb screen that
+    // the new process still needs, so a healthy app becomes unreachable.
+    const oldRendererTimeOrigin = Number(
+      await this.eval('performance.timeOrigin')
+    );
+    await this.restartDesktopProcess();
+    const rendererDeadline = Date.now() + 30_000;
+    let freshRenderer = false;
+    while (Date.now() < rendererDeadline) {
+      try {
+        const currentTimeOrigin = Number(
+          await http('/eval', {
+            js: 'performance.timeOrigin',
+            timeout_ms: '1000',
+          })
+        );
+        if (currentTimeOrigin !== oldRendererTimeOrigin) {
+          freshRenderer = true;
+          break;
+        }
+      } catch {
+        // The bridge is expected to disappear between the two real processes.
+      }
       await delay(150);
     }
+    if (!freshRenderer)
+      throw new InfrastructureError(
+        'The desktop app did not provide a fresh renderer after restart'
+      );
+    this.restarts += 1;
+    await this.waitForStableShell(60_000);
     await this.openHome();
   }
 
@@ -552,7 +689,11 @@ class DesktopParityApp implements ParityApp {
     facts?: boolean;
     timeline?: boolean;
   }): Promise<void> {
-    const { path } = await this.setWorkspace('contacts');
+    // Match the working Windows front door: use the one workspace the app
+    // normally opened. The old Linux driver opened a nested `contacts` store
+    // while auto-resume was still opening this one, racing two SQLCipher opens.
+    const path = workspaceRoot;
+    await this.waitForCrmReady(path);
     const household = this.token('Parity household');
     const person = this.token('Parity person');
     await this.click('spine-nav-matters');
@@ -626,10 +767,13 @@ class DesktopParityApp implements ParityApp {
       if (options.notes) await this.requireText('Parity note');
     }
     await this.restart();
-    await this.eval(
-      `(async () => { const invoke = window.__TAURI_INTERNALS__?.invoke; if (!invoke) throw new Error('Tauri invoke is unavailable'); await invoke('crm_set_workspace', { path: ${JSON.stringify(path)} }); const { useWorkspaceStore } = await import('/src/platform/fs/workspaceStore.ts'); useWorkspaceStore.getState().setRootPath(${JSON.stringify(path)}); return true; })()`
-    );
+    await this.waitForCrmReady(path);
     await this.click('spine-nav-matters');
+    // Clients remembers the open household across restart. Return through its
+    // visible Directory control before checking the People directory.
+    if (await this.exists('crm-household-record')) {
+      await this.click('crm-household-back');
+    }
     await this.waitForControl('crm-directory-surface');
     await this.requireText(household);
     if (options.person) {
@@ -1158,10 +1302,20 @@ let desktop: ChildProcess | undefined;
 let wbsim: ChildProcess | undefined;
 let viteOutput = '';
 const results: Result[] = [];
+let runFeatures: readonly ParityFeature[] = FEATURES;
 let infrastructureError: string | undefined;
 try {
   validateManifest();
+  if (featureFilter) {
+    runFeatures = FEATURES.filter((feature) => feature.id === featureFilter);
+    if (runFeatures.length !== 1) {
+      throw new InfrastructureError(
+        `Unknown PARITY_FEATURE=${featureFilter}. Choose one manifest feature id.`
+      );
+    }
+  }
   mkdirSync(workspaceRoot, { recursive: true });
+  shareMachineModelCache();
   if (requestedVitePort && Number(requestedVitePort) !== vitePort) {
     throw new InfrastructureError(
       `The debug desktop binary is wired to Vite on ${vitePort}; PARITY_VITE_PORT=${requestedVitePort} cannot be used.`
@@ -1213,7 +1367,37 @@ try {
     }
   );
   await waitForBridge();
-  const app = new DesktopParityApp();
+  const app = new DesktopParityApp(async () => {
+    const previousDesktop = desktop;
+    stop(previousDesktop);
+    const stopDeadline = Date.now() + 15_000;
+    while (
+      previousDesktop &&
+      previousDesktop.exitCode === null &&
+      previousDesktop.signalCode === null &&
+      Date.now() < stopDeadline
+    ) {
+      await delay(100);
+    }
+    if (
+      previousDesktop?.exitCode === null &&
+      previousDesktop.signalCode === null
+    ) {
+      throw new InfrastructureError(
+        'The old desktop process did not stop before restart'
+      );
+    }
+    desktop = start(
+      'bash',
+      ['scripts/crm-loop/launch-app.sh', String(port), workspaceRoot],
+      {
+        ...process.env,
+        LANTERN_DEV_BRIDGE_PORT: String(port),
+        LANTERN_VITE_PORT: String(vitePort),
+      }
+    );
+    await waitForBridge();
+  });
   await app.ready();
   const simulatorPort = await freePort();
   migrationBaseUrl = `http://127.0.0.1:${String(simulatorPort)}/v1`;
@@ -1237,7 +1421,7 @@ try {
     if (error instanceof InfrastructureError) throw error;
     throw new InfrastructureError('The fabricated Wealthbox source did not become ready');
   }
-  for (const feature of FEATURES) {
+  for (const feature of runFeatures) {
     if (feature.pending) {
       results.push({
         id: feature.id,
@@ -1302,11 +1486,11 @@ try {
   const report = {
     generatedAt: new Date().toISOString(),
     source: 'design/01-wealthbox-feature-matrix.md',
-    totalFeatures: FEATURES.length,
-    skippedFeatures: SKIPPED_FEATURES.length,
+    totalFeatures: runFeatures.length,
+    skippedFeatures: featureFilter ? 0 : SKIPPED_FEATURES.length,
     verified: infrastructureError ? null : built,
     results,
-    skipped: SKIPPED_FEATURES,
+    skipped: featureFilter ? [] : SKIPPED_FEATURES,
     infrastructureError: infrastructureError ?? null,
   };
   mkdirSync(resolve(root, 'tests/parity'), { recursive: true });
