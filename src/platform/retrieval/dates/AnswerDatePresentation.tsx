@@ -1,4 +1,4 @@
-import { CalendarClock, Flag, ShieldCheck } from 'lucide-react';
+import { CalendarClock, Flag } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { DateableCitation } from './contracts';
 
@@ -10,7 +10,6 @@ type DateRow = {
   label: string;
   date: string;
   time: number;
-  authoritative: boolean;
   conflict: boolean;
   localFileMetadata: boolean;
 };
@@ -18,37 +17,40 @@ type DateRow = {
 type ConflictEvidenceRow = {
   factKey: string;
   label: string;
-  value: string;
   date: string;
   time: number;
-  authorityReason: string | null;
 };
 
 function toDateRows(citations: readonly DateableCitation[]): DateRow[] {
-  return citations.flatMap((citation, index) => {
-    const value = citation.sourceDate?.value;
-    if (!value) return [];
-    const time = Date.parse(value);
-    if (Number.isNaN(time)) return [];
-    return [{
-      label: citation.label.trim() || `Source ${String(index + 1)}`,
-      date: value,
-      time,
-      authoritative: citation.datedFact?.authorityReason !== undefined,
-      conflict: citation.dateConflict !== undefined,
-      // Filesystem mtime tells us when this local copy changed. It does not
-      // prove when the document itself was written, so say that plainly.
-      localFileMetadata: citation.sourceDate?.confidence === 'derived',
-    }];
-  }).sort((a, b) => a.time - b.time);
+  return citations
+    .flatMap((citation, index) => {
+      const value = citation.sourceDate?.value;
+      if (!value) return [];
+      const time = Date.parse(value);
+      if (Number.isNaN(time)) return [];
+      return [
+        {
+          label: citation.label.trim() || `Source ${String(index + 1)}`,
+          date: value,
+          time,
+          conflict: citation.dateConflict !== undefined,
+          // Filesystem mtime tells us when this local copy changed. It does not
+          // prove when the document itself was written, so say that plainly.
+          localFileMetadata: citation.sourceDate?.confidence === 'derived',
+        },
+      ];
+    })
+    .sort((a, b) => a.time - b.time);
 }
 
 /**
  * `dateConflict` is optional on every source. When it is supplied by the
- * retrieval layer it already contains the exact incompatible evidence set; do
- * not infer a conflict from two merely different dates.
+ * retrieval layer it already contains matching copies of one record with
+ * different timestamps; do not infer a warning from two merely different dates.
  */
-function conflictEvidence(citations: readonly DateableCitation[]): ConflictEvidenceRow[] {
+function conflictEvidence(
+  citations: readonly DateableCitation[]
+): ConflictEvidenceRow[] {
   const seen = new Set<string>();
   const rows: ConflictEvidenceRow[] = [];
 
@@ -68,10 +70,8 @@ function conflictEvidence(citations: readonly DateableCitation[]): ConflictEvide
       rows.push({
         factKey: conflict.factKey,
         label: item.path,
-        value,
         date: sourceDate,
         time,
-        authorityReason: item.authorityReason ?? null,
       });
     }
   }
@@ -94,23 +94,30 @@ function formatDate(value: string): string {
  * The dated slice of an answer. It is intentionally absent when no cited source
  * has a usable date, keeping older and undated answers visually unchanged.
  */
-export function AnswerDatePresentation({ citations }: { citations: readonly DateableCitation[] }) {
+export function AnswerDatePresentation({
+  citations,
+}: {
+  citations: readonly DateableCitation[];
+}) {
   const { t } = useTranslation();
   const rows = toDateRows(citations);
   if (rows.length === 0) return null;
 
   const newest = rows.at(-1);
   if (!newest) return null;
-  const authoritative = rows.filter((row) => row.authoritative).at(-1);
   const evidence = conflictEvidence(citations);
-  const newestEvidence = evidence.slice().sort((a, b) => a.time - b.time).at(-1);
-  // The retrieval contract keeps authority as advisor-readable context, never a
-  // hidden score. A source with that stated context is surfaced alongside the
-  // newest record so "newer" is never silently treated as "better".
-  const authoritativeEvidence = evidence.find((item) => item.authorityReason !== null);
-  const conflict = evidence.length > 1 || rows.some((row) => row.conflict) || (
-    authoritative !== undefined && authoritative.date !== newest.date
-  );
+  const newestEvidence = evidence
+    .slice()
+    .sort((a, b) => a.time - b.time)
+    .at(-1);
+  const earliestEvidence = evidence
+    .slice()
+    .sort((a, b) => a.time - b.time)
+    .at(0);
+  // This is intentionally limited to a warning supplied by retrieval for
+  // matching copies of one record. Different dates on unrelated documents are
+  // a normal timeline, not a detected factual disagreement.
+  const conflict = evidence.length > 1 || rows.some((row) => row.conflict);
 
   return (
     <section
@@ -126,9 +133,18 @@ export function AnswerDatePresentation({ citations }: { citations: readonly Date
         background: 'var(--kp-bg-soft)',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--kp-navy)' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          color: 'var(--kp-navy)',
+        }}
+      >
         <CalendarClock size={14} aria-hidden="true" />
-        <span style={{ fontSize: 12, fontWeight: 700 }}>{t('answer-dates.title')}</span>
+        <span style={{ fontSize: 12, fontWeight: 700 }}>
+          {t('answer-dates.title')}
+        </span>
       </div>
 
       <ol
@@ -144,11 +160,22 @@ export function AnswerDatePresentation({ citations }: { citations: readonly Date
         {rows.map((row, index) => (
           <li
             key={`${row.label}-${row.date}-${String(index)}`}
-            style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              minWidth: 0,
+            }}
           >
             <span
               aria-hidden="true"
-              style={{ width: 7, height: 7, flex: '0 0 auto', borderRadius: 999, background: 'var(--kp-accent)' }}
+              style={{
+                width: 7,
+                height: 7,
+                flex: '0 0 auto',
+                borderRadius: 999,
+                background: 'var(--kp-accent)',
+              }}
             />
             <span
               data-testid={`answer-citation-date-chip-${String(index + 1)}`}
@@ -166,17 +193,21 @@ export function AnswerDatePresentation({ citations }: { citations: readonly Date
                 whiteSpace: 'nowrap',
               }}
             >
-              {row.localFileMetadata ? `Local file metadata · ${formatDate(row.date)}` : formatDate(row.date)}
+              {row.localFileMetadata
+                ? `Local file metadata · ${formatDate(row.date)}`
+                : formatDate(row.date)}
             </span>
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, color: 'var(--kp-text-dim)' }}>
+            <span
+              style={{
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                fontSize: 12,
+                color: 'var(--kp-text-dim)',
+              }}
+            >
               {row.label}
             </span>
-            {row.authoritative && (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, color: 'var(--kp-local)', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>
-                <ShieldCheck size={12} aria-hidden="true" />
-                Authoritative
-              </span>
-            )}
           </li>
         ))}
       </ol>
@@ -198,20 +229,22 @@ export function AnswerDatePresentation({ citations }: { citations: readonly Date
             lineHeight: 1.45,
           }}
         >
-          <Flag size={14} aria-hidden="true" style={{ flex: 'none', marginTop: 1 }} />
+          <Flag
+            size={14}
+            aria-hidden="true"
+            style={{ flex: 'none', marginTop: 1 }}
+          />
           <span>
-            <strong>{t('answer-dates.conflict-flagged')}</strong>{' '}
+            <strong>{t('answer-dates.record-copy-flagged')}</strong>{' '}
             {newestEvidence ? (
-              <>Newest record: {formatDate(newestEvidence.date)} — {newestEvidence.value}.</>
+              <>Newest copy: {formatDate(newestEvidence.date)}.</>
             ) : (
-              <>Newest record: {formatDate(newest.date)}.</>
+              <>Newest copy: {formatDate(newest.date)}.</>
             )}{' '}
-            {authoritativeEvidence ? (
-              <>Authoritative record: {formatDate(authoritativeEvidence.date)} — {authoritativeEvidence.value} ({authoritativeEvidence.authorityReason}).</>
-            ) : authoritative ? (
-              <>Authoritative record: {formatDate(authoritative.date)}.</>
+            {earliestEvidence && earliestEvidence !== newestEvidence ? (
+              <>Earlier copy: {formatDate(earliestEvidence.date)}.</>
             ) : (
-              <>{t('answer-dates.review-records')}</>
+              <>{t('answer-dates.review-record-copies')}</>
             )}
           </span>
         </div>

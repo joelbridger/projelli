@@ -145,10 +145,11 @@ pub struct Hit {
     // "Tr. 45:12-46:3". Metadata ON TOP of the unchanged `paragraph_index`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub locator: Option<String>,
-    // B1: producer-side date contract. Retrieval fills adapter-owned facts for
-    // mail and CRM and flags genuine incompatible dated evidence before IPC.
-    // File-only sources can honestly omit `dated_fact` when no source adapter
-    // owns a stable fact identity.
+    // B1: producer-side date contract. Retrieval fills adapter-owned record
+    // timestamp identities for mail and CRM and flags differing timestamps on
+    // matching copies of that same record before IPC. This is not general
+    // cross-document fact extraction. File-only sources honestly omit
+    // `dated_fact` when no source adapter owns a stable record identity.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_date: Option<SourceDate>,
     #[serde(skip_serializing_if = "Option::is_none")]

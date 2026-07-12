@@ -141,6 +141,16 @@ fn attach_source_dates(workspace: &std::path::Path, hits: &mut [Hit]) {
 }
 
 fn normalized_claim_part(value: &str) -> String { value.split_whitespace().collect::<Vec<_>>().join(" ").to_ascii_lowercase() }
+/// Date warnings are deliberately limited to matching imported copies of one
+/// mail or CRM record. Do not turn two documents that happen to mention
+/// different business facts into a detected conflict; that needs a future
+/// cross-document fact-extraction feature.
+fn is_same_record_timestamp_key(value: &str) -> bool {
+    let value = value.trim();
+    (value.starts_with("mail-message:") && value.ends_with(":received-date"))
+        || (value.starts_with("crm-record:")
+            && (value.ends_with(":created-date") || value.ends_with(":updated-date")))
+}
 fn hit_source_id(hit: &Hit) -> String { hit.source_id.clone().or_else(|| hit.id.clone()).unwrap_or_else(|| format!("{}#{}", hit.path, hit.paragraph_index)) }
 fn source_date_timestamp(date: &SourceDate) -> Option<chrono::DateTime<chrono::Utc>> { date.value.as_deref().and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok()).map(|value| value.with_timezone(&chrono::Utc)) }
 
@@ -151,7 +161,7 @@ fn attach_date_conflicts(hits: &mut [Hit]) {
         let (Some(fact), Some(date)) = (hit.dated_fact.as_ref(), hit.source_date.as_ref()) else { continue };
         if source_date_timestamp(date).is_none() { continue; }
         let key = normalized_claim_part(&fact.key);
-        if !key.is_empty() { groups.entry(key).or_default().push(index); }
+        if !key.is_empty() && is_same_record_timestamp_key(&key) { groups.entry(key).or_default().push(index); }
     }
     for (fact_key, indexes) in groups {
         let values = indexes.iter().filter_map(|index| hits[*index].dated_fact.as_ref()).map(|fact| normalized_claim_part(&fact.value)).collect::<std::collections::HashSet<_>>();
