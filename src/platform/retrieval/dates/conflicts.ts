@@ -51,23 +51,21 @@ export function flagDatedEvidenceConflicts(hits: RagHit[]): RagHit[] {
       .sort((a, b) => sourceDateTimestamp(a.sourceDate)! - sourceDateTimestamp(b.sourceDate)!)
       .map(evidenceFromHit);
 
-    const newest = evidence[evidence.length - 1].sourceId;
+    const newest = evidence.at(-1);
+    if (!newest) continue;
     for (const hit of group) {
       const sourceId = stableSourceId(hit);
       conflictsBySource.set(sourceId, {
         kind: 'conflicting-dated-evidence',
         factKey,
-        relation: sourceId === newest ? 'newer-conflicts-with-older' : 'older-conflicts-with-newer',
+        relation: sourceId === newest.sourceId ? 'newer-conflicts-with-older' : 'older-conflicts-with-newer',
         evidence,
       });
     }
-
   }
 
-  return normalizedHits.map((hit) => ({
-    ...hit,
-    ...(conflictsBySource.has(stableSourceId(hit))
-      ? { dateConflict: conflictsBySource.get(stableSourceId(hit)) }
-      : {}),
-  }));
+  return normalizedHits.map((hit) => {
+    const dateConflict = conflictsBySource.get(stableSourceId(hit));
+    return dateConflict ? { ...hit, dateConflict } : hit;
+  });
 }

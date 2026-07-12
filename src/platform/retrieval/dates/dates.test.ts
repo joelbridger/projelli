@@ -73,7 +73,7 @@ describe('dated retrieval hits', () => {
     ]);
 
     expect(sources.map((source) => source.id)).toEqual(['signed-policy', 'newer-email']);
-    expect(sources[0].dateConflict).toMatchObject({
+    expect(sources[0]!.dateConflict).toMatchObject({
       relation: 'older-conflicts-with-newer',
       factKey: 'umbrella-limit',
       evidence: expect.arrayContaining([
@@ -81,7 +81,7 @@ describe('dated retrieval hits', () => {
         expect.objectContaining({ sourceId: 'mail:carrier', value: '$5 million' }),
       ]),
     });
-    expect(sources[1].dateConflict).toMatchObject({
+    expect(sources[1]!.dateConflict).toMatchObject({
       relation: 'newer-conflicts-with-older',
       factKey: 'umbrella-limit',
       evidence: expect.arrayContaining([
@@ -98,7 +98,7 @@ describe('dated retrieval hits', () => {
       }),
     ]);
 
-    expect(source.sourceDate).toEqual({
+    expect(source!.sourceDate).toEqual({
       value: null,
       kind: 'received',
       rawValue: 'yesterday',
