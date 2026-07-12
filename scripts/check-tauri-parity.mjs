@@ -20,7 +20,7 @@
  *   1. The core pair: `tauri` (Cargo, resolved via Cargo.lock) against both
  *      @tauri-apps/api and @tauri-apps/cli (npm, from package.json) — major
  *      AND minor.
- *   2. Every tauri-plugin-* pair present on both sides — major AND minor.
+ *   2. Every tauri-plugin-* pair present on both sides — exact version.
  *   3. The three app version strings (package.json, tauri.conf.json,
  *      src-tauri/Cargo.toml [package]) are all identical.
  */
@@ -124,6 +124,16 @@ function checkPair(label, cargoResolvedVersion, npmSpec) {
   }
 }
 
+/** Plugins can change their IPC contract in a patch release, so Tauri
+ * requires the JavaScript and Rust packages to use the exact same version. */
+function checkExactPair(label, cargoResolvedVersion, npmSpec) {
+  if (cargoResolvedVersion !== npmSpec) {
+    errors.push(
+      `${label}: exact version mismatch — cargo resolved ${cargoResolvedVersion} vs npm ${npmSpec}`
+    );
+  }
+}
+
 const pkg = readJson(join(repoRoot, 'package.json'));
 const allNpmDeps = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) };
 const npmLock = readJson(join(repoRoot, 'package-lock.json'));
@@ -146,7 +156,8 @@ if (!tauriResolved) {
   }
 }
 
-// 2. Every tauri-plugin-* pair present on both sides.
+// 2. Every tauri-plugin-* pair present on both sides. Tauri requires exact
+// plugin parity because patch releases can change their IPC contract.
 for (const [cargoName, cargoResolved] of cargoLock) {
   if (!cargoName.startsWith('tauri-plugin-')) continue;
   const suffix = cargoName.slice('tauri-plugin-'.length);
@@ -154,7 +165,7 @@ for (const [cargoName, cargoResolved] of cargoLock) {
   const npmSpec = allNpmDeps[npmPkg];
   if (!npmSpec) continue; // Rust-only plugin (e.g. tauri-plugin-log) — can't drift.
   const npmResolved = resolvedNpmVersion(npmLock.packages, npmPkg, npmSpec);
-  checkPair(`plugin (${cargoName} vs ${npmPkg})`, cargoResolved, npmResolved);
+  checkExactPair(`plugin (${cargoName} vs ${npmPkg})`, cargoResolved, npmResolved);
 }
 
 // 3. The three app version strings must be identical.

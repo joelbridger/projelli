@@ -68,12 +68,12 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 # Wave 1 calendar connector — TZID/DST-correct ICS + Graph timezone-name expansion.
 chrono-tz = "0.10"
 log = "0.4"
-tauri = { version = "2.9.5", features = ["devtools"] }
+tauri = { version = "~2.11.3", features = ["devtools"] }
 tauri-plugin-log = "2"
-tauri-plugin-fs = "2"
-tauri-plugin-dialog = "2"
-tauri-plugin-shell = "2"
-tauri-plugin-http = "2"
+tauri-plugin-fs = "=2.5.1"
+tauri-plugin-dialog = "=2.7.1"
+tauri-plugin-shell = "=2.3.5"
+tauri-plugin-http = "=2.5.9"
 dirs = "5"
 # Local LLM first-run download: preflight free disk space before fetching a
 # multi-GB GGUF model.
@@ -183,8 +183,8 @@ quick-xml = "0.41"
 # Auto-updater. Desktop-only — Tauri mobile builds skip these targets so
 # the cfg() filter keeps the iOS/Android crate graph slim.
 [target."cfg(any(target_os = \"macos\", windows, target_os = \"linux\"))".dependencies]
-tauri-plugin-updater = "2"
-tauri-plugin-process = "2"
+tauri-plugin-updater = "=2.10.1"
+tauri-plugin-process = "=2.3.1"
 
 # Windows-only: ShellExecuteW, the canonical way to open a URL in the default
 # browser (BUG-010). `rundll32 url.dll,FileProtocolHandler` silently fails to
@@ -199,7 +199,7 @@ windows-sys = { version = "0.59", features = ["Win32_UI_Shell", "Win32_UI_Window
 libc = "0.2"
 
 [dev-dependencies]
-tauri = { version = "2.9.5", features = ["test"] }
+tauri = { version = "~2.11.3", features = ["test"] }
 tokio = { version = "1", features = ["full", "test-util"] }
 # `tempfile` moved to [dependencies] above (voice.rs needs it outside tests
 # too now) — it's still available here for dev/test code, just not
