@@ -193,39 +193,41 @@ export function Tasks({
       </section>
       <FreshnessBanner freshness={freshness} />
       {view === 'list' ? (
-        <div data-testid="crm-task-list" style={panelStyle}>
-          {workItems.length === 0 ? (
-            <p>
-              {tasks.length === 0 && workflowWorkItems.length === 0
-                ? 'No work yet.'
-                : 'No work matches these filters.'}
-            </p>
-          ) : (
-            <>
-              {filtered.map((task) => (
-                <TaskRow
-                  key={task.id}
-                  task={task}
-                  onComplete={() => {
-                    advance(task);
-                  }}
-                  onOpen={() => {
-                    setEditing(task);
-                  }}
-                />
-              ))}
-              {filteredWorkflowSteps.map((item) => (
-                <WorkflowWorkRow
-                  key={item.id}
-                  item={item}
-                  onComplete={() => {
-                    void onCompleteWorkflowWorkItem(item);
-                  }}
-                />
-              ))}
-            </>
-          )}
-        </div>
+        <section data-testid="crm-unified-work-list">
+          <div data-testid="crm-task-list" style={panelStyle}>
+            {workItems.length === 0 ? (
+              <p>
+                {tasks.length === 0 && workflowWorkItems.length === 0
+                  ? 'No work yet.'
+                  : 'No work matches these filters.'}
+              </p>
+            ) : (
+              <>
+                {filtered.map((task) => (
+                  <TaskRow
+                    key={task.id}
+                    task={task}
+                    onComplete={() => {
+                      advance(task);
+                    }}
+                    onOpen={() => {
+                      setEditing(task);
+                    }}
+                  />
+                ))}
+                {filteredWorkflowSteps.map((item) => (
+                  <WorkflowWorkRow
+                    key={item.id}
+                    item={item}
+                    onComplete={() => {
+                      void onCompleteWorkflowWorkItem(item);
+                    }}
+                  />
+                ))}
+              </>
+            )}
+          </div>
+        </section>
       ) : (
         <TaskBoard
           tasks={filtered}
@@ -276,6 +278,7 @@ function TaskRow({
 }) {
   return (
     <div
+      data-testid={`crm-task-record-${task.id}`}
       style={{
         display: 'flex',
         gap: 10,
@@ -303,13 +306,21 @@ function TaskRow({
           cursor: 'pointer',
         }}
       >
-        <strong>{task.title}</strong>
+        <strong data-testid={`crm-task-title-${task.id}`}>{task.title}</strong>
         <span style={mutedStyle}>
-          {' '}
-          · {task.householdLabel ?? 'No client'} · {task.priority} ·{' '}
-          {task.dueLabel ?? 'No due date'} ·{' '}
-          {task.assigneeLabel ?? task.assigneeUserId ?? 'Unassigned'}
-          {task.recurrence ? ' · Recurring' : ''}
+          {' '}· {task.householdLabel ?? 'No client'} ·{' '}
+          <span data-testid={`crm-task-priority-label-${task.id}`}>
+            {task.priority}
+          </span>{' '}
+          · {task.dueLabel ?? 'No due date'} ·{' '}
+          <span data-testid={`crm-task-assignee-label-${task.id}`}>
+            {task.assigneeLabel ?? task.assigneeUserId ?? 'Unassigned'}
+          </span>
+          {task.recurrence && (
+            <span data-testid={`crm-task-recurrence-label-${task.id}`}>
+              {' '}· Recurring
+            </span>
+          )}
         </span>
       </button>
     </div>
