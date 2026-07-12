@@ -220,6 +220,9 @@ export function LiveWorkflows({
             {STARTER_WORKFLOWS.map((starter) => (
               <div
                 key={starter.id}
+                {...(starter.id === 'annual-review'
+                  ? { 'data-testid': 'crm-approved-playbook-fixture' }
+                  : {})}
                 style={{
                   borderTop: '1px solid var(--kp-border)',
                   marginTop: 8,
@@ -676,10 +679,11 @@ export function LiveWorkflows({
               ))
             )}
           </section>
-          <section
-            data-testid="crm-live-workflow-meeting-proposal"
-            style={panelStyle}
-          >
+          <div data-testid="crm-jump-meeting-fixture">
+            <section
+              data-testid="crm-live-workflow-meeting-proposal"
+              style={panelStyle}
+            >
             <strong>Propose a workflow from a meeting</strong>
             <p style={mutedStyle}>
               Meeting content can suggest a workflow. It always waits for a
@@ -750,7 +754,8 @@ export function LiveWorkflows({
                 </Button>
               </>
             )}
-          </section>
+            </section>
+          </div>
         </>
       )}
     </Screen>
@@ -936,4 +941,3 @@ function LiveInstanceCard({
     </section>
   );
 }
-
