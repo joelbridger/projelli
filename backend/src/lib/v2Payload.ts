@@ -29,6 +29,9 @@ function* ownEnumerableKeys(value: V2Payload): IterableIterator<string> {
 
 export type V2Payload = Record<string, unknown>;
 export type V2RelayBoundaryError = "invalid_v2_payload" | "invalid_v2_query";
+type V2BodyInspection =
+  | { status: "valid"; hasBody: boolean }
+  | { status: "forbidden" | "invalid"; hasBody: boolean };
 
 function isPlainObject(value: unknown): value is V2Payload {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -152,17 +155,35 @@ async function readBodyWithinLimit(req: Request, clone: boolean): Promise<string
   return new TextDecoder().decode(bytes);
 }
 
-/** Read a clone at the server boundary so prohibited fields die before routing. */
-export async function requestHasForbiddenV2RelayKey(req: Request): Promise<boolean> {
+/**
+ * Read a clone at the server boundary so descriptor data dies before routing.
+ *
+ * This is intentionally three-state. A parser, stream, size, depth, or time
+ * failure is not evidence that the body is harmless: it is invalid. Keeping
+ * that distinction here prevents future callers from turning "unknown" into
+ * "allowed" by treating this as a simple forbidden-key predicate.
+ */
+async function inspectV2RelayBody(req: Request): Promise<V2BodyInspection> {
   const raw = await readBodyWithinLimit(req, true);
-  // A body that exceeds the cap is invalid, not merely free of forbidden keys.
-  if (raw === null) return true;
-  if (!raw.trim()) return false;
+  if (raw === null) return { status: "invalid", hasBody: false };
+  const hasBody = raw.length > 0;
+  if (!raw.trim()) return { status: "valid", hasBody };
   try {
-    return hasForbiddenV2RelayKey(JSON.parse(raw));
+    return hasForbiddenV2RelayKey(JSON.parse(raw))
+      ? { status: "forbidden", hasBody }
+      : { status: "valid", hasBody };
   } catch {
-    return false;
+    return { status: "invalid", hasBody };
   }
+}
+
+/**
+ * Compatibility predicate for callers that only need the reject decision.
+ * Unlike the old implementation, an unparseable body returns true: unknown
+ * input is rejected, never reported as free of forbidden fields.
+ */
+export async function requestHasForbiddenV2RelayKey(req: Request): Promise<boolean> {
+  return (await inspectV2RelayBody(req)).status !== "valid";
 }
 
 const STREAM_PULL_PATH = /^\/v2\/firm\/streams\/[^/]+\/updates$/;
@@ -193,7 +214,8 @@ function hasValidV2RelayQuery(url: URL, method: string): boolean {
 }
 
 function queryMethodForRequest(req: Request): string | null {
-  if (req.method !== "OPTIONS") return req.method;
+  if (req.method === "GET" || req.method === "POST") return req.method;
+  if (req.method !== "OPTIONS") return null;
   const requested = req.headers.get("access-control-request-method");
   if (!requested) return null;
   const method = requested.toUpperCase();
@@ -207,10 +229,26 @@ function queryMethodForRequest(req: Request): string | null {
  */
 export async function validateV2RelayBoundary(req: Request): Promise<V2RelayBoundaryError | null> {
   const queryMethod = queryMethodForRequest(req);
-  if (!hasValidV2RelayQuery(new URL(req.url), queryMethod ?? "")) return "invalid_v2_query";
-  // Preflights do not carry application payloads. Never read one before auth.
-  if (req.method === "OPTIONS") return null;
-  return await requestHasForbiddenV2RelayKey(req) ? "invalid_v2_payload" : null;
+  if (queryMethod === null || !hasValidV2RelayQuery(new URL(req.url), queryMethod)) return "invalid_v2_query";
+
+  const isWebSocketUpgrade = req.method === "GET"
+    && new URL(req.url).pathname === SYNC_SOCKET_PATH
+    && req.headers.get("upgrade")?.toLowerCase() === "websocket";
+  // Transfer-encoded requests cannot prove they are bodyless from headers.
+  // Reject them before reading or handing either bodyless route to its handler.
+  if ((req.method === "OPTIONS" || isWebSocketUpgrade) && req.headers.has("transfer-encoding")) return "invalid_v2_payload";
+
+  const inspection = await inspectV2RelayBody(req);
+  if (inspection.status !== "valid") return "invalid_v2_payload";
+
+  // CORS preflights and the WebSocket handshake are bodyless by protocol. Read
+  // them through the same capped inspector first, then reject even whitespace:
+  // this preserves size/depth/slow-body defenses while preventing a body from
+  // crossing into proxy/access logging or Bun's WebSocket upgrade machinery.
+  if (req.method === "OPTIONS" || isWebSocketUpgrade) {
+    if (inspection.hasBody) return "invalid_v2_payload";
+  }
+  return null;
 }
 
 /**
