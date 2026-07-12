@@ -42,6 +42,10 @@ export function Today({
     today
   );
   const open = plan.ranked;
+  // Capacity is intentionally derived for this render from the saved active
+  // firm directory and open work. It is not a CRM record and is never synced.
+  const todayPlan = plan.hasCapacitySignal ? plan.fitsToday : open;
+  const suggestedLater = plan.hasCapacitySignal ? plan.suggestedLater : [];
   const pendingApprovals = approvals.filter(
     (approval) => approval.state === 'pending'
   );
@@ -110,7 +114,37 @@ export function Today({
             Ordered from your saved tasks and workflow steps. Each item explains
             why it is here.
           </p>
-          {open.map((item) => (
+          <div
+            data-testid="crm-today-capacity"
+            style={{
+              margin: '12px 0',
+              padding: 10,
+              borderRadius: 8,
+              background: 'var(--kp-surface-muted)',
+            }}
+          >
+            {plan.hasCapacitySignal ? (
+              <>
+                <strong data-testid="crm-today-capacity-fit-count">
+                  {String(todayPlan.length)} of {String(open.length)} open{' '}
+                  {open.length === 1 ? 'item fits' : 'items fit'} today.
+                </strong>
+                <span style={mutedStyle}>
+                  {' '}
+                  {suggestedLater.length === 0
+                    ? 'Everything open is in today’s plan.'
+                    : `${String(suggestedLater.length)} ${suggestedLater.length === 1 ? 'item can' : 'items can'} wait without changing the order.`}
+                </span>
+              </>
+            ) : (
+              <span data-testid="crm-today-capacity-missing" style={mutedStyle}>
+                Add active team members in Firm setup to see what fits today.
+                Until then, this is your full ordered list.
+              </span>
+            )}
+          </div>
+          <div data-testid="crm-today-plan">
+          {todayPlan.map((item) => (
             <div
               key={item.id}
               data-testid={`crm-today-task-${item.id}`}
@@ -142,6 +176,32 @@ export function Today({
               </Button>
             </div>
           ))}
+          </div>
+          {suggestedLater.length > 0 && (
+            <div data-testid="crm-today-suggested-later" style={{ marginTop: 12 }}>
+              <strong>Suggested for later</strong>
+              <p style={mutedStyle}>
+                These stay saved and open. Today does not move work by itself.
+              </p>
+              {suggestedLater.map((item) => (
+                <div
+                  key={item.id}
+                  data-testid={`crm-today-later-${item.id}`}
+                  style={{
+                    padding: '8px 0',
+                    borderTop: '1px solid var(--kp-border)',
+                  }}
+                >
+                  <strong>{item.title}</strong>
+                  <span style={mutedStyle}>
+                    {' '}
+                    · {dailyWorkReason(item, today)} · {workLabel(item)}
+                    {workHousehold(item) ? ` · ${workHousehold(item)}` : ''}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
           <Button
             variant="secondary"
             data-testid="crm-today-review-inline"
@@ -169,7 +229,7 @@ export function Today({
               Add a task or finish your import to start a plan.
             </p>
           ) : (
-            open.map((item) => (
+            todayPlan.map((item) => (
               <div
                 key={item.id}
                 style={{
@@ -187,14 +247,6 @@ export function Today({
                     · {dailyWorkReason(item, today)}
                   </span>
                 </span>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  data-testid={`crm-today-keep-${item.id}`}
-                  onClick={() => undefined}
-                >
-                  Keep in Today
-                </Button>
               </div>
             ))
           )}
