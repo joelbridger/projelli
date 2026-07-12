@@ -144,7 +144,7 @@ export const FEATURES: readonly ParityFeature[] = [
   // do not measure is a rumour, and the first person to discover whether it
   // works would be Jameson, by clicking on it.
   // ---------------------------------------------------------------------------
-  live('BCC Email Dropbox', 'crm-bcc-dropbox', 'IMPROVE', 'email', (app) => app.durableFeature({ route: 'crm-home-nav-email', controls: ['crm-dropbox-address', 'crm-dropbox-capture-row'], action: 'crm-dropbox-capture-run', result: 'Captured', recordKind: 'emailCapture' })),
+  live('BCC Email Dropbox', 'crm-bcc-dropbox', 'IMPROVE', 'email', (app) => app.durableFeature({ route: 'crm-home-nav-email-dropbox', controls: ['crm-email-dropbox-surface', 'crm-email-dropbox-provider', 'crm-email-dropbox-account', 'crm-email-dropbox-folder', 'crm-email-dropbox-save', 'crm-email-dropbox-check', 'crm-email-dropbox-private-note'], action: 'crm-email-dropbox-save', result: 'This computer will check this folder while this dropbox is open.', recordKind: 'emailDropboxConfig' })),
   live('Project record', 'project-record', 'REPLICATE', 'workflows', (app) => app.durableFeature({ route: 'crm-home-nav-projects', controls: ['crm-project-create', 'crm-project-name', 'crm-project-row'], action: 'crm-project-create', result: 'Parity project', recordKind: 'project' })),
   live('Org Admin cross-workspace user management', 'org-admin', 'REPLICATE', 'firm setup', (app) => app.durableFeature({ route: 'crm-home-nav-firm-setup', controls: ['crm-org-admin-panel', 'crm-org-admin-user-row', 'crm-org-admin-assign'], action: 'crm-org-admin-assign', result: 'Access updated', recordKind: 'orgAssignment' })),
 
