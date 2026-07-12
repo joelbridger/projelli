@@ -1,6 +1,19 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
+const { firmState } = vi.hoisted(() => ({
+  firmState: {
+    current: {
+      org: null as { org_id: string } | null,
+      role: null as 'admin' | 'member' | null,
+    },
+  },
+}));
+
+vi.mock('@/platform/hooks/useFirm', () => ({
+  useFirm: () => firmState.current,
+}));
+
 vi.mock('@/platform/utils/docx-io', () => ({
   extractDocxText: vi.fn(async () => ({ html: '<p>Summary body</p>', plainText: 'Summary body' })),
   markdownToDocxBytes: vi.fn(async () => new Uint8Array([1, 2, 3])),
@@ -80,6 +93,22 @@ const baseProps = {
 describe('MeetingEntry R7 tabs, rename, and exports', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    firmState.current = { org: null, role: null };
+  });
+
+  it('mounts speaker naming and firm templates together in the transcript tab', async () => {
+    firmState.current = { org: { org_id: 'firm-1' }, role: 'admin' };
+    const ws = makeWorkspace();
+
+    render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
+    fireEvent.click(screen.getByTestId('meeting-subtab-transcript'));
+
+    const speakerNames = await screen.findByTestId('speaker-names-panel');
+    const templates = await screen.findByTestId('meeting-template-panel');
+    expect(
+      speakerNames.compareDocumentPosition(templates) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
   });
 
   it('keeps three content tabs and opens the merged send surface in a drawer, not a fourth tab', async () => {

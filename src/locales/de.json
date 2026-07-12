@@ -3734,6 +3734,16 @@
       "resolve-menu": "Hinweis klären",
       "details": "Details"
     },
+    "templates": {
+      "title": "Besprechungsvorlagen",
+      "description": "Füllen Sie eine Firmenvorlage mit diesem Transkript und prüfen Sie sie vor dem Speichern.",
+      "fill": "Aus Transkript füllen",
+      "review-title": "Vor dem Speichern prüfen",
+      "internal-note": "Diese Notiz bleibt in {{productName}}. Sie kann nicht als klientenbezogene Notiz gespeichert werden.",
+      "save-reviewed-note": "Geprüfte Notiz speichern",
+      "audience-internal": "Nur intern",
+      "audience-client-facing": "Für den Kunden"
+    },
     "notice-card": {
       "offer-label": "Die Hinweiskarte zu diesem Meeting hinzufügen?",
       "offer-explain": "Ein Teilnehmer auf Ihrem Computer zeigt allen, dass das Meeting aufgezeichnet wird. Er zeichnet nichts auf und verlässt das Meeting, sobald die Aufzeichnung endet.",

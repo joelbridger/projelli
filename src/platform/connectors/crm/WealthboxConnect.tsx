@@ -28,6 +28,7 @@ import {
   buildClaimedCrmFolderSet,
 } from '@/platform/matter/crmMatterFolderBackfill';
 import { IntegrationHonestyCard } from '@/platform/connectors/IntegrationHonestyCard';
+import { WealthboxCustomFieldsAvailability } from '@/platform/connectors/wealthbox/WealthboxCustomFieldsAvailability';
 import {
   buildCrmMatterMap,
   filterCrmMatterMapForProvider,
@@ -462,6 +463,7 @@ export function WealthboxConnect() {
           <InfoHelp content={brandText('Connect your Wealthbox account to bring client household data into your Client Maps. Requires the Lantern desktop app.')} />
         </h3>
         <IntegrationHonestyCard connectorId="wealthbox" />
+        <WealthboxCustomFieldsAvailability />
         <p className="mt-3 text-xs text-slate-400 italic">
           Available in the desktop app only.
         </p>
@@ -477,6 +479,7 @@ export function WealthboxConnect() {
           <InfoHelp content={brandText('Connect your Wealthbox account to bring client household data into your Client Maps. Lantern imports what this Wealthbox login can see.')} />
         </h3>
         <IntegrationHonestyCard connectorId="wealthbox" />
+        <WealthboxCustomFieldsAvailability />
 
         {/* B3: disconnect didn't fully remove the data/key — keep a visible retry
             regardless of connection state, so the user is never stuck with data

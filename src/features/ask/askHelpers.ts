@@ -17,7 +17,7 @@ import {
 import type { WorkspaceSource } from '@/platform/types/ai';
 import type { RagHit } from '@/platform/utils/tauri-commands';
 import type { DateConflictFlag, DatedFact, SourceDate } from '@/platform/retrieval/dates';
-import { buildDatedWorkspaceSources } from '@/platform/retrieval/dates';
+import { buildDatedWorkspaceSources, prepareDatedRagHits } from '@/platform/retrieval/dates';
 import { createProvider } from '@/platform/providers/providerFactory';
 import { resolveAvailableLocalGenerationProvider } from '@/platform/providers/resolveLocalProvider';
 import { mailGetMessage } from '@/platform/utils/mail-commands';
@@ -1245,6 +1245,11 @@ export function bindAnswerCitations(
   hits: RagHit[],
   expectedMatterId: string | null = null,
 ): BoundAnswerCitations {
+  // Date conflict detection must happen before citations are bound. The
+  // renderer receives citations, rather than raw retrieval hits, so doing it
+  // only while building the saved source list would drop this context from the
+  // live Ask answer.
+  const datedHits = prepareDatedRagHits(hits);
   const acc = newCitationBindAccumulator();
   // F-503: repair a small local model's number-keyed citations (`[1]`) to the
   // `[<filename> paragraph N]` form so they bind. Safe here because files-only
@@ -1252,13 +1257,13 @@ export function bindAnswerCitations(
   // whose bracketed numeric text must be preserved). No-op for filename
   // citations and when nothing was retrieved.
   const answer = bindCitationsCore(
-    normalizeNumericCitations(answerText, hits),
-    hits,
+    normalizeNumericCitations(answerText, datedHits),
+    datedHits,
     expectedMatterId,
     acc,
   );
   acc.citations.sort((a, b) => a.n - b.n);
-  return { answer, citations: acc.citations, sources: buildWorkspaceSources(hits) };
+  return { answer, citations: acc.citations, sources: buildWorkspaceSources(datedHits) };
 }
 
 /**

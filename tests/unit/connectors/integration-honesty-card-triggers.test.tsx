@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mailIsConnected = vi.fn();
@@ -122,6 +122,16 @@ describe('shipping connector honesty-card triggers', () => {
     render(<WealthboxConnect />);
     await waitFor(() => expect(crmIsConnected).toHaveBeenCalled());
     expect(screen.getByTestId('integration-honesty-trigger-wealthbox')).toBeInTheDocument();
+  });
+
+  it('shows the honest custom-fields status without a dead action', async () => {
+    render(<WealthboxConnect />);
+    await waitFor(() => expect(crmIsConnected).toHaveBeenCalled());
+
+    const status = screen.getByTestId('wealthbox-custom-fields-availability');
+    expect(status).toHaveTextContent('Available soon — needs the Ask-index bridge');
+    expect(status).toHaveTextContent('Custom fields are not imported or searchable yet.');
+    expect(within(status).queryByRole('button')).not.toBeInTheDocument();
   });
 
   it('shows the Calendly card trigger', async () => {

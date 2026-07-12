@@ -76,6 +76,10 @@ import { readTauriFile } from '@/platform/fs/tauriFsPlugin';
 import { MeetingNotesReview } from '@/features/notesReview';
 import { meetingNoteOutboundGate } from './outboundNoteGate';
 import { deriveNoticeState } from './noticeLedger';
+import { useFirm } from '@/platform/hooks/useFirm';
+import { buildResolvedProviderForGlance } from '@/platform/matter/matterAtAGlance';
+import { MeetingTemplatePanel } from './MeetingTemplatePanel';
+import { createPreparedMeetingTemplateFillProvider } from './meetingTemplateAi';
 
 export interface MeetingEntryProps {
   matterId: string;
@@ -170,6 +174,7 @@ export function MeetingEntry({
   showBackButton = true,
 }: MeetingEntryProps) {
   const { t } = useTranslation();
+  const firm = useFirm();
   const [meta, setMeta] = useState<MeetingMeta | null>(null);
   const [transcript, setTranscript] = useState<TranscriptFile | null>(null);
   const [hasNotes, setHasNotes] = useState(false);
@@ -1299,6 +1304,23 @@ export function MeetingEntry({
                       workspaceRoot={workspaceRoot}
                     />
                   </div>
+                  {workspaceService && firm.org && (
+                    <MeetingTemplatePanel
+                      workspace={workspaceService}
+                      firmId={firm.org.org_id}
+                      canManageTemplates={firm.role === 'admin'}
+                      meetingDir={meetingDir}
+                      transcript={transcript}
+                      clientName={clientName}
+                      getProvider={async () => {
+                        const resolved = await buildResolvedProviderForGlance();
+                        return createPreparedMeetingTemplateFillProvider({
+                          matterId,
+                          resolved,
+                        });
+                      }}
+                    />
+                  )}
                 </>
               ) : meta?.transcriptError ? (
                 <div
