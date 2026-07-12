@@ -1,5 +1,5 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string -- Frozen CRM screen copy needs its translation catalog in a separate product change. */
-import { useState } from 'react';
+import { createElement, useState } from 'react';
 import {
   CalendarDays,
   ArrowLeft,
@@ -26,19 +26,11 @@ import type {
 import { NoteEditor } from './NoteEditor';
 import { ProposalCard } from './ProposalCard';
 import { RecordMetadataEditor } from './RecordMetadataEditor';
-import { HouseholdTimeline } from '@/features/crm-timeline';
 import type { CrmEngineFreshness } from '@/platform/crm/store';
 import type { TimelineRecord } from '@/features/crm-timeline';
 import { ContactEditor } from './ContactEditor';
-import { HouseholdConnectorSurface } from '@/features/crm-connectors/HouseholdConnectorSurface';
+import { householdTabRegistry, type HouseholdTab } from './tabRegistry';
 
-type HouseholdTab =
-  | 'client_map'
-  | 'timeline'
-  | 'documents'
-  | 'email'
-  | 'meetings'
-  | 'activity';
 const syncCopy: Record<HouseholdRecord['syncState'], string> = {
   live: 'Live',
   syncing:
@@ -184,46 +176,26 @@ export function HouseholdRecordSurface({
         ariaLabel="Household sections"
         value={tab}
         onChange={setTab}
-        options={[
-          { value: 'client_map', label: 'Client Map' },
-          { value: 'timeline', label: 'Timeline' },
-          { value: 'documents', label: 'Documents' },
-          { value: 'email', label: 'Email' },
-          { value: 'meetings', label: 'Meetings' },
-          { value: 'activity', label: 'Activity' },
-        ]}
+        options={householdTabRegistry.map(({ route, label }) => ({ value: route, label }))}
         data-testid="crm-household-tab"
       />
-      {tab === 'client_map' ? (
-        <ClientMap
-          household={household}
-          onEditPerson={setEditingPerson}
-          onDeleteFact={async (id) => {
-            await onSaveHousehold?.({
-              ...household,
-              facts: household.facts.filter((fact) => fact.id !== id),
-            });
-          }}
-        />
-      ) : tab === 'timeline' && timelineFreshness ? (
-        <HouseholdTimeline
-          household={{
-            id: household.id,
-            notes: household.notes,
-            facts: household.facts,
-          }}
-          records={timelineRecords}
-          freshness={timelineFreshness}
-        />
-      ) : tab === 'email' || tab === 'meetings' ? (
-        <HouseholdConnectorSurface tab={tab} household={household} {...(actions ? { actions } : {})} />
-      ) : (
-        <ExistingSurface
-          tab={tab}
-          household={household}
-          proposals={sourceProposals}
-          {...(actions ? { actions } : {})}
-        />}
+      {(() => {
+        const selectedTab = householdTabRegistry.find((surface) => surface.route === tab) ?? householdTabRegistry[0]!;
+        const legacyTabs = {
+          client_map: <ClientMap household={household} onEditPerson={setEditingPerson} onDeleteFact={async (id: string) => { await onSaveHousehold?.({ ...household, facts: household.facts.filter((fact) => fact.id !== id) }); }} />,
+          timeline: <ExistingSurface tab="timeline" household={household} proposals={sourceProposals} {...(actions ? { actions } : {})} />,
+          documents: <ExistingSurface tab="documents" household={household} proposals={sourceProposals} {...(actions ? { actions } : {})} />,
+          activity: <ExistingSurface tab="activity" household={household} proposals={sourceProposals} {...(actions ? { actions } : {})} />,
+        };
+        return createElement(selectedTab.Component, {
+          household,
+          proposals: sourceProposals,
+          ...(actions ? { actions } : {}),
+          timelineRecords,
+          ...(timelineFreshness ? { timelineFreshness } : {}),
+          renderLegacySurface: (id: HouseholdTab) => legacyTabs[id as keyof typeof legacyTabs] ?? null,
+        });
+      })()}
       <SlidePanel
         open={addOpen}
         onClose={() => { setAddOpen(false); }}

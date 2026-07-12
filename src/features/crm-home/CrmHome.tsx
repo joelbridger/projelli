@@ -1,5 +1,5 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string -- Frozen CRM screen copy needs its translation catalog in a separate product change. */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { createElement, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Activity,
   BarChart3,
@@ -23,11 +23,10 @@ import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { Button } from '@/ui/kp';
 import { getCrmEngineFreshness, subscribeCrmEngineFreshness } from '@/platform/crm/store';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
-import { CrmPipelineSurface } from '@/features/crm-pipeline';
 import { buildCapacityTriage, nextRecurringDue, type DailyWorkItem } from '@/platform/crm/tasks';
-import { CrmReports } from '@/features/crm-reports';
-import { FirmSetupSurface } from '@/features/crm-firm/FirmSetupSurface';
 import { createMigrationExport, runWealthboxMigration } from '@/platform/crm/migration';
+import { crmHomeSurfaceRegistry } from './registry';
+import { CrmHomeSurfaceContext } from './surfaceContext';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import {
   addWorkflowStepNote,
@@ -85,7 +84,8 @@ export type CrmHomeRoute =
   | 'workflow-recreation'
   | 'attachment-accounting'
   | 'archive-export'
-  | 'rollback-export';
+  | 'rollback-export'
+  | 'search';
 
 export interface CrmHomeProps {
   adapter?: CrmHomeAdapter;
@@ -145,15 +145,6 @@ function emptyEngineAdapter(freshness: CrmFreshnessState): CrmHomeAdapter {
   return { freshness, tasks: [], approvals: [], activity: [], savedTaskViews: [], offers: [], migration: { workflowChecklists: [], attachmentAccounting: [], exports: [] }, actions: {} };
 }
 
-const homeSections: readonly { route: CrmHomeRoute; label: string; Icon: typeof LayoutDashboard }[] = [
-  { route: 'today', label: 'Today', Icon: LayoutDashboard },
-  { route: 'tasks', label: 'Tasks', Icon: ListChecks },
-  { route: 'workflows', label: 'Workflows', Icon: Workflow },
-  { route: 'pipeline', label: 'Pipeline', Icon: Landmark },
-  { route: 'reports', label: 'Reports', Icon: BarChart3 },
-  { route: 'firm-setup', label: 'Firm', Icon: Users },
-];
-
 const panelStyle = { border: '1px solid var(--kp-border)', borderRadius: 'var(--radius-lg)', background: 'var(--kp-surface)', padding: 'var(--kp-space-md)' } as const;
 const mutedStyle = { color: 'var(--kp-text-faint)', fontSize: 'var(--kp-font-sm)' } as const;
 
@@ -184,7 +175,7 @@ function HomeRail({ route, onNavigate }: { route: CrmHomeRoute; onNavigate: (rou
   const activeParent = route.startsWith('firm') || route === 'fields-tags' || route === 'intake-links' || route.includes('migration') || route.includes('fidelity') || route.includes('export') || route === 'workflow-recreation' || route === 'attachment-accounting' ? 'firm-setup' : route === 'propagation' ? 'workflows' : route === 'pipeline-settings' ? 'pipeline' : route;
   return <aside aria-label="Home sections" style={{ width: 184, padding: 'var(--kp-space-md)', borderRight: '1px solid var(--kp-border)', background: 'var(--color-slate-50)', flex: 'none' }}>
     <div style={{ fontWeight: 700, color: 'var(--kp-navy)', marginBottom: 10 }}>Home</div>
-    {homeSections.map(({ route: item, label, Icon }) => <button key={item} data-testid={`crm-home-nav-${item}`} onClick={() => { onNavigate(item); }} aria-current={activeParent === item ? 'page' : undefined} style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 8, border: 0, borderRadius: 7, padding: '8px 9px', marginBottom: 3, cursor: 'pointer', textAlign: 'left', background: activeParent === item ? 'var(--kp-assured-bg)' : 'transparent', color: activeParent === item ? 'var(--kp-assured)' : 'var(--kp-text)' }}><Icon size={16} />{label}</button>)}
+    {crmHomeSurfaceRegistry.filter(({ rail }) => rail).map(({ route: item, label, icon: Icon }) => <button key={item} data-testid={`crm-home-nav-${item}`} onClick={() => { onNavigate(item); }} aria-current={activeParent === item ? 'page' : undefined} style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 8, border: 0, borderRadius: 7, padding: '8px 9px', marginBottom: 3, cursor: 'pointer', textAlign: 'left', background: activeParent === item ? 'var(--kp-assured-bg)' : 'transparent', color: activeParent === item ? 'var(--kp-assured)' : 'var(--kp-text)' }}><Icon size={16} />{label}</button>)}
   </aside>;
 }
 
@@ -468,7 +459,18 @@ function ConnectedCrmHome({ adapter, initialRoute = 'today', preview = false, wo
     if (item.kind === 'workflow_step') await activeAdapter.actions.completeWorkflowWorkItem?.(item);
     else await updateTask({ ...item, status: 'done' });
   };
-  const content = route === 'today' ? <Today tasks={activeAdapter.tasks} workItems={[...activeAdapter.tasks, ...workflowWorkItems] as readonly CrmDailyWorkItem[]} firmMembers={firmMembers} approvals={approvals} activity={activity} freshness={freshness} onNavigate={jump} onCompleteWorkItem={completeWorkItem} onDecideApproval={(approval, decision) => activeAdapter.actions.decideApproval?.(approval, decision)} /> : route === 'tasks' ? <Tasks tasks={activeAdapter.tasks} workflowWorkItems={workflowWorkItems} firmMembers={firmMembers} households={activeAdapter.households ?? []} savedViews={savedTaskViews} freshness={freshness} onUpdateTask={updateTask} onCompleteWorkflowWorkItem={(item) => activeAdapter.actions.completeWorkflowWorkItem?.(item)} onSaveView={(view) => activeAdapter.actions.saveTaskView?.(view)} /> : route === 'workflows' ? workflowData && workflowHouseholds && saveLiveRecord ? <LiveWorkflows data={workflowData} households={workflowHouseholds} onSave={saveLiveRecord} onNavigate={jump} /> : <Workflows freshness={freshness} onNavigate={jump} /> : route === 'propagation' ? workflowData && saveLiveRecord ? <LivePropagationReview data={workflowData} onSave={saveLiveRecord} /> : <PropagationReview offers={offers} freshness={freshness} onApply={(selected) => activeAdapter.actions.applyPropagation?.(selected)} onUndo={reportUndo} undoReport={undoReport} /> : route === 'pipeline' || route === 'pipeline-settings' ? <CrmPipelineSurface route={route} onNavigate={jump} /> : route === 'reports' ? <CrmReports /> : route === 'fields-tags' ? <FieldsTags /> : route === 'intake-links' ? <IntakeLinks /> : route === 'migration' || route === 'fidelity' || route === 'workflow-recreation' || route === 'attachment-accounting' || route === 'archive-export' || route === 'rollback-export' ? <Migration route={route} freshness={freshness} migration={activeAdapter.migration} onNavigate={jump} actions={activeAdapter.actions} /> : <FirmSetup onNavigate={jump} freshness={freshness} />;
+  const legacySurfaceContent = {
+    today: <Today tasks={activeAdapter.tasks} workItems={[...activeAdapter.tasks, ...workflowWorkItems] as readonly CrmDailyWorkItem[]} firmMembers={firmMembers} approvals={approvals} activity={activity} freshness={freshness} onNavigate={jump} onCompleteWorkItem={completeWorkItem} onDecideApproval={(approval, decision) => activeAdapter.actions.decideApproval?.(approval, decision)} />,
+    tasks: <Tasks tasks={activeAdapter.tasks} workflowWorkItems={workflowWorkItems} firmMembers={firmMembers} households={activeAdapter.households ?? []} savedViews={savedTaskViews} freshness={freshness} onUpdateTask={updateTask} onCompleteWorkflowWorkItem={(item) => activeAdapter.actions.completeWorkflowWorkItem?.(item)} onSaveView={(view) => activeAdapter.actions.saveTaskView?.(view)} />,
+    workflows: workflowData && workflowHouseholds && saveLiveRecord ? <LiveWorkflows data={workflowData} households={workflowHouseholds} onSave={saveLiveRecord} onNavigate={jump} /> : <Workflows freshness={freshness} onNavigate={jump} />,
+    propagation: workflowData && saveLiveRecord ? <LivePropagationReview data={workflowData} onSave={saveLiveRecord} /> : <PropagationReview offers={offers} freshness={freshness} onApply={(selected) => activeAdapter.actions.applyPropagation?.(selected)} onUndo={reportUndo} undoReport={undoReport} />,
+    migration: <Migration route={route} freshness={freshness} migration={activeAdapter.migration} onNavigate={jump} actions={activeAdapter.actions} />,
+    'fields-tags': <FieldsTags />,
+    'intake-links': <IntakeLinks />,
+  };
+  const selectedSurface = crmHomeSurfaceRegistry.find((surface) => surface.route === route)
+    ?? crmHomeSurfaceRegistry.find((surface) => surface.route === 'firm-setup')!;
+  const content = <CrmHomeSurfaceContext.Provider value={{ navigate: (next) => { jump(next as CrmHomeRoute); }, renderLegacySurface: (id) => legacySurfaceContent[id as keyof typeof legacySurfaceContent] ?? null }}>{createElement(selectedSurface.Component)}</CrmHomeSurfaceContext.Provider>;
   const [showNotifications, setShowNotifications] = useState(false);
   return <div data-testid="crm-home" style={{ display: 'flex', height: '100%', minHeight: 0, position: 'relative', background: 'var(--color-background)' }}>{preview && <div data-testid="crm-home-preview-label" role="status" style={{ position: 'absolute', zIndex: 20, right: 16, bottom: 12, ...panelStyle, padding: 8, borderColor: 'var(--kp-direct)' }}>Preview mode. Not connected to CRM data.</div>}<HomeRail route={route} onNavigate={jump} /><div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', position: 'relative' }}>{content}<button data-testid="crm-notifications-button" aria-label="Open notifications" onClick={() => { setShowNotifications((open) => !open); }} style={{ position: 'absolute', top: 15, right: 18, border: 0, background: 'transparent', cursor: 'pointer', color: 'var(--kp-navy)' }}><Bell size={20} /> <span aria-label={`${String(approvals.filter((approval) => approval.state === 'pending').length)} notifications`}>{String(approvals.filter((approval) => approval.state === 'pending').length)}</span></button>{showNotifications && notificationPanel}</div></div>;
 }
