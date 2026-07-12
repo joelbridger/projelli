@@ -228,14 +228,17 @@ class DesktopParityApp implements ParityApp {
     );
   }
   private async require(testid: string): Promise<void> {
+    this.lastStep = `require(${JSON.stringify(arguments[0])})`;
     if (!(await this.exists(testid)))
       fail(`Missing required control: ${testid}`);
   }
   private async click(testid: string): Promise<void> {
+    this.lastStep = `click(${JSON.stringify(arguments[0])})`;
     await this.require(testid);
     await http('/click', { testid });
   }
   private async fill(testid: string, value: string): Promise<void> {
+    this.lastStep = `fill(${JSON.stringify(arguments[0])})`;
     await this.require(testid);
     await http('/fill', { testid, text: value });
   }
@@ -245,7 +248,8 @@ class DesktopParityApp implements ParityApp {
       `(() => { const element = document.querySelector('[data-testid="${testid}"]'); if (!(element instanceof HTMLSelectElement)) throw new Error('Not a select: ${testid}'); element.value = ${JSON.stringify(value)}; element.dispatchEvent(new Event('change', { bubbles: true })); return element.value; })()`
     );
   }
-  private async text(): Promise<string> {
+  /** Public so a failure can report what the user would actually be looking at. */
+  async text(): Promise<string> {
     return String(await this.eval('document.body.innerText'));
   }
   /**
@@ -258,7 +262,11 @@ class DesktopParityApp implements ParityApp {
    * like `waitForText`: it still demands the user SEES the record (the front
    * door's real promise), it just stops confusing "not yet painted" with "broken".
    */
+  /** The last action attempted — reported verbatim when a feature fails. */
+  lastStep = '(no step attempted)';
+
   private async requireText(value: string): Promise<void> {
+    this.lastStep = `requireText(${value})`;
     const end = Date.now() + 10_000;
     while (Date.now() < end) {
       if ((await this.text()).includes(value)) return;
@@ -275,6 +283,7 @@ class DesktopParityApp implements ParityApp {
     fail(`Expected visible text: ${value}`);
   }
   private async waitForControl(testid: string): Promise<void> {
+    this.lastStep = `waitForControl(${JSON.stringify(arguments[0])})`;
     const end = Date.now() + 10_000;
     while (Date.now() < end) {
       if (await this.exists(testid)) return;
@@ -1257,13 +1266,29 @@ try {
       });
     } catch (error) {
       if (error instanceof InfrastructureError) throw error;
+      // A scoreboard that says FAILING with an empty reason is not an instrument.
+      // Record WHERE it broke (the last driver step), WHAT the app actually showed,
+      // and any renderer error — so a failure can be acted on without a rerun.
+      const raw = error instanceof Error ? error.message : String(error);
+      const stack = error instanceof Error && error.stack ? error.stack.split('\n').slice(0, 3).join(' | ') : '';
+      let onScreen = '';
+      try {
+        onScreen = (await app.text()).replace(/\s+/g, ' ').slice(0, 240);
+      } catch {
+        onScreen = '(could not read the screen — the app may have died)';
+      }
+      const detail = [
+        `STEP: ${app.lastStep}`,
+        `ERROR: ${raw || '(empty message)'}${stack ? ` :: ${stack}` : ''}`,
+        `ON SCREEN: ${onScreen || '(blank)'}`,
+      ].join(' — ');
       results.push({
         id: feature.id,
         name: feature.name,
         area: feature.area,
         verdict: feature.verdict,
         status: 'FAILING',
-        detail: error instanceof Error ? error.message : String(error),
+        detail,
       });
     }
   }
