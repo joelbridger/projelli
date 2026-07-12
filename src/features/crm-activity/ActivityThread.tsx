@@ -27,7 +27,9 @@ export type ActivityReaction = LiveCrmRecord & {
   activityId: string;
   emoji: string;
   userId: string;
+  displayName?: string;
   createdAt: string;
+  active?: boolean;
   removedAt?: string;
 };
 
@@ -38,7 +40,7 @@ export function commentsForActivity(records: readonly LiveCrmRecord[], activityI
 }
 
 export function reactionsForActivity(records: readonly LiveCrmRecord[], activityId: string): readonly ActivityReaction[] {
-  return records.filter((record): record is ActivityReaction => record.kind === 'activityReaction' && record['activityId'] === activityId && typeof record['emoji'] === 'string' && typeof record['userId'] === 'string' && typeof record['createdAt'] === 'string' && !record['removedAt']);
+  return records.filter((record): record is ActivityReaction => record.kind === 'activityReaction' && record['activityId'] === activityId && typeof record['emoji'] === 'string' && typeof record['userId'] === 'string' && typeof record['createdAt'] === 'string' && record['active'] !== false && !record['removedAt']);
 }
 
 function safeIdPart(value: string) {
@@ -120,16 +122,20 @@ export function ActivityThread({
       ...(typeof activity['householdId'] === 'string' ? { householdId: activity['householdId'] } : {}),
       emoji,
       userId: currentUser.userId,
-      ...(existing ? { createdAt: existing.createdAt, removedAt: now } : { createdAt: now }),
+      displayName: currentUser.displayName,
+      ...(existing ? { createdAt: existing.createdAt, active: false, removedAt: now } : { createdAt: now, active: true }),
       updatedAt: now,
     });
   };
   return <section data-testid={`crm-activity-thread-${activity.id}`} style={{ display: 'grid', gap: 8, marginTop: 10 }}>
     <div aria-label="Reactions" data-testid={`crm-activity-reactions-${activity.id}`} style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
       {ACTIVITY_REACTIONS.map(({ emoji, label, Icon }) => {
-        const count = reactions.filter((reaction) => reaction.emoji === emoji).length;
-        const mine = Boolean(currentUser && reactions.some((reaction) => reaction.emoji === emoji && reaction.userId === currentUser.userId));
-        return <Button key={emoji} size="sm" variant={mine ? 'primary' : 'secondary'} data-testid={`crm-activity-reaction-${activity.id}-${emoji}`} aria-label={`${mine ? 'Remove' : 'Add'} ${label} reaction`} disabled={readOnly || !onSave || !currentUser} iconLeft={Icon} onClick={() => { void toggleReaction(emoji); }}>{emoji} {count || label}</Button>;
+        const matching = reactions.filter((reaction) => reaction.emoji === emoji);
+        const count = matching.length;
+        const mine = Boolean(currentUser && matching.some((reaction) => reaction.userId === currentUser.userId));
+        const names = matching.map((reaction) => reaction.displayName?.trim() || 'A firm member');
+        const title = names.length ? `${label}: ${names.join(', ')}` : `Add ${label} reaction`;
+        return <Button key={emoji} size="sm" variant={mine ? 'primary' : 'secondary'} data-testid={`crm-activity-reaction-${label.toLowerCase()}-${activity.id}`} aria-label={`${mine ? 'Remove' : 'Add'} ${label} reaction`} aria-pressed={mine} title={title} disabled={readOnly || !onSave || !currentUser} iconLeft={Icon} onClick={() => { void toggleReaction(emoji); }}>{emoji} {count || label}</Button>;
       })}
     </div>
     {comments.length ? <div data-testid={`crm-activity-comments-${activity.id}`}><strong>{comments.length === 1 ? '1 comment' : `${String(comments.length)} comments`}</strong>{roots.map((comment) => <CommentLine key={comment.id} comment={comment} comments={comments} {...(!readOnly ? { onReply: setReplyTo } : {})} />)}</div> : <p data-testid={`crm-activity-comments-empty-${activity.id}`} style={{ color: 'var(--kp-text-faint)', fontSize: 'var(--kp-font-sm)', margin: 0 }}>No comments yet. Share context that will help your firm.</p>}

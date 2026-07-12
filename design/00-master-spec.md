@@ -99,8 +99,8 @@ fixture source → required completeness → allowed skip reasons (XD-18).
 - Users/Teams/permissions: existing firm-admin rails own identity/roles; 02 gets a small
   `FirmDirectoryEntry` read-model + import mapping table; no new permission entities
   (XD-17).
-- DocuSign tracking, activity reactions, CSV/vCard import jobs: v1 exclusions, documented
-  in 01 with reasons (DocuSign = existing connector's job; reactions = deferred; imports =
+- DocuSign tracking and CSV/vCard import jobs: v1 exclusions, documented in 01 with reasons
+  (DocuSign = existing connector's job; imports =
   migration wizard covers Wealthbox, generic CSV import deferred).
 - Layer-1 test contract mismatches (XD-19): 06 conforms to 02's actual field requirements
   and enumerates every EntityKind.
@@ -223,8 +223,8 @@ approves is the product; it gets a first-class contract.)
   `FirmDoc` gets a minimal list + open-in-existing-editor surface.
 - Note editor in 04 exposes pin, @mentions (02 `Note.mentions`), and explicit notification
   review.
-- **v1 exclusions (01 verdicts updated with reasons):** activity comments (deferred with
-  reactions per D9); "Contact Actions in Opportunity Workflows" bulk actions; file storage
+- **v1 exclusions (01 verdicts updated with reasons):** activity comments; "Contact Actions
+  in Opportunity Workflows" bulk actions; file storage
   on records (existing documents subsystem owns files, linked via `contextRefs` — no new
   attachment entity).
 

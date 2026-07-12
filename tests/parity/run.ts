@@ -1439,7 +1439,7 @@ class DesktopParityApp implements ParityApp {
       (record) => record.kind === 'activityComment' && record.activityId === activityId && record.body === reply && record.parentCommentId === parent.id,
       'Replying did not create a saved threaded comment record'
     );
-    await this.click(`crm-activity-reaction-${activityId}-👍`);
+    await this.click(`crm-activity-reaction-like-${activityId}`);
     await this.waitForRecord(
       (record) => record.kind === 'activityReaction' && record.activityId === activityId && record.emoji === '👍' && !record.removedAt,
       'Adding a reaction did not create a saved reaction record'

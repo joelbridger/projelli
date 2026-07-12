@@ -496,8 +496,9 @@ Reports; 1-6, r, s, e, / work.
 
 **Purpose:** deliver meaningful team work without a noisy chat surface or relay content leak.
 
-Firm activity is on Home > Today. Household activity is in household Activity. Activity is a
-read-only timeline in v1: it has no comments or reactions. A count beside existing account
+Firm activity is on Home > Today. Household activity is in household Activity. Activity has
+no comments in v1. Each item offers Like, Celebrate, and Appreciate reactions; the saved count
+and a hover list of the people who reacted are visible in both timelines. A count beside existing account
 identity opens SlidePanel, never floating bell/fourth tab.
 
 ~~~

@@ -21,6 +21,7 @@ export interface ParityApp {
   firmDirectory(): Promise<void>;
   firmSetup(): Promise<void>;
   workspaces(): Promise<void>;
+  activityConversation(): Promise<void>;
   durableFeature(options: { route: string; controls: string[]; action?: string; result?: string; recordKind?: string }): Promise<void>;
   migration(options: { action: 'crm-migration-run-import' | 'crm-redtail-import' | 'crm-salesforce-import'; externalId?: boolean; exportFile?: boolean; fullReview?: boolean }): Promise<void>;
   selfServiceContactImport(): Promise<void>;

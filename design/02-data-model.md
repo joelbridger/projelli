@@ -637,6 +637,27 @@ timestamp + action(verb) + description(summary) + payload_json. ActivityEvent is
 They are separate stores with different guarantees (feed = mergeable CRDT; audit =
 tamper-evident append-only).
 
+### 1.10a ActivityReaction (per-person emoji response)
+
+One saved reaction belongs to one activity item, one firm member, and one emoji. Its stable
+identity is `activity + member + emoji`, so adding it again restores the same record rather
+than creating a duplicate. The feed groups active reaction records by emoji for its count and
+the hover list of people who reacted. Removing a reaction saves `active: false`; the activity
+event itself remains append-only.
+
+```ts
+interface ActivityReaction extends CrmBase {
+  kind: 'activityReaction';
+  activityId: string;
+  userId: string;
+  displayName: string;
+  emoji: '👍' | '🎉' | '❤️';
+  active: boolean;
+  reactedAt?: string;
+  removedAt?: string | null;
+}
+```
+
 ### 1.11 FirmDoc / ProcessDoc
 
 Firm ways-of-working, note templates, report layouts — "the firm's format is sacred"
