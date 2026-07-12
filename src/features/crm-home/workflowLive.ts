@@ -215,7 +215,16 @@ export function publishTemplateUpdate(template: LiveWorkflowTemplate, title: str
     ],
   };
   const snapshot = publishRevision(template.snapshot, revision);
-  const nextTemplate: LiveWorkflowTemplate = { ...template, snapshot, steps: [{ ...changed, title: nextTitle }, ...template.steps.slice(1), added] };
+  const nextTemplate: LiveWorkflowTemplate = {
+    ...template,
+    snapshot,
+    steps: [
+      ...template.steps.map((step) =>
+        step.id === changed.id ? { ...step, title: nextTitle } : step
+      ),
+      added,
+    ],
+  };
   return { template: nextTemplate, revisionId, label: revision.label };
 }
 

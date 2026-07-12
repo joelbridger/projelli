@@ -1172,24 +1172,24 @@ function TaskDetail({
   const householdId = draft.householdId ?? draft.contextRefs?.[0] ?? '';
   const selectHousehold = (id: string) => {
     const household = households.find((item) => item.id === id);
-    setDraft({
-      ...draft,
+    setDraft((current) => ({
+      ...current,
       householdId: id || undefined,
       householdLabel: household?.name,
       contextRefs: id ? [id] : [],
-    });
+    }));
   };
   const setRecurrence = (freq: string) => {
-    setDraft({
-      ...draft,
+    setDraft((current) => ({
+      ...current,
       recurrence: freq
         ? {
             freq: freq as NonNullable<CrmTask['recurrence']>['freq'],
-            interval: draft.recurrence?.interval ?? 1,
+            interval: current.recurrence?.interval ?? 1,
             regenerateOnComplete: true,
           }
         : undefined,
-    });
+    }));
   };
   const recurrence = draft.recurrence;
   const save = async () => {
@@ -1224,7 +1224,8 @@ function TaskDetail({
           data-testid="crm-task-title-input"
           value={draft.title}
           onChange={(event) => {
-            setDraft({ ...draft, title: event.target.value });
+            const title = event.target.value;
+            setDraft((current) => ({ ...current, title }));
           }}
         />
       </label>
@@ -1234,7 +1235,8 @@ function TaskDetail({
           data-testid="crm-task-body"
           value={draft.body ?? ''}
           onChange={(event) => {
-            setDraft({ ...draft, body: event.target.value });
+            const body = event.target.value;
+            setDraft((current) => ({ ...current, body }));
           }}
         />
       </label>
@@ -1264,11 +1266,11 @@ function TaskDetail({
             const member = firmMembers.find(
               (item) => item.userId === event.target.value
             );
-            setDraft({
-              ...draft,
+            setDraft((current) => ({
+              ...current,
               assigneeUserId: member?.userId ?? null,
               assigneeLabel: member?.displayName,
-            });
+            }));
           }}
         >
           <option value="">Unassigned</option>
@@ -1291,10 +1293,8 @@ function TaskDetail({
           data-testid="crm-task-status"
           value={draft.status}
           onChange={(event) => {
-            setDraft({
-              ...draft,
-              status: event.target.value as CrmTask['status'],
-            });
+            const status = event.target.value as CrmTask['status'];
+            setDraft((current) => ({ ...current, status }));
           }}
         >
           <option value="open">To do</option>
@@ -1309,10 +1309,8 @@ function TaskDetail({
           data-testid="crm-task-priority"
           value={draft.priority}
           onChange={(event) => {
-            setDraft({
-              ...draft,
-              priority: event.target.value as CrmTask['priority'],
-            });
+            const priority = event.target.value as CrmTask['priority'];
+            setDraft((current) => ({ ...current, priority }));
           }}
         >
           <option value="high">High</option>
@@ -1328,11 +1326,11 @@ function TaskDetail({
           value={draft.dueAt ?? ''}
           onChange={(event) => {
             const due = event.target.value;
-            setDraft({
-              ...draft,
+            setDraft((current) => ({
+              ...current,
               dueAt: due || undefined,
               dueLabel: due || undefined,
-            });
+            }));
           }}
         />
       </label>
@@ -1361,13 +1359,13 @@ function TaskDetail({
             min="1"
             value={recurrence.interval}
             onChange={(event) => {
-              setDraft({
-                ...draft,
+              setDraft((current) => ({
+                ...current,
                 recurrence: {
-                  ...recurrence,
+                  ...(current.recurrence ?? recurrence),
                   interval: Math.max(1, Number(event.target.value) || 1),
                 },
-              });
+              }));
             }}
           />
         </label>
