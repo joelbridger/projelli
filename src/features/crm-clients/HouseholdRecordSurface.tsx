@@ -466,6 +466,20 @@ function ClientMap({ household, onEditPerson, onDeleteFact }: { household: House
           {household.externalParties.length ? household.externalParties.map((person) => <span key={person.id} style={{ display: 'block' }}><button type="button" data-testid={`crm-person-edit-${person.id}`} onClick={() => onEditPerson(person)}>{person.name}</button>{` · ${person.roles.join(', ') || 'No role'} · ${person.verifiedAt ? 'Recipient verified' : 'Needs verification'}`}</span>) : 'None'}
         </p>
       </Card>
+      <Card variant="raised" data-testid="crm-household-metadata-summary">
+        <h2>Tags and fields</h2>
+        {household.tags?.length ? (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: household.customFields?.length ? 12 : 0 }}>
+            {household.tags.map((tag) => <Badge key={tag} variant="featured" data-testid={`crm-household-tag-${tag}`}>{tag}</Badge>)}
+          </div>
+        ) : null}
+        {household.customFields?.length ? (
+          <dl style={{ display: 'grid', gridTemplateColumns: 'minmax(120px, auto) 1fr', gap: '6px 12px', margin: 0 }}>
+            {household.customFields.map((field) => <div key={field.id} data-testid={`crm-household-field-${field.id}`} style={{ display: 'contents' }}><dt style={{ color: 'var(--color-slate-600)' }}>{field.label}</dt><dd style={{ margin: 0 }}>{field.value || 'Not set'}</dd></div>)}
+          </dl>
+        ) : null}
+        {!household.tags?.length && !household.customFields?.length ? <p>Use Fields and tags to add details that belong only to this household.</p> : null}
+      </Card>
       <Card variant="raised" data-testid="crm-household-notes">
         <div
           style={{
@@ -479,7 +493,10 @@ function ClientMap({ household, onEditPerson, onDeleteFact }: { household: House
           {household.notes
             .filter((note) => note.audience === 'internal')
             .map((note) => (
-              <p key={note.id}>{note.body}</p>
+              <p key={note.id} data-testid={`crm-note-${note.id}`}>
+                {note.pinned ? <Badge variant="featured" data-testid={`crm-note-pinned-${note.id}`}>Pinned</Badge> : null}{' '}
+                {note.body}
+              </p>
             ))}
         </div>
         <div
@@ -495,7 +512,10 @@ function ClientMap({ household, onEditPerson, onDeleteFact }: { household: House
           {household.notes
             .filter((note) => note.audience === 'client-facing')
             .map((note) => (
-              <p key={note.id}>{note.body}</p>
+              <p key={note.id} data-testid={`crm-note-${note.id}`}>
+                {note.pinned ? <Badge variant="featured" data-testid={`crm-note-pinned-${note.id}`}>Pinned</Badge> : null}{' '}
+                {note.body}
+              </p>
             ))}
         </div>
       </Card>
