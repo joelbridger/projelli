@@ -16,6 +16,7 @@ afterEach(() => {
 });
 
 function stream(char: string) { return `sh2_${char.repeat(43)}`; }
+function blob(value: string) { return `bh2_${Buffer.from(value).toString("base64url").padEnd(43, "A").slice(0, 43)}`; }
 
 function setup(role: MatterRole) {
   const store = new Store(":memory:");
@@ -33,7 +34,7 @@ function request(fixture: ReturnType<typeof setup>, blobId: string): Request {
   return new Request("http://relay.test/v2/firm/matters/opaque/streams/opaque/updates", {
     method: "POST",
     headers: { authorization: `Bearer ${fixture.token}`, "content-type": "application/json" },
-    body: JSON.stringify({ blob_id: blobId, ciphertext_b64: "AQ==", seat_token: fixture.seatToken, key_epoch: 1 }),
+    body: JSON.stringify({ blob_id: blob(blobId), ciphertext_b64: "AQ==", seat_token: fixture.seatToken, key_epoch: 1 }),
   });
 }
 
@@ -100,6 +101,10 @@ describe("client-generated stream first-write guards", () => {
     expect(fixture.store.countLiveMatterStreams(fixture.matter.matter_handle)).toBe(2);
     expect(fixture.store.appendMatterUpdate({ matter_handle: fixture.matter.matter_handle, org_id: fixture.user.org_id, stream_handle: next, blob_id: "blocked", ciphertext: new Uint8Array([1]), author_seat: "seat-other", key_epoch: 1 })).toEqual({ streamLimitReached: true });
     expect(fixture.store.releaseMatterStream(fixture.matter.matter_handle, document)).toBe(true);
+    expect(fixture.store.appendMatterUpdate({ matter_handle: fixture.matter.matter_handle, org_id: fixture.user.org_id, stream_handle: document, blob_id: "resurrect-same", ciphertext: new Uint8Array([1]), author_seat: "seat-other", key_epoch: 1 })).toEqual({ streamReleased: true });
+    const other = fixture.store.createMatter({ org_id: fixture.user.org_id });
+    fixture.store.activateProvisioningMatter(other.matter_handle);
+    expect(fixture.store.appendMatterUpdate({ matter_handle: other.matter_handle, org_id: fixture.user.org_id, stream_handle: document, blob_id: "resurrect-other", ciphertext: new Uint8Array([1]), author_seat: "seat-other", key_epoch: 1 })).toEqual({ streamReleased: true });
     expect(fixture.store.appendMatterUpdate({ matter_handle: fixture.matter.matter_handle, org_id: fixture.user.org_id, stream_handle: next, blob_id: "released-slot", ciphertext: new Uint8Array([1]), author_seat: "seat-other", key_epoch: 1 })).toMatchObject({ duplicate: false });
     // The root stream can never be reclaimed, even by an owner.
     expect(fixture.store.releaseMatterStream(fixture.matter.matter_handle, fixture.matter.root_stream_handle)).toBe(false);

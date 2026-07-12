@@ -160,6 +160,14 @@ CREATE TABLE IF NOT EXISTS matter_streams (
 );
 CREATE INDEX IF NOT EXISTS idx_matter_streams_matter ON matter_streams(matter_handle);
 
+-- A released document stream is permanently dead. The handle remains only as
+-- opaque binding metadata so it cannot be silently resurrected in this or a
+-- different matter after its ciphertext is destroyed.
+CREATE TABLE IF NOT EXISTS released_stream_tombstones (
+  stream_handle TEXT PRIMARY KEY,
+  released_at   TEXT NOT NULL
+);
+
 -- An archive is terminal even if a buggy/raw caller later deletes all of the
 -- related relay rows. This handle-only tombstone intentionally contains no
 -- client data and permanently prevents resurrection.
@@ -1164,6 +1172,7 @@ export class Store {
       // The relay cannot read the encrypted root index. The owner is required
       // to tombstone that mapping and publish it before this explicit release;
       // only then is opaque history for this deleted document removed.
+      this.#db.query("INSERT OR IGNORE INTO released_stream_tombstones (stream_handle, released_at) VALUES (?, ?)").run(streamHandle, this.nowIso());
       this.#db.query("DELETE FROM matter_updates WHERE matter_handle = ? AND stream_handle = ?").run(matterHandle, streamHandle);
       return this.#db.query("DELETE FROM matter_streams WHERE matter_handle = ? AND stream_handle = ?").run(matterHandle, streamHandle).changes === 1;
     });
@@ -1363,7 +1372,7 @@ export class Store {
     ciphertext: Uint8Array;
     author_seat: string;
     key_epoch: number;
-  }): { update: MatterUpdate; duplicate: boolean } | { matterArchived: true } | { streamLimitReached: true } | { streamSeatQuotaReached: true } | { streamMatterMismatch: true } {
+  }): { update: MatterUpdate; duplicate: boolean } | { matterArchived: true } | { streamReleased: true } | { streamLimitReached: true } | { streamSeatQuotaReached: true } | { streamMatterMismatch: true } {
     const now = this.nowIso();
     const txn = this.#db.transaction(() => {
       // This check deliberately lives inside the same IMMEDIATE transaction as
@@ -1373,6 +1382,7 @@ export class Store {
       if (!matter || matter.status !== "active") return { matterArchived: true as const };
       const stream = this.#db.query(`SELECT matter_handle FROM matter_streams WHERE stream_handle = ?`).get(input.stream_handle) as { matter_handle: string } | null;
       if (stream && stream.matter_handle !== input.matter_handle) return { streamMatterMismatch: true as const };
+      if (!stream && this.#db.query("SELECT 1 FROM released_stream_tombstones WHERE stream_handle = ?").get(input.stream_handle)) return { streamReleased: true as const };
       const existing = this.#db
         .query(`SELECT * FROM matter_updates WHERE stream_handle = ? AND blob_id = ?`)
         .get(input.stream_handle, input.blob_id) as
@@ -1418,7 +1428,7 @@ export class Store {
       return { update: { ...row, ciphertext: new Uint8Array(row.ciphertext) }, duplicate: false };
     });
     // IMMEDIATE so concurrent pushes of the same (stream_handle, blob_id) can't both insert.
-    return txn.immediate() as { update: MatterUpdate; duplicate: boolean } | { matterArchived: true } | { streamLimitReached: true } | { streamSeatQuotaReached: true } | { streamMatterMismatch: true };
+    return txn.immediate() as { update: MatterUpdate; duplicate: boolean } | { matterArchived: true } | { streamReleased: true } | { streamLimitReached: true } | { streamSeatQuotaReached: true } | { streamMatterMismatch: true };
   }
 
   /**

@@ -5,6 +5,7 @@ import { FanoutHub } from "../src/lib/matters.ts";
 import { issueAuthTokens, mintSeatToken } from "../src/lib/services.ts";
 import { buildServeOptions, type SyncSocketData } from "../src/server.ts";
 import { hasForbiddenV2RelayKey, validateV2RelayBoundary } from "../src/lib/v2Payload.ts";
+import { handlePullUpdates, handlePushUpdate } from "../src/routes/matters.ts";
 
 const sentinels = ["CLIENT_SECRET_NIMBUS", "matter-semantic-123", "doc-advisory-plan.docx"] as const;
 const [clientSecret, semanticMatter, documentName] = sentinels;
@@ -67,6 +68,8 @@ async function responseJson(response: Response): Promise<Record<string, unknown>
   return await response.json() as Record<string, unknown>;
 }
 
+const validBlobId = `bh2_${"A".repeat(43)}`;
+
 describe("firm relay privacy proof", () => {
   test("privacy inspection is read-only and never exposes the database connection", () => {
     const { store } = fixture();
@@ -79,6 +82,45 @@ describe("firm relay privacy proof", () => {
     expect(hasForbiddenV2RelayKey(hostileBody)).toBe(true);
     expect(hasForbiddenV2RelayKey({ wrapped: [{ user_id: "safe", TITLE: sentinels[0] }] })).toBe(true);
     expect(hasForbiddenV2RelayKey({ blob_id: "opaque", ciphertext_b64: "AQID" })).toBe(false);
+  });
+
+  test("hostile blob labels are rejected before storage or fan-out; valid opaque ids remain idempotent", async () => {
+    const { store, admin, adminToken, adminSeatToken } = fixture();
+    const matter = store.createMatter({ org_id: admin.org_id });
+    store.activateProvisioningMatter(matter.matter_handle);
+    store.addMatterMember({ matter_handle: matter.matter_handle, user_id: admin.user_id, org_id: admin.org_id, role: "owner" });
+    const frames: unknown[] = [];
+    const hub = { broadcast: (...args: unknown[]) => frames.push(args) } as unknown as FanoutHub;
+    const request = (blob_id: string) => new Request("http://relay.test/push", {
+      method: "POST",
+      headers: { authorization: `Bearer ${adminToken}`, "content-type": "application/json" },
+      body: JSON.stringify({ blob_id, ciphertext_b64: "AQ==", seat_token: adminSeatToken, key_epoch: 1 }),
+    });
+    try {
+      for (const hostileBlobId of [clientSecret, semanticMatter, documentName]) {
+        const rejected = await handlePushUpdate(request(hostileBlobId), store, matter.matter_handle, matter.root_stream_handle, `hostile-${hostileBlobId}`, hub);
+        expect(rejected.status).toBe(400);
+        expect(await rejected.text()).not.toContain(hostileBlobId);
+      }
+      expect(store.getMatterUpdatesSince(matter.matter_handle, matter.root_stream_handle, 0)).toHaveLength(0);
+      expect(frames).toHaveLength(0);
+      expectSentinelsAbsentFromStore(store);
+
+      const accepted = await handlePushUpdate(request(validBlobId), store, matter.matter_handle, matter.root_stream_handle, "valid-opaque-id", hub);
+      expect(accepted.status).toBe(201);
+      const duplicate = await handlePushUpdate(request(validBlobId), store, matter.matter_handle, matter.root_stream_handle, "valid-opaque-id-retry", hub);
+      expect(duplicate.status).toBe(200);
+      expect((await responseJson(duplicate)).duplicate).toBe(true);
+      expect(frames).toHaveLength(1);
+      const pull = await handlePullUpdates(new Request("http://relay.test/pull?since=0", { headers: { authorization: `Bearer ${adminToken}`, "x-seat-token": adminSeatToken } }), store, matter.matter_handle, matter.root_stream_handle, "valid-pull");
+      const pulled = await responseJson(pull);
+      expect(JSON.stringify(pulled)).toContain(validBlobId);
+      expect(JSON.stringify(pulled)).not.toContain(clientSecret);
+      expect(JSON.stringify(frames)).not.toContain(clientSecret);
+      expectSentinelsAbsentFromStore(store);
+    } finally {
+      store.close();
+    }
   });
 
   test("the v2-only relay has no legacy-ID schema and rejects legacy routes and ciphertext", async () => {
@@ -215,6 +257,14 @@ describe("firm relay privacy proof", () => {
         expect(JSON.stringify(result.body), path).not.toContain(sentinels[1]);
         expect(JSON.stringify(result.body), path).not.toContain(sentinels[2]);
       }
+
+      // Keep every other push field valid: this specifically proves that a
+      // descriptive blob_id cannot become relay metadata.
+      const hostileBlob = await send(`/v2/firm/matters/${matterHandle}/streams/${rootStream}/updates`, {
+        blob_id: clientSecret, ciphertext_b64: "AQ==", seat_token: adminSeatToken, key_epoch: 1,
+      });
+      expect(hostileBlob.status).toBe(400);
+      expect(JSON.stringify(hostileBlob.body)).not.toContain(clientSecret);
 
       // Fetch does not permit a GET body, so the pull route gets the same
       // fail-closed treatment through its strict query schema.

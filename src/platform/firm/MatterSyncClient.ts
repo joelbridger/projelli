@@ -29,6 +29,7 @@ import * as Y from 'yjs';
 import { FirmApiError, type FirmApiClient } from './FirmApiClient';
 import { encryptUpdateV2, decryptUpdateV2, importMatterKey } from './matterCrypto';
 import { getMatterSyncSocketUrl } from './firmConfig';
+import { createOpaqueBlobId } from './opaqueBlobId';
 import type { MatterHandle, StreamHandle, SyncFrame } from './contract';
 
 export type SyncStatus =
@@ -95,17 +96,6 @@ export interface MatterSyncOptions {
   maxCatchupPages?: number;
 }
 
-function genBlobId(): string {
-  try {
-    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-      return crypto.randomUUID();
-    }
-  } catch {
-    /* ignore */
-  }
-  return `blob_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-}
-
 type PendingWrite = {
   sequence: number;
   update: Uint8Array;
@@ -158,6 +148,10 @@ export class MatterSyncClient {
   private updateHandler: ((update: Uint8Array, origin: unknown) => void) | null = null;
   /** Origin marker used when applying remote updates so we don't re-broadcast. */
   private readonly remoteOrigin = Symbol('matter-sync-remote');
+  /** WebSocket messages are ordered on the wire; preserve that order through async crypto too. */
+  private incomingFrameQueue: Promise<void> = Promise.resolve();
+  /** A failed peer frame is a cursor gap. Only a successful pull may clear it. */
+  private incomingCursorBlocked = false;
 
   constructor(opts: MatterSyncOptions) {
     this.matterHandle = opts.matterHandle;
@@ -288,7 +282,7 @@ export class MatterSyncClient {
       // If there's already a backlog, queue behind it rather than racing a
       // fresh push ahead of updates still waiting to be sent.
       const sequence = ++this.nextWriteSequence;
-      const write: PendingWrite = { sequence, update, blobId: genBlobId() };
+      const write: PendingWrite = { sequence, update, blobId: createOpaqueBlobId() };
       if (this.pendingUpdates.length > 0) {
         this.pendingUpdates.push(write);
         return;
@@ -328,6 +322,9 @@ export class MatterSyncClient {
         // rotation starts from this last applied position and gets the blob
         // again instead of permanently losing it.
         if (!fullyApplied) break;
+        // A pull is ordered by the relay. Reaching its end proves there is no
+        // outstanding earlier peer frame, so live delivery may resume.
+        this.incomingCursorBlocked = false;
         pages += 1;
         if (!res.has_more || pages >= this.maxCatchupPages) break;
       }
@@ -342,7 +339,7 @@ export class MatterSyncClient {
     for (const u of updates) {
       const applied = await this.applyBlob(u.ciphertext_b64, u.key_epoch, u.blob_id);
       if (!applied) return false;
-      this.cursor = Math.max(this.cursor, u.cursor);
+      this.cursor = u.cursor;
     }
     return true;
   }
@@ -412,7 +409,9 @@ export class MatterSyncClient {
         write.keyEpoch ?? this.keyEpoch,
         signal,
       );
-      this.cursor = Math.max(this.cursor, res.cursor);
+      // A push acknowledgement proves only that our own ciphertext reached
+      // the relay. It says nothing about earlier peer frames we have not yet
+      // decrypted, so it must never move the pull cursor.
       if (res.key_epoch > this.keyEpoch) {
         this.callbacks.onKeyEpochAdvanced?.(res.key_epoch);
       }
@@ -553,7 +552,10 @@ export class MatterSyncClient {
     };
     ws.onmessage = (ev: { data: unknown }) => {
       if (this.socket !== ws) return;
-      void this.handleFrame(ev.data);
+      // Do not let async decryption reorder otherwise ordered WebSocket frames.
+      this.incomingFrameQueue = this.incomingFrameQueue
+        .then(() => this.handleFrame(ev.data))
+        .catch(() => undefined);
     };
     ws.onerror = () => {
       if (this.socket !== ws) return;
@@ -597,11 +599,16 @@ export class MatterSyncClient {
       return;
     }
     // The only remaining frame type is `update`; stream context comes from the ticket.
+    // Once a peer frame cannot be opened, later frames are not allowed to leap
+    // over it. rotateKey() re-pulls from this last contiguous cursor.
+    if (this.incomingCursorBlocked) return;
     if (frame.key_epoch > this.keyEpoch) {
       this.callbacks.onKeyEpochAdvanced?.(frame.key_epoch);
     }
     if (await this.applyBlob(frame.ciphertext_b64, frame.key_epoch, frame.blob_id)) {
-      this.cursor = Math.max(this.cursor, frame.cursor);
+      if (frame.cursor > this.cursor) this.cursor = frame.cursor;
+    } else {
+      this.incomingCursorBlocked = true;
     }
   }
 

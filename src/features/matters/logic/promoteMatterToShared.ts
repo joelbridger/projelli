@@ -7,16 +7,13 @@ import { audit } from '@/features/matters/matterManagerDialogHelpers';
 import { encryptUpdateV2, importMatterKey } from '@/platform/firm/matterCrypto';
 import { writeFirmMatterPrivateIndex } from '@/platform/firm/firmMatterPrivateIndex';
 import { useFirmStore } from '@/platform/firm/firmStore';
+import { createOpaqueBlobId } from '@/platform/firm/opaqueBlobId';
 import type { FirmApiClient } from '@/platform/firm/FirmApiClient';
 import type { MatterHandle } from '@/platform/firm/contract';
 
 export type PromoteMatterResult =
   | { status: 'shared'; matterId: string; firmMatterId: MatterHandle; orgId: string }
   | { status: 'failed'; matterId: string; error: string };
-
-function blobId(): string {
-  return crypto.randomUUID();
-}
 
 /**
  * Ordered v2 promotion:
@@ -58,7 +55,7 @@ export async function promoteMatterToShared(
       matterHandle: handle,
       streamHandle: provision.root_stream_handle,
     });
-    await client.pushUpdate(handle, provision.root_stream_handle, blobId(), ciphertext, seatToken, provision.key_epoch);
+    await client.pushUpdate(handle, provision.root_stream_handle, createOpaqueBlobId(), ciphertext, seatToken, provision.key_epoch);
     await registerDevice(client);
     await publishMatterKeyToMembers(client, handle, provision.key_epoch);
 

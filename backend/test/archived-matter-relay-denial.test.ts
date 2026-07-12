@@ -81,7 +81,7 @@ function delayedRequest(token: string, body: unknown, seat?: string) {
 }
 
 function pushRequest(f: ReturnType<typeof fixture>, blobId: string) {
-  return request(f.memberToken, { blob_id: blobId, ciphertext_b64: "AQ==", seat_token: f.memberSeat, key_epoch: 1 });
+  return request(f.memberToken, { blob_id: `bh2_${Buffer.from(blobId).toString("base64url").padEnd(43, "A").slice(0, 43)}`, ciphertext_b64: "AQ==", seat_token: f.memberSeat, key_epoch: 1 });
 }
 
 async function expectOpaqueArchivedDenial(response: Response) {

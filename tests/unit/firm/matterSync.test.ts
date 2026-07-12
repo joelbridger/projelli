@@ -16,7 +16,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as Y from 'yjs';
 import { MatterSyncClient, type WebSocketLike } from '@/platform/firm/MatterSyncClient';
-import { generateMatterKey } from '@/platform/firm/matterCrypto';
+import { encryptUpdateV2, generateMatterKey, importMatterKey } from '@/platform/firm/matterCrypto';
 import type { PushUpdateResponse, PullUpdatesResponse } from '@/platform/firm/contract';
 import type { MatterHandle, StreamHandle } from '@/platform/firm/contract';
 
@@ -532,6 +532,89 @@ describe('MatterSyncClient E2EE convergence', () => {
     await c.start();
     await until(() => onKeyEpochAdvanced.mock.calls.length > 0);
     expect(onKeyEpochAdvanced).toHaveBeenCalledWith(2);
+    c.stop();
+  });
+
+  it('never advances past an undecryptable peer frame, then re-pulls it after the key arrives', async () => {
+    const oldKey = await generateMatterKey();
+    const newKey = await generateMatterKey();
+    const newCryptoKey = await importMatterKey(newKey);
+    const makeUpdate = async (cursor: number, blob_id: string, field: string) => {
+      const source = new Y.Doc();
+      source.getMap('matter').set(field, `value-${field}`);
+      return {
+        cursor, blob_id, key_epoch: 2, author_seat: 'peer', created_at: 'now',
+        ciphertext_b64: await encryptUpdateV2(newCryptoKey, Y.encodeStateAsUpdate(source), {
+          keyEpoch: 2, matterHandle: MATTER, streamHandle: NOTES_STREAM,
+        }),
+      };
+    };
+    const first = await makeUpdate(1, 'first-new-epoch', 'first');
+    const second = await makeUpdate(2, 'second-new-epoch', 'second');
+    let relayUpdates: Array<typeof first> = [];
+    const pullUpdates = vi.fn(async (_stream: StreamHandle, since: number): Promise<PullUpdatesResponse> => ({
+      key_epoch: 2, since, cursor: relayUpdates.at(-1)?.cursor ?? since,
+      latest_cursor: relayUpdates.at(-1)?.cursor ?? 0, has_more: false,
+      updates: relayUpdates.filter((update) => update.cursor > since),
+    }));
+    const sockets: FakeSocket[] = [];
+    const onKeyEpochAdvanced = vi.fn();
+    const client = {
+      pushUpdate: vi.fn(async () => ({ ok: true, cursor: 99, blob_id: 'local', key_epoch: 1, duplicate: false })),
+      pullUpdates,
+      createSyncTicket: vi.fn(async () => ({ ticket: 'cursor-gap-ticket', expires_in_ms: 30_000 })),
+    } as unknown as import('@/platform/firm/FirmApiClient').FirmApiClient;
+    const c = new MatterSyncClient({
+      matterHandle: MATTER, streamHandle: NOTES_STREAM, keyB64: oldKey, keyEpoch: 1, seatToken: 'seat', client,
+      callbacks: { onKeyEpochAdvanced },
+      socketFactory: () => {
+        const socket = new FakeSocket();
+        sockets.push(socket);
+        queueMicrotask(() => socket.open());
+        return socket;
+      },
+    });
+
+    await c.start();
+    await until(() => sockets.length === 1);
+    relayUpdates = [first, second];
+    // These arrive in wire order. Crypto is async; the client must preserve
+    // that order and must not let the second frame jump cursor 1.
+    sockets[0]!.deliver({ type: 'update', ...first });
+    sockets[0]!.deliver({ type: 'update', ...second });
+    await until(() => onKeyEpochAdvanced.mock.calls.length > 0);
+    expect(c.getCursor()).toBe(0);
+    expect(c.doc.getMap('matter').get('second')).toBeUndefined();
+
+    // A real socket drop cannot turn the gap into an acknowledgement. The
+    // replacement connection is opened before the new key causes its re-pull.
+    sockets[0]!.onclose?.({});
+    await (c as unknown as { reconnectNow(): Promise<void> }).reconnectNow();
+    expect(sockets).toHaveLength(2);
+    await c.rotateKey(newKey, 2);
+    expect(pullUpdates).toHaveBeenLastCalledWith(NOTES_STREAM, 0, 'seat');
+    expect(c.getCursor()).toBe(2);
+    expect(c.doc.getMap('matter').get('first')).toBe('value-first');
+    expect(c.doc.getMap('matter').get('second')).toBe('value-second');
+    c.stop();
+  });
+
+  it('does not treat a local push acknowledgement as an applied-peer cursor', async () => {
+    const keyB64 = await generateMatterKey();
+    const pushUpdate = vi.fn(async () => ({ ok: true, cursor: 41, blob_id: 'local-only', key_epoch: 1, duplicate: false }));
+    const client = {
+      pushUpdate,
+      pullUpdates: vi.fn(async (_stream: StreamHandle, since: number): Promise<PullUpdatesResponse> => ({ key_epoch: 1, since, cursor: since, latest_cursor: 0, has_more: false, updates: [] })),
+      createSyncTicket: vi.fn(async () => ({ ticket: 'local-ack-ticket', expires_in_ms: 30_000 })),
+    } as unknown as import('@/platform/firm/FirmApiClient').FirmApiClient;
+    const c = new MatterSyncClient({
+      matterHandle: MATTER, streamHandle: NOTES_STREAM, keyB64, keyEpoch: 1, seatToken: 'seat', client,
+      socketFactory: () => { const socket = new FakeSocket(); queueMicrotask(() => socket.open()); return socket; },
+    });
+    await c.start();
+    c.doc.getMap('matter').set('local', 'only');
+    await until(() => pushUpdate.mock.calls.length === 1);
+    expect(c.getCursor()).toBe(0);
     c.stop();
   });
 });
