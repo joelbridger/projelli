@@ -3,16 +3,17 @@ import { addDocumentRef, linkedDocumentsForHousehold, removeDocumentRef } from '
 
 const household = {
   id: 'household-1', name: 'Henderson household', lifecycle: 'Active', primaryAdvisor: 'Maya', ownership: 'mine' as const, serviceTier: 'Standard', syncState: 'live' as const,
-  facts: [], accounts: [], members: [], externalParties: [], customFields: [], tags: [],
+  facts: [], accounts: [], members: [{ id: 'person-1', name: 'Dana Henderson', personType: 'person' as const, roles: [], relatedHouseholds: 1, contextRefs: [{ kind: 'document' as const, id: 'Clients/Henderson/tax-return.pdf', label: 'Tax return' }] }], externalParties: [], customFields: [], tags: [],
   notes: [{ id: 'note-1', body: 'Review note', audience: 'internal' as const, links: [{ kind: 'document' as const, id: 'Clients/Henderson/review.docx', label: 'Review packet' }] }],
   contextRefs: [{ kind: 'document' as const, id: 'Clients/Henderson/plan.pdf', label: 'Plan' }],
 };
 
 describe('CRM document links', () => {
-  it('reads document pointers from the household, notes, and linked tasks without creating a file record', () => {
+  it('reads document pointers from the household, people, notes, and linked tasks without creating a file record', () => {
     const linked = linkedDocumentsForHousehold(household, [{ id: 'task-1', kind: 'task', householdRef: { kind: 'household', id: household.id }, title: 'Send plan', contextRefs: [{ kind: 'document', id: 'Clients/Henderson/plan.pdf', label: 'Plan' }] }]);
     expect(linked).toEqual(expect.arrayContaining([
       expect.objectContaining({ target: 'household', ref: expect.objectContaining({ id: 'Clients/Henderson/plan.pdf' }) }),
+      expect.objectContaining({ target: 'person', targetId: 'person-1', ref: expect.objectContaining({ id: 'Clients/Henderson/tax-return.pdf' }) }),
       expect.objectContaining({ target: 'note', ref: expect.objectContaining({ id: 'Clients/Henderson/review.docx' }) }),
       expect.objectContaining({ target: 'task', ref: expect.objectContaining({ id: 'Clients/Henderson/plan.pdf' }) }),
     ]));

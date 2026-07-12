@@ -829,6 +829,73 @@ class DesktopParityApp implements ParityApp {
     if (options.notes) await this.requireText('Parity note');
   }
 
+  /** Proves one existing workspace file can be linked, seen in history, and reopened after a real restart. */
+  async documentLink(): Promise<void> {
+    const path = workspaceRoot;
+    await this.waitForCrmReady(path);
+    const householdName = this.token('Parity file household');
+    const documentName = `${this.token('Parity review packet')}.txt`;
+    const documentPath = `docs/${documentName}`;
+    await this.clickSpineTab('matters');
+    await this.waitForControl('crm-directory-surface');
+    await this.click('crm-directory-add');
+    await this.fill('crm-household-name', householdName);
+    await this.click('crm-household-save');
+    await this.waitForControl('crm-household-record');
+
+    // Seed the Documents-owned file through the same secure workspace service
+    // the app uses. The assertion never creates an attachment record or a
+    // fake browser-only file; the UI must discover and link this real file.
+    await this.eval(`(async () => {
+      const { TauriFSBackend } = await import('/src/platform/fs/TauriFSBackend.ts');
+      const { WorkspaceService } = await import('/src/platform/fs/WorkspaceService.ts');
+      const { useWorkspaceStore } = await import('/src/platform/fs/workspaceStore.ts');
+      const service = new WorkspaceService();
+      await service.initialize(new TauriFSBackend(), ${JSON.stringify(path)});
+      await service.writeFile(${JSON.stringify(`${path}/docs/${documentName}`)}, 'Parity attachment proof.');
+      useWorkspaceStore.getState().setFileTree(await service.getFileTree({ fresh: true }));
+      return true;
+    })()`);
+
+    await this.click('crm-household-tab-documents');
+    await this.waitForControl('crm-household-documents');
+    await this.requireText(documentName);
+    await this.select('crm-document-file', documentPath);
+    await this.click('crm-document-attach');
+    await this.requireText(`${documentName} is now linked to ${householdName} household.`);
+    await this.click('crm-household-tab-timeline');
+    await this.waitForControl('crm-household-timeline');
+    await this.requireText(`Linked document: ${documentName}`);
+
+    const beforeRestart = await this.records();
+    const savedHousehold = beforeRestart.find(
+      (record) => record.kind === 'household' && record.name === householdName
+    );
+    if (!savedHousehold) fail('The household was not saved before linking its document');
+    if (!Array.isArray(savedHousehold.contextRefs) || !savedHousehold.contextRefs.some(
+      (ref) => ref && typeof ref === 'object' && ref.kind === 'document' && ref.id === documentPath
+    )) fail('Linking the document did not save a document pointer on the household');
+
+    await this.restart();
+    await this.waitForCrmReady(path);
+    await this.clickSpineTab('matters');
+    if (await this.exists('crm-household-record')) {
+      await this.click('crm-household-back');
+    }
+    await this.waitForControl('crm-directory-surface');
+    await this.fill('crm-directory-search', householdName);
+    await this.click(`crm-directory-household-${String(savedHousehold.id)}`);
+    await this.waitForControl('crm-household-record');
+    await this.click('crm-household-tab-documents');
+    await this.waitForControl('crm-household-documents');
+    await this.requireText(documentName);
+    const afterRestart = await this.records();
+    const persisted = afterRestart.find((record) => record.id === savedHousehold.id);
+    if (!persisted || !Array.isArray(persisted.contextRefs) || !persisted.contextRefs.some(
+      (ref) => ref && typeof ref === 'object' && ref.kind === 'document' && ref.id === documentPath
+    )) fail('The linked document disappeared after native restart');
+  }
+
   async workflow(options: {
     template?: boolean;
     instance?: boolean;

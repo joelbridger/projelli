@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { HouseholdTimeline } from './HouseholdTimeline';
 import { buildHouseholdTimeline } from './buildTimeline';
+import { EV_OPEN_CRM_DOCUMENT } from '@/config/identity';
 
 const household = {
   id: 'household-1',
@@ -29,16 +30,21 @@ describe('household timeline', () => {
   });
 
   it('filters the readable feed and exposes each source for verification', () => {
+    const opened: Array<{ path?: string; name?: string }> = [];
+    const onOpen = (event: Event) => opened.push((event as CustomEvent<{ path?: string; name?: string }>).detail);
+    window.addEventListener(EV_OPEN_CRM_DOCUMENT, onOpen);
     render(<HouseholdTimeline household={household} records={records} freshness={{ kind: 'live' }} />);
     expect(screen.getByText('Up to date')).toBeInTheDocument();
     expect(screen.getByText('Review packet sent')).toBeInTheDocument();
     expect(screen.getByTestId('crm-timeline-source-document-doc-1')).toHaveTextContent('Open Review notes');
     fireEvent.click(screen.getByTestId('crm-timeline-source-document-doc-1'));
-    expect(screen.getByTestId('crm-timeline-source-detail')).toHaveTextContent('document / doc-1');
+    expect(opened).toContainEqual({ path: 'doc-1', name: 'Review notes' });
+    expect(screen.queryByTestId('crm-timeline-source-detail')).not.toBeInTheDocument();
     fireEvent.change(screen.getByTestId('crm-timeline-type'), { target: { value: 'task' } });
     expect(screen.getByText('Completed task: Send review packet')).toBeInTheDocument();
     expect(screen.queryByText('Review packet sent')).not.toBeInTheDocument();
     fireEvent.change(screen.getByTestId('crm-timeline-from'), { target: { value: '2026-07-11' } });
     expect(screen.getByText('No history matches these filters')).toBeInTheDocument();
+    window.removeEventListener(EV_OPEN_CRM_DOCUMENT, onOpen);
   });
 });

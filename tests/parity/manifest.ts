@@ -11,6 +11,7 @@ export interface ParityApp {
   ready(): Promise<void>;
   task(options: { recurrence?: boolean; priority?: boolean; assignee?: boolean; activity?: boolean; unified?: boolean; triage?: boolean }): Promise<void>;
   contact(options: { person?: boolean; household?: boolean; relationship?: boolean; roles?: boolean; ownership?: boolean; tags?: boolean; notes?: boolean; internal?: boolean; account?: boolean; addresses?: boolean; facts?: boolean; timeline?: boolean }): Promise<void>;
+  documentLink(): Promise<void>;
   workflow(options: { template?: boolean; instance?: boolean; schedule?: boolean; outcomes?: boolean; comments?: boolean; library?: boolean; meetingProposal?: boolean }): Promise<void>;
   jumpMeeting(): Promise<void>;
   approvedPlaybook(): Promise<void>;
@@ -65,6 +66,7 @@ export const FEATURES: readonly ParityFeature[] = [
   live('Tags', 'tags', 'REPLICATE', 'contacts', (app) => app.firmSetup()),
   live('Custom Objects', 'typed-objects', 'IMPROVE', 'contacts', (app) => app.contact({ household: true, account: true })),
   live('Notes on a contact', 'contact-notes', 'REPLICATE', 'contacts', (app) => app.contact({ household: true, notes: true })),
+  live('File storage on records', 'record-file-storage', 'REPLICATE', 'documents', (app) => app.documentLink()),
   live('Pinned notes', 'pinned-notes-and-memory', 'IMPROVE', 'contacts', (app) => app.contact({ household: true, notes: true, facts: true })),
   live('Note search (keyword only)', 'crm-note-search', 'IMPROVE', 'search', (app) => app.durableFeature({ route: 'crm-home-nav-search', controls: ['crm-search-input', 'crm-search-result', 'crm-search-create-note'], action: 'crm-search-create-note', result: 'Parity note', recordKind: 'note' })),
   live('Note @-mentions / notify-everybody', 'note-mentions', 'REPLICATE', 'timeline', (app) => app.contact({ household: true, notes: true, internal: true })),
@@ -132,7 +134,6 @@ export const SKIPPED_FEATURES: readonly SkippedFeature[] = [
   { matrixFeature: 'Email broadcast', reason: 'Marketing blasts are outside the small-firm CRM scope.' },
   { matrixFeature: 'Comments on activity', reason: 'D23 defers activity comments and reactions.' },
   { matrixFeature: 'Likes/emoji activity reactions', reason: 'D23 defers activity comments and reactions.' },
-  { matrixFeature: 'File storage on records', reason: 'The existing Documents system owns files; CRM records link them.' },
   { matrixFeature: 'RightCapital', reason: 'Read-only reference integration is deferred until a pilot needs it.' },
   { matrixFeature: 'Charles Schwab', reason: 'Custodial feeds are out of scope for this CRM replacement phase.' },
   { matrixFeature: 'DocuSign', reason: 'D9 assigns it to the existing connector, not a new CRM feature.' },
