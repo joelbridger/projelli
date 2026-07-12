@@ -15,7 +15,7 @@ import { getStore } from "./lib/db.ts";
 import { json, error, preflight, rejectOpaqueV2Preflight, startRateLimitGc } from "./lib/http.ts";
 import { validateV2RelayBoundary } from "./lib/v2Payload.ts";
 import { V2_FIRM_ROUTE_SPECS, isDeclaredV2FirmRoute, v2FirmRouteSpec } from "./lib/v2RouteInventory.ts";
-import { FIRM_PERSISTENT_ROUTE_SPECS, type FirmPersistentRouteId } from "./lib/firmPersistentRouteInventory.ts";
+import { FIRM_PERSISTENT_ROUTE_SPECS, FIRM_SERVER_ROUTE_TABLE, assertFirmPersistentRouteInventoryComplete, isDeclaredFirmServerRoute, type FirmPersistentRouteId } from "./lib/firmPersistentRouteInventory.ts";
 import { hashPassword, generateLicenseKey, hmacHash } from "./lib/crypto.ts";
 import { handleLogin, handleRefresh, handleLogout, handleMe } from "./routes/auth.ts";
 import { handleActivate, handleSeatValidate, handleSeatHeartbeat } from "./routes/seats.ts";
@@ -34,6 +34,7 @@ import {
   handleListMatters,
   handleArchiveMatter,
   handleReleaseMatterStream,
+  handleListMatterStreams,
   handleAddMatterMember,
   handleRemoveMatterMember,
   handleListMatterMembers,
@@ -68,7 +69,7 @@ import type { Store } from "./lib/db.ts";
  * their executable input inventory. A new route must therefore get a table
  * entry before it can become reachable, just like the opaque v2 relay routes.
  */
-const FIRM_PERSISTENT_HANDLERS: Record<FirmPersistentRouteId, (req: Request, store: Store) => Promise<Response>> = {
+const FIRM_PERSISTENT_HANDLERS: Partial<Record<FirmPersistentRouteId, (req: Request, store: Store) => Promise<Response>>> = {
   deviceRegister: handleDeviceRegister,
   activateSeat: handleActivate,
   transferSeat: handleTransferSeat,
@@ -78,7 +79,8 @@ const FIRM_PERSISTENT_HANDLERS: Record<FirmPersistentRouteId, (req: Request, sto
 async function dispatchFirmPersistentRoute(path: string, method: string, req: Request, store: Store): Promise<Response | null> {
   const spec = FIRM_PERSISTENT_ROUTE_SPECS.find((candidate) => candidate.path === path && candidate.method === method);
   if (!spec) return null;
-  return FIRM_PERSISTENT_HANDLERS[spec.id](req, store);
+  const handler = FIRM_PERSISTENT_HANDLERS[spec.id];
+  return handler ? handler(req, store) : null;
 }
 
 /** Data attached to each sync WebSocket on upgrade (set by authorizeSyncConnect). */
@@ -187,6 +189,10 @@ export function buildServeOptions(store: Store, hub: FanoutHub, traffic?: RelayT
   // A typo or missing entry fails server construction instead of silently
   // leaving a new route outside the hostile-client proof.
   for (const route of V2_FIRM_ROUTE_SPECS) v2FirmRouteSpec(route.id);
+  // This is a construction-time control, not a one-off audit. The route table
+  // below is the gate for every non-v2 firm endpoint, and every row marked as
+  // writing data or an audit record must have a classified inventory entry.
+  assertFirmPersistentRouteInventoryComplete(FIRM_SERVER_ROUTE_TABLE);
   return {
     hostname: config.host,
     port: config.port,
@@ -220,6 +226,14 @@ export function buildServeOptions(store: Store, hub: FanoutHub, traffic?: RelayT
       // handler is unreachable until its route and every client field are in
       // the shared table that drives the hostile-client privacy proof.
       if (isV2FirmPath && !isDeclaredV2FirmRoute(path, method)) return error("not_found", 404);
+      // Do not leave a second, direct-dispatch route outside the inventory.
+      // All non-v2 firm endpoints must be named in the server's route table;
+      // therefore a future write route is unreachable until its declaration is
+      // added and construction verifies its classified input inventory.
+      if (!isV2FirmPath && !isDeclaredFirmServerRoute(path, method)) {
+        if (path.startsWith("/matter/") || (path.startsWith("/org/") && ["matters", "matters/list"].includes(path.slice("/org/".length)))) return error("firm_relay_upgrade_required", 426);
+        return error("not_found", 404);
+      }
 
       try {
         // --- E2EE sync relay + matter ACL (chunk 2) ---
@@ -239,7 +253,10 @@ export function buildServeOptions(store: Store, hub: FanoutHub, traffic?: RelayT
         if (sm) {
           const stream = sm.handle;
           const matterHandle = store.getMatterHandleForStream(stream);
-          if (!matterHandle) return error("stream_not_found", 404);
+          // A flat handle has to be mapped internally before an ACL can be
+          // evaluated, but that lookup is never exposed: unknown, released,
+          // removed, and walled all receive this exact opaque denial.
+          if (!matterHandle) return error("stream_access_denied", 404);
           if (sm.operation === "sync-ticket" && method === "POST") return await handleSyncTicket(req, store, matterHandle, stream, ip);
           if (sm.operation === "updates" && method === "POST") return error("stream_not_found", 404);
           if (sm.operation === "updates" && method === "GET") return await handlePullUpdates(req, store, matterHandle, stream, ip);
@@ -261,6 +278,7 @@ export function buildServeOptions(store: Store, hub: FanoutHub, traffic?: RelayT
           if (mm.rest === "wall/clear" && method === "POST") return await handleClearWall(req, store, mm.handle);
           if (mm.rest === "archive" && method === "POST") return await handleArchiveMatter(req, store, mm.handle, hub);
           if (mm.rest === "streams/release" && method === "POST") return await handleReleaseMatterStream(req, store, mm.handle, hub);
+          if (mm.rest === "streams/list" && method === "POST") return await handleListMatterStreams(req, store, mm.handle);
           // Phase 1: wrapped matter-key distribution.
           if (mm.rest === "keys/publish" && method === "POST") return await handlePublishMatterKeys(req, store, mm.handle);
           if (mm.rest === "keys/fetch" && method === "POST") return await handleFetchMatterKey(req, store, mm.handle);

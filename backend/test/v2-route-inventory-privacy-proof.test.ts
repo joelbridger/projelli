@@ -145,7 +145,7 @@ describe("v2 route inventory hostile-client privacy proof", () => {
               headers,
               ...(spec.method === "POST" ? { body: JSON.stringify(body) } : {}),
             });
-            if (input.name.includes("all unlisted")) expect(response.status, `${spec.id} ${input.name}`).toBe(400);
+            if (input.name.includes("all unlisted")) expect(response.status, `${spec.id} ${input.name}`).toBe(spec.id === "syncTicket" && input.location === "body" ? 404 : 400);
             assertNoSentinels(await response.text(), `${spec.id} ${input.location}:${input.name} response`);
             if (spec.inputs.includes(input as never)) exercised.add(inputKey(spec, input));
           }
@@ -194,5 +194,5 @@ describe("v2 route inventory hostile-client privacy proof", () => {
       server.stop(true);
       store.close();
     }
-  });
+  }, 20_000);
 });

@@ -142,7 +142,7 @@ describe("full HTTP lifecycle", () => {
   });
 
   test("admin revokes seat 0; validation then fails", async () => {
-    const revoke = await post("/org/seat/revoke", { seat_id: firstSeatId, reason: "test-revoke" }, adminAccess);
+    const revoke = await post("/org/seat/revoke", { seat_id: firstSeatId, reason_code: "admin_revoked" }, adminAccess);
     expect(revoke.status).toBe(200);
     expect(revoke.json.revoked).toBe(true);
 

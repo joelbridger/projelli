@@ -1250,6 +1250,12 @@ export class Store {
     return row.count;
   }
 
+  /** Owner recovery view: opaque handles only, never document names or content. */
+  listLiveMatterStreamHandles(matterHandle: string): string[] {
+    return (this.#db.query("SELECT stream_handle FROM matter_streams WHERE matter_handle = ? ORDER BY created_at ASC").all(matterHandle) as Array<{ stream_handle: string }>)
+      .map((row) => row.stream_handle);
+  }
+
   /** Release a deleted document's stream only when the owner has explicitly approved it. */
   releaseMatterStream(matterHandle: string, streamHandle: string): boolean {
     const txn = this.#db.transaction(() => {

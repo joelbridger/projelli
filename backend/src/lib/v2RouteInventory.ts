@@ -57,7 +57,7 @@ const role: V2RouteInput = { location: "body", name: "role", classification: "se
 
 export type V2FirmRouteId =
   | "matterMine" | "listMatters" | "createMatter" | "activateMatter" | "archiveMatter"
-  | "releaseMatterStream" | "addMatterMember" | "removeMatterMember" | "listMatterMembers"
+  | "releaseMatterStream" | "listMatterStreams" | "addMatterMember" | "removeMatterMember" | "listMatterMembers"
   | "setWall" | "clearWall" | "publishMatterKeys" | "fetchMatterKey" | "pushUpdate"
   | "pullUpdates" | "syncTicket" | "syncSocket";
 
@@ -68,6 +68,7 @@ export const V2_FIRM_ROUTE_SPECS: readonly V2FirmRouteSpec[] = [
   { id: "activateMatter", method: "POST", path: "/v2/firm/matters/:matter_handle/activate", bodyKeys: [], inputs: [matterPath] },
   { id: "archiveMatter", method: "POST", path: "/v2/firm/matters/:matter_handle/archive", bodyKeys: [], inputs: [matterPath] },
   { id: "releaseMatterStream", method: "POST", path: "/v2/firm/matters/:matter_handle/streams/release", bodyKeys: ["stream_handle"], inputs: [matterPath, { location: "body", name: "stream_handle", classification: "strict-opaque-handle", rule: "Exactly a sh2_ opaque handle owned by this matter." }] },
+  { id: "listMatterStreams", method: "POST", path: "/v2/firm/matters/:matter_handle/streams/list", bodyKeys: [], inputs: [matterPath] },
   { id: "addMatterMember", method: "POST", path: "/v2/firm/matters/:matter_handle/members/add", bodyKeys: ["user_id", "role"], inputs: [matterPath, userId, role] },
   { id: "removeMatterMember", method: "POST", path: "/v2/firm/matters/:matter_handle/members/remove", bodyKeys: ["user_id"], inputs: [matterPath, userId] },
   { id: "listMatterMembers", method: "POST", path: "/v2/firm/matters/:matter_handle/members/list", bodyKeys: [], inputs: [matterPath] },

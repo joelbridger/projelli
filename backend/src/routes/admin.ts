@@ -56,14 +56,21 @@ export async function handleListSeats(req: Request, store: Store): Promise<Respo
 export async function handleRevokeSeat(req: Request, store: Store, hub: FanoutHub = fanout): Promise<Response> {
   const a = requireAdmin(req);
   if (!a.ok) return a.resp;
-  const body = await readJson<{ seat_id?: unknown; reason?: unknown }>(req);
+  const body = await readFirmPersistentPayload(req, "revokeSeat");
   if (!body || !isNonEmptyString(body.seat_id, 64)) return error("missing_fields", 400);
 
   const seat = store.getSeat(body.seat_id);
   if (!seat) return error("seat_not_found", 404);
   if (seat.org_id !== a.claims.org_id) return error("forbidden", 403, "cross_org");
 
-  const reason = isNonEmptyString(body.reason, 256) ? body.reason.trim() : "admin_revoked";
+  // This field used to accept arbitrary prose and copied it into two durable
+  // records.  It is now a small operational code, so this endpoint cannot be
+  // used as a plaintext storage channel.
+  const REASON_CODES = new Set(["admin_revoked", "device_lost", "security_incident"]);
+  if (body.reason_code !== undefined && (typeof body.reason_code !== "string" || !REASON_CODES.has(body.reason_code))) {
+    return error("invalid_reason_code", 400);
+  }
+  const reason = (body.reason_code as string | undefined) ?? "admin_revoked";
   const done = store.revokeSeat(seat.seat_id, reason);
   if (done) {
     hub.evictSeat(seat.seat_id);
