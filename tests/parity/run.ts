@@ -101,6 +101,36 @@ class DesktopParityApp implements ParityApp {
   private token(prefix: string): string { this.sequence += 1; return `${prefix}-${Date.now()}-${this.sequence}`; }
 
   async ready(): Promise<void> {
+    // Open the first workspace through the same normal auto-resume path an
+    // advisor uses.  Setting only Zustand's rootPath leaves the picker open,
+    // because that skips the lifecycle commit which dismisses it.  The old
+    // shortcut therefore made every parity feature fail before a CRM screen
+    // could mount.
+    await this.eval(`(() => {
+      localStorage.setItem('lantern_onboarding_complete', 'true');
+      localStorage.setItem('keepance_feature_tour_dismissed', 'true');
+      localStorage.setItem('keepance_feature_tour_completed', 'true');
+      localStorage.setItem('lantern:settings', JSON.stringify({ state: { featuresTourCompleted: true, _migrated: true }, version: 0 }));
+      localStorage.setItem('lantern_recent_workspaces', JSON.stringify([{
+        path: ${JSON.stringify(workspaceRoot)},
+        name: 'Parity verification firm',
+        lastOpened: new Date().toISOString(),
+      }]));
+      location.reload();
+      return true;
+    })()`);
+    const shellDeadline = Date.now() + 30_000;
+    while (Date.now() < shellDeadline) {
+      try {
+        if (await this.exists('spine-nav')) break;
+      } catch {
+        // The WebView is briefly unavailable while the real page reloads.
+      }
+      await delay(150);
+    }
+    if (!await this.exists('spine-nav')) {
+      fail('The desktop app never completed its normal fresh-workspace open');
+    }
     await this.setWorkspace('startup');
     const end = Date.now() + 10_000;
     while (Date.now() < end) {
