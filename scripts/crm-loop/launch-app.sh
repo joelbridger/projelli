@@ -39,6 +39,19 @@ curl -sf "http://127.0.0.1:5174" >/dev/null || {
   exit 1
 }
 
+# A GUI app needs a display. Agent shells have none, so give each instance its
+# own virtual screen when DISPLAY is unset — this is what lets many lanes drive
+# real app windows headlessly, in parallel.
+if [ -z "${DISPLAY:-}" ]; then
+  VDISP=":$((100 + PORT - 9250))"
+  if ! xdpyinfo -display "$VDISP" >/dev/null 2>&1; then
+    Xvfb "$VDISP" -screen 0 1600x1000x24 -nolisten tcp >/dev/null 2>&1 &
+    sleep 1
+  fi
+  export DISPLAY="$VDISP"
+  echo "virtual display: $DISPLAY"
+fi
+
 mkdir -p "$WORKSPACE"
 # Each instance gets its own config/data dirs so two seats never share a store.
 export XDG_CONFIG_HOME="$WORKSPACE/.config"
