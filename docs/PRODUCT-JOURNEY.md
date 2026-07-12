@@ -173,3 +173,6 @@ Jameson approved shipping the firm-relay privacy upgrade (the server now sees on
 
 ## 2026-07-12 — The final product is the combined app + CRM
 Jameson changed the ship target: "the official final product is the COMBINED app + full CRM. The app without the CRM is no longer the goal." The plan is staged so nothing already proven gets thrown away: today's real-Windows exam of the main app continues unchanged, a scout maps the combining work in parallel, and the actual combination happens only once the CRM's basics are proven to survive a restart. The true finish line is now one full exam of the combined product on real Windows.
+
+## 2026-07-12 (evening) — No solo release: the combined product is the release
+Offered the choice to ship the main app alone tonight, Jameson declined. There will be no separate main-app release; the combined app+CRM is the one product that ships, landed properly over the coming days rather than raced out in an evening. Today's proven-clean main app becomes the foundation the CRM merges into.
