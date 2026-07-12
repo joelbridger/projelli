@@ -4,6 +4,7 @@ import { createAdvisorIntake, type AdvisorIntakeChecklist } from "../../src/plat
 import { deriveAuthToken, derivePageKey } from "../../src/platform/intake/intakeCrypto.ts";
 import { IntakeRelayClient } from "../../src/platform/intake/IntakeRelayClient.ts";
 import { b64ToBytes } from "../../src/platform/intake/pageSeal.ts";
+import { DEFAULT_WELCOME_JOURNEY } from "../../src/platform/intake/welcomeJourneyDefaults.ts";
 import type { FormRequest, RequestItem } from "../../src/platform/intake/types.ts";
 import { IntakeSyncClient, type IntakeInboxPage, type IntakeInboxSubmission } from "../../src/platform/intake/IntakeSyncClient.ts";
 import { openPageJson } from "../../intake-page/src/pageCrypto.ts";
@@ -153,6 +154,7 @@ describe("intake real page to relay to advisor flow", () => {
           advisor_name: "Dana",
           advisor_email: "dana@example.test",
           next_steps: ["Dana will review what you sent."],
+          journey: DEFAULT_WELCOME_JOURNEY,
         },
         relay: new IntakeRelayClient({ baseUrl: ctx.base, seatToken: advisor.seatToken }),
       });
