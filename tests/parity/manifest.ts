@@ -13,6 +13,7 @@ export interface ParityApp {
   contact(options: { person?: boolean; household?: boolean; relationship?: boolean; roles?: boolean; ownership?: boolean; tags?: boolean; notes?: boolean; internal?: boolean; account?: boolean; addresses?: boolean; facts?: boolean; timeline?: boolean }): Promise<void>;
   workflow(options: { template?: boolean; instance?: boolean; schedule?: boolean; outcomes?: boolean; comments?: boolean; library?: boolean; meetingProposal?: boolean }): Promise<void>;
   jumpMeeting(): Promise<void>;
+  approvedPlaybook(): Promise<void>;
   pipeline(options: { opportunity?: boolean; pipeline?: boolean; stage?: boolean; workflowTrigger?: boolean }): Promise<void>;
   report(options: { kind: 'no_contact_6mo' | 'attention_vs_fee' | 'custom' | 'ai' }): Promise<void>;
   firmDirectory(): Promise<void>;
@@ -109,7 +110,7 @@ export const FEATURES: readonly ParityFeature[] = [
   pending('AI Notetaker (launched fall 2025, native iOS recording April 2026)', 'ai-notetaker', 'REPLICATE', 'meetings', 'Needs a deterministic meeting-capture fixture that proves the saved note is linked to its client.'),
   live('AI for Reports', 'ai-reports-suite', 'IMPROVE', 'reports', (app) => app.report({ kind: 'ai' })),
   pending('Agents (early access, March 2026)', 'ai-monitoring', 'IMPROVE', 'tasks', 'No approval-visible monitoring result exists to exercise; autonomous action is intentionally excluded.'),
-  pending('Playbooks (early access, March 2026)', 'ai-playbooks', 'REPLICATE', 'workflows', 'Needs a deterministic approved-playbook fixture rather than a model call.'),
+  live('Playbooks (early access, March 2026)', 'ai-playbooks', 'REPLICATE', 'workflows', (app) => app.approvedPlaybook()),
   pending('AI Assistant (early access, March 2026)', 'crm-ai-assistant', 'REPLICATE', 'search', 'Needs an offline CRM-aware answer fixture with cited records before this can be proved safely.'),
   live('Member / Admin / Owner roles', 'firm-roles', 'REPLICATE', 'firm setup', (app) => app.firmDirectory()),
   live('Teams', 'firm-teams', 'REPLICATE', 'firm setup', (app) => app.firmDirectory()),

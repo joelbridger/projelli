@@ -938,6 +938,33 @@ class DesktopParityApp implements ParityApp {
       fail('Meeting workflow proposal disappeared after native restart');
   }
 
+  async approvedPlaybook(): Promise<void> {
+    const { path } = await this.setWorkspace(
+      `approved-playbook-${this.token('workspace')}`
+    );
+    await this.openHome();
+    await this.waitForControl('crm-home-nav-workflows');
+    await this.click('crm-home-nav-workflows');
+    await this.require('crm-approved-playbook-fixture');
+    await this.click('crm-starter-workflow-annual-review');
+    await this.waitForControl('crm-live-workflow-template-form');
+    await this.click('crm-live-workflow-create-template');
+    await this.waitForControl('crm-live-workflow-template');
+    const beforeRestart = await this.records();
+    const playbook = beforeRestart.find(
+      (record) =>
+        record.kind === 'crm_workflow_template' &&
+        record.name === 'Annual review'
+    );
+    if (!playbook)
+      fail('Approved playbook fixture did not create a saved workflow template');
+    await this.restart();
+    await this.waitForCrmReady(path);
+    const afterRestart = await this.records();
+    if (!afterRestart.some((record) => record.id === playbook.id))
+      fail('Approved playbook disappeared after native restart');
+  }
+
   async pipeline(options: {
     opportunity?: boolean;
     pipeline?: boolean;

@@ -220,6 +220,9 @@ export function LiveWorkflows({
             {STARTER_WORKFLOWS.map((starter) => (
               <div
                 key={starter.id}
+                {...(starter.id === 'annual-review'
+                  ? { 'data-testid': 'crm-approved-playbook-fixture' }
+                  : {})}
                 style={{
                   borderTop: '1px solid var(--kp-border)',
                   marginTop: 8,
