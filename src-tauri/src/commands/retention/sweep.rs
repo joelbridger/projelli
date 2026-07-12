@@ -379,7 +379,7 @@ mod tests {
 
         let mut out = SweepOutcome::default();
         let canon_ws = ws.path().canonicalize().unwrap();
-        sweep_matter_folder(&matter, &canon_ws, "delete-audio-after-days", 30, now, &mut out, &mut |_d, _ids| Ok(()));
+        sweep_matter_folder(&matter.canonicalize().unwrap(), &canon_ws, "delete-audio-after-days", 30, now, &mut out, &mut |_d, _ids| Ok(()));
 
         // Old meeting: every raw-audio location gone; text artifacts kept.
         assert!(!old.join("audio.wav").exists());
@@ -434,7 +434,7 @@ mod tests {
 
         let mut out = SweepOutcome::default();
         let canon_ws = ws.path().canonicalize().unwrap();
-        sweep_matter_folder(&matter, &canon_ws, "summary-only", 30, now, &mut out, &mut |_d, _ids| Ok(()));
+        sweep_matter_folder(&matter.canonicalize().unwrap(), &canon_ws, "summary-only", 30, now, &mut out, &mut |_d, _ids| Ok(()));
 
         assert!(!m.join("transcript.json").exists());
         assert!(!m.join("audio.wav").exists());
@@ -461,7 +461,7 @@ mod tests {
         let mut out = SweepOutcome::default();
         let canon_ws = ws.path().canonicalize().unwrap();
         let mut audited: Vec<(String, String, Vec<String>)> = Vec::new();
-        sweep_matter_folder(&matter, &canon_ws, "summary-only", 30, now, &mut out, &mut |d, ids| {
+        sweep_matter_folder(&matter.canonicalize().unwrap(), &canon_ws, "summary-only", 30, now, &mut out, &mut |d, ids| {
             audited.push((d.path.clone(), d.kind.clone(), ids.to_vec()));
             Ok(())
         });
@@ -491,13 +491,13 @@ mod tests {
         let matter = ws.path().join("Clients/H");
         let now = now_ms();
         let m = make_meeting(&matter, "2026-06-01-review", 10, now, true);
-        let capture_files: Vec<_> = std::fs::read_dir(m.join(".capture")).unwrap().map(|e| e.unwrap().path()).collect();
+        let capture_files: Vec<_> = std::fs::read_dir(m.join(".capture")).unwrap().map(|e| e.unwrap().path().canonicalize().unwrap()).collect();
         assert!(capture_files.len() >= 2, "fixture must actually have multiple chunk-cache files for this test to mean anything");
 
         let mut out = SweepOutcome::default();
         let canon_ws = ws.path().canonicalize().unwrap();
         let mut chunk_cache_calls: Vec<String> = Vec::new();
-        sweep_matter_folder(&matter, &canon_ws, "keep-everything", 30, now, &mut out, &mut |d, _ids| {
+        sweep_matter_folder(&matter.canonicalize().unwrap(), &canon_ws, "keep-everything", 30, now, &mut out, &mut |d, _ids| {
             if d.kind == "chunk-cache" {
                 chunk_cache_calls.push(d.path.clone());
             }
@@ -531,7 +531,7 @@ mod tests {
         let mut out = SweepOutcome::default();
         let canon_ws = ws.path().canonicalize().unwrap();
         let mut calls = 0u32;
-        sweep_matter_folder(&matter, &canon_ws, "delete-audio-after-days", 30, now, &mut out, &mut |_d, _ids| {
+        sweep_matter_folder(&matter.canonicalize().unwrap(), &canon_ws, "delete-audio-after-days", 30, now, &mut out, &mut |_d, _ids| {
             calls += 1;
             Err("simulated audit-store failure".to_string())
         });
@@ -568,7 +568,7 @@ mod tests {
 
         let mut out = SweepOutcome::default();
         let canon_ws = ws.path().canonicalize().unwrap();
-        sweep_matter_folder(&matter, &canon_ws, "summary-only", 30, now, &mut out, &mut |_d, _ids| Ok(()));
+        sweep_matter_folder(&matter.canonicalize().unwrap(), &canon_ws, "summary-only", 30, now, &mut out, &mut |_d, _ids| Ok(()));
         drop(restore); // restore write perms so tempdir cleanup can delete it
 
         assert!(m.join("transcript.json").exists(), "delete must have actually failed for this test to be meaningful");
@@ -616,7 +616,7 @@ mod tests {
         let m = make_meeting(&matter, "2026-05-01-review", 40, now, true);
         let mut out = SweepOutcome::default();
         let canon_ws = ws.path().canonicalize().unwrap();
-        sweep_matter_folder(&matter, &canon_ws, "keep-everything", 30, now, &mut out, &mut |_d, _ids| Ok(()));
+        sweep_matter_folder(&matter.canonicalize().unwrap(), &canon_ws, "keep-everything", 30, now, &mut out, &mut |_d, _ids| Ok(()));
         assert!(m.join("audio.wav").exists());
         assert!(m.join("transcript.json").exists());
         assert!(!m.join(".capture").exists());
@@ -644,7 +644,7 @@ mod tests {
 
         let mut out = SweepOutcome::default();
         let canon_ws = ws.path().canonicalize().unwrap();
-        sweep_matter_folder(&matter, &canon_ws, "summary-only", 30, now, &mut out, &mut |_d, _ids| Ok(()));
+        sweep_matter_folder(&matter.canonicalize().unwrap(), &canon_ws, "summary-only", 30, now, &mut out, &mut |_d, _ids| Ok(()));
 
         // NOTE on semantics: unlinking a symlink inside the workspace removes
         // only the link, never the target — `contained()` checks the LINK's
@@ -676,7 +676,7 @@ mod tests {
 
         let mut out = SweepOutcome::default();
         let canon_ws = ws.path().canonicalize().unwrap();
-        sweep_matter_folder(&matter, &canon_ws, "summary-only", 30, now, &mut out, &mut |_d, _ids| Ok(()));
+        sweep_matter_folder(&matter.canonicalize().unwrap(), &canon_ws, "summary-only", 30, now, &mut out, &mut |_d, _ids| Ok(()));
 
         assert!(victim_dir.join("secret.txt").exists(), "must never walk/delete through a symlinked directory");
         assert!(out.errors.iter().any(|e| e.contains("symlink")), "the refusal should be reported: {:?}", out.errors);
@@ -706,7 +706,7 @@ mod tests {
         let mut audited_paths: Vec<String> = Vec::new();
         let mut out = SweepOutcome::default();
         let canon_ws = ws.path().canonicalize().unwrap();
-        sweep_matter_folder(&matter, &canon_ws, "summary-only", 30, now, &mut out, &mut |d, _ids| {
+        sweep_matter_folder(&matter.canonicalize().unwrap(), &canon_ws, "summary-only", 30, now, &mut out, &mut |d, _ids| {
             audited_paths.push(d.path.clone());
             Ok(())
         });
@@ -756,7 +756,7 @@ mod tests {
         let mut audited_paths: Vec<String> = Vec::new();
         let mut out = SweepOutcome::default();
         let canon_ws = ws.path().canonicalize().unwrap();
-        sweep_matter_folder(&matter, &canon_ws, "summary-only", 30, now, &mut out, &mut |d, _ids| {
+        sweep_matter_folder(&matter.canonicalize().unwrap(), &canon_ws, "summary-only", 30, now, &mut out, &mut |d, _ids| {
             audited_paths.push(d.path.clone());
             Ok(())
         });
