@@ -913,8 +913,15 @@ class DesktopParityApp implements ParityApp {
     await this.requireText(tagName);
     await this.openFirm('values');
     await this.select('crm-record-values-select', householdId);
-    const value = await this.eval(`document.querySelector('[data-testid="crm-record-value-${fieldKey}"]')?.value`);
-    const appliedTag = await this.eval(`Boolean(document.querySelector('[data-testid="crm-record-tag-${String(tag.id)}"]:checked'))`);
+    let value: unknown;
+    let appliedTag: unknown;
+    const restoredValueDeadline = Date.now() + 10_000;
+    do {
+      value = await this.eval(`document.querySelector('[data-testid="crm-record-value-${fieldKey}"]')?.value`);
+      appliedTag = await this.eval(`Boolean(document.querySelector('[data-testid="crm-record-tag-${String(tag.id)}"]:checked'))`);
+      if (value === 'North' && appliedTag) break;
+      await delay(150);
+    } while (Date.now() < restoredValueDeadline);
     if (value !== 'North' || !appliedTag)
       fail('The custom-field value or tag disappeared after native restart');
     await this.waitForRecord(
@@ -1079,29 +1086,28 @@ try {
       ['run', 'dev', '--', '--port', String(vitePort), '--strictPort'],
       process.env
     );
-  }
-  vite = start(
-    'npm',
-    ['run', 'dev', '--', '--port', String(vitePort), '--strictPort'],
-    process.env
-  );
-  vite.stdout?.on('data', (chunk: Buffer) => {
-    viteOutput = `${viteOutput}${chunk.toString()}`.slice(-4_000);
-  });
-  vite.stderr?.on('data', (chunk: Buffer) => {
-    viteOutput = `${viteOutput}${chunk.toString()}`.slice(-4_000);
-  });
-  // A cold Vite cache can take a little over thirty seconds on the shared
-  // build machine.  Keep the parity runner honest by waiting for the real
-  // server instead of calling a healthy app an infrastructure failure.
-  const end = Date.now() + 60_000;
-  while (!(await portReady(vitePort))) {
-    if (Date.now() > end) {
-      throw new InfrastructureError(
-        `Vite did not start on port ${vitePort}${viteOutput ? `: ${viteOutput.trim()}` : ''}`
-      );
+    vite.stdout?.on('data', (chunk: Buffer) => {
+      viteOutput = `${viteOutput}${chunk.toString()}`.slice(-4_000);
+    });
+    vite.stderr?.on('data', (chunk: Buffer) => {
+      viteOutput = `${viteOutput}${chunk.toString()}`.slice(-4_000);
+    });
+    // A cold Vite cache can take a little over thirty seconds on the shared
+    // build machine. Keep the parity runner honest by waiting for the real
+    // server instead of calling a healthy app an infrastructure failure.
+    const end = Date.now() + 60_000;
+    while (!(await portReady(vitePort))) {
+      if (Date.now() > end) {
+        throw new InfrastructureError(
+          `Vite did not start on port ${vitePort}${viteOutput ? `: ${viteOutput.trim()}` : ''}`
+        );
+      }
+      await delay(200);
     }
-    await delay(200);
+  } else if (!(await portReady(vitePort))) {
+    throw new InfrastructureError(
+      `Parity expected a shared Vite server on port ${vitePort}, but none is running.`
+    );
   }
   desktop = start(
     'bash',

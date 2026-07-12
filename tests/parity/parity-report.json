@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-07-12T16:13:17.774Z",
+  "generatedAt": "2026-07-12T17:20:19.407Z",
   "source": "design/01-wealthbox-feature-matrix.md",
   "totalFeatures": 69,
   "skippedFeatures": 20,
-  "verified": 26,
+  "verified": 30,
   "results": [
     {
       "id": "contact-person",
@@ -11,7 +11,7 @@
       "area": "contacts",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Expected visible text: Parity household-1783872641423-3"
+      "detail": "Expected visible text: Parity person-1783876498578-4"
     },
     {
       "id": "contact-household",
@@ -19,7 +19,7 @@
       "area": "contacts",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Missing required control: crm-directory-add"
+      "detail": "Missing required control: crm-directory-surface"
     },
     {
       "id": "contact-household-titles",
@@ -27,7 +27,7 @@
       "area": "contacts",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Missing required control: crm-directory-add"
+      "detail": "Missing required control: crm-directory-surface"
     },
     {
       "id": "contact-company-trust",
@@ -35,7 +35,7 @@
       "area": "contacts",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Missing required control: crm-directory-add"
+      "detail": "Missing required control: crm-directory-surface"
     },
     {
       "id": "contact-professional-links",
@@ -43,7 +43,7 @@
       "area": "contacts",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Missing required control: crm-directory-add"
+      "detail": "Missing required control: crm-directory-surface"
     },
     {
       "id": "contact-roles",
@@ -51,7 +51,7 @@
       "area": "contacts",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Missing required control: crm-directory-add"
+      "detail": "Missing required control: crm-directory-surface"
     },
     {
       "id": "contact-ownership",
@@ -59,7 +59,7 @@
       "area": "contacts",
       "verdict": "IMPROVE",
       "status": "FAILING",
-      "detail": "Missing required control: crm-directory-add"
+      "detail": "Missing required control: crm-directory-surface"
     },
     {
       "id": "contact-channels",
@@ -67,7 +67,7 @@
       "area": "contacts",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Missing required control: crm-directory-add"
+      "detail": "Missing required control: crm-directory-surface"
     },
     {
       "id": "contact-fact-rollup",
@@ -75,23 +75,23 @@
       "area": "contacts",
       "verdict": "IMPROVE",
       "status": "FAILING",
-      "detail": "Missing required control: crm-directory-add"
+      "detail": "Missing required control: crm-directory-surface"
     },
     {
       "id": "custom-fields",
       "name": "Custom fields",
       "area": "firm setup",
       "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "The custom-field value or tag disappeared after native restart"
+      "status": "BUILT",
+      "detail": "Passed against the running desktop app and survived native restart."
     },
     {
       "id": "tags",
       "name": "Tags",
       "area": "contacts",
       "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "The custom-field value or tag disappeared after native restart"
+      "status": "BUILT",
+      "detail": "Passed against the running desktop app and survived native restart."
     },
     {
       "id": "typed-objects",
@@ -99,7 +99,7 @@
       "area": "contacts",
       "verdict": "IMPROVE",
       "status": "FAILING",
-      "detail": "Expected visible text: Parity household-1783872658041-38"
+      "detail": "eval code@\neval@[native code]\n@http://localhost:5174/:30:26"
     },
     {
       "id": "contact-notes",
@@ -107,7 +107,7 @@
       "area": "contacts",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Missing required control: crm-directory-add"
+      "detail": "Missing required control: crm-directory-surface"
     },
     {
       "id": "pinned-notes-and-memory",
@@ -115,7 +115,7 @@
       "area": "contacts",
       "verdict": "IMPROVE",
       "status": "FAILING",
-      "detail": "Missing required control: crm-directory-add"
+      "detail": "Missing required control: crm-directory-surface"
     },
     {
       "id": "crm-note-search",
@@ -131,7 +131,7 @@
       "area": "timeline",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Expected visible text: Parity household-1783872663533-49"
+      "detail": "Missing required control: crm-directory-add"
     },
     {
       "id": "internal-note-wall",
@@ -139,7 +139,7 @@
       "area": "contacts",
       "verdict": "IMPROVE",
       "status": "FAILING",
-      "detail": "Missing required control: crm-directory-add"
+      "detail": "Missing required control: crm-directory-surface"
     },
     {
       "id": "task-record",
@@ -179,7 +179,7 @@
       "area": "contacts",
       "verdict": "IMPROVE",
       "status": "FAILING",
-      "detail": "Expected visible text: Parity household-1783872671984-63"
+      "detail": "Missing required control: crm-household-name"
     },
     {
       "id": "task-change-trail",
@@ -258,8 +258,8 @@
       "name": "Jump → Wealthbox workflow trigger",
       "area": "workflows",
       "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "Meeting did not create an approval-visible workflow proposal"
+      "status": "BUILT",
+      "detail": "Passed against the running desktop app and survived native restart."
     },
     {
       "id": "opportunity-record",
@@ -314,8 +314,8 @@
       "name": "Email sync (Gmail/Outlook)",
       "area": "email",
       "verdict": "REPLICATE",
-      "status": "BUILT",
-      "detail": "Passed against the running desktop app and survived native restart."
+      "status": "FAILING",
+      "detail": "Action did not create a emailActivity record"
     },
     {
       "id": "canned-reports",
@@ -363,7 +363,7 @@
       "area": "timeline",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Expected visible text: Parity household-1783872742041-132"
+      "detail": "eval code@\neval@[native code]\n@http://localhost:5174/:30:26"
     },
     {
       "id": "firm-activity-feed",
@@ -387,7 +387,7 @@
       "area": "migration",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Missing required control: crm-migration-run-import"
+      "detail": "Expected visible text: Import finished"
     },
     {
       "id": "jump-replacement",
@@ -403,7 +403,7 @@
       "area": "migration",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Missing required control: crm-redtail-import"
+      "detail": "Expected visible text: Import finished"
     },
     {
       "id": "salesforce-migration",
@@ -411,7 +411,7 @@
       "area": "migration",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Missing required control: crm-salesforce-import"
+      "detail": "Expected visible text: Import finished"
     },
     {
       "id": "outlook-gmail",
@@ -427,7 +427,7 @@
       "area": "timeline",
       "verdict": "IMPROVE",
       "status": "FAILING",
-      "detail": "Expected visible text: Parity household-1783872764500-147"
+      "detail": "Missing required control: crm-household-save"
     },
     {
       "id": "calendly-replacement",
@@ -506,16 +506,16 @@
       "name": "Groups / visibility restrictions",
       "area": "firm setup",
       "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "Expected visible text: Parity teammate"
+      "status": "BUILT",
+      "detail": "Passed against the running desktop app and survived native restart."
     },
     {
       "id": "firm-permissions",
       "name": "Default permissions per user",
       "area": "firm setup",
       "verdict": "REPLICATE",
-      "status": "FAILING",
-      "detail": "Expected visible text: Parity teammate"
+      "status": "BUILT",
+      "detail": "Passed against the running desktop app and survived native restart."
     },
     {
       "id": "guided-migration",
@@ -523,7 +523,7 @@
       "area": "migration",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Missing required control: crm-migration-run-import"
+      "detail": "Expected visible text: Import finished"
     },
     {
       "id": "migration-export",
@@ -531,7 +531,7 @@
       "area": "migration",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Missing required control: crm-migration-archive"
+      "detail": "Expected visible text: Import finished"
     },
     {
       "id": "migration-external-id",
@@ -539,7 +539,7 @@
       "area": "migration",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Missing required control: crm-migration-source-id-map"
+      "detail": "Expected visible text: Import finished"
     },
     {
       "id": "wealthbox-api-connection",
@@ -547,7 +547,7 @@
       "area": "migration",
       "verdict": "REPLICATE",
       "status": "FAILING",
-      "detail": "Missing required control: crm-migration-base-url"
+      "detail": "Expected visible text: Import finished"
     },
     {
       "id": "native-collaboration-push",
