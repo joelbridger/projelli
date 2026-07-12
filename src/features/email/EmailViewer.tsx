@@ -610,7 +610,7 @@ export function EmailViewer({ sourceId, className, onOpenSettings, onSaveToWorks
           data-testid="email-file-search-repair-pending"
         >
           <AlertTriangle className="h-3 w-3" />
-          Search is updating. This email will not appear in search results until it is ready.
+          {t('mail.viewer.search-repair-pending')}
         </p>
       ) : null}
       {filePickerOpen ? (

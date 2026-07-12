@@ -3355,6 +3355,7 @@
       "filed-to-another-client": "another client",
       "not-filed": "Not filed",
       "filed-success": "Filed",
+      "search-repair-pending": "Die Suche wird aktualisiert. Diese E-Mail erscheint erst in den Suchergebnissen, wenn sie bereit ist.",
       "find-client": "Find client",
       "create-client-first": "Create a client first.",
       "no-matches": "No matches",

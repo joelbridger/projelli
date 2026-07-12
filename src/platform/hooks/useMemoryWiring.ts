@@ -1921,7 +1921,9 @@ export function scheduleMailMatterRetag(
         parsed.folderId,
         matterId,
         useWorkspaceStore.getState().rootPath ?? undefined,
-      ).catch(() => {});
+      ).catch((err: unknown) => {
+        console.warn('Email search scope update failed before its retry system was ready:', err);
+      });
       continue;
     }
     const id = `mail:${key}`;
@@ -2240,7 +2242,7 @@ export function useMemoryWiring(
         // the file watcher / live indexing installed above.
         try {
           await mailSetWorkspace(rootPath);
-          if (!cancelled) {
+          if (isWorkspaceIdentityCurrent(workspaceIdentity)) {
             stopPendingMailRagRetagRecovery = startPendingMailRagRetagRecovery(
               workspaceIdentity,
               { isCancelled: () => cancelled },

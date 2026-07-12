@@ -75,7 +75,7 @@ describe('en.json structure snapshot', () => {
         "layout": 40,
         "local-ai-download": 9,
         "local-ai-settings": 8,
-        "mail": 155,
+        "mail": 156,
         "marketplace": 14,
         "matter": 326,
         "media": 100,
