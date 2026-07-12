@@ -434,6 +434,7 @@ function isPrivateOrIpLiteral(hostname: string): boolean {
   const octets = host.split('.').map(Number);
   if (octets.some((octet) => octet > 255)) return true;
   const [first, second] = octets;
+  if (first === undefined || second === undefined) return true;
   return (
     first === 0 ||
     first === 10 ||

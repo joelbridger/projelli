@@ -17,17 +17,33 @@ export interface MeetingTemplateBlock {
   required: boolean;
 }
 
-export interface FirmOwnedMeetingTemplate {
+interface FirmOwnedMeetingTemplateBase {
   schemaVersion: typeof MEETING_TEMPLATE_SCHEMA_VERSION;
   id: string;
   firmId: string;
   name: string;
-  audience: MeetingTemplateAudience;
   blocks: readonly MeetingTemplateBlock[];
   version: number;
   createdAt: string;
   updatedAt: string;
 }
+
+export type InternalFirmOwnedMeetingTemplate = FirmOwnedMeetingTemplateBase & {
+  audience: 'internal';
+};
+
+export type ClientFacingFirmOwnedMeetingTemplate = FirmOwnedMeetingTemplateBase & {
+  audience: 'client-facing';
+};
+
+/**
+ * The persisted template itself carries its lane. Keeping this as a
+ * discriminated union makes a caller prove the lane before it can create a
+ * note in that lane.
+ */
+export type FirmOwnedMeetingTemplate =
+  | InternalFirmOwnedMeetingTemplate
+  | ClientFacingFirmOwnedMeetingTemplate;
 
 export interface CreateMeetingTemplateInput {
   id: string;
@@ -81,19 +97,33 @@ export function createFirmOwnedMeetingTemplate(
   input: CreateMeetingTemplateInput,
 ): FirmOwnedMeetingTemplate {
   const now = input.now ?? new Date().toISOString();
-  const template: FirmOwnedMeetingTemplate = {
+  const base = {
     schemaVersion: MEETING_TEMPLATE_SCHEMA_VERSION,
     id: input.id,
     firmId: input.firmId,
     name: input.name,
-    audience: input.audience,
     blocks: input.blocks.map((block) => ({ ...block })),
     version: 1,
     createdAt: now,
     updatedAt: now,
   };
+  const template: FirmOwnedMeetingTemplate = input.audience === 'internal'
+    ? { ...base, audience: 'internal' }
+    : { ...base, audience: 'client-facing' };
   assertValidFirmOwnedMeetingTemplate(template);
   return template;
+}
+
+export function isInternalFirmOwnedMeetingTemplate(
+  template: FirmOwnedMeetingTemplate,
+): template is InternalFirmOwnedMeetingTemplate {
+  return template.audience === 'internal';
+}
+
+export function isClientFacingFirmOwnedMeetingTemplate(
+  template: FirmOwnedMeetingTemplate,
+): template is ClientFacingFirmOwnedMeetingTemplate {
+  return template.audience === 'client-facing';
 }
 
 export function assertValidFirmOwnedMeetingTemplate(
@@ -136,7 +166,7 @@ export function assertValidFirmOwnedMeetingTemplate(
 }
 
 export function createInternalMeetingNote(
-  template: FirmOwnedMeetingTemplate & { audience: 'internal' },
+  template: InternalFirmOwnedMeetingTemplate,
   sections: readonly MeetingTemplateSection[],
 ): InternalMeetingNote {
   return Object.freeze({
@@ -148,15 +178,16 @@ export function createInternalMeetingNote(
 }
 
 export function createClientFacingMeetingNote(
-  template: FirmOwnedMeetingTemplate & { audience: 'client-facing' },
+  template: ClientFacingFirmOwnedMeetingTemplate,
   sections: readonly MeetingTemplateSection[],
 ): ClientFacingMeetingNote {
+  const clientFacingCapability: true = true;
   const note: ClientFacingMeetingNote = Object.freeze({
     audience: 'client-facing',
     templateId: template.id,
     templateVersion: template.version,
     sections: freezeSections(sections),
-    [CLIENT_FACING_NOTE_CAPABILITY]: true,
+    [CLIENT_FACING_NOTE_CAPABILITY]: clientFacingCapability,
   });
   clientFacingNotes.add(note);
   return note;

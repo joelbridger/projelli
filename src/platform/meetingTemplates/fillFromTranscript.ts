@@ -3,6 +3,7 @@ import type { TranscriptFile } from '@/platform/types/meeting';
 import {
   createClientFacingMeetingNote,
   createInternalMeetingNote,
+  isInternalFirmOwnedMeetingTemplate,
   type ClientFacingMeetingNote,
   type FirmOwnedMeetingTemplate,
   type InternalMeetingNote,
@@ -36,7 +37,7 @@ export async function fillMeetingTemplateFromTranscript(
   });
   const sections = parseTemplateSections(response.content, input.template, input.transcript);
 
-  if (input.template.audience === 'internal') {
+  if (isInternalFirmOwnedMeetingTemplate(input.template)) {
     return createInternalMeetingNote(input.template, sections);
   }
   return createClientFacingMeetingNote(input.template, sections);
@@ -88,7 +89,7 @@ function parseTemplateSections(
   transcript: TranscriptFile,
 ): MeetingTemplateSection[] {
   const parsed = parseJsonObject(content);
-  const rawSections = parsed.sections;
+  const rawSections = parsed['sections'];
   if (!Array.isArray(rawSections)) throw new Error('Meeting-template output must include a sections array.');
 
   const blocks = new Map(template.blocks.map((block) => [block.id, block]));
