@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { describe, expect, it, vi } from 'vitest';
-import { FirmSetupSurface } from './FirmSetupSurface';
+import { FirmSetup } from './FirmSetup';
 
 const save = vi.fn().mockResolvedValue(undefined);
 let records: Record<string, unknown>[] = [];
@@ -13,7 +13,7 @@ vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
 describe('FirmSetupSurface', () => {
   it('starts honestly empty and keeps access authority in firm administration', () => {
     records = [];
-    render(<FirmSetupSurface />);
+    render(<FirmSetup />);
     expect(screen.getByTestId('crm-firm-directory-empty')).toBeInTheDocument();
     expect(screen.getByTestId('crm-firm-access-read-model')).toHaveTextContent(/only place to invite people/i);
     expect(screen.getByTestId('crm-firm-visibility-read-model')).toHaveTextContent(/cannot create a group/i);
@@ -25,7 +25,7 @@ describe('FirmSetupSurface', () => {
 
   it('shows roles and teams from the firm-admin directory without creating access records', () => {
     records = [{ id: 'directory-1', kind: 'firmDirectoryEntry', matterId: 'firm_home', userId: 'maya', displayName: 'Maya Patel', title: 'Owner', teamLabels: ['Client service'], active: true }];
-    render(<FirmSetupSurface />);
+    render(<FirmSetup />);
     expect(screen.getByTestId('crm-firm-directory')).toHaveTextContent('Maya Patel');
     expect(screen.getByTestId('crm-firm-directory')).toHaveTextContent('Owner');
     expect(screen.getByTestId('crm-firm-directory')).toHaveTextContent('Client service');
@@ -35,7 +35,7 @@ describe('FirmSetupSurface', () => {
   it('saves a firm custom-field definition with its real record contract', async () => {
     records = [];
     save.mockClear();
-    render(<FirmSetupSurface initialTab="fields" />);
+    render(<FirmSetup initialTab="fields" />);
     fireEvent.click(screen.getByTestId('crm-field-create'));
     fireEvent.change(screen.getByTestId('crm-field-label'), { target: { value: 'Service region' } });
     fireEvent.change(screen.getByTestId('crm-field-key'), { target: { value: 'service-region' } });
@@ -55,7 +55,7 @@ describe('FirmSetupSurface', () => {
       { id: 'household-1', kind: 'household', matterId: 'matter-1', name: 'Smith household', tagIds: [] },
     ];
     save.mockClear();
-    render(<FirmSetupSurface initialTab="values" />);
+    render(<FirmSetup initialTab="values" />);
     fireEvent.change(screen.getByTestId('crm-record-values-select'), { target: { value: 'household-1' } });
     fireEvent.change(screen.getByTestId('crm-record-value-region'), { target: { value: 'North' } });
     fireEvent.click(screen.getByTestId('crm-record-tag-tag-1'));

@@ -40,7 +40,7 @@ function groupedRows(rows: readonly import('./reportEngine').ReportRow[]) {
     return groups;
   }, new Map());
 }
-export function CrmReports() {
+export function Reports() {
   const live = useLiveCrmRecords();
   const [kind, setKind] = useState<ReportKind>('no_contact_6mo');
   const [query, setQuery] = useState<ReportQuery>({
@@ -147,7 +147,7 @@ export function CrmReports() {
     </section>
 
     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-      {canned.map((item) => <Button key={item} size="sm" variant={kind === item ? 'primary' : 'secondary'} data-testid={item === 'no_contact_6mo' ? 'crm-report-no-contact-in-6-months' : item === 'attention_vs_fee' ? 'crm-report-attention-vs-fee' : `crm-report-${item}`} aria-pressed={kind === item} onClick={() => { setKind(item); setResult(null); }}>{REPORT_TITLES[item]}</Button>)}
+      {canned.map((item) => <Button key={item} size="sm" variant={kind === item ? 'primary' : 'secondary'} data-testid={item === 'no_contact_6mo' ? 'crm-report-no-contact-in-6-months' : item === 'attention_vs_fee' ? 'crm-report-attention-vs-fee' : `crm-report-${item}`} aria-pressed={kind === item} onClick={() => { setKind(item); setResult(null); }}><span data-testid={item === 'age_65' ? 'crm-report-age-65' : item === 'rmd_due' ? 'crm-report-rmd-due' : item === 'review_due' ? 'crm-report-review-due' : undefined}>{REPORT_TITLES[item]}</span></Button>)}
       <Button size="sm" variant={kind === 'custom' ? 'primary' : 'secondary'} data-testid="crm-report-custom" aria-pressed={kind === 'custom'} onClick={startCustom}>Custom report</Button>
     </div>
 

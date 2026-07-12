@@ -1,8 +1,19 @@
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, useContext } from 'react';
+import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
+import type { CrmHomeRoute } from './routes';
+import type { CrmHomeAdapter } from './types';
+import type { HouseholdChoice, LiveWorkflowData } from '@/features/crm-workflows/Workflows';
 
 export interface CrmHomeSurfaceContextValue {
+  adapter: CrmHomeAdapter;
+  route: CrmHomeRoute;
   navigate: (route: string) => void;
-  renderLegacySurface: (id: string) => ReactNode;
+  workflowData?: LiveWorkflowData;
+  workflowHouseholds?: readonly HouseholdChoice[];
+  saveLiveRecord?: (record: LiveCrmRecord) => Promise<unknown>;
+  undoReport: string | null;
+  reportUndo: () => void;
+  adapterProvided: boolean;
 }
 
 export const CrmHomeSurfaceContext = createContext<CrmHomeSurfaceContextValue | null>(null);
