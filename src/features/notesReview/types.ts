@@ -6,7 +6,11 @@
  * means a malformed or newer template result cannot accidentally turn into an
  * outbound action.
  */
-export type NotesReviewDestination = 'task' | 'crm' | 'client-note' | 'internal';
+export type NotesReviewDestination =
+  | 'task'
+  | 'crm'
+  | 'client-note'
+  | 'internal';
 
 export interface NotesReviewItem {
   id: string;
@@ -30,9 +34,19 @@ export interface NotesReviewPanelProps {
    */
   rawItems?: readonly unknown[];
   /**
+   * Delivery is durable. When the meeting is reopened, the panel receives the
+   * exact receipts saved beside its proposals rather than pretending the item
+   * is new again.
+   */
+  initialReceipts?: Readonly<Record<string, NotesReviewReceipt>>;
+  /** A destination can be held back by a meeting-level safety check. */
+  blockedDestinations?: Partial<Record<NotesReviewDestination, string>>;
+  /**
    * The caller performs the real write only after this panel's Approve click.
    * A returned receipt is shown beside that exact item; a missing receipt is
    * surfaced honestly rather than presented as a completed delivery.
    */
-  onApprove?: (item: NotesReviewItem) => Promise<NotesReviewReceipt | undefined> | NotesReviewReceipt | undefined;
+  onApprove?: (
+    item: NotesReviewItem
+  ) => Promise<NotesReviewReceipt | undefined> | NotesReviewReceipt | undefined;
 }
