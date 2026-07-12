@@ -369,6 +369,7 @@ mod tests {
     /// Normal component ("C:\\Users\\x" with literal backslashes and colon).
     /// This test documents that the Rust layer's absolute-path guard fires only
     /// for POSIX-absolute paths — not Windows-drive paths — when running on Linux.
+    #[cfg(not(windows))]
     #[test]
     fn sanitize_relative_treats_windows_drive_path_as_normal_component_on_linux() {
         // On Linux, std::path::Path::new("C:\\Users\\Jane\\brief.docx") has exactly

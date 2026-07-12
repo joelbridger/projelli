@@ -117,10 +117,13 @@ mod tests {
     #[test]
     fn store_path_is_encrypted_per_matter_under_workspace_data_dir() {
         let p = store_path(std::path::Path::new("/ws"), "matter_abc/../etc");
-        let s = p.to_string_lossy();
-        assert!(s.starts_with("/ws/.lantern/voiceprints/"));
-        assert!(s.ends_with(".kpv"));
-        assert!(!s.contains(".."), "matter id must be sanitized for the filename");
+        let voiceprints_dir = std::path::Path::new("/ws").join(".lantern").join("voiceprints");
+        assert!(p.starts_with(&voiceprints_dir));
+        assert_eq!(p.extension().and_then(|ext| ext.to_str()), Some("kpv"));
+        assert!(
+            !p.file_name().unwrap().to_string_lossy().contains(".."),
+            "matter id must be sanitized for the filename"
+        );
     }
 
     #[test]
