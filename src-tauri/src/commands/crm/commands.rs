@@ -324,6 +324,18 @@ fn provider_scoped_matter_entries(
 
 const CRM_SYNC_PROGRESS_EVENT: &str = "crm-sync-progress";
 
+/// Every renderer event belongs to exactly one user-initiated import. This
+/// stops a late event from an abandoned request from overwriting a newer run.
+fn emit_crm_progress(app: &AppHandle, run_id: &str, mut payload: serde_json::Value) {
+    if let Some(event) = payload.as_object_mut() {
+        event.insert(
+            "runId".to_string(),
+            serde_json::Value::String(run_id.to_string()),
+        );
+    }
+    let _ = app.emit(CRM_SYNC_PROGRESS_EVENT, payload);
+}
+
 /// Emitted after a durable audit entry is written by the CRM backend so the
 /// frontend can push it into the live Activity-Log React state without waiting
 /// for the next workspace re-open.  Payload: `AuditEntryRecord` (camelCase JSON).
@@ -2171,6 +2183,7 @@ pub async fn crm_sync_all(
     app: AppHandle,
     state: State<'_, CrmState>,
     matter_map: Vec<CrmMatterMapEntry>,
+    run_id: String,
     provider: Option<String>,
 ) -> Result<CrmSyncReportDto, String> {
     let provider = CrmProvider::from_optional(provider.as_deref())?;
@@ -2207,8 +2220,9 @@ pub async fn crm_sync_all(
         .ok_or("workspace not set — call crm_set_workspace first")?;
 
     // Emit the start event.
-    let _ = app.emit(
-        CRM_SYNC_PROGRESS_EVENT,
+    emit_crm_progress(
+        &app,
+        &run_id,
         serde_json::json!({ "status": "syncing" }),
     );
 
@@ -2217,10 +2231,7 @@ pub async fn crm_sync_all(
 
     // Open (or create) the encrypted CRM store.
     let store = CrmStore::open(&workspace).map_err(|e| {
-        let _ = app.emit(
-            CRM_SYNC_PROGRESS_EVENT,
-            serde_json::json!({ "status": "error" }),
-        );
+        emit_crm_progress(&app, &run_id, serde_json::json!({ "status": "error" }));
         // Never include raw Wealthbox data in errors; store-open errors are
         // local filesystem / keychain issues, safe to surface as-is.
         e.to_string()
@@ -2229,10 +2240,7 @@ pub async fn crm_sync_all(
     // Read the RAG/vector master key from the OS keychain and hand it to the engine
     // (the engine stays keychain-free so it can be driven in tests with a literal key).
     let rag_key = crate::commands::rag::crypto::get_or_create_master_key().map_err(|e| {
-        let _ = app.emit(
-            CRM_SYNC_PROGRESS_EVENT,
-            serde_json::json!({ "status": "error" }),
-        );
+        emit_crm_progress(&app, &run_id, serde_json::json!({ "status": "error" }));
         e.to_string()
     })?;
 
@@ -2242,6 +2250,7 @@ pub async fn crm_sync_all(
     // terminal done/cancelled/error event is emitted below).
     let emit_counter = state.progress_households.clone();
     let emit_app = app.clone();
+    let emit_run_id = run_id.clone();
     let emitter = tokio::spawn(async move {
         let mut last = u32::MAX;
         loop {
@@ -2249,8 +2258,9 @@ pub async fn crm_sync_all(
             let done = emit_counter.load(Ordering::SeqCst);
             if done != last {
                 last = done;
-                let _ = emit_app.emit(
-                    CRM_SYNC_PROGRESS_EVENT,
+                emit_crm_progress(
+                    &emit_app,
+                    &emit_run_id,
                     serde_json::json!({ "status": "syncing", "households": done }),
                 );
             }
@@ -2266,6 +2276,14 @@ pub async fn crm_sync_all(
     // current bounded network/embedding step.  Only then does SyncGuard release
     // the single-flight slot, so Retry can never overlap orphaned work.
     const CRM_SYNC_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10 * 60);
+    // A cooperative stop normally ends after one bounded provider or embedding
+    // operation. If it does not, keep the truthful "Stopping" state but say
+    // why Retry remains unavailable instead of looking frozen forever.
+    const STOPPING_DIAGNOSTIC_DELAY: std::time::Duration = std::time::Duration::from_secs(60);
+    let still_stopping = Arc::new(AtomicBool::new(false));
+    let diagnostic_flag = still_stopping.clone();
+    let diagnostic_app = app.clone();
+    let diagnostic_run_id = run_id.clone();
     let (timed_out, backfill_result) = await_sync_or_stop(
         &state.cancel,
         CRM_SYNC_TIMEOUT,
@@ -2279,13 +2297,29 @@ pub async fn crm_sync_all(
             &state.progress_households,
         ),
         || {
-            let _ = app.emit(
-                CRM_SYNC_PROGRESS_EVENT,
+            diagnostic_flag.store(true, Ordering::SeqCst);
+            tokio::spawn(async move {
+                tokio::time::sleep(STOPPING_DIAGNOSTIC_DELAY).await;
+                if diagnostic_flag.load(Ordering::SeqCst) {
+                    emit_crm_progress(
+                        &diagnostic_app,
+                        &diagnostic_run_id,
+                        serde_json::json!({
+                            "status": "stopping",
+                            "message": "This import is still finishing its current step safely. You can retry as soon as it finishes."
+                        }),
+                    );
+                }
+            });
+            emit_crm_progress(
+                &app,
+                &run_id,
                 serde_json::json!({ "status": "stopping" }),
             );
         },
     )
     .await;
+    still_stopping.store(false, Ordering::SeqCst);
     stop_progress_emitter(emitter).await;
     // A progress tick queued just before abort must settle before a terminal
     // event is sent, otherwise it could repaint the UI as Syncing after Error.
@@ -2293,17 +2327,11 @@ pub async fn crm_sync_all(
     let report = match backfill_result {
         Ok(r) if !timed_out => r,
         Ok(_) => {
-            let _ = app.emit(
-                CRM_SYNC_PROGRESS_EVENT,
-                serde_json::json!({ "status": "error" }),
-            );
+            emit_crm_progress(&app, &run_id, serde_json::json!({ "status": "error" }));
             return Err("Wealthbox sync took longer than 10 minutes. It stopped safely; you can try Sync now again.".into());
         }
         Err(e) => {
-            let _ = app.emit(
-                CRM_SYNC_PROGRESS_EVENT,
-                serde_json::json!({ "status": "error" }),
-            );
+            emit_crm_progress(&app, &run_id, serde_json::json!({ "status": "error" }));
             return Err(e.to_string());
         }
     };
@@ -2324,14 +2352,11 @@ pub async fn crm_sync_all(
     // both `done` and `cancelled` are terminal states the UI handles.
     let households = dto.households_processed;
     let records = dto.records_indexed;
-    let _ = app.emit(
-        CRM_SYNC_PROGRESS_EVENT,
-        serde_json::json!({
+    emit_crm_progress(&app, &run_id, serde_json::json!({
             "status": if report.cancelled { "cancelled" } else { "done" },
             "households": households,
             "records": records,
-        }),
-    );
+        }));
 
     // Persist the last report in state so `crm_sync_status` can return it.
     *state.last_report.lock().await = Some(dto.clone());
@@ -2436,25 +2461,20 @@ fn household_dto_name(contact: &crate::commands::crm::model::CrmContact) -> Stri
 #[tauri::command]
 pub async fn crm_list_households(
     app: AppHandle,
+    run_id: String,
     provider: Option<String>,
 ) -> Result<Vec<CrmHouseholdDto>, String> {
     let provider = CrmProvider::from_optional(provider.as_deref())?;
     // This is the first real network call in the Sync-now path, before the
     // advisor confirms import.  Emit it immediately so the UI never displays
     // an activity-free "Syncing" state while this fetch is underway.
-    let _ = app.emit(
-        CRM_SYNC_PROGRESS_EVENT,
-        serde_json::json!({ "status": "connecting" }),
-    );
+    emit_crm_progress(&app, &run_id, serde_json::json!({ "status": "connecting" }));
     let token = read_token(provider).ok_or_else(|| "not connected".to_string())?;
     let client = client_for(provider, token).map_err(|e| e.to_string())?;
     let contacts = match client.list_households().await {
         Ok(contacts) => contacts,
         Err(error) => {
-            let _ = app.emit(
-                CRM_SYNC_PROGRESS_EVENT,
-                serde_json::json!({ "status": "error" }),
-            );
+            emit_crm_progress(&app, &run_id, serde_json::json!({ "status": "error" }));
             return Err(error.to_string());
         }
     };

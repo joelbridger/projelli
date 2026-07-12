@@ -8,6 +8,7 @@ import {
   crmListHouseholds,
   crmSyncAll,
   crmCancelSync,
+  createCrmRunId,
   type CrmConnectInfo,
   type CrmDisconnectResult,
 } from '@/platform/utils/wealthbox-commands';
@@ -129,13 +130,15 @@ export function SalesforceConnect() {
     setSyncError(null);
     setLastSyncReport(null);
     setSyncing(true);
+    const runId = createCrmRunId();
+    useCrmStore.getState().startRun(runId);
 
     const createdMatterIds: string[] = [];
     const linkedKeys: Array<{ matterId: string; key: string }> = [];
     const attachedFolders: Array<{ matterId: string; folderPath: string }> = [];
 
     try {
-      const households = await crmListHouseholds(PROVIDER);
+      const households = await crmListHouseholds(runId, PROVIDER);
       if (households.length === 0) {
         setSyncError(
           'This Salesforce login did not return any FSC household accounts.'
@@ -192,7 +195,7 @@ export function SalesforceConnect() {
         buildCrmMatterMap(getMatters()),
         PROVIDER
       );
-      const report = await crmSyncAll(map, PROVIDER);
+      const report = await crmSyncAll(map, runId, PROVIDER);
       setLastSyncReport({
         householdsProcessed: report.householdsProcessed,
         recordsIndexed: report.recordsIndexed,
@@ -220,6 +223,7 @@ export function SalesforceConnect() {
       );
     } finally {
       setSyncing(false);
+      useCrmStore.getState().finishRun(runId);
     }
   }
 

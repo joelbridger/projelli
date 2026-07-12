@@ -5,7 +5,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 const controls = vi.hoisted(() => ({
   crmListHouseholds: vi.fn(),
   crmSyncAll: vi.fn(),
-  confirm: vi.fn(),
+  createCrmRunId: vi.fn(() => 'test-run'),
   createMatter: vi.fn(() => ({ id: 'new-client' })),
 }));
 
@@ -16,11 +16,15 @@ vi.mock('@/platform/utils/wealthbox-commands', () => ({
   crmDisconnect: vi.fn(),
   crmListHouseholds: controls.crmListHouseholds,
   crmSyncAll: controls.crmSyncAll,
+  createCrmRunId: controls.createCrmRunId,
   crmCancelSync: vi.fn(),
 }));
 vi.mock('@/platform/connectors/crm/useCrmSync', () => ({ useCrmSync: () => {} }));
 vi.mock('@/platform/connectors/crm/crmStore', () => ({
-  useCrmStore: (selector: (state: { progress: null }) => unknown) => selector({ progress: null }),
+  useCrmStore: Object.assign(
+    (selector: (state: { progress: null }) => unknown) => selector({ progress: null }),
+    { getState: () => ({ startRun: vi.fn(), finishRun: vi.fn(), setProgress: vi.fn() }) },
+  ),
 }));
 vi.mock('@/platform/matter/matterStore', () => ({
   getMatters: () => [],
@@ -39,9 +43,6 @@ vi.mock('@/platform/rag/matterResolver', () => ({
   filterCrmMatterMapForProvider: () => [],
   resolveMatterForHousehold: () => ({ action: 'create' }),
 }));
-vi.mock('@/platform/hooks/useConfirmDialog', () => ({
-  useConfirmDialog: () => ({ confirm: controls.confirm, dialogProps: {} }),
-}));
 vi.mock('@/platform/connectors/IntegrationHonestyCard', () => ({
   IntegrationHonestyCard: () => null,
 }));
@@ -49,7 +50,6 @@ vi.mock('@/platform/connectors/wealthbox/WealthboxCustomFieldsAvailability', () 
   WealthboxCustomFieldsAvailability: () => null,
 }));
 vi.mock('@/ui/InfoHelp', () => ({ InfoHelp: () => null }));
-vi.mock('@/ui/ConfirmDialog', () => ({ ConfirmDialog: () => null }));
 vi.mock('@/config/brandText', () => ({ brandText: (text: string) => text }));
 
 import { WealthboxConnect } from './WealthboxConnect';
@@ -63,9 +63,7 @@ describe('WealthboxConnect sync', () => {
   beforeEach(() => {
     controls.crmListHouseholds.mockReset();
     controls.crmSyncAll.mockReset();
-    controls.confirm.mockReset();
     controls.createMatter.mockClear();
-    controls.confirm.mockResolvedValue(true);
   });
 
   afterEach(() => {
@@ -82,11 +80,10 @@ describe('WealthboxConnect sync', () => {
     await waitFor(() => {
       expect(controls.crmListHouseholds).toHaveBeenCalledTimes(1);
     });
+    expect(await screen.findByTestId('confirm-dialog')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('confirm-dialog-confirm'));
     await waitFor(() => {
-      expect(controls.confirm).toHaveBeenCalledTimes(1);
-    });
-    await waitFor(() => {
-      expect(controls.crmSyncAll).toHaveBeenCalledWith([]);
+      expect(controls.crmSyncAll).toHaveBeenCalledWith([], 'test-run');
     });
     await waitFor(() => {
       expect(screen.getByTestId('wealthbox-sync-now')).not.toBeDisabled();
@@ -99,6 +96,8 @@ describe('WealthboxConnect sync', () => {
 
     await renderConnectedConnector();
     fireEvent.click(screen.getByTestId('wealthbox-sync-now'));
+
+    fireEvent.click(await screen.findByTestId('confirm-dialog-confirm'));
 
     expect(await screen.findByText(/HTTP 503/i)).toBeTruthy();
     expect(screen.getByTestId('wealthbox-sync-now')).not.toBeDisabled();
@@ -114,6 +113,8 @@ describe('WealthboxConnect sync', () => {
     await renderConnectedConnector();
     fireEvent.click(screen.getByTestId('wealthbox-sync-now'));
 
+    fireEvent.click(await screen.findByTestId('confirm-dialog-confirm'));
+
     await waitFor(() => {
       expect(controls.crmSyncAll).toHaveBeenCalledTimes(1);
     });
@@ -128,5 +129,20 @@ describe('WealthboxConnect sync', () => {
     await waitFor(() => {
       expect(screen.getByTestId('wealthbox-sync-now')).not.toBeDisabled();
     });
+  });
+
+  it('shows a decision state, not syncing, while Import or Cancel is unanswered', async () => {
+    controls.crmListHouseholds.mockResolvedValue([{ id: 'household-1', name: 'Avery Family' }]);
+
+    await renderConnectedConnector();
+    fireEvent.click(screen.getByTestId('wealthbox-sync-now'));
+
+    expect(await screen.findByTestId('confirm-dialog')).toBeTruthy();
+    expect(screen.getByTestId('wealthbox-awaiting-import-confirmation')).toHaveTextContent(
+      'Choose Import or Cancel',
+    );
+    expect(screen.queryByText('Checking your Wealthbox households…')).toBeNull();
+    expect(screen.getByTestId('wealthbox-sync-now')).toHaveTextContent('Choose Import or Cancel');
+    expect(controls.crmSyncAll).not.toHaveBeenCalled();
   });
 });
