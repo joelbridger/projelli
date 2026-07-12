@@ -166,6 +166,13 @@ export interface AttachmentAccountingRecord {
   gapOwner?: string | undefined;
 }
 
+/** A note the source could not safely place with a household. */
+export interface MigrationNoteGap {
+  id: string;
+  label: string;
+  reason: string;
+}
+
 export interface ExportJobStatus {
   kind: 'archive' | 'rollback';
   status: 'ready' | 'preparing' | 'failed' | 'exported';
@@ -179,6 +186,7 @@ export interface ExportJobStatus {
 }
 
 export interface CrmMigrationData {
+  noteGaps?: readonly MigrationNoteGap[];
   workflowChecklists: readonly MigrationWorkflowChecklist[];
   attachmentAccounting: readonly AttachmentAccountingRecord[];
   exports: readonly ExportJobStatus[];

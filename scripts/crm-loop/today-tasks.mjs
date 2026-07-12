@@ -111,6 +111,7 @@ await click('crm-home-nav-today');
 await waitFor('crm-today-triage');
 const todayText = await evaluate('document.body.innerText');
 if (!String(todayText).includes(taskTitle)) fail('Today did not compute the due task from the live store');
+if (!String(todayText).includes('Due today')) fail('Today did not explain why the saved task is first.');
 
 await click(`crm-approval-approve-proposal-${id}`);
 await waitFor('crm-approval-history');

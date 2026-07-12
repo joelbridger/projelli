@@ -44,6 +44,7 @@ describe('CrmHome', () => {
     expect(screen.getByTestId('crm-home')).toBeInTheDocument();
     expect(screen.getByTestId('crm-freshness-banner')).toHaveTextContent(/working offline/i);
     expect(screen.getByTestId('crm-screen-today')).toBeInTheDocument();
+    expect(screen.getByTestId('crm-today-first-use')).toHaveTextContent(/ready to set up today/i);
     expect(screen.queryByText('Henderson household')).not.toBeInTheDocument();
   });
 
@@ -71,7 +72,8 @@ describe('CrmHome', () => {
       activity: [{ id: 'activity-1', summary: 'Task created', at: new Date().toISOString() }],
       actions: { decideApproval },
     })} />);
-    expect(screen.getByTestId('crm-today-triage')).toHaveTextContent(/add active firm members to make a capacity-based plan/i);
+    expect(screen.getByTestId('crm-today-triage')).toHaveTextContent(/what needs attention first/i);
+    expect(screen.getByTestId('crm-today-task-due')).toHaveTextContent(/due today/i);
     expect(screen.getByTestId('crm-recent-activity')).toHaveTextContent(/task created/i);
     fireEvent.click(screen.getByTestId('crm-approval-approve-proposal-1'));
     expect(decideApproval).toHaveBeenCalledWith(expect.objectContaining({ id: 'proposal-1' }), 'approved');
@@ -97,11 +99,23 @@ describe('CrmHome', () => {
     render(<CrmHome adapter={adapter({ offers: [{ id: 'offer-1', instanceId: 'instance-1', householdLabel: 'Henderson household', revisionLabel: 'Named update', state: 'needs-decision', steps: [{ id: 'step-1', label: 'Confirm transfer', changeKind: 'modify', protectedProgress: { status: 'completed', hasNotes: true, hasCompletion: true, hasOutcome: true, hasAssignmentHistory: true }, decisions: [{ id: 'decision-1', revisionId: 'revision-1', stepId: 'step-1', field: 'due_offset', label: 'Due offset', after: '+4 days', decision: 'review_required', reofferState: 'original' }] }] }], actions: { applyPropagation } })} initialRoute="propagation" />);
     expect(screen.getByTestId('crm-propagation-apply')).toBeDisabled();
     expect(screen.getByTestId('crm-propagation-review-required')).toBeInTheDocument();
+    expect(screen.getByText(/template updated/i)).toBeInTheDocument();
+    expect(screen.getByText('Details for support')).toBeInTheDocument();
+    expect(screen.queryByText(/stable step id/i)).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('crm-propagation-accept-decision-1'));
     expect(screen.getByTestId('crm-propagation-apply')).toBeEnabled();
     fireEvent.click(screen.getByTestId('crm-propagation-apply'));
     expect(applyPropagation).toHaveBeenCalledWith([{ offerId: 'offer-1', instanceId: 'instance-1', acceptedDecisions: [{ id: 'decision-1', revisionId: 'revision-1', stepId: 'step-1', field: 'due_offset', reofferState: 'original' }] }]);
-    expect(screen.getByTestId('crm-propagation-result')).toHaveTextContent(/progress, notes, assignments, completions, and outcomes were excluded/i);
+    expect(screen.getByTestId('crm-propagation-result')).toHaveTextContent(/workflow change.*ready to apply.*completed work and notes will not change/i);
+  });
+
+  it('uses plain-language migration actions instead of making the firm decode import terms', () => {
+    render(<CrmHome adapter={adapter({ migration: { ...migration, noteGaps: [{ id: 'note-gap-1', label: 'Follow up with Henderson', reason: 'It was not linked to a client.' }], report: { batchId: 'batch-1', generatedAt: '2026-07-12T00:00:00Z', message: 'Import finished.', matrix: [{ sourceType: 'note', fetched: 12, imported: 0, skipped: 12, rejected: 0, plainReason: '12 notes could not be imported because they were not linked to a client.' }], attachments: { viaApi: 'Not available', affected: 2, exported: 0, gaps: 0, unaccounted: 2 }, workflows: { checklists: 1, pending: 1 } } } })} initialRoute="fidelity" />);
+    expect(screen.getByTestId('crm-migration-decision-dashboard')).toHaveTextContent(/not ready to switch yet: 15 items need your firm’s decision/i);
+    expect(screen.getByText(/12 notes we could not bring over/i)).toBeInTheDocument();
+    expect(screen.getByText(/check them in wealthbox, then add any important note to the right household/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('crm-migration-open-note-gaps'));
+    expect(screen.getByTestId('crm-migration-note-gap-list')).toHaveTextContent(/follow up with henderson/i);
   });
 
   it('reports protected propagation cells for both button and keyboard Undo', () => {
@@ -122,7 +136,7 @@ describe('CrmHome', () => {
     expect(screen.getByTestId('crm-workflow-record-workflow-henderson')).toBeDisabled();
     fireEvent.click(screen.getByTestId('crm-workflow-evidence-workflow-henderson'));
     fireEvent.change(screen.getByTestId('crm-workflow-step-workflow-henderson'), { target: { value: 'Prepare review' } });
-    fireEvent.click(screen.getAllByText('Create resulting instance')[0]!);
+    fireEvent.click(screen.getAllByText('Rebuild this workflow')[0]!);
     fireEvent.change(screen.getByTestId('crm-workflow-instance-workflow-henderson'), { target: { value: 'winst_henderson_review' } });
     fireEvent.click(screen.getByTestId('crm-workflow-record-workflow-henderson'));
     expect(recordWorkflowChecklist).toHaveBeenCalledWith(expect.objectContaining({ selectedCurrentStep: 'Prepare review', resultingInstanceLabel: 'winst_henderson_review' }));

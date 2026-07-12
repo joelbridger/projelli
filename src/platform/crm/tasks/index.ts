@@ -54,6 +54,18 @@ export function buildCapacityTriage<T extends DailyWorkItem>(items: readonly T[]
   };
 }
 
+/** Explains the same saved fact that placed an item in the daily order. */
+export function dailyWorkReason(item: DailyWorkItem, today = new Date().toISOString().slice(0, 10)): string {
+  const due = day(item.dueAt);
+  if (due && due < today) return 'Overdue';
+  if (due === today) return 'Due today';
+  if (item.status === 'blocked') return 'Needs attention: blocked';
+  if (item.priority === 'high') return 'Marked high priority';
+  if (due) return `Due ${due}`;
+  if (item.status === 'in_progress') return 'Already in progress';
+  return 'Next open item';
+}
+
 export function nextRecurringDue(due: string | undefined, recurrence: { freq: 'daily' | 'weekly' | 'monthly' | 'yearly'; interval: number }): string | undefined {
   if (!due) return undefined;
   const date = new Date(`${due.slice(0, 10)}T12:00:00Z`);

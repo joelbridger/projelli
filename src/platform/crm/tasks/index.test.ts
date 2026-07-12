@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCapacityTriage, nextRecurringDue } from './index';
+import { buildCapacityTriage, dailyWorkReason, nextRecurringDue } from './index';
 
 describe('task daily work helpers', () => {
   it('ranks real work and limits the plan to active firm members', () => {
@@ -16,6 +16,11 @@ describe('task daily work helpers', () => {
     const plan = buildCapacityTriage([{ id: 'one', title: 'One', kind: 'task', status: 'open', priority: 'normal', assigneeUserId: null }], []);
     expect(plan.hasCapacitySignal).toBe(false);
     expect(plan.fitsToday).toEqual([]);
+  });
+
+  it('explains why a saved item appears in the daily order', () => {
+    expect(dailyWorkReason({ id: 'late', title: 'Late', kind: 'task', status: 'open', priority: 'low', assigneeUserId: null, dueAt: '2026-07-10' }, '2026-07-12')).toBe('Overdue');
+    expect(dailyWorkReason({ id: 'priority', title: 'Priority', kind: 'task', status: 'open', priority: 'high', assigneeUserId: null }, '2026-07-12')).toBe('Marked high priority');
   });
 
   it('materializes the next recurring due date from the completed task', () => {

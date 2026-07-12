@@ -165,6 +165,7 @@ pub async fn crm_migration_import(
     let mut households = Vec::<(String, String)>::new();
     let mut contact_households = std::collections::BTreeMap::<String, String>::new();
     let mut workflow_rows = Vec::<Value>::new();
+    let mut note_gap_rows = Vec::<Value>::new();
 
     for source in SOURCES {
         let mut page_number = 1usize;
@@ -191,6 +192,14 @@ pub async fn crm_migration_import(
                         })
                 {
                     *skipped.entry("note".into()).or_default() += 1;
+                    let fallback_id = format!("note:{}", record.source_id);
+                    note_gap_rows.push(json!({
+                        "id": format!("migration-note-gap:{}", record.source_id),
+                        "kind": "migration_note_gap",
+                        "matterId": "firm",
+                        "label": source_label(&record.payload, &fallback_id),
+                        "reason": "This note was not linked to a client, so Lantern could not safely choose a household for it."
+                    }));
                     continue;
                 }
                 let kind = source_kind(record.source_type, &record.payload);
@@ -390,6 +399,11 @@ pub async fn crm_migration_import(
     }
     let workflow_count = workflow_rows.len();
     for item in workflow_rows {
+        store
+            .upsert_live_record(&item)
+            .map_err(|error| error.to_string())?;
+    }
+    for item in note_gap_rows {
         store
             .upsert_live_record(&item)
             .map_err(|error| error.to_string())?;
