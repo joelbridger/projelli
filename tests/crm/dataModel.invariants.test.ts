@@ -7,7 +7,8 @@ const ENTITY_KIND_CATALOG: Record<EntityKind, true> = {
   workflowTemplate: true, workflowInstance: true, servicePolicy: true, activityEvent: true,
   firmDoc: true, tag: true, customFieldDef: true, opportunity: true, savedView: true,
   pipelineDef: true, stageDef: true, proposalRecord: true, legacyProject: true,
-  firmDirectoryEntry: true, householdDirectoryShell: true, intakeLink: true,
+  firmDirectoryEntry: true, firmWorkspaceSummary: true, firmSeatSummary: true,
+  householdDirectoryShell: true, intakeLink: true,
   intakeSubmission: true, importArchiveManifest: true,
 };
 
@@ -18,7 +19,7 @@ function externalRefKey(ref: Pick<ExternalRef, 'provider' | 'sourceType' | 'sour
 describe('CRM data model invariants', () => {
   it('has the exhaustive EntityKind catalog, including legacyProject and importArchiveManifest', () => {
     expect(Object.keys(ENTITY_KIND_CATALOG).sort()).toEqual([
-      'account', 'activityEvent', 'customFieldDef', 'fact', 'firmDirectoryEntry', 'firmDoc',
+      'account', 'activityEvent', 'customFieldDef', 'fact', 'firmDirectoryEntry', 'firmDoc', 'firmSeatSummary', 'firmWorkspaceSummary',
       'household', 'householdDirectoryShell', 'importArchiveManifest', 'intakeLink', 'intakeSubmission',
       'legacyProject', 'note', 'opportunity', 'person', 'pipelineDef', 'proposalRecord', 'savedView',
       'servicePolicy', 'stageDef', 'tag', 'task', 'workflowInstance', 'workflowTemplate',

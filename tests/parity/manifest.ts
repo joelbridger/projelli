@@ -20,6 +20,7 @@ export interface ParityApp {
   report(options: { kind: 'no_contact_6mo' | 'attention_vs_fee' | 'custom' | 'ai' }): Promise<void>;
   broadcast(): Promise<void>;
   firmDirectory(): Promise<void>;
+  orgAdmin(): Promise<void>;
   firmSetup(): Promise<void>;
   workspaces(): Promise<void>;
   activityConversation(): Promise<void>;
@@ -129,6 +130,8 @@ export const FEATURES: readonly ParityFeature[] = [
   live('Groups / visibility restrictions', 'firm-visibility', 'REPLICATE', 'firm setup', (app) => app.firmDirectory()),
   live('Default permissions per user', 'firm-permissions', 'REPLICATE', 'firm setup', (app) => app.firmDirectory()),
   live('Multiple Workspaces', 'multiple-workspaces', 'REPLICATE', 'firm setup', (app) => app.workspaces()),
+
+  live('Org Admin cross-workspace user management', 'org-admin-cross-workspace', 'REPLICATE', 'firm setup', (app) => app.orgAdmin()),
   live('White-glove migration service', 'guided-migration', 'REPLICATE', 'migration', (app) => app.migration({ action: 'crm-migration-run-import', fullReview: true })),
   live('Data portability / export', 'migration-export', 'REPLICATE', 'migration', (app) => app.migration({ action: 'crm-migration-run-import', exportFile: true })),
   live('External Unique ID field for import linking', 'migration-external-id', 'REPLICATE', 'migration', (app) => app.migration({ action: 'crm-migration-run-import', externalId: true })),
@@ -148,7 +151,6 @@ export const FEATURES: readonly ParityFeature[] = [
   // works would be Jameson, by clicking on it.
   // ---------------------------------------------------------------------------
   live('BCC Email Dropbox', 'crm-bcc-dropbox', 'IMPROVE', 'email', (app) => app.durableFeature({ route: 'crm-home-nav-email-dropbox', controls: ['crm-email-dropbox-surface', 'crm-email-dropbox-provider', 'crm-email-dropbox-account', 'crm-email-dropbox-folder', 'crm-email-dropbox-save', 'crm-email-dropbox-check', 'crm-email-dropbox-private-note'], action: 'crm-email-dropbox-save', result: 'This computer will check this folder while this dropbox is open.', recordKind: 'emailDropboxConfig' })),
-  live('Org Admin cross-workspace user management', 'org-admin', 'REPLICATE', 'firm setup', (app) => app.durableFeature({ route: 'crm-home-nav-firm-setup', controls: ['crm-org-admin-panel', 'crm-org-admin-user-row', 'crm-org-admin-assign'], action: 'crm-org-admin-assign', result: 'Access updated', recordKind: 'orgAssignment' })),
 
   // Found 2026-07-12, and it is its own lesson. This row is BUILT — the
   // Propagation review surface and its controls have existed for days — but the

@@ -12,6 +12,7 @@ export type CrmHomeRoute =
   | 'activity'
   | 'views'
   | 'firm-setup'
+  | 'firm-organization'
   | 'fields-tags'
   | 'intake-links'
   | 'workspaces'
