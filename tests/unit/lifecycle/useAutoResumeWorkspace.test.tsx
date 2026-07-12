@@ -52,6 +52,39 @@ describe('useAutoResumeWorkspace', () => {
     await waitFor(() => expect(result.current).toBe(false));
   });
 
+  it('reveals the shell as soon as the target workspace is committed, without waiting for optional hydration', async () => {
+    let finishOpen: (() => void) | undefined;
+    const openWorkspace = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishOpen = resolve;
+        }),
+    );
+
+    const { result, rerender } = renderHook(
+      ({ activeWorkspacePath }: { activeWorkspacePath: string | null }) =>
+        useAutoResumeWorkspace({
+          isEligibleEnvironment: true,
+          settingsHydrated: true,
+          recentWorkspacesLoaded: true,
+          startupBehavior: 'reopen',
+          recentWorkspaces: [{ path: '/Users/me/Practice' }],
+          activeWorkspacePath,
+          isWorkspaceVaultLocked: notLocked(),
+          openWorkspace,
+        }),
+      { initialProps: { activeWorkspacePath: null } },
+    );
+
+    await waitFor(() => expect(openWorkspace).toHaveBeenCalledWith('/Users/me/Practice'));
+    expect(result.current).toBe(true);
+
+    rerender({ activeWorkspacePath: '/Users/me/Practice' });
+    await waitFor(() => expect(result.current).toBe(false));
+
+    finishOpen?.();
+  });
+
   it('never auto-resumes when the setting is "selector"', () => {
     const openWorkspace = vi.fn(async () => {});
 

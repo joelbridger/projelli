@@ -58,6 +58,12 @@ export XDG_CONFIG_HOME="$WORKSPACE/.config"
 export XDG_DATA_HOME="$WORKSPACE/.data"
 export LANTERN_DEV_BRIDGE_PORT="$PORT"
 export LANTERN_WORKSPACE_ROOT="$WORKSPACE"
+# `launch-app.sh` is the headless, debug-only real-app harness.  Its virtual
+# display has no desktop keychain service, so CRM SQLCipher's production
+# keychain lookup can block indefinitely before the first record is opened.
+# Give this harness its documented deterministic test key; release builds do
+# not run through this script and still require the OS keychain.
+export LANTERN_HEADLESS_TEST_CRM_CORE_MASTER_KEY_HEX="${LANTERN_HEADLESS_TEST_CRM_CORE_MASTER_KEY_HEX:-7f4ed0c8f58b2434a61d9ec2d6b5c3a1e9f8071625344b7ca09d1e2f3a4b5c6d}"
 mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME"
 
 echo "app instance: bridge=127.0.0.1:$PORT workspace=$WORKSPACE"

@@ -1170,6 +1170,7 @@ function AppShell() {
     recentWorkspacesLoaded,
     startupBehavior,
     recentWorkspaces,
+    activeWorkspacePath: rootPath,
     isWorkspaceVaultLocked,
     openWorkspace: handleOpenRecentProject,
   });
