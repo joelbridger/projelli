@@ -99,6 +99,9 @@ mod tests {
             extraction: None,
             extraction_confidence: None,
             locator: None,
+            source_date: None,
+            dated_fact: None,
+            date_conflict: None,
         }
     }
 
@@ -138,6 +141,9 @@ mod tests {
             extraction: None,
             extraction_confidence: None,
             locator: None,
+            source_date: None,
+            dated_fact: None,
+            date_conflict: None,
         }
     }
 
@@ -276,6 +282,28 @@ mod tests {
     }
 
     #[test]
+    fn mail_hit_date_serializes_for_the_typescript_rag_hit_contract() {
+        // This is the producer half of the cross-language date contract. The
+        // matching TypeScript test consumes this exact camelCase wire shape as
+        // a `RagHit`, so a mail date cannot disappear at the IPC boundary.
+        let hit = Hit {
+            source_type: Some("mail".into()),
+            source_id: Some("mail:message-42".into()),
+            source_date: Some(SourceDate {
+                value: Some("2026-07-10T14:30:00.000Z".into()),
+                kind: "received".into(),
+                raw_value: None,
+                confidence: "source".into(),
+            }),
+            ..sample_hit()
+        };
+        let value = serde_json::to_value(hit).expect("serialize mail hit");
+        assert_eq!(value["sourceDate"]["value"], "2026-07-10T14:30:00.000Z");
+        assert_eq!(value["sourceDate"]["kind"], "received");
+        assert_eq!(value["sourceDate"]["confidence"], "source");
+    }
+
+    #[test]
     fn hit_round_trips_through_json() {
         let hit = sample_hit();
         let s = serde_json::to_string(&hit).unwrap();
@@ -299,6 +327,9 @@ mod tests {
             extraction: Some("ocr".into()),
             extraction_confidence: Some(48.5),
             locator: None,
+            source_date: None,
+            dated_fact: None,
+            date_conflict: None,
         };
         let s = serde_json::to_string(&hit).expect("serialize");
         assert!(s.contains("\"sourceType\":\"pdf\""), "got {}", s);
@@ -366,6 +397,9 @@ mod tests {
             extraction: None,
             extraction_confidence: None,
             locator: None,
+            source_date: None,
+            dated_fact: None,
+            date_conflict: None,
         };
         let s = serde_json::to_string(&hit).expect("serialize");
         assert!(!s.contains("sourceType"), "got {}", s);

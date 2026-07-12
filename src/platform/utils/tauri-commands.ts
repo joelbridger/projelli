@@ -14,6 +14,7 @@ import { invoke, isTauri } from '@tauri-apps/api/core';
 import { resolveWorkspacePath } from '@/platform/fs/pathResolve';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { LOCAL_AI_NAME } from '@/config/brandText';
+import type { DateConflictFlag, DatedFact, SourceDate } from '@/platform/retrieval/dates';
 
 /**
  * Resolve `path` to an absolute workspace path using the active workspace root.
@@ -169,6 +170,12 @@ export interface RagHit {
    *  native chunks. Below `OCR_LOW_CONFIDENCE` the UI labels the citation a
    *  low-confidence scan. */
   extractionConfidence?: number;
+  /** B1: timestamp read from the original mail, CRM, or file source. */
+  sourceDate?: SourceDate;
+  /** B1: optional source-adapter fact identity and visible value. */
+  datedFact?: DatedFact;
+  /** B1: visible incompatible-dated-evidence warning. */
+  dateConflict?: DateConflictFlag;
 }
 
 /** VG-2 — the OCR confidence disclosure threshold (0-100 scale). A chunk with

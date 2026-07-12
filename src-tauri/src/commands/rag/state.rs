@@ -1,5 +1,53 @@
 use super::*;
 
+/// Date metadata carried with a retrieval result. This mirrors the frontend's
+/// `SourceDate` contract exactly; the values describe the original source, not
+/// when Lantern happened to index it.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceDate {
+    /// RFC 3339 when the source supplied a safely parseable timestamp.
+    pub value: Option<String>,
+    /// `received`, `created`, `updated`, or `document-modified` for producers
+    /// currently available in the Rust retrieval path.
+    pub kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub raw_value: Option<String>,
+    /// Directly read from the mail, CRM, or file metadata source.
+    pub confidence: String,
+}
+
+/// Optional adapter-owned fact metadata. The retrieval producer does not infer
+/// facts; it only preserves this shape for a source that supplies one.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DatedFact {
+    pub key: String,
+    pub value: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub authority_reason: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DatedEvidence {
+    pub source_id: String,
+    pub path: String,
+    pub value: String,
+    pub source_date: SourceDate,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub authority_reason: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DateConflictFlag {
+    pub kind: String,
+    pub fact_key: String,
+    pub relation: String,
+    pub evidence: Vec<DatedEvidence>,
+}
+
 /// One result row returned by `rag_retrieve`. The shape is frozen in Phase
 /// 2 so frontend UI can be built against it:
 ///   - `path`: absolute path of the source file
@@ -60,6 +108,16 @@ pub struct Hit {
     // "Tr. 45:12-46:3". Metadata ON TOP of the unchanged `paragraph_index`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub locator: Option<String>,
+    // B1: producer-side date contract. `dated_fact` and `date_conflict` are
+    // intentionally empty at retrieval: adapters may add facts later and the
+    // TypeScript answer layer derives conflicts from the dated hits it receives.
+    // Keeping all three field names here matches the `RagHit` extension exactly.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_date: Option<SourceDate>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dated_fact: Option<DatedFact>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub date_conflict: Option<DateConflictFlag>,
 }
 
 /// WS-B/C — the REQUIRED retrieval scope. Confidentiality is enforced here: a

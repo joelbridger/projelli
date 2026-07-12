@@ -1,5 +1,114 @@
 use super::*;
 
+/// Convert source-provided timestamps to the one safe wire form. A malformed
+/// legacy date remains visible as raw source text, but is never invented or
+/// replaced with an index timestamp.
+fn source_date_from_raw(raw: &str, kind: &str) -> SourceDate {
+    use chrono::{DateTime, SecondsFormat, Utc};
+
+    let raw = raw.trim();
+    let parsed = DateTime::parse_from_rfc3339(raw)
+        .map(|value| value.with_timezone(&Utc))
+        .or_else(|_| {
+            DateTime::parse_from_str(raw, "%Y-%m-%d %I:%M %p %z")
+                .map(|value| value.with_timezone(&Utc))
+        });
+    match parsed {
+        Ok(value) => SourceDate {
+            value: Some(value.to_rfc3339_opts(SecondsFormat::Millis, true)),
+            kind: kind.to_string(),
+            raw_value: None,
+            confidence: "source".to_string(),
+        },
+        Err(_) => SourceDate {
+            value: None,
+            kind: kind.to_string(),
+            raw_value: (!raw.is_empty()).then(|| raw.to_string()),
+            confidence: "source".to_string(),
+        },
+    }
+}
+
+/// Read an on-disk document's own timestamp. Modified wins because it reflects
+/// the version that an advisor can open now; created is the honest fallback.
+fn document_source_date(path: &str) -> Option<SourceDate> {
+    use chrono::{DateTime, SecondsFormat, Utc};
+
+    let metadata = std::fs::metadata(path).ok()?;
+    let (time, kind) = metadata
+        .modified()
+        .map(|time| (time, "document-modified"))
+        .or_else(|_| metadata.created().map(|time| (time, "created")))
+        .ok()?;
+    Some(SourceDate {
+        value: Some(
+            DateTime::<Utc>::from(time).to_rfc3339_opts(SecondsFormat::Millis, true),
+        ),
+        kind: kind.to_string(),
+        raw_value: None,
+        confidence: "source".to_string(),
+    })
+}
+
+fn mail_source_date(received_date_time: Option<&str>) -> Option<SourceDate> {
+    received_date_time
+        .filter(|value| !value.trim().is_empty())
+        .map(|value| source_date_from_raw(value, "received"))
+}
+
+fn crm_source_date(row: &crate::commands::crm::store::CrmObjectRow) -> Option<SourceDate> {
+    let json = serde_json::from_str::<serde_json::Value>(&row.json).ok();
+    for (field, kind) in [("created_at", "created"), ("updated_at", "updated")] {
+        if let Some(value) = json
+            .as_ref()
+            .and_then(|value| value.get(field))
+            .and_then(serde_json::Value::as_str)
+            .filter(|value| !value.trim().is_empty())
+        {
+            return Some(source_date_from_raw(value, kind));
+        }
+    }
+    (!row.updated_at.trim().is_empty())
+        .then(|| source_date_from_raw(&row.updated_at, "updated"))
+}
+
+/// Fill dates from the authoritative local source after paths have been
+/// decrypted but before the result crosses IPC. This deliberately never uses
+/// `indexed_at`: search timing is not evidence timing.
+fn attach_source_dates(workspace: &std::path::Path, hits: &mut [Hit]) {
+    use crate::commands::mail::store::MailStore;
+
+    let has_mail = hits.iter().any(|hit| hit.source_type.as_deref() == Some("mail"));
+    let has_crm = hits.iter().any(|hit| hit.source_type.as_deref() == Some("crm"));
+    let mail_store = has_mail
+        .then(|| crate::commands::mail::store::EncryptedMailStore::db_path(workspace))
+        .filter(|path| path.exists())
+        .and_then(|_| crate::commands::mail::store::EncryptedMailStore::open(workspace).ok());
+    let crm_store = has_crm
+        .then(|| crate::commands::crm::store::CrmStore::db_path(workspace))
+        .filter(|path| path.exists())
+        .and_then(|_| crate::commands::crm::store::CrmStore::open(workspace).ok());
+
+    for hit in hits {
+        hit.source_date = match hit.source_type.as_deref() {
+            Some("mail") => hit
+                .source_id
+                .as_deref()
+                .and_then(|source_id| source_id.strip_prefix("mail:"))
+                .and_then(|id| mail_store.as_ref()?.get_record(id).ok().flatten())
+                .and_then(|record| mail_source_date(record.received_date_time.as_deref())),
+            Some("crm") => hit
+                .source_id
+                .as_deref()
+                .and_then(|source_id| source_id.strip_prefix("crm:"))
+                .and_then(|id| crm_store.as_ref()?.get_object(id).ok().flatten())
+                .as_ref()
+                .and_then(crm_source_date),
+            _ => document_source_date(&hit.path),
+        };
+    }
+}
+
 /// F-510 — per-source diversity cap. A single large low-signal file can
 /// dominate a broad retrieval feed (huge-notes.md fed all four of finder
 /// attempt 1's findings; rubric 0/5). Keep hits in descending-score order,
@@ -258,6 +367,9 @@ pub async fn rag_retrieve(
                 // VG-3c: carry the page:line locator so transcript citations
                 // can read "Tr. 45:12-46:3".
                 locator: h.locator,
+                source_date: None,
+                dated_fact: None,
+                date_conflict: None,
             }
     };
     let mut hits: Vec<Hit> = raw.into_iter().map(&to_hit).collect();
@@ -454,6 +566,55 @@ pub async fn rag_retrieve(
         // reranker's overfetched pool back to the caller's top_k when ON.
         hits.truncate(top_k as usize);
     }
+    // File stats and the encrypted mail/CRM stores are blocking local I/O. Run
+    // them off the async executor, then attach only authoritative source dates.
+    let date_workspace = workspace.clone();
+    hits = tokio::task::spawn_blocking(move || {
+        attach_source_dates(&date_workspace, &mut hits);
+        hits
+    })
+    .await
+    .map_err(|error| format!("retrieve source dates join: {error}"))?;
     Ok(hits)
 }
 
+#[cfg(test)]
+mod date_producer_tests {
+    use super::*;
+
+    #[test]
+    fn mail_message_date_becomes_a_received_source_date() {
+        let date = mail_source_date(Some("2026-07-10T14:30:00Z"))
+            .expect("mail date must be carried to the hit");
+        assert_eq!(date.value.as_deref(), Some("2026-07-10T14:30:00.000Z"));
+        assert_eq!(date.kind, "received");
+        assert_eq!(date.confidence, "source");
+    }
+
+    #[test]
+    fn document_metadata_becomes_a_modified_source_date() {
+        let file = tempfile::NamedTempFile::new().expect("temporary document");
+        let date = document_source_date(file.path().to_str().expect("utf-8 path"))
+            .expect("document metadata date");
+        assert_eq!(date.kind, "document-modified");
+        assert_eq!(date.confidence, "source");
+        assert!(date.value.is_some(), "filesystem time must cross to the hit");
+    }
+
+    #[test]
+    fn crm_record_created_timestamp_wins_over_updated_timestamp() {
+        let row = crate::commands::crm::store::CrmObjectRow {
+            id: "note:42".to_string(),
+            kind: "note".to_string(),
+            household_id: "household:7".to_string(),
+            updated_at: "2026-07-11T00:00:00Z".to_string(),
+            content_hash: String::new(),
+            json: r#"{"created_at":"2026-07-10T14:30:00Z","updated_at":"2026-07-11T00:00:00Z"}"#
+                .to_string(),
+            deleted: false,
+        };
+        let date = crm_source_date(&row).expect("CRM record timestamp");
+        assert_eq!(date.kind, "created");
+        assert_eq!(date.value.as_deref(), Some("2026-07-10T14:30:00.000Z"));
+    }
+}
