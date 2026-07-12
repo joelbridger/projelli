@@ -126,6 +126,7 @@ vi.mock('@/platform/utils/fileDrop', () => ({
 
 import { EmailViewer, setEmailAuditEmitter } from '@/features/email/EmailViewer';
 import type { MailView } from '@/platform/utils/mail-commands';
+import { MISSING_MAIL_AUTH_RESULT } from '@/platform/intake/emailReplyTypes';
 import type { AuditEntry } from '@/platform/types/audit';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { CONFIDENTIALITY_MODE_SETTING_KEY } from '@/platform/privacy/egress';
@@ -157,8 +158,11 @@ function sampleMessage(overrides: Partial<MailView> = {}): MailView {
     date: '2026-05-01T14:30:00Z',
     provider: 'm365',
     account: 'default',
+    threadId: null,
+    authResult: MISSING_MAIL_AUTH_RESULT,
     body: 'Confirming May 14. Secret client detail: SSN 123-45-6789.',
     hasAttachments: false,
+    attachmentsUnsupported: false,
     attachments: [],
     ...overrides,
   };

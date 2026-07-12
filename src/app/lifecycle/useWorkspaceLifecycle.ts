@@ -44,6 +44,7 @@ import { reloadWorkspaceScopedStores } from '@/platform/state/reloadWorkspaceSco
 import { flushPendingMatterMigrationAudit } from '@/platform/matter/matterStore';
 import { clearCitationVerificationCache } from '@/features/ask/citationVerification';
 import { useAppNavigationStore } from '@/platform/state/appNavigationStore';
+import { setIntakeFactsWorkspace } from '@/platform/intake/factsStore';
 
 // Bounds only the native SETUP (backend creation + initialize) — the SAME
 // budget/label WorkspaceSelector's manual "Open Existing" flow uses for the
@@ -315,6 +316,11 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
         // Deliver them NOW — after the audit store points at THIS workspace — so
         // they land in the right workspace's Activity Log, never the previous one's.
         if (auditWorkspaceReady) flushPendingMatterMigrationAudit(newRootPath);
+        try {
+          await setIntakeFactsWorkspace(newRootPath);
+        } catch (err) {
+          console.warn('[App] Intake facts store setup failed:', err);
+        }
       }
 
       // Stream C1 — Construct the templates marketplace service for this

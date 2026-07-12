@@ -62,11 +62,18 @@ function isRealBrowser(): boolean {
 
 /**
  * Configure the PDF.js GlobalWorkerOptions once. Safe to call multiple times.
- * In browser: worker file is pdf.worker.min.mjs placed in public/.
- * In Node/jsdom (tests): workerSrc is configured by tests/setup.ts to point
- * to the legacy worker file on disk so the fake-worker can import it in-thread.
+ * In browser (including the Tauri desktop webview, which reports http(s)
+ * origin and a real Worker constructor): worker file is pdf.worker.min.mjs
+ * placed in public/. In Node/jsdom (tests): workerSrc is configured by
+ * tests/setup.ts to point to the legacy worker file on disk so the
+ * fake-worker can import it in-thread.
+ *
+ * Exported so every PDF.js call site in the desktop app shares one correct
+ * configuration, instead of each writing its own (a prior ad-hoc call site
+ * in pdfFillReceipt.ts never called this and never set workerSrc at all -
+ * PDF.js still requires it even with disableWorker: true).
  */
-async function ensureWorkerConfigured(): Promise<void> {
+export async function ensureWorkerConfigured(): Promise<void> {
   if (workerConfigured) return;
   const pdfjsLib = await import('pdfjs-dist');
   if (isRealBrowser()) {

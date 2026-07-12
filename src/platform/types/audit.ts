@@ -2,7 +2,10 @@
 
 // The egress event mirrors the egress source of truth. `egress.ts` is a pure,
 // dependency-free module, so importing its types here is safe (no cycle).
-import type { ConfidentialityMode, EgressDestination } from '@/platform/privacy/egress';
+import type {
+  ConfidentialityMode,
+  EgressDestination,
+} from '@/platform/privacy/egress';
 
 /**
  * Types of audit actions
@@ -30,6 +33,7 @@ export type AuditActionType =
   | 'privilege_evaluated'
   | 'scope_active'
   | 'egress'
+  | 'network_egress'
   | 'prompt_preparation'
   // Privileged Matter Mode: an MCP server write was blocked while the mode was
   // on. Stored under `action = 'mcp_blocked'` so the audit log can label/filter
@@ -79,6 +83,13 @@ export type AuditActionType =
   // mailbox Drafts folder (never sent by the app itself). A distinct type from
   // 'email.send' because the draft still needs the advisor's own review/send.
   | 'email.draft_saved'
+  // Lantern Intake: an onboarding nudge draft or call suggestion, recorded as
+  // an intent/outcome pair before and after the mailbox draft save.
+  | 'intake_nudge'
+  // Lantern Intake: an authenticated normal-email reply accepted into an
+  // onboarding request. Always written as intent/outcome before effects.
+  | 'intake_email_reply'
+  | 'intake_doc_extraction'
   // Connector-access: the advisor's one-time decision on whether their firm
   // permits storing + AI-processing exported reports/notes recognized from
   // outside tools (RightCapital, Jump). A defensible, timestamped record.
@@ -229,7 +240,11 @@ export interface AuditEntry {
  * Section 3.6 of the v2.0 mega-release design spec.
  */
 export type AuditEvent =
-  | { type: 'attachment_added'; timestamp: string; payload: { path: string; hash: string; byteSize: number } }
+  | {
+      type: 'attachment_added';
+      timestamp: string;
+      payload: { path: string; hash: string; byteSize: number };
+    }
   | {
       type: 'prompt_preparation';
       timestamp: string;
@@ -238,22 +253,84 @@ export type AuditEvent =
         destination: string;
         categories: Array<{ kind: string; count: number }>;
         decision: 'clean' | 'redacted_by_user' | 'cancelled' | 'blocked';
-        attachmentDisposition: 'none' | 'text_only' | 'redacted_derivative' | 'blocked';
+        attachmentDisposition:
+          | 'none'
+          | 'text_only'
+          | 'redacted_derivative'
+          | 'blocked';
       };
     }
-  | { type: 'attachment_sent_to_provider'; timestamp: string; payload: { path: string; hash: string; provider: string; model: string } }
-  | { type: 'attachment_removed'; timestamp: string; payload: { path: string; hash: string } }
-  | { type: 'pdf_extracted'; timestamp: string; payload: { path: string; pages: number; mode: 'native' | 'text-extract' } }
-  | { type: 'context_compressed'; timestamp: string; payload: { messagesBefore: number; tokensBefore: number; messagesAfter: number; tokensAfter: number } }
-  | { type: 'tts_played'; timestamp: string; payload: { textLength: number; voiceId: string } }
-  | { type: 'plugin_installed'; timestamp: string; payload: { id: string; version: string; permissions: string[] } }
-  | { type: 'plugin_enabled'; timestamp: string; payload: { id: string; version: string } }
-  | { type: 'plugin_disabled'; timestamp: string; payload: { id: string; version: string; reason?: string } }
+  | {
+      type: 'attachment_sent_to_provider';
+      timestamp: string;
+      payload: { path: string; hash: string; provider: string; model: string };
+    }
+  | {
+      type: 'attachment_removed';
+      timestamp: string;
+      payload: { path: string; hash: string };
+    }
+  | {
+      type: 'pdf_extracted';
+      timestamp: string;
+      payload: { path: string; pages: number; mode: 'native' | 'text-extract' };
+    }
+  | {
+      type: 'context_compressed';
+      timestamp: string;
+      payload: {
+        messagesBefore: number;
+        tokensBefore: number;
+        messagesAfter: number;
+        tokensAfter: number;
+      };
+    }
+  | {
+      type: 'tts_played';
+      timestamp: string;
+      payload: { textLength: number; voiceId: string };
+    }
+  | {
+      type: 'plugin_installed';
+      timestamp: string;
+      payload: { id: string; version: string; permissions: string[] };
+    }
+  | {
+      type: 'plugin_enabled';
+      timestamp: string;
+      payload: { id: string; version: string };
+    }
+  | {
+      type: 'plugin_disabled';
+      timestamp: string;
+      payload: { id: string; version: string; reason?: string };
+    }
   | { type: 'plugin_uninstalled'; timestamp: string; payload: { id: string } }
-  | { type: 'plugin_executed'; timestamp: string; payload: { id: string; command: string; durationMs: number } }
-  | { type: 'plugin_crashed'; timestamp: string; payload: { id: string; version: string; error: string; stack?: string } }
-  | { type: 'plugin_permission_denied'; timestamp: string; payload: { id: string; permission: string; apiCall?: string; reason?: string } }
-  | { type: 'plugin_install_failed'; timestamp: string; payload: { id?: string; source: string; error: string } }
+  | {
+      type: 'plugin_executed';
+      timestamp: string;
+      payload: { id: string; command: string; durationMs: number };
+    }
+  | {
+      type: 'plugin_crashed';
+      timestamp: string;
+      payload: { id: string; version: string; error: string; stack?: string };
+    }
+  | {
+      type: 'plugin_permission_denied';
+      timestamp: string;
+      payload: {
+        id: string;
+        permission: string;
+        apiCall?: string;
+        reason?: string;
+      };
+    }
+  | {
+      type: 'plugin_install_failed';
+      timestamp: string;
+      payload: { id?: string; source: string; error: string };
+    }
   /**
    * An MCP server write was blocked because Privileged Matter Mode is on. MCP
    * servers run inside an external client (e.g. Claude Desktop) and reach the
@@ -262,15 +339,26 @@ export type AuditEvent =
    * path the MCP client tried to write so there is a defensible record that
    * nothing was exfiltrated or modified by a network-capable MCP server.
    */
-  | { type: 'mcp_blocked'; timestamp: string; payload: { path: string; reason: string } }
+  | {
+      type: 'mcp_blocked';
+      timestamp: string;
+      payload: { path: string; reason: string };
+    }
   /**
    * Connector-access: the advisor's one-time consent decision on storing and
    * AI-processing exported reports/notes Lantern recognized from outside tools.
    * `tools` lists which were present when the prompt fired (e.g. ["RightCapital"]).
    */
-  | { type: 'external_export_consent'; timestamp: string; payload: { given: boolean; tools: string[] } }
   | {
-      type: 'client_map_bullet_added' | 'client_map_bullet_edited' | 'client_map_bullet_removed';
+      type: 'external_export_consent';
+      timestamp: string;
+      payload: { given: boolean; tools: string[] };
+    }
+  | {
+      type:
+        | 'client_map_bullet_added'
+        | 'client_map_bullet_edited'
+        | 'client_map_bullet_removed';
       timestamp: string;
       payload: {
         matterId: string;
@@ -280,7 +368,13 @@ export type AuditEvent =
         actor: string;
         beforeText?: string;
         afterText?: string;
-        sources: Array<{ kind: string; ref: string; snippet: string; citationId?: string; locator?: string }>;
+        sources: Array<{
+          kind: string;
+          ref: string;
+          snippet: string;
+          citationId?: string;
+          locator?: string;
+        }>;
       };
     }
   | {
@@ -292,7 +386,13 @@ export type AuditEvent =
         sectionTitle: string;
         actor: string;
         removedBulletCount: number;
-        sources: Array<{ kind: string; ref: string; snippet: string; citationId?: string; locator?: string }>;
+        sources: Array<{
+          kind: string;
+          ref: string;
+          snippet: string;
+          citationId?: string;
+          locator?: string;
+        }>;
       };
     }
   | {
@@ -412,11 +512,37 @@ export type AuditEvent =
         detail?: string;
       };
     }
-  | { type: 'template_installed_from_marketplace'; timestamp: string; payload: { templateId: string; version: string; error?: string } }
-  | { type: 'template_uninstalled'; timestamp: string; payload: { templateId: string; version: string; error?: string } }
-  | { type: 'template_updated'; timestamp: string; payload: { templateId: string; version: string; fromVersion?: string; toVersion?: string; error?: string } }
-  | { type: 'template_install_failed'; timestamp: string; payload: { templateId: string; version: string; error?: string } }
-  | { type: 'language_changed'; timestamp: string; payload: { from: string; to: string } }
+  | {
+      type: 'template_installed_from_marketplace';
+      timestamp: string;
+      payload: { templateId: string; version: string; error?: string };
+    }
+  | {
+      type: 'template_uninstalled';
+      timestamp: string;
+      payload: { templateId: string; version: string; error?: string };
+    }
+  | {
+      type: 'template_updated';
+      timestamp: string;
+      payload: {
+        templateId: string;
+        version: string;
+        fromVersion?: string;
+        toVersion?: string;
+        error?: string;
+      };
+    }
+  | {
+      type: 'template_install_failed';
+      timestamp: string;
+      payload: { templateId: string; version: string; error?: string };
+    }
+  | {
+      type: 'language_changed';
+      timestamp: string;
+      payload: { from: string; to: string };
+    }
   // ───────────────────────────────────────────────────────────────────────
   // Lantern 3.0 provenance events.
   //

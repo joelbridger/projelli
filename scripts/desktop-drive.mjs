@@ -209,6 +209,28 @@ try {
         await page.getByText(args[0]).first().waitFor({ timeout: (Number(args[1]) || 15) * 1000 });
         console.log('found: ' + args[0]);
         break;
+      case 'setfiles': {
+        // args[0] = '|'-separated absolute paths to set on the first visible
+        // input[type=file] on the page (test-driving helper; bypasses the
+        // native OS file picker so a headless bench can drive uploads).
+        const paths = args[0].split('|').filter(Boolean);
+        const input = page.locator('input[type="file"]').first();
+        await input.setInputFiles(paths, { timeout: 8000 });
+        console.log('set files: ' + paths.join(', '));
+        break;
+      }
+      case 'consolewatch': {
+        // args[0] = seconds to listen. Prints every browser console message
+        // seen during the window (diagnostic helper; does not click anything).
+        const seconds = Number(args[0]) || 20;
+        const lines = [];
+        const onMsg = (msg) => lines.push(`[${msg.type()}] ${msg.text()}`);
+        page.on('console', onMsg);
+        await page.waitForTimeout(seconds * 1000);
+        page.off('console', onMsg);
+        console.log(JSON.stringify(lines, null, 2));
+        break;
+      }
       case 'local-only-egress-walk': {
         const result = await runLocalOnlyEgressWalk(page);
         console.log(JSON.stringify(result, null, 2));

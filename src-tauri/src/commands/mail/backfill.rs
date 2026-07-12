@@ -415,6 +415,15 @@ pub(crate) fn backfill_marker_disposition(
 /// pass) so a later incident in the same session can re-mark.
 pub(crate) static MARKED_THIS_SESSION: AtomicBool = AtomicBool::new(false);
 
+/// Test-only mutual exclusion for `MARKED_THIS_SESSION`. `cargo test` runs
+/// tests as threads in one process, so any two `#[test]` functions that read
+/// or write this process-global latch can interleave. Every test touching
+/// the latch must hold this lock for its full body (see
+/// `commands::mail::mod::tests::backfill_marker_set_is_idempotent_and_clearable`
+/// and `vector_rebuild_marker_skips_missing_store_and_bypasses_stale_latch`).
+#[cfg(test)]
+pub(crate) static MARKED_THIS_SESSION_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 /// Persist the "mail needs a RAG backfill" marker for `workspace`. Idempotent;
 /// one row in the encrypted mail store's meta table, written at most once per
 /// session (see `MARKED_THIS_SESSION`).

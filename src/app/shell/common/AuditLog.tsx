@@ -6,12 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/ui/dialog';
 import {
   History,
   Search,
@@ -91,6 +86,7 @@ const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   privilege_evaluated: Lock,
   scope_active: Target,
   egress: Send,
+  network_egress: Send,
   prompt_preparation: ShieldCheck,
   mcp_blocked: ShieldOff,
   mcp_list: FileText,
@@ -124,6 +120,9 @@ const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   'salesforce.disconnect': Users2,
   'email.send': Send,
   'email.draft_saved': Save,
+  intake_nudge: Save,
+  intake_email_reply: Save,
+  intake_doc_extraction: Save,
   external_export_consent: ShieldCheck,
   'acats.approve': ShieldCheck,
   'acats.export': Save,
@@ -177,6 +176,7 @@ const ACTION_LABELS: Record<AuditActionType, string> = {
   privilege_evaluated: 'Privilege Checked',
   scope_active: 'Active Client',
   egress: 'AI Request Sent',
+  network_egress: 'Network Receipt',
   mcp_blocked: 'External AI Write Blocked',
   mcp_list: 'External AI Listed Files',
   mcp_read: 'External AI Read File',
@@ -209,6 +209,9 @@ const ACTION_LABELS: Record<AuditActionType, string> = {
   'salesforce.disconnect': 'Salesforce Disconnected',
   'email.send': 'Email Sent',
   'email.draft_saved': 'Draft Saved',
+  intake_nudge: 'Intake Nudge',
+  intake_email_reply: 'Email Reply Intake',
+  intake_doc_extraction: 'Document Fact Review',
   external_export_consent: 'Exported-Report Consent',
   'acats.approve': 'ACATS Draft Approved',
   'acats.export': 'ACATS Packet Exported',
@@ -262,6 +265,7 @@ const ACTION_COLORS: Record<AuditActionType, string> = {
   privilege_evaluated: 'text-indigo-600 dark:text-indigo-400',
   scope_active: 'text-teal-600 dark:text-teal-400',
   egress: 'text-violet-600 dark:text-violet-400',
+  network_egress: 'text-sky-600 dark:text-sky-400',
   mcp_blocked: 'text-rose-600 dark:text-rose-400',
   mcp_list: 'text-indigo-600 dark:text-indigo-400',
   mcp_read: 'text-indigo-600 dark:text-indigo-400',
@@ -294,6 +298,9 @@ const ACTION_COLORS: Record<AuditActionType, string> = {
   'salesforce.disconnect': 'text-orange-600 dark:text-orange-400',
   'email.send': 'text-sky-600 dark:text-sky-400',
   'email.draft_saved': 'text-sky-600 dark:text-sky-400',
+  intake_nudge: 'text-sky-600 dark:text-sky-400',
+  intake_email_reply: 'text-sky-600 dark:text-sky-400',
+  intake_doc_extraction: 'text-sky-600 dark:text-sky-400',
   external_export_consent: 'text-sky-600 dark:text-sky-400',
   'acats.approve': 'text-emerald-600 dark:text-emerald-400',
   'acats.export': 'text-sky-600 dark:text-sky-400',
@@ -329,7 +336,8 @@ const ACTION_COLORS: Record<AuditActionType, string> = {
 
 function toSafeAuditValue(value: unknown): string {
   if (typeof value === 'string') return value;
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (typeof value === 'number' || typeof value === 'boolean')
+    return String(value);
   return '';
 }
 
@@ -347,7 +355,9 @@ export function AuditLog({
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
   const [modelFilter, setModelFilter] = useState<string>('');
-  const [expandedEntries, setExpandedEntries] = useState<Set<string>>(new Set());
+  const [expandedEntries, setExpandedEntries] = useState<Set<string>>(
+    new Set()
+  );
   const [detailEntry, setDetailEntry] = useState<AuditEntry | null>(null);
   const [showFilters, setShowFilters] = useState(false);
 
@@ -494,8 +504,8 @@ export function AuditLog({
         <ShieldCheck className="h-4 w-4 mt-0.5 shrink-0 text-sky-600" />
         <div className="min-w-0">
           <p className="text-xs leading-snug">
-            Your private record of every AI action, kept on your machine for your
-            files and your defense.
+            Your private record of every AI action, kept on your machine for
+            your files and your defense.
           </p>
           {isAuditEncrypted() ? (
             <p
@@ -524,7 +534,9 @@ export function AuditLog({
             <Input
               placeholder="Search..."
               value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); }}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+              }}
               className="pl-7 h-7 text-xs"
             />
           </div>
@@ -532,9 +544,19 @@ export function AuditLog({
             variant={showFilters ? 'secondary' : 'ghost'}
             size="sm"
             className="h-7 px-1.5 shrink-0"
-            onClick={() => { setShowFilters(!showFilters); }}
-            title={activeFilterCount > 0 ? `Filter ${String(activeFilterCount)}` : 'Filter'}
-            aria-label={activeFilterCount > 0 ? `Filter ${String(activeFilterCount)}` : 'Filter'}
+            onClick={() => {
+              setShowFilters(!showFilters);
+            }}
+            title={
+              activeFilterCount > 0
+                ? `Filter ${String(activeFilterCount)}`
+                : 'Filter'
+            }
+            aria-label={
+              activeFilterCount > 0
+                ? `Filter ${String(activeFilterCount)}`
+                : 'Filter'
+            }
           >
             <Filter className="h-3.5 w-3.5" />
             {activeFilterCount > 0 && (
@@ -555,7 +577,9 @@ export function AuditLog({
                   variant={selectedTypes.has(type) ? 'secondary' : 'outline'}
                   size="sm"
                   className="h-6 text-xs"
-                  onClick={() => { toggleFilter(type); }}
+                  onClick={() => {
+                    toggleFilter(type);
+                  }}
                 >
                   {ACTION_LABELS[type]}
                 </Button>
@@ -567,7 +591,9 @@ export function AuditLog({
                 <input
                   type="date"
                   value={dateFrom}
-                  onChange={(e) => { setDateFrom(e.target.value); }}
+                  onChange={(e) => {
+                    setDateFrom(e.target.value);
+                  }}
                   data-testid="audit-log-filter-date-from"
                   className="ml-1 h-6 rounded border border-input bg-background px-1.5 text-xs"
                   aria-label="Filter by date from"
@@ -578,7 +604,9 @@ export function AuditLog({
                 <input
                   type="date"
                   value={dateTo}
-                  onChange={(e) => { setDateTo(e.target.value); }}
+                  onChange={(e) => {
+                    setDateTo(e.target.value);
+                  }}
                   data-testid="audit-log-filter-date-to"
                   className="ml-1 h-6 rounded border border-input bg-background px-1.5 text-xs"
                   aria-label="Filter by date to"
@@ -588,7 +616,9 @@ export function AuditLog({
                 Model
                 <select
                   value={modelFilter}
-                  onChange={(e) => { setModelFilter(e.target.value); }}
+                  onChange={(e) => {
+                    setModelFilter(e.target.value);
+                  }}
                   data-testid="audit-log-filter-model"
                   className="ml-1 h-6 rounded border border-input bg-background px-1.5 text-xs"
                   aria-label="Filter by model"
@@ -635,8 +665,12 @@ export function AuditLog({
                 key={entry.id}
                 entry={entry}
                 isExpanded={expandedEntries.has(entry.id)}
-                onToggleExpand={() => { toggleExpanded(entry.id); }}
-                onViewDetails={() => { setDetailEntry(entry); }}
+                onToggleExpand={() => {
+                  toggleExpanded(entry.id);
+                }}
+                onViewDetails={() => {
+                  setDetailEntry(entry);
+                }}
                 formatTimestamp={formatTimestamp}
               />
             ))}
@@ -647,11 +681,15 @@ export function AuditLog({
       {/* Detail dialog */}
       <Dialog
         open={detailEntry !== null}
-        onOpenChange={() => { setDetailEntry(null); }}
+        onOpenChange={() => {
+          setDetailEntry(null);
+        }}
       >
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{t('common.audit-log.entry-details-title')}</DialogTitle>
+            <DialogTitle>
+              {t('common.audit-log.entry-details-title')}
+            </DialogTitle>
           </DialogHeader>
           {detailEntry && (
             <AuditEntryDetails
@@ -687,8 +725,7 @@ function AuditEntryRow({
   const inputs = asRecord(entry.inputs);
   const outputs = asRecord(entry.outputs);
   const hasDetails =
-    Object.keys(inputs).length > 0 ||
-    Object.keys(outputs).length > 0;
+    Object.keys(inputs).length > 0 || Object.keys(outputs).length > 0;
 
   return (
     <div className="hover:bg-muted/50">
@@ -717,7 +754,9 @@ function AuditEntryRow({
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
-              <p className="text-sm leading-tight break-words">{entry.description}</p>
+              <p className="text-sm leading-tight break-words">
+                {entry.description}
+              </p>
               <div className="flex items-center gap-2 mt-1">
                 <span className="text-xs text-muted-foreground">
                   {formatTimestamp(entry.timestamp)}
@@ -763,7 +802,9 @@ function AuditEntryRow({
           )}
           {Object.keys(outputs).length > 0 && (
             <div className="text-xs">
-              <span className="font-medium text-muted-foreground">Outputs:</span>
+              <span className="font-medium text-muted-foreground">
+                Outputs:
+              </span>
               <pre className="mt-1 p-2 rounded bg-muted text-[10px] overflow-x-auto font-mono">
                 {JSON.stringify(outputs, null, 2)}
               </pre>
@@ -868,26 +909,42 @@ function AuditEntryDetails({ entry, formatTimestamp }: AuditEntryDetailsProps) {
           <div className="rounded-md border border-border px-3 py-2 space-y-1 text-sm">
             {fmid != null && (
               <div className="flex gap-2">
-                <span className="text-xs text-muted-foreground uppercase shrink-0 w-28">Firm client</span>
-                <span className="font-mono text-xs break-all">{toSafeAuditValue(fmid)}</span>
+                <span className="text-xs text-muted-foreground uppercase shrink-0 w-28">
+                  Firm client
+                </span>
+                <span className="font-mono text-xs break-all">
+                  {toSafeAuditValue(fmid)}
+                </span>
               </div>
             )}
             {mid != null && mid !== fmid && (
               <div className="flex gap-2">
-                <span className="text-xs text-muted-foreground uppercase shrink-0 w-28">Local client</span>
-                <span className="font-mono text-xs break-all">{toSafeAuditValue(mid)}</span>
+                <span className="text-xs text-muted-foreground uppercase shrink-0 w-28">
+                  Local client
+                </span>
+                <span className="font-mono text-xs break-all">
+                  {toSafeAuditValue(mid)}
+                </span>
               </div>
             )}
             {tuid != null && (
               <div className="flex gap-2">
-                <span className="text-xs text-muted-foreground uppercase shrink-0 w-28">Target user</span>
-                <span className="font-mono text-xs break-all">{toSafeAuditValue(tuid)}</span>
+                <span className="text-xs text-muted-foreground uppercase shrink-0 w-28">
+                  Target user
+                </span>
+                <span className="font-mono text-xs break-all">
+                  {toSafeAuditValue(tuid)}
+                </span>
               </div>
             )}
             {oid != null && (
               <div className="flex gap-2">
-                <span className="text-xs text-muted-foreground uppercase shrink-0 w-28">Org</span>
-                <span className="font-mono text-xs break-all">{toSafeAuditValue(oid)}</span>
+                <span className="text-xs text-muted-foreground uppercase shrink-0 w-28">
+                  Org
+                </span>
+                <span className="font-mono text-xs break-all">
+                  {toSafeAuditValue(oid)}
+                </span>
               </div>
             )}
           </div>

@@ -16,6 +16,8 @@ import {
 } from '@/platform/rag/sourceProvenance';
 import type { WorkspaceSource } from '@/platform/types/ai';
 import type { RagHit } from '@/platform/utils/tauri-commands';
+import type { DateConflictFlag, DatedFact, SourceDate } from '@/platform/retrieval/dates';
+import { buildDatedWorkspaceSources } from '@/platform/retrieval/dates';
 import { createProvider } from '@/platform/providers/providerFactory';
 import { resolveAvailableLocalGenerationProvider } from '@/platform/providers/resolveLocalProvider';
 import { mailGetMessage } from '@/platform/utils/mail-commands';
@@ -170,6 +172,12 @@ export interface AnswerCitation {
    * `@/platform/rag/sourceProvenance`.
    */
   provenance?: RecognizedProvenance;
+  /** B1: source-time metadata from the retrieved hit, when safely known. */
+  sourceDate?: SourceDate;
+  /** B1: the source's explicit dated claim, including visible authority context. */
+  datedFact?: DatedFact;
+  /** B1: incompatible dated evidence supplied by retrieval; never inferred by the UI. */
+  dateConflict?: DateConflictFlag;
 }
 
 /**
@@ -708,19 +716,7 @@ export function buildRecentAskSessions(
 }
 
 export function buildWorkspaceSources(hits: RagHit[]): WorkspaceSource[] {
-  return hits.map((h) => ({
-    path: h.path,
-    chunkText: h.chunkText,
-    score: h.score,
-    paragraphIndex: h.paragraphIndex,
-    ...(h.sourceType !== undefined ? { sourceType: h.sourceType } : {}),
-    ...(h.pageNumber !== undefined ? { pageNumber: h.pageNumber } : {}),
-    ...(h.extraction !== undefined ? { extraction: h.extraction } : {}),
-    ...(h.extractionConfidence !== undefined ? { extractionConfidence: h.extractionConfidence } : {}),
-    ...(h.locator !== undefined ? { locator: h.locator } : {}),
-    ...(h.id !== undefined ? { id: h.id } : {}),
-    ...(h.matterId !== undefined ? { matterId: h.matterId } : {}),
-  }));
+  return buildDatedWorkspaceSources(hits);
 }
 
 const POST_HOC_STOP_WORDS = new Set([
@@ -1070,6 +1066,9 @@ function citationFromHit(
     ...(hit.id !== undefined ? { id: hit.id } : {}),
     ...(hit.matterId !== undefined ? { matterId: hit.matterId } : {}),
     ...(provenance ? { provenance } : {}),
+    ...(hit.sourceDate !== undefined ? { sourceDate: hit.sourceDate } : {}),
+    ...(hit.datedFact !== undefined ? { datedFact: hit.datedFact } : {}),
+    ...(hit.dateConflict !== undefined ? { dateConflict: hit.dateConflict } : {}),
   };
 }
 

@@ -32,6 +32,12 @@ npm run i18n:check || echo "⚠️  i18n key drift (KNOWN-I18N-01, deferred) —
 # exist in en.json also exists (translated, non-empty) in de.json/es.json —
 # the "ships English-only for non-English locales" class of bug. Blocking.
 step "i18n locale completeness" npm run i18n:completeness
+# Build the intake client page ONCE, serially, before the concurrent vitest run.
+# tests/security/intake-hosting.test.ts verifies the hosting pipeline signs the
+# COMPILED intake-page/dist; building it inside vitest (under ~N parallel workers)
+# exhausts process/file handles (ERR_INSUFFICIENT_RESOURCES). Pre-building here
+# lets that test reuse dist (buildPage:false) instead of spawning tsc+vite under load.
+step "Intake page build (hosting test fixture)" npm --prefix intake-page run build
 step "Unit tests"      npx vitest run
 step "ESLint gate"     npm run lint:gate
 # ── UI Iteration System guards (keep future UI rounds honest) ────────────────

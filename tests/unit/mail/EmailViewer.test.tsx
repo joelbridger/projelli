@@ -80,6 +80,7 @@ vi.mock('@/platform/utils/fileDrop', () => ({
 
 import { EmailViewer, stripResidualTags, parseRecipients } from '@/features/email/EmailViewer';
 import type { MailView } from '@/platform/utils/mail-commands';
+import { MISSING_MAIL_AUTH_RESULT } from '@/platform/intake/emailReplyTypes';
 
 function sampleMessage(overrides: Partial<MailView> = {}): MailView {
   return {
@@ -91,8 +92,11 @@ function sampleMessage(overrides: Partial<MailView> = {}): MailView {
     date: '2026-05-01T14:30:00Z',
     provider: 'm365',
     account: 'default',
+    threadId: null,
+    authResult: MISSING_MAIL_AUTH_RESULT,
     body: 'Confirming May 14. The closing is at 10am.',
     hasAttachments: false,
+    attachmentsUnsupported: false,
     attachments: [],
     ...overrides,
   };
@@ -176,7 +180,7 @@ describe('EmailViewer', () => {
     mockMailGetMessage.mockResolvedValue(
       sampleMessage({
         hasAttachments: true,
-        attachments: [{ id: 'att-1', name: 'contract.pdf' }],
+        attachments: [{ id: 'att-1', name: 'contract.pdf', filename: 'contract.pdf', kind: 'file' }],
       }),
     );
     render(<EmailViewer sourceId="AAMk-xyz" />);

@@ -49,11 +49,17 @@ export const PAGE_SIZE = 100;
 
 export type AnyRecord<V> = Record<string, V | undefined>;
 
-export function lookupLabel(map: Record<AuditActionType, string>, action: string): string {
+export function lookupLabel(
+  map: Record<AuditActionType, string>,
+  action: string
+): string {
   return (map as AnyRecord<string>)[action] ?? action;
 }
 
-export function lookupCategory(map: Record<AuditActionType, ActionCategory>, action: string): ActionCategory {
+export function lookupCategory(
+  map: Record<AuditActionType, ActionCategory>,
+  action: string
+): ActionCategory {
   return (map as AnyRecord<ActionCategory>)[action] ?? 'system';
 }
 
@@ -94,6 +100,7 @@ export const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   privilege_evaluated: Lock,
   scope_active: Target,
   egress: Send,
+  network_egress: Send,
   mcp_blocked: ShieldOff,
   mcp_list: FileText,
   mcp_read: FileText,
@@ -125,6 +132,9 @@ export const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   'salesforce.disconnect': Users2,
   'email.send': Send,
   'email.draft_saved': Save,
+  intake_nudge: Save,
+  intake_email_reply: Save,
+  intake_doc_extraction: Save,
   external_export_consent: ShieldCheck,
   'acats.approve': ShieldCheck,
   'acats.export': Save,
@@ -177,6 +187,7 @@ export const ACTION_LABELS: Record<AuditActionType, string> = {
   privilege_evaluated: 'Privilege Checked',
   scope_active: 'Active Client',
   egress: 'AI Request Sent',
+  network_egress: 'Network Receipt',
   mcp_blocked: 'External AI Write Blocked',
   mcp_list: 'External AI Listed Files',
   mcp_read: 'External AI Read File',
@@ -208,6 +219,9 @@ export const ACTION_LABELS: Record<AuditActionType, string> = {
   'salesforce.disconnect': 'Salesforce Disconnected',
   'email.send': 'Email Sent',
   'email.draft_saved': 'Draft Saved',
+  intake_nudge: 'Intake Nudge',
+  intake_email_reply: 'Email Reply Intake',
+  intake_doc_extraction: 'Document Fact Review',
   external_export_consent: 'Exported-Report Consent',
   'acats.approve': 'ACATS Draft Approved',
   'acats.export': 'ACATS Packet Exported',
@@ -242,7 +256,13 @@ export const ACTION_LABELS: Record<AuditActionType, string> = {
 };
 
 /** Semantic category per action, drives colour + grouping in filters. */
-export type ActionCategory = 'file' | 'ai' | 'workflow' | 'privilege' | 'firm' | 'system';
+export type ActionCategory =
+  | 'file'
+  | 'ai'
+  | 'workflow'
+  | 'privilege'
+  | 'firm'
+  | 'system';
 
 export const ACTION_CATEGORY: Record<AuditActionType, ActionCategory> = {
   file_create: 'file',
@@ -263,6 +283,7 @@ export const ACTION_CATEGORY: Record<AuditActionType, ActionCategory> = {
   privilege_evaluated: 'privilege',
   scope_active: 'privilege',
   egress: 'ai',
+  network_egress: 'system',
   mcp_blocked: 'privilege',
   mcp_list: 'privilege',
   mcp_read: 'privilege',
@@ -294,6 +315,9 @@ export const ACTION_CATEGORY: Record<AuditActionType, ActionCategory> = {
   'salesforce.disconnect': 'system',
   'email.send': 'system',
   'email.draft_saved': 'system',
+  intake_nudge: 'system',
+  intake_email_reply: 'system',
+  intake_doc_extraction: 'system',
   external_export_consent: 'privilege',
   'acats.approve': 'file',
   'acats.export': 'file',
@@ -328,11 +352,11 @@ export const ACTION_CATEGORY: Record<AuditActionType, ActionCategory> = {
 };
 
 export const CATEGORY_COLOR: Record<ActionCategory, string> = {
-  file: '#16a34a',    // green-600
-  ai: '#7c3aed',     // violet-600
+  file: '#16a34a', // green-600
+  ai: '#7c3aed', // violet-600
   workflow: '#9333ea', // purple-600
   privilege: '#4f46e5', // indigo-600
-  firm: '#0284c7',   // sky-600
+  firm: '#0284c7', // sky-600
   system: '#64748b', // slate-500
 };
 
@@ -409,12 +433,17 @@ export function getScopeLabel(entry: AuditEntry): string | null {
     if (mode === 'direct') return 'Direct';
     if (mode === 'assured') return 'Assured';
   }
-  if (entry.action === 'scope_active' || entry.action === 'retrieval_executed') {
+  if (
+    entry.action === 'scope_active' ||
+    entry.action === 'retrieval_executed'
+  ) {
     // English-only escape hatch: this sentence is still hardcoded English
     // (see the cleanup2 handoff), so the noun must stay English too rather
     // than mix a translated word into an English sentence.
     const entityLabel = getEntityLabelEnglish();
-    const scope = meta['scope'] as { kind?: string; matterName?: string } | undefined;
+    const scope = meta['scope'] as
+      | { kind?: string; matterName?: string }
+      | undefined;
     if (scope?.kind === 'allMatters') return `All ${entityLabel.other}`;
     if (scope?.kind === 'matter') return scope.matterName ?? entityLabel.One;
   }

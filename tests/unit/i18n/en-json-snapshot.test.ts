@@ -11,6 +11,8 @@
 //   4. Re-run `npm run translate-i18n` to propagate to es.json + de.json.
 import { describe, it, expect } from 'vitest';
 import en from '@/locales/en.json';
+import de from '@/locales/de.json';
+import es from '@/locales/es.json';
 
 type JsonValue = string | { [key: string]: JsonValue };
 
@@ -39,6 +41,18 @@ function namespaceCounts(obj: Record<string, JsonValue>): Record<string, number>
   return counts;
 }
 
+function stringValues(obj: Record<string, JsonValue>): string[] {
+  const values: string[] = [];
+  for (const value of Object.values(obj)) {
+    if (typeof value === 'object' && value !== null) {
+      values.push(...stringValues(value as Record<string, JsonValue>));
+    } else {
+      values.push(value);
+    }
+  }
+  return values;
+}
+
 describe('en.json structure snapshot', () => {
   it('matches the expected namespace inventory', () => {
     const counts = namespaceCounts(en as Record<string, JsonValue>);
@@ -46,8 +60,9 @@ describe('en.json structure snapshot', () => {
       {
         "ai": 48,
         "analysis": 10,
+        "answer-dates": 3,
         "app": 2,
-        "ask": 135,
+        "ask": 137,
         "audio": 1,
         "chat": 12,
         "citation": 3,
@@ -56,12 +71,13 @@ describe('en.json structure snapshot', () => {
         "entity-label": 50,
         "file-import": 3,
         "firm": 143,
+        "intake": 286,
         "layout": 40,
         "local-ai-download": 9,
         "local-ai-settings": 8,
         "mail": 155,
         "marketplace": 14,
-        "matter": 322,
+        "matter": 326,
         "media": 100,
         "meetings": 257,
         "memory": 6,
@@ -73,7 +89,7 @@ describe('en.json structure snapshot', () => {
         "research": 11,
         "scheduling": 56,
         "search": 6,
-        "settings": 222,
+        "settings": 226,
         "shortcuts-overlay": 2,
         "spine": 10,
         "tab-guard": 3,
@@ -322,22 +338,42 @@ describe('en.json structure snapshot', () => {
     }
   });
 
-  it('contains no em dashes (rule: NO em dashes anywhere)', () => {
-    const stack: Array<[string, JsonValue]> = Object.entries(en).map(
-      ([k, v]) => [k, v as JsonValue],
-    );
+  it('contains no em dashes in any user-facing locale', () => {
     const offenders: string[] = [];
-    while (stack.length > 0) {
-      const [key, val] = stack.pop()!;
-      if (typeof val === 'object' && val !== null) {
-        for (const [k, v] of Object.entries(val)) {
-          stack.push([`${key}.${k}`, v as JsonValue]);
+    for (const [locale, catalog] of Object.entries({ en, de, es })) {
+      const stack: Array<[string, JsonValue]> = Object.entries(catalog).map(
+        ([k, v]) => [k, v as JsonValue],
+      );
+      while (stack.length > 0) {
+        const [key, val] = stack.pop()!;
+        if (typeof val === 'object' && val !== null) {
+          for (const [k, v] of Object.entries(val)) {
+            stack.push([`${key}.${k}`, v as JsonValue]);
+          }
+        } else if (typeof val === 'string' && val.includes('—')) {
+          offenders.push(`${locale}.${key}`);
         }
-      } else if (typeof val === 'string' && val.includes('—')) {
-        offenders.push(key);
       }
     }
     expect(offenders).toEqual([]);
+  });
+
+  it('keeps advisor-facing copy focused on firms, files, and benefits', () => {
+    const advisorVisibleCopy = stringValues({
+      workspace: en.workspace,
+      workflow: en.workflow,
+      onboarding: en.onboarding,
+      settings: { license: en.settings.license, privacy: en.settings.privacy },
+      ask: { sources: en.ask.sources },
+    } as Record<string, JsonValue>).join('\n').toLowerCase();
+
+    expect(advisorVisibleCopy).not.toMatch(/\bpractice\b/);
+    expect(advisorVisibleCopy).not.toMatch(/right\s?capital|clio|mycase|lawmatics|smokeball|filevine/);
+    expect(advisorVisibleCopy).not.toContain('flagship');
+    expect(advisorVisibleCopy).not.toContain('exported from');
+    expect(en.onboarding.v2.intro.flow.connect.body).toContain('so that');
+    expect(en.onboarding.v2.intro.flow['client-map'].body).toContain('so that');
+    expect(en.onboarding.v2.intro.flow.ask.body).toContain('so that');
   });
 
   it('plural keys come in matching _one + _other pairs', () => {

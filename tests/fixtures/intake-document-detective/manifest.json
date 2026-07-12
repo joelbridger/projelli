@@ -1,0 +1,254 @@
+{
+  "fixture_set": "intake-document-detective",
+  "synthetic": true,
+  "fixtures": [
+    {
+      "id": "license-front",
+      "file": "files/license-front.pdf",
+      "mime_type": "application/pdf",
+      "reader": { "mode": "text" },
+      "document_kind": "drivers_license",
+      "license_side": "front",
+      "pages": [
+        {
+          "page": 1,
+          "text": "SYNTHETIC DRIVER LICENSE\nClass C\nRestrictions: None\nEyes: Blue\nExpiration: 2031-01-01"
+        }
+      ],
+      "expected_source_snippets": ["SYNTHETIC DRIVER LICENSE"],
+      "expected_extracted_facts": [],
+      "tier1_targets": [{ "target": "license_front", "warn": false }]
+    },
+    {
+      "id": "license-back",
+      "file": "files/license-back.pdf",
+      "mime_type": "application/pdf",
+      "reader": { "mode": "text" },
+      "document_kind": "drivers_license",
+      "license_side": "back",
+      "pages": [
+        {
+          "page": 1,
+          "text": "SYNTHETIC LICENSE BACK\nPDF417 AAMVA\nDAQ SAMPLE0001\nDCS SAMPLE\nBarcode data"
+        }
+      ],
+      "expected_source_snippets": ["PDF417 AAMVA"],
+      "expected_extracted_facts": [],
+      "tier1_targets": [
+        {
+          "target": "license_front",
+          "warn": true,
+          "reason": "wrong_side_of_license"
+        }
+      ]
+    },
+    {
+      "id": "license-front-duplicate-a",
+      "file": "files/license-front-duplicate-a.pdf",
+      "mime_type": "application/pdf",
+      "reader": { "mode": "text" },
+      "document_kind": "drivers_license",
+      "license_side": "front",
+      "pages": [
+        {
+          "page": 1,
+          "text": "SYNTHETIC DRIVER LICENSE\nClass C\nRestrictions: None\nHeight: 5-08\nEyes: Hazel"
+        }
+      ],
+      "expected_source_snippets": ["SYNTHETIC DRIVER LICENSE"],
+      "expected_extracted_facts": [],
+      "tier1_targets": [{ "target": "license_front", "warn": false }]
+    },
+    {
+      "id": "license-front-duplicate-b",
+      "file": "files/license-front-duplicate-b.pdf",
+      "mime_type": "application/pdf",
+      "reader": { "mode": "text" },
+      "document_kind": "drivers_license",
+      "license_side": "front",
+      "pages": [
+        {
+          "page": 1,
+          "text": "SYNTHETIC DRIVER LICENSE\nClass C\nRestrictions: None\nHeight: 5-08\nEyes: Hazel"
+        }
+      ],
+      "expected_source_snippets": ["SYNTHETIC DRIVER LICENSE"],
+      "expected_extracted_facts": [],
+      "tier1_targets": [
+        {
+          "target": "license_back_after_front",
+          "warn": true,
+          "reason": "duplicate_license_side"
+        }
+      ]
+    },
+    {
+      "id": "tax-return-1040-summary",
+      "file": "files/tax-return-1040-summary.pdf",
+      "mime_type": "application/pdf",
+      "reader": { "mode": "text" },
+      "document_kind": "tax_return",
+      "pages": [
+        {
+          "page": 1,
+          "text": "SYNTHETIC FORM 1040 SUMMARY\nTotal income: $91,400\nAdjusted gross income: $88,200\nTaxable income: $72,000"
+        }
+      ],
+      "expected_source_snippets": ["SYNTHETIC FORM 1040 SUMMARY"],
+      "expected_extracted_facts": [
+        {
+          "fact_kind": "income_annual",
+          "amount": 91400,
+          "currency": "USD",
+          "page": 1,
+          "quote": "Total income: $91,400"
+        }
+      ],
+      "tier1_targets": [
+        { "target": "license_front", "warn": true, "reason": "wrong_doc" }
+      ]
+    },
+    {
+      "id": "pay-stub-ytd",
+      "file": "files/pay-stub-ytd.pdf",
+      "mime_type": "application/pdf",
+      "reader": { "mode": "text" },
+      "document_kind": "pay_stub",
+      "pages": [
+        {
+          "page": 1,
+          "text": "SYNTHETIC PAY STUB\nPay period: 2026-01-01 to 2026-01-15\nGross pay: $3,000\nYTD earnings: $6,000\nAnnualized gross pay: $78,000\nNet pay: $2,250"
+        }
+      ],
+      "expected_source_snippets": ["Pay period:"],
+      "expected_extracted_facts": [
+        {
+          "fact_kind": "income_annual",
+          "amount": 78000,
+          "currency": "USD",
+          "page": 1,
+          "quote": "Annualized gross pay: $78,000"
+        }
+      ],
+      "tier1_targets": [{ "target": "pay_stub", "warn": false }]
+    },
+    {
+      "id": "bank-statement-checking",
+      "file": "files/bank-statement-checking.pdf",
+      "mime_type": "application/pdf",
+      "reader": { "mode": "text" },
+      "document_kind": "bank_statement",
+      "pages": [
+        {
+          "page": 1,
+          "text": "SYNTHETIC CHECKING STATEMENT\nStatement period: January 2026\nDeposits: $6,500\nWithdrawals: $4,250\nTotal monthly spending: $4,250\nEnding balance: $8,125"
+        }
+      ],
+      "expected_source_snippets": ["SYNTHETIC CHECKING STATEMENT"],
+      "expected_extracted_facts": [
+        {
+          "fact_kind": "spending_monthly",
+          "amount": 4250,
+          "currency": "USD",
+          "page": 1,
+          "quote": "Total monthly spending: $4,250"
+        }
+      ],
+      "tier1_targets": [{ "target": "bank_statement", "warn": false }]
+    },
+    {
+      "id": "credit-card-statement",
+      "file": "files/credit-card-statement.pdf",
+      "mime_type": "application/pdf",
+      "reader": { "mode": "text" },
+      "document_kind": "credit_card_statement",
+      "pages": [
+        {
+          "page": 1,
+          "text": "SYNTHETIC CREDIT CARD STATEMENT\nPurchases: $1,875\nMinimum payment: $50\nPayment due: 2026-02-10\nTotal monthly spending: $1,875\nCredit limit: $10,000"
+        }
+      ],
+      "expected_source_snippets": ["SYNTHETIC CREDIT CARD STATEMENT"],
+      "expected_extracted_facts": [
+        {
+          "fact_kind": "spending_monthly",
+          "amount": 1875,
+          "currency": "USD",
+          "page": 1,
+          "quote": "Total monthly spending: $1,875"
+        }
+      ],
+      "tier1_targets": [{ "target": "credit_card_statement", "warn": false }]
+    },
+    {
+      "id": "brokerage-statement-taxable",
+      "file": "files/brokerage-statement-taxable.pdf",
+      "mime_type": "application/pdf",
+      "reader": { "mode": "text" },
+      "document_kind": "brokerage_statement",
+      "pages": [
+        {
+          "page": 1,
+          "text": "SYNTHETIC TAXABLE BROKERAGE STATEMENT\nPortfolio value: $245,000\nHoldings: Index Fund\nAsset allocation: 70 percent equity\nUnrealized gain: $18,000"
+        }
+      ],
+      "expected_source_snippets": ["SYNTHETIC TAXABLE BROKERAGE STATEMENT"],
+      "expected_extracted_facts": [],
+      "tier1_targets": [{ "target": "brokerage_statement", "warn": false }]
+    },
+    {
+      "id": "ira-statement",
+      "file": "files/ira-statement.pdf",
+      "mime_type": "application/pdf",
+      "reader": { "mode": "text" },
+      "document_kind": "ira_statement",
+      "pages": [
+        {
+          "page": 1,
+          "text": "SYNTHETIC TRADITIONAL IRA STATEMENT\nRetirement account\nPortfolio value: $125,000\nHoldings: Bond Fund\nBrokerage statement"
+        }
+      ],
+      "expected_source_snippets": ["SYNTHETIC TRADITIONAL IRA STATEMENT"],
+      "expected_extracted_facts": [],
+      "tier1_targets": [{ "target": "ira_statement", "warn": false }]
+    },
+    {
+      "id": "medical-bill",
+      "file": "files/medical-bill.pdf",
+      "mime_type": "application/pdf",
+      "reader": { "mode": "text" },
+      "document_kind": "unknown",
+      "pages": [
+        {
+          "page": 1,
+          "text": "SYNTHETIC MEDICAL SERVICE INVOICE\nAmount due: $320\nPlease keep this made-up example private."
+        }
+      ],
+      "expected_source_snippets": [],
+      "expected_extracted_facts": [],
+      "tier1_targets": [{ "target": "medical_bill", "warn": false }]
+    },
+    {
+      "id": "blank-scan",
+      "file": "files/blank-scan.pdf",
+      "mime_type": "application/pdf",
+      "reader": { "mode": "scanned", "ocr_confidence": 42 },
+      "document_kind": "unknown",
+      "pages": [{ "page": 1, "text": "" }],
+      "expected_source_snippets": [],
+      "expected_extracted_facts": [],
+      "tier1_targets": [{ "target": "license_front", "warn": false }]
+    },
+    {
+      "id": "password-protected",
+      "file": "files/password-protected.pdf",
+      "mime_type": "application/pdf",
+      "reader": { "mode": "encrypted" },
+      "document_kind": "unknown",
+      "pages": [{ "page": 1, "text": "" }],
+      "expected_source_snippets": [],
+      "expected_extracted_facts": [],
+      "tier1_targets": [{ "target": "license_front", "warn": false }]
+    }
+  ]
+}

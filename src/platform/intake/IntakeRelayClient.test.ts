@@ -1,0 +1,193 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { egressFetch } from '@/platform/privacy/networkClient';
+import { IntakeRelayClient } from './IntakeRelayClient';
+
+vi.mock('@/platform/privacy/networkClient', () => ({
+  egressFetch: vi.fn(),
+}));
+
+const fetchMock = vi.fn();
+
+function jsonResponse(body: unknown): Response {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+function bytesToB64(bytes: Uint8Array): string {
+  let bin = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(bin);
+}
+
+describe('IntakeRelayClient inbox methods', () => {
+  beforeEach(() => {
+    fetchMock.mockReset();
+    vi.mocked(egressFetch).mockReset();
+    vi.mocked(egressFetch).mockImplementation(fetchMock as typeof egressFetch);
+  });
+
+  it('fetches the advisor inbox blobs and assembles sync chunks in index order', async () => {
+    const blobZero = new TextEncoder().encode('sealed-zero');
+    const blobOne = new TextEncoder().encode('sealed-one');
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      intake_id: 'intake-1',
+      cursor: 22,
+      latest_cursor: 25,
+      has_more: true,
+      submissions: [{
+        cursor: 22,
+        intake_id: 'intake-1',
+        item_id: 'ssn',
+        submission_id: 'submission-1',
+        submitted_at: '2026-07-10T00:00:00.000Z',
+        manifest_ciphertext_b64: 'manifest',
+        wrapped_content_key_b64: 'wrapped',
+        chunk_count: 2,
+        blobs: [
+          { blob_id: 102, index: 1, size: blobOne.byteLength },
+          { blob_id: 101, index: 0, size: blobZero.byteLength },
+        ],
+      }],
+    }))
+      .mockResolvedValueOnce(new Response(blobZero))
+      .mockResolvedValueOnce(new Response(blobOne));
+
+    const client = new IntakeRelayClient({
+      baseUrl: 'https://relay.example.test/',
+      seatToken: 'seat-token',
+      accessToken: 'access-token',
+    });
+
+    await expect(client.fetchInbox('intake-1', 14)).resolves.toEqual({
+      cursor: 22,
+      has_more: true,
+      submissions: [{
+        cursor: 22,
+        intake_id: 'intake-1',
+        item_id: 'ssn',
+        submission_id: 'submission-1',
+        submitted_at: '2026-07-10T00:00:00.000Z',
+        manifest_ciphertext_b64: 'manifest',
+        wrapped_content_key_b64: 'wrapped',
+        chunks: [
+          {
+            intake_id: 'intake-1',
+            item_id: 'ssn',
+            submission_id: 'submission-1',
+            index: 0,
+            ciphertext_b64: bytesToB64(blobZero),
+          },
+          {
+            intake_id: 'intake-1',
+            item_id: 'ssn',
+            submission_id: 'submission-1',
+            index: 1,
+            ciphertext_b64: bytesToB64(blobOne),
+          },
+        ],
+      }],
+    });
+    expect(egressFetch).toHaveBeenCalledWith(
+      'intake-relay',
+      'https://relay.example.test/intake/intake-1/inbox?cursor=14',
+      expect.objectContaining({
+        method: 'GET',
+        headers: {
+          'X-Seat-Token': 'seat-token',
+          Authorization: 'Bearer access-token',
+        },
+      }),
+    );
+    expect(egressFetch).toHaveBeenNthCalledWith(
+      2,
+      'intake-relay',
+      'https://relay.example.test/intake/intake-1/blob/101',
+      expect.objectContaining({
+        method: 'GET',
+        headers: {
+          'X-Seat-Token': 'seat-token',
+          Authorization: 'Bearer access-token',
+        },
+      }),
+    );
+    expect(egressFetch).toHaveBeenNthCalledWith(
+      3,
+      'intake-relay',
+      'https://relay.example.test/intake/intake-1/blob/102',
+      expect.objectContaining({
+        method: 'GET',
+        headers: {
+          'X-Seat-Token': 'seat-token',
+          Authorization: 'Bearer access-token',
+        },
+      }),
+    );
+  });
+
+  it('acks a routed submission with the existing relay ack contract', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ ok: true }));
+    const client = new IntakeRelayClient({
+      baseUrl: 'https://relay.example.test',
+      seatToken: 'seat-token',
+    });
+
+    await client.ackSubmission('intake-1', 'submission-1', 22);
+
+    expect(egressFetch).toHaveBeenCalledWith(
+      'intake-relay',
+      'https://relay.example.test/intake/intake-1/ack',
+      expect.objectContaining({
+        method: 'POST',
+        headers: {
+          'X-Seat-Token': 'seat-token',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          submission_ids: ['submission-1'],
+          cursor: 22,
+        }),
+      }),
+    );
+  });
+
+  it('routes each link-management and granted-intake request through the intake relay sink', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ ok: true, intake_id: 'intake-1', expires_at: '2026-08-01T00:00:00.000Z' }))
+      .mockResolvedValueOnce(jsonResponse({ ok: true, expires_at: '2026-09-01T00:00:00.000Z' }))
+      .mockResolvedValueOnce(jsonResponse({ ok: true }))
+      .mockResolvedValueOnce(jsonResponse({ ok: true }))
+      .mockResolvedValueOnce(jsonResponse({ intakes: [] }));
+    const client = new IntakeRelayClient({
+      baseUrl: 'https://relay.example.test',
+      seatToken: 'seat-token',
+    });
+
+    await client.createIntake({
+      intake_id: 'intake-1', auth_token: 'opaque', expires_at: '2026-08-01T00:00:00.000Z',
+      checklist_ciphertext_b64: 'checklist', state_ciphertext_b64: 'state', checklist_version: 1,
+    });
+    await client.extendIntake('intake-1', '2026-09-01T00:00:00.000Z');
+    await client.revokeIntake('intake-1');
+    await client.regenerateIntake('intake-1', {
+      token_b64: 'token', checklist_ciphertext_b64: 'checklist', state_ciphertext_b64: 'state',
+    });
+    await client.listGrantedIntakes('device-1');
+
+    expect(egressFetch).toHaveBeenCalledTimes(5);
+    for (const call of vi.mocked(egressFetch).mock.calls) {
+      expect(call[0]).toBe('intake-relay');
+    }
+    const lastRequest = vi.mocked(egressFetch).mock.lastCall;
+    expect(lastRequest?.[0]).toBe('intake-relay');
+    expect(lastRequest?.[1]).toBe('https://relay.example.test/intake/granted');
+    expect(lastRequest?.[2]?.headers).toEqual(
+      expect.objectContaining({ 'X-Device-Id': 'device-1' }),
+    );
+  });
+});

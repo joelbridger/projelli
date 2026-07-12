@@ -770,6 +770,10 @@ mod tests {
             received_date_time: None, provider: "m365".to_string(), account: "default".to_string(),
             subject: String::new(), from_addr: String::new(), from_name: String::new(),
             snippet: String::new(), has_attachments: false,
+            thread_id: None,
+            auth_result: crate::commands::mail::model::MailAuthResult::missing(),
+            attachment_refs: Vec::new(),
+            attachments_unsupported: false,
         }).unwrap();
         let key = crate::commands::rag::crypto::get_or_create_master_key().unwrap();
         let conn = crate::commands::rag::store::open_connection(workspace).await.unwrap();

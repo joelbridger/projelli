@@ -1,6 +1,8 @@
 use mail_parser::{Address, HeaderValue, MessageParser};
 
-use crate::commands::mail::model::{BodyContentType, MailMessage, Recipient};
+use crate::commands::mail::model::{
+    BodyContentType, MailAuthResult, MailAuthSource, MailMessage, Recipient,
+};
 
 /// Convert an `Address` (List or Group) into a `Vec<Recipient>`.
 fn addr_to_recipients(addr: &Address<'_>) -> Vec<Recipient> {
@@ -47,14 +49,8 @@ pub fn from_rfc822(id: &str, account: &str, mailbox: &str, raw: &[u8]) -> Option
         .unwrap_or((None, None));
 
     // To / Cc
-    let to = msg
-        .to()
-        .map(|a| addr_to_recipients(a))
-        .unwrap_or_default();
-    let cc = msg
-        .cc()
-        .map(|a| addr_to_recipients(a))
-        .unwrap_or_default();
+    let to = msg.to().map(|a| addr_to_recipients(a)).unwrap_or_default();
+    let cc = msg.cc().map(|a| addr_to_recipients(a)).unwrap_or_default();
 
     // Message-ID (mail-parser 0.11 already strips the surrounding <>)
     let internet_message_id = msg
@@ -135,6 +131,14 @@ pub fn from_rfc822(id: &str, account: &str, mailbox: &str, raw: &[u8]) -> Option
 
     // Attachments
     let has_attachments = msg.attachment_count() > 0;
+    let auth_headers: Vec<(&str, &str)> = msg
+        .headers_raw()
+        .filter(|(name, _)| {
+            name.eq_ignore_ascii_case("Authentication-Results")
+                || name.eq_ignore_ascii_case("ARC-Authentication-Results")
+                || name.eq_ignore_ascii_case("Received-SPF")
+        })
+        .collect();
 
     Some(MailMessage {
         id: id.to_string(),
@@ -147,6 +151,9 @@ pub fn from_rfc822(id: &str, account: &str, mailbox: &str, raw: &[u8]) -> Option
         to,
         cc,
         has_attachments,
+        attachments_unsupported: has_attachments,
+        auth_result: MailAuthResult::from_headers(MailAuthSource::Imap, auth_headers),
+        attachments: Vec::new(),
         body_content_type,
         body_text,
         folders: vec![mailbox.to_string()],
@@ -205,6 +212,51 @@ mod tests {
         let raw = b"Subject: Reply\r\nMessage-ID: <reply@x.com>\r\nIn-Reply-To: <parent@x.com>\r\n\r\nbody\r\n";
         let m = from_rfc822("uid-5", "a", "INBOX", raw).expect("parse");
         assert_eq!(m.thread_id.as_deref(), Some("parent@x.com"));
+    }
+
+    #[test]
+    fn imap_auth_missing_never_defaults_to_pass() {
+        let m = from_rfc822("uid-auth-missing", "a", "INBOX", RAW).expect("parse");
+        assert_eq!(
+            m.auth_result.dkim,
+            crate::commands::mail::model::MailAuthVerdict::None
+        );
+        assert_eq!(
+            m.auth_result.spf,
+            crate::commands::mail::model::MailAuthVerdict::None
+        );
+        assert_eq!(
+            m.auth_result.dmarc,
+            crate::commands::mail::model::MailAuthVerdict::None
+        );
+        assert_eq!(
+            m.auth_result.source,
+            crate::commands::mail::model::MailAuthSource::Missing
+        );
+        assert!(!m.auth_result.aligned);
+    }
+
+    #[test]
+    fn imap_auth_headers_are_parsed_when_present() {
+        let raw = b"From: Pat H <pat@hender.com>\r\nTo: Me <me@firm.com>\r\nSubject: Auth\r\nMessage-ID: <auth@hender.com>\r\nAuthentication-Results: mx.example; dkim=pass header.d=hender.com; spf=pass smtp.mailfrom=hender.com; dmarc=pass header.from=hender.com\r\n\r\nHi\r\n";
+        let m = from_rfc822("uid-auth", "a", "INBOX", raw).expect("parse");
+        assert_eq!(
+            m.auth_result.dkim,
+            crate::commands::mail::model::MailAuthVerdict::Pass
+        );
+        assert_eq!(
+            m.auth_result.spf,
+            crate::commands::mail::model::MailAuthVerdict::Pass
+        );
+        assert_eq!(
+            m.auth_result.dmarc,
+            crate::commands::mail::model::MailAuthVerdict::Pass
+        );
+        assert!(m.auth_result.aligned);
+        assert_eq!(
+            m.auth_result.source,
+            crate::commands::mail::model::MailAuthSource::Imap
+        );
     }
 
     #[test]

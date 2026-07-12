@@ -188,6 +188,9 @@ pub fn run() {
             commands::mail::mail_clear_matter_filings,
             // Fetch one attachment's bytes on demand (never writes to disk).
             commands::mail::mail_get_attachment,
+            // Save one provider attachment directly into the workspace; bytes
+            // do not cross into the renderer.
+            commands::mail::mail_persist_attachment,
             // Option B — heal mail RAG indexing that failed while the embedding
             // model was still downloading (no-op when the marker is absent).
             commands::mail::mail_backfill_rag,
@@ -229,6 +232,30 @@ pub fn run() {
             commands::crm::commands::crm_approve_write_proposal,
             commands::crm::commands::crm_list_write_proposals,
             commands::crm::commands::crm_delete_write_proposal,
+            // Lantern Intake — encrypted facts store and audit-gated reveals/purges.
+            commands::intake::intake_set_workspace,
+            commands::intake::intake_pdf_template_artifact_write,
+            commands::intake::intake_pdf_template_artifact_read,
+            commands::intake::intake_pdf_template_artifact_delete,
+            commands::intake::intake_fact_upsert,
+            commands::intake::intake_fact_list,
+            commands::intake::intake_fact_reveal,
+            commands::intake::intake_fact_purge,
+            commands::intake::intake_email_reply_save_proposal,
+            commands::intake::intake_email_reply_save_quarantine,
+            commands::intake::intake_email_reply_list_proposals,
+            commands::intake::intake_email_reply_get_proposal,
+            commands::intake::intake_email_reply_mark_row_completed,
+            commands::intake::intake_email_reply_set_proposal_status,
+            commands::intake::intake_document_extraction_save_proposal,
+            commands::intake::intake_document_extraction_list_proposals,
+            commands::intake::intake_document_extraction_get_proposal,
+            commands::intake::intake_document_extraction_accept_row,
+            commands::intake::intake_document_extraction_mark_row_completed,
+            commands::intake::intake_document_extraction_set_proposal_status,
+            commands::intake::intake_email_reply_list_quarantines,
+            commands::intake::intake_email_reply_get_quarantine,
+            commands::intake::intake_email_reply_set_quarantine_status,
             // Lantern-Plus Track 2 — generic approval-gated writeback engine.
             commands::writeback::commands::external_write_set_workspace,
             commands::writeback::commands::external_write_save_proposal,
@@ -457,6 +484,8 @@ pub fn run() {
             commands::firm::sso::manage_state(app);
             // Advisor Prep Hero 3.0 — manage encrypted audit-store state (active workspace).
             commands::audit::manage_state(app);
+            // Lantern Intake — manage encrypted fact-store state (active workspace).
+            commands::intake::manage_state(app);
             // Onboarding/setup progress — register the aggregator state + the
             // listeners that bridge the five per-source events into one
             // `setup-progress-changed` notification.

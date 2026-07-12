@@ -115,6 +115,10 @@ pub const ONEDRIVE_ENC_SERVICE: &str = concat!(app_ns!(), "-onedrive-enc");
 /// CRM connector DB encryption key service.
 pub const CRM_ENC_SERVICE: &str = concat!(app_ns!(), "-crm-enc");
 
+/// Intake facts SQLCipher database encryption key service.
+pub const INTAKE_FACTS_ENC_SERVICE: &str = concat!(app_ns!(), "-intake-facts-enc");
+/// Master-key service for large encrypted PDF template artifacts.
+pub const INTAKE_PDF_TEMPLATES_ENC_SERVICE: &str = concat!(app_ns!(), "-intake-pdf-templates-enc");
 /// External write-back ledger DB encryption key service.
 pub const WRITEBACK_ENC_SERVICE: &str = concat!(app_ns!(), "-writeback-enc");
 

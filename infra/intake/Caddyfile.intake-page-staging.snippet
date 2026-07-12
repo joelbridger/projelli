@@ -1,0 +1,38 @@
+# STAGING ONLY: add this handle block inside the existing :8080 Caddy site.
+# Do not use this for production cutover.
+
+    @intake_page_staging host intake-staging.lanternplatform.app
+    log @intake_page_staging {
+        output file /var/log/caddy/intake-page-staging.access.log {
+            roll_keep 1
+            roll_keep_for 24h
+        }
+    }
+
+    handle @intake_page_staging {
+        header {
+            Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'; worker-src 'self'; manifest-src 'self'"
+            Referrer-Policy "no-referrer"
+            X-Content-Type-Options "nosniff"
+            X-Frame-Options "DENY"
+            Permissions-Policy "accelerometer=(), ambient-light-sensor=(), autoplay=(), battery=(), camera=(), display-capture=(), document-domain=(), encrypted-media=(), fullscreen=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), publickey-credentials-get=(), usb=(), xr-spatial-tracking=()"
+            Cross-Origin-Opener-Policy "same-origin"
+            Cross-Origin-Resource-Policy "same-origin"
+            Cache-Control "no-store"
+        }
+
+        route {
+            reverse_proxy /intake/* 127.0.0.1:5195
+
+            handle_path /_releases/* {
+                root * /var/www/lantern-intake-staging/releases
+                file_server
+            }
+
+            handle {
+                root * /var/www/lantern-intake-staging/current
+                try_files {path} /index.html
+                file_server
+            }
+        }
+    }

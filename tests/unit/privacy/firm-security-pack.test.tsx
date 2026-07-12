@@ -31,8 +31,14 @@ vi.mock('@/platform/privacy/ui/DataMapDialog', () => ({
 // Canonical egress facts we'll assert against — derived from egress.ts, not
 // hand-typed, so the test stays in sync with the source of truth.
 // ---------------------------------------------------------------------------
-const LOCAL_ONLY_NOTE = resolveEgress({ provider: 'ollama', mode: 'local-only' }).note;
-const DIRECT_NOTE = resolveEgress({ provider: 'anthropic', mode: 'direct' }).note;
+const LOCAL_ONLY_NOTE = resolveEgress({
+  provider: 'ollama',
+  mode: 'local-only',
+}).note;
+const DIRECT_NOTE = resolveEgress({
+  provider: 'anthropic',
+  mode: 'direct',
+}).note;
 const ASSURED_NOTE = resolveEgress({
   provider: 'anthropic',
   mode: 'assured',
@@ -63,9 +69,9 @@ describe('FirmSecurityPack — renders without crashing', () => {
 
   it('shows the opening disclaimer', () => {
     render(<FirmSecurityPackContent />);
-    expect(screen.getByTestId('firm-security-pack-content').textContent).toContain(
-      'Every claim here matches how the software actually works'
-    );
+    expect(
+      screen.getByTestId('firm-security-pack-content').textContent
+    ).toContain('Every claim here matches how the software actually works');
   });
 });
 
@@ -187,7 +193,9 @@ describe('FirmSecurityPack — honest assurance status', () => {
     expect(text).toContain('independent audit');
     // Must indicate the proxy is not yet generally available or not yet a
     // production service.
-    expect(text).toMatch(/not yet.*generally available|generally available.*not yet|not yet.*production/);
+    expect(text).toMatch(
+      /not yet.*generally available|generally available.*not yet|not yet.*production/
+    );
   });
 });
 
@@ -219,5 +227,22 @@ describe('FirmSecurityPack — required sections', () => {
   it('has a "Keys and accounts" section', () => {
     const text = renderAndGetText();
     expect(text).toContain('Keys and accounts');
+  });
+
+  it('has the secure client links review section with the honest relay boundary', () => {
+    const text = renderAndGetText();
+    expect(text).toContain('Intake / secure client links');
+    expect(text).toContain('The relay can see');
+    expect(text).toContain("It cannot see a client's name");
+    expect(text).toContain('Social Security numbers');
+    expect(text).toContain('file names or file contents');
+    expect(text).toContain('Email fallback is a separate channel');
+  });
+
+  it('gives reviewers a checklist before secure links are enabled', () => {
+    const text = renderAndGetText();
+    expect(text).toContain('Reviewer checklist before enabling Intake');
+    expect(text).toContain('no third-party code, analytics, or CDN');
+    expect(text).toContain('email fallback is not end-to-end encrypted');
   });
 });

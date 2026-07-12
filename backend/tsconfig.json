@@ -15,5 +15,13 @@
     "noFallthroughCasesInSwitch": true,
     "types": ["bun-types"]
   },
-  "include": ["src", "test"]
+  "include": ["src", "test"],
+  // The E2E test is the one file that imports the real FRONTEND intake modules
+  // (page + advisor) to exercise the true page->relay->sync wire contract. That
+  // cross-boundary import can't be typechecked under the backend tsconfig (the
+  // frontend needs its own lib/types), and pulling `@/*` in drags the whole
+  // frontend tree into this check. It is fully exercised + type-stripped-and-run
+  // by `bun test` (which resolves `@/` via the root tsconfig at runtime), so it
+  // is excluded from `tsc` here rather than degrading the backend type project.
+  "exclude": ["test/intake-e2e.test.ts"]
 }

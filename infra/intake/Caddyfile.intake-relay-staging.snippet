@@ -1,0 +1,25 @@
+# STAGING ONLY: add this handle block inside the existing :8080 Caddy site.
+# Lane B owns the relay routes. This file only documents the staged reverse-proxy
+# and hardening headers expected for that service.
+
+    @intake_relay_staging host intake-relay-staging.lanternplatform.app
+    log @intake_relay_staging {
+        output file /var/log/caddy/intake-relay-staging.access.log {
+            roll_keep 1
+            roll_keep_for 24h
+        }
+    }
+
+    handle @intake_relay_staging {
+        reverse_proxy 127.0.0.1:5195
+
+        header {
+            Content-Security-Policy "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'"
+            Referrer-Policy "no-referrer"
+            X-Content-Type-Options "nosniff"
+            X-Frame-Options "DENY"
+            Permissions-Policy "accelerometer=(), ambient-light-sensor=(), autoplay=(), battery=(), camera=(), display-capture=(), document-domain=(), encrypted-media=(), fullscreen=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), publickey-credentials-get=(), usb=(), xr-spatial-tracking=()"
+            Access-Control-Allow-Origin "https://intake-staging.lanternplatform.app"
+            Vary "Origin"
+        }
+    }

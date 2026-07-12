@@ -17,10 +17,24 @@
 
 import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Lock, FileText, Mail, Clock, Loader2, Map, Mic, MoreVertical } from 'lucide-react';
+import { ClipboardList, Lock, FileText, Mail, Clock, Loader2, Map, Mic, MoreVertical } from 'lucide-react';
 import { ClientMeetingsTab } from '@/features/meetings/ClientMeetingsTab';
+import { ClientRequestsTab } from '@/features/intake/ClientRequestsTab';
 import { isTauri } from '@tauri-apps/api/core';
 import { useMatters, useActiveMatterPrivileged, useMatterStore, SAMPLE_MATTER_ID, type ClientMapHubTab } from '@/platform/matter/matterStore';
+import { useIntakeStore } from '@/platform/intake/intakeStore';
+import { IntakeRelayClient } from '@/platform/intake/IntakeRelayClient';
+import { loadIntakeLinkSecret, updateIntakeLinkSecret } from '@/platform/intake/intakeKeychain';
+import { deriveAuthToken } from '@/platform/intake/intakeCrypto';
+import { regenerateIntakeLink } from '@/platform/intake/intakeLifecycle';
+import { createAdvisorIntake } from '@/platform/intake/createIntake';
+import type { FormRequest } from '@/platform/intake/types';
+import { b64ToBytes } from '@/platform/intake/pageSeal';
+import { useFirmStore } from '@/platform/firm/firmStore';
+import { BRAND } from '@/config/brand';
+import { FirmApiClient } from '@/platform/firm/FirmApiClient';
+import { publishIntakeKeyToMembers } from '@/platform/intake/intakeKeyShare';
+import { createAuditPairId, mustLogAuditPhase } from '@/platform/audit/durableAudit';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { Badge, IconButton, QuietStatus, SlidePanel } from '@/ui/kp';
@@ -39,6 +53,9 @@ import { BeforeYouMeetStrip } from '@/features/meetings/BeforeYouMeetStrip';
 import { CrmWriteReviewCard } from '@/features/matters/CrmWriteReviewCard';
 import { CrmWritePendingBanner } from '@/features/matters/CrmWritePendingBanner';
 import { VoiceprintsCard } from '@/features/matters/VoiceprintsCard';
+import { DEFAULT_WELCOME_JOURNEY } from '@/platform/intake/welcomeJourneyDefaults';
+import { NEW_HOUSEHOLD_NEXT_STEPS } from '@/features/intake/newHouseholdTemplate';
+import { firmMatterIdForIntakeSharing } from './logic/intakeFirmMatter';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useCrmStore } from '@/platform/connectors/crm/crmStore';
@@ -92,6 +109,7 @@ type HubTab = ClientMapHubTab;
 
 const HUB_TABS: { id: HubTab; Icon: typeof FileText }[] = [
   { id: 'overview', Icon: Map },
+  { id: 'onboarding', Icon: ClipboardList },
   { id: 'documents', Icon: FileText },
   { id: 'email', Icon: Mail },
   { id: 'meetings', Icon: Mic },
@@ -103,6 +121,8 @@ function hubTabLabel(id: HubTab, t: (key: string) => string): string {
   switch (id) {
     case 'overview':
       return t('spine.nav.client-map');
+    case 'onboarding':
+      return 'Requests';
     case 'documents':
       return t('matter.hub.tab-documents');
     case 'email':
@@ -133,6 +153,32 @@ function formatClientMapUpdated(
   }));
 }
 
+function intakeHost(): string {
+  const env = (import.meta as { env?: { VITE_INTAKE_HOST?: string } }).env?.VITE_INTAKE_HOST;
+  return (env && env.trim()) || 'https://forms.lanternplatform.app';
+}
+
+function addDaysIso(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString();
+}
+
+const INTAKE_LINK_SECRET_SAVE_ATTEMPTS = 3;
+
+async function saveIntakeLinkSecretWithRetry(intakeId: string, linkSecretB64: string): Promise<boolean> {
+  let saveFailures = 0;
+  for (let attempt = 0; attempt < INTAKE_LINK_SECRET_SAVE_ATTEMPTS; attempt += 1) {
+    try {
+      await updateIntakeLinkSecret(intakeId, linkSecretB64);
+      return true;
+    } catch {
+      saveFailures += 1;
+    }
+  }
+  return saveFailures < INTAKE_LINK_SECRET_SAVE_ATTEMPTS;
+}
+
 // ── MatterHub ──────────────────────────────────────────────────────────────
 
 export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, renderEmail, renderActivity, workspaceService }: MatterHubProps) {
@@ -151,6 +197,12 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
   const workspaceRoot = useWorkspaceStore((s) => s.rootPath);
   const matters = useMatters();
   const matter = matters.find((m) => m.id === matterId) ?? null;
+  const updateIntake = useIntakeStore((s) => s.updateIntake);
+  const seatToken = useFirmStore((s) => s.seatToken);
+  const accessToken = useFirmStore((s) => s.accessToken);
+  const advisorId = useFirmStore((s) => s.session?.userId ?? 'advisor');
+  const firmSession = useFirmStore((s) => s.session);
+  const visibleHubTabs = HUB_TABS;
   const isPrivileged = useActiveMatterPrivileged();
   const entityLabel = useEntityLabel();
   // The per-tab AI-status pill (same as Ask / Workflows) — the single, deduped
@@ -162,6 +214,8 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
   // sub-tab instead of a global surface.
   const pendingHubTab = useMatterStore((s) => s.clientMapHubTab);
   const setPendingHubTab = useMatterStore((s) => s.setClientMapHubTab);
+  const pendingRequestId = useMatterStore((s) => s.clientMapHubRequestId);
+  const setPendingRequestId = useMatterStore((s) => s.setClientMapHubRequestId);
   // The initializer above seeds the sub-tab from any pending request on mount.
   // Resetting to Overview when the CLIENT changes is handled by the per-matter
   // key on MatterHub (MattersHome keys it by matterId, so a client switch
@@ -262,6 +316,150 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
   const handleOpenSource = useCallback((ref: SourceRef) => {
     dispatchOpenSource(matterId, ref);
   }, [matterId]);
+
+  const makeIntakeRelay = useCallback(() => {
+    if (!seatToken) throw new Error('Sign in and activate this machine before changing an onboarding link.');
+    return new IntakeRelayClient({ seatToken, accessToken });
+  }, [accessToken, seatToken]);
+
+  const handleExtendIntake = useCallback(async (intakeId: string) => {
+    const expiresAt = addDaysIso(30);
+    await makeIntakeRelay().extendIntake(intakeId, expiresAt);
+    updateIntake(intakeId, { expiresAt, status: 'active' });
+  }, [makeIntakeRelay, updateIntake]);
+
+  const handleRevokeIntake = useCallback(async (intakeId: string) => {
+    await makeIntakeRelay().revokeIntake(intakeId);
+    updateIntake(intakeId, { status: 'revoked' });
+  }, [makeIntakeRelay, updateIntake]);
+
+  const handleIssueRequest = useCallback(async (request: FormRequest) => {
+    if (!matter) throw new Error('This client is no longer available.');
+    const firmName = firmSession?.org?.name ?? BRAND.name;
+    const clientFirstName = (matter.name || matter.client || 'Client').trim().split(/\s+/u)[0] || 'Client';
+    const firmMatterId = firmMatterIdForIntakeSharing(matter);
+    await createAdvisorIntake({
+      intakeId: request.request_id,
+      matterId,
+      intakeHost: intakeHost(),
+      expiresAt: addDaysIso(30),
+      checklist: request,
+      ...(request.blueprint_ref ? {} : { requestTitle: 'Client request' }),
+      clientFirstName,
+      firm: {
+        name: firmName,
+        accent: BRAND.colors.accent,
+        advisor_name: (firmSession?.email ?? '').split('@')[0] || 'Your advisor',
+        advisor_email: firmSession?.email ?? BRAND.urls.supportEmail,
+        next_steps: [...NEW_HOUSEHOLD_NEXT_STEPS],
+        journey: DEFAULT_WELCOME_JOURNEY,
+      },
+      relay: makeIntakeRelay(),
+      ...(firmSession?.tier === 'practice' && firmSession.activated && firmMatterId
+        ? { publishTeamKey: async (intakeId: string) => {
+            await publishIntakeKeyToMembers(new FirmApiClient(useFirmStore.getState().tokenSource()), intakeId, firmMatterId, 1, { firmEntitled: true });
+          } }
+        : {}),
+    });
+  }, [firmSession, makeIntakeRelay, matter, matterId]);
+
+  const handleRegenerateIntake = useCallback(async (intakeId: string) => {
+    const current = useIntakeStore.getState().intakesById[intakeId];
+    if (!current?.publicKeyRawB64 || !current.checklistCiphertextB64 || !current.stateCiphertextB64) {
+      throw new Error('This link is missing its saved encrypted checklist.');
+    }
+    const oldSecretB64 = await loadIntakeLinkSecret(intakeId);
+    if (!oldSecretB64) throw new Error('This link is missing its saved secret.');
+    const regenerated = await regenerateIntakeLink({
+      intakeId,
+      intakeHost: intakeHost(),
+      publicKeyRaw: b64ToBytes(current.publicKeyRawB64),
+      checklistCiphertextB64: current.checklistCiphertextB64,
+      stateCiphertextB64: current.stateCiphertextB64,
+      oldLinkSecret: b64ToBytes(oldSecretB64),
+    });
+    const relay = makeIntakeRelay();
+    await relay.regenerateIntake(intakeId, {
+      token_b64: regenerated.tokenB64,
+      checklist_ciphertext_b64: regenerated.checklistCiphertextB64,
+      state_ciphertext_b64: regenerated.stateCiphertextB64,
+    });
+    const savedNewSecret = await saveIntakeLinkSecretWithRetry(intakeId, regenerated.linkSecretB64);
+    if (!savedNewSecret) {
+      let restoredPreviousLink = false;
+      let restoreFailed = false;
+      try {
+        const oldToken = (await deriveAuthToken(b64ToBytes(oldSecretB64))).tokenB64;
+        // W2-COORD-FIX-REGEN-COMPENSATE
+        await relay.regenerateIntake(intakeId, {
+          token_b64: oldToken,
+          checklist_ciphertext_b64: current.checklistCiphertextB64,
+          state_ciphertext_b64: current.stateCiphertextB64,
+        });
+        restoredPreviousLink = true;
+      } catch {
+        restoreFailed = true;
+      }
+      if (restoredPreviousLink) {
+        throw new Error(
+          'The client onboarding link was regenerated on the server, but this device could not save it in secure storage. The previous link was restored and still works. Try regenerate again once secure storage is available.',
+        );
+      }
+      if (restoreFailed) {
+        throw new Error(
+          'The client onboarding link was regenerated on the server, but this device could not save it in secure storage. Lantern could not restore the previous link automatically. Try regenerate again once secure storage is available.',
+        );
+      }
+      throw new Error(
+        'The client onboarding link was regenerated on the server, but this device could not save it in secure storage. Try regenerate again once secure storage is available.',
+      );
+    }
+    updateIntake(intakeId, {
+      link: regenerated.link,
+      status: 'active',
+      checklistCiphertextB64: regenerated.checklistCiphertextB64,
+      stateCiphertextB64: regenerated.stateCiphertextB64,
+    });
+  }, [makeIntakeRelay, updateIntake]);
+
+  const handleShareIntakeWithTeam = useCallback(async (intakeId: string) => {
+    const current = useIntakeStore.getState().intakesById[intakeId];
+    const firm = useFirmStore.getState();
+    if (!current || !firm.session?.activated || firm.session.tier !== 'practice' || !firm.seatToken) {
+      throw new Error('Team sharing is available with an active Firm seat.');
+    }
+    // This action changes who may receive the key. Refuse before the network
+    // effect if the durable audit trail is unavailable.
+    if (!onAuditLog) throw new Error('Team sharing needs the audit log available first.');
+    const pairId = createAuditPairId('intake_key_share');
+    const entry = {
+      action: 'matter_shared' as const,
+      description: 'Shared an intake decryption key with the current firm team.',
+      model: undefined,
+      inputs: { intakeId, matterId: current.matterId },
+      outputs: {},
+      userDecision: 'approved' as const,
+      metadata: { intakeId, matterId: current.matterId, audit_pair_id: pairId },
+    };
+    await mustLogAuditPhase(onAuditLog, entry, 'intent', pairId);
+    try {
+      await publishIntakeKeyToMembers(
+        new FirmApiClient(firm.tokenSource()),
+        intakeId,
+        current.matterId,
+        1,
+        { firmEntitled: true },
+      );
+      await mustLogAuditPhase(onAuditLog, entry, 'outcome', pairId);
+    } catch (error) {
+      await mustLogAuditPhase(onAuditLog, {
+        ...entry,
+        description: 'Could not share an intake decryption key with the firm team.',
+        outputs: { error: error instanceof Error ? error.message : 'unknown' },
+      }, 'outcome', pairId);
+      throw error;
+    }
+  }, [onAuditLog]);
 
   const handleEditItem = useCallback((sectionKey: string, itemId: string) => {
     void (async () => {
@@ -511,7 +709,7 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                 </DropdownMenuContent>
               </DropdownMenu>
               <div role="tablist" aria-label={t('matter.hub.sections-aria')} data-testid="hub-subtab-bar" style={{ display: 'flex', alignItems: 'center', gap: 2, minWidth: 0, flexWrap: 'wrap' }}>
-                {HUB_TABS.map(({ id }) => {
+                {visibleHubTabs.map(({ id }) => {
                   const active = subTab === id;
                   return (
                     <button
@@ -711,6 +909,25 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
         {subTab === 'documents' && (
           <div data-testid="hub-subtab-panel-documents" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
             {renderDocuments ? renderDocuments(matter) : <SubTabUnavailable label={t('matter.hub.tab-documents')} />}
+          </div>
+        )}
+
+        {subTab === 'onboarding' && (
+          <div data-testid="hub-subtab-panel-onboarding" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+            <ClientRequestsTab
+              matterId={matterId}
+              clientName={matter.name || matter.client || 'Client'}
+              advisorId={advisorId}
+              issueRequest={handleIssueRequest}
+              activeRequestId={pendingRequestId}
+              onActiveRequestConsumed={() => { setPendingRequestId(null); }}
+              onExtend={handleExtendIntake}
+              onRevoke={handleRevokeIntake}
+              onRegenerate={handleRegenerateIntake}
+              onShareWithTeam={handleShareIntakeWithTeam}
+              {...(workspaceService !== undefined ? { workspaceService } : {})}
+              matterFolderPath={matter.folderPaths[0] ?? ''}
+            />
           </div>
         )}
 

@@ -75,18 +75,16 @@ pub fn to_markdown(m: &MailMessage) -> String {
         (_, Some(a)) => a.clone(),
         _ => String::new(),
     };
-    let to = m
-        .to
-        .iter()
-        .map(fmt_recipient)
-        .collect::<Vec<_>>()
-        .join(", ");
-    let cc = m
-        .cc
-        .iter()
-        .map(fmt_recipient)
-        .collect::<Vec<_>>()
-        .join(", ");
+    let to =
+        m.to.iter()
+            .map(fmt_recipient)
+            .collect::<Vec<_>>()
+            .join(", ");
+    let cc =
+        m.cc.iter()
+            .map(fmt_recipient)
+            .collect::<Vec<_>>()
+            .join(", ");
     let body = match m.body_content_type {
         BodyContentType::Html => html_to_text(&m.body_text),
         BodyContentType::Text => m.body_text.clone(),
@@ -105,10 +103,16 @@ pub fn to_markdown(m: &MailMessage) -> String {
         s.push_str(&format!("thread_id: \"{}\"\n", yaml_escape(t)));
     }
     if !m.folders.is_empty() {
-        s.push_str(&format!("folders: \"{}\"\n", yaml_escape(&m.folders.join(", "))));
+        s.push_str(&format!(
+            "folders: \"{}\"\n",
+            yaml_escape(&m.folders.join(", "))
+        ));
     }
     if !m.provider.is_empty() {
         s.push_str(&format!("provider: \"{}\"\n", yaml_escape(&m.provider)));
+    }
+    if !m.account.is_empty() {
+        s.push_str(&format!("account: \"{}\"\n", yaml_escape(&m.account)));
     }
     s.push_str(&format!("from: \"{}\"\n", yaml_escape(&from)));
     s.push_str(&format!("to: \"{}\"\n", yaml_escape(&to)));
@@ -119,6 +123,19 @@ pub fn to_markdown(m: &MailMessage) -> String {
         s.push_str(&format!("date: \"{}\"\n", yaml_escape(d)));
     }
     s.push_str(&format!("has_attachments: {}\n", m.has_attachments));
+    if m.attachments_unsupported {
+        s.push_str("attachments_unsupported: true\n");
+    }
+    let auth_json = serde_json::to_string(&m.auth_result).unwrap_or_else(|_| "{}".to_string());
+    s.push_str(&format!("auth_result: \"{}\"\n", yaml_escape(&auth_json)));
+    if !m.attachments.is_empty() {
+        let attachments_json =
+            serde_json::to_string(&m.attachments).unwrap_or_else(|_| "[]".to_string());
+        s.push_str(&format!(
+            "attachments: \"{}\"\n",
+            yaml_escape(&attachments_json)
+        ));
+    }
     s.push_str("source: microsoft365\n");
     s.push_str("---\n\n");
     let heading_subject = m.subject.replace(['\r', '\n'], " ");
@@ -152,6 +169,9 @@ mod tests {
             provider: "m365".into(),
             account: String::new(),
             has_attachments: false,
+            attachments_unsupported: false,
+            auth_result: Default::default(),
+            attachments: Vec::new(),
             body_content_type: BodyContentType::Text,
             body_text: "Confirming May 14.".into(),
         }
@@ -193,12 +213,18 @@ mod tests {
     fn message_id_and_conversation_id_and_date_are_quoted() {
         // FIX E: all three fields must be quoted + yaml_escape'd, not bare values
         let md = to_markdown(&msg());
-        assert!(md.contains("message_id: \"AAMk-123\""),
-            "message_id must be quoted, got:\n{md}");
-        assert!(md.contains("conversation_id: \"conv-9\""),
-            "conversation_id must be quoted, got:\n{md}");
-        assert!(md.contains("date: \"2026-05-01T14:30:00Z\""),
-            "date must be quoted, got:\n{md}");
+        assert!(
+            md.contains("message_id: \"AAMk-123\""),
+            "message_id must be quoted, got:\n{md}"
+        );
+        assert!(
+            md.contains("conversation_id: \"conv-9\""),
+            "conversation_id must be quoted, got:\n{md}"
+        );
+        assert!(
+            md.contains("date: \"2026-05-01T14:30:00Z\""),
+            "date must be quoted, got:\n{md}"
+        );
     }
 
     #[test]
@@ -208,14 +234,20 @@ mod tests {
         m.subject = "Line one\nLine two".into();
         let md = to_markdown(&m);
         // The heading must be a single line
-        assert!(md.contains("# Line one Line two\n"),
-            "heading should collapse newline to space, got:\n{md}");
+        assert!(
+            md.contains("# Line one Line two\n"),
+            "heading should collapse newline to space, got:\n{md}"
+        );
         // The frontmatter subject keeps the value on ONE physical line: the
         // newline is now escaped as the two characters backslash-n, never raw.
-        assert!(md.contains("subject: \"Line one\\nLine two\""),
-            "frontmatter subject must escape the newline, got:\n{md}");
-        assert!(!md.contains("subject: \"Line one\nLine two\""),
-            "frontmatter subject must NOT contain a raw newline, got:\n{md}");
+        assert!(
+            md.contains("subject: \"Line one\\nLine two\""),
+            "frontmatter subject must escape the newline, got:\n{md}"
+        );
+        assert!(
+            !md.contains("subject: \"Line one\nLine two\""),
+            "frontmatter subject must NOT contain a raw newline, got:\n{md}"
+        );
     }
 
     #[test]
@@ -232,7 +264,10 @@ mod tests {
         );
         // The only `---` fences are the opening and closing frontmatter fences.
         let fence_lines = md.lines().filter(|l| l.trim() == "---").count();
-        assert_eq!(fence_lines, 2, "expected exactly 2 frontmatter fences, got:\n{md}");
+        assert_eq!(
+            fence_lines, 2,
+            "expected exactly 2 frontmatter fences, got:\n{md}"
+        );
     }
 
     #[test]
@@ -255,7 +290,13 @@ mod tests {
             "<style>.a{color:red}</style><p>Real body</p><script>alert('x')</script>".into();
         let md = to_markdown(&m);
         assert!(md.contains("Real body"), "prose must survive, got:\n{md}");
-        assert!(!md.contains("color:red"), "style content must be dropped, got:\n{md}");
-        assert!(!md.contains("alert"), "script content must be dropped, got:\n{md}");
+        assert!(
+            !md.contains("color:red"),
+            "style content must be dropped, got:\n{md}"
+        );
+        assert!(
+            !md.contains("alert"),
+            "script content must be dropped, got:\n{md}"
+        );
     }
 }

@@ -47,6 +47,9 @@ fn fixture_message() -> MailMessage {
         provider: "m365".into(),
         account: "legal@example.test".into(),
         has_attachments: false,
+        attachments_unsupported: false,
+        auth_result: Default::default(),
+        attachments: Vec::new(),
         body_content_type: BodyContentType::Text,
         body_text: "Wire the Zephyr retainer to the client trust account ending 4477 before Friday."
             .into(),
