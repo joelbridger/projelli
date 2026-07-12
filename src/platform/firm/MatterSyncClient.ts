@@ -380,11 +380,12 @@ export class MatterSyncClient {
     });
     if (!res.ok) {
       // This is deliberately different from the newer-epoch branch above.
-      // Once we hold this epoch's key, a decrypt failure can never become a
-      // legitimate update after a later rotation. Quarantine it and let the
-      // ordered cursor move on, otherwise one corrupt peer blob wedges every
-      // honest member on this stream forever.
-      this.logQuarantinedUpdate('decrypt_failed', blobId, cursor, res.reason);
+      // A current-epoch decrypt failure is a corruption candidate. Older-epoch
+      // ciphertext can be a legitimate update, but this client stores only one
+      // current key, so it cannot recover it after rotation. In both cases we
+      // quarantine and advance: one bad or unrecoverable blob must not wedge
+      // every honest member on this stream forever.
+      this.logQuarantinedUpdate(blobEpoch === this.keyEpoch ? 'decrypt_failed' : 'epoch_superseded', blobId, cursor, res.reason);
       return true;
     }
     try {
@@ -405,17 +406,19 @@ export class MatterSyncClient {
   }
 
   /**
-   * Corrupt relay data is not normal connectivity noise. There is no callback
-   * or audit channel on MatterSyncCallbacks, so use the app's established
-   * visible diagnostic path while keeping the editor alive.
+   * There is no callback or audit channel on MatterSyncCallbacks, so use the
+   * app's established visible diagnostic path while keeping the editor alive.
    */
   private logQuarantinedUpdate(
-    reason: 'decrypt_failed' | 'yjs_apply_failed',
+    reason: 'decrypt_failed' | 'epoch_superseded' | 'yjs_apply_failed',
     blobId: string,
     cursor: number | undefined,
     detail: unknown,
   ): void {
-    console.error('[MatterSyncClient] quarantined corrupt remote update', {
+    const message = reason === 'epoch_superseded'
+      ? '[MatterSyncClient] skipped remote update sealed under a superseded key epoch'
+      : '[MatterSyncClient] quarantined corrupt remote update';
+    console.error(message, {
       reason,
       matterHandle: this.matterHandle,
       streamHandle: this.streamHandle,

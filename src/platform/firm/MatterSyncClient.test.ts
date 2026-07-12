@@ -168,6 +168,43 @@ describe('MatterSyncClient v2 socket privacy', () => {
     client.stop();
   });
 
+  it('labels an older-epoch decrypt failure as superseded and still applies the later update', async () => {
+    const matterHandle = parseMatterHandle(`mh2_${'X'.repeat(43)}`);
+    const streamHandle = parseStreamHandle(`sh2_${'Y'.repeat(43)}`);
+    const oldKeyB64 = await generateMatterKey();
+    const currentKeyB64 = await generateMatterKey();
+    const oldCiphertext = await (await import('./matterCrypto')).encryptUpdateV2(
+      await importMatterKey(oldKeyB64), Y.encodeStateAsUpdate(new Y.Doc()), { matterHandle, streamHandle, keyEpoch: 1 },
+    );
+    const later = new Y.Doc();
+    later.getMap('notes').set('after-superseded-epoch', 'applied');
+    const laterCiphertext = await (await import('./matterCrypto')).encryptUpdateV2(
+      await importMatterKey(currentKeyB64), Y.encodeStateAsUpdate(later), { matterHandle, streamHandle, keyEpoch: 2 },
+    );
+    const loud = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const client = new MatterSyncClient({
+      matterHandle, streamHandle, keyB64: currentKeyB64, keyEpoch: 2, seatToken: 'seat',
+      client: {
+        pullUpdates: () => Promise.resolve({ key_epoch: 2, since: 0, cursor: 2, latest_cursor: 2, has_more: false, updates: [
+          { cursor: 1, blob_id: 'unrecoverable-old-epoch', key_epoch: 1, ciphertext_b64: oldCiphertext },
+          { cursor: 2, blob_id: 'later-valid', key_epoch: 2, ciphertext_b64: laterCiphertext },
+        ] }),
+        createSyncTicket: () => Promise.resolve({ ticket: 'ticket-only', expires_in_ms: 1000 }),
+        pushUpdate: () => Promise.resolve({ ok: true, cursor: 3, blob_id: 'new', key_epoch: 2, duplicate: false }),
+      } as never,
+      socketFactory: () => ({ send() {}, close() {}, onopen: null, onclose: null, onerror: null, onmessage: null }),
+    });
+
+    await client.start();
+    expect(client.getCursor()).toBe(2);
+    expect(client.doc.getMap('notes').get('after-superseded-epoch')).toBe('applied');
+    expect(loud).toHaveBeenCalledWith('[MatterSyncClient] skipped remote update sealed under a superseded key epoch', expect.objectContaining({
+      reason: 'epoch_superseded', blobId: 'unrecoverable-old-epoch', cursor: 1,
+    }));
+    loud.mockRestore();
+    client.stop();
+  });
+
   it('flushes only writes present at its starting marker, even while later edits keep arriving', async () => {
     let resolveFirstPush: (() => void) | undefined;
     let pushes = 0;

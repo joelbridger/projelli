@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { parseMatterHandle, parseStreamHandle } from './contract';
 import {
   addDocumentStreamToPrivateIndex, createDocumentStream, FIRM_PRIVATE_INDEX_MAP, FIRM_PRIVATE_INDEX_STREAMS_V2_MAP,
-  readFirmMatterPrivateIndex, tombstoneDocumentStreamFromPrivateIndex, writeFirmMatterPrivateIndex,
+  observeDocumentStreamsForPinning, readFirmMatterPrivateIndex, tombstoneDocumentStreamFromPrivateIndex, writeFirmMatterPrivateIndex,
 } from './firmMatterPrivateIndex';
 import { getPinnedDocumentStream } from './firmKeychain';
 
@@ -179,7 +179,7 @@ describe('encrypted FirmMatterPrivateIndex', () => {
     expect([firstStream, secondStream]).toContain(firstResult?.streamHandle);
   });
 
-  it('erases only the tombstoned document stream pin from this matter', async () => {
+  it('retires only the tombstoned document stream pin from this matter', async () => {
     const doc = new Y.Doc();
     const secondStream = parseStreamHandle(`sh2_${'Z'.repeat(43)}`);
     writeFirmMatterPrivateIndex(doc, { version: 1, clientName: 'x', displayName: 'x', streams: { _notes: { streamHandle: root, kind: 'notes' } } });
@@ -190,7 +190,41 @@ describe('encrypted FirmMatterPrivateIndex', () => {
 
     await tombstoneDocumentStreamFromPrivateIndex(doc, matterHandle, 'deleted.docx');
 
-    expect(await getPinnedDocumentStream(matterHandle, 'deleted.docx')).toBeNull();
+    await expect(getPinnedDocumentStream(matterHandle, 'deleted.docx')).rejects.toThrow('retired');
     expect(await getPinnedDocumentStream(matterHandle, 'retained.docx')).toBe(secondStream);
+  });
+
+  it('refuses to trust a replacement shared-directory mapping for a retired local document ID', async () => {
+    const doc = new Y.Doc();
+    const replacementStream = parseStreamHandle(`sh2_${'Q'.repeat(43)}`);
+    writeFirmMatterPrivateIndex(doc, { version: 1, clientName: 'x', displayName: 'x', streams: { _notes: { streamHandle: root, kind: 'notes' } } });
+    await addDocumentStreamToPrivateIndex(doc, matterHandle, 'draft.docx', docStream);
+    await tombstoneDocumentStreamFromPrivateIndex(doc, matterHandle, 'draft.docx');
+
+    // A hostile peer rewrites the shared directory after the honest delete.
+    doc.getMap<unknown>(FIRM_PRIVATE_INDEX_STREAMS_V2_MAP).set('draft.docx', { streamHandle: replacementStream, kind: 'document' });
+    await expect(getPinnedDocumentStream(matterHandle, 'draft.docx')).rejects.toThrow('retired');
+    await expect(addDocumentStreamToPrivateIndex(doc, matterHandle, 'draft.docx', replacementStream)).rejects.toThrow('retired');
+    await expect(observeDocumentStreamsForPinning(doc, matterHandle)).resolves.toEqual([
+      { localDocumentId: 'draft.docx', kind: 'retired', observedStreamHandle: replacementStream },
+    ]);
+    await expect(getPinnedDocumentStream(matterHandle, 'draft.docx')).rejects.toThrow('retired');
+  });
+
+  it('pins a genuinely new local document ID on its first observation', async () => {
+    const doc = new Y.Doc();
+    const freshStream = parseStreamHandle(`sh2_${'P'.repeat(43)}`);
+    writeFirmMatterPrivateIndex(doc, {
+      version: 1,
+      clientName: 'x',
+      displayName: 'x',
+      streams: {
+        _notes: { streamHandle: root, kind: 'notes' },
+        'new-never-seen-document-id': { streamHandle: freshStream, kind: 'document' },
+      },
+    });
+
+    await expect(observeDocumentStreamsForPinning(doc, matterHandle)).resolves.toEqual([]);
+    expect(await getPinnedDocumentStream(matterHandle, 'new-never-seen-document-id')).toBe(freshStream);
   });
 });

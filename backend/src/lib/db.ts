@@ -317,9 +317,20 @@ CREATE TABLE IF NOT EXISTS wrapped_matter_keys (
 CREATE INDEX IF NOT EXISTS idx_wmk_matter_epoch ON wrapped_matter_keys(matter_handle, epoch);
 CREATE INDEX IF NOT EXISTS idx_wmk_user ON wrapped_matter_keys(user_id);
 
+-- A permanent, opaque intake-handle-to-matter binding. Unlike the wrapped
+-- keys below, this record survives key-epoch rotation so a handle can never
+-- be rebound to a different matter when stale key rows are purged.
+CREATE TABLE IF NOT EXISTS intake_handle_bindings (
+  intake_handle  TEXT PRIMARY KEY,
+  matter_handle  TEXT NOT NULL REFERENCES matters(matter_handle),
+  org_id         TEXT NOT NULL REFERENCES orgs(org_id),
+  created_at     TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_ihb_matter ON intake_handle_bindings(matter_handle);
+
 -- Per-device wrapped copy of a matter key for a client-generated intake handle.
--- The intake is bound to one matter by the transaction in publishWrappedIntakeKeys;
--- this table intentionally stores no intake content or local identifier.
+-- These epoch-scoped rows intentionally store no intake content or local
+-- identifier. Their durable matter binding lives in intake_handle_bindings.
 CREATE TABLE IF NOT EXISTS wrapped_intake_keys (
   intake_handle   TEXT NOT NULL,
   matter_handle   TEXT NOT NULL REFERENCES matters(matter_handle),
@@ -496,6 +507,15 @@ export class Store {
     const existingMatterCols = this.#db.query("PRAGMA table_info(matters)").all() as Array<{ name: string }>;
     if (existingMatterCols.some((c) => c.name === "matter_id")) this.migrateFirmRelayToV2();
     this.#db.exec(SCHEMA);
+    // Existing v2 relay databases predate the durable binding table. Their
+    // current wrapped rows already represent the first-publish binding, so
+    // preserve it before any later epoch cleanup can remove those rows.
+    this.#db.exec(`
+      INSERT OR IGNORE INTO intake_handle_bindings (intake_handle, matter_handle, org_id, created_at)
+      SELECT intake_handle, matter_handle, org_id, MIN(created_at)
+      FROM wrapped_intake_keys
+      GROUP BY intake_handle
+    `);
     // Device names are local-only. Remove values accepted by older relay
     // builds before any endpoint can return or audit them.
     this.#db.exec("UPDATE devices SET label = ''; UPDATE seats SET machine_label = NULL;");
@@ -1273,7 +1293,7 @@ export class Store {
 
   countDistinctIntakeHandles(matterHandle: string): number {
     const row = this.#db
-      .query("SELECT COUNT(DISTINCT intake_handle) AS count FROM wrapped_intake_keys WHERE matter_handle = ?")
+      .query("SELECT COUNT(*) AS count FROM intake_handle_bindings WHERE matter_handle = ?")
       .get(matterHandle) as { count: number };
     return row.count;
   }
@@ -1944,16 +1964,28 @@ export class Store {
       if (publisher?.role !== "admin" && publisherMembership?.role !== "owner") return { publisherUnauthorized: true as const };
 
       const existing = this.#db
-        .query(`SELECT matter_handle FROM wrapped_intake_keys WHERE intake_handle = ? AND org_id = ? LIMIT 1`)
-        .get(input.intake_handle, input.org_id) as { matter_handle: string } | null;
-      if (existing && existing.matter_handle !== input.matter_handle) return { intakeMatterMismatch: true as const };
+        .query(`SELECT matter_handle, org_id FROM intake_handle_bindings WHERE intake_handle = ? LIMIT 1`)
+        .get(input.intake_handle) as { matter_handle: string; org_id: string } | null;
+      if (existing && (existing.org_id !== input.org_id || existing.matter_handle !== input.matter_handle)) return { intakeMatterMismatch: true as const };
       if (!existing && this.countDistinctIntakeHandles(input.matter_handle) >= config.firmMatterIntakeHandleCap) return { intakeLimitReached: true as const };
+
+      // Validate the entire recipient set before creating the one-way binding.
+      // Returning from inside the insertion loop would otherwise commit an
+      // incomplete first publication and permanently consume this handle.
+      for (const key of input.wrapped) {
+        const user = this.getUser(key.user_id);
+        if (!user || user.org_id !== input.org_id || !this.getDevice(key.device_id, key.user_id)) return { invalidRecipient: true as const };
+      }
+
+      if (!existing) {
+        this.#db
+          .query(`INSERT INTO intake_handle_bindings (intake_handle, matter_handle, org_id, created_at) VALUES (?, ?, ?, ?)`)
+          .run(input.intake_handle, input.matter_handle, input.org_id, this.nowIso());
+      }
 
       let stored = 0;
       let skipped = 0;
       for (const key of input.wrapped) {
-        const user = this.getUser(key.user_id);
-        if (!user || user.org_id !== input.org_id || !this.getDevice(key.device_id, key.user_id)) return { invalidRecipient: true as const };
         if (this.isWalled(input.matter_handle, key.user_id)) {
           skipped++;
           continue;
@@ -1986,7 +2018,7 @@ export class Store {
     | { ok: false; reason: "intake_not_found" | "matter_not_found" | "cross_org" | "inactive" | "walled" | "not_member" } {
     const txn = this.#db.transaction(() => {
       const binding = this.#db
-        .query(`SELECT matter_handle FROM wrapped_intake_keys WHERE intake_handle = ? AND org_id = ? LIMIT 1`)
+        .query(`SELECT matter_handle FROM intake_handle_bindings WHERE intake_handle = ? AND org_id = ? LIMIT 1`)
         .get(input.intake_handle, input.org_id) as { matter_handle: string } | null;
       if (!binding) return { ok: false as const, reason: "intake_not_found" as const };
 

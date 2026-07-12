@@ -7,7 +7,7 @@
 import * as Y from 'yjs';
 import type { MatterHandle, StreamHandle } from './contract';
 import { generateStreamHandle, parseStreamHandle } from './contract';
-import { deletePinnedDocumentStream, pinDocumentStreamOnFirstObservation } from './firmKeychain';
+import { pinDocumentStreamOnFirstObservation, RetiredDocumentStreamPinError, retirePinnedDocumentStream } from './firmKeychain';
 
 export const FIRM_PRIVATE_INDEX_MAP = 'firm-private-index';
 /**
@@ -141,11 +141,11 @@ export async function addDocumentStreamToPrivateIndex(
   const current = readFirmMatterPrivateIndex(doc);
   if (!current) throw new Error('Cannot add a document stream before the private index exists.');
   const existing = current.streams[localDocumentId];
-  if (existing?.streamHandle === streamHandle) return;
   const pinned = await pinDocumentStreamOnFirstObservation(matterHandle, localDocumentId, streamHandle);
   if (pinned !== streamHandle) {
     throw new Error('This document is already pinned to a different encrypted stream on this device.');
   }
+  if (existing?.streamHandle === streamHandle) return;
   const streamsMap = getStreamsV2Map(doc);
   doc.transact(() => {
     streamsMap.set(localDocumentId, { streamHandle, kind: 'document' });
@@ -174,20 +174,35 @@ export async function createDocumentStream(
 export async function observeDocumentStreamsForPinning(
   doc: Y.Doc,
   matterHandle: MatterHandle,
-): Promise<Array<{ localDocumentId: string; pinnedStreamHandle: StreamHandle; observedStreamHandle: StreamHandle }>> {
+): Promise<Array<
+  | { localDocumentId: string; kind: 'mismatch'; pinnedStreamHandle: StreamHandle; observedStreamHandle: StreamHandle }
+  | { localDocumentId: string; kind: 'retired'; observedStreamHandle: StreamHandle }
+>> {
   const streams = readFirmMatterPrivateIndex(doc)?.streams ?? {};
-  const mismatches: Array<{ localDocumentId: string; pinnedStreamHandle: StreamHandle; observedStreamHandle: StreamHandle }> = [];
+  const mismatches: Array<
+    | { localDocumentId: string; kind: 'mismatch'; pinnedStreamHandle: StreamHandle; observedStreamHandle: StreamHandle }
+    | { localDocumentId: string; kind: 'retired'; observedStreamHandle: StreamHandle }
+  > = [];
   for (const [localDocumentId, stream] of Object.entries(streams)) {
     if (stream.kind !== 'document') continue;
-    const pinnedStreamHandle = await pinDocumentStreamOnFirstObservation(matterHandle, localDocumentId, stream.streamHandle);
+    let pinnedStreamHandle: StreamHandle;
+    try {
+      pinnedStreamHandle = await pinDocumentStreamOnFirstObservation(matterHandle, localDocumentId, stream.streamHandle);
+    } catch (error) {
+      if (error instanceof RetiredDocumentStreamPinError) {
+        mismatches.push({ localDocumentId, kind: 'retired', observedStreamHandle: stream.streamHandle });
+        continue;
+      }
+      throw error;
+    }
     if (pinnedStreamHandle !== stream.streamHandle) {
-      mismatches.push({ localDocumentId, pinnedStreamHandle, observedStreamHandle: stream.streamHandle });
+      mismatches.push({ localDocumentId, kind: 'mismatch', pinnedStreamHandle, observedStreamHandle: stream.streamHandle });
     }
   }
   return mismatches;
 }
 
-/** Tombstone a local document mapping and erase its device-local routing pin. */
+/** Tombstone a local document mapping and permanently retire its routing pin. */
 export async function tombstoneDocumentStreamFromPrivateIndex(
   doc: Y.Doc,
   matterHandle: MatterHandle,
@@ -195,7 +210,7 @@ export async function tombstoneDocumentStreamFromPrivateIndex(
 ): Promise<void> {
   const current = readFirmMatterPrivateIndex(doc);
   if (!current || !current.streams[localDocumentId]) return;
-  await deletePinnedDocumentStream(matterHandle, localDocumentId);
+  await retirePinnedDocumentStream(matterHandle, localDocumentId);
   doc.transact(() => {
     const legacyStreams = readLegacyStreams(doc.getMap<unknown>(FIRM_PRIVATE_INDEX_MAP).get('streams'));
     const streamsMap = getStreamsV2Map(doc);

@@ -154,13 +154,27 @@ function documentStreamPinKey(localDocumentId: string): string {
   return `${KC_DOCUMENT_STREAM_PIN_PREFIX}${utf8ToB64(localDocumentId).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')}`;
 }
 
-/** Return this device's pinned opaque stream handle, if any. */
+const RETIRED_DOCUMENT_STREAM_PIN = JSON.stringify({ retired: true });
+
+export class RetiredDocumentStreamPinError extends Error {
+  constructor() {
+    super('This local document ID was retired. Refusing to trust a replacement stream mapping.');
+    this.name = 'RetiredDocumentStreamPinError';
+  }
+}
+
+function isRetiredDocumentStreamPin(raw: string): boolean {
+  return raw === RETIRED_DOCUMENT_STREAM_PIN;
+}
+
+/** Return this device's pinned opaque stream handle, if any. A retired ID is never reusable. */
 export async function getPinnedDocumentStream(
   matterHandle: MatterHandle,
   localDocumentId: string,
 ): Promise<StreamHandle | null> {
   const raw = await getSecret(documentStreamPinService(matterHandle), documentStreamPinKey(localDocumentId));
   if (raw === null) return null;
+  if (isRetiredDocumentStreamPin(raw)) throw new RetiredDocumentStreamPinError();
   try {
     return parseStreamHandle(raw);
   } catch {
@@ -168,12 +182,23 @@ export async function getPinnedDocumentStream(
   }
 }
 
-/** Remove this device's document-stream pin. Missing pins are harmless. */
-export async function deletePinnedDocumentStream(
+/**
+ * Permanently retire a local document ID on this device. This preserves the
+ * TOFU decision after deletion so a malicious shared-directory rewrite cannot
+ * make the next matter-open trust a replacement stream.
+ */
+export async function retirePinnedDocumentStream(
   matterHandle: MatterHandle,
   localDocumentId: string,
 ): Promise<void> {
-  await deleteSecret(documentStreamPinService(matterHandle), documentStreamPinKey(localDocumentId));
+  const service = documentStreamPinService(matterHandle);
+  const key = documentStreamPinKey(localDocumentId);
+  for (;;) {
+    const current = await getSecret(service, key);
+    if (isRetiredDocumentStreamPin(current ?? '')) return;
+    const result = await compareAndSetSecret(service, key, current, RETIRED_DOCUMENT_STREAM_PIN);
+    if (result.swapped) return;
+  }
 }
 
 /**
@@ -191,6 +216,7 @@ export async function pinDocumentStreamOnFirstObservation(
   for (;;) {
     const current = await getSecret(service, key);
     if (current !== null) {
+      if (isRetiredDocumentStreamPin(current)) throw new RetiredDocumentStreamPinError();
       try {
         return parseStreamHandle(current);
       } catch {

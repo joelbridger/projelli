@@ -71,6 +71,13 @@ function matterKeyCount(f: ReturnType<typeof fixture>) {
   return f.store.inspectReadOnly().all("SELECT user_id FROM wrapped_matter_keys WHERE matter_handle = ?", f.matter.matter_handle).length;
 }
 
+function createActiveMatter(f: ReturnType<typeof fixture>) {
+  const matter = f.store.createMatter({ org_id: f.org.org_id });
+  f.store.activateProvisioningMatter(matter.matter_handle);
+  f.store.addMatterMember({ matter_handle: matter.matter_handle, user_id: f.keeper.user_id, org_id: f.org.org_id, role: "editor" });
+  return matter;
+}
+
 describe("round X firm relay availability guards", () => {
   test("refuses a new intake binding above the configured matter cap without writing it", async () => {
     (config as { firmMatterIntakeHandleCap: number }).firmMatterIntakeHandleCap = 1;
@@ -149,6 +156,58 @@ describe("round X firm relay availability guards", () => {
     expect(await response.json()).toEqual({ ok: true, removed: true, key_epoch: 2 });
     expect(f.store.getWrappedMatterKey(f.matter.matter_handle, 1, f.keeper.user_id, `${f.keeper.user_id}-device`)).toBeNull();
     expect(intakeKeyCount(f)).toBe(0);
+    f.store.close();
+  });
+
+  test("keeps an intake handle bound through rotation and permits its new-epoch key fetch", async () => {
+    const f = fixture();
+    const otherMatter = createActiveMatter(f);
+    const handle = intakeHandle("L");
+    expect((await publishIntake(f, handle)).status).toBe(200);
+
+    expect((await handleSetWall(request(f.adminToken, { user_id: f.target.user_id }), f.store, f.matter.matter_handle)).status).toBe(200);
+    expect(intakeKeyCount(f)).toBe(0);
+
+    const rebound = await handlePublishIntakeKeys(
+      request(f.adminToken, { matter_handle: otherMatter.matter_handle, epoch: 1, wrapped: [recipient(f.keeper)] }),
+      f.store,
+      handle,
+    );
+    expect(rebound.status).toBe(409);
+    expect(await rebound.json()).toEqual({ error: "intake_matter_mismatch" });
+
+    const republished = await handlePublishIntakeKeys(
+      request(f.adminToken, { matter_handle: f.matter.matter_handle, epoch: 2, wrapped: [recipient(f.keeper)] }),
+      f.store,
+      handle,
+    );
+    expect(republished.status).toBe(200);
+    expect(f.store.fetchWrappedIntakeKeyForAccess({
+      intake_handle: handle,
+      org_id: f.org.org_id,
+      user_id: f.keeper.user_id,
+      role: "member",
+      device_id: `${f.keeper.user_id}-device`,
+    })).toMatchObject({ ok: true, epoch: 2, key: { wrapped_key: wrappedEnvelope } });
+    f.store.close();
+  });
+
+  test("does not free permanent intake-handle capacity when rotation purges wrapped keys", async () => {
+    (config as { firmMatterIntakeHandleCap: number }).firmMatterIntakeHandleCap = 1;
+    const f = fixture();
+    expect((await publishIntake(f, intakeHandle("M"))).status).toBe(200);
+
+    expect((await handleRemoveMatterMember(request(f.adminToken, { user_id: f.target.user_id }), f.store, f.matter.matter_handle)).status).toBe(200);
+    expect(intakeKeyCount(f)).toBe(0);
+    expect(f.store.countDistinctIntakeHandles(f.matter.matter_handle)).toBe(1);
+
+    const rejected = await handlePublishIntakeKeys(
+      request(f.adminToken, { matter_handle: f.matter.matter_handle, epoch: 2, wrapped: [recipient(f.keeper)] }),
+      f.store,
+      intakeHandle("N"),
+    );
+    expect(rejected.status).toBe(409);
+    expect(await rejected.json()).toEqual({ error: "intake_limit_reached" });
     f.store.close();
   });
 });
