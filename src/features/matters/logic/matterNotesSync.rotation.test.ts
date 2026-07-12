@@ -65,6 +65,78 @@ describe('matterNotesSync key rotation race', () => {
     expect(matterMine).not.toHaveBeenCalled();
   });
 
+  it('does not let a torn-down rotation clear or overwrite a newer client key after a denied fetch', async () => {
+    const handle = parseMatterHandle(`mh2_${'V'.repeat(43)}`);
+    const localMatterId = 'stale-rotation-key';
+    const staleFetch = deferred<{ epoch: number; wrapped_key_b64: string }>();
+    const clientA = { rotateKey: vi.fn(), stop: vi.fn() };
+    const clientB = { rotateKey: vi.fn().mockResolvedValue(undefined), stop: vi.fn() };
+    const firmClientA = { fetchMatterKeys: vi.fn(() => staleFetch.promise), matterMine: vi.fn() };
+    const firmClientB = {
+      fetchMatterKeys: vi.fn().mockResolvedValue({ epoch: 2, wrapped_key_b64: 'wrapped-b' }),
+      matterMine: vi.fn().mockResolvedValue({ matters: [{ matter_handle: handle, key_epoch: 2 }] }),
+    };
+
+    const staleRotation = handleKeyEpochAdvanced(localMatterId, handle, firmClientA as never, clientA as never, 2);
+    await vi.waitFor(() => { expect(firmClientA.fetchMatterKeys).toHaveBeenCalledOnce(); });
+
+    stopMatterSync(localMatterId, clientA as never);
+    await handleKeyEpochAdvanced(localMatterId, handle, firmClientB as never, clientB as never, 2);
+
+    const clearCallsBeforeStaleFetchSettles = mocks.clearMatterKey.mock.calls.length;
+    const storeCallsBeforeStaleFetchSettles = mocks.storeMatterKey.mock.calls.length;
+    expect(mocks.storeMatterKey).toHaveBeenLastCalledWith(handle, 'key-2');
+    expect(clientB.rotateKey).toHaveBeenCalledExactlyOnceWith('key-2', 2);
+
+    staleFetch.reject(new FirmApiError(403, 'forbidden', 'denied'));
+    await staleRotation;
+
+    expect(mocks.clearMatterKey).toHaveBeenCalledTimes(clearCallsBeforeStaleFetchSettles);
+    expect(mocks.storeMatterKey).toHaveBeenCalledTimes(storeCallsBeforeStaleFetchSettles);
+    expect(clientA.rotateKey).not.toHaveBeenCalled();
+    expect(clientA.stop).toHaveBeenCalledOnce();
+    expect(clientB.stop).not.toHaveBeenCalled();
+    expect(mocks.setStatus).not.toHaveBeenCalledWith(localMatterId, 'error');
+  });
+
+  it('keeps a newer pending rotation coalesced when an older rotation finishes', async () => {
+    const handle = parseMatterHandle(`mh2_${'W'.repeat(43)}`);
+    const localMatterId = 'stale-rotation-cache';
+    const staleFetch = deferred<{ epoch: number; wrapped_key_b64: string }>();
+    const freshFetch = deferred<{ epoch: number; wrapped_key_b64: string }>();
+    const clientA = { rotateKey: vi.fn(), stop: vi.fn() };
+    const clientB = { rotateKey: vi.fn().mockResolvedValue(undefined), stop: vi.fn() };
+    const firmClientA = { fetchMatterKeys: vi.fn(() => staleFetch.promise), matterMine: vi.fn() };
+    const firmClientB = {
+      fetchMatterKeys: vi.fn()
+        .mockImplementationOnce(() => freshFetch.promise)
+        .mockResolvedValue({ epoch: 3, wrapped_key_b64: 'wrapped-b-3' }),
+      matterMine: vi.fn().mockResolvedValue({ matters: [{ matter_handle: handle, key_epoch: 3 }] }),
+    };
+
+    const staleRotation = handleKeyEpochAdvanced(localMatterId, handle, firmClientA as never, clientA as never, 2);
+    await vi.waitFor(() => { expect(firmClientA.fetchMatterKeys).toHaveBeenCalledOnce(); });
+    stopMatterSync(localMatterId, clientA as never);
+
+    const freshRotation = handleKeyEpochAdvanced(localMatterId, handle, firmClientB as never, clientB as never, 2);
+    await vi.waitFor(() => { expect(firmClientB.fetchMatterKeys).toHaveBeenCalledOnce(); });
+
+    staleFetch.reject(new FirmApiError(403, 'forbidden', 'denied'));
+    await staleRotation;
+
+    const coalescedRotation = handleKeyEpochAdvanced(localMatterId, handle, firmClientB as never, clientB as never, 3);
+    expect(firmClientB.fetchMatterKeys).toHaveBeenCalledOnce();
+
+    freshFetch.resolve({ epoch: 2, wrapped_key_b64: 'wrapped-b-2' });
+    await Promise.all([freshRotation, coalescedRotation]);
+
+    // The coalesced notice raises B's target to 3. Its one existing loop then
+    // performs the normal sequential follow-up fetch; it never had two loops
+    // in flight at once.
+    expect(firmClientB.fetchMatterKeys).toHaveBeenCalledTimes(2);
+    expect(clientB.rotateKey).toHaveBeenLastCalledWith('key-3', 3);
+  });
+
   it('does not cache a client when a newer epoch is denied while its first start is still pending', async () => {
     const handle = parseMatterHandle(`mh2_${'S'.repeat(43)}`);
     const localMatter = {
@@ -216,4 +288,18 @@ function testDocument(): {
     getMap: () => ({ get: (key) => values.get(key), set: (key, value) => { values.set(key, value); } }),
     transact: (callback) => { callback(); },
   };
+}
+
+function deferred<T>(): {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+  reject: (reason?: unknown) => void;
+} {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
 }

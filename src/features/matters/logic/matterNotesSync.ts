@@ -227,6 +227,11 @@ export async function handleKeyEpochAdvanced(
   client: MatterSyncClient,
   newEpoch: number,
 ): Promise<void> {
+  // A notification may have been queued just before this exact client was
+  // torn down. Do not let that old callback join or alter a newer client's
+  // rotation state for the same local matter.
+  if (abortedClients.has(client)) return;
+
   const existing = keyRotationCache.get(localMatterId);
   if (existing) {
     existing.targetEpoch = Math.max(existing.targetEpoch, newEpoch);
@@ -237,8 +242,10 @@ export async function handleKeyEpochAdvanced(
   state.promise = (async () => {
     const seatToken = useFirmStore.getState().seatToken ?? '';
     const { deviceId } = await getOrCreateDeviceKeypair();
+    if (abortedClients.has(client)) return;
 
     for (let attempt = 0; attempt < MAX_KEY_ROTATION_ATTEMPTS; attempt += 1) {
+      if (abortedClients.has(client)) return;
       // Notifications are only hints from the untrusted relay. Remember the
       // epoch that prompted this fetch so a fabricated high value cannot turn
       // the cached hint into an unreachable retry target.
@@ -246,11 +253,13 @@ export async function handleKeyEpochAdvanced(
       // Clear the old keychain entry first so obtainMatterKey does a fresh server
       // fetch rather than returning the stale epoch's blob.
       await clearMatterKey(firmMatterId);
+      if (abortedClients.has(client)) return;
 
       let fetchResp: { epoch: number; wrapped_key_b64: string };
       try {
         fetchResp = await firmClient.fetchMatterKeys(firmMatterId, deviceId, seatToken);
       } catch (err) {
+        if (abortedClients.has(client)) return;
         if (err instanceof FirmApiError && (err.status === 403 || err.status === 404)) {
           // Walled (403) or key not published for new epoch (404) — fail closed.
           // The old key has already been cleared above, so the next ensureMatterSync
@@ -261,12 +270,16 @@ export async function handleKeyEpochAdvanced(
         }
         throw err;
       }
+      if (abortedClients.has(client)) return;
 
       // The notification is only a hint. The fetch response is authoritative:
       // its wrapped key and epoch are one atomic server snapshot.
       const newKeyB64 = await unwrapMatterKey(fetchResp.wrapped_key_b64, fetchResp.epoch);
+      if (abortedClients.has(client)) return;
       await storeMatterKey(firmMatterId, newKeyB64);
+      if (abortedClients.has(client)) return;
       await client.rotateKey(newKeyB64, fetchResp.epoch);
+      if (abortedClients.has(client)) return;
 
       // fetchMatterKeys returns the key and its epoch as one authoritative
       // server snapshot. If it is behind the relay hint, we have still rotated
@@ -278,6 +291,7 @@ export async function handleKeyEpochAdvanced(
       // Re-check and repeat from the newly fetched key rather than tagging it
       // with the stale notification epoch.
       const mine = await firmClient.matterMine(seatToken);
+      if (abortedClients.has(client)) return;
       const observedEpoch = mine.matters.find((matter) => matter.matter_handle === firmMatterId)?.key_epoch ?? fetchResp.epoch;
       state.targetEpoch = Math.max(state.targetEpoch, observedEpoch);
       if (state.targetEpoch <= fetchResp.epoch) return;
@@ -286,13 +300,15 @@ export async function handleKeyEpochAdvanced(
     // Never let even a rapid sequence of genuine rotations spin indefinitely.
     // This matches the existing walled-key behavior: stop this client and
     // require a fresh, fail-closed start before syncing again.
+    if (abortedClients.has(client)) return;
     stopMatterSync(localMatterId, client);
     useMatterSyncStore.getState().setStatus(localMatterId, 'error');
   })().catch((err: unknown) => {
+    if (abortedClients.has(client)) return;
     console.error('[matterNotesSync] key epoch advance failed:', err);
     useMatterSyncStore.getState().setStatus(localMatterId, 'error');
   }).finally(() => {
-    keyRotationCache.delete(localMatterId);
+    if (keyRotationCache.get(localMatterId) === state) keyRotationCache.delete(localMatterId);
   });
   keyRotationCache.set(localMatterId, state);
   return state.promise;
