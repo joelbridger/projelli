@@ -484,8 +484,22 @@ pub(crate) async fn append_capture_audit_best_effort(
     action: &'static str,
     description: String,
 ) {
+    if let Err(e) = append_capture_audit(workspace, matter_id, action, description).await {
+        log::warn!("capture audit append failed (non-fatal): {e:#}");
+    }
+}
+
+/// Append one capture audit entry and report any storage/keychain failure to
+/// the caller. Command paths that must keep working when audit storage is
+/// unavailable deliberately log and swallow this result at their boundary.
+pub(crate) async fn append_capture_audit(
+    workspace: PathBuf,
+    matter_id: String,
+    action: &'static str,
+    description: String,
+) -> anyhow::Result<()> {
     use crate::commands::audit::store::{AuditEntryRecord, EncryptedAuditStore};
-    let result = tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
+    tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
         let store = EncryptedAuditStore::open(&workspace)?;
         let timestamp = chrono::Utc::now().to_rfc3339();
         let nanos = std::time::SystemTime::now()
@@ -507,12 +521,8 @@ pub(crate) async fn append_capture_audit_best_effort(
         store.append(&rec)?;
         Ok(())
     })
-    .await;
-    match result {
-        Ok(Ok(())) => {}
-        Ok(Err(e)) => log::warn!("capture audit append failed (non-fatal): {e:#}"),
-        Err(e) => log::warn!("capture audit spawn failed (non-fatal): {e}"),
-    }
+    .await
+    .map_err(|e| anyhow::anyhow!("capture audit task failed: {e}"))?
 }
 
 #[tauri::command]
