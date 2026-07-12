@@ -120,11 +120,19 @@ function start(
     cwd: root,
     env,
     stdio: ['ignore', 'pipe', 'pipe'],
+    // Each helper owns a process group, so cleanup also reaches Vite's child
+    // process instead of leaving :5174 occupied for the next parity run.
+    detached: true,
   });
 }
 
 function stop(child: ChildProcess | undefined): void {
-  if (child && !child.killed) child.kill('SIGTERM');
+  if (!child?.pid || child.killed) return;
+  try {
+    process.kill(-child.pid, 'SIGTERM');
+  } catch {
+    child.kill('SIGTERM');
+  }
 }
 
 function matrixInventory(): { active: string[]; skipped: string[] } {
