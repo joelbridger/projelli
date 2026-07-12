@@ -88,7 +88,7 @@ describe('promoteMatterToShared', () => {
     const client = makeClient();
     const r = await promoteMatterToShared('m1', 'Acme', client as never);
     expect(r).toEqual({ status: 'shared', matterId: 'm1', firmMatterId: MATTER, orgId: 'org_1' });
-    expect(client.createMatter).toHaveBeenCalledWith();
+    expect(client.createMatter).toHaveBeenCalledWith(expect.stringMatching(/^pn2_[A-Za-z0-9_-]{43}$/));
     expect(createLocalMatterKey).toHaveBeenCalledWith(MATTER);
     expect(writeFirmMatterPrivateIndex).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       streams: { _notes: { streamHandle: ROOT, kind: 'notes' } },
