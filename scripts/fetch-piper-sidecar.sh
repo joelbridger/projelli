@@ -60,6 +60,45 @@ verify_sha256() {
   echo "SHA256 verified: $(basename "$file")"
 }
 
+# The legacy Piper macOS archives are named by architecture, but a release can
+# still contain the wrong Mach-O slice. Do not let a successful download turn
+# into a broken arm64 app at runtime.
+verify_macos_binary() {
+  local binary="$1" expected_arch="$2" actual_archs missing=0 dep
+
+  [[ "$(uname -s)" == "Darwin" ]] || return 0
+
+  if ! command -v lipo >/dev/null 2>&1; then
+    echo "Cannot verify macOS sidecar architecture: lipo is unavailable" >&2
+    exit 1
+  fi
+  actual_archs="$(lipo -archs "$binary")"
+  if [[ " $actual_archs " != *" $expected_arch "* ]]; then
+    echo "Piper archive staged the wrong macOS architecture." >&2
+    echo "  expected: $expected_arch" >&2
+    echo "  actual:   $actual_archs" >&2
+    echo "Do not bundle this sidecar. Use a Piper release with a native $expected_arch binary." >&2
+    exit 1
+  fi
+
+  # A Mach-O binary with @rpath dependencies also needs those sibling dylibs
+  # in the staged directory. Without them it can pass a build then die the
+  # first time a user asks for speech.
+  if command -v otool >/dev/null 2>&1; then
+    while IFS= read -r dep; do
+      [[ -z "$dep" ]] && continue
+      if [[ ! -e "$BINARIES_DIR/${dep##*/}" ]]; then
+        echo "Piper archive is missing required macOS runtime library: ${dep##*/}" >&2
+        missing=1
+      fi
+    done < <(otool -L "$binary" | awk 'NR > 1 && $1 ~ /^@rpath\// { print $1 }')
+    if [[ "$missing" -ne 0 ]]; then
+      echo "Do not bundle this incomplete Piper archive." >&2
+      exit 1
+    fi
+  fi
+}
+
 mkdir -p "$BINARIES_DIR" "$VOICES_DIR"
 
 detect_target_triple() {
@@ -145,6 +184,10 @@ cp -a "$SRC_DIR/." "$BINARIES_DIR/"
 mv "$BINARIES_DIR/$BIN_NAME" "$BINARIES_DIR/$DEST_BIN"
 chmod +x "$BINARIES_DIR/$DEST_BIN" || true
 test -s "$BINARIES_DIR/$DEST_BIN" || { echo "Staged piper binary is empty: $DEST_BIN" >&2; exit 1; }
+case "$TARGET_TRIPLE" in
+  aarch64-apple-darwin) verify_macos_binary "$BINARIES_DIR/$DEST_BIN" arm64 ;;
+  x86_64-apple-darwin)  verify_macos_binary "$BINARIES_DIR/$DEST_BIN" x86_64 ;;
+esac
 echo "Piper binary: $BINARIES_DIR/$DEST_BIN"
 
 if [[ "$FETCH_PIPER_VOICE" == "1" ]]; then
