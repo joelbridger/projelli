@@ -357,7 +357,7 @@ describe('FirmSetupScene drives bars from useSetupProgress', () => {
         localLlm: { state: 'none', percent: null },
         searchModel: { state: 'ready', percent: null },
       },
-      email: { connected: true, accounts: [{ provider: 'm365', label: 'Microsoft 365' }], syncing: true, messagesImported: 128 },
+      email: { connected: true, credentialsAvailable: true, accounts: [{ provider: 'm365', label: 'Microsoft 365' }], syncing: true, messagesImported: 128 },
     });
     gotoFirm();
     const aiRow = screen.getByTestId('firm-row-ai');
@@ -378,6 +378,20 @@ describe('FirmSetupScene drives bars from useSetupProgress', () => {
     expect(oneDriveRow.textContent).toContain('OneDrive');
     expect(oneDriveRow.textContent).toContain('7 imported');
     expect(oneDriveRow.querySelector('[data-testid="progress-status"]')?.textContent).toBe('Working');
+  });
+
+  it('does not call computer-wide connector credentials done in a brand-new workspace', () => {
+    // The credential can be reused on this computer, but this workspace has
+    // not received any email or Wealthbox data yet. Only the workspace state
+    // may drive the green Done status.
+    h.progress = makeProgress({
+      email: { connected: false, credentialsAvailable: true, accounts: [], syncing: false, messagesImported: null },
+      crm: { connected: false, credentialsAvailable: true, syncing: false, householdsProcessed: 0, recordsIndexed: 0 },
+    });
+    gotoFirm();
+
+    expect(screen.getByTestId('firm-row-email').querySelector('[data-testid="progress-status"]')?.textContent).toBe('Not started');
+    expect(screen.getByTestId('firm-row-crm').querySelector('[data-testid="progress-status"]')?.textContent).toBe('Not started');
   });
 
   it('shows "not verified" for a cloud key that was saved but never live-checked', () => {

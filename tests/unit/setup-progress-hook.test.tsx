@@ -246,7 +246,7 @@ describe('useSetupProgress', () => {
   it('fetches the backend snapshot on mount', async () => {
     snapshotToReturn = makeSnapshot({
       ai: { ...EMPTY_SETUP_PROGRESS.ai, mode: 'cloud', state: 'ready', cloudKeyPresent: true },
-      crm: { connected: true, syncing: false, householdsProcessed: 40, recordsIndexed: 1200 },
+      crm: { connected: true, credentialsAvailable: true, syncing: false, householdsProcessed: 40, recordsIndexed: 1200 },
       overall: 'ready',
     });
     const { result } = renderHook(() => useSetupProgress());
@@ -283,7 +283,7 @@ describe('useSetupProgress', () => {
 
     // The next fetch returns a genuinely different (consistent) snapshot.
     snapshotToReturn = makeSnapshot({
-      email: { connected: true, accounts: [], syncing: true, messagesImported: 5 },
+      email: { connected: true, credentialsAvailable: true, accounts: [], syncing: true, messagesImported: 5 },
     });
     capturedListeners['setup-progress-changed']?.();
 

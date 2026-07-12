@@ -36,7 +36,7 @@ use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Listener, Manager, State};
 
 use crate::commands::crm::commands::CrmState;
-use crate::commands::mail::MailState;
+use crate::commands::mail::{MailState, store::{EncryptedMailStore, MailStore}};
 use crate::commands::rag::RagState;
 
 /// Event emitted whenever any source updates, telling the frontend to refetch a
@@ -108,7 +108,13 @@ pub struct EmailAccount {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct EmailProgress {
+    /// True only when this workspace has both usable credentials and imported
+    /// email data. A saved machine-wide sign-in alone is not a connection to
+    /// this workspace.
     pub connected: bool,
+    /// A saved sign-in is available on this computer, but may not yet have
+    /// been used to import anything into the active workspace.
+    pub credentials_available: bool,
     pub accounts: Vec<EmailAccount>,
     pub syncing: bool,
     /// Cumulative messages imported this session (sum across providers from the
@@ -120,7 +126,12 @@ pub struct EmailProgress {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CrmProgress {
+    /// True only when this workspace has both a usable CRM credential and
+    /// imported CRM data. A machine-wide token alone is not enough.
     pub connected: bool,
+    /// A CRM credential is available on this computer, but may not yet have
+    /// been used in the active workspace.
+    pub credentials_available: bool,
     pub syncing: bool,
     pub households_processed: u32,
     pub records_indexed: u32,
@@ -184,10 +195,13 @@ pub(crate) struct RawInputs {
     pub local_part_bytes: Option<u64>,
     pub local_total_bytes: u64,
     pub search_status: String,
+    pub email_credentials_available: bool,
+    pub email_workspace_connected: bool,
     pub email_accounts: Vec<EmailAccount>,
     pub email_syncing: bool,
     pub email_messages_imported: Option<u32>,
-    pub crm_connected: bool,
+    pub crm_credentials_available: bool,
+    pub crm_workspace_connected: bool,
     pub crm_syncing: bool,
     pub crm_households: u32,
     pub crm_records: u32,
@@ -334,15 +348,22 @@ pub(crate) fn assemble(raw: RawInputs) -> SetupProgress {
     let search = model_slot_from_status(&raw.search_status, None, 0);
     let ai = ai_progress(raw.cloud_key_present, local, search);
 
+    // Credentials are stored in the OS keychain and deliberately shared by
+    // workspaces. Import data is stored inside a workspace. The setup screen
+    // must require BOTH before it calls a connector done; otherwise a brand-new
+    // workspace can inherit a false "Done" from an older workspace.
+    let email_connected = raw.email_credentials_available && raw.email_workspace_connected;
     let email = EmailProgress {
-        connected: !raw.email_accounts.is_empty(),
-        accounts: raw.email_accounts,
+        connected: email_connected,
+        credentials_available: raw.email_credentials_available,
+        accounts: if email_connected { raw.email_accounts } else { vec![] },
         syncing: raw.email_syncing,
         messages_imported: raw.email_messages_imported,
     };
 
     let crm = CrmProgress {
-        connected: raw.crm_connected,
+        connected: raw.crm_credentials_available && raw.crm_workspace_connected,
+        credentials_available: raw.crm_credentials_available,
         syncing: raw.crm_syncing,
         households_processed: raw.crm_households,
         records_indexed: raw.crm_records,
@@ -482,6 +503,40 @@ fn local_llm_part_path() -> std::path::PathBuf {
     ))
 }
 
+/// True only when this workspace already contains imported email. The mail
+/// credential itself intentionally lives in the OS keychain and is shared by
+/// every workspace, so it cannot answer the onboarding question on its own.
+///
+/// Never open a missing database here: a progress read must not create an
+/// empty connector store in a brand-new workspace.
+fn workspace_has_imported_mail(workspace: Option<&std::path::Path>) -> bool {
+    let Some(workspace) = workspace else {
+        return false;
+    };
+    if !EncryptedMailStore::db_path(workspace).is_file() {
+        return false;
+    }
+    EncryptedMailStore::open(workspace)
+        .and_then(|store| store.count())
+        .map(|count| count > 0)
+        .unwrap_or(false)
+}
+
+/// True only when this workspace already contains imported CRM objects. As
+/// with email, the CRM token is machine-wide while the imported records belong
+/// to one workspace, so the latter is what establishes this connection here.
+fn workspace_has_imported_crm(workspace: Option<&std::path::Path>) -> bool {
+    let Some(workspace) = workspace else {
+        return false;
+    };
+    if !crate::commands::crm::store::CrmStore::db_path(workspace).is_file() {
+        return false;
+    }
+    crate::commands::crm::store::CrmStore::open(workspace)
+        .and_then(|store| store.has_any_objects_including_deleted())
+        .unwrap_or(false)
+}
+
 /// One unified, on-demand snapshot of first-run setup progress across all five
 /// sources. Static "ready/connected" facts are read fresh here; the event-only
 /// live numbers come from the cache fed by `register_listeners`.
@@ -510,15 +565,24 @@ pub async fn get_setup_progress(
         .into_iter()
         .map(|a| EmailAccount { provider: a.provider, label: a.label })
         .collect();
+    let email_credentials_available = !email_accounts.is_empty();
+    let mail_workspace = mail_state.workspace.lock().await.clone();
+    let email_workspace_connected = workspace_has_imported_mail(mail_workspace.as_deref());
     let email_syncing = mail_state.is_syncing.load(Ordering::SeqCst);
 
-    // ---- Wealthbox CRM (fully readable from CrmState) ----
-    let crm_connected = crate::commands::crm::commands::crm_is_connected(None)
+    // ---- Wealthbox CRM (credential availability + workspace data are distinct) ----
+    let crm_credentials_available = crate::commands::crm::commands::crm_is_connected(None)
         .await
         .unwrap_or(false);
+    let crm_workspace = crm_state.workspace.lock().await.clone();
+    let crm_workspace_connected = workspace_has_imported_crm(crm_workspace.as_deref());
     let crm_syncing = crm_state.is_syncing.load(Ordering::SeqCst);
     let last_report = crm_state.last_report.lock().await;
-    let crm_records = last_report.as_ref().map(|r| r.records_indexed).unwrap_or(0);
+    let crm_records = if crm_workspace_connected && !crm_syncing {
+        last_report.as_ref().map(|r| r.records_indexed).unwrap_or(0)
+    } else {
+        0
+    };
     // While syncing, the atomic carries the live household count; idle, the final
     // report total is authoritative (falling back to the atomic if no report).
     let crm_households = if crm_syncing {
@@ -556,10 +620,13 @@ pub async fn get_setup_progress(
         local_part_bytes,
         local_total_bytes,
         search_status,
+        email_credentials_available,
+        email_workspace_connected,
         email_accounts,
         email_syncing,
         email_messages_imported,
-        crm_connected,
+        crm_credentials_available,
+        crm_workspace_connected,
         crm_syncing,
         crm_households,
         crm_records,
@@ -812,10 +879,13 @@ mod tests {
             local_part_bytes: None,
             local_total_bytes: 100,
             search_status: "absent".into(),
+            email_credentials_available: false,
+            email_workspace_connected: false,
             email_accounts: vec![],
             email_syncing: false,
             email_messages_imported: None,
-            crm_connected: false,
+            crm_credentials_available: false,
+            crm_workspace_connected: false,
             crm_syncing: false,
             crm_households: 0,
             crm_records: 0,
@@ -839,10 +909,32 @@ mod tests {
         // Email connected but no AI brain and nothing in flight: this is real
         // setup, so it must NOT report "empty" (Codex P2).
         let mut raw = empty_raw();
+        raw.email_credentials_available = true;
+        raw.email_workspace_connected = true;
         raw.email_accounts =
             vec![EmailAccount { provider: "m365".into(), label: "Microsoft 365".into() }];
         let s = assemble(raw);
         assert_eq!(s.overall, OverallState::Partial);
+    }
+
+    #[test]
+    fn global_credentials_do_not_connect_a_brand_new_workspace() {
+        // OS-keychain credentials deliberately survive workspace changes. A
+        // new workspace has no imported connector data yet, so neither row
+        // may report Done just because this computer was connected before.
+        let mut raw = empty_raw();
+        raw.email_credentials_available = true;
+        raw.email_accounts =
+            vec![EmailAccount { provider: "m365".into(), label: "Microsoft 365".into() }];
+        raw.crm_credentials_available = true;
+
+        let s = assemble(raw);
+
+        assert!(s.email.credentials_available);
+        assert!(!s.email.connected);
+        assert!(s.email.accounts.is_empty());
+        assert!(s.crm.credentials_available);
+        assert!(!s.crm.connected);
     }
 
     #[test]
@@ -874,6 +966,8 @@ mod tests {
     fn overall_in_progress_during_email_sync() {
         let mut raw = empty_raw();
         raw.cloud_key_present = true; // would otherwise be ready
+        raw.email_credentials_available = true;
+        raw.email_workspace_connected = true;
         raw.email_accounts = vec![EmailAccount { provider: "m365".into(), label: "Microsoft 365".into() }];
         raw.email_syncing = true;
         let s = assemble(raw);
@@ -936,7 +1030,8 @@ mod tests {
         let mut raw = empty_raw();
         raw.cloud_key_present = true;
         raw.search_status = "ready".into();
-        raw.crm_connected = true;
+        raw.crm_credentials_available = true;
+        raw.crm_workspace_connected = true;
         raw.crm_households = 40;
         raw.crm_records = 1200;
         raw.client_map = client_map_progress(10, 4, 0);
