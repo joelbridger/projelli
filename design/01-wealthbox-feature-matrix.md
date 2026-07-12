@@ -113,7 +113,7 @@ every external write; light theme; `matter`/`matter_id` never renamed.*
 
 | Feature | What it does | Pricing tier | API | JBW evidence | Verdict |
 |---|---|---|---|---|---|
-| Project record | Lightweight project-management container (notes, tasks, events) for admin initiatives or complex multi-phase financial-planning engagements | Basic | R/W | not mentioned directly (JBW's "planning-update" workflow stage implies similar multi-step planning work, but never names "Projects") | REPLICATE — reinstated 2026-07-12. A first-class lightweight project container, so imported Wealthbox Projects land as real records rather than read-only legacy rows. |
+| Project record | Lightweight project-management container (notes, tasks, events) for admin initiatives or complex multi-phase financial-planning engagements | Basic | R/W | not mentioned directly (JBW's "planning-update" workflow stage implies similar multi-step planning work, but never names "Projects") | REPLICATE — editable Projects are linked to a household, hold their own tasks, and can be completed. Imported Wealthbox Projects remain read-only LegacyProject records with manual conversion available; they are never auto-converted. |
 
 ## 8. Calendar & events
 

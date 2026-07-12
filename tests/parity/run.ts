@@ -978,6 +978,61 @@ class DesktopParityApp implements ParityApp {
     await this.waitForText(title);
   }
 
+  async project(): Promise<void> {
+    const { householdId, path } = await this.setWorkspace(`project-${this.token('workspace')}`);
+    const title = this.token('Parity project');
+    const taskTitle = this.token('Parity project task');
+    await this.openHome();
+    await this.waitForControl('crm-home-nav-projects');
+    await this.click('crm-home-nav-projects');
+    await this.click('crm-project-new');
+    for (const control of ['crm-project-name', 'crm-project-household', 'crm-project-description', 'crm-project-save']) await this.require(control);
+    await this.fill('crm-project-name', title);
+    await this.select('crm-project-household', householdId);
+    await this.fill('crm-project-description', 'A durable project made by the parity acceptance check.');
+    await this.click('crm-project-save');
+    await this.waitForControl('crm-project-detail');
+    await this.requireText(title);
+    const project = await this.waitForRecord(
+      (record) => record.kind === 'project' && record.name === title,
+      'Saving the project did not create a CRM project record'
+    );
+    if ((project.householdRef as { id?: unknown } | undefined)?.id !== householdId)
+      fail('The project was not linked to the selected household');
+    await this.fill('crm-project-task-title', taskTitle);
+    await this.click('crm-project-task-add');
+    const task = await this.waitForRecord(
+      (record) => record.kind === 'task' && record.title === taskTitle && record.projectId === project.id,
+      'Adding a project task did not create a task linked to the project'
+    );
+    await this.click(`crm-project-task-toggle-${String(task.id)}`);
+    await this.waitForRecord(
+      (record) => record.id === task.id && record.status === 'done',
+      'Completing a project task did not save its completed status'
+    );
+    await this.click('crm-project-complete');
+    await this.waitForRecord(
+      (record) => record.id === project.id && record.status === 'completed',
+      'Completing a project did not save its completed status'
+    );
+    await this.requireText('Completed');
+    await this.restart();
+    await this.waitForCrmReady(path);
+    await this.click('crm-home-nav-projects');
+    await this.waitForText(title);
+    const afterRestart = await this.records();
+    const restored = afterRestart.find((record) => record.id === project.id);
+    if (!restored || restored.kind !== 'project' || restored.status !== 'completed')
+      fail('Completed project disappeared or lost its status after native restart');
+    if (!afterRestart.some((record) => record.id === task.id && record.kind === 'task' && record.projectId === project.id && record.status === 'done'))
+      fail('Completed project task disappeared or lost its link after native restart');
+    const projectControl = `crm-project-open-${String(project.id)}`;
+    await this.waitForControl(projectControl);
+    await this.click(projectControl);
+    await this.requireText('Completed');
+    await this.requireText(taskTitle);
+  }
+
   async jumpMeeting(): Promise<void> {
     const { path, householdId } = await this.setWorkspace(
       `jump-meeting-${this.token('workspace')}`

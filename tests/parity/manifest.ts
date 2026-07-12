@@ -13,6 +13,7 @@ export interface ParityApp {
   contact(options: { person?: boolean; household?: boolean; relationship?: boolean; roles?: boolean; ownership?: boolean; tags?: boolean; notes?: boolean; internal?: boolean; account?: boolean; addresses?: boolean; facts?: boolean; timeline?: boolean }): Promise<void>;
   documentLink(): Promise<void>;
   workflow(options: { template?: boolean; instance?: boolean; schedule?: boolean; outcomes?: boolean; comments?: boolean; library?: boolean; meetingProposal?: boolean }): Promise<void>;
+  project(): Promise<void>;
   jumpMeeting(): Promise<void>;
   approvedPlaybook(): Promise<void>;
   pipeline(options: { opportunity?: boolean; pipeline?: boolean; stage?: boolean; workflowTrigger?: boolean; contactActions?: boolean }): Promise<void>;
@@ -88,6 +89,7 @@ export const FEATURES: readonly ParityFeature[] = [
   live('Workflow instances (open workflows)', 'workflow-instances', 'REPLICATE', 'workflows', (app) => app.workflow({ template: true, instance: true })),
   live('Scheduled workflows', 'workflow-scheduling', 'REPLICATE', 'workflows', (app) => app.workflow({ template: true, schedule: true })),
   live('Workflow outcomes (branch/restart/complete)', 'workflow-outcomes', 'REPLICATE', 'workflows', (app) => app.workflow({ template: true, outcomes: true })),
+  live('Project record', 'project-record', 'REPLICATE', 'projects', (app) => app.project()),
   live('Coworker commenting on workflow steps', 'workflow-comments', 'REPLICATE', 'workflows', (app) => app.workflow({ template: true, instance: true, comments: true })),
   live('Jump → Wealthbox workflow trigger', 'meeting-workflow-proposal', 'REPLICATE', 'workflows', (app) => app.workflow({ meetingProposal: true })),
   live('Opportunity record', 'opportunity-record', 'REPLICATE', 'pipelines', (app) => app.pipeline({ opportunity: true })),
@@ -146,7 +148,6 @@ export const FEATURES: readonly ParityFeature[] = [
   // works would be Jameson, by clicking on it.
   // ---------------------------------------------------------------------------
   live('BCC Email Dropbox', 'crm-bcc-dropbox', 'IMPROVE', 'email', (app) => app.durableFeature({ route: 'crm-home-nav-email-dropbox', controls: ['crm-email-dropbox-surface', 'crm-email-dropbox-provider', 'crm-email-dropbox-account', 'crm-email-dropbox-folder', 'crm-email-dropbox-save', 'crm-email-dropbox-check', 'crm-email-dropbox-private-note'], action: 'crm-email-dropbox-save', result: 'This computer will check this folder while this dropbox is open.', recordKind: 'emailDropboxConfig' })),
-  live('Project record', 'project-record', 'REPLICATE', 'workflows', (app) => app.durableFeature({ route: 'crm-home-nav-projects', controls: ['crm-project-create', 'crm-project-name', 'crm-project-row'], action: 'crm-project-create', result: 'Parity project', recordKind: 'project' })),
   live('Org Admin cross-workspace user management', 'org-admin', 'REPLICATE', 'firm setup', (app) => app.durableFeature({ route: 'crm-home-nav-firm-setup', controls: ['crm-org-admin-panel', 'crm-org-admin-user-row', 'crm-org-admin-assign'], action: 'crm-org-admin-assign', result: 'Access updated', recordKind: 'orgAssignment' })),
 
   // Found 2026-07-12, and it is its own lesson. This row is BUILT — the

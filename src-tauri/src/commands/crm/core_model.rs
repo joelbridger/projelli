@@ -112,6 +112,7 @@ core_entity!(Opportunity, "opportunity");
 core_entity!(PipelineDef, "pipelineDef");
 core_entity!(StageDef, "stageDef");
 core_entity!(ProposalRecord, "proposalRecord");
+core_entity!(Project, "project");
 core_entity!(LegacyProject, "legacyProject");
 core_entity!(FirmDirectoryEntry, "firmDirectoryEntry");
 core_entity!(HouseholdDirectoryShell, "householdDirectoryShell");
@@ -157,6 +158,8 @@ pub enum CrmEntity {
     StageDef(StageDef),
     #[serde(rename = "proposalRecord")]
     ProposalRecord(ProposalRecord),
+    #[serde(rename = "project")]
+    Project(Project),
     #[serde(rename = "legacyProject")]
     LegacyProject(LegacyProject),
     #[serde(rename = "firmDirectoryEntry")]
@@ -193,6 +196,7 @@ impl CrmEntity {
             Self::PipelineDef(v) => v.base.kind.as_str(),
             Self::StageDef(v) => v.base.kind.as_str(),
             Self::ProposalRecord(v) => v.base.kind.as_str(),
+            Self::Project(v) => v.base.kind.as_str(),
             Self::LegacyProject(v) => v.base.kind.as_str(),
             Self::FirmDirectoryEntry(v) => v.base.kind.as_str(),
             Self::HouseholdDirectoryShell(v) => v.base.kind.as_str(),

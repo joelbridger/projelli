@@ -7,7 +7,7 @@ import { emailBroadcastSurface } from '@/features/crm-connectors/broadcastSurfac
 import { emailDropboxSurface } from '@/features/crm-connectors/dropboxSurface';
 import { todaySurface } from '@/features/crm-today/surface';
 import { tasksSurface } from '@/features/crm-tasks/surface';
-import { propagationSurface, workflowsSurface } from '@/features/crm-workflows/surface';
+import { projectsSurface, propagationSurface, workflowsSurface } from '@/features/crm-workflows/surface';
 import { firmFieldsSurface, firmSurface, intakeLinksSurface, workspacesSurface } from '@/features/crm-firm/surface';
 import { archiveExportSurface, attachmentAccountingSurface, fidelitySurface, migrationSurface, rollbackExportSurface, workflowRecreationSurface } from '@/features/crm-migration/surface';
 import { pipelineSettingsSurface, pipelineSurface } from '@/features/crm-pipeline/surface';
@@ -47,6 +47,7 @@ export const crmHomeSurfaceRegistry: readonly CrmHomeSurfaceDescriptor[] = [
   pipelineSurface,
   pipelineSettingsSurface,
   propagationSurface,
+  projectsSurface,
   reportsSurface,
   rollbackExportSurface,
   searchSurface,
