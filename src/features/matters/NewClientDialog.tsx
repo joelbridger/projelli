@@ -122,6 +122,9 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
   const firmId = firmSession?.org?.org_id;
   const firmName = firmSession?.org?.name ?? BRAND.name;
   const rootPath = useWorkspaceStore((s) => s.rootPath);
+  // A client is always local. The hosted onboarding link is an optional Firm
+  // capability layered on top when this machine has an active Firm seat.
+  const canCreateOnboardingLink = Boolean(seatToken);
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -226,16 +229,10 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
     ]);
   };
 
-  const handleSend = () => {
+  const handleCreate = () => {
     if (submittingRef.current) return;
     const displayName = name.trim();
     if (!displayName) return;
-    if (!seatToken) {
-      setSendError(
-        'Sign in and activate this machine before sending an onboarding link.'
-      );
-      return;
-    }
     submittingRef.current = true;
     setIsCreating(true);
     setSendError('');
@@ -269,6 +266,20 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
             }
           );
         }
+      }
+
+      // Solo creation must remain local and account-free. Do this after the
+      // common matter setup so Firm users still take the exact existing link
+      // issuance and team-key-sharing path below.
+      if (!seatToken) {
+        setClientMapHubTab('overview');
+        window.dispatchEvent(
+          new CustomEvent(EV_MATTER_LAUNCH, {
+            detail: { matterId: created.id, surface: 'matters' },
+          })
+        );
+        onOpenChange(false);
+        return;
       }
 
       const intakeId = newIntakeId();
@@ -539,13 +550,22 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
                   name: firstName(name),
                 })}
               </div>
-              <div className="mt-1 text-sm text-slate-600">
-                {t('matter.new-client.review-link-note')}
-              </div>
-              <div className="mt-3 rounded-md border border-dashed border-slate-300 bg-white p-3 text-sm text-slate-500">
-                {sentLink ||
-                  'The private link will appear here after you create it.'}
-              </div>
+              {canCreateOnboardingLink ? (
+                <>
+                  <div className="mt-1 text-sm text-slate-600">
+                    {t('matter.new-client.review-link-note')}
+                  </div>
+                  <div className="mt-3 rounded-md border border-dashed border-slate-300 bg-white p-3 text-sm text-slate-500">
+                    {sentLink ||
+                      'The private link will appear here after you create it.'}
+                  </div>
+                </>
+              ) : (
+                <div className="mt-1 text-sm text-slate-600">
+                  This client will be created on this device. You can add their
+                  details anytime.
+                </div>
+              )}
             </div>
             {sendError ? (
               <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -668,11 +688,15 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
             <Button
               data-testid="new-client-create"
               className="gap-2"
-              onClick={handleSend}
+              onClick={handleCreate}
               disabled={isCreating || !canReview}
             >
-              <Send className="h-4 w-4" />
-              Create link
+              {canCreateOnboardingLink ? (
+                <Send className="h-4 w-4" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
+              {canCreateOnboardingLink ? 'Create link' : 'Create client'}
             </Button>
           )}
         </DialogFooter>
