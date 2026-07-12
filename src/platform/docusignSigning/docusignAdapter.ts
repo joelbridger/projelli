@@ -126,9 +126,14 @@ export class DirectDocusignAdapter {
       const baseUri = authorization.baseUri;
       const envelopeResponse = await fetchFn(`${baseUri}/restapi/v2.1/accounts/${encodeURIComponent(authorization.accountId)}/envelopes`, {
         method: 'POST', headers: { Authorization: `Bearer ${authorization.accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ emailSubject: 'Review and sign with DocuSign', status: 'sent', documents: [{ documentBase64: base64(input.pdfBytes), name: 'Completed form', fileExtension: 'pdf', documentId: '1' }], recipients: { signers: [{ name: input.signerName, email: input.signerEmail, recipientId: '1', clientUserId: input.clientUserId, tabs: { signHereTabs: [tab(input.tabMap.signatureTab)], dateSignedTabs: [tab(input.tabMap.dateSignedTab)], fullNameTabs: [tab(input.tabMap.signerNameTab)] } }] } }),
+        body: JSON.stringify({ emailSubject: 'Review and sign with DocuSign', status: 'sent', documents: [{ documentBase64: base64(input.pdfBytes), name: 'Completed form', fileExtension: 'pdf', documentId: '1' }], recipients: { signers: [{ name: input.signerName, email: input.signerEmail, recipientId: '1', routingOrder: '1', deliveryMethod: 'email', clientUserId: input.clientUserId, tabs: { signHereTabs: [tab(input.tabMap.signatureTab)], dateSignedTabs: [tab(input.tabMap.dateSignedTab)], fullNameTabs: [tab(input.tabMap.signerNameTab)] } }] } }),
       });
-      if (!envelopeResponse.ok) throw new Error(`DocuSign envelope creation failed with HTTP ${String(envelopeResponse.status)}.`);
+      if (!envelopeResponse.ok) {
+        // eslint-disable-next-line lantern-async/no-silent-failure -- DocuSign may return a non-JSON error body; HTTP status remains the safe fallback.
+        const detail = await envelopeResponse.json().catch(() => null) as { errorCode?: unknown; message?: unknown } | null;
+        const code = typeof detail?.errorCode === 'string' ? ` (${detail.errorCode})` : '';
+        throw new Error(`DocuSign envelope creation failed with HTTP ${String(envelopeResponse.status)}${code}.`);
+      }
       const envelope = await envelopeResponse.json() as { envelopeId?: unknown };
       if (typeof envelope.envelopeId !== 'string' || !envelope.envelopeId) throw new Error('DocuSign did not return an envelope id.');
       return this.createRecipientViewWithAuthorization(authorization, fetchFn, {

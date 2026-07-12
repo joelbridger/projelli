@@ -202,7 +202,8 @@ async function bootBackend(config: DocusignSandboxCredentials): Promise<BackendP
   delete environment['DOCUSIGN_SIGNING_PRODUCTION_RELEASE'];
   delete environment['DOCUSIGN_SIGNING_PRODUCTION_API_BASE_URI'];
   delete environment['DOCUSIGN_SIGNING_PRIVATE_KEY_PEM'];
-  const { path: _credentialsPath, ...docusignEnvironment } = config;
+  const docusignEnvironment = { ...config };
+  delete docusignEnvironment.path;
   Object.assign(environment, docusignEnvironment, {
     NODE_ENV: 'test', BUN_TEST: '1', HOST: '127.0.0.1', PORT: '0', DB_PATH: join(dbDirectory, 'broker.sqlite'),
     AUTH_RATE_LIMIT_MAX: '1000', RELAY_RATE_LIMIT_MAX: '1000',
@@ -265,21 +266,59 @@ function matchingRef(snapshot: string, label: RegExp): string | null {
   return null;
 }
 
+async function clickCeremonyButton(session: string): Promise<void> {
+  const result = await chrome(['eval', '(() => { const action = [...document.querySelectorAll("button")].find((button) => /^(start|continue|adopt(?: and sign)?|sign|finish|complete)$/i.test(button.innerText.trim())); if (!action) return false; action.click(); return true; })()', '--session', session]);
+  if (!result.includes('true')) throw new Error('DocuSign signing ceremony action button is missing from the page.');
+}
+
+async function assertRecipientSigningView(session: string): Promise<void> {
+  const senderEditor = await chrome(['eval', 'document.body.innerText.includes("Drag and drop fields from the left panel onto the document")', '--session', session]);
+  if (senderEditor.includes('true')) throw new Error('DocuSign recipient link opened the sender field editor instead of the signing ceremony.');
+}
+
 async function completeRecipientCeremony(recipientViewUrl: string, allowedReturnUrl: string): Promise<void> {
   const session = `docusign-sandbox-roundtrip-${randomUUID()}`;
   let lastSnapshot = '';
+  let acceptedElectronicRecordsDisclosure = false;
   try {
     await chrome(['session', 'create', session, '--intent', 'Complete one synthetic DocuSign demo signing ceremony for the Wave 9 release gate.']);
     await chrome(['navigate', recipientViewUrl, '--session', session]);
     for (let step = 0; step < 18; step += 1) {
       const currentUrl = await chrome(['eval', 'location.href', '--session', session]);
       if (currentUrl.includes(allowedReturnUrl)) return;
-      lastSnapshot = await chrome(['snapshot', '--session', session]);
-      const ref = matchingRef(lastSnapshot, /\b(start|continue|adopt(?: and sign)?|sign|finish|complete)\b/iu);
-      if (!ref) {
-        throw new Error(`DocuSign ceremony needs a selector update at step ${String(step + 1)}. No known action was exposed by Chrome. Snapshot:\n${lastSnapshot}`);
+      let ref: string | null = null;
+      // The recipient URL resolves before DocuSign has finished loading its
+      // signing ceremony. Poll the rendered controls, not a fixed delay, so
+      // this real integration test cannot mistake the loading spinner for a
+      // sender/form-editor view.
+      for (let attempt = 0; attempt < 30; attempt += 1) {
+        lastSnapshot = await chrome(['snapshot', '--session', session]);
+        ref = matchingRef(lastSnapshot, /^e\d+\s+button\s+(?:start|continue|adopt(?: and sign)?|sign|finish|complete)\s*$/iu);
+        if (ref) {
+          await assertRecipientSigningView(session);
+          break;
+        }
+        await new Promise((resolveWait) => setTimeout(resolveWait, 1_000));
       }
-      await chrome(['click', ref, '--session', session]);
+      const consentRef = !acceptedElectronicRecordsDisclosure
+        ? matchingRef(lastSnapshot, /^e\d+\s+checkbox\s+I agree to use electronic records and signatures\.\s*$/iu)
+        : null;
+      if (consentRef) {
+        // chrome-cdp's generic click intentionally avoids toggling native
+        // checkboxes. DocuSign's disclosure is one, so use its real input's
+        // click method and let the page receive the normal change event.
+        await chrome(['eval', 'const checkbox = document.querySelector("input[type=checkbox]"); if (!checkbox) throw new Error("DocuSign disclosure checkbox is missing"); checkbox.click();', '--session', session]);
+        acceptedElectronicRecordsDisclosure = true;
+        await new Promise((resolveWait) => setTimeout(resolveWait, 1_000));
+        continue;
+      }
+      if (!ref) {
+        throw new Error(`DocuSign signing ceremony did not expose a known action within 30 seconds at step ${String(step + 1)}. Snapshot:\n${lastSnapshot}`);
+      }
+      await clickCeremonyButton(session);
+      // A click starts an asynchronous DocuSign transition. Without waiting
+      // for it, this runner can repeatedly click the previous screen's button.
+      await new Promise((resolveWait) => setTimeout(resolveWait, 1_000));
     }
     throw new Error(`DocuSign ceremony did not return to the configured return URL after 18 actions. Last snapshot:\n${lastSnapshot}`);
   } finally {

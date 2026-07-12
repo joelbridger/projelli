@@ -14,6 +14,8 @@ interface DocusignEnvelopeRequest {
   recipients: {
     signers: Array<{
       clientUserId: string;
+      routingOrder: string;
+      deliveryMethod: string;
       tabs: {
         signHereTabs: unknown[];
         dateSignedTabs: unknown[];
@@ -44,6 +46,8 @@ describe('direct DocuSign adapter', () => {
     if (!document || !signer) throw new Error('Expected exactly one document and one signer.');
     expect(atob(document.documentBase64)).toBe('exact flattened bytes');
     expect(signer.clientUserId).toBe('lantern-abcd');
+    expect(signer.routingOrder).toBe('1');
+    expect(signer.deliveryMethod).toBe('email');
     expect(signer.tabs.signHereTabs).toHaveLength(1);
     expect(signer.tabs.dateSignedTabs).toHaveLength(1);
     expect(signer.tabs.fullNameTabs).toHaveLength(1);
