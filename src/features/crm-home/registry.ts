@@ -1,15 +1,12 @@
 import type { ComponentType } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import type { CrmHomeRoute } from './CrmHome';
+import type { CrmHomeRoute } from './routes';
 import { activitySurface, timelineSurface } from '@/features/crm-activity/surface';
 import { calendarSurface, emailSurface } from '@/features/crm-connectors/surface';
-import {
-  intakeLinksSurface,
-  propagationSurface,
-  tasksSurface,
-  todaySurface,
-  workflowsSurface,
-} from './surface';
+import { todaySurface } from '@/features/crm-today/surface';
+import { tasksSurface } from '@/features/crm-tasks/surface';
+import { propagationSurface, workflowsSurface } from '@/features/crm-workflows/surface';
+import { intakeLinksSurface } from '@/features/crm-firm/surface';
 import { firmFieldsSurface, firmSurface } from '@/features/crm-firm/surface';
 import { archiveExportSurface, attachmentAccountingSurface, fidelitySurface, migrationSurface, rollbackExportSurface, workflowRecreationSurface } from '@/features/crm-migration/surface';
 import { pipelineSettingsSurface, pipelineSurface } from '@/features/crm-pipeline/surface';
@@ -28,8 +25,8 @@ export interface CrmHomeSurfaceDescriptor {
 
 /**
  * The only shared list for home surfaces. Feature folders own their descriptor;
- * a lane adds its descriptor here without editing CrmHome. Keep entries sorted
- * by id; each entry is a feature-owned descriptor imported from `surface.tsx`.
+ * a lane adds its descriptor here without editing CrmHome. New entries append
+ * at the end so existing route order stays stable; never reorder old entries.
  */
 export const crmHomeSurfaceRegistry: readonly CrmHomeSurfaceDescriptor[] = [
   activitySurface,

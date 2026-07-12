@@ -10,7 +10,8 @@ import {
 } from '@/platform/crm/useLiveCrmRecords';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import { createTemplate, startWorkflow } from '@/features/crm-home/workflowLive';
-import type { CrmHomeSurfaceDescriptor } from '@/features/crm-home/registry';
+import { useCrmHomeSurfaceContext } from '@/features/crm-home/surfaceContext';
+import { AdapterMigrationWizard } from './AdapterMigrationWizard';
 
 const panel = {
   border: '1px solid var(--kp-border)', borderRadius: 'var(--radius-lg)',
@@ -29,7 +30,7 @@ function asRecords<T extends LiveCrmRecord>(records: readonly LiveCrmRecord[], k
 
 /** A real, restart-safe view over the Rust importer.  The screen only renders
  * records from the encrypted CRM store; it never fabricates an import result. */
-function MigrationSurface() {
+function LiveMigrationWizard() {
   const live = useLiveCrmRecords();
   const [baseUrl, setBaseUrl] = useState('http://127.0.0.1:8788/v1');
   const [sourceIdMap, setSourceIdMap] = useState('external_id');
@@ -147,9 +148,10 @@ function MigrationSurface() {
   </div>;
 }
 
-export const migrationSurface: CrmHomeSurfaceDescriptor = { id: 'migration', label: 'Migration', icon: ClipboardList, route: 'migration', Component: MigrationSurface };
-export const fidelitySurface: CrmHomeSurfaceDescriptor = { id: 'fidelity', label: 'Fidelity report', icon: ClipboardList, route: 'fidelity', Component: MigrationSurface };
-export const workflowRecreationSurface: CrmHomeSurfaceDescriptor = { id: 'workflow-recreation', label: 'Workflow recreation', icon: ClipboardList, route: 'workflow-recreation', Component: MigrationSurface };
-export const attachmentAccountingSurface: CrmHomeSurfaceDescriptor = { id: 'attachment-accounting', label: 'Attachment accounting', icon: ClipboardList, route: 'attachment-accounting', Component: MigrationSurface };
-export const archiveExportSurface: CrmHomeSurfaceDescriptor = { id: 'archive-export', label: 'Archive export', icon: ClipboardList, route: 'archive-export', Component: MigrationSurface };
-export const rollbackExportSurface: CrmHomeSurfaceDescriptor = { id: 'rollback-export', label: 'Rollback export', icon: ClipboardList, route: 'rollback-export', Component: MigrationSurface };
+export function MigrationWizard() {
+  const { adapter, adapterProvided, navigate, route } = useCrmHomeSurfaceContext();
+  if (adapterProvided) {
+    return <AdapterMigrationWizard route={route} freshness={adapter.freshness} migration={adapter.migration} onNavigate={(next) => { navigate(next); }} actions={adapter.actions} />;
+  }
+  return <LiveMigrationWizard />;
+}
