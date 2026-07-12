@@ -8,6 +8,45 @@ import { parseMatterHandle, parseStreamHandle } from './contract';
 const opaqueBlobId = (character: string): string => `bh2_${character.repeat(43)}`;
 
 describe('MatterSyncClient v2 socket privacy', () => {
+  it('does not resume a stopped start after key import settles', async () => {
+    const keyB64 = await generateMatterKey();
+    const key = await importMatterKey(keyB64);
+    let releaseKey: ((value: CryptoKey) => void) | undefined;
+    const keyImport = new Promise<CryptoKey>((resolve) => {
+      releaseKey = resolve;
+    });
+    const importKey = vi.spyOn(matterCrypto, 'importMatterKey').mockImplementation(() => keyImport);
+    const pullUpdates = vi.fn();
+    const pushUpdate = vi.fn();
+    const socketFactory = vi.fn();
+    const client = new MatterSyncClient({
+      matterHandle: parseMatterHandle(`mh2_${'Z'.repeat(43)}`), streamHandle: parseStreamHandle(`sh2_${'Y'.repeat(43)}`),
+      keyB64, keyEpoch: 1, seatToken: 'seat',
+      client: {
+        pullUpdates,
+        createSyncTicket: () => Promise.resolve({ ticket: 'ticket-only', expires_in_ms: 1000 }),
+        pushUpdate,
+      } as never,
+      socketFactory,
+    });
+
+    const starting = client.start();
+    await vi.waitFor(() => {
+      expect(importKey).toHaveBeenCalledOnce();
+    });
+    client.stop();
+    if (!releaseKey) throw new Error('Key import gate was not initialized.');
+    releaseKey(key);
+    await starting;
+
+    expect(pullUpdates).not.toHaveBeenCalled();
+    expect(socketFactory).not.toHaveBeenCalled();
+    client.doc.getMap('notes').set('edit-after-stop', true);
+    await Promise.resolve();
+    expect(pushUpdate).not.toHaveBeenCalled();
+    importKey.mockRestore();
+  });
+
   it('opens the fixed ticket-only socket URL and accepts identifier-free frames', async () => {
     const urls: string[] = [];
     let socket: WebSocketLike | undefined;

@@ -208,6 +208,8 @@ export class MatterSyncClient {
   private status: SyncStatus = 'idle';
   private socket: WebSocketLike | null = null;
   private started = false;
+  /** Invalidates delayed work from an earlier start after stop() or a restart. */
+  private lifecycleGeneration = 0;
   /** Local Yjs updates that failed to push, queued (in order) for retry. */
   private readonly pendingUpdates: PendingWrite[] = [];
   /** Backoff reconnect timer; non-null while a reconnect attempt is pending. */
@@ -351,8 +353,10 @@ export class MatterSyncClient {
   /** Start catch-up + live sync, and begin broadcasting local edits. */
   async start(): Promise<void> {
     if (this.started) return;
+    const generation = ++this.lifecycleGeneration;
     this.started = true;
     await this.ensureKey();
+    if (generation !== this.lifecycleGeneration) return;
 
     // Broadcast local Yjs updates (skip ones we applied from remote).
     this.updateHandler = (update: Uint8Array, origin: unknown) => {
@@ -369,14 +373,16 @@ export class MatterSyncClient {
     };
     this.doc.on('update', this.updateHandler);
 
-    await this.catchUp();
-    await this.openSocket();
+    await this.catchUp(generation);
+    if (generation !== this.lifecycleGeneration) return;
+    await this.openSocket(generation);
+    if (generation !== this.lifecycleGeneration) return;
   }
 
   /** Pull all updates after `cursor`, decrypt, apply. Filtered to this.docId. */
-  private async catchUp(): Promise<void> {
+  private async catchUp(generation = this.lifecycleGeneration): Promise<void> {
     if (this.catchUpPromise) return this.catchUpPromise;
-    const pull = this.doCatchUp();
+    const pull = this.doCatchUp(generation);
     this.catchUpPromise = pull;
     try {
       await pull;
@@ -385,17 +391,21 @@ export class MatterSyncClient {
     }
   }
 
-  private async doCatchUp(): Promise<void> {
+  private async doCatchUp(generation: number): Promise<void> {
+    if (generation !== this.lifecycleGeneration) return;
     this.setStatus('catching-up');
     try {
       let pages = 0;
       // Loop while the relay says there is more beyond this page.
       for (;;) {
         const res = await this.client.pullUpdates(this.streamHandle, this.cursor, this.seatToken);
+        if (generation !== this.lifecycleGeneration) return;
         if (res.key_epoch > this.keyEpoch) {
           this.callbacks.onKeyEpochAdvanced?.(res.key_epoch);
         }
-        const fullyApplied = await this.applyPulled(res.updates);
+        if (generation !== this.lifecycleGeneration) return;
+        const fullyApplied = await this.applyPulled(res.updates, generation);
+        if (generation !== this.lifecycleGeneration) return;
         // Never acknowledge a cursor beyond ciphertext we could open. A later
         // rotation starts from this last applied position and gets the blob
         // again instead of permanently losing it.
@@ -407,14 +417,16 @@ export class MatterSyncClient {
         if (!res.has_more || pages >= this.maxCatchupPages) break;
       }
     } catch {
-      this.setStatus('offline');
+      if (generation === this.lifecycleGeneration) this.setStatus('offline');
     }
   }
 
   private async applyPulled(
     updates: Array<{ cursor: number; blob_id: string; key_epoch: number; ciphertext_b64: string }>,
+    generation = this.lifecycleGeneration,
   ): Promise<boolean> {
     for (const u of updates) {
+      if (generation !== this.lifecycleGeneration) return false;
       // A cursor chooses our next replay position. Unlike a bad blob ID, there
       // is no trusted value to advance to, so quarantine and leave the stream
       // blocked rather than desynchronizing this client.
@@ -438,7 +450,8 @@ export class MatterSyncClient {
         this.cursor = u.cursor;
         continue;
       }
-      const applied = await this.applyBlob(u.ciphertext_b64, u.key_epoch, u.blob_id, u.cursor);
+      const applied = await this.applyBlob(u.ciphertext_b64, u.key_epoch, u.blob_id, u.cursor, generation);
+      if (generation !== this.lifecycleGeneration) return false;
       if (!applied) return false;
       this.cursor = u.cursor;
     }
@@ -451,7 +464,9 @@ export class MatterSyncClient {
     blobEpoch: number,
     blobId: string,
     cursor?: number,
+    generation = this.lifecycleGeneration,
   ): Promise<boolean> {
+    if (generation !== this.lifecycleGeneration) return false;
     // A blob sealed under a newer epoch than we hold: we can't decrypt it yet.
     // Signal the host to rotate; skip for now (we'll re-pull after rotation).
     if (blobEpoch > this.keyEpoch) {
@@ -459,9 +474,11 @@ export class MatterSyncClient {
       return false;
     }
     const key = await this.ensureKey();
+    if (generation !== this.lifecycleGeneration) return false;
     const res = await decryptUpdateV2(key, ciphertextB64, {
       keyEpoch: blobEpoch, matterHandle: this.matterHandle, streamHandle: this.streamHandle,
     });
+    if (generation !== this.lifecycleGeneration) return false;
     if (!res.ok) {
       // This is deliberately different from the newer-epoch branch above.
       // A current-epoch decrypt failure is a corruption candidate. Older-epoch
@@ -473,6 +490,7 @@ export class MatterSyncClient {
       return true;
     }
     try {
+      if (generation !== this.lifecycleGeneration) return false;
       Y.applyUpdate(this.doc, res.update, this.remoteOrigin);
     } catch (error) {
       // Authenticated ciphertext can still carry bytes which Yjs cannot
@@ -649,12 +667,15 @@ export class MatterSyncClient {
   }
 
   private async reconnectNow(): Promise<void> {
-    await this.catchUp();
+    const generation = this.lifecycleGeneration;
+    await this.catchUp(generation);
+    if (generation !== this.lifecycleGeneration) return;
     await this.flushPendingUpdates();
-    await this.openSocket();
+    if (generation !== this.lifecycleGeneration) return;
+    await this.openSocket(generation);
   }
 
-  private async openSocket(): Promise<void> {
+  private async openSocket(generation = this.lifecycleGeneration): Promise<void> {
     // A socket is already open or in flight — never open a second one. Without
     // this, a reconnect triggered by something OTHER than a real socket close
     // (a failed HTTP push, or `onerror` firing before `onclose`) could stand
@@ -671,6 +692,7 @@ export class MatterSyncClient {
       const res = await this.client.createSyncTicket(this.streamHandle, this.seatToken, this.cursor);
       ticket = res.ticket;
     } catch {
+      if (generation !== this.lifecycleGeneration) return;
       // Couldn't get a ticket (offline / auth lapsed): stay in catch-up-only
       // mode, but keep trying — otherwise the client is stuck offline forever.
       this.setStatus('offline');
@@ -678,7 +700,7 @@ export class MatterSyncClient {
       return;
     }
     // A stop() during the await must not then open a socket.
-    if (!this.started) return;
+    if (generation !== this.lifecycleGeneration) return;
 
     const url = getMatterSyncSocketUrl(ticket);
     let ws: WebSocketLike;
@@ -857,6 +879,7 @@ export class MatterSyncClient {
 
   /** Stop sync and detach the Yjs listener. Idempotent. The Yjs doc is kept. */
   stop(): void {
+    this.lifecycleGeneration += 1;
     this.started = false;
     this.clearReconnectTimer();
     this.reconnectDelayMs = 0;

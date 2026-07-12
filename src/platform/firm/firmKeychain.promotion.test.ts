@@ -20,7 +20,7 @@ function writeRaw(record: unknown, localMatterId = context.localMatterId): void 
 afterEach(() => { localStorage.clear(); });
 
 describe('promotion receipt validation and lease fencing', () => {
-  it('adopts and permanently upgrades a valid pre-identity sharing receipt', async () => {
+  it('adopts and permanently upgrades a valid in-progress pre-identity sharing receipt', async () => {
     const legacy = {
       provisioningNonce: `pn2_${'L'.repeat(43)}`,
       matterHandle: `mh2_${'M'.repeat(43)}`,
@@ -43,6 +43,26 @@ describe('promotion receipt validation and lease fencing', () => {
     expect(loaded).toMatchObject({ ...context, provisioningNonce: legacy.provisioningNonce });
     const stored = JSON.parse(atob(localStorage.getItem(receiptKey()) ?? '')) as Record<string, unknown>;
     expect(stored).toMatchObject(context);
+  });
+
+  it('rejects a completed identity-free receipt instead of adopting it into this firm account', async () => {
+    const legacyCompleted = {
+      provisioningNonce: `pn2_${'C'.repeat(43)}`,
+      matterHandle: `mh2_${'D'.repeat(43)}`,
+      rootStreamHandle: `sh2_${'E'.repeat(43)}`,
+      keyEpoch: 1,
+      keyB64: 'legacy-key',
+      rootBlobId: `bh2_${'F'.repeat(43)}`,
+      rootCiphertextB64: 'legacy-ciphertext',
+      rootWriteAccepted: true,
+      completed: true,
+    };
+    writeRaw(legacyCompleted);
+
+    await expect(claimPromotionPending(context)).rejects.toBeInstanceOf(PromotionReceiptError);
+    const stored = JSON.parse(atob(localStorage.getItem(receiptKey()) ?? '')) as Record<string, unknown>;
+    expect(stored).not.toHaveProperty('userId');
+    expect(stored).not.toHaveProperty('orgId');
   });
 
   it('still rejects a receipt that names a different client or firm identity', async () => {

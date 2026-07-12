@@ -436,6 +436,10 @@ async function migrateIdentityFreePromotionRecord(
   now: number,
 ): Promise<PromotionPendingRecord | 'retry' | null> {
   if (!isIdentityFreeLegacyPromotionRecord(value, now)) return null;
+  // A completed legacy receipt already names a real relay matter, but its old
+  // format cannot prove which firm account owns that resource. Never adopt it
+  // into the current session; the user must reset and begin a fresh promotion.
+  if (value.completed === true) return null;
   const migrated: PromotionPendingRecord = { ...value, ...context };
   if (!validPromotionRecord(migrated, context, now)) return null;
   const result = await compareAndSetPromotionPending(localMatterId, raw, migrated);
