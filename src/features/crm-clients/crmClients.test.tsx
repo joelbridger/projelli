@@ -100,6 +100,8 @@ describe('crm clients surfaces', () => {
     expect(screen.getByText('Needs a purpose')).toBeInTheDocument();
     expect(screen.getByText('Internal only')).toBeInTheDocument();
     expect(screen.getByText('Client-facing')).toBeInTheDocument();
+    expect(screen.getByTestId('crm-household-tag-priority')).toHaveTextContent('priority');
+    expect(screen.getByTestId('crm-household-field-cf-1')).toHaveTextContent('Referral source');
     fireEvent.click(screen.getByTestId('crm-household-schedule'));
     expect(onOpenSchedulingLink).toHaveBeenCalledWith(
       'https://calendar.example.test/henderson'
@@ -116,6 +118,7 @@ describe('crm clients surfaces', () => {
       />
     );
     expect(screen.getByText('Audience fixed at creation')).toBeInTheDocument();
+    expect(screen.getByTestId('crm-note-audience-internal')).toHaveTextContent('Internal only');
     fireEvent.click(screen.getByTestId('crm-note-mention-p-1'));
     expect(screen.getByText('Will notify: Dana')).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('crm-note-notify-firm'));
@@ -268,7 +271,7 @@ describe('crm clients surfaces', () => {
     fireEvent.change(screen.getByTestId('crm-person-name'), { target: { value: 'Henderson Family Trust' } });
     fireEvent.change(screen.getByTestId('crm-person-roles'), { target: { value: 'Beneficiary contact' } });
     fireEvent.change(screen.getByTestId('crm-person-relationship'), { target: { value: 'Trust' } });
-    fireEvent.click(screen.getByText('Add email'));
+    fireEvent.click(screen.getByTestId('crm-person-email-add'));
     fireEvent.change(screen.getByLabelText('Email 1'), { target: { value: 'trust@example.test' } });
     fireEvent.click(screen.getByTestId('crm-person-save'));
     expect(onSaveHousehold).toHaveBeenCalledWith(expect.objectContaining({

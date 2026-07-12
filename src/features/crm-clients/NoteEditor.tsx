@@ -40,7 +40,11 @@ export function NoteEditor({
       <div
         style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}
       >
-        <Badge variant={isInternal ? 'warning' : 'success'} {...(isInternal ? { icon: Lock } : {})}>
+        <Badge
+          variant={isInternal ? 'warning' : 'success'}
+          data-testid={isInternal ? 'crm-note-audience-internal' : 'crm-note-audience-client-facing'}
+          {...(isInternal ? { icon: Lock } : {})}
+        >
           {isInternal ? 'Internal only' : 'Client-facing'}
         </Badge>
         <span style={{ fontSize: 13 }}>Audience fixed at creation</span>
