@@ -360,8 +360,29 @@ class DesktopParityApp implements ParityApp {
     return result as Array<Record<string, unknown>>;
   }
 
-  /** Open the visible Home destination after a workspace switch or restart. */
-  private async openHome(): Promise<void> {
+  /**
+   * Open the top-level space a feature actually lives in.
+   *
+   * Contacts/Clients features render in the CLIENTS space (`spine-nav-matters`),
+   * not Home. The driver used to always open Home, so every Clients-routed
+   * assertion looked for a control that could not be on screen and failed —
+   * reporting 0/15 for features that genuinely worked. A scoreboard that blames
+   * the product for its own navigation bug is worse than no scoreboard.
+   */
+  private async openSpace(route?: string): Promise<void> {
+    const clientsRoutes = ['clients', 'crm-directory', 'crm-clients'];
+    const wantsClients =
+      !!route && clientsRoutes.some((prefix) => route.startsWith(prefix));
+    if (wantsClients) {
+      if (await this.exists('crm-directory-surface')) return;
+      await this.click('spine-nav-matters');
+      const end = Date.now() + 10_000;
+      while (Date.now() < end) {
+        if (await this.exists('crm-directory-surface')) return;
+        await delay(150);
+      }
+      fail('The desktop app did not show the Clients directory');
+    }
     if (await this.exists('crm-home-nav-tasks')) return;
     await this.click('spine-nav-home');
     const end = Date.now() + 10_000;
@@ -370,6 +391,10 @@ class DesktopParityApp implements ParityApp {
       await delay(150);
     }
     fail('The desktop app did not show Home work surfaces');
+  }
+
+  private async openHome(route?: string): Promise<void> {
+    await this.openSpace(route);
   }
 
   async restart(): Promise<void> {
@@ -941,8 +966,8 @@ class DesktopParityApp implements ParityApp {
     recordKind?: string;
   }): Promise<void> {
     await this.setWorkspace(`feature-${this.token('route')}`);
-    await this.openHome();
-    await this.click(options.route);
+    await this.openHome(options.route);
+    if (!options.route.startsWith('clients') && !options.route.startsWith('crm-directory')) await this.click(options.route);
     for (const control of options.controls) await this.require(control);
     if (options.action) await this.click(options.action);
     if (options.result) await this.requireText(options.result);
