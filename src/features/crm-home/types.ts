@@ -122,6 +122,7 @@ export interface PropagationApplyOffer {
 
 export interface MigrationWorkflowChecklist {
   id: string;
+  householdId?: string | undefined;
   clientLabel: string;
   sourceTemplateLabel: string;
   activityEvidence: readonly string[];
@@ -150,6 +151,9 @@ export interface ExportJobStatus {
   exportedAt?: string | undefined;
   manifestId?: string | undefined;
   reconciliationReportId?: string | undefined;
+  filePath?: string | undefined;
+  byteLength?: number | undefined;
+  sha256?: string | undefined;
 }
 
 export interface CrmMigrationData {

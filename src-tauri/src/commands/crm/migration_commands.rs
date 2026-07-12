@@ -12,7 +12,8 @@ use super::{
     commands::CrmState,
     core_store::CrmCoreStore,
     importer::{
-        fetch_activity_page, fetch_custom_fields_page, fetch_page, SourceType, IMPORTER_PAGE_SIZE,
+        fetch_activity_page, fetch_custom_fields_page, fetch_page, write_decrypted_archive,
+        write_rollback_csv, SourceType, IMPORTER_PAGE_SIZE,
     },
 };
 
@@ -77,6 +78,56 @@ fn source_label(payload: &Value, fallback: &str) -> String {
         .unwrap_or_else(|| fallback.to_string())
 }
 
+fn linked_household_id(
+    payload: &Value,
+    contact_households: &std::collections::BTreeMap<String, String>,
+) -> Option<String> {
+    payload
+        .get("linked_to")
+        .and_then(Value::as_array)?
+        .iter()
+        .find_map(|link| {
+            let is_contact = link
+                .get("type")
+                .and_then(Value::as_str)
+                .is_some_and(|kind| kind.eq_ignore_ascii_case("contact"));
+            let id = link.get("id").and_then(|value| {
+                value
+                    .as_i64()
+                    .map(|id| id.to_string())
+                    .or_else(|| value.as_str().map(str::to_string))
+            });
+            is_contact
+                .then_some(id)
+                .flatten()
+                .and_then(|id| contact_households.get(&id).cloned())
+        })
+}
+
+fn money_amount(payload: &Value) -> Option<f64> {
+    payload
+        .get("amounts")
+        .and_then(Value::as_array)?
+        .first()?
+        .get("amount")?
+        .as_str()?
+        .replace(['$', ','], "")
+        .parse()
+        .ok()
+}
+
+fn custom_field_type(value: &str) -> &'static str {
+    match value {
+        "number" | "number_field" => "number",
+        "currency" | "money" | "money_field" => "money",
+        "date" | "date_field" => "date",
+        "checkbox" | "boolean" => "bool",
+        "select" | "dropdown" => "enum",
+        "multi_select" | "multi-select" => "multi-enum",
+        _ => "text",
+    }
+}
+
 fn matrix_row(source_type: &str, fetched: usize, imported: usize, skipped: usize) -> Value {
     let plain_reason = if skipped == 0 {
         Value::Null
@@ -112,6 +163,7 @@ pub async fn crm_migration_import(
     let mut skipped = std::collections::BTreeMap::<String, usize>::new();
     let mut unchanged = 0usize;
     let mut households = Vec::<(String, String)>::new();
+    let mut contact_households = std::collections::BTreeMap::<String, String>::new();
     let mut workflow_rows = Vec::<Value>::new();
 
     for source in SOURCES {
@@ -156,6 +208,28 @@ pub async fn crm_migration_import(
                     live["primaryAdvisor"] = Value::String("Imported".into());
                     live["serviceTier"] = Value::String("Imported".into());
                     households.push((live["id"].as_str().unwrap_or_default().to_string(), name));
+                    contact_households.insert(
+                        record.source_id.clone(),
+                        live["id"].as_str().unwrap_or_default().to_string(),
+                    );
+                } else if record.source_type == SourceType::Contact {
+                    if let Some(household_source_id) = record
+                        .payload
+                        .get("household")
+                        .and_then(|household| household.get("id"))
+                        .and_then(|value| {
+                            value
+                                .as_i64()
+                                .map(|id| id.to_string())
+                                .or_else(|| value.as_str().map(str::to_string))
+                        })
+                    {
+                        if let Some(household_id) = contact_households.get(&household_source_id) {
+                            contact_households
+                                .insert(record.source_id.clone(), household_id.clone());
+                            live["householdId"] = Value::String(household_id.clone());
+                        }
+                    }
                 }
                 if kind == "task" {
                     live["title"] = live
@@ -166,6 +240,60 @@ pub async fn crm_migration_import(
                     live["priority"] = Value::String("normal".into());
                     live["assigneeUserId"] = Value::String("imported".into());
                     live["assigneeLabel"] = Value::String("Imported".into());
+                }
+                if record.source_type == SourceType::Opportunity {
+                    let Some(household_id) =
+                        linked_household_id(&record.payload, &contact_households)
+                    else {
+                        *skipped.entry("opportunity".into()).or_default() += 1;
+                        continue;
+                    };
+                    let Some(stage_id) = record.payload.get("stage").and_then(|value| {
+                        value
+                            .as_i64()
+                            .map(|id| id.to_string())
+                            .or_else(|| value.as_str().map(str::to_string))
+                    }) else {
+                        *skipped.entry("opportunity".into()).or_default() += 1;
+                        continue;
+                    };
+                    live["householdId"] = Value::String(household_id);
+                    live["pipelineId"] = Value::String("imported-wealthbox-pipeline".into());
+                    live["stageId"] = Value::String(format!("opportunity_stage:{stage_id}"));
+                    live["status"] = Value::String("open".into());
+                    if let Some(amount) = money_amount(&record.payload) {
+                        live["amount"] = json!({ "value": amount, "currency": "USD" });
+                    }
+                    if let Some(probability) =
+                        record.payload.get("probability").and_then(Value::as_f64)
+                    {
+                        live["probability"] = json!(probability);
+                    }
+                    if let Some(close_date) =
+                        record.payload.get("target_close").and_then(Value::as_str)
+                    {
+                        live["expectedCloseDate"] = json!(close_date);
+                    }
+                    if let Some(owner_id) = record.payload.get("manager").and_then(|value| {
+                        value
+                            .as_i64()
+                            .map(|id| id.to_string())
+                            .or_else(|| value.as_str().map(str::to_string))
+                    }) {
+                        live["ownerId"] = json!(owner_id);
+                    }
+                }
+                if record.source_type == SourceType::Project {
+                    live["title"] = live["label"].clone();
+                    live["description"] = record
+                        .payload
+                        .get("description")
+                        .cloned()
+                        .unwrap_or(Value::Null);
+                    live["unlinked"] = Value::Bool(
+                        linked_household_id(&record.payload, &contact_households).is_none(),
+                    );
+                    live["manualWorkflowLaunches"] = json!([]);
                 }
                 let already = store
                     .list_live_records()
@@ -180,7 +308,33 @@ pub async fn crm_migration_import(
                     unchanged += 1;
                 }
                 if kind == "workflow" || kind == "legacy_project" {
-                    workflow_rows.push(json!({ "id": format!("migration-workflow:{}", live["sourceId"].as_str().unwrap_or("unknown")), "kind": "migration_workflow_checklist", "clientLabel": "Imported client", "sourceTemplateLabel": label, "activityEvidence": ["Imported workflow or project trace"], "availableSteps": ["Review imported trace", "Create the matching workflow"], "decision": "pending" }));
+                    let household_id = linked_household_id(&record.payload, &contact_households);
+                    let client_label = household_id
+                        .as_ref()
+                        .and_then(|id| {
+                            households
+                                .iter()
+                                .find(|(candidate, _)| candidate == id)
+                                .map(|(_, name)| name.clone())
+                        })
+                        .unwrap_or_else(|| "Client not identified from the source trace".into());
+                    let available_steps = record
+                        .payload
+                        .get("steps")
+                        .and_then(Value::as_array)
+                        .map(|steps| {
+                            steps
+                                .iter()
+                                .filter_map(|step| {
+                                    step.get("name")
+                                        .and_then(Value::as_str)
+                                        .or_else(|| step.get("title").and_then(Value::as_str))
+                                        .map(str::to_string)
+                                })
+                                .collect::<Vec<_>>()
+                        })
+                        .unwrap_or_default();
+                    workflow_rows.push(json!({ "id": format!("migration-workflow:{}", live["sourceId"].as_str().unwrap_or("unknown")), "kind": "migration_workflow_checklist", "matterId": "firm", "clientLabel": client_label, "householdId": household_id, "sourceTemplateLabel": label, "activityEvidence": ["Imported workflow or project trace"], "availableSteps": available_steps, "decision": "pending" }));
                 }
             }
             if count < IMPORTER_PAGE_SIZE {
@@ -196,6 +350,21 @@ pub async fn crm_migration_import(
         *fetched.entry("custom_field".into()).or_default() += 1;
         *imported.entry("custom_field".into()).or_default() += 1;
         let live = json!({ "id": format!("custom_field:{}", record.source_id), "kind": "custom_field", "matterId": "firm", "sourceType": "custom_field", "sourcePayload": record.payload });
+        let mut live = live;
+        let label = live["sourcePayload"]
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or("Imported field")
+            .to_string();
+        let source_type = live["sourcePayload"]
+            .get("field_type")
+            .and_then(Value::as_str)
+            .unwrap_or("text_field");
+        live["label"] = Value::String(label.clone());
+        live["key"] = Value::String(format!("wealthbox_{}", record.source_id));
+        live["fieldType"] = Value::String(custom_field_type(source_type).into());
+        live["appliesTo"] = json!(["household", "person"]);
+        live["archived"] = Value::Bool(false);
         store
             .upsert_live_record(&live)
             .map_err(|error| error.to_string())?;
@@ -283,9 +452,53 @@ pub async fn crm_migration_export(
         .await
         .map_err(|error| error.to_string())?
         .map_err(|error| error.to_string())?;
-    let record = json!({ "id": format!("migration-export:{kind}"), "kind": "migration_export", "matterId": "firm", "exportKind": kind, "status": "exported", "exportedAt": chrono::Utc::now().to_rfc3339(), "manifestId": "wealthbox-simulator", "reconciliationReportId": "migration-report:wealthbox" });
+    let records = store
+        .list_live_records()
+        .map_err(|error| error.to_string())?;
+    let report = records.iter().find(|record| {
+        record.get("id") == Some(&Value::String("migration-report:wealthbox".into()))
+    });
+    let Some(report) = report else {
+        return Err("Run the migration before creating an export file.".into());
+    };
+    let batch_id = report
+        .get("batchId")
+        .and_then(Value::as_str)
+        .unwrap_or("wealthbox-simulator");
+    let matrix = report
+        .get("matrix")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let written = match kind.as_str() {
+        "archive" => write_decrypted_archive(&workspace, batch_id, &records, &matrix),
+        "rollback" => write_rollback_csv(&workspace, batch_id, &records),
+        _ => unreachable!("kind is checked above"),
+    };
+    let record = match written {
+        Ok(written) => json!({
+            "id": format!("migration-export:{kind}"), "kind": "migration_export", "matterId": "firm",
+            "exportKind": kind, "status": "exported", "exportedAt": chrono::Utc::now().to_rfc3339(),
+            "manifestId": batch_id, "reconciliationReportId": "migration-report:wealthbox",
+            "filePath": written.path.to_string_lossy(), "byteLength": written.byte_length,
+            "sha256": written.sha256,
+        }),
+        Err(error) => json!({
+            "id": format!("migration-export:{kind}"), "kind": "migration_export", "matterId": "firm",
+            "exportKind": kind, "status": "failed", "failedAt": chrono::Utc::now().to_rfc3339(),
+            "manifestId": batch_id, "reconciliationReportId": "migration-report:wealthbox",
+            "failureReason": format!("Could not create the file: {error}"),
+        }),
+    };
     store
         .upsert_live_record(&record)
         .map_err(|error| error.to_string())?;
+    if record.get("status").and_then(Value::as_str) == Some("failed") {
+        return Err(record
+            .get("failureReason")
+            .and_then(Value::as_str)
+            .unwrap_or("Could not create the export file.")
+            .to_string());
+    }
     Ok(record)
 }
