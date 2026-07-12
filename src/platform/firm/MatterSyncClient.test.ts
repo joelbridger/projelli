@@ -432,6 +432,50 @@ describe('MatterSyncClient v2 socket privacy', () => {
     client.stop();
   });
 
+  it('does not wrongly quarantine a small valid ciphertext padded with whitespace', async () => {
+    // atob() (the eventual decoder) ignores ASCII whitespace, so a hostile
+    // relay could otherwise pad a legitimate small update with enough spaces
+    // to make the raw-length estimate look oversized and get it skipped.
+    const matterHandle = parseMatterHandle(`mh2_${'X'.repeat(43)}`);
+    const streamHandle = parseStreamHandle(`sh2_${'Y'.repeat(43)}`);
+    const keyB64 = await generateMatterKey();
+    const key = await importMatterKey(keyB64);
+    const doc = new Y.Doc();
+    doc.getMap('notes').set('padded-with-whitespace', 'applied');
+    const validCiphertext = await matterCrypto.encryptUpdateV2(
+      key, Y.encodeStateAsUpdate(doc), { matterHandle, streamHandle, keyEpoch: 1 },
+    );
+    const padded = `${validCiphertext}${' '.repeat(1_398_104)}`;
+    const onUpdateQuarantined = vi.fn();
+    let socket: WebSocketLike | undefined;
+    const client = new MatterSyncClient({
+      matterHandle, streamHandle, keyB64, keyEpoch: 1, seatToken: 'seat',
+      client: {
+        pullUpdates: () => Promise.resolve({ key_epoch: 1, since: 0, cursor: 0, latest_cursor: 0, has_more: false, updates: [] }),
+        createSyncTicket: () => Promise.resolve({ ticket: 'ticket-only', expires_in_ms: 1000 }),
+        pushUpdate: () => Promise.resolve({ ok: true, cursor: 3, blob_id: 'new', key_epoch: 1, duplicate: false }),
+      } as never,
+      callbacks: { onUpdateQuarantined },
+      socketFactory: () => {
+        socket = { send() {}, close() {}, onopen: null, onclose: null, onerror: null, onmessage: null };
+        return socket;
+      },
+    });
+
+    await client.start();
+    socket?.onmessage?.({ data: JSON.stringify({ type: 'ready', backlog: 0, latest_cursor: 0, subscribers: 1 }) });
+    socket?.onmessage?.({ data: JSON.stringify({
+      type: 'update', cursor: 1, blob_id: opaqueBlobId('P'), key_epoch: 1, ciphertext_b64: padded,
+    }) });
+
+    await vi.waitFor(() => {
+      expect(client.getCursor()).toBe(1);
+      expect(client.doc.getMap('notes').get('padded-with-whitespace')).toBe('applied');
+    });
+    expect(onUpdateQuarantined).not.toHaveBeenCalled();
+    client.stop();
+  });
+
   it('flushes only writes present at its starting marker, even while later edits keep arriving', async () => {
     let resolveFirstPush: (() => void) | undefined;
     let pushes = 0;

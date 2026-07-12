@@ -43,13 +43,17 @@ function isSafeCursor(value: unknown): value is number {
  * True if the value cannot possibly decode within MAX_UPDATE_BYTES. Deliberately does NOT
  * validate base64 shape/padding — that would misclassify small malformed or tampered
  * ciphertext (which must fall through to decrypt and fail there as `decrypt_failed`) as
- * oversized. `floor(length * 3/4)` ignores padding entirely, which can only ever
+ * oversized. `floor(dataLength * 3/4)` ignores padding entirely, which can only ever
  * OVER-estimate the true decoded size, so this can never let a genuinely oversized
  * payload through, and at worst is a couple of bytes over-strict at the exact boundary.
+ * Counts only non-whitespace characters: atob() (the eventual decoder) ignores ASCII
+ * whitespace, so a raw-length count would let a hostile relay pad a small, otherwise-valid
+ * ciphertext with whitespace to make a legitimate update look oversized and get skipped.
  */
 function exceedsUpdateByteLimit(ciphertextB64: unknown): boolean {
   if (typeof ciphertextB64 !== 'string') return true;
-  return Math.floor((ciphertextB64.length * 3) / 4) > MAX_UPDATE_BYTES;
+  const dataLength = ciphertextB64.length - (ciphertextB64.match(/\s/g)?.length ?? 0);
+  return Math.floor((dataLength * 3) / 4) > MAX_UPDATE_BYTES;
 }
 
 export type SyncStatus =
