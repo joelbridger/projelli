@@ -31,6 +31,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Client/matter organization now survives a browser-profile wipe (data-durability, HIGH).**
+  Matter records lived ONLY in profile-scoped localStorage (`lantern:matters…`), so a
+  WebView2 profile reset, cache clear, reinstall, or new machine permanently destroyed
+  every client mapping while the workspace's files survived orphaned (reproduced on the
+  Windows bench: ~40 clients → "No clients yet"). The workspace's own on-disk file
+  (`.lantern/matters.json`, written atomically through WorkspaceService — encrypted in
+  vault workspaces) is now the source of truth; localStorage is only a fast cache. On
+  workspace open the disk copy wins; a cache-only legacy install has its records
+  committed to disk once; a corrupt file is backed up beside itself and rebuilt from the
+  cache; per-workspace records stay in their own workspace folder (multi-workspace safe).
+  Files: `src/platform/matter/matterWorkspaceFile.ts` (new), `matterStore.ts`
+  (write-through + `hydrateMattersFromWorkspaceDisk`), `reloadWorkspaceScopedStores.ts`,
+  `src/config/identity.ts`; tests: `tests/unit/matter/matterWorkspacePersistence.test.ts`.
+
 ### Added
 - **Lantern Intake — Wave 1 (the honest E2EE onboarding slice).** An advisor
   presses New client, composes the locked "New household" checklist (DOB, SSN,
