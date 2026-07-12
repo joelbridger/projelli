@@ -282,6 +282,8 @@ describe("firm relay privacy proof", () => {
         [`/v2/firm/matters/${matterHandle}/wall/clear`, auth],
         [`/v2/firm/matters/${matterHandle}/keys/publish`, auth],
         [`/v2/firm/matters/${matterHandle}/keys/fetch`, auth],
+        [`/v2/firm/intake/ih2_${"I".repeat(43)}/keys/publish`, auth],
+        [`/v2/firm/intake/ih2_${"I".repeat(43)}/keys/fetch`, auth],
         [`/v2/firm/matters/${matterHandle}/streams`, auth],
         [`/v2/firm/streams/${rootStream}/updates`, auth],
         [`/v2/firm/streams/${rootStream}/sync-ticket`, auth],

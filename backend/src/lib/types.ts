@@ -108,6 +108,10 @@ export type AuditAction =
   | "device.register" // user registered a device public key
   | "matter.keys.publish" // admin published wrapped matter keys for members
   | "matter.keys.fetch" // member fetched their wrapped matter key
+  | "intake.keys.publish" // admin/owner published wrapped intake keys for a matter
+  | "intake.keys.fetch" // member fetched their wrapped intake key
+  | "intake.access.granted" // intake key fetch passed the bound-matter access gate
+  | "intake.access.denied" // intake key fetch failed the bound-matter access gate
   | "org.claim" // org claimed from unclaimed status via license key
   | "webhook.lemonsqueezy" // LemonSqueezy webhook processed
   // ---- chunk 5: SSO (OIDC) ---------------------------------------------------

@@ -58,6 +58,7 @@ import {
 } from "./routes/assured.ts";
 import { handleDeviceRegister, handleListUsersDevices, handleListOrgAdmins } from "./routes/devices.ts";
 import { handlePublishMatterKeys, handleFetchMatterKey, handleMatterMine } from "./routes/matterKeys.ts";
+import { handlePublishIntakeKeys, handleFetchIntakeKey } from "./routes/intakeKeys.ts";
 import { handleOrgClaim } from "./routes/claim.ts";
 import { handleSsoConfigSet, handleSsoConfigGet, handleSsoConfigDelete, handleSsoStart, handleSsoCallback, handleSsoExchange } from "./routes/sso.ts";
 import { handleLemonSqueezyWebhook } from "./routes/webhooks.ts";
@@ -115,6 +116,13 @@ function matchStream(path: string): { handle: string; operation: "updates" | "sy
   const m = path.match(/^\/v2\/firm\/streams\/([^/]+)\/(updates|sync-ticket)$/);
   if (!m || !/^sh2_[A-Za-z0-9_-]{43}$/.test(m[1]!)) return null;
   return { handle: m[1]!, operation: m[2]! as "updates" | "sync-ticket" };
+}
+
+/** Intake key exchange uses a separate opaque handle surface from matters. */
+function matchIntake(path: string): { handle: string; operation: "keys/publish" | "keys/fetch" } | null {
+  const m = path.match(/^\/v2\/firm\/intake\/([^/]+)\/(keys\/publish|keys\/fetch)$/);
+  if (!m || !/^ih2_[A-Za-z0-9_-]{43}$/.test(m[1]!)) return null;
+  return { handle: m[1]!, operation: m[2]! as "keys/publish" | "keys/fetch" };
 }
 
 /**
@@ -260,6 +268,11 @@ export function buildServeOptions(store: Store, hub: FanoutHub, traffic?: RelayT
           if (sm.operation === "sync-ticket" && method === "POST") return await handleSyncTicket(req, store, matterHandle, stream, ip);
           if (sm.operation === "updates" && method === "POST") return error("stream_not_found", 404);
           if (sm.operation === "updates" && method === "GET") return await handlePullUpdates(req, store, matterHandle, stream, ip);
+        }
+        const intake = matchIntake(path);
+        if (intake) {
+          if (intake.operation === "keys/publish" && method === "POST") return await handlePublishIntakeKeys(req, store, intake.handle);
+          if (intake.operation === "keys/fetch" && method === "POST") return await handleFetchIntakeKey(req, store, intake.handle);
         }
         const mm = matchMatter(path);
         if (mm) {

@@ -5,10 +5,11 @@ vi.mock('@/platform/providers/fetchUtils', () => ({
 }));
 
 import { FirmApiClient, FirmApiError, MAX_PULL_RESPONSE_BYTES } from './FirmApiClient';
-import { parseMatterHandle, parseStreamHandle } from './contract';
+import { parseIntakeHandle, parseMatterHandle, parseStreamHandle } from './contract';
 
 const matterHandle = parseMatterHandle(`mh2_${'A'.repeat(43)}`);
 const streamHandle = parseStreamHandle(`sh2_${'B'.repeat(43)}`);
+const intakeHandle = parseIntakeHandle(`ih2_${'C'.repeat(43)}`);
 
 describe('FirmApiClient v2 relay privacy', () => {
   const traffic: Array<{ url: string; method: string; headers: string; body: string }> = [];
@@ -54,6 +55,8 @@ describe('FirmApiClient v2 relay privacy', () => {
       await client.clearWall(matterHandle, 'user-opaque'),
       await client.publishMatterKeys(matterHandle, { epoch: 1, wrapped: [{ user_id: 'user-opaque', device_id: 'device-opaque', wrapped_key_b64: 'wrapped' }] }),
       await client.fetchMatterKeys(matterHandle, 'device-opaque', 'seat'),
+      await client.publishIntakeKeys(intakeHandle, { matter_handle: matterHandle, epoch: 1, wrapped: [{ user_id: 'user-opaque', device_id: 'device-opaque', wrapped_key_b64: 'wrapped' }] }),
+      await client.fetchIntakeKeys(intakeHandle, 'device-opaque', 'seat'),
       await client.pushUpdate(matterHandle, streamHandle, 'blob-opaque', 'ciphertext-opaque', 'seat', 1),
       await client.pullUpdates(streamHandle, 0, 'seat'),
       await client.createSyncTicket(streamHandle, 'seat', 0),
@@ -78,14 +81,16 @@ describe('FirmApiClient v2 relay privacy', () => {
 
     expect(traffic.map((r) => r.url).join('\n')).toContain(`/v2/firm/matters/${matterHandle}/streams/`);
     expect(traffic.find((r) => r.url.includes('/updates?'))?.url).toMatch(/\?since=0$/);
-    expect(traffic).toHaveLength(14);
+    expect(traffic).toHaveLength(16);
   });
 
   it('accepts only strict 256-bit base64url opaque handles', () => {
     expect(parseMatterHandle(matterHandle)).toBe(matterHandle);
     expect(parseStreamHandle(streamHandle)).toBe(streamHandle);
+    expect(parseIntakeHandle(intakeHandle)).toBe(intakeHandle);
     expect(() => parseMatterHandle('matter-semantic-123')).toThrow();
     expect(() => parseStreamHandle('sh2_short')).toThrow();
+    expect(() => parseIntakeHandle('intake-semantic-123')).toThrow();
   });
 
   it('rejects an oversized pull response before buffering the whole body', async () => {

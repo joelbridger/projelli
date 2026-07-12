@@ -317,6 +317,24 @@ CREATE TABLE IF NOT EXISTS wrapped_matter_keys (
 CREATE INDEX IF NOT EXISTS idx_wmk_matter_epoch ON wrapped_matter_keys(matter_handle, epoch);
 CREATE INDEX IF NOT EXISTS idx_wmk_user ON wrapped_matter_keys(user_id);
 
+-- Per-device wrapped copy of a matter key for a client-generated intake handle.
+-- The intake is bound to one matter by the transaction in publishWrappedIntakeKeys;
+-- this table intentionally stores no intake content or local identifier.
+CREATE TABLE IF NOT EXISTS wrapped_intake_keys (
+  intake_handle   TEXT NOT NULL,
+  matter_handle   TEXT NOT NULL REFERENCES matters(matter_handle),
+  org_id          TEXT NOT NULL REFERENCES orgs(org_id),
+  epoch           INTEGER NOT NULL,
+  user_id         TEXT NOT NULL REFERENCES users(user_id),
+  device_id       TEXT NOT NULL,
+  wrapped_key     BLOB NOT NULL,
+  published_by    TEXT NOT NULL,
+  created_at      TEXT NOT NULL,
+  PRIMARY KEY (intake_handle, epoch, user_id, device_id)
+);
+CREATE INDEX IF NOT EXISTS idx_wik_intake_user ON wrapped_intake_keys(intake_handle, user_id, device_id);
+CREATE INDEX IF NOT EXISTS idx_wik_matter_epoch ON wrapped_intake_keys(matter_handle, epoch);
+
 -- LemonSqueezy webhook idempotency: prevents double-processing the same event.
 -- subscription_id column + index are added via guarded migration in the Store
 -- constructor (see below) so a DB created from the pre-subscription_id schema
@@ -1886,6 +1904,111 @@ export class Store {
       return { ok: true as const, epoch: matter.key_epoch, access: member ? "member" as const : "admin" as const, key: row ? toWrappedMatterKey(row) : null };
     });
     return txn.immediate() as ReturnType<Store["fetchWrappedMatterKeyForAccess"]>;
+  }
+
+  /**
+   * Atomically publish a batch of wrapped keys for one opaque intake handle.
+   * The handle can bind to only one matter, which makes the fetch route
+   * unambiguous without putting a matter handle in its URL or body.
+   */
+  publishWrappedIntakeKeys(input: {
+    intake_handle: string;
+    matter_handle: string;
+    org_id: string;
+    epoch: number;
+    published_by: string;
+    wrapped: Array<{ user_id: string; device_id: string; wrapped_key: Uint8Array }>;
+  }): { stored: number; skipped: number } | { matterArchived: true } | { staleEpoch: true } | { matterNotFound: true } | { invalidRecipient: true } | { publisherUnauthorized: true } | { publisherWalled: true } | { intakeMatterMismatch: true } {
+    const txn = this.#db.transaction(() => {
+      const matter = this.#db
+        .query(`SELECT org_id, status, key_epoch FROM matters WHERE matter_handle = ?`)
+        .get(input.matter_handle) as { org_id: string; status: MatterStatus; key_epoch: number } | null;
+      if (!matter || matter.org_id !== input.org_id) return { matterNotFound: true as const };
+      if (matter.status !== "active") return { matterArchived: true as const };
+      if (matter.key_epoch !== input.epoch) return { staleEpoch: true as const };
+
+      if (this.isWalled(input.matter_handle, input.published_by)) return { publisherWalled: true as const };
+      const publisher = this.#db
+        .query(`SELECT role FROM users WHERE user_id = ? AND org_id = ?`)
+        .get(input.published_by, input.org_id) as { role: UserRole } | null;
+      const publisherMembership = this.#db
+        .query(`SELECT role FROM matter_members WHERE matter_handle = ? AND user_id = ? AND org_id = ?`)
+        .get(input.matter_handle, input.published_by, input.org_id) as { role: MatterRole } | null;
+      if (publisher?.role !== "admin" && publisherMembership?.role !== "owner") return { publisherUnauthorized: true as const };
+
+      const existing = this.#db
+        .query(`SELECT matter_handle FROM wrapped_intake_keys WHERE intake_handle = ? AND org_id = ? LIMIT 1`)
+        .get(input.intake_handle, input.org_id) as { matter_handle: string } | null;
+      if (existing && existing.matter_handle !== input.matter_handle) return { intakeMatterMismatch: true as const };
+
+      let stored = 0;
+      let skipped = 0;
+      for (const key of input.wrapped) {
+        const user = this.getUser(key.user_id);
+        if (!user || user.org_id !== input.org_id || !this.getDevice(key.device_id, key.user_id)) return { invalidRecipient: true as const };
+        if (this.isWalled(input.matter_handle, key.user_id)) {
+          skipped++;
+          continue;
+        }
+        this.#db
+          .query(
+            `INSERT INTO wrapped_intake_keys (intake_handle, matter_handle, org_id, epoch, user_id, device_id, wrapped_key, published_by, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(intake_handle, epoch, user_id, device_id) DO UPDATE SET
+               wrapped_key = excluded.wrapped_key,
+               published_by = excluded.published_by`,
+          )
+          .run(input.intake_handle, input.matter_handle, input.org_id, input.epoch, key.user_id, key.device_id, key.wrapped_key, input.published_by, this.nowIso());
+        stored++;
+      }
+      return { stored, skipped };
+    });
+    return txn.immediate() as ReturnType<Store["publishWrappedIntakeKeys"]>;
+  }
+
+  /** Resolve an intake's bound matter, apply normal matter access checks, and fetch one device key atomically. */
+  fetchWrappedIntakeKeyForAccess(input: {
+    intake_handle: string;
+    org_id: string;
+    user_id: string;
+    role: UserRole;
+    device_id: string;
+  }):
+    | { ok: true; epoch: number; access: "member" | "admin"; key: { wrapped_key: Uint8Array } | null }
+    | { ok: false; reason: "intake_not_found" | "matter_not_found" | "cross_org" | "inactive" | "walled" | "not_member" } {
+    const txn = this.#db.transaction(() => {
+      const binding = this.#db
+        .query(`SELECT matter_handle FROM wrapped_intake_keys WHERE intake_handle = ? AND org_id = ? LIMIT 1`)
+        .get(input.intake_handle, input.org_id) as { matter_handle: string } | null;
+      if (!binding) return { ok: false as const, reason: "intake_not_found" as const };
+
+      const matter = this.#db
+        .query(`SELECT org_id, status, key_epoch FROM matters WHERE matter_handle = ?`)
+        .get(binding.matter_handle) as { org_id: string; status: MatterStatus; key_epoch: number } | null;
+      if (!matter) return { ok: false as const, reason: "matter_not_found" as const };
+      if (matter.org_id !== input.org_id) return { ok: false as const, reason: "cross_org" as const };
+      if (matter.status !== "active") return { ok: false as const, reason: "inactive" as const };
+
+      const walled = this.#db
+        .query(`SELECT 1 FROM ethical_walls WHERE matter_handle = ? AND user_id = ?`)
+        .get(binding.matter_handle, input.user_id);
+      if (walled) return { ok: false as const, reason: "walled" as const };
+      const member = this.#db
+        .query(`SELECT 1 FROM matter_members WHERE matter_handle = ? AND user_id = ?`)
+        .get(binding.matter_handle, input.user_id);
+      if (!member && input.role !== "admin") return { ok: false as const, reason: "not_member" as const };
+
+      const key = this.#db
+        .query(`SELECT wrapped_key FROM wrapped_intake_keys WHERE intake_handle = ? AND matter_handle = ? AND epoch = ? AND user_id = ? AND device_id = ?`)
+        .get(input.intake_handle, binding.matter_handle, matter.key_epoch, input.user_id, input.device_id) as { wrapped_key: Uint8Array } | null;
+      return {
+        ok: true as const,
+        epoch: matter.key_epoch,
+        access: member ? "member" as const : "admin" as const,
+        key: key ? { wrapped_key: key.wrapped_key } : null,
+      };
+    });
+    return txn.immediate() as ReturnType<Store["fetchWrappedIntakeKeyForAccess"]>;
   }
 
   /**

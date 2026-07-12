@@ -46,6 +46,9 @@ import {
   type PublishMatterKeysRequest,
   type PublishMatterKeysResponse,
   type FetchMatterKeysResponse,
+  type PublishIntakeKeysRequest,
+  type PublishIntakeKeysResponse,
+  type FetchIntakeKeysResponse,
   type ListOrgAdminsResponse,
   type MatterMineResponse,
   type PublicUser,
@@ -54,8 +57,10 @@ import {
   type SsoConfigView,
   type MatterHandle,
   type StreamHandle,
+  type IntakeHandle,
   parseMatterHandle,
   parseStreamHandle,
+  parseIntakeHandle,
 } from './contract';
 import { OPAQUE_PROVISIONING_NONCE_PATTERN } from './opaqueBlobId';
 
@@ -448,6 +453,29 @@ export class FirmApiClient {
   fetchMatterKeys(matterHandle: MatterHandle, deviceId: string, seatToken: string): Promise<FetchMatterKeysResponse> {
     return this.request<FetchMatterKeysResponse>(
       FIRM_ENDPOINTS.fetchMatterKeys.replace(':matter_handle', encodeURIComponent(parseMatterHandle(matterHandle))),
+      { method: 'POST', auth: true, body: { device_id: deviceId }, headers: { 'X-Seat-Token': seatToken } },
+    );
+  }
+
+  publishIntakeKeys(
+    intakeHandle: IntakeHandle,
+    payload: PublishIntakeKeysRequest,
+    signal?: AbortSignal,
+  ): Promise<PublishIntakeKeysResponse> {
+    return this.request<PublishIntakeKeysResponse>(
+      FIRM_ENDPOINTS.publishIntakeKeys.replace(':intake_handle', encodeURIComponent(parseIntakeHandle(intakeHandle))),
+      {
+        method: 'POST',
+        auth: true,
+        body: { ...payload, matter_handle: parseMatterHandle(payload.matter_handle) },
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
+
+  fetchIntakeKeys(intakeHandle: IntakeHandle, deviceId: string, seatToken: string): Promise<FetchIntakeKeysResponse> {
+    return this.request<FetchIntakeKeysResponse>(
+      FIRM_ENDPOINTS.fetchIntakeKeys.replace(':intake_handle', encodeURIComponent(parseIntakeHandle(intakeHandle))),
       { method: 'POST', auth: true, body: { device_id: deviceId }, headers: { 'X-Seat-Token': seatToken } },
     );
   }

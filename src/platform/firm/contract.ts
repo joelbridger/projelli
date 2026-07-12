@@ -125,9 +125,12 @@ export interface CreateUserRequest {
 export type MatterHandle = string & { readonly __brand: 'MatterHandle' };
 /** A client-generated, 256-bit opaque encrypted-stream routing handle. */
 export type StreamHandle = string & { readonly __brand: 'StreamHandle' };
+/** A client-generated, 256-bit opaque intake-key routing handle. */
+export type IntakeHandle = string & { readonly __brand: 'IntakeHandle' };
 
 const MATTER_HANDLE_RE = /^mh2_[A-Za-z0-9_-]{43}$/;
 const STREAM_HANDLE_RE = /^sh2_[A-Za-z0-9_-]{43}$/;
+const INTAKE_HANDLE_RE = /^ih2_[A-Za-z0-9_-]{43}$/;
 
 /** Parse a v2 opaque routing handle. Never use this for a local Matter.id. */
 export function parseMatterHandle(value: string): MatterHandle {
@@ -141,6 +144,12 @@ export function parseStreamHandle(value: string): StreamHandle {
   return value as StreamHandle;
 }
 
+/** Parse a v2 opaque routing handle. Never use this for a local intake id. */
+export function parseIntakeHandle(value: string): IntakeHandle {
+  if (!INTAKE_HANDLE_RE.test(value)) throw new Error('Invalid v2 intake handle.');
+  return value as IntakeHandle;
+}
+
 /** Generate a cryptographically random opaque stream handle on this device. */
 export function generateStreamHandle(): StreamHandle {
   const bytes = new Uint8Array(32);
@@ -148,6 +157,15 @@ export function generateStreamHandle(): StreamHandle {
   let binary = '';
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return parseStreamHandle(`sh2_${btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')}`);
+}
+
+/** Generate a cryptographically random opaque intake handle on this device. */
+export function generateIntakeHandle(): IntakeHandle {
+  const bytes = new Uint8Array(32);
+  globalThis.crypto.getRandomValues(bytes);
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return parseIntakeHandle(`ih2_${btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')}`);
 }
 
 export type MatterStatus = 'provisioning' | 'active' | 'archived';
@@ -378,6 +396,14 @@ export interface FetchMatterKeysResponse {
   wrapped_key_b64: string;
 }
 
+/** An intake handle is bound to one opaque matter when its first key is published. */
+export interface PublishIntakeKeysRequest extends PublishMatterKeysRequest {
+  matter_handle: MatterHandle;
+}
+
+export type PublishIntakeKeysResponse = PublishMatterKeysResponse;
+export type FetchIntakeKeysResponse = FetchMatterKeysResponse;
+
 /** Response for POST /org/admins — org admin users (used for escrow). */
 export interface OrgAdminEntry {
   user_id: string;
@@ -451,7 +477,7 @@ export interface ApiError {
   detail?: string;
 }
 
-/** V2 opaque firm-relay paths. `:matter_handle`/`:stream_handle` are validated handles. */
+/** V2 opaque firm-relay paths. Handle placeholders are validated before dispatch. */
 export const FIRM_ENDPOINTS = {
   deviceRegister: '/device/register',
   orgUserDevices: '/org/users/devices',
@@ -483,6 +509,8 @@ export const FIRM_ENDPOINTS = {
   listMatterMembers: '/v2/firm/matters/:matter_handle/members/list',
   publishMatterKeys: '/v2/firm/matters/:matter_handle/keys/publish',
   fetchMatterKeys: '/v2/firm/matters/:matter_handle/keys/fetch',
+  publishIntakeKeys: '/v2/firm/intake/:intake_handle/keys/publish',
+  fetchIntakeKeys: '/v2/firm/intake/:intake_handle/keys/fetch',
   setWall: '/v2/firm/matters/:matter_handle/wall/set',
   clearWall: '/v2/firm/matters/:matter_handle/wall/clear',
   pushUpdate: '/v2/firm/matters/:matter_handle/streams/:stream_handle/updates',

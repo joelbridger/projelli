@@ -57,7 +57,7 @@ function assertStoreAndAuditAreClean(store: Store): void {
       // place readable bytes there; a relay-side "encryption check" cannot
       // prove otherwise. This proof covers every NON-payload field instead.
       if ((name === "matter_updates" && columnName === "ciphertext") ||
-          (name === "wrapped_matter_keys" && columnName === "wrapped_key")) continue;
+          ((name === "wrapped_matter_keys" || name === "wrapped_intake_keys") && columnName === "wrapped_key")) continue;
       const column = `"${columnName.replaceAll('"', '""')}"`;
       for (const sentinel of SENTINELS) {
         expect(db.all(`SELECT 1 FROM ${table} WHERE instr(CAST(${column} AS TEXT), ?) > 0`, sentinel), `${name}.${columnName}`).toHaveLength(0);
@@ -67,8 +67,8 @@ function assertStoreAndAuditAreClean(store: Store): void {
   for (const { org_id } of db.all("SELECT org_id FROM orgs") as Array<{ org_id: string }>) assertNoSentinels(store.listAudit(org_id), `audit ${org_id}`);
 }
 
-function concretePath(spec: V2FirmRouteSpec, matterHandle: string, streamHandle: string): string {
-  return spec.path.replace(":matter_handle", matterHandle).replace(":stream_handle", streamHandle);
+function concretePath(spec: V2FirmRouteSpec, matterHandle: string, streamHandle: string, intakeHandle: string): string {
+  return spec.path.replace(":matter_handle", matterHandle).replace(":stream_handle", streamHandle).replace(":intake_handle", intakeHandle);
 }
 
 function bodyFor(route: V2FirmRouteId, memberId: string, seat: string): Record<string, unknown> {
@@ -81,6 +81,8 @@ function bodyFor(route: V2FirmRouteId, memberId: string, seat: string): Record<s
     case "clearWall": return { user_id: memberId };
     case "publishMatterKeys": return { epoch: 1, wrapped: [{ user_id: memberId, device_id: "member-device", wrapped_key_b64: wrappedEnvelope }] };
     case "fetchMatterKey": return { device_id: "admin-device" };
+    case "publishIntakeKeys": return { matter_handle: `mh2_${"M".repeat(43)}`, epoch: 1, wrapped: [{ user_id: memberId, device_id: "member-device", wrapped_key_b64: wrappedEnvelope }] };
+    case "fetchIntakeKeys": return { device_id: "admin-device" };
     case "pushUpdate": return { blob_id: blobId, ciphertext_b64: ciphertextEnvelope, seat_token: seat, key_epoch: 1 };
     default: return {};
   }
@@ -101,6 +103,7 @@ function replaceBodyValue(body: Record<string, unknown>, name: string, sentinel:
 describe("v2 route inventory hostile-client privacy proof", () => {
   test("the executable inventory covers each route and every listed input rejects or ignores hostile text without reflection", async () => {
     const { store, admin, member, matter, auth, seat } = fixture();
+    const intakeHandle = `ih2_${"I".repeat(43)}`;
     const logs: unknown[][] = [];
     const frames: unknown[] = [];
     const originalError = console.error;
@@ -112,11 +115,11 @@ describe("v2 route inventory hostile-client privacy proof", () => {
       const inputKey = (spec: V2FirmRouteSpec, input: { location: string; name: string }) => `${spec.id}:${input.location}:${input.name}`;
       expect(new Set(V2_FIRM_ROUTE_SPECS.map((route) => route.id)).size).toBe(V2_FIRM_ROUTE_SPECS.length);
       expect(V2_FIRM_ROUTE_SPECS.map((route) => route.path)).toEqual(expect.arrayContaining([
-        "/v2/firm/matters", "/v2/firm/matters/:matter_handle/keys/publish", "/v2/firm/streams/:stream_handle/updates", "/v2/firm/sync",
+        "/v2/firm/matters", "/v2/firm/matters/:matter_handle/keys/publish", "/v2/firm/intake/:intake_handle/keys/publish", "/v2/firm/streams/:stream_handle/updates", "/v2/firm/sync",
       ]));
 
       for (const spec of V2_FIRM_ROUTE_SPECS) {
-        const path = concretePath(spec, matter.matter_handle, matter.root_stream_handle);
+        const path = concretePath(spec, matter.matter_handle, matter.root_stream_handle, intakeHandle);
         const inputValues = spec.inputs.filter((input) => input.location !== "websocket-frame");
         const everyInput = [...V2_FIRM_SHARED_INPUTS, ...V2_FIRM_REJECTED_INPUTS.filter((input) => spec.method === "POST" || input.location !== "body"), ...inputValues];
         for (const sentinel of SENTINELS) {
@@ -126,7 +129,7 @@ describe("v2 route inventory hostile-client privacy proof", () => {
             let body = bodyFor(spec.id, member.user_id, seat);
             let query = spec.id === "pullUpdates" ? "since=0" : spec.id === "syncSocket" ? `ticket=${"0".repeat(64)}` : "";
 
-            if (input.location === "path") requestPath = requestPath.replace(input.name === "matter_handle" ? matter.matter_handle : matter.root_stream_handle, sentinel);
+            if (input.location === "path") requestPath = requestPath.replace(input.name === "matter_handle" ? matter.matter_handle : input.name === "stream_handle" ? matter.root_stream_handle : intakeHandle, sentinel);
             if (input.location === "query") {
               if (input.name === "all unlisted query keys and values" || input.name.endsWith("(key)")) query = `${encodeURIComponent(sentinel)}=${encodeURIComponent(sentinel)}`;
               else query = `${input.name.startsWith("since") ? "since" : "ticket"}=${encodeURIComponent(sentinel)}`;
