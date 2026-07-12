@@ -1262,6 +1262,53 @@ class DesktopParityApp implements ParityApp {
       fail(`${options.recordKind} record disappeared after native restart`);
   }
 
+  async broadcast(): Promise<void> {
+    const { householdId } = await this.setWorkspace(`broadcast-${this.token('workspace')}`);
+    const viewId = `parity-broadcast-view-${this.token('view')}`;
+    const subject = this.token('Parity broadcast');
+    const body = 'A reviewed firm update for the parity recipient.';
+    const recipientId = `${householdId}:parity-broadcast-person`;
+    await this.eval(`(async () => {
+      const invoke = window.__TAURI_INTERNALS__.invoke;
+      await invoke('crm_live_upsert', { record: {
+        id: ${JSON.stringify(householdId)}, kind: 'household', matterId: ${JSON.stringify(householdId)},
+        name: 'Parity broadcast household', lifecycle: 'Active', members: [{
+          id: 'parity-broadcast-person', name: 'Parity recipient', verifiedAt: new Date().toISOString(),
+          emails: [{ id: 'parity-broadcast-email', address: 'parity.broadcast@example.test', kind: 'home', primary: true }],
+        }], externalParties: [], facts: [], accounts: [], notes: [], customFields: [], tags: [],
+      }});
+      await invoke('crm_live_upsert', { record: {
+        id: ${JSON.stringify(viewId)}, kind: 'savedView', matterId: 'firm_home', name: 'Parity broadcast list',
+        surface: 'households', visibility: 'personal', query: { entity: 'household', filters: [], fields: ['name'], sort: [{ field: 'name', dir: 'asc' }], groupBy: 'serviceTier' }, layout: 'list',
+      }});
+      return true;
+    })()`);
+    await this.openHome();
+    await this.click('crm-home-nav-email-broadcast');
+    await this.waitForControl('crm-broadcast-view');
+    await this.select('crm-broadcast-view', viewId);
+    await this.requireText('1 verified recipient');
+    await this.require(`crm-broadcast-approve-${recipientId}`);
+    await this.click(`crm-broadcast-approve-${recipientId}`);
+    await this.fill('crm-broadcast-subject', subject);
+    await this.fill('crm-broadcast-body', body);
+    await this.click('crm-broadcast-save');
+    await this.requireText('Saved. Review each recipient before any email is sent.');
+    const beforeRestart = await this.records();
+    const saved = beforeRestart.find((record) => record.kind === 'emailBroadcast' && record.subject === subject);
+    if (!saved) fail('Saving a reviewed broadcast did not create an emailBroadcast record');
+    const savedRecipients = saved.recipients as Array<{ email?: unknown; approved?: unknown }> | undefined;
+    if (!savedRecipients?.some((recipient) => recipient.email === 'parity.broadcast@example.test' && recipient.approved === true))
+      fail('The reviewed recipient was not saved with the broadcast');
+    await this.restart();
+    await this.click('crm-home-nav-email-broadcast');
+    await this.require('crm-broadcast-surface');
+    await this.requireText(subject);
+    const afterRestart = await this.records();
+    if (!afterRestart.some((record) => record.kind === 'emailBroadcast' && record.subject === subject))
+      fail('The reviewed broadcast disappeared after native restart');
+  }
+
   async migration(options: {
     action: 'crm-migration-run-import' | 'crm-redtail-import' | 'crm-salesforce-import';
     externalId?: boolean;
