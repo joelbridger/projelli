@@ -26,6 +26,7 @@ const screenshot = (name) => {
     return null;
   }
 };
+const exportedFile = () => JSON.parse(run(['eval', "JSON.stringify(document.querySelector('[data-testid=crm-export-file]')?.textContent?.replace(/^Saved file: /, '').split(' · ')[0] ?? null)"]));
 
 let simulator;
 try {
@@ -75,9 +76,14 @@ try {
   run(['eval', 'window.location.reload()']); await pause(2_000);
 
   run(['click', 'crm-home-nav-firm-setup']); run(['click', 'crm-firm-route-migration']); run(['click', 'crm-migration-archive']); run(['click', 'crm-export-create']); run(['waitfor', 'Exported']);
+  const archiveFile = exportedFile();
+  if (!archiveFile || !existsSync(archiveFile)) throw new Error('The archive screen reported success, but no archive file exists on disk.');
+  run(['click', 'crm-home-nav-firm-setup']); run(['click', 'crm-firm-route-migration']); run(['click', 'crm-migration-rollback']); run(['click', 'crm-export-create']); run(['waitfor', 'Exported']);
+  const rollbackFile = exportedFile();
+  if (!rollbackFile || !existsSync(rollbackFile)) throw new Error('The rollback screen reported success, but no rollback CSV exists on disk.');
   screenshot('04-archive-export.png');
   run(['click', 'crm-home-nav-firm-setup']); run(['click', 'crm-firm-route-migration']); run(['click', 'crm-migration-run-import']); await pause(35_000); run(['waitfor', 'Import finished', '45']);
-  console.log('PASS migration: import, complete fidelity matrix, both fallback paths, archive export, and idempotent re-import all drove through the desktop app.');
+  console.log('PASS migration: import, complete fidelity matrix, both fallback paths, real archive and rollback files, and idempotent re-import all drove through the desktop app.');
 } catch (error) {
   console.error(`FAIL migration: ${error instanceof Error ? error.message : String(error)}`);
   process.exitCode = 1;
