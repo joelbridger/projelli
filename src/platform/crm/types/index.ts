@@ -206,7 +206,8 @@ export type FilterOperator = 'eq' | 'neq' | 'contains' | 'in' | 'before' | 'afte
 export type FilterValue = string | number | boolean | null | readonly (string | number | boolean)[];
 export interface FilterClause { field: string; op: FilterOperator; value?: FilterValue; }
 export type ReportKind = 'no_contact_6mo' | 'attention_vs_fee' | 'birthdays' | 'age_65' | 'rmd_due' | 'review_due' | 'custom';
-export interface ViewQuery { entity: EntityKind; filters: FilterClause[]; sort?: { field: string; dir: 'asc' | 'desc' }[]; groupBy?: string; }
+/** `fields` controls the columns or details shown by a saved view. */
+export interface ViewQuery { entity: EntityKind; filters: FilterClause[]; fields?: string[]; sort?: { field: string; dir: 'asc' | 'desc' }[]; groupBy?: string; }
 export interface SavedView extends CrmBase { kind: 'savedView'; matterId: 'firm_home' | (string & {}); name: string; surface: 'tasks' | 'households' | 'opportunities' | 'accounts' | 'report'; visibility: 'personal' | 'firm'; query: ViewQuery; layout: 'table' | 'kanban' | 'list'; reportKind?: ReportKind; }
 
 export type CrmEntity = Household | Person | Account | Fact | Note | Task | WorkflowTemplate | WorkflowInstance | ServicePolicy | ActivityEvent | FirmDoc | Tag | CustomFieldDef | Opportunity | PipelineDef | StageDef | ProposalRecord | LegacyProject | FirmDirectoryEntry | HouseholdDirectoryShell | IntakeLink | IntakeSubmission | ImportArchiveManifest | SavedView;

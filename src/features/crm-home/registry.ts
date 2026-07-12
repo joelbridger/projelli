@@ -13,6 +13,7 @@ import { reportsSurface } from '@/features/crm-reports/surface';
 import { firmFieldsSurface, firmSurface } from '@/features/crm-firm/surface';
 import { archiveExportSurface, attachmentAccountingSurface, fidelitySurface, migrationSurface, rollbackExportSurface, workflowRecreationSurface } from '@/features/crm-migration/surface';
 import { searchSurface } from '@/features/crm-search/surface';
+import { viewsSurface } from '@/features/crm-views/surface';
 
 export interface CrmHomeSurfaceDescriptor {
   id: string;
@@ -35,6 +36,7 @@ export const crmHomeSurfaceRegistry: readonly CrmHomeSurfaceDescriptor[] = [
   pipelineSurface,
   pipelineSettingsSurface,
   reportsSurface,
+  viewsSurface,
   firmSurface,
   firmFieldsSurface,
   intakeLinksSurface,

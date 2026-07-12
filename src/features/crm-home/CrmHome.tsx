@@ -75,6 +75,7 @@ export type CrmHomeRoute =
   | 'pipeline'
   | 'pipeline-settings'
   | 'reports'
+  | 'views'
   | 'firm-setup'
   | 'fields-tags'
   | 'intake-links'

@@ -12,6 +12,7 @@ export const SURFACES = Object.freeze([
   { id: 'pipeline', driver: null },
   { id: 'pipeline-settings', driver: null },
   { id: 'reports', driver: null },
+  { id: 'views', driver: 'views.mjs' },
   { id: 'firm-setup', driver: null },
   { id: 'fields-tags', driver: null },
   { id: 'intake-links', driver: null },
