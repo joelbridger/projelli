@@ -27,6 +27,11 @@ import { chromium } from 'playwright';
 // The Tauri debug bridge port. Overridable (matching the app's
 // LANTERN_DEV_BRIDGE_PORT) so several app instances can be driven side by side.
 const BRIDGE_PORT = process.env.LANTERN_DEV_BRIDGE_PORT || '9250';
+// Keep the command-line driver and the Rust bridge on the same configurable
+// deadline.  A test can still pass a more specific `timeout_ms` to one bridge
+// request, but normal driving should never silently fall back to an old,
+// hard-coded five-second limit.
+const BRIDGE_TIMEOUT_MS = process.env.LANTERN_DEV_BRIDGE_TIMEOUT_MS || '20000';
 // In Linux bridge mode callers set LANTERN_DEV_BRIDGE_PORT for BOTH the app
 // and this driver.  Keep DESKTOP_CDP_PORT as an explicit override for the
 // Windows CDP path, but never silently dial its old 9223 default after a
@@ -84,6 +89,9 @@ const [cmd, ...args] = process.argv.slice(2);
 async function bridgeRequest(path, params = {}) {
   const url = new URL(`http://127.0.0.1:${PORT}${path}`);
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, String(value));
+  if (path === '/eval' && !url.searchParams.has('timeout_ms')) {
+    url.searchParams.set('timeout_ms', BRIDGE_TIMEOUT_MS);
+  }
   // A Vite hot reload or a real desktop relaunch can land between the bridge
   // accepting a request and the WebView becoming ready to evaluate it. Retry
   // only that short, known transient instead of misreporting a healthy screen
