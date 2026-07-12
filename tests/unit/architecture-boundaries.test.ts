@@ -36,6 +36,8 @@ const ALLOWED_FEATURE_EDGES = new Set<string>([
   'account->firm',        // account/licensing surfaces firm seat state
   'account->settings',    // account window opens settings sections
   'ask->matters',         // Ask is matter-scoped (active matter context)
+  'crm-connectors->crm-views', // Broadcast uses the saved-view query language to define its recipient list
+  'crm-connectors->email', // Broadcast reuses the hardened mail AI provider resolver; delivery still uses the platform mail connector
   'documents->firm',      // file navigator shows privilege/vault affordances
   'matters->documents',   // Client Map export reuses the documents feature's PDF pipeline (R4)
   'documents->meetings',  // TabBar's dictation voice-note context menu (Task 10b) opens

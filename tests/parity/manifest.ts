@@ -17,6 +17,7 @@ export interface ParityApp {
   approvedPlaybook(): Promise<void>;
   pipeline(options: { opportunity?: boolean; pipeline?: boolean; stage?: boolean; workflowTrigger?: boolean }): Promise<void>;
   report(options: { kind: 'no_contact_6mo' | 'attention_vs_fee' | 'custom' | 'ai' }): Promise<void>;
+  broadcast(): Promise<void>;
   firmDirectory(): Promise<void>;
   firmSetup(): Promise<void>;
   emailDropbox(): Promise<void>;
@@ -94,7 +95,7 @@ export const FEATURES: readonly ParityFeature[] = [
   live('Calendar / events', 'crm-calendar', 'REPLICATE', 'calendar', (app) => app.durableFeature({ route: 'crm-home-nav-calendar', controls: ['crm-calendar-new-event', 'crm-calendar-event-save'], action: 'crm-calendar-event-save', recordKind: 'event' })),
   live('Calendly integration for scheduling links', 'service-tier-scheduling', 'IMPROVE', 'firm setup', (app) => app.durableFeature({ route: 'crm-home-nav-firm-setup', controls: ['crm-service-policy-scheduling-link', 'crm-service-policy-save'], action: 'crm-service-policy-save', recordKind: 'servicePolicy' })),
   live('Email sync (Gmail/Outlook)', 'crm-email-sync', 'REPLICATE', 'email', (app) => app.durableFeature({ route: 'crm-home-nav-email', controls: ['crm-email-sync', 'crm-email-client-link'], action: 'crm-email-sync', recordKind: 'emailActivity' })),
-  live('BCC Email Dropbox', 'bcc-email-dropbox', 'REPLICATE', 'email', (app) => app.emailDropbox()),
+  live('Email broadcast', 'email-broadcast', 'REPLICATE', 'email', (app) => app.broadcast()),
   live('Automated/canned reports', 'canned-reports', 'REPLICATE', 'reports', (app) => app.report({ kind: 'no_contact_6mo' })),
   live('Dynamic/custom reports', 'custom-reports', 'REPLICATE', 'reports', (app) => app.report({ kind: 'custom' })),
   live('AI for Reports (prompt-built reports)', 'ai-reports', 'IMPROVE', 'reports', (app) => app.report({ kind: 'ai' })),
@@ -164,7 +165,6 @@ export const SKIPPED_FEATURES: readonly SkippedFeature[] = [
   { matrixFeature: 'Contact Actions in Opportunity Workflows', reason: 'D23 excludes bulk contact actions from v1.' },
   { matrixFeature: 'Project record', reason: 'New multi-step work belongs in workflows; imported projects stay read-only legacy records.' },
   { matrixFeature: 'Emails land in Activity Stream, not the Email tab, for dropbox items', reason: 'This is a Wealthbox threading limitation, not behavior to copy.' },
-  { matrixFeature: 'Email broadcast', reason: 'Marketing blasts are outside the small-firm CRM scope.' },
   { matrixFeature: 'Comments on activity', reason: 'D23 defers activity comments and reactions.' },
   { matrixFeature: 'Likes/emoji activity reactions', reason: 'D23 defers activity comments and reactions.' },
   { matrixFeature: 'RightCapital', reason: 'Read-only reference integration is deferred until a pilot needs it.' },
