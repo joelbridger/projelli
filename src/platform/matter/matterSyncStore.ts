@@ -22,7 +22,7 @@ export type MatterSyncStatus =
   | 'offline'
   | 'error';
 
-export type MatterSyncQuarantineReason = 'decrypt_failed' | 'epoch_superseded' | 'yjs_apply_failed' | 'invalid_blob_id';
+export type MatterSyncQuarantineReason = 'decrypt_failed' | 'epoch_superseded' | 'yjs_apply_failed' | 'invalid_blob_id' | 'ciphertext_too_large' | 'invalid_cursor';
 
 /** Alias to the unified matter store — the `statusByMatterId` slice lives there. */
 export const useMatterSyncStore = useMatterStore;

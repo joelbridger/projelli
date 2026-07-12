@@ -38,7 +38,7 @@ const MAX_UPDATE_BYTES = 1024 * 1024;
 const MAX_UPDATE_BASE64_LENGTH = 4 * Math.ceil(MAX_UPDATE_BYTES / 3);
 
 function isSafeCursor(value: unknown): value is number {
-  return Number.isSafeInteger(value) && value >= 0;
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 }
 
 function exceedsUpdateByteLimit(ciphertextB64: unknown): boolean {
