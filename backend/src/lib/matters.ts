@@ -262,6 +262,21 @@ export class FanoutHub {
     }
   }
 
+  /** Close and remove every subscription for one permanently released stream. */
+  evictStream(matterHandle: string, streamHandle: string): void {
+    const key = this.channelKey(matterHandle, streamHandle);
+    const subscribers = this.byChannel.get(key);
+    if (!subscribers) return;
+    this.byChannel.delete(key);
+    for (const subscriber of subscribers.values()) {
+      try {
+        subscriber.close?.();
+      } catch {
+        // Already-dead sockets need no further work.
+      }
+    }
+  }
+
   subscriberCount(matterHandle: string, streamHandle: string): number {
     return this.byChannel.get(this.channelKey(matterHandle, streamHandle))?.size ?? 0;
   }

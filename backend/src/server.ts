@@ -79,15 +79,19 @@ export interface SyncSocketData {
  */
 function matchMatter(path: string): { handle: string; rest: string } | null {
   const m = path.match(/^\/v2\/firm\/matters\/([^/]+)(?:\/(.*))?$/);
-  if (!m) return null;
-  return { handle: decodeURIComponent(m[1]!), rest: m[2] ?? "" };
+  // Never decode an opaque route segment. A percent escape can throw while
+  // decoding and the raw URL is often captured by infrastructure logs. The
+  // handle grammar deliberately excludes `%`, so malformed encodings fail as
+  // an ordinary opaque miss before any decoder sees client text.
+  if (!m || !/^mh2_[A-Za-z0-9_-]{43}$/.test(m[1]!)) return null;
+  return { handle: m[1]!, rest: m[2] ?? "" };
 }
 
 /** Flat stream routes keep the parent matter handle out of URLs and access logs. */
 function matchStream(path: string): { handle: string; operation: "updates" | "sync-ticket" } | null {
   const m = path.match(/^\/v2\/firm\/streams\/([^/]+)\/(updates|sync-ticket)$/);
-  if (!m) return null;
-  return { handle: decodeURIComponent(m[1]!), operation: m[2]! as "updates" | "sync-ticket" };
+  if (!m || !/^sh2_[A-Za-z0-9_-]{43}$/.test(m[1]!)) return null;
+  return { handle: m[1]!, operation: m[2]! as "updates" | "sync-ticket" };
 }
 
 /**
@@ -116,7 +120,10 @@ export function subscribeSyncSocket(
 ): void {
   const d = ws.data;
   const access = gateMatterAccess(store, { org_id: d.orgId, user_id: d.userId, role: d.role }, d.matterHandle, "connect_subscribe");
-  if (!access.ok) {
+  // A ticket can be redeemed before release and the release can commit before
+  // Bun calls `open`; access alone is not enough because stream release does
+  // not archive the enclosing matter.
+  if (!access.ok || !store.streamBelongsToMatter(d.streamHandle, d.matterHandle)) {
     ws.close(1008, "access_denied");
     return;
   }
@@ -202,7 +209,7 @@ export function buildServeOptions(store: Store, hub: FanoutHub, traffic?: RelayT
           if (mm.rest === "" && method === "POST") return error("invalid_v2_payload", 400);
           if (mm.rest === "activate" && method === "POST") return await handleActivateMatter(req, store, mm.handle);
           const streamPush = mm.rest.match(/^streams\/([^/]+)\/updates$/);
-          if (streamPush && method === "POST") return await handlePushUpdate(req, store, mm.handle, decodeURIComponent(streamPush[1]!), ip, hub);
+          if (streamPush && method === "POST") return await handlePushUpdate(req, store, mm.handle, streamPush[1]!, ip, hub);
           // Relay: append / catch-up. Push broadcasts via this server's hub.
           // Admin: membership + walls (scoped to :id).
           if (mm.rest === "members/add" && method === "POST") return await handleAddMatterMember(req, store, mm.handle);
@@ -211,7 +218,7 @@ export function buildServeOptions(store: Store, hub: FanoutHub, traffic?: RelayT
           if (mm.rest === "wall/set" && method === "POST") return await handleSetWall(req, store, mm.handle);
           if (mm.rest === "wall/clear" && method === "POST") return await handleClearWall(req, store, mm.handle);
           if (mm.rest === "archive" && method === "POST") return await handleArchiveMatter(req, store, mm.handle, hub);
-          if (mm.rest === "streams/release" && method === "POST") return await handleReleaseMatterStream(req, store, mm.handle);
+          if (mm.rest === "streams/release" && method === "POST") return await handleReleaseMatterStream(req, store, mm.handle, hub);
           // Phase 1: wrapped matter-key distribution.
           if (mm.rest === "keys/publish" && method === "POST") return await handlePublishMatterKeys(req, store, mm.handle);
           if (mm.rest === "keys/fetch" && method === "POST") return await handleFetchMatterKey(req, store, mm.handle);
@@ -281,12 +288,11 @@ export function buildServeOptions(store: Store, hub: FanoutHub, traffic?: RelayT
         if (path === "/admin/org" && method === "POST") return await handleCreateOrg(req, store);
 
         return error("not_found", 404);
-      } catch (err) {
-        // Log the method + PATH only — never `req.url` / the query string. Even
-        // though credentials no longer ride in any relay URL, scrubbing the query
-        // is defense in depth so a stray token (or a future param) can't reach a
-        // log file. `path` is `url.pathname` (no query) by construction.
-        console.error(`[error] ${method} ${path}:`, err);
+      } catch {
+        // Do not log a URL, path, query, header, body, or thrown parser text:
+        // all can contain attacker-controlled readable data. Route handlers
+        // emit structured audit metadata only after validation.
+        console.error("[error] relay_request_failed");
         return error("internal_error", 500);
       }
     },

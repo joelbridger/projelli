@@ -5,7 +5,7 @@ import { FanoutHub, MAX_UPDATE_BYTES } from "../src/lib/matters.ts";
 import { buildServeOptions, subscribeSyncSocket, type SyncSocketData } from "../src/server.ts";
 import { SyncTicketStore } from "../src/lib/syncTickets.ts";
 import { rateLimit } from "../src/lib/http.ts";
-import { authorizeSyncConnect, handleArchiveMatter } from "../src/routes/matters.ts";
+import { authorizeSyncConnect, handleArchiveMatter, handleReleaseMatterStream } from "../src/routes/matters.ts";
 
 const store = new Store(":memory:"), hub = new FanoutHub();
 const server = Bun.serve<SyncSocketData>(buildServeOptions(store, hub));
@@ -17,7 +17,8 @@ const post = async (path:string, body:unknown = {}, token?:string, extra:Record<
 };
 const get = async (path:string, token?:string, seat?:string) => { const r=await fetch(base()+path,{headers:{...token?{authorization:`Bearer ${token}`}:{},...seat?{"x-seat-token":seat}:{}}}); return {status:r.status,body:await r.json().catch(()=>({})) as Record<string,any>}; };
 const blobId = (value:string) => `bh2_${Buffer.from(value).toString("base64url").padEnd(43,"A").slice(0,43)}`;
-const push = (mh:string,sh:string, token:string,seat:string, blob:string, bytes:Uint8Array, epoch=1) => post(`/v2/firm/matters/${mh}/streams/${sh}/updates`,{blob_id:blobId(blob),ciphertext_b64:Buffer.from(bytes).toString("base64"),seat_token:seat,key_epoch:epoch},token);
+const envelope = (bytes: Uint8Array) => { const out = new Uint8Array(29 + bytes.length); out[0] = 2; out.set(bytes, 13); return out; };
+const push = (mh:string,sh:string, token:string,seat:string, blob:string, bytes:Uint8Array, epoch=1) => post(`/v2/firm/matters/${mh}/streams/${sh}/updates`,{blob_id:blobId(blob),ciphertext_b64:Buffer.from(envelope(bytes)).toString("base64"),seat_token:seat,key_epoch:epoch},token);
 const allocateLive = async () => { const stream=`sh2_${Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url")}`; const accepted=await push(handle,stream,alice,aliceSeat,`first-update-${crypto.randomUUID()}`,new Uint8Array([1])); expect(accepted.status).toBe(201); return stream; };
 const pull = (_mh:string,sh:string,token:string,seat:string,since=0) => get(`/v2/firm/streams/${sh}/updates?since=${since}`,token,seat);
 const ticket = (_mh:string,sh:string,token:string,seat:string) => post(`/v2/firm/streams/${sh}/sync-ticket`,{},token,{"x-seat-token":seat});
@@ -36,7 +37,7 @@ beforeAll(async () => {
 afterAll(()=>server.stop(true));
 
 describe("v2 encrypted relay: preserved HTTP, authorization, cursor, and socket proofs", () => {
-  test("member PUSH then another member PULLS byte-identical ciphertext",async()=>{const bytes=new Uint8Array([0,255,128,1]);const r=await push(handle,root,alice,aliceSeat,"blob-roundtrip",bytes);expect(r.status).toBe(201);const out=await pull(handle,root,bob,bobSeat);expect(out.status).toBe(200);expect(Array.from(Buffer.from(out.body.updates.find((u:any)=>u.blob_id===blobId("blob-roundtrip")).ciphertext_b64,"base64"))).toEqual(Array.from(bytes));});
+  test("member PUSH then another member PULLS byte-identical ciphertext",async()=>{const bytes=new Uint8Array([0,255,128,1]);const r=await push(handle,root,alice,aliceSeat,"blob-roundtrip",bytes);expect(r.status).toBe(201);const out=await pull(handle,root,bob,bobSeat);expect(out.status).toBe(200);expect(Array.from(Buffer.from(out.body.updates.find((u:any)=>u.blob_id===blobId("blob-roundtrip")).ciphertext_b64,"base64"))).toEqual(Array.from(envelope(bytes)));});
   test("owners and editors can push, while viewers stay read-only but can pull and subscribe",async()=>{expect((await push(handle,root,owner,ownerSeat,"owner-write",new Uint8Array([1]))).status).toBe(201);expect((await push(handle,root,alice,aliceSeat,"editor-write",new Uint8Array([2]))).status).toBe(201);expect((await push(handle,root,viewer,viewerSeat,"viewer-write",new Uint8Array([3]))).status).toBe(403);expect((await pull(handle,root,viewer,viewerSeat)).status).toBe(200);const t=await ticket(handle,root,viewer,viewerSeat);expect(t.status).toBe(200);const ws=await open(wsUrl(t.body.ticket));ws.close();});
   test("duplicate blob is idempotent in its opaque stream",async()=>{const a=await push(handle,root,alice,aliceSeat,"blob-dup",new Uint8Array([1]));const b=await push(handle,root,alice,aliceSeat,"blob-dup",new Uint8Array([9]));expect([201,200]).toContain(a.status);expect(b).toMatchObject({status:200,body:{duplicate:true,cursor:a.body.cursor}});});
   test("cursor pull is strictly after since and ordered, and carries the matter key epoch",async()=>{const before=(await pull(handle,root,alice,aliceSeat)).body.latest_cursor;const ids:number[]=[];for(let i=0;i<3;i++)ids.push((await push(handle,root,alice,aliceSeat,`seq-${i}`,new Uint8Array([i]))).body.cursor);const response=await pull(handle,root,bob,bobSeat,before);expect(response.body.updates.map((u:any)=>u.cursor)).toEqual(ids);expect(response.body.key_epoch).toBe(store.getMatter(handle)!.key_epoch);});
@@ -62,7 +63,7 @@ describe("v2 encrypted relay: preserved HTTP, authorization, cursor, and socket 
   test("rate-limit exhaustion has 429 semantics",()=>{const ip=`relay-${crypto.randomUUID()}`;rateLimit(ip,"proof",{max:1,windowSeconds:10});expect(rateLimit(ip,"proof",{max:1,windowSeconds:10}).ok).toBe(false);});
   test("new matter root stream is its opaque notes stream equivalent",()=>expect(root).toMatch(/^sh2_[A-Za-z0-9_-]{43}$/));
   test("client-generated document stream is opaque and distinct",async()=>{const stream=await allocateLive();expect(stream).toMatch(/^sh2_[A-Za-z0-9_-]{43}$/);expect(stream).not.toBe(root);});
-  test("streams isolate updates even with the same blob id",async()=>{const s=await allocateLive();await push(handle,root,alice,aliceSeat,"same",new Uint8Array([1]));await push(handle,s,alice,aliceSeat,"same",new Uint8Array([2]));expect((await pull(handle,s,bob,bobSeat)).body.updates.some((u:any)=>u.blob_id===blobId("same")&&u.ciphertext_b64==="Ag==")).toBe(true);});
+  test("streams isolate updates even with the same blob id",async()=>{const s=await allocateLive();await push(handle,root,alice,aliceSeat,"same",new Uint8Array([1]));await push(handle,s,alice,aliceSeat,"same",new Uint8Array([2]));expect((await pull(handle,s,bob,bobSeat)).body.updates.some((u:any)=>u.blob_id===blobId("same")&&u.ciphertext_b64===Buffer.from(envelope(new Uint8Array([2]))).toString("base64"))).toBe(true);});
   test("stream cursor is independent",async()=>{const s=await allocateLive();const before=(await pull(handle,s,bob,bobSeat)).body.latest_cursor;await push(handle,root,alice,aliceSeat,`root-after-${crypto.randomUUID()}`,new Uint8Array([1]));expect((await pull(handle,s,bob,bobSeat)).body.latest_cursor).toBe(before);});
   test("pull response omits legacy matter and document fields",async()=>{const body=JSON.stringify((await pull(handle,root,bob,bobSeat)).body);expect(body).not.toContain("matter_id");expect(body).not.toContain("doc_id");});
   test("push response omits route handles",async()=>{const body=JSON.stringify((await push(handle,root,alice,aliceSeat,`no-route-${crypto.randomUUID()}`,new Uint8Array([1]))).body);expect(body).not.toContain("matter_handle");expect(body).not.toContain("stream_handle");});
@@ -105,6 +106,25 @@ describe("v2 encrypted relay: preserved HTTP, authorization, cursor, and socket 
     expect((await handleArchiveMatter(new Request("http://relay.test/v2/firm/route", { method: "POST", headers: { authorization: `Bearer ${admin}`, "content-type": "application/json" }, body: "{}" }), store, matter.matter_handle, isolatedHub)).status).toBe(200);
     expect(closed).toEqual([[1008, "matter_archived"]]);
     expect(isolatedHub.subscriberCount(matter.matter_handle, matter.root_stream_handle)).toBe(0);
+  });
+
+  test("releasing a stream closes its sockets and invalidates a pre-release ticket", async () => {
+    const matter = store.createMatter({ org_id: store.getMatter(handle)!.org_id });
+    store.activateProvisioningMatter(matter.matter_handle);
+    const adminId = store.getUserByEmailNorm("admin@relay.test")!.user_id;
+    store.addMatterMember({ matter_handle: matter.matter_handle, user_id: adminId, org_id: store.getMatter(handle)!.org_id, role: "owner" });
+    store.addMatterMember({ matter_handle: matter.matter_handle, user_id: aliceId, org_id: store.getMatter(handle)!.org_id, role: "editor" });
+    const released = `sh2_${"R".repeat(43)}`;
+    expect(store.appendMatterUpdate({ matter_handle: matter.matter_handle, org_id: store.getMatter(handle)!.org_id, stream_handle: released, blob_id: "release-proof", ciphertext: new Uint8Array([2, ...new Array(28).fill(0)]), author_seat: "seat", key_epoch: 1 })).toMatchObject({ duplicate: false });
+    const tickets = new SyncTicketStore();
+    const preRelease = tickets.mint({ matterHandle: matter.matter_handle, streamHandle: released, orgId: store.getMatter(handle)!.org_id, userId: aliceId, seatId: "seat", role: "member" });
+    const isolatedHub = new FanoutHub(), closed: Array<[number | undefined, string | undefined]> = [];
+    isolatedHub.subscribe(matter.matter_handle, { id: "released-socket", user_id: aliceId, seat_id: "seat", send: () => undefined, close: (code?: number, reason?: string) => { closed.push([code, reason]); } }, released);
+    const response = await handleReleaseMatterStream(new Request("http://relay.test/v2/firm/route", { method: "POST", headers: { authorization: `Bearer ${admin}`, "content-type": "application/json" }, body: JSON.stringify({ stream_handle: released }) }), store, matter.matter_handle, isolatedHub);
+    expect(response.status).toBe(200);
+    expect(closed).toEqual([[undefined, undefined]]);
+    expect(isolatedHub.subscriberCount(matter.matter_handle, released)).toBe(0);
+    expect(authorizeSyncConnect(new Request(`http://relay.test/v2/firm/sync?ticket=${preRelease.ticket}`), store, tickets).ok).toBe(false);
   });
 
 });

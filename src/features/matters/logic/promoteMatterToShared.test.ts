@@ -4,6 +4,7 @@ import { parseMatterHandle, parseStreamHandle } from '@/platform/firm/contract';
 const mocks = vi.hoisted(() => ({
   linkFirmMatter: vi.fn(), createLocalMatterKey: vi.fn(), forgetMatterKey: vi.fn(),
   publishMatterKeyToMembers: vi.fn(), registerDevice: vi.fn(), append: vi.fn(),
+  promotionPending: null as Record<string, unknown> | null, storePromotionPending: vi.fn(), clearPromotionPending: vi.fn(),
   firmState: { seatToken: 'seat' as string | null, session: { org: { org_id: 'org' } } },
 }));
 
@@ -13,6 +14,11 @@ vi.mock('@/platform/firm/deviceKeys', () => ({ registerDevice: mocks.registerDev
 vi.mock('@/features/matters/matterManagerDialogHelpers', () => ({ audit: { append: mocks.append } }));
 vi.mock('@/platform/firm/firmStore', () => ({
   useFirmStore: { getState: () => mocks.firmState },
+}));
+vi.mock('@/platform/firm/firmKeychain', () => ({
+  loadPromotionPending: async () => mocks.promotionPending,
+  storePromotionPending: async (_id: string, value: Record<string, unknown>) => { mocks.promotionPending = value; mocks.storePromotionPending(value); },
+  clearPromotionPending: async () => { mocks.promotionPending = null; mocks.clearPromotionPending(); },
 }));
 
 import { promoteMatterToShared } from './promoteMatterToShared';
@@ -54,6 +60,7 @@ describe('promoteMatterToShared v2 ordering', () => {
     mocks.forgetMatterKey.mockResolvedValue(undefined);
     mocks.publishMatterKeyToMembers.mockResolvedValue({ published: 1, skippedWalled: 0 });
     mocks.registerDevice.mockResolvedValue(undefined);
+    mocks.promotionPending = null;
   });
 
   it('activates before its first relay write, then seals the encrypted root details', async () => {
@@ -70,7 +77,7 @@ describe('promoteMatterToShared v2 ordering', () => {
     expect(mocks.linkFirmMatter).toHaveBeenCalledWith('local-matter-77', expect.objectContaining({ firmMatterId: matterHandle, rootStreamHandle }));
   });
 
-  it('archives an activated shell when its first root write fails', async () => {
+  it('keeps a resumable record when its first root-write response is lost', async () => {
     const client = {
       createMatter: vi.fn(() => Promise.resolve({ matter_handle: matterHandle, root_stream_handle: rootStreamHandle, key_epoch: 1, status: 'provisioning' as const })),
       pushUpdate: vi.fn(() => Promise.reject(new Error('root write failed'))),
@@ -81,8 +88,9 @@ describe('promoteMatterToShared v2 ordering', () => {
     expect(result.status).toBe('failed');
     expect(client.activateMatter).toHaveBeenCalledWith(matterHandle);
     expect(mocks.linkFirmMatter).not.toHaveBeenCalled();
-    expect(client.archiveMatter).toHaveBeenCalledWith(matterHandle);
-    expect(mocks.forgetMatterKey).toHaveBeenCalledWith(matterHandle);
+    expect(client.archiveMatter).not.toHaveBeenCalled();
+    expect(mocks.forgetMatterKey).not.toHaveBeenCalled();
+    expect(mocks.promotionPending).toEqual(expect.objectContaining({ matterHandle, keyB64: expect.any(String) }));
   });
 
   it('keeps a failed provision invisible and allows a clean retry', async () => {
@@ -105,8 +113,8 @@ describe('promoteMatterToShared v2 ordering', () => {
 
     expect(client.pushUpdate).toHaveBeenCalledTimes(1);
     expect(client.activateMatter).toHaveBeenCalledTimes(1);
-    expect(client.archiveMatter).toHaveBeenCalledWith(matterHandle);
-    expect(mocks.forgetMatterKey).toHaveBeenCalledWith(matterHandle);
+    expect(client.archiveMatter).not.toHaveBeenCalled();
+    expect(mocks.forgetMatterKey).not.toHaveBeenCalled();
   });
 
   it('keeps a failed encrypted root-index write invisible and allows a clean retry', async () => {
@@ -116,7 +124,7 @@ describe('promoteMatterToShared v2 ordering', () => {
     await expectFailedThenRetryable(client, 'root write failed');
 
     expect(client.activateMatter).toHaveBeenCalledTimes(2);
-    expect(client.archiveMatter).toHaveBeenCalledWith(matterHandle);
+    expect(client.archiveMatter).not.toHaveBeenCalled();
     expect(mocks.publishMatterKeyToMembers).toHaveBeenCalledTimes(1);
   });
 
@@ -126,7 +134,7 @@ describe('promoteMatterToShared v2 ordering', () => {
 
     await expectFailedThenRetryable(client, 'activation failed');
 
-    expect(client.archiveMatter).toHaveBeenCalledWith(matterHandle);
+    expect(client.archiveMatter).not.toHaveBeenCalled();
     expect(mocks.publishMatterKeyToMembers).toHaveBeenCalledTimes(1);
   });
 
@@ -136,8 +144,7 @@ describe('promoteMatterToShared v2 ordering', () => {
 
     await expectFailedThenRetryable(client, 'key publish failed');
 
-    expect(client.archiveMatter).toHaveBeenCalledTimes(1);
-    expect(client.archiveMatter).toHaveBeenCalledWith(matterHandle);
+    expect(client.archiveMatter).not.toHaveBeenCalled();
     expect(client.activateMatter).toHaveBeenCalledTimes(2);
   });
 

@@ -42,6 +42,12 @@ import type {
 } from "./types.ts";
 import type { AssuredProvider, BillingMeta, ManagedProviderKey } from "./assured-types.ts";
 
+/** Database rows keep the envelope as bytes; API-facing types expose base64 only at the edge. */
+function toWrappedMatterKey(row: Omit<WrappedMatterKey, "wrapped_key_b64"> & { wrapped_key: Uint8Array }): WrappedMatterKey {
+  const { wrapped_key, ...rest } = row;
+  return { ...rest, wrapped_key_b64: Buffer.from(wrapped_key).toString("base64") };
+}
+
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS orgs (
   org_id              TEXT PRIMARY KEY,
@@ -288,7 +294,7 @@ CREATE TABLE IF NOT EXISTS wrapped_matter_keys (
   epoch           INTEGER NOT NULL,
   user_id         TEXT NOT NULL REFERENCES users(user_id),
   device_id       TEXT NOT NULL,
-  wrapped_key_b64 TEXT NOT NULL,
+  wrapped_key     BLOB NOT NULL,
   published_by    TEXT NOT NULL,  -- user_id of the admin / owner who published
   created_at      TEXT NOT NULL,
   PRIMARY KEY (matter_handle, epoch, user_id, device_id)
@@ -486,6 +492,28 @@ export class Store {
     }
     this.#db.exec("CREATE INDEX IF NOT EXISTS idx_matter_streams_allocation ON matter_streams(matter_handle, allocated_by_seat)");
 
+    // Wrapped keys are binary envelopes. Rebuild the small independent table
+    // on upgrade instead of preserving legacy TEXT rows which could contain
+    // readable client data. Existing clients republish after reconnecting.
+    const wrappedKeyCols = this.#db.query("PRAGMA table_info(wrapped_matter_keys)").all() as Array<{ name: string; type: string }>;
+    if (wrappedKeyCols.some((column) => column.name === "wrapped_key_b64")) {
+      this.#db.exec(`
+        DROP TABLE wrapped_matter_keys;
+        CREATE TABLE wrapped_matter_keys (
+          matter_handle TEXT NOT NULL REFERENCES matters(matter_handle),
+          epoch INTEGER NOT NULL,
+          user_id TEXT NOT NULL REFERENCES users(user_id),
+          device_id TEXT NOT NULL,
+          wrapped_key BLOB NOT NULL,
+          published_by TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          PRIMARY KEY (matter_handle, epoch, user_id, device_id)
+        );
+        CREATE INDEX idx_wmk_matter_epoch ON wrapped_matter_keys(matter_handle, epoch);
+        CREATE INDEX idx_wmk_user ON wrapped_matter_keys(user_id);
+      `);
+    }
+
     // Guarded migration: add subscription_id column + partial unique index to
     // webhook_events if they were not present in the schema when the DB was
     // created. A DB built from the pre-migration SCHEMA lacks this column and
@@ -622,7 +650,7 @@ export class Store {
         CREATE TABLE matter_updates_v2 (id INTEGER PRIMARY KEY AUTOINCREMENT, matter_handle TEXT NOT NULL REFERENCES matters_v2(matter_handle), org_id TEXT NOT NULL, stream_handle TEXT NOT NULL REFERENCES matter_streams_v2(stream_handle), blob_id TEXT NOT NULL, ciphertext BLOB NOT NULL, author_seat TEXT NOT NULL, key_epoch INTEGER NOT NULL, created_at TEXT NOT NULL);
         CREATE UNIQUE INDEX idx_matter_updates_blob_v2 ON matter_updates_v2(stream_handle, blob_id);
         CREATE INDEX idx_matter_updates_matter_v2 ON matter_updates_v2(matter_handle, stream_handle, id);
-        CREATE TABLE wrapped_matter_keys_v2 (matter_handle TEXT NOT NULL REFERENCES matters_v2(matter_handle), epoch INTEGER NOT NULL, user_id TEXT NOT NULL, device_id TEXT NOT NULL, wrapped_key_b64 TEXT NOT NULL, published_by TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(matter_handle,epoch,user_id,device_id));
+        CREATE TABLE wrapped_matter_keys_v2 (matter_handle TEXT NOT NULL REFERENCES matters_v2(matter_handle), epoch INTEGER NOT NULL, user_id TEXT NOT NULL, device_id TEXT NOT NULL, wrapped_key BLOB NOT NULL, published_by TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(matter_handle,epoch,user_id,device_id));
         CREATE INDEX idx_wmk_matter_epoch_v2 ON wrapped_matter_keys_v2(matter_handle, epoch);
         CREATE INDEX idx_wmk_user_v2 ON wrapped_matter_keys_v2(user_id);
       `);
@@ -1661,8 +1689,8 @@ export class Store {
     org_id: string;
     epoch: number;
     published_by: string;
-    wrapped: Array<{ user_id: string; device_id: string; wrapped_key_b64: string }>;
-  }): { stored: number; skipped: number } | { matterArchived: true } | { staleEpoch: true } | { matterNotFound: true } {
+    wrapped: Array<{ user_id: string; device_id: string; wrapped_key: Uint8Array }>;
+  }): { stored: number; skipped: number } | { matterArchived: true } | { staleEpoch: true } | { matterNotFound: true } | { invalidRecipient: true } {
     const txn = this.#db.transaction(() => {
       const matter = this.#db
         .query(`SELECT org_id, status, key_epoch FROM matters WHERE matter_handle = ?`)
@@ -1675,7 +1703,8 @@ export class Store {
       let skipped = 0;
       for (const key of input.wrapped) {
         const user = this.getUser(key.user_id);
-        if (!user || user.org_id !== input.org_id || this.isWalled(input.matter_handle, key.user_id)) {
+        if (!user || user.org_id !== input.org_id || !this.getDevice(key.device_id, key.user_id)) return { invalidRecipient: true as const };
+        if (this.isWalled(input.matter_handle, key.user_id)) {
           skipped++;
           continue;
         }
@@ -1684,7 +1713,7 @@ export class Store {
       }
       return { stored, skipped };
     });
-    return txn.immediate() as { stored: number; skipped: number } | { matterArchived: true } | { staleEpoch: true } | { matterNotFound: true };
+    return txn.immediate() as { stored: number; skipped: number } | { matterArchived: true } | { staleEpoch: true } | { matterNotFound: true } | { invalidRecipient: true };
   }
 
   /**
@@ -1696,26 +1725,26 @@ export class Store {
     epoch: number;
     user_id: string;
     device_id: string;
-    wrapped_key_b64: string;
+    wrapped_key: Uint8Array;
     published_by: string;
   }): void {
     this.#db
       .query(
-        `INSERT INTO wrapped_matter_keys (matter_handle, epoch, user_id, device_id, wrapped_key_b64, published_by, created_at)
+        `INSERT INTO wrapped_matter_keys (matter_handle, epoch, user_id, device_id, wrapped_key, published_by, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(matter_handle, epoch, user_id, device_id) DO UPDATE SET
-           wrapped_key_b64 = excluded.wrapped_key_b64,
+           wrapped_key = excluded.wrapped_key,
            published_by    = excluded.published_by`,
       )
-      .run(input.matter_handle, input.epoch, input.user_id, input.device_id, input.wrapped_key_b64, input.published_by, this.nowIso());
+      .run(input.matter_handle, input.epoch, input.user_id, input.device_id, input.wrapped_key, input.published_by, this.nowIso());
   }
 
   /** Fetch the wrapped key for a specific (matter, epoch, user, device). */
   getWrappedMatterKey(matterHandle: string, epoch: number, userId: string, deviceId: string): WrappedMatterKey | null {
     const r = this.#db
       .query(`SELECT * FROM wrapped_matter_keys WHERE matter_handle = ? AND epoch = ? AND user_id = ? AND device_id = ?`)
-      .get(matterHandle, epoch, userId, deviceId) as WrappedMatterKey | null;
-    return r ?? null;
+      .get(matterHandle, epoch, userId, deviceId) as (Omit<WrappedMatterKey, "wrapped_key_b64"> & { wrapped_key: Uint8Array }) | null;
+    return r ? toWrappedMatterKey(r) : null;
   }
 
   /**
@@ -1751,10 +1780,10 @@ export class Store {
         .get(input.matter_handle, input.user_id);
       if (!member && input.role !== "admin") return { ok: false as const, reason: "not_member" as const };
 
-      const key = this.#db
+      const row = this.#db
         .query(`SELECT * FROM wrapped_matter_keys WHERE matter_handle = ? AND epoch = ? AND user_id = ? AND device_id = ?`)
-        .get(input.matter_handle, matter.key_epoch, input.user_id, input.device_id) as WrappedMatterKey | null;
-      return { ok: true as const, epoch: matter.key_epoch, access: member ? "member" as const : "admin" as const, key: key ?? null };
+        .get(input.matter_handle, matter.key_epoch, input.user_id, input.device_id) as (Omit<WrappedMatterKey, "wrapped_key_b64"> & { wrapped_key: Uint8Array }) | null;
+      return { ok: true as const, epoch: matter.key_epoch, access: member ? "member" as const : "admin" as const, key: row ? toWrappedMatterKey(row) : null };
     });
     return txn.immediate() as ReturnType<Store["fetchWrappedMatterKeyForAccess"]>;
   }

@@ -6,6 +6,7 @@ import { issueAuthTokens, mintSeatToken } from "../src/lib/services.ts";
 import { buildServeOptions, type SyncSocketData } from "../src/server.ts";
 import { hasForbiddenV2RelayKey, validateV2RelayBoundary } from "../src/lib/v2Payload.ts";
 import { handlePullUpdates, handlePushUpdate } from "../src/routes/matters.ts";
+import { handlePublishMatterKeys } from "../src/routes/matterKeys.ts";
 
 const sentinels = ["CLIENT_SECRET_NIMBUS", "matter-semantic-123", "doc-advisory-plan.docx"] as const;
 const [clientSecret, semanticMatter, documentName] = sentinels;
@@ -17,19 +18,18 @@ const hostileBody = {
   nested: { MATTER_ID: semanticMatter, Filename: documentName },
 };
 
-function textColumns(store: Store): Array<{ table: string; column: string }> {
+function inspectableColumns(store: Store): Array<{ table: string; column: string }> {
   const inspector = store.inspectReadOnly();
   const tables = inspector.all("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'") as Array<{ name: string }>;
   return tables.flatMap(({ name }) =>
     (inspector.all(`PRAGMA table_info("${name.replaceAll('"', '""')}")`) as Array<{ name: string; type: string }>)
-      .filter((column) => /TEXT/i.test(column.type))
       .map((column) => ({ table: name, column: column.name })),
   );
 }
 
 function expectSentinelsAbsentFromStore(store: Store): void {
   const inspector = store.inspectReadOnly();
-  for (const { table, column } of textColumns(store)) {
+  for (const { table, column } of inspectableColumns(store)) {
     const quotedTable = `"${table.replaceAll('"', '""')}"`;
     const quotedColumn = `"${column.replaceAll('"', '""')}"`;
     for (const sentinel of sentinels) {
@@ -49,6 +49,8 @@ function fixture() {
   const org = store.createOrg({ name: "Relay privacy", plan: "practice", packs: ["advisor"], seat_limit: 4 });
   const admin = store.createUser({ org_id: org.org_id, email: "admin@privacy.test", password_hash: "x", role: "admin" });
   const member = store.createUser({ org_id: org.org_id, email: "member@privacy.test", password_hash: "x", role: "member" });
+  store.upsertDevice({ device_id: "admin-device", user_id: admin.user_id, org_id: org.org_id, machine_id: "admin-device", label: "device", pubkey_jwk: '{"kty":"EC","crv":"P-256","x":"x","y":"y"}' });
+  store.upsertDevice({ device_id: "member-device", user_id: member.user_id, org_id: org.org_id, machine_id: "member-device", label: "device", pubkey_jwk: '{"kty":"EC","crv":"P-256","x":"x","y":"y"}' });
   const adminSeat = store.activateSeat({ org_id: org.org_id, user_id: admin.user_id, machine_id: "admin-device", machine_label: null, seat_limit: 4 });
   const memberSeat = store.activateSeat({ org_id: org.org_id, user_id: member.user_id, machine_id: "member-device", machine_label: null, seat_limit: 4 });
   if (!adminSeat.ok || !memberSeat.ok) throw new Error("test seat activation failed");
@@ -69,8 +71,43 @@ async function responseJson(response: Response): Promise<Record<string, unknown>
 }
 
 const validBlobId = `bh2_${"A".repeat(43)}`;
+const validWrappedEnvelope = Buffer.from([0x4c, 0x57, 0x4b, 1, 4, ...new Array(140).fill(0)]).toString("base64");
+const validCiphertextEnvelope = Buffer.from([2, ...new Array(28).fill(0)]).toString("base64");
 
 describe("firm relay privacy proof", () => {
+  test("wrapped keys reject readable text and unregistered or foreign devices, and persist only binary envelopes", async () => {
+    const { store, admin, member, adminToken } = fixture();
+    const matter = store.createMatter({ org_id: admin.org_id });
+    store.activateProvisioningMatter(matter.matter_handle);
+    store.addMatterMember({ matter_handle: matter.matter_handle, user_id: admin.user_id, org_id: admin.org_id, role: "owner" });
+    const post = (wrapped: unknown) => handlePublishMatterKeys(new Request("http://relay.test/v2/firm/keys", { method: "POST", headers: { authorization: `Bearer ${adminToken}`, "content-type": "application/json" }, body: JSON.stringify({ epoch: 1, wrapped }) }), store, matter.matter_handle);
+    try {
+      const readable = await post([{ user_id: admin.user_id, device_id: "invented-device", wrapped_key_b64: clientSecret }]);
+      expect(readable.status).toBe(400);
+      const foreign = await post([{ user_id: admin.user_id, device_id: "member-device", wrapped_key_b64: validWrappedEnvelope }]);
+      expect(foreign.status).toBe(400);
+      const accepted = await post([{ user_id: admin.user_id, device_id: "admin-device", wrapped_key_b64: validWrappedEnvelope }]);
+      expect(accepted.status).toBe(200);
+      const schema = store.inspectReadOnly().all("PRAGMA table_info(wrapped_matter_keys)") as Array<{ name: string; type: string }>;
+      expect(schema.find((column) => column.name === "wrapped_key")?.type).toMatch(/BLOB/i);
+      expect(schema.some((column) => column.name === "wrapped_key_b64")).toBe(false);
+      expectSentinelsAbsentFromStore(store);
+    } finally { store.close(); }
+  });
+
+  test("malformed opaque paths never decode or reach logs", async () => {
+    const { store } = fixture();
+    const logs: unknown[][] = [];
+    const original = console.error;
+    console.error = (...args: unknown[]) => { logs.push(args); };
+    const server = Bun.serve<SyncSocketData>(buildServeOptions(store, new FanoutHub()));
+    try {
+      const response = await fetch(`http://${server.hostname}:${server.port}/v2/firm/matters/${clientSecret}%ZZ/activate`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+      expect(response.status).toBe(404);
+      expect(await response.text()).not.toContain(clientSecret);
+      expect(JSON.stringify(logs)).not.toContain(clientSecret);
+    } finally { console.error = original; server.stop(true); store.close(); }
+  });
   test("privacy inspection is read-only and never exposes the database connection", () => {
     const { store } = fixture();
     expect(() => store.inspectReadOnly().all("UPDATE orgs SET name = 'mutated'"))
@@ -94,7 +131,7 @@ describe("firm relay privacy proof", () => {
     const request = (blob_id: string) => new Request("http://relay.test/push", {
       method: "POST",
       headers: { authorization: `Bearer ${adminToken}`, "content-type": "application/json" },
-      body: JSON.stringify({ blob_id, ciphertext_b64: "AQ==", seat_token: adminSeatToken, key_epoch: 1 }),
+      body: JSON.stringify({ blob_id, ciphertext_b64: validCiphertextEnvelope, seat_token: adminSeatToken, key_epoch: 1 }),
     });
     try {
       for (const hostileBlobId of [clientSecret, semanticMatter, documentName]) {
@@ -490,8 +527,8 @@ describe("firm relay privacy proof", () => {
       await adminClient.publishMatterKeys(created.matter_handle, {
         epoch: wall.key_epoch,
         wrapped: [
-          { user_id: admin.user_id, device_id: "admin-device", wrapped_key_b64: "admin-wrapped-key" },
-          { user_id: member.user_id, device_id: "member-device", wrapped_key_b64: "member-wrapped-key" },
+          { user_id: admin.user_id, device_id: "admin-device", wrapped_key_b64: validWrappedEnvelope },
+          { user_id: member.user_id, device_id: "member-device", wrapped_key_b64: validWrappedEnvelope },
         ],
       });
       await memberClient.fetchMatterKeys(created.matter_handle, "member-device", memberSeatToken);

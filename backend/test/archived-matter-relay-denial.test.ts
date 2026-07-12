@@ -2,6 +2,10 @@ import { describe, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
 import { rmSync } from "node:fs";
 import { Store } from "../src/lib/db.ts";
+import { decodeWrappedKeyEnvelope } from "../src/lib/wrappedKeyEnvelope.ts";
+
+const wrappedEnvelope = decodeWrappedKeyEnvelope(Buffer.from([0x4c, 0x57, 0x4b, 1, 4, ...new Array(140).fill(0)]).toString("base64"))!;
+const ciphertextEnvelope = Buffer.from([2, ...new Array(28).fill(0)]).toString("base64");
 import { SyncTicketStore } from "../src/lib/syncTickets.ts";
 import { issueAuthTokens, mintSeatToken } from "../src/lib/services.ts";
 import {
@@ -26,12 +30,15 @@ function fixture(path = ":memory:", activate = true) {
   const org = store.createOrg({ name: "Archived relay denial", plan: "practice", packs: [], seat_limit: 8 });
   const admin = store.createUser({ org_id: org.org_id, email: "admin@archived.test", password_hash: "x", role: "admin" });
   const member = store.createUser({ org_id: org.org_id, email: "member@archived.test", password_hash: "x", role: "member" });
+  for (const [device_id, user_id] of [["member-device", member.user_id], ["active-publish-device", member.user_id], ["archived-publish-device", member.user_id]] as const) {
+    store.upsertDevice({ device_id, user_id, org_id: org.org_id, machine_id: device_id, label: "", pubkey_jwk: '{"kty":"EC","crv":"P-256","x":"x","y":"y"}' });
+  }
   const matter = store.createMatter({ org_id: org.org_id });
   if (activate) store.activateProvisioningMatter(matter.matter_handle);
   store.addMatterMember({ matter_handle: matter.matter_handle, user_id: member.user_id, org_id: org.org_id, role: "editor" });
   const seat = store.activateSeat({ org_id: org.org_id, user_id: member.user_id, machine_id: "member-machine", machine_label: null, seat_limit: 8 });
   if (!seat.ok) throw new Error("test seat activation failed");
-  store.upsertWrappedMatterKey({ matter_handle: matter.matter_handle, epoch: matter.key_epoch, user_id: member.user_id, device_id: "member-device", wrapped_key_b64: "wrapped-key", published_by: admin.user_id });
+  store.upsertWrappedMatterKey({ matter_handle: matter.matter_handle, epoch: matter.key_epoch, user_id: member.user_id, device_id: "member-device", wrapped_key: wrappedEnvelope, published_by: admin.user_id });
 
   return {
     store,
@@ -81,7 +88,7 @@ function delayedRequest(token: string, body: unknown, seat?: string) {
 }
 
 function pushRequest(f: ReturnType<typeof fixture>, blobId: string) {
-  return request(f.memberToken, { blob_id: `bh2_${Buffer.from(blobId).toString("base64url").padEnd(43, "A").slice(0, 43)}`, ciphertext_b64: "AQ==", seat_token: f.memberSeat, key_epoch: 1 });
+  return request(f.memberToken, { blob_id: `bh2_${Buffer.from(blobId).toString("base64url").padEnd(43, "A").slice(0, 43)}`, ciphertext_b64: ciphertextEnvelope, seat_token: f.memberSeat, key_epoch: 1 });
 }
 
 async function expectOpaqueArchivedDenial(response: Response) {
@@ -104,13 +111,13 @@ describe("archived matter relay denial", () => {
     const response = await handlePublishMatterKeys(
       request(f.adminToken, {
         epoch: 1,
-        wrapped: [{ user_id: f.member.user_id, device_id: "active-publish-device", wrapped_key_b64: "active-wrapped-key" }],
+        wrapped: [{ user_id: f.member.user_id, device_id: "active-publish-device", wrapped_key_b64: Buffer.from(wrappedEnvelope).toString("base64") }],
       }),
       f.store,
       f.matter.matter_handle,
     );
     expect(response.status).toBe(200);
-    expect(f.store.getWrappedMatterKey(f.matter.matter_handle, 1, f.member.user_id, "active-publish-device")).toMatchObject({ wrapped_key_b64: "active-wrapped-key" });
+    expect(f.store.getWrappedMatterKey(f.matter.matter_handle, 1, f.member.user_id, "active-publish-device")).toMatchObject({ wrapped_key_b64: Buffer.from(wrappedEnvelope).toString("base64") });
     f.store.close();
   });
 
@@ -185,7 +192,7 @@ describe("archived matter relay denial", () => {
     const response = await handlePublishMatterKeys(
       request(f.adminToken, {
         epoch: 1,
-        wrapped: [{ user_id: f.member.user_id, device_id: "archived-publish-device", wrapped_key_b64: "archived-wrapped-key" }],
+        wrapped: [{ user_id: f.member.user_id, device_id: "archived-publish-device", wrapped_key_b64: Buffer.from(wrappedEnvelope).toString("base64") }],
       }),
       f.store,
       f.matter.matter_handle,
@@ -203,7 +210,7 @@ describe("archived matter relay denial", () => {
       org_id: f.org.org_id,
       epoch: 1,
       published_by: f.admin.user_id,
-      wrapped: [{ user_id: f.member.user_id, device_id: "racing-publish-device", wrapped_key_b64: "racing-wrapped-key" }],
+      wrapped: [{ user_id: f.member.user_id, device_id: "racing-publish-device", wrapped_key: wrappedEnvelope }],
     });
     expect(result).toEqual({ matterArchived: true });
     expect(f.store.getWrappedMatterKey(f.matter.matter_handle, 1, f.member.user_id, "racing-publish-device")).toBeNull();
@@ -226,7 +233,7 @@ describe("archived matter relay denial", () => {
     const responseBody = await response.text();
     expect(responseBody).not.toContain("wrapped-key");
     expect(responseBody.toLowerCase()).not.toContain("archived");
-    expect(f.store.getWrappedMatterKey(f.matter.matter_handle, 1, f.member.user_id, "member-device")?.wrapped_key_b64).toBe("wrapped-key");
+    expect(f.store.getWrappedMatterKey(f.matter.matter_handle, 1, f.member.user_id, "member-device")?.wrapped_key_b64).toBe(Buffer.from(wrappedEnvelope).toString("base64"));
     f.store.close();
   });
 

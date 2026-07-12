@@ -8,13 +8,14 @@
  *
  * ## Wire format (base64 of the following byte sequence)
  *
- *   [ 1 byte  version = 0x01               ]
+ *   [ 3 bytes magic = ASCII "LWK"          ]
+ *   [ 1 byte  version = 0x01                ]
  *   [ 65 bytes ephemeral P-256 public key   ]   uncompressed point (0x04 || X || Y)
  *   [ 16 bytes HKDF salt                   ]   random, fresh per wrap
  *   [ 12 bytes AES-GCM IV                  ]   random, fresh per wrap
  *   [ N bytes  AES-256-GCM ciphertext+tag  ]   encrypts the raw matter key bytes
  *
- *   Total minimum length: 1 + 65 + 16 + 12 + 32 (key) + 16 (tag) = 142 bytes
+ *   Total fixed length: 3 + 1 + 65 + 16 + 12 + 32 (key) + 16 (tag) = 145 bytes
  *
  * ## Key derivation
  *
@@ -98,11 +99,13 @@ export class NoDeviceKeyError extends Error {
 
 // ── Wire format constants ---------------------------------------------------
 
+const MAGIC = new Uint8Array([0x4c, 0x57, 0x4b]); // "LWK"
 const VERSION = 1;
 const EPHEMERAL_PUB_BYTES = 65; // uncompressed P-256 point: 0x04 || X (32B) || Y (32B)
 const SALT_BYTES = 16;
 const IV_BYTES = 12;
-const HEADER_BYTES = 1 + EPHEMERAL_PUB_BYTES + SALT_BYTES + IV_BYTES; // 94
+const HEADER_BYTES = MAGIC.length + 1 + EPHEMERAL_PUB_BYTES + SALT_BYTES + IV_BYTES; // 97
+const ENVELOPE_BYTES = HEADER_BYTES + 32 + 16; // raw AES-256 key + GCM tag
 
 // ── Helpers -----------------------------------------------------------------
 
@@ -269,8 +272,10 @@ export async function wrapMatterKey(
   }
 
   // 7. Assemble wire format.
-  const out = new Uint8Array(HEADER_BYTES + ciphertext.length);
+  if (ciphertext.length !== 48) throw new Error('Unexpected wrapped key ciphertext length.');
+  const out = new Uint8Array(ENVELOPE_BYTES);
   let offset = 0;
+  out.set(MAGIC, offset); offset += MAGIC.length;
   out[offset++] = VERSION;
   out.set(ephemeralPubRaw, offset); offset += EPHEMERAL_PUB_BYTES;
   out.set(salt, offset); offset += SALT_BYTES;
@@ -308,13 +313,16 @@ export async function unwrapMatterKey(wrappedB64: string, epoch: number): Promis
     throw new TamperedError('Blob is not valid base64.');
   }
 
-  const minLen = HEADER_BYTES + 16; // at minimum: header + GCM tag (16B)
-  if (raw.length < minLen) {
-    throw new TamperedError(`Blob too short (${String(raw.length)} < ${String(minLen)} bytes).`);
+  if (raw.length !== ENVELOPE_BYTES) {
+    throw new TamperedError(`Blob has invalid length (${String(raw.length)} bytes).`);
   }
 
   // 3. Parse header.
   let offset = 0;
+  if (!MAGIC.every((byte, index) => raw[index] === byte)) {
+    throw new TamperedError('Unknown wrapped-key envelope magic.');
+  }
+  offset += MAGIC.length;
   const version = raw[offset++];
   if (version !== VERSION) {
     throw new TamperedError(`Unknown wire format version: ${String(version)}.`);
@@ -322,6 +330,7 @@ export async function unwrapMatterKey(wrappedB64: string, epoch: number): Promis
 
   const ephemeralPubRaw = raw.subarray(offset, offset + EPHEMERAL_PUB_BYTES);
   offset += EPHEMERAL_PUB_BYTES;
+  if (ephemeralPubRaw[0] !== 0x04) throw new TamperedError('Invalid ephemeral P-256 point.');
   const salt = raw.subarray(offset, offset + SALT_BYTES);
   offset += SALT_BYTES;
   const iv = raw.subarray(offset, offset + IV_BYTES);

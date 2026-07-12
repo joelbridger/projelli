@@ -41,6 +41,7 @@ export const KC_REFRESH_TOKEN = 'refresh_token';
 export const KC_SEAT_TOKEN = 'seat_token';
 // Key within a matter service (the raw AES key, base64).
 export const KC_MATTER_KEY = 'content_key';
+const KC_PROMOTION_PENDING = 'promotion_pending';
 
 function fallbackAvailable(): boolean {
   return typeof localStorage !== 'undefined';
@@ -109,6 +110,47 @@ async function deleteSecret(service: string, key: string): Promise<void> {
   if (fallbackAvailable()) {
     localStorage.removeItem(fallbackKey(service, key));
   }
+}
+
+/**
+ * A local crash/retry ledger for sharing a client. It is secret storage because
+ * it contains the content key and encrypted first write; the relay sees only
+ * its opaque handles and ciphertext. Keeping it until a success or confirmed
+ * archive prevents a timeout from creating an unreachable second shell.
+ */
+export interface PromotionPendingRecord {
+  matterHandle: string;
+  rootStreamHandle: string;
+  keyEpoch: number;
+  keyB64: string;
+  rootBlobId: string;
+  rootCiphertextB64: string;
+}
+
+function promotionService(localMatterId: string): string {
+  return `com.lantern.matter-promotion.${localMatterId}`;
+}
+
+export async function storePromotionPending(localMatterId: string, record: PromotionPendingRecord): Promise<void> {
+  await setSecret(promotionService(localMatterId), KC_PROMOTION_PENDING, JSON.stringify(record));
+}
+
+export async function loadPromotionPending(localMatterId: string): Promise<PromotionPendingRecord | null> {
+  const raw = await getSecret(promotionService(localMatterId), KC_PROMOTION_PENDING);
+  if (!raw) return null;
+  try {
+    const record = JSON.parse(raw) as PromotionPendingRecord;
+    if (typeof record.matterHandle !== 'string' || typeof record.rootStreamHandle !== 'string' ||
+      !Number.isInteger(record.keyEpoch) || typeof record.keyB64 !== 'string' ||
+      typeof record.rootBlobId !== 'string' || typeof record.rootCiphertextB64 !== 'string') return null;
+    return record;
+  } catch {
+    return null;
+  }
+}
+
+export async function clearPromotionPending(localMatterId: string): Promise<void> {
+  await deleteSecret(promotionService(localMatterId), KC_PROMOTION_PENDING);
 }
 
 // --- Auth + seat tokens (per user) -----------------------------------------

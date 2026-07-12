@@ -34,7 +34,7 @@ function request(fixture: ReturnType<typeof setup>, blobId: string): Request {
   return new Request("http://relay.test/v2/firm/matters/opaque/streams/opaque/updates", {
     method: "POST",
     headers: { authorization: `Bearer ${fixture.token}`, "content-type": "application/json" },
-    body: JSON.stringify({ blob_id: blob(blobId), ciphertext_b64: "AQ==", seat_token: fixture.seatToken, key_epoch: 1 }),
+    body: JSON.stringify({ blob_id: blob(blobId), ciphertext_b64: Buffer.from([2, ...new Array(28).fill(0)]).toString("base64"), seat_token: fixture.seatToken, key_epoch: 1 }),
   });
 }
 

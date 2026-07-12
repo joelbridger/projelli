@@ -24,8 +24,10 @@ describe("file-backed v1 firm relay reset", () => {
     } finally {
       reopened.close();
     }
-  });
+  }, 15_000);
 
+  // File-backed SQLite setup occasionally waits through the configured 5 s
+  // busy window on this shared QA host; the migration itself is deterministic.
   test("rebuilds legacy relay schema empty and retains no legacy identifier columns or blobs", () => {
     const path = `/tmp/firm-relay-v1-${crypto.randomUUID()}.sqlite`;
     paths.push(path);
@@ -68,7 +70,7 @@ describe("file-backed v1 firm relay reset", () => {
     } finally {
       store.close();
     }
-  });
+  }, 15_000);
 
   test("upgrades a pre-constraint v2 matters table without losing its active relay shell", () => {
     const path = `/tmp/firm-relay-pre-constraint-${crypto.randomUUID()}.sqlite`;
