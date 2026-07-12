@@ -3,7 +3,7 @@ import type { LucideIcon } from 'lucide-react';
 import type { CrmHomeRoute } from './routes';
 import { activitySurface } from '@/features/crm-activity/surface';
 import { calendarSurface, emailSurface } from '@/features/crm-connectors/surface';
-import { emailBroadcastSurface } from '@/features/crm-connectors/broadcastSurface';
+import { emailBroadcastSurface } from '@/features/crm-connectors/emailBroadcastSurface';
 import { emailDropboxSurface } from '@/features/crm-connectors/dropboxSurface';
 import { todaySurface } from '@/features/crm-today/surface';
 import { tasksSurface } from '@/features/crm-tasks/surface';
