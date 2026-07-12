@@ -842,6 +842,7 @@ class DesktopParityApp implements ParityApp {
       `workflows-${this.token('workspace')}`
     );
     await this.openHome();
+    await this.waitForControl('crm-home-nav-workflows');
     await this.click('crm-home-nav-workflows');
     if (options.library) await this.require('crm-live-workflow-library');
     if (!(await this.exists('crm-live-workflow-name'))) {
