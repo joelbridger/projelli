@@ -3,6 +3,7 @@ import type { CrmHomeAdapter } from './types';
 export type CrmHomeRoute =
   | 'today'
   | 'tasks'
+  | 'projects'
   | 'workflows'
   | 'propagation'
   | 'pipeline'

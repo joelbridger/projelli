@@ -12,6 +12,7 @@ export interface ParityApp {
   task(options: { recurrence?: boolean; priority?: boolean; assignee?: boolean; activity?: boolean; unified?: boolean; triage?: boolean }): Promise<void>;
   contact(options: { person?: boolean; household?: boolean; relationship?: boolean; roles?: boolean; ownership?: boolean; tags?: boolean; notes?: boolean; internal?: boolean; account?: boolean; addresses?: boolean; facts?: boolean; timeline?: boolean }): Promise<void>;
   workflow(options: { template?: boolean; instance?: boolean; schedule?: boolean; outcomes?: boolean; comments?: boolean; library?: boolean; meetingProposal?: boolean }): Promise<void>;
+  project(): Promise<void>;
   jumpMeeting(): Promise<void>;
   approvedPlaybook(): Promise<void>;
   pipeline(options: { opportunity?: boolean; pipeline?: boolean; stage?: boolean; workflowTrigger?: boolean }): Promise<void>;
@@ -82,6 +83,7 @@ export const FEATURES: readonly ParityFeature[] = [
   live('Workflow instances (open workflows)', 'workflow-instances', 'REPLICATE', 'workflows', (app) => app.workflow({ template: true, instance: true })),
   live('Scheduled workflows', 'workflow-scheduling', 'REPLICATE', 'workflows', (app) => app.workflow({ template: true, schedule: true })),
   live('Workflow outcomes (branch/restart/complete)', 'workflow-outcomes', 'REPLICATE', 'workflows', (app) => app.workflow({ template: true, outcomes: true })),
+  live('Project record', 'project-record', 'REPLICATE', 'projects', (app) => app.project()),
   live('Coworker commenting on workflow steps', 'workflow-comments', 'REPLICATE', 'workflows', (app) => app.workflow({ template: true, instance: true, comments: true })),
   live('Jump → Wealthbox workflow trigger', 'meeting-workflow-proposal', 'REPLICATE', 'workflows', (app) => app.workflow({ meetingProposal: true })),
   live('Opportunity record', 'opportunity-record', 'REPLICATE', 'pipelines', (app) => app.pipeline({ opportunity: true })),
@@ -126,7 +128,6 @@ export const FEATURES: readonly ParityFeature[] = [
 // SKIPs stay visible, but they do not inflate or reduce the replacement score.
 export const SKIPPED_FEATURES: readonly SkippedFeature[] = [
   { matrixFeature: 'Contact Actions in Opportunity Workflows', reason: 'D23 excludes bulk contact actions from v1.' },
-  { matrixFeature: 'Project record', reason: 'New multi-step work belongs in workflows; imported projects stay read-only legacy records.' },
   { matrixFeature: 'BCC Email Dropbox', reason: 'Server-side plaintext capture conflicts with the E2EE charter.' },
   { matrixFeature: 'Emails land in Activity Stream, not the Email tab, for dropbox items', reason: 'This is a Wealthbox threading limitation, not behavior to copy.' },
   { matrixFeature: 'Email broadcast', reason: 'Marketing blasts are outside the small-firm CRM scope.' },

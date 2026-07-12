@@ -113,7 +113,7 @@ every external write; light theme; `matter`/`matter_id` never renamed.*
 
 | Feature | What it does | Pricing tier | API | JBW evidence | Verdict |
 |---|---|---|---|---|---|
-| Project record | Lightweight project-management container (notes, tasks, events) for admin initiatives or complex multi-phase financial-planning engagements | Basic | R/W | not mentioned directly (JBW's "planning-update" workflow stage implies similar multi-step planning work, but never names "Projects") | SKIP as a first-class v1 object — D9 preserves imported Wealthbox Projects as read-only legacy records, with optional manual conversion to workflows; never auto-convert them. New multi-step work belongs in workflows and tasks |
+| Project record | Lightweight project-management container (notes, tasks, events) for admin initiatives or complex multi-phase financial-planning engagements | Basic | R/W | not mentioned directly (JBW's "planning-update" workflow stage implies similar multi-step planning work, but never names "Projects") | REPLICATE — editable Projects are linked to a household, hold their own tasks, and can be completed. Imported Wealthbox Projects remain read-only LegacyProject records with manual conversion available; they are never auto-converted. |
 
 ## 8. Calendar & events
 

@@ -12,7 +12,7 @@ export type EntityKind =
   | 'document'
   | 'workflowTemplate' | 'workflowInstance' | 'servicePolicy'
   | 'activityEvent' | 'firmDoc' | 'tag' | 'customFieldDef'
-  | 'opportunity' | 'pipelineDef' | 'stageDef' | 'proposalRecord' | 'legacyProject'
+  | 'opportunity' | 'pipelineDef' | 'stageDef' | 'proposalRecord' | 'project' | 'legacyProject'
   | 'firmDirectoryEntry' | 'householdDirectoryShell' | 'intakeLink' | 'intakeSubmission'
   | 'importArchiveManifest' | 'savedView' | 'savedReport' | 'reportRun';
 
@@ -59,6 +59,8 @@ export interface NoteMention { id: string; ref: EntityRef; notifyState: 'none' |
 export interface Note extends CrmBase { kind: 'note'; householdLinks: HouseholdLink[]; links: EntityRef[]; mentions: NoteMention[]; audience: 'internal' | 'client-facing'; body: string; pinned: boolean; title?: string; format?: 'plain' | 'meeting-note' | 'template'; templateId?: string; authoredVia?: 'manual' | 'jump-push' | 'meeting-capture' | 'ai'; tagIds: string[]; }
 export interface RecurrenceRule { freq: 'daily' | 'weekly' | 'monthly' | 'yearly'; interval: number; byWeekday?: number[]; byMonthDay?: number[]; count?: number; until?: string; regenerateOnComplete: boolean; }
 export interface Task extends CrmBase { kind: 'task'; householdRef: EntityRef | null; title: string; body: string; assigneeUserId: string | null; status: 'open' | 'in_progress' | 'blocked' | 'done' | 'cancelled'; due?: string; recurrence?: RecurrenceRule; priority: 'high' | 'normal' | 'low'; contextRefs: EntityRef[]; customFields: CustomFieldValueMap; }
+/** A new, editable project. Imported Wealthbox projects remain LegacyProject records. */
+export interface Project extends CrmBase { kind: 'project'; householdRef: EntityRef; name: string; description: string; status: 'open' | 'completed'; completedAt?: string; taskIds: string[]; }
 export interface WorkflowSchedule { frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'annual'; timezone: string; startsAt: string; householdSelector: ViewQuery; enabled: boolean; }
 export interface StepOutcome { id: string; label: string; nextStepId?: string; restartAtStepId?: string; condition?: string; }
 export interface StepDef { id: string; title: string; description: string; ownerRole?: string; defaultAssigneeId?: string; offsetDays?: number; required: boolean; outcomes: StepOutcome[]; addedInRevisionId: string; removedInRevisionId?: string; }
@@ -220,4 +222,4 @@ export interface SavedReport extends CrmBase { kind: 'savedReport'; matterId: 'f
 /** An audit-friendly record that a report was calculated. Result rows remain live. */
 export interface ReportRun extends CrmBase { kind: 'reportRun'; matterId: 'firm_home' | (string & {}); reportKind: ReportKind; query: ViewQuery; calculatedAt: string; sourcesConsidered: number; resultCount: number; }
 
-export type CrmEntity = Household | Person | Account | Fact | Note | Task | WorkflowTemplate | WorkflowInstance | ServicePolicy | ActivityEvent | FirmDoc | Tag | CustomFieldDef | Opportunity | PipelineDef | StageDef | ProposalRecord | LegacyProject | FirmDirectoryEntry | HouseholdDirectoryShell | IntakeLink | IntakeSubmission | ImportArchiveManifest | SavedView | SavedReport | ReportRun;
+export type CrmEntity = Household | Person | Account | Fact | Note | Task | Project | WorkflowTemplate | WorkflowInstance | ServicePolicy | ActivityEvent | FirmDoc | Tag | CustomFieldDef | Opportunity | PipelineDef | StageDef | ProposalRecord | LegacyProject | FirmDirectoryEntry | HouseholdDirectoryShell | IntakeLink | IntakeSubmission | ImportArchiveManifest | SavedView | SavedReport | ReportRun;
