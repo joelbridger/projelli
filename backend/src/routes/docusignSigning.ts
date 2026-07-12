@@ -189,6 +189,7 @@ export async function handleIssueSigningCapability(req: Request, store: Store, i
       account_id: signingConfig.accountId,
       base_uri: signingConfig.apiBaseUri,
       expires_at: new Date(nowMs + issued.expiresIn * 1000).toISOString(),
+      return_url: signingConfig.allowedReturnUrl,
     });
   } catch (err) {
     return capabilityError(err);
