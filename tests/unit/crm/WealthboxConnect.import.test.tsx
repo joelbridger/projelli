@@ -30,6 +30,7 @@ const crmMocks = vi.hoisted(() => ({
   crmListHouseholds: vi.fn(),
   crmSyncAll: vi.fn(),
   crmCancelSync: vi.fn(),
+  createCrmRunId: vi.fn(() => 'test-run'),
 }));
 vi.mock('@/platform/utils/wealthbox-commands', () => ({
   ...crmMocks,
@@ -99,7 +100,9 @@ describe('WealthboxConnect — QA-74 import must populate the Client Map', () =>
     fireEvent.click(screen.getByRole('button', { name: /connect wealthbox/i }));
 
     // The confirm dialog appears once crmListHouseholds resolves with 40.
-    const confirmButton = await screen.findByRole('button', { name: /^import$/i });
+    // The Import choice lives in the raised ConfirmDialog, above the connector
+    // panel. Target its stable control rather than the old inline button.
+    const confirmButton = await screen.findByTestId('confirm-dialog-confirm');
     fireEvent.click(confirmButton);
 
     // The backend sync call is the last step of runSync(); wait for it.
@@ -187,7 +190,7 @@ describe('WealthboxConnect — QA-74 regressions', () => {
     fireEvent.change(input, { target: { value: 'test-token-123' } });
     fireEvent.click(screen.getByRole('button', { name: /connect wealthbox/i }));
 
-    const confirmButton = await screen.findByRole('button', { name: /^import$/i });
+    const confirmButton = await screen.findByTestId('confirm-dialog-confirm');
     fireEvent.click(confirmButton);
 
     await waitFor(() => expect(crmMocks.crmSyncAll).toHaveBeenCalledTimes(1));
@@ -243,7 +246,7 @@ describe('WealthboxConnect — QA-74 regressions', () => {
     fireEvent.change(input, { target: { value: 'test-token-123' } });
     fireEvent.click(screen.getByRole('button', { name: /connect wealthbox/i }));
 
-    const confirmButton = await screen.findByRole('button', { name: /^import$/i });
+    const confirmButton = await screen.findByTestId('confirm-dialog-confirm');
     fireEvent.click(confirmButton);
 
     await waitFor(() => expect(crmMocks.crmSyncAll).toHaveBeenCalledTimes(1));
@@ -269,7 +272,7 @@ describe('WealthboxConnect — QA-74 regressions', () => {
     fireEvent.change(input, { target: { value: 'test-token-123' } });
     fireEvent.click(screen.getByRole('button', { name: /connect wealthbox/i }));
 
-    const confirmButton = await screen.findByRole('button', { name: /^import$/i });
+    const confirmButton = await screen.findByTestId('confirm-dialog-confirm');
     fireEvent.click(confirmButton);
 
     await waitFor(() => expect(crmMocks.crmSyncAll).toHaveBeenCalledTimes(1));
