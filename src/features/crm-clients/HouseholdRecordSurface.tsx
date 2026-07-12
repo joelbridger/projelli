@@ -26,6 +26,7 @@ import type {
 import { NoteEditor } from './NoteEditor';
 import { ProposalCard } from './ProposalCard';
 import { RecordMetadataEditor } from './RecordMetadataEditor';
+import { HouseholdConnectorSurface } from '@/features/crm-connectors/HouseholdConnectorSurface';
 
 type HouseholdTab =
   | 'client_map'
@@ -186,14 +187,12 @@ export function HouseholdRecordSurface({
       />
       {tab === 'client_map' ? (
         <ClientMap household={household} />
-      ) : (
-        <ExistingSurface
+      ) : tab === 'email' || tab === 'meetings' ? <HouseholdConnectorSurface tab={tab} household={household} /> : <ExistingSurface
           tab={tab}
           household={household}
           proposals={sourceProposals}
           {...(actions ? { actions } : {})}
-        />
-      )}
+        />}
       <SlidePanel
         open={addOpen}
         onClose={() => { setAddOpen(false); }}
