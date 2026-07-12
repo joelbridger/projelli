@@ -350,6 +350,36 @@ pub async fn keychain_compare_and_set(
     Ok(KeychainCompareAndSetResult { swapped, current })
 }
 
+/// Atomically delete an entry only when it still equals `expected`. This is the
+/// delete counterpart to `keychain_compare_and_set`: callers use it for fenced
+/// cleanup so an old window can never erase a newer window's retry receipt.
+#[tauri::command]
+pub async fn keychain_compare_and_delete(
+    service: Option<String>,
+    key: String,
+    expected: String,
+) -> Result<KeychainCompareAndSetResult, KeychainError> {
+    let svc = resolve_service(service);
+    validate_renderer_service_access(&svc)?;
+    let lock_path = compare_and_set_lock_path(&svc, &key)?;
+    let lock = OpenOptions::new().create(true).read(true).write(true).open(lock_path)
+        .map_err(|e| KeychainError::Other(format!("could not open keychain CAS lock: {e}")))?;
+    lock.lock_exclusive().map_err(|e| KeychainError::Other(format!("could not lock keychain CAS entry: {e}")))?;
+
+    let entry = entry(&svc, &key)?;
+    let current = match entry.get_password() {
+        Ok(value) => Some(value),
+        Err(keyring::Error::NoEntry) => None,
+        Err(e) => return Err(map_keyring_error(&e)),
+    };
+    let swapped = current.as_deref() == Some(expected.as_str());
+    if swapped {
+        entry.delete_credential().map_err(|e| map_keyring_error(&e))?;
+    }
+    lock.unlock().map_err(|e| KeychainError::Other(format!("could not unlock keychain CAS entry: {e}")))?;
+    Ok(KeychainCompareAndSetResult { swapped, current })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

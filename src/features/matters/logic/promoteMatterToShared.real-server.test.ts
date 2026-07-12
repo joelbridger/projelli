@@ -5,7 +5,7 @@ import { generateMatterKey } from '@/platform/firm/matterCrypto';
 const mocks = vi.hoisted(() => ({
   linkFirmMatter: vi.fn(), createLocalMatterKey: vi.fn(), forgetMatterKey: vi.fn(),
   publishMatterKeyToMembers: vi.fn(), registerDevice: vi.fn(), append: vi.fn(),
-  firmState: { seatToken: 'placeholder-seat', session: { org: { org_id: 'placeholder-org' } } },
+  firmState: { seatToken: 'placeholder-seat', session: { userId: 'promotion-test-user', org: { org_id: 'placeholder-org' } } },
 }));
 
 vi.mock('@/platform/matter/matterStore', () => ({ useMatterStore: { getState: () => ({ linkFirmMatter: mocks.linkFirmMatter }) } }));

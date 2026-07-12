@@ -1,0 +1,58 @@
+import { afterEach, describe, expect, it } from 'vitest';
+import { KC_FALLBACK_PREFIX } from '@/config/identity';
+import {
+  PromotionReceiptError,
+  claimPromotionPending,
+  loadPromotionPending,
+  renewPromotionPendingLease,
+  resetPromotionPending,
+  type PromotionReceiptContext,
+} from './firmKeychain';
+
+const context: PromotionReceiptContext = { localMatterId: 'local-client', userId: 'user-a', orgId: 'org-a' };
+const receiptKey = (localMatterId = context.localMatterId) =>
+  `${KC_FALLBACK_PREFIX}com.lantern.matter-promotion.${localMatterId}::promotion_pending`;
+
+function writeRaw(record: unknown, localMatterId = context.localMatterId): void {
+  localStorage.setItem(receiptKey(localMatterId), btoa(JSON.stringify(record)));
+}
+
+afterEach(() => { localStorage.clear(); });
+
+describe('promotion receipt validation and lease fencing', () => {
+  it.each([
+    ['bad shape', { ...context, provisioningNonce: 'not-a-nonce', leaseOwnerId: 'a'.repeat(32), leaseExpiresAt: Date.now() + 1_000 }],
+    ['absurd future lease', { ...context, provisioningNonce: `pn2_${'A'.repeat(43)}`, leaseOwnerId: 'a'.repeat(32), leaseExpiresAt: Date.now() + 3_600_000 }],
+    ['foreign owner format', { ...context, provisioningNonce: `pn2_${'A'.repeat(43)}`, leaseOwnerId: 'someone-else', leaseExpiresAt: Date.now() + 1_000 }],
+  ])('rejects a %s receipt instead of waiting forever, then permits deliberate reset', async (_name, receipt) => {
+    writeRaw(receipt);
+    await expect(claimPromotionPending(context)).rejects.toBeInstanceOf(PromotionReceiptError);
+    await resetPromotionPending(context);
+    await expect(claimPromotionPending(context)).resolves.toMatchObject({ owned: true, record: context });
+  });
+
+  it('does not adopt a receipt from another local client or firm identity', async () => {
+    writeRaw({
+      ...context,
+      userId: 'user-b',
+      provisioningNonce: `pn2_${'B'.repeat(43)}`,
+      leaseOwnerId: 'b'.repeat(32),
+      leaseExpiresAt: Date.now() + 1_000,
+    });
+    await expect(loadPromotionPending(context)).resolves.toBeNull();
+    await expect(claimPromotionPending(context)).rejects.toBeInstanceOf(PromotionReceiptError);
+  });
+
+  it('lets a concurrent window adopt a legitimate receipt and renews a long-running owner lease', async () => {
+    const first = await claimPromotionPending(context);
+    const second = await claimPromotionPending(context);
+    expect(first.owned).toBe(true);
+    expect(second).toMatchObject({ owned: false, record: { provisioningNonce: first.record.provisioningNonce } });
+
+    const before = first.record.leaseExpiresAt;
+    expect(before).toBeDefined();
+    const renewed = await renewPromotionPendingLease(context, first.ownerId);
+    expect(renewed.leaseOwnerId).toBe(first.ownerId);
+    expect(renewed.leaseExpiresAt).toBeGreaterThanOrEqual(before ?? 0);
+  });
+});

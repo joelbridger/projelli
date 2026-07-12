@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/require-await, @typescript-eslint/no-confusing-void-expression, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/prefer-promise-reject-errors, @typescript-eslint/no-non-null-assertion -- cross-window test doubles deliberately use minimal async callbacks. */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseMatterHandle, parseStreamHandle } from '@/platform/firm/contract';
 import { FirmApiError } from '@/platform/firm/FirmApiClient';
@@ -8,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   promotionPending: null as Record<string, unknown> | null, storePromotionPending: vi.fn(), clearPromotionPending: vi.fn(),
   promotionPendingByMatter: new Map<string, Record<string, unknown>>(),
   failHandleCheckpointOnce: false,
-  firmState: { seatToken: 'seat' as string | null, session: { org: { org_id: 'org' } } },
+  firmState: { seatToken: 'seat' as string | null, session: { userId: 'user', org: { org_id: 'org' } } },
 }));
 
 vi.mock('@/platform/matter/matterStore', () => ({ useMatterStore: { getState: () => ({ linkFirmMatter: mocks.linkFirmMatter }) } }));
@@ -19,17 +20,19 @@ vi.mock('@/platform/firm/firmStore', () => ({
   useFirmStore: { getState: () => mocks.firmState },
 }));
 vi.mock('@/platform/firm/firmKeychain', () => ({
-  claimPromotionPending: async (id: string) => {
+  claimPromotionPending: async (context: { localMatterId: string }) => {
+    const id = context.localMatterId;
     let record = mocks.promotionPendingByMatter.get(id);
     if (!record) {
-      record = { provisioningNonce: `pn2_${'A'.repeat(43)}`, leaseOwnerId: `owner-${id}`, leaseExpiresAt: Date.now() + 30_000 };
+      record = { ...context, userId: 'user', orgId: 'org', provisioningNonce: `pn2_${'A'.repeat(43)}`, leaseOwnerId: 'a'.repeat(32), leaseExpiresAt: Date.now() + 30_000 };
       mocks.promotionPendingByMatter.set(id, record);
       mocks.promotionPending = record;
     }
-    return { record, ownerId: `owner-${id}`, owned: !record['completed'] };
+    return { record, ownerId: 'a'.repeat(32), owned: !record['completed'] };
   },
-  loadPromotionPending: (id: string) => Promise.resolve(mocks.promotionPendingByMatter.get(id) ?? null),
-  storePromotionPending: async (id: string, value: Record<string, unknown>) => {
+  loadPromotionPending: (context: { localMatterId: string }) => Promise.resolve(mocks.promotionPendingByMatter.get(context.localMatterId) ?? null),
+  storePromotionPending: async (context: { localMatterId: string }, _owner: string, value: Record<string, unknown>) => {
+    const id = context.localMatterId;
     await Promise.resolve();
     mocks.storePromotionPending(value);
     if (mocks.failHandleCheckpointOnce && 'matterHandle' in value) {
@@ -38,11 +41,21 @@ vi.mock('@/platform/firm/firmKeychain', () => ({
     }
     mocks.promotionPendingByMatter.set(id, value);
     mocks.promotionPending = value;
+    return value;
   },
-  clearPromotionPending: (id: string) => { mocks.promotionPendingByMatter.delete(id); mocks.promotionPending = null; mocks.clearPromotionPending(); return Promise.resolve(); },
+  renewPromotionPendingLease: async (_context: { localMatterId: string }, _owner: string) => undefined,
+  beginPromotionPendingCleanup: async (context: { localMatterId: string }, _owner: string) => {
+    const record = mocks.promotionPendingByMatter.get(context.localMatterId)!;
+    const cleanup = { ...record, cleanupPending: true };
+    mocks.promotionPendingByMatter.set(context.localMatterId, cleanup);
+    mocks.promotionPending = cleanup;
+    return cleanup;
+  },
+  clearPromotionPendingAfterCleanup: (context: { localMatterId: string }) => { mocks.promotionPendingByMatter.delete(context.localMatterId); mocks.promotionPending = null; mocks.clearPromotionPending(); return Promise.resolve(); },
   releasePromotionPendingLease: vi.fn(() => Promise.resolve()),
-  completePromotionPending: async (id: string, _owner: string, record: Record<string, unknown>, orgId: string) => {
-    const complete = { provisioningNonce: record['provisioningNonce'], matterHandle: record['matterHandle'], rootStreamHandle: record['rootStreamHandle'], keyEpoch: record['keyEpoch'], rootWriteAccepted: true, completed: true, orgId };
+  completePromotionPending: async (context: { localMatterId: string }, _owner: string, record: Record<string, unknown>, orgId: string) => {
+    const complete = { ...record, matterHandle: record['matterHandle'], rootStreamHandle: record['rootStreamHandle'], keyEpoch: record['keyEpoch'], rootWriteAccepted: true, completed: true, orgId };
+    const id = context.localMatterId;
     mocks.promotionPendingByMatter.set(id, complete);
     mocks.promotionPending = complete;
   },

@@ -68,6 +68,7 @@ pub fn run() {
             commands::keychain::keychain_get,
             commands::keychain::keychain_delete,
             commands::keychain::keychain_compare_and_set,
+            commands::keychain::keychain_compare_and_delete,
             // Advisor Prep Hero 3.0 — encrypted, append-only audit store (the "defense file").
             commands::audit::audit_set_workspace,
             commands::audit::audit_append,

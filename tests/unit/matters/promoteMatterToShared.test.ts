@@ -30,7 +30,7 @@ vi.mock('@/platform/firm/firmMatterPrivateIndex', () => ({
 }));
 
 vi.mock('@/platform/firm/firmStore', () => ({
-  useFirmStore: { getState: () => ({ seatToken: 'seat-token', session: { org: { org_id: 'org_1' } } }) },
+  useFirmStore: { getState: () => ({ seatToken: 'seat-token', session: { userId: 'user_1', org: { org_id: 'org_1' } } }) },
 }));
 
 // registerDevice lives in deviceKeys (confirmed against the live MatterManagerDialog imports).
@@ -71,16 +71,18 @@ vi.mock('@/platform/firm/firmKeychain', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/platform/firm/firmKeychain')>();
   return {
     ...actual,
-    claimPromotionPending: vi.fn(async () => {
-      if (!pendingRecord) pendingRecord = { provisioningNonce: `pn2_${'A'.repeat(43)}`, leaseOwnerId: 'owner', leaseExpiresAt: Date.now() + 30_000 };
-      return { record: pendingRecord, ownerId: 'owner', owned: !(pendingRecord as { completed?: boolean }).completed };
+    claimPromotionPending: vi.fn(async (context: Record<string, unknown>) => {
+      if (!pendingRecord) pendingRecord = { ...context, provisioningNonce: `pn2_${'A'.repeat(43)}`, leaseOwnerId: 'a'.repeat(32), leaseExpiresAt: Date.now() + 30_000 };
+      return { record: pendingRecord, ownerId: 'a'.repeat(32), owned: !(pendingRecord as { completed?: boolean }).completed };
     }),
     loadPromotionPending: vi.fn(() => Promise.resolve(pendingRecord)),
-    storePromotionPending: vi.fn((_id: string, record: unknown) => { pendingRecord = record; return Promise.resolve(); }),
-    clearPromotionPending: vi.fn(() => { pendingRecord = null; return Promise.resolve(); }),
+    storePromotionPending: vi.fn((_context: unknown, _owner: string, record: unknown) => { pendingRecord = record; return Promise.resolve(record); }),
+    renewPromotionPendingLease: vi.fn(() => Promise.resolve()),
+    beginPromotionPendingCleanup: vi.fn(() => Promise.resolve({ ...(pendingRecord as object), cleanupPending: true })),
+    clearPromotionPendingAfterCleanup: vi.fn(() => { pendingRecord = null; return Promise.resolve(); }),
     releasePromotionPendingLease: vi.fn(() => Promise.resolve()),
-    completePromotionPending: vi.fn((_id: string, _owner: string, record: Record<string, unknown>, orgId: string) => {
-      pendingRecord = { provisioningNonce: record["provisioningNonce"], matterHandle: record["matterHandle"], rootStreamHandle: record["rootStreamHandle"], keyEpoch: record["keyEpoch"], completed: true, orgId };
+    completePromotionPending: vi.fn((_context: unknown, _owner: string, record: Record<string, unknown>, orgId: string) => {
+      pendingRecord = { ...record, completed: true, orgId };
       return Promise.resolve();
     }),
   };

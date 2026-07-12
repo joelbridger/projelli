@@ -15,6 +15,7 @@ import { resolveWorkspacePath } from '@/platform/fs/pathResolve';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { LOCAL_AI_NAME } from '@/config/brandText';
 
+/* eslint-disable @typescript-eslint/no-invalid-void-type -- Tauri command wrappers intentionally expose Promise<void>. */
 /**
  * Resolve `path` to an absolute workspace path using the active workspace root.
  * Mirrors `toAbsoluteDocxPath` in docx-commands.ts — kept separate so
@@ -352,6 +353,20 @@ export async function keychainCompareAndSet(
   }
   return invoke<{ swapped: boolean; current: string | null }>('keychain_compare_and_set', {
     service, key, expected, value,
+  });
+}
+
+/** Atomically delete a keychain value only when it still equals `expected`. */
+export async function keychainCompareAndDelete(
+  key: string,
+  expected: string,
+  service?: string,
+): Promise<{ swapped: boolean; current: string | null }> {
+  if (!isTauri()) {
+    throw new Error('keychain is only available in the desktop app.');
+  }
+  return invoke<{ swapped: boolean; current: string | null }>('keychain_compare_and_delete', {
+    service, key, expected,
   });
 }
 

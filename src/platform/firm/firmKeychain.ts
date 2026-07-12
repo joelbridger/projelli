@@ -21,9 +21,10 @@
  * unit-testable; it is NEVER the storage on a real install.
  */
 
-import { keychainCompareAndSet, keychainGet, keychainSet, keychainDelete } from '@/platform/utils/tauri-commands';
+import { keychainCompareAndDelete, keychainCompareAndSet, keychainGet, keychainSet, keychainDelete } from '@/platform/utils/tauri-commands';
 import { isTauri } from '@tauri-apps/api/core';
 import { kcUserService, kcMatterService, KC_FALLBACK_PREFIX } from '@/config/identity';
+import { OPAQUE_BLOB_ID_PATTERN, OPAQUE_PROVISIONING_NONCE_PATTERN } from './opaqueBlobId';
 
 /** Service namespace for a user's auth + seat tokens. */
 export function userService(userId: string): string {
@@ -119,6 +120,10 @@ async function deleteSecret(service: string, key: string): Promise<void> {
  * archive prevents a timeout from creating an unreachable second shell.
  */
 export interface PromotionPendingRecord {
+  /** The receipt is only valid for this exact local client and firm identity. */
+  localMatterId: string;
+  userId: string;
+  orgId: string;
   /** Written before the first request. This survives a lost provision reply. */
   provisioningNonce: string;
   matterHandle?: string;
@@ -136,43 +141,29 @@ export interface PromotionPendingRecord {
   rootWriteAccepted?: boolean;
   /** A finished receipt lets another window adopt the same local linkage. */
   completed?: boolean;
-  orgId?: string;
   /** Short durable ownership lease. It is never a substitute for the receipt. */
   leaseOwnerId?: string;
   leaseExpiresAt?: number;
+  /** A fenced, recoverable pre-root-write cleanup is in progress. */
+  cleanupPending?: boolean;
+}
+
+export interface PromotionReceiptContext {
+  localMatterId: string;
+  userId: string;
+  orgId: string;
 }
 
 function promotionService(localMatterId: string): string {
   return `com.lantern.matter-promotion.${localMatterId}`;
 }
 
-export async function storePromotionPending(localMatterId: string, record: PromotionPendingRecord): Promise<void> {
-  // A checkpoint write must never drop the lease. Callers rebuild this record as
-  // they learn each field, and a caller that omitted `leaseOwnerId` used to erase
-  // it — after which completePromotionPending found no owner and refused the
-  // window's OWN work ("another window is finishing this"), so every share failed.
-  // Preserve the lease here rather than trusting every present and future caller
-  // to remember it.
-  const existing = await rawPromotionPending(localMatterId);
-  let next = record;
-  if (existing && record.leaseOwnerId === undefined) {
-    try {
-      const current = JSON.parse(existing) as PromotionPendingRecord;
-      if (current.leaseOwnerId !== undefined) {
-        next = {
-          ...record,
-          leaseOwnerId: current.leaseOwnerId,
-          ...(current.leaseExpiresAt === undefined ? {} : { leaseExpiresAt: current.leaseExpiresAt }),
-        };
-      }
-    } catch {
-      // A corrupted record is handled by the claim path; write the new one as-is.
-    }
-  }
-  await setSecret(promotionService(localMatterId), KC_PROMOTION_PENDING, JSON.stringify(next));
-}
-
 const PROMOTION_LEASE_MS = 30_000;
+/** Do not mistake a years-long hostile expiry for a live window. */
+const MAX_PROMOTION_LEASE_MS = 60_000;
+const LEASE_OWNER_PATTERN = /^[a-f0-9]{32}$/;
+const MATTER_HANDLE_PATTERN = /^mh2_[A-Za-z0-9_-]{43}$/;
+const STREAM_HANDLE_PATTERN = /^sh2_[A-Za-z0-9_-]{43}$/;
 
 function newLeaseOwnerId(): string {
   const bytes = new Uint8Array(16);
@@ -180,10 +171,62 @@ function newLeaseOwnerId(): string {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-function validPromotionRecord(value: unknown): value is PromotionPendingRecord {
+export class PromotionReceiptError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PromotionReceiptError';
+  }
+}
+
+function hasNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0;
+}
+
+/** Strictly check every durable shape before it can be adopted or mutated. */
+function validPromotionRecord(value: unknown, context: PromotionReceiptContext, now = Date.now()): value is PromotionPendingRecord {
   if (!value || typeof value !== 'object') return false;
   const record = value as PromotionPendingRecord;
-  return typeof record.provisioningNonce === 'string';
+  if (
+    record.localMatterId !== context.localMatterId
+    || record.userId !== context.userId
+    || record.orgId !== context.orgId
+    || !OPAQUE_PROVISIONING_NONCE_PATTERN.test(record.provisioningNonce)
+  ) return false;
+
+  const hasProvision = MATTER_HANDLE_PATTERN.test(record.matterHandle ?? '')
+    && STREAM_HANDLE_PATTERN.test(record.rootStreamHandle ?? '')
+    && Number.isSafeInteger(record.keyEpoch) && (record.keyEpoch ?? 0) > 0;
+  const hasAnyProvision = record.matterHandle !== undefined || record.rootStreamHandle !== undefined || record.keyEpoch !== undefined;
+  const hasCrypto = hasNonEmptyString(record.keyB64)
+    && OPAQUE_BLOB_ID_PATTERN.test(record.rootBlobId ?? '')
+    && hasNonEmptyString(record.rootCiphertextB64);
+  const hasAnyCrypto = record.keyB64 !== undefined || record.rootBlobId !== undefined || record.rootCiphertextB64 !== undefined;
+  if ((hasAnyProvision && !hasProvision) || (hasAnyCrypto && (!hasCrypto || !hasProvision))) return false;
+  if (record.rootWriteAccepted !== undefined && typeof record.rootWriteAccepted !== 'boolean') return false;
+  if (record.completed !== undefined && typeof record.completed !== 'boolean') return false;
+  if (record.cleanupPending !== undefined && typeof record.cleanupPending !== 'boolean') return false;
+  if (record.rootWriteAccepted && (!hasProvision || (!hasCrypto && !record.completed))) return false;
+  if (record.completed && (!record.rootWriteAccepted || !hasProvision || record.cleanupPending)) return false;
+  if (record.cleanupPending && (record.rootWriteAccepted || record.completed)) return false;
+
+  const hasLeaseOwner = record.leaseOwnerId !== undefined;
+  const hasLeaseExpiry = record.leaseExpiresAt !== undefined;
+  if (hasLeaseOwner !== hasLeaseExpiry) return false;
+  if (hasLeaseOwner && (
+    !LEASE_OWNER_PATTERN.test(record.leaseOwnerId ?? '')
+    || !Number.isSafeInteger(record.leaseExpiresAt)
+    || (record.leaseExpiresAt ?? 0) > now + MAX_PROMOTION_LEASE_MS
+  )) return false;
+  return true;
+}
+
+function promotionCasResult(value: unknown): { swapped: boolean; current: string | null } {
+  if (!value || typeof value !== 'object') throw new Error('The promotion receipt comparison returned an invalid result.');
+  const result = value as { swapped?: unknown; current?: unknown };
+  if (typeof result.swapped !== 'boolean' || (result.current !== null && typeof result.current !== 'string')) {
+    throw new Error('The promotion receipt comparison returned an invalid result.');
+  }
+  return { swapped: result.swapped, current: result.current };
 }
 
 async function rawPromotionPending(localMatterId: string): Promise<string | null> {
@@ -209,8 +252,25 @@ async function compareAndSetPromotionPending(
     await setSecret(service, KC_PROMOTION_PENDING, value);
     return { swapped: true, current };
   };
-  if (locks) return locks.request(`lantern-promotion:${localMatterId}`, { mode: 'exclusive' }, run);
+  if (locks) return promotionCasResult(await locks.request(`lantern-promotion:${localMatterId}`, { mode: 'exclusive' }, run));
   // Test-only/non-browser fallback. Real desktop never reaches this path.
+  return run();
+}
+
+async function compareAndDeletePromotionPending(
+  localMatterId: string,
+  expected: string,
+): Promise<{ swapped: boolean; current: string | null }> {
+  const service = promotionService(localMatterId);
+  if (isTauri()) return keychainCompareAndDelete(KC_PROMOTION_PENDING, expected, service);
+  const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined;
+  const run = async () => {
+    const current = await rawPromotionPending(localMatterId);
+    if (current !== expected) return { swapped: false, current };
+    await deleteSecret(service, KC_PROMOTION_PENDING);
+    return { swapped: true, current };
+  };
+  if (locks) return promotionCasResult(await locks.request(`lantern-promotion:${localMatterId}`, { mode: 'exclusive' }, run));
   return run();
 }
 
@@ -224,13 +284,15 @@ export interface PromotionClaim {
  * Atomically create or take over the durable promotion receipt. A losing
  * window receives the winning receipt to adopt; it must never mint a nonce.
  */
-export async function claimPromotionPending(localMatterId: string): Promise<PromotionClaim> {
+export async function claimPromotionPending(context: PromotionReceiptContext, forceTakeover = false): Promise<PromotionClaim> {
+  const { localMatterId } = context;
   const ownerId = newLeaseOwnerId();
   for (;;) {
     const raw = await rawPromotionPending(localMatterId);
     const now = Date.now();
     if (!raw) {
       const record: PromotionPendingRecord = {
+        ...context,
         provisioningNonce: `pn2_${base64UrlRandom(32)}`,
         leaseOwnerId: ownerId,
         leaseExpiresAt: now + PROMOTION_LEASE_MS,
@@ -240,10 +302,12 @@ export async function claimPromotionPending(localMatterId: string): Promise<Prom
       continue;
     }
     let record: PromotionPendingRecord;
-    try { record = JSON.parse(raw) as PromotionPendingRecord; } catch { throw new Error('The saved sharing retry record is corrupted.'); }
-    if (!validPromotionRecord(record)) throw new Error('The saved sharing retry record is corrupted.');
+    try { record = JSON.parse(raw) as PromotionPendingRecord; } catch { throw new PromotionReceiptError('The saved sharing receipt is corrupted. Reset it before sharing this client again.'); }
+    if (!validPromotionRecord(record, context, now)) {
+      throw new PromotionReceiptError('The saved sharing receipt is invalid for this client or firm account. Reset it before sharing this client again.');
+    }
     if (record.completed) return { record, ownerId, owned: false };
-    if (typeof record.leaseExpiresAt === 'number' && record.leaseExpiresAt > now && record.leaseOwnerId) {
+    if (!forceTakeover && typeof record.leaseExpiresAt === 'number' && record.leaseExpiresAt > now && record.leaseOwnerId) {
       return { record, ownerId, owned: false };
     }
     // A crashed owner may be replaced only by preserving every checkpoint,
@@ -254,18 +318,58 @@ export async function claimPromotionPending(localMatterId: string): Promise<Prom
   }
 }
 
+function lostLease(): Error {
+  return new Error('This sharing window lost its lease to another window. Please try again.');
+}
+
+async function mutateOwnedPromotionPending(
+  context: PromotionReceiptContext,
+  ownerId: string,
+  mutate: (record: PromotionPendingRecord) => PromotionPendingRecord,
+): Promise<PromotionPendingRecord> {
+  const raw = await rawPromotionPending(context.localMatterId);
+  if (!raw) throw lostLease();
+  let current: PromotionPendingRecord;
+  try { current = JSON.parse(raw) as PromotionPendingRecord; } catch { throw lostLease(); }
+  const now = Date.now();
+  if (!validPromotionRecord(current, context, now) || current.completed || current.leaseOwnerId !== ownerId || (current.leaseExpiresAt ?? 0) <= now) {
+    throw lostLease();
+  }
+  const next = { ...mutate(current), ...context, leaseOwnerId: ownerId, leaseExpiresAt: now + PROMOTION_LEASE_MS };
+  if (!validPromotionRecord(next, context, now)) throw new PromotionReceiptError('The sharing checkpoint is invalid.');
+  const result = await compareAndSetPromotionPending(context.localMatterId, raw, next);
+  if (!result.swapped) throw lostLease();
+  return next;
+}
+
+/** Heartbeat renewal and every checkpoint both use this same fenced mutation. */
+export async function renewPromotionPendingLease(context: PromotionReceiptContext, ownerId: string): Promise<PromotionPendingRecord> {
+  return mutateOwnedPromotionPending(context, ownerId, (record) => record);
+}
+
+/** Save a checkpoint only when this exact window still holds the lease. */
+export async function storePromotionPending(
+  context: PromotionReceiptContext,
+  ownerId: string,
+  record: PromotionPendingRecord,
+): Promise<PromotionPendingRecord> {
+  return mutateOwnedPromotionPending(context, ownerId, () => record);
+}
+
 /** Give up the short execution lease without deleting recovery material. */
 export async function releasePromotionPendingLease(
-  localMatterId: string,
+  context: PromotionReceiptContext,
   ownerId: string,
 ): Promise<void> {
+  const { localMatterId } = context;
   const raw = await rawPromotionPending(localMatterId);
   if (!raw) return;
   try {
     const record = JSON.parse(raw) as PromotionPendingRecord;
-    if (record.leaseOwnerId !== ownerId || record.completed) return;
+    if (!validPromotionRecord(record, context) || record.leaseOwnerId !== ownerId || record.completed) return;
     const { leaseOwnerId: _leaseOwnerId, leaseExpiresAt: _leaseExpiresAt, ...unleased } = record;
     await compareAndSetPromotionPending(localMatterId, raw, unleased);
+  // eslint-disable-next-line lantern-async/no-silent-failure -- a corrupt receipt must never be altered by a releasing window.
   } catch {
     // A corrupt receipt is handled by the explicit load/claim error path.
   }
@@ -273,26 +377,55 @@ export async function releasePromotionPendingLease(
 
 /** Keep a compact terminal receipt so another window can adopt its linkage. */
 export async function completePromotionPending(
-  localMatterId: string,
+  context: PromotionReceiptContext,
   ownerId: string,
   record: PromotionPendingRecord,
-  orgId: string,
 ): Promise<void> {
+  const { localMatterId } = context;
   const raw = await rawPromotionPending(localMatterId);
   if (!raw) throw new Error('The saved sharing retry record disappeared.');
   const current = JSON.parse(raw) as PromotionPendingRecord;
-  if (current.leaseOwnerId !== ownerId) throw new Error('Another window is finishing this shared client.');
+  const now = Date.now();
+  if (!validPromotionRecord(current, context, now) || current.leaseOwnerId !== ownerId || (current.leaseExpiresAt ?? 0) <= now) throw lostLease();
+  if (!record.matterHandle || !record.rootStreamHandle || !record.keyEpoch) throw new PromotionReceiptError('The sharing completion receipt is incomplete.');
   const terminal: PromotionPendingRecord = {
+    ...context,
     provisioningNonce: record.provisioningNonce,
-    matterHandle: record.matterHandle!,
-    rootStreamHandle: record.rootStreamHandle!,
-    keyEpoch: record.keyEpoch!,
+    matterHandle: record.matterHandle,
+    rootStreamHandle: record.rootStreamHandle,
+    keyEpoch: record.keyEpoch,
     rootWriteAccepted: true,
     completed: true,
-    orgId,
   };
   const result = await compareAndSetPromotionPending(localMatterId, raw, terminal);
   if (!result.swapped) throw new Error('Another window is finishing this shared client.');
+}
+
+/** Fence cleanup before the first destructive relay call. The cleanup marker
+ * prevents any future owner from resuming this pre-root-write shell as a share. */
+export async function beginPromotionPendingCleanup(
+  context: PromotionReceiptContext,
+  ownerId: string,
+): Promise<PromotionPendingRecord> {
+  return mutateOwnedPromotionPending(context, ownerId, (record) => {
+    if (record.rootWriteAccepted || record.completed || record.cleanupPending) throw lostLease();
+    return { ...record, cleanupPending: true };
+  });
+}
+
+/** Clear only the exact cleanup receipt this window fenced and completed. */
+export async function clearPromotionPendingAfterCleanup(
+  context: PromotionReceiptContext,
+  ownerId: string,
+): Promise<void> {
+  const raw = await rawPromotionPending(context.localMatterId);
+  if (!raw) throw lostLease();
+  let record: PromotionPendingRecord;
+  try { record = JSON.parse(raw) as PromotionPendingRecord; } catch { throw lostLease(); }
+  const now = Date.now();
+  if (!validPromotionRecord(record, context, now) || !record.cleanupPending || record.leaseOwnerId !== ownerId || (record.leaseExpiresAt ?? 0) <= now) throw lostLease();
+  const result = await compareAndDeletePromotionPending(context.localMatterId, raw);
+  if (!result.swapped) throw lostLease();
 }
 
 function base64UrlRandom(byteCount: number): string {
@@ -303,30 +436,38 @@ function base64UrlRandom(byteCount: number): string {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/u, '');
 }
 
-export async function loadPromotionPending(localMatterId: string): Promise<PromotionPendingRecord | null> {
+export async function loadPromotionPending(context: PromotionReceiptContext): Promise<PromotionPendingRecord | null> {
+  const { localMatterId } = context;
   const raw = await getSecret(promotionService(localMatterId), KC_PROMOTION_PENDING);
   if (!raw) return null;
   try {
     const record = JSON.parse(raw) as PromotionPendingRecord;
-    if (typeof record.provisioningNonce !== 'string') return null;
-    const hasProvision = typeof record.matterHandle === 'string' && typeof record.rootStreamHandle === 'string' && Number.isInteger(record.keyEpoch);
-    const hasAnyProvision = record.matterHandle !== undefined || record.rootStreamHandle !== undefined || record.keyEpoch !== undefined;
-    const hasCrypto = typeof record.keyB64 === 'string' && typeof record.rootBlobId === 'string' && typeof record.rootCiphertextB64 === 'string';
-    const hasAnyCrypto = record.keyB64 !== undefined || record.rootBlobId !== undefined || record.rootCiphertextB64 !== undefined;
-    if (record.rootWriteAccepted !== undefined && typeof record.rootWriteAccepted !== 'boolean') return null;
-    // There are three safe checkpoints: nonce-only before the request;
-    // provisioned handles before key/index work; and the complete encrypted
-    // root write. Anything between those shapes is corruption, not a state to
-    // guess through.
-    if ((hasAnyProvision && !hasProvision) || (hasAnyCrypto && (!hasCrypto || !hasProvision))) return null;
-    return record;
+    return validPromotionRecord(record, context) ? record : null;
   } catch {
     return null;
   }
 }
 
-export async function clearPromotionPending(localMatterId: string): Promise<void> {
-  await deleteSecret(promotionService(localMatterId), KC_PROMOTION_PENDING);
+/** Deliberate recovery action for a receipt rejected by strict validation. */
+export async function resetPromotionPending(context: PromotionReceiptContext): Promise<void> {
+  const raw = await rawPromotionPending(context.localMatterId);
+  if (!raw) return;
+  try {
+    const record = JSON.parse(raw) as Record<string, unknown>;
+    const belongsToAnotherContext = typeof record['localMatterId'] === 'string' && (
+      record['localMatterId'] !== context.localMatterId || record['userId'] !== context.userId || record['orgId'] !== context.orgId
+    );
+    if (belongsToAnotherContext) throw new PromotionReceiptError('This saved sharing receipt belongs to another client or firm account.');
+    if (validPromotionRecord(record, context) && (record.completed || (record.leaseExpiresAt ?? 0) > Date.now())) {
+      throw new PromotionReceiptError('A valid sharing receipt is still active and cannot be reset.');
+    }
+  } catch (error) {
+    if (error instanceof PromotionReceiptError) throw error;
+    // A non-JSON or malformed record is precisely what this deliberate reset
+    // repairs. Its exact raw value remains the CAS expectation below.
+  }
+  const result = await compareAndDeletePromotionPending(context.localMatterId, raw);
+  if (!result.swapped) throw new Error('The sharing receipt changed. Please try again.');
 }
 
 // --- Auth + seat tokens (per user) -----------------------------------------
