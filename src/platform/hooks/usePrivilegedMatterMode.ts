@@ -6,11 +6,10 @@
  *   - auto-on triggers: the active matter is privilege-tagged, OR the
  *     confidentiality mode is Local-only.
  *
- * See `modules/privacy/privilegedMatterMode.ts` for the pure resolver and the
- * documented auto-on policy. This hook is the single reactive read used by the
- * status-bar badge, the settings toggle, and the MCP UI, plus a non-reactive
- * `getPrivilegedMatterModeActive()` for use outside React (the plugin bridge's
- * network gate, the MCP auto-deny path).
+ * See `platform/privacy/privilegedMatterMode.ts` for the pure resolver and the
+ * documented auto-on policy. This hook represents the user's requested
+ * privacy choice. It must never be presented as the enforced Network Lockdown
+ * state; that truth comes from Rust through `offlineMode.ts`.
  */
 
 import { useSettingsStore } from '@/platform/settings/settingsStore';
@@ -32,7 +31,7 @@ function coerceManual(value: unknown): boolean {
 }
 
 export interface PrivilegedMatterModeState {
-  /** Effective state: true when network plugins + MCP are disabled. */
+  /** Requested state after the saved choice and automatic triggers resolve. */
   active: boolean;
   /** Why it is on (or `off`). */
   trigger: PrivilegedMatterModeTrigger;
@@ -73,9 +72,8 @@ export function useSetPrivilegedMatterMode(): (on: boolean) => void {
 }
 
 /**
- * Non-reactive read of the EFFECTIVE active state, for use outside React
- * render. The plugin bridge's network gate and the MCP auto-deny path call
- * this on every relevant action so the latest state is always honoured.
+ * Non-reactive read of the requested state for callers that need to ask the
+ * native policy to change. Never use this value as proof that it changed.
  */
 export function getPrivilegedMatterModeActive(): boolean {
   const manual = coerceManual(

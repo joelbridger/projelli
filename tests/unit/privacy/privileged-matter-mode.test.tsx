@@ -34,6 +34,7 @@ import { McpApprovalModal } from '@/features/settings/McpApprovalModal';
 import type { McpPendingApproval } from '@/platform/utils/tauri-commands';
 import { StatusBar } from '@/app/shell/layout/StatusBar';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+import { useOfflineModeStore } from '@/platform/privacy/offlineMode';
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -217,6 +218,15 @@ describe('StatusBar: Privileged Matter Mode badge', () => {
     const matter = useMatterStore.getState().createMatter({ name: 'Test', client: 'C' });
     useMatterStore.getState().setActiveMatter(matter.id);
     useSettingsStore.getState().setSetting(PRIVILEGED_MATTER_MODE_SETTING_KEY, true);
+    useOfflineModeStore.setState({
+      offlineMode: true,
+      generation: 1,
+      hydrated: true,
+      loadError: null,
+      statusKnown: true,
+      changePending: false,
+      changeError: null,
+    });
     render(<StatusBar />);
     const badge = screen.getByTestId('privileged-matter-badge');
     expect(badge).toBeInTheDocument();

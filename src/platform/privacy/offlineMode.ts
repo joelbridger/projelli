@@ -4,26 +4,44 @@ import { create } from 'zustand';
 export interface NetworkPolicyStatus {
   offlineMode: boolean;
   generation: number;
+  /** Native has applied a renderer privacy choice for this process. */
+  hydrated: boolean;
+  /** Safe startup diagnostic from the native policy, when one exists. */
+  loadError: string | null;
 }
 
 interface OfflineModeState extends NetworkPolicyStatus {
-  hydrated: boolean;
+  /** True only after this renderer has read NetworkPolicy::status(). */
+  statusKnown: boolean;
   isHydrating: boolean;
   hydrationError: string | null;
+  changePending: boolean;
+  changeError: string | null;
 }
 
 const INITIAL_STATUS: NetworkPolicyStatus = {
-  // This value is display-only. networkClient never grants a request from it.
+  // No UI may interpret this value until statusKnown is true. Native starts
+  // closed, and every renderer-side action treats unknown as blocked.
   offlineMode: false,
   generation: 0,
+  hydrated: false,
+  loadError: null,
 };
 
-/** Display mirror only—not a permission source; networkClient checks native policy. */
+/**
+ * The one renderer projection of the native NetworkPolicy state.
+ *
+ * It is never an authority of its own: every value in it comes from
+ * `NetworkPolicy::status()`. Rust's NetworkPolicy remains the socket gate and
+ * the sole source of truth. Unknown renderer state is treated as blocked.
+ */
 export const useOfflineModeStore = create<OfflineModeState>()(() => ({
   ...INITIAL_STATUS,
-  hydrated: false,
+  statusKnown: false,
   isHydrating: false,
   hydrationError: null,
+  changePending: false,
+  changeError: null,
 }));
 
 function errorMessage(error: unknown): string {
@@ -42,7 +60,9 @@ function assertValidPolicyStatus(
     typeof status.offlineMode !== 'boolean' ||
     typeof status.generation !== 'number' ||
     !Number.isSafeInteger(status.generation) ||
-    status.generation < 0
+    status.generation < 0 ||
+    typeof status.hydrated !== 'boolean' ||
+    (status.loadError !== null && typeof status.loadError !== 'string')
   ) {
     throw new Error(
       'Lantern received an invalid Offline Mode status from the desktop app.'
@@ -59,10 +79,52 @@ function updateMirror(status: NetworkPolicyStatus): void {
     return {
       ...previous,
       ...status,
-      hydrated: true,
+      statusKnown: true,
       isHydrating: false,
       hydrationError: null,
     };
+  });
+}
+
+function markStatusUnknown(error: unknown): void {
+  useOfflineModeStore.setState({
+    statusKnown: false,
+    isHydrating: false,
+    hydrationError: errorMessage(error),
+  });
+}
+
+/** Marks a requested transition without inventing its enforced result. */
+export function beginOfflineModeChange(): void {
+  useOfflineModeStore.setState({
+    changePending: true,
+    changeError: null,
+  });
+}
+
+/** Clears transition state after native status has been confirmed. */
+export function finishOfflineModeChange(): void {
+  useOfflineModeStore.setState({
+    changePending: false,
+    changeError: null,
+  });
+}
+
+/**
+ * Reports a failed request using the enforced native status when available.
+ * If native status itself cannot be read, the copy says exactly that and all
+ * renderer controls remain paused instead of claiming protection is on/off.
+ */
+export function failOfflineModeChange(): void {
+  const state = useOfflineModeStore.getState();
+  const changeError = !state.statusKnown
+    ? 'Lantern could not confirm whether Network lockdown is on. Outside connections stay paused until the desktop privacy guard can be checked. Select Retry to try again.'
+    : state.offlineMode
+      ? 'Network lockdown is still on because the privacy setting could not be updated. Nothing can leave this computer. Select Retry to try again.'
+      : 'Network lockdown is off, but the privacy setting could not be saved. Select Retry to try again.';
+  useOfflineModeStore.setState({
+    changePending: false,
+    changeError,
   });
 }
 
@@ -80,10 +142,15 @@ export async function getNetworkPolicyStatus(): Promise<NetworkPolicyStatus> {
     );
   }
 
-  const status = await invoke<unknown>('network_policy_status');
-  assertValidPolicyStatus(status);
-  updateMirror(status);
-  return status;
+  try {
+    const status = await invoke<unknown>('network_policy_status');
+    assertValidPolicyStatus(status);
+    updateMirror(status);
+    return status;
+  } catch (error) {
+    markStatusUnknown(error);
+    throw error;
+  }
 }
 
 /**
@@ -95,12 +162,7 @@ export async function hydrateOfflineMode(): Promise<NetworkPolicyStatus | null> 
   useOfflineModeStore.setState({ isHydrating: true, hydrationError: null });
   try {
     return await getNetworkPolicyStatus();
-  } catch (error) {
-    useOfflineModeStore.setState({
-      isHydrating: false,
-      hydrated: false,
-      hydrationError: errorMessage(error),
-    });
+  } catch {
     return null;
   }
 }
@@ -118,19 +180,25 @@ export async function setOfflineMode(enabled: boolean): Promise<void> {
     );
   }
 
-  await invoke('set_offline_mode', { enabled });
   try {
-    await getNetworkPolicyStatus();
+    await invoke('set_offline_mode', { enabled });
   } catch (error) {
-    // The native change succeeded but its follow-up display read did not. Keep
-    // the visible switch honest about the requested state; its generation is
-    // deliberately left untouched until a real native status is available.
-    useOfflineModeStore.setState({
-      offlineMode: enabled,
-      hydrated: false,
-      hydrationError: errorMessage(error),
-    });
+    // Enabling moves native memory closed before persistence; disabling writes
+    // before reopening. In either failure direction, ask the same native
+    // NetworkPolicy that guards sockets what it actually enforced. Never copy
+    // the requested value into the UI as though it were confirmed.
+    try {
+      await getNetworkPolicyStatus();
+    } catch (statusError) {
+      // getNetworkPolicyStatus already marked the renderer projection unknown.
+      console.warn(
+        '[Privacy] Native Network Lockdown changed, but its enforced state could not be confirmed.',
+        statusError,
+      );
+    }
+    throw error;
   }
+  await getNetworkPolicyStatus();
 }
 
 /** Subscribe to native-status mirror changes, primarily for cancellation. */
@@ -145,6 +213,8 @@ export function subscribeToOfflineModeChanges(
       listener({
         offlineMode: current.offlineMode,
         generation: current.generation,
+        hydrated: current.hydrated,
+        loadError: current.loadError,
       });
     }
   });

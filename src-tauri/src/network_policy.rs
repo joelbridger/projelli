@@ -801,6 +801,12 @@ pub struct NetworkPolicy {
 }
 
 impl NetworkPolicy {
+    /// The one conversion from native state to the public lockdown truth.
+    /// Both the UI status command and every remote-egress guard use it.
+    fn remote_egress_is_blocked(state: u8) -> bool {
+        state != STATE_ONLINE
+    }
+
     /// Loads synchronously.  Any failure leaves the policy uninitialized and
     /// therefore closed to off-device traffic.
     pub fn load_from_app_data_dir(app_data_dir: &Path) -> Self {
@@ -925,7 +931,7 @@ impl NetworkPolicy {
     pub fn status(&self) -> PolicyStatusDto {
         let state = self.inner.state.load(Ordering::Acquire);
         PolicyStatusDto {
-            offline_mode: state != STATE_ONLINE,
+            offline_mode: Self::remote_egress_is_blocked(state),
             generation: self.inner.generation.load(Ordering::Acquire),
             hydrated: state != STATE_UNINITIALIZED,
             load_error: self.inner.load_error.clone(),
@@ -1106,7 +1112,7 @@ impl NetworkPolicy {
                 &authorized.operation,
                 &authorized.destination,
                 authorized.generation,
-                self.inner.state.load(Ordering::Acquire) == STATE_OFFLINE,
+                Self::remote_egress_is_blocked(self.inner.state.load(Ordering::Acquire)),
                 result,
                 None,
                 authorized.audit_workspace.as_deref(),
@@ -1149,7 +1155,7 @@ impl NetworkPolicy {
                     "binaryDownload": matches!(authorized.operation.category, EgressCategory::ProductMaintenance),
                 },
                 "aiMode": "not-applicable",
-                "offlineMode": self.inner.state.load(Ordering::Acquire) == STATE_OFFLINE,
+                "offlineMode": Self::remote_egress_is_blocked(self.inner.state.load(Ordering::Acquire)),
                 "result": result,
                 "failureCode": failure_code,
                 "scope": { "kind": "allMatters" },
@@ -1191,6 +1197,7 @@ impl NetworkPolicy {
         destination: &Destination,
     ) -> Result<AuthorizedGeneration, NetworkPolicyError> {
         let state = self.inner.state.load(Ordering::Acquire);
+        let remote_egress_blocked = Self::remote_egress_is_blocked(state);
         let generation = self.inner.generation.load(Ordering::Acquire);
         let audit_workspace = self
             .inner
@@ -1219,7 +1226,7 @@ impl NetworkPolicy {
                     operation,
                     destination,
                     generation,
-                    state == STATE_OFFLINE,
+                    remote_egress_blocked,
                     "blocked-before-network",
                     Some(&error),
                     audit_workspace.as_deref(),
@@ -1227,7 +1234,7 @@ impl NetworkPolicy {
                 return Err(error);
             }
         };
-        if state == STATE_OFFLINE {
+        if remote_egress_blocked {
             // Literal loopback is an Offline Mode exception only for the two
             // local-AI operations that explicitly declare that destination
             // rule. A meeting URL or external navigation may never turn an IP
@@ -1324,17 +1331,18 @@ impl NetworkPolicy {
         authorized: &AuthorizedGeneration,
     ) -> Result<(), NetworkPolicyError> {
         let state = self.inner.state.load(Ordering::Acquire);
+        let remote_egress_blocked = Self::remote_egress_is_blocked(state);
         if state == STATE_UNINITIALIZED {
             return Err(NetworkPolicyError::Uninitialized);
         }
-        if state == STATE_OFFLINE
+        if remote_egress_blocked
             && !(authorized.operation.destination_rule == DestinationRule::LiteralLoopbackOnly
                 && authorized.destination.is_literal_loopback())
         {
             return Err(OfflineModeBlockedError::for_operation(&authorized.operation).into());
         }
         if authorized.generation != self.inner.generation.load(Ordering::Acquire) {
-            if state == STATE_OFFLINE {
+            if remote_egress_blocked {
                 return Err(OfflineModeBlockedError::for_operation(&authorized.operation).into());
             }
             return Err(NetworkPolicyError::Uninitialized);
@@ -1663,7 +1671,7 @@ mod tests {
     }
 
     #[test]
-    fn lockdown_round_trip_persists_and_restores_remote_egress() {
+    fn bug_21_release_lockdown_round_trip_persists_and_restores_remote_egress() {
         let directory = tempfile::tempdir().unwrap();
         let policy_path = directory.path().join(POLICY_FILE_NAME);
         let policy = NetworkPolicy::load_from_directory(directory.path());
@@ -1764,6 +1772,45 @@ mod tests {
         assert!(policy.authorize(&TEST_REMOTE, &remote).is_ok());
         let retried = fs::read_to_string(&policy_path).unwrap();
         assert!(!NetworkPolicy::parse_record(&retried).unwrap().offline_mode);
+    }
+
+    #[test]
+    fn finding_20_display_status_always_matches_enforced_remote_egress() {
+        let directory = tempfile::tempdir().unwrap();
+        let policy_path = directory.path().join(POLICY_FILE_NAME);
+        let remote = destination("https://api.lemonsqueezy.com/v1");
+        let policy = NetworkPolicy::load_from_directory(directory.path());
+
+        let assert_display_matches_enforcement = |policy: &NetworkPolicy| {
+            let displayed = policy.status().offline_mode;
+            let enforced = policy.authorize(&TEST_REMOTE, &remote).is_err();
+            assert_eq!(
+                displayed, enforced,
+                "the public UI status must come from the same state as remote-egress enforcement"
+            );
+        };
+
+        // Initial load and both successful toggle directions.
+        assert_display_matches_enforcement(&policy);
+        policy.set_offline_mode(true).unwrap();
+        assert_display_matches_enforcement(&policy);
+
+        // A failed release remains closed, and the display reports that exact
+        // enforced truth rather than the rejected requested value.
+        fs::remove_file(&policy_path).unwrap();
+        fs::create_dir(&policy_path).unwrap();
+        assert!(policy.set_offline_mode(false).is_err());
+        assert_display_matches_enforcement(&policy);
+
+        // BUG-21: retry releases immediately without restarting.
+        fs::remove_dir(&policy_path).unwrap();
+        policy.set_offline_mode(false).unwrap();
+        assert_display_matches_enforcement(&policy);
+
+        // Restart reads the persisted value into the same enforcement state.
+        drop(policy);
+        let restarted = NetworkPolicy::load_from_directory(directory.path());
+        assert_display_matches_enforcement(&restarted);
     }
 
     #[test]

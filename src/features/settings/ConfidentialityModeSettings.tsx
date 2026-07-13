@@ -287,6 +287,8 @@ export function ConfidentialityModeSettings({
   const privileged = usePrivilegedMatterMode();
   const setPrivileged = useSetPrivilegedMatterMode();
   const nativeLockdown = useNativeNetworkLockdownBridgeState();
+  const enforcedLockdownOn = nativeLockdown.status === 'on';
+  const lockdownStatusKnown = nativeLockdown.status !== 'unknown';
   // Show the isolation affirmation callout briefly after the user manually
   // enables network lockdown. Not shown for auto-forced states (those have
   // their own forced-note already).
@@ -415,11 +417,14 @@ export function ConfidentialityModeSettings({
           data-testid="confidentiality-local-active-note"
           className="mt-2 text-xs rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"
         >
-          On this computer only is on. Your documents and prompts are never sent
-          to a cloud AI — answers run on a local model on your machine (the
-          built-in {brandText('Lantern Local AI')} when it&rsquo;s ready, or your own Ollama).
-          Cloud AI providers are disabled in the chat picker. Outside connectors
-          pause so nothing leaves this computer.
+          {enforcedLockdownOn
+            ? <>On this computer only is on. Your documents and prompts are never sent
+                to a cloud AI — answers run on a local model on your machine (the
+                built-in {brandText('Lantern Local AI')} when it&rsquo;s ready, or your own Ollama).
+                Cloud AI providers are disabled in the chat picker. Outside connectors
+                pause so nothing leaves this computer.</>
+            : <>On this computer only is selected. Outside connectors stay paused while
+                Lantern {nativeLockdown.pending ? 'updates' : 'checks'} the desktop privacy guard.</>}
         </p>
       )}
 
@@ -428,7 +433,8 @@ export function ConfidentialityModeSettings({
           or Local-only is selected, the mode is forced on and the switch is disabled. */}
       <div
         data-testid="privileged-matter-mode-toggle"
-        data-active={privileged.active ? 'true' : 'false'}
+        data-active={lockdownStatusKnown ? String(enforcedLockdownOn) : 'unknown'}
+        data-requested={privileged.active ? 'true' : 'false'}
         data-forced={privileged.forced ? 'true' : 'false'}
         className="mt-4 rounded-lg border border-rose-200 dark:border-rose-900/60 p-3"
       >
@@ -443,13 +449,24 @@ export function ConfidentialityModeSettings({
           <button
             type="button"
             role="switch"
-            aria-checked={privileged.active}
+            aria-checked={lockdownStatusKnown ? enforcedLockdownOn : undefined}
+            aria-busy={nativeLockdown.pending || !lockdownStatusKnown}
             aria-label="Network lockdown"
             data-testid="privileged-matter-mode-switch"
-            disabled={privileged.forced}
+            disabled={
+              privileged.forced ||
+              nativeLockdown.pending ||
+              !lockdownStatusKnown ||
+              nativeLockdown.error !== null
+            }
             onClick={() => {
-              if (!privileged.forced) {
-                const turningOn = !privileged.manual;
+              if (
+                !privileged.forced &&
+                !nativeLockdown.pending &&
+                lockdownStatusKnown &&
+                nativeLockdown.error === null
+              ) {
+                const turningOn = !enforcedLockdownOn;
                 setPrivileged(turningOn);
                 if (turningOn) {
                   setShowLockdownAffirmation(true);
@@ -466,18 +483,38 @@ export function ConfidentialityModeSettings({
             className={cn(
               'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-              privileged.active ? 'bg-rose-600' : 'bg-muted-foreground/30',
-              privileged.forced && 'opacity-70 cursor-not-allowed',
+              !lockdownStatusKnown
+                ? 'bg-amber-300'
+                : enforcedLockdownOn
+                  ? 'bg-rose-600'
+                  : 'bg-muted-foreground/30',
+              (privileged.forced || nativeLockdown.pending || !lockdownStatusKnown || nativeLockdown.error !== null) &&
+                'opacity-70 cursor-not-allowed',
             )}
           >
             <span
               className={cn(
                 'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
-                privileged.active ? 'translate-x-4' : 'translate-x-0.5',
+                !lockdownStatusKnown
+                  ? 'translate-x-2.5'
+                  : enforcedLockdownOn
+                    ? 'translate-x-4'
+                    : 'translate-x-0.5',
               )}
             />
           </button>
         </div>
+        {!nativeLockdown.error && (nativeLockdown.pending || !lockdownStatusKnown) && (
+          <p
+            role="status"
+            data-testid="network-lockdown-status-unconfirmed"
+            className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-950"
+          >
+            {nativeLockdown.pending
+              ? 'Privacy protection is updating. Outside connections stay paused until the desktop guard confirms the change.'
+              : 'Lantern is checking the desktop privacy guard. Outside connections stay paused until its state can be confirmed.'}
+          </p>
+        )}
         {nativeLockdown.error && (
           <div
             role="alert"
@@ -493,13 +530,15 @@ export function ConfidentialityModeSettings({
             data-testid="privileged-matter-mode-forced-note"
             className="mt-2 text-xs rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-rose-900 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200"
           >
-            {privileged.trigger === 'privileged-matter'
-              ? 'On automatically because the active client has network lockdown. It stays on until you switch to a different client.'
-              : 'On automatically because On this computer only is selected. It stays on while that option is active.'}
+            {enforcedLockdownOn
+              ? privileged.trigger === 'privileged-matter'
+                ? 'On automatically because the active client has network lockdown. It stays on until you switch to a different client.'
+                : 'On automatically because On this computer only is selected. It stays on while that option is active.'
+              : 'This privacy choice requires Network lockdown. Outside connections stay paused while Lantern confirms the desktop guard.'}
           </p>
         )}
         {/* Affirmation: shown for ~5 s after the user manually turns lockdown on */}
-        {showLockdownAffirmation && !privileged.forced && (
+        {showLockdownAffirmation && !privileged.forced && enforcedLockdownOn && (
           <div
             data-testid="lockdown-manual-affirmation"
             className="mt-2 flex items-start gap-2 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs text-emerald-900"

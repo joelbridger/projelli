@@ -126,7 +126,10 @@ import {
   isWorkingSurface,
 } from '@/platform/matter/matterUiStore';
 import { usePrivilegedMatterModeActive } from '@/platform/hooks/usePrivilegedMatterMode';
-import { requestNativeNetworkLockdown } from '@/platform/privacy/nativeNetworkLockdownBridge';
+import {
+  requestNativeNetworkLockdown,
+  useNativeNetworkLockdownBridgeState,
+} from '@/platform/privacy/nativeNetworkLockdownBridge';
 import {
   writeDenyAllMcpSessionScopeFile,
   writeMcpSessionScopeFile,
@@ -453,15 +456,16 @@ function AppShell() {
   const activeMatterId = useMatterStore((s) => s.activeMatterId);
   const activeMatter = useActiveMatter();
   const matters = useMatters();
-  const mcpNetworkLockdown = usePrivilegedMatterModeActive();
+  const requestedNetworkLockdown = usePrivilegedMatterModeActive();
+  const enforcedNetworkLockdown = useNativeNetworkLockdownBridgeState();
 
   // Keep the native socket guard in step with the app's one effective privacy
   // switch. Native code starts closed, so a failed bridge leaves CRM blocked
   // rather than briefly trusting a stale setting from an earlier launch.
   useLayoutEffect(() => {
     if (!isTauriEnvironment()) return;
-    requestNativeNetworkLockdown(mcpNetworkLockdown);
-  }, [mcpNetworkLockdown]);
+    requestNativeNetworkLockdown(requestedNetworkLockdown);
+  }, [requestedNetworkLockdown]);
   // F-509 — controlled sidebar collapse so the global Ctrl+B shortcut and the
   // command palette can drive the same collapse the chevron button does.
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -665,7 +669,10 @@ function AppShell() {
         workspaceRoot: rootPath,
         activeMatterId,
         matters,
-        networkLockdown: mcpNetworkLockdown,
+        // The sidecar derives from the same confirmed native enforcement as
+        // connector UI. Unknown/pending stays fail-closed, never from the
+        // saved privacy choice that merely requested the transition.
+        networkLockdown: enforcedNetworkLockdown.blocked,
       }).catch((err: unknown) => {
         console.warn('[MCP] Failed to write session scope file', err);
       });
@@ -681,7 +688,7 @@ function AppShell() {
         console.warn('[MCP] Failed to write deny-all session scope file', err);
       });
     };
-  }, [rootPath, activeMatterId, matters, mcpNetworkLockdown]);
+  }, [rootPath, activeMatterId, matters, enforcedNetworkLockdown.blocked]);
 
   // Keep the AI ambient file-context store in sync with whatever tabs are
   // open. Mounted at App level so a single subscription drives every chat.

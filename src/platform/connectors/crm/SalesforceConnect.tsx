@@ -73,7 +73,9 @@ export function SalesforceConnect() {
       ? nativeLockdown.error
       : nativeLockdown.pending
         ? 'Privacy protection is updating. Salesforce stays paused until it finishes.'
-        : 'Nothing will be sent to or downloaded from Salesforce while this is on. Turn it off in Privacy settings to connect or sync.';
+        : nativeLockdown.status === 'unknown'
+          ? 'Lantern could not confirm the desktop privacy guard. Salesforce stays paused until its state can be checked.'
+          : 'Nothing will be sent to or downloaded from Salesforce while this is on. Turn it off in Privacy settings to connect or sync.';
 
   const progress = useCrmStore((s) => s.progress);
   const [connected, setConnected] = useState(false);

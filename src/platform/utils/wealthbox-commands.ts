@@ -7,9 +7,8 @@
 
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import type { CrmMatterMapEntry } from '@/platform/rag/matterResolver';
-import { getPrivilegedMatterModeActive } from '@/platform/hooks/usePrivilegedMatterMode';
 import { getEgressOperation } from '@/platform/privacy/egressRegistry';
-import { getNativeNetworkLockdownBridgeState } from '@/platform/privacy/nativeNetworkLockdownBridge';
+import { getNetworkPolicyStatus } from '@/platform/privacy/offlineMode';
 
 export type CrmProvider = 'wealthbox' | 'salesforce' | 'redtail';
 
@@ -26,9 +25,10 @@ type CrmNetworkOperationId =
 export class CrmNetworkLockdownError extends Error {
   readonly code = 'NETWORK_LOCKDOWN_BLOCKED';
 
-  constructor(action: string) {
+  constructor(action: string, message?: string) {
     super(
-      `Network lockdown is on. ${action} is paused so nothing can leave this computer. Turn off Network lockdown in Privacy settings to continue.`,
+      message ??
+        `Network lockdown is on. ${action} is paused so nothing can leave this computer. Turn off Network lockdown in Privacy settings to continue.`,
     );
     this.name = 'CrmNetworkLockdownError';
   }
@@ -63,10 +63,19 @@ async function invokeCrmNetwork<T>(
   if (!operation) {
     throw new Error(`CRM network operation "${operationId}" is not registered and was blocked.`);
   }
-  if (
-    getPrivilegedMatterModeActive() ||
-    getNativeNetworkLockdownBridgeState().blocked
-  ) {
+  let status;
+  try {
+    // This is the same Rust NetworkPolicy status used by the socket boundary,
+    // not a saved setting or connector-local copy. Rust checks again directly
+    // before transport, so a change after this friendly UI check still closes.
+    status = await getNetworkPolicyStatus();
+  } catch {
+    throw new CrmNetworkLockdownError(
+      operation.title,
+      `Lantern could not confirm the desktop privacy guard. ${operation.title} stays paused until its state can be checked.`,
+    );
+  }
+  if (status.offlineMode) {
     throw new CrmNetworkLockdownError(operation.title);
   }
   return invoke<T>(command, args);

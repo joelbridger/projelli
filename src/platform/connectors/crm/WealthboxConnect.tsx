@@ -44,7 +44,6 @@ import {
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { brandText } from '@/config/brandText';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
-import { usePrivilegedMatterModeActive } from '@/platform/hooks/usePrivilegedMatterMode';
 import { useNativeNetworkLockdownBridgeState } from '@/platform/privacy/nativeNetworkLockdownBridge';
 import { NetworkLockdownRetryButton } from '@/platform/privacy/ui/NetworkLockdownRetryButton';
 
@@ -60,16 +59,16 @@ function isCrmNetworkLockdownError(error: unknown): boolean {
 export function WealthboxConnect() {
   const { t } = useTranslation();
   useCrmSync();
-  const privacyChoiceLocksNetwork = usePrivilegedMatterModeActive();
   const nativeLockdown = useNativeNetworkLockdownBridgeState();
-  const networkLockdown =
-    privacyChoiceLocksNetwork || (isTauri() && nativeLockdown.blocked);
+  const networkLockdown = isTauri() && nativeLockdown.blocked;
   const lockdownMessage =
-    nativeLockdown.error && !privacyChoiceLocksNetwork
+    nativeLockdown.error
       ? t('crm.wealthbox.lockdown.update-failed')
-      : nativeLockdown.pending && !privacyChoiceLocksNetwork
+      : nativeLockdown.pending
         ? t('crm.wealthbox.lockdown.pending')
-        : t('crm.wealthbox.lockdown.active');
+        : nativeLockdown.status === 'unknown'
+          ? 'Lantern could not confirm the desktop privacy guard. Wealthbox stays paused until its state can be checked.'
+          : t('crm.wealthbox.lockdown.active');
 
   const progress = useCrmStore((s) => s.progress);
 
