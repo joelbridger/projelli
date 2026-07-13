@@ -1,10 +1,10 @@
+use super::state::MailIndexChunkPayload;
 use super::*;
 use crate::commands::mail::provider::MailProvider;
 use crate::commands::mail::store::{EncryptedMailStore, MailStore};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
-use super::state::MailIndexChunkPayload;
 
 /// Option B healing: re-index mail that was imported while the embedding model
 /// was still downloading. During that window each message's RAG indexing fails
@@ -51,8 +51,8 @@ pub async fn mail_backfill_rag(
         return Ok(0);
     }
 
-    let enc_key = crate::commands::mail::crypto::get_or_create_master_key()
-        .map_err(|e| e.to_string())?;
+    let enc_key =
+        crate::commands::mail::crypto::get_or_create_master_key().map_err(|e| e.to_string())?;
 
     // Fast no-op #2: marker absent → nothing to heal (one row read).
     let ws_probe = workspace.clone();
@@ -223,8 +223,10 @@ pub async fn mail_backfill_rag(
         // into the folder's matter).
         let folder_default =
             resolve_mail_matter(&matter_map, &rec.provider, &rec.account, &rec.folder_id);
-        let matter =
-            resolve_effective_matter(store.get_message_matter(&rec.id).ok().flatten().as_deref(), &folder_default);
+        let matter = resolve_effective_matter(
+            store.get_message_matter(&rec.id).ok().flatten().as_deref(),
+            &folder_default,
+        );
 
         match index_mail_text_internal(&workspace, &path_key, &text, &matter).await {
             Ok(_) => indexed += 1,
@@ -483,7 +485,11 @@ pub(crate) fn mark_rag_backfill_needed_after_vector_rebuild(
 /// Correctness (no message is ever silently un-indexed) is still guaranteed by
 /// the durable marker + the next-launch `mail_backfill_rag`; this read makes the
 /// terminal CLAIM honest. Any error reading the marker is treated as "not pending".
-async fn rag_backfill_pending(workspace: &std::path::Path, key: &[u8; 32], wrote_any: bool) -> bool {
+async fn rag_backfill_pending(
+    workspace: &std::path::Path,
+    key: &[u8; 32],
+    wrote_any: bool,
+) -> bool {
     // Cheapest and most important signal: any mail index task still running or
     // queued behind the semaphore means the just-imported mail is NOT fully
     // searchable yet. Report pending so the terminal event says "search indexing
@@ -583,9 +589,7 @@ fn spawn_mail_rag_index(
         // call; if the semaphore is ever closed (it never is — it's a static)
         // we still proceed rather than silently dropping the message.
         let _permit = MAIL_INDEX_SEMAPHORE.acquire().await.ok();
-        if let Err(e) =
-            index_mail_text_internal(&workspace, &path_key, &text, &matter_id).await
-        {
+        if let Err(e) = index_mail_text_internal(&workspace, &path_key, &text, &matter_id).await {
             // {:#} = full anyhow chain, so the log shows root causes.
             log::warn!("mail RAG index failed for {}: {:#}", path_key, e);
             // Mark the backfill on ANY index failure, not only model-not-ready
@@ -685,7 +689,10 @@ fn make_tombstone_callback(workspace: std::path::PathBuf) -> impl Fn(&str) + Sen
             match crate::commands::rag::store::open_connection(&ws).await {
                 Ok(conn) => {
                     let names = conn.table_names().execute().await.unwrap_or_default();
-                    if names.iter().any(|n| n == crate::commands::rag::store::TABLE_NAME) {
+                    if names
+                        .iter()
+                        .any(|n| n == crate::commands::rag::store::TABLE_NAME)
+                    {
                         if let Ok(table) = conn
                             .open_table(crate::commands::rag::store::TABLE_NAME)
                             .execute()
@@ -779,6 +786,247 @@ async fn sync_one_folder(
     .await
 }
 
+/// Refresh exactly one advisor-named mailbox folder and return its stable
+/// provider id. The screen stores a name because that is what an advisor can
+/// see in Outlook/Gmail; the encrypted mail store must always be queried by
+/// the provider id returned here.
+#[allow(clippy::too_many_arguments)]
+async fn sync_one_named_folder(
+    app: &AppHandle,
+    event_provider: &str,
+    provider: &dyn MailProvider,
+    store: &(dyn MailStore + Sync),
+    workspace: &std::path::Path,
+    folder_name: &str,
+    account: &str,
+    enc_key: &[u8; 32],
+) -> anyhow::Result<crate::commands::mail::provider::RemoteFolder> {
+    let app2 = app.clone();
+    let ep = event_provider.to_string();
+    let emit = move |written: u32, removed: u32| {
+        let _ = app2.emit(
+            SYNC_PROGRESS_EVENT,
+            SyncProgress {
+                status: "syncing".into(),
+                provider: ep.clone(),
+                folder: None,
+                written,
+                removed,
+                error: None,
+                backfill_pending: false,
+                token_warning: false,
+            },
+        );
+    };
+    let index_callback = make_index_callback(workspace.to_path_buf(), app.clone(), *enc_key);
+    let tombstone_callback = make_tombstone_callback(workspace.to_path_buf());
+    sync::sync_folder_named_provider(
+        provider,
+        store,
+        workspace,
+        folder_name,
+        account,
+        crate::commands::rag::store::UNASSIGNED_MATTER,
+        enc_key,
+        &emit,
+        &index_callback,
+        &tombstone_callback,
+    )
+    .await
+}
+
+fn dropbox_provider_in_scope(requested: Option<&str>, candidate: &str) -> bool {
+    requested
+        .map(|provider| provider == candidate)
+        .unwrap_or(true)
+}
+
+fn dropbox_account_in_scope(requested: &str, candidate: &str) -> bool {
+    requested.is_empty() || requested == candidate
+}
+
+/// Refresh the advisor-selected Dropbox folder and return only the encrypted
+/// local records that came from it.
+///
+/// This is deliberately a single native operation. The old flow merely queried
+/// the local cache using the human folder name, so it both skipped the network
+/// refresh and compared "Lantern" with Outlook's opaque folder id. This command
+/// resolves the visible name at the provider boundary, syncs that exact folder,
+/// then queries the encrypted store by its stable id.
+#[tauri::command]
+pub async fn mail_check_dropbox_folder(
+    app: AppHandle,
+    state: State<'_, MailState>,
+    folder_name: String,
+    provider: Option<String>,
+    account: Option<String>,
+) -> Result<crate::commands::mail::store::MailListPage, String> {
+    if state
+        .is_syncing
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return Err("a mail refresh is already in progress".into());
+    }
+    let _sync_guard = SyncGuard(state.is_syncing.clone());
+
+    let folder_name = folder_name.trim();
+    if folder_name.is_empty() {
+        return Err("mailbox folder name is required".into());
+    }
+    let requested_provider = provider.as_deref().filter(|value| !value.is_empty());
+    let requested_account = account.as_deref().unwrap_or("").trim();
+    let workspace = state
+        .workspace
+        .lock()
+        .await
+        .clone()
+        .ok_or("workspace not set")?;
+    sync::migrate_plaintext(&workspace);
+    let store = EncryptedMailStore::open(&workspace).map_err(|e| e.to_string())?;
+    let enc_key =
+        crate::commands::mail::crypto::get_or_create_master_key().map_err(|e| e.to_string())?;
+
+    let mut matches: Vec<(
+        String,
+        String,
+        crate::commands::mail::provider::RemoteFolder,
+    )> = Vec::new();
+    let mut errors = Vec::new();
+
+    if dropbox_provider_in_scope(requested_provider, "m365")
+        && dropbox_account_in_scope(requested_account, M365_ACCOUNT)
+    {
+        match mail_is_connected().await {
+            Ok(true) => match fresh_access_token().await {
+                Ok(token) => {
+                    let refresh = graph_token_refresh();
+                    let mail_provider =
+                        crate::commands::mail::graph::GraphProvider::new_with_refresh(
+                            token, refresh,
+                        );
+                    match sync_one_named_folder(
+                        &app,
+                        "m365",
+                        &mail_provider,
+                        &store,
+                        &workspace,
+                        folder_name,
+                        M365_ACCOUNT,
+                        &enc_key,
+                    )
+                    .await
+                    {
+                        Ok(folder) => matches.push(("m365".into(), M365_ACCOUNT.into(), folder)),
+                        Err(error) => errors.push(error.to_string()),
+                    }
+                }
+                Err(error) => errors.push(error),
+            },
+            Ok(false) => {}
+            Err(error) => errors.push(error),
+        }
+    }
+
+    if dropbox_provider_in_scope(requested_provider, "imap") {
+        match load_imap_config_checked() {
+            Ok(Some((imap_cfg, imap_pw)))
+                if dropbox_account_in_scope(requested_account, &imap_cfg.account) =>
+            {
+                let account = imap_cfg.account.clone();
+                let mail_provider = crate::commands::mail::imap::ImapProvider {
+                    host: imap_cfg.host,
+                    port: imap_cfg.port,
+                    username: imap_cfg.username,
+                    password: imap_pw,
+                    account: account.clone(),
+                };
+                match sync_one_named_folder(
+                    &app,
+                    "imap",
+                    &mail_provider,
+                    &store,
+                    &workspace,
+                    folder_name,
+                    &account,
+                    &enc_key,
+                )
+                .await
+                {
+                    Ok(folder) => matches.push(("imap".into(), account, folder)),
+                    Err(error) => errors.push(error.to_string()),
+                }
+            }
+            Ok(_) => {}
+            Err(error) => errors.push(error),
+        }
+    }
+
+    if dropbox_provider_in_scope(requested_provider, "gmail")
+        && dropbox_account_in_scope(requested_account, GMAIL_ACCOUNT)
+    {
+        match gmail_is_connected().await {
+            Ok(true) => match fresh_gmail_access_token().await {
+                Ok(token) => {
+                    let mail_provider = crate::commands::mail::gmail::GmailProvider::new(
+                        token,
+                        GMAIL_ACCOUNT.to_string(),
+                    );
+                    match sync_one_named_folder(
+                        &app,
+                        "gmail",
+                        &mail_provider,
+                        &store,
+                        &workspace,
+                        folder_name,
+                        GMAIL_ACCOUNT,
+                        &enc_key,
+                    )
+                    .await
+                    {
+                        Ok(folder) => matches.push(("gmail".into(), GMAIL_ACCOUNT.into(), folder)),
+                        Err(error) => errors.push(error.to_string()),
+                    }
+                }
+                Err(error) => errors.push(error),
+            },
+            Ok(false) => {}
+            Err(error) => errors.push(error),
+        }
+    }
+
+    if matches.is_empty() {
+        return Err(errors.into_iter().next().unwrap_or_else(|| {
+            format!("no connected mailbox folder or label named \"{folder_name}\" was found")
+        }));
+    }
+
+    let mut items = Vec::new();
+    let mut total = 0;
+    for (provider, account, folder) in matches {
+        let page = store
+            .list_messages(&crate::commands::mail::store::MailListQuery {
+                keyword: None,
+                folder_id: Some(folder.id),
+                provider: Some(provider),
+                account: Some(account),
+                date_from: None,
+                date_to: None,
+                has_attachments: None,
+                sort_by: "date".into(),
+                sort_desc: true,
+                limit: 50,
+                offset: 0,
+            })
+            .map_err(|e| e.to_string())?;
+        total += page.total;
+        items.extend(page.items);
+    }
+    items.sort_by(|left, right| right.received_date_time.cmp(&left.received_date_time));
+    items.truncate(50);
+    Ok(crate::commands::mail::store::MailListPage { items, total })
+}
+
 /// Terminal outcome of one provider's sync section.
 enum SectionOutcome {
     /// Completed; carries the provider's cumulative written/removed totals and
@@ -860,13 +1108,11 @@ async fn sync_m365_section(
 ) -> Result<SectionOutcome, String> {
     let token = fresh_access_token().await?;
     let refresh = graph_token_refresh();
-    let folders = crate::commands::mail::graph::GraphProvider::new_with_refresh(
-        token,
-        refresh.clone(),
-    )
-        .list_folders()
-        .await
-        .map_err(|e| e.to_string())?;
+    let folders =
+        crate::commands::mail::graph::GraphProvider::new_with_refresh(token, refresh.clone())
+            .list_folders()
+            .await
+            .map_err(|e| e.to_string())?;
     let mut base = sync::PageStats::default();
     for folder in folders {
         if cancel.load(Ordering::SeqCst) {
@@ -877,8 +1123,17 @@ async fn sync_m365_section(
             crate::commands::mail::graph::GraphProvider::new_with_refresh(token, refresh.clone());
         let folder_matter = resolve_mail_matter(matter_map, "m365", M365_ACCOUNT, &folder.id);
         let s = sync_one_folder(
-            app, "m365", &provider, store, workspace, &folder, M365_ACCOUNT, &folder_matter,
-            enc_key, base.written, base.removed,
+            app,
+            "m365",
+            &provider,
+            store,
+            workspace,
+            &folder,
+            M365_ACCOUNT,
+            &folder_matter,
+            enc_key,
+            base.written,
+            base.removed,
         )
         .await
         .map_err(|e| e.to_string())?;
@@ -932,8 +1187,17 @@ async fn sync_imap_section(
         }
         let folder_matter = resolve_mail_matter(matter_map, "imap", &imap_cfg.account, &folder.id);
         let s = sync_one_folder(
-            app, "imap", &provider, store, workspace, &folder, &imap_cfg.account, &folder_matter,
-            enc_key, base.written, base.removed,
+            app,
+            "imap",
+            &provider,
+            store,
+            workspace,
+            &folder,
+            &imap_cfg.account,
+            &folder_matter,
+            enc_key,
+            base.written,
+            base.removed,
         )
         .await
         .map_err(|e| e.to_string())?;
@@ -975,8 +1239,17 @@ async fn sync_gmail_section(
         let provider = GmailProvider::new(token, GMAIL_ACCOUNT.to_string());
         let folder_matter = resolve_mail_matter(matter_map, "gmail", GMAIL_ACCOUNT, &folder.id);
         let s = sync_one_folder(
-            app, "gmail", &provider, store, workspace, &folder, GMAIL_ACCOUNT, &folder_matter,
-            enc_key, base.written, base.removed,
+            app,
+            "gmail",
+            &provider,
+            store,
+            workspace,
+            &folder,
+            GMAIL_ACCOUNT,
+            &folder_matter,
+            enc_key,
+            base.written,
+            base.removed,
         )
         .await
         .map_err(|e| e.to_string())?;
@@ -1013,7 +1286,8 @@ pub async fn mail_sync_all(
 ) -> Result<(), String> {
     // Atomically claim the sync slot; reject if a sync is already running.
     // We do NOT reset `cancel` if we bail here — an in-flight sync owns it.
-    if state.is_syncing
+    if state
+        .is_syncing
         .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
         .is_err()
     {
@@ -1077,8 +1351,8 @@ async fn mail_sync_all_inner(
     sync::migrate_plaintext(&workspace);
 
     let store = EncryptedMailStore::open(&workspace).map_err(|e| e.to_string())?;
-    let enc_key = crate::commands::mail::crypto::get_or_create_master_key()
-        .map_err(|e| e.to_string())?;
+    let enc_key =
+        crate::commands::mail::crypto::get_or_create_master_key().map_err(|e| e.to_string())?;
 
     // Each provider runs only if it is in scope (see `only_provider`) AND actually
     // connected/configured — so connecting one account never reaches into
@@ -1126,8 +1400,8 @@ async fn mail_sync_all_inner(
     if should_sync_provider(only_provider, "gmail") {
         match gmail_is_connected().await {
             Ok(true) => {
-                let r =
-                    sync_gmail_section(app, &store, &workspace, &enc_key, matter_map, &cancel).await;
+                let r = sync_gmail_section(app, &store, &workspace, &enc_key, matter_map, &cancel)
+                    .await;
                 finish_section(app, "gmail", r);
             }
             Ok(false) => {}

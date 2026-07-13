@@ -6,7 +6,7 @@ import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import {
-  mailListMessages,
+  mailCheckDropboxFolder,
   mailRetagMessageMatter,
   type MailListItem,
 } from '@/platform/utils/mail-commands';
@@ -91,14 +91,10 @@ export function EmailDropboxSurface() {
     setStatus(null);
     setError(null);
     try {
-      const page = await mailListMessages({
-        folderId,
+      const page = await mailCheckDropboxFolder({
+        folderName: folderId,
         ...(config.provider ? { provider: config.provider } : {}),
         ...(config.account.trim() ? { account: config.account.trim() } : {}),
-        sortBy: 'date',
-        sortDesc: true,
-        limit: 50,
-        offset: 0,
       });
       setEmails(page.items);
       setSelectedHouseholds(Object.fromEntries(page.items.map((email) => [

@@ -542,6 +542,25 @@ export async function mailListMessages(
 }
 
 /**
+ * Refresh an advisor-named Dropbox folder at its mail provider, then return
+ * its locally encrypted metadata. The native command resolves the visible name
+ * (for example, "Lantern") to the provider's stable folder id before querying,
+ * so Outlook/Gmail/IMAP ids never leak into the Dropbox setup screen.
+ */
+export async function mailCheckDropboxFolder(input: {
+  folderName: string;
+  provider?: string;
+  account?: string;
+}): Promise<MailListPage> {
+  if (!isTauri()) return { items: [], total: 0 };
+  return invoke<MailListPage>('mail_check_dropbox_folder', {
+    folderName: input.folderName,
+    provider: input.provider ?? null,
+    account: input.account ?? null,
+  });
+}
+
+/**
  * Per-client browse: like `mailListMessages`, but the backend enforces per-client
  * isolation in the ENGINE — it resolves the exact set of messages that belong to
  * `matterId` (each message's durable filing taken over its folder→matter mapping,
