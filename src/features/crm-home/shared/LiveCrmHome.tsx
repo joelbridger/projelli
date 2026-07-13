@@ -193,6 +193,8 @@ export function LiveCrmHome({
   adapter,
   preview = false,
   initialRoute,
+  addRequest,
+  onAddRequestConsumed,
 }: CrmHomeProps) {
   const [freshness, setFreshness] = useState<CrmFreshnessState>(
     getCrmEngineFreshness()
@@ -906,6 +908,8 @@ export function LiveCrmHome({
       adapterProvided={Boolean(adapter || preview)}
       {...liveWorkflowProps}
       {...(initialRoute ? { initialRoute } : {})}
+      {...(addRequest ? { addRequest } : {})}
+      {...(onAddRequestConsumed ? { onAddRequestConsumed } : {})}
     />
   );
 }

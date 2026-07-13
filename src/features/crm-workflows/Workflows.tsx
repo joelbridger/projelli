@@ -5,7 +5,7 @@ import { Button } from '@/ui/kp';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import { STARTER_WORKFLOWS } from '@/features/crm-workflows-library';
 import { FreshnessBanner, Screen, mutedStyle, panelStyle } from '@/features/crm-home/shared/ui';
-import type { CrmHomeRoute } from '@/features/crm-home/routes';
+import type { CrmHomeRoute, CrmHouseholdAddRequest } from '@/features/crm-home/routes';
 import { addWorkflowStepNote, completeWorkflowStep, createMeetingWorkflowProposal, createTemplate, offerForInstance, publishTemplateUpdate, renameWorkflowStepLocally, startWorkflow, updateWorkflowTemplate, workflowRecords, type LiveWorkflowInstance, type WorkflowScheduleDraft, type WorkflowStepOutcomeDraft } from '@/features/crm-home/workflowLive';
 import type { CrmFreshnessState } from '@/features/crm-home/types';
 import { useCrmHomeSurfaceContext } from '@/features/crm-home/surfaceContext';
@@ -47,9 +47,9 @@ export function Workflows({
 }
 
 export function WorkflowsSurface() {
-  const { adapter, navigate, workflowData, workflowHouseholds, saveLiveRecord } = useCrmHomeSurfaceContext();
+  const { adapter, navigate, workflowData, workflowHouseholds, saveLiveRecord, addRequest, onAddRequestConsumed } = useCrmHomeSurfaceContext();
   return workflowData && workflowHouseholds && saveLiveRecord
-    ? <LiveWorkflows data={workflowData} households={workflowHouseholds} onSave={saveLiveRecord} onNavigate={navigate} />
+    ? <LiveWorkflows data={workflowData} households={workflowHouseholds} onSave={saveLiveRecord} onNavigate={navigate} {...(addRequest ? { addRequest } : {})} {...(onAddRequestConsumed ? { onAddRequestConsumed } : {})} />
     : <Workflows freshness={adapter.freshness} onNavigate={navigate} />;
 }
 
@@ -60,17 +60,26 @@ export function LiveWorkflows({
   households,
   onSave,
   onNavigate,
+  addRequest,
+  onAddRequestConsumed,
 }: {
   data: LiveWorkflowData;
   households: readonly HouseholdChoice[];
   onSave: (record: LiveCrmRecord) => Promise<unknown>;
   onNavigate: (route: CrmHomeRoute) => void;
+  addRequest?: CrmHouseholdAddRequest;
+  onAddRequestConsumed?: () => void;
 }) {
-  const [creating, setCreating] = useState(false);
+  const template = data.templates[0];
+  const [creating, setCreating] = useState(
+    addRequest?.kind === 'workflow' && !template
+  );
   const [name, setName] = useState('');
   const [titles, setTitles] = useState(['', '', '']);
   const [newHousehold, setNewHousehold] = useState('');
-  const [selectedHouseholdId, setSelectedHouseholdId] = useState('');
+  const [selectedHouseholdId, setSelectedHouseholdId] = useState(
+    addRequest?.kind === 'workflow' ? addRequest.householdId : ''
+  );
   const [editing, setEditing] = useState(false);
   const [changedTitle, setChangedTitle] = useState('');
   const [addedTitle, setAddedTitle] = useState('Send welcome summary');
@@ -87,7 +96,6 @@ export function LiveWorkflows({
   const [meetingId, setMeetingId] = useState('');
   const [meetingHouseholdId, setMeetingHouseholdId] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const template = data.templates[0];
   const instances = template
     ? data.instances.filter((instance) => instance.templateId === template.id)
     : [];
@@ -122,6 +130,7 @@ export function LiveWorkflows({
       });
     }
     await save(startWorkflow(template, household));
+    onAddRequestConsumed?.();
   };
   const publish = async () => {
     if (!template) return;
@@ -295,6 +304,7 @@ export function LiveWorkflows({
               variant="secondary"
               onClick={() => {
                 setCreating(false);
+                onAddRequestConsumed?.();
               }}
             >
               Cancel

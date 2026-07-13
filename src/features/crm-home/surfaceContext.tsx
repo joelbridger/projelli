@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
-import type { CrmHomeRoute } from './routes';
+import type { CrmHomeRoute, CrmHouseholdAddRequest } from './routes';
 import type { CrmHomeAdapter } from './types';
 import type { HouseholdChoice, LiveWorkflowData } from '@/features/crm-workflows/Workflows';
 
@@ -14,6 +14,8 @@ export interface CrmHomeSurfaceContextValue {
   undoReport: string | null;
   reportUndo: () => void;
   adapterProvided: boolean;
+  addRequest?: CrmHouseholdAddRequest;
+  onAddRequestConsumed?: () => void;
 }
 
 export const CrmHomeSurfaceContext = createContext<CrmHomeSurfaceContextValue | null>(null);
