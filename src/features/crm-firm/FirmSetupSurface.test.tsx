@@ -11,6 +11,12 @@ vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
 }));
 
 describe('FirmSetupSurface', () => {
+  it('does not offer a firm administration button that has no visible destination', () => {
+    records = [];
+    render(<FirmSetup />);
+    expect(screen.queryByTestId('crm-firm-open-admin')).not.toBeInTheDocument();
+  });
+
   it('starts honestly empty and keeps access authority in firm administration', () => {
     records = [];
     render(<FirmSetup />);

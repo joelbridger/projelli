@@ -283,4 +283,41 @@ describe('WealthboxConnect — QA-74 regressions', () => {
       expect(useMatterStore.getState().matters).toHaveLength(49);
     });
   });
+
+  it('explains an indexing failure without exposing the internal error', async () => {
+    crmMocks.crmSyncAll.mockRejectedValue(new Error('deserialize CrmContact'));
+
+    render(<WealthboxConnect />);
+    fireEvent.change(await screen.findByPlaceholderText(/wealthbox api key/i), {
+      target: { value: 'test-token-123' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /connect wealthbox/i }));
+    fireEvent.click(await screen.findByTestId('confirm-dialog-confirm'));
+
+    expect(await screen.findByText(
+      "Your 40 households were imported, but we couldn't finish making them searchable in Ask. Try syncing again."
+    )).toBeInTheDocument();
+    expect(screen.queryByText(/deserialize CrmContact/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Sync ran into a problem/i)).not.toBeInTheDocument();
+  });
+
+  it('retries only the unfinished indexing step after households were imported', async () => {
+    crmMocks.crmSyncAll
+      .mockRejectedValueOnce(new Error('deserialize CrmContact'))
+      .mockResolvedValueOnce({ householdsProcessed: 40, recordsIndexed: 400 });
+
+    render(<WealthboxConnect />);
+    fireEvent.change(await screen.findByPlaceholderText(/wealthbox api key/i), {
+      target: { value: 'test-token-123' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /connect wealthbox/i }));
+    fireEvent.click(await screen.findByTestId('confirm-dialog-confirm'));
+    await screen.findByText(/Your 40 households were imported/i);
+
+    fireEvent.click(screen.getByTestId('wealthbox-sync-now'));
+
+    await waitFor(() => expect(crmMocks.crmSyncAll).toHaveBeenCalledTimes(2));
+    expect(crmMocks.crmListHouseholds).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId('confirm-dialog-confirm')).not.toBeInTheDocument();
+  });
 });

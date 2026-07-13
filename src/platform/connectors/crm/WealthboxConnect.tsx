@@ -1,5 +1,6 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string */
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { isTauri } from '@tauri-apps/api/core';
 import { InfoHelp } from '@/ui/InfoHelp';
 import {
@@ -40,6 +41,7 @@ import { brandText } from '@/config/brandText';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
 
 export function WealthboxConnect() {
+  const { t } = useTranslation();
   useCrmSync();
 
   const progress = useCrmStore((s) => s.progress);
@@ -75,6 +77,7 @@ export function WealthboxConnect() {
     householdsProcessed: number;
     recordsIndexed: number;
   } | null>(null);
+  const [indexingRetryCount, setIndexingRetryCount] = useState<number | null>(null);
   // Post-disconnect status note — honest about what was actually deleted.
   const [disconnectNote, setDisconnectNote] = useState<string | null>(null);
   // B3: true when disconnect could not fully remove imported data (or the key).
@@ -171,6 +174,7 @@ export function WealthboxConnect() {
   async function runSync() {
     setSyncError(null);
     setLastSyncReport(null);
+    setIndexingRetryCount(null);
     setSyncing(true);
     setAwaitingImportConfirmation(false);
     const runId = createCrmRunId();
@@ -316,16 +320,10 @@ export function WealthboxConnect() {
           householdsProcessed: report.householdsProcessed,
           recordsIndexed: report.recordsIndexed,
         });
-      } catch (err) {
-        const reason =
-          typeof err === 'string'
-            ? err
-            : err instanceof Error
-              ? err.message
-              : 'an unknown error';
-        setSyncError(
-          `Imported ${String(count)} household${count === 1 ? '' : 's'} into your Client Map, but search indexing didn't finish (${reason}). Records may not be fully searchable yet — click "Sync now" to retry.`
-        );
+        setIndexingRetryCount(null);
+      } catch {
+        setIndexingRetryCount(count);
+        setSyncError(t('crm.wealthbox.indexing-incomplete', { count }));
       } finally {
         setNetworkBusy(false);
       }
@@ -372,6 +370,35 @@ export function WealthboxConnect() {
       );
     } finally {
       setAwaitingImportConfirmation(false);
+      setSyncing(false);
+      setNetworkBusy(false);
+      useCrmStore.getState().finishRun(runId);
+    }
+  }
+
+  async function retryIndexing() {
+    if (indexingRetryCount === null) return;
+    const count = indexingRetryCount;
+    const runId = createCrmRunId();
+    setSyncError(null);
+    setLastSyncReport(null);
+    setSyncing(true);
+    setNetworkBusy(true);
+    useCrmStore.getState().startRun(runId);
+    try {
+      const map = filterCrmMatterMapForProvider(
+        buildCrmMatterMap(getMatters()),
+        'wealthbox'
+      );
+      const report = await crmSyncAll(map, runId);
+      setLastSyncReport({
+        householdsProcessed: report.householdsProcessed,
+        recordsIndexed: report.recordsIndexed,
+      });
+      setIndexingRetryCount(null);
+    } catch {
+      setSyncError(t('crm.wealthbox.indexing-incomplete', { count }));
+    } finally {
       setSyncing(false);
       setNetworkBusy(false);
       useCrmStore.getState().finishRun(runId);
@@ -575,13 +602,13 @@ export function WealthboxConnect() {
 
         {connected && (
           <div className="mt-3 space-y-2 text-sm text-slate-700">
-            <p className="font-medium text-green-700">
+            {!syncError && <p className="font-medium text-green-700">
               Connected
               {connectedInfo
                 ? ` to ${connectedInfo.name}${connectedInfo.plan ? ` (${connectedInfo.plan})` : ''}`
                 : ''}
               .
-            </p>
+            </p>}
 
             {/* Stop must stay visible for the WHOLE sync, including the
                 household-list phase BEFORE any crm-sync-progress event
@@ -654,7 +681,7 @@ export function WealthboxConnect() {
                   ` ${lastSyncReport.householdsProcessed.toLocaleString()} households imported before stopping.`}
               </p>
             )}
-            {progress?.status === 'error' && (
+            {progress?.status === 'error' && !syncError && (
               <p className="text-red-700">
                 Sync ran into a problem. Try again.
               </p>
@@ -667,7 +694,7 @@ export function WealthboxConnect() {
                 type="button"
                 data-testid="wealthbox-sync-now"
                 disabled={syncing || awaitingImportConfirmation}
-                onClick={() => void runSync()}
+                onClick={() => void (indexingRetryCount === null ? runSync() : retryIndexing())}
                 className="rounded-md bg-[var(--kp-navy)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60"
               >
                 {syncing ? 'Syncing...' : awaitingImportConfirmation ? 'Choose Import or Cancel' : 'Sync now'}

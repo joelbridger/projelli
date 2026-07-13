@@ -1,5 +1,6 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string -- Frozen CRM screen copy needs its translation catalog in a separate product change. */
 import { createElement, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   CalendarDays,
   ArrowLeft,
@@ -37,17 +38,18 @@ const syncCopy: Record<HouseholdRecord['syncState'], string> = {
   syncing:
     'Syncing — showing at least received changes; newer changes may still arrive.',
   last_synced: 'Last synced',
-  offline: 'Working offline — local edits wait to deliver.',
+  offline: '',
   needs_attention: 'Needs attention',
 };
 
-function syncLabel(household: HouseholdRecord): string {
+function syncLabel(household: HouseholdRecord, offlineMessage: string): string {
   if (household.syncState === 'last_synced') {
     return household.lastSyncedAt ? `Last synced ${household.lastSyncedAt}` : 'Last synced';
   }
   if (household.syncState === 'syncing' && household.lastSyncedAt) {
     return `Syncing — received through ${household.lastSyncedAt}`;
   }
+  if (household.syncState === 'offline') return offlineMessage;
   return syncCopy[household.syncState];
 }
 const syncVariant: Record<
@@ -91,6 +93,7 @@ export function HouseholdRecordSurface({
   timelineFreshness?: CrmEngineFreshness;
   onSaveActivityRecord?: (record: LiveCrmRecord) => Promise<unknown> | unknown;
 }) {
+  const { t } = useTranslation();
   const schedulingLinkUrl = household.schedulingLinkUrl;
   const [tab, setTab] = useState<HouseholdTab>('client_map');
   const [addOpen, setAddOpen] = useState(false);
@@ -138,8 +141,8 @@ export function HouseholdRecordSurface({
           {household.nextReview ? (
             <Badge variant="neutral">Next review {household.nextReview}</Badge>
           ) : null}
-          <Badge variant={syncVariant[household.syncState]}>
-            {syncLabel(household)}
+          <Badge variant={syncVariant[household.syncState]} data-testid="crm-household-sync-status">
+            {syncLabel(household, t('crm.offline.message'))}
           </Badge>
         </div>
       </header>

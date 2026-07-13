@@ -4363,6 +4363,23 @@
       }
     }
   },
+  "crm": {
+    "home": {
+      "nav": {
+        "activity": "Actividad"
+      }
+    },
+    "search": {
+      "title": "Buscar registros"
+    },
+    "offline": {
+      "message": "Trabajas sin conexión. Los cambios locales funcionan; el envío espera hasta que vuelvas a conectarte."
+    },
+    "wealthbox": {
+      "indexing-incomplete_one": "Tu hogar se importó, pero no pudimos terminar de prepararlo para buscarlo en Ask. Intenta sincronizar de nuevo.",
+      "indexing-incomplete_other": "Tus {{count}} hogares se importaron, pero no pudimos terminar de prepararlos para buscarlos en Ask. Intenta sincronizar de nuevo."
+    }
+  },
   "answer-dates": {
     "title": "Fechas en los registros citados",
     "record-copy-flagged": "Las copias del mismo registro tienen marcas de tiempo distintas.",

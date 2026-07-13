@@ -10,6 +10,38 @@ export type LinkedDocument = {
   linkedAt?: string;
 };
 
+const CLIENT_DOCUMENT_EXTENSIONS = new Set([
+  'pdf',
+  'doc',
+  'docx',
+  'xls',
+  'xlsx',
+  'csv',
+  'ppt',
+  'pptx',
+  'rtf',
+  'txt',
+  'png',
+  'jpg',
+  'jpeg',
+  'gif',
+  'webp',
+  'tif',
+  'tiff',
+  'heic',
+  'eml',
+  'msg',
+]);
+
+const GENERATED_MEETING_DOCUMENTS = new Set(['meeting.json', 'transcript.json']);
+
+export function isPlausibleClientDocument(pathOrName: string): boolean {
+  const name = pathOrName.split(/[\\/]/).pop()?.toLowerCase() ?? '';
+  if (GENERATED_MEETING_DOCUMENTS.has(name)) return true;
+  const dot = name.lastIndexOf('.');
+  return dot > 0 && CLIENT_DOCUMENT_EXTENSIONS.has(name.slice(dot + 1));
+}
+
 function refs(value: unknown): EntityRef[] {
   return Array.isArray(value)
     ? value.filter((item): item is EntityRef => Boolean(item) && typeof item === 'object' && (item as EntityRef).kind === 'document' && typeof (item as EntityRef).id === 'string')

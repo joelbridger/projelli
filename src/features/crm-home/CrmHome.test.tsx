@@ -39,10 +39,27 @@ function adapter(overrides: Partial<CrmHomeAdapter> = {}): CrmHomeAdapter {
 }
 
 describe('CrmHome', () => {
+  it('shows one Activity destination instead of a duplicate Timeline destination', () => {
+    render(<CrmHome />);
+    expect(screen.getByTestId('crm-home-nav-activity')).toBeInTheDocument();
+    expect(screen.queryByTestId('crm-home-nav-timeline')).not.toBeInTheDocument();
+  });
+
+  it('uses the same Search records name in the navigation and on the destination', () => {
+    render(<CrmHome />);
+    const navigationItem = screen.getByTestId('crm-home-nav-search');
+    fireEvent.click(navigationItem);
+    expect(screen.getByTestId('crm-search-surface-label')).toHaveTextContent(
+      navigationItem.textContent ?? ''
+    );
+  });
+
   it('keeps the default Home honest with the real offline engine state and no sample records', () => {
     render(<CrmHome />);
     expect(screen.getByTestId('crm-home')).toBeInTheDocument();
-    expect(screen.getByTestId('crm-freshness-banner')).toHaveTextContent(/working offline/i);
+    expect(screen.getByTestId('crm-freshness-banner')).toHaveTextContent(
+      'Working offline. Local edits work; delivery waits until you reconnect.'
+    );
     expect(screen.getByTestId('crm-screen-today')).toBeInTheDocument();
     expect(screen.getByTestId('crm-today-first-use')).toHaveTextContent(/ready to set up today/i);
     expect(screen.queryByText('Henderson household')).not.toBeInTheDocument();

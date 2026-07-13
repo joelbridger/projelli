@@ -4363,6 +4363,23 @@
       }
     }
   },
+  "crm": {
+    "home": {
+      "nav": {
+        "activity": "Aktivität"
+      }
+    },
+    "search": {
+      "title": "Datensätze durchsuchen"
+    },
+    "offline": {
+      "message": "Sie arbeiten offline. Lokale Änderungen funktionieren; die Übertragung wartet, bis Sie wieder verbunden sind."
+    },
+    "wealthbox": {
+      "indexing-incomplete_one": "Ihr Haushalt wurde importiert, aber wir konnten ihn noch nicht vollständig für die Suche in Ask vorbereiten. Versuchen Sie die Synchronisierung erneut.",
+      "indexing-incomplete_other": "Ihre {{count}} Haushalte wurden importiert, aber wir konnten sie noch nicht vollständig für die Suche in Ask vorbereiten. Versuchen Sie die Synchronisierung erneut."
+    }
+  },
   "answer-dates": {
     "title": "Daten in den zitierten Unterlagen",
     "record-copy-flagged": "Passende Kopien desselben Datensatzes haben unterschiedliche Zeitstempel.",

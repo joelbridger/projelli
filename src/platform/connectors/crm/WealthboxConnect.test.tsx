@@ -128,7 +128,7 @@ describe('WealthboxConnect sync', () => {
     });
   });
 
-  it('shows the backend failure and makes Sync now available to retry', async () => {
+  it('shows a human indexing message and makes Sync now available to retry', async () => {
     controls.crmListHouseholds.mockResolvedValue([{ id: 'household-1', name: 'Avery Family' }]);
     controls.crmSyncAll.mockRejectedValue(new Error('Wealthbox request failed (HTTP 503)'));
 
@@ -137,7 +137,8 @@ describe('WealthboxConnect sync', () => {
 
     fireEvent.click(await screen.findByTestId('confirm-dialog-confirm'));
 
-    expect(await screen.findByText(/HTTP 503/i)).toBeTruthy();
+    expect(await screen.findByText(/Your household was imported.*Try syncing again/i)).toBeTruthy();
+    expect(screen.queryByText(/HTTP 503/i)).toBeNull();
     expect(screen.getByTestId('wealthbox-sync-now')).not.toBeDisabled();
   });
 

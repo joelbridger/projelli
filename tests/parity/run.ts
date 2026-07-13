@@ -1380,7 +1380,6 @@ class DesktopParityApp implements ParityApp {
       'crm-firm-access-read-model',
       'crm-firm-visibility-read-model',
       'crm-firm-permissions-read-model',
-      'crm-firm-open-admin',
     ]) await this.require(control);
     for (const text of ['Parity teammate', 'Owner', 'Client service'])
       await this.requireText(text);

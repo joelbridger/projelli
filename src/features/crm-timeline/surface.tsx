@@ -11,6 +11,8 @@ export const timelineSurface: CrmHomeSurfaceDescriptor = {
   label: 'Timeline',
   icon: Clock3,
   route: 'timeline',
-  rail: true,
+  // Keep the old route working for saved links, but Activity is the one
+  // visible destination for this shared screen.
+  rail: false,
   Component: CrmActivitySurface,
 };

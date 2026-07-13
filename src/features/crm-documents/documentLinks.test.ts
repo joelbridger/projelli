@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addDocumentRef, linkedDocumentsForHousehold, removeDocumentRef } from './documentLinks';
+import { addDocumentRef, isPlausibleClientDocument, linkedDocumentsForHousehold, removeDocumentRef } from './documentLinks';
 
 const household = {
   id: 'household-1', name: 'Henderson household', lifecycle: 'Active', primaryAdvisor: 'Maya', ownership: 'mine' as const, serviceTier: 'Standard', syncState: 'live' as const,
@@ -9,6 +9,33 @@ const household = {
 };
 
 describe('CRM document links', () => {
+  it('offers client documents and hides build files and raw data dumps', () => {
+    for (const name of [
+      'quarterly-statement.pdf',
+      'plan.docx',
+      'holdings.xlsx',
+      'signed-form.png',
+      'client-message.eml',
+      'meeting.json',
+      'transcript.json',
+    ]) {
+      expect(isPlausibleClientDocument(name), name).toBe(true);
+    }
+
+    for (const name of [
+      'build_roster.py',
+      'cache.pyc',
+      'sync.log',
+      'MANIFEST.json',
+      'wealthbox-contacts-raw.json',
+      'PLAN.md',
+      'installer.exe',
+      'archive.zip',
+    ]) {
+      expect(isPlausibleClientDocument(name), name).toBe(false);
+    }
+  });
+
   it('reads document pointers from the household, people, notes, and linked tasks without creating a file record', () => {
     const linked = linkedDocumentsForHousehold(household, [{ id: 'task-1', kind: 'task', householdRef: { kind: 'household', id: household.id }, title: 'Send plan', contextRefs: [{ kind: 'document', id: 'Clients/Henderson/plan.pdf', label: 'Plan' }] }]);
     expect(linked).toEqual(expect.arrayContaining([

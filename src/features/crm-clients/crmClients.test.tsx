@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
+import '@/i18n';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import {
   DirectorySurface,
@@ -95,6 +96,15 @@ afterEach(() => {
 });
 
 describe('crm clients surfaces', () => {
+  it('uses the shared offline message on a household', () => {
+    render(
+      <HouseholdRecordSurface household={{ ...household, syncState: 'offline' }} />
+    );
+    expect(screen.getByTestId('crm-household-sync-status')).toHaveTextContent(
+      'Working offline. Local edits work; delivery waits until you reconnect.'
+    );
+  });
+
   it('shows the household truth, both note lanes, safe account masking, and opens scheduling through its adapter', () => {
     const onOpenSchedulingLink = vi.fn();
     render(
