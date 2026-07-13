@@ -61,7 +61,7 @@ describe('useAutoResumeWorkspace', () => {
         }),
     );
 
-    const { result, rerender } = renderHook(
+    const { result, rerender } = renderHook<boolean, { activeWorkspacePath: string | null }>(
       ({ activeWorkspacePath }: { activeWorkspacePath: string | null }) =>
         useAutoResumeWorkspace({
           isEligibleEnvironment: true,

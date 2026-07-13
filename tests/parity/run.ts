@@ -1673,7 +1673,7 @@ class DesktopParityApp implements ParityApp {
     const report = imported.find(
       (record) =>
         record.kind === 'migration_report' &&
-        record.sourceProvider === sourceProvider
+        record['sourceProvider'] === sourceProvider
     );
     if (!report)
       fail(`The ${sourceProvider} sample did not keep its source provenance`);
@@ -1767,7 +1767,7 @@ class DesktopParityApp implements ParityApp {
     const avery = imported.find((record) => record.kind === 'household' && record.externalId === 'crm-avery-001');
     if (!avery || avery.externalIdProvider !== 'self-service')
       fail('Self-service import did not save a contact with its selected outside ID');
-    if (!imported.some((record) => record.kind === 'migration_report' && record.sourceProvider === 'self-service'))
+    if (!imported.some((record) => record.kind === 'migration_report' && record['sourceProvider'] === 'self-service'))
       fail('Self-service import did not save a fidelity report');
 
     await this.click('crm-self-service-import-another');
@@ -1797,7 +1797,7 @@ class DesktopParityApp implements ParityApp {
     const afterRestart = await this.records();
     if (!afterRestart.some((record) => record.kind === 'household' && record.externalId === 'crm-avery-001'))
       fail('Self-service imported contact disappeared after native restart');
-    if (!afterRestart.some((record) => record.kind === 'migration_report' && record.sourceProvider === 'self-service'))
+    if (!afterRestart.some((record) => record.kind === 'migration_report' && record['sourceProvider'] === 'self-service'))
       fail('Self-service import fidelity report disappeared after native restart');
   }
 }
