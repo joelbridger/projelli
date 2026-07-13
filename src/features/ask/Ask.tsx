@@ -701,10 +701,10 @@ export function Ask(props: UseAskProps) {
                       alignItems: 'flex-start',
                       padding: '9px 12px',
                       borderRadius: 'var(--radius-md)',
-                      background: '#fffbeb',
-                      border: '1px solid #fcd34d',
+                      background: 'var(--kp-warning-bg)',
+                      border: '1px solid var(--kp-warning-line)',
                       fontSize: 'var(--kp-font-xs)',
-                      color: '#92400e',
+                      color: 'var(--kp-warning)',
                       maxWidth: 680,
                       width: '100%',
                     }}
