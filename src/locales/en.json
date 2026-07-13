@@ -3349,6 +3349,33 @@
     }
   },
   "crm": {
+    "firm": {
+      "open-administration": "Open firm administration"
+    },
+    "household": {
+      "activity": {
+        "empty-title": "No activity yet",
+        "empty-body": "Notes, facts, completed tasks, workflows, and linked email, meetings, and documents will appear here as they happen."
+      },
+      "guide": {
+        "title": "What is in this household",
+        "body": "Each section keeps one kind of client work together. Open any section to go there.",
+        "client-map-title": "Client Map",
+        "client-map-body": "Key people, goals, accounts, risks, and next steps.",
+        "timeline-title": "Timeline",
+        "timeline-body": "The client's story in date order.",
+        "documents-title": "Documents",
+        "documents-body": "Files linked to this household.",
+        "email-title": "Email",
+        "email-body": "Filed messages and threads.",
+        "meetings-title": "Meetings",
+        "meetings-body": "Recordings, notes, and follow-ups.",
+        "reviews-title": "Reviews",
+        "reviews-body": "Account transfers and proposed RightCapital or Holistiplan updates.",
+        "activity-title": "Activity",
+        "activity-body": "Notes, facts, completed tasks, and other saved changes."
+      }
+    },
     "home": {
       "nav": {
         "activity": "Activity"

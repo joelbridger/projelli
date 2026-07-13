@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { describe, expect, it, vi } from 'vitest';
 import { FirmSetup } from './FirmSetup';
+import { EV_OPEN_ACCOUNT } from '@/config/identity';
 
 const save = vi.fn().mockResolvedValue(undefined);
 let records: Record<string, unknown>[] = [];
@@ -11,10 +12,14 @@ vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
 }));
 
 describe('FirmSetupSurface', () => {
-  it('does not offer a firm administration button that has no visible destination', () => {
+  it('opens the real Firm section in the account window', () => {
     records = [];
+    const onOpenAccount = vi.fn();
+    window.addEventListener(EV_OPEN_ACCOUNT, onOpenAccount, { once: true });
     render(<FirmSetup />);
-    expect(screen.queryByTestId('crm-firm-open-admin')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('crm-firm-open-admin'));
+    expect(onOpenAccount).toHaveBeenCalledOnce();
+    expect((onOpenAccount.mock.calls[0]?.[0] as CustomEvent).detail).toEqual({ tab: 'firm' });
   });
 
   it('starts honestly empty and keeps access authority in firm administration', () => {

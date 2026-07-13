@@ -12,7 +12,7 @@ import { render, waitFor } from '@testing-library/react';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useMatterUiStore } from '@/platform/matter/matterUiStore';
 import { useGlobalEventBus, type GlobalEventBusHandlers } from '@/app/lifecycle/useGlobalEventBus';
-import { EV_OPEN_SETTINGS } from '@/config/identity';
+import { EV_OPEN_ACCOUNT, EV_OPEN_SETTINGS } from '@/config/identity';
 
 function makeHandlers(): GlobalEventBusHandlers {
   return {
@@ -38,6 +38,10 @@ function launch(detail: Record<string, unknown>) {
 
 function openSettingsEvent(detail: Record<string, unknown>) {
   window.dispatchEvent(new CustomEvent(EV_OPEN_SETTINGS, { detail }));
+}
+
+function openAccountEvent(detail: Record<string, unknown>) {
+  window.dispatchEvent(new CustomEvent(EV_OPEN_ACCOUNT, { detail }));
 }
 
 beforeEach(() => {
@@ -91,6 +95,15 @@ describe('useGlobalEventBus — per-client surface routing', () => {
     expect(handlers.onOpenAccount).toHaveBeenCalledOnce();
     expect(handlers.openSettingsPage).not.toHaveBeenCalled();
     expect(handlers.openSettings).not.toHaveBeenCalled();
+  });
+
+  it('passes the named Firm destination into the Account window', () => {
+    const handlers = makeHandlers();
+    render(<Harness handlers={handlers} />);
+
+    openAccountEvent({ tab: 'firm' });
+
+    expect(handlers.onOpenAccount).toHaveBeenCalledExactlyOnceWith('firm');
   });
 
   it('routes a Documents quick-action into the hub Documents sub-tab, not the global files surface', () => {

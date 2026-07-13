@@ -4364,6 +4364,33 @@
     }
   },
   "crm": {
+    "firm": {
+      "open-administration": "Firmenverwaltung öffnen"
+    },
+    "household": {
+      "activity": {
+        "empty-title": "Noch keine Aktivität",
+        "empty-body": "Notizen, Fakten, erledigte Aufgaben, Workflows sowie verknüpfte E-Mails, Besprechungen und Dokumente erscheinen hier, sobald sie entstehen."
+      },
+      "guide": {
+        "title": "Was gehört zu diesem Haushalt",
+        "body": "Jeder Bereich bündelt eine Art der Kundenarbeit. Öffnen Sie einen Bereich, um direkt dorthin zu gelangen.",
+        "client-map-title": "Kundenübersicht",
+        "client-map-body": "Wichtige Personen, Ziele, Konten, Risiken und nächste Schritte.",
+        "timeline-title": "Zeitleiste",
+        "timeline-body": "Die Geschichte des Kunden in zeitlicher Reihenfolge.",
+        "documents-title": "Dokumente",
+        "documents-body": "Mit diesem Haushalt verknüpfte Dateien.",
+        "email-title": "E-Mail",
+        "email-body": "Abgelegte Nachrichten und Unterhaltungen.",
+        "meetings-title": "Besprechungen",
+        "meetings-body": "Aufzeichnungen, Notizen und Folgemaßnahmen.",
+        "reviews-title": "Prüfungen",
+        "reviews-body": "Kontoübertragungen und vorgeschlagene Änderungen für RightCapital oder Holistiplan.",
+        "activity-title": "Aktivität",
+        "activity-body": "Notizen, Fakten, erledigte Aufgaben und andere gespeicherte Änderungen."
+      }
+    },
     "home": {
       "nav": {
         "activity": "Aktivität"

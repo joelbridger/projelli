@@ -1,5 +1,6 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string -- CRM copy is catalogued with the frozen CRM screens. */
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Archive, ArrowRightLeft, Plus, Save, Users } from 'lucide-react';
 import { Button } from '@/ui/kp';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
@@ -12,6 +13,7 @@ import type {
   Tag,
 } from '@/platform/crm/types';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
+import { EV_OPEN_ACCOUNT } from '@/config/identity';
 
 type Tab = 'setup' | 'fields' | 'tags' | 'values';
 type FieldType = CustomFieldDef['fieldType'];
@@ -202,9 +204,10 @@ function RecordValues({ records, onSave }: { records: readonly LiveCrmRecord[]; 
 }
 
 function FirmSetupContent({ initialTab, onNavigate }: { initialTab: Tab; onNavigate?: (route: string) => void }) {
+  const { t } = useTranslation();
   const live = useLiveCrmRecords();
   const [tab, setTab] = useState<Tab>(initialTab);
-  return <div data-testid="crm-firm-surface" style={{ padding: 'var(--kp-space-xl)', overflow: 'auto', width: '100%', display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-md)' }}><SurfaceHeader Icon={Users} title="Firm" description="Shared firm setup and labels" />{live.error && <p role="alert">Could not load firm setup: {live.error}</p>}<nav aria-label="Firm sections" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{([{ id: 'setup', label: 'Members and access' }, { id: 'fields', label: 'Custom fields' }, { id: 'tags', label: 'Tags' }, { id: 'values', label: 'Details and tags' }] as const).map((item) => <Button key={item.id} data-testid={`crm-firm-tab-${item.id}`} size="sm" variant={tab === item.id ? 'primary' : 'secondary'} onClick={() => { setTab(item.id); }}><span data-testid={item.id === 'setup' ? 'crm-firm-route-firm-setup' : item.id === 'fields' ? 'crm-firm-route-fields-tags' : undefined}>{item.label}</span></Button>)}</nav>{tab === 'setup' && <><div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><Button data-testid="crm-firm-route-workspaces" variant="secondary" onClick={() => { onNavigate?.('workspaces'); }}>Firm spaces</Button><Button data-testid="crm-firm-route-intake-links" variant="secondary" onClick={() => { onNavigate?.('intake-links'); }}>Intake links</Button><Button data-testid="crm-firm-route-migration" variant="secondary" onClick={() => { onNavigate?.('migration'); }}>Migration</Button></div><FirmAccessReadModel onSave={live.save} /><MemberDirectory records={live.records} /><EthicalWallNotice /></>}{tab === 'fields' && <FieldsAdmin records={live.records} onSave={live.save} />}{tab === 'tags' && <TagsAdmin records={live.records} onSave={live.save} />}{tab === 'values' && <RecordValues records={live.records} onSave={live.save} />}</div>;
+  return <div data-testid="crm-firm-surface" style={{ padding: 'var(--kp-space-xl)', overflow: 'auto', width: '100%', display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-md)' }}><SurfaceHeader Icon={Users} title="Firm" description="Shared firm setup and labels" actions={<Button data-testid="crm-firm-open-admin" onClick={() => { window.dispatchEvent(new CustomEvent(EV_OPEN_ACCOUNT, { detail: { tab: 'firm' } })); }}>{t('crm.firm.open-administration')}</Button>} />{live.error && <p role="alert">Could not load firm setup: {live.error}</p>}<nav aria-label="Firm sections" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{([{ id: 'setup', label: 'Members and access' }, { id: 'fields', label: 'Custom fields' }, { id: 'tags', label: 'Tags' }, { id: 'values', label: 'Details and tags' }] as const).map((item) => <Button key={item.id} data-testid={`crm-firm-tab-${item.id}`} size="sm" variant={tab === item.id ? 'primary' : 'secondary'} onClick={() => { setTab(item.id); }}><span data-testid={item.id === 'setup' ? 'crm-firm-route-firm-setup' : item.id === 'fields' ? 'crm-firm-route-fields-tags' : undefined}>{item.label}</span></Button>)}</nav>{tab === 'setup' && <><div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><Button data-testid="crm-firm-route-workspaces" variant="secondary" onClick={() => { onNavigate?.('workspaces'); }}>Firm spaces</Button><Button data-testid="crm-firm-route-intake-links" variant="secondary" onClick={() => { onNavigate?.('intake-links'); }}>Intake links</Button><Button data-testid="crm-firm-route-migration" variant="secondary" onClick={() => { onNavigate?.('migration'); }}>Migration</Button></div><FirmAccessReadModel onSave={live.save} /><MemberDirectory records={live.records} /><EthicalWallNotice /></>}{tab === 'fields' && <FieldsAdmin records={live.records} onSave={live.save} />}{tab === 'tags' && <TagsAdmin records={live.records} onSave={live.save} />}{tab === 'values' && <RecordValues records={live.records} onSave={live.save} />}</div>;
 }
 
 export function FirmSetup({ initialTab = 'setup', onNavigate }: { initialTab?: Tab; onNavigate?: (route: string) => void }) {

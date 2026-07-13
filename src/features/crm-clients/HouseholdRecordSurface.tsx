@@ -74,6 +74,48 @@ const validationErrorStyle = {
   marginTop: 4,
 } as const;
 
+function HouseholdGuide({ onOpen }: { onOpen: (tab: HouseholdTab) => void }) {
+  const { t } = useTranslation();
+  const items: readonly { tab: HouseholdTab; title: string; body: string }[] = [
+    { tab: 'client_map', title: t('crm.household.guide.client-map-title'), body: t('crm.household.guide.client-map-body') },
+    { tab: 'timeline', title: t('crm.household.guide.timeline-title'), body: t('crm.household.guide.timeline-body') },
+    { tab: 'documents', title: t('crm.household.guide.documents-title'), body: t('crm.household.guide.documents-body') },
+    { tab: 'email', title: t('crm.household.guide.email-title'), body: t('crm.household.guide.email-body') },
+    { tab: 'meetings', title: t('crm.household.guide.meetings-title'), body: t('crm.household.guide.meetings-body') },
+    { tab: 'reviews', title: t('crm.household.guide.reviews-title'), body: t('crm.household.guide.reviews-body') },
+    { tab: 'activity', title: t('crm.household.guide.activity-title'), body: t('crm.household.guide.activity-body') },
+  ];
+
+  return (
+    <Card variant="raised" data-testid="crm-household-guide" style={{ marginTop: 'var(--kp-space-md)', padding: 'var(--kp-space-md)' }}>
+      <h2 style={{ margin: 0, color: 'var(--kp-navy)', fontSize: 'var(--kp-font-lg)' }}>
+        {t('crm.household.guide.title')}
+      </h2>
+      <p style={{ margin: 'var(--kp-space-xs) 0 var(--kp-space-md)', color: 'var(--kp-text-faint)', fontSize: 'var(--kp-font-sm)' }}>
+        {t('crm.household.guide.body')}
+      </p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 'var(--kp-space-sm)' }}>
+        {items.map((item) => (
+          <Button
+            key={item.tab}
+            variant="secondary"
+            data-testid={`crm-household-guide-${item.tab.replace('_', '-')}`}
+            onClick={() => { onOpen(item.tab); }}
+            style={{ height: 'auto', justifyContent: 'flex-start', padding: 'var(--kp-space-sm)', textAlign: 'left', whiteSpace: 'normal' }}
+          >
+            <span>
+              <strong style={{ display: 'block' }}>{item.title}</strong>
+              <span style={{ display: 'block', marginTop: 'var(--kp-space-2xs)', color: 'var(--kp-text-faint)', fontSize: 'var(--kp-font-xs)', fontWeight: 'var(--kp-weight-regular)' }}>
+                {item.body}
+              </span>
+            </span>
+          </Button>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 export function HouseholdRecordSurface({
   household,
   proposals = [],
@@ -200,6 +242,7 @@ export function HouseholdRecordSurface({
         options={householdTabRegistry.map(({ route, label }) => ({ value: route, label }))}
         data-testid="crm-household-tab"
       />
+      {tab === 'client_map' ? <HouseholdGuide onOpen={setTab} /> : null}
       {(() => {
         const selectedTab = householdTabRegistry.find((surface) => surface.route === tab) ?? householdTabRegistry[0]!;
         const legacyTabs = {
@@ -589,6 +632,7 @@ function ExistingSurface({
   proposals: readonly CrmProposal[];
   actions?: CrmClientsActions;
 }) {
+  const { t } = useTranslation();
   const label = tab === 'email' ? 'Email' : tab.charAt(0).toUpperCase() + tab.slice(1);
   return (
     <div
@@ -600,11 +644,15 @@ function ExistingSurface({
       ))}
       <Card variant="raised">
         <h2>{label}</h2>
-        <p>
-          {tab === 'email'
-            ? 'This preserves the existing threaded mail surface. Draft email opens its recipient verification and external approval flow.'
-            : `This preserves the existing ${label.toLowerCase()} layout and source content.`}
-        </p>
+        {tab === 'activity' ? (
+          <>
+            <p style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-xs)' }}>
+              <Clock3 size={14} aria-hidden="true" />
+              <strong>{t('crm.household.activity.empty-title')}</strong>
+            </p>
+            <p>{t('crm.household.activity.empty-body')}</p>
+          </>
+        ) : null}
         {tab === 'email' ? (
           <Button
             size="sm"
@@ -631,11 +679,7 @@ function ExistingSurface({
           >
             Open mail surface
           </Button>
-        ) : (
-          <span>
-            <Clock3 size={14} aria-hidden="true" /> No history yet.
-          </span>
-        )}
+        ) : null}
       </Card>
     </div>
   );

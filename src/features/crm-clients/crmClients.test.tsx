@@ -129,6 +129,21 @@ describe('crm clients surfaces', () => {
     );
   });
 
+  it('explains what every household section contains and opens Reviews from the guide', () => {
+    render(<HouseholdRecordSurface household={household} />);
+
+    expect(screen.getByTestId('crm-household-guide')).toHaveTextContent(
+      'What is in this household',
+    );
+    expect(screen.getByTestId('crm-household-guide-reviews')).toHaveTextContent(
+      'RightCapital or Holistiplan',
+    );
+
+    fireEvent.click(screen.getByTestId('crm-household-guide-reviews'));
+
+    expect(screen.getByTestId('client-reviews-tab')).toBeInTheDocument();
+  });
+
   it('lets an advisor reach this household\'s ACATS review and external write approvals', () => {
     const acatsDraft: AcatsTransferDraft = {
       id: 'acats-h-1',
@@ -190,6 +205,19 @@ describe('crm clients surfaces', () => {
     expect(screen.getByTestId('external-write-review-entry')).toHaveTextContent(
       'No outside-app updates are waiting for review for this client.',
     );
+  });
+
+  it('uses a human empty state for household Activity', () => {
+    render(<HouseholdRecordSurface household={household} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Activity' }));
+
+    expect(screen.getByTestId('crm-household-activity')).toHaveTextContent(
+      'No activity yet',
+    );
+    expect(screen.getByTestId('crm-household-activity')).toHaveTextContent(
+      'Notes, facts, completed tasks, workflows, and linked email, meetings, and documents will appear here as they happen.',
+    );
+    expect(screen.queryByText(/preserves the existing activity layout/i)).not.toBeInTheDocument();
   });
 
   it('keeps note audience fixed, reviews mention recipients, offers firm notification, and has no send affordance', () => {
