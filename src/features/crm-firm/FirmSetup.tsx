@@ -34,6 +34,10 @@ function source(): Provenance {
   return { origin: 'user', sources: [] };
 }
 
+function designToken(name: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
 function firmRecordBase(kind: 'tag' | 'customFieldDef', id: string) {
   const now = new Date().toISOString();
   return { id, kind, matterId: 'firm_home', createdAt: now, createdBy: actor(), updatedAt: now, updatedBy: actor(), source: source(), deleted: false, externalRefs: [], schemaVersion: 1 };
@@ -151,7 +155,7 @@ function FieldsAdmin({ records, onSave }: { records: readonly LiveCrmRecord[]; o
 
 function TagEditor({ current, onSave, onClose }: { current?: Tag; onSave: (tag: Tag) => Promise<void>; onClose: () => void }) {
   const [name, setName] = useState(current?.name ?? '');
-  const [color, setColor] = useState(current?.color ?? '#2563eb');
+  const [color, setColor] = useState(current?.color ?? designToken('--kp-blue'));
   const [category, setCategory] = useState(current?.category ?? '');
   const [error, setError] = useState<string | null>(null);
   const save = async () => { if (!name.trim()) { setError('Give this tag a name.'); return; } const id = current?.id ?? `tag:${crypto.randomUUID()}`; await onSave({ ...(current ?? firmRecordBase('tag', id)), id, kind: 'tag', matterId: 'firm_home', name: name.trim(), color, ...(category.trim() ? { category: category.trim() } : {}), updatedAt: new Date().toISOString(), updatedBy: actor() }); onClose(); };

@@ -62,11 +62,11 @@ const syncVariant: Record<
 };
 
 const invalidFieldStyle = {
-  borderColor: 'var(--kp-danger, #b91c1c)',
+  borderColor: 'var(--kp-danger)',
 } as const;
 
 const validationErrorStyle = {
-  color: 'var(--kp-danger, #b91c1c)',
+  color: 'var(--kp-danger)',
   display: 'block',
   fontSize: 12,
   marginTop: 4,
