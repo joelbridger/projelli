@@ -144,7 +144,9 @@ describe('BUG-01 cloud retrieval reaches the provider prompt', () => {
     expect(h.capturedCloudPrompt).toContain('Beneficiary Designations.pdf');
     await waitFor(() => {
       const saved = useAIChatStore.getState().sessions['ask-global::/workspace'];
-      const answer = saved?.messages.findLast((message) => message.role === 'assistant');
+      const answer = [...(saved?.messages ?? [])]
+        .reverse()
+        .find((message) => message.role === 'assistant');
       expect(answer?.askCitations).toHaveLength(1);
     });
     expect(audit).toContainEqual(
