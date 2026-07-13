@@ -207,8 +207,6 @@ export interface UseAskProps {
   onAuditLog?: AuditLogSink;
   /** CRM Ask uses this to offer a separately approved fact or task proposal. */
   onAnswerCompleted?: (turn: AskTurn) => void;
-  /** A CRM answer must be evidence-only, never a general un-cited answer. */
-  forceFilesOnly?: boolean;
 }
 
 export function useAsk({
@@ -218,7 +216,6 @@ export function useAsk({
   onOpenFileAtPath,
   onAuditLog,
   onAnswerCompleted,
-  forceFilesOnly = false,
 }: UseAskProps) {
   const activeMatter = useActiveMatter();
   const hasActiveMatter = Boolean(activeMatter);
@@ -426,16 +423,15 @@ export function useAsk({
       return false;
     }
   });
-  const filesOnly = forceFilesOnly || filesOnlyPreference;
+  const filesOnly = filesOnlyPreference;
   const setFilesOnly = useCallback((next: boolean) => {
-    if (forceFilesOnly) return;
     setFilesOnlyState(next);
     try {
       localStorage.setItem(ASK_FILES_ONLY_KEY, next ? '1' : '0');
     } catch {
       /* ignore storage failures (private mode / quota) */
     }
-  }, [forceFilesOnly]);
+  }, []);
 
   // QA-90 — whether a content import (email/CRM/OneDrive/file indexing) is
   // active right now. Read fresh inside handleAsk's retrieval-evidence gate so
@@ -1029,7 +1025,7 @@ export function useAsk({
 
         // Ask-smart (Decision 3): only files-only mode dead-ends on no evidence;
         // smart mode proceeds and leads with an honest nothing-found block.
-        if (filesOnly && (memoryEnabled || forceFilesOnly) && hits.length === 0) {
+        if (filesOnly && memoryEnabled && hits.length === 0) {
           emitDecline(NO_EVIDENCE_DECLINE);
           return;
         }
@@ -1086,7 +1082,7 @@ export function useAsk({
               }
               // Only files-only mode dead-ends when that empties the evidence;
               // smart mode proceeds (leads with an honest nothing-found block).
-              if (filesOnly && (memoryEnabled || forceFilesOnly) && hits.length === 0) {
+              if (filesOnly && memoryEnabled && hits.length === 0) {
                 emitDecline(NO_EVIDENCE_DECLINE);
                 return;
               }
@@ -1867,7 +1863,6 @@ export function useAsk({
       buildAuditScope,
       confirmExportConsent,
       onAnswerCompleted,
-      forceFilesOnly,
     ]
   );
 
