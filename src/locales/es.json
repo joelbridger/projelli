@@ -4372,6 +4372,10 @@
     "search": {
       "title": "Buscar registros"
     },
+    "documents": {
+      "no-client-files": "Esta carpeta del cliente todavía no tiene documentos. Añade un archivo a la carpeta del cliente en Documentos y vuelve aquí para enlazarlo.",
+      "folder-not-ready": "La carpeta de documentos de este cliente aún no está lista. Termina de configurar al cliente y vuelve aquí."
+    },
     "offline": {
       "message": "Trabajas sin conexión. Los cambios locales funcionan; el envío espera hasta que vuelvas a conectarte."
     },

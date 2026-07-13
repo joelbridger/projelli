@@ -4372,6 +4372,10 @@
     "search": {
       "title": "Datensätze durchsuchen"
     },
+    "documents": {
+      "no-client-files": "Im Ordner dieses Kunden befinden sich noch keine Dokumente. Fügen Sie dem Kundenordner unter Dokumente eine Datei hinzu und kehren Sie dann hierher zurück, um sie zu verknüpfen.",
+      "folder-not-ready": "Der Dokumentenordner dieses Kunden ist noch nicht bereit. Schließen Sie die Einrichtung des Kunden ab und kehren Sie dann hierher zurück."
+    },
     "offline": {
       "message": "Sie arbeiten offline. Lokale Änderungen funktionieren; die Übertragung wartet, bis Sie wieder verbunden sind."
     },
