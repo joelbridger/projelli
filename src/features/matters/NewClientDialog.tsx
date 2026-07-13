@@ -133,7 +133,9 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
   const [items, setItems] = useState<RequestItem[]>(() =>
     defaultNewHouseholdItems()
   );
-  const [welcomeJourney, setWelcomeJourney] = useState<WelcomeJourney>(() => copyWelcomeJourney(DEFAULT_WELCOME_JOURNEY));
+  const [welcomeJourney, setWelcomeJourney] = useState<WelcomeJourney>(() =>
+    copyWelcomeJourney(DEFAULT_WELCOME_JOURNEY)
+  );
   const [hasFirmWelcomeDefault, setHasFirmWelcomeDefault] = useState(false);
   const [sentLink, setSentLink] = useState('');
   const [createdMatterId, setCreatedMatterId] = useState('');
@@ -157,7 +159,9 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
       setStep('details');
       setItems(defaultNewHouseholdItems());
       const firmDefault = loadFirmWelcomeJourneyDefault(firmId);
-      setWelcomeJourney(copyWelcomeJourney(firmDefault ?? DEFAULT_WELCOME_JOURNEY));
+      setWelcomeJourney(
+        copyWelcomeJourney(firmDefault ?? DEFAULT_WELCOME_JOURNEY)
+      );
       setHasFirmWelcomeDefault(Boolean(firmDefault));
       setSentLink('');
       setCreatedMatterId('');
@@ -179,9 +183,14 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
   const emailHref = useMemo(() => {
     if (!sentLink) return '';
     const welcomeEmail = renderWelcomeJourneyEmail('welcome', {
-      client_first_name: firstName(name), firm_name: firmName, secure_link: sentLink,
-      primary_next_item: items.find((item) => item.t !== 'readonly_card')?.label ?? 'the first checklist item',
-      advisor_first_name: (firmSession?.email ?? '').split('@')[0] || 'Your advisor',
+      client_first_name: firstName(name),
+      firm_name: firmName,
+      secure_link: sentLink,
+      primary_next_item:
+        items.find((item) => item.t !== 'readonly_card')?.label ??
+        'the first checklist item',
+      advisor_first_name:
+        (firmSession?.email ?? '').split('@')[0] || 'Your advisor',
     });
     const subject = encodeURIComponent(welcomeEmail.subject);
     const body = encodeURIComponent(welcomeEmail.body);
@@ -291,7 +300,9 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
       });
       const relay = new IntakeRelayClient({ seatToken, accessToken });
       const firmMatterId = firmMatterIdForIntakeSharing(
-        useMatterStore.getState().matters.find((matter) => matter.id === created.id),
+        useMatterStore
+          .getState()
+          .matters.find((matter) => matter.id === created.id)
       );
       const bundle = await createAdvisorIntake({
         intakeId,
@@ -303,17 +314,28 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
         firm: {
           name: firmName,
           accent: BRAND.colors.accent,
-          advisor_name: (firmSession?.email ?? '').split('@')[0] || 'Your advisor',
+          advisor_name:
+            (firmSession?.email ?? '').split('@')[0] || 'Your advisor',
           advisor_email: firmSession?.email ?? BRAND.urls.supportEmail,
           next_steps: [...NEW_HOUSEHOLD_NEXT_STEPS],
           journey: welcomeJourney,
         },
         relay,
-        ...(firmSession?.tier === 'practice' && firmSession.activated && firmMatterId
+        ...(firmSession?.tier === 'practice' &&
+        firmSession.activated &&
+        firmMatterId
           ? {
               publishTeamKey: async (sharedIntakeId: string) => {
-                const client = new FirmApiClient(useFirmStore.getState().tokenSource());
-                await publishIntakeKeyToMembers(client, sharedIntakeId, firmMatterId, 1, { firmEntitled: true });
+                const client = new FirmApiClient(
+                  useFirmStore.getState().tokenSource()
+                );
+                await publishIntakeKeyToMembers(
+                  client,
+                  sharedIntakeId,
+                  firmMatterId,
+                  1,
+                  { firmEntitled: true }
+                );
               },
             }
           : {}),
@@ -370,8 +392,11 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent data-testid="new-client-dialog" className="max-w-2xl">
-        <DialogHeader>
+      <DialogContent
+        data-testid="new-client-dialog"
+        className="max-h-[85vh] max-w-2xl flex flex-col overflow-hidden bg-white p-0"
+      >
+        <DialogHeader className="shrink-0 border-b border-slate-200 px-6 py-5">
           <DialogTitle>
             {step === 'details'
               ? t('matter.new-client.title', { entity: entityLabel.one })
@@ -384,254 +409,275 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
           </DialogDescription>
         </DialogHeader>
 
-        {step === 'details' && (
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="new-client-name">
-                {t('matter.new-client.name-label')}
-              </Label>
-              <Input
-                id="new-client-name"
-                ref={inputRef}
-                data-testid="new-client-name"
-                value={name}
-                onChange={(e) => {
-                  setName(e.target.value);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && name.trim()) {
-                    e.preventDefault();
-                    setStep('compose');
-                  }
-                }}
-                placeholder={t('matter.new-client.name-placeholder')}
-              />
-            </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div
+          data-testid="new-client-dialog-body"
+          className="min-h-0 flex-1 overflow-y-auto px-6 py-5"
+        >
+          {step === 'details' && (
+            <div className="space-y-3">
               <div className="space-y-1.5">
-                <Label htmlFor="new-client-email">Email</Label>
+                <Label htmlFor="new-client-name">
+                  {t('matter.new-client.name-label')}
+                </Label>
                 <Input
-                  id="new-client-email"
-                  value={email}
+                  id="new-client-name"
+                  ref={inputRef}
+                  data-testid="new-client-name"
+                  value={name}
                   onChange={(e) => {
-                    setEmail(e.target.value);
+                    setName(e.target.value);
                   }}
-                  placeholder="client@example.com"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && name.trim()) {
+                      e.preventDefault();
+                      setStep('compose');
+                    }
+                  }}
+                  placeholder={t('matter.new-client.name-placeholder')}
                 />
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="new-client-phone">Phone</Label>
-                <Input
-                  id="new-client-phone"
-                  value={phone}
-                  onChange={(e) => {
-                    setPhone(e.target.value);
-                  }}
-                  placeholder="(555) 123-4567"
-                />
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="new-client-email">Email</Label>
+                  <Input
+                    id="new-client-email"
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                    }}
+                    placeholder="client@example.com"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="new-client-phone">Phone</Label>
+                  <Input
+                    id="new-client-phone"
+                    value={phone}
+                    onChange={(e) => {
+                      setPhone(e.target.value);
+                    }}
+                    placeholder="(555) 123-4567"
+                  />
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {step === 'compose' && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="text-sm font-medium text-slate-700">
-                {t('matter.new-client.household-template')}
+          {step === 'compose' && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-sm font-medium text-slate-700">
+                  {t('matter.new-client.household-template')}
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addChecklistItem}
+                >
+                  <Plus className="mr-2 h-4 w-4" aria-hidden />
+                  Add item
+                </Button>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={addChecklistItem}
+              <div className="max-h-[420px] space-y-2 overflow-auto pr-1">
+                {items.map((item, index) => (
+                  <div
+                    key={item.item_id}
+                    className="rounded-md border border-slate-200 bg-white p-3"
+                  >
+                    <div className="flex items-start gap-2">
+                      <div className="mt-2 w-6 shrink-0 text-center text-xs font-bold text-slate-400">
+                        {index + 1}
+                      </div>
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <Input
+                          value={item.label}
+                          onChange={(e) => {
+                            updateItemText(item.item_id, {
+                              label: e.target.value,
+                            });
+                          }}
+                          aria-label="Item label"
+                        />
+                        <Input
+                          value={item.help_text}
+                          onChange={(e) => {
+                            updateItemText(item.item_id, {
+                              help_text: e.target.value,
+                            });
+                          }}
+                          aria-label="Item help text"
+                          placeholder="Optional helper text"
+                        />
+                      </div>
+                      <div className="flex shrink-0 gap-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Move item up"
+                          onClick={() => {
+                            moveItem(item.item_id, -1);
+                          }}
+                          disabled={index === 0}
+                        >
+                          <ArrowUp className="h-4 w-4" aria-hidden />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Move item down"
+                          onClick={() => {
+                            moveItem(item.item_id, 1);
+                          }}
+                          disabled={index === items.length - 1}
+                        >
+                          <ArrowDown className="h-4 w-4" aria-hidden />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Remove item"
+                          onClick={() => {
+                            setItems((current) =>
+                              current.filter(
+                                (candidate) =>
+                                  candidate.item_id !== item.item_id
+                              )
+                            );
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" aria-hidden />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <details
+                className="rounded-md border border-slate-200 bg-white p-3"
+                open={!hasFirmWelcomeDefault}
               >
-                <Plus className="mr-2 h-4 w-4" aria-hidden />
-                Add item
-              </Button>
-            </div>
-            <div className="max-h-[420px] space-y-2 overflow-auto pr-1">
-              {items.map((item, index) => (
-                <div
-                  key={item.item_id}
-                  className="rounded-md border border-slate-200 bg-white p-3"
-                >
-                  <div className="flex items-start gap-2">
-                    <div className="mt-2 w-6 shrink-0 text-center text-xs font-bold text-slate-400">
-                      {index + 1}
-                    </div>
-                    <div className="min-w-0 flex-1 space-y-2">
-                      <Input
-                        value={item.label}
-                        onChange={(e) => {
-                          updateItemText(item.item_id, {
-                            label: e.target.value,
-                          });
-                        }}
-                        aria-label="Item label"
-                      />
-                      <Input
-                        value={item.help_text}
-                        onChange={(e) => {
-                          updateItemText(item.item_id, {
-                            help_text: e.target.value,
-                          });
-                        }}
-                        aria-label="Item help text"
-                        placeholder="Optional helper text"
-                      />
-                    </div>
-                    <div className="flex shrink-0 gap-1">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        aria-label="Move item up"
-                        onClick={() => {
-                          moveItem(item.item_id, -1);
-                        }}
-                        disabled={index === 0}
-                      >
-                        <ArrowUp className="h-4 w-4" aria-hidden />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        aria-label="Move item down"
-                        onClick={() => {
-                          moveItem(item.item_id, 1);
-                        }}
-                        disabled={index === items.length - 1}
-                      >
-                        <ArrowDown className="h-4 w-4" aria-hidden />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        aria-label="Remove item"
-                        onClick={() => {
-                          setItems((current) =>
-                            current.filter(
-                              (candidate) => candidate.item_id !== item.item_id
-                            )
-                          );
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" aria-hidden />
-                      </Button>
-                    </div>
-                  </div>
+                <summary className="cursor-pointer text-sm font-medium text-slate-700">
+                  Welcome journey
+                </summary>
+                <div className="mt-3">
+                  <WhatHappensNextEditor
+                    value={welcomeJourney}
+                    onChange={setWelcomeJourney}
+                    {...(firmId
+                      ? {
+                          onSaveDefault: (next: WelcomeJourney) => {
+                            saveFirmWelcomeJourneyDefault(firmId, next);
+                            setWelcomeJourney(next);
+                            setHasFirmWelcomeDefault(true);
+                          },
+                        }
+                      : {})}
+                  />
                 </div>
-              ))}
+              </details>
             </div>
-            <details className="rounded-md border border-slate-200 bg-white p-3" open={!hasFirmWelcomeDefault}>
-              <summary className="cursor-pointer text-sm font-medium text-slate-700">Welcome journey</summary>
-              <div className="mt-3">
-                <WhatHappensNextEditor
-                  value={welcomeJourney}
-                  onChange={setWelcomeJourney}
-                  {...(firmId ? { onSaveDefault: (next: WelcomeJourney) => { saveFirmWelcomeJourneyDefault(firmId, next); setWelcomeJourney(next); setHasFirmWelcomeDefault(true); } } : {})}
-                />
-              </div>
-            </details>
-          </div>
-        )}
+          )}
 
-        {step === 'review' && (
-          <div className="space-y-4">
-            <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
-              <div className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                {firmName}
-              </div>
-              <div className="mt-2 text-lg font-bold text-slate-900">
-                {t('matter.new-client.review-greeting', {
-                  name: firstName(name),
-                })}
-              </div>
-              {canCreateOnboardingLink ? (
-                <>
+          {step === 'review' && (
+            <div className="space-y-4">
+              <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
+                <div className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                  {firmName}
+                </div>
+                <div className="mt-2 text-lg font-bold text-slate-900">
+                  {t('matter.new-client.review-greeting', {
+                    name: firstName(name),
+                  })}
+                </div>
+                {canCreateOnboardingLink ? (
+                  <>
+                    <div className="mt-1 text-sm text-slate-600">
+                      {t('matter.new-client.review-link-note')}
+                    </div>
+                    <div className="mt-3 rounded-md border border-dashed border-slate-300 bg-white p-3 text-sm text-slate-500">
+                      {sentLink ||
+                        'The private link will appear here after you create it.'}
+                    </div>
+                  </>
+                ) : (
                   <div className="mt-1 text-sm text-slate-600">
-                    {t('matter.new-client.review-link-note')}
+                    {t('matter.new-client.solo-note', {
+                      entity: entityLabel.one,
+                    })}
                   </div>
-                  <div className="mt-3 rounded-md border border-dashed border-slate-300 bg-white p-3 text-sm text-slate-500">
-                    {sentLink ||
-                      'The private link will appear here after you create it.'}
-                  </div>
-                </>
-              ) : (
-                <div className="mt-1 text-sm text-slate-600">
-                  {t('matter.new-client.solo-note', { entity: entityLabel.one })}
+                )}
+              </div>
+              {sendError ? (
+                <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  {sendError}
                 </div>
-              )}
+              ) : null}
+              {sentLink ? (
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      void navigator.clipboard
+                        .writeText(sentLink)
+                        .then(() => {
+                          setCopied('link');
+                        })
+                        .catch((error: unknown) => {
+                          setSendError(
+                            error instanceof Error
+                              ? error.message
+                              : 'Could not copy the link.'
+                          );
+                        });
+                    }}
+                  >
+                    <Copy className="mr-2 h-4 w-4" aria-hidden />
+                    {copied === 'link' ? 'Copied' : 'Copy link'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      window.location.href = emailHref;
+                    }}
+                    disabled={!emailHref}
+                  >
+                    <Mail className="mr-2 h-4 w-4" aria-hidden />
+                    {t('matter.new-client.open-email-draft')}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      void navigator.clipboard
+                        .writeText(smsCopy(name, sentLink))
+                        .then(() => {
+                          setCopied('sms');
+                        })
+                        .catch((error: unknown) => {
+                          setSendError(
+                            error instanceof Error
+                              ? error.message
+                              : 'Could not copy the text message.'
+                          );
+                        });
+                    }}
+                  >
+                    <MessageSquare className="mr-2 h-4 w-4" aria-hidden />
+                    {copied === 'sms' ? 'Copied' : 'Copy text for SMS'}
+                  </Button>
+                </div>
+              ) : null}
             </div>
-            {sendError ? (
-              <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                {sendError}
-              </div>
-            ) : null}
-            {sentLink ? (
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    void navigator.clipboard
-                      .writeText(sentLink)
-                      .then(() => {
-                        setCopied('link');
-                      })
-                      .catch((error: unknown) => {
-                        setSendError(
-                          error instanceof Error
-                            ? error.message
-                            : 'Could not copy the link.'
-                        );
-                      });
-                  }}
-                >
-                  <Copy className="mr-2 h-4 w-4" aria-hidden />
-                  {copied === 'link' ? 'Copied' : 'Copy link'}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    window.location.href = emailHref;
-                  }}
-                  disabled={!emailHref}
-                >
-                  <Mail className="mr-2 h-4 w-4" aria-hidden />
-                  {t('matter.new-client.open-email-draft')}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    void navigator.clipboard
-                      .writeText(smsCopy(name, sentLink))
-                      .then(() => {
-                        setCopied('sms');
-                      })
-                      .catch((error: unknown) => {
-                        setSendError(
-                          error instanceof Error
-                            ? error.message
-                            : 'Could not copy the text message.'
-                        );
-                      });
-                  }}
-                >
-                  <MessageSquare className="mr-2 h-4 w-4" aria-hidden />
-                  {copied === 'sms' ? 'Copied' : 'Copy text for SMS'}
-                </Button>
-              </div>
-            ) : null}
-          </div>
-        )}
+          )}
+        </div>
 
-        <DialogFooter>
+        <DialogFooter className="shrink-0 border-t border-slate-200 bg-white px-6 py-4">
           <Button
             variant="outline"
             data-testid="new-client-cancel"

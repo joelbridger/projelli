@@ -95,6 +95,30 @@ describe('NewClientDialog', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('keeps wizard actions reachable while the configuration step scrolls', () => {
+    render(<NewClientDialog open={true} onOpenChange={() => undefined} />);
+    fireEvent.change(screen.getByTestId('new-client-name'), {
+      target: { value: 'The Reyes Household' },
+    });
+    fireEvent.click(screen.getByTestId('new-client-next'));
+
+    expect(screen.getByTestId('new-client-dialog')).toHaveClass(
+      'max-h-[85vh]',
+      'flex',
+      'flex-col',
+      'overflow-hidden'
+    );
+    expect(screen.getByTestId('new-client-dialog-body')).toHaveClass(
+      'min-h-0',
+      'flex-1',
+      'overflow-y-auto'
+    );
+    expect(screen.getByTestId('new-client-review')).toBeVisible();
+    expect(screen.getByTestId('new-client-review').parentElement).toHaveClass(
+      'shrink-0'
+    );
+  });
+
   it('creates the client, stores the intake, and lands inside Onboarding', async () => {
     const launches: Array<{ matterId?: string; surface?: string }> = [];
     const onLaunch = (e: Event) => {
