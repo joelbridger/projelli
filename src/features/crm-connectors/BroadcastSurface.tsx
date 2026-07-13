@@ -1,4 +1,4 @@
-/* eslint-disable lantern-i18n/no-hardcoded-string -- Frozen CRM copy needs its catalog in a separate product change. */
+/* eslint-disable lantern-i18n/no-hardcoded-string, react-refresh/only-export-components -- Frozen CRM copy needs its catalog in a separate product change; the recipient-review helpers live with the surface like the sibling CRM registry files. */
 /**
  * A firm email broadcast is intentionally a collection of separate, reviewed
  * sends. The CRM stores the plan and its outcome, while the existing mail
@@ -171,13 +171,17 @@ export function verifyRecipientOnHousehold(
   )
     ? (household[candidate.collection] as readonly unknown[])
     : [];
-  let found = false;
-  const updatedPeople = people.map((value) => {
-    if (!value || typeof value !== 'object') return value;
+  const matchesCandidate = (value: unknown): boolean => {
+    if (!value || typeof value !== 'object') return false;
     const person = value as Record<string, unknown>;
     const id = string(person['id']) ?? emailForReview(person);
-    if (id !== candidate.personId) return value;
-    found = true;
+    return id === candidate.personId;
+  };
+  if (!people.some(matchesCandidate))
+    throw new Error('This person is no longer in the selected client list.');
+  const updatedPeople = people.map((value) => {
+    if (!matchesCandidate(value)) return value;
+    const person = value as Record<string, unknown>;
     return {
       ...person,
       verifiedRecipient: {
@@ -189,8 +193,6 @@ export function verifyRecipientOnHousehold(
       },
     };
   });
-  if (!found)
-    throw new Error('This person is no longer in the selected client list.');
   return {
     ...household,
     [candidate.collection]: updatedPeople,
@@ -793,6 +795,7 @@ export function CrmBroadcastSurface() {
             iconLeft={CheckCircle2}
             disabled={!canSave}
             onClick={() => {
+              // eslint-disable-next-line lantern-async/no-silent-failure -- saveDraft catches its own errors into UI state (setSaveError)
               void saveDraft();
             }}
           >
@@ -895,6 +898,7 @@ export function CrmBroadcastSurface() {
               data-testid="crm-broadcast-confirm-recipient"
               disabled={verifyingRecipient}
               onClick={() => {
+                // eslint-disable-next-line lantern-async/no-silent-failure -- verifyRecipient catches its own errors into UI state
                 void verifyRecipient();
               }}
             >
