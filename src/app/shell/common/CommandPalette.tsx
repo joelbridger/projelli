@@ -72,7 +72,9 @@ export function CommandPalette({
 
   // Filter and sort commands
   const filteredCommands = useMemo(() => {
-    if (!query.trim()) {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    if (!normalizedQuery) {
       // Show recent commands first, then all commands
       const recent = recentCommands
         .map((id) => commands.find((c) => c.id === id))
@@ -83,8 +85,7 @@ export function CommandPalette({
       return [...recent, ...others];
     }
 
-    const lowerQuery = query.toLowerCase();
-    const words = lowerQuery.split(/\s+/);
+    const words = normalizedQuery.split(/\s+/);
 
     return commands
       .map((command) => {
