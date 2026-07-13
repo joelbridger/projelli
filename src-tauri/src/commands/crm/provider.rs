@@ -80,27 +80,40 @@ pub struct CrmProviderAccountInfo {
     pub email: String,
 }
 
-pub fn client_for(provider: CrmProvider, token: String) -> anyhow::Result<Box<dyn CrmSource>> {
+pub fn client_for(
+    provider: CrmProvider,
+    token: String,
+    policy: crate::network_policy::NetworkPolicy,
+) -> anyhow::Result<Box<dyn CrmSource>> {
     match provider {
-        CrmProvider::Wealthbox => Ok(Box::new(WealthboxClient::new(token))),
-        CrmProvider::Salesforce => Ok(Box::new(SalesforceClient::new(token)?)),
-        CrmProvider::Redtail => Ok(Box::new(RedtailClient::new(token)?)),
+        CrmProvider::Wealthbox => Ok(Box::new(WealthboxClient::new(
+            token,
+            policy,
+            crate::network_policy::WEALTHBOX_SYNC,
+        ))),
+        CrmProvider::Salesforce => Ok(Box::new(SalesforceClient::new(token, policy)?)),
+        CrmProvider::Redtail => Ok(Box::new(RedtailClient::new(token, policy)?)),
     }
 }
 
 pub async fn validate_token(
     provider: CrmProvider,
     token: &str,
+    policy: crate::network_policy::NetworkPolicy,
 ) -> anyhow::Result<CrmProviderAccountInfo> {
     match provider {
         CrmProvider::Wealthbox => {
-            let client = WealthboxClient::new(token.to_string());
+            let client = WealthboxClient::new(
+                token.to_string(),
+                policy,
+                crate::network_policy::WEALTHBOX_AUTH,
+            );
             let me = client.me().await?;
             Ok(parse_wealthbox_me_to_info(&me))
         }
         CrmProvider::Salesforce => {
             let _: SalesforceTokenSet = serde_json::from_str(token)?;
-            let client = SalesforceClient::new(token.to_string())?;
+            let client = SalesforceClient::new(token.to_string(), policy)?;
             let info = client.identity().await?;
             Ok(CrmProviderAccountInfo {
                 name: info.name,
@@ -109,7 +122,7 @@ pub async fn validate_token(
             })
         }
         CrmProvider::Redtail => {
-            let client = RedtailClient::new(token.to_string())?;
+            let client = RedtailClient::new(token.to_string(), policy)?;
             let info: RedtailAuthInfo = client.validate_user_key().await?;
             Ok(CrmProviderAccountInfo {
                 name: info.name,

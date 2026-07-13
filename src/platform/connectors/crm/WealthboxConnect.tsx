@@ -38,9 +38,21 @@ import {
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { brandText } from '@/config/brandText';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
+import { usePrivilegedMatterModeActive } from '@/platform/hooks/usePrivilegedMatterMode';
+import { useNativeNetworkLockdownBridgeState } from '@/platform/privacy/nativeNetworkLockdownBridge';
 
 export function WealthboxConnect() {
   useCrmSync();
+  const privacyChoiceLocksNetwork = usePrivilegedMatterModeActive();
+  const nativeLockdown = useNativeNetworkLockdownBridgeState();
+  const networkLockdown =
+    privacyChoiceLocksNetwork || (isTauri() && nativeLockdown.blocked);
+  const lockdownMessage =
+    nativeLockdown.error && !privacyChoiceLocksNetwork
+      ? nativeLockdown.error
+      : nativeLockdown.pending && !privacyChoiceLocksNetwork
+        ? 'Privacy protection is updating. Wealthbox stays paused until it finishes.'
+        : 'Nothing will be sent to or downloaded from Wealthbox while this is on. Turn it off in Privacy settings to connect or sync.';
 
   const progress = useCrmStore((s) => s.progress);
 
@@ -490,6 +502,19 @@ export function WealthboxConnect() {
         </h3>
         <IntegrationHonestyCard connectorId="wealthbox" />
         <WealthboxCustomFieldsAvailability />
+
+        {networkLockdown && (
+          <div
+            data-testid="wealthbox-network-lockdown-message"
+            role="status"
+            className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950"
+          >
+            <p className="font-medium">Wealthbox is paused by Network lockdown.</p>
+            <p className="mt-1 text-xs">
+              {lockdownMessage}
+            </p>
+          </div>
+        )}
         <p className="mt-3 text-xs text-slate-400 italic">
           Available in the desktop app only.
         </p>
@@ -510,6 +535,19 @@ export function WealthboxConnect() {
         {/* B3: disconnect didn't fully remove the data/key — keep a visible retry
             regardless of connection state, so the user is never stuck with data
             on disk and no way to finish removing it. */}
+        {networkLockdown && (
+          <div
+            data-testid="wealthbox-network-lockdown-message"
+            role="status"
+            className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950"
+          >
+            <p className="font-medium">Wealthbox is paused by Network lockdown.</p>
+            <p className="mt-1 text-xs">
+              {lockdownMessage}
+            </p>
+          </div>
+        )}
+
         {dataRemains && (
           <div
             data-testid="wealthbox-data-remains"
@@ -546,6 +584,7 @@ export function WealthboxConnect() {
               type="password"
               data-testid="wealthbox-api-key-input"
               value={token}
+              disabled={networkLockdown}
               onChange={(e) => {
                 setToken(e.target.value);
               }}
@@ -564,7 +603,7 @@ export function WealthboxConnect() {
             <button
               type="button"
               data-testid="connect-wealthbox-button"
-              disabled={connecting}
+              disabled={connecting || networkLockdown}
               onClick={() => void connect()}
               className="rounded-md bg-[var(--kp-navy)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
             >
@@ -666,7 +705,7 @@ export function WealthboxConnect() {
               <button
                 type="button"
                 data-testid="wealthbox-sync-now"
-                disabled={syncing || awaitingImportConfirmation}
+                disabled={syncing || awaitingImportConfirmation || networkLockdown}
                 onClick={() => void runSync()}
                 className="rounded-md bg-[var(--kp-navy)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60"
               >

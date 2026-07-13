@@ -1,12 +1,17 @@
 // Business OS - Tauri Backend
 // Local-first workspace for solo founders
 
+use tauri::Manager;
+
 // `pub` so the `lantern-mcp` sidecar binary (see `src/bin/mcp.rs`) can
 // reuse the `commands::rag::{store, embedder, extractor}` helpers without
 // duplicating code. The binary only touches the pure, Tauri-agnostic
 // sub-modules; the `#[tauri::command]` wrapper fns stay host-only in
 // practice even though the module path is now public.
 pub mod commands;
+// Native, fail-closed network policy and its stable app-data location.
+pub mod app_data;
+pub mod network_policy;
 // Permanent runtime identity constants (keychain services, data-dir names,
 // MCP identifiers, OS data paths). Single source of truth for all
 // Rust-side identity strings — call sites import from here, never hard-code.
@@ -59,6 +64,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             #[cfg(debug_assertions)]
             dev_bridge::dev_bridge_result,
+            set_offline_mode,
+            network_policy_status,
             commands::fs::check_path,
             commands::fs::get_home_dir,
             // First-launch migration of the per-workspace data folder
@@ -423,6 +430,14 @@ pub fn run() {
             commands::retention::redact::redact_meeting_segments,
         ])
         .setup(|app| {
+            // Start closed before any connector state or webview work exists.
+            // App.tsx explicitly sends the current privacy choice after its
+            // saved settings load; until then every native CRM request fails.
+            let policy_data_dir = crate::app_data::resolve_lantern_app_data_dir()
+                .ok_or_else(|| "could not resolve Lantern app data directory".to_string())?;
+            app.manage(network_policy::NetworkPolicy::load_from_app_data_dir(
+                &policy_data_dir,
+            ));
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()
@@ -565,6 +580,23 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[tauri::command]
+fn set_offline_mode(
+    enabled: bool,
+    policy: tauri::State<'_, network_policy::NetworkPolicy>,
+) -> Result<(), String> {
+    policy
+        .set_offline_mode(enabled)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn network_policy_status(
+    policy: tauri::State<'_, network_policy::NetworkPolicy>,
+) -> network_policy::PolicyStatusDto {
+    policy.status()
 }
 
 /// Returns an explicitly requested, existing workspace directory for this

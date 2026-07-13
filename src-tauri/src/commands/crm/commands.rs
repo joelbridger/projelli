@@ -999,6 +999,7 @@ pub async fn crm_delete_write_proposal(
 pub async fn crm_approve_write_proposal(
     app: AppHandle,
     state: State<'_, CrmState>,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
     proposal_id: String,
 ) -> Result<WriteReceipt, String> {
     let mut proposal = {
@@ -1024,6 +1025,7 @@ pub async fn crm_approve_write_proposal(
             crm_create_write(
                 app,
                 &state,
+                policy.inner().clone(),
                 CrmWriteKind::Note,
                 proposal.matter_id.clone(),
                 proposal.title.clone(),
@@ -1041,6 +1043,7 @@ pub async fn crm_approve_write_proposal(
             crm_create_write(
                 app,
                 &state,
+                policy.inner().clone(),
                 CrmWriteKind::Task,
                 proposal.matter_id.clone(),
                 proposal.title.clone(),
@@ -1058,6 +1061,7 @@ pub async fn crm_approve_write_proposal(
             crm_update_field_from_proposal(
                 app,
                 &state,
+                policy.inner().clone(),
                 proposal.matter_id.clone(),
                 proposal.household_key.clone(),
                 proposal.field.clone().unwrap_or_default(),
@@ -1091,6 +1095,7 @@ pub async fn crm_approve_write_proposal(
 pub async fn crm_create_note(
     app: AppHandle,
     state: State<'_, CrmState>,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
     matter_id: String,
     title: String,
     body: String,
@@ -1103,6 +1108,7 @@ pub async fn crm_create_note(
     crm_create_write(
         app,
         &state,
+        policy.inner().clone(),
         CrmWriteKind::Note,
         matter_id,
         title,
@@ -1123,6 +1129,7 @@ pub async fn crm_create_note(
 pub async fn crm_create_task(
     app: AppHandle,
     state: State<'_, CrmState>,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
     matter_id: String,
     title: String,
     description: String,
@@ -1135,6 +1142,7 @@ pub async fn crm_create_task(
     crm_create_write(
         app,
         &state,
+        policy.inner().clone(),
         CrmWriteKind::Task,
         matter_id,
         title,
@@ -1153,6 +1161,7 @@ pub async fn crm_create_task(
 async fn crm_create_write(
     app: AppHandle,
     state: &State<'_, CrmState>,
+    policy: crate::network_policy::NetworkPolicy,
     kind: CrmWriteKind,
     matter_id: String,
     title: String,
@@ -1212,7 +1221,7 @@ async fn crm_create_write(
         .ok_or("workspace not set — call crm_set_workspace first")?;
 
     let store = CrmStore::open(&workspace).map_err(|e| e.to_string())?;
-    let client = write::write_client_for(provider, token).map_err(|e| e.to_string())?;
+    let client = write::write_client_for(provider, token, policy).map_err(|e| e.to_string())?;
 
     let req = CrmWriteRequest {
         kind,
@@ -1311,6 +1320,7 @@ async fn crm_create_write(
 pub async fn crm_update_field(
     app: AppHandle,
     state: State<'_, CrmState>,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
     matter_id: String,
     household_key: String,
     field: String,
@@ -1324,6 +1334,7 @@ pub async fn crm_update_field(
     crm_update_field_from_proposal(
         app,
         &state,
+        policy.inner().clone(),
         matter_id,
         household_key,
         field,
@@ -1343,6 +1354,7 @@ pub async fn crm_update_field(
 async fn crm_update_field_from_proposal(
     app: AppHandle,
     state: &State<'_, CrmState>,
+    policy: crate::network_policy::NetworkPolicy,
     matter_id: String,
     household_key: String,
     field: String,
@@ -1395,7 +1407,7 @@ async fn crm_update_field_from_proposal(
         .ok_or("workspace not set — call crm_set_workspace first")?;
 
     let store = CrmStore::open(&workspace).map_err(|e| e.to_string())?;
-    let client = write::write_client_for(provider, token).map_err(|e| e.to_string())?;
+    let client = write::write_client_for(provider, token, policy).map_err(|e| e.to_string())?;
 
     let req = write::CrmFieldUpdateRequest {
         matter_id: matter_id.clone(),
@@ -1514,11 +1526,16 @@ async fn crm_update_field_from_proposal(
 #[tauri::command]
 pub async fn crm_set_workspace(
     state: State<'_, CrmState>,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
     path: String,
     provider: Option<String>,
 ) -> Result<(), String> {
     let provider = CrmProvider::from_optional(provider.as_deref())?;
     let ws = PathBuf::from(path);
+    // CRM setup is also the earliest guaranteed CRM workspace handoff. Point
+    // native egress receipts at the same encrypted append-only log even if the
+    // Activity screen has not hydrated its audit service yet.
+    policy.set_audit_workspace(ws.clone());
 
     // Codex round 9 (self-converge): ALWAYS store the workspace path,
     // unconditionally — never gate this on connect_in_progress. Round 4's
@@ -1596,10 +1613,21 @@ pub async fn crm_set_workspace(
 /// `accounts[0].name` (e.g. "Northcrest"), falling back to the user's own
 /// `name` field (e.g. "Jameson Daines") when no accounts are present.  This
 /// ensures the UI shows the RIA/firm name rather than the individual user.
+fn crm_connect_error(provider: CrmProvider, error: &anyhow::Error) -> String {
+    if let Some(policy_error) = error.downcast_ref::<crate::network_policy::NetworkPolicyError>() {
+        return policy_error.to_string();
+    }
+    format!(
+        "Could not connect to {}: invalid login or network error",
+        provider.display_name()
+    )
+}
+
 #[tauri::command]
 pub async fn crm_connect(
     app: AppHandle,
     state: State<'_, CrmState>,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
     token: Option<String>,
     username: Option<String>,
     password: Option<String>,
@@ -1617,10 +1645,10 @@ pub async fn crm_connect(
             .as_deref()
             .filter(|v| !v.is_empty())
             .ok_or_else(|| "Redtail password is required".to_string())?;
-        let info = RedtailClient::authenticate(username, password)
+        let info = RedtailClient::authenticate(username, password, policy.inner())
             .await
-            .map_err(|_| {
-                "Could not connect to Redtail: invalid login or network error".to_string()
+            .map_err(|error| {
+                crm_connect_error(CrmProvider::Redtail, &error)
             })?;
 
         // Block NEW writes for the whole token-swap + downgrade transition
@@ -1676,12 +1704,9 @@ pub async fn crm_connect(
     // Validate: call /me and check the response is a success. Any network
     // error or non-2xx status surfaces a clean message; raw body is never
     // surfaced (it may contain advisor/firm PII).
-    let info = validate_token(provider, token).await.map_err(|_| {
-        format!(
-            "Could not connect to {}: invalid token or network error",
-            provider.display_name()
-        )
-    })?;
+    let info = validate_token(provider, token, policy.inner().clone())
+        .await
+        .map_err(|error| crm_connect_error(provider, &error))?;
 
     // Block NEW writes for the whole token-swap + downgrade transition (not
     // just the drain wait) — see ConnectInProgressGuard's doc comment. Also
@@ -1740,6 +1765,7 @@ pub async fn crm_connect(
 pub async fn crm_oauth_connect(
     app: AppHandle,
     state: State<'_, CrmState>,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
     provider: Option<String>,
 ) -> Result<CrmConnectInfo, String> {
     let provider = CrmProvider::from_optional(provider.as_deref())?;
@@ -1763,7 +1789,20 @@ pub async fn crm_oauth_connect(
             .await
             .map_err(|e| e.to_string())?;
     let url = build_salesforce_auth_url(&client_id, &redirect_uri, &challenge, &state_token);
-    crate::commands::mail::gmail::oauth::open_browser(&url);
+    crate::commands::connector_network::handoff_guarded(
+        policy.inner(),
+        &crate::network_policy::SALESFORCE_OAUTH,
+        &url,
+        None,
+        || crate::commands::mail::gmail::oauth::open_browser(&url),
+    )
+    .map_err(|error| {
+        crate::commands::connector_network::transport_error(
+            error,
+            "failed to open Salesforce sign-in",
+        )
+        .to_string()
+    })?;
     let code = crate::commands::mail::gmail::oauth::await_redirect_code_or_cancel(
         listener,
         &state_token,
@@ -1778,6 +1817,7 @@ pub async fn crm_oauth_connect(
         &verifier,
         &redirect_uri,
         SALESFORCE_TOKEN_ENDPOINT,
+        policy.inner(),
     )
     .await
     .map_err(|e| e.to_string())?;
@@ -1841,6 +1881,7 @@ pub async fn crm_oauth_connect(
         stored,
         client_id,
         SALESFORCE_TOKEN_ENDPOINT.to_string(),
+        policy.inner().clone(),
     )
     .map_err(|e| e.to_string())?
     .identity()
@@ -2278,6 +2319,7 @@ fn crm_source_id_for_row(row: &crate::commands::crm::store::CrmObjectRow) -> Opt
 pub async fn crm_sync_all(
     app: AppHandle,
     state: State<'_, CrmState>,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
     matter_map: Vec<CrmMatterMapEntry>,
     run_id: String,
     provider: Option<String>,
@@ -2365,7 +2407,7 @@ pub async fn crm_sync_all(
 
     // Run the full backfill (fetch → ingest → index). The cancel flag is polled
     // between matters so the UI's Stop button interrupts a long sync.
-    let client = client_for(provider, token).map_err(|e| e.to_string())?;
+    let client = client_for(provider, token, policy.inner().clone()).map_err(|e| e.to_string())?;
     // A frontend timeout cannot stop a Tauri command already running in the
     // desktop process.  At ten minutes we therefore request cancellation, tell
     // the screen we are stopping safely, and WAIT for the engine to finish its
@@ -2557,6 +2599,7 @@ fn household_dto_name(contact: &crate::commands::crm::model::CrmContact) -> Stri
 #[tauri::command]
 pub async fn crm_list_households(
     app: AppHandle,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
     run_id: String,
     provider: Option<String>,
 ) -> Result<Vec<CrmHouseholdDto>, String> {
@@ -2566,7 +2609,7 @@ pub async fn crm_list_households(
     // an activity-free "Syncing" state while this fetch is underway.
     emit_crm_progress(&app, &run_id, serde_json::json!({ "status": "connecting" }));
     let token = read_token(provider).ok_or_else(|| "not connected".to_string())?;
-    let client = client_for(provider, token).map_err(|e| e.to_string())?;
+    let client = client_for(provider, token, policy.inner().clone()).map_err(|e| e.to_string())?;
     let contacts = match client.list_households().await {
         Ok(contacts) => contacts,
         Err(error) => {

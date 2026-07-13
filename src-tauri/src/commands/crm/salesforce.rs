@@ -40,6 +40,63 @@ pub struct SalesforceAccountInfo {
     pub email: String,
 }
 
+/// Salesforce REST instance URLs are server-issued origins, never arbitrary
+/// connector addresses. Accept only Salesforce-controlled HTTPS subdomains so
+/// a poisoned token record cannot redirect a bearer token to another server.
+fn validate_salesforce_instance_url(value: &str) -> anyhow::Result<(String, String)> {
+    let parsed = reqwest::Url::parse(value).context("parse Salesforce instance URL")?;
+    if parsed.scheme() != "https"
+        || !parsed.username().is_empty()
+        || parsed.password().is_some()
+        || parsed.port().is_some()
+        || parsed.query().is_some()
+        || parsed.fragment().is_some()
+        || parsed.path() != "/"
+    {
+        anyhow::bail!("Salesforce instance address must be a plain HTTPS Salesforce origin");
+    }
+    let host = parsed
+        .host_str()
+        .ok_or_else(|| anyhow::anyhow!("Salesforce instance URL has no host"))?
+        .to_ascii_lowercase();
+    if !host.ends_with(".salesforce.com") {
+        anyhow::bail!("Salesforce instance address is outside Salesforce");
+    }
+    Ok((format!("https://{host}"), host))
+}
+
+fn identity_route(
+    id_url: &str,
+    instance_url: &str,
+) -> anyhow::Result<(&'static crate::network_policy::EgressOperation, Option<String>)> {
+    let identity = reqwest::Url::parse(id_url).context("parse Salesforce identity URL")?;
+    let (_, instance_host) = validate_salesforce_instance_url(instance_url)?;
+    if identity.scheme() != "https"
+        || !identity.username().is_empty()
+        || identity.password().is_some()
+        || identity.port().is_some()
+    {
+        anyhow::bail!("Salesforce identity address must use standard HTTPS");
+    }
+    let identity_host = identity
+        .host_str()
+        .ok_or_else(|| anyhow::anyhow!("Salesforce identity URL has no host"))?
+        .to_ascii_lowercase();
+    if identity_host == instance_host {
+        return Ok((
+            &crate::network_policy::SALESFORCE_IDENTITY,
+            Some(instance_host),
+        ));
+    }
+    if matches!(
+        identity_host.as_str(),
+        "login.salesforce.com" | "test.salesforce.com"
+    ) {
+        return Ok((&crate::network_policy::SALESFORCE_LOGIN_IDENTITY, None));
+    }
+    anyhow::bail!("Salesforce returned an identity address outside its approved hosts")
+}
+
 pub fn salesforce_client_id() -> Option<String> {
     std::env::var("LANTERN_SALESFORCE_CLIENT_ID")
         .ok()
@@ -76,13 +133,13 @@ pub async fn exchange_salesforce_code(
     code_verifier: &str,
     redirect_uri: &str,
     token_endpoint: &str,
+    network_policy: &crate::network_policy::NetworkPolicy,
 ) -> anyhow::Result<SalesforceTokenSet> {
-    let http = reqwest::Client::builder()
-        .timeout(Duration::from_secs(30))
-        .connect_timeout(Duration::from_secs(15))
-        .build()
-        .expect("build reqwest client for Salesforce OAuth");
-    let resp = http
+    let http = crate::commands::connector_network::guarded_http_client(
+        Duration::from_secs(30),
+        Duration::from_secs(15),
+    );
+    let request = http
         .post(token_endpoint)
         .form(&[
             ("grant_type", "authorization_code"),
@@ -90,10 +147,16 @@ pub async fn exchange_salesforce_code(
             ("code", code),
             ("code_verifier", code_verifier),
             ("redirect_uri", redirect_uri),
-        ])
-        .send()
-        .await
-        .context("Salesforce OAuth token exchange")?;
+        ]);
+    let resp = crate::commands::connector_network::send_guarded(
+        network_policy,
+        &crate::network_policy::SALESFORCE_OAUTH,
+        token_endpoint,
+        None,
+        request,
+    )
+    .await
+    .map_err(|error| crate::commands::connector_network::transport_error(error, "Salesforce OAuth token exchange"))?;
     let status = resp.status().as_u16();
     let body: serde_json::Value = resp.json().await.context("parse Salesforce token JSON")?;
     parse_salesforce_token_response(status, &body, None)
@@ -133,6 +196,7 @@ fn parse_salesforce_token_response(
     if instance_url.is_empty() {
         anyhow::bail!("Salesforce token response had no instance_url");
     }
+    let (instance_url, _) = validate_salesforce_instance_url(instance_url)?;
     let expires_in = body
         .get("expires_in")
         .and_then(|v| v.as_u64())
@@ -144,7 +208,7 @@ fn parse_salesforce_token_response(
     Ok(SalesforceTokenSet {
         access_token: access.to_string(),
         refresh_token: refresh.to_string(),
-        instance_url: instance_url.trim_end_matches('/').to_string(),
+        instance_url,
         expires_at_unix: now + expires_in.saturating_sub(60),
         id_url: body
             .get("id")
@@ -157,18 +221,23 @@ fn parse_salesforce_token_response(
 pub struct SalesforceClient {
     client_id: String,
     tokens: tokio::sync::Mutex<SalesforceTokenSet>,
-    http: reqwest::Client,
+    http: crate::commands::connector_network::GuardedHttpClient,
     token_endpoint: String,
+    network_policy: crate::network_policy::NetworkPolicy,
 }
 
 impl SalesforceClient {
-    pub fn new(stored_json: String) -> anyhow::Result<Self> {
+    pub fn new(
+        stored_json: String,
+        network_policy: crate::network_policy::NetworkPolicy,
+    ) -> anyhow::Result<Self> {
         let client_id = salesforce_client_id()
             .ok_or_else(|| anyhow::anyhow!("LANTERN_SALESFORCE_CLIENT_ID is not configured"))?;
         Self::new_with_token_endpoint(
             stored_json,
             client_id,
             SALESFORCE_TOKEN_ENDPOINT.to_string(),
+            network_policy,
         )
     }
 
@@ -176,19 +245,22 @@ impl SalesforceClient {
         stored_json: String,
         client_id: String,
         token_endpoint: String,
+        network_policy: crate::network_policy::NetworkPolicy,
     ) -> anyhow::Result<Self> {
-        let tokens: SalesforceTokenSet =
+        let mut tokens: SalesforceTokenSet =
             serde_json::from_str(&stored_json).context("parse stored Salesforce token set")?;
-        let http = reqwest::Client::builder()
-            .timeout(Duration::from_secs(60))
-            .connect_timeout(Duration::from_secs(15))
-            .build()
-            .expect("build reqwest client for SalesforceClient");
+        let (instance_url, _) = validate_salesforce_instance_url(&tokens.instance_url)?;
+        tokens.instance_url = instance_url;
+        let http = crate::commands::connector_network::guarded_http_client(
+            Duration::from_secs(60),
+            Duration::from_secs(15),
+        );
         Ok(Self {
             client_id,
             tokens: tokio::sync::Mutex::new(tokens),
             http,
             token_endpoint,
+            network_policy,
         })
     }
 
@@ -206,17 +278,23 @@ impl SalesforceClient {
     }
 
     async fn refresh_locked(&self, refresh_token: &str) -> anyhow::Result<SalesforceTokenSet> {
-        let resp = self
+        let request = self
             .http
             .post(&self.token_endpoint)
             .form(&[
                 ("grant_type", "refresh_token"),
                 ("client_id", self.client_id.as_str()),
                 ("refresh_token", refresh_token),
-            ])
-            .send()
-            .await
-            .context("Salesforce OAuth refresh")?;
+            ]);
+        let resp = crate::commands::connector_network::send_guarded(
+            &self.network_policy,
+            &crate::network_policy::SALESFORCE_OAUTH,
+            &self.token_endpoint,
+            None,
+            request,
+        )
+        .await
+        .map_err(|error| crate::commands::connector_network::transport_error(error, "Salesforce OAuth refresh"))?;
         let status = resp.status().as_u16();
         let body: serde_json::Value = resp.json().await.context("parse Salesforce refresh JSON")?;
         let refreshed = parse_salesforce_token_response(status, &body, Some(refresh_token))?;
@@ -236,13 +314,18 @@ impl SalesforceClient {
                 email: String::new(),
             });
         }
-        let resp = self
-            .http
-            .get(&id_url)
-            .bearer_auth(access)
-            .send()
-            .await
-            .context("Salesforce identity request")?;
+        let instance_url = { self.tokens.lock().await.instance_url.clone() };
+        let (identity_operation, configured_host) = identity_route(&id_url, &instance_url)?;
+        let request = self.http.get(&id_url).bearer_auth(access);
+        let resp = crate::commands::connector_network::send_guarded(
+            &self.network_policy,
+            identity_operation,
+            &id_url,
+            configured_host.as_deref(),
+            request,
+        )
+        .await
+        .map_err(|error| crate::commands::connector_network::transport_error(error, "Salesforce identity request"))?;
         let status = resp.status();
         let body: serde_json::Value = resp
             .json()
@@ -283,7 +366,19 @@ impl SalesforceClient {
         for (k, v) in query {
             req = req.query(&[(*k, v.as_str())]);
         }
-        let resp = req.send().await.context("Salesforce REST GET")?;
+        let configured_host = reqwest::Url::parse(&instance_url)
+            .ok()
+            .and_then(|parsed| parsed.host_str().map(str::to_string))
+            .ok_or_else(|| anyhow::anyhow!("Salesforce instance URL has no host"))?;
+        let resp = crate::commands::connector_network::send_guarded(
+            &self.network_policy,
+            &crate::network_policy::SALESFORCE_SYNC,
+            &url,
+            Some(&configured_host),
+            req,
+        )
+        .await
+        .map_err(|error| crate::commands::connector_network::transport_error(error, "Salesforce REST GET"))?;
         let status = resp.status();
         let body = resp.text().await.context("read Salesforce response body")?;
         if !status.is_success() {
@@ -833,6 +928,57 @@ mod tests {
 
         let missing_instance = serde_json::json!({"access_token": "AT", "refresh_token": "RT"});
         assert!(parse_salesforce_token_response(200, &missing_instance, None).is_err());
+
+        let poisoned_instance = serde_json::json!({
+            "access_token": "AT",
+            "refresh_token": "RT",
+            "instance_url": "https://attacker.example"
+        });
+        assert!(
+            parse_salesforce_token_response(200, &poisoned_instance, None).is_err(),
+            "a token response must never choose an arbitrary bearer-token destination"
+        );
+    }
+
+    #[test]
+    fn standard_salesforce_identity_url_uses_the_login_host_registry_entry() {
+        let (operation, configured_host) = identity_route(
+            "https://login.salesforce.com/id/org/user",
+            "https://example.my.salesforce.com",
+        )
+        .unwrap();
+        assert_eq!(operation.id, "crm-auth-salesforce-identity");
+        assert_eq!(configured_host, None);
+    }
+
+    #[test]
+    fn organization_identity_url_uses_the_connected_instance_only() {
+        let (operation, configured_host) = identity_route(
+            "https://example.my.salesforce.com/id/org/user",
+            "https://example.my.salesforce.com",
+        )
+        .unwrap();
+        assert_eq!(operation.id, "crm-auth-salesforce-instance");
+        assert_eq!(configured_host.as_deref(), Some("example.my.salesforce.com"));
+    }
+
+    #[test]
+    fn unrelated_or_insecure_salesforce_identity_url_is_rejected() {
+        assert!(identity_route(
+            "https://attacker.example/id/org/user",
+            "https://example.my.salesforce.com",
+        )
+        .is_err());
+        assert!(identity_route(
+            "http://login.salesforce.com/id/org/user",
+            "https://example.my.salesforce.com",
+        )
+        .is_err());
+        assert!(identity_route(
+            "https://attacker.example/id/org/user",
+            "https://attacker.example",
+        )
+        .is_err());
     }
 
     #[test]

@@ -29,6 +29,7 @@ import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import { InfoHelp } from '@/ui/InfoHelp';
 import { brandText } from '@/config/brandText';
+import { useNativeNetworkLockdownBridgeState } from '@/platform/privacy/nativeNetworkLockdownBridge';
 
 const PROVIDER = 'salesforce' as const;
 const SALESFORCE_KEY_PREFIX = 'sfdc:';
@@ -57,6 +58,14 @@ function scrubSalesforceFromMatters() {
 
 export function SalesforceConnect() {
   useCrmSync();
+  const nativeLockdown = useNativeNetworkLockdownBridgeState();
+  const networkLockdown = isTauri() && nativeLockdown.blocked;
+  const lockdownMessage =
+    nativeLockdown.error
+      ? nativeLockdown.error
+      : nativeLockdown.pending
+        ? 'Privacy protection is updating. Salesforce stays paused until it finishes.'
+        : 'Nothing will be sent to or downloaded from Salesforce while this is on. Turn it off in Privacy settings to connect or sync.';
 
   const progress = useCrmStore((s) => s.progress);
   const [connected, setConnected] = useState(false);
@@ -299,6 +308,17 @@ export function SalesforceConnect() {
           <InfoHelp content="Connect Salesforce Financial Services Cloud to import the households and contacts this login can read. This connector is read-only." />
         </h3>
 
+        {networkLockdown && (
+          <div
+            data-testid="salesforce-network-lockdown-message"
+            role="status"
+            className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950"
+          >
+            <p className="font-medium">Salesforce is paused by Network lockdown.</p>
+            <p className="mt-1 text-xs">{lockdownMessage}</p>
+          </div>
+        )}
+
         {!connected && (
           <div className="mt-3 space-y-3">
             {disconnectNote && (
@@ -307,7 +327,7 @@ export function SalesforceConnect() {
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                disabled={connecting}
+                disabled={connecting || networkLockdown}
                 onClick={() => void connect()}
                 className="rounded-md bg-[var(--kp-navy)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
               >
@@ -374,7 +394,7 @@ export function SalesforceConnect() {
               <button
                 type="button"
                 data-testid="salesforce-sync-now"
-                disabled={syncing}
+                disabled={syncing || networkLockdown}
                 onClick={() => void runSync()}
                 className="rounded-md bg-[var(--kp-navy)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60"
               >

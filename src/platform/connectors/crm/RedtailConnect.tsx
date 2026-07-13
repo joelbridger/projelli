@@ -28,6 +28,7 @@ import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import { InfoHelp } from '@/ui/InfoHelp';
 import { brandText } from '@/config/brandText';
+import { useNativeNetworkLockdownBridgeState } from '@/platform/privacy/nativeNetworkLockdownBridge';
 
 const PROVIDER = 'redtail' as const;
 const REDTAIL_KEY_PREFIX = 'redtail:';
@@ -52,6 +53,14 @@ function scrubRedtailFromMatters() {
 
 export function RedtailConnect() {
   useCrmSync();
+  const nativeLockdown = useNativeNetworkLockdownBridgeState();
+  const networkLockdown = isTauri() && nativeLockdown.blocked;
+  const lockdownMessage =
+    nativeLockdown.error
+      ? nativeLockdown.error
+      : nativeLockdown.pending
+        ? 'Privacy protection is updating. Redtail stays paused until it finishes.'
+        : 'Nothing will be sent to or downloaded from Redtail while this is on. Turn it off in Privacy settings to connect or sync.';
 
   const progress = useCrmStore((s) => s.progress);
   const [connected, setConnected] = useState(false);
@@ -246,6 +255,17 @@ export function RedtailConnect() {
           <InfoHelp content={brandText('Read-only import for Redtail families, contacts, notes, and activities. Your password is used once to get a Redtail UserKey; Lantern stores the UserKey, not the password.')} />
         </h3>
 
+        {networkLockdown && (
+          <div
+            data-testid="redtail-network-lockdown-message"
+            role="status"
+            className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950"
+          >
+            <p className="font-medium">Redtail is paused by Network lockdown.</p>
+            <p className="mt-1 text-xs">{lockdownMessage}</p>
+          </div>
+        )}
+
         {!connected && (
           <div className="mt-3 space-y-3">
             {disconnectNote && <p className="text-sm text-slate-600">{disconnectNote}</p>}
@@ -253,6 +273,7 @@ export function RedtailConnect() {
               <input
                 type="text"
                 value={username}
+                disabled={networkLockdown}
                 onChange={(e) => { setUsername(e.target.value); }}
                 placeholder="Redtail username"
                 className="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
@@ -261,6 +282,7 @@ export function RedtailConnect() {
               <input
                 type="password"
                 value={password}
+                disabled={networkLockdown}
                 onChange={(e) => { setPassword(e.target.value); }}
                 placeholder="Redtail password"
                 className="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
@@ -273,7 +295,7 @@ export function RedtailConnect() {
             </p>
             <button
               type="button"
-              disabled={connecting}
+              disabled={connecting || networkLockdown}
               onClick={() => void connect()}
               className="rounded-md bg-[var(--kp-navy)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
             >
@@ -320,7 +342,7 @@ export function RedtailConnect() {
               <button
                 type="button"
                 data-testid="redtail-sync-now"
-                disabled={syncing}
+                disabled={syncing || networkLockdown}
                 onClick={() => void runSync()}
                 className="rounded-md bg-[var(--kp-navy)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60"
               >

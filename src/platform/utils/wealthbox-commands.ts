@@ -7,8 +7,70 @@
 
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import type { CrmMatterMapEntry } from '@/platform/rag/matterResolver';
+import { getPrivilegedMatterModeActive } from '@/platform/hooks/usePrivilegedMatterMode';
+import { getEgressOperation } from '@/platform/privacy/egressRegistry';
+import { getNativeNetworkLockdownBridgeState } from '@/platform/privacy/nativeNetworkLockdownBridge';
 
 export type CrmProvider = 'wealthbox' | 'salesforce' | 'redtail';
+
+type CrmNetworkOperationId =
+  | 'crm-auth-wealthbox'
+  | 'crm-auth-salesforce'
+  | 'crm-auth-redtail'
+  | 'crm-sync-wealthbox'
+  | 'crm-write-wealthbox'
+  | 'crm-sync-salesforce'
+  | 'crm-sync-redtail'
+  | 'crm-migration-import';
+
+export class CrmNetworkLockdownError extends Error {
+  readonly code = 'NETWORK_LOCKDOWN_BLOCKED';
+
+  constructor(action: string) {
+    super(
+      `Network lockdown is on. ${action} is paused so nothing can leave this computer. Turn off Network lockdown in Privacy settings to continue.`,
+    );
+    this.name = 'CrmNetworkLockdownError';
+  }
+}
+
+function crmOperationForProvider(
+  provider: CrmProvider | undefined,
+  purpose: 'auth' | 'sync' | 'write' = 'sync',
+): CrmNetworkOperationId {
+  if (provider === 'salesforce') {
+    return purpose === 'auth' ? 'crm-auth-salesforce' : 'crm-sync-salesforce';
+  }
+  if (provider === 'redtail') {
+    return purpose === 'auth' ? 'crm-auth-redtail' : 'crm-sync-redtail';
+  }
+  if (purpose === 'auth') return 'crm-auth-wealthbox';
+  return purpose === 'write' ? 'crm-write-wealthbox' : 'crm-sync-wealthbox';
+}
+
+/**
+ * The renderer-side CRM choke point. Every CRM action that can reach a remote
+ * service must come through here, so the visible error appears before a native
+ * command begins. The Rust transport repeats the same check at the socket
+ * boundary; this fast check is user feedback, not the security boundary.
+ */
+async function invokeCrmNetwork<T>(
+  command: string,
+  args: Record<string, unknown>,
+  operationId: CrmNetworkOperationId,
+): Promise<T> {
+  const operation = getEgressOperation(operationId);
+  if (!operation) {
+    throw new Error(`CRM network operation "${operationId}" is not registered and was blocked.`);
+  }
+  if (
+    getPrivilegedMatterModeActive() ||
+    getNativeNetworkLockdownBridgeState().blocked
+  ) {
+    throw new CrmNetworkLockdownError(operation.title);
+  }
+  return invoke<T>(command, args);
+}
 
 // ── CRM event constant ──────────────────────────────────────────────────────
 
@@ -103,7 +165,11 @@ export async function crmSetWorkspace(path: string, provider?: CrmProvider): Pro
  */
 export async function crmConnect(token: string, provider?: CrmProvider): Promise<CrmConnectInfo> {
   if (!isTauri()) throw new Error('Wealthbox connect is only available in the desktop app.');
-  return invoke<CrmConnectInfo>('crm_connect', provider ? { token, provider } : { token });
+  return invokeCrmNetwork<CrmConnectInfo>(
+    'crm_connect',
+    provider ? { token, provider } : { token },
+    crmOperationForProvider(provider, 'auth'),
+  );
 }
 
 /**
@@ -116,13 +182,21 @@ export async function crmConnectWithCredentials(
   password: string,
 ): Promise<CrmConnectInfo> {
   if (!isTauri()) throw new Error('CRM connect is only available in the desktop app.');
-  return invoke<CrmConnectInfo>('crm_connect', { provider, username, password });
+  return invokeCrmNetwork<CrmConnectInfo>(
+    'crm_connect',
+    { provider, username, password },
+    crmOperationForProvider(provider, 'auth'),
+  );
 }
 
 /** Run a provider browser OAuth flow. Salesforce uses this path. */
 export async function crmOAuthConnect(provider: CrmProvider): Promise<CrmConnectInfo> {
   if (!isTauri()) throw new Error('CRM OAuth connect is only available in the desktop app.');
-  return invoke<CrmConnectInfo>('crm_oauth_connect', { provider });
+  return invokeCrmNetwork<CrmConnectInfo>(
+    'crm_oauth_connect',
+    { provider },
+    crmOperationForProvider(provider, 'auth'),
+  );
 }
 
 /** Abort a pending crmOAuthConnect() sign-in immediately (user clicked
@@ -166,9 +240,11 @@ export async function crmDisconnect(provider?: CrmProvider): Promise<CrmDisconne
  */
 export async function crmListHouseholds(runId: string, provider?: CrmProvider): Promise<CrmHouseholdDto[]> {
   if (!isTauri()) return [];
-  return provider
-    ? invoke<CrmHouseholdDto[]>('crm_list_households', { provider, runId })
-    : invoke<CrmHouseholdDto[]>('crm_list_households', { runId });
+  return invokeCrmNetwork<CrmHouseholdDto[]>(
+    'crm_list_households',
+    provider ? { provider, runId } : { runId },
+    crmOperationForProvider(provider),
+  );
 }
 
 /**
@@ -182,7 +258,11 @@ export async function crmListHouseholds(runId: string, provider?: CrmProvider): 
  */
 export async function crmSyncAll(matterMap: CrmMatterMapEntry[], runId: string, provider?: CrmProvider): Promise<CrmSyncReport> {
   if (!isTauri()) throw new Error('Wealthbox sync is only available in the desktop app.');
-  return invoke<CrmSyncReport>('crm_sync_all', provider ? { matterMap, provider, runId } : { matterMap, runId });
+  return invokeCrmNetwork<CrmSyncReport>(
+    'crm_sync_all',
+    provider ? { matterMap, provider, runId } : { matterMap, runId },
+    crmOperationForProvider(provider),
+  );
 }
 
 /** Poll the current sync state without subscribing to events. */
@@ -283,7 +363,11 @@ export async function crmPrepareWriteProposal(args: {
  * sees anything. */
 export async function crmApproveWriteProposal(proposalId: string): Promise<CrmWriteReceipt> {
   if (!isTauri()) throw new Error('CRM write is only available in the desktop app.');
-  return invoke<CrmWriteReceipt>('crm_approve_write_proposal', { proposalId });
+  return invokeCrmNetwork<CrmWriteReceipt>(
+    'crm_approve_write_proposal',
+    { proposalId },
+    crmOperationForProvider('wealthbox', 'write'),
+  );
 }
 
 export async function crmListWriteProposals(): Promise<CrmWriteProposalRecord[]> {
@@ -294,4 +378,19 @@ export async function crmListWriteProposals(): Promise<CrmWriteProposalRecord[]>
 export async function crmDeleteWriteProposal(proposalId: string): Promise<void> {
   if (!isTauri()) return;
   await invoke('crm_delete_write_proposal', { proposalId });
+}
+
+/** Import prepared CRM migration samples through the same lockdown doorway as
+ * live CRM traffic. The Rust transport repeats this check for every page. */
+export async function crmMigrationImport<T>(args: {
+  baseUrl: string;
+  source?: string;
+  sourceIdField?: string;
+}): Promise<T> {
+  if (!isTauri()) throw new Error('CRM migration is only available in the desktop app.');
+  return invokeCrmNetwork<T>(
+    'crm_migration_import',
+    args,
+    'crm-migration-import',
+  );
 }

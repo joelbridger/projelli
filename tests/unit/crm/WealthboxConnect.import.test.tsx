@@ -22,6 +22,9 @@ vi.mock('@tauri-apps/api/core', () => ({
 // useCrmSync only subscribes to a Tauri event to mirror progress text; it is
 // not part of the import flow under test.
 vi.mock('@/platform/connectors/crm/useCrmSync', () => ({ useCrmSync: () => {} }));
+vi.mock('@/platform/hooks/usePrivilegedMatterMode', () => ({
+  usePrivilegedMatterModeActive: () => false,
+}));
 
 const crmMocks = vi.hoisted(() => ({
   crmConnect: vi.fn(),

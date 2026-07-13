@@ -23,6 +23,9 @@ vi.mock('@tauri-apps/api/core', () => ({
 }));
 
 vi.mock('@/platform/connectors/crm/useCrmSync', () => ({ useCrmSync: () => {} }));
+vi.mock('@/platform/hooks/usePrivilegedMatterMode', () => ({
+  usePrivilegedMatterModeActive: () => false,
+}));
 
 const crmMocks = vi.hoisted(() => ({
   crmConnect: vi.fn(),

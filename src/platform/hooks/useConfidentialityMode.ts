@@ -17,6 +17,7 @@ import {
 } from '@/platform/privacy/egress';
 import { CONFIDENTIALITY_CHOICE_MADE_KEY } from '@/platform/privacy/resolvePersonalEgressDefault';
 import { preStartLocalAi } from '@/platform/providers/localAiPreStart';
+import { requestNativeNetworkLockdown } from '@/platform/privacy/nativeNetworkLockdownBridge';
 
 const SAFE_CONFIDENTIALITY_MODE: ConfidentialityMode = 'local-only';
 
@@ -40,6 +41,7 @@ export function useConfidentialityMode(): ConfidentialityMode {
 export function useSetConfidentialityMode(): (mode: ConfidentialityMode) => void {
   const setSetting = useSettingsStore((s) => s.setSetting);
   return (mode: ConfidentialityMode) => {
+    if (mode === 'local-only') requestNativeNetworkLockdown(true);
     setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, mode);
   };
 }
@@ -68,6 +70,7 @@ export function useSetConfidentialityMode(): (mode: ConfidentialityMode) => void
 export function useRecordConfidentialityChoice(): (mode: ConfidentialityMode) => void {
   const setSetting = useSettingsStore((s) => s.setSetting);
   return (mode: ConfidentialityMode) => {
+    if (mode === 'local-only') requestNativeNetworkLockdown(true);
     setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, mode);
     setSetting(CONFIDENTIALITY_CHOICE_MADE_KEY, true);
     if (mode === 'local-only') preStartLocalAi();

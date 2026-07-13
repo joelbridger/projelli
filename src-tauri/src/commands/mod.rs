@@ -43,6 +43,9 @@ pub mod calendar;
 pub mod calendly;
 // Shared additive connector foundation — generic external RAG ingestion bridge.
 pub mod connector;
+// The only native HTTP doorway CRM connectors may use. It authorizes every
+// request, retry, and page against Network Lockdown before a socket can open.
+pub mod connector_network;
 // M365 email-import (Task 1+) — pure-Rust Graph JSON parsing, local index, sync.
 pub mod mail;
 // Read-only OneDrive / SharePoint document connector.

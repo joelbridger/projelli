@@ -8,7 +8,7 @@
  *   - Local-only  Documents and prompts are never sent to a cloud AI: only
  *                 on-device models are usable (the built-in Lantern Local AI
  *                 by default, or the user's own Ollama) and cloud AI providers
- *                 are disabled. (User-authorized connectors still sync.)
+ *                 and outside connectors are paused by Network lockdown.
  *                 Selecting this constrains the model picker elsewhere.
  *   - Direct      Default. Your own key, straight to your chosen provider.
  *   - Assured     Selectable once the firm admin sets a managed key; routed
@@ -71,7 +71,7 @@ const SOLO_CARDS: ModeCard[] = [
     icon: Laptop,
     title: 'On this computer only',
     blurb:
-      'AI runs on your machine: your documents and prompts are never sent to a cloud AI. Cloud AI providers are turned off and only on-device models are used — the built-in Lantern Local AI, or your own Ollama. Connectors you have set up still sync. Use this for your most sensitive client work.',
+      'AI runs on your machine: your documents and prompts are never sent to a cloud AI. Cloud AI providers are turned off and only on-device models are used — the built-in Lantern Local AI, or your own Ollama. Outside connectors pause so nothing leaves this computer. Use this for your most sensitive client work.',
     accent: 'text-emerald-700 border-emerald-400 dark:text-emerald-300 dark:border-emerald-700',
     tag: 'Most private',
   },
@@ -415,8 +415,8 @@ export function ConfidentialityModeSettings({
           On this computer only is on. Your documents and prompts are never sent
           to a cloud AI — answers run on a local model on your machine (the
           built-in {brandText('Lantern Local AI')} when it&rsquo;s ready, or your own Ollama).
-          Cloud AI providers are disabled in the chat picker. Connectors you have
-          set up still sync.
+          Cloud AI providers are disabled in the chat picker. Outside connectors
+          pause so nothing leaves this computer.
         </p>
       )}
 

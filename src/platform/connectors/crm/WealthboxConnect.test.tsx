@@ -8,6 +8,7 @@ const controls = vi.hoisted(() => ({
   createCrmRunId: vi.fn(() => 'test-run'),
   createMatter: vi.fn(() => ({ id: 'new-client' })),
 }));
+const privacy = vi.hoisted(() => ({ networkLockdown: false }));
 
 // Stateful progress mock: tests can emit progress events into the rendered
 // component the way the real crm store does, to prove late events cannot
@@ -88,6 +89,9 @@ vi.mock('@/platform/connectors/wealthbox/WealthboxCustomFieldsAvailability', () 
 }));
 vi.mock('@/ui/InfoHelp', () => ({ InfoHelp: () => null }));
 vi.mock('@/config/brandText', () => ({ brandText: (text: string) => text }));
+vi.mock('@/platform/hooks/usePrivilegedMatterMode', () => ({
+  usePrivilegedMatterModeActive: () => privacy.networkLockdown,
+}));
 
 import { WealthboxConnect } from './WealthboxConnect';
 
@@ -101,11 +105,24 @@ describe('WealthboxConnect sync', () => {
     controls.crmListHouseholds.mockReset();
     controls.crmSyncAll.mockReset();
     controls.createMatter.mockClear();
+    privacy.networkLockdown = false;
     crmProgress.set(null);
   });
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it('shows an honest pause and disables sync while Network lockdown is on', async () => {
+    privacy.networkLockdown = true;
+    await renderConnectedConnector();
+
+    expect(screen.getByTestId('wealthbox-network-lockdown-message')).toHaveTextContent(
+      /nothing will be sent to or downloaded from wealthbox/i,
+    );
+    expect(screen.getByTestId('wealthbox-sync-now')).toBeDisabled();
+    fireEvent.click(screen.getByTestId('wealthbox-sync-now'));
+    expect(controls.crmListHouseholds).not.toHaveBeenCalled();
   });
 
   it('dispatches the desktop sync command after the advisor confirms the household import', async () => {
