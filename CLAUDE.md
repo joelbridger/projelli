@@ -1,6 +1,11 @@
 <!-- LANTERN-CRM PROGRAM BANNER (keep this block first; fork-only) -->
 > **🚨 THIS IS `~/lantern-crm` — THE ISOLATED LANTERN-CRM PROGRAM FORK (Path 4: full CRM, replace Wealthbox). READ [`LANTERN-CRM.md`](./LANTERN-CRM.md) FIRST — it is the charter and it OVERRIDES everything below where they conflict.** In particular: (1) the one-shot workflow (design ALL → freeze → build ALL → test after) is Jameson's explicit choice — no design-build-test loops; (2) **model routing for THIS program: ALL work by Codex (`codex-task`, gpt-5.6-terra, high) — the "Token-Budget Operating Mode" below (Opus driver / Sonnet workers) does NOT apply here**; the only Anthropic model is the Fable 5 coordinator (planning/review/merging); (3) never touch `~/lantern-plus`, `~/keepance`, or `~/lantern`; push only `lantern-crm`/`crm/*` branches; no deploys; no real client data; (4) coordinate compile windows with the mainline session via `~/lantern-coordination/BOARD.md`. The LANTERN-PLUS.md in this folder is inherited history, not this program's mission. Everything below is inherited Keepance/Lantern context — code conventions, architecture, gate commands, and invariants still apply unless the charter says otherwise.
 
+> ## 🔴 CODEX IS OFF (2026-07-13) — CLAUDE MODELS ARE THE DEFAULT WORKERS
+> Jameson ran out of Codex tokens and moved to a new Anthropic account. **Every "delegate to Codex / codex-task / gpt-5.6-terra / gpt-5.6-sol" instruction in this file is SUPERSEDED.** Use: **Sonnet 5** = default worker · **Haiku 4.5** = mechanical volume · **Opus 4.8** = coordinator + hard/critical lanes + review · **review must use a different model than the builder**. **Fan out 3-5 concurrent workers, NOT 8-12** (that number was Codex economics — Claude workers cost real tokens and real RAM). The cross-model safety check is gone: compensate by DRIVING the real packaged product on the real OS and prompting reviewers adversarially. Full policy: `~/.claude/CLAUDE.md` OVERRIDE block + memory `feedback_claude_workers_default.md`.
+
+
+
 # Keepance — Claude Code Project Context
 
 > **Read this first if you're a future Claude session working in this repo.**
