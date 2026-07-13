@@ -40,18 +40,18 @@ function renderComposer(overrides: Partial<ComponentProps<typeof AskComposer>> =
 }
 
 describe('AskComposer answer-scope chip', () => {
-  it('shows a quiet answer-settings button and keeps file controls inside the popover', () => {
+  it('shows file-access permission beside the input instead of hiding it in settings', () => {
     renderComposer();
 
     expect(screen.getByTestId('ask-answer-scope-chip')).toHaveAttribute('aria-label', 'Answer settings');
     expect(screen.getByTestId('ask-answer-scope-chip')).toHaveTextContent('');
-    expect(screen.queryByTestId('chat-file-access-consent')).not.toBeInTheDocument();
+    expect(screen.getByTestId('chat-file-access-consent')).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId('ask-answer-scope-chip'));
 
     expect(screen.getByTestId('ask-answer-scope-popover')).toBeInTheDocument();
     expect(screen.getByTestId('ask-files-only-toggle')).toBeInTheDocument();
-    expect(screen.getByTestId('chat-file-access-consent')).toBeInTheDocument();
+    expect(screen.getAllByTestId('chat-file-access-consent')).toHaveLength(1);
   });
 
   it('toggles files-only mode from inside the popover', () => {

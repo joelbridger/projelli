@@ -118,6 +118,7 @@ import {
   normalizeVisibleAskScope,
   resolveEmailCitationLabels,
   friendlyErrorMessage,
+  CLOUD_FILE_ACCESS_REQUIRED_MESSAGE,
   isAuthRejectionError,
   buildHistoryBlock,
   reconstructTurns,
@@ -1199,6 +1200,20 @@ export function useAsk({
           currentConsent,
           turnConsentScope
         );
+        // BUG-01 — an unanswered consent prompt used to silently erase the real
+        // retrieval hits and send a context-free question to the cloud. That is
+        // why the identical query worked locally but returned zero cloud
+        // citations. An explicit "Not now" still permits a general, file-free
+        // answer; an unanswered prompt (or a grant for the wrong scope) stops
+        // before egress, keeps the question, and points to the visible consent
+        // control. The existing scope-bound permission remains fail-closed.
+        if (
+          providerIsCloud &&
+          !currentFileAccessGranted &&
+          currentConsent.state !== 'denied'
+        ) {
+          throw new Error(CLOUD_FILE_ACCESS_REQUIRED_MESSAGE);
+        }
         // May THIS send carry client file content to the destination? True for a
         // local engine (never leaks) or a cloud provider consented for the turn's
         // scope; false for a cloud provider without consent.

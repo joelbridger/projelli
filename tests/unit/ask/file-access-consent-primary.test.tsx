@@ -5,8 +5,9 @@
  * file content to a CLOUD provider on message one, with no banner and no way to
  * refuse — the consent gate was wired only into the legacy .aichat chat path.
  * These tests exercise the REAL Ask send path end-to-end and assert:
- *   - cloud + unasked/denied  → NO retrieved file content reaches the provider,
- *     and the egress audit records fileToolsEnabled=false;
+ *   - cloud + unasked/reconfirm → the provider is NOT called until the
+ *     advisor answers the visible permission prompt;
+ *   - cloud + denied           → a general answer may be sent without files;
  *   - cloud + granted          → file content is injected + fileToolsEnabled=true;
  *   - an all-clients turn is NOT covered by a single-client grant (scope-bound);
  *   - a LOCAL engine is never gated (file content flows without consent);
@@ -16,7 +17,7 @@
  * this is the wiring proof the bench asked for.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import type { AuditEntry } from '@/platform/types/audit';
 import type { RagHit } from '@/platform/utils/tauri-commands';
 import type { FileAccessConsent } from '@/platform/ai/fileAccessConsent';
@@ -210,11 +211,14 @@ describe('F2.5b — Ask primary-surface consent gate', () => {
     });
   });
 
-  it('cloud + UNASKED → no file content in the cloud prompt; egress fileToolsEnabled=false', async () => {
+  it('cloud + UNASKED → blocks the send and keeps the permission prompt visible', async () => {
     const logged = await ask({ state: 'unasked' });
-    await waitFor(() => expect(h.cloudSend).toHaveBeenCalledTimes(1));
-    expect(h.capturedCloudPrompt).not.toContain('retire in 2032');
-    expect(egressEntry(logged)?.metadata['fileToolsEnabled']).toBe(false);
+    await waitFor(() => expect(screen.getByTestId('ask-composer-input')).toHaveValue(
+      'When does the client want to retire?',
+    ));
+    expect(h.cloudSend).not.toHaveBeenCalled();
+    expect(egressEntry(logged)).toBeUndefined();
+    expect(screen.getByTestId('chat-file-access-consent')).toHaveAttribute('data-state', 'unasked');
   });
 
   it('cloud + DENIED → no file content in the cloud prompt; egress fileToolsEnabled=false', async () => {
@@ -231,15 +235,18 @@ describe('F2.5b — Ask primary-surface consent gate', () => {
     expect(egressEntry(logged)?.metadata['fileToolsEnabled']).toBe(true);
   });
 
-  it('all-clients turn is NOT covered by a single-client grant → file content withheld', async () => {
+  it('all-clients turn is NOT covered by a single-client grant → asks to reconfirm before sending', async () => {
     // Grant is bound to one client; the turn (no active matter) spans all clients.
     const singleClientGrant: FileAccessConsent = {
       state: 'granted', grantedScope: { kind: 'matter', matterId: 'matter_ellison' },
     };
     const logged = await ask(singleClientGrant, { activeMatter: null });
-    await waitFor(() => expect(h.cloudSend).toHaveBeenCalledTimes(1));
-    expect(h.capturedCloudPrompt).not.toContain('retire in 2032');
-    expect(egressEntry(logged)?.metadata['fileToolsEnabled']).toBe(false);
+    await waitFor(() => expect(screen.getByTestId('ask-composer-input')).toHaveValue(
+      'When does the client want to retire?',
+    ));
+    expect(h.cloudSend).not.toHaveBeenCalled();
+    expect(egressEntry(logged)).toBeUndefined();
+    expect(screen.getByTestId('chat-file-access-consent')).toHaveAttribute('data-state', 'reconfirm');
   });
 
   it('single-client GRANT covers that same client → file content injected', async () => {
@@ -256,6 +263,62 @@ describe('F2.5b — Ask primary-surface consent gate', () => {
     await waitFor(() => expect(h.localSend).toHaveBeenCalledTimes(1));
     expect(h.cloudSend).not.toHaveBeenCalled();
     expect(h.capturedLocalPrompt).toContain('retire in 2032');
+  });
+
+  it('BUG-01: switching from Local AI to Cloud AI waits for permission, then sends the same files with citations', async () => {
+    h.consent = { state: 'unasked' };
+    h.hasCloudKey = false;
+    h.localAvailable = true;
+    const view = render(<Ask />);
+
+    fireEvent.change(screen.getByTestId('ask-composer-input'), {
+      target: { value: 'When does the client want to retire?' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^Ask$/i }));
+    await waitFor(() => expect(h.localSend).toHaveBeenCalledTimes(1));
+    expect(h.capturedLocalPrompt).toContain('retire in 2032');
+
+    await waitFor(() => expect(screen.getByTestId('ask-composer-input')).not.toBeDisabled());
+    h.hasCloudKey = true;
+    h.localAvailable = false;
+    fireEvent.change(screen.getByTestId('ask-composer-input'), {
+      target: { value: 'When does the client want to retire?' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^Ask$/i }));
+
+    await waitFor(() => expect(screen.getByTestId('ask-composer-input')).not.toBeDisabled());
+    expect(h.cloudSend).not.toHaveBeenCalled();
+    expect(screen.getByTestId('ask-composer-input')).toHaveValue(
+      'When does the client want to retire?',
+    );
+    expect(screen.getByTestId('chat-file-access-consent')).toHaveAttribute(
+      'data-state',
+      'unasked',
+    );
+
+    h.consent = GRANT_ALL;
+    h.cloudSend.mockResolvedValue({
+      content: '[[BLOCK:FILES]]\nThe client wants to retire in 2032 [plan.pdf paragraph 2].',
+      usage: { inputTokens: 5, outputTokens: 5 }, cost: 0.0001, model: 'claude-consent-stub',
+    });
+    view.rerender(<Ask />);
+    fireEvent.click(screen.getByRole('button', { name: /^Ask$/i }));
+
+    await waitFor(() => expect(h.cloudSend).toHaveBeenCalledTimes(1));
+    expect(h.capturedCloudPrompt).toContain('retire in 2032');
+    await waitFor(() => {
+      const savedCloudCitation = h.addMessage.mock.calls.some((call) => {
+        const message = call[1] as {
+          role?: string;
+          askProviderId?: string;
+          askCitations?: unknown[];
+        } | undefined;
+        return message?.role === 'assistant' &&
+          message.askProviderId === 'anthropic' &&
+          message.askCitations?.length === 1;
+      });
+      expect(savedCloudCitation).toBe(true);
+    });
   });
 
   it('P1 (Codex): revoking consent mid-conversation redacts prior file-grounded history from the next cloud prompt', async () => {
@@ -472,11 +535,9 @@ describe('F2.5b — Ask primary-surface consent gate', () => {
     h.consent = { state: 'unasked' };
     h.hasCloudKey = true;
     render(<Ask />);
-    fireEvent.click(screen.getByTestId('ask-answer-scope-chip'));
-    const popover = await screen.findByTestId('ask-answer-scope-popover');
     await waitFor(() => {
-      expect(within(popover).getByTestId('chat-file-access-consent')).toBeTruthy();
+      expect(screen.getByTestId('chat-file-access-consent')).toBeTruthy();
     });
-    expect(within(popover).getByTestId('chat-file-access-consent').getAttribute('data-state')).toBe('unasked');
+    expect(screen.getByTestId('chat-file-access-consent').getAttribute('data-state')).toBe('unasked');
   });
 });
