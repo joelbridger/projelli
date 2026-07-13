@@ -194,7 +194,10 @@ tauri-plugin-process = "=2.3.1"
 # URLs (the `&` is read as a command separator). ShellExecuteW passes the URL as
 # a real wide-string argument with no shell parsing, so the OAuth URL stays intact.
 [target."cfg(windows)".dependencies]
+<<<<<<< HEAD
 windows-sys = { version = "0.59", features = ["Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_Foundation", "Win32_Security_Credentials"] }
+=======
+windows-sys = { version = "0.59", features = ["Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_Foundation", "Win32_Storage_FileSystem"] }
 # macOS-only: MacTapSource (capture::sources) sends SIGTERM to the
 # capture-mac sidecar for a graceful stop per its documented contract.
 [target."cfg(target_os = \"macos\")".dependencies]

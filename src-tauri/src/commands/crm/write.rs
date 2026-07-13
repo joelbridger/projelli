@@ -70,6 +70,8 @@ pub struct WriteReceipt {
 
 #[derive(Debug, thiserror::Error)]
 pub enum CrmWriteError {
+    #[error("{0}")]
+    NetworkLockdown(String),
     #[error("{0} is not connected")]
     NotConnected(&'static str),
     #[error("this client is not linked to a CRM household")]
@@ -475,12 +477,23 @@ impl CrmWriteSource for crate::commands::crm::salesforce::SalesforceClient {
 pub fn write_client_for(
     provider: crate::commands::crm::provider::CrmProvider,
     token: String,
+    policy: crate::network_policy::NetworkPolicy,
 ) -> anyhow::Result<Box<dyn CrmWriteSource>> {
     use crate::commands::crm::provider::CrmProvider;
     match provider {
-        CrmProvider::Wealthbox => Ok(Box::new(crate::commands::crm::client::WealthboxClient::new(token))),
-        CrmProvider::Redtail => Ok(Box::new(crate::commands::crm::redtail::RedtailClient::new(token)?)),
-        CrmProvider::Salesforce => Ok(Box::new(crate::commands::crm::salesforce::SalesforceClient::new(token)?)),
+        CrmProvider::Wealthbox => Ok(Box::new(
+            crate::commands::crm::client::WealthboxClient::new(
+                token,
+                policy,
+                crate::network_policy::WEALTHBOX_WRITE,
+            ),
+        )),
+        CrmProvider::Redtail => Ok(Box::new(
+            crate::commands::crm::redtail::RedtailClient::new(token, policy)?,
+        )),
+        CrmProvider::Salesforce => Ok(Box::new(
+            crate::commands::crm::salesforce::SalesforceClient::new(token, policy)?,
+        )),
     }
 }
 
@@ -547,6 +560,9 @@ fn is_contact_link(link: &crate::commands::crm::model::CrmLink, contact_id: i64)
 
 fn map_http_err(e: anyhow::Error) -> CrmWriteError {
     let msg = e.to_string();
+    if msg.contains("Network lockdown is on") {
+        return CrmWriteError::NetworkLockdown(msg);
+    }
     if msg.contains("throttled past retry budget") {
         return CrmWriteError::Throttled;
     }
@@ -585,6 +601,9 @@ fn map_http_err(e: anyhow::Error) -> CrmWriteError {
 /// was ever attempted.
 fn map_http_err_for_read(e: anyhow::Error) -> CrmWriteError {
     let msg = e.to_string();
+    if msg.contains("Network lockdown is on") {
+        return CrmWriteError::NetworkLockdown(msg);
+    }
     if msg.contains("throttled past retry budget") {
         return CrmWriteError::Throttled;
     }
@@ -1236,6 +1255,12 @@ mod tests {
         (dir, s)
     }
 
+    fn test_network_policy() -> crate::network_policy::NetworkPolicy {
+        crate::network_policy::NetworkPolicy::load_from_directory(
+            &tempfile::tempdir().unwrap().keep(),
+        )
+    }
+
     /// Minimal valid Salesforce token-set JSON — bypasses the
     /// `LANTERN_SALESFORCE_CLIENT_ID` env requirement in `SalesforceClient::new`
     /// by constructing directly via `new_with_token_endpoint`.
@@ -1251,6 +1276,7 @@ mod tests {
             stored_json,
             "client-id".into(),
             "https://example.my.salesforce.com/token".into(),
+            test_network_policy(),
         )
         .expect("build test SalesforceClient")
     }
@@ -1284,7 +1310,8 @@ mod tests {
     fn write_client_for_routes_by_provider() {
         use crate::commands::crm::provider::CrmProvider;
 
-        let wb = write_client_for(CrmProvider::Wealthbox, "tok".into()).unwrap();
+        let policy = test_network_policy();
+        let wb = write_client_for(CrmProvider::Wealthbox, "tok".into(), policy.clone()).unwrap();
         assert_eq!(wb.provider_id(), "wealthbox");
 
         // Redtail/Salesforce's real constructors need LANTERN_REDTAIL_API_KEY /
@@ -1299,11 +1326,11 @@ mod tests {
         // provider — proving the registry actually routes to that provider's
         // constructor (not a generic/wrong-provider error, and not silently
         // constructing the wrong client) regardless of this host's config.
-        match write_client_for(CrmProvider::Redtail, "tok".into()) {
+        match write_client_for(CrmProvider::Redtail, "tok".into(), policy.clone()) {
             Ok(client) => assert_eq!(client.provider_id(), "redtail"),
             Err(e) => assert!(e.to_string().contains("REDTAIL"), "got: {e}"),
         }
-        match write_client_for(CrmProvider::Salesforce, "tok".into()) {
+        match write_client_for(CrmProvider::Salesforce, "tok".into(), policy) {
             Ok(client) => assert_eq!(client.provider_id(), "salesforce"),
             Err(e) => assert!(e.to_string().contains("SALESFORCE"), "got: {e}"),
         }

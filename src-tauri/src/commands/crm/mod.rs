@@ -25,6 +25,9 @@ pub mod source;
 pub mod store;
 pub mod write;
 
+#[cfg(test)]
+mod offline_mode_tests;
+
 use std::path::{Path, PathBuf};
 
 /// Internal CRM RAG indexer — mirrors `mail::index_mail_text_internal`.

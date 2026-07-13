@@ -73,34 +73,99 @@ struct LabelCache {
 pub struct WealthboxClient {
     token: String,
     base: String,
-    http: reqwest::Client,
+    http: crate::commands::connector_network::GuardedHttpClient,
     /// Guards the ~1 rps rate gate.  Stores the `Instant` of the most recent
     /// completed (or started) request; `None` before any request.
     last_request: tokio::sync::Mutex<Option<Instant>>,
     /// Lazily-populated id → label resolver cache.
     label_cache: tokio::sync::Mutex<LabelCache>,
+    network_policy: crate::network_policy::NetworkPolicy,
+    network_operation: crate::network_policy::EgressOperation,
+    configured_host: Option<String>,
 }
 
 impl WealthboxClient {
     /// Construct a production client pointing at `https://api.crmworkspace.com/v1`.
-    pub fn new(token: String) -> Self {
-        Self::new_with_base(token, BASE_URL.to_string())
+    pub fn new(
+        token: String,
+        network_policy: crate::network_policy::NetworkPolicy,
+        network_operation: crate::network_policy::EgressOperation,
+    ) -> Self {
+        Self::new_guarded(token, BASE_URL.to_string(), network_policy, network_operation, None)
     }
 
     /// Construct a client with a custom base URL — intended for tests.
+    #[cfg(test)]
     pub fn new_with_base(token: String, base: String) -> Self {
-        let http = reqwest::Client::builder()
-            .timeout(Duration::from_secs(60))
-            .connect_timeout(Duration::from_secs(15))
-            .build()
-            .expect("build reqwest client for WealthboxClient");
+        let policy = crate::network_policy::NetworkPolicy::load_from_directory(
+            &tempfile::tempdir().expect("test policy directory").keep(),
+        );
+        Self::new_guarded(
+            token,
+            base,
+            policy,
+            crate::network_policy::LOCAL_LLAMA,
+            None,
+        )
+    }
+
+    /// The sample migration accepts a person-entered simulator address. It is
+    /// still a real network route, so its exact host is captured once here and
+    /// checked again before every page request.
+    pub fn new_migration(
+        token: String,
+        base: String,
+        network_policy: crate::network_policy::NetworkPolicy,
+    ) -> anyhow::Result<Self> {
+        let configured_host = reqwest::Url::parse(&base)?
+            .host_str()
+            .ok_or_else(|| anyhow::anyhow!("The simulator address has no host."))?
+            .to_string();
+        Ok(Self::new_guarded(
+            token,
+            base,
+            network_policy,
+            crate::network_policy::CRM_MIGRATION_IMPORT,
+            Some(configured_host),
+        ))
+    }
+
+    fn new_guarded(
+        token: String,
+        base: String,
+        network_policy: crate::network_policy::NetworkPolicy,
+        network_operation: crate::network_policy::EgressOperation,
+        configured_host: Option<String>,
+    ) -> Self {
+        let http = crate::commands::connector_network::guarded_http_client(
+            Duration::from_secs(60),
+            Duration::from_secs(15),
+        );
         Self {
             token,
             base,
             http,
             last_request: tokio::sync::Mutex::new(None),
             label_cache: tokio::sync::Mutex::new(LabelCache::default()),
+            network_policy,
+            network_operation,
+            configured_host,
         }
+    }
+
+    async fn send_guarded(
+        &self,
+        url: &str,
+        request: crate::commands::connector_network::GuardedRequestBuilder,
+    ) -> anyhow::Result<crate::commands::connector_network::GuardedResponse> {
+        crate::commands::connector_network::send_guarded(
+            &self.network_policy,
+            &self.network_operation,
+            url,
+            self.configured_host.as_deref(),
+            request,
+        )
+        .await
     }
 
     // -----------------------------------------------------------------------
@@ -157,10 +222,16 @@ impl WealthboxClient {
             self.rate_gate().await;
             let mut req = self.http.get(&url).header("ACCESS_TOKEN", &self.token);
             for (key, value) in query { req = req.query(&[(key.as_str(), value.as_str())]); }
-            let response = req.send().await.context("Wealthbox HTTP send")?;
+            let response = self
+                .send_guarded(&url, req)
+                .await
+                .map_err(|error| crate::commands::connector_network::transport_error(error, "Wealthbox HTTP send"))?;
             if response.status().as_u16() == 429 {
                 let retry_after = response.headers().get("Retry-After").and_then(|value| value.to_str().ok()).map(String::from);
-                tokio::time::sleep(retry_delay(retry_after.as_deref(), attempt)).await;
+                response
+                    .wait_before_retry(retry_delay(retry_after.as_deref(), attempt))
+                    .await
+                    .map_err(|error| crate::commands::connector_network::transport_error(error, "Wealthbox retry wait"))?;
                 continue;
             }
             let status = response.status();
@@ -193,21 +264,24 @@ impl WealthboxClient {
         };
         for attempt in 0..MAX_429_RETRIES {
             self.rate_gate().await;
-            let resp = self
+            let request = self
                 .http
                 .post(&url)
                 .header("ACCESS_TOKEN", &self.token)
-                .json(body)
-                .send()
+                .json(body);
+            let resp = self
+                .send_guarded(&url, request)
                 .await
-                .context("Wealthbox HTTP send")?;
+                .map_err(|error| crate::commands::connector_network::transport_error(error, "Wealthbox HTTP send"))?;
             if resp.status().as_u16() == 429 {
                 let ra = resp
                     .headers()
                     .get("Retry-After")
                     .and_then(|v| v.to_str().ok())
                     .map(String::from);
-                tokio::time::sleep(retry_delay(ra.as_deref(), attempt)).await;
+                resp.wait_before_retry(retry_delay(ra.as_deref(), attempt))
+                    .await
+                    .map_err(|error| crate::commands::connector_network::transport_error(error, "Wealthbox retry wait"))?;
                 continue;
             }
             let status = resp.status();
@@ -243,21 +317,24 @@ impl WealthboxClient {
         };
         for attempt in 0..MAX_429_RETRIES {
             self.rate_gate().await;
-            let resp = self
+            let request = self
                 .http
                 .put(&url)
                 .header("ACCESS_TOKEN", &self.token)
-                .json(body)
-                .send()
+                .json(body);
+            let resp = self
+                .send_guarded(&url, request)
                 .await
-                .context("Wealthbox HTTP send")?;
+                .map_err(|error| crate::commands::connector_network::transport_error(error, "Wealthbox HTTP send"))?;
             if resp.status().as_u16() == 429 {
                 let ra = resp
                     .headers()
                     .get("Retry-After")
                     .and_then(|v| v.to_str().ok())
                     .map(String::from);
-                tokio::time::sleep(retry_delay(ra.as_deref(), attempt)).await;
+                resp.wait_before_retry(retry_delay(ra.as_deref(), attempt))
+                    .await
+                    .map_err(|error| crate::commands::connector_network::transport_error(error, "Wealthbox retry wait"))?;
                 continue;
             }
             let status = resp.status();
@@ -749,6 +826,54 @@ mod tests {
         let client = WealthboxClient::new_with_base("t".into(), server.uri());
         let _ = client.put_json("/contacts/1", &serde_json::json!({})).await;
         assert_eq!(HITS.load(Ordering::SeqCst), 1, "a PUT must never blind-retry on 5xx — the caller's stale-guard decides whether a re-send is safe");
+    }
+
+    #[tokio::test]
+    async fn lockdown_flip_during_a_429_response_prevents_the_retry() {
+        use std::sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        };
+        use wiremock::{matchers, Mock, MockServer, Respond, ResponseTemplate};
+
+        struct LockOnFirstResponse {
+            hits: Arc<AtomicUsize>,
+            policy: crate::network_policy::NetworkPolicy,
+        }
+        impl Respond for LockOnFirstResponse {
+            fn respond(&self, _: &wiremock::Request) -> ResponseTemplate {
+                self.hits.fetch_add(1, Ordering::SeqCst);
+                self.policy.set_offline_mode(true).unwrap();
+                ResponseTemplate::new(429).insert_header("Retry-After", "0")
+            }
+        }
+
+        let server = MockServer::start().await;
+        let policy = crate::network_policy::NetworkPolicy::load_from_directory(
+            &tempfile::tempdir().unwrap().keep(),
+        );
+        let hits = Arc::new(AtomicUsize::new(0));
+        Mock::given(matchers::method("GET"))
+            .respond_with(LockOnFirstResponse {
+                hits: hits.clone(),
+                policy: policy.clone(),
+            })
+            .mount(&server)
+            .await;
+        let client = WealthboxClient::new_migration(
+            "fabricated-token".into(),
+            server.uri(),
+            policy,
+        )
+        .unwrap();
+
+        let error = client.get_json("/contacts", &[]).await.unwrap_err();
+        assert!(error.to_string().contains("Network lockdown is on"));
+        assert_eq!(
+            hits.load(Ordering::SeqCst),
+            1,
+            "the next retry must be stopped before another request opens",
+        );
     }
 
     #[tokio::test]

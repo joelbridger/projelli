@@ -146,6 +146,7 @@ fn matrix_row(source_type: &str, fetched: usize, imported: usize, skipped: usize
 #[tauri::command]
 pub async fn crm_migration_import(
     state: State<'_, CrmState>,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
     base_url: String,
     source: Option<String>,
     source_id_field: Option<String>,
@@ -177,7 +178,12 @@ pub async fn crm_migration_import(
         return Err("Name the outside ID field used to match imported records.".into());
     }
     let workspace = workspace(&state).await?;
-    let client = WealthboxClient::new_with_base("fabricated-token".into(), base_url);
+    let client = WealthboxClient::new_migration(
+        "fabricated-token".into(),
+        base_url,
+        policy.inner().clone(),
+    )
+    .map_err(|error| error.to_string())?;
     let result = tokio::task::spawn_blocking(move || CrmCoreStore::open(&workspace))
         .await
         .map_err(|error| error.to_string())?

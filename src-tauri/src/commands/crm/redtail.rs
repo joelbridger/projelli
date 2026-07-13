@@ -55,66 +55,177 @@ pub struct RedtailClient {
     api_key: String,
     user_key: String,
     base: String,
-    http: reqwest::Client,
+    http: crate::commands::connector_network::GuardedHttpClient,
     cache: tokio::sync::Mutex<RedtailCache>,
+    network_policy: crate::network_policy::NetworkPolicy,
+    network_operation: crate::network_policy::EgressOperation,
 }
 
 impl RedtailClient {
-    pub fn new(user_key: String) -> anyhow::Result<Self> {
+    pub fn new(
+        user_key: String,
+        network_policy: crate::network_policy::NetworkPolicy,
+    ) -> anyhow::Result<Self> {
         let api_key = redtail_api_key()?;
-        Ok(Self::new_with_base(
+        Ok(Self::new_guarded(
             api_key,
             user_key,
             REDTAIL_BASE_URL.to_string(),
+            network_policy,
+            crate::network_policy::REDTAIL_SYNC,
         ))
     }
 
+    #[cfg(test)]
     pub fn new_with_base(api_key: String, user_key: String, base: String) -> Self {
-        let http = reqwest::Client::builder()
-            .timeout(Duration::from_secs(60))
-            .connect_timeout(Duration::from_secs(15))
-            .build()
-            .expect("build reqwest client for RedtailClient");
+        let policy = crate::network_policy::NetworkPolicy::load_from_directory(
+            &tempfile::tempdir().expect("test policy directory").keep(),
+        );
+        Self::new_guarded(
+            api_key,
+            user_key,
+            base,
+            policy,
+            crate::network_policy::CRM_MIGRATION_IMPORT,
+        )
+    }
+
+    #[cfg(test)]
+    pub(crate) fn new_with_base_and_policy(
+        api_key: String,
+        user_key: String,
+        base: String,
+        policy: crate::network_policy::NetworkPolicy,
+    ) -> Self {
+        Self::new_guarded(
+            api_key,
+            user_key,
+            base,
+            policy,
+            crate::network_policy::REDTAIL_SYNC,
+        )
+    }
+
+    fn new_guarded(
+        api_key: String,
+        user_key: String,
+        base: String,
+        network_policy: crate::network_policy::NetworkPolicy,
+        network_operation: crate::network_policy::EgressOperation,
+    ) -> Self {
+        let http = crate::commands::connector_network::guarded_http_client(
+            Duration::from_secs(60),
+            Duration::from_secs(15),
+        );
         Self {
             api_key,
             user_key,
             base: base.trim_end_matches('/').to_string(),
             http,
             cache: tokio::sync::Mutex::new(RedtailCache::default()),
+            network_policy,
+            network_operation,
         }
     }
 
-    pub async fn authenticate(username: &str, password: &str) -> anyhow::Result<RedtailAuthInfo> {
+    pub async fn authenticate(
+        username: &str,
+        password: &str,
+        network_policy: &crate::network_policy::NetworkPolicy,
+    ) -> anyhow::Result<RedtailAuthInfo> {
         let api_key = redtail_api_key()?;
-        Self::authenticate_with_base(&api_key, username, password, REDTAIL_BASE_URL).await
+        Self::authenticate_guarded(
+            &api_key,
+            username,
+            password,
+            REDTAIL_BASE_URL,
+            network_policy,
+            crate::network_policy::REDTAIL_OAUTH,
+            None,
+        )
+        .await
     }
 
+    #[cfg(test)]
     pub async fn authenticate_with_base(
         api_key: &str,
         username: &str,
         password: &str,
         base: &str,
     ) -> anyhow::Result<RedtailAuthInfo> {
+        let policy = crate::network_policy::NetworkPolicy::load_from_directory(
+            &tempfile::tempdir().expect("test policy directory").keep(),
+        );
+        let host = reqwest::Url::parse(base)
+            .ok()
+            .and_then(|parsed| parsed.host_str().map(str::to_string));
+        Self::authenticate_guarded(
+            api_key,
+            username,
+            password,
+            base,
+            &policy,
+            crate::network_policy::CRM_MIGRATION_IMPORT,
+            host.as_deref(),
+        )
+        .await
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn authenticate_with_base_and_policy(
+        api_key: &str,
+        username: &str,
+        password: &str,
+        base: &str,
+        policy: &crate::network_policy::NetworkPolicy,
+    ) -> anyhow::Result<RedtailAuthInfo> {
+        Self::authenticate_guarded(
+            api_key,
+            username,
+            password,
+            base,
+            policy,
+            crate::network_policy::REDTAIL_OAUTH,
+            None,
+        )
+        .await
+    }
+
+    async fn authenticate_guarded(
+        api_key: &str,
+        username: &str,
+        password: &str,
+        base: &str,
+        network_policy: &crate::network_policy::NetworkPolicy,
+        network_operation: crate::network_policy::EgressOperation,
+        configured_host: Option<&str>,
+    ) -> anyhow::Result<RedtailAuthInfo> {
         if username.trim().is_empty() || password.is_empty() {
             anyhow::bail!("Redtail username and password are required");
         }
-        let http = reqwest::Client::builder()
-            .timeout(Duration::from_secs(30))
-            .connect_timeout(Duration::from_secs(15))
-            .build()
-            .expect("build reqwest client for Redtail auth");
+        let http = crate::commands::connector_network::guarded_http_client(
+            Duration::from_secs(30),
+            Duration::from_secs(15),
+        );
         let url = format!("{}/authentication", base.trim_end_matches('/'));
         let auth = build_basic_auth_header(api_key, username.trim(), password);
-        let resp = http
-            .get(url)
+        let request = http
+            .get(&url)
             .header("Authorization", auth)
             .header(
                 "fields",
                 "database_id,user_id,user_key,first_name,last_name,username,email,tier",
-            )
-            .send()
-            .await
-            .context("Redtail authentication request")?;
+            );
+        let url = format!("{}/authentication", base.trim_end_matches('/'));
+        let resp = crate::commands::connector_network::send_guarded(
+            network_policy,
+            &network_operation,
+            &url,
+            configured_host,
+            request,
+        )
+        .await
+        .map_err(|error| crate::commands::connector_network::transport_error(error, "Redtail authentication request"))?;
         let status = resp.status();
         let body = resp.text().await.context("read Redtail auth response")?;
         if !status.is_success() {
@@ -340,7 +451,7 @@ impl RedtailClient {
         } else {
             format!("{}{}", self.base, path)
         };
-        let mut req = self.http.get(url).header(
+        let mut req = self.http.get(&url).header(
             "Authorization",
             build_userkey_auth_header(&self.api_key, &self.user_key),
         );
@@ -350,7 +461,19 @@ impl RedtailClient {
         for (key, value) in query {
             req = req.query(&[(*key, value.as_str())]);
         }
-        let resp = req.send().await.context("Redtail HTTP GET")?;
+        let configured_host = reqwest::Url::parse(&self.base)
+            .ok()
+            .and_then(|parsed| parsed.host_str().map(str::to_string))
+            .ok_or_else(|| anyhow::anyhow!("Redtail API base has no host"))?;
+        let resp = crate::commands::connector_network::send_guarded(
+            &self.network_policy,
+            &self.network_operation,
+            &url,
+            Some(&configured_host),
+            req,
+        )
+        .await
+        .map_err(|error| crate::commands::connector_network::transport_error(error, "Redtail HTTP GET"))?;
         let status = resp.status();
         let text = resp.text().await.context("read Redtail response body")?;
         if text.trim().is_empty() {

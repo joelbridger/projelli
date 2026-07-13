@@ -60,6 +60,7 @@ import {
 } from '@/platform/state/workspaceScope';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { getActiveWorkspaceService } from '@/platform/fs/activeWorkspaceService';
+import { requestNativeNetworkLockdown } from '@/platform/privacy/nativeNetworkLockdownBridge';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import {
   readMattersWorkspaceFile,
@@ -1798,6 +1799,9 @@ export const useMatterStore = create<MatterState>()(
       },
 
       setMatterPrivileged: (id, privileged) => {
+        if (privileged && get().activeMatterId === id) {
+          requestNativeNetworkLockdown(true);
+        }
         set((state) => ({
           matters: state.matters.map((m) =>
             m.id === id ? { ...m, privileged } : m
@@ -1841,6 +1845,9 @@ export const useMatterStore = create<MatterState>()(
           const nextActive = id === null
             ? null
             : (() => { const m = findMatter(id, state.matters); return m && !m.archived ? id : null; })();
+          if (nextActive && findMatter(nextActive, state.matters)?.privileged) {
+            requestNativeNetworkLockdown(true);
+          }
           // Close a Client Map hub the moment the active client changes AWAY from
           // it, so re-selecting the old client later (via the rail switcher) does
           // not resurrect its hub. Re-setting the SAME id (e.g. a matter-launch

@@ -1,5 +1,8 @@
 import { invoke } from '@tauri-apps/api/core';
-import { crmSetWorkspace } from '@/platform/utils/wealthbox-commands';
+import {
+  crmMigrationImport,
+  crmSetWorkspace,
+} from '@/platform/utils/wealthbox-commands';
 
 export type MigrationImportResult = {
   batchId: string;
@@ -12,7 +15,7 @@ export async function runWealthboxMigration(workspaceRoot: string | null | undef
   if (!workspaceRoot) throw new Error('Open a workspace before importing CRM data.');
   if (!/^https?:\/\//.test(baseUrl)) throw new Error('Enter the simulator address, starting with http:// or https://.');
   await crmSetWorkspace(workspaceRoot);
-  return invoke<MigrationImportResult>('crm_migration_import', { baseUrl });
+  return crmMigrationImport<MigrationImportResult>({ baseUrl });
 }
 
 export async function createMigrationExport(workspaceRoot: string | null | undefined, kind: 'archive' | 'rollback') {

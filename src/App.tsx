@@ -5,7 +5,7 @@
  * where AI proposes and the user approves all destructive actions.
  */
 
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { workspacePath } from '@/platform/fs/appPath';
 import {
@@ -126,6 +126,7 @@ import {
   isWorkingSurface,
 } from '@/platform/matter/matterUiStore';
 import { usePrivilegedMatterModeActive } from '@/platform/hooks/usePrivilegedMatterMode';
+import { requestNativeNetworkLockdown } from '@/platform/privacy/nativeNetworkLockdownBridge';
 import {
   writeDenyAllMcpSessionScopeFile,
   writeMcpSessionScopeFile,
@@ -453,6 +454,14 @@ function AppShell() {
   const activeMatter = useActiveMatter();
   const matters = useMatters();
   const mcpNetworkLockdown = usePrivilegedMatterModeActive();
+
+  // Keep the native socket guard in step with the app's one effective privacy
+  // switch. Native code starts closed, so a failed bridge leaves CRM blocked
+  // rather than briefly trusting a stale setting from an earlier launch.
+  useLayoutEffect(() => {
+    if (!isTauriEnvironment()) return;
+    requestNativeNetworkLockdown(mcpNetworkLockdown);
+  }, [mcpNetworkLockdown]);
   // F-509 — controlled sidebar collapse so the global Ctrl+B shortcut and the
   // command palette can drive the same collapse the chevron button does.
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);

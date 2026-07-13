@@ -97,7 +97,7 @@ export const DATA_MAP_ROWS: MapRow[] = [
     icon: Laptop,
     tone: 'text-emerald-700 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-950/40',
     title: 'For your most sensitive work, use a local model',
-    body: 'Run a local model with Ollama and switch Lantern to Local-only mode (Settings → AI → Confidentiality mode). In that mode the prompt and your files are processed by a model on your own machine, so no AI prompt or file is ever sent to a cloud AI: not to a provider, not to Lantern. (Connectors you set up, like Wealthbox or email, still sync if you use them.)',
+    body: 'Run a local model with Ollama and switch Lantern to Local-only mode (Settings → AI → Confidentiality mode). In that mode the prompt and your files are processed by a model on your own machine, and outside connectors such as Wealthbox and email pause so nothing leaves this computer.',
   },
   {
     icon: Mail,

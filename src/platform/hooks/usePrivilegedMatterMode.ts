@@ -25,6 +25,7 @@ import {
   resolvePrivilegedMatterMode,
   type PrivilegedMatterModeTrigger,
 } from '@/platform/privacy/privilegedMatterMode';
+import { requestNativeNetworkLockdown } from '@/platform/privacy/nativeNetworkLockdownBridge';
 
 function coerceManual(value: unknown): boolean {
   return typeof value === 'boolean' ? value : DEFAULT_PRIVILEGED_MATTER_MODE;
@@ -66,6 +67,7 @@ export function usePrivilegedMatterModeActive(): boolean {
 export function useSetPrivilegedMatterMode(): (on: boolean) => void {
   const setSetting = useSettingsStore((s) => s.setSetting);
   return (on: boolean) => {
+    if (on) requestNativeNetworkLockdown(true);
     setSetting(PRIVILEGED_MATTER_MODE_SETTING_KEY, on);
   };
 }

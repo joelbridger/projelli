@@ -1,6 +1,7 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string -- frozen CRM copy */
 import { useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { crmMigrationImport } from '@/platform/utils/wealthbox-commands';
 import { ClipboardList, Download, FileArchive, Save } from 'lucide-react';
 import { Button } from '@/ui/kp';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
@@ -55,7 +56,7 @@ function LiveMigrationWizard() {
   const importSource = async (nextSource: string) => {
     setBusy(true); setStatus(null);
     try {
-      const result = await invoke<{ imported: number; unchanged: number }>('crm_migration_import', { baseUrl: baseUrl.trim(), source: nextSource.toLowerCase(), sourceIdField: sourceIdMap.trim() });
+      const result = await crmMigrationImport<{ imported: number; unchanged: number }>({ baseUrl: baseUrl.trim(), source: nextSource.toLowerCase(), sourceIdField: sourceIdMap.trim() });
       await live.reload();
       // The importer writes through Rust, outside this surface hook's normal
       // save path. Tell the always-mounted Home shell to reload too, so the
