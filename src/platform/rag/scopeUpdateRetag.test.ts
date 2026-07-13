@@ -6,7 +6,7 @@
  * (folder->matter re-index, mail folder->matter re-tag, source privilege
  * re-tag). A failed re-tag must:
  *   1. RETRY with backoff (transient failures self-heal), and
- *   2. be VISIBLE to the user ('search scope update failed - retrying') instead
+ *   2. be VISIBLE to the user (named progress or a plain-language warning) instead
  *      of silently claiming the new rule is live, and
  *   3. for a matter re-index, keep the affected folders EXCLUDED from retrieval
  *      (fail closed) until the re-tag finally succeeds.
