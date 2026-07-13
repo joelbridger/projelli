@@ -56,21 +56,44 @@ export interface MakeNotesReviewRepositoryInput {
   meetingDir: string;
   matterId: string;
   summaryText: string;
+  summaryHtml?: string;
   crm?: NotesReviewCrmDelivery;
   householdKey?: string | null;
   now?: () => string;
 }
 
 /**
- * Turns the actual generated meeting note into proposals. Only bullets under
- * its Action items heading become proposals; a sentence elsewhere in the
- * summary cannot accidentally become a task or external write.
+ * Turns the actual generated meeting note into proposals. Semantic Word-list
+ * items are read from Mammoth's HTML because its raw-text extraction drops
+ * Word's list markers. Literal text bullets remain supported as a fallback.
+ * Only list items under the Action items heading become proposals; a sentence
+ * elsewhere in the summary cannot accidentally become a task or external
+ * write.
  */
 export function proposalsFromMeetingSummary(
   summaryText: string,
-  meetingDir: string
+  meetingDir: string,
+  summaryHtml?: string
 ): NotesReviewItem[] {
-  const items: NotesReviewItem[] = [];
+  const texts = [
+    ...actionItemTextsFromSemanticHtml(summaryHtml ?? ''),
+    ...actionItemTextsFromPlainText(summaryText),
+  ];
+  const items = texts.map((text) => {
+    const id = `action-${stableId(`${meetingDir}\n${text}`)}`;
+    return {
+      id,
+      title: text,
+      detail: text,
+      destination: 'task' as const,
+      sourceLabel: 'Meeting action item',
+    };
+  });
+  return dedupeById(items);
+}
+
+function actionItemTextsFromPlainText(summaryText: string): string[] {
+  const items: string[] = [];
   let inActionItems = false;
   for (const rawLine of summaryText.replace(/\r/g, '').split('\n')) {
     const line = rawLine.trim();
@@ -83,16 +106,49 @@ export function proposalsFromMeetingSummary(
     const text = line.replace(/^(?:[-*•]|\d+[.)])\s+/, '').trim();
     if (!text || (text === line && !/^(?:[-*•]|\d+[.)])\s+/.test(line)))
       continue;
-    const id = `action-${stableId(`${meetingDir}\n${text}`)}`;
-    items.push({
-      id,
-      title: text,
-      detail: text,
-      destination: 'task',
-      sourceLabel: 'Meeting action item',
-    });
+    items.push(text);
   }
-  return dedupeById(items);
+  return items;
+}
+
+function actionItemTextsFromSemanticHtml(summaryHtml: string): string[] {
+  if (!summaryHtml.trim() || typeof DOMParser === 'undefined') return [];
+
+  const document = new DOMParser().parseFromString(summaryHtml, 'text/html');
+  const items: string[] = [];
+  let inActionItems = false;
+
+  for (const block of Array.from(document.body.children)) {
+    const blockText = normalizeInlineText(block.textContent ?? '');
+    if (isSemanticSectionHeading(block, blockText)) {
+      inActionItems = normalizeHeading(blockText) === 'action items';
+      continue;
+    }
+    if (!inActionItems) continue;
+
+    for (const listItem of Array.from(block.querySelectorAll('li'))) {
+      const clone = listItem.cloneNode(true) as HTMLElement;
+      for (const nestedList of Array.from(clone.querySelectorAll('ul, ol'))) {
+        nestedList.remove();
+      }
+      const text = normalizeInlineText(clone.textContent ?? '').replace(
+        /^(?:[-*•]|\d+[.)])\s+/,
+        ''
+      );
+      if (text) items.push(text);
+    }
+  }
+
+  return items;
+}
+
+function isSemanticSectionHeading(block: Element, text: string): boolean {
+  const tagName = block.tagName.toLowerCase();
+  return /^h[1-6]$/.test(tagName) || (tagName === 'p' && isHeading(text));
+}
+
+function normalizeInlineText(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
 }
 
 /**
@@ -106,7 +162,8 @@ export function makeNotesReviewRepository(
   const statePath = `${input.meetingDir}/${STATE_FILE}`;
   const sourceItems = proposalsFromMeetingSummary(
     input.summaryText,
-    input.meetingDir
+    input.meetingDir,
+    input.summaryHtml
   );
   const now = input.now ?? (() => new Date().toISOString());
 

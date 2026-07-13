@@ -69,6 +69,7 @@ import {
   markdownToDocxBytes,
   applyLetterheadIfConfigured,
   extractDocxText,
+  type DocxTextExtraction,
 } from '@/platform/utils/docx-io';
 import { docxConvertToPdf } from '@/platform/utils/docx-commands';
 import { useMatterStore } from '@/platform/matter/matterStore';
@@ -178,7 +179,9 @@ export function MeetingEntry({
   const [meta, setMeta] = useState<MeetingMeta | null>(null);
   const [transcript, setTranscript] = useState<TranscriptFile | null>(null);
   const [hasNotes, setHasNotes] = useState(false);
-  const [summaryText, setSummaryText] = useState('');
+  const [summaryExtraction, setSummaryExtraction] =
+    useState<DocxTextExtraction | null>(null);
+  const summaryText = summaryExtraction?.plainText ?? '';
   const [audioSrc, setAudioSrc] = useState<string | null>(null);
   const [hasAudio, setHasAudio] = useState(false);
   const [seekMs, setSeekMs] = useState<number | undefined>(initialSeekMs);
@@ -217,7 +220,7 @@ export function MeetingEntry({
     setMeta(null);
     setTranscript(null);
     setHasNotes(false);
-    setSummaryText('');
+    setSummaryExtraction(null);
     setAudioSrc(null);
     setHasAudio(false);
     setSeekMs(initialSeekMs);
@@ -256,17 +259,22 @@ export function MeetingEntry({
               `${meetingDir}/notes.docx`
             );
             const extracted = await extractDocxText(notesBytes);
-            if (isCurrentLoad()) setSummaryText(extracted.plainText.trim());
+            if (isCurrentLoad()) {
+              setSummaryExtraction({
+                ...extracted,
+                plainText: extracted.plainText.trim(),
+              });
+            }
           } catch {
-            if (isCurrentLoad()) setSummaryText('');
+            if (isCurrentLoad()) setSummaryExtraction(null);
           }
         } else if (isCurrentLoad()) {
-          setSummaryText('');
+          setSummaryExtraction(null);
         }
       } catch {
         if (isCurrentLoad()) {
           setHasNotes(false);
-          setSummaryText('');
+          setSummaryExtraction(null);
         }
       }
       try {
@@ -436,17 +444,22 @@ export function MeetingEntry({
             `${meetingDir}/notes.docx`
           );
           const extracted = await extractDocxText(notesBytes);
-          if (isCurrentLoad()) setSummaryText(extracted.plainText.trim());
+          if (isCurrentLoad()) {
+            setSummaryExtraction({
+              ...extracted,
+              plainText: extracted.plainText.trim(),
+            });
+          }
         } catch {
-          if (isCurrentLoad()) setSummaryText('');
+          if (isCurrentLoad()) setSummaryExtraction(null);
         }
       } else {
-        setSummaryText('');
+        setSummaryExtraction(null);
       }
     } catch {
       if (isCurrentLoad()) {
         setHasNotes(false);
-        setSummaryText('');
+        setSummaryExtraction(null);
       }
     }
     onChanged?.();
@@ -1409,6 +1422,7 @@ export function MeetingEntry({
                     meetingDir={meetingDir}
                     matterId={matterId}
                     summaryText={summaryText}
+                    summaryHtml={summaryExtraction?.html ?? ''}
                     workspaceService={workspaceService}
                     {...(crmBlockedReason
                       ? {
