@@ -1,4 +1,4 @@
-/* eslint-disable lantern-i18n/no-hardcoded-string, react-refresh/only-export-components -- Frozen CRM copy and testable broadcast helpers live with this CRM surface, matching the sibling tab-surface convention. */
+/* eslint-disable lantern-i18n/no-hardcoded-string -- Frozen CRM copy needs its catalog in a separate product change. */
 /**
  * A firm email broadcast is intentionally a collection of separate, reviewed
  * sends. The CRM stores the plan and its outcome, while the existing mail
@@ -171,20 +171,13 @@ export function verifyRecipientOnHousehold(
   )
     ? (household[candidate.collection] as readonly unknown[])
     : [];
-  const hasCandidate = people.some((value) => {
-    if (!value || typeof value !== 'object') return false;
-    const person = value as Record<string, unknown>;
-    return (
-      (string(person['id']) ?? emailForReview(person)) === candidate.personId
-    );
-  });
-  if (!hasCandidate)
-    throw new Error('This person is no longer in the selected client list.');
+  let found = false;
   const updatedPeople = people.map((value) => {
     if (!value || typeof value !== 'object') return value;
     const person = value as Record<string, unknown>;
     const id = string(person['id']) ?? emailForReview(person);
     if (id !== candidate.personId) return value;
+    found = true;
     return {
       ...person,
       verifiedRecipient: {
@@ -196,6 +189,8 @@ export function verifyRecipientOnHousehold(
       },
     };
   });
+  if (!found)
+    throw new Error('This person is no longer in the selected client list.');
   return {
     ...household,
     [candidate.collection]: updatedPeople,
@@ -900,14 +895,7 @@ export function CrmBroadcastSurface() {
               data-testid="crm-broadcast-confirm-recipient"
               disabled={verifyingRecipient}
               onClick={() => {
-                void verifyRecipient().catch((reason: unknown) => {
-                  setVerifyingRecipient(false);
-                  setMessage(
-                    reason instanceof Error
-                      ? reason.message
-                      : 'Could not verify this email. Nothing was changed.'
-                  );
-                });
+                void verifyRecipient();
               }}
             >
               {verifyingRecipient ? 'Verifying…' : 'Verify email'}
