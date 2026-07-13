@@ -11,9 +11,11 @@
  * delegates rendering to the appropriate surface component.
  */
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { CrmHome } from '@/features/crm-home';
 import { ClientsSurface } from '@/features/crm-clients';
+import type { AddToHouseholdRequest } from '@/features/crm-clients/adapters';
+import type { CrmHouseholdAddRequest, CrmHomeRoute } from '@/features/crm-home/routes';
 import { CrmAskSurface } from '@/features/crm-ask';
 import { DocumentsHome } from '@/features/documents/DocumentsHome';
 import { AssociateHome } from '@/features/workflows/AssociateHome';
@@ -239,6 +241,7 @@ export function AppSurfaceRouter({
   activeMatter,
   settingsPageFocus,
 }: AppSurfaceRouterProps) {
+  const [crmAddRequest, setCrmAddRequest] = useState<CrmHouseholdAddRequest | null>(null);
   useIntakeInboxSync({ workspaceService: workspaceServiceRef.current });
   useEmailReplyIngestion({ resolveEmailProvider });
   useDocumentExtractionIngestion({
@@ -552,9 +555,35 @@ export function AppSurfaceRouter({
   return (
     <>
       {sidebarActiveTab === 'home' ? (
-        <CrmHome />
+        <CrmHome
+          {...(crmAddRequest ? {
+            initialRoute: ({
+              task: 'tasks',
+              opportunity: 'pipeline',
+              workflow: 'workflows',
+            } satisfies Record<CrmHouseholdAddRequest['kind'], CrmHomeRoute>)[crmAddRequest.kind],
+            addRequest: crmAddRequest,
+            onAddRequestConsumed: () => { setCrmAddRequest(null); },
+          } : {})}
+        />
       ) : sidebarActiveTab === 'matters' ? (
-        <ClientsSurface />
+        <ClientsSurface
+          actions={{
+            onAdd: (request: AddToHouseholdRequest) => {
+              if (
+                request.kind !== 'task' &&
+                request.kind !== 'opportunity' &&
+                request.kind !== 'workflow'
+              ) return;
+              setCrmAddRequest({
+                kind: request.kind,
+                householdId: request.householdRef.id,
+                householdLabel: request.householdRef.label ?? 'Untitled household',
+              });
+              setSidebarActiveTab('home');
+            },
+          }}
+        />
       ) : sidebarActiveTab === 'search' ? (
         <CrmAskSurface
           onSaveToDocument={async (content) => {

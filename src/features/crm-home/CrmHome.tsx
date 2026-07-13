@@ -60,6 +60,8 @@ export function CrmHomeShell({
   workflowHouseholds,
   saveLiveRecord,
   adapterProvided,
+  addRequest,
+  onAddRequestConsumed,
 }: Required<Pick<CrmHomeProps, 'adapter'>> &
   Omit<CrmHomeProps, 'adapter'> & {
     workflowData?: LiveWorkflowData;
@@ -119,6 +121,8 @@ export function CrmHomeShell({
       undoReport,
       reportUndo,
       adapterProvided: adapterProvided ?? false,
+      ...(addRequest ? { addRequest } : {}),
+      ...(onAddRequestConsumed ? { onAddRequestConsumed } : {}),
     }}>
       {createElement(selectedSurface.Component)}
     </CrmHomeSurfaceContext.Provider>

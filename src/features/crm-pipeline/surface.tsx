@@ -4,8 +4,13 @@ import { useCrmHomeSurfaceContext } from '@/features/crm-home/surfaceContext';
 import type { CrmHomeSurfaceDescriptor } from '@/features/crm-home/registry';
 
 function PipelineRoute({ route }: { route: 'pipeline' | 'pipeline-settings' }) {
-  const { navigate } = useCrmHomeSurfaceContext();
-  return <CrmPipelineSurface route={route} onNavigate={(next) => { navigate(next); }} />;
+  const { navigate, addRequest, onAddRequestConsumed } = useCrmHomeSurfaceContext();
+  return <CrmPipelineSurface
+    route={route}
+    onNavigate={(next) => { navigate(next); }}
+    {...(addRequest ? { addRequest } : {})}
+    {...(onAddRequestConsumed ? { onAddRequestConsumed } : {})}
+  />;
 }
 
 export const pipelineSurface: CrmHomeSurfaceDescriptor = { id: 'pipeline', label: 'Pipeline', icon: Landmark, route: 'pipeline', rail: true, Component: () => <PipelineRoute route="pipeline" /> };

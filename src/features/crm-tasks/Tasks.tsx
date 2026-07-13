@@ -7,6 +7,24 @@ import { AskBar, FreshnessBanner, Screen, mutedStyle, panelStyle } from '@/featu
 import { dailyWorkItems } from '@/features/crm-home/shared/workItems';
 import type { CrmFreshnessState, CrmFirmMember, CrmTask, CrmTaskSavedView, CrmWorkflowWorkItem } from '@/features/crm-home/types';
 import { useCrmHomeSurfaceContext } from '@/features/crm-home/surfaceContext';
+import type { CrmHouseholdAddRequest } from '@/features/crm-home/routes';
+
+function newTaskDraft(addRequest?: CrmHouseholdAddRequest): CrmTask {
+  const household = addRequest?.kind === 'task' ? addRequest : undefined;
+  return {
+    id: `new-task-${crypto.randomUUID()}`,
+    title: '',
+    body: '',
+    ...(household ? {
+      householdId: household.householdId,
+      householdLabel: household.householdLabel,
+    } : {}),
+    assigneeUserId: null,
+    status: 'open',
+    priority: 'normal',
+    contextRefs: household ? [household.householdId] : [],
+  };
+}
 
 export function Tasks({
   tasks,
@@ -18,6 +36,8 @@ export function Tasks({
   onUpdateTask,
   onCompleteWorkflowWorkItem,
   onSaveView,
+  addRequest,
+  onAddRequestConsumed,
 }: {
   tasks: readonly CrmTask[];
   workflowWorkItems: readonly CrmWorkflowWorkItem[];
@@ -30,10 +50,14 @@ export function Tasks({
     item: CrmWorkflowWorkItem
   ) => void | Promise<void>;
   onSaveView: (view: CrmTaskSavedView) => void | Promise<void>;
+  addRequest?: CrmHouseholdAddRequest;
+  onAddRequestConsumed?: () => void;
 }) {
   const [view, setView] = useState<'list' | 'board'>('list');
   const [filter, setFilter] = useState('');
-  const [editing, setEditing] = useState<CrmTask | null>(null);
+  const [editing, setEditing] = useState<CrmTask | null>(() =>
+    addRequest?.kind === 'task' ? newTaskDraft(addRequest) : null
+  );
   const [savingView, setSavingView] = useState(false);
   const [viewName, setViewName] = useState('');
   const filtered = tasks.filter((task) =>
@@ -54,15 +78,7 @@ export function Tasks({
     });
   };
   const newTask = () => {
-    setEditing({
-      id: `new-task-${crypto.randomUUID()}`,
-      title: '',
-      body: '',
-      assigneeUserId: null,
-      status: 'open',
-      priority: 'normal',
-      contextRefs: [],
-    });
+    setEditing(newTaskDraft());
   };
   return (
     <Screen
@@ -244,6 +260,7 @@ export function Tasks({
           firmMembers={firmMembers}
           onClose={() => {
             setEditing(null);
+            onAddRequestConsumed?.();
           }}
           onSave={onUpdateTask}
         />
@@ -253,7 +270,7 @@ export function Tasks({
 }
 
 export function TasksSurface() {
-  const { adapter } = useCrmHomeSurfaceContext();
+  const { adapter, addRequest, onAddRequestConsumed } = useCrmHomeSurfaceContext();
   return <Tasks
     tasks={adapter.tasks}
     workflowWorkItems={adapter.workflowWorkItems ?? []}
@@ -264,6 +281,8 @@ export function TasksSurface() {
     onUpdateTask={(task) => adapter.actions.updateTask?.(task)}
     onCompleteWorkflowWorkItem={(item) => adapter.actions.completeWorkflowWorkItem?.(item)}
     onSaveView={(view) => adapter.actions.saveTaskView?.(view)}
+    {...(addRequest ? { addRequest } : {})}
+    {...(onAddRequestConsumed ? { onAddRequestConsumed } : {})}
   />;
 }
 

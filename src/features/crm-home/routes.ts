@@ -29,9 +29,17 @@ export type CrmHomeRoute =
   | 'calendar'
   | 'timeline';
 
+export interface CrmHouseholdAddRequest {
+  kind: 'task' | 'opportunity' | 'workflow';
+  householdId: string;
+  householdLabel: string;
+}
+
 export interface CrmHomeProps {
   adapter?: CrmHomeAdapter;
   initialRoute?: CrmHomeRoute;
+  addRequest?: CrmHouseholdAddRequest;
+  onAddRequestConsumed?: () => void;
   /** Sample records are visual-test-only and always visibly labelled. */
   preview?: boolean;
 }
