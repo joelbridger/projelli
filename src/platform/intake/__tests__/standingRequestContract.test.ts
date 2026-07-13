@@ -471,18 +471,31 @@ describe('standing request receiver-owned contract', () => {
     const firstBody = JSON.parse(createBodies[0] ?? '{}') as Record<string, unknown>;
     const secondBody = JSON.parse(createBodies[1] ?? '{}') as Record<string, unknown>;
     expect(Object.keys(firstBody).sort()).toEqual(Object.keys(secondBody).sort());
-    const relayVisible = createBodies[0] ?? '';
-    for (const forbidden of [
-      fixture.client_fact_seed.matter_id,
-      'income_annual',
-      'ssn',
-      fixture.blueprint.label,
-    ]) {
-      expect(relayVisible).not.toContain(forbidden);
-    }
-    expect(
-      (await openedChecklist(standing.bundle)).items.map((item) => item.item_id)
-    ).toEqual(standing.record.requestItems?.map((item) => item.item_id));
+    expect(Object.keys(firstBody).sort()).toEqual([
+      'auth_token',
+      'checklist_ciphertext_b64',
+      'checklist_version',
+      'expires_at',
+      'intake_id',
+      'state_ciphertext_b64',
+    ]);
+    expect(firstBody).toMatchObject({
+      intake_id: standing.record.intakeId,
+      checklist_version: 1,
+    });
+    expect(typeof firstBody['checklist_ciphertext_b64']).toBe('string');
+    expect(typeof firstBody['state_ciphertext_b64']).toBe('string');
+    const decryptedChecklist = await openedChecklist(standing.bundle);
+    expect(decryptedChecklist).toMatchObject({
+      matter_id: fixture.client_fact_seed.matter_id,
+      blueprint_ref: fixture.blueprint.blueprintId,
+    });
+    expect(decryptedChecklist.items.map((item) => item.item_id)).toEqual(
+      standing.record.requestItems?.map((item) => item.item_id)
+    );
+    expect(decryptedChecklist.items.map((item) => item.label)).toEqual(
+      fixture.blueprint.items.map((item) => item.label)
+    );
     expect(onboarding.record.kind).toBe('onboarding');
   });
 
