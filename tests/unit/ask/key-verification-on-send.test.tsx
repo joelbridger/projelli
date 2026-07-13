@@ -118,7 +118,7 @@ import { Ask } from '@/features/ask/Ask';
 import { isKeyVerified, isKeyInvalid, clearKeyStatus } from '@/platform/providers/keyVerification';
 
 async function askQuestion() {
-  render(<Ask />);
+  render(<Ask onAuditLog={() => undefined} />);
   fireEvent.change(screen.getByTestId('ask-composer-input'), {
     target: { value: 'When does the client want to retire?' },
   });

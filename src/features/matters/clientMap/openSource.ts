@@ -75,7 +75,18 @@ export function dispatchOpenSource(matterId: string, ref: SourceRef): void {
     return;
   }
   if (ref.kind === 'crm') {
-    window.dispatchEvent(new CustomEvent(EV_OPEN_CRM, { detail: { sourceId: ref.ref } }));
+    const crmParts = ref.ref.split(':');
+    window.dispatchEvent(
+      new CustomEvent(EV_OPEN_CRM, {
+        detail: {
+          sourceId: ref.ref,
+          // The Client Map knows the client whose map this is — pass it so the
+          // viewer resolves the exact record, never a same-id row elsewhere.
+          matterId,
+          entityKind: crmParts.length >= 3 ? crmParts[1] : undefined,
+        },
+      }),
+    );
     return;
   }
   if (ref.kind === 'onedrive') {

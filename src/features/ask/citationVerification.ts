@@ -36,6 +36,7 @@ import type { AuditEntry } from '@/platform/types/audit';
 import type { AnswerCitation } from './askHelpers';
 import type { CitationTrustState } from './answerBlockHelpers';
 import { useStillImporting, isImportStatusUnsettled } from './useStillImporting';
+import { crmVerifyCitations } from '@/features/crm-ask/verification';
 
 /**
  * QA-85 — the real check's outcome for one citation. Extends the backend's
@@ -351,6 +352,85 @@ export function useCitationVerification(
     // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch is keyed by `signature` (content) and `retryTick` (QA-92 round 2 retry trigger), not by the `eligible`/`onAuditLog` references which are recreated every render.
   }, [signature, retryTick]);
 
+  // CRM citations are verified against the live decrypted SQLCipher record —
+  // NOT the RAG index — so they get their own fetch, but land in the SAME
+  // shared verdict store (keyed by id + matterId + excerpt) that every trust
+  // surface reads. A CRM row is not a RAG chunk, so a re-index does not make it
+  // stale; the import-unsettled retry dance above therefore does not apply
+  // here. On any error (browser/dev has no backend) the verdict settles to
+  // `'unavailable'` — the card stays neutral "source found", never green.
+  const crmEligible = citations.filter(
+    (c): c is AnswerCitation & { id: string; matterId: string } =>
+      c.sourceType === 'crm' && Boolean(c.id && c.matterId),
+  );
+  const crmSignature = crmEligible
+    .map((c) => verifyKey(c.id, c.matterId, c.excerpt))
+    .join('|');
+
+  useEffect(() => {
+    const toFetch = crmEligible.filter(
+      (c) => !requested.has(verifyKey(c.id, c.matterId, c.excerpt)),
+    );
+    if (toFetch.length === 0) return;
+    toFetch.forEach((c) => {
+      markRequested(verifyKey(c.id, c.matterId, c.excerpt));
+    });
+    const epochAtStart = cacheEpoch;
+    const run = async () => {
+      try {
+        const results = await crmVerifyCitations(
+          toFetch.map((c) => ({
+            path: c.id,
+            claimedMatterId: c.matterId,
+            quotedText: c.excerpt,
+          })),
+        );
+        if (epochAtStart !== cacheEpoch) return;
+        useCitationVerdictsStore.setState((s) => {
+          const next = new Map(s.verdicts);
+          toFetch.forEach((c, i) => {
+            const r = results[i];
+            if (!r) return;
+            const key = verifyKey(c.id, c.matterId, c.excerpt);
+            touchCacheKey(key);
+            next.set(key, r.verdict);
+          });
+          evictOverflowKeys().forEach((key) => next.delete(key));
+          return { verdicts: next };
+        });
+        toFetch.forEach((c, i) => {
+          const r = results[i];
+          if (r) {
+            onAuditLog?.(
+              auditEventToEntry({
+                type: 'citation_verified',
+                timestamp: new Date().toISOString(),
+                payload: { citationId: c.id, verdict: r.verdict },
+              }),
+            );
+          }
+        });
+      } catch {
+        if (epochAtStart !== cacheEpoch) return;
+        // Never fake-verify. Settle these exact keys as 'unavailable' so they
+        // are not endlessly retried and the card stays neutral "source found".
+        useCitationVerdictsStore.setState((s) => {
+          const next = new Map(s.verdicts);
+          toFetch.forEach((c) => {
+            const key = verifyKey(c.id, c.matterId, c.excerpt);
+            touchCacheKey(key);
+            next.set(key, 'unavailable');
+          });
+          evictOverflowKeys().forEach((key) => next.delete(key));
+          return { verdicts: next };
+        });
+      }
+    };
+    // eslint-disable-next-line lantern-async/no-silent-failure -- run() wraps everything in try/catch (errors settle keys as 'unavailable') and never rejects
+    void run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by crmSignature (content); the `crmEligible`/`onAuditLog` refs are recreated every render.
+  }, [crmSignature]);
+
   return verdicts;
 }
 
@@ -372,11 +452,13 @@ export function citationTrustState(
   cite: AnswerCitation,
   verdicts: ReadonlyMap<string, RealVerdict>,
 ): CitationTrustState {
-  // CRM search already resolved this exact encrypted local record before it
-  // entered the prompt. It is not a RAG chunk, so sending it to the RAG
-  // verifier would create a false negative. Its click-through record lookup is
-  // the matching local verification path.
-  if (cite.sourceType === 'crm') return cite.grounded ? 'verified' : 'unverified';
+  // A CRM citation earns a green "verified" badge ONLY after the exact live
+  // SQLCipher record is checked (see `crmVerifyCitations`) — never from the
+  // bind-time `grounded` flag, which merely proves the row was retrieved once.
+  // CRM verdicts land in the SAME shared store as document verdicts (keyed by
+  // id + matterId + excerpt), so the read below covers both. When the live
+  // check is unavailable (browser/dev) the verdict is `'unavailable'` →
+  // `'checking'` below: neutral "source found", never green.
   if (!cite.id || !cite.matterId) return 'checking';
   const v = verdicts.get(verifyKey(cite.id, cite.matterId, cite.excerpt));
   if (v === undefined) return 'checking';

@@ -34,9 +34,16 @@ const PREVIEW_CHAR_LIMIT = 220;
 /** Open the cited source (document → contextual editor; email → reading view). */
 function openCitation(cite: AnswerCitation): void {
   if (cite.path?.startsWith('crm:')) {
+    const crmParts = cite.path.split(':');
     window.dispatchEvent(
       new CustomEvent(EV_OPEN_CRM, {
-        detail: { sourceId: cite.path, snippet: cite.excerpt },
+        detail: {
+          sourceId: cite.path,
+          snippet: cite.excerpt,
+          // Full record identity: the viewer must open THIS client's record.
+          matterId: cite.matterId,
+          entityKind: crmParts.length >= 3 ? crmParts[1] : undefined,
+        },
       }),
     );
     return;
@@ -550,11 +557,12 @@ export function SourcePanel({
           key={`${String(c.n)}:${c.id ?? c.path ?? ''}:${c.matterId ?? ''}`}
           cite={c}
           selected={c.n === selectedN}
-          verifyState={c.sourceType === 'crm'
-            ? (c.grounded ? 'verified' : 'unavailable')
-            : c.id && c.matterId
-              ? (verdicts.get(verifyKey(c.id, c.matterId, c.excerpt)) ?? 'pending')
-              : 'unavailable'}
+          // CRM and document citations both read the SAME live verdict store:
+          // a CRM citation is only green after `crmVerifyCitations` checks the
+          // exact live record. No more `grounded → verified` shortcut.
+          verifyState={c.id && c.matterId
+            ? (verdicts.get(verifyKey(c.id, c.matterId, c.excerpt)) ?? 'pending')
+            : 'unavailable'}
           onSelect={onSelect}
           {...(onOpenCitation ? { onOpenCitation } : {})}
         />

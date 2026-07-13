@@ -269,7 +269,7 @@ describe('F2.5b — Ask primary-surface consent gate', () => {
     h.consent = { state: 'unasked' };
     h.hasCloudKey = false;
     h.localAvailable = true;
-    const view = render(<Ask />);
+    const view = render(<Ask onAuditLog={() => undefined} />);
 
     fireEvent.change(screen.getByTestId('ask-composer-input'), {
       target: { value: 'When does the client want to retire?' },
@@ -301,7 +301,7 @@ describe('F2.5b — Ask primary-surface consent gate', () => {
       content: '[[BLOCK:FILES]]\nThe client wants to retire in 2032 [plan.pdf paragraph 2].',
       usage: { inputTokens: 5, outputTokens: 5 }, cost: 0.0001, model: 'claude-consent-stub',
     });
-    view.rerender(<Ask />);
+    view.rerender(<Ask onAuditLog={() => undefined} />);
     fireEvent.click(screen.getByRole('button', { name: /^Ask$/i }));
 
     await waitFor(() => expect(h.cloudSend).toHaveBeenCalledTimes(1));
@@ -331,7 +331,7 @@ describe('F2.5b — Ask primary-surface consent gate', () => {
       });
       h.consent = GRANT_ALL;
       h.hasCloudKey = true;
-      render(<Ask />);
+      render(<Ask onAuditLog={() => undefined} />);
       // Turn 1 — consent granted → a real file-grounded answer lands in history.
       fireEvent.change(screen.getByTestId('ask-composer-input'), { target: { value: 'When does the client retire?' } });
       fireEvent.click(screen.getByRole('button', { name: /^Ask$/i }));
@@ -362,7 +362,7 @@ describe('F2.5b — Ask primary-surface consent gate', () => {
       });
       h.consent = GRANT_ALL;
       h.hasCloudKey = true;
-      render(<Ask />);
+      render(<Ask onAuditLog={() => undefined} />);
       fireEvent.change(screen.getByTestId('ask-composer-input'), { target: { value: 'When does the client retire?' } });
       fireEvent.click(screen.getByRole('button', { name: /^Ask$/i }));
       await waitFor(() => expect(h.cloudSend).toHaveBeenCalledTimes(1));
@@ -392,7 +392,7 @@ describe('F2.5b — Ask primary-surface consent gate', () => {
     });
     h.consent = GRANT_ALL;
     h.hasCloudKey = true;
-    render(<Ask />);
+    render(<Ask onAuditLog={() => undefined} />);
     fireEvent.change(screen.getByTestId('ask-composer-input'), { target: { value: 'What is their equity allocation?' } });
     fireEvent.click(screen.getByRole('button', { name: /^Ask$/i }));
     await waitFor(() => expect(h.cloudSend).toHaveBeenCalledTimes(1));
@@ -421,7 +421,7 @@ describe('F2.5b — Ask primary-surface consent gate', () => {
     });
     h.consent = GRANT_ALL;
     h.hasCloudKey = true;
-    render(<Ask />);
+    render(<Ask onAuditLog={() => undefined} />);
 
     // Turn 1 — grounded fresh.
     fireEvent.change(screen.getByTestId('ask-composer-input'), { target: { value: 'When do they retire?' } });
@@ -453,7 +453,7 @@ describe('F2.5b — Ask primary-surface consent gate', () => {
     // moment, so no fresh file content reaches the cloud.
     h.consent = GRANT_ALL;
     h.hasCloudKey = true;
-    render(<Ask />);
+    render(<Ask onAuditLog={() => undefined} />);
     fireEvent.change(screen.getByTestId('ask-composer-input'), { target: { value: 'What is their allocation?' } });
     fireEvent.click(screen.getByRole('button', { name: /^Ask$/i }));
     // Revoke synchronously, before any of handleAsk's awaits have resolved.
@@ -469,7 +469,7 @@ describe('F2.5b — Ask primary-surface consent gate', () => {
     // bails before the send. No content reaches the cloud under the wrong grant.
     h.consent = GRANT_ALL;
     h.hasCloudKey = true;
-    render(<Ask />);
+    render(<Ask onAuditLog={() => undefined} />);
     fireEvent.change(screen.getByTestId('ask-composer-input'), { target: { value: 'What is their allocation?' } });
     fireEvent.click(screen.getByRole('button', { name: /^Ask$/i }));
     // A→B→A: the live root returns to '/workspace' but the generation moved on.
@@ -513,7 +513,7 @@ describe('F2.5b — Ask primary-surface consent gate', () => {
       h.retrieve.mockResolvedValue([]); // zero hits → no-evidence decline
       h.consent = GRANT_ALL;
       h.hasCloudKey = true;
-      render(<Ask />);
+      render(<Ask onAuditLog={() => undefined} />);
       fireEvent.change(screen.getByTestId('ask-composer-input'), { target: { value: 'something not in the files' } });
       fireEvent.click(screen.getByRole('button', { name: /^Ask$/i }));
       // The decline path persists the assistant message with a DEFINITE false marker.
@@ -534,7 +534,7 @@ describe('F2.5b — Ask primary-surface consent gate', () => {
   it('renders the consent banner on Ask for a cloud provider (unasked)', async () => {
     h.consent = { state: 'unasked' };
     h.hasCloudKey = true;
-    render(<Ask />);
+    render(<Ask onAuditLog={() => undefined} />);
     await waitFor(() => {
       expect(screen.getByTestId('chat-file-access-consent')).toBeTruthy();
     });

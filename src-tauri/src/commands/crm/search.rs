@@ -6,7 +6,7 @@
 
 use std::collections::BTreeSet;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::State;
 
@@ -303,6 +303,148 @@ pub async fn crm_search(
     .map_err(|error: anyhow::Error| error.to_string())
 }
 
+/// One CRM citation to verify against the live SQLCipher record. Mirrors the
+/// RAG citation verifier's contract so the frontend can treat both identically.
+/// `entity_id` + `entity_kind` are parsed from the `crm:<kind>:<id>` citation
+/// path; `claimed_matter_id` is the client the answer says the record belongs
+/// to; `quoted_text` is the span the answer attributes to it.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct CrmCitationToVerify {
+    pub entity_id: String,
+    pub entity_kind: String,
+    pub claimed_matter_id: String,
+    pub quoted_text: String,
+}
+
+/// The verdict for one CRM citation. Same vocabulary and IPC shape as the RAG
+/// verifier's `Verdict`: only `verified` is safe to present as green.
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(tag = "verdict", rename_all = "camelCase")]
+pub enum CrmCitationVerdict {
+    Verified,
+    NotFound,
+    TextMismatch,
+    MatterMismatch {
+        #[serde(rename = "actualMatter")]
+        actual_matter: String,
+    },
+}
+
+/// Canonicalized containment (same transform on both sides): Unicode-lowercase,
+/// curly quotes straightened, whitespace runs collapsed. Mirrors the RAG
+/// verifier's `text_contains_normalized` so a CRM quote that grounded also
+/// verifies. An empty normalized quote never verifies (fail closed).
+fn crm_text_contains_normalized(stored: &str, quoted: &str) -> bool {
+    fn canon(s: &str) -> String {
+        let lowered = s.to_lowercase();
+        let straightened: String = lowered
+            .chars()
+            .map(|c| match c {
+                '\u{2018}' | '\u{2019}' => '\'',
+                '\u{201C}' | '\u{201D}' => '"',
+                other => other,
+            })
+            .collect();
+        straightened.split_whitespace().collect::<Vec<_>>().join(" ")
+    }
+    let q = canon(quoted);
+    if q.is_empty() {
+        return false;
+    }
+    canon(stored).contains(&q)
+}
+
+/// Classify one CRM citation against the current live records.
+///
+///   1. Look for a record matching the FULL identity — id AND entity kind AND
+///      the claimed client. If found, rebuild the exact text the citation was
+///      drawn from (`title \n record_content`) and assert it still CONTAINS the
+///      quoted span → `Verified`; otherwise `TextMismatch` (the record changed).
+///   2. If no such record exists in the claimed client, but a same id+kind
+///      record exists under ANOTHER client, that is a scope lie →
+///      `MatterMismatch { actual_matter }`.
+///   3. Otherwise the record is gone → `NotFound`.
+///
+/// FAIL-CLOSED: anything short of an exact identity + text match is non-Verified.
+fn classify_crm_citation(records: &[Value], c: &CrmCitationToVerify) -> CrmCitationVerdict {
+    let mut other_matter: Option<String> = None;
+    for record in records {
+        let Some(object) = record.as_object() else {
+            continue;
+        };
+        let Some(id) = string_field(object, "id") else {
+            continue;
+        };
+        if id != c.entity_id {
+            continue;
+        }
+        let kind = string_field(object, "kind").unwrap_or_else(|| "record".to_string());
+        if kind != c.entity_kind {
+            continue;
+        }
+        let matter = string_field(object, "matterId");
+        match matter {
+            Some(m) if m == c.claimed_matter_id => {
+                let stored = format!(
+                    "{}\n{}",
+                    record_title(object, &c.entity_kind, &c.entity_id),
+                    record_content(record)
+                );
+                return if crm_text_contains_normalized(&stored, &c.quoted_text) {
+                    CrmCitationVerdict::Verified
+                } else {
+                    CrmCitationVerdict::TextMismatch
+                };
+            }
+            Some(m) => {
+                if other_matter.is_none() {
+                    other_matter = Some(m);
+                }
+            }
+            None => {}
+        }
+    }
+    match other_matter {
+        Some(actual_matter) => CrmCitationVerdict::MatterMismatch { actual_matter },
+        None => CrmCitationVerdict::NotFound,
+    }
+}
+
+/// Verify CRM citations against the decrypted live SQLCipher records on THIS
+/// device. A search result proves "this row was retrieved once"; it does not
+/// prove "this exact record still exists for this client." This command is that
+/// second proof — the click-through equivalent for the trust badge, so a CRM
+/// citation is only ever labelled verified after the live record is checked.
+#[tauri::command]
+pub async fn crm_verify_citations(
+    state: State<'_, CrmState>,
+    citations: Vec<CrmCitationToVerify>,
+) -> Result<Vec<CrmCitationVerdict>, String> {
+    if citations.is_empty() {
+        return Ok(Vec::new());
+    }
+    let workspace = state
+        .workspace
+        .lock()
+        .await
+        .clone()
+        .ok_or_else(|| "Open a workspace before verifying CRM records.".to_string())?;
+    tokio::task::spawn_blocking(move || {
+        let store = CrmCoreStore::open(&workspace)?;
+        let records = store.list_live_records()?;
+        Ok::<Vec<CrmCitationVerdict>, anyhow::Error>(
+            citations
+                .iter()
+                .map(|c| classify_crm_citation(&records, c))
+                .collect(),
+        )
+    })
+    .await
+    .map_err(|error| error.to_string())?
+    .map_err(|error: anyhow::Error| error.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -349,5 +491,97 @@ mod tests {
         assert!(snippet.contains("As of 2026-07-13"));
         assert!(!snippet.contains("\"label\""));
         assert!(!snippet.contains("internal-id"));
+    }
+
+    fn note(id: &str, matter: &str, body: &str) -> Value {
+        serde_json::json!({ "id": id, "kind": "note", "matterId": matter, "body": body })
+    }
+
+    #[test]
+    fn crm_verify_never_verifies_a_same_id_record_from_another_client() {
+        // Two clients each own a `note-1`. A citation for client-a must NEVER
+        // verify against client-b's row — it is a MatterMismatch (Ask-seam #5).
+        let records = vec![
+            note("note-1", "client-b", "Wrong client note"),
+            note("note-1", "client-a", "Retire at 62"),
+        ];
+        let verdict = classify_crm_citation(
+            &records,
+            &CrmCitationToVerify {
+                entity_id: "note-1".into(),
+                entity_kind: "note".into(),
+                claimed_matter_id: "client-a".into(),
+                quoted_text: "Retire at 62".into(),
+            },
+        );
+        assert_eq!(verdict, CrmCitationVerdict::Verified);
+
+        // If ONLY the other client's row exists, the claim is a scope lie.
+        let only_b = vec![note("note-1", "client-b", "Wrong client note")];
+        assert_eq!(
+            classify_crm_citation(
+                &only_b,
+                &CrmCitationToVerify {
+                    entity_id: "note-1".into(),
+                    entity_kind: "note".into(),
+                    claimed_matter_id: "client-a".into(),
+                    quoted_text: "Retire at 62".into(),
+                },
+            ),
+            CrmCitationVerdict::MatterMismatch {
+                actual_matter: "client-b".into()
+            }
+        );
+    }
+
+    #[test]
+    fn crm_verify_reports_deleted_and_altered_records_honestly() {
+        // Record deleted/moved → NotFound.
+        assert_eq!(
+            classify_crm_citation(
+                &[],
+                &CrmCitationToVerify {
+                    entity_id: "note-1".into(),
+                    entity_kind: "note".into(),
+                    claimed_matter_id: "client-a".into(),
+                    quoted_text: "Retire at 62".into(),
+                },
+            ),
+            CrmCitationVerdict::NotFound
+        );
+
+        // Record still present for this client but its content changed → the
+        // quote can no longer be found → TextMismatch, never Verified.
+        let altered = vec![note("note-1", "client-a", "Retire at 70 now")];
+        assert_eq!(
+            classify_crm_citation(
+                &altered,
+                &CrmCitationToVerify {
+                    entity_id: "note-1".into(),
+                    entity_kind: "note".into(),
+                    claimed_matter_id: "client-a".into(),
+                    quoted_text: "Retire at 62".into(),
+                },
+            ),
+            CrmCitationVerdict::TextMismatch
+        );
+
+        // Same id but different entity KIND (a task, not the cited note) →
+        // never verified in the note's place.
+        let task = vec![serde_json::json!({
+            "id": "note-1", "kind": "task", "matterId": "client-a", "body": "Retire at 62"
+        })];
+        assert_eq!(
+            classify_crm_citation(
+                &task,
+                &CrmCitationToVerify {
+                    entity_id: "note-1".into(),
+                    entity_kind: "note".into(),
+                    claimed_matter_id: "client-a".into(),
+                    quoted_text: "Retire at 62".into(),
+                },
+            ),
+            CrmCitationVerdict::NotFound
+        );
     }
 }

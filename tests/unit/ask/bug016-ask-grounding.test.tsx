@@ -160,7 +160,7 @@ vi.mock('@/platform/state/aiChatStore', () => {
 /* -------------------------------------------------------------------------- */
 
 async function ask(question: string) {
-  render(<Ask />);
+  render(<Ask onAuditLog={() => undefined} />);
   const input = screen.getByTestId('ask-composer-input');
   fireEvent.change(input, { target: { value: question } });
   fireEvent.click(screen.getByRole('button', { name: /^Ask$/i }));

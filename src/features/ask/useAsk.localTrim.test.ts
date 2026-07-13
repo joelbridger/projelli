@@ -111,7 +111,9 @@ describe('useAsk — local-AI context trimming', () => {
       model: 'qwen3-4b-instruct-2507',
     });
 
-    const { result } = renderHook(() => useAsk({}));
+    // Ask requires a durable-audit sink to send (fail-closed audit door):
+    // production always wires one; a send with none is refused by design.
+    const { result } = renderHook(() => useAsk({ onAuditLog: () => undefined }));
 
     act(() => {
       // eslint-disable-next-line lantern-async/no-silent-failure -- handleAsk has its own try/catch and never rejects
@@ -151,7 +153,9 @@ describe('useAsk — local-AI context trimming', () => {
       model: 'qwen3-4b-instruct-2507',
     });
 
-    const { result } = renderHook(() => useAsk({}));
+    // Ask requires a durable-audit sink to send (fail-closed audit door):
+    // production always wires one; a send with none is refused by design.
+    const { result } = renderHook(() => useAsk({ onAuditLog: () => undefined }));
 
     act(() => {
       // eslint-disable-next-line lantern-async/no-silent-failure -- handleAsk has its own try/catch and never rejects
@@ -181,7 +185,9 @@ describe('useAsk — local-AI context trimming', () => {
       model: 'qwen3-4b-instruct-2507',
     });
 
-    const { result } = renderHook(() => useAsk({}));
+    // Ask requires a durable-audit sink to send (fail-closed audit door):
+    // production always wires one; a send with none is refused by design.
+    const { result } = renderHook(() => useAsk({ onAuditLog: () => undefined }));
 
     act(() => {
       // eslint-disable-next-line lantern-async/no-silent-failure -- handleAsk has its own try/catch and never rejects
@@ -237,7 +243,9 @@ describe('useAsk — local-AI context trimming', () => {
       model: 'llama3.2:3b',
     });
 
-    const { result } = renderHook(() => useAsk({}));
+    // Ask requires a durable-audit sink to send (fail-closed audit door):
+    // production always wires one; a send with none is refused by design.
+    const { result } = renderHook(() => useAsk({ onAuditLog: () => undefined }));
 
     act(() => {
       // eslint-disable-next-line lantern-async/no-silent-failure -- handleAsk has its own try/catch and never rejects
@@ -268,7 +276,9 @@ describe('useAsk — local-AI context trimming', () => {
       model: 'claude-sonnet-5',
     });
 
-    const { result } = renderHook(() => useAsk({}));
+    // Ask requires a durable-audit sink to send (fail-closed audit door):
+    // production always wires one; a send with none is refused by design.
+    const { result } = renderHook(() => useAsk({ onAuditLog: () => undefined }));
 
     act(() => {
       // eslint-disable-next-line lantern-async/no-silent-failure -- handleAsk has its own try/catch and never rejects

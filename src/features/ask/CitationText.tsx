@@ -4,6 +4,8 @@ import { cn } from '@/lib/utils';
 import type { AnswerCitation } from './askHelpers';
 import { AnswerDatePresentation } from '@/platform/retrieval/dates';
 import { EV_OPEN_CRM } from '@/config/identity';
+import { useCitationVerification, citationTrustState } from './citationVerification';
+import type { CitationTrustState } from './answerBlockHelpers';
 
 /* -------------------------------------------------------------------------- */
 /* CitationText — the Ask answer renderer (matches the demo Ask answer body).  */
@@ -50,38 +52,76 @@ export function CitationText({
     matterId?: string
   ) => void;
 }) {
+  // Live verification verdicts (shared store). CRM citations are verified
+  // against the exact live SQLCipher record here, so a CRM chip is only ever
+  // green after that check passes.
+  const verdicts = useCitationVerification(citations);
+
   /** A single citation chip (verify state + click-to-open preserved). */
   function renderChip(n: number, key: string): ReactNode {
     const cite = citations.find((c) => c.n === n);
     const isSel = selected === n;
-    const isVerified = cite?.verified ?? false;
     const isUnresolved = cite?.path === null;
+    // A CRM citation's green badge must come from the LIVE record check (the
+    // shared verdict store), NEVER the bind-time `verified` flag — otherwise a
+    // deleted / moved / wrong-client record would still paint green (Ask-seam
+    // defect #5). Documents keep their existing explicit-citation `verified`.
+    const isCrm = cite
+      ? cite.sourceType === 'crm' || (cite.path?.startsWith('crm:') ?? false)
+      : false;
+    const crmTrust: CitationTrustState | null =
+      isCrm && cite ? citationTrustState(cite, verdicts) : null;
+    const isVerified = isCrm ? crmTrust === 'verified' : (cite?.verified ?? false);
     // STRICT trust display: green only when the model explicitly cited the
-    // exact source and it verified in scope.
+    // exact source and it verified in scope (documents), or the live record
+    // check passed (CRM).
     const proven = isVerified && !isUnresolved;
     // B1: "source found, not verified" — the citation resolves to a real
     // retrieved chunk in this client (grounded) but was a post-hoc fuzzy match,
     // not an explicit model citation. Show it honestly (amber) instead of a
     // green badge it hasn't earned — and never silently drop it. (Pre-B1
     // persisted citations have no `grounded`; they fall back to verified above.)
-    const sourceFound = !proven && !isUnresolved && (cite?.grounded ?? false);
+    // A CRM citation the live check actively REFUTED (wrong client / gone /
+    // altered) is not merely "found, not verified" — it is a red problem, not an
+    // amber neutral. Only a pending/unavailable CRM check stays amber.
+    const sourceFound =
+      !proven &&
+      !isUnresolved &&
+      (cite?.grounded ?? false) &&
+      (isCrm ? crmTrust !== 'unverified' : true);
     const dataVerified: 'true' | 'false' | 'unknown' = isUnresolved
       ? 'false'
-      : isVerified
-        ? 'true'
-        : 'unknown';
+      : isCrm
+        // A live refutation (matterMismatch / notFound / textMismatch) is a
+        // definitive 'false'; a still-pending or unavailable check is 'unknown'.
+        ? crmTrust === 'verified'
+          ? 'true'
+          : crmTrust === 'unverified'
+            ? 'false'
+            : 'unknown'
+        : isVerified
+          ? 'true'
+          : 'unknown';
     return (
       <button
         key={key}
         type="button"
-        data-testid={`ask-citation-chip-${n}`}
+        data-testid={`ask-citation-chip-${String(n)}`}
         data-verified={dataVerified}
         onClick={() => {
           onSelect(n);
           if (cite?.path && (cite.sourceType === 'crm' || cite.path.startsWith('crm:'))) {
+            const crmParts = cite.path.split(':');
             window.dispatchEvent(
               new CustomEvent(EV_OPEN_CRM, {
-                detail: { sourceId: cite.path, snippet: cite.excerpt },
+                detail: {
+                  sourceId: cite.path,
+                  snippet: cite.excerpt,
+                  // Carry the full record identity so the viewer opens the exact
+                  // client's record, never the first row that shares this id.
+                  matterId: cite.matterId,
+                  entityKind: crmParts.length >= 3 ? crmParts[1] : undefined,
+                },
               }),
             );
             return;

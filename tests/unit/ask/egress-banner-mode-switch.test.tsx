@@ -228,7 +228,7 @@ describe('B-PRIV-1: Search egress banner is honest across mode-switch AND at sen
       useSettingsStore.getState().setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, 'local-only');
     };
 
-    render(<Ask />);
+    render(<Ask onAuditLog={() => undefined} />);
     const input = screen.getByTestId('ask-composer-input');
     fireEvent.change(input, { target: { value: 'What is the portfolio value?' } });
     fireEvent.click(screen.getByRole('button', { name: /^Ask$/i }));

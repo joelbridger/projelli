@@ -16,6 +16,10 @@ import { loadLiveCrmRecords, type LiveCrmRecord } from '@/platform/crm/liveRecor
 interface CrmSourceState {
   sourceId: string;
   snippet: string | undefined;
+  /** The client (matter) the citation named. Required to open a record. */
+  matterId: string | undefined;
+  /** The entity kind the citation named (note/task/household/…). */
+  entityKind: string | undefined;
 }
 
 export function CrmSourcePanel() {
@@ -25,11 +29,23 @@ export function CrmSourcePanel() {
 
   useEffect(() => {
     const handler = (e: Event) => {
-      const detail = (e as CustomEvent<{ sourceId?: string; snippet?: string } | null>).detail;
+      const detail = (
+        e as CustomEvent<{
+          sourceId?: string;
+          snippet?: string;
+          matterId?: string;
+          entityKind?: string;
+        } | null>
+      ).detail;
       const sourceId = detail?.sourceId;
       if (!sourceId) return;
       setRecord(null);
-      setSource({ sourceId, snippet: detail.snippet });
+      setSource({
+        sourceId,
+        snippet: detail.snippet,
+        matterId: detail.matterId,
+        entityKind: detail.entityKind,
+      });
     };
     window.addEventListener(EV_OPEN_CRM, handler);
     return () => { window.removeEventListener(EV_OPEN_CRM, handler); };
@@ -39,11 +55,32 @@ export function CrmSourcePanel() {
     if (!source || !workspaceRoot) return;
     const parts = source.sourceId.split(':');
     const entityId = parts.length >= 3 ? parts.slice(2).join(':') : null;
-    if (!entityId) return;
+    // Resolve using the COMPLETE record identity — id AND entity kind AND
+    // client — never id alone. A CRM id (`note-1`) can collide across clients
+    // and across entity kinds, so opening "the first row with this id" could
+    // surface another client's record. Fail closed if any identity field is
+    // missing (a legacy event, or a citation with no client), and never fall
+    // back to a looser match. The event's kind wins; the sourceId is only a
+    // fallback so a same-id, different-kind entity can't slip through.
+    const entityKind =
+      source.entityKind ?? (parts.length >= 3 ? parts[1] : undefined) ?? null;
+    const matterId = source.matterId ?? null;
+    // Fail closed: without the full identity we never load a record, so nothing
+    // is shown. `record` was already reset to null when this source was set
+    // (see the event handler above), so returning here leaves it empty.
+    if (!entityId || !entityKind || !matterId) return;
     let cancelled = false;
     void loadLiveCrmRecords(workspaceRoot)
       .then((records) => {
-        if (!cancelled) setRecord(records.find((item) => item.id === entityId) ?? null);
+        if (cancelled) return;
+        const match =
+          records.find(
+            (item) =>
+              item.id === entityId &&
+              item.kind === entityKind &&
+              item.matterId === matterId,
+          ) ?? null;
+        setRecord(match);
       })
       .catch(() => {
         if (!cancelled) setRecord(null);

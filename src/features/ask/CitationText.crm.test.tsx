@@ -29,9 +29,14 @@ describe('CitationText CRM citation', () => {
 
       fireEvent.click(screen.getByTestId('ask-citation-chip-1'));
       expect(opened).toHaveBeenCalledTimes(1);
+      // The event MUST carry the full record identity (client + entity kind),
+      // not just the id — otherwise the viewer could open a same-id record from
+      // another client (Ask-seam defect #2).
       expect((opened.mock.calls[0]?.[0] as CustomEvent).detail).toEqual({
         sourceId: 'crm:note:note-1',
         snippet: 'Do not include this in a client draft.',
+        matterId: 'household-1',
+        entityKind: 'note',
       });
     } finally {
       window.removeEventListener(EV_OPEN_CRM, opened);

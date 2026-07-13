@@ -43,6 +43,8 @@ import { sourceIdentitiesFromSources } from '@/platform/audit/sourceCapture';
 import {
   createAuditPairId,
   mustLogAuditPhase,
+  requireAuditSink,
+  isDurableAuditUnavailableError,
   type AuditEntryInput,
   type AuditLogSink,
 } from '@/platform/audit/durableAudit';
@@ -52,7 +54,8 @@ import {
   type ConfidentialityMode,
   type EgressInfo,
 } from '@/platform/privacy/egress';
-import { sendPreparedMessageWithEgressAudit, sendPreparedStreamingWithEgressAudit } from '@/platform/privacy/promptPreparation';
+import { sendPreparedMessageWithEgressAudit, sendPreparedStreamingWithEgressAudit, type PreparedCloudRequest } from '@/platform/privacy/promptPreparation';
+import { fingerprintPreparedRequest } from '@/platform/privacy/preparedRequestFingerprint';
 import {
   fileToolsAllowed,
   resolveWorkspaceRetrieval,
@@ -1522,14 +1525,36 @@ export function useAsk({
             if (entry.action !== 'prompt_preparation') return;
             onAuditLog?.(entry);
           };
-          const saveDurableIntent = async () => {
+          const saveDurableIntent = async (prepared: PreparedCloudRequest) => {
+            // Audit bypass (defect #4): the durable intent is the fail-closed
+            // door before egress. With no sink to persist it, refuse the send —
+            // client content must never reach a provider with no durable record.
+            requireAuditSink(onAuditLog);
+            // Audit-send honesty: fingerprint the EXACT prepared payload the
+            // provider is about to receive (prompt + system prompt + attachment
+            // hashes, AFTER redaction), so the durable intent proves what left
+            // the device — not merely the typed question's character count.
+            const fingerprint = await fingerprintPreparedRequest(prepared);
             const egressIntent = buildEgressEntry();
             if (egressIntent) {
-              await mustLogAuditPhase(onAuditLog, egressIntent, 'intent', auditPairId);
+              const egressIntentWithFingerprint: AuditEntryInput = {
+                ...egressIntent,
+                metadata: { ...egressIntent.metadata, ...fingerprint },
+              };
+              await mustLogAuditPhase(onAuditLog, egressIntentWithFingerprint, 'intent', auditPairId);
             }
             const modelCallIntent = buildModelCallEntry(0);
             if (modelCallIntent) {
-              await mustLogAuditPhase(onAuditLog, modelCallIntent, 'intent', auditPairId);
+              const modelCallIntentWithFingerprint: AuditEntryInput = {
+                ...modelCallIntent,
+                metadata: {
+                  ...modelCallIntent.metadata,
+                  preparedPayloadSha256: fingerprint.preparedPayloadSha256,
+                  preparedPromptLength: fingerprint.preparedPromptLength,
+                  preparedSystemPromptLength: fingerprint.preparedSystemPromptLength,
+                },
+              };
+              await mustLogAuditPhase(onAuditLog, modelCallIntentWithFingerprint, 'intent', auditPairId);
             }
           };
           if (typeof provider.sendMessageStreaming === 'function') {
@@ -1848,9 +1873,11 @@ export function useAsk({
         setErrorMsg(
           isConfidentialityChoiceRequiredError(err)
             ? err.message
-            : isAskTimeoutError(err) && err.stage === 'answer'
-              ? ASK_ANSWER_STALL_ERROR_MESSAGE
-              : friendlyErrorMessage(raw, {
+            : isDurableAuditUnavailableError(err)
+              ? err.message
+              : isAskTimeoutError(err) && err.stage === 'answer'
+                ? ASK_ANSWER_STALL_ERROR_MESSAGE
+                : friendlyErrorMessage(raw, {
                   mode: getConfidentialityMode(),
                   reachedProvider: providerCallStarted,
                   failedStage,

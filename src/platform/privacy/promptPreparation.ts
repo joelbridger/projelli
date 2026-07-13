@@ -370,8 +370,13 @@ export type PreparedSendContext<T = ProviderResponse> = Omit<RunWithEgressAuditO
    * Called after the request is prepared and its preparation receipt is
    * recorded, but before any provider method can be invoked. Callers that
    * require durable audit intent records use this as the fail-closed door.
+   *
+   * It receives the EXACT prepared request that the provider is about to be
+   * given (the same frozen object used for the send below), so the durable
+   * intent can fingerprint the real transmitted payload — prompt, system
+   * prompt, and attachments after redaction — rather than the raw typed input.
    */
-  beforeEgress?: () => void | Promise<void>;
+  beforeEgress?: (request: Readonly<PreparedCloudRequest>) => void | Promise<void>;
 };
 type PromptPreparationReceipt = Extract<AuditEvent, { type: 'prompt_preparation' }>['payload'];
 
@@ -405,7 +410,7 @@ export async function sendPreparedMessageWithEgressAudit(ctx: PreparedSendContex
   receipt(ctx, chosen.decision, result.status === 'ready' ? result.request.findings : result.findings ?? [], chosen.request);
   const request = chosen.request;
   if (!request) throw new Error(chosen.decision === 'blocked' ? 'prompt_review_required' : 'prompt_send_cancelled');
-  await ctx.beforeEgress?.();
+  await ctx.beforeEgress?.(request);
   return runWithEgressAudit({ ...ctx, operation: () => ctx.provider.sendMessage(request.prompt, { ...ctx.options, preparationStamp: request.preparationId, ...(request.systemPrompt ? { systemPrompt: request.systemPrompt } : {}), ...(request.attachmentBytes ? { attachmentBytes: request.attachmentBytes } : {}) }) });
 }
 export async function sendPreparedStreamingWithEgressAudit(ctx: PreparedSendContext & { options: StreamOptions }): Promise<ProviderResponse> {
@@ -414,7 +419,7 @@ export async function sendPreparedStreamingWithEgressAudit(ctx: PreparedSendCont
   receipt(ctx, chosen.decision, result.status === 'ready' ? result.request.findings : result.findings ?? [], chosen.request);
   const request = chosen.request;
   if (!request) throw new Error(chosen.decision === 'blocked' ? 'prompt_review_required' : 'prompt_send_cancelled');
-  await ctx.beforeEgress?.();
+  await ctx.beforeEgress?.(request);
   return runWithEgressAudit({ ...ctx, operation: () => {
     const response = ctx.provider.sendMessageStreaming?.(request.prompt, { ...ctx.options, preparationStamp: request.preparationId, ...(request.systemPrompt ? { systemPrompt: request.systemPrompt } : {}), ...(request.attachmentBytes ? { attachmentBytes: request.attachmentBytes } : {}) });
     if (!response) throw new Error('provider_streaming_unavailable');
@@ -427,7 +432,7 @@ export async function sendPreparedStructuredWithEgressAudit<T>(ctx: PreparedSend
   receipt(ctx, chosen.decision, result.status === 'ready' ? result.request.findings : result.findings ?? [], chosen.request);
   const request = chosen.request;
   if (!request) throw new Error(chosen.decision === 'blocked' ? 'prompt_review_required' : 'prompt_send_cancelled');
-  await ctx.beforeEgress?.();
+  await ctx.beforeEgress?.(request);
   return runWithEgressAudit({ ...ctx, operation: () => ctx.provider.structuredOutput<T>(request.prompt, { ...ctx.options, preparationStamp: request.preparationId, ...(request.systemPrompt ? { systemPrompt: request.systemPrompt } : {}) }) });
 }
 
