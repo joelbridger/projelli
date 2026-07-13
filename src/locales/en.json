@@ -3348,6 +3348,33 @@
       "confidentiality-badge": "Sensitive"
     }
   },
+  "crm": {
+    "home": {
+      "nav": {
+        "activity": "Activity"
+      }
+    },
+    "search": {
+      "title": "Search records"
+    },
+    "offline": {
+      "message": "Working offline. Local edits work; delivery waits until you reconnect."
+    },
+    "wealthbox": {
+      "connect-failed": "We couldn't connect to Wealthbox. Check your API key and try again.",
+      "disconnect-failed": "We couldn't disconnect Wealthbox. Please try again.",
+      "indexing-incomplete_one": "Your household was imported, but we couldn't finish making it searchable in Ask. Try syncing again.",
+      "indexing-incomplete_other": "Your {{count}} households were imported, but we couldn't finish making them searchable in Ask. Try syncing again.",
+      "lockdown": {
+        "title": "Wealthbox is paused by Network lockdown.",
+        "active": "Nothing will be sent to or downloaded from Wealthbox while this is on. Turn it off in Privacy settings to connect or sync.",
+        "pending": "Privacy protection is updating. Wealthbox stays paused until it finishes.",
+        "update-failed": "Network lockdown is still on because the privacy setting couldn't be updated. Nothing will be sent to or downloaded from Wealthbox."
+      },
+      "sync-failed": "We couldn't finish syncing Wealthbox. Please try again.",
+      "sync-timeout": "Wealthbox didn't respond in time. Check your connection and try again."
+    }
+  },
   "answer-dates": {
     "title": "Dates in the cited records",
     "record-copy-flagged": "Matching record copies have different timestamps.",

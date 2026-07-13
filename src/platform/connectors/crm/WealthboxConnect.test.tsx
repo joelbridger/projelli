@@ -145,7 +145,7 @@ describe('WealthboxConnect sync', () => {
     });
   });
 
-  it('shows the backend failure and makes Sync now available to retry', async () => {
+  it('shows a human indexing message and makes Sync now available to retry', async () => {
     controls.crmListHouseholds.mockResolvedValue([{ id: 'household-1', name: 'Avery Family' }]);
     controls.crmSyncAll.mockRejectedValue(new Error('Wealthbox request failed (HTTP 503)'));
 
@@ -154,8 +154,28 @@ describe('WealthboxConnect sync', () => {
 
     fireEvent.click(await screen.findByTestId('confirm-dialog-confirm'));
 
-    expect(await screen.findByText(/HTTP 503/i)).toBeTruthy();
+    expect(await screen.findByText(/Your household was imported.*Try syncing again/i)).toBeTruthy();
+    expect(screen.queryByText(/HTTP 503/i)).toBeNull();
     expect(screen.getByTestId('wealthbox-sync-now')).not.toBeDisabled();
+  });
+
+  it('shows the honest lockdown message if the guarded doorway closes during sync', async () => {
+    controls.crmListHouseholds.mockResolvedValue([{ id: 'household-1', name: 'Avery Family' }]);
+    controls.crmSyncAll.mockRejectedValue(
+      Object.assign(new Error('internal policy generation mismatch'), {
+        code: 'NETWORK_LOCKDOWN_BLOCKED',
+      }),
+    );
+
+    await renderConnectedConnector();
+    fireEvent.click(screen.getByTestId('wealthbox-sync-now'));
+    fireEvent.click(await screen.findByTestId('confirm-dialog-confirm'));
+
+    expect(
+      await screen.findByText(/nothing will be sent to or downloaded from Wealthbox/i),
+    ).toBeTruthy();
+    expect(screen.queryByText(/internal policy generation mismatch/i)).toBeNull();
+    expect(screen.queryByText(/Your household was imported/i)).toBeNull();
   });
 
   it('keeps retry disabled until the Rust command has finished stopping safely', async () => {

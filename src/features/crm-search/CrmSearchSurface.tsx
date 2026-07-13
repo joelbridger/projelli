@@ -1,5 +1,6 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string -- Frozen CRM copy belongs to the CRM catalog. */
 import { FormEvent, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ChevronRight, Search, ShieldCheck, X } from 'lucide-react';
 import { Button, Card, SearchField, SurfaceToolbar } from '@/ui/kp';
 import { EV_MATTER_LAUNCH } from '@/config/identity';
@@ -45,6 +46,7 @@ function Citation({ hit, onOpen }: { hit: CrmSearchHit; onOpen: (hit: CrmSearchH
  * statement is a click-through citation to the precise local record.
  */
 export function CrmSearchSurface() {
+  const { t } = useTranslation();
   const live = useLiveCrmRecords();
   const [query, setQuery] = useState('');
   const [resultQuery, setResultQuery] = useState('');
@@ -92,7 +94,7 @@ export function CrmSearchSurface() {
 
   return <section data-testid="crm-search-surface" style={{ height: '100%', overflow: 'auto', padding: '24px clamp(18px, 4vw, 56px)', background: 'var(--color-background)' }}>
     <header style={{ maxWidth: 840 }}>
-      <p style={{ margin: 0, color: 'var(--kp-direct)', fontWeight: 650 }}>Ask</p>
+      <p data-testid="crm-search-surface-label" style={{ margin: 0, color: 'var(--kp-direct)', fontWeight: 650 }}>{t('crm.search.title')}</p>
       <h1 style={{ margin: '4px 0 8px' }}>Find an answer in your firm’s records</h1>
       <p style={{ margin: 0, color: 'var(--color-slate-600)' }}>Search notes, facts, tasks, and households saved on this device. Every result stays local and opens its source record.</p>
     </header>

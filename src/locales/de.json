@@ -4363,6 +4363,33 @@
       }
     }
   },
+  "crm": {
+    "home": {
+      "nav": {
+        "activity": "Aktivität"
+      }
+    },
+    "search": {
+      "title": "Datensätze durchsuchen"
+    },
+    "offline": {
+      "message": "Sie arbeiten offline. Lokale Änderungen funktionieren; die Übertragung wartet, bis Sie wieder verbunden sind."
+    },
+    "wealthbox": {
+      "connect-failed": "Die Verbindung zu Wealthbox konnte nicht hergestellt werden. Prüfen Sie Ihren API-Schlüssel und versuchen Sie es erneut.",
+      "disconnect-failed": "Die Verbindung zu Wealthbox konnte nicht getrennt werden. Versuchen Sie es erneut.",
+      "indexing-incomplete_one": "Ihr Haushalt wurde importiert, aber wir konnten ihn noch nicht vollständig für die Suche in Ask vorbereiten. Versuchen Sie die Synchronisierung erneut.",
+      "indexing-incomplete_other": "Ihre {{count}} Haushalte wurden importiert, aber wir konnten sie noch nicht vollständig für die Suche in Ask vorbereiten. Versuchen Sie die Synchronisierung erneut.",
+      "lockdown": {
+        "title": "Wealthbox wurde durch die Netzwerksperre angehalten.",
+        "active": "Solange diese Einstellung aktiv ist, werden keine Daten an Wealthbox gesendet oder von dort heruntergeladen. Deaktivieren Sie sie in den Datenschutzeinstellungen, um eine Verbindung herzustellen oder zu synchronisieren.",
+        "pending": "Der Datenschutz wird aktualisiert. Wealthbox bleibt angehalten, bis der Vorgang abgeschlossen ist.",
+        "update-failed": "Die Netzwerksperre ist weiterhin aktiv, weil die Datenschutzeinstellung nicht aktualisiert werden konnte. Es werden keine Daten an Wealthbox gesendet oder von dort heruntergeladen."
+      },
+      "sync-failed": "Die Wealthbox-Synchronisierung konnte nicht abgeschlossen werden. Versuchen Sie es erneut.",
+      "sync-timeout": "Wealthbox hat nicht rechtzeitig geantwortet. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut."
+    }
+  },
   "answer-dates": {
     "title": "Daten in den zitierten Unterlagen",
     "record-copy-flagged": "Passende Kopien desselben Datensatzes haben unterschiedliche Zeitstempel.",

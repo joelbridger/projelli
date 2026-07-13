@@ -2,6 +2,18 @@
   "_comment": "Deliberate permanent-handle removals/renames. Adding a handle never needs an entry; REMOVING or RENAMING one does. When you intentionally drop or rename a data-testid, add an entry here, then run `node scripts/ui-system/handle-guard.mjs --update-baseline`. The guard fails on any baseline handle that vanishes without a matching entry.",
   "migrations": [
     {
+      "removed": "crm-firm-open-admin",
+      "replacement": null,
+      "reason": "Design wave 1 removes a button that only changed its own label and showed no visible destination.",
+      "date": "2026-07-13"
+    },
+    {
+      "removed": "crm-firm-admin-rails",
+      "replacement": null,
+      "reason": "Design wave 1 removes the invisible inline destination that was tied to the dead firm administration button.",
+      "date": "2026-07-13"
+    },
+    {
       "removed": "theme-icon-dark",
       "replacement": null,
       "reason": "FB Chrome removes the user-facing theme picker because the app is light-only in the chrome.",

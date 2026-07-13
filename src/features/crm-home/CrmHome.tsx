@@ -1,5 +1,6 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string -- Frozen CRM screen copy needs its translation catalog in a separate product change. */
 import { createElement, useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Bell } from 'lucide-react';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import { crmHomeSurfaceRegistry } from './registry';
@@ -12,6 +13,7 @@ import type { HouseholdChoice, LiveWorkflowData } from '@/features/crm-workflows
 export type { CrmHomeProps, CrmHomeRoute } from './routes';
 
 function HomeRail({ route, onNavigate }: { route: CrmHomeRoute; onNavigate: (route: CrmHomeRoute) => void }) {
+  const { t } = useTranslation();
   const activeParent =
     route.startsWith('firm') ||
     route === 'fields-tags' ||
@@ -24,9 +26,11 @@ function HomeRail({ route, onNavigate }: { route: CrmHomeRoute; onNavigate: (rou
       ? 'firm-setup'
       : route === 'propagation'
         ? 'workflows'
-        : route === 'pipeline-settings'
-          ? 'pipeline'
-          : route;
+        : route === 'timeline'
+          ? 'activity'
+          : route === 'pipeline-settings'
+            ? 'pipeline'
+            : route;
   return (
     <aside aria-label="Home sections" style={{ width: 184, padding: 'var(--kp-space-md)', borderRight: '1px solid var(--kp-border)', background: 'var(--color-slate-50)', flex: 'none' }}>
       <div style={{ fontWeight: 700, color: 'var(--kp-navy)', marginBottom: 10 }}>Home</div>
@@ -45,7 +49,11 @@ function HomeRail({ route, onNavigate }: { route: CrmHomeRoute; onNavigate: (rou
           }}
         >
           <Icon size={16} />
-          {label}
+          {item === 'activity'
+            ? t('crm.home.nav.activity')
+            : item === 'search'
+              ? t('crm.search.title')
+              : label}
         </button>
       ))}
     </aside>

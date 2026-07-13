@@ -1,5 +1,6 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string */
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { isTauri } from '@tauri-apps/api/core';
 import { InfoHelp } from '@/ui/InfoHelp';
 import {
@@ -41,7 +42,17 @@ import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import { usePrivilegedMatterModeActive } from '@/platform/hooks/usePrivilegedMatterMode';
 import { useNativeNetworkLockdownBridgeState } from '@/platform/privacy/nativeNetworkLockdownBridge';
 
+function isCrmNetworkLockdownError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    error.code === 'NETWORK_LOCKDOWN_BLOCKED'
+  );
+}
+
 export function WealthboxConnect() {
+  const { t } = useTranslation();
   useCrmSync();
   const privacyChoiceLocksNetwork = usePrivilegedMatterModeActive();
   const nativeLockdown = useNativeNetworkLockdownBridgeState();
@@ -49,10 +60,10 @@ export function WealthboxConnect() {
     privacyChoiceLocksNetwork || (isTauri() && nativeLockdown.blocked);
   const lockdownMessage =
     nativeLockdown.error && !privacyChoiceLocksNetwork
-      ? nativeLockdown.error
+      ? t('crm.wealthbox.lockdown.update-failed')
       : nativeLockdown.pending && !privacyChoiceLocksNetwork
-        ? 'Privacy protection is updating. Wealthbox stays paused until it finishes.'
-        : 'Nothing will be sent to or downloaded from Wealthbox while this is on. Turn it off in Privacy settings to connect or sync.';
+        ? t('crm.wealthbox.lockdown.pending')
+        : t('crm.wealthbox.lockdown.active');
 
   const progress = useCrmStore((s) => s.progress);
 
@@ -87,6 +98,7 @@ export function WealthboxConnect() {
     householdsProcessed: number;
     recordsIndexed: number;
   } | null>(null);
+  const [indexingRetryCount, setIndexingRetryCount] = useState<number | null>(null);
   // Post-disconnect status note — honest about what was actually deleted.
   const [disconnectNote, setDisconnectNote] = useState<string | null>(null);
   // B3: true when disconnect could not fully remove imported data (or the key).
@@ -169,11 +181,9 @@ export function WealthboxConnect() {
       void runSync();
     } catch (err) {
       setConnectError(
-        typeof err === 'string'
-          ? err
-          : err instanceof Error
-            ? err.message
-            : 'Could not connect. Check your API key and try again.'
+        isCrmNetworkLockdownError(err)
+          ? lockdownMessage
+          : t('crm.wealthbox.connect-failed')
       );
     } finally {
       setConnecting(false);
@@ -183,6 +193,7 @@ export function WealthboxConnect() {
   async function runSync() {
     setSyncError(null);
     setLastSyncReport(null);
+    setIndexingRetryCount(null);
     setSyncing(true);
     setAwaitingImportConfirmation(false);
     const runId = createCrmRunId();
@@ -328,15 +339,13 @@ export function WealthboxConnect() {
           householdsProcessed: report.householdsProcessed,
           recordsIndexed: report.recordsIndexed,
         });
+        setIndexingRetryCount(null);
       } catch (err) {
-        const reason =
-          typeof err === 'string'
-            ? err
-            : err instanceof Error
-              ? err.message
-              : 'an unknown error';
+        setIndexingRetryCount(count);
         setSyncError(
-          `Imported ${String(count)} household${count === 1 ? '' : 's'} into your Client Map, but search indexing didn't finish (${reason}). Records may not be fully searchable yet — click "Sync now" to retry.`
+          isCrmNetworkLockdownError(err)
+            ? lockdownMessage
+            : t('crm.wealthbox.indexing-incomplete', { count })
         );
       } finally {
         setNetworkBusy(false);
@@ -375,15 +384,46 @@ export function WealthboxConnect() {
       // technical "timed out after Nms" message.
       setSyncError(
         err instanceof CrmTimeoutError
-          ? "Wealthbox didn't respond in time. Check your connection and try again."
-          : typeof err === 'string'
-            ? err
-            : err instanceof Error
-              ? err.message
-              : 'Sync could not complete. Please try again.'
+          ? t('crm.wealthbox.sync-timeout')
+          : isCrmNetworkLockdownError(err)
+            ? lockdownMessage
+            : t('crm.wealthbox.sync-failed')
       );
     } finally {
       setAwaitingImportConfirmation(false);
+      setSyncing(false);
+      setNetworkBusy(false);
+      useCrmStore.getState().finishRun(runId);
+    }
+  }
+
+  async function retryIndexing() {
+    if (indexingRetryCount === null) return;
+    const count = indexingRetryCount;
+    const runId = createCrmRunId();
+    setSyncError(null);
+    setLastSyncReport(null);
+    setSyncing(true);
+    setNetworkBusy(true);
+    useCrmStore.getState().startRun(runId);
+    try {
+      const map = filterCrmMatterMapForProvider(
+        buildCrmMatterMap(getMatters()),
+        'wealthbox'
+      );
+      const report = await crmSyncAll(map, runId);
+      setLastSyncReport({
+        householdsProcessed: report.householdsProcessed,
+        recordsIndexed: report.recordsIndexed,
+      });
+      setIndexingRetryCount(null);
+    } catch (err) {
+      setSyncError(
+        isCrmNetworkLockdownError(err)
+          ? lockdownMessage
+          : t('crm.wealthbox.indexing-incomplete', { count })
+      );
+    } finally {
       setSyncing(false);
       setNetworkBusy(false);
       useCrmStore.getState().finishRun(runId);
@@ -462,11 +502,9 @@ export function WealthboxConnect() {
       }
     } catch (err) {
       setConnectError(
-        typeof err === 'string'
-          ? err
-          : err instanceof Error
-            ? err.message
-            : 'Could not disconnect. Please try again.'
+        isCrmNetworkLockdownError(err)
+          ? lockdownMessage
+          : t('crm.wealthbox.disconnect-failed')
       );
       crmIsConnected()
         .then(setConnected)
@@ -509,7 +547,7 @@ export function WealthboxConnect() {
             role="status"
             className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950"
           >
-            <p className="font-medium">Wealthbox is paused by Network lockdown.</p>
+            <p className="font-medium">{t('crm.wealthbox.lockdown.title')}</p>
             <p className="mt-1 text-xs">
               {lockdownMessage}
             </p>
@@ -541,7 +579,7 @@ export function WealthboxConnect() {
             role="status"
             className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950"
           >
-            <p className="font-medium">Wealthbox is paused by Network lockdown.</p>
+            <p className="font-medium">{t('crm.wealthbox.lockdown.title')}</p>
             <p className="mt-1 text-xs">
               {lockdownMessage}
             </p>
@@ -614,13 +652,13 @@ export function WealthboxConnect() {
 
         {connected && (
           <div className="mt-3 space-y-2 text-sm text-slate-700">
-            <p className="font-medium text-green-700">
+            {!syncError && <p className="font-medium text-green-700">
               Connected
               {connectedInfo
                 ? ` to ${connectedInfo.name}${connectedInfo.plan ? ` (${connectedInfo.plan})` : ''}`
                 : ''}
               .
-            </p>
+            </p>}
 
             {/* Stop must stay visible for the WHOLE sync, including the
                 household-list phase BEFORE any crm-sync-progress event
@@ -693,7 +731,7 @@ export function WealthboxConnect() {
                   ` ${lastSyncReport.householdsProcessed.toLocaleString()} households imported before stopping.`}
               </p>
             )}
-            {progress?.status === 'error' && (
+            {progress?.status === 'error' && !syncError && (
               <p className="text-red-700">
                 Sync ran into a problem. Try again.
               </p>
@@ -706,7 +744,7 @@ export function WealthboxConnect() {
                 type="button"
                 data-testid="wealthbox-sync-now"
                 disabled={syncing || awaitingImportConfirmation || networkLockdown}
-                onClick={() => void runSync()}
+                onClick={() => void (indexingRetryCount === null ? runSync() : retryIndexing())}
                 className="rounded-md bg-[var(--kp-navy)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60"
               >
                 {syncing ? 'Syncing...' : awaitingImportConfirmation ? 'Choose Import or Cancel' : 'Sync now'}

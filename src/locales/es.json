@@ -4363,6 +4363,33 @@
       }
     }
   },
+  "crm": {
+    "home": {
+      "nav": {
+        "activity": "Actividad"
+      }
+    },
+    "search": {
+      "title": "Buscar registros"
+    },
+    "offline": {
+      "message": "Trabajas sin conexión. Los cambios locales funcionan; el envío espera hasta que vuelvas a conectarte."
+    },
+    "wealthbox": {
+      "connect-failed": "No pudimos conectar con Wealthbox. Revisa tu clave de API e inténtalo de nuevo.",
+      "disconnect-failed": "No pudimos desconectar Wealthbox. Inténtalo de nuevo.",
+      "indexing-incomplete_one": "Tu hogar se importó, pero no pudimos terminar de prepararlo para buscarlo en Ask. Intenta sincronizar de nuevo.",
+      "indexing-incomplete_other": "Tus {{count}} hogares se importaron, pero no pudimos terminar de prepararlos para buscarlos en Ask. Intenta sincronizar de nuevo.",
+      "lockdown": {
+        "title": "Wealthbox está en pausa por el bloqueo de red.",
+        "active": "Mientras esta opción esté activada, no se enviará nada a Wealthbox ni se descargará nada desde allí. Desactívala en los ajustes de Privacidad para conectar o sincronizar.",
+        "pending": "La protección de privacidad se está actualizando. Wealthbox seguirá en pausa hasta que termine.",
+        "update-failed": "El bloqueo de red sigue activado porque no se pudo actualizar el ajuste de privacidad. No se enviará nada a Wealthbox ni se descargará nada desde allí."
+      },
+      "sync-failed": "No pudimos terminar de sincronizar Wealthbox. Inténtalo de nuevo.",
+      "sync-timeout": "Wealthbox no respondió a tiempo. Revisa tu conexión e inténtalo de nuevo."
+    }
+  },
   "answer-dates": {
     "title": "Fechas en los registros citados",
     "record-copy-flagged": "Las copias del mismo registro tienen marcas de tiempo distintas.",

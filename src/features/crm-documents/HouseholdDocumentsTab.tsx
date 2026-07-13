@@ -8,7 +8,7 @@ import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import type { FileNode } from '@/platform/types/workspace';
 import { EV_OPEN_CRM_DOCUMENT } from '@/config/identity';
-import { addDocumentRef, linkedDocumentsForHousehold, recordBelongsToHousehold, removeDocumentRef } from './documentLinks';
+import { addDocumentRef, isPlausibleClientDocument, linkedDocumentsForHousehold, recordBelongsToHousehold, removeDocumentRef } from './documentLinks';
 
 type Target = { value: string; kind: 'household' | 'person' | 'note' | 'task'; id: string; label: string };
 
@@ -29,7 +29,10 @@ export function HouseholdDocumentsTab({ household }: HouseholdTabSurfaceProps) {
   const [dropActive, setDropActive] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const availableFiles = useMemo(() => filesIn(tree), [tree]);
+  const availableFiles = useMemo(
+    () => filesIn(tree).filter((file) => isPlausibleClientDocument(file.name)),
+    [tree]
+  );
   const fileByPath = useMemo(() => new Map(availableFiles.map((file) => [file.path, file])), [availableFiles]);
   const householdRecord = live.records.find((record) => record.kind === 'household' && record.id === household.id);
   const targets = useMemo<Target[]>(() => [

@@ -333,7 +333,6 @@ const cases = [
     async run(app) {
       await openHome(app, 'firm', 'Home > Firm');
       await app.require('crm-firm-directory', 'read-only firm directory');
-      await app.require('crm-firm-open-admin', 'route to firm administration');
       await app.click('crm-firm-tab-fields', 'custom fields');
       await app.click('crm-field-create', 'new custom field');
       await app.fill('crm-field-label', 'Service region', 'custom field label');
