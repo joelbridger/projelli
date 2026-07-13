@@ -44,6 +44,7 @@ import { TrustBar } from '@/app/shell/layout/TrustBar';
 import { StatusBar } from '@/app/shell/layout/StatusBar';
 import { AppDialogs } from '@/app/shell/AppDialogs';
 import { AppSurfaceRouter } from '@/app/shell/AppSurfaceRouter';
+import { ErrorBoundary } from '@/ui/ErrorBoundary';
 import { RecordPill } from '@/features/meetings/RecordPill';
 import { MeetingAutoJoinScheduler } from '@/features/meetings/MeetingAutoJoinScheduler';
 import { AutoJoinMeetingsPanel } from '@/features/meetings/AutoJoinMeetingsPanel';
@@ -2187,7 +2188,16 @@ function AppShell() {
           onCollapsedChange={setSidebarCollapsed}
         />
 
-        {/* Main editor panel, or a full-page reimagined surface (matters/Ask/Email). */}
+        {/* Main editor panel, or a full-page reimagined surface (matters/Ask/Email).
+            Wrapped in a top-level error boundary, deliberately OUTSIDE AppShellNav
+            above: a render error from ANY surface here (CrmHome, ClientsSurface,
+            CrmAskSurface, AssociateHome, SchedulingHome, ...) is caught right here
+            instead of propagating past <main> and force-unmounting the whole React
+            root — which is what previously took the left nav down with it (see
+            fix/sidebar-blank-after-ask). Because AppShellNav is a sibling, not a
+            descendant, of this boundary, it is never part of the crashed subtree
+            and stays mounted and clickable no matter which surface throws. */}
+        <ErrorBoundary label="Workspace">
         <AppSurfaceRouter
           sidebarActiveTab={sidebarActiveTab}
           askPrefill={askPrefill}
@@ -2253,6 +2263,7 @@ function AppShell() {
           activeMatter={activeMatter}
           settingsPageFocus={settingsPageFocus}
         />
+        </ErrorBoundary>
       </main>
 
       {/* Wave 3c: the whole recording UI (position: fixed, floats over every

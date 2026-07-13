@@ -21,6 +21,7 @@ import { DocumentsHome } from '@/features/documents/DocumentsHome';
 import { AssociateHome } from '@/features/workflows/AssociateHome';
 import { SchedulingHome } from '@/features/scheduling/SchedulingHome';
 import { LazyBoundary } from '@/ui/LazyBoundary';
+import { ErrorBoundary } from '@/ui/ErrorBoundary';
 import { MainPanel } from '@/app/shell/layout/MainPanel';
 import { SurfaceLoadingFallback } from '@/app/shell/common/SurfaceLoadingFallback';
 import { loadAllTemplates } from '@/features/workflows/engine/userTemplates';
@@ -585,87 +586,95 @@ export function AppSurfaceRouter({
           }}
         />
       ) : sidebarActiveTab === 'search' ? (
-        <CrmAskSurface
-          onSaveToDocument={async (content) => {
-            if (!workspaceServiceRef.current || !rootPath) return;
-            // Word-first: AI answers save as a real .docx (not markdown).
-            const { deriveFilenameFromMessage, resolveUniqueName } =
-              await import('@/platform/utils/fileDrop');
-            const { markdownToDocxBytes, docxBytesToDataUrl } =
-              await import('@/platform/utils/docx-io');
-            const firmName = (() => {
-              try {
-                return localStorage.getItem(SK_FIRM_NAME) ?? '';
-              } catch {
-                return '';
-              }
-            })();
-            const base = deriveFilenameFromMessage(content).replace(
-              /\.(md|markdown|txt)$/i,
-              ''
-            );
-            const targetDir = resolveSavedDocumentDirectory({
-              rootPath,
-              activeMatter,
-            });
-            const finalName = await resolveUniqueName(
-              workspaceServiceRef.current,
-              targetDir,
-              `${base}.docx`
-            );
-            const path = resolveSavedDocumentPath({
-              rootPath,
-              activeMatter,
-              fileName: finalName,
-            });
-            const bytes = await markdownToDocxBytes(content, finalName, {
-              firmName,
-            });
-            const buffer = new ArrayBuffer(bytes.byteLength);
-            new Uint8Array(buffer).set(bytes);
-            await workspaceServiceRef.current.writeFileBinary(path, buffer);
-            const tree = await workspaceServiceRef.current.getFileTree();
-            setFileTree(tree);
-            routeSavedAskDocument({
-              activeMatter,
-              savedDocument: {
-                path,
-                name: finalName,
-                content: docxBytesToDataUrl(bytes),
-              },
-              setDocumentsView,
-              setSidebarActiveTab,
-              setMattersSurfaceMode,
-              pushNavigationSnapshot,
-            });
-          }}
-          prefillRequest={askPrefill}
-          onPrefillConsumed={() => setAskPrefill(null)}
-          onAuditLog={addAuditEntry}
-          onOpenFileAtPath={(p, _paragraphIndex, snippet, matterId) => {
-            if (typeof p === 'string' && p.startsWith('mail:')) {
-              window.dispatchEvent(
-                new CustomEvent(EV_OPEN_EMAIL, { detail: { sourceId: p } })
+        // Ask (this lane, fix/sidebar-blank-after-ask): a citation-popup
+        // render error here must be contained the same way every sibling
+        // surface below already is (LazyBoundary) — otherwise, with no
+        // error boundary anywhere above <main> either, an uncaught error
+        // unmounts the ENTIRE React root, taking the left nav down with it
+        // (blank + unresponsive, no recovery short of a full app restart).
+        <ErrorBoundary label="Ask">
+          <CrmAskSurface
+            onSaveToDocument={async (content) => {
+              if (!workspaceServiceRef.current || !rootPath) return;
+              // Word-first: AI answers save as a real .docx (not markdown).
+              const { deriveFilenameFromMessage, resolveUniqueName } =
+                await import('@/platform/utils/fileDrop');
+              const { markdownToDocxBytes, docxBytesToDataUrl } =
+                await import('@/platform/utils/docx-io');
+              const firmName = (() => {
+                try {
+                  return localStorage.getItem(SK_FIRM_NAME) ?? '';
+                } catch {
+                  return '';
+                }
+              })();
+              const base = deriveFilenameFromMessage(content).replace(
+                /\.(md|markdown|txt)$/i,
+                ''
               );
-              return;
-            }
-            const citationMatterId = matterId ?? activeMatter?.id;
-            if (citationMatterId && typeof p === 'string') {
-              void openMatterDocumentSource({
-                matterId: citationMatterId,
-                ref: p,
-                ...(snippet ? { snippet } : {}),
-                service: workspaceServiceRef.current,
-                handlers: {
-                  setDocumentsView,
-                  setSidebarActiveTab,
-                  setMattersSurfaceMode,
-                  pushNavigationSnapshot,
-                },
+              const targetDir = resolveSavedDocumentDirectory({
+                rootPath,
+                activeMatter,
               });
-            }
-          }}
-        />
+              const finalName = await resolveUniqueName(
+                workspaceServiceRef.current,
+                targetDir,
+                `${base}.docx`
+              );
+              const path = resolveSavedDocumentPath({
+                rootPath,
+                activeMatter,
+                fileName: finalName,
+              });
+              const bytes = await markdownToDocxBytes(content, finalName, {
+                firmName,
+              });
+              const buffer = new ArrayBuffer(bytes.byteLength);
+              new Uint8Array(buffer).set(bytes);
+              await workspaceServiceRef.current.writeFileBinary(path, buffer);
+              const tree = await workspaceServiceRef.current.getFileTree();
+              setFileTree(tree);
+              routeSavedAskDocument({
+                activeMatter,
+                savedDocument: {
+                  path,
+                  name: finalName,
+                  content: docxBytesToDataUrl(bytes),
+                },
+                setDocumentsView,
+                setSidebarActiveTab,
+                setMattersSurfaceMode,
+                pushNavigationSnapshot,
+              });
+            }}
+            prefillRequest={askPrefill}
+            onPrefillConsumed={() => setAskPrefill(null)}
+            onAuditLog={addAuditEntry}
+            onOpenFileAtPath={(p, _paragraphIndex, snippet, matterId) => {
+              if (typeof p === 'string' && p.startsWith('mail:')) {
+                window.dispatchEvent(
+                  new CustomEvent(EV_OPEN_EMAIL, { detail: { sourceId: p } })
+                );
+                return;
+              }
+              const citationMatterId = matterId ?? activeMatter?.id;
+              if (citationMatterId && typeof p === 'string') {
+                void openMatterDocumentSource({
+                  matterId: citationMatterId,
+                  ref: p,
+                  ...(snippet ? { snippet } : {}),
+                  service: workspaceServiceRef.current,
+                  handlers: {
+                    setDocumentsView,
+                    setSidebarActiveTab,
+                    setMattersSurfaceMode,
+                    pushNavigationSnapshot,
+                  },
+                });
+              }
+            }}
+          />
+        </ErrorBoundary>
       ) : sidebarActiveTab === 'email' ? (
         buildEmailWorkspace({})
       ) : sidebarActiveTab === 'files' ? (
