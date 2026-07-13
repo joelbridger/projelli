@@ -182,7 +182,9 @@ pub async fn rag_retag_privilege(
         .map_err(|e| format!("open table: {e}"))?;
     // VG-6e: the retag matches the tokenized path column — needs the key.
     let key = crypto::get_or_create_master_key().map_err(|e| format!("vectors key: {e}"))?;
-    let updated = store::retag_privilege_for_path(&table, &path, &privilege, &key)
+    let updated = store::with_scope_write_status(store::retag_privilege_for_path(
+        &table, &path, &privilege, &key,
+    ))
         .await
         .map_err(|e| format!("retag privilege: {e}"))?;
     // P1.1: keep the manifest's recorded scope in sync so a later reconcile
@@ -225,7 +227,9 @@ pub async fn rag_retag_matter(
         .map_err(|e| format!("open table: {e}"))?;
     // VG-6e: the retag matches the tokenized path column — needs the key.
     let key = crypto::get_or_create_master_key().map_err(|e| format!("vectors key: {e}"))?;
-    let updated = store::retag_matter_for_path(&table, &path, &matter_id, &key)
+    let updated = store::with_scope_write_status(store::retag_matter_for_path(
+        &table, &path, &matter_id, &key,
+    ))
         .await
         .map_err(|e| format!("retag matter: {e}"))?;
     // P1.1: keep the manifest's recorded scope in sync so a later reconcile
@@ -277,7 +281,9 @@ pub async fn rag_retag_matter_batch(
         .await
         .map_err(|e| format!("open table: {e}"))?;
     let key = crypto::get_or_create_master_key().map_err(|e| format!("vectors key: {e}"))?;
-    let updated = store::retag_matter_for_paths(&table, &paths, &matter_id, &key)
+    let updated = store::with_scope_write_status(store::retag_matter_for_paths(
+        &table, &paths, &matter_id, &key,
+    ))
         .await
         .map_err(|e| format!("batched retag matter: {e}"))?;
     // Keep the manifest's recorded scope in sync for every retagged source, in a
@@ -296,6 +302,14 @@ pub async fn rag_retag_matter_batch(
         matter_id,
     );
     Ok(missing)
+}
+
+/// Number of scope/privacy updates waiting behind another search-index write.
+/// This is a live status, not an error: the shared writer queue will run them in
+/// order as soon as the current write finishes.
+#[tauri::command]
+pub async fn rag_scope_write_queue_depth() -> usize {
+    store::scope_write_queue_depth()
 }
 
 /// P1.1 — set the recorded matter of MANY manifest entries in one

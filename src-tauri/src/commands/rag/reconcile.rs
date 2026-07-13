@@ -133,7 +133,7 @@ pub(crate) fn needs_drop_and_rebuild(
     migrating || stale_key_format || rebuild_required
 }
 
-fn mark_mail_backfill_needed_after_vector_rebuild(workspace: &Path, reason: &str) {
+pub(crate) fn mark_mail_backfill_needed_after_vector_rebuild(workspace: &Path, reason: &str) {
     if !crate::commands::mail::store::EncryptedMailStore::db_path(workspace).exists() {
         return;
     }

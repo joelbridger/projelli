@@ -581,6 +581,7 @@ pub async fn upsert_chunks_for_path(
     privilege: &str,
     key: &[u8; 32],
 ) -> Result<()> {
+    let _write = acquire_write_access(table).await?;
     // VG-6e: the `path` column holds the keyed token, so every predicate matches
     // on the token computed from the same plaintext path + key. (The predicate
     // string lands in LanceDB's transaction log — tokenizing it is part of the
@@ -673,6 +674,7 @@ pub async fn upsert_grouped(
     privilege: &str,
     key: &[u8; 32],
 ) -> Result<usize> {
+    let _write = acquire_write_access(table).await?;
     // VG-6e: tokenized predicate — see upsert_chunks_for_path.
     let predicate = format!(
         "path = '{}'",

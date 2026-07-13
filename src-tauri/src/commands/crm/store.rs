@@ -22,6 +22,7 @@ use std::path::{Path, PathBuf};
 // ---------------------------------------------------------------------------
 
 const CRM_KEYCHAIN_SERVICE: &str = crate::identity::CRM_ENC_SERVICE;
+const LEGACY_CRM_KEYCHAIN_SERVICE: &str = crate::identity::LEGACY_CRM_ENC_SERVICE;
 const CRM_KEYCHAIN_KEY: &str = "master-key-v1";
 const KEY_LEN: usize = 32;
 
@@ -63,6 +64,32 @@ fn crm_master_key() -> Result<[u8; KEY_LEN]> {
         }
         Err(e) => Err(anyhow::anyhow!("crm keychain read: {e}")),
     }
+}
+
+fn legacy_crm_master_key() -> Result<Option<[u8; KEY_LEN]>> {
+    let entry = keyring::Entry::new(LEGACY_CRM_KEYCHAIN_SERVICE, CRM_KEYCHAIN_KEY)
+        .context("legacy crm keychain entry")?;
+    match entry.get_password() {
+        Ok(hex) => {
+            let bytes = hex::decode(hex.trim()).context("decode legacy crm master key hex")?;
+            if bytes.len() != KEY_LEN {
+                anyhow::bail!("stored legacy crm master key has wrong length: {}", bytes.len());
+            }
+            let mut key = [0u8; KEY_LEN];
+            key.copy_from_slice(&bytes);
+            Ok(Some(key))
+        }
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(e) => Err(anyhow::anyhow!("legacy crm keychain read: {e}")),
+    }
+}
+
+fn persist_current_crm_master_key(key: &[u8; KEY_LEN]) -> Result<()> {
+    let entry = keyring::Entry::new(CRM_KEYCHAIN_SERVICE, CRM_KEYCHAIN_KEY)
+        .context("crm keychain entry for migration")?;
+    entry
+        .set_password(&hex::encode(key))
+        .context("store migrated crm master key")
 }
 
 // ---------------------------------------------------------------------------
@@ -281,10 +308,57 @@ impl CrmStore {
         })
     }
 
+    fn open_with_key_fallback(
+        workspace_root: &Path,
+        current_key: &[u8; KEY_LEN],
+        legacy_key: Option<&[u8; KEY_LEN]>,
+    ) -> Result<(Self, bool)> {
+        match Self::open_with_key(workspace_root, current_key) {
+            Ok(store) => Ok((store, false)),
+            Err(current_error) => {
+                let is_wrong_key = current_error
+                    .chain()
+                    .any(|cause| cause.to_string().contains("file is not a database"));
+                let Some(legacy_key) = legacy_key.filter(|key| *key != current_key) else {
+                    return Err(current_error);
+                };
+                if !is_wrong_key {
+                    return Err(current_error);
+                }
+                let store = Self::open_with_key(workspace_root, legacy_key).with_context(|| {
+                    format!(
+                        "current CRM key could not open the encrypted upgrade database, and the legacy key also failed (current error: {current_error:#})"
+                    )
+                })?;
+                Ok((store, true))
+            }
+        }
+    }
+
     /// Open with the master key from the OS keychain.
     pub fn open(workspace_root: &Path) -> Result<Self> {
-        let key = crm_master_key()?;
-        Self::open_with_key(workspace_root, &key)
+        let current_key = crm_master_key()?;
+        let legacy_key = match legacy_crm_master_key() {
+            Ok(key) => key,
+            Err(e) => {
+                log::warn!("crm: legacy key lookup failed during upgrade check: {e:#}");
+                None
+            }
+        };
+        let (store, used_legacy) =
+            Self::open_with_key_fallback(workspace_root, &current_key, legacy_key.as_ref())?;
+        if used_legacy {
+            if let Some(key) = legacy_key.as_ref() {
+                if let Err(e) = persist_current_crm_master_key(key) {
+                    // The recovered database is readable now. Keep serving it and
+                    // retry this copy on the next open instead of denying access.
+                    log::warn!("crm: recovered legacy database but could not save its migrated key: {e:#}");
+                } else {
+                    log::info!("crm: migrated the legacy encrypted database key to the Lantern service");
+                }
+            }
+        }
+        Ok(store)
     }
 
     // -----------------------------------------------------------------------
@@ -1114,6 +1188,35 @@ mod tests {
         let key = [0x33u8; 32];
         let s = CrmStore::open_with_key(dir.path(), &key).expect("crm store open");
         (dir, s)
+    }
+
+    #[test]
+    fn legacy_key_reopens_moved_crm_database_when_new_key_is_wrong() {
+        let dir = TempDir::new().unwrap();
+        let legacy_key = [0x31u8; 32];
+        let wrong_new_key = [0x72u8; 32];
+        let old_store = CrmStore::open_with_key(dir.path(), &legacy_key).expect("seed old db");
+        old_store
+            .upsert_object(
+                "household:legacy-1",
+                "household",
+                "legacy-1",
+                "2026-07-01T00:00:00Z",
+                "hash",
+                r#"{"name":"Legacy household"}"#,
+            )
+            .unwrap();
+        drop(old_store);
+
+        let (reopened, used_legacy) = CrmStore::open_with_key_fallback(
+            dir.path(),
+            &wrong_new_key,
+            Some(&legacy_key),
+        )
+        .expect("legacy key should recover the moved encrypted database");
+
+        assert!(used_legacy);
+        assert!(reopened.get_object("household:legacy-1").unwrap().is_some());
     }
 
     fn pending_crm_proposal(id: &str) -> PendingCrmProposal {

@@ -99,6 +99,7 @@ pub fn run() {
             commands::rag::rag_manifest_record_pdf,
             commands::rag::rag_manifest_forget_pdfs,
             commands::rag::rag_retag_matter_batch,
+            commands::rag::rag_scope_write_queue_depth,
             commands::rag::rag_retrieve,
             // WS-B/C — citation verification (refuse answers whose citation doesn't verify).
             commands::rag::rag_verify_citation,

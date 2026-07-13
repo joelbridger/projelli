@@ -602,6 +602,13 @@ export async function ragRetagMatterBatch(
   return invoke<string[]>('rag_retag_matter_batch', { paths, matterId });
 }
 
+/** Live count of scope/privacy updates waiting behind another search-index
+ * writer. Zero in browser mode. Waiting is healthy queueing, not a failure. */
+export async function ragScopeWriteQueueDepth(): Promise<number> {
+  if (!isTauri()) return 0;
+  return invoke<number>('rag_scope_write_queue_depth');
+}
+
 /** WS-B/C — verify a citation against the local store so the app can REFUSE to
  *  present an answer whose citation does not verify. Looks up the chunk by its
  *  content-addressed `id` SCOPED to `claimedMatterId`, then asserts the stored

@@ -107,9 +107,13 @@ use lancedb::{
     query::{ExecutableQuery, QueryBase, Select},
 };
 use sha2::{Digest, Sha256};
+use std::collections::HashMap;
 use std::collections::HashSet;
+use std::fs::{File, OpenOptions};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
+use std::sync::{Arc, OnceLock, Weak};
+use tokio::sync::{Mutex as AsyncMutex, OwnedMutexGuard};
 
 use super::chunker::Chunk;
 use super::embedder::EMBEDDING_DIM;
@@ -333,6 +337,193 @@ pub fn dataset_path(workspace_root: &Path) -> PathBuf {
     crate::commands::data_dir::workspace_data_dir(workspace_root).join("vectors")
 }
 
+// ---------------------------------------------------------------------------
+// Store-wide writer serialization.
+// ---------------------------------------------------------------------------
+
+/// One keyed async mutex per local LanceDB store.  The weak references let an
+/// unused workspace lock disappear after its last writer finishes instead of
+/// growing this process-wide map forever as advisors open different workspaces.
+static WRITE_LOCKS: OnceLock<std::sync::Mutex<HashMap<PathBuf, Weak<AsyncMutex<()>>>>> =
+    OnceLock::new();
+
+/// Number of writers currently waiting behind another write, keyed by the
+/// `vectors` directory.  The frontend reads this through a tiny Tauri command so
+/// "queued" is shown as waiting, never as a failed privacy/search update.
+static WRITE_WAITERS: OnceLock<std::sync::Mutex<HashMap<PathBuf, usize>>> = OnceLock::new();
+static SCOPE_WRITE_WAITERS: AtomicUsize = AtomicUsize::new(0);
+
+tokio::task_local! {
+    static WRITE_OPERATION_KIND: &'static str;
+}
+
+fn write_locks() -> &'static std::sync::Mutex<HashMap<PathBuf, Weak<AsyncMutex<()>>>> {
+    WRITE_LOCKS.get_or_init(|| std::sync::Mutex::new(HashMap::new()))
+}
+
+fn write_waiters() -> &'static std::sync::Mutex<HashMap<PathBuf, usize>> {
+    WRITE_WAITERS.get_or_init(|| std::sync::Mutex::new(HashMap::new()))
+}
+
+fn local_path_from_uri(uri: &str) -> PathBuf {
+    if let Ok(url) = tauri::Url::parse(uri) {
+        if url.scheme() == "file" {
+            if let Ok(path) = url.to_file_path() {
+                return path;
+            }
+        }
+    }
+    PathBuf::from(uri)
+}
+
+/// Turn either a connection URI (`.../vectors`) or table URI
+/// (`.../vectors/chunks.lance`) into the one store key both must share.
+fn store_root_from_uri(uri: &str) -> PathBuf {
+    let path = local_path_from_uri(uri);
+    if path.extension().is_some_and(|ext| ext == "lance") {
+        path.parent().unwrap_or(&path).to_path_buf()
+    } else {
+        path
+    }
+}
+
+fn lock_for(root: &Path) -> Arc<AsyncMutex<()>> {
+    let mut locks = crate::util::sync::lock_unpoison(write_locks());
+    if let Some(lock) = locks.get(root).and_then(Weak::upgrade) {
+        return lock;
+    }
+    let lock = Arc::new(AsyncMutex::new(()));
+    locks.insert(root.to_path_buf(), Arc::downgrade(&lock));
+    lock
+}
+
+struct WaiterCount {
+    root: PathBuf,
+    is_scope_update: bool,
+}
+
+impl WaiterCount {
+    fn begin(root: &Path) -> Self {
+        let mut waiters = crate::util::sync::lock_unpoison(write_waiters());
+        *waiters.entry(root.to_path_buf()).or_insert(0) += 1;
+        let is_scope_update = WRITE_OPERATION_KIND
+            .try_with(|kind| *kind == "scope-update")
+            .unwrap_or(false);
+        if is_scope_update {
+            SCOPE_WRITE_WAITERS.fetch_add(1, AtomicOrdering::SeqCst);
+        }
+        Self {
+            root: root.to_path_buf(),
+            is_scope_update,
+        }
+    }
+}
+
+impl Drop for WaiterCount {
+    fn drop(&mut self) {
+        if self.is_scope_update {
+            SCOPE_WRITE_WAITERS.fetch_sub(1, AtomicOrdering::SeqCst);
+        }
+        let mut waiters = crate::util::sync::lock_unpoison(write_waiters());
+        if let Some(count) = waiters.get_mut(&self.root) {
+            *count = count.saturating_sub(1);
+            if *count == 0 {
+                waiters.remove(&self.root);
+            }
+        }
+    }
+}
+
+/// RAII ownership of the process-local async mutex plus a cross-process file
+/// lock.  Keeping the lock file beside `vectors/` (not inside it) means a corrupt
+/// dataset can be quarantined and rebuilt while the writer gate stays held.
+pub struct WriteAccessGuard {
+    _process: OwnedMutexGuard<()>,
+    file: File,
+}
+
+impl Drop for WriteAccessGuard {
+    fn drop(&mut self) {
+        let _ = fs2::FileExt::unlock(&self.file);
+    }
+}
+
+async fn acquire_write_access_for_root(root: PathBuf) -> Result<WriteAccessGuard> {
+    let lock = lock_for(&root);
+    let process_guard = match lock.clone().try_lock_owned() {
+        Ok(guard) => guard,
+        Err(_) => {
+            let _waiting = WaiterCount::begin(&root);
+            lock.lock_owned().await
+        }
+    };
+
+    let lock_path = root.parent().unwrap_or(&root).join(".rag-store-write.lock");
+    if let Some(parent) = lock_path.parent() {
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("create rag writer-lock directory at {:?}", parent))?;
+    }
+    let mut file = OpenOptions::new()
+        .create(true)
+        .read(true)
+        .write(true)
+        .open(&lock_path)
+        .with_context(|| format!("open rag writer lock at {:?}", lock_path))?;
+
+    match fs2::FileExt::try_lock_exclusive(&file) {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+            let _waiting = WaiterCount::begin(&root);
+            let file_for_wait = file.try_clone().context("clone rag writer lock file")?;
+            let locked_file = tokio::task::spawn_blocking(move || {
+                fs2::FileExt::lock_exclusive(&file_for_wait)?;
+                Ok::<File, std::io::Error>(file_for_wait)
+            })
+            .await
+            .context("rag writer file-lock join failed")?
+            .context("wait for rag writer file lock")?;
+            file = locked_file;
+        }
+        Err(e) => return Err(e).context("try rag writer file lock"),
+    }
+
+    Ok(WriteAccessGuard {
+        _process: process_guard,
+        file,
+    })
+}
+
+/// Acquire the single-writer gate for a table mutation.  Every production
+/// LanceDB write must go through this seam, including direct batched `add` calls
+/// in connector indexers.
+pub async fn acquire_write_access(table: &Table) -> Result<WriteAccessGuard> {
+    acquire_write_access_for_root(store_root_from_uri(table.dataset_uri())).await
+}
+
+/// Label a scope/privacy re-tag while it passes through the shared writer gate.
+/// If it has to wait, only the scope-specific queue counter moves, so the banner
+/// never mistakes a queued CRM writer for a queued scope update.
+pub async fn with_scope_write_status<F: std::future::Future>(future: F) -> F::Output {
+    WRITE_OPERATION_KIND.scope("scope-update", future).await
+}
+
+pub fn scope_write_queue_depth() -> usize {
+    SCOPE_WRITE_WAITERS.load(AtomicOrdering::SeqCst)
+}
+
+async fn acquire_connection_write_access(conn: &Connection) -> Result<WriteAccessGuard> {
+    acquire_write_access_for_root(store_root_from_uri(conn.uri())).await
+}
+
+/// How many writers are waiting for this workspace's single-writer gate.
+pub fn write_queue_depth(workspace_root: &Path) -> usize {
+    let root = dataset_path(workspace_root);
+    crate::util::sync::lock_unpoison(write_waiters())
+        .get(&root)
+        .copied()
+        .unwrap_or(0)
+}
+
 /// Stable id for `(path, paragraph_index)`. Hex-encoded SHA-256.
 pub fn chunk_id(path: &str, paragraph_index: u32) -> String {
     let path = normalize_source_path(path);
@@ -476,8 +667,7 @@ pub async fn open_connection(workspace_root: &Path) -> Result<Connection> {
         .with_context(|| format!("failed to open lancedb at {:?}", &path))
 }
 
-/// Open the `chunks` table, creating an empty one if it doesn't exist.
-pub async fn open_or_create_table(conn: &Connection) -> Result<Table> {
+async fn open_or_create_table_unlocked(conn: &Connection) -> Result<Table> {
     let names = conn
         .table_names()
         .execute()
@@ -495,6 +685,86 @@ pub async fn open_or_create_table(conn: &Connection) -> Result<Table> {
         .execute()
         .await
         .context("create_empty_table chunks failed")
+}
+
+fn is_corrupt_store_error(error: &anyhow::Error) -> bool {
+    error.chain().any(|cause| {
+        let message = cause.to_string().to_ascii_lowercase();
+        message.contains("file is not a database")
+            || message.contains("database disk image is malformed")
+            || message.contains("lanceerror(corrupt")
+            || message.contains("corruptfile")
+            || message.contains("bad magic")
+            || message.contains("invalid lance")
+            || message.contains("not a directory")
+            // `table_names` is file-name based. A half-published `chunks.lance`
+            // entry can therefore appear in the list but fail to open as a table.
+            || message.contains("table 'chunks' was not found")
+    })
+}
+
+async fn rebuild_corrupt_store(conn: &Connection, original: &anyhow::Error) -> Result<Table> {
+    let root = store_root_from_uri(conn.uri());
+    let workspace = root
+        .parent()
+        .and_then(Path::parent)
+        .context("cannot derive workspace root from corrupt vector-store path")?
+        .to_path_buf();
+
+    // Mark recovery BEFORE moving anything. If the rename or fresh create fails,
+    // retrieval fails closed and the next reconcile retries the clean rebuild.
+    mark_integrity_unknown(&workspace);
+    mark_rebuild_required(&workspace);
+    super::manifest::delete(&workspace);
+    super::reconcile::mark_mail_backfill_needed_after_vector_rebuild(
+        &workspace,
+        "corrupt vector store",
+    );
+
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    let quarantine = root.with_file_name(format!("vectors.corrupt-{stamp}-{}", std::process::id()));
+    if root.exists() {
+        std::fs::rename(&root, &quarantine).with_context(|| {
+            format!(
+                "quarantine corrupt vector store at {:?} after {original:#}",
+                quarantine
+            )
+        })?;
+    }
+    std::fs::create_dir_all(&root)
+        .with_context(|| format!("create clean vector store at {:?}", root))?;
+
+    let replacement = lancedb::connect(&root.to_string_lossy())
+        .read_consistency_interval(std::time::Duration::from_secs(0))
+        .execute()
+        .await
+        .with_context(|| format!("reopen clean lancedb at {:?}", root))?;
+    open_or_create_table_unlocked(&replacement)
+        .await
+        .with_context(|| format!("rebuild clean vector table after {original:#}"))
+}
+
+/// Open the `chunks` table, creating an empty one if it doesn't exist.
+///
+/// Creation and corruption recovery both hold the same store-wide writer gate
+/// as normal mutations. A damaged derived index is quarantined and recreated;
+/// durable markers make the normal reconcile/mail-backfill paths repopulate it
+/// from authoritative content instead of leaving search permanently broken.
+pub async fn open_or_create_table(conn: &Connection) -> Result<Table> {
+    let _write = acquire_connection_write_access(conn).await?;
+    match open_or_create_table_unlocked(conn).await {
+        Ok(table) => Ok(table),
+        Err(error) if is_corrupt_store_error(&error) => {
+            log::error!(
+                "rag: corrupt vector store detected; quarantining and rebuilding: {error:#}"
+            );
+            rebuild_corrupt_store(conn, &error).await
+        }
+        Err(error) => Err(error),
+    }
 }
 
 /// P2.3 row 3: build the `path` (token) and `path_enc` (encrypted) columns for
@@ -628,6 +898,132 @@ mod tests {
         let blob = hex::decode(enc).expect("path_enc must be hex");
         String::from_utf8(decrypt_with_key(&blob, &TEST_KEY).expect("decrypt path_enc"))
             .expect("utf8 path")
+    }
+
+    /// Regression harness for the Windows bench collision: CRM backfill and the
+    /// scope-retag worker both opened the same workspace store independently,
+    /// then mutated it at the same time.  Drive that exact two-open shape here.
+    ///
+    /// This intentionally starts from an empty store because table publication
+    /// is the narrowest deterministic overlap: without a store-wide access gate,
+    /// both tasks observe "chunks is absent" and race to create it.  LanceDB may
+    /// report an already-exists/conflicting-commit error on Unix; on the Windows
+    /// bench the same unguarded overlap presented as SQL error 26, "file is not a
+    /// database", while a long scope update and CRM indexing were both active.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn two_independent_store_writers_do_not_overlap() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let root = dir.path().to_path_buf();
+        let barrier = std::sync::Arc::new(tokio::sync::Barrier::new(2));
+
+        let writer = |path: &str, root: PathBuf, barrier: std::sync::Arc<tokio::sync::Barrier>| {
+            let path = path.to_string();
+            tokio::spawn(async move {
+                barrier.wait().await;
+                let conn = open_connection(&root)
+                    .await
+                    .expect("open writer connection");
+                let table = open_or_create_table(&conn)
+                    .await
+                    .expect("open writer table");
+                let rows = vec![(
+                    Chunk {
+                        path: path.clone(),
+                        paragraph_index: 0,
+                        text: "concurrent writer".into(),
+                        start_offset: 0,
+                        end_offset: 17,
+                        locator: None,
+                    },
+                    vec![0.25f32; EMBEDDING_DIM],
+                )];
+                upsert_chunks_for_path(
+                    &table,
+                    &path,
+                    rows,
+                    SourceType::Text,
+                    "matter-a",
+                    PRIVILEGE_NONE,
+                    &TEST_KEY,
+                )
+                .await
+                .expect("writer commit");
+            })
+        };
+
+        let a = writer("/crm/household-1", root.clone(), barrier.clone());
+        let b = writer("/clients/acme/plan.docx", root, barrier);
+        a.await.expect("crm writer task");
+        b.await.expect("scope writer task");
+    }
+
+    #[tokio::test]
+    async fn queued_scope_writer_has_distinct_live_status() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let conn = open_connection(dir.path()).await.expect("open connection");
+        let table = open_or_create_table(&conn).await.expect("open table");
+        let held = acquire_write_access(&table).await.expect("hold writer gate");
+
+        let waiting_table = table.clone();
+        let waiting = tokio::spawn(async move {
+            with_scope_write_status(acquire_write_access(&waiting_table)).await
+        });
+        tokio::time::timeout(std::time::Duration::from_secs(1), async {
+            while scope_write_queue_depth() == 0 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("scope writer should report that it is queued");
+
+        assert_eq!(scope_write_queue_depth(), 1);
+        drop(held);
+        let acquired = waiting
+            .await
+            .expect("queued task join")
+            .expect("queued writer acquires after release");
+        drop(acquired);
+        assert_eq!(scope_write_queue_depth(), 0);
+    }
+
+    /// A damaged derived index must never brick search.  The workspace files,
+    /// mail store, and connector stores are authoritative; LanceDB is a cache.
+    /// Simulate a half-published table by putting a regular file where LanceDB's
+    /// `chunks.lance/` dataset directory belongs.  Opening must quarantine that
+    /// bad cache, create a clean table, and leave the rebuild marker for the
+    /// normal reconcile/backfill paths to repopulate it.
+    #[tokio::test]
+    async fn corrupt_vector_table_is_quarantined_and_rebuilt() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let vectors = dataset_path(dir.path());
+        std::fs::create_dir_all(&vectors).unwrap();
+        std::fs::write(vectors.join("chunks.lance"), b"half-written-index").unwrap();
+
+        let conn = open_connection(dir.path()).await.expect("open connection");
+        let table = open_or_create_table(&conn)
+            .await
+            .expect("corrupt cache should rebuild instead of bricking search");
+        assert_eq!(table.name(), TABLE_NAME);
+        assert!(
+            is_rebuild_required(dir.path()),
+            "recovery must schedule authoritative content re-indexing"
+        );
+
+        let quarantines =
+            std::fs::read_dir(crate::commands::data_dir::workspace_data_dir(dir.path()))
+                .unwrap()
+                .filter_map(|entry| entry.ok())
+                .filter(|entry| {
+                    entry
+                        .file_name()
+                        .to_string_lossy()
+                        .starts_with("vectors.corrupt-")
+                })
+                .count();
+        assert_eq!(
+            quarantines, 1,
+            "bad cache should be preserved for diagnosis"
+        );
     }
 
     /// P2.1 (Finding 2): `fetch_records_by_ids` returns, in one query, the SAME

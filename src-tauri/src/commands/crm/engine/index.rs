@@ -86,6 +86,7 @@ pub async fn apply_index(
         .context("build crm batch")?;
         let schema = batch.schema();
         use arrow_array::RecordBatchIterator;
+        let _write = crate::commands::rag::store::acquire_write_access(table).await?;
         table
             .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
             .execute()
