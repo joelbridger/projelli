@@ -1,5 +1,5 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string -- Frozen CRM screen copy needs its translation catalog in a separate product change. */
-import { createElement, useState } from 'react';
+import { createElement, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   CalendarDays,
@@ -32,6 +32,7 @@ import type { TimelineRecord } from '@/features/crm-timeline';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import { ContactEditor } from './ContactEditor';
 import { householdTabRegistry, type HouseholdTab } from './tabRegistry';
+import { useMatterStore } from '@/platform/matter/matterStore';
 
 const syncCopy: Record<HouseholdRecord['syncState'], string> = {
   live: 'Live',
@@ -105,6 +106,33 @@ export function HouseholdRecordSurface({
   const [adding, setAdding] = useState<'person' | 'account' | 'fact' | null>(null);
   const [editingPerson, setEditingPerson] = useState<import('./adapters').CrmPerson | null>(null);
   const sourceProposals = tab === 'client_map' ? [] : proposals;
+
+  // Honor the one-shot "open this client's Meetings" navigation request the
+  // event bus already writes (client-list quick action, a meeting-sourced
+  // Client Map/Ask citation, or an Activity meeting entry) — same seam
+  // MatterHub used to consume before the CRM merge dropped its mount
+  // (see fix/matterhub-entry-point). `clientMapHubTab === 'meetings'` is an
+  // explicit "open Meetings" request; `pendingMeetingOpen` additionally names
+  // a specific meeting to seek to (consumed by the tab itself).
+  const pendingHubTab = useMatterStore((s) => s.clientMapHubTab);
+  const setPendingHubTab = useMatterStore((s) => s.setClientMapHubTab);
+  const pendingMeetingOpen = useMatterStore((s) => s.pendingMeetingOpen);
+  useEffect(() => {
+    if (pendingHubTab === 'meetings') {
+      queueMicrotask(() => {
+        setTab('meeting_notes');
+        setPendingHubTab(null);
+      });
+    }
+  }, [pendingHubTab, setPendingHubTab]);
+  useEffect(() => {
+    if (pendingMeetingOpen) {
+      queueMicrotask(() => {
+        setTab('meeting_notes');
+      });
+    }
+  }, [pendingMeetingOpen]);
+
   return (
     <section data-testid="crm-household-record">
       <header>

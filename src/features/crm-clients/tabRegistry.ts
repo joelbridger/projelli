@@ -9,9 +9,10 @@ import { activityTab } from './fallbackTabs';
 import { documentsTab } from '@/features/crm-documents/surface';
 import { timelineTab } from '@/features/crm-timeline/tabSurface';
 import { emailTab, meetingsTab } from '@/features/crm-connectors/tabSurface';
+import { meetingNotesTab } from './meetingNotesTab';
 import { reviewsTab } from './reviewsTab';
 
-export type HouseholdTab = 'client_map' | 'timeline' | 'documents' | 'email' | 'meetings' | 'reviews' | 'activity';
+export type HouseholdTab = 'client_map' | 'timeline' | 'documents' | 'email' | 'meeting_notes' | 'meetings' | 'reviews' | 'activity';
 
 export interface HouseholdTabSurfaceProps {
   household: HouseholdRecord;
@@ -37,6 +38,7 @@ export const householdTabRegistry: readonly HouseholdTabDescriptor[] = [
   timelineTab,
   documentsTab,
   emailTab,
+  meetingNotesTab,
   meetingsTab,
   reviewsTab,
   activityTab,

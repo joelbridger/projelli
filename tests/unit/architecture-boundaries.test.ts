@@ -41,6 +41,9 @@ const ALLOWED_FEATURE_EDGES = new Set<string>([
   'crm->acats',           // CRM Reviews makes the ACATS transfer-review workflow reachable from the relevant client record
   'crm->email',           // CRM broadcast reuses the hardened mail provider resolver
   'crm->firm',            // CRM firm setup composes the existing firm administration surface
+  'crm->meetings',        // CRM household record's Meeting Notes tab hosts the meeting-notes-review
+                          // flow (ClientMeetingsTab/MeetingEntry) — restores the entry point MatterHub
+                          // used to own before the CRM merge dropped its mount (fix/matterhub-entry-point)
   'crm->planning',        // CRM Reviews shows pending planning-system write reviews in the relevant client record
   'crm-connectors->crm-views', // Broadcast uses the saved-view query language to define its recipient list
   'crm-connectors->email', // Broadcast reuses the hardened mail AI provider resolver; delivery still uses the platform mail connector
