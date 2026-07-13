@@ -1417,6 +1417,64 @@ mod tests {
         );
     }
 
+    // BUG-11's exact Windows-bench shape: a client-named folder at the drive
+    // root (not below a generic `Clients` folder) containing one real PDF.
+    // The pre-fix connector downloaded this into its private search store but
+    // never materialized it into the client's Documents area.
+    #[tokio::test]
+    async fn bug_11_exact_top_level_pdf_import_reaches_client_documents() {
+        let dir = TempDir::new().unwrap();
+        let store = OneDriveStore::open_with_key(dir.path(), &[0x44; 32]).unwrap();
+        let page = DeltaPage {
+            value: vec![file_item(
+                "risk-assessment",
+                "Risk Assessment.pdf",
+                "drive-a",
+                "/drive/root:/Webb, Marcus & Tanya",
+                "v1",
+            )],
+            delta_link: Some("delta-next".into()),
+            ..Default::default()
+        };
+        let source = FakeSource::new(page)
+            .with_download("risk-assessment", b"real PDF bytes")
+            .await;
+        let matter_map = vec![OneDriveMatterMapEntry {
+            folder_key: folder_key(DEFAULT_ACCOUNT, None, "drive-a", "/webb, marcus & tanya"),
+            matter_id: "matter-webb".into(),
+            dest_folder: "Clients/Webb, Marcus & Tanya".into(),
+        }];
+
+        let report = sync_documents(
+            &source,
+            &store,
+            dir.path(),
+            &matter_map,
+            &AtomicBool::new(false),
+            &[0x55; 32],
+            &AtomicU32::new(0),
+        )
+        .await
+        .unwrap();
+
+        let written = dir
+            .path()
+            .join("Clients/Webb, Marcus & Tanya/OneDrive/Risk Assessment.pdf");
+        assert_eq!(report.imported, 1);
+        assert_eq!(report.downloaded, 1);
+        assert!(
+            written.exists(),
+            "a PDF inside an exact-name top-level OneDrive folder must appear in the client's Documents area"
+        );
+        assert_eq!(std::fs::read(&written).unwrap(), b"real PDF bytes");
+        assert_eq!(
+            store
+                .get_local_path("onedrive:drive-a:risk-assessment")
+                .unwrap(),
+            Some("Clients/Webb, Marcus & Tanya/OneDrive/Risk Assessment.pdf".to_string())
+        );
+    }
+
     // The connector must never overwrite the client's OWN same-named local file:
     // its imports land under the `OneDrive` subfolder, leaving local files intact.
     #[tokio::test]

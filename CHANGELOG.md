@@ -32,6 +32,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **OneDrive exact-name client-folder import is now locked against BUG-11.**
+  Added the exact Windows-bench regression case: a top-level OneDrive folder
+  named `Webb, Marcus & Tanya` with one `Risk Assessment.pdf` must download into
+  `Clients/Webb, Marcus & Tanya/OneDrive/`, report one imported file, and retain
+  its local path for later rename/delete cleanup. The check fails on the
+  original Round 1 tip and passes with the existing real-file materialization
+  repair. Test: `src-tauri/src/commands/onedrive/engine.rs`.
 - **Client/matter organization now survives a browser-profile wipe (data-durability, HIGH).**
   Matter records lived ONLY in profile-scoped localStorage (`lantern:matters…`), so a
   WebView2 profile reset, cache clear, reinstall, or new machine permanently destroyed
