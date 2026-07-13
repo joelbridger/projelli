@@ -24,64 +24,212 @@ use std::path::{Path, PathBuf};
 const CRM_KEYCHAIN_SERVICE: &str = crate::identity::CRM_ENC_SERVICE;
 const LEGACY_CRM_KEYCHAIN_SERVICE: &str = crate::identity::LEGACY_CRM_ENC_SERVICE;
 const CRM_KEYCHAIN_KEY: &str = "master-key-v1";
+const CRM_KEY_SERVICE_HINT_FILE: &str = "crm-enc.key-service";
 const KEY_LEN: usize = 32;
+
+#[derive(Clone)]
+struct CrmKeyCandidate {
+    service: String,
+    key: [u8; KEY_LEN],
+}
+
+fn decode_crm_master_key(encoded: &str, service: &str) -> Result<[u8; KEY_LEN]> {
+    let bytes = hex::decode(encoded.trim())
+        .with_context(|| format!("decode CRM master key from service {service}"))?;
+    if bytes.len() != KEY_LEN {
+        anyhow::bail!(
+            "stored CRM master key from service {service} has wrong length: {}",
+            bytes.len()
+        );
+    }
+    let mut key = [0u8; KEY_LEN];
+    key.copy_from_slice(&bytes);
+    Ok(key)
+}
+
+fn headless_test_crm_master_key() -> Result<Option<[u8; KEY_LEN]>> {
+    let Ok(encoded) = std::env::var("LANTERN_HEADLESS_TEST_CRM_MASTER_KEY_HEX") else {
+        return Ok(None);
+    };
+    decode_crm_master_key(&encoded, "headless-test").map(Some)
+}
+
+fn read_crm_master_key(service: &str) -> Result<Option<[u8; KEY_LEN]>> {
+    let entry = keyring::Entry::new(service, CRM_KEYCHAIN_KEY)
+        .with_context(|| format!("CRM keychain entry for service {service}"))?;
+    match entry.get_password() {
+        Ok(encoded) => decode_crm_master_key(&encoded, service).map(Some),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(error) => Err(anyhow::anyhow!(
+            "CRM keychain read for service {service}: {error}"
+        )),
+    }
+}
+
+fn crm_service_from_keyring_target(target: &str) -> Option<String> {
+    let prefix = format!("{CRM_KEYCHAIN_KEY}.");
+    let service = target.strip_prefix(&prefix)?;
+    if service.is_empty()
+        || service.len() > 255
+        || service.chars().any(char::is_control)
+        || !service.ends_with("-crm-enc")
+    {
+        return None;
+    }
+    Some(service.to_string())
+}
+
+fn crm_key_service_hint_path(workspace_root: &Path) -> PathBuf {
+    crate::commands::data_dir::workspace_data_dir(workspace_root)
+        .join(CRM_KEY_SERVICE_HINT_FILE)
+}
+
+fn read_crm_key_service_hint(workspace_root: &Path) -> Option<String> {
+    let path = crm_key_service_hint_path(workspace_root);
+    let encoded = match std::fs::read_to_string(&path) {
+        Ok(encoded) => encoded,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return None,
+        Err(error) => {
+            log::warn!("crm: could not read key-service hint {}: {error}", path.display());
+            return None;
+        }
+    };
+    let target = format!("{CRM_KEYCHAIN_KEY}.{}", encoded.trim());
+    let service = crm_service_from_keyring_target(&target);
+    if service.is_none() {
+        log::warn!("crm: ignored invalid key-service hint in {}", path.display());
+    }
+    service
+}
+
+fn write_crm_key_service_hint(workspace_root: &Path, service: &str) -> Result<()> {
+    let target = format!("{CRM_KEYCHAIN_KEY}.{service}");
+    let service = crm_service_from_keyring_target(&target)
+        .context("refuse to persist an invalid CRM key-service hint")?;
+    let path = crm_key_service_hint_path(workspace_root);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("create CRM key-service hint directory {}", parent.display()))?;
+    }
+    std::fs::write(&path, service)
+        .with_context(|| format!("write CRM key-service hint {}", path.display()))
+}
+
+#[cfg(windows)]
+fn discover_historical_crm_keychain_services() -> Vec<String> {
+    use windows_sys::Win32::Security::Credentials::{
+        CredEnumerateW, CredFree, CREDENTIALW, CRED_TYPE_GENERIC,
+    };
+
+    unsafe fn wide_string(ptr: *const u16) -> Option<String> {
+        if ptr.is_null() {
+            return None;
+        }
+        let mut len = 0usize;
+        while len < 32_768 && unsafe { *ptr.add(len) } != 0 {
+            len += 1;
+        }
+        if len == 32_768 {
+            return None;
+        }
+        String::from_utf16(unsafe { std::slice::from_raw_parts(ptr, len) }).ok()
+    }
+
+    let mut count = 0u32;
+    let mut credentials: *mut *mut CREDENTIALW = std::ptr::null_mut();
+    if unsafe { CredEnumerateW(std::ptr::null(), 0, &mut count, &mut credentials) } == 0 {
+        return Vec::new();
+    }
+
+    let mut services = Vec::new();
+    let entries = unsafe { std::slice::from_raw_parts(credentials, count as usize) };
+    for &credential_ptr in entries {
+        if credential_ptr.is_null() {
+            continue;
+        }
+        let credential = unsafe { &*credential_ptr };
+        if credential.Type != CRED_TYPE_GENERIC {
+            continue;
+        }
+        if let Some(service) = unsafe { wide_string(credential.TargetName) }
+            .as_deref()
+            .and_then(crm_service_from_keyring_target)
+        {
+            services.push(service);
+        }
+    }
+    unsafe { CredFree(credentials.cast()) };
+    services.sort();
+    services.dedup();
+    services
+}
+
+#[cfg(not(windows))]
+fn discover_historical_crm_keychain_services() -> Vec<String> {
+    Vec::new()
+}
+
+fn existing_crm_key_candidates(workspace_root: &Path) -> Result<Vec<CrmKeyCandidate>> {
+    if let Some(key) = headless_test_crm_master_key()? {
+        return Ok(vec![CrmKeyCandidate {
+            service: "headless-test".to_string(),
+            key,
+        }]);
+    }
+
+    let mut services = Vec::new();
+    if let Some(service) = read_crm_key_service_hint(workspace_root) {
+        services.push(service);
+    }
+    services.push(CRM_KEYCHAIN_SERVICE.to_string());
+    services.push(LEGACY_CRM_KEYCHAIN_SERVICE.to_string());
+    services.extend(discover_historical_crm_keychain_services());
+    let mut seen_services = std::collections::HashSet::new();
+    services.retain(|service| seen_services.insert(service.clone()));
+
+    let mut candidates = Vec::new();
+    let mut read_errors = Vec::new();
+    for service in services {
+        match read_crm_master_key(&service) {
+            Ok(Some(key))
+                if !candidates
+                    .iter()
+                    .any(|candidate: &CrmKeyCandidate| candidate.key == key) =>
+            {
+                candidates.push(CrmKeyCandidate { service, key });
+            }
+            Ok(_) => {}
+            Err(error) => {
+                log::warn!("crm: could not read key service {service}: {error:#}");
+                read_errors.push(format!("{service}: {error:#}"));
+            }
+        }
+    }
+    if candidates.is_empty() && !read_errors.is_empty() {
+        anyhow::bail!(
+            "no usable CRM keys could be read from OS credential storage ({})",
+            read_errors.join("; ")
+        );
+    }
+    Ok(candidates)
+}
 
 /// Get (or generate + store) the 32-byte CRM master key from the OS keychain.
 /// Mirrors `mail::crypto::get_or_create_master_key` exactly — same algorithm,
 /// separate keychain entry so this DB has its own independent key.
 fn crm_master_key() -> Result<[u8; KEY_LEN]> {
-    if let Ok(hex) = std::env::var("LANTERN_HEADLESS_TEST_CRM_MASTER_KEY_HEX") {
-        let bytes = hex::decode(hex.trim()).context("decode headless test crm master key hex")?;
-        if bytes.len() != KEY_LEN {
-            anyhow::bail!(
-                "headless test crm master key has wrong length: {}",
-                bytes.len()
-            );
-        }
-        let mut k = [0u8; KEY_LEN];
-        k.copy_from_slice(&bytes);
-        return Ok(k);
+    if let Some(key) = headless_test_crm_master_key()? {
+        return Ok(key);
     }
 
-    let entry = keyring::Entry::new(CRM_KEYCHAIN_SERVICE, CRM_KEYCHAIN_KEY)
-        .context("crm keychain entry")?;
-    match entry.get_password() {
-        Ok(hex) => {
-            let bytes = hex::decode(hex.trim()).context("decode crm master key hex")?;
-            if bytes.len() != KEY_LEN {
-                anyhow::bail!("stored crm master key has wrong length: {}", bytes.len());
-            }
-            let mut k = [0u8; KEY_LEN];
-            k.copy_from_slice(&bytes);
-            Ok(k)
-        }
-        Err(keyring::Error::NoEntry) => {
-            let mut k = [0u8; KEY_LEN];
-            rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut k);
-            let hex = hex::encode(k);
-            entry.set_password(&hex).context("store crm master key")?;
-            Ok(k)
-        }
-        Err(e) => Err(anyhow::anyhow!("crm keychain read: {e}")),
+    if let Some(key) = read_crm_master_key(CRM_KEYCHAIN_SERVICE)? {
+        return Ok(key);
     }
-}
 
-fn legacy_crm_master_key() -> Result<Option<[u8; KEY_LEN]>> {
-    let entry = keyring::Entry::new(LEGACY_CRM_KEYCHAIN_SERVICE, CRM_KEYCHAIN_KEY)
-        .context("legacy crm keychain entry")?;
-    match entry.get_password() {
-        Ok(hex) => {
-            let bytes = hex::decode(hex.trim()).context("decode legacy crm master key hex")?;
-            if bytes.len() != KEY_LEN {
-                anyhow::bail!("stored legacy crm master key has wrong length: {}", bytes.len());
-            }
-            let mut key = [0u8; KEY_LEN];
-            key.copy_from_slice(&bytes);
-            Ok(Some(key))
-        }
-        Err(keyring::Error::NoEntry) => Ok(None),
-        Err(e) => Err(anyhow::anyhow!("legacy crm keychain read: {e}")),
-    }
+    let mut key = [0u8; KEY_LEN];
+    rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut key);
+    persist_current_crm_master_key(&key)?;
+    Ok(key)
 }
 
 fn persist_current_crm_master_key(key: &[u8; KEY_LEN]) -> Result<()> {
@@ -308,55 +456,80 @@ impl CrmStore {
         })
     }
 
-    fn open_with_key_fallback(
+    fn open_with_key_candidates(
         workspace_root: &Path,
-        current_key: &[u8; KEY_LEN],
-        legacy_key: Option<&[u8; KEY_LEN]>,
-    ) -> Result<(Self, bool)> {
-        match Self::open_with_key(workspace_root, current_key) {
-            Ok(store) => Ok((store, false)),
-            Err(current_error) => {
-                let is_wrong_key = current_error
-                    .chain()
-                    .any(|cause| cause.to_string().contains("file is not a database"));
-                let Some(legacy_key) = legacy_key.filter(|key| *key != current_key) else {
-                    return Err(current_error);
-                };
-                if !is_wrong_key {
-                    return Err(current_error);
+        candidates: &[CrmKeyCandidate],
+    ) -> Result<(Self, usize)> {
+        if candidates.is_empty() {
+            anyhow::bail!(
+                "the encrypted CRM database exists, but no matching key was found in OS credential storage"
+            );
+        }
+
+        let mut first_wrong_key_error = None;
+        for (index, candidate) in candidates.iter().enumerate() {
+            match Self::open_with_key(workspace_root, &candidate.key) {
+                Ok(store) => return Ok((store, index)),
+                Err(error) => {
+                    let is_wrong_key = error
+                        .chain()
+                        .any(|cause| cause.to_string().contains("file is not a database"));
+                    if !is_wrong_key {
+                        return Err(error).with_context(|| {
+                            format!(
+                                "open encrypted CRM database with key service {}",
+                                candidate.service
+                            )
+                        });
+                    }
+                    first_wrong_key_error.get_or_insert(error);
                 }
-                let store = Self::open_with_key(workspace_root, legacy_key).with_context(|| {
-                    format!(
-                        "current CRM key could not open the encrypted upgrade database, and the legacy key also failed (current error: {current_error:#})"
-                    )
-                })?;
-                Ok((store, true))
             }
         }
+
+        let first_error = first_wrong_key_error.expect("non-empty candidates produced an error");
+        anyhow::bail!(
+            "none of the {} available CRM keys could open the encrypted database (first error: {first_error:#})",
+            candidates.len()
+        )
     }
 
     /// Open with the master key from the OS keychain.
     pub fn open(workspace_root: &Path) -> Result<Self> {
-        let current_key = crm_master_key()?;
-        let legacy_key = match legacy_crm_master_key() {
-            Ok(key) => key,
-            Err(e) => {
-                log::warn!("crm: legacy key lookup failed during upgrade check: {e:#}");
-                None
+        if !Self::db_path(workspace_root).exists() {
+            let store = Self::open_with_key(workspace_root, &crm_master_key()?)?;
+            if let Err(error) = write_crm_key_service_hint(workspace_root, CRM_KEYCHAIN_SERVICE) {
+                log::warn!("crm: could not save current key-service hint: {error:#}");
             }
-        };
-        let (store, used_legacy) =
-            Self::open_with_key_fallback(workspace_root, &current_key, legacy_key.as_ref())?;
-        if used_legacy {
-            if let Some(key) = legacy_key.as_ref() {
-                if let Err(e) = persist_current_crm_master_key(key) {
-                    // The recovered database is readable now. Keep serving it and
-                    // retry this copy on the next open instead of denying access.
-                    log::warn!("crm: recovered legacy database but could not save its migrated key: {e:#}");
-                } else {
-                    log::info!("crm: migrated the legacy encrypted database key to the Lantern service");
-                }
+            return Ok(store);
+        }
+
+        // Existing encrypted data must be recovered before any new key is
+        // generated. Creating a replacement first turns a recoverable service-
+        // name migration into a permanent wrong-key loop.
+        let candidates = existing_crm_key_candidates(workspace_root)?;
+        let current_key_was_present = candidates
+            .iter()
+            .any(|candidate| candidate.service == CRM_KEYCHAIN_SERVICE);
+        let (store, used_index) = Self::open_with_key_candidates(workspace_root, &candidates)?;
+        let used = &candidates[used_index];
+        let mut service_for_next_open = used.service.as_str();
+        if used.service != CRM_KEYCHAIN_SERVICE && !current_key_was_present {
+            if let Err(error) = persist_current_crm_master_key(&used.key) {
+                // The recovered database is readable now. Keep serving it and
+                // retry this copy on the next open instead of denying access.
+                log::warn!(
+                    "crm: recovered historical database but could not save its migrated key: {error:#}"
+                );
+            } else {
+                service_for_next_open = CRM_KEYCHAIN_SERVICE;
+                log::info!(
+                    "crm: migrated the recovered encrypted database key to the current service"
+                );
             }
+        }
+        if let Err(error) = write_crm_key_service_hint(workspace_root, service_for_next_open) {
+            log::warn!("crm: could not save recovered key-service hint: {error:#}");
         }
         Ok(store)
     }
@@ -1093,6 +1266,15 @@ impl CrmStore {
                     .with_context(|| format!("failed to remove crm db file {}", p.display()))?;
             }
         }
+        let key_service_hint = crm_key_service_hint_path(workspace_root);
+        if key_service_hint.exists() {
+            std::fs::remove_file(&key_service_hint).with_context(|| {
+                format!(
+                    "failed to remove CRM key-service hint {}",
+                    key_service_hint.display()
+                )
+            })?;
+        }
         Ok(())
     }
 
@@ -1208,15 +1390,104 @@ mod tests {
             .unwrap();
         drop(old_store);
 
-        let (reopened, used_legacy) = CrmStore::open_with_key_fallback(
-            dir.path(),
-            &wrong_new_key,
-            Some(&legacy_key),
-        )
-        .expect("legacy key should recover the moved encrypted database");
+        let candidates = vec![
+            CrmKeyCandidate {
+                service: CRM_KEYCHAIN_SERVICE.to_string(),
+                key: wrong_new_key,
+            },
+            CrmKeyCandidate {
+                service: LEGACY_CRM_KEYCHAIN_SERVICE.to_string(),
+                key: legacy_key,
+            },
+        ];
+        let (reopened, used_index) =
+            CrmStore::open_with_key_candidates(dir.path(), &candidates)
+                .expect("legacy key should recover the moved encrypted database");
 
-        assert!(used_legacy);
+        assert_eq!(used_index, 1);
         assert!(reopened.get_object("household:legacy-1").unwrap().is_some());
+    }
+
+    #[test]
+    fn historical_key_after_two_wrong_candidates_reopens_upgrade_database() {
+        let dir = TempDir::new().unwrap();
+        let database_key = [0x19u8; 32];
+        let wrong_current_key = [0x72u8; 32];
+        let wrong_legacy_key = [0x31u8; 32];
+        let old_store =
+            CrmStore::open_with_key(dir.path(), &database_key).expect("seed historical db");
+        old_store
+            .upsert_object(
+                "household:historical-1",
+                "household",
+                "historical-1",
+                "2026-07-02T00:00:00Z",
+                "hash",
+                r#"{"name":"Historical household"}"#,
+            )
+            .unwrap();
+        drop(old_store);
+
+        let candidates = vec![
+            CrmKeyCandidate {
+                service: CRM_KEYCHAIN_SERVICE.to_string(),
+                key: wrong_current_key,
+            },
+            CrmKeyCandidate {
+                service: LEGACY_CRM_KEYCHAIN_SERVICE.to_string(),
+                key: wrong_legacy_key,
+            },
+            CrmKeyCandidate {
+                service: "standalone-crm-enc".to_string(),
+                key: database_key,
+            },
+        ];
+        let (reopened, used_index) =
+            CrmStore::open_with_key_candidates(dir.path(), &candidates)
+                .expect("all available historical CRM keys should be tried");
+
+        assert_eq!(used_index, 2);
+        assert!(
+            reopened
+                .get_object("household:historical-1")
+                .unwrap()
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn windows_keyring_target_parser_accepts_only_crm_database_services() {
+        assert_eq!(
+            crm_service_from_keyring_target("master-key-v1.standalone-crm-enc"),
+            Some("standalone-crm-enc".to_string())
+        );
+        assert_eq!(
+            crm_service_from_keyring_target("master-key-v1.lantern-audit-enc"),
+            None
+        );
+        assert_eq!(
+            crm_service_from_keyring_target("other-key.standalone-crm-enc"),
+            None
+        );
+        assert_eq!(
+            crm_service_from_keyring_target("master-key-v1.bad\0-crm-enc"),
+            None
+        );
+    }
+
+    #[test]
+    fn key_service_hint_round_trips_without_storing_key_material() {
+        let dir = TempDir::new().unwrap();
+        write_crm_key_service_hint(dir.path(), "standalone-crm-enc").unwrap();
+
+        assert_eq!(
+            read_crm_key_service_hint(dir.path()),
+            Some("standalone-crm-enc".to_string())
+        );
+        assert_eq!(
+            std::fs::read_to_string(crm_key_service_hint_path(dir.path())).unwrap(),
+            "standalone-crm-enc"
+        );
     }
 
     fn pending_crm_proposal(id: &str) -> PendingCrmProposal {
@@ -1555,7 +1826,10 @@ mod tests {
         for suffix in ["-wal", "-shm", "-journal"] {
             std::fs::write(sidecar(&base, suffix), b"residue").unwrap();
         }
+        write_crm_key_service_hint(dir.path(), CRM_KEYCHAIN_SERVICE).unwrap();
+        let key_service_hint = crm_key_service_hint_path(dir.path());
         assert!(base.exists(), "db file should exist before purge");
+        assert!(key_service_hint.exists(), "key-service hint should exist before purge");
         for suffix in ["-wal", "-shm", "-journal"] {
             assert!(
                 sidecar(&base, suffix).exists(),
@@ -1566,6 +1840,10 @@ mod tests {
         CrmStore::purge(dir.path()).expect("purge");
 
         assert!(!base.exists(), "crm-enc.db must be gone after purge");
+        assert!(
+            !key_service_hint.exists(),
+            "crm key-service hint must be gone after purge"
+        );
         for suffix in ["-wal", "-shm", "-journal"] {
             assert!(
                 !sidecar(&base, suffix).exists(),

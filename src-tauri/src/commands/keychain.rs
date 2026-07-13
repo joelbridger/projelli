@@ -224,6 +224,10 @@ fn is_internal_service(service: &str) -> bool {
         || INTERNAL_SERVICE_PREFIXES
             .iter()
             .any(|prefix| normalized.starts_with(prefix))
+        // BUG-13 recovery can discover a CRM database key under an older app
+        // namespace. Keep every such database key Rust-only even when its
+        // historical prefix is not in today's exact/prefix lists.
+        || normalized.ends_with("-crm-enc")
 }
 
 fn validate_renderer_service_access(service: &str) -> Result<(), KeychainError> {
@@ -352,6 +356,7 @@ mod tests {
         let crm_redtail = identity::crm_keychain_service("redtail");
         // Future connectors under the same namespace prefixes must also be denied.
         let future_crm = identity::crm_keychain_service("newprovider");
+        let historical_crm_database = "standalone-crm-enc";
         let future_onedrive = format!("{}future-secret", identity::ONEDRIVE_SERVICE_PREFIX);
         let future_box = format!("{}future-secret", identity::BOX_SERVICE_PREFIX);
         // Calendar provider services are dynamic (prefix + provider id) too.
@@ -398,6 +403,7 @@ mod tests {
             identity::WRITEBACK_ENC_SERVICE,
             // Future connectors under the same namespaces must be denied by default.
             &future_crm,
+            historical_crm_database,
             &future_onedrive,
             &future_box,
             &future_calendar,
