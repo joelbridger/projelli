@@ -46,6 +46,7 @@ import { brandText } from '@/config/brandText';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import { usePrivilegedMatterModeActive } from '@/platform/hooks/usePrivilegedMatterMode';
 import { useNativeNetworkLockdownBridgeState } from '@/platform/privacy/nativeNetworkLockdownBridge';
+import { NetworkLockdownRetryButton } from '@/platform/privacy/ui/NetworkLockdownRetryButton';
 
 function isCrmNetworkLockdownError(error: unknown): boolean {
   return (
@@ -609,6 +610,7 @@ export function WealthboxConnect() {
             <p className="mt-1 text-xs">
               {lockdownMessage}
             </p>
+            <NetworkLockdownRetryButton testId="wealthbox-network-lockdown-retry" />
           </div>
         )}
         <p className="mt-3 text-xs text-slate-400 italic">
@@ -641,6 +643,7 @@ export function WealthboxConnect() {
             <p className="mt-1 text-xs">
               {lockdownMessage}
             </p>
+            <NetworkLockdownRetryButton testId="wealthbox-network-lockdown-retry" />
           </div>
         )}
 

@@ -35,6 +35,7 @@ import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import { InfoHelp } from '@/ui/InfoHelp';
 import { brandText } from '@/config/brandText';
 import { useNativeNetworkLockdownBridgeState } from '@/platform/privacy/nativeNetworkLockdownBridge';
+import { NetworkLockdownRetryButton } from '@/platform/privacy/ui/NetworkLockdownRetryButton';
 
 const PROVIDER = 'redtail' as const;
 const REDTAIL_KEY_PREFIX = 'redtail:';
@@ -310,6 +311,7 @@ export function RedtailConnect() {
           >
             <p className="font-medium">{t('crm.redtail.lockdown.title')}</p>
             <p className="mt-1 text-xs">{lockdownMessage}</p>
+            <NetworkLockdownRetryButton testId="redtail-network-lockdown-retry" />
           </div>
         )}
 

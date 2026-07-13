@@ -59,6 +59,32 @@ describe('native Network Lockdown bridge', () => {
     });
   });
 
+  it('retries a failed release and unblocks after native confirms success', async () => {
+    controls.setOfflineMode
+      .mockRejectedValueOnce(new Error('policy file is temporarily locked'))
+      .mockResolvedValueOnce(undefined);
+    const bridge = await import('@/platform/privacy/nativeNetworkLockdownBridge');
+
+    bridge.requestNativeNetworkLockdown(false);
+    await vi.waitFor(() => {
+      expect(bridge.getNativeNetworkLockdownBridgeState().error).toMatch(/still on/i);
+    });
+
+    bridge.retryNativeNetworkLockdown();
+
+    await vi.waitFor(() => {
+      expect(controls.setOfflineMode.mock.calls.map(([value]) => value)).toEqual([
+        false,
+        false,
+      ]);
+      expect(bridge.getNativeNetworkLockdownBridgeState()).toMatchObject({
+        blocked: false,
+        pending: false,
+        error: null,
+      });
+    });
+  });
+
   it('serializes quick choices so an older unlock cannot arrive last', async () => {
     let finishFirst: (() => void) | undefined;
     controls.setOfflineMode

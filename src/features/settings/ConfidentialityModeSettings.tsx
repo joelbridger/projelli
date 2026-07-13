@@ -43,6 +43,8 @@ import { useLocalLlmModelStatus } from '@/platform/hooks/useLocalLlmModelStatus'
 import { KeychainService, type KeyProvider } from '@/platform/providers/KeychainService';
 import { getKeyCheckStatus } from '@/platform/providers/keyVerification';
 import { EV_EGRESS_CONFIG_CHANGE, SK_DEFAULT_MODEL, SK_DEFAULT_PROVIDER } from '@/config/identity';
+import { useNativeNetworkLockdownBridgeState } from '@/platform/privacy/nativeNetworkLockdownBridge';
+import { NetworkLockdownRetryButton } from '@/platform/privacy/ui/NetworkLockdownRetryButton';
 
 interface ModeCard {
   mode: ConfidentialityMode;
@@ -284,6 +286,7 @@ export function ConfidentialityModeSettings({
   const setMode = useRecordConfidentialityChoice();
   const privileged = usePrivilegedMatterMode();
   const setPrivileged = useSetPrivilegedMatterMode();
+  const nativeLockdown = useNativeNetworkLockdownBridgeState();
   // Show the isolation affirmation callout briefly after the user manually
   // enables network lockdown. Not shown for auto-forced states (those have
   // their own forced-note already).
@@ -475,6 +478,16 @@ export function ConfidentialityModeSettings({
             />
           </button>
         </div>
+        {nativeLockdown.error && (
+          <div
+            role="alert"
+            data-testid="network-lockdown-update-failed"
+            className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-950"
+          >
+            <p>{nativeLockdown.error}</p>
+            <NetworkLockdownRetryButton testId="privacy-settings-network-lockdown-retry" />
+          </div>
+        )}
         {privileged.forced && (
           <p
             data-testid="privileged-matter-mode-forced-note"

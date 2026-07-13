@@ -9,7 +9,11 @@ const controls = vi.hoisted(() => ({
   createCrmRunId: vi.fn(() => 'test-run'),
   createMatter: vi.fn(() => ({ id: 'new-client' })),
 }));
-const privacy = vi.hoisted(() => ({ networkLockdown: false }));
+const privacy = vi.hoisted(() => ({
+  networkLockdown: false,
+  nativeLockdown: { blocked: false, pending: false, error: null as string | null },
+  retryNativeNetworkLockdown: vi.fn(),
+}));
 
 // Stateful progress mock: tests can emit progress events into the rendered
 // component the way the real crm store does, to prove late events cannot
@@ -100,6 +104,10 @@ vi.mock('@/config/brandText', () => ({ brandText: (text: string) => text }));
 vi.mock('@/platform/hooks/usePrivilegedMatterMode', () => ({
   usePrivilegedMatterModeActive: () => privacy.networkLockdown,
 }));
+vi.mock('@/platform/privacy/nativeNetworkLockdownBridge', () => ({
+  useNativeNetworkLockdownBridgeState: () => privacy.nativeLockdown,
+  retryNativeNetworkLockdown: privacy.retryNativeNetworkLockdown,
+}));
 
 import { WealthboxConnect } from './WealthboxConnect';
 
@@ -117,6 +125,8 @@ describe('WealthboxConnect sync', () => {
     controls.crmRebuildStore.mockResolvedValue(undefined);
     controls.createMatter.mockClear();
     privacy.networkLockdown = false;
+    privacy.nativeLockdown = { blocked: false, pending: false, error: null };
+    privacy.retryNativeNetworkLockdown.mockReset();
     crmProgress.set(null);
   });
 
@@ -134,6 +144,21 @@ describe('WealthboxConnect sync', () => {
     expect(screen.getByTestId('wealthbox-sync-now')).toBeDisabled();
     fireEvent.click(screen.getByTestId('wealthbox-sync-now'));
     expect(controls.crmListHouseholds).not.toHaveBeenCalled();
+  });
+
+  it('shows a working retry action when the native privacy update fails', async () => {
+    privacy.nativeLockdown = {
+      blocked: true,
+      pending: false,
+      error: 'Network lockdown is still on because the privacy setting could not be updated.',
+    };
+    await renderConnectedConnector();
+
+    expect(screen.getByTestId('wealthbox-network-lockdown-message')).toHaveTextContent(
+      /network lockdown is still on/i,
+    );
+    fireEvent.click(screen.getByTestId('wealthbox-network-lockdown-retry'));
+    expect(privacy.retryNativeNetworkLockdown).toHaveBeenCalledTimes(1);
   });
 
   it('dispatches the desktop sync command after the advisor confirms the household import', async () => {

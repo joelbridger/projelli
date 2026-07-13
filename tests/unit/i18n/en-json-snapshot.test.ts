@@ -67,7 +67,7 @@ describe('en.json structure snapshot', () => {
         "chat": 12,
         "citation": 3,
         "common": 75,
-        "crm": 20,
+        "crm": 16,
         "editor": 27,
         "entity-label": 50,
         "file-import": 3,
@@ -287,8 +287,8 @@ describe('en.json structure snapshot', () => {
     //      duplicate egress status pill in the workflow template detail.
     // +2 = F1 fix round 1: privacy.egress.local-pending.{label,note} — the honest
     //      "Local AI setting up" badge state (item 3), never a false "Using local AI".
-    // +3 = BUG-22: crm.household.activity.{title,empty-title,empty-description}
-    //      replaces an engineering placeholder with a translated empty state.
+    // +1 = BUG-21 recovery: crm.network-lockdown.retry gives a failed native
+    //      privacy update a visible, translated retry action.
     // +20 = FB2 railchrome: shared rail headers, search toggles, collapse labels,
     //       and rail action menu labels across Ask, Mail, Client Map, Meetings,
     //       Settings, Workflows, and Documents.

@@ -14,7 +14,7 @@ use std::{
     net::IpAddr,
     path::{Path, PathBuf},
     sync::{
-        atomic::{AtomicU64, AtomicU8, Ordering},
+        atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering},
         Arc, Mutex,
     },
 };
@@ -776,6 +776,12 @@ struct PolicyRecord {
 
 struct NetworkPolicyInner {
     state: AtomicU8,
+    /// True only when fail-closed memory moved to OFFLINE but its matching
+    /// disk write failed. This lets an explicit retry repair the file without
+    /// making ordinary duplicate enable requests rewrite it.
+    persistence_dirty: AtomicBool,
+    /// Keeps two renderer commands from racing over the one Windows temp file.
+    mode_change_lock: Mutex<()>,
     generation: AtomicU64,
     changes: watch::Sender<u64>,
     policy_path: PathBuf,
@@ -827,6 +833,8 @@ impl NetworkPolicy {
         Self {
             inner: Arc::new(NetworkPolicyInner {
                 state: AtomicU8::new(state),
+                persistence_dirty: AtomicBool::new(false),
+                mode_change_lock: Mutex::new(()),
                 generation: AtomicU64::new(0),
                 changes,
                 policy_path,
@@ -891,6 +899,10 @@ impl NetworkPolicy {
                 .map_err(|error| format!("could not finish policy temp file: {error}"))?;
             file.sync_all()
                 .map_err(|error| format!("could not sync policy temp file: {error}"))?;
+            // Windows cannot promote the temporary file with ReplaceFileW
+            // while this process still has that same file open. Closing it
+            // before the atomic swap prevents ERROR_SHARING_VIOLATION (32).
+            drop(file);
             atomic_replace(&temporary, path)
                 .map_err(|error| format!("could not replace policy file: {error}"))?;
             #[cfg(unix)]
@@ -1335,19 +1347,35 @@ impl NetworkPolicy {
     /// subsequent disk write reports an error.  Disabling writes first so a
     /// persistence failure cannot accidentally reopen off-device traffic.
     pub fn set_offline_mode(&self, enabled: bool) -> Result<(), NetworkPolicyError> {
+        let _change_guard = self
+            .inner
+            .mode_change_lock
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let current = self.inner.state.load(Ordering::Acquire);
         let desired = if enabled { STATE_OFFLINE } else { STATE_ONLINE };
         if current == desired {
+            if enabled && self.inner.persistence_dirty.load(Ordering::Acquire) {
+                // A previous fail-closed enable may already have moved memory
+                // to OFFLINE while its disk write failed. Repeating that same
+                // request repairs the file. A normal duplicate enable and an
+                // ONLINE no-op remain harmless no-ops.
+                self.persist(true)?;
+                self.inner.persistence_dirty.store(false, Ordering::Release);
+            }
             return Ok(());
         }
         if !enabled {
             self.persist(false)?;
+            self.inner.persistence_dirty.store(false, Ordering::Release);
         }
         self.inner.state.store(desired, Ordering::Release);
         let generation = self.inner.generation.fetch_add(1, Ordering::AcqRel) + 1;
         self.inner.changes.send_replace(generation);
         if enabled {
+            self.inner.persistence_dirty.store(true, Ordering::Release);
             self.persist(true)?;
+            self.inner.persistence_dirty.store(false, Ordering::Release);
         }
         Ok(())
     }
@@ -1632,6 +1660,110 @@ mod tests {
         assert_eq!(policy.status().generation, 1);
         policy.set_offline_mode(true).unwrap();
         assert_eq!(policy.status().generation, 1, "same value is a no-op");
+    }
+
+    #[test]
+    fn lockdown_round_trip_persists_and_restores_remote_egress() {
+        let directory = tempfile::tempdir().unwrap();
+        let policy_path = directory.path().join(POLICY_FILE_NAME);
+        let policy = NetworkPolicy::load_from_directory(directory.path());
+        let remote = destination("https://api.lemonsqueezy.com/v1");
+
+        policy.set_offline_mode(true).unwrap();
+        assert!(matches!(
+            policy.authorize(&TEST_REMOTE, &remote),
+            Err(NetworkPolicyError::OfflineModeBlocked(_))
+        ));
+        let engaged = fs::read_to_string(&policy_path).unwrap();
+        assert!(NetworkPolicy::parse_record(&engaged).unwrap().offline_mode);
+
+        policy.set_offline_mode(false).unwrap();
+        assert!(policy.authorize(&TEST_REMOTE, &remote).is_ok());
+        let released = fs::read_to_string(&policy_path).unwrap();
+        assert!(!NetworkPolicy::parse_record(&released).unwrap().offline_mode);
+    }
+
+    #[test]
+    fn repeated_enable_retries_a_failed_fail_closed_persistence() {
+        let directory = tempfile::tempdir().unwrap();
+        let policy_path = directory.path().join(POLICY_FILE_NAME);
+        let policy = NetworkPolicy::load_from_directory(directory.path());
+
+        fs::remove_file(&policy_path).unwrap();
+        fs::create_dir(&policy_path).unwrap();
+        assert!(policy.set_offline_mode(true).is_err());
+        assert!(matches!(
+            policy.authorize(
+                &TEST_REMOTE,
+                &destination("https://api.lemonsqueezy.com/v1"),
+            ),
+            Err(NetworkPolicyError::OfflineModeBlocked(_))
+        ));
+
+        fs::remove_dir(&policy_path).unwrap();
+        policy.set_offline_mode(true).unwrap();
+        let retried = fs::read_to_string(&policy_path).unwrap();
+        assert!(NetworkPolicy::parse_record(&retried).unwrap().offline_mode);
+    }
+
+    #[test]
+    fn repeated_enable_after_success_is_a_harmless_no_op() {
+        let directory = tempfile::tempdir().unwrap();
+        let policy_path = directory.path().join(POLICY_FILE_NAME);
+        let policy = NetworkPolicy::load_from_directory(directory.path());
+
+        policy.set_offline_mode(true).unwrap();
+        fs::remove_file(&policy_path).unwrap();
+        fs::create_dir(&policy_path).unwrap();
+
+        policy.set_offline_mode(true).unwrap();
+        assert!(matches!(
+            policy.authorize(
+                &TEST_REMOTE,
+                &destination("https://api.lemonsqueezy.com/v1"),
+            ),
+            Err(NetworkPolicyError::OfflineModeBlocked(_))
+        ));
+    }
+
+    #[test]
+    fn repeated_online_request_does_not_report_a_false_lockdown_failure() {
+        let directory = tempfile::tempdir().unwrap();
+        let policy_path = directory.path().join(POLICY_FILE_NAME);
+        let policy = NetworkPolicy::load_from_directory(directory.path());
+
+        fs::remove_file(&policy_path).unwrap();
+        fs::create_dir(&policy_path).unwrap();
+        policy.set_offline_mode(false).unwrap();
+        assert!(policy
+            .authorize(
+                &TEST_REMOTE,
+                &destination("https://api.lemonsqueezy.com/v1"),
+            )
+            .is_ok());
+    }
+
+    #[test]
+    fn failed_release_stays_closed_and_retry_reopens_remote_egress() {
+        let directory = tempfile::tempdir().unwrap();
+        let policy_path = directory.path().join(POLICY_FILE_NAME);
+        let policy = NetworkPolicy::load_from_directory(directory.path());
+        let remote = destination("https://api.lemonsqueezy.com/v1");
+
+        policy.set_offline_mode(true).unwrap();
+        fs::remove_file(&policy_path).unwrap();
+        fs::create_dir(&policy_path).unwrap();
+        assert!(policy.set_offline_mode(false).is_err());
+        assert!(matches!(
+            policy.authorize(&TEST_REMOTE, &remote),
+            Err(NetworkPolicyError::OfflineModeBlocked(_))
+        ));
+
+        fs::remove_dir(&policy_path).unwrap();
+        policy.set_offline_mode(false).unwrap();
+        assert!(policy.authorize(&TEST_REMOTE, &remote).is_ok());
+        let retried = fs::read_to_string(&policy_path).unwrap();
+        assert!(!NetworkPolicy::parse_record(&retried).unwrap().offline_mode);
     }
 
     #[test]
