@@ -7,6 +7,38 @@ const paths: string[] = [];
 afterEach(() => paths.splice(0).forEach((path) => rmSync(path, { force: true })));
 
 describe("file-backed v1 firm relay reset", () => {
+  test("canonicalizes old device JWKs and removes devices with malformed coordinates", () => {
+    const path = `/tmp/device-jwk-migration-${crypto.randomUUID()}.sqlite`;
+    paths.push(path);
+    const initial = new Store(path);
+    const org = initial.createOrg({ name: "Device migration", plan: "practice", packs: [], seat_limit: 2 });
+    const user = initial.createUser({ org_id: org.org_id, email: "device-migration@test.invalid", password_hash: "x", role: "member" });
+    const matter = initial.createMatter({ org_id: org.org_id });
+    initial.upsertDevice({ device_id: "extra-fields", user_id: user.user_id, org_id: org.org_id, machine_id: "extra-machine", pubkey_jwk: "{}" });
+    initial.upsertDevice({ device_id: "readable-coordinate", user_id: user.user_id, org_id: org.org_id, machine_id: "readable-machine", pubkey_jwk: "{}" });
+    initial.close();
+
+    const coordinate = "A".repeat(43);
+    const legacy = new Database(path);
+    legacy.query("UPDATE devices SET pubkey_jwk = ? WHERE device_id = ? AND user_id = ?")
+      .run(JSON.stringify({ kty: "EC", crv: "P-256", x: coordinate, y: coordinate, note: "CLIENT_SECRET_NIMBUS" }), "extra-fields", user.user_id);
+    legacy.query("UPDATE devices SET pubkey_jwk = ? WHERE device_id = ? AND user_id = ?")
+      .run(JSON.stringify({ kty: "EC", crv: "P-256", x: "CLIENT_SECRET_NIMBUS", y: coordinate }), "readable-coordinate", user.user_id);
+    legacy.query(`INSERT INTO wrapped_matter_keys (matter_handle, epoch, user_id, device_id, wrapped_key, published_by, created_at)
+      VALUES (?, 1, ?, ?, ?, ?, ?)`)
+      .run(matter.matter_handle, user.user_id, "readable-coordinate", new Uint8Array([1]), user.user_id, "2026-01-01T00:00:00.000Z");
+    legacy.close();
+
+    const reopened = new Store(path);
+    try {
+      expect(reopened.getDevice("extra-fields", user.user_id)?.pubkey_jwk).toBe(JSON.stringify({ kty: "EC", crv: "P-256", x: coordinate, y: coordinate }));
+      expect(reopened.getDevice("readable-coordinate", user.user_id)).toBeNull();
+      expect(reopened.inspectReadOnly().all("SELECT 1 FROM wrapped_matter_keys WHERE device_id = ? AND user_id = ?", "readable-coordinate", user.user_id)).toEqual([]);
+    } finally {
+      reopened.close();
+    }
+  });
+
   test("backfills only an unambiguous old intake handle and leaves a cross-org collision unbound", () => {
     const path = `/tmp/intake-handle-binding-${crypto.randomUUID()}.sqlite`;
     paths.push(path);
@@ -18,7 +50,7 @@ describe("file-backed v1 firm relay reset", () => {
     const matterB = initial.createMatter({ org_id: orgB.org_id });
     initial.activateProvisioningMatter(matterA.matter_handle);
     initial.activateProvisioningMatter(matterB.matter_handle);
-    initial.upsertDevice({ device_id: "admin-a-device", user_id: adminA.user_id, org_id: orgA.org_id, machine_id: "admin-a-machine", label: "", pubkey_jwk: "{}" });
+    initial.upsertDevice({ device_id: "admin-a-device", user_id: adminA.user_id, org_id: orgA.org_id, machine_id: "admin-a-machine", label: "", pubkey_jwk: JSON.stringify({ kty: "EC", crv: "P-256", x: "A".repeat(43), y: "A".repeat(43) }) });
     initial.close();
 
     const collision = `ih2_${"C".repeat(43)}`;

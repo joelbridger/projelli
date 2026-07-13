@@ -46,6 +46,21 @@ import type { AssuredProvider, BillingMeta, ManagedProviderKey } from "./assured
 /** Keep a pull response comfortably below a client- or relay-crashing size. */
 export const MAX_MATTER_PULL_CIPHERTEXT_BYTES = 8 * 1024 * 1024;
 
+type CanonicalP256PublicJwk = { kty: "EC"; crv: "P-256"; x: string; y: string };
+
+/**
+ * Recover the safe subset of a device JWK accepted by older relay builds.
+ * The route remains the authority for new writes; this is startup-only
+ * defense in depth for stored rows that predate the stricter boundary.
+ */
+function canonicalStoredP256PublicJwk(value: unknown): CanonicalP256PublicJwk | null {
+  if (typeof value !== "object" || value === null) return null;
+  const jwk = value as Record<string, unknown>;
+  if (typeof jwk.x !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(jwk.x)) return null;
+  if (typeof jwk.y !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(jwk.y)) return null;
+  return { kty: "EC", crv: "P-256", x: jwk.x, y: jwk.y };
+}
+
 /** Database rows keep the envelope as bytes; API-facing types expose base64 only at the edge. */
 function toWrappedMatterKey(row: Omit<WrappedMatterKey, "wrapped_key_b64"> & { wrapped_key: Uint8Array }): WrappedMatterKey {
   const { wrapped_key, ...rest } = row;
@@ -554,6 +569,34 @@ export class Store {
     // Device names are local-only. Remove values accepted by older relay
     // builds before any endpoint can return or audit them.
     this.#db.exec("UPDATE devices SET label = ''; UPDATE seats SET machine_label = NULL;");
+    // Older relay builds accepted arbitrary JWK fields and malformed
+    // coordinates. Preserve only valid coordinates in the canonical public
+    // shape; a broken key cannot unwrap anything, so remove its device and any
+    // wrapped-key rows rather than retaining unusable or readable data.
+    const storedDevices = this.#db.query("SELECT device_id, user_id, pubkey_jwk FROM devices").all() as Array<{
+      device_id: string;
+      user_id: string;
+      pubkey_jwk: string;
+    }>;
+    const updateDeviceJwk = this.#db.query("UPDATE devices SET pubkey_jwk = ? WHERE device_id = ? AND user_id = ?");
+    const deleteWrappedKeysForBrokenDevice = this.#db.query("DELETE FROM wrapped_matter_keys WHERE device_id = ? AND user_id = ?");
+    const deleteBrokenDevice = this.#db.query("DELETE FROM devices WHERE device_id = ? AND user_id = ?");
+    for (const device of storedDevices) {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(device.pubkey_jwk);
+      } catch {
+        parsed = null;
+      }
+      const canonical = canonicalStoredP256PublicJwk(parsed);
+      if (canonical) {
+        const canonicalText = JSON.stringify(canonical);
+        if (device.pubkey_jwk !== canonicalText) updateDeviceJwk.run(canonicalText, device.device_id, device.user_id);
+      } else {
+        deleteWrappedKeysForBrokenDevice.run(device.device_id, device.user_id);
+        deleteBrokenDevice.run(device.device_id, device.user_id);
+      }
+    }
     // Databases created before permanent archive tombstones need one safe,
     // one-way backfill before the reinsertion trigger becomes the authority.
     this.#db.exec("INSERT OR IGNORE INTO archived_matter_tombstones (matter_handle, archived_at) SELECT matter_handle, created_at FROM matters WHERE status = 'archived'");

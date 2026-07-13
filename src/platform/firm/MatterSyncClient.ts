@@ -56,6 +56,11 @@ function isSafeCursor(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && !Object.is(value, -0);
 }
 
+/** The relay may report how many editors are connected, but it is still untrusted input. */
+function isSafePresenceCount(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+}
+
 /**
  * True if the value cannot possibly decode within MAX_UPDATE_BYTES. Deliberately does NOT
  * validate base64 SHAPE — that would misclassify small malformed or tampered ciphertext
@@ -847,8 +852,10 @@ export class MatterSyncClient {
       // through its high-water mark before any later live frame can move the
       // cursor. This also covers a replay page capped at 500 updates.
       this.socketReadyCursor = frame.latest_cursor;
-      this.presenceCount = frame.subscribers;
-      this.callbacks.onPresenceCount?.(frame.subscribers);
+      if (isSafePresenceCount(frame.subscribers)) {
+        this.presenceCount = frame.subscribers;
+        this.callbacks.onPresenceCount?.(frame.subscribers);
+      }
       const reconciled = await this.reconcileThrough(frame.latest_cursor, generation);
       if (generation !== this.lifecycleGeneration) return;
       if (reconciled) {
@@ -863,8 +870,10 @@ export class MatterSyncClient {
     }
     if (frame.type === 'presence') {
       // Relay-broadcast presence count update (peer joined or left).
-      this.presenceCount = frame.count;
-      this.callbacks.onPresenceCount?.(frame.count);
+      if (isSafePresenceCount(frame.count)) {
+        this.presenceCount = frame.count;
+        this.callbacks.onPresenceCount?.(frame.count);
+      }
       return;
     }
     // The only remaining frame type is `update`; stream context comes from the ticket.

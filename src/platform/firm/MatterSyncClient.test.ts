@@ -219,6 +219,46 @@ describe('MatterSyncClient v2 socket privacy', () => {
     client.stop();
   });
 
+  it('ignores malformed relay presence counts without notifying the UI', async () => {
+    let socket: WebSocketLike | undefined;
+    const onPresenceCount = vi.fn();
+    const client = new MatterSyncClient({
+      matterHandle: parseMatterHandle(`mh2_${'P'.repeat(43)}`), streamHandle: parseStreamHandle(`sh2_${'Q'.repeat(43)}`),
+      keyB64: await generateMatterKey(), keyEpoch: 1, seatToken: 'seat',
+      client: {
+        pullUpdates: () => Promise.resolve({ key_epoch: 1, since: 0, cursor: 0, latest_cursor: 0, has_more: false, updates: [] }),
+        createSyncTicket: () => Promise.resolve({ ticket: 'ticket-only', expires_in_ms: 1000 }),
+        pushUpdate: () => Promise.resolve({ ok: true, cursor: 1, blob_id: 'new', key_epoch: 1, duplicate: false }),
+      } as never,
+      callbacks: { onPresenceCount },
+      socketFactory: () => {
+        socket = { send() {}, close() {}, onopen: null, onclose: null, onerror: null, onmessage: null };
+        return socket;
+      },
+    });
+
+    await client.start();
+    socket?.onmessage?.({ data: JSON.stringify({ type: 'ready', backlog: 0, latest_cursor: 0, subscribers: 2 }) });
+    await vi.waitFor(() => {
+      expect(client.getPresenceCount()).toBe(2);
+    });
+    expect(onPresenceCount).toHaveBeenCalledTimes(1);
+
+    socket?.onmessage?.({ data: JSON.stringify({ type: 'ready', backlog: 0, latest_cursor: 0, subscribers: 'two' }) });
+    socket?.onmessage?.({ data: JSON.stringify({ type: 'ready', backlog: 0, latest_cursor: 0, subscribers: -1 }) });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(client.getPresenceCount()).toBe(2);
+    expect(onPresenceCount).toHaveBeenCalledTimes(1);
+
+    socket?.onmessage?.({ data: JSON.stringify({ type: 'presence', count: 'three' }) });
+    socket?.onmessage?.({ data: JSON.stringify({ type: 'presence', count: -1 }) });
+    await Promise.resolve();
+    expect(client.getPresenceCount()).toBe(2);
+    expect(onPresenceCount).toHaveBeenCalledTimes(1);
+    client.stop();
+  });
+
   it('hard-rejects legacy v1 history', async () => {
     const matterHandle = parseMatterHandle(`mh2_${'C'.repeat(43)}`);
     const streamHandle = parseStreamHandle(`sh2_${'D'.repeat(43)}`);

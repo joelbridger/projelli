@@ -28,8 +28,10 @@ import type { Store } from "../lib/db.ts";
 // P-256 public JWK validation
 // ---------------------------------------------------------------------------
 
+type P256PublicJwk = { kty: "EC"; crv: "P-256"; x: string; y: string };
+
 /** Validate that `v` is an EC P-256 PUBLIC JWK (no private key field `d`). */
-function isValidP256PublicJwk(v: unknown): v is { kty: "EC"; crv: "P-256"; x: string; y: string } {
+export function isValidP256PublicJwk(v: unknown): v is P256PublicJwk {
   if (typeof v !== "object" || v === null) return false;
   const jwk = v as Record<string, unknown>;
   const allowedKeys = ["kty", "crv", "x", "y"];
@@ -40,6 +42,11 @@ function isValidP256PublicJwk(v: unknown): v is { kty: "EC"; crv: "P-256"; x: st
   if (typeof jwk.x !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(jwk.x)) return false;
   if (typeof jwk.y !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(jwk.y)) return false;
   return true;
+}
+
+/** Return the only device-key shape this relay is allowed to return or store. */
+function canonicalP256PublicJwk(jwk: P256PublicJwk): P256PublicJwk {
+  return { kty: "EC", crv: "P-256", x: jwk.x, y: jwk.y };
 }
 
 // ---------------------------------------------------------------------------
@@ -68,7 +75,7 @@ export async function handleDeviceRegister(req: Request, store: Store): Promise<
   }
 
   // Store only the canonical, validated public-key fields.
-  const jwkText = JSON.stringify({ kty: "EC", crv: "P-256", x: jwk.x, y: jwk.y });
+  const jwkText = JSON.stringify(canonicalP256PublicJwk(jwk));
 
   store.upsertDevice({
     device_id: body.device_id,
@@ -107,15 +114,25 @@ export async function handleListUsersDevices(req: Request, store: Store): Promis
     userIds.push(id.trim());
   }
 
-  const devices = store.listDevicesForUsers(userIds);
-  return json({
-    devices: devices.map((d) => ({
+  const devices = store.listDevicesForUsers(userIds).flatMap((d) => {
+    // A database can outlive a stricter relay build, or be restored from an
+    // older backup. Validate again at this trust boundary so stale records
+    // cannot leak readable fields even if startup cleanup has not run yet.
+    let storedJwk: unknown;
+    try {
+      storedJwk = typeof d.pubkey_jwk === "string" ? JSON.parse(d.pubkey_jwk) : d.pubkey_jwk;
+    } catch {
+      return [];
+    }
+    if (!isValidP256PublicJwk(storedJwk)) return [];
+    return [{
       user_id: d.user_id,
       device_id: d.device_id,
-      // pubkey_jwk is stored in the DB as a JSON string; parse it to an object
-      // so callers receive a JsonWebKey object as expected by the contract.
-      pubkey_jwk: typeof d.pubkey_jwk === "string" ? JSON.parse(d.pubkey_jwk) : d.pubkey_jwk,
-    })),
+      pubkey_jwk: canonicalP256PublicJwk(storedJwk),
+    }];
+  });
+  return json({
+    devices,
   });
 }
 
