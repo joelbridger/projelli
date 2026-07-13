@@ -302,6 +302,102 @@ describe('crm clients surfaces', () => {
     expect(onSaveHousehold).toHaveBeenLastCalledWith(expect.objectContaining({ facts: [] }));
   });
 
+  it('explains that a source is required instead of silently dropping a fact', () => {
+    const onSaveHousehold = vi.fn<(saved: HouseholdRecord) => void>();
+    render(<HouseholdRecordSurface household={household} onSaveHousehold={onSaveHousehold} />);
+    fireEvent.click(screen.getByTestId('crm-household-add'));
+    fireEvent.click(screen.getByTestId('crm-household-add-fact'));
+    fireEvent.change(screen.getByTestId('crm-fact-label'), {
+      target: { value: 'Exam probe fact' },
+    });
+    fireEvent.change(screen.getByTestId('crm-fact-value'), {
+      target: { value: 'Garnet lighthouse 4471' },
+    });
+
+    fireEvent.click(screen.getByTestId('crm-fact-save'));
+
+    expect(onSaveHousehold).not.toHaveBeenCalled();
+    expect(screen.getByTestId('crm-fact-source')).toHaveAttribute(
+      'aria-invalid',
+      'true'
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent('Source is required');
+    expect(screen.getByText('Source (required)')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId('crm-fact-source'), {
+      target: { value: 'Advisor call' },
+    });
+    fireEvent.click(screen.getByTestId('crm-fact-save'));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    const savedFact = onSaveHousehold.mock.calls.at(-1)?.[0].facts.at(-1);
+    expect(savedFact).toMatchObject({
+      label: 'Exam probe fact',
+      value: 'Garnet lighthouse 4471',
+      sources: [expect.objectContaining({ label: 'Advisor call' })],
+    });
+  });
+
+  it('explains which required account detail is missing instead of silently stopping', () => {
+    const onSaveHousehold = vi.fn<(saved: HouseholdRecord) => void>();
+    render(<HouseholdRecordSurface household={household} onSaveHousehold={onSaveHousehold} />);
+    fireEvent.click(screen.getByTestId('crm-household-add'));
+    fireEvent.click(screen.getByTestId('crm-household-add-account'));
+    fireEvent.change(screen.getByTestId('crm-account-custodian'), {
+      target: { value: 'Schwab' },
+    });
+    fireEvent.change(screen.getByTestId('crm-account-type'), {
+      target: { value: 'Brokerage' },
+    });
+
+    fireEvent.click(screen.getByTestId('crm-account-save'));
+
+    expect(onSaveHousehold).not.toHaveBeenCalled();
+    expect(screen.getByTestId('crm-account-purpose')).toHaveAttribute(
+      'aria-invalid',
+      'true'
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent('Purpose is required');
+    expect(screen.getByText('Purpose (required)')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId('crm-account-purpose'), {
+      target: { value: 'Retirement savings' },
+    });
+    fireEvent.click(screen.getByTestId('crm-account-save'));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    const savedAccount = onSaveHousehold.mock.calls.at(-1)?.[0].accounts.at(-1);
+    expect(savedAccount).toMatchObject({
+      custodian: 'Schwab',
+      type: 'Brokerage',
+      purpose: 'Retirement savings',
+    });
+  });
+
+  it('explains that a household name is required instead of silently stopping', () => {
+    const onSaveHousehold = vi.fn<(saved: HouseholdRecord) => void>();
+    render(<HouseholdRecordSurface household={household} onSaveHousehold={onSaveHousehold} />);
+    fireEvent.click(screen.getByTestId('crm-household-edit'));
+    fireEvent.change(screen.getByTestId('crm-household-edit-name'), {
+      target: { value: '  ' },
+    });
+
+    fireEvent.click(screen.getByTestId('crm-household-edit-save'));
+
+    expect(onSaveHousehold).not.toHaveBeenCalled();
+    expect(screen.getByTestId('crm-household-edit-name')).toHaveAttribute(
+      'aria-invalid',
+      'true'
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent('Household name is required');
+    expect(screen.getByText('Household name (required)')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId('crm-household-edit-name'), {
+      target: { value: 'Henderson family' },
+    });
+    fireEvent.click(screen.getByTestId('crm-household-edit-save'));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(onSaveHousehold.mock.calls.at(-1)?.[0].name).toBe('Henderson family');
+  });
+
   it('lets a matched intake review routed dated facts before any household write', () => {
     const onOpenHousehold = vi.fn();
     const onApproveIntakeFact = vi.fn();

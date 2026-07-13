@@ -61,6 +61,17 @@ const syncVariant: Record<
   needs_attention: 'danger',
 };
 
+const invalidFieldStyle = {
+  borderColor: 'var(--kp-danger, #b91c1c)',
+} as const;
+
+const validationErrorStyle = {
+  color: 'var(--kp-danger, #b91c1c)',
+  display: 'block',
+  fontSize: 12,
+  marginTop: 4,
+} as const;
+
 export function HouseholdRecordSurface({
   household,
   proposals = [],
@@ -359,8 +370,9 @@ function HouseholdEditor({ household, onSave }: { household: HouseholdRecord; on
   const [advisor, setAdvisor] = useState(household.primaryAdvisor);
   const [tier, setTier] = useState(household.serviceTier);
   const [nextReview, setNextReview] = useState(household.nextReview ?? '');
-  return <form data-testid="crm-household-editor" onSubmit={(event) => { event.preventDefault(); const cleanName = name.trim(); if (!cleanName) return; const next = { ...household, name: cleanName, lifecycle: lifecycle.trim() || 'Active', primaryAdvisor: advisor.trim() || 'Unassigned', serviceTier: tier.trim() || 'Standard' }; if (nextReview.trim()) next.nextReview = nextReview.trim(); else delete next.nextReview; void onSave(next); }} style={{ display: 'grid', gap: 10 }}>
-    <label>Household name<input data-testid="crm-household-edit-name" value={name} onChange={(event) => { setName(event.target.value); }} /></label>
+  const [nameError, setNameError] = useState('');
+  return <form data-testid="crm-household-editor" noValidate onSubmit={(event) => { event.preventDefault(); const cleanName = name.trim(); if (!cleanName) { setNameError('Household name is required.'); return; } setNameError(''); const next = { ...household, name: cleanName, lifecycle: lifecycle.trim() || 'Active', primaryAdvisor: advisor.trim() || 'Unassigned', serviceTier: tier.trim() || 'Standard' }; if (nextReview.trim()) next.nextReview = nextReview.trim(); else delete next.nextReview; void onSave(next); }} style={{ display: 'grid', gap: 10 }}>
+    <label>Household name (required)<input data-testid="crm-household-edit-name" required aria-invalid={Boolean(nameError)} aria-describedby={nameError ? 'crm-household-edit-name-error' : undefined} style={nameError ? invalidFieldStyle : undefined} value={name} onChange={(event) => { setName(event.target.value); if (nameError) setNameError(''); }} />{nameError ? <span id="crm-household-edit-name-error" role="alert" style={validationErrorStyle}>{nameError}</span> : null}</label>
     <label>Lifecycle<input data-testid="crm-household-edit-lifecycle" value={lifecycle} onChange={(event) => { setLifecycle(event.target.value); }} /></label>
     <label>Primary advisor<input data-testid="crm-household-edit-advisor" value={advisor} onChange={(event) => { setAdvisor(event.target.value); }} /></label>
     <label>Service tier<input data-testid="crm-household-edit-tier" value={tier} onChange={(event) => { setTier(event.target.value); }} /></label>
@@ -375,11 +387,27 @@ function FactEditor({ onSave }: { onSave: (fact: import('./adapters').CrmFact) =
   const [asOf, setAsOf] = useState(new Date().toISOString().slice(0, 10));
   const [source, setSource] = useState('');
   const [sourceRef, setSourceRef] = useState('');
-  return <form data-testid="crm-fact-editor" onSubmit={(event) => { event.preventDefault(); if (!label.trim() || !value.trim() || !asOf || !source.trim()) return; void onSave({ id: `fact:${crypto.randomUUID()}`, label: label.trim(), value: value.trim(), status: 'Current', asOf, learned: new Date().toISOString().slice(0, 10), sources: [{ id: `source:${crypto.randomUUID()}`, label: source.trim(), ...(sourceRef.trim() ? { ref: sourceRef.trim() } : {}) }] }); }} style={{ display: 'grid', gap: 10 }}>
-    <label>What should the firm remember?<input data-testid="crm-fact-label" value={label} onChange={(event) => setLabel(event.target.value)} /></label>
-    <label>Value<input data-testid="crm-fact-value" value={value} onChange={(event) => setValue(event.target.value)} /></label>
-    <label>True as of<input data-testid="crm-fact-as-of" type="date" value={asOf} onChange={(event) => setAsOf(event.target.value)} /></label>
-    <label>Source<input data-testid="crm-fact-source" value={source} onChange={(event) => setSource(event.target.value)} placeholder="Tax return, meeting, or advisor" /></label>
+  const [errors, setErrors] = useState<Partial<Record<'label' | 'value' | 'asOf' | 'source', string>>>({});
+  const clearError = (field: keyof typeof errors) => {
+    setErrors((current) => current[field]
+      ? { ...current, [field]: undefined }
+      : current);
+  };
+  return <form data-testid="crm-fact-editor" noValidate onSubmit={(event) => {
+    event.preventDefault();
+    const nextErrors: typeof errors = {};
+    if (!label.trim()) nextErrors.label = 'What the firm should remember is required.';
+    if (!value.trim()) nextErrors.value = 'Value is required.';
+    if (!asOf) nextErrors.asOf = 'True as of is required.';
+    if (!source.trim()) nextErrors.source = 'Source is required.';
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
+    void onSave({ id: `fact:${crypto.randomUUID()}`, label: label.trim(), value: value.trim(), status: 'Current', asOf, learned: new Date().toISOString().slice(0, 10), sources: [{ id: `source:${crypto.randomUUID()}`, label: source.trim(), ...(sourceRef.trim() ? { ref: sourceRef.trim() } : {}) }] });
+  }} style={{ display: 'grid', gap: 10 }}>
+    <label>What should the firm remember? (required)<input data-testid="crm-fact-label" required aria-invalid={Boolean(errors.label)} aria-describedby={errors.label ? 'crm-fact-label-error' : undefined} style={errors.label ? invalidFieldStyle : undefined} value={label} onChange={(event) => { setLabel(event.target.value); clearError('label'); }} />{errors.label ? <span id="crm-fact-label-error" role="alert" style={validationErrorStyle}>{errors.label}</span> : null}</label>
+    <label>Value (required)<input data-testid="crm-fact-value" required aria-invalid={Boolean(errors.value)} aria-describedby={errors.value ? 'crm-fact-value-error' : undefined} style={errors.value ? invalidFieldStyle : undefined} value={value} onChange={(event) => { setValue(event.target.value); clearError('value'); }} />{errors.value ? <span id="crm-fact-value-error" role="alert" style={validationErrorStyle}>{errors.value}</span> : null}</label>
+    <label>True as of (required)<input data-testid="crm-fact-as-of" required aria-invalid={Boolean(errors.asOf)} aria-describedby={errors.asOf ? 'crm-fact-as-of-error' : undefined} style={errors.asOf ? invalidFieldStyle : undefined} type="date" value={asOf} onChange={(event) => { setAsOf(event.target.value); clearError('asOf'); }} />{errors.asOf ? <span id="crm-fact-as-of-error" role="alert" style={validationErrorStyle}>{errors.asOf}</span> : null}</label>
+    <label>Source (required)<input data-testid="crm-fact-source" required aria-invalid={Boolean(errors.source)} aria-describedby={errors.source ? 'crm-fact-source-error' : undefined} style={errors.source ? invalidFieldStyle : undefined} value={source} onChange={(event) => { setSource(event.target.value); clearError('source'); }} placeholder="Tax return, meeting, or advisor" />{errors.source ? <span id="crm-fact-source-error" role="alert" style={validationErrorStyle}>{errors.source}</span> : null}</label>
     <label>Open this source (optional)<input data-testid="crm-fact-source-ref" value={sourceRef} onChange={(event) => setSourceRef(event.target.value)} placeholder="Workspace file, mail link, or web link" /></label>
     <Button data-testid="crm-fact-save" type="submit">Save fact</Button>
   </form>;
@@ -390,11 +418,26 @@ function AccountEditor({ onSave }: { onSave: (account: import('./adapters').CrmA
   const [type, setType] = useState('');
   const [purpose, setPurpose] = useState('');
   const [lastFour, setLastFour] = useState('');
-  return <form data-testid="crm-account-editor" onSubmit={(event) => { event.preventDefault(); if (!custodian.trim() || !type.trim() || !purpose.trim()) return; void onSave({ id: `account:${crypto.randomUUID()}`, custodian: custodian.trim(), type: type.trim(), purpose: purpose.trim(), ...(lastFour.trim() ? { lastFour: lastFour.trim().slice(-4) } : {}), status: 'Open' }); }} style={{ display: 'grid', gap: 10 }}>
-    <label>Custodian<input data-testid="crm-account-custodian" value={custodian} onChange={(event) => { setCustodian(event.target.value); }} /></label>
-    <label>Account type<input data-testid="crm-account-type" value={type} onChange={(event) => { setType(event.target.value); }} /></label>
-    <label>Purpose<input data-testid="crm-account-purpose" value={purpose} onChange={(event) => { setPurpose(event.target.value); }} /></label>
-    <label>Last four only<input data-testid="crm-account-last-four" inputMode="numeric" value={lastFour} onChange={(event) => { setLastFour(event.target.value); }} /></label>
+  const [errors, setErrors] = useState<Partial<Record<'custodian' | 'type' | 'purpose', string>>>({});
+  const clearError = (field: keyof typeof errors) => {
+    setErrors((current) => current[field]
+      ? { ...current, [field]: undefined }
+      : current);
+  };
+  return <form data-testid="crm-account-editor" noValidate onSubmit={(event) => {
+    event.preventDefault();
+    const nextErrors: typeof errors = {};
+    if (!custodian.trim()) nextErrors.custodian = 'Custodian is required.';
+    if (!type.trim()) nextErrors.type = 'Account type is required.';
+    if (!purpose.trim()) nextErrors.purpose = 'Purpose is required.';
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
+    void onSave({ id: `account:${crypto.randomUUID()}`, custodian: custodian.trim(), type: type.trim(), purpose: purpose.trim(), ...(lastFour.trim() ? { lastFour: lastFour.trim().slice(-4) } : {}), status: 'Open' });
+  }} style={{ display: 'grid', gap: 10 }}>
+    <label>Custodian (required)<input data-testid="crm-account-custodian" required aria-invalid={Boolean(errors.custodian)} aria-describedby={errors.custodian ? 'crm-account-custodian-error' : undefined} style={errors.custodian ? invalidFieldStyle : undefined} value={custodian} onChange={(event) => { setCustodian(event.target.value); clearError('custodian'); }} />{errors.custodian ? <span id="crm-account-custodian-error" role="alert" style={validationErrorStyle}>{errors.custodian}</span> : null}</label>
+    <label>Account type (required)<input data-testid="crm-account-type" required aria-invalid={Boolean(errors.type)} aria-describedby={errors.type ? 'crm-account-type-error' : undefined} style={errors.type ? invalidFieldStyle : undefined} value={type} onChange={(event) => { setType(event.target.value); clearError('type'); }} />{errors.type ? <span id="crm-account-type-error" role="alert" style={validationErrorStyle}>{errors.type}</span> : null}</label>
+    <label>Purpose (required)<input data-testid="crm-account-purpose" required aria-invalid={Boolean(errors.purpose)} aria-describedby={errors.purpose ? 'crm-account-purpose-error' : undefined} style={errors.purpose ? invalidFieldStyle : undefined} value={purpose} onChange={(event) => { setPurpose(event.target.value); clearError('purpose'); }} />{errors.purpose ? <span id="crm-account-purpose-error" role="alert" style={validationErrorStyle}>{errors.purpose}</span> : null}</label>
+    <label>Last four only (optional)<input data-testid="crm-account-last-four" inputMode="numeric" value={lastFour} onChange={(event) => { setLastFour(event.target.value); }} /></label>
     <Button data-testid="crm-account-save" type="submit">Save account</Button>
   </form>;
 }
