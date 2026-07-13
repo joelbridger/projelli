@@ -1085,6 +1085,70 @@ pub async fn crm_approve_write_proposal(
     Ok(receipt)
 }
 
+/// Compatibility entry point retained from the CRM parent for its
+/// approval-gated note review flow.
+#[tauri::command]
+pub async fn crm_create_note(
+    app: AppHandle,
+    state: State<'_, CrmState>,
+    matter_id: String,
+    title: String,
+    body: String,
+    source_ref: String,
+    household_key: String,
+    requested_at: String,
+    provider: Option<String>,
+    provenance: Option<String>,
+) -> Result<WriteReceipt, String> {
+    crm_create_write(
+        app,
+        &state,
+        CrmWriteKind::Note,
+        matter_id,
+        title,
+        body,
+        None,
+        source_ref,
+        household_key,
+        requested_at,
+        provider,
+        provenance,
+    )
+    .await
+}
+
+/// Compatibility entry point retained from the CRM parent for its
+/// approval-gated task review flow.
+#[tauri::command]
+pub async fn crm_create_task(
+    app: AppHandle,
+    state: State<'_, CrmState>,
+    matter_id: String,
+    title: String,
+    description: String,
+    due_date: Option<String>,
+    source_ref: String,
+    household_key: String,
+    requested_at: String,
+    provider: Option<String>,
+) -> Result<WriteReceipt, String> {
+    crm_create_write(
+        app,
+        &state,
+        CrmWriteKind::Task,
+        matter_id,
+        title,
+        description,
+        due_date,
+        source_ref,
+        household_key,
+        requested_at,
+        provider,
+        None,
+    )
+    .await
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn crm_create_write(
     app: AppHandle,
@@ -1240,9 +1304,41 @@ async fn crm_create_write(
     }
 }
 
-/// Internal field-level "blend" write. The renderer cannot invoke this with raw
-/// content; `crm_approve_write_proposal` calls it only after loading and
-/// verifying an encrypted pending proposal.
+/// Compatibility entry point retained from the CRM parent for its
+/// approval-gated field review flow.
+#[allow(clippy::too_many_arguments)]
+#[tauri::command]
+pub async fn crm_update_field(
+    app: AppHandle,
+    state: State<'_, CrmState>,
+    matter_id: String,
+    household_key: String,
+    field: String,
+    existing_value: String,
+    new_value: String,
+    final_value: String,
+    source_ref: String,
+    requested_at: String,
+    provider: Option<String>,
+) -> Result<WriteReceipt, String> {
+    crm_update_field_from_proposal(
+        app,
+        &state,
+        matter_id,
+        household_key,
+        field,
+        existing_value,
+        new_value,
+        final_value,
+        source_ref,
+        requested_at,
+        provider,
+    )
+    .await
+}
+
+/// Shared field-level "blend" implementation. Both approval paths keep the
+/// merged tree's audit and stale-value checks.
 #[allow(clippy::too_many_arguments)]
 async fn crm_update_field_from_proposal(
     app: AppHandle,

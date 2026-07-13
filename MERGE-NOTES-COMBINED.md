@@ -29,3 +29,41 @@ search receives that matter id, and the adapter repeats the same-id filter
 before any hit can reach the prompt or citation binder. The existing durable
 approval/audit-before-send and egress receipt path remains the only model-send
 path used by CRM Ask.
+
+## Rust build completion (2026-07-13)
+
+### Environment files restored locally
+
+- Copied `src-tauri/binaries/` and `src-tauri/resources/` from
+  `/home/jameson/lp-ux-integrate/src-tauri/` so Tauri could find its declared
+  Piper, llama-server, Whisper, speech-data, and embedding resources. These are
+  local/ignored build resources; `tauri.conf.json` was not weakened or changed.
+
+### Missing CRM implementations restored
+
+- `src-tauri/src/commands/crm/commands.rs`
+  - Restored `crm_create_note` with the CRM parent's command signature.
+  - Restored `crm_create_task` with the CRM parent's command signature.
+  - Restored `crm_update_field` with the CRM parent's command signature.
+- The restored commands call the merged tree's existing shared write
+  implementations (`crm_create_write` and `crm_update_field_from_proposal`).
+  This preserves the CRM parent's registered entry points while also preserving
+  the app parent's stronger audit, stale-value, reconnect, disconnect, and
+  delivery-verification checks.
+
+### Preservation check
+
+- Compared the `tauri::generate_handler!` command lists from app parent
+  `f8e2ffb3`, CRM parent `1b7ed4db`, and this merge. The merged list contains
+  every registration from both parents.
+- Nothing was removed to make the build pass.
+- Nothing required by either parent's command registration could not be
+  brought over. There are no omitted commands or undisclosed removals.
+
+### Verification
+
+- `CARGO_TARGET_DIR=/mnt/devcache/cargo-target-combined cargo check --workspace`:
+  passed.
+- `CI=1 CARGO_TARGET_DIR=/mnt/devcache/cargo-target-combined cargo test --workspace --locked`:
+  passed with zero failures.
+- `npx tsc --noEmit`: passed.
