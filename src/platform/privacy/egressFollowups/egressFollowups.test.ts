@@ -22,6 +22,12 @@ describe('whole-app egress follow-ups', () => {
       'calendar-sync-microsoft',
       'calendly-import',
       'cloud-ai',
+      'crm-auth-redtail',
+      'crm-auth-salesforce',
+      'crm-auth-salesforce-identity',
+      'crm-auth-salesforce-instance',
+      'crm-auth-wealthbox',
+      'crm-migration-import',
       'crm-sync-redtail',
       'crm-sync-salesforce',
       'crm-sync-wealthbox',
@@ -157,6 +163,12 @@ describe('whole-app egress follow-ups', () => {
       EGRESS_OPERATIONS.get('mail-sync-imap')?.destination
         .requiresResolvedAddressCheck
     ).toBe(true);
+    expect(
+      validateEgressDestination(
+        'crm-migration-import',
+        'http://127.0.0.1:8788/v1'
+      )
+    ).toEqual({ ok: true });
   });
 
   it('makes a CI manifest fail for an unregistered network capability or missing receipt test', () => {

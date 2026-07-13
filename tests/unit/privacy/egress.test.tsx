@@ -329,9 +329,13 @@ describe('DataMapDialog', () => {
     expect(screen.getByText(/honest asterisk/i)).toBeTruthy();
     expect(screen.getByText(/used to train their models is governed by your account settings/i)).toBeTruthy();
 
-    // Local-only path: no AI prompt or file is sent to a cloud AI.
+    // Local-only path: local AI is used and outside connectors pause.
     expect(screen.getByText(/use a local model/i)).toBeTruthy();
-    expect(screen.getByText(/no AI prompt or file is ever sent to a cloud AI/i)).toBeTruthy();
+    expect(
+      screen.getByText(
+        /outside connectors such as Wealthbox and email pause so nothing leaves this computer/i,
+      ),
+    ).toBeTruthy();
 
     // Email encrypted locally.
     expect(screen.getByText(/encrypted on your machine/i)).toBeTruthy();
