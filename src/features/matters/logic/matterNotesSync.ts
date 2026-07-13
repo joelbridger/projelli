@@ -181,8 +181,12 @@ async function _buildMatterSyncClient(
 
   // onKeyEpochAdvanced runs from MatterSyncClient while start() is in flight.
   // A 403/404 rotation denial stops and marks this exact instance, even though
-  // it has not reached clientCache yet.
-  if (abortedClients.has(client)) return null;
+  // it has not reached clientCache yet. A general teardown can also invalidate
+  // this uncached build, so stop it before it can touch local or shared state.
+  if (abortedClients.has(client) || generation !== currentGeneration(localMatterId)) {
+    if (!abortedClients.has(client)) client.stop();
+    return null;
+  }
 
   // A newly authorized device starts with a generic local placeholder. Once it
   // has the wrapped key and decrypts this root stream, only then may it learn
@@ -190,6 +194,12 @@ async function _buildMatterSyncClient(
   const privateIndex = readFirmMatterPrivateIndex(client.doc);
   if (privateIndex) {
     const pinMismatches = await observeDocumentStreamsForPinning(client.doc, firmMatterId);
+    // Pinning is asynchronous too. Do not rename persisted local state or seed
+    // the shared document if teardown won while it was in flight.
+    if (abortedClients.has(client) || generation !== currentGeneration(localMatterId)) {
+      if (!abortedClients.has(client)) client.stop();
+      return null;
+    }
     for (const mismatch of pinMismatches) {
       console.error('[matterNotesSync] observed changed document stream mapping', {
         matterHandle: firmMatterId,

@@ -4,6 +4,7 @@ import { FirmApiError } from '@/platform/firm/FirmApiClient';
 
 const mocks = vi.hoisted(() => ({
   obtainMatterKey: vi.fn(), clearMatterKey: vi.fn(), storeMatterKey: vi.fn(), getDevice: vi.fn(), unwrap: vi.fn(), createClient: vi.fn(),
+  readPrivateIndex: vi.fn(), observeDocumentStreamsForPinning: vi.fn(), renameMatter: vi.fn(),
   setStatus: vi.fn(), clearMatter: vi.fn(), firmState: { seatToken: 'seat-token' as string | null, client: vi.fn() },
 }));
 
@@ -17,8 +18,11 @@ vi.mock('@/platform/firm/MatterSyncClient', () => ({
     return mocks.createClient(options) as { start: () => Promise<void>; stop: () => void };
   },
 }));
-vi.mock('@/platform/firm/firmMatterPrivateIndex', () => ({ readFirmMatterPrivateIndex: vi.fn() }));
-vi.mock('@/platform/matter/matterStore', () => ({ useMatterStore: { getState: () => ({}) } }));
+vi.mock('@/platform/firm/firmMatterPrivateIndex', () => ({
+  readFirmMatterPrivateIndex: mocks.readPrivateIndex,
+  observeDocumentStreamsForPinning: mocks.observeDocumentStreamsForPinning,
+}));
+vi.mock('@/platform/matter/matterStore', () => ({ useMatterStore: { getState: () => ({ renameMatter: mocks.renameMatter }) } }));
 vi.mock('@/platform/matter/matterSyncStore', () => ({ useMatterSyncStore: { getState: () => ({ setStatus: mocks.setStatus, clearMatter: mocks.clearMatter }) } }));
 vi.mock('@/platform/firm/firmStore', () => ({ useFirmStore: { getState: () => mocks.firmState, subscribe: vi.fn() } }));
 
@@ -32,6 +36,8 @@ describe('matterNotesSync key rotation race', () => {
     mocks.unwrap.mockImplementation((_wrapped: string, epoch: number) => Promise.resolve(`key-${String(epoch)}`));
     mocks.clearMatterKey.mockResolvedValue(undefined);
     mocks.storeMatterKey.mockResolvedValue(undefined);
+    mocks.readPrivateIndex.mockReturnValue(null);
+    mocks.observeDocumentStreamsForPinning.mockResolvedValue([]);
   });
 
   it('uses the fetched key epoch and retries when the relay advances again during rotation', async () => {
@@ -277,6 +283,52 @@ describe('matterNotesSync key rotation race', () => {
 
     await expect(ensureMatterSync(localMatter as never, 1)).resolves.toBe(secondClient);
     expect(getMatterSyncClient(localMatter.id)).toBe(secondClient);
+  });
+
+  it('stops a stale client after start before it can rename a matter or seed shared metadata', async () => {
+    const localMatter = sharedMatter('stop-during-start-tail');
+    const { client, start } = gatedClient();
+    const transact = vi.fn((callback: () => void) => { callback(); });
+    client.doc.transact = transact;
+    mocks.obtainMatterKey.mockResolvedValue('key');
+    mocks.firmState.client.mockReturnValue({});
+    mocks.createClient.mockReturnValue(client);
+    mocks.readPrivateIndex.mockReturnValue({ displayName: 'Decrypted name', clientName: 'Decrypted client', streams: {} });
+
+    const opening = ensureMatterSync(localMatter as never, 1);
+    await vi.waitFor(() => { expect(start).toHaveBeenCalledOnce(); });
+
+    stopMatterSync(localMatter.id);
+    start.release();
+
+    await expect(opening).resolves.toBeNull();
+    expect(client.stop).toHaveBeenCalledOnce();
+    expect(mocks.renameMatter).not.toHaveBeenCalled();
+    expect(transact).not.toHaveBeenCalled();
+  });
+
+  it('stops a stale client after pinning before it can rename a matter or seed shared metadata', async () => {
+    const localMatter = sharedMatter('stop-during-pinning-tail');
+    const { client } = readyClient();
+    const transact = vi.fn((callback: () => void) => { callback(); });
+    client.doc.transact = transact;
+    const pinning = deferred<[]>();
+    mocks.obtainMatterKey.mockResolvedValue('key');
+    mocks.firmState.client.mockReturnValue({});
+    mocks.createClient.mockReturnValue(client);
+    mocks.readPrivateIndex.mockReturnValue({ displayName: 'Decrypted name', clientName: 'Decrypted client', streams: {} });
+    mocks.observeDocumentStreamsForPinning.mockReturnValue(pinning.promise);
+
+    const opening = ensureMatterSync(localMatter as never, 1);
+    await vi.waitFor(() => { expect(mocks.observeDocumentStreamsForPinning).toHaveBeenCalledOnce(); });
+
+    stopAll();
+    pinning.resolve([]);
+
+    await expect(opening).resolves.toBeNull();
+    expect(client.stop).toHaveBeenCalledOnce();
+    expect(mocks.renameMatter).not.toHaveBeenCalled();
+    expect(transact).not.toHaveBeenCalled();
   });
 
   it('does not let a stale startup overwrite a rapid re-sign-in client', async () => {
