@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import { useActiveMatters, useMatterStore } from '@/platform/matter/matterStore';
 import { readSelectedCrmHousehold, writeSelectedCrmHousehold } from '@/platform/crm/clientSelection';
@@ -20,8 +20,8 @@ import type {
 
 type StoredHousehold = LiveCrmRecord & Omit<HouseholdRecord, 'id' | 'syncState'>;
 
-function list<T>(value: unknown): readonly T[] {
-  return Array.isArray(value) ? value as readonly T[] : [];
+function list(value: unknown): readonly unknown[] {
+  return Array.isArray(value) ? value : [];
 }
 
 function stringValue(value: unknown, fallback: string): string {
@@ -44,14 +44,14 @@ function householdFromRecord(record: LiveCrmRecord, currentSyncState: SyncState,
     ...(typeof record['nextReview'] === 'string' ? { nextReview: record['nextReview'] } : {}),
     ...(lastSyncedAt ? { lastSyncedAt } : {}),
     syncState: currentSyncState,
-    facts: list(record['facts']),
-    accounts: list(record['accounts']),
-    members: list(record['members']),
-    externalParties: list(record['externalParties']),
-    notes: list(record['notes']),
-    customFields: list(record['customFields']),
+    facts: list(record['facts']) as NonNullable<HouseholdRecord['facts']>,
+    accounts: list(record['accounts']) as NonNullable<HouseholdRecord['accounts']>,
+    members: list(record['members']) as NonNullable<HouseholdRecord['members']>,
+    externalParties: list(record['externalParties']) as NonNullable<HouseholdRecord['externalParties']>,
+    notes: list(record['notes']) as NonNullable<HouseholdRecord['notes']>,
+    customFields: list(record['customFields']) as NonNullable<HouseholdRecord['customFields']>,
     tags: list(record['tags']).filter((tag): tag is string => typeof tag === 'string'),
-    contextRefs: list(record['contextRefs']),
+    contextRefs: list(record['contextRefs']) as NonNullable<HouseholdRecord['contextRefs']>,
     ...(typeof record['schedulingLinkUrl'] === 'string' ? { schedulingLinkUrl: record['schedulingLinkUrl'] } : {}),
   };
 }
@@ -96,36 +96,55 @@ export function ClientsSurface({
   actions?: CrmClientsActions;
 }) {
   const live = useLiveCrmRecords();
+  return (
+    <ClientsSurfaceContent
+      key={live.workspaceRoot ?? 'no-workspace'}
+      live={live}
+      households={households}
+      people={people}
+      records={records}
+      proposals={proposals}
+      {...(actions ? { actions } : {})}
+    />
+  );
+}
+
+function ClientsSurfaceContent({
+  live, households = [], people = [], records = [], proposals = [], actions,
+}: {
+  live: ReturnType<typeof useLiveCrmRecords>;
+  households?: readonly HouseholdDirectoryEntry[];
+  people?: readonly CrmPerson[];
+  records?: readonly HouseholdRecord[];
+  proposals?: readonly CrmProposal[];
+  actions?: CrmClientsActions;
+}) {
   const matters = useActiveMatters();
   const clientMapHubId = useMatterStore((state) => state.clientMapHubId);
-  const priorClientMapHubId = useRef(clientMapHubId);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const selectionWorkspace = live.workspaceRoot ?? null;
+  const [selectedId, setSelectedId] = useState<string | null>(() =>
+    clientMapHubId ?? (selectionWorkspace ? readSelectedCrmHousehold(selectionWorkspace) : null),
+  );
 
   // Reopen the household an advisor was working in after a real desktop
-  // restart. The selection is only navigation state; the household itself and
-  // every field still come from the encrypted CRM store below.
-  useEffect(() => {
-    if (!selectionWorkspace) {
-      setSelectedId(null);
-      return;
-    }
-    setSelectedId(readSelectedCrmHousehold(selectionWorkspace));
-  }, [selectionWorkspace]);
+  // restart. Keying this component by workspace gives each workspace a fresh
+  // initial selection without scheduling a second render after it appears.
+  // The selection is only navigation state; the household itself and every
+  // field still come from the encrypted CRM store below.
 
-  // A client click in the shared sidebar sets this hub id. The combined CRM
-  // screen used to ignore it, leaving a highlighted row beside an unchanged
-  // directory. Follow it regardless of any background search update.
   useEffect(() => {
-    const prior = priorClientMapHubId.current;
-    priorClientMapHubId.current = clientMapHubId;
-    if (clientMapHubId) {
-      setSelectedId(clientMapHubId);
-    } else if (prior) {
-      setSelectedId(null);
-      if (selectionWorkspace) writeSelectedCrmHousehold(selectionWorkspace, null);
-    }
-  }, [clientMapHubId, selectionWorkspace]);
+    // A client click in the shared sidebar changes this store. Subscribe to
+    // that external navigation event instead of copying it during an effect
+    // render, which avoids a cascading render and keeps both client lists in
+    // lockstep.
+    return useMatterStore.subscribe((next, previous) => {
+      if (next.clientMapHubId === previous.clientMapHubId) return;
+      setSelectedId(next.clientMapHubId);
+      if (!next.clientMapHubId && previous.clientMapHubId && selectionWorkspace) {
+        writeSelectedCrmHousehold(selectionWorkspace, null);
+      }
+    });
+  }, [selectionWorkspace]);
 
   const lastSyncedAt = live.freshness.kind === 'last-synced' || live.freshness.kind === 'syncing'
     ? live.freshness.lastSyncedAt

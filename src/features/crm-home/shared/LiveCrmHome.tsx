@@ -1,5 +1,5 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string -- Frozen CRM screen copy needs its translation catalog in a separate product change. */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { getCrmEngineFreshness, subscribeCrmEngineFreshness } from '@/platform/crm/store';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import { nextRecurringDue } from '@/platform/crm/tasks';
@@ -10,6 +10,21 @@ import type { HouseholdChoice } from '@/features/crm-workflows/Workflows';
 import { liveStepTitle } from './workflowDisplay';
 import type { CrmHomeProps } from '../routes';
 import type { CrmActivity, CrmApproval, CrmFirmMember, CrmFreshnessState, CrmHomeAdapter, CrmTask, CrmTaskSavedView, CrmWorkflowWorkItem, AttachmentAccountingRecord, ExportJobStatus, MigrationFidelityReport, MigrationNoteGap, MigrationWorkflowChecklist, PropagationOffer } from '../types';
+import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
+
+function workflowHouseholdsFor(records: readonly LiveCrmRecord[]): HouseholdChoice[] {
+  return records
+    .filter((record) => record.kind === 'household')
+    .map((record) => ({
+      id: record.id,
+      label:
+        typeof record['name'] === 'string'
+          ? record['name']
+          : typeof record['label'] === 'string'
+            ? record['label']
+            : 'Untitled household',
+    }));
+}
 
 const PREVIEW_OFFERS: readonly PropagationOffer[] = [
   {
@@ -858,41 +873,31 @@ export function LiveCrmHome({
     },
   };
   const activeAdapter = adapter ?? (preview ? PREVIEW_ADAPTER : liveAdapter);
-  const workflowHouseholds = useMemo<HouseholdChoice[]>(
-    () =>
-      live.records
-        .filter((record) => record.kind === 'household')
-        .map((record) => ({
-          id: record.id,
-          label:
-            typeof record['name'] === 'string'
-              ? record['name']
-              : typeof record['label'] === 'string'
-                ? record['label']
-                : 'Untitled household',
-        })),
-    [live.records]
-  );
+  const { records: liveRecords, save: saveLiveRecord } = live;
+  const workflowHouseholds = workflowHouseholdsFor(liveRecords);
   // Scheduling is client-computed from encrypted records. It runs whenever the
   // CRM home is open, not only while a person is looking at the Workflows tab.
   useEffect(() => {
     if (adapter || preview) return;
-    let cancelled = false;
+    const abortController = new AbortController();
+    const shouldStop = () => abortController.signal.aborted;
     void (async () => {
-      for (const template of workflowRecords(live.records).templates) {
-        const scheduled = startScheduledWorkflows(template, workflowHouseholds);
-        if (!scheduled.instances.length || cancelled) continue;
+      for (const template of workflowRecords(liveRecords).templates) {
+        if (shouldStop()) return;
+        const scheduled = startScheduledWorkflows(template, workflowHouseholdsFor(liveRecords));
+        if (!scheduled.instances.length) continue;
         for (const instance of scheduled.instances) {
-          if (cancelled) return;
-          await live.save(instance);
+          if (shouldStop()) return;
+          await saveLiveRecord(instance);
         }
-        if (!cancelled) await live.save(scheduled.template);
+        if (shouldStop()) return;
+        await saveLiveRecord(scheduled.template);
       }
     })();
     return () => {
-      cancelled = true;
+      abortController.abort();
     };
-  }, [adapter, live.records, live.save, preview, workflowHouseholds]);
+  }, [adapter, liveRecords, preview, saveLiveRecord]);
   const liveWorkflowProps =
     adapter || preview
       ? {}

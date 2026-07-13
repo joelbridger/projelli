@@ -3373,6 +3373,16 @@
       },
       "sync-failed": "We couldn't finish syncing Wealthbox. Please try again.",
       "sync-timeout": "Wealthbox didn't respond in time. Check your connection and try again."
+    },
+    "redtail": {
+      "lockdown": {
+        "title": "Redtail is paused by Network lockdown."
+      }
+    },
+    "salesforce": {
+      "lockdown": {
+        "title": "Salesforce is paused by Network lockdown."
+      }
     }
   },
   "answer-dates": {

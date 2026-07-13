@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { isTauri } from '@tauri-apps/api/core';
 import {
   crmOAuthConnect,
@@ -62,6 +63,7 @@ function scrubSalesforceFromMatters() {
 }
 
 export function SalesforceConnect() {
+  const { t } = useTranslation();
   useCrmSync();
   const nativeLockdown = useNativeNetworkLockdownBridgeState();
   const networkLockdown = isTauri() && nativeLockdown.blocked;
@@ -356,7 +358,7 @@ export function SalesforceConnect() {
             role="status"
             className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950"
           >
-            <p className="font-medium">Salesforce is paused by Network lockdown.</p>
+            <p className="font-medium">{t('crm.salesforce.lockdown.title')}</p>
             <p className="mt-1 text-xs">{lockdownMessage}</p>
           </div>
         )}
