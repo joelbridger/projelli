@@ -113,6 +113,33 @@ as the first workstream after this merge lands. Until that ships, avoid
 unqualified "end-to-end encrypted" language in anything that references the
 intake-key exchange or the firm relay generally.
 
+## Another known gap found in review, NOT fixed here: auth/session-token lifecycle (out of scope, pre-existing)
+
+Round UU's adversarial review reviewed the auth/session layer fresh (a genuinely different security
+domain from this branch's E2EE matter-content-privacy scope) and found three real issues, all pre-existing
+(`backend/src/lib/services.ts`, `backend/src/routes/admin.ts`, `backend/src/routes/sso.ts` — none touched
+by this branch's history). **None are fixed on this branch** — they're login/session-token architecture
+work, not matter-privacy work, and fixing them properly needs real new design (atomic refresh-token
+consumption, a revocation-check architecture decision), not a small patch. Escalated to Jameson/the
+coordinator the same way the hostile-relay-device-key gap was, for a separate follow-up:
+
+1. **Refresh-token double-consumption race** (`services.ts` around the refresh-rotation function, `db.ts`
+   around the token-rotation query): two concurrent requests can both read the same refresh token as still
+   active before either transaction revokes it, each minting a different valid replacement — a stolen
+   refresh token can spawn a parallel long-lived session. Needs the rotation to become one atomic
+   read-check-mark-used-then-mint database action.
+2. **A removed/deprovisioned user's access token keeps working until it naturally expires** (`admin.ts`'s
+   deprovision handler, `sso.ts`): revocation invalidates refresh tokens and seats, but a still-valid
+   access token's authorization check only reads the signed token's `role`/claims, not live account status
+   — a removed admin can keep acting for up to the token's TTL (currently up to an hour). This is a
+   standard short-lived-access-token/revocable-refresh-token tradeoff in many systems, but worth a
+   deliberate decision (shorter TTL? per-request liveness check for admin-tier actions?) given this product
+   handles confidential client data.
+3. **Refresh-token reuse detection doesn't revoke the token family** (`services.ts`): if a rotated-away
+   refresh token is replayed after its successor was already issued, the server rejects only that specific
+   old token — the successor (which may be in an attacker's hands, if reuse indicates theft) stays valid.
+   Detected reuse should revoke every token descended from that family and force a fresh login.
+
 ## Another known gap found in review, NOT fixed here: co-editing lifecycle (dead code, pre-existing)
 
 Round NN's adversarial review found that `src/platform/firm/coedit/coeditSession.ts`
