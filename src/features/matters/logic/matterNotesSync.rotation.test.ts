@@ -202,6 +202,39 @@ describe('matterNotesSync key rotation race', () => {
     expect(mocks.createClient).toHaveBeenCalledTimes(1);
   });
 
+  it('does not construct a client when a matter is stopped while its key lookup is pending', async () => {
+    const localMatter = sharedMatter('stop-during-key-lookup');
+    const keyLookup = deferred<string>();
+    mocks.obtainMatterKey.mockReturnValue(keyLookup.promise);
+    mocks.firmState.client.mockReturnValue({});
+
+    const opening = ensureMatterSync(localMatter as never, 1);
+    await vi.waitFor(() => { expect(mocks.obtainMatterKey).toHaveBeenCalledOnce(); });
+
+    stopMatterSync(localMatter.id);
+    keyLookup.resolve('key');
+
+    await expect(opening).resolves.toBeNull();
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+
+  it('does not construct a client when a matter is stopped while its epoch lookup is pending', async () => {
+    const localMatter = sharedMatter('stop-during-epoch-lookup');
+    const epochLookup = deferred<{ matters: Array<{ matter_handle: ReturnType<typeof parseMatterHandle>; key_epoch: number }> }>();
+    const firmClient = { matterMine: vi.fn(() => epochLookup.promise) };
+    mocks.obtainMatterKey.mockResolvedValue('key');
+    mocks.firmState.client.mockReturnValue(firmClient);
+
+    const opening = ensureMatterSync(localMatter as never);
+    await vi.waitFor(() => { expect(firmClient.matterMine).toHaveBeenCalledOnce(); });
+
+    stopAll();
+    epochLookup.resolve({ matters: [{ matter_handle: localMatter.firmMatterId, key_epoch: 1 }] });
+
+    await expect(opening).resolves.toBeNull();
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+
   it('stops and discards a client that finishes starting after sign-out', async () => {
     const localMatter = sharedMatter('sign-out-during-startup');
     const { client: firstClient, start: firstStart } = gatedClient();

@@ -93,7 +93,7 @@ export function ensureMatterSync(
   if (pending?.generation === currentGeneration(localMatterId)) return pending.promise;
 
   const generation = currentGeneration(localMatterId);
-  const promise = _buildMatterSyncClient(localMatter, keyEpoch, seatToken, firmState).then(
+  const promise = _buildMatterSyncClient(localMatter, keyEpoch, seatToken, firmState, generation).then(
     (client) => {
       if (pendingCache.get(localMatterId)?.promise === promise) pendingCache.delete(localMatterId);
       // A key-rotation denial can arrive while client.start() is still pending.
@@ -121,6 +121,7 @@ async function _buildMatterSyncClient(
   keyEpoch: number | undefined,
   seatToken: string,
   firmState: ReturnType<typeof useFirmStore.getState>,
+  generation: number,
 ): Promise<MatterSyncClient | null> {
   const localMatterId = localMatter.id;
   const firmMatterId = parseMatterHandle(localMatter.firmMatterId!);
@@ -129,6 +130,7 @@ async function _buildMatterSyncClient(
   // Obtain the matter key (local keychain → server fetch → null on wall/miss).
   const firmClient = firmState.client();
   const keyB64 = await obtainMatterKey(firmClient, firmMatterId, seatToken);
+  if (generation !== currentGeneration(localMatterId)) return null;
   if (!keyB64) {
     // Fail closed: walled or key not published yet.
     useMatterSyncStore.getState().setStatus(localMatterId, 'error');
@@ -142,13 +144,16 @@ async function _buildMatterSyncClient(
   if (epoch === undefined) {
     try {
       const mine = await firmClient.matterMine(seatToken);
+      if (generation !== currentGeneration(localMatterId)) return null;
       epoch = mine.matters.find((m) => m.matter_handle === firmMatterId)?.key_epoch ?? 1;
     } catch {
+      if (generation !== currentGeneration(localMatterId)) return null;
       epoch = 1; // offline/unreachable: start at 1; the relay signals the real epoch
     }
   }
 
   // Construct the client with callbacks wired to the sync store.
+  if (generation !== currentGeneration(localMatterId)) return null;
   const client = new MatterSyncClient({
     matterHandle: firmMatterId,
     streamHandle: rootStreamHandle,
