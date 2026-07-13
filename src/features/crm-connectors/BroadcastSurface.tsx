@@ -71,7 +71,9 @@ function verifiedEmail(person: Record<string, unknown>): string | null {
 }
 
 function emailForReview(person: Record<string, unknown>): string | null {
-  const emails = Array.isArray(person['emails']) ? person['emails'] : [];
+  const emails: readonly unknown[] = Array.isArray(person['emails'])
+    ? (person['emails'] as readonly unknown[])
+    : [];
   const primary = emails.find(
     (entry) =>
       entry &&
@@ -98,10 +100,12 @@ export function recipientsForHouseholds(
   const recipients: BroadcastRecipient[] = [];
   for (const household of households) {
     const householdName = string(household['name']) ?? 'Unnamed household';
-    const people = [
-      ...(Array.isArray(household['members']) ? household['members'] : []),
+    const people: readonly unknown[] = [
+      ...(Array.isArray(household['members'])
+        ? (household['members'] as readonly unknown[])
+        : []),
       ...(Array.isArray(household['externalParties'])
-        ? household['externalParties']
+        ? (household['externalParties'] as readonly unknown[])
         : []),
     ];
     for (const value of people) {

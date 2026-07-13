@@ -31,7 +31,7 @@ describe('email broadcast recipients', () => {
   beforeEach(() => {
     live.records = [];
     live.save.mockReset();
-    live.save.mockImplementation(async (record) => record);
+    live.save.mockImplementation((record: LiveCrmRecord) => Promise.resolve(record));
   });
 
   it('includes only verified email recipients and removes duplicates', () => {
@@ -134,7 +134,9 @@ describe('email broadcast recipients', () => {
     );
     fireEvent.click(screen.getByTestId('crm-broadcast-confirm-recipient'));
 
-    await waitFor(() => expect(live.save).toHaveBeenCalledTimes(1));
+    await waitFor(() => {
+      expect(live.save).toHaveBeenCalledTimes(1);
+    });
     const saved = live.save.mock.calls[0]?.[0] as Record<string, unknown>;
     expect(recipientsForHouseholds([saved as LiveCrmRecord])).toEqual([
       expect.objectContaining({
