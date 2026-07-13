@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import { useMatterStore } from '@/platform/matter/matterStore';
+import { readSelectedCrmHousehold, writeSelectedCrmHousehold } from '@/platform/crm/clientSelection';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import { DirectorySurface } from './DirectorySurface';
 import { HouseholdRecordSurface } from './HouseholdRecordSurface';
@@ -70,20 +71,18 @@ export function ClientsSurface({
 }) {
   const live = useLiveCrmRecords();
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const selectionKey = live.workspaceRoot
-    ? `lantern:crm:selected-household:${live.workspaceRoot}`
-    : null;
+  const selectionWorkspace = live.workspaceRoot ?? null;
 
   // Reopen the household an advisor was working in after a real desktop
   // restart. The selection is only navigation state; the household itself and
   // every field still come from the encrypted CRM store below.
   useEffect(() => {
-    if (!selectionKey) {
+    if (!selectionWorkspace) {
       setSelectedId(null);
       return;
     }
-    setSelectedId(localStorage.getItem(selectionKey));
-  }, [selectionKey]);
+    setSelectedId(readSelectedCrmHousehold(selectionWorkspace));
+  }, [selectionWorkspace]);
 
   const selectHousehold = useCallback((id: string | null) => {
     setSelectedId(id);
@@ -99,10 +98,8 @@ export function ClientsSurface({
       (matter) => matter.id === mappedMatterId,
     ) ? mappedMatterId : null;
     useMatterStore.getState().setActiveMatter(safeMatterId);
-    if (!selectionKey) return;
-    if (id) localStorage.setItem(selectionKey, id);
-    else localStorage.removeItem(selectionKey);
-  }, [live.records, selectionKey]);
+    if (selectionWorkspace) writeSelectedCrmHousehold(selectionWorkspace, id);
+  }, [live.records, selectionWorkspace]);
   const lastSyncedAt = live.freshness.kind === 'last-synced' || live.freshness.kind === 'syncing'
     ? live.freshness.lastSyncedAt
     : undefined;
