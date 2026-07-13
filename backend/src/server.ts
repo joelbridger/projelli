@@ -70,18 +70,18 @@ import type { Store } from "./lib/db.ts";
  * their executable input inventory. A new route must therefore get a table
  * entry before it can become reachable, just like the opaque v2 relay routes.
  */
-const FIRM_PERSISTENT_HANDLERS: Partial<Record<FirmPersistentRouteId, (req: Request, store: Store) => Promise<Response>>> = {
+const FIRM_PERSISTENT_HANDLERS: Partial<Record<FirmPersistentRouteId, (req: Request, store: Store, hub: FanoutHub) => Promise<Response>>> = {
   deviceRegister: handleDeviceRegister,
   activateSeat: handleActivate,
   transferSeat: handleTransferSeat,
   orgClaim: handleOrgClaim,
 };
 
-async function dispatchFirmPersistentRoute(path: string, method: string, req: Request, store: Store): Promise<Response | null> {
+async function dispatchFirmPersistentRoute(path: string, method: string, req: Request, store: Store, hub: FanoutHub): Promise<Response | null> {
   const spec = FIRM_PERSISTENT_ROUTE_SPECS.find((candidate) => candidate.path === path && candidate.method === method);
   if (!spec) return null;
   const handler = FIRM_PERSISTENT_HANDLERS[spec.id];
-  return handler ? handler(req, store) : null;
+  return handler ? handler(req, store, hub) : null;
 }
 
 /** Data attached to each sync WebSocket on upgrade (set by authorizeSyncConnect). */
@@ -318,7 +318,7 @@ export function buildServeOptions(store: Store, hub: FanoutHub, traffic?: RelayT
         if (path === "/auth/sso/callback" && method === "GET") return await handleSsoCallback(req, store, ip);
         if (path === "/auth/sso/exchange" && method === "POST") return await handleSsoExchange(req, store, ip);
 
-        const persistentRouteResponse = await dispatchFirmPersistentRoute(path, method, req, store);
+        const persistentRouteResponse = await dispatchFirmPersistentRoute(path, method, req, store, hub);
         if (persistentRouteResponse) return persistentRouteResponse;
 
         // --- Licensing / seats (client-facing core) ---

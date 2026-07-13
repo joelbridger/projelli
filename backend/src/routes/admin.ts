@@ -101,7 +101,7 @@ export async function handleDeprovisionUser(req: Request, store: Store, hub: Fan
   return json({ ok: true, user_id: target.user_id, seats_revoked: seatsRevoked });
 }
 
-export async function handleTransferSeat(req: Request, store: Store): Promise<Response> {
+export async function handleTransferSeat(req: Request, store: Store, hub: FanoutHub = fanout): Promise<Response> {
   const a = requireAdmin(req);
   if (!a.ok) return a.resp;
   const body = await readFirmPersistentPayload(req, "transferSeat");
@@ -125,6 +125,7 @@ export async function handleTransferSeat(req: Request, store: Store): Promise<Re
   });
   if (!res.ok) return error("transfer_failed", 409, res.reason);
 
+  hub.evictSeat(from.seat_id);
   store.audit({ org_id: from.org_id, actor_user_id: a.claims.sub, action: "seat.transfer", target: res.seat.seat_id, detail: { from_seat_id: from.seat_id, to_user_id: toUser.user_id } });
 
   // Mint a fresh seat token for the new binding so the admin can hand it over

@@ -6,7 +6,7 @@ import { buildServeOptions, subscribeSyncSocket, type SyncSocketData } from "../
 import { SyncTicketStore } from "../src/lib/syncTickets.ts";
 import { rateLimit } from "../src/lib/http.ts";
 import { authorizeSyncConnect, handleArchiveMatter, handleReleaseMatterStream } from "../src/routes/matters.ts";
-import { handleDeprovisionUser, handleRevokeSeat } from "../src/routes/admin.ts";
+import { handleDeprovisionUser, handleRevokeSeat, handleTransferSeat } from "../src/routes/admin.ts";
 
 const store = new Store(":memory:"), hub = new FanoutHub();
 const server = Bun.serve<SyncSocketData>(buildServeOptions(store, hub));
@@ -201,6 +201,29 @@ describe("v2 encrypted relay: preserved HTTP, authorization, cursor, and socket 
     // And the revoked seat receives nothing from a later broadcast.
     isolatedHub.broadcast(handle, { type: "update", cursor: 1, blob_id: "bh2_" + "A".repeat(43), key_epoch: 1, author_seat: "x", created_at: "now", ciphertext_b64: "AQ==" }, root);
     expect(frames).toHaveLength(0);
+  });
+
+  test("transferring a seat evicts its live socket", async () => {
+    const orgId = store.getMatter(handle)!.org_id;
+    const source = store.createUser({ org_id: orgId, email: "transfer-source@relay.test", password_hash: "x", role: "member" });
+    const target = store.createUser({ org_id: orgId, email: "transfer-target@relay.test", password_hash: "x", role: "member" });
+    const binding = store.activateSeat({ org_id: orgId, user_id: source.user_id, machine_id: "transfer-source-machine", machine_label: null, seat_limit: 99 });
+    if (!binding.ok) throw new Error("seat activation failed");
+    store.addMatterMember({ matter_handle: handle, user_id: source.user_id, org_id: orgId, role: "editor" });
+
+    const isolatedHub = new FanoutHub();
+    const frames: string[] = [], closed: string[] = [];
+    subscribeSyncSocket(store, isolatedHub, {
+      data: { subId: "transferred-live", matterHandle: handle, streamHandle: root, orgId, userId: source.user_id, seatId: binding.seat.seat_id, role: "member", since: store.latestMatterCursor(handle, root) },
+      send: (frame: string) => { frames.push(frame); return 0; },
+      close: (_code?: number, reason?: string) => { closed.push(reason ?? "closed"); },
+    } as unknown as Bun.ServerWebSocket<SyncSocketData>);
+    expect(frames.some((frame) => frame.includes('"type":"ready"'))).toBe(true);
+
+    expect((await handleTransferSeat(new Request("http://relay.test/org/seats/transfer", { method: "POST", headers: { authorization: `Bearer ${admin}`, "content-type": "application/json" }, body: JSON.stringify({ from_seat_id: binding.seat.seat_id, to_user_id: target.user_id, to_machine_id: crypto.randomUUID() }) }), store, isolatedHub)).status).toBe(200);
+    isolatedHub.broadcast(handle, { type: "update", cursor: 999, blob_id: "after-seat-transfer", key_epoch: 1, author_seat: "x", created_at: "now", ciphertext_b64: "AQ==" }, root);
+    expect(closed).toHaveLength(1);
+    expect(frames.some((frame) => frame.includes("after-seat-transfer"))).toBe(false);
   });
 
   test("revoked seats, deprovisioned users, and suspended orgs cannot redeem or retain live sockets", async () => {
