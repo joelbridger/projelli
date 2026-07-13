@@ -7,12 +7,10 @@
  * workspace file with `require_confirmation = true`. This component polls for
  * those requests and surfaces them through `McpApprovalModal`.
  *
- * Privileged Matter Mode wiring: when the mode is on, MCP servers are treated as
- * DISABLED. The modal auto-denies every pending write (it is never approvable
- * while the mode is on), and each block is recorded in the audit log as an
- * `mcp_blocked` event so there is a defensible "nothing was written / nothing
- * left" record. This component reads the live mode via `usePrivilegedMatterMode`
- * and threads it (plus the audit callback) into the modal.
+ * Network Lockdown wiring: when Rust enforcement is on or cannot be confirmed,
+ * MCP servers are treated as DISABLED. The modal auto-denies every pending
+ * write, and each block is recorded in the audit log as an `mcp_blocked` event
+ * so there is a defensible "nothing was written / nothing left" record.
  *
  * No-op in the browser (the sidecar bridge returns `[]` there).
  */
@@ -25,7 +23,7 @@ import {
   type McpPendingApproval,
 } from '@/platform/utils/tauri-commands';
 import { McpApprovalModal } from '@/features/settings/McpApprovalModal';
-import { usePrivilegedMatterModeActive } from '@/platform/hooks/usePrivilegedMatterMode';
+import { useNativeNetworkLockdownBridgeState } from '@/platform/privacy/nativeNetworkLockdownBridge';
 import type { AuditEvent } from '@/platform/types/audit';
 import { PRIVILEGED_MATTER_BLOCK_REASON } from '@/platform/privacy/privilegedMatterMode';
 
@@ -39,7 +37,7 @@ export interface McpApprovalGateProps {
   listApprovals?: () => Promise<McpPendingApproval[]>;
   /** Override the respond sink (tests). Defaults to the Tauri command. */
   respond?: (token: string, approved: boolean) => Promise<void>;
-  /** Override Privileged Matter Mode (tests). Defaults to the live hook. */
+  /** Test override. Production defaults to confirmed native enforcement. */
   privilegedMatterMode?: boolean;
 }
 
@@ -50,8 +48,8 @@ export function McpApprovalGate({
   respond,
   privilegedMatterMode,
 }: McpApprovalGateProps): React.ReactElement | null {
-  const hookPrivileged = usePrivilegedMatterModeActive();
-  const privileged = privilegedMatterMode ?? hookPrivileged;
+  const enforcedNetworkLockdown = useNativeNetworkLockdownBridgeState();
+  const privileged = privilegedMatterMode ?? enforcedNetworkLockdown.blocked;
   const [approvals, setApprovals] = useState<McpPendingApproval[]>([]);
   const [sessionApproveAll, setSessionApproveAll] = useState(false);
 

@@ -38,7 +38,12 @@ describe('useIntakeInboxSync Offline Mode wiring', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     controls.isTauri.mockReturnValue(true);
-    controls.getStatus.mockResolvedValue({ offlineMode: false, generation: 1 });
+    controls.getStatus.mockResolvedValue({
+      offlineMode: false,
+      generation: 1,
+      hydrated: true,
+      loadError: null,
+    });
     controls.getDevice.mockResolvedValue({
       deviceId: 'device-1',
       publicJwk: { kty: 'EC', crv: 'P-256', x: 'x', y: 'y' },
@@ -74,7 +79,12 @@ describe('useIntakeInboxSync Offline Mode wiring', () => {
     expect(controls.granted).toHaveBeenCalledTimes(1);
     expect(onPolicyChange).toBeDefined();
 
-    act(() => onPolicyChange?.({ offlineMode: true, generation: 2 }));
+    act(() => onPolicyChange?.({
+      offlineMode: true,
+      generation: 2,
+      hydrated: true,
+      loadError: null,
+    }));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(90_000);
       window.dispatchEvent(new Event('focus'));

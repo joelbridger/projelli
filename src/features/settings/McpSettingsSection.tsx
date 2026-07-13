@@ -23,7 +23,7 @@ import { InfoHelp } from '@/ui/InfoHelp';
 import { Download, CheckCircle2, AlertCircle, ExternalLink, ShieldOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { mcpBundlePath } from '@/platform/utils/tauri-commands';
-import { usePrivilegedMatterModeActive } from '@/platform/hooks/usePrivilegedMatterMode';
+import { useNativeNetworkLockdownBridgeState } from '@/platform/privacy/nativeNetworkLockdownBridge';
 
 export interface McpSettingsSectionProps {
   /** Test hook — override the bundle-path lookup so tests don't have to
@@ -33,8 +33,7 @@ export interface McpSettingsSectionProps {
    *  resolved bundle path. Default implementation opens the OS
    *  file-picker dialog via `@tauri-apps/plugin-dialog`. */
   onDownload?: (bundlePath: string) => Promise<void>;
-  /** Override Privileged Matter Mode (tests / surfaces that already hold it).
-   *  When omitted the live hook value is used. */
+  /** Test override. Production defaults to confirmed native enforcement. */
   privilegedMatterMode?: boolean;
 }
 
@@ -44,8 +43,8 @@ export function McpSettingsSection({
   privilegedMatterMode,
 }: McpSettingsSectionProps): React.ReactElement {
   const { t } = useTranslation();
-  const hookPrivileged = usePrivilegedMatterModeActive();
-  const privileged = privilegedMatterMode ?? hookPrivileged;
+  const enforcedNetworkLockdown = useNativeNetworkLockdownBridgeState();
+  const privileged = privilegedMatterMode ?? enforcedNetworkLockdown.blocked;
   const [bundlePath, setBundlePath] = useState<string | null | undefined>(
     undefined,
   );

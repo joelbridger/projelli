@@ -11,7 +11,12 @@ const controls = vi.hoisted(() => ({
 }));
 const privacy = vi.hoisted(() => ({
   networkLockdown: false,
-  nativeLockdown: { blocked: false, pending: false, error: null as string | null },
+  nativeLockdown: {
+    status: 'off' as 'on' | 'off' | 'unknown',
+    blocked: false,
+    pending: false,
+    error: null as string | null,
+  },
   retryNativeNetworkLockdown: vi.fn(),
 }));
 
@@ -125,7 +130,7 @@ describe('WealthboxConnect sync', () => {
     controls.crmRebuildStore.mockResolvedValue(undefined);
     controls.createMatter.mockClear();
     privacy.networkLockdown = false;
-    privacy.nativeLockdown = { blocked: false, pending: false, error: null };
+    privacy.nativeLockdown = { status: 'off', blocked: false, pending: false, error: null };
     privacy.retryNativeNetworkLockdown.mockReset();
     crmProgress.set(null);
   });
@@ -135,7 +140,7 @@ describe('WealthboxConnect sync', () => {
   });
 
   it('shows an honest pause and disables sync while Network lockdown is on', async () => {
-    privacy.networkLockdown = true;
+    privacy.nativeLockdown = { status: 'on', blocked: true, pending: false, error: null };
     await renderConnectedConnector();
 
     expect(screen.getByTestId('wealthbox-network-lockdown-message')).toHaveTextContent(
@@ -146,8 +151,19 @@ describe('WealthboxConnect sync', () => {
     expect(controls.crmListHouseholds).not.toHaveBeenCalled();
   });
 
+  it('FINDING-20: follows native enforcement when the saved privacy choice disagrees', async () => {
+    privacy.networkLockdown = true;
+    privacy.nativeLockdown = { status: 'off', blocked: false, pending: false, error: null };
+
+    await renderConnectedConnector();
+
+    expect(screen.queryByTestId('wealthbox-network-lockdown-message')).toBeNull();
+    expect(screen.getByTestId('wealthbox-sync-now')).not.toBeDisabled();
+  });
+
   it('shows a working retry action when the native privacy update fails', async () => {
     privacy.nativeLockdown = {
+      status: 'on',
       blocked: true,
       pending: false,
       error: 'Network lockdown is still on because the privacy setting could not be updated.',

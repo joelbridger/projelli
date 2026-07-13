@@ -24,6 +24,7 @@ import { usePrivilegedMatterMode } from '@/platform/hooks/usePrivilegedMatterMod
 // F-120 (VG-5a): live pulse while a provider request is actually in flight.
 import { useEgressActivityStore } from '@/platform/privacy/egressActivity';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
+import { useNativeNetworkLockdownBridgeState } from '@/platform/privacy/nativeNetworkLockdownBridge';
 
 /**
  * Extract project name from full path
@@ -152,8 +153,9 @@ export function StatusBar({ onOpenSettings, showFileContext = true }: StatusBarP
   const [bugReportOpen, setBugReportOpen] = useState(false);
   // WS-B/C: which matter the AI is currently confined to (null = all matters).
   const activeMatter = useActiveMatter();
-  // Privileged Matter Mode: when active, network plugins + MCP are disabled.
+  // The saved choice requests isolation; only native status may claim it is on.
   const privilegedMode = usePrivilegedMatterMode();
+  const enforcedNetworkLockdown = useNativeNetworkLockdownBridgeState();
   // F4b: trial state for softened status-bar rendering.
   const trial = useTrial();
   const { isActivated } = useLicense();
@@ -164,16 +166,19 @@ export function StatusBar({ onOpenSettings, showFileContext = true }: StatusBarP
   // flight, held ~2.5s after the last one so streamed sends don't flicker.
   const egressActiveCount = useEgressActivityStore((s) => s.activeCount);
   const lastEgressAt = useEgressActivityStore((s) => s.lastActivityAt);
-  const [pulseVisible, setPulseVisible] = useState(false);
+  const [pulseHeld, setPulseHeld] = useState(false);
+  const pulseVisible = egressActiveCount > 0 || pulseHeld;
   useEffect(() => {
     if (egressActiveCount > 0) {
-      setPulseVisible(true);
-      return undefined;
+      // The derived value above paints immediately. Set the hold from a timer
+      // so the effect only synchronizes with time and never cascades a render.
+      const id = setTimeout(() => { setPulseHeld(true); }, 0);
+      return () => { clearTimeout(id); };
     }
-    if (!pulseVisible) return undefined;
-    const id = setTimeout(() => { setPulseVisible(false); }, 2500);
+    if (!pulseHeld) return undefined;
+    const id = setTimeout(() => { setPulseHeld(false); }, 2500);
     return () => { clearTimeout(id); };
-  }, [egressActiveCount, lastEgressAt, pulseVisible]);
+  }, [egressActiveCount, lastEgressAt, pulseHeld]);
 
   // QA-34: re-render when the active .docx's save state changes so the "modified"
   // badge is truthful for a .docx whose save is pending/failing (never a store dirty tab).
@@ -356,7 +361,7 @@ export function StatusBar({ onOpenSettings, showFileContext = true }: StatusBarP
             the mode is on AND there is an active matter (A8: the badge copy
             says "Privileged matter..." so it only makes sense when a matter
             is actually selected). */}
-        {privilegedMode.active && activeMatter !== null && (
+        {enforcedNetworkLockdown.status === 'on' && activeMatter !== null && (
           <div
             data-testid="privileged-matter-badge"
             data-trigger={privilegedMode.trigger}
@@ -373,6 +378,20 @@ export function StatusBar({ onOpenSettings, showFileContext = true }: StatusBarP
             <span className="truncate">Isolated client</span>
           </div>
         )}
+
+        {privilegedMode.active &&
+          enforcedNetworkLockdown.status !== 'on' &&
+          (enforcedNetworkLockdown.pending || enforcedNetworkLockdown.status === 'unknown') &&
+          activeMatter !== null && (
+            <div
+              data-testid="privileged-matter-badge-unconfirmed"
+              className="flex items-center gap-1 max-w-[280px] rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-amber-950"
+              title="Lantern is checking the desktop privacy guard."
+            >
+              <ShieldOff className="h-3 w-3 shrink-0" aria-hidden />
+              <span className="truncate">Checking isolation</span>
+            </div>
+          )}
 
         {/* F-120 (VG-5a): live "sending" pulse. Only while a provider request is
             actually in flight. Suppressed in local-only mode. */}

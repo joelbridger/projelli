@@ -43,6 +43,7 @@ vi.mock('@/platform/utils/wealthbox-commands', () => ({
 import { WealthboxConnect } from '@/platform/connectors/crm/WealthboxConnect';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+import { useOfflineModeStore } from '@/platform/privacy/offlineMode';
 
 function seedExistingMatters(count: number) {
   const matters = Array.from({ length: count }, (_, i) => ({
@@ -77,6 +78,15 @@ describe('WealthboxConnect — QA-74 import must populate the Client Map', () =>
   beforeEach(() => {
     localStorage.clear();
     vi.clearAllMocks();
+    useOfflineModeStore.setState({
+      offlineMode: false,
+      generation: 1,
+      hydrated: true,
+      loadError: null,
+      statusKnown: true,
+      changePending: false,
+      changeError: null,
+    });
     seedExistingMatters(9);
     useWorkspaceStore.setState({ rootPath: null, fileTree: [] });
 
@@ -131,6 +141,15 @@ describe('WealthboxConnect — QA-74 regressions', () => {
   beforeEach(() => {
     localStorage.clear();
     vi.clearAllMocks();
+    useOfflineModeStore.setState({
+      offlineMode: false,
+      generation: 1,
+      hydrated: true,
+      loadError: null,
+      statusKnown: true,
+      changePending: false,
+      changeError: null,
+    });
     seedExistingMatters(9);
     useWorkspaceStore.setState({ rootPath: null, fileTree: [] });
 

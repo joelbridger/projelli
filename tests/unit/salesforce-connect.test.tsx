@@ -31,6 +31,7 @@ vi.mock('@/platform/connectors/crm/useCrmSync', () => ({
 
 import { SalesforceConnect } from '@/platform/connectors/crm/SalesforceConnect';
 import { useMatterStore } from '@/platform/matter/matterStore';
+import { useOfflineModeStore } from '@/platform/privacy/offlineMode';
 
 // F2.4: Salesforce OAuth connect hung on "Connecting..." for the full 5-minute
 // server-side timeout with no way out. Cancel must abort it immediately and
@@ -38,6 +39,15 @@ import { useMatterStore } from '@/platform/matter/matterStore';
 describe('SalesforceConnect — cancel connect (F2.4)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useOfflineModeStore.setState({
+      offlineMode: false,
+      generation: 1,
+      hydrated: true,
+      loadError: null,
+      statusKnown: true,
+      changePending: false,
+      changeError: null,
+    });
     useMatterStore.setState({ matters: [], activeMatterId: null });
     crmIsConnected.mockResolvedValue(false);
     crmOAuthConnectCancel.mockResolvedValue(undefined);

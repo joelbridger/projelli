@@ -46,6 +46,7 @@ import { useMatterStore } from '@/platform/matter/matterStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useCrmStore } from '@/platform/connectors/crm/crmStore';
 import { CRM_LIST_HOUSEHOLDS_TIMEOUT_MS } from '@/platform/connectors/crm/crmTimeout';
+import { useOfflineModeStore } from '@/platform/privacy/offlineMode';
 
 async function connectAndStartSync() {
   render(<WealthboxConnect />);
@@ -61,6 +62,15 @@ describe('WealthboxConnect — connect/sync stall UX', () => {
   beforeEach(() => {
     localStorage.clear();
     vi.clearAllMocks();
+    useOfflineModeStore.setState({
+      offlineMode: false,
+      generation: 1,
+      hydrated: true,
+      loadError: null,
+      statusKnown: true,
+      changePending: false,
+      changeError: null,
+    });
     useMatterStore.setState({
       matters: [],
       activeMatterId: null,

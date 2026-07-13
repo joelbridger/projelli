@@ -377,7 +377,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn lockdown_refuses_before_the_socket_opens() {
+    async fn bug_19_engage_lockdown_refuses_before_the_socket_opens() {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let accepted = Arc::new(AtomicUsize::new(0));
