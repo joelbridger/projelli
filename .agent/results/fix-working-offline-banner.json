@@ -6,7 +6,7 @@
     "src/platform/crm/liveRecordRelay.ts",
     "src/platform/crm/liveRecordRelay.freshness.test.ts"
   ],
-  "commit": "e2592bad880b39dbda6d9bf2786f1fa3a4ad4f7b",
+  "commit": "522496c29a0c191f6ccc687ecebebe8e2d7a49f5",
   "pushed": true,
   "commands_run": [
     { "cmd": "npx vitest run src/platform/crm/liveRecordRelay.freshness.test.ts (fix reverted via git stash, to prove the test fails without the fix)", "exit_code": 1 },
