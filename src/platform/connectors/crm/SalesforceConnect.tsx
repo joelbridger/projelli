@@ -36,6 +36,7 @@ import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import { InfoHelp } from '@/ui/InfoHelp';
 import { brandText } from '@/config/brandText';
 import { useNativeNetworkLockdownBridgeState } from '@/platform/privacy/nativeNetworkLockdownBridge';
+import { NetworkLockdownRetryButton } from '@/platform/privacy/ui/NetworkLockdownRetryButton';
 
 const PROVIDER = 'salesforce' as const;
 const SALESFORCE_KEY_PREFIX = 'sfdc:';
@@ -360,6 +361,7 @@ export function SalesforceConnect() {
           >
             <p className="font-medium">{t('crm.salesforce.lockdown.title')}</p>
             <p className="mt-1 text-xs">{lockdownMessage}</p>
+            <NetworkLockdownRetryButton testId="salesforce-network-lockdown-retry" />
           </div>
         )}
 

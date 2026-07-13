@@ -56,7 +56,7 @@ async function drain(): Promise<void> {
           blocked: true,
           pending: false,
           error:
-            'Network lockdown is still on because the privacy setting could not be updated. Change the Privacy setting again to retry.',
+            'Network lockdown is still on because the privacy setting could not be updated. Nothing can leave this computer. Select Retry to try again.',
         });
         console.error(
           '[Privacy] Native Network Lockdown could not be updated; CRM remains blocked.',
@@ -84,6 +84,13 @@ export function requestNativeNetworkLockdown(enabled: boolean): void {
     error: null,
   });
   startRunner();
+}
+
+/** Retry the last failed native change without asking the user to toggle modes. */
+export function retryNativeNetworkLockdown(): void {
+  const state = getNativeNetworkLockdownBridgeState();
+  if (!state.error || state.pending) return;
+  requestNativeNetworkLockdown(desired);
 }
 
 function startRunner(): void {

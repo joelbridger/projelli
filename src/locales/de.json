@@ -4384,10 +4384,13 @@
         "title": "Wealthbox wurde durch die Netzwerksperre angehalten.",
         "active": "Solange diese Einstellung aktiv ist, werden keine Daten an Wealthbox gesendet oder von dort heruntergeladen. Deaktivieren Sie sie in den Datenschutzeinstellungen, um eine Verbindung herzustellen oder zu synchronisieren.",
         "pending": "Der Datenschutz wird aktualisiert. Wealthbox bleibt angehalten, bis der Vorgang abgeschlossen ist.",
-        "update-failed": "Die Netzwerksperre ist weiterhin aktiv, weil die Datenschutzeinstellung nicht aktualisiert werden konnte. Es werden keine Daten an Wealthbox gesendet oder von dort heruntergeladen."
+        "update-failed": "Die Netzwerksperre ist weiterhin aktiv, weil die Datenschutzeinstellung nicht aktualisiert werden konnte. Es werden keine Daten an Wealthbox gesendet oder von dort heruntergeladen. Wählen Sie Erneut versuchen, um es noch einmal zu versuchen."
       },
       "sync-failed": "Die Wealthbox-Synchronisierung konnte nicht abgeschlossen werden. Versuchen Sie es erneut.",
       "sync-timeout": "Wealthbox hat nicht rechtzeitig geantwortet. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut."
+    },
+    "network-lockdown": {
+      "retry": "Datenschutzaktualisierung erneut versuchen"
     },
     "redtail": {
       "lockdown": {

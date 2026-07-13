@@ -3369,10 +3369,13 @@
         "title": "Wealthbox is paused by Network lockdown.",
         "active": "Nothing will be sent to or downloaded from Wealthbox while this is on. Turn it off in Privacy settings to connect or sync.",
         "pending": "Privacy protection is updating. Wealthbox stays paused until it finishes.",
-        "update-failed": "Network lockdown is still on because the privacy setting couldn't be updated. Nothing will be sent to or downloaded from Wealthbox."
+        "update-failed": "Network lockdown is still on because the privacy setting couldn't be updated. Nothing will be sent to or downloaded from Wealthbox. Select Retry to try again."
       },
       "sync-failed": "We couldn't finish syncing Wealthbox. Please try again.",
       "sync-timeout": "Wealthbox didn't respond in time. Check your connection and try again."
+    },
+    "network-lockdown": {
+      "retry": "Retry privacy update"
     },
     "redtail": {
       "lockdown": {
