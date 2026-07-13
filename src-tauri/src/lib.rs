@@ -195,6 +195,9 @@ pub fn run() {
             commands::mail::mail_disconnect,
             commands::mail::mail_sync_all,
             commands::mail::mail_cancel_sync,
+            // Email Dropbox — refresh the named mailbox folder and list its
+            // locally encrypted metadata using the provider folder id.
+            commands::mail::mail_check_dropbox_folder,
             // Advisor Prep Hero 3.0 email viewer — fetch + decrypt one stored message.
             commands::mail::mail_get_message,
             // Mail browse/search surface — metadata-only, never decrypts a blob.

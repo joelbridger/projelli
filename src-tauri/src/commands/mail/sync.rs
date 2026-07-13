@@ -490,6 +490,70 @@ where
     Ok(total)
 }
 
+/// Refresh one mailbox folder selected by its human-facing name.
+///
+/// Mail providers store messages under opaque folder ids (for example a
+/// Microsoft Graph id), while the Dropbox screen deliberately asks an advisor
+/// for the name they see in their mailbox. Resolving that name here keeps the
+/// provider boundary in one place: the selected folder is refreshed first and
+/// callers receive the stable id they must use for the local encrypted-store
+/// query afterwards.
+///
+/// A name must identify exactly one folder in an account. Quietly choosing one
+/// of two same-named folders could file mail from the wrong place, so ambiguity
+/// is an error the advisor can correct by selecting a provider/account.
+#[allow(clippy::too_many_arguments)]
+pub async fn sync_folder_named_provider<F, I, T>(
+    provider: &dyn MailProvider,
+    store: &(dyn MailStore + Sync),
+    workspace_root: &Path,
+    folder_name: &str,
+    account: &str,
+    matter_id: &str,
+    key: &[u8; 32],
+    emit: &F,
+    index_callback: &I,
+    tombstone_callback: &T,
+) -> anyhow::Result<RemoteFolder>
+where
+    F: Fn(u32, u32) + Send,
+    I: Fn(&str, &str, &str) + Send + Sync,
+    T: Fn(&str) + Send + Sync,
+{
+    let requested = folder_name.trim();
+    anyhow::ensure!(!requested.is_empty(), "mailbox folder name is required");
+
+    let matches: Vec<RemoteFolder> = provider
+        .list_folders()
+        .await?
+        .into_iter()
+        .filter(|folder| folder.display_name.trim().eq_ignore_ascii_case(requested))
+        .collect();
+
+    match matches.as_slice() {
+        [] => anyhow::bail!("no mailbox folder or label named \"{requested}\" was found"),
+        [folder] => {
+            sync_folder_provider(
+                provider,
+                store,
+                workspace_root,
+                folder,
+                account,
+                matter_id,
+                key,
+                emit,
+                index_callback,
+                tombstone_callback,
+            )
+            .await?;
+            Ok(folder.clone())
+        }
+        _ => anyhow::bail!(
+            "more than one mailbox folder or label is named \"{requested}\"; choose its provider or account"
+        ),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1351,6 +1415,99 @@ mod tests {
         async fn current_ids(&self, _folder: &RemoteFolder) -> anyhow::Result<Option<Vec<String>>> {
             Ok(self.current_ids_result.clone())
         }
+    }
+
+    /// A small mailbox-server double for the Dropbox boundary. It deliberately
+    /// exposes a visible folder name and a different opaque provider id — the
+    /// exact shape Microsoft Graph returns in production.
+    struct DropboxProvider {
+        folders: Vec<RemoteFolder>,
+        fetched_folder_ids: Mutex<Vec<String>>,
+        page: Mutex<Option<ChangePage>>,
+    }
+
+    #[async_trait::async_trait]
+    impl MailProvider for DropboxProvider {
+        fn kind(&self) -> &'static str {
+            "m365"
+        }
+        async fn list_folders(&self) -> anyhow::Result<Vec<RemoteFolder>> {
+            Ok(self.folders.clone())
+        }
+        async fn fetch_changes(
+            &self,
+            folder: &RemoteFolder,
+            _cursor: &Cursor,
+        ) -> anyhow::Result<ChangePage> {
+            self.fetched_folder_ids
+                .lock()
+                .unwrap()
+                .push(folder.id.clone());
+            self.page
+                .lock()
+                .unwrap()
+                .take()
+                .ok_or_else(|| anyhow::anyhow!("no page queued"))
+        }
+    }
+
+    /// Regression for the live Dropbox failure: the advisor typed a visible
+    /// name ("Lantern"), but the mail store uses the opaque provider id. The
+    /// named-folder seam must resolve that id AND perform a real refresh before
+    /// the caller queries local encrypted metadata.
+    #[tokio::test]
+    async fn dropbox_named_folder_refreshes_the_opaque_provider_folder_id() {
+        let store = FakeStore::default();
+        let provider = DropboxProvider {
+            folders: vec![RemoteFolder {
+                id: "AAMkAGVmMDEyLXRlc3QtZm9sZGVy".into(),
+                display_name: "Lantern".into(),
+            }],
+            fetched_folder_ids: Mutex::new(Vec::new()),
+            page: Mutex::new(Some(ChangePage {
+                messages: vec![MailMessage::from_graph(&serde_json::json!({
+                    "id": "real-email-waiting",
+                    "subject": "Chen — statement question",
+                    "receivedDateTime": "2026-07-13T20:00:00Z",
+                    "body": { "contentType": "text", "content": "Please call me." }
+                }))
+                .unwrap()],
+                removed_ids: vec![],
+                next: Some("opaque-delta-token".into()),
+                done: true,
+            })),
+        };
+        let dir = tempfile::TempDir::new().unwrap();
+        let key = [0x61; 32];
+
+        let resolved = sync_folder_named_provider(
+            &provider,
+            &store,
+            dir.path(),
+            "Lantern",
+            "default",
+            crate::commands::rag::store::UNASSIGNED_MATTER,
+            &key,
+            &|_written, _removed| {},
+            &|_id, _text, _matter| {},
+            &|_id| {},
+        )
+        .await
+        .expect("visible folder name should refresh its provider folder");
+
+        assert_eq!(resolved.id, "AAMkAGVmMDEyLXRlc3QtZm9sZGVy");
+        assert_eq!(
+            provider.fetched_folder_ids.lock().unwrap().as_slice(),
+            &[resolved.id.clone()]
+        );
+        let record = store
+            .get_record("real-email-waiting")
+            .unwrap()
+            .expect("refreshed email must be stored");
+        assert_eq!(
+            record.folder_id, resolved.id,
+            "the local query key is the provider id, not the visible name"
+        );
     }
 
     fn seed_record(store: &FakeStore, id: &str, provider: &str, account: &str, folder_id: &str) {
