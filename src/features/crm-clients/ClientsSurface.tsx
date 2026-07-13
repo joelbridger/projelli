@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
-import { useMatterStore } from '@/platform/matter/matterStore';
+import { useActiveMatters, useMatterStore } from '@/platform/matter/matterStore';
 import { readSelectedCrmHousehold, writeSelectedCrmHousehold } from '@/platform/crm/clientSelection';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
+import type { Matter } from '@/platform/types/matter';
 import { DirectorySurface } from './DirectorySurface';
 import { HouseholdRecordSurface } from './HouseholdRecordSurface';
 import type { TimelineRecord } from '@/features/crm-timeline';
@@ -56,6 +57,31 @@ function householdFromRecord(record: LiveCrmRecord, currentSyncState: SyncState,
 }
 
 /**
+ * CRM imports create the app's client before their slower search work starts.
+ * Keep that client navigable and readable while the richer encrypted CRM record
+ * is still arriving instead of making navigation wait on search indexing.
+ */
+function householdFromMatter(matter: Matter, currentSyncState: SyncState): HouseholdRecord {
+  return {
+    id: matter.id,
+    name: matter.client.trim() || matter.name,
+    lifecycle: 'Active',
+    primaryAdvisor: 'Unassigned',
+    ownership: 'mine',
+    serviceTier: 'Standard',
+    syncState: currentSyncState,
+    facts: [],
+    accounts: [],
+    members: [],
+    externalParties: [],
+    notes: [],
+    customFields: [],
+    tags: [],
+    contextRefs: [],
+  };
+}
+
+/**
  * The Clients tab is a thin render adapter over encrypted CRM collection
  * documents. There is no browser fallback: every edit below writes the same
  * SQLCipher-backed household record and is reloaded after a desktop restart.
@@ -70,6 +96,9 @@ export function ClientsSurface({
   actions?: CrmClientsActions;
 }) {
   const live = useLiveCrmRecords();
+  const matters = useActiveMatters();
+  const clientMapHubId = useMatterStore((state) => state.clientMapHubId);
+  const priorClientMapHubId = useRef(clientMapHubId);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selectionWorkspace = live.workspaceRoot ?? null;
 
@@ -84,22 +113,20 @@ export function ClientsSurface({
     setSelectedId(readSelectedCrmHousehold(selectionWorkspace));
   }, [selectionWorkspace]);
 
-  const selectHousehold = useCallback((id: string | null) => {
-    setSelectedId(id);
-    // Ask's confidentiality boundary is the active client in the matter store.
-    // Never leave a previously viewed client's id active after the CRM screen
-    // changes households. Use the CRM record's mapped matter only when that
-    // matter exists locally; otherwise clear the scope instead of risking a
-    // right-answer/wrong-client citation.
-    const mappedMatterId = id
-      ? live.records.find((record) => record.id === id)?.matterId
-      : undefined;
-    const safeMatterId = mappedMatterId && useMatterStore.getState().matters.some(
-      (matter) => matter.id === mappedMatterId,
-    ) ? mappedMatterId : null;
-    useMatterStore.getState().setActiveMatter(safeMatterId);
-    if (selectionWorkspace) writeSelectedCrmHousehold(selectionWorkspace, id);
-  }, [live.records, selectionWorkspace]);
+  // A client click in the shared sidebar sets this hub id. The combined CRM
+  // screen used to ignore it, leaving a highlighted row beside an unchanged
+  // directory. Follow it regardless of any background search update.
+  useEffect(() => {
+    const prior = priorClientMapHubId.current;
+    priorClientMapHubId.current = clientMapHubId;
+    if (clientMapHubId) {
+      setSelectedId(clientMapHubId);
+    } else if (prior) {
+      setSelectedId(null);
+      if (selectionWorkspace) writeSelectedCrmHousehold(selectionWorkspace, null);
+    }
+  }, [clientMapHubId, selectionWorkspace]);
+
   const lastSyncedAt = live.freshness.kind === 'last-synced' || live.freshness.kind === 'syncing'
     ? live.freshness.lastSyncedAt
     : undefined;
@@ -109,9 +136,46 @@ export function ClientsSurface({
       .map((record) => householdFromRecord(record, syncState(live.freshness.kind), lastSyncedAt)),
     [lastSyncedAt, live.freshness.kind, live.records],
   );
-  const effectiveRecords = records.length ? records : storedHouseholds;
+
+  const mergedHouseholds = useMemo(() => {
+    const merged = [...storedHouseholds];
+    const representedMatterIds = new Set(
+      live.records
+        .filter((record) => record.kind === 'household' && record.matterId)
+        .map((record) => record.matterId as string),
+    );
+    for (const matter of matters) {
+      if (!representedMatterIds.has(matter.id)) {
+        merged.push(householdFromMatter(matter, syncState(live.freshness.kind)));
+      }
+    }
+    return merged;
+  }, [live.freshness.kind, live.records, matters, storedHouseholds]);
+
+  const effectiveRecords = records.length ? records : mergedHouseholds;
+  const recordMatterId = useCallback((record: HouseholdRecord): string => {
+    const mapped = live.records.find((candidate) => candidate.id === record.id)?.matterId;
+    return mapped && matters.some((matter) => matter.id === mapped) ? mapped : record.id;
+  }, [live.records, matters]);
+  const findRecord = useCallback((id: string): HouseholdRecord | undefined =>
+    effectiveRecords.find((record) => record.id === id || recordMatterId(record) === id),
+  [effectiveRecords, recordMatterId]);
+
+  const selectHousehold = useCallback((id: string | null) => {
+    const selectedRecord = id ? findRecord(id) : undefined;
+    const selection = selectedRecord ? recordMatterId(selectedRecord) : id;
+    setSelectedId(selection);
+    // Ask's confidentiality boundary is the active client in the matter store.
+    // Keep it scoped only when the selected CRM record maps to a real client.
+    const safeMatterId = selection && useMatterStore.getState().matters.some(
+      (matter) => matter.id === selection,
+    ) ? selection : null;
+    useMatterStore.getState().setActiveMatter(safeMatterId);
+    if (selectionWorkspace) writeSelectedCrmHousehold(selectionWorkspace, selection);
+  }, [findRecord, recordMatterId, selectionWorkspace]);
+
   const effectiveHouseholds = households.length ? households : effectiveRecords.map((household) => ({
-    id: household.id,
+    id: recordMatterId(household),
     name: household.name,
     lifecycle: household.lifecycle,
     primaryAdvisor: household.primaryAdvisor,
@@ -132,7 +196,7 @@ export function ClientsSurface({
     return [...seen.values()];
   }, [storedHouseholds]);
   const effectivePeople = people.length ? people : livePeople;
-  const selected = effectiveRecords.find((record) => record.id === selectedId);
+  const selected = selectedId ? findRecord(selectedId) : undefined;
 
   const saveHousehold = async (household: HouseholdRecord) => {
     const previous = live.records.find((record) => record.id === household.id);
@@ -141,7 +205,7 @@ export function ClientsSurface({
       ...household,
       id: household.id,
       kind: 'household',
-      matterId: previous?.matterId ?? live.sharedMatterId ?? household.id,
+      matterId: previous?.matterId ?? live.sharedMatterId ?? recordMatterId(household),
     };
     delete (persisted as Partial<StoredHousehold>)['syncState'];
     delete (persisted as Partial<StoredHousehold>)['lastSyncedAt'];

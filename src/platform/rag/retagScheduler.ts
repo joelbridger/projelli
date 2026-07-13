@@ -174,7 +174,7 @@ export function createRetagScheduler(): RetagScheduler {
         // (current) op ran AFTER any superseded one, so the on-disk tag it just
         // wrote is the newest — safe to clear the hold.
         if (superseded(task.id, generation)) return;
-        store().remove(task.id);
+        store().complete(task.id);
         owned.delete(task.id);
         generations.delete(task.id);
         clearTimersFor(task.id);

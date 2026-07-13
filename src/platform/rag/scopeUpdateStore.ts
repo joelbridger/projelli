@@ -9,7 +9,7 @@
  * or content stuck under the wrong client.
  *
  * This store makes those updates:
- *   1. VISIBLE — an advisor sees 'search scope update failed - retrying' instead
+ *   1. VISIBLE — an advisor sees named progress or a plain-language warning instead
  *      of a false 'active' (see `ScopeUpdateBanner`), and
  *   2. FAIL CLOSED for matter re-tags — while a folder's re-tag is pending or
  *      failed, its files are excluded from retrieval (`getExcludedMatterFolders`
@@ -69,8 +69,41 @@ export interface ScopeUpdateEntry {
   excludeAllFiles?: boolean;
 }
 
+export interface ScopeUpdateProgress {
+  total: number;
+  completed: number;
+  kinds: ScopeUpdateKind[];
+}
+
+export interface ScopeUpdateCompletion {
+  total: number;
+  kinds: ScopeUpdateKind[];
+}
+
+function dropPendingProgress(
+  progress: ScopeUpdateProgress | null,
+  droppedKinds: ScopeUpdateKind[],
+  remaining: number,
+): ScopeUpdateProgress | null {
+  if (!progress || remaining === 0) return null;
+  const kinds = [...progress.kinds];
+  for (const kind of droppedKinds) {
+    const index = kinds.indexOf(kind);
+    if (index >= 0) kinds.splice(index, 1);
+  }
+  return {
+    total: Math.max(progress.completed + remaining, progress.total - droppedKinds.length),
+    completed: progress.completed,
+    kinds,
+  };
+}
+
 interface ScopeUpdateState {
   entries: Record<string, ScopeUpdateEntry>;
+  /** Counts one visible run from first task through its last success. */
+  progress: ScopeUpdateProgress | null;
+  /** Short-lived end signal. The banner dismisses this after four seconds. */
+  completion: ScopeUpdateCompletion | null;
   /** Register (or re-register) an update as in flight (status 'retrying'). */
   begin: (entry: {
     id: string;
@@ -84,16 +117,22 @@ interface ScopeUpdateState {
   /** Mark an update as failed (retries exhausted). Keeps its excludeFolders so
    *  the fail-closed exclusion persists until it eventually succeeds. */
   markFailed: (id: string) => void;
-  /** Remove an update (on success, or when its workspace is torn down). */
+  /** Finish one update successfully and advance the visible run counter. */
+  complete: (id: string) => void;
+  /** Remove a cancelled/cleaned-up update without reporting it as completed. */
   remove: (id: string) => void;
   /** Remove several updates at once (workspace switch cleanup). */
   removeMany: (ids: string[]) => void;
   /** Drop every update (test / full reset helper). */
   clearAll: () => void;
+  /** Clear the short-lived successful end signal. */
+  dismissCompletion: () => void;
 }
 
 export const useScopeUpdateStore = create<ScopeUpdateState>((set) => ({
   entries: {},
+  progress: null,
+  completion: null,
 
   begin: ({
     id,
@@ -104,21 +143,37 @@ export const useScopeUpdateStore = create<ScopeUpdateState>((set) => ({
     excludeAllMail = false,
     excludeAllFiles = false,
   }) => {
-    set((state) => ({
-      entries: {
-        ...state.entries,
-        [id]: {
-          id,
-          kind,
-          label,
-          status: 'retrying',
-          excludeFolders,
-          excludeMailMatters,
-          excludeAllMail,
-          excludeAllFiles,
+    set((state) => {
+      const isNew = !(id in state.entries);
+      const progress = state.progress ?? {
+        total: Object.keys(state.entries).length,
+        completed: 0,
+        kinds: Object.values(state.entries).map((entry) => entry.kind),
+      };
+      return {
+        entries: {
+          ...state.entries,
+          [id]: {
+            id,
+            kind,
+            label,
+            status: 'retrying',
+            excludeFolders,
+            excludeMailMatters,
+            excludeAllMail,
+            excludeAllFiles,
+          },
         },
-      },
-    }));
+        progress: isNew
+          ? {
+              total: progress.total + 1,
+              completed: progress.completed,
+              kinds: [...progress.kinds, kind],
+            }
+          : progress,
+        completion: null,
+      };
+    });
   },
 
   markFailed: (id) => {
@@ -129,12 +184,42 @@ export const useScopeUpdateStore = create<ScopeUpdateState>((set) => ({
     });
   },
 
-  remove: (id) => {
+  complete: (id) => {
     set((state) => {
       if (!(id in state.entries)) return {};
+      const entries = Object.fromEntries(
+        Object.entries(state.entries).filter(([key]) => key !== id),
+      );
+      const progress = state.progress ?? {
+        total: Object.keys(state.entries).length,
+        completed: 0,
+        kinds: Object.values(state.entries).map((entry) => entry.kind),
+      };
+      const completed = Math.min(progress.total, progress.completed + 1);
+      if (Object.keys(entries).length === 0) {
+        return {
+          entries,
+          progress: null,
+          completion: { total: progress.total, kinds: progress.kinds },
+        };
+      }
+      return { entries, progress: { ...progress, completed } };
+    });
+  },
+
+  remove: (id) => {
+    set((state) => {
+      const dropped = state.entries[id];
+      if (!dropped) return {};
+      const entries = Object.fromEntries(
+        Object.entries(state.entries).filter(([key]) => key !== id),
+      );
       return {
-        entries: Object.fromEntries(
-          Object.entries(state.entries).filter(([key]) => key !== id),
+        entries,
+        progress: dropPendingProgress(
+          state.progress,
+          [dropped.kind],
+          Object.keys(entries).length,
         ),
       };
     });
@@ -145,12 +230,22 @@ export const useScopeUpdateStore = create<ScopeUpdateState>((set) => ({
       const drop = new Set(ids);
       const kept = Object.entries(state.entries).filter(([key]) => !drop.has(key));
       if (kept.length === Object.keys(state.entries).length) return {};
-      return { entries: Object.fromEntries(kept) };
+      const droppedKinds = Object.entries(state.entries)
+        .filter(([key]) => drop.has(key))
+        .map(([, entry]) => entry.kind);
+      return {
+        entries: Object.fromEntries(kept),
+        progress: dropPendingProgress(state.progress, droppedKinds, kept.length),
+      };
     });
   },
 
   clearAll: () => {
-    set({ entries: {} });
+    set({ entries: {}, progress: null, completion: null });
+  },
+
+  dismissCompletion: () => {
+    set({ completion: null });
   },
 }));
 
@@ -214,4 +309,12 @@ export function isAllFilesHeld(): boolean {
 export function useScopeUpdateEntries(): ScopeUpdateEntry[] {
   const entries = useScopeUpdateStore((s) => s.entries);
   return useMemo(() => Object.values(entries), [entries]);
+}
+
+export function useScopeUpdateProgress(): ScopeUpdateProgress | null {
+  return useScopeUpdateStore((state) => state.progress);
+}
+
+export function useScopeUpdateCompletion(): ScopeUpdateCompletion | null {
+  return useScopeUpdateStore((state) => state.completion);
 }

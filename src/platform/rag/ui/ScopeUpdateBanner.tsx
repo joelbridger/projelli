@@ -10,19 +10,34 @@
  * (see `MemoryService.retrieve` + `scopeUpdateStore`).
  *
  * Visibility:
- *   - any entry 'failed'  → warning tone, "search scope update failed - retrying"
- *   - else (all retrying) → muted tone, "updating search scope..."
- *   - no entries          → renders nothing
+ *   - work in progress → named task, completed/total count, and progress bar
+ *   - any entry failed → warning that only search is paused; clients stay usable
+ *   - all work done → short-lived ready message, then the banner clears
+ *   - no work or completion → renders nothing
  *
  * Light-theme friendly (amber warning on a light wash), matching the house
  * light-first UI. No em dashes (house copy rule).
  */
 
 import { useEffect, useState } from 'react';
-import { useScopeUpdateEntries } from '@/platform/rag/scopeUpdateStore';
+import {
+  useScopeUpdateCompletion,
+  useScopeUpdateEntries,
+  useScopeUpdateProgress,
+  useScopeUpdateStore,
+  type ScopeUpdateKind,
+} from '@/platform/rag/scopeUpdateStore';
 import { ragScopeWriteQueueDepth } from '@/platform/utils/tauri-commands';
 
-function PendingScopeUpdateMessage() {
+function PendingScopeUpdateMessage({
+  completed,
+  total,
+  kinds,
+}: {
+  completed: number;
+  total: number;
+  kinds: ScopeUpdateKind[];
+}) {
   const [queued, setQueued] = useState(false);
 
   useEffect(() => {
@@ -46,43 +61,112 @@ function PendingScopeUpdateMessage() {
     };
   }, []);
 
-  return queued
-    ? 'Queued behind another search update. This will start as soon as the current update finishes.'
-    : 'Updating search scope. New privacy and client rules apply once this finishes.';
+  const uniqueKinds = new Set(kinds);
+  const name = uniqueKinds.size === 1 && uniqueKinds.has('matter')
+    ? 'Getting your client files ready for search'
+    : uniqueKinds.size === 1 && uniqueKinds.has('mail')
+      ? 'Getting client email ready for search'
+      : uniqueKinds.size === 1 && uniqueKinds.has('privilege')
+        ? 'Applying your updated search privacy rules'
+        : 'Getting client search ready';
+  const unit = uniqueKinds.size === 1 && uniqueKinds.has('matter')
+    ? 'folders'
+    : uniqueKinds.size === 1 && uniqueKinds.has('mail')
+      ? 'mailboxes'
+      : uniqueKinds.size === 1 && uniqueKinds.has('privilege')
+        ? 'privacy rules'
+        : 'updates';
+  const left = Math.max(0, total - completed);
+
+  return (
+    <>
+      {name}. {completed} of {total} {unit} ready, {left} left.
+      {queued ? ' Queued behind another search update.' : ''}
+    </>
+  );
 }
 
 export function ScopeUpdateBanner() {
   const entries = useScopeUpdateEntries();
+  const progress = useScopeUpdateProgress();
+  const completion = useScopeUpdateCompletion();
+
+  useEffect(() => {
+    if (!completion) return;
+    const timer = window.setTimeout(() => {
+      useScopeUpdateStore.getState().dismissCompletion();
+    }, 4000);
+    return () => { window.clearTimeout(timer); };
+  }, [completion]);
+
+  if (entries.length === 0 && completion) {
+    const clientsReady = completion.kinds.length > 0 && completion.kinds.every(
+      (kind) => kind === 'matter',
+    );
+    return (
+      <div
+        data-testid="scope-update-banner"
+        role="status"
+        aria-live="polite"
+        className="flex items-center gap-3 px-4 py-2 border-b bg-muted/30 text-xs text-muted-foreground"
+      >
+        <span data-testid="scope-update-complete">
+          {clientsReady ? 'Your client files are ready for search.' : 'Client search is ready.'}
+        </span>
+        <button
+          type="button"
+          className="ml-auto text-xs underline"
+          onClick={() => { useScopeUpdateStore.getState().dismissCompletion(); }}
+        >
+          Dismiss
+        </button>
+      </div>
+    );
+  }
 
   if (entries.length === 0) return null;
 
   const anyFailed = entries.some((e) => e.status === 'failed');
+  const total = progress?.total ?? entries.length;
+  const completed = progress?.completed ?? 0;
+  const pct = total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : 0;
+  const kinds = progress?.kinds ?? entries.map((entry) => entry.kind);
 
   return (
     <div
       data-testid="scope-update-banner"
       role="status"
       aria-live="polite"
-      className={
-        'flex items-center gap-3 px-4 py-2 border-b text-xs ' +
-        (anyFailed
-          ? 'bg-amber-50 text-amber-900 border-amber-200'
-          : 'bg-muted/40 text-foreground')
-      }
+      className="flex items-center gap-3 px-4 py-2 border-b bg-muted/40 text-foreground text-xs"
+      style={anyFailed ? {
+        background: 'var(--kp-warning-bg)',
+        color: 'var(--kp-warning)',
+        borderColor: 'var(--kp-warning-line)',
+      } : undefined}
     >
-      {!anyFailed && (
-        <span
-          aria-hidden="true"
-          className="h-3 w-3 shrink-0 rounded-full border-2 border-current border-t-transparent animate-spin"
-        />
-      )}
-      <span className="min-w-0 truncate font-medium" data-testid="scope-update-message">
+      <span className="min-w-0 flex-1 font-medium" data-testid="scope-update-message">
         {anyFailed ? (
-          'Search scope update failed - retrying. Some content is held out of search until it applies.'
+          'Client search update needs attention. You can still open and read every client. Some search results are paused until Lantern retries this update.'
         ) : (
-          <PendingScopeUpdateMessage />
+          <PendingScopeUpdateMessage completed={completed} total={total} kinds={kinds} />
         )}
       </span>
+      {!anyFailed && (
+        <div
+          data-testid="scope-update-progress"
+          role="progressbar"
+          aria-label="Client search preparation"
+          aria-valuemin={0}
+          aria-valuemax={total}
+          aria-valuenow={completed}
+          className="w-32 h-1.5 bg-background rounded-full overflow-hidden border"
+        >
+          <div
+            className="h-full bg-primary transition-all"
+            style={{ width: `${String(pct)}%` }}
+          />
+        </div>
+      )}
     </div>
   );
 }
