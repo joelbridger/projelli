@@ -7,6 +7,7 @@ import { useMatterStore } from '@/platform/matter/matterStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { resolveMatterId } from '@/platform/rag/matterResolver';
 import { UNASSIGNED_MATTER_ID } from '@/platform/types/matter';
+import { scopeFileTreeToFolders } from '@/features/documents/scopeFileTree';
 
 function resetStores() {
   useMatterStore.setState({
@@ -92,6 +93,72 @@ describe('attachCrmHouseholdFolderIfUnmapped', () => {
     ]);
     expect(resolveMatterId(docPath, useMatterStore.getState().matters)).toBe(
       created.id,
+    );
+  });
+
+  it('shows files in Documents after CRM backfills a relative client folder', () => {
+    const rootPath = 'C:/LanternWorkspaces/Northcrest Wealth Partners';
+    useWorkspaceStore.setState({
+      rootPath,
+      fileTree: [
+        {
+          id: 'clients',
+          name: 'Clients',
+          path: 'Clients',
+          type: 'folder',
+          children: [
+            {
+              id: 'webb',
+              name: 'Webb, Marcus & Tanya',
+              path: 'Clients/Webb, Marcus & Tanya',
+              type: 'folder',
+              children: [
+                {
+                  id: 'webb-plan',
+                  name: '529 plan.docx',
+                  path: 'Clients/Webb, Marcus & Tanya/529 plan.docx',
+                  type: 'file',
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    const created = useMatterStore.getState().createMatter({
+      name: 'Webb, Marcus & Tanya',
+      client: 'Webb, Marcus & Tanya',
+      crmHouseholdKeys: ['wb-webb'],
+      createdFromCrm: true,
+    });
+
+    expect(
+      attachCrmHouseholdFolderIfUnmapped(
+        created.id,
+        { id: 'wb-webb', name: 'Webb, Marcus & Tanya' },
+        new Set(),
+      ),
+    ).toBe('Clients/Webb, Marcus & Tanya');
+
+    const state = useMatterStore.getState();
+    const linkedMatter = state.matters.find((matter) => matter.id === created.id);
+    expect(linkedMatter).toBeDefined();
+
+    const scopedTree = scopeFileTreeToFolders(
+      useWorkspaceStore.getState().fileTree,
+      linkedMatter!.folderPaths,
+      state.matters,
+      linkedMatter!.id,
+      rootPath,
+    );
+    const clientsFolder = scopedTree.find((node) => node.path === 'Clients');
+    const clientFolder = clientsFolder?.children?.find(
+      (node) => node.path === 'Clients/Webb, Marcus & Tanya',
+    );
+
+    expect(clientFolder?.children?.map((node) => node.path)).toContain(
+      'Clients/Webb, Marcus & Tanya/529 plan.docx',
     );
   });
 
