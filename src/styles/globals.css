@@ -216,6 +216,13 @@
     font-family: var(--font-sans);
     font-feature-settings: "rlig" 1, "calt" 1;
   }
+  /* Tailwind Preflight intentionally removes the browser's default cell
+     padding. Restore the shared table baseline so semantic tables remain
+     readable even when a surface does not add its own spacing utilities. */
+  table th,
+  table td {
+    padding: var(--kp-space-xs) var(--kp-space-sm);
+  }
   /* Focus-visible ring for custom inline-styled buttons that suppress the
      browser default outline (border:0 / background:transparent patterns used
      throughout the reimagined shell). Scoped to keyboard navigation only. */
