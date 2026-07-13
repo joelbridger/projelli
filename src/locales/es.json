@@ -4364,6 +4364,16 @@
     }
   },
   "crm": {
+    "household": {
+      "activity": {
+        "title": "Actividad",
+        "title__sourceHash": "38da1505ca8373288489495101b14f24ac95078f520ad64df18272aa6054f750",
+        "empty-title": "Aún no hay historial",
+        "empty-title__sourceHash": "94fe92a1ed510a17a84b126887e581c3d21ca724d82d61db7b1c2da1d4981e78",
+        "empty-description": "La actividad de este hogar aparecerá aquí.",
+        "empty-description__sourceHash": "9dc7eb54c01b32969e148f51e8c67568a59e809692bf613f506ebb429d314451"
+      }
+    },
     "home": {
       "nav": {
         "activity": "Actividad"

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import '@/i18n';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import i18n from '@/i18n';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import {
   DirectorySurface,
   HouseholdRecordSurface,
@@ -89,8 +89,9 @@ const pendingProposal: CrmProposal = {
   sources: [{ id: 's-1', label: 'Tax return' }],
 };
 
-afterEach(() => {
+afterEach(async () => {
   cleanup();
+  await i18n.changeLanguage('en');
   useAcatsReviewStore.getState().resetAcatsReview();
   useExternalWriteQueueStore.setState({ items: [] });
 });
@@ -333,6 +334,32 @@ describe('crm clients surfaces', () => {
       source: 'crm_household',
     });
   });
+
+  it.each(['en', 'es', 'de'] as const)(
+    'BUG-22 shows a translated Activity empty state without engineering scaffolding in %s',
+    async (locale) => {
+      await i18n.changeLanguage(locale);
+      render(<HouseholdRecordSurface household={household} />);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Activity' }));
+
+      const activity = screen.getByTestId('crm-household-activity');
+      expect(
+        within(activity).getByRole('heading', {
+          name: i18n.t('crm.household.activity.title'),
+        }),
+      ).toBeInTheDocument();
+      expect(activity).toHaveTextContent(
+        i18n.t('crm.household.activity.empty-title'),
+      );
+      expect(activity).toHaveTextContent(
+        i18n.t('crm.household.activity.empty-description'),
+      );
+      expect(activity).not.toHaveTextContent(
+        'This preserves the existing activity layout and source content.',
+      );
+    },
+  );
 
   it('keeps household and workflow context when adding a task', () => {
     const onAdd = vi.fn();
