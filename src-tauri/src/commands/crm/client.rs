@@ -31,6 +31,23 @@ use async_trait::async_trait;
 use crate::commands::crm::model::{CrmContact, CrmEvent, CrmNote, CrmTask, DEFAULT_PER_PAGE};
 use crate::commands::crm::importer::fetchers::{RawHttpResponse, RawWealthboxTransport};
 
+/// Decode one Wealthbox contact while preserving the failing field path.
+///
+/// Raw contact JSON can contain client PII, so it must never be included in an
+/// error or log. `serde_path_to_error` reports only a structural path (for
+/// example `household.members[0].first_name`) plus the expected JSON type.
+fn deserialize_crm_contact(value: serde_json::Value) -> anyhow::Result<CrmContact> {
+    let encoded = serde_json::to_string(&value).context("encode CrmContact response")?;
+    let mut deserializer = serde_json::Deserializer::from_str(&encoded);
+    serde_path_to_error::deserialize(&mut deserializer).map_err(|error| {
+        anyhow::anyhow!(
+            "deserialize CrmContact at {}: {}",
+            error.path(),
+            error.inner()
+        )
+    })
+}
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -426,10 +443,7 @@ impl WealthboxClient {
             query.push(("type", ct.to_string()));
         }
         let items = self.list_all("/contacts", "contacts", &query).await?;
-        items
-            .into_iter()
-            .map(|v| serde_json::from_value(v).context("deserialize CrmContact"))
-            .collect()
+        items.into_iter().map(deserialize_crm_contact).collect()
     }
 
     /// List all household contacts (`type=household`).
@@ -753,6 +767,48 @@ mod tests {
             wb_array_from(&body, "users").is_empty(),
             "absent key → empty"
         );
+    }
+
+    #[tokio::test]
+    async fn contact_page_keeps_real_households_when_one_contact_is_unassigned() {
+        use wiremock::{matchers, Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(matchers::method("GET"))
+            .and(matchers::path("/contacts"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "contacts": [
+                    {
+                        "id": 20001,
+                        "type": "household",
+                        "name": "Avery Household"
+                    },
+                    {
+                        "id": 20002,
+                        "type": "person",
+                        "first_name": "Unassigned",
+                        "household": {
+                            "id": null,
+                            "external_id": null,
+                            "name": null,
+                            "title": null,
+                            "members": null
+                        }
+                    }
+                ]
+            })))
+            .mount(&server)
+            .await;
+
+        let client = WealthboxClient::new_with_base("test-token".into(), server.uri());
+        let contacts = client
+            .list_contacts(None, None)
+            .await
+            .expect("one unassigned contact must not discard the complete contact page");
+
+        assert_eq!(contacts.len(), 2, "no contact should disappear silently");
+        assert_eq!(contacts[0].household_key().as_deref(), Some("20001"));
+        assert_eq!(contacts[1].household_key(), None);
     }
 
     #[tokio::test]

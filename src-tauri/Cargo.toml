@@ -61,6 +61,9 @@ keepawake = "0.6"
 hound = "3.5"
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
+# Keep CRM decode failures useful without ever logging a client's raw JSON.
+# The error names only the incompatible field path and expected value type.
+serde_path_to_error = "0.1"
 # voice.rs / sidecars/parakeet.rs need a real temp file at runtime (the real
 # whisper.cpp engine has no stdin mode — see parakeet.rs's doc comment), not
 # just in tests, so this is a real (not dev-)dependency. Already transitively

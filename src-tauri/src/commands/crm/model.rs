@@ -66,6 +66,31 @@ where
     Ok(<Option<T> as serde::Deserialize<'de>>::deserialize(d)?.unwrap_or_default())
 }
 
+/// Wealthbox represents an unassigned contact as a non-null `household`
+/// object whose `id` is null. Treat that provider shape as no household.
+/// Keeping it as a fake id `0` would silently file unrelated contacts together.
+fn null_id_household_to_none<'de, D>(d: D) -> Result<Option<CrmHouseholdRef>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = <Option<serde_json::Value> as serde::Deserialize<'de>>::deserialize(d)?;
+    let Some(value) = value else {
+        return Ok(None);
+    };
+
+    let has_real_id = value
+        .get("id")
+        .and_then(serde_json::Value::as_i64)
+        .is_some_and(|id| id > 0);
+    if !has_real_id {
+        return Ok(None);
+    }
+
+    serde_json::from_value(value)
+        .map(Some)
+        .map_err(serde::de::Error::custom)
+}
+
 // ---------------------------------------------------------------------------
 // Household reference (embedded inside a person contact)
 // ---------------------------------------------------------------------------
@@ -74,17 +99,21 @@ where
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default, PartialEq)]
 #[serde(default)]
 pub struct CrmHouseholdMember {
+    #[serde(default, deserialize_with = "null_to_default")]
     pub id: i64,
     #[serde(default, deserialize_with = "null_to_default")]
     pub external_id: String,
     #[serde(skip)]
     pub source_provider: CrmRecordProvider,
+    #[serde(default, deserialize_with = "null_to_default")]
     pub first_name: String,
+    #[serde(default, deserialize_with = "null_to_default")]
     pub last_name: String,
     /// Household title role: Head, Spouse, Partner, Child, Grandchild, etc.
+    #[serde(default, deserialize_with = "null_to_default")]
     pub title: String,
     /// Contact type for this member (person / organization / trust).
-    #[serde(rename = "type")]
+    #[serde(rename = "type", default, deserialize_with = "null_to_default")]
     pub r#type: String,
 }
 
@@ -98,9 +127,12 @@ pub struct CrmHouseholdRef {
     pub external_id: String,
     #[serde(skip)]
     pub source_provider: CrmRecordProvider,
+    #[serde(default, deserialize_with = "null_to_default")]
     pub name: String,
     /// This contact's role within the household (e.g. "Head", "Spouse").
+    #[serde(default, deserialize_with = "null_to_default")]
     pub title: String,
+    #[serde(default, deserialize_with = "null_to_default")]
     pub members: Vec<CrmHouseholdMember>,
 }
 
@@ -118,30 +150,42 @@ impl CrmHouseholdRef {
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default, PartialEq)]
 #[serde(default)]
 pub struct CrmStreetAddress {
+    #[serde(default, deserialize_with = "null_to_default")]
     pub address: String,
+    #[serde(default, deserialize_with = "null_to_default")]
     pub city: String,
+    #[serde(default, deserialize_with = "null_to_default")]
     pub state: String,
+    #[serde(default, deserialize_with = "null_to_default")]
     pub zip: String,
     /// Kind label (e.g. "Home", "Work").
+    #[serde(default, deserialize_with = "null_to_default")]
     pub kind: String,
+    #[serde(default, deserialize_with = "null_to_default")]
     pub principal: bool,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default, PartialEq)]
 #[serde(default)]
 pub struct CrmEmailAddress {
+    #[serde(default, deserialize_with = "null_to_default")]
     pub address: String,
     /// Kind label (e.g. "Personal", "Work").
+    #[serde(default, deserialize_with = "null_to_default")]
     pub kind: String,
+    #[serde(default, deserialize_with = "null_to_default")]
     pub principal: bool,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default, PartialEq)]
 #[serde(default)]
 pub struct CrmPhoneNumber {
+    #[serde(default, deserialize_with = "null_to_default")]
     pub address: String,
     /// Kind label (e.g. "Cell", "Office").
+    #[serde(default, deserialize_with = "null_to_default")]
     pub kind: String,
+    #[serde(default, deserialize_with = "null_to_default")]
     pub principal: bool,
 }
 
@@ -154,13 +198,15 @@ pub struct CrmPhoneNumber {
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default, PartialEq)]
 #[serde(default)]
 pub struct CrmLink {
+    #[serde(default, deserialize_with = "null_to_default")]
     pub id: i64,
     #[serde(default, deserialize_with = "null_to_default")]
     pub external_id: String,
     #[serde(skip)]
     pub source_provider: CrmRecordProvider,
-    #[serde(rename = "type")]
+    #[serde(rename = "type", default, deserialize_with = "null_to_default")]
     pub r#type: String,
+    #[serde(default, deserialize_with = "null_to_default")]
     pub name: String,
 }
 
@@ -175,7 +221,9 @@ impl CrmLink {
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default, PartialEq)]
 #[serde(default)]
 pub struct CrmTag {
+    #[serde(default, deserialize_with = "null_to_default")]
     pub id: i64,
+    #[serde(default, deserialize_with = "null_to_default")]
     pub name: String,
 }
 
@@ -295,6 +343,7 @@ pub struct CrmContact {
 
     // ── nested ───────────────────────────────────────────────────────────────
     /// Populated on person/trust/org contacts; `None` on household contacts.
+    #[serde(default, deserialize_with = "null_id_household_to_none")]
     pub household: Option<CrmHouseholdRef>,
     #[serde(default, deserialize_with = "null_to_default")]
     pub tags: Vec<CrmTag>,
@@ -838,5 +887,36 @@ mod tests {
 
         // household_id() for a household-type contact returns its own id.
         assert_eq!(c.household_id(), Some(20001));
+    }
+
+    /// The live Wealthbox account used by the packaged-build bench contains an
+    /// otherwise valid person contact whose nested `household` object has
+    /// `id: null`. Wealthbox uses that shape for "not assigned to a household".
+    /// One unassigned contact must not abort the full household import.
+    #[test]
+    fn contact_with_null_nested_household_id_parses_as_unassigned() {
+        let json = r#"{
+            "id": 20002,
+            "type": "person",
+            "first_name": "Avery",
+            "last_name": "Example",
+            "household": {
+                "id": null,
+                "external_id": null,
+                "name": null,
+                "title": null,
+                "members": null
+            }
+        }"#;
+
+        let contact: CrmContact = serde_json::from_str(json)
+            .expect("an unassigned contact must not abort the full Wealthbox contact page");
+
+        assert!(
+            contact.household.is_none(),
+            "a null household id means the contact is not assigned to a household"
+        );
+        assert_eq!(contact.household_id(), None);
+        assert_eq!(contact.household_key(), None);
     }
 }

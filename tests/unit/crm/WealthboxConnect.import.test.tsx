@@ -317,8 +317,9 @@ describe('WealthboxConnect — QA-74 regressions', () => {
     fireEvent.click(await screen.findByTestId('confirm-dialog-confirm'));
 
     expect(await screen.findByText(
-      "Your 40 households were imported, but we couldn't finish making them searchable in Ask. Try syncing again."
+      "Your 40 households were imported and appear in the Client Map, but they aren't searchable in Ask yet. Your other files are still searchable. Select Retry search setup."
     )).toBeInTheDocument();
+    expect(screen.getByTestId('wealthbox-sync-now')).toHaveTextContent('Retry search setup');
     expect(screen.queryByText(/deserialize CrmContact/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Sync ran into a problem/i)).not.toBeInTheDocument();
   });

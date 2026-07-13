@@ -3374,8 +3374,9 @@
     "wealthbox": {
       "connect-failed": "We couldn't connect to Wealthbox. Check your API key and try again.",
       "disconnect-failed": "We couldn't disconnect Wealthbox. Please try again.",
-      "indexing-incomplete_one": "Your household was imported, but we couldn't finish making it searchable in Ask. Try syncing again.",
-      "indexing-incomplete_other": "Your {{count}} households were imported, but we couldn't finish making them searchable in Ask. Try syncing again.",
+      "indexing-incomplete_one": "Your household was imported and appears in the Client Map, but it isn't searchable in Ask yet. Your other files are still searchable. Select Retry search setup.",
+      "indexing-incomplete_other": "Your {{count}} households were imported and appear in the Client Map, but they aren't searchable in Ask yet. Your other files are still searchable. Select Retry search setup.",
+      "retry-search-setup": "Retry search setup",
       "lockdown": {
         "title": "Wealthbox is paused by Network lockdown.",
         "active": "Nothing will be sent to or downloaded from Wealthbox while this is on. Turn it off in Privacy settings to connect or sync.",
