@@ -1,12 +1,15 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
-const { firmState } = vi.hoisted(() => ({
+const { firmState, docxExtraction } = vi.hoisted(() => ({
   firmState: {
     current: {
       org: null as { org_id: string } | null,
       role: null as 'admin' | 'member' | null,
     },
+  },
+  docxExtraction: {
+    current: { html: '<p>Summary body</p>', plainText: 'Summary body' },
   },
 }));
 
@@ -15,7 +18,7 @@ vi.mock('@/platform/hooks/useFirm', () => ({
 }));
 
 vi.mock('@/platform/utils/docx-io', () => ({
-  extractDocxText: vi.fn(async () => ({ html: '<p>Summary body</p>', plainText: 'Summary body' })),
+  extractDocxText: vi.fn(async () => docxExtraction.current),
   markdownToDocxBytes: vi.fn(async () => new Uint8Array([1, 2, 3])),
   applyLetterheadIfConfigured: vi.fn(async (bytes: Uint8Array) => bytes),
 }));
@@ -60,7 +63,7 @@ function makeWorkspace(opts: { notesExists?: boolean; existingExports?: string[]
   const ws = {
     readFile: vi.fn(async (path: string) => {
       const value = files.get(path);
-      if (value === undefined) throw new Error(`missing ${path}`);
+      if (value === undefined) throw new Error(`ENOENT: ${path}`);
       return value;
     }),
     readFileBinary: vi.fn(async (path: string) => {
@@ -94,6 +97,41 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     firmState.current = { org: null, role: null };
+    docxExtraction.current = { html: '<p>Summary body</p>', plainText: 'Summary body' };
+  });
+
+  it('shows Word-native action items in the Summary review checklist', async () => {
+    docxExtraction.current = {
+      html: [
+        '<h2>Action items</h2>',
+        '<ul>',
+        '<li>Start the rollover paperwork.</li>',
+        '<li>Confirm every beneficiary designation.</li>',
+        '</ul>',
+        '<h2>Facts worth keeping</h2>',
+        '<ul><li>The next review is in fall.</li></ul>',
+      ].join(''),
+      plainText: [
+        'Action items',
+        '',
+        'Start the rollover paperwork.',
+        '',
+        'Confirm every beneficiary designation.',
+        '',
+        'Facts worth keeping',
+        '',
+        'The next review is in fall.',
+      ].join('\n'),
+    };
+    const ws = makeWorkspace({ notesExists: true });
+    setMeetingsWorkspaceService(ws as never);
+
+    render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
+    fireEvent.click(screen.getByTestId('meeting-subtab-summary'));
+
+    expect(await screen.findByTestId('notes-review-panel')).toBeInTheDocument();
+    expect(screen.getAllByText('Start the rollover paperwork.')).toHaveLength(2);
+    expect(screen.queryByText('The next review is in fall.')).not.toBeInTheDocument();
   });
 
   it('mounts speaker naming and firm templates together in the transcript tab', async () => {

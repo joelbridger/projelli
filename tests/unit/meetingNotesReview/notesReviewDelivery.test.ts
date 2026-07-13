@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
+import mammoth from 'mammoth';
 import {
   makeNotesReviewRepository,
   proposalsFromMeetingSummary,
   type NotesReviewWorkspace,
 } from '@/platform/meetingNotesReview/notesReviewDelivery';
+import { markdownToDocxBytes } from '@/platform/utils/docx-io';
 
 function memoryWorkspace(
   initial: Record<string, string> = {}
@@ -13,7 +15,8 @@ function memoryWorkspace(
     files,
     readFile(path) {
       const value = files.get(path);
-      if (value === undefined) return Promise.reject(new Error(`ENOENT: ${path}`));
+      if (value === undefined)
+        return Promise.reject(new Error(`ENOENT: ${path}`));
       return Promise.resolve(value);
     },
     writeFile(path, content) {
@@ -45,6 +48,59 @@ describe('notes review delivery', () => {
     ).toMatchObject([
       { title: 'Start the rollover paperwork.', destination: 'task' },
       { title: 'Confirm every beneficiary designation.', destination: 'task' },
+    ]);
+  });
+
+  it('finds Word-native bullets produced by the meeting-notes DOCX pipeline', async () => {
+    const bytes = await markdownToDocxBytes(
+      [
+        '# Meeting summary',
+        '',
+        '## What changed',
+        '- The family increased monthly savings.',
+        '',
+        '## Action items',
+        '- Start the rollover paperwork.',
+        '- Confirm every beneficiary designation.',
+        '- Book the tax-planning call.',
+        '',
+        '## Facts worth keeping',
+        '- The next review is in fall.',
+      ].join('\n'),
+      'notes.docx'
+    );
+    // Vitest loads Mammoth's Node entry point, while the app loads its browser
+    // entry point. Both use the same DOCX conversion and raw-text extraction;
+    // only the input key differs (`buffer` here, `arrayBuffer` in the app).
+    const input = { buffer: Buffer.from(bytes) };
+    const [htmlResult, textResult] = await Promise.all([
+      mammoth.convertToHtml(input),
+      mammoth.extractRawText(input),
+    ]);
+    const extracted = {
+      html: htmlResult.value,
+      plainText: textResult.value,
+    };
+
+    expect(extracted.plainText).toContain(
+      'Action items\n\nStart the rollover paperwork.'
+    );
+    expect(extracted.plainText).not.toMatch(
+      /[-*•]\s+Start the rollover paperwork\./
+    );
+    expect(extracted.html).toMatch(
+      /<h2>Action items<\/h2>\s*<ul>\s*<li>Start the rollover paperwork\.<\/li>/
+    );
+    expect(
+      proposalsFromMeetingSummary(
+        extracted.plainText,
+        '/Clients/Webb/Meetings/2026-07-12-review',
+        extracted.html
+      )
+    ).toMatchObject([
+      { title: 'Start the rollover paperwork.', destination: 'task' },
+      { title: 'Confirm every beneficiary designation.', destination: 'task' },
+      { title: 'Book the tax-planning call.', destination: 'task' },
     ]);
   });
 

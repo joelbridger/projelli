@@ -23,6 +23,7 @@ export interface MeetingNotesReviewProps {
   meetingDir: string;
   matterId: string;
   summaryText: string;
+  summaryHtml?: string;
   workspaceService: NotesReviewWorkspace | null;
   /** Meeting review/notice checks fail closed for the one external destination. */
   crmBlockedReason?: string;
@@ -46,6 +47,7 @@ export function MeetingNotesReview({
   meetingDir,
   matterId,
   summaryText,
+  summaryHtml = '',
   workspaceService,
   crmBlockedReason,
   crmDelivery = productionCrmDelivery,
@@ -65,6 +67,7 @@ export function MeetingNotesReview({
             meetingDir,
             matterId,
             summaryText,
+            summaryHtml,
             crm: crmDelivery,
             householdKey,
           })
@@ -74,6 +77,7 @@ export function MeetingNotesReview({
       meetingDir,
       matterId,
       summaryText,
+      summaryHtml,
       crmDelivery,
       householdKey,
     ]
@@ -83,7 +87,7 @@ export function MeetingNotesReview({
 
   return (
     <LoadedMeetingNotesReview
-      key={`${meetingDir}\u0000${matterId}\u0000${summaryText}\u0000${householdKey ?? ''}`}
+      key={`${meetingDir}\u0000${matterId}\u0000${summaryText}\u0000${summaryHtml}\u0000${householdKey ?? ''}`}
       repository={repository}
       {...(crmBlockedReason ? { crmBlockedReason } : {})}
     />
