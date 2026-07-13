@@ -25,6 +25,11 @@ type BroadcastRecipient = {
   email: string;
 };
 
+type RecipientReviewCandidate = BroadcastRecipient & {
+  personId: string;
+  collection: 'members' | 'externalParties';
+};
+
 type SavedHouseholdView = LiveCrmRecord & {
   name?: string;
   query?: { entity?: unknown; filters?: unknown; sort?: unknown };
@@ -65,6 +70,26 @@ function verifiedEmail(person: Record<string, unknown>): string | null {
   return string(person['channel']);
 }
 
+function emailForReview(person: Record<string, unknown>): string | null {
+  const emails = Array.isArray(person['emails']) ? person['emails'] : [];
+  const primary = emails.find(
+    (entry) =>
+      entry &&
+      typeof entry === 'object' &&
+      ((entry as { primary?: unknown }).primary === true ||
+        (entry as { principal?: unknown }).principal === true)
+  );
+  const ordered = primary
+    ? [primary, ...emails.filter((entry) => entry !== primary)]
+    : emails;
+  for (const entry of ordered) {
+    if (!entry || typeof entry !== 'object') continue;
+    const address = string((entry as { address?: unknown }).address);
+    if (address) return address;
+  }
+  return null;
+}
+
 /** Only email addresses that have already passed the recipient check may enter a broadcast. */
 export function recipientsForHouseholds(
   households: readonly LiveCrmRecord[]
@@ -96,6 +121,81 @@ export function recipientsForHouseholds(
     }
   }
   return recipients;
+}
+
+/**
+ * People are only candidates until an advisor deliberately confirms the exact
+ * address. Keeping this separate from recipientsForHouseholds prevents a
+ * review screen from accidentally weakening the send guard.
+ */
+export function recipientReviewCandidatesForHouseholds(
+  households: readonly LiveCrmRecord[]
+): readonly RecipientReviewCandidate[] {
+  const candidates: RecipientReviewCandidate[] = [];
+  for (const household of households) {
+    const householdName = string(household['name']) ?? 'Unnamed household';
+    for (const collection of ['members', 'externalParties'] as const) {
+      const people = Array.isArray(household[collection])
+        ? household[collection]
+        : [];
+      for (const value of people) {
+        if (!value || typeof value !== 'object') continue;
+        const person = value as Record<string, unknown>;
+        if (verifiedEmail(person)) continue;
+        const email = emailForReview(person);
+        if (!email) continue;
+        const personId = string(person['id']) ?? email;
+        candidates.push({
+          id: `${household.id}:${personId}`,
+          personId,
+          householdId: household.id,
+          householdName,
+          personName: string(person['name']) ?? email,
+          email,
+          collection,
+        });
+      }
+    }
+  }
+  return candidates;
+}
+
+/** Writes the review result into the same household record the send gate reads. */
+export function verifyRecipientOnHousehold(
+  household: LiveCrmRecord,
+  candidate: RecipientReviewCandidate,
+  verifiedAt: string
+): LiveCrmRecord {
+  const people: readonly unknown[] = Array.isArray(
+    household[candidate.collection]
+  )
+    ? (household[candidate.collection] as readonly unknown[])
+    : [];
+  let found = false;
+  const updatedPeople = people.map((value) => {
+    if (!value || typeof value !== 'object') return value;
+    const person = value as Record<string, unknown>;
+    const id = string(person['id']) ?? emailForReview(person);
+    if (id !== candidate.personId) return value;
+    found = true;
+    return {
+      ...person,
+      verifiedRecipient: {
+        verified: true,
+        verifiedAt,
+        verifiedBy: 'advisor',
+        channel: 'email',
+        address: candidate.email,
+      },
+    };
+  });
+  if (!found)
+    throw new Error('This person is no longer in the selected client list.');
+  return {
+    ...household,
+    [candidate.collection]: updatedPeople,
+    updatedAt: verifiedAt,
+  };
 }
 
 function householdViews(
@@ -174,6 +274,9 @@ export function CrmBroadcastSurface() {
   const [saving, setSaving] = useState(false);
   const [drafting, setDrafting] = useState(false);
   const [sending, setSending] = useState(false);
+  const [reviewingRecipient, setReviewingRecipient] =
+    useState<RecipientReviewCandidate | null>(null);
+  const [verifyingRecipient, setVerifyingRecipient] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -203,15 +306,21 @@ export function CrmBroadcastSurface() {
     [live.records]
   );
   const selectedView = views.find((view) => view.id === viewId) ?? null;
-  const recipients = useMemo(() => {
+  const selectedHouseholds = useMemo(() => {
     if (!selectedView || !selectedView.query) return [];
-    return recipientsForHouseholds(
-      applyViewQuery(
-        live.records.filter((record) => record.kind === 'household'),
-        selectedView.query as Parameters<typeof applyViewQuery>[1]
-      )
+    return applyViewQuery(
+      live.records.filter((record) => record.kind === 'household'),
+      selectedView.query as Parameters<typeof applyViewQuery>[1]
     );
   }, [live.records, selectedView]);
+  const recipients = useMemo(
+    () => recipientsForHouseholds(selectedHouseholds),
+    [selectedHouseholds]
+  );
+  const reviewCandidates = useMemo(
+    () => recipientReviewCandidatesForHouseholds(selectedHouseholds),
+    [selectedHouseholds]
+  );
   const account =
     accounts.find(
       (item) => `${item.provider}:${item.account}` === accountKey
@@ -227,6 +336,43 @@ export function CrmBroadcastSurface() {
   );
   const canSend =
     canSave && !!account && approvedRecipients.length > 0 && !sending;
+
+  const verifyRecipient = async () => {
+    if (!reviewingRecipient || verifyingRecipient) return;
+    const household = live.records.find(
+      (record) => record.id === reviewingRecipient.householdId
+    );
+    if (!household) {
+      setMessage(
+        'This client list changed. Choose it again before reviewing this email.'
+      );
+      setReviewingRecipient(null);
+      return;
+    }
+    setVerifyingRecipient(true);
+    setMessage(null);
+    try {
+      await live.save(
+        verifyRecipientOnHousehold(
+          household,
+          reviewingRecipient,
+          new Date().toISOString()
+        )
+      );
+      setMessage(
+        `${reviewingRecipient.personName}'s email is verified and can now be reviewed for this broadcast.`
+      );
+      setReviewingRecipient(null);
+    } catch (reason) {
+      setMessage(
+        reason instanceof Error
+          ? reason.message
+          : 'Could not verify this email. Nothing was changed.'
+      );
+    } finally {
+      setVerifyingRecipient(false);
+    }
+  };
 
   const saveDraft = async (): Promise<LiveCrmRecord | null> => {
     if (!selectedView || !canSave) return null;
@@ -520,51 +666,91 @@ export function CrmBroadcastSurface() {
             Choose a saved client list to see the people who can receive this
             email.
           </p>
-        ) : recipients.length ? (
-          <div
-            data-testid="crm-broadcast-previews"
-            style={{ display: 'grid', gap: 8 }}
-          >
-            {recipients.map((recipient) => (
-              <label
-                key={recipient.id}
-                data-testid={`crm-broadcast-recipient-${recipient.id}`}
-                style={{
-                  display: 'flex',
-                  alignItems: 'start',
-                  gap: 8,
-                  border: '1px solid var(--kp-border)',
-                  borderRadius: 8,
-                  padding: 10,
-                }}
-              >
-                <input
-                  data-testid={`crm-broadcast-approve-${recipient.id}`}
-                  type="checkbox"
-                  checked={approved.has(recipient.id)}
-                  onChange={() => {
-                    setApproved((current) => {
-                      const next = new Set(current);
-                      if (next.has(recipient.id)) next.delete(recipient.id);
-                      else next.add(recipient.id);
-                      return next;
-                    });
-                  }}
-                />
-                <span>
-                  <strong>{recipient.personName}</strong> ·{' '}
-                  {recipient.householdName}
-                  <br />
-                  <span style={muted}>{recipient.email}</span>
-                </span>
-              </label>
-            ))}
-          </div>
         ) : (
-          <p data-testid="crm-broadcast-no-verified-recipients" role="status">
-            This saved list has no verified email recipients yet. Verify an
-            email on a person record before sending.
-          </p>
+          <>
+            {recipients.length ? (
+              <div
+                data-testid="crm-broadcast-previews"
+                style={{ display: 'grid', gap: 8 }}
+              >
+                {recipients.map((recipient) => (
+                  <label
+                    key={recipient.id}
+                    data-testid={`crm-broadcast-recipient-${recipient.id}`}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'start',
+                      gap: 8,
+                      border: '1px solid var(--kp-border)',
+                      borderRadius: 8,
+                      padding: 10,
+                    }}
+                  >
+                    <input
+                      data-testid={`crm-broadcast-approve-${recipient.id}`}
+                      type="checkbox"
+                      checked={approved.has(recipient.id)}
+                      onChange={() => {
+                        setApproved((current) => {
+                          const next = new Set(current);
+                          if (next.has(recipient.id)) next.delete(recipient.id);
+                          else next.add(recipient.id);
+                          return next;
+                        });
+                      }}
+                    />
+                    <span>
+                      <strong>{recipient.personName}</strong> ·{' '}
+                      {recipient.householdName}
+                      <br />
+                      <span style={muted}>{recipient.email}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <p
+                data-testid="crm-broadcast-no-verified-recipients"
+                role="status"
+              >
+                This saved list has no verified email recipients yet. Review an
+                email below before sending.
+              </p>
+            )}
+            {reviewCandidates.length ? (
+              <div
+                data-testid="crm-broadcast-recipient-reviews"
+                style={{ display: 'grid', gap: 8, marginTop: 12 }}
+              >
+                <strong>People who still need review</strong>
+                <p style={{ ...muted, margin: 0 }}>
+                  Check the exact email address before marking it ready for a
+                  broadcast.
+                </p>
+                {reviewCandidates.map((candidate) => (
+                  <Button
+                    key={candidate.id}
+                    data-testid={`crm-broadcast-review-${candidate.id}`}
+                    variant="secondary"
+                    onClick={() => {
+                      setReviewingRecipient(candidate);
+                    }}
+                    style={{
+                      justifyContent: 'space-between',
+                      textAlign: 'left',
+                    }}
+                  >
+                    <span>
+                      {candidate.personName} · {candidate.householdName}
+                      <br />
+                      <span style={muted}>{candidate.email}</span>
+                    </span>
+                    <span>Review recipient</span>
+                  </Button>
+                ))}
+              </div>
+            ) : null}
+          </>
         )}
       </section>
       <section style={panel}>
@@ -679,6 +865,51 @@ export function CrmBroadcastSurface() {
                 </Button>
               );
             })}
+          </div>
+        </section>
+      ) : null}
+      {reviewingRecipient ? (
+        <section
+          aria-label="Review recipient"
+          data-testid="crm-broadcast-review-dialog"
+          role="dialog"
+          style={{
+            ...panel,
+            position: 'sticky',
+            bottom: 16,
+            boxShadow: 'var(--kp-shadow-lg)',
+          }}
+        >
+          <h2 style={{ marginTop: 0 }}>Review recipient</h2>
+          <p>
+            Confirm that <strong>{reviewingRecipient.personName}</strong> can
+            receive broadcast email at{' '}
+            <strong>{reviewingRecipient.email}</strong>.
+          </p>
+          <p style={muted}>
+            This does not send anything. It only makes this address available
+            for a later, separate approval.
+          </p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button
+              data-testid="crm-broadcast-confirm-recipient"
+              disabled={verifyingRecipient}
+              onClick={() => {
+                void verifyRecipient();
+              }}
+            >
+              {verifyingRecipient ? 'Verifying…' : 'Verify email'}
+            </Button>
+            <Button
+              data-testid="crm-broadcast-cancel-recipient"
+              disabled={verifyingRecipient}
+              variant="secondary"
+              onClick={() => {
+                setReviewingRecipient(null);
+              }}
+            >
+              Cancel
+            </Button>
           </div>
         </section>
       ) : null}
