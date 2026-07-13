@@ -15,8 +15,10 @@ import type {
   CrmPerson,
   HouseholdDirectoryEntry,
 } from './adapters';
+import { BookDirectoryView } from './BookDirectoryView';
 
 type DirectoryTab = 'households' | 'people';
+type DirectoryView = 'directory' | 'book';
 export function DirectorySurface({
   people,
   households = [],
@@ -31,6 +33,7 @@ export function DirectorySurface({
   error?: string | null;
 }) {
   const [tab, setTab] = useState<DirectoryTab>('households');
+  const [view, setView] = useState<DirectoryView>('directory');
   const [query, setQuery] = useState('');
   const [externalOnly, setExternalOnly] = useState(false);
   const [needsVerification, setNeedsVerification] = useState(false);
@@ -62,6 +65,16 @@ export function DirectorySurface({
       </header>
       <SurfaceToolbar data-testid="crm-directory-toolbar">
         <SegmentedToggle
+          ariaLabel="Client Map view"
+          value={view}
+          onChange={setView}
+          options={[
+            { value: 'directory', label: 'Clients', testId: 'crm-directory-view-directory' },
+            { value: 'book', label: 'Whole book', testId: 'crm-directory-view-book' },
+          ]}
+          data-testid="crm-directory-view"
+        />
+        <SegmentedToggle
           ariaLabel="Directory view"
           value={tab}
           onChange={setTab}
@@ -71,40 +84,41 @@ export function DirectorySurface({
           ]}
           data-testid="crm-directory-tab"
         />
-        <SearchField
+        {view === 'directory' ? <SearchField
           value={query}
           onChange={setQuery}
           placeholder={tab === 'households' ? 'Find a household' : 'Find a person'}
           data-testid="crm-directory-search"
-        />
-        <Button
+        /> : null}
+        {view === 'directory' ? <Button
           size="sm"
           variant={externalOnly ? 'primary' : 'secondary'}
           onClick={() => { setExternalOnly((value) => !value); }}
           data-testid="crm-directory-external"
         >
           External
-        </Button>
-        <Button
+        </Button> : null}
+        {view === 'directory' ? <Button
           size="sm"
           variant={needsVerification ? 'primary' : 'secondary'}
           onClick={() => { setNeedsVerification((value) => !value); }}
           data-testid="crm-directory-needs-verification"
         >
           Needs verification
-        </Button>
-        <Button
+        </Button> : null}
+        {view === 'directory' ? <Button
           size="sm"
           iconLeft={Plus}
           data-testid="crm-directory-add"
           onClick={() => { setCreatingHousehold(true); }}
         >
           New household
-        </Button>
+        </Button> : null}
       </SurfaceToolbar>
       {error ? <Card variant="raised" role="alert">Could not load the saved CRM records: {error}</Card> : null}
-      {creatingHousehold ? <form data-testid="crm-create-household" onSubmit={(event) => { event.preventDefault(); const name = householdName.trim(); if (!name) return; void Promise.resolve(onCreateHousehold?.(name)).then(() => { setHouseholdName(''); setCreatingHousehold(false); }); }} style={{ display: 'flex', gap: 8, marginTop: 12 }}><input data-testid="crm-household-name" aria-label="Household name" value={householdName} onChange={(event) => { setHouseholdName(event.target.value); }} placeholder="Household name" autoFocus /><Button data-testid="crm-household-save" type="submit">Create household</Button><Button variant="secondary" type="button" onClick={() => { setCreatingHousehold(false); }}>Cancel</Button></form> : null}
-      {tab === 'households' ? (
+      {view === 'book' ? <BookDirectoryView onOpenClient={(id) => { actions?.onOpenHousehold?.(id); }} /> : null}
+      {view === 'directory' && creatingHousehold ? <form data-testid="crm-create-household" onSubmit={(event) => { event.preventDefault(); const name = householdName.trim(); if (!name) return; void Promise.resolve(onCreateHousehold?.(name)).then(() => { setHouseholdName(''); setCreatingHousehold(false); }); }} style={{ display: 'flex', gap: 8, marginTop: 12 }}><input data-testid="crm-household-name" aria-label="Household name" value={householdName} onChange={(event) => { setHouseholdName(event.target.value); }} placeholder="Household name" autoFocus /><Button data-testid="crm-household-save" type="submit">Create household</Button><Button variant="secondary" type="button" onClick={() => { setCreatingHousehold(false); }}>Cancel</Button></form> : null}
+      {view === 'directory' && tab === 'households' ? (
         <div style={{ display: 'grid', gap: 8, marginTop: 12 }}>
           {filteredHouseholds.length ? (
             filteredHouseholds.map((household) => (
@@ -132,7 +146,7 @@ export function DirectorySurface({
             <Card variant="raised">No households match this search.</Card>
           )}
         </div>
-      ) : (
+      ) : view === 'directory' ? (
         <div style={{ display: 'grid', gap: 8, marginTop: 12 }}>
           {filtered.map((person) => (
             <Card
@@ -182,8 +196,8 @@ export function DirectorySurface({
             </Card>
           ))}
         </div>
-      )}
-      <SlidePanel
+      ) : null}
+      {view === 'directory' ? <SlidePanel
         open={selected !== null}
         onClose={() => { setSelected(null); }}
         title={selected?.name}
@@ -218,7 +232,7 @@ export function DirectorySurface({
             </Button>
           </div>
         ) : null}
-      </SlidePanel>
+      </SlidePanel> : null}
     </section>
   );
 }
