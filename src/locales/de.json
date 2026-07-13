@@ -4392,8 +4392,9 @@
     "wealthbox": {
       "connect-failed": "Die Verbindung zu Wealthbox konnte nicht hergestellt werden. Prüfen Sie Ihren API-Schlüssel und versuchen Sie es erneut.",
       "disconnect-failed": "Die Verbindung zu Wealthbox konnte nicht getrennt werden. Versuchen Sie es erneut.",
-      "indexing-incomplete_one": "Ihr Haushalt wurde importiert, aber wir konnten ihn noch nicht vollständig für die Suche in Ask vorbereiten. Versuchen Sie die Synchronisierung erneut.",
-      "indexing-incomplete_other": "Ihre {{count}} Haushalte wurden importiert, aber wir konnten sie noch nicht vollständig für die Suche in Ask vorbereiten. Versuchen Sie die Synchronisierung erneut.",
+      "indexing-incomplete_one": "Ihr Haushalt wurde importiert und erscheint in der Kundenübersicht, ist aber noch nicht in Ask durchsuchbar. Ihre anderen Dateien bleiben durchsuchbar. Wählen Sie Suchvorbereitung erneut versuchen.",
+      "indexing-incomplete_other": "Ihre {{count}} Haushalte wurden importiert und erscheinen in der Kundenübersicht, sind aber noch nicht in Ask durchsuchbar. Ihre anderen Dateien bleiben durchsuchbar. Wählen Sie Suchvorbereitung erneut versuchen.",
+      "retry-search-setup": "Suchvorbereitung erneut versuchen",
       "lockdown": {
         "title": "Wealthbox wurde durch die Netzwerksperre angehalten.",
         "active": "Solange diese Einstellung aktiv ist, werden keine Daten an Wealthbox gesendet oder von dort heruntergeladen. Deaktivieren Sie sie in den Datenschutzeinstellungen, um eine Verbindung herzustellen oder zu synchronisieren.",

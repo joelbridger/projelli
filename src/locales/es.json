@@ -4392,8 +4392,9 @@
     "wealthbox": {
       "connect-failed": "No pudimos conectar con Wealthbox. Revisa tu clave de API e inténtalo de nuevo.",
       "disconnect-failed": "No pudimos desconectar Wealthbox. Inténtalo de nuevo.",
-      "indexing-incomplete_one": "Tu hogar se importó, pero no pudimos terminar de prepararlo para buscarlo en Ask. Intenta sincronizar de nuevo.",
-      "indexing-incomplete_other": "Tus {{count}} hogares se importaron, pero no pudimos terminar de prepararlos para buscarlos en Ask. Intenta sincronizar de nuevo.",
+      "indexing-incomplete_one": "Tu hogar se importó y aparece en el Mapa de clientes, pero todavía no se puede buscar en Ask. Tus otros archivos siguen disponibles para buscar. Selecciona Reintentar preparación de búsqueda.",
+      "indexing-incomplete_other": "Tus {{count}} hogares se importaron y aparecen en el Mapa de clientes, pero todavía no se pueden buscar en Ask. Tus otros archivos siguen disponibles para buscar. Selecciona Reintentar preparación de búsqueda.",
+      "retry-search-setup": "Reintentar preparación de búsqueda",
       "lockdown": {
         "title": "Wealthbox está en pausa por el bloqueo de red.",
         "active": "Mientras esta opción esté activada, no se enviará nada a Wealthbox ni se descargará nada desde allí. Desactívala en los ajustes de Privacidad para conectar o sincronizar.",

@@ -181,7 +181,7 @@ describe('WealthboxConnect sync', () => {
     });
   });
 
-  it('shows a human indexing message and makes Sync now available to retry', async () => {
+  it('says exactly what is searchable while CRM indexing is incomplete', async () => {
     controls.crmListHouseholds.mockResolvedValue([{ id: 'household-1', name: 'Avery Family' }]);
     controls.crmSyncAll.mockRejectedValue(new Error('Wealthbox request failed (HTTP 503)'));
 
@@ -190,26 +190,51 @@ describe('WealthboxConnect sync', () => {
 
     fireEvent.click(await screen.findByTestId('confirm-dialog-confirm'));
 
-    expect(await screen.findByText(/Your household was imported.*Try syncing again/i)).toBeTruthy();
+    expect(await screen.findByText(/Your household was imported.*isn't searchable in Ask yet/i)).toBeTruthy();
+    expect(screen.getByText(/Your other files are still searchable/i)).toBeTruthy();
     expect(screen.queryByText(/HTTP 503/i)).toBeNull();
+    expect(screen.getByTestId('wealthbox-sync-now')).toHaveTextContent('Retry search setup');
     expect(screen.getByTestId('wealthbox-sync-now')).not.toBeDisabled();
+  });
+
+  it('retries a failed indexing pass without asking to import the households again', async () => {
+    controls.crmListHouseholds.mockResolvedValue([{ id: 'household-1', name: 'Avery Family' }]);
+    controls.crmSyncAll
+      .mockRejectedValueOnce(new Error('forced indexing failure'))
+      .mockResolvedValueOnce({ householdsProcessed: 1, recordsIndexed: 4 });
+
+    await renderConnectedConnector();
+    fireEvent.click(screen.getByTestId('wealthbox-sync-now'));
+    fireEvent.click(await screen.findByTestId('confirm-dialog-confirm'));
+
+    const retry = await screen.findByRole('button', { name: 'Retry search setup' });
+    fireEvent.click(retry);
+
+    await waitFor(() => {
+      expect(controls.crmSyncAll).toHaveBeenCalledTimes(2);
+    });
+    expect(controls.crmListHouseholds).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(screen.queryByText(/isn't searchable in Ask yet/i)).toBeNull();
+    });
+    expect(screen.getByTestId('wealthbox-sync-now')).toHaveTextContent('Sync now');
   });
 
   it.each([
     [
       'en',
-      "Your household was imported, but we couldn't finish making it searchable in Ask. Try syncing again.",
-      "Your 2 households were imported, but we couldn't finish making them searchable in Ask. Try syncing again.",
+      "Your household was imported and appears in the Client Map, but it isn't searchable in Ask yet. Your other files are still searchable. Select Retry search setup.",
+      "Your 2 households were imported and appear in the Client Map, but they aren't searchable in Ask yet. Your other files are still searchable. Select Retry search setup.",
     ],
     [
       'es',
-      'Tu hogar se importó, pero no pudimos terminar de prepararlo para buscarlo en Ask. Intenta sincronizar de nuevo.',
-      'Tus 2 hogares se importaron, pero no pudimos terminar de prepararlos para buscarlos en Ask. Intenta sincronizar de nuevo.',
+      'Tu hogar se importó y aparece en el Mapa de clientes, pero todavía no se puede buscar en Ask. Tus otros archivos siguen disponibles para buscar. Selecciona Reintentar preparación de búsqueda.',
+      'Tus 2 hogares se importaron y aparecen en el Mapa de clientes, pero todavía no se pueden buscar en Ask. Tus otros archivos siguen disponibles para buscar. Selecciona Reintentar preparación de búsqueda.',
     ],
     [
       'de',
-      'Ihr Haushalt wurde importiert, aber wir konnten ihn noch nicht vollständig für die Suche in Ask vorbereiten. Versuchen Sie die Synchronisierung erneut.',
-      'Ihre 2 Haushalte wurden importiert, aber wir konnten sie noch nicht vollständig für die Suche in Ask vorbereiten. Versuchen Sie die Synchronisierung erneut.',
+      'Ihr Haushalt wurde importiert und erscheint in der Kundenübersicht, ist aber noch nicht in Ask durchsuchbar. Ihre anderen Dateien bleiben durchsuchbar. Wählen Sie Suchvorbereitung erneut versuchen.',
+      'Ihre 2 Haushalte wurden importiert und erscheinen in der Kundenübersicht, sind aber noch nicht in Ask durchsuchbar. Ihre anderen Dateien bleiben durchsuchbar. Wählen Sie Suchvorbereitung erneut versuchen.',
     ],
   ])('keeps the human indexing copy translated in %s', (locale, singular, plural) => {
     expect(

@@ -823,7 +823,13 @@ export function WealthboxConnect() {
                 onClick={() => void (indexingRetryCount === null ? runSync() : retryIndexing())}
                 className="rounded-md bg-[var(--kp-navy)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60"
               >
-                {syncing ? 'Syncing...' : awaitingImportConfirmation ? 'Choose Import or Cancel' : 'Sync now'}
+                {syncing
+                  ? 'Syncing...'
+                  : awaitingImportConfirmation
+                    ? 'Choose Import or Cancel'
+                    : indexingRetryCount !== null
+                      ? t('crm.wealthbox.retry-search-setup')
+                      : 'Sync now'}
               </button>
               <button
                 type="button"
