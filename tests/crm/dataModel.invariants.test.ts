@@ -3,10 +3,11 @@ import type { CrmEntity, EntityKind, ExternalRef, Task } from '@/platform/crm/ty
 
 /** This mapped catalog makes a newly added union member a TypeScript test failure. */
 const ENTITY_KIND_CATALOG: Record<EntityKind, true> = {
-  household: true, person: true, account: true, fact: true, note: true, task: true,
+  household: true, person: true, account: true, fact: true, note: true, task: true, document: true,
   workflowTemplate: true, workflowInstance: true, servicePolicy: true, activityEvent: true,
-  firmDoc: true, tag: true, customFieldDef: true, opportunity: true, savedView: true,
-  pipelineDef: true, stageDef: true, proposalRecord: true, legacyProject: true,
+  activityComment: true, activityReaction: true, firmDoc: true, tag: true, customFieldDef: true,
+  opportunity: true, savedView: true, savedReport: true, reportRun: true,
+  pipelineDef: true, stageDef: true, proposalRecord: true, project: true, legacyProject: true,
   firmDirectoryEntry: true, firmWorkspaceSummary: true, firmSeatSummary: true,
   householdDirectoryShell: true, intakeLink: true,
   intakeSubmission: true, importArchiveManifest: true,
@@ -19,10 +20,11 @@ function externalRefKey(ref: Pick<ExternalRef, 'provider' | 'sourceType' | 'sour
 describe('CRM data model invariants', () => {
   it('has the exhaustive EntityKind catalog, including legacyProject and importArchiveManifest', () => {
     expect(Object.keys(ENTITY_KIND_CATALOG).sort()).toEqual([
-      'account', 'activityEvent', 'customFieldDef', 'fact', 'firmDirectoryEntry', 'firmDoc', 'firmSeatSummary', 'firmWorkspaceSummary',
+      'account', 'activityComment', 'activityEvent', 'activityReaction', 'customFieldDef', 'document', 'fact',
+      'firmDirectoryEntry', 'firmDoc', 'firmSeatSummary', 'firmWorkspaceSummary',
       'household', 'householdDirectoryShell', 'importArchiveManifest', 'intakeLink', 'intakeSubmission',
-      'legacyProject', 'note', 'opportunity', 'person', 'pipelineDef', 'proposalRecord', 'savedView',
-      'servicePolicy', 'stageDef', 'tag', 'task', 'workflowInstance', 'workflowTemplate',
+      'legacyProject', 'note', 'opportunity', 'person', 'pipelineDef', 'project', 'proposalRecord', 'reportRun',
+      'savedReport', 'savedView', 'servicePolicy', 'stageDef', 'tag', 'task', 'workflowInstance', 'workflowTemplate',
     ]);
   });
 

@@ -9,6 +9,10 @@ function opaque(value: unknown): Uint8Array | null {
   try { const bytes = new Uint8Array(Buffer.from(value, "base64")); return bytes.byteLength ? bytes : null; } catch { return null; }
 }
 
+function isInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value);
+}
+
 function checkpointGate(req: Request, store: Store, matterId: string, adminOnly = false) {
   const auth = authenticate(req);
   if (!auth.ok) return { ok: false as const, resp: error("unauthorized", 401) };
@@ -22,7 +26,7 @@ function checkpointGate(req: Request, store: Store, matterId: string, adminOnly 
 
 export async function handleCheckpointChunk(req: Request, store: Store, matterId: string): Promise<Response> {
   const body = await readJson<{ doc_id?: unknown; generation?: unknown; chunk_index?: unknown; ciphertext_b64?: unknown }>(req);
-  if (!body || !isNonEmptyString(body.doc_id, 256) || !Number.isInteger(body.generation) || !Number.isInteger(body.chunk_index) || (body.generation as number) < 1 || (body.chunk_index as number) < 0) return error("missing_fields", 400);
+  if (!body || !isNonEmptyString(body.doc_id, 256) || !isInteger(body.generation) || !isInteger(body.chunk_index) || body.generation < 1 || body.chunk_index < 0) return error("missing_fields", 400);
   const gate = checkpointGate(req, store, matterId, true);
   if (!gate.ok) return gate.resp;
   const ciphertext = opaque(body.ciphertext_b64);
@@ -34,7 +38,7 @@ export async function handleCheckpointChunk(req: Request, store: Store, matterId
 
 export async function handleCheckpointManifest(req: Request, store: Store, matterId: string): Promise<Response> {
   const body = await readJson<{ doc_id?: unknown; generation?: unknown; frontier?: unknown; retention_eligible?: unknown; manifest_ciphertext_b64?: unknown }>(req);
-  if (!body || !isNonEmptyString(body.doc_id, 256) || !Number.isInteger(body.generation) || !Number.isInteger(body.frontier) || (body.generation as number) < 1 || (body.frontier as number) < 0 || typeof body.retention_eligible !== "boolean") return error("missing_fields", 400);
+  if (!body || !isNonEmptyString(body.doc_id, 256) || !isInteger(body.generation) || !isInteger(body.frontier) || body.generation < 1 || body.frontier < 0 || typeof body.retention_eligible !== "boolean") return error("missing_fields", 400);
   const gate = checkpointGate(req, store, matterId, true);
   if (!gate.ok) return gate.resp;
   const manifest = opaque(body.manifest_ciphertext_b64);
@@ -46,7 +50,7 @@ export async function handleCheckpointManifest(req: Request, store: Store, matte
 
 export async function handleCheckpointReceipt(req: Request, store: Store, matterId: string): Promise<Response> {
   const body = await readJson<{ doc_id?: unknown; generation?: unknown; device_id?: unknown; signed_receipt_b64?: unknown }>(req);
-  if (!body || !isNonEmptyString(body.doc_id, 256) || !Number.isInteger(body.generation) || (body.generation as number) < 1 || !isNonEmptyString(body.device_id, 128)) return error("missing_fields", 400);
+  if (!body || !isNonEmptyString(body.doc_id, 256) || !isInteger(body.generation) || body.generation < 1 || !isNonEmptyString(body.device_id, 128)) return error("missing_fields", 400);
   const gate = checkpointGate(req, store, matterId);
   if (!gate.ok) return gate.resp;
   const device = store.getDevice(body.device_id, gate.userId);
@@ -60,7 +64,7 @@ export async function handleCheckpointReceipt(req: Request, store: Store, matter
 
 export async function handleCheckpointPrune(req: Request, store: Store, matterId: string): Promise<Response> {
   const body = await readJson<{ doc_id?: unknown; generation?: unknown }>(req);
-  if (!body || !isNonEmptyString(body.doc_id, 256) || !Number.isInteger(body.generation) || (body.generation as number) < 1) return error("missing_fields", 400);
+  if (!body || !isNonEmptyString(body.doc_id, 256) || !isInteger(body.generation) || body.generation < 1) return error("missing_fields", 400);
   const gate = checkpointGate(req, store, matterId, true);
   if (!gate.ok) return gate.resp;
   const result = store.pruneCheckpointTail({ matter_id: matterId, org_id: gate.orgId, doc_id: body.doc_id.trim(), generation: body.generation });

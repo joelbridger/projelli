@@ -16,6 +16,11 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false
   },
-  // Include both src (so @/ imports resolve) and tests.
-  "include": ["src", "tests"]
+  // Include both src (so @/ imports resolve) and the Vitest suite. The two
+  // standalone campaign runners are Bun programs, not Vitest tests. In
+  // particular, trustbreakers/run.ts imports the Bun backend and must stay in
+  // the backend's own strict type/test project rather than pulling that whole
+  // project into this browser/jsdom check with the wrong ambient types.
+  "include": ["src", "tests"],
+  "exclude": ["tests/crm/trustbreakers/run.ts", "tests/parity/run.ts"]
 }
