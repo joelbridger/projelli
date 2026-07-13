@@ -117,11 +117,9 @@ function FilesOnlyToggle({ value, onChange }: { value: boolean; onChange: (v: bo
 function AnswerScopePopover({
   filesOnly,
   onFilesOnlyChange,
-  banner,
 }: {
   filesOnly: boolean;
   onFilesOnlyChange: (v: boolean) => void;
-  banner?: ReactNode;
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -200,7 +198,6 @@ function AnswerScopePopover({
               </div>
             </div>
             <FilesOnlyToggle value={filesOnly} onChange={onFilesOnlyChange} />
-            {banner ? <div data-testid="ask-answer-scope-file-access">{banner}</div> : null}
           </div>
         </Dropdown>
       )}
@@ -304,8 +301,9 @@ export function AskComposer({
       >
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 'var(--kp-space-sm)', flexWrap: 'wrap' }}>
           <ScopeToggle scope={askScope} onChange={setAskScope} hasMatter={hasMatter} isSample={isSample} />
-          <AnswerScopePopover filesOnly={filesOnly} onFilesOnlyChange={onFilesOnlyChange} banner={banner} />
+          <AnswerScopePopover filesOnly={filesOnly} onFilesOnlyChange={onFilesOnlyChange} />
         </div>
+        {banner}
         {inputRow}
         {/* Action-time egress signal. Its testid is distinct from the
             always-visible top-bar pill so a test gripping the top-bar handle
@@ -348,8 +346,9 @@ export function AskComposer({
           }}
         >
           <ScopeToggle scope={askScope} onChange={setAskScope} hasMatter={hasMatter} isSample={isSample} />
-          <AnswerScopePopover filesOnly={filesOnly} onFilesOnlyChange={onFilesOnlyChange} banner={banner} />
+          <AnswerScopePopover filesOnly={filesOnly} onFilesOnlyChange={onFilesOnlyChange} />
         </div>
+        {banner}
         {inputRow}
       </div>
     </div>

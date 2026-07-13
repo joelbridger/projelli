@@ -294,6 +294,16 @@ export type ActiveAskProviderId = ResolvedAskProvider['providerId'] | 'none';
 export const NO_ASK_PROVIDER_CONNECTED_MESSAGE =
   'No AI provider is connected. Add an API key in Settings, or set up local AI.';
 
+/**
+ * Ask searches local files before it resolves the answering model. When that
+ * model is remote, an unanswered (or newly out-of-scope) file-access prompt
+ * must stop the send. Otherwise the cloud model receives only the typed
+ * question and produces a plausible but uncited answer even though retrieval
+ * found real evidence locally (BUG-01).
+ */
+export const CLOUD_FILE_ACCESS_REQUIRED_MESSAGE =
+  'Allow AI file access, then ask again. Your question is still here.';
+
 /* -------------------------------------------------------------------------- */
 /* Helpers                                                                     */
 /* -------------------------------------------------------------------------- */
@@ -520,6 +530,9 @@ export function friendlyErrorMessage(
   }
   if (raw === LOCAL_AI_NOT_READY_MESSAGE) {
     return LOCAL_AI_NOT_READY_MESSAGE;
+  }
+  if (raw === CLOUD_FILE_ACCESS_REQUIRED_MESSAGE) {
+    return CLOUD_FILE_ACCESS_REQUIRED_MESSAGE;
   }
 
   // Genuine auth — the ONLY branch that mentions a key.
