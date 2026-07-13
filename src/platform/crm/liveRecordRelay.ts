@@ -9,11 +9,35 @@
  */
 import * as Y from 'yjs';
 import { MatterDocSyncClient } from '@/platform/firm/coedit/MatterDocSyncClient';
+import type { SyncStatus } from '@/platform/firm/MatterSyncClient';
 import { obtainMatterKey } from '@/platform/firm/matterKeyService';
 import { useFirmStore } from '@/platform/firm/firmStore';
+import { setCrmEngineFreshness, type CrmEngineFreshness } from '@/platform/crm/store';
 import type { LiveCrmRecord } from './liveRecords';
 
 const CRM_LIVE_RECORDS_DOC_ID = 'crm:live-records';
+
+/**
+ * This relay is the only thing that actually delivers CRM records live, so it
+ * is the one true source for the "Working offline" banner (crm.offline.message
+ * says "delivery waits until you reconnect" — this transport IS that delivery).
+ * Before this wiring existed, the banner read a freshness store nothing ever
+ * updated in production and was permanently stuck on its 'offline' default.
+ */
+function mapSyncStatusToFreshness(status: SyncStatus): CrmEngineFreshness {
+  switch (status) {
+    case 'live':
+      return { kind: 'live' };
+    case 'connecting':
+    case 'catching-up':
+      return { kind: 'syncing' };
+    case 'error':
+      return { kind: 'error', error: 'CRM record delivery hit an error and could not sync.' };
+    case 'idle':
+    case 'offline':
+      return { kind: 'offline' };
+  }
+}
 
 type RemoteWriter = (record: LiveCrmRecord) => Promise<void>;
 
@@ -96,6 +120,7 @@ async function build(firmMatterId: string, onRemote: RemoteWriter): Promise<Live
     client,
     callbacks: {
       onRemoteUpdate: () => { void applyRemote(live); },
+      onStatus: (status) => { setCrmEngineFreshness(mapSyncStatusToFreshness(status)); },
     },
   });
   (live as { sync: MatterDocSyncClient }).sync = sync;
@@ -148,6 +173,9 @@ export function stopLiveRecordRelay(): void {
   session.sync.stop();
   session.doc.destroy();
   session = null;
+  // Delivery has genuinely stopped for this matter — report it honestly rather
+  // than leaving the last live/syncing state stranded on screen.
+  setCrmEngineFreshness({ kind: 'offline' });
 }
 
 /** Test-only visibility into the relay lifecycle; it never exposes a key. */
