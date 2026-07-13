@@ -1,5 +1,10 @@
 # LANTERN-CRM — Program charter (READ THIS FIRST)
 
+> ## 🔴 CODEX IS OFF (2026-07-13) — CLAUDE MODELS ARE THE DEFAULT WORKERS
+> Jameson ran out of Codex tokens and moved to a new Anthropic account. **Every "delegate to Codex / codex-task / gpt-5.6-terra / gpt-5.6-sol" instruction in this file is SUPERSEDED.** Use: **Sonnet 5** = default worker · **Haiku 4.5** = mechanical volume · **Opus 4.8** = coordinator + hard/critical lanes + review · **review must use a different model than the builder**. **Fan out 3-5 concurrent workers, NOT 8-12** (that number was Codex economics — Claude workers cost real tokens and real RAM). The cross-model safety check is gone: compensate by DRIVING the real packaged product on the real OS and prompting reviewers adversarially. Full policy: `~/.claude/CLAUDE.md` OVERRIDE block + memory `feedback_claude_workers_default.md`.
+
+
+
 **Created 2026-07-11 by Jameson's direct instruction.** This folder is a **full, isolated
 fork of Lantern** (cloned from `~/lantern-plus` at `0971d8f3`, branch **`lantern-crm`**)
 whose single mission is the **one-shot build of Path 4: Lantern as a small RIA's system of
