@@ -3349,6 +3349,13 @@
     }
   },
   "crm": {
+    "household": {
+      "activity": {
+        "title": "Activity",
+        "empty-title": "No history yet",
+        "empty-description": "Activity for this household will appear here."
+      }
+    },
     "home": {
       "nav": {
         "activity": "Activity"

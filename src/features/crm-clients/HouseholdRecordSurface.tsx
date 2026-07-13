@@ -589,6 +589,8 @@ function ExistingSurface({
   proposals: readonly CrmProposal[];
   actions?: CrmClientsActions;
 }) {
+  const { t } = useTranslation();
+  const isActivity = tab === 'activity';
   const label = tab === 'email' ? 'Email' : tab.charAt(0).toUpperCase() + tab.slice(1);
   return (
     <div
@@ -599,9 +601,11 @@ function ExistingSurface({
         <ProposalCard key={proposal.record.id} proposal={proposal} {...(actions ? { actions } : {})} />
       ))}
       <Card variant="raised">
-        <h2>{label}</h2>
+        <h2>{isActivity ? t('crm.household.activity.title') : label}</h2>
         <p>
-          {tab === 'email'
+          {isActivity
+            ? t('crm.household.activity.empty-description')
+            : tab === 'email'
             ? 'This preserves the existing threaded mail surface. Draft email opens its recipient verification and external approval flow.'
             : `This preserves the existing ${label.toLowerCase()} layout and source content.`}
         </p>
@@ -633,7 +637,8 @@ function ExistingSurface({
           </Button>
         ) : (
           <span>
-            <Clock3 size={14} aria-hidden="true" /> No history yet.
+            <Clock3 size={14} aria-hidden="true" />{' '}
+            {isActivity ? t('crm.household.activity.empty-title') : 'No history yet.'}
           </span>
         )}
       </Card>
