@@ -13,6 +13,11 @@ import {
   type CrmConnectInfo,
   type CrmDisconnectResult,
 } from '@/platform/utils/wealthbox-commands';
+import { rebuildConnectedCrmImports } from '@/platform/connectors/crm/crmRecovery';
+import {
+  isCrmStoreRecoveryError,
+  CRM_STORE_RECOVERY_MESSAGE,
+} from '@/platform/connectors/crm/crmRecoveryError';
 import { useCrmSync } from '@/platform/connectors/crm/useCrmSync';
 import { useCrmStore } from '@/platform/connectors/crm/crmStore';
 import {
@@ -71,6 +76,8 @@ export function WealthboxConnect() {
   const cancelHouseholdListRef = useRef<(() => void) | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [recoveryRequired, setRecoveryRequired] = useState(false);
+  const [recovering, setRecovering] = useState(false);
   const [lastSyncReport, setLastSyncReport] = useState<{
     householdsProcessed: number;
     recordsIndexed: number;
@@ -170,6 +177,7 @@ export function WealthboxConnect() {
 
   async function runSync() {
     setSyncError(null);
+    setRecoveryRequired(false);
     setLastSyncReport(null);
     setSyncing(true);
     setAwaitingImportConfirmation(false);
@@ -317,6 +325,11 @@ export function WealthboxConnect() {
           recordsIndexed: report.recordsIndexed,
         });
       } catch (err) {
+        if (isCrmStoreRecoveryError(err)) {
+          setRecoveryRequired(true);
+          setSyncError(CRM_STORE_RECOVERY_MESSAGE);
+          return;
+        }
         const reason =
           typeof err === 'string'
             ? err
@@ -362,19 +375,55 @@ export function WealthboxConnect() {
       // ceiling (see crmTimeout.ts) — surface that plainly rather than the
       // technical "timed out after Nms" message.
       setSyncError(
-        err instanceof CrmTimeoutError
-          ? "Wealthbox didn't respond in time. Check your connection and try again."
-          : typeof err === 'string'
-            ? err
-            : err instanceof Error
-              ? err.message
-              : 'Sync could not complete. Please try again.'
+        isCrmStoreRecoveryError(err)
+          ? CRM_STORE_RECOVERY_MESSAGE
+          : err instanceof CrmTimeoutError
+            ? "Wealthbox didn't respond in time. Check your connection and try again."
+            : typeof err === 'string'
+              ? err
+              : err instanceof Error
+                ? err.message
+                : 'Sync could not complete. Please try again.'
       );
+      if (isCrmStoreRecoveryError(err)) setRecoveryRequired(true);
     } finally {
       setAwaitingImportConfirmation(false);
       setSyncing(false);
       setNetworkBusy(false);
       useCrmStore.getState().finishRun(runId);
+    }
+  }
+
+  async function rebuildCrmImports() {
+    const confirmed = await confirm(
+      'Rebuild the local CRM copy? The unreadable copy will be replaced, then every connected CRM account will be synced again. Your own files are not affected.',
+      {
+        title: 'Rebuild saved CRM records',
+        confirmLabel: 'Rebuild CRM imports',
+        cancelLabel: 'Cancel',
+        variant: 'destructive',
+      }
+    );
+    if (!confirmed) return;
+
+    setRecovering(true);
+    setSyncError(null);
+    try {
+      await rebuildConnectedCrmImports();
+      setRecoveryRequired(false);
+    } catch (err) {
+      // The shared cache may already have been replaced even when one remote
+      // provider could not re-sync. Regular Sync now buttons finish that case.
+      setRecoveryRequired(isCrmStoreRecoveryError(err));
+      setSyncError(
+        typeof err === 'string'
+          ? err
+          : err instanceof Error
+            ? err.message
+            : 'The local CRM copy could not be rebuilt. Please try again.'
+      );
+    } finally {
+      setRecovering(false);
     }
   }
 
@@ -659,7 +708,22 @@ export function WealthboxConnect() {
                 Sync ran into a problem. Try again.
               </p>
             )}
-            {syncError && <p className="text-red-700">{syncError}</p>}
+            {syncError && <p className={recoveryRequired ? 'text-amber-800' : 'text-red-700'}>{syncError}</p>}
+            {recoveryRequired && (
+              <button
+                type="button"
+                data-testid="wealthbox-rebuild-store"
+                disabled={recovering || syncing}
+                onClick={() => {
+                  rebuildCrmImports().catch(() => {
+                    setSyncError('The recovery question could not be opened. Please try again.');
+                  });
+                }}
+                className="rounded-md bg-[var(--kp-navy)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60"
+              >
+                {recovering ? 'Rebuilding…' : 'Rebuild CRM imports'}
+              </button>
+            )}
             {connectError && <p className="text-red-700">{connectError}</p>}
 
             <div className="flex items-center gap-2 pt-1">

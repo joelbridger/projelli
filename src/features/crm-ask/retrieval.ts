@@ -5,6 +5,8 @@ import {
 } from '@/platform/crm/search';
 
 const CRM_CITATION_PREFIX = 'crm:';
+export const CRM_ASK_UNAVAILABLE_MESSAGE =
+  'Saved CRM records are unavailable right now. Your file search still works. Try reopening this workspace. If it still happens, contact support before changing your CRM connections.';
 
 /** A stable, clickable location for an encrypted CRM record. */
 export function crmCitationPath(hit: Pick<CrmSearchHit, 'entityKind' | 'entityId'>): string {
@@ -51,16 +53,25 @@ export async function retrieveCrmAskHits(
   workspaceRoot: string | null | undefined,
   query: string,
   matterId: string | null,
+  onUnavailable?: (message: string) => void,
 ): Promise<RagHit[]> {
   if (!workspaceRoot || !query.trim()) return [];
-  const results = await searchCrmRecords(
-    workspaceRoot,
-    query,
-    matterId ?? undefined,
-  );
-  return results
-    .filter((hit) => matterId === null || hit.matterId === matterId)
-    .map(crmSearchHitToRagHit);
+  try {
+    const results = await searchCrmRecords(
+      workspaceRoot,
+      query,
+      matterId ?? undefined,
+    );
+    return results
+      .filter((hit) => matterId === null || hit.matterId === matterId)
+      .map(crmSearchHitToRagHit);
+  } catch {
+    // CRM is an optional evidence source. Its local encrypted cache may be
+    // locked while the advisor's documents are perfectly healthy, so never
+    // reject the whole Ask request over this connector-only failure.
+    onUnavailable?.(CRM_ASK_UNAVAILABLE_MESSAGE);
+    return [];
+  }
 }
 
 export function isCrmCitationPath(path: string | null | undefined): boolean {

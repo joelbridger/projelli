@@ -64,4 +64,21 @@ describe('CRM Ask retrieval', () => {
     });
     expect(hits[0]?.chunkText).not.toContain('Never expose');
   });
+
+  it('fails soft when the encrypted CRM store cannot be opened', async () => {
+    const onUnavailable = vi.fn();
+    searchCrmRecords.mockRejectedValue(
+      new Error(
+        'The saved CRM records cannot be unlocked. Rebuild them from Wealthbox.',
+      ),
+    );
+
+    await expect(
+      retrieveCrmAskHits('/tmp/lantern', 'retirement', null, onUnavailable),
+    ).resolves.toEqual([]);
+    expect(onUnavailable).toHaveBeenCalledWith(
+      expect.stringMatching(/file search still works.*contact support/i),
+    );
+    expect(onUnavailable.mock.calls[0]?.[0]).not.toMatch(/rebuild/i);
+  });
 });

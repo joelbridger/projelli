@@ -185,6 +185,15 @@ export async function crmSyncAll(matterMap: CrmMatterMapEntry[], runId: string, 
   return invoke<CrmSyncReport>('crm_sync_all', provider ? { matterMap, provider, runId } : { matterMap, runId });
 }
 
+/** Delete only an unreadable local CRM cache. Callers must then refill every
+ * connected provider; documents and non-CRM search data are never touched. */
+export async function crmRebuildStore(): Promise<void> {
+  if (!isTauri()) {
+    throw new Error('CRM recovery is only available in the desktop app.');
+  }
+  await invoke('crm_rebuild_store');
+}
+
 /** Poll the current sync state without subscribing to events. */
 export async function crmSyncStatus(provider?: CrmProvider): Promise<{ isSyncing: boolean; lastReport: CrmSyncReport | null }> {
   if (!isTauri()) return { isSyncing: false, lastReport: null };

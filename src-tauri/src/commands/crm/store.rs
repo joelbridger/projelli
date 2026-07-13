@@ -3,7 +3,7 @@
 // Holds the local canonical copy that makes deletions, re-rendering, and
 // resumable sync correct.  Mirrors `EncryptedMailStore` exactly in structure:
 //
-//   crm-enc.db        — SQLCipher, key from "lantern-crm-enc" keychain service
+//   crm-enc.db        — SQLCipher, key from a workspace-owned keychain service
 //     crm_objects     — raw JSON rows for every synced Wealthbox object
 //     crm_cursors     — per-object-type delta high-water cursors
 //     crm_render_state — fetched-vs-indexed state per household
@@ -15,6 +15,7 @@
 use anyhow::{Context, Result};
 use crate::util::sync::lock_unpoison;
 use rusqlite::Connection;
+use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 
 // ---------------------------------------------------------------------------
@@ -25,7 +26,28 @@ const CRM_KEYCHAIN_SERVICE: &str = crate::identity::CRM_ENC_SERVICE;
 const LEGACY_CRM_KEYCHAIN_SERVICE: &str = crate::identity::LEGACY_CRM_ENC_SERVICE;
 const CRM_KEYCHAIN_KEY: &str = "master-key-v1";
 const CRM_KEY_SERVICE_HINT_FILE: &str = "crm-enc.key-service";
+const WORKSPACE_CRM_KEY_SERVICE_PREFIX: &str = "lantern-ws-";
+const WORKSPACE_CRM_KEY_SERVICE_SUFFIX: &str = "-crm-enc";
 const KEY_LEN: usize = 32;
+
+pub const CRM_STORE_RECOVERY_CODE: &str = "CRM_STORE_RECOVERY_REQUIRED";
+pub const CRM_STORE_RECOVERY_MESSAGE: &str = "CRM_STORE_RECOVERY_REQUIRED: Saved CRM imports cannot be unlocked on this device. Your file search still works. Rebuild the local CRM copy from your connected CRM accounts in Connections.";
+
+#[derive(Debug, thiserror::Error)]
+#[error("{CRM_STORE_RECOVERY_MESSAGE}")]
+struct CrmStoreRecoveryRequired;
+
+pub fn is_crm_store_recovery_required(error: &anyhow::Error) -> bool {
+    error.downcast_ref::<CrmStoreRecoveryRequired>().is_some()
+}
+
+pub fn crm_store_user_message(error: &anyhow::Error) -> String {
+    if is_crm_store_recovery_required(error) {
+        CRM_STORE_RECOVERY_MESSAGE.to_string()
+    } else {
+        error.to_string()
+    }
+}
 
 #[derive(Clone)]
 struct CrmKeyCandidate {
@@ -62,6 +84,56 @@ fn read_crm_master_key(service: &str) -> Result<Option<[u8; KEY_LEN]>> {
         Err(keyring::Error::NoEntry) => Ok(None),
         Err(error) => Err(anyhow::anyhow!(
             "CRM keychain read for service {service}: {error}"
+        )),
+    }
+}
+
+fn workspace_crm_key_service(workspace_root: &Path) -> String {
+    let absolute = std::fs::canonicalize(workspace_root).unwrap_or_else(|_| {
+        if workspace_root.is_absolute() {
+            workspace_root.to_path_buf()
+        } else {
+            std::env::current_dir()
+                .unwrap_or_default()
+                .join(workspace_root)
+        }
+    });
+    let normalized = absolute.to_string_lossy().replace('\\', "/");
+    #[cfg(windows)]
+    let normalized = normalized.to_lowercase();
+    let digest = Sha256::digest(normalized.as_bytes());
+    format!(
+        "{WORKSPACE_CRM_KEY_SERVICE_PREFIX}{}{WORKSPACE_CRM_KEY_SERVICE_SUFFIX}",
+        hex::encode(&digest[..16])
+    )
+}
+
+fn is_workspace_crm_key_service(service: &str) -> bool {
+    let Some(id) = service
+        .strip_prefix(WORKSPACE_CRM_KEY_SERVICE_PREFIX)
+        .and_then(|value| value.strip_suffix(WORKSPACE_CRM_KEY_SERVICE_SUFFIX))
+    else {
+        return false;
+    };
+    id.len() == 32 && id.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+fn persist_crm_master_key(service: &str, key: &[u8; KEY_LEN]) -> Result<()> {
+    let entry = keyring::Entry::new(service, CRM_KEYCHAIN_KEY)
+        .with_context(|| format!("CRM keychain entry for service {service}"))?;
+    entry
+        .set_password(&hex::encode(key))
+        .with_context(|| format!("store CRM master key for service {service}"))
+}
+
+fn delete_crm_master_key(service: &str) -> Result<()> {
+    match keyring::Entry::new(service, CRM_KEYCHAIN_KEY)
+        .with_context(|| format!("CRM keychain entry for service {service}"))?
+        .delete_credential()
+    {
+        Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+        Err(error) => Err(anyhow::anyhow!(
+            "delete CRM keychain key for service {service}: {error}"
         )),
     }
 }
@@ -214,30 +286,33 @@ fn existing_crm_key_candidates(workspace_root: &Path) -> Result<Vec<CrmKeyCandid
     Ok(candidates)
 }
 
-/// Get (or generate + store) the 32-byte CRM master key from the OS keychain.
-/// Mirrors `mail::crypto::get_or_create_master_key` exactly — same algorithm,
-/// separate keychain entry so this DB has its own independent key.
-fn crm_master_key() -> Result<[u8; KEY_LEN]> {
+/// Create (or resume an interrupted creation of) one workspace-owned key.
+/// Older builds put every workspace behind one global credential. Disconnecting
+/// any workspace could therefore delete the key for all of them.
+fn create_workspace_crm_key_candidate(workspace_root: &Path) -> Result<CrmKeyCandidate> {
     if let Some(key) = headless_test_crm_master_key()? {
-        return Ok(key);
+        return Ok(CrmKeyCandidate {
+            service: "headless-test".to_string(),
+            key,
+        });
     }
 
-    if let Some(key) = read_crm_master_key(CRM_KEYCHAIN_SERVICE)? {
-        return Ok(key);
+    let service = workspace_crm_key_service(workspace_root);
+    if let Some(key) = read_crm_master_key(&service)? {
+        write_crm_key_service_hint(workspace_root, &service)?;
+        return Ok(CrmKeyCandidate { service, key });
     }
 
     let mut key = [0u8; KEY_LEN];
     rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut key);
-    persist_current_crm_master_key(&key)?;
-    Ok(key)
-}
-
-fn persist_current_crm_master_key(key: &[u8; KEY_LEN]) -> Result<()> {
-    let entry = keyring::Entry::new(CRM_KEYCHAIN_SERVICE, CRM_KEYCHAIN_KEY)
-        .context("crm keychain entry for migration")?;
-    entry
-        .set_password(&hex::encode(key))
-        .context("store migrated crm master key")
+    persist_crm_master_key(&service, &key)?;
+    if let Err(error) = write_crm_key_service_hint(workspace_root, &service) {
+        if let Err(cleanup_error) = delete_crm_master_key(&service) {
+            log::warn!("crm: could not clean up key after hint write failed: {cleanup_error:#}");
+        }
+        return Err(error);
+    }
+    Ok(CrmKeyCandidate { service, key })
 }
 
 // ---------------------------------------------------------------------------
@@ -461,9 +536,7 @@ impl CrmStore {
         candidates: &[CrmKeyCandidate],
     ) -> Result<(Self, usize)> {
         if candidates.is_empty() {
-            anyhow::bail!(
-                "the encrypted CRM database exists, but no matching key was found in OS credential storage"
-            );
+            return Err(CrmStoreRecoveryRequired.into());
         }
 
         let mut first_wrong_key_error = None;
@@ -488,48 +561,66 @@ impl CrmStore {
         }
 
         let first_error = first_wrong_key_error.expect("non-empty candidates produced an error");
-        anyhow::bail!(
-            "none of the {} available CRM keys could open the encrypted database (first error: {first_error:#})",
+        log::warn!(
+            "crm: none of {} available keys opened the encrypted database: {first_error:#}",
             candidates.len()
-        )
+        );
+        Err(CrmStoreRecoveryRequired.into())
     }
 
     /// Open with the master key from the OS keychain.
     pub fn open(workspace_root: &Path) -> Result<Self> {
         if !Self::db_path(workspace_root).exists() {
-            let store = Self::open_with_key(workspace_root, &crm_master_key()?)?;
-            if let Err(error) = write_crm_key_service_hint(workspace_root, CRM_KEYCHAIN_SERVICE) {
-                log::warn!("crm: could not save current key-service hint: {error:#}");
+            let candidate = create_workspace_crm_key_candidate(workspace_root)?;
+            match Self::open_with_key(workspace_root, &candidate.key) {
+                Ok(store) => return Ok(store),
+                Err(error) => {
+                    if candidate.service != "headless-test" {
+                        let _ = Self::purge(workspace_root);
+                        if let Err(cleanup_error) = delete_crm_master_key(&candidate.service) {
+                            log::warn!("crm: could not clean up key after database creation failed: {cleanup_error:#}");
+                        }
+                    }
+                    return Err(error);
+                }
             }
-            return Ok(store);
         }
 
         // Existing encrypted data must be recovered before any new key is
         // generated. Creating a replacement first turns a recoverable service-
         // name migration into a permanent wrong-key loop.
+        let hinted_service = read_crm_key_service_hint(workspace_root);
         let candidates = existing_crm_key_candidates(workspace_root)?;
-        let current_key_was_present = candidates
-            .iter()
-            .any(|candidate| candidate.service == CRM_KEYCHAIN_SERVICE);
         let (store, used_index) = Self::open_with_key_candidates(workspace_root, &candidates)?;
         let used = &candidates[used_index];
-        let mut service_for_next_open = used.service.as_str();
-        if used.service != CRM_KEYCHAIN_SERVICE && !current_key_was_present {
-            if let Err(error) = persist_current_crm_master_key(&used.key) {
-                // The recovered database is readable now. Keep serving it and
-                // retry this copy on the next open instead of denying access.
-                log::warn!(
-                    "crm: recovered historical database but could not save its migrated key: {error:#}"
-                );
-            } else {
-                service_for_next_open = CRM_KEYCHAIN_SERVICE;
-                log::info!(
-                    "crm: migrated the recovered encrypted database key to the current service"
-                );
-            }
+        if used.service == "headless-test" {
+            return Ok(store);
         }
-        if let Err(error) = write_crm_key_service_hint(workspace_root, service_for_next_open) {
-            log::warn!("crm: could not save recovered key-service hint: {error:#}");
+
+        let expected_workspace_service = workspace_crm_key_service(workspace_root);
+        let already_workspace_owned = used.service == expected_workspace_service
+            && hinted_service.as_deref() == Some(used.service.as_str());
+        if already_workspace_owned {
+            return Ok(store);
+        }
+
+        // Older databases remain readable through their global key. Copy those
+        // SAME bytes into a unique workspace-owned credential. Never overwrite
+        // or delete the global key: another old workspace may still need it.
+        let workspace_service = expected_workspace_service;
+        match persist_crm_master_key(&workspace_service, &used.key)
+            .and_then(|()| write_crm_key_service_hint(workspace_root, &workspace_service))
+        {
+            Ok(()) => log::info!("crm: migrated encrypted database key to a workspace-owned credential"),
+            Err(error) => {
+                if let Err(cleanup_error) = delete_crm_master_key(&workspace_service) {
+                    log::warn!("crm: could not clean up incomplete workspace key migration: {cleanup_error:#}");
+                }
+                if let Err(hint_error) = write_crm_key_service_hint(workspace_root, &used.service) {
+                    log::warn!("crm: recovered database but could not save its working key hint: {hint_error:#}");
+                }
+                log::warn!("crm: recovered database but could not copy its key to a workspace-owned credential: {error:#}");
+            }
         }
         Ok(store)
     }
@@ -1278,18 +1369,34 @@ impl CrmStore {
         Ok(())
     }
 
-    /// Delete the CRM database's encryption key from the OS keychain. Called only
-    /// AFTER a confirmed DB + vector purge (by `crm_disconnect_logic`), so a
-    /// disconnect leaves neither decryptable CRM data NOR an orphaned key behind.
-    /// A missing entry is treated as success (idempotent).
-    pub fn delete_master_key() -> Result<()> {
-        match keyring::Entry::new(CRM_KEYCHAIN_SERVICE, CRM_KEYCHAIN_KEY)
-            .context("crm keychain entry")?
-            .delete_credential()
-        {
-            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
-            Err(e) => Err(anyhow::anyhow!("crm keychain key delete: {e}")),
-        }
+    /// Remove a confirmed-unreadable database and create its replacement. The
+    /// caller supplies the fresh key path (OS keychain in production, fixed
+    /// bytes in the unit test).
+    pub(crate) fn replace_unopenable_database<F>(
+        workspace_root: &Path,
+        create_replacement: F,
+    ) -> Result<Self>
+    where
+        F: FnOnce() -> Result<Self>,
+    {
+        Self::purge(workspace_root)?;
+        create_replacement()
+    }
+
+    /// Capture the workspace-owned key name before `purge` removes its hint.
+    /// Shared legacy keys are deliberately excluded.
+    pub fn workspace_key_service_for_deletion(workspace_root: &Path) -> Option<String> {
+        let expected_service = workspace_crm_key_service(workspace_root);
+        read_crm_key_service_hint(workspace_root)
+            .filter(|service| service == &expected_service)
+    }
+
+    /// Delete one already-purged workspace's own credential. Missing is success.
+    pub fn delete_workspace_master_key(service: Option<&str>) -> Result<()> {
+        let Some(service) = service.filter(|service| is_workspace_crm_key_service(service)) else {
+            return Ok(());
+        };
+        delete_crm_master_key(service)
     }
 }
 
@@ -1370,6 +1477,92 @@ mod tests {
         let key = [0x33u8; 32];
         let s = CrmStore::open_with_key(dir.path(), &key).expect("crm store open");
         (dir, s)
+    }
+
+    #[test]
+    fn each_workspace_gets_an_independent_key_service() {
+        let first_dir = TempDir::new().unwrap();
+        let second_dir = TempDir::new().unwrap();
+        let first = workspace_crm_key_service(first_dir.path());
+        let second = workspace_crm_key_service(second_dir.path());
+        assert_ne!(first, second, "two workspaces must never share one deletable key");
+        assert!(is_workspace_crm_key_service(&first));
+        assert!(is_workspace_crm_key_service(&second));
+        assert!(!is_workspace_crm_key_service(CRM_KEYCHAIN_SERVICE));
+        assert!(!is_workspace_crm_key_service(LEGACY_CRM_KEYCHAIN_SERVICE));
+    }
+
+    #[test]
+    fn disconnect_can_never_select_a_shared_legacy_key_for_deletion() {
+        let dir = TempDir::new().unwrap();
+        write_crm_key_service_hint(dir.path(), CRM_KEYCHAIN_SERVICE).unwrap();
+        assert_eq!(CrmStore::workspace_key_service_for_deletion(dir.path()), None);
+
+        let copied_from = TempDir::new().unwrap();
+        let copied_key_service = workspace_crm_key_service(copied_from.path());
+        write_crm_key_service_hint(dir.path(), &copied_key_service).unwrap();
+        assert_eq!(
+            CrmStore::workspace_key_service_for_deletion(dir.path()),
+            None,
+            "a copied workspace must not delete the original workspace's key"
+        );
+
+        let workspace_service = workspace_crm_key_service(dir.path());
+        write_crm_key_service_hint(dir.path(), &workspace_service).unwrap();
+        assert_eq!(
+            CrmStore::workspace_key_service_for_deletion(dir.path()),
+            Some(workspace_service)
+        );
+    }
+
+    #[test]
+    fn create_then_open_round_trip_uses_the_same_sqlcipher_key_material() {
+        let dir = TempDir::new().unwrap();
+        let key = [0x5au8; KEY_LEN];
+        let created = CrmStore::open_with_key(dir.path(), &key).expect("create encrypted CRM DB");
+        created.upsert_object("household:round-trip", "household", "round-trip", "2026-07-13T00:00:00Z", "hash", r#"{"name":"Round Trip Household"}"#).unwrap();
+        drop(created);
+
+        let reopened = CrmStore::open_with_key(dir.path(), &key).expect("reopen encrypted CRM DB");
+        assert!(reopened.get_object("household:round-trip").unwrap().is_some());
+    }
+
+    #[test]
+    fn rotated_or_absent_key_is_a_recoverable_store_error() {
+        let dir = TempDir::new().unwrap();
+        let original_key = [0x21u8; KEY_LEN];
+        let rotated_key = [0x84u8; KEY_LEN];
+        drop(CrmStore::open_with_key(dir.path(), &original_key).expect("seed encrypted CRM DB"));
+
+        let error = match CrmStore::open_with_key_candidates(
+            dir.path(),
+            &[CrmKeyCandidate { service: CRM_KEYCHAIN_SERVICE.to_string(), key: rotated_key }],
+        ) {
+            Ok(_) => panic!("a rotated key must not open the older database"),
+            Err(error) => error,
+        };
+        assert!(is_crm_store_recovery_required(&error));
+        assert_eq!(crm_store_user_message(&error), CRM_STORE_RECOVERY_MESSAGE);
+    }
+
+    #[test]
+    fn recovery_rebuild_replaces_only_the_unreadable_local_database() {
+        let dir = TempDir::new().unwrap();
+        let lost_key = [0x11u8; KEY_LEN];
+        let replacement_key = [0x92u8; KEY_LEN];
+        let old = CrmStore::open_with_key(dir.path(), &lost_key).expect("seed old database");
+        old.upsert_object("note:lost", "note", "household:1", "2026-07-13T00:00:00Z", "hash", r#"{"body":"old unreadable cache"}"#).unwrap();
+        drop(old);
+
+        let rebuilt = CrmStore::replace_unopenable_database(dir.path(), || {
+            CrmStore::open_with_key(dir.path(), &replacement_key)
+        }).expect("create replacement database");
+        assert!(rebuilt.get_object("note:lost").unwrap().is_none());
+        rebuilt.upsert_object("note:fresh", "note", "household:1", "2026-07-13T01:00:00Z", "hash-2", r#"{"body":"fetched again from Wealthbox"}"#).unwrap();
+        drop(rebuilt);
+
+        let reopened = CrmStore::open_with_key(dir.path(), &replacement_key).expect("replacement database reopens");
+        assert!(reopened.get_object("note:fresh").unwrap().is_some());
     }
 
     #[test]

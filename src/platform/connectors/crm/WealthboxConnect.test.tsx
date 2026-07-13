@@ -5,6 +5,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 const controls = vi.hoisted(() => ({
   crmListHouseholds: vi.fn(),
   crmSyncAll: vi.fn(),
+  crmRebuildStore: vi.fn(),
   createCrmRunId: vi.fn(() => 'test-run'),
   createMatter: vi.fn(() => ({ id: 'new-client' })),
 }));
@@ -44,6 +45,13 @@ vi.mock('@/platform/utils/wealthbox-commands', () => ({
   crmDisconnect: vi.fn(),
   crmListHouseholds: controls.crmListHouseholds,
   crmSyncAll: controls.crmSyncAll,
+  crmRebuildStore: controls.crmRebuildStore,
+  CRM_STORE_RECOVERY_MESSAGE:
+    'Saved CRM records cannot be unlocked on this device. Your file search still works. Rebuild the local CRM copy from Wealthbox.',
+  isCrmStoreRecoveryError: (error: unknown) =>
+    (error instanceof Error ? error.message : String(error)).includes(
+      'CRM_STORE_RECOVERY_REQUIRED',
+    ),
   createCrmRunId: controls.createCrmRunId,
   crmCancelSync: vi.fn(),
 }));
@@ -100,6 +108,8 @@ describe('WealthboxConnect sync', () => {
   beforeEach(() => {
     controls.crmListHouseholds.mockReset();
     controls.crmSyncAll.mockReset();
+    controls.crmRebuildStore.mockReset();
+    controls.crmRebuildStore.mockResolvedValue(undefined);
     controls.createMatter.mockClear();
     crmProgress.set(null);
   });
@@ -139,6 +149,25 @@ describe('WealthboxConnect sync', () => {
 
     expect(await screen.findByText(/HTTP 503/i)).toBeTruthy();
     expect(screen.getByTestId('wealthbox-sync-now')).not.toBeDisabled();
+  });
+
+  it('offers to rebuild an unreadable CRM store and starts the safe recovery command', async () => {
+    controls.crmListHouseholds.mockResolvedValue([{ id: 'household-1', name: 'Avery Family' }]);
+    controls.crmSyncAll.mockRejectedValue(
+      new Error('CRM_STORE_RECOVERY_REQUIRED: saved CRM records cannot be unlocked'),
+    );
+
+    await renderConnectedConnector();
+    fireEvent.click(screen.getByTestId('wealthbox-sync-now'));
+    fireEvent.click(await screen.findByTestId('confirm-dialog-confirm'));
+
+    expect(await screen.findByText(/file search still works/i)).toBeTruthy();
+    fireEvent.click(screen.getByTestId('wealthbox-rebuild-store'));
+    fireEvent.click(await screen.findByTestId('confirm-dialog-confirm'));
+
+    await waitFor(() => {
+      expect(controls.crmRebuildStore).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('keeps retry disabled until the Rust command has finished stopping safely', async () => {
