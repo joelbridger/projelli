@@ -288,8 +288,12 @@ export function AcatsReviewScreen({ draft }: { draft: AcatsTransferDraft }) {
   }
 
   useEffect(() => {
-    setDraft(draft);
-  }, [draft, setDraft]);
+    // A mounted client review can read this same draft from the shared store.
+    // Do not write it straight back on every store update: setDraft clones the
+    // object, which would otherwise create an endless render -> clone -> render
+    // loop. A different draft id still replaces the active review as expected.
+    if (reviewDraft?.id !== draft.id) setDraft(draft);
+  }, [draft, reviewDraft?.id, setDraft]);
 
   const activeDraft = reviewDraft ?? draft;
   const blockingItems = getBlockingItems();

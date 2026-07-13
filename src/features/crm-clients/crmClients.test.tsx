@@ -9,6 +9,9 @@ import {
   ProposalCard,
 } from './index';
 import type { CrmProposal, HouseholdRecord } from './adapters';
+import { useAcatsReviewStore } from '@/features/acats/acatsReviewStore';
+import type { AcatsTransferDraft } from '@/features/acats/types';
+import { useExternalWriteQueueStore } from '@/platform/state/externalWriteQueueStore';
 
 const household: HouseholdRecord = {
   id: 'h-1',
@@ -85,7 +88,11 @@ const pendingProposal: CrmProposal = {
   sources: [{ id: 's-1', label: 'Tax return' }],
 };
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  useAcatsReviewStore.getState().resetAcatsReview();
+  useExternalWriteQueueStore.setState({ items: [] });
+});
 
 describe('crm clients surfaces', () => {
   it('shows the household truth, both note lanes, safe account masking, and opens scheduling through its adapter', () => {
@@ -109,6 +116,69 @@ describe('crm clients surfaces', () => {
     fireEvent.click(screen.getByTestId('crm-household-schedule'));
     expect(onOpenSchedulingLink).toHaveBeenCalledWith(
       'https://calendar.example.test/henderson'
+    );
+  });
+
+  it('lets an advisor reach this household\'s ACATS review and external write approvals', () => {
+    const acatsDraft: AcatsTransferDraft = {
+      id: 'acats-h-1',
+      matterId: household.id,
+      sourceStatementPath: 'Henderson brokerage statement.pdf',
+      deliveringFirm: {},
+      deliveringAccount: { owners: [] },
+      receivingSchwabAccount: {},
+      instruction: { transferType: 'unknown' },
+      assets: [],
+      missingFields: ['Delivering firm'],
+      warnings: [],
+      reviewStatus: 'needs_review',
+    };
+    useAcatsReviewStore.getState().setDraft(acatsDraft);
+    useExternalWriteQueueStore.setState({
+      items: [{
+        id: 'write-h-1',
+        proposalType: 'rightcapital_income',
+        status: 'proposed',
+        data: {
+          target: 'rightcapital',
+          kind: 'income',
+          matterId: household.id,
+          rightCapitalHouseholdId: 'rightcapital-h-1',
+          existing: { incomeType: 'Salary', amount: 125_000, frequency: 'annual' },
+          fromSource: {
+            incomeType: 'Salary',
+            amount: 185_000,
+            frequency: 'annual',
+            confidence: 'high',
+            quote: 'My salary is now $185,000.',
+          },
+          final: {
+            incomeType: 'Salary',
+            amount: 185_000,
+            frequency: 'annual',
+            notes: 'Updated from an advisor-approved fact.',
+          },
+          sourceRef: 'meeting:h-1#00:18:42',
+        },
+      }],
+    });
+
+    render(<HouseholdRecordSurface household={household} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Reviews' }));
+
+    expect(screen.getByTestId('acats-review-screen')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Update RightCapital' })).toBeInTheDocument();
+    expect(screen.getByTestId('external-income-final-amount-write-h-1')).toHaveValue(185_000);
+  });
+
+  it('offers the ACATS statement entry point before a draft exists', () => {
+    render(<HouseholdRecordSurface household={household} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Reviews' }));
+
+    expect(screen.getByTestId('acats-choose-statement')).toHaveTextContent('Choose statement');
+    expect(screen.getByTestId('acats-statement-input')).toHaveAttribute('accept', 'application/pdf,.pdf');
+    expect(screen.getByTestId('external-write-review-entry')).toHaveTextContent(
+      'No outside-app updates are waiting for review for this client.',
     );
   });
 
