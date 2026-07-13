@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { Database } from "bun:sqlite";
+import { rmSync } from "node:fs";
 import { config } from "../src/lib/config.ts";
 import { Store } from "../src/lib/db.ts";
 import { issueAuthTokens } from "../src/lib/services.ts";
@@ -19,8 +21,8 @@ afterEach(() => {
 
 function intakeHandle(char: string) { return `ih2_${char.repeat(43)}`; }
 
-function fixture() {
-  const store = new Store(":memory:");
+function fixture(path = ":memory:") {
+  const store = new Store(path);
   const org = store.createOrg({ name: "Round X relay guards", plan: "practice", packs: [], seat_limit: 8 });
   const admin = store.createUser({ org_id: org.org_id, email: `admin-${crypto.randomUUID()}@round-x.test`, password_hash: "x", role: "admin" });
   const target = store.createUser({ org_id: org.org_id, email: `target-${crypto.randomUUID()}@round-x.test`, password_hash: "x", role: "member" });
@@ -34,6 +36,28 @@ function fixture() {
     store.addMatterMember({ matter_handle: matter.matter_handle, user_id: user.user_id, org_id: org.org_id, role: "editor" });
   }
   return { store, org, admin, target, keeper, matter, adminToken: issueAuthTokens(store, admin).access_token };
+}
+
+function fileFixture() {
+  const path = `/tmp/firm-relay-atomic-${crypto.randomUUID()}.sqlite`;
+  return { ...fixture(path), path };
+}
+
+function failKeyEpochUpdate(path: string) {
+  const injector = new Database(path);
+  try {
+    // This trigger throws after the wall/member write but before any key purge.
+    // SQLite must then roll back the Store method's whole transaction.
+    injector.exec(`
+      CREATE TRIGGER fail_atomic_key_rotation
+      BEFORE UPDATE OF key_epoch ON matters
+      BEGIN
+        SELECT RAISE(ABORT, 'simulated_mid_rotation_failure');
+      END;
+    `);
+  } finally {
+    injector.close();
+  }
 }
 
 function request(token: string, body: unknown) {
@@ -190,6 +214,74 @@ describe("round X firm relay availability guards", () => {
     expect(f.store.getWrappedMatterKey(f.matter.matter_handle, 1, f.keeper.user_id, `${f.keeper.user_id}-device`)).toBeNull();
     expect(intakeKeyCount(f)).toBe(0);
     f.store.close();
+  });
+
+  test("the atomic wall operation has the same complete key-revocation end state", () => {
+    const f = fixture();
+    storeCurrentKeys(f);
+
+    expect(f.store.setEthicalWallAndRotateKey({
+      matter_handle: f.matter.matter_handle,
+      user_id: f.target.user_id,
+      org_id: f.org.org_id,
+      created_by: f.admin.user_id,
+    })).toEqual({ created: true, key_epoch: 2 });
+    expect(f.store.isWalled(f.matter.matter_handle, f.target.user_id)).toBe(true);
+    expect(f.store.getMatter(f.matter.matter_handle)?.key_epoch).toBe(2);
+    expect(matterKeyCount(f)).toBe(0);
+    expect(intakeKeyCount(f)).toBe(0);
+    f.store.close();
+  });
+
+  test("the atomic member-removal operation has the same complete key-revocation end state", () => {
+    const f = fixture();
+    storeCurrentKeys(f);
+
+    expect(f.store.removeMatterMemberAndRotateKey(f.matter.matter_handle, f.target.user_id)).toEqual({ removed: true, key_epoch: 2 });
+    expect(f.store.getMatterMember(f.matter.matter_handle, f.target.user_id)).toBeNull();
+    expect(f.store.getMatter(f.matter.matter_handle)?.key_epoch).toBe(2);
+    expect(matterKeyCount(f)).toBe(0);
+    expect(intakeKeyCount(f)).toBe(0);
+    f.store.close();
+  });
+
+  test("a failed atomic wall rotation leaves no partial revocation state", () => {
+    const f = fileFixture();
+    try {
+      storeCurrentKeys(f);
+      failKeyEpochUpdate(f.path);
+
+      expect(() => f.store.setEthicalWallAndRotateKey({
+        matter_handle: f.matter.matter_handle,
+        user_id: f.target.user_id,
+        org_id: f.org.org_id,
+        created_by: f.admin.user_id,
+      })).toThrow(/simulated_mid_rotation_failure/);
+      expect(f.store.isWalled(f.matter.matter_handle, f.target.user_id)).toBe(false);
+      expect(f.store.getMatter(f.matter.matter_handle)?.key_epoch).toBe(1);
+      expect(matterKeyCount(f)).toBe(1);
+      expect(intakeKeyCount(f)).toBe(1);
+    } finally {
+      f.store.close();
+      rmSync(f.path, { force: true });
+    }
+  });
+
+  test("a failed atomic member removal leaves no partial revocation state", () => {
+    const f = fileFixture();
+    try {
+      storeCurrentKeys(f);
+      failKeyEpochUpdate(f.path);
+
+      expect(() => f.store.removeMatterMemberAndRotateKey(f.matter.matter_handle, f.target.user_id)).toThrow(/simulated_mid_rotation_failure/);
+      expect(f.store.getMatterMember(f.matter.matter_handle, f.target.user_id)).not.toBeNull();
+      expect(f.store.getMatter(f.matter.matter_handle)?.key_epoch).toBe(1);
+      expect(matterKeyCount(f)).toBe(1);
+      expect(intakeKeyCount(f)).toBe(1);
+    } finally {
+      f.store.close();
+      rmSync(f.path, { force: true });
+    }
   });
 
   test("keeps an intake handle bound through rotation and permits its new-epoch key fetch", async () => {

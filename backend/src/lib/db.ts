@@ -1468,6 +1468,32 @@ export class Store {
     return res.changes > 0;
   }
 
+  /**
+   * Remove a member and revoke every wrapped key set in one SQLite transaction.
+   * A failure therefore leaves both the membership and its current key material
+   * untouched; a completed removal always includes the epoch rotation.
+   */
+  removeMatterMemberAndRotateKey(matterHandle: string, userId: string): { removed: boolean; key_epoch: number } {
+    const txn = this.#db.transaction(() => {
+      const before = this.#db
+        .query(`SELECT key_epoch FROM matters WHERE matter_handle = ?`)
+        .get(matterHandle) as { key_epoch: number } | null;
+      const key_epoch = before?.key_epoch ?? 1;
+      const removed = this.#db
+        .query(`DELETE FROM matter_members WHERE matter_handle = ? AND user_id = ?`)
+        .run(matterHandle, userId).changes > 0;
+      if (!removed) return { removed: false, key_epoch };
+
+      this.#db.query(`UPDATE matters SET key_epoch = key_epoch + 1 WHERE matter_handle = ?`).run(matterHandle);
+      this.#db.query(`DELETE FROM wrapped_matter_keys WHERE matter_handle = ? AND user_id = ?`).run(matterHandle, userId);
+      this.#db.query(`DELETE FROM wrapped_matter_keys WHERE matter_handle = ? AND epoch = ?`).run(matterHandle, key_epoch);
+      this.#db.query(`DELETE FROM wrapped_intake_keys WHERE matter_handle = ? AND user_id = ?`).run(matterHandle, userId);
+      this.#db.query(`DELETE FROM wrapped_intake_keys WHERE matter_handle = ? AND epoch = ?`).run(matterHandle, key_epoch);
+      return { removed: true, key_epoch: key_epoch + 1 };
+    });
+    return txn() as { removed: boolean; key_epoch: number };
+  }
+
   getMatterMember(matterHandle: string, userId: string): MatterMember | null {
     const r = this.#db
       .query(`SELECT * FROM matter_members WHERE matter_handle = ? AND user_id = ?`)
@@ -1539,6 +1565,45 @@ export class Store {
       )
       .run(w.matter_handle, w.user_id, w.org_id, w.created_by, w.created_at);
     return w;
+  }
+
+  /**
+   * Set an ethical wall and revoke every wrapped key set in one SQLite
+   * transaction. A failure therefore cannot leave a wall in place without its
+   * corresponding key rotation and purge.
+   */
+  setEthicalWallAndRotateKey(input: {
+    matter_handle: string;
+    user_id: string;
+    org_id: string;
+    created_by: string;
+  }): { created: boolean; key_epoch: number } {
+    const txn = this.#db.transaction(() => {
+      const before = this.#db
+        .query(`SELECT key_epoch FROM matters WHERE matter_handle = ?`)
+        .get(input.matter_handle) as { key_epoch: number } | null;
+      const key_epoch = before?.key_epoch ?? 1;
+      const existing = this.#db
+        .query(`SELECT 1 FROM ethical_walls WHERE matter_handle = ? AND user_id = ?`)
+        .get(input.matter_handle, input.user_id);
+      if (existing) return { created: false, key_epoch };
+
+      const created_at = this.nowIso();
+      this.#db
+        .query(
+          `INSERT INTO ethical_walls (matter_handle, user_id, org_id, created_by, created_at)
+           VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT(matter_handle, user_id) DO UPDATE SET created_by = excluded.created_by, created_at = excluded.created_at`,
+        )
+        .run(input.matter_handle, input.user_id, input.org_id, input.created_by, created_at);
+      this.#db.query(`UPDATE matters SET key_epoch = key_epoch + 1 WHERE matter_handle = ?`).run(input.matter_handle);
+      this.#db.query(`DELETE FROM wrapped_matter_keys WHERE matter_handle = ? AND user_id = ?`).run(input.matter_handle, input.user_id);
+      this.#db.query(`DELETE FROM wrapped_matter_keys WHERE matter_handle = ? AND epoch = ?`).run(input.matter_handle, key_epoch);
+      this.#db.query(`DELETE FROM wrapped_intake_keys WHERE matter_handle = ? AND user_id = ?`).run(input.matter_handle, input.user_id);
+      this.#db.query(`DELETE FROM wrapped_intake_keys WHERE matter_handle = ? AND epoch = ?`).run(input.matter_handle, key_epoch);
+      return { created: true, key_epoch: key_epoch + 1 };
+    });
+    return txn() as { created: boolean; key_epoch: number };
   }
 
   clearEthicalWall(matterHandle: string, userId: string): boolean {
