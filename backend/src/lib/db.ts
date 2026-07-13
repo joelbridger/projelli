@@ -580,6 +580,7 @@ export class Store {
     }>;
     const updateDeviceJwk = this.#db.query("UPDATE devices SET pubkey_jwk = ? WHERE device_id = ? AND user_id = ?");
     const deleteWrappedKeysForBrokenDevice = this.#db.query("DELETE FROM wrapped_matter_keys WHERE device_id = ? AND user_id = ?");
+    const deleteWrappedIntakeKeysForBrokenDevice = this.#db.query("DELETE FROM wrapped_intake_keys WHERE device_id = ? AND user_id = ?");
     const deleteBrokenDevice = this.#db.query("DELETE FROM devices WHERE device_id = ? AND user_id = ?");
     for (const device of storedDevices) {
       let parsed: unknown;
@@ -594,6 +595,7 @@ export class Store {
         if (device.pubkey_jwk !== canonicalText) updateDeviceJwk.run(canonicalText, device.device_id, device.user_id);
       } else {
         deleteWrappedKeysForBrokenDevice.run(device.device_id, device.user_id);
+        deleteWrappedIntakeKeysForBrokenDevice.run(device.device_id, device.user_id);
         deleteBrokenDevice.run(device.device_id, device.user_id);
       }
     }

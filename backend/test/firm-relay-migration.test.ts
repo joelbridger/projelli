@@ -27,6 +27,9 @@ describe("file-backed v1 firm relay reset", () => {
     legacy.query(`INSERT INTO wrapped_matter_keys (matter_handle, epoch, user_id, device_id, wrapped_key, published_by, created_at)
       VALUES (?, 1, ?, ?, ?, ?, ?)`)
       .run(matter.matter_handle, user.user_id, "readable-coordinate", new Uint8Array([1]), user.user_id, "2026-01-01T00:00:00.000Z");
+    legacy.query(`INSERT INTO wrapped_intake_keys (intake_handle, matter_handle, org_id, epoch, user_id, device_id, wrapped_key, published_by, created_at)
+      VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)`)
+      .run(`ih2_${"I".repeat(43)}`, matter.matter_handle, org.org_id, user.user_id, "readable-coordinate", new Uint8Array([1]), user.user_id, "2026-01-01T00:00:00.000Z");
     legacy.close();
 
     const reopened = new Store(path);
@@ -34,6 +37,7 @@ describe("file-backed v1 firm relay reset", () => {
       expect(reopened.getDevice("extra-fields", user.user_id)?.pubkey_jwk).toBe(JSON.stringify({ kty: "EC", crv: "P-256", x: coordinate, y: coordinate }));
       expect(reopened.getDevice("readable-coordinate", user.user_id)).toBeNull();
       expect(reopened.inspectReadOnly().all("SELECT 1 FROM wrapped_matter_keys WHERE device_id = ? AND user_id = ?", "readable-coordinate", user.user_id)).toEqual([]);
+      expect(reopened.inspectReadOnly().all("SELECT 1 FROM wrapped_intake_keys WHERE device_id = ? AND user_id = ?", "readable-coordinate", user.user_id)).toEqual([]);
     } finally {
       reopened.close();
     }
