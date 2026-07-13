@@ -1,5 +1,5 @@
 import * as Y from 'yjs';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseMatterHandle, parseStreamHandle } from './contract';
 import {
   addDocumentStreamToPrivateIndex, createDocumentStream, FIRM_PRIVATE_INDEX_MAP, FIRM_PRIVATE_INDEX_STREAMS_V2_MAP,
@@ -7,10 +7,34 @@ import {
 } from './firmMatterPrivateIndex';
 import { getPinnedDocumentStream } from './firmKeychain';
 
+const retirementGate = vi.hoisted(() => ({
+  enabled: false,
+  started: undefined as (() => void) | undefined,
+  release: undefined as (() => void) | undefined,
+}));
+
+vi.mock('./firmKeychain', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./firmKeychain')>();
+  return {
+    ...actual,
+    retirePinnedDocumentStream: async (...args: Parameters<typeof actual.retirePinnedDocumentStream>) => {
+      await actual.retirePinnedDocumentStream(...args);
+      if (!retirementGate.enabled) return;
+      retirementGate.started?.();
+      await new Promise<void>((resolve) => { retirementGate.release = resolve; });
+    },
+  };
+});
+
 const matterHandle = parseMatterHandle(`mh2_${'M'.repeat(43)}`);
 const root = parseStreamHandle(`sh2_${'R'.repeat(43)}`);
 const docStream = parseStreamHandle(`sh2_${'D'.repeat(43)}`);
-afterEach(() => { localStorage.clear(); });
+afterEach(() => {
+  retirementGate.enabled = false;
+  retirementGate.started = undefined;
+  retirementGate.release = undefined;
+  localStorage.clear();
+});
 describe('encrypted FirmMatterPrivateIndex', () => {
   function seedLegacyIndex(doc: Y.Doc, streams: Record<string, { streamHandle: typeof root; kind: 'notes' | 'document' }>) {
     const index = doc.getMap<unknown>(FIRM_PRIVATE_INDEX_MAP);
@@ -192,6 +216,30 @@ describe('encrypted FirmMatterPrivateIndex', () => {
 
     await expect(getPinnedDocumentStream(matterHandle, 'deleted.docx')).rejects.toThrow('retired');
     expect(await getPinnedDocumentStream(matterHandle, 'retained.docx')).toBe(secondStream);
+  });
+
+  it('keeps a peer replacement mapping when it arrives during local document deletion', async () => {
+    const doc = new Y.Doc();
+    const replacementStream = parseStreamHandle(`sh2_${'P'.repeat(43)}`);
+    writeFirmMatterPrivateIndex(doc, { version: 1, clientName: 'x', displayName: 'x', streams: { _notes: { streamHandle: root, kind: 'notes' } } });
+    await addDocumentStreamToPrivateIndex(doc, matterHandle, 'draft.docx', docStream);
+
+    const peer = new Y.Doc();
+    Y.applyUpdate(peer, Y.encodeStateAsUpdate(doc));
+    retirementGate.enabled = true;
+    const retirementStarted = new Promise<void>((resolve) => { retirementGate.started = resolve; });
+    const deletion = tombstoneDocumentStreamFromPrivateIndex(doc, matterHandle, 'draft.docx');
+    await retirementStarted;
+
+    peer.getMap<unknown>(FIRM_PRIVATE_INDEX_STREAMS_V2_MAP).set(
+      'draft.docx', { streamHandle: replacementStream, kind: 'document' },
+    );
+    Y.applyUpdate(doc, Y.encodeStateAsUpdate(peer, Y.encodeStateVector(doc)));
+    expect(readFirmMatterPrivateIndex(doc)?.streams['draft.docx']).toEqual({ streamHandle: replacementStream, kind: 'document' });
+
+    retirementGate.release?.();
+    await expect(deletion).rejects.toThrow('Document deletion was blocked because its encrypted stream mapping changed on this device.');
+    expect(readFirmMatterPrivateIndex(doc)?.streams['draft.docx']).toEqual({ streamHandle: replacementStream, kind: 'document' });
   });
 
   it('blocks tombstoning when the shared mapping changed before this device ever deleted the document', async () => {

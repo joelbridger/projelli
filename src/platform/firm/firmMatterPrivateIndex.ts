@@ -231,6 +231,10 @@ export async function tombstoneDocumentStreamFromPrivateIndex(
   }
   await retirePinnedDocumentStream(matterHandle, localDocumentId);
   doc.transact(() => {
+    const currentStream = readFirmMatterPrivateIndex(doc)?.streams[localDocumentId];
+    if (currentStream?.kind !== 'document' || currentStream.streamHandle !== stream.streamHandle) {
+      throw new Error('Document deletion was blocked because its encrypted stream mapping changed on this device.');
+    }
     const legacyStreams = readLegacyStreams(doc.getMap<unknown>(FIRM_PRIVATE_INDEX_MAP).get('streams'));
     const streamsMap = getStreamsV2Map(doc);
     if (Object.prototype.hasOwnProperty.call(legacyStreams, localDocumentId)) streamsMap.set(localDocumentId, { tombstone: true });
