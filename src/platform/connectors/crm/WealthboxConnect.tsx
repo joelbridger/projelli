@@ -14,6 +14,11 @@ import {
   type CrmConnectInfo,
   type CrmDisconnectResult,
 } from '@/platform/utils/wealthbox-commands';
+import { rebuildConnectedCrmImports } from '@/platform/connectors/crm/crmRecovery';
+import {
+  isCrmStoreRecoveryError,
+  CRM_STORE_RECOVERY_MESSAGE,
+} from '@/platform/connectors/crm/crmRecoveryError';
 import { useCrmSync } from '@/platform/connectors/crm/useCrmSync';
 import { useCrmStore } from '@/platform/connectors/crm/crmStore';
 import {
@@ -94,6 +99,8 @@ export function WealthboxConnect() {
   const cancelHouseholdListRef = useRef<(() => void) | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [recoveryRequired, setRecoveryRequired] = useState(false);
+  const [recovering, setRecovering] = useState(false);
   const [lastSyncReport, setLastSyncReport] = useState<{
     householdsProcessed: number;
     recordsIndexed: number;
@@ -192,6 +199,7 @@ export function WealthboxConnect() {
 
   async function runSync() {
     setSyncError(null);
+    setRecoveryRequired(false);
     setLastSyncReport(null);
     setIndexingRetryCount(null);
     setSyncing(true);
@@ -341,12 +349,19 @@ export function WealthboxConnect() {
         });
         setIndexingRetryCount(null);
       } catch (err) {
+        if (isCrmNetworkLockdownError(err)) {
+          setIndexingRetryCount(null);
+          setSyncError(lockdownMessage);
+          return;
+        }
+        if (isCrmStoreRecoveryError(err)) {
+          setIndexingRetryCount(null);
+          setRecoveryRequired(true);
+          setSyncError(CRM_STORE_RECOVERY_MESSAGE);
+          return;
+        }
         setIndexingRetryCount(count);
-        setSyncError(
-          isCrmNetworkLockdownError(err)
-            ? lockdownMessage
-            : t('crm.wealthbox.indexing-incomplete', { count })
-        );
+        setSyncError(t('crm.wealthbox.indexing-incomplete', { count }));
       } finally {
         setNetworkBusy(false);
       }
@@ -382,13 +397,16 @@ export function WealthboxConnect() {
       // A CrmTimeoutError means the sync genuinely stalled past a sane
       // ceiling (see crmTimeout.ts) — surface that plainly rather than the
       // technical "timed out after Nms" message.
-      setSyncError(
-        err instanceof CrmTimeoutError
-          ? t('crm.wealthbox.sync-timeout')
-          : isCrmNetworkLockdownError(err)
-            ? lockdownMessage
-            : t('crm.wealthbox.sync-failed')
-      );
+      if (isCrmNetworkLockdownError(err)) {
+        setSyncError(lockdownMessage);
+      } else if (isCrmStoreRecoveryError(err)) {
+        setRecoveryRequired(true);
+        setSyncError(CRM_STORE_RECOVERY_MESSAGE);
+      } else if (err instanceof CrmTimeoutError) {
+        setSyncError(t('crm.wealthbox.sync-timeout'));
+      } else {
+        setSyncError(t('crm.wealthbox.sync-failed'));
+      }
     } finally {
       setAwaitingImportConfirmation(false);
       setSyncing(false);
@@ -417,16 +435,56 @@ export function WealthboxConnect() {
         recordsIndexed: report.recordsIndexed,
       });
       setIndexingRetryCount(null);
+      setRecoveryRequired(false);
     } catch (err) {
-      setSyncError(
-        isCrmNetworkLockdownError(err)
-          ? lockdownMessage
-          : t('crm.wealthbox.indexing-incomplete', { count })
-      );
+      if (isCrmNetworkLockdownError(err)) {
+        setSyncError(lockdownMessage);
+      } else if (isCrmStoreRecoveryError(err)) {
+        setIndexingRetryCount(null);
+        setRecoveryRequired(true);
+        setSyncError(CRM_STORE_RECOVERY_MESSAGE);
+      } else {
+        setSyncError(t('crm.wealthbox.indexing-incomplete', { count }));
+      }
     } finally {
       setSyncing(false);
       setNetworkBusy(false);
       useCrmStore.getState().finishRun(runId);
+    }
+  }
+
+  async function rebuildCrmImports() {
+    const confirmed = await confirm(
+      'Rebuild the local CRM copy? The unreadable copy will be replaced, then every connected CRM account will be synced again. Your own files are not affected.',
+      {
+        title: 'Rebuild saved CRM records',
+        confirmLabel: 'Rebuild CRM imports',
+        cancelLabel: 'Cancel',
+        variant: 'destructive',
+      }
+    );
+    if (!confirmed) return;
+
+    setRecovering(true);
+    setSyncError(null);
+    try {
+      await rebuildConnectedCrmImports();
+      setRecoveryRequired(false);
+    } catch (err) {
+      // The shared cache may already have been replaced even when one remote
+      // provider could not re-sync. Regular Sync now buttons finish that case.
+      if (isCrmNetworkLockdownError(err)) {
+        setRecoveryRequired(true);
+        setSyncError(lockdownMessage);
+      } else if (isCrmStoreRecoveryError(err)) {
+        setRecoveryRequired(true);
+        setSyncError(CRM_STORE_RECOVERY_MESSAGE);
+      } else {
+        setRecoveryRequired(false);
+        setSyncError(t('crm.wealthbox.sync-failed'));
+      }
+    } finally {
+      setRecovering(false);
     }
   }
 
@@ -736,7 +794,22 @@ export function WealthboxConnect() {
                 Sync ran into a problem. Try again.
               </p>
             )}
-            {syncError && <p className="text-red-700">{syncError}</p>}
+            {syncError && <p className={recoveryRequired ? 'text-amber-800' : 'text-red-700'}>{syncError}</p>}
+            {recoveryRequired && (
+              <button
+                type="button"
+                data-testid="wealthbox-rebuild-store"
+                disabled={recovering || syncing}
+                onClick={() => {
+                  rebuildCrmImports().catch(() => {
+                    setSyncError('The recovery question could not be opened. Please try again.');
+                  });
+                }}
+                className="rounded-md bg-[var(--kp-navy)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60"
+              >
+                {recovering ? 'Rebuilding…' : 'Rebuild CRM imports'}
+              </button>
+            )}
             {connectError && <p className="text-red-700">{connectError}</p>}
 
             <div className="flex items-center gap-2 pt-1">

@@ -104,7 +104,7 @@ fn crm_dated_fact(row: &crate::commands::crm::store::CrmObjectRow) -> Option<Dat
 /// Fill dates from the authoritative local source after paths have been
 /// decrypted but before the result crosses IPC. This deliberately never uses
 /// `indexed_at`: search timing is not evidence timing.
-fn attach_source_dates(workspace: &std::path::Path, hits: &mut [Hit]) {
+fn attach_source_dates(workspace: &std::path::Path, hits: &mut Vec<Hit>) {
     use crate::commands::mail::store::MailStore;
 
     let has_mail = hits.iter().any(|hit| hit.source_type.as_deref() == Some("mail"));
@@ -117,6 +117,12 @@ fn attach_source_dates(workspace: &std::path::Path, hits: &mut [Hit]) {
         .then(|| crate::commands::crm::store::CrmStore::db_path(workspace))
         .filter(|path| path.exists())
         .and_then(|_| crate::commands::crm::store::CrmStore::open(workspace).ok());
+
+    // A connector-only failure must never take down file search. CRM chunks
+    // are trustworthy only while their authoritative local store opens.
+    if has_crm && crm_store.is_none() {
+        hits.retain(|hit| hit.source_type.as_deref() != Some("crm"));
+    }
 
     for hit in hits.iter_mut() {
         let metadata = match hit.source_type.as_deref() {
@@ -720,5 +726,17 @@ mod date_producer_tests {
         let mut hits = vec![Hit { path: "mail:missing".to_string(), chunk_text: String::new(), score: 1.0, paragraph_index: 0, id: None, matter_id: None, source_id: Some("mail:missing".to_string()), source_type: Some("mail".to_string()), page_number: None, privilege: None, extraction: None, extraction_confidence: None, locator: None, source_date: None, dated_fact: None, date_conflict: None }];
         attach_source_dates(workspace.path(), &mut hits);
         assert_eq!(hits[0].source_date, None); assert_eq!(hits[0].dated_fact, None);
+    }
+
+    #[test]
+    fn unavailable_crm_store_removes_only_crm_hits_and_keeps_file_search() {
+        let workspace = tempfile::tempdir().expect("temporary workspace");
+        let hit = |path: &str, source_type: &str| Hit { path: path.to_string(), chunk_text: "searchable text".to_string(), score: 1.0, paragraph_index: 0, id: None, matter_id: None, source_id: Some(path.to_string()), source_type: Some(source_type.to_string()), page_number: None, privilege: None, extraction: None, extraction_confidence: None, locator: None, source_date: None, dated_fact: None, date_conflict: None };
+        let mut hits = vec![hit("crm:note:locked", "crm"), hit("plan.docx", "text")];
+
+        attach_source_dates(workspace.path(), &mut hits);
+
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].path, "plan.docx");
     }
 }

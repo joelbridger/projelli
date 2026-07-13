@@ -24,12 +24,24 @@ async fn wealthbox_live_smoke() {
     let token = std::env::var("WEALTHBOX_TEST_TOKEN")
         .expect("WEALTHBOX_TEST_TOKEN must be set to run the live smoke test");
 
-    use lantern_lib::commands::crm::client::WealthboxClient;
+    use lantern_lib::{
+        commands::crm::client::WealthboxClient,
+        network_policy::{NetworkPolicy, WEALTHBOX_AUTH, WEALTHBOX_SYNC},
+    };
 
-    let client = WealthboxClient::new(token);
+    // Even this manually-run probe must use the same guarded network doorway
+    // as the app. Keep auth and sync as separate declared operations so the
+    // privacy registry always knows what kind of data could leave the device.
+    let policy_directory = tempfile::tempdir().expect("temporary network policy directory");
+    let policy = NetworkPolicy::load_from_app_data_dir(policy_directory.path());
+    policy
+        .set_offline_mode(false)
+        .expect("enable the explicitly requested live probe");
+    let auth_client = WealthboxClient::new(token.clone(), policy.clone(), WEALTHBOX_AUTH);
+    let sync_client = WealthboxClient::new(token, policy, WEALTHBOX_SYNC);
 
     // --- /me: validate token + workspace/plan metadata ---
-    let me = client
+    let me = auth_client
         .me()
         .await
         .expect("GET /me should succeed with a valid token");
@@ -42,7 +54,7 @@ async fn wealthbox_live_smoke() {
     );
 
     // --- contacts: full page loop to observe count + paging ---
-    let contacts = client
+    let contacts = sync_client
         .list_contacts(None, None)
         .await
         .expect("list_contacts should succeed");
@@ -56,7 +68,7 @@ async fn wealthbox_live_smoke() {
     // If rejected  → we need to switch to Wealthbox's native timestamp format
     //               (see design §3.4: "2015-05-24 10:00 AM -0400").
     let since_iso = "2020-01-01T00:00:00Z";
-    match client.list_contacts(Some(since_iso), None).await {
+    match sync_client.list_contacts(Some(since_iso), None).await {
         Ok(cs) => println!(
             "[smoke] updated_since={} ACCEPTED — {} contacts returned",
             since_iso,

@@ -12,6 +12,11 @@ import {
   type CrmConnectInfo,
   type CrmDisconnectResult,
 } from '@/platform/utils/wealthbox-commands';
+import { rebuildConnectedCrmImports } from '@/platform/connectors/crm/crmRecovery';
+import {
+  isCrmStoreRecoveryError,
+  CRM_STORE_RECOVERY_MESSAGE,
+} from '@/platform/connectors/crm/crmRecoveryError';
 import { useCrmSync } from '@/platform/connectors/crm/useCrmSync';
 import { useCrmStore } from '@/platform/connectors/crm/crmStore';
 import { getMatters } from '@/platform/matter/matterStore';
@@ -76,6 +81,8 @@ export function SalesforceConnect() {
   const [syncing, setSyncing] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [recoveryRequired, setRecoveryRequired] = useState(false);
+  const [recovering, setRecovering] = useState(false);
   const [lastSyncReport, setLastSyncReport] = useState<{
     householdsProcessed: number;
     recordsIndexed: number;
@@ -210,10 +217,12 @@ export function SalesforceConnect() {
         recordsIndexed: report.recordsIndexed,
       });
     } catch (err) {
+      const recoveryError = isCrmStoreRecoveryError(err);
       if (
-        createdMatterIds.length > 0 ||
-        linkedKeys.length > 0 ||
-        attachedFolders.length > 0
+        !recoveryError &&
+        (createdMatterIds.length > 0 ||
+          linkedKeys.length > 0 ||
+          attachedFolders.length > 0)
       ) {
         const { deleteMatter, removeCrmHouseholdKey, removeFolderPath } =
           useMatterStore.getState();
@@ -224,15 +233,48 @@ export function SalesforceConnect() {
           removeCrmHouseholdKey(matterId, key);
       }
       setSyncError(
-        typeof err === 'string'
+        recoveryError
+          ? CRM_STORE_RECOVERY_MESSAGE
+          : typeof err === 'string'
           ? err
           : err instanceof Error
             ? err.message
             : 'Salesforce sync could not complete. Please try again.'
       );
+      setRecoveryRequired(recoveryError);
     } finally {
       setSyncing(false);
       useCrmStore.getState().finishRun(runId);
+    }
+  }
+
+  async function rebuildCrmImports() {
+    const confirmed = await confirm(
+      'Rebuild the local CRM copy? The unreadable copy will be replaced, then every connected CRM account will be synced again. Your own files are not affected.',
+      {
+        title: 'Rebuild saved CRM records',
+        confirmLabel: 'Rebuild CRM imports',
+        cancelLabel: 'Cancel',
+        variant: 'destructive',
+      }
+    );
+    if (!confirmed) return;
+    setRecovering(true);
+    setSyncError(null);
+    try {
+      await rebuildConnectedCrmImports();
+      setRecoveryRequired(false);
+    } catch (err) {
+      setRecoveryRequired(isCrmStoreRecoveryError(err));
+      setSyncError(
+        typeof err === 'string'
+          ? err
+          : err instanceof Error
+            ? err.message
+            : 'The local CRM copy could not be rebuilt. Please try again.'
+      );
+    } finally {
+      setRecovering(false);
     }
   }
 
@@ -387,7 +429,22 @@ export function SalesforceConnect() {
             {!syncing && progress?.status === 'cancelled' && (
               <p className="text-slate-600">Sync stopped.</p>
             )}
-            {syncError && <p className="text-red-700">{syncError}</p>}
+            {syncError && <p className={recoveryRequired ? 'text-amber-800' : 'text-red-700'}>{syncError}</p>}
+            {recoveryRequired && (
+              <button
+                type="button"
+                data-testid="salesforce-rebuild-store"
+                disabled={recovering || syncing}
+                onClick={() => {
+                  rebuildCrmImports().catch(() => {
+                    setSyncError('The recovery question could not be opened. Please try again.');
+                  });
+                }}
+                className="rounded-md bg-[var(--kp-navy)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60"
+              >
+                {recovering ? 'Rebuilding…' : 'Rebuild CRM imports'}
+              </button>
+            )}
             {connectError && <p className="text-red-700">{connectError}</p>}
 
             <div className="flex items-center gap-2 pt-1">

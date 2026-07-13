@@ -245,6 +245,7 @@ pub fn run() {
             commands::crm::commands::crm_oauth_connect_cancel,
             commands::crm::commands::crm_is_connected,
             commands::crm::commands::crm_disconnect,
+            commands::crm::commands::crm_rebuild_store,
             commands::crm::commands::crm_sync_all,
             commands::crm::commands::crm_sync_status,
             commands::crm::commands::crm_cancel_sync,

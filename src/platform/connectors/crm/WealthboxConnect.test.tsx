@@ -1,10 +1,11 @@
-import '@/i18n';
+import i18n from '@/i18n';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 const controls = vi.hoisted(() => ({
   crmListHouseholds: vi.fn(),
   crmSyncAll: vi.fn(),
+  crmRebuildStore: vi.fn(),
   createCrmRunId: vi.fn(() => 'test-run'),
   createMatter: vi.fn(() => ({ id: 'new-client' })),
 }));
@@ -45,6 +46,13 @@ vi.mock('@/platform/utils/wealthbox-commands', () => ({
   crmDisconnect: vi.fn(),
   crmListHouseholds: controls.crmListHouseholds,
   crmSyncAll: controls.crmSyncAll,
+  crmRebuildStore: controls.crmRebuildStore,
+  CRM_STORE_RECOVERY_MESSAGE:
+    'Saved CRM records cannot be unlocked on this device. Your file search still works. Rebuild the local CRM copy from Wealthbox.',
+  isCrmStoreRecoveryError: (error: unknown) =>
+    (error instanceof Error ? error.message : String(error)).includes(
+      'CRM_STORE_RECOVERY_REQUIRED',
+    ),
   createCrmRunId: controls.createCrmRunId,
   crmCancelSync: vi.fn(),
 }));
@@ -101,9 +109,12 @@ async function renderConnectedConnector(): Promise<void> {
 }
 
 describe('WealthboxConnect sync', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await i18n.changeLanguage('en');
     controls.crmListHouseholds.mockReset();
     controls.crmSyncAll.mockReset();
+    controls.crmRebuildStore.mockReset();
+    controls.crmRebuildStore.mockResolvedValue(undefined);
     controls.createMatter.mockClear();
     privacy.networkLockdown = false;
     crmProgress.set(null);
@@ -159,6 +170,31 @@ describe('WealthboxConnect sync', () => {
     expect(screen.getByTestId('wealthbox-sync-now')).not.toBeDisabled();
   });
 
+  it.each([
+    [
+      'en',
+      "Your household was imported, but we couldn't finish making it searchable in Ask. Try syncing again.",
+      "Your 2 households were imported, but we couldn't finish making them searchable in Ask. Try syncing again.",
+    ],
+    [
+      'es',
+      'Tu hogar se importó, pero no pudimos terminar de prepararlo para buscarlo en Ask. Intenta sincronizar de nuevo.',
+      'Tus 2 hogares se importaron, pero no pudimos terminar de prepararlos para buscarlos en Ask. Intenta sincronizar de nuevo.',
+    ],
+    [
+      'de',
+      'Ihr Haushalt wurde importiert, aber wir konnten ihn noch nicht vollständig für die Suche in Ask vorbereiten. Versuchen Sie die Synchronisierung erneut.',
+      'Ihre 2 Haushalte wurden importiert, aber wir konnten sie noch nicht vollständig für die Suche in Ask vorbereiten. Versuchen Sie die Synchronisierung erneut.',
+    ],
+  ])('keeps the human indexing copy translated in %s', (locale, singular, plural) => {
+    expect(
+      i18n.t('crm.wealthbox.indexing-incomplete', { lng: locale, count: 1 }),
+    ).toBe(singular);
+    expect(
+      i18n.t('crm.wealthbox.indexing-incomplete', { lng: locale, count: 2 }),
+    ).toBe(plural);
+  });
+
   it('shows the honest lockdown message if the guarded doorway closes during sync', async () => {
     controls.crmListHouseholds.mockResolvedValue([{ id: 'household-1', name: 'Avery Family' }]);
     controls.crmSyncAll.mockRejectedValue(
@@ -176,6 +212,26 @@ describe('WealthboxConnect sync', () => {
     ).toBeTruthy();
     expect(screen.queryByText(/internal policy generation mismatch/i)).toBeNull();
     expect(screen.queryByText(/Your household was imported/i)).toBeNull();
+  });
+
+  it('offers to rebuild an unreadable CRM store and starts the safe recovery command', async () => {
+    controls.crmListHouseholds.mockResolvedValue([{ id: 'household-1', name: 'Avery Family' }]);
+    controls.crmSyncAll.mockRejectedValueOnce(
+      new Error('CRM_STORE_RECOVERY_REQUIRED: saved CRM records cannot be unlocked'),
+    );
+
+    await renderConnectedConnector();
+    fireEvent.click(screen.getByTestId('wealthbox-sync-now'));
+    fireEvent.click(await screen.findByTestId('confirm-dialog-confirm'));
+
+    expect(await screen.findByText(/file search still works/i)).toBeTruthy();
+    expect(screen.queryByText(/CRM_STORE_RECOVERY_REQUIRED/i)).toBeNull();
+    fireEvent.click(screen.getByTestId('wealthbox-rebuild-store'));
+    fireEvent.click(await screen.findByTestId('confirm-dialog-confirm'));
+
+    await waitFor(() => {
+      expect(controls.crmRebuildStore).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('keeps retry disabled until the Rust command has finished stopping safely', async () => {

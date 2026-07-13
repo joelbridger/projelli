@@ -25,7 +25,10 @@ use crate::commands::crm::salesforce::{
     SALESFORCE_TOKEN_ENDPOINT, SalesforceClient, build_salesforce_auth_url,
     exchange_salesforce_code, salesforce_client_id,
 };
-use crate::commands::crm::store::{CrmStore, PendingCrmProposal};
+use crate::commands::crm::store::{
+    CrmStore, PendingCrmProposal, crm_store_user_message,
+    is_crm_store_recovery_required,
+};
 use crate::commands::crm::write::{
     self, CrmWriteError, CrmWriteKind, CrmWriteRequest, WriteReceipt,
 };
@@ -2094,12 +2097,15 @@ async fn crm_disconnect_logic_for_provider(
     };
 
     let mut no_crm_rows_remain = false;
+    let mut workspace_key_service_to_delete = None;
     match purge_crm_data_for_provider(&ws, provider).await {
         Ok(outcome) => {
             result.rag_purged = true;
             result.crm_db_purged = true;
             no_crm_rows_remain = outcome.no_crm_rows_remain;
             if no_crm_rows_remain {
+                workspace_key_service_to_delete =
+                    CrmStore::workspace_key_service_for_deletion(&ws);
                 match CrmStore::purge(&ws) {
                     Ok(()) => {}
                     Err(e) => {
@@ -2140,7 +2146,9 @@ async fn crm_disconnect_logic_for_provider(
             }
         }
         if no_crm_rows_remain {
-            if let Err(e) = CrmStore::delete_master_key() {
+            if let Err(e) = CrmStore::delete_workspace_master_key(
+                workspace_key_service_to_delete.as_deref(),
+            ) {
                 log::warn!("crm_disconnect: crm db key deletion failed (non-fatal): {e:#}");
                 result.warnings.push(format!(
                     "The CRM database encryption key could not be removed from the keychain: {e}"
@@ -2300,6 +2308,47 @@ fn crm_source_id_for_row(row: &crate::commands::crm::store::CrmObjectRow) -> Opt
     Some(format!("crm:{kind}:{crm_key}"))
 }
 
+/// Replace only an unreadable local CRM cache, then let the renderer refill it
+/// from every connected CRM provider. Files and non-CRM search rows are untouched.
+#[tauri::command]
+pub async fn crm_rebuild_store(state: State<'_, CrmState>) -> Result<(), String> {
+    if state
+        .is_syncing
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return Err("A CRM sync is already running. Let it finish, then rebuild.".into());
+    }
+    let _sync_guard = SyncGuard(state.is_syncing.clone());
+    let workspace = state.workspace.lock().await.clone()
+        .ok_or("Open a workspace before rebuilding its CRM records.")?;
+
+    match CrmStore::open(&workspace) {
+        Ok(_) => return Err("The saved CRM records are healthy, so they were not rebuilt.".into()),
+        Err(error) if is_crm_store_recovery_required(&error) => {}
+        Err(error) => return Err(crm_store_user_message(&error)),
+    }
+
+    // Remove CRM-only search chunks first. Files and email remain available.
+    let connection = crate::commands::rag::store::open_connection(&workspace)
+        .await.map_err(|error| error.to_string())?;
+    let table = crate::commands::rag::store::open_or_create_table(&connection)
+        .await.map_err(|error| error.to_string())?;
+    crate::commands::rag::store::delete_source_type(&table, "crm")
+        .await.map_err(|error| error.to_string())?;
+
+    let workspace_key_service = CrmStore::workspace_key_service_for_deletion(&workspace);
+    drop(CrmStore::replace_unopenable_database(&workspace, || {
+        if let Err(error) = CrmStore::delete_workspace_master_key(workspace_key_service.as_deref()) {
+            // The old DB is gone and the replacement gets a fresh unique key,
+            // so an orphaned old credential cannot expose or block anything.
+            log::warn!("crm recovery: could not remove orphaned workspace key: {error:#}");
+        }
+        CrmStore::open(&workspace)
+    }).map_err(|error| crm_store_user_message(&error))?);
+    Ok(())
+}
+
 /// Run a full backfill sync: fetch all Wealthbox objects, store them locally,
 /// then index each household that appears in `matter_map` into the RAG store.
 ///
@@ -2370,9 +2419,7 @@ pub async fn crm_sync_all(
     // Open (or create) the encrypted CRM store.
     let store = CrmStore::open(&workspace).map_err(|e| {
         emit_crm_progress(&app, &run_id, serde_json::json!({ "status": "error" }));
-        // Never include raw Wealthbox data in errors; store-open errors are
-        // local filesystem / keychain issues, safe to surface as-is.
-        e.to_string()
+        crm_store_user_message(&e)
     })?;
 
     // Read the RAG/vector master key from the OS keychain and hand it to the engine

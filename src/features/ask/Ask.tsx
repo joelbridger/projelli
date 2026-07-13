@@ -101,6 +101,7 @@ export function Ask(props: UseAskProps) {
     selected,
     selectedTurnIdx,
     errorMsg,
+    crmUnavailableNotice,
     status,
     answerStalled,
     localAiStarting,
@@ -690,6 +691,28 @@ export function Ask(props: UseAskProps) {
                 )}
 
                 {errorBanner}
+                {crmUnavailableNotice && (
+                  <div
+                    role="status"
+                    data-testid="ask-crm-unavailable"
+                    style={{
+                      display: 'flex',
+                      gap: 8,
+                      alignItems: 'flex-start',
+                      padding: '9px 12px',
+                      borderRadius: 'var(--radius-md)',
+                      background: '#fffbeb',
+                      border: '1px solid #fcd34d',
+                      fontSize: 'var(--kp-font-xs)',
+                      color: '#92400e',
+                      maxWidth: 680,
+                      width: '100%',
+                    }}
+                  >
+                    <AlertTriangle size={15} strokeWidth={2} style={{ marginTop: 1, flex: 'none' }} />
+                    {crmUnavailableNotice}
+                  </div>
+                )}
               </>
             )}
 

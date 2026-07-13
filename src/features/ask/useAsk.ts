@@ -316,6 +316,7 @@ export function useAsk({
   const [selected, setSelected] = useState<number | null>(null);
   const [selectedTurnIdx, setSelectedTurnIdx] = useState<number | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [crmUnavailableNotice, setCrmUnavailableNotice] = useState<string | null>(null);
   const [status, setStatus] = useState<
     'idle' | 'retrieving' | 'answering' | 'done' | 'error'
   >('idle');
@@ -479,6 +480,7 @@ export function useAsk({
     setSelectedTurnIdx(null);
     setStreamingTurn(null);
     setErrorMsg(null);
+    setCrmUnavailableNotice(null);
     setStatus('idle');
     setAnswerStalled(false);
     setLocalAiStarting(false);
@@ -638,6 +640,7 @@ export function useAsk({
     setSelected(null);
     setSelectedTurnIdx(null);
     setErrorMsg(null);
+    setCrmUnavailableNotice(null);
     setStatus('idle');
     setAnswerStalled(false);
     setLocalAiStarting(false);
@@ -696,6 +699,7 @@ export function useAsk({
       const sendRootGeneration = useWorkspaceStore.getState().rootGeneration;
 
       setErrorMsg(null);
+      setCrmUnavailableNotice(null);
       setStatus('retrieving');
       setAnswerStalled(false);
       setLocalAiStarting(false);
@@ -954,6 +958,7 @@ export function useAsk({
           rootPath,
           q,
           retrievalScope.kind === 'matter' ? retrievalScope.matterId : null,
+          setCrmUnavailableNotice,
         );
         hits = [...hits, ...crmHits];
 
@@ -1920,6 +1925,7 @@ export function useAsk({
     selected,
     selectedTurnIdx,
     errorMsg,
+    crmUnavailableNotice,
     status,
     answerStalled,
     localAiStarting,
