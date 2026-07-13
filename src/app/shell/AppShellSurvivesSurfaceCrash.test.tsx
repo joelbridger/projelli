@@ -21,6 +21,14 @@
  * per-surface boundary of its own) to prove the OUTCOME the review asked for:
  * the left nav stays mounted and clickable, not just that "a boundary exists
  * somewhere".
+ *
+ * Cycle-2 bench intel (relayed by the coordinator): the blank-nav defect also
+ * reproduces WITHOUT any citation popup, on simply navigating into an
+ * existing Ask conversation — an easier repro than round 1 documented. To
+ * make sure this test's coverage doesn't implicitly assume a popup is part
+ * of the trigger, a second case below crashes CrmAskSurface unconditionally
+ * on mount (standing in for "just opening an Ask conversation", no popup
+ * involved) and asserts the same nav-survives outcome.
  */
 import '@/i18n';
 import { useState } from 'react';
@@ -36,6 +44,15 @@ import { ErrorBoundary } from '@/ui/ErrorBoundary';
 vi.mock('@/features/crm-home', () => ({
   CrmHome: () => {
     throw new Error('home surface boom (simulated, no per-surface boundary)');
+  },
+}));
+
+// Stands in for "just navigating into an existing Ask conversation" — throws
+// unconditionally on mount, with no popup/citation interaction involved, per
+// the cycle-2 bench finding that the real defect doesn't require a popup.
+vi.mock('@/features/crm-ask', () => ({
+  CrmAskSurface: () => {
+    throw new Error('ask conversation boom (simulated, no citation popup involved)');
   },
 }));
 
@@ -136,8 +153,8 @@ function baseProps(
  * ErrorBoundary-wrapped AppSurfaceRouter as siblings, wired to the same shared
  * `sidebarActiveTab` state the real App does.
  */
-function ShellHarness() {
-  const [activeTab, setActiveTab] = useState<AppSurface>('home');
+function ShellHarness({ initialTab = 'home' }: { initialTab?: AppSurface }) {
+  const [activeTab, setActiveTab] = useState<AppSurface>(initialTab);
   return (
     <div className="flex-1 flex overflow-hidden">
       <AppShellNav
@@ -188,6 +205,22 @@ describe('left nav survives a surface crash (fix/sidebar-blank-after-ask, round 
     // a nav tab actually fires the app's tab-change handler.
     const clientsTab = screen.getByTestId('spine-nav-matters');
     fireEvent.click(clientsTab);
+    expect(screen.getByTestId('spine-nav')).toBeInTheDocument();
+  });
+
+  it('keeps the left nav mounted and clickable when just opening an Ask conversation crashes (no citation popup involved)', () => {
+    render(<ShellHarness initialTab="search" />);
+
+    // CrmAskSurface threw on plain mount here — no popup was opened or
+    // interacted with — matching the cycle-2 bench finding that the trigger
+    // is simply navigating into an existing Ask conversation.
+    expect(screen.getByTestId('error-boundary-fallback')).toBeInTheDocument();
+
+    const nav = screen.getByTestId('spine-nav');
+    expect(nav).toBeInTheDocument();
+
+    const homeTab = screen.getByTestId('spine-nav-home');
+    fireEvent.click(homeTab);
     expect(screen.getByTestId('spine-nav')).toBeInTheDocument();
   });
 });
