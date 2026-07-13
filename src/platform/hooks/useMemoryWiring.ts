@@ -66,12 +66,13 @@ import {
   purgePendingDeletedMattersForWorkspace,
   usePendingDeletedMatterStore,
 } from '@/platform/rag/pendingDeletedMatterStore';
-import { getMatters, resolveMatterMatchForPaths, useMatterStore } from '@/platform/matter/matterStore';
+import { getMatters, useMatterStore } from '@/platform/matter/matterStore';
 import {
   buildMailMatterMap,
   isPathInFolder,
   mailFolderKey,
   parseMailFolderKey,
+  resolveWorkspaceMatterId,
 } from '@/platform/rag/matterResolver';
 import { UNASSIGNED_MATTER_ID } from '@/platform/types/matter';
 import {
@@ -383,12 +384,7 @@ function workspaceRelativePath(path: string, rootPath: string | null | undefined
  *      (the common case — `Matter.folderPaths` are absolute).
  */
 export function resolveMatterIdForWorkspacePath(path: string, rootPath: string | null | undefined): string {
-  const forms = [path];
-  const relative = workspaceRelativePath(path, rootPath);
-  if (relative) forms.push(relative);
-  if (rootPath && !isAbsolutePath(path)) forms.push(buildWorkspaceAbsolutePath(rootPath, path));
-
-  return resolveMatterMatchForPaths(forms, rootPath).id;
+  return resolveWorkspaceMatterId(path, rootPath, getMatters());
 }
 
 /** Thin wrapper matching the `MatterResolver` signature `MemoryService` expects

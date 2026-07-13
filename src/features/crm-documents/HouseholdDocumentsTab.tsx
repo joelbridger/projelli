@@ -1,11 +1,14 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string -- frozen CRM copy */
 import { useMemo, useState, type DragEvent } from 'react';
 import { FileText, GripVertical, Link2, Unlink } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Button, Card, EmptyState, SurfaceToolbar } from '@/ui/kp';
 import type { HouseholdTabSurfaceProps } from '@/features/crm-clients/tabRegistry';
 import type { EntityRef } from '@/platform/crm/types';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+import { useMatters } from '@/platform/matter/matterStore';
+import { resolveWorkspaceMatterId } from '@/platform/rag/matterResolver';
 import type { FileNode } from '@/platform/types/workspace';
 import { EV_OPEN_CRM_DOCUMENT } from '@/config/identity';
 import { addDocumentRef, isPlausibleClientDocument, linkedDocumentsForHousehold, recordBelongsToHousehold, removeDocumentRef } from './documentLinks';
@@ -21,20 +24,32 @@ function nameForPath(path: string): string {
 }
 
 export function HouseholdDocumentsTab({ household }: HouseholdTabSurfaceProps) {
+  const { t } = useTranslation();
   const live = useLiveCrmRecords();
   const tree = useWorkspaceStore((state) => state.fileTree);
+  const rootPath = useWorkspaceStore((state) => state.rootPath);
+  const matters = useMatters();
   const [targetValue, setTargetValue] = useState('household');
   const [filePath, setFilePath] = useState('');
   const [saving, setSaving] = useState(false);
   const [dropActive, setDropActive] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const householdRecord = live.records.find((record) => record.kind === 'household' && record.id === household.id);
+  const householdMatterId = useMemo(() => {
+    const recordedMatterId = householdRecord?.matterId;
+    if (recordedMatterId && matters.some((matter) => matter.id === recordedMatterId)) return recordedMatterId;
+    return matters.some((matter) => matter.id === household.id) ? household.id : null;
+  }, [household.id, householdRecord?.matterId, matters]);
   const availableFiles = useMemo(
-    () => filesIn(tree).filter((file) => isPlausibleClientDocument(file.name)),
-    [tree]
+    () => householdMatterId
+      ? filesIn(tree).filter((file) =>
+        isPlausibleClientDocument(file.name)
+        && resolveWorkspaceMatterId(file.path, rootPath, matters) === householdMatterId)
+      : [],
+    [householdMatterId, matters, rootPath, tree]
   );
   const fileByPath = useMemo(() => new Map(availableFiles.map((file) => [file.path, file])), [availableFiles]);
-  const householdRecord = live.records.find((record) => record.kind === 'household' && record.id === household.id);
   const targets = useMemo<Target[]>(() => [
     { value: 'household', kind: 'household', id: household.id, label: `${household.name} household` },
     ...[...household.members, ...household.externalParties].map((person) => ({ value: `person:${person.id}`, kind: 'person' as const, id: person.id, label: `Person: ${person.name}` })),
@@ -76,11 +91,11 @@ export function HouseholdDocumentsTab({ household }: HouseholdTabSurfaceProps) {
   const attach = async (path = filePath) => {
     const target = targets.find((item) => item.value === targetValue);
     const file = fileByPath.get(path);
-    if (!target || !file) return;
+    if (!target || !file || !householdMatterId) return;
     setError(null);
     setMessage(null);
     try {
-      await mutate(target, (refs) => addDocumentRef(refs, { kind: 'document', id: file.path, label: file.name, matterId: household.id }));
+      await mutate(target, (refs) => addDocumentRef(refs, { kind: 'document', id: file.path, label: file.name, matterId: householdMatterId }));
       setFilePath('');
       setMessage(`${file.name} is now linked to ${target.label}.`);
     } catch (reason) {
@@ -122,9 +137,9 @@ export function HouseholdDocumentsTab({ household }: HouseholdTabSurfaceProps) {
       <SurfaceToolbar>
         <label>Link to <select data-testid="crm-document-target" value={targetValue} onChange={(event) => { setTargetValue(event.target.value); }}>{targets.map((target) => <option key={target.value} value={target.value}>{target.label}</option>)}</select></label>
         <label>Document <select data-testid="crm-document-file" value={filePath} onChange={(event) => { setFilePath(event.target.value); }}><option value="">Choose a document</option>{availableFiles.map((file) => <option key={file.path} value={file.path}>{file.name}</option>)}</select></label>
-        <Button size="sm" iconLeft={Link2} data-testid="crm-document-attach" disabled={!filePath || saving} onClick={() => { void attach(); }}>Link document</Button>
+        <Button size="sm" iconLeft={Link2} data-testid="crm-document-attach" disabled={!fileByPath.has(filePath) || saving} onClick={() => { void attach(); }}>Link document</Button>
       </SurfaceToolbar>
-      {availableFiles.length === 0 ? <p data-testid="crm-documents-no-files">There are no documents in this workspace yet. Add a file in Documents, then come back here to link it.</p> : null}
+      {availableFiles.length === 0 ? <p data-testid="crm-documents-no-files">{householdMatterId ? t('crm.documents.no-client-files') : t('crm.documents.folder-not-ready')}</p> : null}
       {availableFiles.length ? <>
         <div
           data-testid="crm-document-dropzone"

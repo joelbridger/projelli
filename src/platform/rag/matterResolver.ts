@@ -242,6 +242,26 @@ export function resolveMatterId(filePath: string, matters: Matter[]): string {
 }
 
 /**
+ * Resolve a workspace file that may be represented by either a workspace-
+ * relative path (the file tree) or an absolute path (the indexer). Every form
+ * is checked together so an ownership conflict fails closed instead of one
+ * convenient spelling silently winning.
+ */
+export function resolveWorkspaceMatterId(
+  filePath: string,
+  rootPath: string | null | undefined,
+  matters: Matter[],
+): string {
+  const forms = [filePath];
+  if (rootPath) {
+    const relative = relativeInside(rootPath, filePath);
+    if (relative) forms.push(relative);
+    if (!isAbsolutePath(filePath)) forms.push(joinWorkspacePath(rootPath, filePath));
+  }
+  return resolveMatterMatchAcrossForms(forms, matters, rootPath).id;
+}
+
+/**
  * Look up a matter by id. Returns `undefined` for the unassigned sentinel or
  * an unknown id.
  */
