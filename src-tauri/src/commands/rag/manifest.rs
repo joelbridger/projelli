@@ -111,6 +111,12 @@ pub struct PdfSignature {
     /// Informational: pages extracted last time. Not part of the skip gate.
     #[serde(default)]
     pub page_count: u32,
+    /// The PDF was successfully checked but deliberately stored no searchable
+    /// rows (for example: encrypted, OCR disabled, or safely rejected OCR).
+    /// Missing on older manifests, so `false` preserves QA-92's healing rule
+    /// for legacy PDF receipts whose vector rows disappeared.
+    #[serde(default)]
+    pub empty_index: bool,
 }
 
 /// The freshness signature of one indexed source.
@@ -475,6 +481,7 @@ mod tests {
             ocr_enabled: true,
             ocr_version: OCR_VERSION,
             page_count: 12,
+            empty_index: false,
         });
         let now = PdfInputs::current(true);
         assert!(sig.is_fresh(100, 42, Some(&now)));
@@ -488,6 +495,7 @@ mod tests {
             ocr_enabled: false,
             ocr_version: OCR_VERSION,
             page_count: 12,
+            empty_index: false,
         });
         // OCR now ON → input changed → must re-index.
         let now = PdfInputs::current(true);
@@ -503,6 +511,7 @@ mod tests {
             ocr_enabled: true,
             ocr_version: OCR_VERSION,
             page_count: 1,
+            empty_index: false,
         });
         assert!(!sig.is_fresh(100, 42, None));
         let text = text_sig(100, 42);

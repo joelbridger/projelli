@@ -1,5 +1,71 @@
 use super::*;
 
+fn validate_pdf_workspace_pin(
+    current_workspace: &Path,
+    current_activation: u64,
+    expected_workspace: &str,
+    expected_activation: u64,
+    path: &str,
+    operation: &str,
+) -> Result<(), String> {
+    let canonical = |candidate: &Path| {
+        std::fs::canonicalize(candidate).unwrap_or_else(|_| candidate.to_path_buf())
+    };
+    let current = canonical(current_workspace);
+    let expected = canonical(Path::new(expected_workspace));
+    if current != expected || current_activation != expected_activation {
+        return Err(format!(
+            "{operation}: workspace changed; refusing stale PDF operation"
+        ));
+    }
+    let pdf_path = canonical(Path::new(path));
+    if !pdf_path.starts_with(&current) {
+        return Err(format!(
+            "{operation}: PDF path is outside the expected workspace"
+        ));
+    }
+    Ok(())
+}
+
+async fn require_pinned_pdf_workspace(
+    state: &RagState,
+    expected_workspace: &str,
+    expected_activation: u64,
+    path: &str,
+    operation: &str,
+) -> Result<PathBuf, String> {
+    let workspace = require_workspace(state).await?;
+    let activation = state.workspace_activation.load(Ordering::SeqCst);
+    validate_pdf_workspace_pin(
+        &workspace,
+        activation,
+        expected_workspace,
+        expected_activation,
+        path,
+        operation,
+    )?;
+    Ok(workspace)
+}
+
+async fn lock_pinned_pdf_commit<'a>(
+    state: &'a RagState,
+    expected_workspace: &str,
+    expected_activation: u64,
+    path: &str,
+    operation: &str,
+) -> Result<(tokio::sync::MutexGuard<'a, ()>, PathBuf), String> {
+    let guard = state.workspace_switch_lock.lock().await;
+    let workspace = require_pinned_pdf_workspace(
+        state,
+        expected_workspace,
+        expected_activation,
+        path,
+        operation,
+    )
+    .await?;
+    Ok((guard, workspace))
+}
+
 // N2: rag_index_mail_text was removed.
 // The Tauri command was never called from the frontend; the real indexing path
 // is index_mail_text_internal in commands/mail/mod.rs, which calls the rag
@@ -29,8 +95,26 @@ pub async fn rag_cancel_indexing(state: State<'_, RagState>) -> Result<(), Strin
 pub async fn rag_delete_path(
     state: State<'_, RagState>,
     path: String,
+    expected_workspace: Option<String>,
+    expected_activation: Option<u64>,
 ) -> Result<(), String> {
-    let workspace = require_workspace(&state).await?;
+    let _switch_guard = if expected_workspace.is_some() {
+        Some(state.workspace_switch_lock.lock().await)
+    } else {
+        None
+    };
+    let workspace = if let Some(expected) = expected_workspace.as_deref() {
+        require_pinned_pdf_workspace(
+            &state,
+            expected,
+            expected_activation.ok_or("rag_delete_path: expected activation is required")?,
+            &path,
+            "rag_delete_path",
+        )
+        .await?
+    } else {
+        require_workspace(&state).await?
+    };
     let conn = store::open_connection(&workspace)
         .await
         .map_err(|e| format!("open lancedb: {e}"))?;
@@ -110,10 +194,36 @@ pub async fn rag_index_pdf_chunks(
     matter_id: Option<String>,
     privilege: Option<String>,
     page_confidences: Option<Vec<Option<f32>>>,
+    expected_workspace: String,
+    expected_activation: u64,
 ) -> Result<u32, String> {
+    let _ = page_count;
     let matter = resolve_matter(matter_id.as_deref())?;
     let privilege = resolve_privilege(privilege.as_deref())?;
-    let workspace = require_workspace(&state).await?;
+    // Fast first check before doing expensive embedding.
+    require_pinned_pdf_workspace(
+        &state,
+        &expected_workspace,
+        expected_activation,
+        &path,
+        "rag_index_pdf_chunks",
+    )
+    .await?;
+    let key = crypto::get_or_create_master_key().map_err(|e| format!("vectors key: {e}"))?;
+    let prepared = pdf_indexer::prepare_pdf_chunks(&path, &pages, page_confidences.as_deref())
+        .await
+        .map_err(|e| format!("prepare_pdf_chunks: {e:#}"))?;
+
+    // The second check and actual write are one atomic phase with respect to a
+    // workspace switch. Slow embedding above never blocks the user from moving.
+    let (_switch_guard, workspace) = lock_pinned_pdf_commit(
+        &state,
+        &expected_workspace,
+        expected_activation,
+        &path,
+        "rag_index_pdf_chunks commit",
+    )
+    .await?;
     let conn = store::open_connection(&workspace)
         .await
         .map_err(|e| format!("open lancedb: {e}"))?;
@@ -121,19 +231,14 @@ pub async fn rag_index_pdf_chunks(
         .await
         .map_err(|e| format!("open table: {e}"))?;
 
-    // WS-VEC: the vector-store master key — chunk text is encrypted at rest.
-    let key = crypto::get_or_create_master_key().map_err(|e| format!("vectors key: {e}"))?;
-
     // {e:#} = full anyhow chain, so the typed model-not-ready marker at the
     // root cause survives any .context() wrapping when it crosses IPC.
-    let count = pdf_indexer::index_pdf_chunks(
+    let count = pdf_indexer::commit_pdf_chunks(
         &table,
         &path,
-        &pages,
-        page_count,
+        prepared,
         &matter,
         &privilege,
-        page_confidences.as_deref(),
         &key,
     )
     .await
@@ -340,16 +445,139 @@ async fn update_manifest_matter_many(
     }
 }
 
-/// QA-92 — a PDF may be SKIPPED on boot only when its manifest signature is
-/// stat-fresh AND it still has at least one vector row under its recorded scope.
-/// PDF manifest entries record `row_count = 0` (the frontend indexes PDF chunks
-/// on a separate path), so — unlike text/office — we can't compare an expected
-/// count; ROW PRESENCE is the signal. A manifest-fresh PDF whose rows vanished
-/// (vectors cache lost/rebuilt, or a prior partial OCR) must re-index, or it
-/// stays unsearchable forever (the QA-92 pre-existing-files bug). Pure so the
-/// decision is unit-tested without a live store.
-pub(crate) fn pdf_can_skip(stat_fresh: bool, rows_present: usize) -> bool {
-    stat_fresh && rows_present > 0
+/// QA-92 / Finding #19 — a searchable PDF needs surviving rows; a PDF with an
+/// explicit successful-empty receipt needs zero rows. Old receipts deserialize
+/// `empty_index` as false, so a lost legacy index still heals instead of being
+/// mistaken for an intentionally empty PDF.
+pub(crate) fn pdf_can_skip(
+    stat_fresh: bool,
+    intentionally_empty: bool,
+    rows_present: usize,
+) -> bool {
+    stat_fresh
+        && if intentionally_empty {
+            rows_present == 0
+        } else {
+            rows_present > 0
+        }
+}
+
+/// Finding #19 — decide the complete PDF work list with one manifest read and
+/// one vector-table scan. The former renderer loop called
+/// `rag_manifest_pdf_fresh` once per PDF; every call reopened LanceDB, reparsed
+/// the whole manifest, and counted rows for one path. On a large workspace that
+/// turned a warm restart into an hour-long "Indexing PDFs" pass even though no
+/// PDF was actually rebuilt.
+///
+/// This helper is public for the model-free restart integration test. `paths`
+/// are returned unchanged when the saved state cannot be trusted, preserving
+/// the existing fail-safe rule: uncertainty causes real re-indexing, never a
+/// silent missing result.
+pub async fn plan_pdf_index_for_workspace(
+    workspace: &Path,
+    paths: Vec<String>,
+    ocr_enabled: bool,
+    integrity_unknown: bool,
+    unsafe_tokens: &HashSet<String>,
+    key: &[u8; 32],
+) -> Result<Vec<String>, String> {
+    if paths.is_empty() {
+        return Ok(Vec::new());
+    }
+    if integrity_unknown {
+        return Ok(paths);
+    }
+
+    let manifest = manifest::load(workspace, store::INDEX_VERSION);
+    if manifest.index_version != store::INDEX_VERSION {
+        return Ok(paths);
+    }
+
+    let conn = store::open_connection(workspace)
+        .await
+        .map_err(|e| format!("open lancedb: {e}"))?;
+    let table_present = conn
+        .table_names()
+        .execute()
+        .await
+        .map_err(|e| format!("list tables: {e}"))?
+        .iter()
+        .any(|name| name == store::TABLE_NAME);
+    let row_counts = if table_present {
+        let table = conn
+            .open_table(store::TABLE_NAME)
+            .execute()
+            .await
+            .map_err(|e| format!("open table: {e}"))?;
+        store::scoped_row_counts(&table)
+            .await
+            .map_err(|e| format!("scan pdf row presence: {e}"))?
+    } else {
+        // A workspace containing only intentionally-unsearchable PDFs may have
+        // no chunks table at all. Empty receipts remain valid with zero rows;
+        // normal PDF receipts still fail safe and are selected for healing.
+        Default::default()
+    };
+    let mut total_row_counts = std::collections::HashMap::<String, usize>::new();
+    for ((token, _, _), count) in &row_counts {
+        *total_row_counts.entry(token.clone()).or_default() += count;
+    }
+    let pdf_inputs = manifest::PdfInputs::current(ocr_enabled);
+
+    let mut needs_index = Vec::new();
+    for path in paths {
+        let token = crypto::path_token(key, &path);
+        let can_skip = if unsafe_tokens.contains(&token) {
+            false
+        } else if let (Some((size, mtime)), Some(signature)) = (
+            manifest::stat_signature(Path::new(&path)),
+            manifest.get(&token),
+        ) {
+            let intentionally_empty = signature.pdf.as_ref().is_some_and(|pdf| pdf.empty_index);
+            let rows_present = if intentionally_empty {
+                // Empty means empty across EVERY client/privilege scope. Looking
+                // only at the receipt's current scope could hide stale rows that
+                // survived under an older client after a failed cleanup.
+                total_row_counts.get(&token).copied().unwrap_or(0)
+            } else {
+                row_counts
+                    .get(&(
+                        token,
+                        signature.matter_id.clone(),
+                        signature.privilege.clone(),
+                    ))
+                    .copied()
+                    .unwrap_or(0)
+            };
+            signature.is_fresh(size, mtime, Some(&pdf_inputs))
+                && pdf_can_skip(true, intentionally_empty, rows_present)
+        } else {
+            false
+        };
+
+        if !can_skip {
+            needs_index.push(path);
+        }
+    }
+    Ok(needs_index)
+}
+
+/// Finding #19 — return only PDFs that genuinely need extraction/indexing.
+/// Warm restarts therefore do one bounded check and stay silent when nothing
+/// changed, instead of replaying a per-file progress counter from zero.
+#[tauri::command]
+pub async fn rag_plan_pdf_index(
+    state: State<'_, RagState>,
+    paths: Vec<String>,
+    ocr_enabled: bool,
+) -> Result<Vec<String>, String> {
+    let workspace = require_workspace(&state).await?;
+    if state.index_integrity_unknown.load(Ordering::SeqCst) {
+        return Ok(paths);
+    }
+    let key = crypto::get_or_create_master_key().map_err(|e| format!("vectors key: {e}"))?;
+    let unsafe_tokens = state.unsafe_tokens.lock().await.clone();
+    plan_pdf_index_for_workspace(&workspace, paths, ocr_enabled, false, &unsafe_tokens, &key).await
 }
 
 /// P1.1 (Task 3) — is this PDF already indexed at its current version + OCR
@@ -433,7 +661,8 @@ pub async fn rag_manifest_pdf_fresh(
         store::path_row_count_for_scope(&table, &path, &sig.matter_id, &sig.privilege, &key)
             .await
             .map_err(|e| format!("count pdf rows: {e}"))?;
-    Ok(pdf_can_skip(true, rows))
+    let intentionally_empty = sig.pdf.as_ref().is_some_and(|pdf| pdf.empty_index);
+    Ok(pdf_can_skip(true, intentionally_empty, rows))
 }
 
 /// P1.1 (Task 3) — record a PDF's signature after the frontend has successfully
@@ -447,10 +676,20 @@ pub async fn rag_manifest_record_pdf(
     privilege: Option<String>,
     page_count: u32,
     ocr_enabled: bool,
+    empty_index: bool,
+    expected_workspace: String,
+    expected_activation: u64,
 ) -> Result<(), String> {
     let matter = resolve_matter(matter_id.as_deref())?;
     let privilege = resolve_privilege(privilege.as_deref())?;
-    let workspace = require_workspace(&state).await?;
+    let (_switch_guard, workspace) = lock_pinned_pdf_commit(
+        &state,
+        &expected_workspace,
+        expected_activation,
+        &path,
+        "rag_manifest_record_pdf",
+    )
+    .await?;
     let Some((size, mtime_ns)) = manifest::stat_signature(Path::new(&path)) else {
         // File vanished between indexing and recording — nothing to record.
         return Ok(());
@@ -467,6 +706,7 @@ pub async fn rag_manifest_record_pdf(
             ocr_enabled,
             ocr_version: manifest::OCR_VERSION,
             page_count,
+            empty_index,
         }),
         matter_id: matter,
         privilege,
@@ -481,7 +721,61 @@ pub async fn rag_manifest_record_pdf(
     m.index_version = store::INDEX_VERSION;
     m.insert(token, sig);
     manifest::save(&workspace, &m).map_err(|e| format!("save manifest: {e}"))?;
+    clear_tombstone(&state, &workspace, &path, &key).await;
     Ok(())
+}
+
+/// Finding #19 — remove one PDF's completion receipt after a temporary OCR
+/// failure. Successfully recovered native-text rows may remain searchable, but
+/// without this invalidation an older receipt plus those partial rows would make
+/// the next restart skip the failed scanned pages forever.
+pub fn forget_pdf_receipt(
+    workspace: &Path,
+    path: &str,
+    key: &[u8; 32],
+) -> Result<bool, String> {
+    let token = crypto::path_token(key, path);
+    let mut m = manifest::load(workspace, store::INDEX_VERSION);
+    let is_pdf = m.get(&token).is_some_and(|sig| sig.pdf.is_some());
+    if !is_pdf {
+        return Ok(false);
+    }
+    m.remove(&token);
+    manifest::save(workspace, &m).map_err(|e| format!("save manifest: {e}"))?;
+    Ok(true)
+}
+
+#[tauri::command]
+pub async fn rag_manifest_forget_pdf(
+    state: State<'_, RagState>,
+    path: String,
+    expected_workspace: String,
+    expected_activation: u64,
+) -> Result<(), String> {
+    let (_switch_guard, workspace) = lock_pinned_pdf_commit(
+        &state,
+        &expected_workspace,
+        expected_activation,
+        &path,
+        "rag_manifest_forget_pdf",
+    )
+    .await?;
+    let key = crypto::get_or_create_master_key().map_err(|e| format!("vectors key: {e}"))?;
+    let _mg = state.manifest_lock.lock().await;
+    match forget_pdf_receipt(&workspace, &path, &key) {
+        Ok(_) => Ok(()),
+        Err(err) => {
+            // If the old receipt cannot be removed, fail closed: hide the
+            // partial rows and force a future retry even across a restart.
+            let tombstone = tombstone_path(&state, &workspace, &path, &key).await;
+            match tombstone {
+                Ok(()) => Err(format!("{err}; partial PDF was tombstoned")),
+                Err(tombstone_err) => Err(format!(
+                    "{err}; tombstone also failed: {tombstone_err:#}"
+                )),
+            }
+        }
+    }
 }
 
 /// P1.1 (Task 3) — forget ALL PDF manifest entries. Called when the user turns
@@ -490,8 +784,19 @@ pub async fn rag_manifest_record_pdf(
 /// rows no longer exist, so they'd silently vanish from search. Text/office
 /// entries are untouched.
 #[tauri::command]
-pub async fn rag_manifest_forget_pdfs(state: State<'_, RagState>) -> Result<(), String> {
-    let workspace = require_workspace(&state).await?;
+pub async fn rag_manifest_forget_pdfs(
+    state: State<'_, RagState>,
+    expected_workspace: String,
+    expected_activation: u64,
+) -> Result<(), String> {
+    let (_switch_guard, workspace) = lock_pinned_pdf_commit(
+        &state,
+        &expected_workspace,
+        expected_activation,
+        &expected_workspace,
+        "rag_manifest_forget_pdfs",
+    )
+    .await?;
     let _mg = state.manifest_lock.lock().await;
     let mut m = manifest::load(&workspace, store::INDEX_VERSION);
     let before = m.sources.len();
@@ -508,22 +813,141 @@ pub async fn rag_manifest_forget_pdfs(state: State<'_, RagState>) -> Result<(), 
 mod qa92_pdf_tests {
     use super::*;
 
+    #[test]
+    fn pdf_mutation_pin_rejects_workspace_switch_and_outside_path() {
+        let current = Path::new("/workspace/B");
+        assert!(validate_pdf_workspace_pin(
+            current,
+            7,
+            "/workspace/B",
+            7,
+            "/workspace/B/inside.pdf",
+            "test",
+        )
+        .is_ok());
+        assert!(validate_pdf_workspace_pin(
+            current,
+            7,
+            "/workspace/A",
+            6,
+            "/workspace/A/old.pdf",
+            "test",
+        )
+        .unwrap_err()
+        .contains("workspace changed"));
+        assert!(validate_pdf_workspace_pin(
+            current,
+            7,
+            "/workspace/B",
+            7,
+            "/workspace/A/outside.pdf",
+            "test",
+        )
+        .unwrap_err()
+        .contains("outside"));
+    }
+
+    #[test]
+    fn pdf_commit_recheck_rejects_an_aba_switch_after_initial_validation() {
+        let workspace = Path::new("/workspace/A");
+        assert!(validate_pdf_workspace_pin(
+            workspace,
+            1,
+            "/workspace/A",
+            1,
+            "/workspace/A/slow.pdf",
+            "initial check",
+        )
+        .is_ok());
+
+        // The user opened B, then reopened A while embedding was paused. The
+        // path matches again, but activation 3 proves this is a new opening.
+        let commit = validate_pdf_workspace_pin(
+            workspace,
+            3,
+            "/workspace/A",
+            1,
+            "/workspace/A/slow.pdf",
+            "commit check",
+        );
+        assert!(commit.unwrap_err().contains("workspace changed"));
+    }
+
+    #[tokio::test]
+    async fn pinned_commit_guard_refuses_after_aba_while_slow_work_was_paused() {
+        let temp = tempfile::TempDir::new().expect("workspace parent");
+        let workspace_a = temp.path().join("A");
+        let workspace_b = temp.path().join("B");
+        std::fs::create_dir_all(&workspace_a).expect("create A");
+        std::fs::create_dir_all(&workspace_b).expect("create B");
+        let pdf = workspace_a.join("slow.pdf");
+        std::fs::write(&pdf, b"fixture").expect("write PDF");
+        let workspace_a_string = workspace_a.to_string_lossy().to_string();
+        let pdf_string = pdf.to_string_lossy().to_string();
+
+        let state = RagState::default();
+        *state.workspace_root.lock().await = Some(workspace_a.clone());
+        state.workspace_activation.store(1, Ordering::SeqCst);
+        require_pinned_pdf_workspace(
+            &state,
+            &workspace_a_string,
+            1,
+            &pdf_string,
+            "initial check",
+        )
+        .await
+        .expect("initial pin");
+
+        // This is the deterministic pause between preparation and commit: B
+        // opens, then A opens again before the old prepared rows try to save.
+        {
+            let _switch = state.workspace_switch_lock.lock().await;
+            *state.workspace_root.lock().await = Some(workspace_b);
+            state.workspace_activation.store(2, Ordering::SeqCst);
+            *state.workspace_root.lock().await = Some(workspace_a.clone());
+            state.workspace_activation.store(3, Ordering::SeqCst);
+        }
+
+        let commit = lock_pinned_pdf_commit(
+            &state,
+            &workspace_a_string,
+            1,
+            &pdf_string,
+            "commit check",
+        )
+        .await;
+        match commit {
+            Ok(_) => panic!("old A commit must not cross an A → B → A switch"),
+            Err(err) => assert!(err.contains("workspace changed")),
+        }
+    }
+
     // RED before the fix: the pre-fix path skipped a stat-fresh PDF even with
     // zero surviving rows, leaving it unsearchable forever.
     #[test]
     fn manifest_fresh_pdf_with_zero_rows_must_not_skip() {
-        assert!(!pdf_can_skip(true, 0));
+        assert!(!pdf_can_skip(true, false, 0));
     }
 
     // A genuinely-indexed PDF must still skip (no needless re-OCR every boot).
     #[test]
     fn manifest_fresh_pdf_with_rows_may_skip() {
-        assert!(pdf_can_skip(true, 4));
+        assert!(pdf_can_skip(true, false, 4));
+    }
+
+    // Finding #19: a PDF that was successfully checked but had no safe text to
+    // store must not be retried every launch. The explicit receipt separates
+    // that outcome from a searchable PDF whose rows were accidentally lost.
+    #[test]
+    fn manifest_fresh_intentionally_empty_pdf_may_skip_without_rows() {
+        assert!(pdf_can_skip(true, true, 0));
+        assert!(!pdf_can_skip(true, true, 1));
     }
 
     // A changed/stale PDF never skips, rows or not.
     #[test]
     fn stale_pdf_never_skips_regardless_of_rows() {
-        assert!(!pdf_can_skip(false, 10));
+        assert!(!pdf_can_skip(false, false, 10));
+        assert!(!pdf_can_skip(false, true, 0));
     }
 }

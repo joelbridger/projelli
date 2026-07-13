@@ -345,9 +345,9 @@ export async function keychainDelete(
 /** Set or replace the active workspace root the RAG indexer points at.
  *  Must be called once when the user opens a workspace, before any other
  *  `rag_*` command. */
-export async function ragSetWorkspace(path: string): Promise<void> {
-  if (!isTauri()) return; // no-op in browser
-  return invoke<void>('rag_set_workspace', { path });
+export async function ragSetWorkspace(path: string): Promise<number> {
+  if (!isTauri()) return 0; // no-op in browser
+  return invoke<number>('rag_set_workspace', { path });
 }
 
 /** Index a single file into the local RAG store. Idempotent — re-running
@@ -396,6 +396,23 @@ export async function ragReconcileWorkspace(matterId?: string): Promise<void> {
   await invoke('rag_reconcile_workspace', { matterId });
 }
 
+/** Finding #19 — return only PDFs that genuinely need indexing. The native
+ * side checks the saved manifest and vector rows in one bounded pass. On any
+ * error, fail safe by returning every path so search can heal rather than
+ * silently skip missing content. */
+export async function ragPlanPdfIndex(
+  paths: string[],
+  ocrEnabled: boolean,
+): Promise<string[]> {
+  if (!isTauri()) return paths;
+  try {
+    return await invoke<string[]>('rag_plan_pdf_index', { paths, ocrEnabled });
+  } catch (err) {
+    console.warn('ragPlanPdfIndex failed; indexing all PDFs to heal search:', err);
+    return paths;
+  }
+}
+
 /** P1.1 (Task 3) — has this PDF already been indexed at its current version +
  *  OCR setting? The PDF-index loop calls this to skip unchanged PDFs on boot.
  *  Returns false (→ re-index) when new/changed/tombstoned or unknown. Browser
@@ -413,16 +430,33 @@ export async function ragManifestPdfFresh(
   }
 }
 
-/** P1.1 (Task 3) — forget all PDF manifest signatures. Call when PDF indexing is
- *  turned OFF (rows deleted) so a later toggle-ON re-indexes PDFs instead of
- *  wrongly skipping them as "fresh". Best-effort; never throws. */
-export async function ragManifestForgetPdfs(): Promise<void> {
+/** Forget all PDF receipts after toggle-off cleanup, pinned to the workspace
+ * opening that scheduled it. Throws rather than touching a newer workspace. */
+export async function ragManifestForgetPdfs(
+  expectedWorkspace: string,
+  expectedActivation: number,
+): Promise<void> {
   if (!isTauri()) return;
-  try {
-    await invoke('rag_manifest_forget_pdfs');
-  } catch (err) {
-    console.warn('ragManifestForgetPdfs failed (non-fatal):', err);
-  }
+  await invoke('rag_manifest_forget_pdfs', {
+    expectedWorkspace,
+    expectedActivation,
+  });
+}
+
+/** Remove one PDF's completion receipt after an incomplete OCR attempt so a
+ * later restart retries its missing scanned pages. Correctness-significant:
+ * callers must fail closed if this throws. */
+export async function ragManifestForgetPdf(
+  path: string,
+  expectedWorkspace: string,
+  expectedActivation: number,
+): Promise<void> {
+  if (!isTauri()) return;
+  await invoke('rag_manifest_forget_pdf', {
+    path,
+    expectedWorkspace,
+    expectedActivation,
+  });
 }
 
 /** P1.1 (Task 3) — record a PDF's signature after a successful index so a later
@@ -431,8 +465,11 @@ export async function ragManifestRecordPdf(
   path: string,
   pageCount: number,
   ocrEnabled: boolean,
+  expectedWorkspace: string,
+  expectedActivation: number,
   matterId?: string,
   privilege?: string,
+  emptyIndex = false,
 ): Promise<void> {
   if (!isTauri()) return;
   try {
@@ -442,6 +479,9 @@ export async function ragManifestRecordPdf(
       ocrEnabled,
       matterId,
       privilege,
+      emptyIndex,
+      expectedWorkspace,
+      expectedActivation,
     });
   } catch (err) {
     console.warn('ragManifestRecordPdf failed (non-fatal):', err);
@@ -460,6 +500,21 @@ export async function ragCancelIndexing(): Promise<void> {
 export async function ragDeletePath(path: string): Promise<void> {
   if (!isTauri()) return;
   return invoke<void>('rag_delete_path', { path });
+}
+
+/** Delete one PDF's rows only if the workspace opening that scheduled the work
+ * is still active. */
+export async function ragDeletePdfPath(
+  path: string,
+  expectedWorkspace: string,
+  expectedActivation: number,
+): Promise<void> {
+  if (!isTauri()) return;
+  return invoke<void>('rag_delete_path', {
+    path,
+    expectedWorkspace,
+    expectedActivation,
+  });
 }
 
 /** BUG-040: purge every stored chunk for a matter. Called when a matter is
@@ -486,6 +541,8 @@ export async function ragIndexPdfChunks(
   path: string,
   pages: string[],
   pageCount: number,
+  expectedWorkspace: string,
+  expectedActivation: number,
   matterId?: string,
   privilege?: string,
   pageConfidences?: (number | undefined)[],
@@ -504,6 +561,8 @@ export async function ragIndexPdfChunks(
     matterId,
     privilege,
     pageConfidences,
+    expectedWorkspace,
+    expectedActivation,
   });
 }
 

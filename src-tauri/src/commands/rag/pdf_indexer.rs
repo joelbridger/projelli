@@ -121,68 +121,39 @@ pub fn extraction_for_page(
         .map(|conf| ("ocr", conf))
 }
 
-/// Index the text content of a PDF file into the LanceDB table.
-///
-/// `pages` is the already-extracted text for each page (from PDF.js via the
-/// JS bridge). `page_count` is the total page count from the PDF metadata
-/// (metadata only, not used for chunking). `matter_id` is the confidentiality
-/// scope the PDF belongs to (WS-B/C); pass `UNASSIGNED_MATTER` when unknown.
-/// `privilege` is the litigation-safety status (WS-PRIV); pass `PRIVILEGE_NONE`
-/// when the PDF is not privileged. `page_confidences` (VG-2) is aligned with
-/// `pages`: `Some(conf)` on a page whose text the local OCR engine read —
-/// that page's chunks are stored with `extraction = ("ocr", conf)` so
-/// citations can disclose it. `key` is the vector-store master key (WS-VEC);
-/// `build_batch` encrypts every chunk's text at rest under it.
-///
-/// Returns the number of chunks successfully stored, or 0 if all pages were
-/// empty / skipped (stale rows are cleaned up either way).
-#[allow(clippy::too_many_arguments)] // mirrors the rag_index_pdf_chunks command surface
-pub async fn index_pdf_chunks(
-    table: &Table,
+pub type PreparedPdfGroups =
+    Vec<(SourceType, Option<(&'static str, f32)>, Vec<(Chunk, Vec<f32>)>)>;
+
+pub enum PreparedPdfIndex {
+    Empty,
+    Groups(PreparedPdfGroups),
+}
+
+/// Chunk and embed PDF text without touching the database. Keeping this slow
+/// phase separate lets the command re-check the workspace activation at the
+/// exact commit point after an A → B → A switch.
+pub async fn prepare_pdf_chunks(
     path: &str,
     pages: &[String],
-    page_count: u32,
-    matter_id: &str,
-    privilege: &str,
     page_confidences: Option<&[Option<f32>]>,
-    key: &[u8; 32],
-) -> Result<usize> {
-    let _ = page_count; // stored in metadata; not needed for chunking logic
-
+) -> Result<PreparedPdfIndex> {
     let all_chunks = build_pdf_chunks(path, pages);
-
     if all_chunks.is_empty() {
-        // No extractable text. Delete any stale rows and return.
-        // (VG-6e: delete matches the tokenized path column via the key.)
-        delete_path(table, path, key).await?;
-        return Ok(0);
+        return Ok(PreparedPdfIndex::Empty);
     }
 
     let texts: Vec<String> = all_chunks.iter().map(|c| c.text.clone()).collect();
-    // F-501 class: a long legal PDF (hundreds of pages, no upstream size cap)
-    // must never embed in one unbounded call. No cancel flag on this path, so
-    // the batched helper always returns Some.
     let Some(vectors) = embed_documents_batched(&texts, None).await? else {
-        return Ok(0);
+        return Ok(PreparedPdfIndex::Empty);
     };
 
-    // Each chunk carries a SourceType derived from its paragraph_index band.
-    // paragraph_index = page_idx * MAX_CHUNKS_PER_PAGE + sub_idx
-    // => page_number (1-based) = paragraph_index / MAX_CHUNKS_PER_PAGE + 1.
-    //
-    // Because every chunk in one batch shares one SourceType, and different
-    // pages have different page_numbers, group chunks by page and write the
-    // groups through `store::upsert_grouped` (single up-front delete, one
-    // table.add — the shared sectioned-source write path, VG-2b). VG-2: each
-    // page group carries its own extraction marker so an OCR-read page's
-    // chunks are disclosable while native pages of the same file stay null.
     let mut grouped: std::collections::BTreeMap<u32, Vec<(Chunk, Vec<f32>)>> =
         std::collections::BTreeMap::new();
     for (chunk, vec) in all_chunks.into_iter().zip(vectors) {
         let page_num = chunk.paragraph_index / MAX_CHUNKS_PER_PAGE + 1;
         grouped.entry(page_num).or_default().push((chunk, vec));
     }
-    let groups: Vec<(SourceType, Option<(&str, f32)>, Vec<(Chunk, Vec<f32>)>)> = grouped
+    let groups = grouped
         .into_iter()
         .map(|(page_num, rows)| {
             (
@@ -192,8 +163,28 @@ pub async fn index_pdf_chunks(
             )
         })
         .collect();
+    Ok(PreparedPdfIndex::Groups(groups))
+}
 
-    super::store::upsert_grouped(table, path, groups, matter_id, privilege, key).await
+/// Commit already-embedded PDF rows. The command layer calls this only while
+/// holding the workspace switch/commit lock after a second pin validation.
+pub async fn commit_pdf_chunks(
+    table: &Table,
+    path: &str,
+    prepared: PreparedPdfIndex,
+    matter_id: &str,
+    privilege: &str,
+    key: &[u8; 32],
+) -> Result<usize> {
+    match prepared {
+        PreparedPdfIndex::Empty => {
+            delete_path(table, path, key).await?;
+            Ok(0)
+        }
+        PreparedPdfIndex::Groups(groups) => {
+            super::store::upsert_grouped(table, path, groups, matter_id, privilege, key).await
+        }
+    }
 }
 
 #[cfg(test)]

@@ -34,7 +34,8 @@ vi.mock('@/platform/utils/tauri-commands', async (importOriginal) => {
   return {
     ...actual,
     ragIndexPdfChunks: vi.fn(() => Promise.resolve(3)),
-    ragDeletePath: vi.fn(() => Promise.resolve()),
+    ragDeletePdfPath: vi.fn(() => Promise.resolve()),
+    ragManifestForgetPdf: vi.fn(() => Promise.resolve()),
   };
 });
 
@@ -68,7 +69,7 @@ import {
 import { useOcrProgressStore } from '@/platform/rag/ocrProgressStore';
 import {
   OCR_SKIP_CONFIDENCE,
-  ragDeletePath,
+  ragDeletePdfPath,
   ragIndexPdfChunks,
 } from '@/platform/utils/tauri-commands';
 
@@ -128,7 +129,7 @@ describe('MemoryService.indexPdfFile OCR pipeline', () => {
     // what catches page 2.
     mockExtraction([NATIVE_PAGE_TEXT, ''], false);
 
-    const r = await MemoryService.indexPdfFile('/w/mixed.pdf', ws());
+    const r = await MemoryService.indexPdfFile('/w/mixed.pdf', ws(), '/w');
 
     expect(ocrPageImage).toHaveBeenCalledTimes(1);
     expect(renderPdfPageToPng).toHaveBeenCalledTimes(1);
@@ -140,7 +141,7 @@ describe('MemoryService.indexPdfFile OCR pipeline', () => {
     // Native page text kept verbatim; OCR text fills the empty page.
     expect(call[1]).toEqual([NATIVE_PAGE_TEXT, 'recognized text from the scan']);
     // pageConfidences aligned with pages: [undefined, 87].
-    expect(call[5]).toEqual([undefined, 87]);
+    expect(call[7]).toEqual([undefined, 87]);
     expect(r.indexed).toBe(true);
   });
 
@@ -150,14 +151,14 @@ describe('MemoryService.indexPdfFile OCR pipeline', () => {
       .mockResolvedValueOnce({ text: 'page one text', confidence: 91.5 })
       .mockResolvedValueOnce({ text: 'page two text', confidence: 48.6 });
 
-    const r = await MemoryService.indexPdfFile('/w/scan.pdf', ws());
+    const r = await MemoryService.indexPdfFile('/w/scan.pdf', ws(), '/w');
 
     expect(ocrPageImage).toHaveBeenCalledTimes(2);
     const renderedPages = vi.mocked(renderPdfPageToPng).mock.calls.map((c) => c[1]);
     expect(renderedPages).toEqual([0, 1]); // sequential, in page order
     const call = vi.mocked(ragIndexPdfChunks).mock.calls[0]!;
     expect(call[1]).toEqual(['page one text', 'page two text']);
-    expect(call[5]).toEqual([91.5, 48.6]);
+    expect(call[7]).toEqual([91.5, 48.6]);
     expect(r.indexed).toBe(true);
     // The worker heap is returned once the file's scanned pages finish.
     expect(destroyOcrClient).toHaveBeenCalledTimes(1);
@@ -167,7 +168,7 @@ describe('MemoryService.indexPdfFile OCR pipeline', () => {
     setOcrScannedPdfsEnabledReader(() => false);
     mockExtraction(['', ''], true);
 
-    const r = await MemoryService.indexPdfFile('/w/scan.pdf', ws());
+    const r = await MemoryService.indexPdfFile('/w/scan.pdf', ws(), '/w');
 
     expect(r.indexed).toBe(false);
     expect(r.reason).toBe('scanned');
@@ -179,7 +180,7 @@ describe('MemoryService.indexPdfFile OCR pipeline', () => {
     vi.mocked(isOcrEngineAvailable).mockReturnValue(false);
     mockExtraction(['', ''], true);
 
-    const r = await MemoryService.indexPdfFile('/w/scan.pdf', ws());
+    const r = await MemoryService.indexPdfFile('/w/scan.pdf', ws(), '/w');
 
     expect(r.indexed).toBe(false);
     expect(r.reason).toBe('scanned');
@@ -190,13 +191,13 @@ describe('MemoryService.indexPdfFile OCR pipeline', () => {
     setOcrScannedPdfsEnabledReader(() => false);
     mockExtraction([NATIVE_PAGE_TEXT, ''], false);
 
-    const r = await MemoryService.indexPdfFile('/w/mixed.pdf', ws());
+    const r = await MemoryService.indexPdfFile('/w/mixed.pdf', ws(), '/w');
 
     expect(ocrPageImage).not.toHaveBeenCalled();
     expect(ragIndexPdfChunks).toHaveBeenCalledTimes(1);
     const call = vi.mocked(ragIndexPdfChunks).mock.calls[0]!;
     expect(call[1]).toEqual([NATIVE_PAGE_TEXT, '']);
-    expect(call[5]).toBeUndefined(); // no confidences array on the native path
+    expect(call[7]).toBeUndefined(); // no confidences array on the native path
     expect(r.indexed).toBe(true);
   });
 
@@ -204,14 +205,14 @@ describe('MemoryService.indexPdfFile OCR pipeline', () => {
     mockExtraction([NATIVE_PAGE_TEXT, ''], false);
     vi.mocked(ocrPageImage).mockRejectedValue(new Error('worker crashed'));
 
-    const r = await MemoryService.indexPdfFile('/w/mixed.pdf', ws());
+    const r = await MemoryService.indexPdfFile('/w/mixed.pdf', ws(), '/w');
 
     // The failed page stays empty (no fabricated text), confidences stay
     // undefined, and the native page still indexes.
     expect(ragIndexPdfChunks).toHaveBeenCalledTimes(1);
     const call = vi.mocked(ragIndexPdfChunks).mock.calls[0]!;
     expect(call[1]).toEqual([NATIVE_PAGE_TEXT, '']);
-    expect(call[5]).toEqual([undefined, undefined]);
+    expect(call[7]).toEqual([undefined, undefined]);
     expect(r.indexed).toBe(true);
     // Teardown still runs after a failure.
     expect(destroyOcrClient).toHaveBeenCalledTimes(1);
@@ -226,7 +227,7 @@ describe('MemoryService.indexPdfFile OCR pipeline', () => {
       return Promise.resolve({ text: 'scan text', confidence: 70 });
     });
 
-    await MemoryService.indexPdfFile('/w/scan.pdf', ws());
+    await MemoryService.indexPdfFile('/w/scan.pdf', ws(), '/w');
 
     expect(seen).toEqual([
       { page: 1, totalPages: 2 },
@@ -260,14 +261,14 @@ describe('WS3c — OCR confidence skip gate (< 30 not indexed)', () => {
       .mockResolvedValueOnce({ text: 'a clean confident scan page', confidence: 85 })
       .mockResolvedValueOnce({ text: 'gjbber1sh n0ise scan', confidence: 20 });
 
-    const r = await MemoryService.indexPdfFile('/w/scan.pdf', ws());
+    const r = await MemoryService.indexPdfFile('/w/scan.pdf', ws(), '/w');
 
     expect(ragIndexPdfChunks).toHaveBeenCalledTimes(1);
     const call = vi.mocked(ragIndexPdfChunks).mock.calls[0]!;
     // Sub-30 page is blanked (Rust chunker then skips it); good page kept.
     expect(call[1]).toEqual(['a clean confident scan page', '']);
     // Its confidence is cleared too, so the array stays aligned with pages.
-    expect(call[5]).toEqual([85, undefined]);
+    expect(call[7]).toEqual([85, undefined]);
     expect(r.indexed).toBe(true);
   });
 
@@ -279,12 +280,12 @@ describe('WS3c — OCR confidence skip gate (< 30 not indexed)', () => {
       .mockResolvedValueOnce({ text: 'boundary page text', confidence: OCR_SKIP_CONFIDENCE })
       .mockResolvedValueOnce({ text: 'clearly confident page', confidence: 90 });
 
-    await MemoryService.indexPdfFile('/w/scan.pdf', ws());
+    await MemoryService.indexPdfFile('/w/scan.pdf', ws(), '/w');
 
     const call = vi.mocked(ragIndexPdfChunks).mock.calls[0]!;
     expect(call[1]).toEqual(['boundary page text', 'clearly confident page']);
     // Both confidences survive — the extraction marker is intact for both pages.
-    expect(call[5]).toEqual([OCR_SKIP_CONFIDENCE, 90]);
+    expect(call[7]).toEqual([OCR_SKIP_CONFIDENCE, 90]);
   });
 
   it('(c) leaves the 30–60 low-confidence disclosure band untouched', async () => {
@@ -293,11 +294,11 @@ describe('WS3c — OCR confidence skip gate (< 30 not indexed)', () => {
     mockExtraction([''], true);
     vi.mocked(ocrPageImage).mockResolvedValueOnce({ text: 'midband scan page', confidence: 45 });
 
-    const r = await MemoryService.indexPdfFile('/w/scan.pdf', ws());
+    const r = await MemoryService.indexPdfFile('/w/scan.pdf', ws(), '/w');
 
     const call = vi.mocked(ragIndexPdfChunks).mock.calls[0]!;
     expect(call[1]).toEqual(['midband scan page']);
-    expect(call[5]).toEqual([45]);
+    expect(call[7]).toEqual([45]);
     expect(r.indexed).toBe(true);
   });
 
@@ -307,7 +308,7 @@ describe('WS3c — OCR confidence skip gate (< 30 not indexed)', () => {
       .mockResolvedValueOnce({ text: 'n0ise', confidence: 15 })
       .mockResolvedValueOnce({ text: 'm0re n0ise', confidence: 22 });
 
-    const r = await MemoryService.indexPdfFile('/w/garbage.pdf', ws());
+    const r = await MemoryService.indexPdfFile('/w/garbage.pdf', ws(), '/w');
 
     // Nothing survived the gate and there is no native text -> never index a
     // broken empty result; report a scanned-equivalent reason instead.
@@ -315,7 +316,7 @@ describe('WS3c — OCR confidence skip gate (< 30 not indexed)', () => {
     expect(r.indexed).toBe(false);
     expect(r.reason).toBe('scanned-low-confidence');
     // Stale rows for the path are cleared so a previously-good index can't orphan.
-    expect(ragDeletePath).toHaveBeenCalledWith('/w/garbage.pdf');
+    expect(ragDeletePdfPath).toHaveBeenCalledWith('/w/garbage.pdf', '/w', 0);
     // The OCR worker heap is still returned after the (failed) read.
     expect(destroyOcrClient).toHaveBeenCalledTimes(1);
   });
@@ -328,12 +329,12 @@ describe('WS3c — OCR confidence skip gate (< 30 not indexed)', () => {
     mockExtraction(['', ''], true);
     vi.mocked(ocrPageImage).mockRejectedValue(new Error('worker crashed'));
 
-    const r = await MemoryService.indexPdfFile('/w/broken.pdf', ws());
+    const r = await MemoryService.indexPdfFile('/w/broken.pdf', ws(), '/w');
 
     expect(ragIndexPdfChunks).not.toHaveBeenCalled();
     expect(r.indexed).toBe(false);
     expect(r.reason).toBe('ocr-failed');
-    expect(ragDeletePath).toHaveBeenCalledWith('/w/broken.pdf');
+    expect(ragDeletePdfPath).toHaveBeenCalledWith('/w/broken.pdf', '/w', 0);
   });
 
   it('(e) a sub-30 OCR page never costs a mixed file its native pages', async () => {
@@ -342,12 +343,12 @@ describe('WS3c — OCR confidence skip gate (< 30 not indexed)', () => {
     mockExtraction([NATIVE_PAGE_TEXT, ''], false);
     vi.mocked(ocrPageImage).mockResolvedValueOnce({ text: 'low conf garbage', confidence: 18 });
 
-    const r = await MemoryService.indexPdfFile('/w/mixed.pdf', ws());
+    const r = await MemoryService.indexPdfFile('/w/mixed.pdf', ws(), '/w');
 
     expect(ragIndexPdfChunks).toHaveBeenCalledTimes(1);
     const call = vi.mocked(ragIndexPdfChunks).mock.calls[0]!;
     expect(call[1]).toEqual([NATIVE_PAGE_TEXT, '']);
-    expect(call[5]).toEqual([undefined, undefined]);
+    expect(call[7]).toEqual([undefined, undefined]);
     expect(r.indexed).toBe(true);
   });
 });

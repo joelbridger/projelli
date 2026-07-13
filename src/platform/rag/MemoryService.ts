@@ -18,10 +18,12 @@
 
 import {
   ragCancelIndexing,
+  ragDeletePdfPath,
   ragDeletePath,
   ragIndexFile,
   ragIndexPdfChunks,
   ragIndexWorkspace,
+  ragManifestForgetPdf,
   ragManifestForgetPdfs,
   ragManifestRecordPdf,
   ragReconcileWorkspace,
@@ -329,17 +331,37 @@ export function resolvePrivilegeForPath(sourceId: string): string {
 }
 
 /**
- * F-301 guard: true while a default (whole-workspace) index is in flight, so
- * overlapping `indexWorkspace()` calls coalesce instead of stacking up. Reset in
- * a `finally`, so a rejected index can never wedge it permanently on.
+ * F-301 guard: the shared default (whole-workspace) reconcile promise. Every
+ * overlapping caller awaits the SAME run. Returning early here is unsafe: the
+ * caller would believe the table was stable and could start PDF work while the
+ * first reconcile was still replacing it.
  */
-let workspaceIndexInFlight = false;
+type WorkspaceIndexRun = {
+  workspaceKey: string | null;
+  activation: number;
+  promise: Promise<void>;
+};
+
+let activeWorkspaceKey: string | null = null;
+let workspaceActivation = 0;
+let nativeWorkspaceActivation = 0;
+let workspaceIndexInFlight: WorkspaceIndexRun | null = null;
+
+function normalizeWorkspaceKey(path: string): string {
+  const normalized = path.replaceAll('\\', '/').replace(/\/+$/, '');
+  return /^[a-z]:\//i.test(normalized) ? normalized.toLowerCase() : normalized;
+}
 
 export const MemoryService = {
   /** Point the indexer at a workspace. Always runs even if disabled — the
    *  workspace handle is metadata, not user data. */
   async setWorkspace(path: string): Promise<void> {
-    await ragSetWorkspace(path);
+    nativeWorkspaceActivation = await ragSetWorkspace(path);
+    const nextWorkspaceKey = normalizeWorkspaceKey(path);
+    if (activeWorkspaceKey !== nextWorkspaceKey) {
+      activeWorkspaceKey = nextWorkspaceKey;
+      workspaceActivation += 1;
+    }
   },
 
   async indexFile(path: string, matterId?: string): Promise<void> {
@@ -374,16 +396,58 @@ export const MemoryService = {
   async indexWorkspace(matterId?: string): Promise<void> {
     if (!isMemoryEnabled()) return;
     if (matterId === undefined) {
-      if (workspaceIndexInFlight) return;
-      workspaceIndexInFlight = true;
+      const requestedWorkspace = activeWorkspaceKey;
+      const requestedActivation = workspaceActivation;
+      let activeRun = workspaceIndexInFlight;
+      while (activeRun !== null) {
+        try {
+          await activeRun.promise;
+        } catch (err) {
+          if (
+            activeRun.workspaceKey === requestedWorkspace &&
+            activeRun.activation === requestedActivation
+          ) {
+            throw err;
+          }
+        }
+        if (workspaceIndexInFlight === activeRun) workspaceIndexInFlight = null;
+        if (
+          activeRun.workspaceKey === requestedWorkspace &&
+          activeRun.activation === requestedActivation
+        ) {
+          return;
+        }
+        // This caller belongs to the workspace that is still active. A run
+        // for another workspace finishing does not count as its reconcile.
+        if (
+          activeWorkspaceKey !== requestedWorkspace ||
+          workspaceActivation !== requestedActivation
+        ) {
+          return;
+        }
+        activeRun = workspaceIndexInFlight;
+      }
+      if (
+        activeWorkspaceKey !== requestedWorkspace ||
+        workspaceActivation !== requestedActivation
+      ) {
+        return;
+      }
+
+      // P1.1 — the default boot index is now a cheap RECONCILE: it skips files
+      // whose signature is unchanged in the manifest and only re-embeds new /
+      // changed ones (falling back to a full rebuild on a schema migration).
+      // This is what makes a warm boot near-instant instead of a full re-embed.
+      const entry: WorkspaceIndexRun = {
+        workspaceKey: requestedWorkspace,
+        activation: requestedActivation,
+        promise: ragReconcileWorkspace(matterId),
+      };
+      workspaceIndexInFlight = entry;
       try {
-        // P1.1 — the default boot index is now a cheap RECONCILE: it skips files
-        // whose signature is unchanged in the manifest and only re-embeds new /
-        // changed ones (falling back to a full rebuild on a schema migration).
-        // This is what makes a warm boot near-instant instead of a full re-embed.
-        await ragReconcileWorkspace(matterId);
+        await entry.promise;
       } finally {
-        workspaceIndexInFlight = false;
+        if (workspaceIndexInFlight === entry) workspaceIndexInFlight = null;
       }
       return;
     }
@@ -543,6 +607,7 @@ export const MemoryService = {
   async indexPdfFile(
     path: string,
     workspaceService: { readBinary: (path: string) => Promise<ArrayBuffer> },
+    expectedWorkspace: string,
   ): Promise<{ indexed: boolean; pageCount: number; reason?: string }> {
     if (!isMemoryEnabled()) {
       return { indexed: false, pageCount: 0, reason: 'memory-disabled' };
@@ -550,6 +615,10 @@ export const MemoryService = {
     if (!isPdfIndexingEnabled()) {
       return { indexed: false, pageCount: 0, reason: 'pdf-indexing-disabled' };
     }
+    // Capture the native opening id BEFORE reading or slow OCR starts. The path
+    // alone is not enough for A → B → A; the first A must not write into the
+    // second A.
+    const expectedActivation = nativeWorkspaceActivation;
 
     let bytes: ArrayBuffer;
     try {
@@ -565,8 +634,52 @@ export const MemoryService = {
     // here), so extraction gets a COPY — `data` stays intact for the OCR
     // page renders below.
     const result = await pdfExtract.extractPdfText(data.slice());
+    const ocrEnabled = isOcrScannedPdfsEnabled();
+    const matterId = resolveMatterForPath(path);
+    const privilege = resolvePrivilegeForPath(path);
+    const recordPdfReceipt = async (emptyIndex: boolean): Promise<void> => {
+      await ragManifestRecordPdf(
+        path,
+        result.pageCount,
+        ocrEnabled,
+        expectedWorkspace,
+        expectedActivation,
+        matterId,
+        privilege,
+        emptyIndex,
+      );
+    };
+    const recordKnownEmptyPdf = async (): Promise<boolean> => {
+      // Remove rows from an older readable version before saving the explicit
+      // empty receipt. Never save that receipt after a failed delete: stale rows
+      // could still carry an older client's scope and must stay fail-closed.
+      try {
+        await ragDeletePdfPath(path, expectedWorkspace, expectedActivation);
+      } catch (err) {
+        console.warn(`[memory] could not clear stale rows for empty PDF ${path}:`, err);
+        return false;
+      }
+      await recordPdfReceipt(true);
+      return true;
+    };
+    const invalidateIncompletePdf = async (): Promise<void> => {
+      try {
+        await ragManifestForgetPdf(path, expectedWorkspace, expectedActivation);
+      } catch (err) {
+        // Receipt removal is correctness-significant. If it fails, remove the
+        // partial rows too; the old non-empty receipt then cannot pass the next
+        // launch's row-presence check. The native side also tombstones the path.
+        try {
+          await ragDeletePdfPath(path, expectedWorkspace, expectedActivation);
+        } catch (deleteErr) {
+          console.warn(`[memory] could not remove partial PDF rows ${path}:`, deleteErr);
+        }
+        throw err;
+      }
+    };
 
     if (result.encrypted) {
+      await recordKnownEmptyPdf();
       return { indexed: false, pageCount: result.pageCount, reason: 'encrypted' };
     }
 
@@ -574,12 +687,13 @@ export const MemoryService = {
     // flag) so a mixed native/scanned filing OCRs only its scanned pages.
     let pages = result.pages;
     let pageConfidences: (number | undefined)[] | undefined;
+    let ocrNeedsRetry = false;
     const ocrPageIndices = result.pages
       .map((pageText, index) => (pdfExtract.pageNeedsOcr(pageText) ? index : -1))
       .filter((index) => index >= 0);
     if (ocrPageIndices.length > 0) {
       const ocr = await import('@/platform/rag/ocr/ocrEngine');
-      if (isOcrScannedPdfsEnabled() && ocr.isOcrEngineAvailable()) {
+      if (ocrEnabled && ocr.isOcrEngineAvailable()) {
         const { useOcrProgressStore } = await import('@/platform/rag/ocrProgressStore');
         pages = [...result.pages];
         pageConfidences = new Array<number | undefined>(result.pages.length).fill(undefined);
@@ -603,6 +717,7 @@ export const MemoryService = {
             } catch (err) {
               // Per-page failure: log, leave THIS page empty, keep going —
               // the native pages (and other OCR pages) must never be lost.
+              ocrNeedsRetry = true;
               console.warn(`[memory] OCR failed for ${path} page ${String(pageIndex + 1)}:`, err);
             }
           }
@@ -613,9 +728,23 @@ export const MemoryService = {
           await ocr.destroyOcrClient().catch(() => undefined);
         }
       } else if (result.scanned) {
-        // Toggle off or engine unavailable AND the file has no native text
-        // worth indexing: the previous honest skip.
+        // Deliberately disabling OCR is a stable, checked-empty outcome. An OCR
+        // engine that is unexpectedly unavailable is temporary and must retry.
+        if (ocrEnabled) {
+          try {
+            await ragDeletePdfPath(path, expectedWorkspace, expectedActivation);
+          } catch (err) {
+            console.warn(`[memory] could not clear stale rows while OCR waits ${path}:`, err);
+          }
+          await invalidateIncompletePdf();
+        } else {
+          await recordKnownEmptyPdf();
+        }
         return { indexed: false, pageCount: result.pageCount, reason: 'scanned' };
+      } else if (ocrEnabled) {
+        // Keep the native pages searchable, but don't mark this mixed PDF fully
+        // checked. Its scanned pages still need OCR on a later launch.
+        ocrNeedsRetry = true;
       }
       // Mixed file with OCR unavailable: fall through and index the native
       // pages exactly as before VG-2.
@@ -653,7 +782,19 @@ export const MemoryService = {
       //   - no page was low-confidence, every OCR page just failed to
       //     render/recognize (all confidences stayed undefined) → 'ocr-failed'
       if (pages.every((p) => p.trim().length === 0)) {
-        await ragDeletePath(path).catch(() => undefined);
+        if (ocrNeedsRetry) {
+          // A broken render/OCR attempt is temporary, not proof that the PDF is
+          // permanently empty. Clear any stale rows, but leave no fresh receipt
+          // so the next launch tries again after the engine recovers.
+          try {
+            await ragDeletePdfPath(path, expectedWorkspace, expectedActivation);
+          } catch (err) {
+            console.warn(`[memory] could not clear stale rows after OCR failure ${path}:`, err);
+          }
+          await invalidateIncompletePdf();
+        } else {
+          await recordKnownEmptyPdf();
+        }
         return {
           indexed: false,
           pageCount: result.pageCount,
@@ -667,27 +808,23 @@ export const MemoryService = {
     // from default retrieval.
     // VG-2: ONE command call for the whole file — the embed stays batched on
     // the Rust side; pageConfidences aligns with pages.
-    const matterId = resolveMatterForPath(path);
-    const privilege = resolvePrivilegeForPath(path);
     const chunksStored = await ragIndexPdfChunks(
       path,
       pages,
       result.pageCount,
+      expectedWorkspace,
+      expectedActivation,
       matterId,
       privilege,
       pageConfidences,
     );
-    if (chunksStored > 0) {
-      // P1.1 (Task 3): record the PDF's signature (size/mtime + OCR setting +
-      // page count) so a later boot can SKIP this PDF while unchanged instead of
-      // re-extracting + re-OCR-ing it. Best-effort; never blocks indexing.
-      await ragManifestRecordPdf(
-        path,
-        result.pageCount,
-        isOcrScannedPdfsEnabled(),
-        matterId,
-        privilege,
-      );
+    // P1.1 / Finding #19: always save the outcome of a successful check. An
+    // explicit empty receipt lets unchanged, safely-unsearchable PDFs stay
+    // quiet across restarts without confusing them with accidentally lost rows.
+    if (!ocrNeedsRetry) {
+      await recordPdfReceipt(chunksStored === 0);
+    } else {
+      await invalidateIncompletePdf();
     }
     return {
       indexed: chunksStored > 0,
@@ -698,11 +835,12 @@ export const MemoryService = {
   /** Remove all stored chunks for the given PDF file paths. Called when
    *  the user turns OFF the `includePdfsInWorkspaceIndex` toggle. Best-effort
    *  — errors are silently swallowed since this is housekeeping. */
-  async deleteAllPdfChunks(filePaths: string[]): Promise<void> {
+  async deleteAllPdfChunks(filePaths: string[], expectedWorkspace: string): Promise<void> {
     if (!isMemoryEnabled()) return;
+    const expectedActivation = nativeWorkspaceActivation;
     for (const path of filePaths) {
       try {
-        await ragDeletePath(path);
+        await ragDeletePdfPath(path, expectedWorkspace, expectedActivation);
       } catch {
         // Best-effort: swallow and keep going.
       }
@@ -710,7 +848,7 @@ export const MemoryService = {
     // P1.1 (Task 3): the PDF rows are gone, so drop their manifest signatures too.
     // Otherwise a later toggle-ON would see them "fresh" and skip re-indexing,
     // silently dropping those PDFs from search until each file changes.
-    await ragManifestForgetPdfs();
+    await ragManifestForgetPdfs(expectedWorkspace, expectedActivation);
   },
 };
 

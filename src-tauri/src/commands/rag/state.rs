@@ -471,6 +471,14 @@ pub(crate) fn cap_skipped_paths(paths: &[String]) -> Vec<String> {
 #[derive(Default)]
 pub struct RagState {
     pub workspace_root: Mutex<Option<PathBuf>>,
+    /// Serializes a workspace switch with the short commit phase of a pinned
+    /// PDF mutation. Slow extraction/embedding happens outside this lock; the
+    /// final activation check + store write happen inside it atomically.
+    pub workspace_switch_lock: Arc<Mutex<()>>,
+    /// Monotonic id for the active workspace opening. Unlike the path alone,
+    /// this distinguishes A → B → A, so a slow renderer PDF job from the first
+    /// A cannot write after the second A has opened.
+    pub workspace_activation: Arc<std::sync::atomic::AtomicU64>,
     pub cancel_flag: Arc<AtomicBool>,
     /// Latch armed by `rag_set_workspace` and consumed by the first default
     /// (`matter_id = None`) `rag_index_workspace` call. Subsequent default calls

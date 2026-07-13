@@ -141,7 +141,7 @@ export function useFileImport({
         },
         indexFile: (p) => MemoryService.indexFile(p),
         indexPdf: async (p) => {
-          const r = await MemoryService.indexPdfFile(p, binaryWs);
+          const r = await MemoryService.indexPdfFile(p, binaryWs, rootPath);
           return { indexed: r.indexed, ...(r.reason ? { reason: r.reason } : {}) };
         },
       });

@@ -95,7 +95,7 @@ import {
 import {
   MODEL_DOWNLOAD_EVENT,
   modelStatus,
-  ragManifestPdfFresh,
+  ragPlanPdfIndex,
   resolveWorkspaceDataDirName,
   watchWorkspace,
   type ModelDownloadProgress,
@@ -833,10 +833,12 @@ export function handleWorkspaceFileChangedEvent(
   if (isPdf && workspaceService) {
     // Only re-index PDF on change if the toggle is on.
     if (isPdfIndexingEnabled() && workspaceService.readFileBinary) {
+      const expectedWorkspace = useWorkspaceStore.getState().rootPath;
+      if (!expectedWorkspace) return;
       const binaryWs = {
         readBinary: (p: string) => workspaceService.readFileBinary!(p),
       };
-      void MemoryService.indexPdfFile(payload.path, binaryWs).catch(() => {});
+      void MemoryService.indexPdfFile(payload.path, binaryWs, expectedWorkspace).catch(() => {});
     }
   } else {
     indexRetryScheduler.schedule(payload.path);
@@ -984,6 +986,7 @@ export async function reindexFolderPaths(
   // fail-closed-relevant failure — a re-embed skip/failure leaves the (already
   // corrected) matter tag intact.
   if (isPdfIndexingEnabled() && workspaceService && pdfPaths.length > 0) {
+    if (!rootPath) return;
     const binaryWs = buildBinaryWorkspace(workspaceService);
     if (binaryWs) {
       for (const path of pdfPaths) {
@@ -997,7 +1000,7 @@ export async function reindexFolderPaths(
           failures += 1;
         }
         try {
-          await MemoryService.indexPdfFile(abs, binaryWs);
+          await MemoryService.indexPdfFile(abs, binaryWs, rootPath);
         } catch {
           // Content refresh only; the matter tag was already corrected above.
         }
@@ -1015,51 +1018,75 @@ export async function reindexFolderPaths(
 }
 
 /** Walk all .pdf files in the workspace and index them via MemoryService. */
-export async function indexWorkspacePdfs(
+let pdfIndexRunSequence = 0;
+const pdfIndexRuns = new Map<string, Promise<void>>();
+
+export function indexWorkspacePdfs(
   workspaceService: MemoryWiringWorkspaceService,
   workspaceIdentity: WorkspaceIdentitySnapshot = captureWorkspaceIdentity(),
+): Promise<void> {
+  const runKey = `${workspaceIdentity.rootPath ?? 'no-workspace'}:${String(workspaceIdentity.rootGeneration)}`;
+  const existing = pdfIndexRuns.get(runKey);
+  if (existing) return existing;
+
+  const run = runWorkspacePdfIndex(workspaceService, workspaceIdentity).finally(() => {
+    if (pdfIndexRuns.get(runKey) === run) pdfIndexRuns.delete(runKey);
+  });
+  pdfIndexRuns.set(runKey, run);
+  return run;
+}
+
+async function runWorkspacePdfIndex(
+  workspaceService: MemoryWiringWorkspaceService,
+  workspaceIdentity: WorkspaceIdentitySnapshot,
 ): Promise<void> {
   const binaryWs = buildBinaryWorkspace(workspaceService);
   if (!binaryWs) return;
   const { rootPath } = workspaceIdentity;
+  if (!rootPath) return;
   // Retry the FRESH scan until the workspace backend is initialized and the tree
   // is loaded, so PDFs index reliably even when the index fires immediately on
   // open (the empty-cached-tree race that previously dropped ~80% of files).
   const pdfPaths = collectPdfPaths(await getFreshTreeWithRetry(workspaceService));
   if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
   if (pdfPaths.length === 0) return;
+  // Finding #19: plan once before showing progress. The old loop announced all
+  // PDFs as "Indexing" and made one expensive native freshness call per file,
+  // even on a warm restart where every PDF was unchanged. That made a persisted
+  // index look as if it restarted from zero. The native planner reads the saved
+  // manifest once, scans row presence once, and returns only real work.
+  const ocrEnabled = isOcrScannedPdfsEnabled();
+  const absolutePaths = pdfPaths.map((path) => buildWorkspaceAbsolutePath(rootPath, path));
+  const pathsToIndex = await ragPlanPdfIndex(absolutePaths, ocrEnabled);
+  if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
+  if (pathsToIndex.length === 0) return;
+
   const progress = usePdfIndexProgressStore.getState();
-  progress.set({ processed: 0, total: pdfPaths.length, currentPath: null });
+  const progressOwner = `${rootPath}:${String(workspaceIdentity.rootGeneration)}:${String(++pdfIndexRunSequence)}`;
+  progress.begin({ processed: 0, total: pathsToIndex.length, currentPath: null }, progressOwner);
   try {
-    // P1.1 (Task 3): whether OCR is on is part of a PDF's freshness signature, so
-    // read it once and pass it to the manifest fresh-check below.
-    const ocrEnabled = isOcrScannedPdfsEnabled();
-    for (const [index, path] of pdfPaths.entries()) {
+    for (const [index, ragPath] of pathsToIndex.entries()) {
       if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
-      const ragPath = buildWorkspaceAbsolutePath(rootPath, path);
-      progress.set({ processed: index, total: pdfPaths.length, currentPath: ragPath });
+      progress.set(
+        { processed: index, total: pathsToIndex.length, currentPath: ragPath },
+        progressOwner,
+      );
       try {
-        // P1.1 (Task 3): skip a PDF whose size/mtime + OCR setting are unchanged
-        // since it was last indexed — PDF extraction + OCR is the single most
-        // expensive per-file cost, so this is the biggest boot win for PDF-heavy
-        // workspaces. A new/changed/tombstoned PDF returns false and re-indexes.
-        if (await ragManifestPdfFresh(ragPath, ocrEnabled)) {
-          if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
-          continue;
-        }
-        if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
-        await MemoryService.indexPdfFile(ragPath, binaryWs);
+        await MemoryService.indexPdfFile(ragPath, binaryWs, rootPath);
       } catch {
         // Best-effort: skip individual failures, continue with the rest.
       } finally {
         if (isWorkspaceIdentityCurrent(workspaceIdentity)) {
-          progress.set({ processed: index + 1, total: pdfPaths.length, currentPath: ragPath });
+          progress.set(
+            { processed: index + 1, total: pathsToIndex.length, currentPath: ragPath },
+            progressOwner,
+          );
         }
       }
       if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
     }
   } finally {
-    progress.clearSoon();
+    progress.clearSoon(progressOwner);
   }
 }
 
@@ -1684,6 +1711,14 @@ export async function startFullIndex(
   const indexAndRetag = MemoryService.indexWorkspace()
     .then(async () => {
       if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
+      // Finding #19: repair saved client/email scope holds FIRST. These are the
+      // real cause of "Some search results are paused" and must not sit behind
+      // a potentially long, legitimate PDF content pass.
+      await retagExistingMailFolders(workspaceIdentity).catch(() => {});
+      if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
+      await retagExistingMatterFolderPaths(workspaceService, workspaceIdentity);
+      if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
+
       // A3: index PDF files (skips unchanged via the manifest fresh-check).
       if (isPdfIndexingEnabled() && workspaceService) {
         await indexWorkspacePdfs(workspaceService, workspaceIdentity).catch(() => {});
@@ -1693,15 +1728,6 @@ export async function startFullIndex(
       // downloading, from the local encrypted bodies. No-ops fast when the
       // backfill marker is absent (the common case).
       await mailBackfillRag(buildMailMatterMap(getMatters())).catch(() => {});
-      if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
-      // QA-44 (Codex round 3): re-apply every mapped mail folder's matter on
-      // boot — the mail mirror of `retagExistingMatterFolderPaths` below. Heals a
-      // stale mail tag left by a failed live re-map whose in-memory exclusion was
-      // dropped on the previous workspace close (cross-session wrong-client leak).
-      await retagExistingMailFolders(workspaceIdentity).catch(() => {});
-      if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
-      // Apply folder→matter scoping to the (now stable) rows, in place.
-      await retagExistingMatterFolderPaths(workspaceService, workspaceIdentity);
     })
     .catch(() => {
       /* errors are surfaced via the progress event with status: error */
@@ -2430,8 +2456,10 @@ export function useMemoryWiring(
       } else {
         // Remove PDF chunks. Collect .pdf paths from the current file tree.
         const { fileTree } = useWorkspaceStore.getState();
-        const pdfPaths = collectPdfPaths(fileTree);
-        void MemoryService.deleteAllPdfChunks(pdfPaths).catch(() => {});
+        const pdfPaths = collectPdfPaths(fileTree).map((path) =>
+          buildWorkspaceAbsolutePath(rootPath, path),
+        );
+        void MemoryService.deleteAllPdfChunks(pdfPaths, rootPath).catch(() => {});
       }
     });
     return unsubscribe;

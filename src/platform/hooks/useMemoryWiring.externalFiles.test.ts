@@ -32,6 +32,19 @@ vi.mock('@/platform/utils/addepar-commands', () => ({
   addeparSetWorkspace: vi.fn().mockResolvedValue(undefined),
 }));
 
+const { pdfIndexPlan } = vi.hoisted(() => ({
+  pdfIndexPlan: vi.fn((paths: string[]) => Promise.resolve(paths)),
+}));
+
+vi.mock('@/platform/utils/tauri-commands', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@/platform/utils/tauri-commands')>();
+  return {
+    ...original,
+    // Finding #19: the fixed path asks once for the real work list.
+    ragPlanPdfIndex: pdfIndexPlan,
+  };
+});
+
 import {
   buildWorkspaceAbsolutePath,
   changedFolderPaths,
@@ -130,6 +143,8 @@ describe('reindexFolderPaths — disk scan for externally-added files', () => {
     // Clear matters so each test sets its own state.
     useMatterStore.setState({ matters: [], activeMatterId: null });
     usePdfIndexProgressStore.getState().clear();
+    pdfIndexPlan.mockReset();
+    pdfIndexPlan.mockImplementation((paths: string[]) => Promise.resolve(paths));
   });
 
   it('builds forward-slash absolute paths from workspace-relative paths', () => {
@@ -423,6 +438,109 @@ describe('reindexFolderPaths — disk scan for externally-added files', () => {
     );
   });
 
+  it('shows no PDF work on restart when every saved PDF is unchanged', async () => {
+    setPdfIndexingEnabledReader(() => true);
+    pdfIndexPlan.mockResolvedValue([]);
+    useWorkspaceStore.setState({
+      rootPath: 'C:\\ws\\Northcrest',
+      fileTree: [],
+    });
+
+    const ws = {
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      exists: vi.fn(),
+      readFileBinary: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
+      getFileTree: vi.fn().mockResolvedValue([
+        makeFolder('Clients/Acme', [
+          makeFile('Clients/Acme/statement.pdf'),
+          makeFile('Clients/Acme/tax-return.pdf'),
+        ]),
+      ]),
+    };
+
+    await indexWorkspacePdfs(ws);
+
+    expect(indexPdfFile).not.toHaveBeenCalled();
+    expect(usePdfIndexProgressStore.getState().current).toBeNull();
+  });
+
+  it('indexes only changed PDFs and clears their progress when the real work ends', async () => {
+    vi.useFakeTimers();
+    try {
+      setPdfIndexingEnabledReader(() => true);
+      useWorkspaceStore.setState({
+        rootPath: 'C:\\ws\\Northcrest',
+        fileTree: [],
+      });
+      pdfIndexPlan.mockResolvedValue([
+        'C:/ws/Northcrest/Clients/Acme/statement.pdf',
+      ]);
+
+      const ws = {
+        readFile: vi.fn(),
+        writeFile: vi.fn(),
+        exists: vi.fn(),
+        readFileBinary: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
+        getFileTree: vi.fn().mockResolvedValue([
+          makeFolder('Clients/Acme', [
+            makeFile('Clients/Acme/statement.pdf'),
+            makeFile('Clients/Acme/unchanged.pdf'),
+          ]),
+        ]),
+      };
+
+      await indexWorkspacePdfs(ws);
+
+      expect(pdfIndexPlan).toHaveBeenCalledWith(
+        [
+          'C:/ws/Northcrest/Clients/Acme/statement.pdf',
+          'C:/ws/Northcrest/Clients/Acme/unchanged.pdf',
+        ],
+        true,
+      );
+      expect(indexPdfFile).toHaveBeenCalledTimes(1);
+      const [indexedPath, binaryBackend] = indexPdfFile.mock.calls[0] as [
+        string,
+        { readBinary: unknown },
+      ];
+      expect(indexedPath).toBe('C:/ws/Northcrest/Clients/Acme/statement.pdf');
+      expect(typeof binaryBackend.readBinary).toBe('function');
+      expect(usePdfIndexProgressStore.getState().current).toMatchObject({
+        processed: 1,
+        total: 1,
+      });
+
+      await vi.advanceTimersByTimeAsync(4000);
+      expect(usePdfIndexProgressStore.getState().current).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('coalesces two same-workspace startup calls into one PDF pass', async () => {
+    setPdfIndexingEnabledReader(() => true);
+    useWorkspaceStore.setState({
+      rootPath: 'C:\\ws\\Northcrest',
+      rootGeneration: 4,
+      fileTree: [],
+    });
+    const ws = {
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      exists: vi.fn(),
+      readFileBinary: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
+      getFileTree: vi.fn().mockResolvedValue([
+        makeFolder('Clients/Acme', [makeFile('Clients/Acme/statement.pdf')]),
+      ]),
+    };
+
+    await Promise.all([indexWorkspacePdfs(ws), indexWorkspacePdfs(ws)]);
+
+    expect(pdfIndexPlan).toHaveBeenCalledTimes(1);
+    expect(indexPdfFile).toHaveBeenCalledTimes(1);
+  });
+
   it('retries the fresh disk scan until the workspace is initialized, then indexes PDFs on open', async () => {
     // Regression for the #1 import gap: when the embedding model is already
     // cached, the full index fires the instant the workspace opens — BEFORE the
@@ -499,6 +617,77 @@ describe('reindexFolderPaths — disk scan for externally-added files', () => {
     }
   });
 
+  it("does not let an old workspace clear the new workspace's live PDF progress", async () => {
+    setPdfIndexingEnabledReader(() => true);
+    let finishOld!: () => void;
+    let finishNew!: () => void;
+    const oldWork = new Promise<void>((resolve) => {
+      finishOld = resolve;
+    });
+    const newWork = new Promise<void>((resolve) => {
+      finishNew = resolve;
+    });
+    indexPdfFile
+      .mockReturnValueOnce(oldWork.then(() => ({
+        indexed: true,
+        pageCount: 1,
+      })))
+      .mockReturnValueOnce(newWork.then(() => ({
+        indexed: true,
+        pageCount: 1,
+      })));
+
+    const workspace = (pdfPath: string) => ({
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      exists: vi.fn(),
+      readFileBinary: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
+      getFileTree: vi.fn().mockResolvedValue([
+        makeFolder('Clients/Acme', [makeFile(pdfPath)]),
+      ]),
+    });
+
+    useWorkspaceStore.setState({
+      rootPath: 'C:\\ws\\OldNorthcrest',
+      rootGeneration: 7,
+      fileTree: [],
+    });
+    const oldRun = indexWorkspacePdfs(workspace('Clients/Acme/old.pdf'));
+    await vi.waitFor(() => {
+      expect(indexPdfFile).toHaveBeenCalledTimes(1);
+    });
+
+    useWorkspaceStore.setState({
+      rootPath: 'C:\\ws\\NewNorthcrest',
+      rootGeneration: 8,
+      fileTree: [],
+    });
+    const newRun = indexWorkspacePdfs(workspace('Clients/Acme/new.pdf'));
+    await vi.waitFor(() => {
+      expect(indexPdfFile).toHaveBeenCalledTimes(2);
+    });
+    expect(usePdfIndexProgressStore.getState().current?.currentPath).toContain(
+      'NewNorthcrest',
+    );
+
+    vi.useFakeTimers();
+    try {
+      finishOld();
+      await oldRun;
+      await vi.advanceTimersByTimeAsync(4000);
+      expect(usePdfIndexProgressStore.getState().current?.currentPath).toContain(
+        'NewNorthcrest',
+      );
+
+      finishNew();
+      await newRun;
+      await vi.advanceTimersByTimeAsync(4000);
+      expect(usePdfIndexProgressStore.getState().current).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('skips PDFs during folder reindex when PDF indexing is disabled', async () => {
     const matterId = 'matter-acme';
     const folder = 'Clients/Acme';
@@ -565,6 +754,43 @@ describe('reindexFolderPaths — disk scan for externally-added files', () => {
       ['/ws/Northcrest/Clients/Acme/plan.docx'],
       matterId,
     );
+  });
+
+  it('repairs client search scope before starting any real PDF work', async () => {
+    const matterId = 'matter-acme';
+    const folder = 'Clients/Acme';
+    setPdfIndexingEnabledReader(() => true);
+    useWorkspaceStore.setState({ rootPath: '/ws/Northcrest', fileTree: [] });
+    useMatterStore.setState({
+      matters: [makeMatter(matterId, [folder])],
+      activeMatterId: null,
+    });
+    retagMatter.mockResolvedValueOnce([]);
+    indexPdfFile.mockResolvedValueOnce({ indexed: true, pageCount: 1 });
+
+    const ws = {
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      exists: vi.fn(),
+      readFileBinary: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
+      getFileTree: vi.fn().mockResolvedValue([
+        makeFolder(folder, [
+          makeFile('Clients/Acme/plan.docx'),
+          makeFile('Clients/Acme/statement.pdf'),
+        ]),
+      ]),
+    };
+
+    await startFullIndex(ws);
+
+    expect(retagMatter).toHaveBeenCalled();
+    expect(indexPdfFile).toHaveBeenCalledTimes(1);
+    const [scopeRepairOrder] = retagMatter.mock.invocationCallOrder;
+    const [pdfIndexOrder] = indexPdfFile.mock.invocationCallOrder;
+    if (scopeRepairOrder === undefined || pdfIndexOrder === undefined) {
+      throw new Error('expected both scope repair and PDF work to run');
+    }
+    expect(scopeRepairOrder).toBeLessThan(pdfIndexOrder);
   });
 
   it('QA-92: falls back to a real index when the in-place retag matches zero rows', async () => {

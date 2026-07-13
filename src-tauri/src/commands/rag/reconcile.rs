@@ -844,6 +844,7 @@ mod flood_proofing_tests {
                 ocr_enabled: false,
                 ocr_version: 1,
                 page_count: 2,
+                empty_index: false,
             }),
             ..text_sig()
         }
