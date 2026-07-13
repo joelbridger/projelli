@@ -32,12 +32,13 @@ import type { Store } from "../lib/db.ts";
 function isValidP256PublicJwk(v: unknown): v is { kty: "EC"; crv: "P-256"; x: string; y: string } {
   if (typeof v !== "object" || v === null) return false;
   const jwk = v as Record<string, unknown>;
+  const allowedKeys = ["kty", "crv", "x", "y"];
+  if (Object.keys(jwk).length !== allowedKeys.length || Object.keys(jwk).some((key) => !allowedKeys.includes(key))) return false;
   if (jwk.kty !== "EC") return false;
   if (jwk.crv !== "P-256") return false;
-  if (typeof jwk.x !== "string" || jwk.x.length === 0) return false;
-  if (typeof jwk.y !== "string" || jwk.y.length === 0) return false;
-  // Reject private keys — `d` is the private scalar in EC JWKs.
-  if ("d" in jwk) return false;
+  // A P-256 coordinate is 32 bytes: exactly 43 unpadded base64url characters.
+  if (typeof jwk.x !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(jwk.x)) return false;
+  if (typeof jwk.y !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(jwk.y)) return false;
   return true;
 }
 
@@ -63,11 +64,11 @@ export async function handleDeviceRegister(req: Request, store: Store): Promise<
     return error("invalid_pubkey_jwk", 400, "not valid JSON");
   }
   if (!isValidP256PublicJwk(jwk)) {
-    return error("invalid_pubkey_jwk", 400, "must be EC P-256 public JWK (kty=EC, crv=P-256, x, y; no d)");
+    return error("invalid_pubkey_jwk", 400, "must be exactly an EC P-256 public JWK (kty, crv, x, y)");
   }
 
-  // Store the canonical JSON serialization (sorted keys for determinism).
-  const jwkText = JSON.stringify(jwk);
+  // Store only the canonical, validated public-key fields.
+  const jwkText = JSON.stringify({ kty: "EC", crv: "P-256", x: jwk.x, y: jwk.y });
 
   store.upsertDevice({
     device_id: body.device_id,

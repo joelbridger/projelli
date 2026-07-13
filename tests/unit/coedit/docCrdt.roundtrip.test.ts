@@ -20,7 +20,7 @@
  *   serialize is the single allocator for w:id (Task 12). Downstream save code
  *   must NOT rely on meta.id being non-empty from the CRDT.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as Y from 'yjs';
 import { documentJsonToYDoc, yDocToDocumentJson } from '@/platform/firm/coedit/docCrdt';
 import type { DocumentJson, DocxParagraph, DocxInlineInsertion, DocxInlineDeletion } from '@/platform/types/docx';
@@ -68,6 +68,31 @@ const FIXTURE: DocumentJson = {
 // ---------------------------------------------------------------------------
 
 describe('docCrdt round-trip', () => {
+  it('logs malformed opaque JSON with a fixed message only', () => {
+    const sentinel = 'PEER_CONTENT_SENTINEL_DO_NOT_LOG';
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const ydoc = new Y.Doc();
+    const body = ydoc.getArray<unknown>('body');
+    const paragraph = new Y.Map<unknown>();
+    const runs = new Y.Array<unknown>();
+    const opaque = new Y.Map<unknown>();
+    opaque.set('kind', 'opaque');
+    opaque.set('opaqueJson', `{${sentinel}`);
+    runs.push([opaque]);
+    paragraph.set('type', 'paragraph');
+    paragraph.set('runs', runs);
+    body.push([paragraph]);
+
+    try {
+      yDocToDocumentJson(ydoc);
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      expect(errorSpy).toHaveBeenCalledWith('[docCrdt] discarding malformed opaque inline');
+      expect(errorSpy.mock.calls.flat()).not.toContain(sentinel);
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
   it('turns malformed peer-owned Yjs shapes into safe empty/raw render data instead of throwing', () => {
     const ydoc = new Y.Doc();
     const body = ydoc.getArray<unknown>('body');
