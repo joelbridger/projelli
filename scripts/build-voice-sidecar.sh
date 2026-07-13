@@ -67,13 +67,24 @@ git checkout --detach "$WHISPER_CPP_COMMIT"
 popd >/dev/null
 
 CMAKE_ARGS=(-DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DGGML_NATIVE=OFF -DGGML_OPENMP=OFF)
+CMAKE_GENERATOR_ARGS=()
 case "${TARGET_TRIPLE:-}" in
   aarch64-apple-darwin) CMAKE_ARGS+=(-DCMAKE_OSX_ARCHITECTURES=arm64) ;;
   x86_64-apple-darwin) CMAKE_ARGS+=(-DCMAKE_OSX_ARCHITECTURES=x86_64) ;;
 esac
 
+if [[ "${OS:-}" == "Windows_NT" ]]; then
+  # Strawberry Perl's bundled MinGW gcc is intentionally early on PATH for
+  # the OpenSSL workaround. Do not let CMake's default compiler probe pick it
+  # up for whisper.cpp: its Windows headers are too old for this pinned ggml.
+  # Select MSVC directly instead. Remove a prior CMake cache too, because a
+  # cache configured with MinGW cannot be safely reused with this generator.
+  rm -rf "$BUILD_DIR"
+  CMAKE_GENERATOR_ARGS=(-G "Visual Studio 17 2022" -A x64)
+fi
+
 JOBS="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
-cmake -B "$BUILD_DIR" -S "$SRC_DIR" "${CMAKE_ARGS[@]}" 2>&1 | tee "$CONFIGURE_LOG"
+cmake -B "$BUILD_DIR" -S "$SRC_DIR" "${CMAKE_GENERATOR_ARGS[@]}" "${CMAKE_ARGS[@]}" 2>&1 | tee "$CONFIGURE_LOG"
 # Portability guard, not a one-time manual check: if a future ggml/whisper.cpp
 # version ever re-introduces native tuning by default (or this script's flags
 # regress), fail the build loudly instead of silently shipping a
