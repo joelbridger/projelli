@@ -38,8 +38,10 @@ const ALLOWED_FEATURE_EDGES = new Set<string>([
   'ask->matters',         // Ask is matter-scoped (active matter context)
   'ask->crm',             // Ask adds client-scoped CRM records to the same consent/audit/citation pipeline
   'crm->ask',             // CRM Ask reuses the primary Ask safety rails and citation contracts
+  'crm->acats',           // CRM Reviews makes the ACATS transfer-review workflow reachable from the relevant client record
   'crm->email',           // CRM broadcast reuses the hardened mail provider resolver
   'crm->firm',            // CRM firm setup composes the existing firm administration surface
+  'crm->planning',        // CRM Reviews shows pending planning-system write reviews in the relevant client record
   'crm-connectors->crm-views', // Broadcast uses the saved-view query language to define its recipient list
   'crm-connectors->email', // Broadcast reuses the hardened mail AI provider resolver; delivery still uses the platform mail connector
   'documents->firm',      // file navigator shows privilege/vault affordances
