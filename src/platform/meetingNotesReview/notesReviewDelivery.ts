@@ -309,11 +309,21 @@ export function makeNotesReviewRepository(
   return { load, approve };
 }
 
-function isMissingFileError(error: unknown): boolean {
+/**
+ * Unix (Node/Tauri) and Windows report a missing file in unrelated words, so
+ * both families of phrasing must be matched explicitly. Windows never
+ * produces "enoent" or "not found" — its real text is "The system cannot
+ * find the file/path specified" (Win32 ERROR_FILE_NOT_FOUND /
+ * ERROR_PATH_NOT_FOUND), which shares no substring with the Unix forms.
+ */
+export function isMissingFileError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
   const causeMessage = error.cause instanceof Error ? error.cause.message : '';
-  return /not found|enoent|does not exist/i.test(
-    `${error.message}\n${causeMessage}`
+  const text = `${error.message}\n${causeMessage}`;
+  return (
+    /not found|enoent|does not exist/i.test(text) ||
+    /cannot find the (?:file|path) specified/i.test(text) ||
+    /\bERROR_(?:FILE|PATH)_NOT_FOUND\b/.test(text)
   );
 }
 
