@@ -6,11 +6,12 @@ use super::*;
 pub async fn rag_set_workspace(
     state: State<'_, RagState>,
     path: String,
-) -> Result<(), String> {
+) -> Result<u64, String> {
     let target = PathBuf::from(&path);
     if !target.exists() {
         return Err(format!("workspace path does not exist: {}", path));
     }
+    let _switch_guard = state.workspace_switch_lock.lock().await;
     let mut guard = state.workspace_root.lock().await;
     // F-301: only arm the once-per-activation full-index latch when the workspace
     // root actually CHANGES. `useMemoryWiring` calls this on every mount, and the
@@ -88,6 +89,11 @@ pub async fn rag_set_workspace(
     mark_rebuild_if_manifest_stale(&target);
 
     *guard = Some(target);
+    let activation = if changed {
+        state.workspace_activation.fetch_add(1, Ordering::SeqCst) + 1
+    } else {
+        state.workspace_activation.load(Ordering::SeqCst)
+    };
     state.cancel_flag.store(false, Ordering::SeqCst);
     if changed {
         state.full_index_pending.store(true, Ordering::SeqCst);
@@ -97,7 +103,7 @@ pub async fn rag_set_workspace(
         // promptly and keeps the cache honest.
         invalidate_table_cache(&state).await;
     }
-    Ok(())
+    Ok(activation)
 }
 
 /// Index a single file into the local RAG store. Idempotent — re-running

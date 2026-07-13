@@ -69,7 +69,7 @@ describe('MemoryService.indexPdfFile', () => {
   it('returns memory-disabled when memory is off', async () => {
     setMemoryEnabledReader(() => false);
     const ws = { readBinary: vi.fn() };
-    const r = await MemoryService.indexPdfFile('/a.pdf', ws);
+    const r = await MemoryService.indexPdfFile('/a.pdf', ws, '/');
     expect(r.indexed).toBe(false);
     expect(r.reason).toBe('memory-disabled');
     expect(ws.readBinary).not.toHaveBeenCalled();
@@ -79,7 +79,7 @@ describe('MemoryService.indexPdfFile', () => {
     setMemoryEnabledReader(() => true);
     setPdfIndexingEnabledReader(() => false);
     const ws = { readBinary: vi.fn() };
-    const r = await MemoryService.indexPdfFile('/a.pdf', ws);
+    const r = await MemoryService.indexPdfFile('/a.pdf', ws, '/');
     expect(r.indexed).toBe(false);
     expect(r.reason).toBe('pdf-indexing-disabled');
     expect(ws.readBinary).not.toHaveBeenCalled();
@@ -89,7 +89,7 @@ describe('MemoryService.indexPdfFile', () => {
     setMemoryEnabledReader(() => true);
     setPdfIndexingEnabledReader(() => true);
     const ws = { readBinary: vi.fn().mockRejectedValue(new Error('fs error')) };
-    const r = await MemoryService.indexPdfFile('/a.pdf', ws);
+    const r = await MemoryService.indexPdfFile('/a.pdf', ws, '/');
     expect(r.indexed).toBe(false);
     expect(r.reason).toBe('read-error');
   });
@@ -105,7 +105,7 @@ describe('MemoryService.indexPdfFile', () => {
       encrypted: true,
       scanned: false,
     });
-    const r = await MemoryService.indexPdfFile('/a.pdf', ws);
+    const r = await MemoryService.indexPdfFile('/a.pdf', ws, '/');
     expect(r.indexed).toBe(false);
     expect(r.reason).toBe('encrypted');
   });
@@ -121,7 +121,7 @@ describe('MemoryService.indexPdfFile', () => {
       encrypted: false,
       scanned: true,
     });
-    const r = await MemoryService.indexPdfFile('/a.pdf', ws);
+    const r = await MemoryService.indexPdfFile('/a.pdf', ws, '/');
     expect(r.indexed).toBe(false);
     expect(r.reason).toBe('scanned');
   });
@@ -140,7 +140,7 @@ describe('MemoryService.indexPdfFile', () => {
     });
     // Will throw because we're not in Tauri — test that indexPdfFile
     // propagates the error (callers in useMemoryWiring catch it).
-    await expect(MemoryService.indexPdfFile('/a.pdf', ws)).rejects.toThrow(
+    await expect(MemoryService.indexPdfFile('/a.pdf', ws, '/')).rejects.toThrow(
       /RAG PDF indexing is only available/,
     );
   });
@@ -155,14 +155,14 @@ describe('MemoryService.deleteAllPdfChunks', () => {
   it('is a no-op when memory is disabled', async () => {
     setMemoryEnabledReader(() => false);
     // Should complete without throwing (even though ragDeletePath not in Tauri)
-    await expect(MemoryService.deleteAllPdfChunks(['/a.pdf'])).resolves.toBeUndefined();
+    await expect(MemoryService.deleteAllPdfChunks(['/a.pdf'], '/')).resolves.toBeUndefined();
   });
 
   it('swallows errors for individual paths (best-effort)', async () => {
     setMemoryEnabledReader(() => true);
     // In test environment ragDeletePath will not throw (isTauri=false → no-op)
     await expect(
-      MemoryService.deleteAllPdfChunks(['/a.pdf', '/b.pdf']),
+      MemoryService.deleteAllPdfChunks(['/a.pdf', '/b.pdf'], '/'),
     ).resolves.toBeUndefined();
   });
 });

@@ -102,8 +102,10 @@ pub fn run() {
             commands::rag::rag_index_workspace,
             // P1.1 — boot reconcile (index once, not every launch) + PDF manifest.
             commands::rag::rag_reconcile_workspace,
+            commands::rag::rag_plan_pdf_index,
             commands::rag::rag_manifest_pdf_fresh,
             commands::rag::rag_manifest_record_pdf,
+            commands::rag::rag_manifest_forget_pdf,
             commands::rag::rag_manifest_forget_pdfs,
             commands::rag::rag_retag_matter_batch,
             commands::rag::rag_scope_write_queue_depth,

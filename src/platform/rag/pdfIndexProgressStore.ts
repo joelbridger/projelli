@@ -16,34 +16,53 @@ export interface PdfIndexProgress {
 
 interface PdfIndexProgressState {
   current: PdfIndexProgress | null;
-  set: (progress: PdfIndexProgress) => void;
-  clear: () => void;
-  clearSoon: () => void;
+  ownerId: string | null;
+  begin: (progress: PdfIndexProgress, ownerId: string) => void;
+  set: (progress: PdfIndexProgress, ownerId?: string) => void;
+  clear: (ownerId?: string) => void;
+  clearSoon: (ownerId?: string) => void;
 }
 
 let clearTimer: ReturnType<typeof setTimeout> | null = null;
 
-export const usePdfIndexProgressStore = create<PdfIndexProgressState>((set) => ({
+export const usePdfIndexProgressStore = create<PdfIndexProgressState>((set, get) => ({
   current: null,
-  set: (progress) => {
+  ownerId: null,
+  begin: (progress, ownerId) => {
     if (clearTimer !== null) {
       clearTimeout(clearTimer);
       clearTimer = null;
     }
-    set({ current: progress });
+    set({ current: progress, ownerId });
   },
-  clear: () => {
+  set: (progress, ownerId) => {
+    // Only `begin` may claim ownership. A slower old run cannot reclaim the
+    // banner after a newer run has started.
+    if (ownerId !== undefined && get().ownerId !== ownerId) return;
     if (clearTimer !== null) {
       clearTimeout(clearTimer);
       clearTimer = null;
     }
-    set({ current: null });
+    set({ current: progress, ownerId: ownerId ?? null });
   },
-  clearSoon: () => {
+  clear: (ownerId) => {
+    if (ownerId !== undefined && get().ownerId !== ownerId) return;
+    if (clearTimer !== null) {
+      clearTimeout(clearTimer);
+      clearTimer = null;
+    }
+    set({ current: null, ownerId: null });
+  },
+  clearSoon: (ownerId) => {
+    // An older workspace/run must never cancel or replace the active run's
+    // timer, or erase its live banner after a workspace switch.
+    if (ownerId !== undefined && get().ownerId !== ownerId) return;
     if (clearTimer !== null) clearTimeout(clearTimer);
     clearTimer = setTimeout(() => {
       clearTimer = null;
-      set({ current: null });
+      if (ownerId === undefined || get().ownerId === ownerId) {
+        set({ current: null, ownerId: null });
+      }
     }, 4000);
     const maybeNodeTimer = clearTimer as { unref?: () => void };
     maybeNodeTimer.unref?.();
