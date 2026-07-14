@@ -8,6 +8,7 @@ const STATE_FILE = 'notes-review.json';
 const SCHEMA_VERSION = 1 as const;
 
 export interface NotesReviewWorkspace {
+  exists(path: string): Promise<boolean>;
   readFile(path: string): Promise<string>;
   writeFile(path: string, content: string): Promise<void>;
 }
@@ -302,6 +303,18 @@ export function makeNotesReviewRepository(
       // FileOperationError. Its outer message is always "Failed to read file",
       // so inspect the cause for the real missing-file signal.
       if (isMissingFileError(error)) return '';
+      // Tauri can reject with a plain string. The two filesystem wrappers then
+      // preserve only their generic outer messages, so the original Windows
+      // "file not found" detail is unavailable here. An explicit existence
+      // check is the reliable fallback: false means this optional file has not
+      // been created yet; an existing but unreadable file remains a hard error.
+      try {
+        if (!(await input.workspace.exists(path))) return '';
+        // eslint-disable-next-line lantern-async/no-silent-failure -- preserve and rethrow the original read error below when this best-effort classification check also fails
+      } catch {
+        // Keep the original read failure. It is the operation that failed and
+        // callers turn it into a safe, non-internal placeholder.
+      }
       throw error;
     }
   }

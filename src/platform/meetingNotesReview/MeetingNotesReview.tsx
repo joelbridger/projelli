@@ -130,13 +130,8 @@ function LoadedMeetingNotesReview({
         );
         setLoadError(null);
       })
-      .catch((error: unknown) => {
-        if (live)
-          setLoadError(
-            error instanceof Error
-              ? error.message
-              : 'Could not load the saved review items.'
-          );
+      .catch(() => {
+        if (live) setLoadError('Could not load the saved review items.');
       });
     return () => {
       live = false;
