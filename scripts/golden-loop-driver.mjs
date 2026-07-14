@@ -138,6 +138,15 @@ async function waitForRendererCallback() {
 const has = (testid) =>
   evaluate(`Boolean(document.querySelector('[data-testid=${JSON.stringify(testid)}]'))`);
 
+async function dismissFeatureTourIfPresent() {
+  // The tour can mount after the shell is otherwise ready.  Check immediately
+  // before each meaningful interaction so it cannot silently sit over a row.
+  if (await has('feature-tour-skip')) {
+    await pointerClick('feature-tour-skip');
+    await waitFor('the onboarding tour to close', async () => !(await has('feature-tour-skip')));
+  }
+}
+
 const clickableNamedTestId = (prefix, name) =>
   evaluate(`Array.from(document.querySelectorAll('[data-testid]')).find((el) => {
     const testid = el.getAttribute('data-testid') || '';
@@ -160,12 +169,13 @@ async function waitForClickableNamedTestId(label, prefix, name) {
 async function waitForVisibleApp() {
   await waitForRendererCallback();
   await waitFor('the Clients navigation control', () => has('spine-nav-matters'));
-  if (await has('feature-tour-skip')) await click('feature-tour-skip');
+  await dismissFeatureTourIfPresent();
   const clientRow = await waitForClickableNamedTestId(
     'the clickable Golden Loop client row in the visible Clients rail',
     'spine-client-row-',
     'Golden Loop Client',
   );
+  await dismissFeatureTourIfPresent();
   await click(clientRow);
   await waitFor('the client Documents tab', () => has('crm-household-tab-documents'));
   await click('crm-household-tab-documents');
@@ -207,16 +217,59 @@ async function fillPromptAndConfirm() {
     !(await evaluate(`Boolean(document.querySelector('[role="dialog"] input'))`)));
 }
 
+const clientDocumentPath = () => `Golden Loop Client/${documentFile}`;
+
+const crmDocumentRow = (documentPath) =>
+  evaluate(`(() => {
+    const section = document.querySelector('[data-testid="crm-household-documents"]');
+    const row = section?.querySelector('[data-testid=${JSON.stringify(`crm-document-card-${documentPath}`)}]');
+    if (!section || !row || !section.contains(row)) return null;
+    const rect = row.getBoundingClientRect();
+    const style = getComputedStyle(row);
+    return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none'
+      ? row.getAttribute('data-testid')
+      : null;
+  })()`);
+
+const crmDocumentRowIsActuallyClickable = (documentPath) =>
+  evaluate(`(() => {
+    const section = document.querySelector('[data-testid="crm-household-documents"]');
+    const row = section?.querySelector('[data-testid=${JSON.stringify(`crm-document-card-${documentPath}`)}]');
+    if (!section || !row || !section.contains(row)) return false;
+    row.scrollIntoView({ block: 'center', inline: 'nearest' });
+    const rect = row.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return false;
+    const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    return hit === row || row.contains(hit);
+  })()`);
+
+const documentOpenedInEditor = (documentPath) =>
+  evaluate(`(async () => {
+    const module = await import('/src/platform/state/editorStore.ts');
+    const state = module.useEditorStore.getState();
+    return state.activeTabPath === ${JSON.stringify(documentPath)} &&
+      state.openTabs.some((tab) => tab.path === ${JSON.stringify(documentPath)});
+  })()`);
+
+async function assertCrmDocumentVisibleAndOpens(where) {
+  const documentPath = clientDocumentPath();
+  const rowTestId = `crm-document-card-${documentPath}`;
+  await waitFor(`${documentFile} CRM document row to be visible ${where}`, async () =>
+    (await crmDocumentRow(documentPath)) === rowTestId);
+  await dismissFeatureTourIfPresent();
+  await waitFor(`${documentFile} CRM document row to be genuinely clickable ${where}`, () =>
+    crmDocumentRowIsActuallyClickable(documentPath));
+  await pointerClick(rowTestId);
+  await waitFor(`${documentFile} to open in the normal Documents editor ${where}`, () =>
+    documentOpenedInEditor(documentPath));
+}
+
 async function assertPresent(where) {
   await waitFor(`${documentFile} to be saved ${where}`, async () => {
     const files = await readdir(workspace, { recursive: true });
     return files.some((entry) => String(entry).endsWith(documentFile));
   }, 20_000);
-  await waitForClickableNamedTestId(
-    `${documentFile} document tile to be visible and clickable ${where}`,
-    'grid-card-',
-    documentFile,
-  );
+  await assertCrmDocumentVisibleAndOpens(where);
 }
 
 try {
