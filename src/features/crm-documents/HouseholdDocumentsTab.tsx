@@ -11,6 +11,7 @@ import { useMatters } from '@/platform/matter/matterStore';
 import { resolveWorkspaceMatterId } from '@/platform/rag/matterResolver';
 import type { FileNode } from '@/platform/types/workspace';
 import { EV_OPEN_CRM_DOCUMENT } from '@/config/identity';
+import { DocumentsCreateMenu } from '@/features/documents/DocumentsCreateMenu';
 import { addDocumentRef, isPlausibleClientDocument, linkedDocumentsForHousehold, recordBelongsToHousehold, removeDocumentRef } from './documentLinks';
 
 type Target = { value: string; kind: 'household' | 'person' | 'note' | 'task'; id: string; label: string };
@@ -23,7 +24,7 @@ function nameForPath(path: string): string {
   return path.split(/[\\/]/).pop() || path;
 }
 
-export function HouseholdDocumentsTab({ household }: HouseholdTabSurfaceProps) {
+export function HouseholdDocumentsTab({ household, actions }: HouseholdTabSurfaceProps) {
   const { t } = useTranslation();
   const live = useLiveCrmRecords();
   const tree = useWorkspaceStore((state) => state.fileTree);
@@ -132,8 +133,22 @@ export function HouseholdDocumentsTab({ household }: HouseholdTabSurfaceProps) {
 
   return <section data-testid="crm-household-documents" style={{ display: 'grid', gap: 12, marginTop: 14 }}>
     <Card variant="raised">
-      <h2>Documents</h2>
-      <p>These are links to files already saved in Documents. There is one original file, not a copy tucked away in the CRM.</p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+        <h2 style={{ marginBottom: 0 }}>Documents</h2>
+        <DocumentsCreateMenu
+          disabled={!householdMatterId}
+          {...(householdMatterId && actions?.onCreateClientDocument
+            ? { onCreateDocument: () => { void actions.onCreateClientDocument?.(householdMatterId); } }
+            : {})}
+          {...(householdMatterId && actions?.onCreateClientFolder
+            ? { onCreateFolder: () => { void actions.onCreateClientFolder?.(householdMatterId); } }
+            : {})}
+          {...(householdMatterId && actions?.onImportClientFiles
+            ? { onAddFiles: () => { void actions.onImportClientFiles?.(householdMatterId); } }
+            : {})}
+        />
+      </div>
+      <p>Create a new file for this client, or link a file already saved in Documents. There is one original file, not a copy tucked away in the CRM.</p>
       <SurfaceToolbar>
         <label>Link to <select data-testid="crm-document-target" value={targetValue} onChange={(event) => { setTargetValue(event.target.value); }}>{targets.map((target) => <option key={target.value} value={target.value}>{target.label}</option>)}</select></label>
         <label>Document <select data-testid="crm-document-file" value={filePath} onChange={(event) => { setFilePath(event.target.value); }}><option value="">Choose a document</option>{availableFiles.map((file) => <option key={file.path} value={file.path}>{file.name}</option>)}</select></label>
@@ -153,7 +168,7 @@ export function HouseholdDocumentsTab({ household }: HouseholdTabSurfaceProps) {
           <p style={{ margin: '4px 0 0' }}>It will link to the choice above. You can also choose a document and use the button.</p>
         </div>
         <div aria-label="Saved documents you can drag to link" style={{ display: 'grid', gap: 6, marginTop: 12, maxHeight: 180, overflowY: 'auto' }}>
-          {availableFiles.map((file) => <div key={file.path} draggable data-testid={`crm-document-drag-${file.id}`} onDragStart={(event) => { event.dataTransfer.effectAllowed = 'link'; event.dataTransfer.setData('application/x-lantern-document-path', file.path); event.dataTransfer.setData('text/plain', file.path); }} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '6px 8px', border: '1px solid var(--kp-border)', borderRadius: 7, background: 'white', cursor: 'grab' }}><GripVertical size={15} aria-hidden="true" style={{ color: 'var(--kp-text-faint)' }} /><span>{file.name}</span></div>)}
+          {availableFiles.map((file) => <button key={file.path} type="button" draggable data-testid={`grid-card-${file.path}`} onClick={() => { open({ kind: 'document', id: file.path, label: file.name }); }} onDragStart={(event) => { event.dataTransfer.effectAllowed = 'link'; event.dataTransfer.setData('application/x-lantern-document-path', file.path); event.dataTransfer.setData('text/plain', file.path); }} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '6px 8px', border: '1px solid var(--kp-border)', borderRadius: 7, background: 'white', cursor: 'grab', width: '100%', textAlign: 'left' }}><GripVertical size={15} aria-hidden="true" style={{ color: 'var(--kp-text-faint)' }} /><span data-testid={`crm-document-drag-${file.id}`}>{file.name}</span></button>)}
         </div>
       </> : null}
       {message ? <p role="status" data-testid="crm-document-link-status">{message}</p> : null}

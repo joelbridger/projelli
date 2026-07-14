@@ -218,6 +218,10 @@ export interface OpenMailSurfaceRequest {
 export interface CrmClientsActions {
   onAdd?: (request: AddToHouseholdRequest) => void;
   onAskHousehold?: (householdId: string) => void;
+  /** Client-scoped Documents actions. The shell resolves the matter's safe folder. */
+  onCreateClientDocument?: (matterId: string) => void | Promise<void>;
+  onCreateClientFolder?: (matterId: string) => void | Promise<void>;
+  onImportClientFiles?: (matterId: string) => void | Promise<void>;
   onDraftEmail?: (request: OpenMailSurfaceRequest) => void;
   onOpenSchedulingLink?: (url: string) => void;
   onSaveNote?: (
