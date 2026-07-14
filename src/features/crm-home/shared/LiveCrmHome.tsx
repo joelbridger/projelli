@@ -1,6 +1,5 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string -- Frozen CRM screen copy needs its translation catalog in a separate product change. */
-import { useEffect, useState } from 'react';
-import { getCrmEngineFreshness, subscribeCrmEngineFreshness } from '@/platform/crm/store';
+import { useEffect } from 'react';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import { nextRecurringDue } from '@/platform/crm/tasks';
 import { createMigrationExport, runWealthboxMigration } from '@/platform/crm/migration';
@@ -170,7 +169,7 @@ const PREVIEW_MIGRATION = {
 };
 
 const PREVIEW_ADAPTER: CrmHomeAdapter = {
-  freshness: { kind: 'offline' },
+  freshness: { kind: 'idle' },
   tasks: [],
   offers: PREVIEW_OFFERS,
   migration: PREVIEW_MIGRATION,
@@ -211,11 +210,8 @@ export function LiveCrmHome({
   addRequest,
   onAddRequestConsumed,
 }: CrmHomeProps) {
-  const [freshness, setFreshness] = useState<CrmFreshnessState>(
-    getCrmEngineFreshness()
-  );
   const live = useLiveCrmRecords();
-  useEffect(() => subscribeCrmEngineFreshness(setFreshness), []);
+  const freshness: CrmFreshnessState = live.freshness;
   const households = live.records
     .filter(
       (record) =>

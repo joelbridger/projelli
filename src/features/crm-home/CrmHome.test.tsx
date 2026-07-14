@@ -54,12 +54,10 @@ describe('CrmHome', () => {
     );
   });
 
-  it('keeps the default Home honest with the real offline engine state and no sample records', () => {
+  it('does not show a delivery warning in the default solo workspace', () => {
     render(<CrmHome />);
     expect(screen.getByTestId('crm-home')).toBeInTheDocument();
-    expect(screen.getByTestId('crm-freshness-banner')).toHaveTextContent(
-      'Working offline. Local edits work; delivery waits until you reconnect.'
-    );
+    expect(screen.queryByTestId('crm-freshness-banner')).not.toBeInTheDocument();
     expect(screen.getByTestId('crm-screen-today')).toBeInTheDocument();
     expect(screen.getByTestId('crm-today-first-use')).toHaveTextContent(/ready to set up today/i);
     expect(screen.queryByText('Henderson household')).not.toBeInTheDocument();
@@ -68,7 +66,19 @@ describe('CrmHome', () => {
   it('shows sample records only through the visibly labelled preview mode', () => {
     render(<CrmHome preview />);
     expect(screen.getByTestId('crm-home-preview-label')).toHaveTextContent(/preview mode/i);
-    expect(screen.getByTestId('crm-freshness-banner')).toHaveTextContent(/working offline/i);
+    expect(screen.queryByTestId('crm-freshness-banner')).not.toBeInTheDocument();
+  });
+
+  it('does not show a delivery warning while a configured firm relay is live', () => {
+    render(<CrmHome adapter={adapter({ freshness: { kind: 'live' } })} />);
+    expect(screen.queryByTestId('crm-freshness-banner')).not.toBeInTheDocument();
+  });
+
+  it('shows the delivery warning when a configured firm relay is disconnected', () => {
+    render(<CrmHome adapter={adapter({ freshness: { kind: 'offline' } })} />);
+    expect(screen.getByTestId('crm-freshness-banner')).toHaveTextContent(
+      'Working offline. Local edits work; delivery waits until you reconnect.'
+    );
   });
 
   it('saves a direct task edit through the supplied adapter', () => {

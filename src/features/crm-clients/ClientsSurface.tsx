@@ -29,6 +29,7 @@ function stringValue(value: unknown, fallback: string): string {
 }
 
 function syncState(kind: ReturnType<typeof useLiveCrmRecords>['freshness']['kind']): SyncState {
+  if (kind === 'idle') return 'live';
   if (kind === 'live' || kind === 'syncing' || kind === 'offline') return kind;
   return kind === 'last-synced' ? 'last_synced' : 'needs_attention';
 }

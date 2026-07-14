@@ -40,24 +40,31 @@ vi.mock('@/platform/firm/firmStore', () => ({
 }));
 
 import { getCrmEngineFreshness, setCrmEngineFreshness } from '@/platform/crm/store';
-import { ensureLiveRecordRelay, stopLiveRecordRelay } from './liveRecordRelay';
+import { clearLiveRecordRelay, ensureLiveRecordRelay, stopLiveRecordRelay } from './liveRecordRelay';
 
 function latestStatusCallback(): ((status: SyncStatus) => void) | undefined {
   return capturedOptions[capturedOptions.length - 1]?.callbacks?.onStatus;
 }
 
 afterEach(() => {
-  stopLiveRecordRelay();
-  setCrmEngineFreshness({ kind: 'offline' });
+  clearLiveRecordRelay();
   capturedOptions.length = 0;
   vi.clearAllMocks();
 });
 
 describe('live CRM record relay drives the real offline/live banner state', () => {
+  it('reports idle when no firm delivery relay is configured', () => {
+    setCrmEngineFreshness({ kind: 'offline' });
+
+    clearLiveRecordRelay();
+
+    expect(getCrmEngineFreshness()).toEqual({ kind: 'idle' });
+  });
+
   it('reports live once the real delivery relay actually connects, clearing a false offline banner', async () => {
     await ensureLiveRecordRelay('matter-1', () => Promise.resolve());
 
-    // Sanity: nothing has told the store it's live yet.
+    // A firm relay is configured but has not connected yet.
     expect(getCrmEngineFreshness()).toEqual({ kind: 'offline' });
 
     const onStatus = latestStatusCallback();

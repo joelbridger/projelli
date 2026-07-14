@@ -65,13 +65,16 @@ export async function commitPropagationTransaction(payload: PropagationTransacti
 }
 
 export type CrmEngineFreshness =
+  | { kind: 'idle' }
   | { kind: 'live' }
   | { kind: 'syncing'; lastSyncedAt?: string }
   | { kind: 'last-synced'; lastSyncedAt: string; lastFullCheckAt?: string }
   | { kind: 'offline' }
   | { kind: 'error'; error: string };
 
-let freshness: CrmEngineFreshness = { kind: 'offline' };
+// A solo workspace has no firm delivery relay to connect to. Treat that as a
+// healthy local-only state, not as a failed connection.
+let freshness: CrmEngineFreshness = { kind: 'idle' };
 const listeners = new Set<(value: CrmEngineFreshness) => void>();
 
 /** Sync bootstrap and failure handlers set this. Screens only render this state. */

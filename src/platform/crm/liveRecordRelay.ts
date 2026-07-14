@@ -87,6 +87,10 @@ export function ensureLiveRecordRelay(
 ): Promise<LiveRecordSession | null> {
   if (session?.firmMatterId === firmMatterId) return Promise.resolve(session);
   if (pending) return pending;
+  // Reaching this function means the workspace really has firm delivery
+  // configured. Until the transport reports live, disconnected is the honest
+  // state (including missing-seat or missing-key failures during bootstrap).
+  setCrmEngineFreshness({ kind: 'offline' });
   pending = build(firmMatterId, onRemote).finally(() => { pending = null; });
   return pending;
 }
@@ -169,13 +173,24 @@ export function publishLiveRecord(record: LiveCrmRecord): void {
 }
 
 export function stopLiveRecordRelay(): void {
-  if (!session) return;
-  session.sync.stop();
-  session.doc.destroy();
-  session = null;
+  if (session) {
+    session.sync.stop();
+    session.doc.destroy();
+    session = null;
+  }
   // Delivery has genuinely stopped for this matter — report it honestly rather
   // than leaving the last live/syncing state stranded on screen.
   setCrmEngineFreshness({ kind: 'offline' });
+}
+
+/** Stop delivery because this workspace has no firm relay configured. */
+export function clearLiveRecordRelay(): void {
+  if (session) {
+    session.sync.stop();
+    session.doc.destroy();
+    session = null;
+  }
+  setCrmEngineFreshness({ kind: 'idle' });
 }
 
 /** Test-only visibility into the relay lifecycle; it never exposes a key. */

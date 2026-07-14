@@ -17,6 +17,7 @@ function formatDate(value: string) {
 }
 
 function freshnessCopy(freshness: CrmEngineFreshness) {
+  if (freshness.kind === 'idle') return 'Up to date on this device';
   if (freshness.kind === 'live') return 'Up to date';
   if (freshness.kind === 'syncing') return 'Updating. New changes may still arrive.';
   if (freshness.kind === 'offline') return 'Working offline. Showing saved history on this device.';
