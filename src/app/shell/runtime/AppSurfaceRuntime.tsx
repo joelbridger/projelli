@@ -127,23 +127,9 @@ export interface AppSurfaceRuntime extends AppSurfaceCapabilities {
   };
 }
 
-const AppSurfaceRuntimeContext = createContext<AppSurfaceCapabilities | null>(
+export const AppSurfaceRuntimeContext = createContext<AppSurfaceCapabilities | null>(
   null
 );
-
-export function AppSurfaceRuntimeProvider({
-  value,
-  children,
-}: {
-  value: AppSurfaceCapabilities;
-  children: ReactNode;
-}) {
-  return (
-    <AppSurfaceRuntimeContext.Provider value={value}>
-      {children}
-    </AppSurfaceRuntimeContext.Provider>
-  );
-}
 
 export function useOptionalAppSurfaceCapabilities(): AppSurfaceCapabilities | null {
   return useContext(AppSurfaceRuntimeContext);

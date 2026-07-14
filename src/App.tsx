@@ -44,10 +44,8 @@ import { TrustBar } from '@/app/shell/layout/TrustBar';
 import { StatusBar } from '@/app/shell/layout/StatusBar';
 import { AppDialogs } from '@/app/shell/AppDialogs';
 import { AppSurfaceRouter } from '@/app/shell/AppSurfaceRouter';
-import {
-  AppSurfaceRuntimeProvider,
-  type AppSurfaceCapabilities,
-} from '@/app/shell/runtime/AppSurfaceRuntime';
+import { AppSurfaceRuntimeProvider } from '@/app/shell/runtime/AppSurfaceRuntimeProvider';
+import type { AppSurfaceCapabilities } from '@/app/shell/runtime/AppSurfaceRuntime';
 import { getAppSurfaceDescriptor } from '@/app/shell/registry/appSurfaceRegistry';
 import { ErrorBoundary } from '@/ui/ErrorBoundary';
 import { RecordPill } from '@/features/meetings/RecordPill';
@@ -2059,21 +2057,35 @@ function AppShell() {
       apiKeys,
       serviceRef: workspaceServiceRef,
       setFileTree,
-      refreshFileTree,
+      refreshFileTree: () => {
+        void refreshFileTree();
+      },
       requestApiKeySetup: handleRequestApiKeySetup,
     },
     documents: {
       view: documentsView,
       setView: setDocumentsView,
       open: handleFileOpen,
-      createFile: handleCreateFile,
-      createFolder: handleCreateFolder,
-      rename: handleRename,
+      createFile: (parentPath) => {
+        void handleCreateFile(parentPath);
+      },
+      createFolder: (parentPath) => {
+        void handleCreateFolder(parentPath);
+      },
+      rename: (path) => {
+        void handleRename(path);
+      },
       renameWithName: handleRenameWithName,
-      delete: handleDelete,
+      delete: (path) => {
+        void handleDelete(path);
+      },
       move: handleMove,
-      download: handleDownload,
-      createDefault: handleCreateDefaultDocument,
+      download: (path, name) => {
+        void handleDownload(path, name);
+      },
+      createDefault: (parentPath) => {
+        void handleCreateDefaultDocument(parentPath);
+      },
       importFiles: handleImportFiles,
       createDocxAtRoot: handleCreateDocxAtRoot,
       createTextFileAtRoot: handleCreateTextFileAtRoot,

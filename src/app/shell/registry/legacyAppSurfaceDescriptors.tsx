@@ -20,6 +20,7 @@ import type {
   AppSurfaceId,
   AppSurfacePlacement,
 } from '@/app/shell/registry/types';
+import { LegacyMainPanelSurface } from '@/app/shell/registry/LegacyMainPanelSurface';
 
 type LegacyDescriptorOptions = {
   id: AppSurfaceId;
@@ -44,9 +45,6 @@ function legacySurface(options: LegacyDescriptorOptions): AppSurfaceDescriptor {
     render: (runtime) => createElement(Component, { runtime }),
   };
 }
-
-const LegacyMainPanelSurface: AppSurfaceComponent = ({ runtime }) =>
-  runtime.legacy.mainPanel();
 
 /**
  * Compatibility descriptors for the pre-registry shell. They stay beside the
