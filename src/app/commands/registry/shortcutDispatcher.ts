@@ -75,6 +75,7 @@ function surfaceShortcutDescriptor(
 export function getSurfaceShortcutDescriptors(
   surfaces: readonly AppSurfaceDescriptor[] = getAppSurfaceDescriptors()
 ): readonly CommandDescriptor[] {
+  // Interim semantics per primary-surface order (coordinator-accepted 2026-07-14); final v1 shortcuts follow the frozen design.
   const numeric = getOrderedAppSurfaces('primary', surfaces)
     .slice(0, 9)
     .map((surface, index) =>

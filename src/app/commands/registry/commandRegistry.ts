@@ -1,4 +1,5 @@
 import { legacyAppCommandDescriptors } from '@/app/commands/registry/legacyAppCommandDescriptors';
+import en from '@/locales/en.json';
 import type {
   CommandDescriptor,
   CommandRegistration,
@@ -28,6 +29,13 @@ function isDescriptorResult(
   return !Array.isArray(result);
 }
 
+function resolveEnglishLabel(labelKey: string): unknown {
+  return labelKey.split('.').reduce<unknown>((value, segment) => {
+    if (value === null || typeof value !== 'object') return undefined;
+    return (value as Record<string, unknown>)[segment];
+  }, en);
+}
+
 export function validateCommandDescriptors(
   descriptors: readonly CommandDescriptor[]
 ): void {
@@ -46,6 +54,12 @@ export function validateCommandDescriptors(
     if (!namespace || namespace === descriptor.labelKey) {
       throw new Error(
         `[commandRegistry] labelKey must include a namespace: ${descriptor.id}`
+      );
+    }
+
+    if (typeof resolveEnglishLabel(descriptor.labelKey) !== 'string') {
+      throw new Error(
+        `[commandRegistry] labelKey does not resolve in en catalog: ${descriptor.labelKey} (${descriptor.id})`
       );
     }
 

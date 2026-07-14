@@ -148,6 +148,34 @@
       "byok-confirm-description": "Dein Schlüssel wird nur in deinem Browser gespeichert. Die {{productName}}-Demo sieht ihn nie. KI-Anfragen gehen direkt von diesem Tab an Anthropic."
     }
   },
+  "commands": {
+    "file": {
+      "new-document": "Neues Dokument",
+      "save": "Datei speichern",
+      "close": "Tab schließen",
+      "undo-last-operation": "Letzte Dateioperation rückgängig machen"
+    },
+    "view": {
+      "outline": "Gliederungsleiste ein-/ausblenden",
+      "sidebar": "Seitenleiste ein-/ausblenden",
+      "tab-overflow": "Tab-Überlauf ein-/ausblenden (Scrollen / Umbrechen)",
+      "split": "Editor teilen",
+      "ai-assistant": "KI-Assistent öffnen",
+      "browser": "Browser-Tab öffnen"
+    },
+    "workspace": {
+      "change": "Arbeitsbereich wechseln"
+    },
+    "general": {
+      "settings": "Einstellungen öffnen"
+    },
+    "system": {
+      "palette": "Befehlspalette öffnen",
+      "palette-alternate": "Befehlspalette öffnen",
+      "quick-open": "Schnell öffnen",
+      "shortcuts": "Tastenkombinationen"
+    }
+  },
   "file-import": {
     "picker-unresponsive": "Die Dateiauswahl hat nicht reagiert. Gib stattdessen den Pfad einer Datei ein, die hinzugefügt werden soll.",
     "picker-unresponsive__sourceHash": "009885d718518472c1da6a3f0b0d8fa1972a2fe71e69b56d84ee8a673917e11d",

@@ -11,7 +11,7 @@ function descriptor(
 ): CommandDescriptor {
   return {
     id: 'example.command',
-    labelKey: 'example.command',
+    labelKey: 'commands.file.save',
     category: 'example',
     execute: () => undefined,
     ...overrides,
@@ -60,5 +60,15 @@ describe('commandRegistry', () => {
     expect(() => {
       validateCommandDescriptors([descriptor({ labelKey: 'command' })]);
     }).toThrow('labelKey must include a namespace: example.command');
+  });
+
+  it('rejects label keys missing from the English catalog', () => {
+    expect(() => {
+      validateCommandDescriptors([
+        descriptor({ labelKey: 'commands.file.not-a-real-command' }),
+      ]);
+    }).toThrow(
+      'labelKey does not resolve in en catalog: commands.file.not-a-real-command (example.command)'
+    );
   });
 });
