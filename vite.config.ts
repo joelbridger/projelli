@@ -60,6 +60,10 @@ export default defineConfig({
     // leave the desktop window on its static loading screen.
     port: 5174,
     strictPort: true,
+    // design/ui-iteration branch ONLY: allow the tailscale HTTPS host so Jameson can
+    // review over https://<machine>.ts.net (a secure context, which the workspace
+    // File System Access API requires). Never merges to the product build.
+    allowedHosts: ['.ts.net'],
     ...(devHttps ? { https: devHttps } : {}),
     // For Tauri development
     watch: {

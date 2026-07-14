@@ -213,6 +213,17 @@ const IS_DEMO_MODE =
   ((typeof __LANTERN_DEMO__ !== 'undefined' && __LANTERN_DEMO__) ||
     (window as unknown as { __lanternDemo?: boolean }).__lanternDemo === true);
 
+// web-ui-seed (dev-only): auto-opens an IndexedDB-backed workspace (not OPFS —
+// this build is reviewed over plain http on a non-localhost host, where OPFS
+// and the folder picker are both unavailable there) pre-populated with 80
+// sample households for browser UI review (see src/web-ui-seed/). Gated on
+// `import.meta.env.DEV`, which Vite replaces with the literal `false` in every
+// production build (`vite build`) — so this is always `false`, and the dynamic
+// import in the effect below never runs, in a shipped build. Never true
+// alongside demo/test mode or the real Tauri desktop app.
+const IS_WEB_UI_SEED_MODE =
+  import.meta.env.DEV && !IS_DEMO_MODE && !IS_TEST_MODE && !isTauriEnvironment();
+
 // Set by a DEBUG native host only. The reader rejects it in production builds.
 const EXPLICIT_LAUNCH_WORKSPACE = getExplicitLaunchWorkspace();
 // The onboarding picker is another entrance to the same workspace-opening
@@ -276,9 +287,10 @@ function App() {
 function AppShell() {
   const { t } = useTranslation();
   const [showWorkspaceSelector, setShowWorkspaceSelector] = useState(
-    !IS_TEST_MODE && !IS_DEMO_MODE
+    !IS_TEST_MODE && !IS_DEMO_MODE && !IS_WEB_UI_SEED_MODE
   );
   const [demoOpenFailed, setDemoOpenFailed] = useState(false);
+  const [webUiSeedOpenFailed, setWebUiSeedOpenFailed] = useState(false);
   const {
     showCommandPalette,
     setShowCommandPalette,
@@ -372,7 +384,7 @@ function AppShell() {
         recentWorkspacesLoaded: recentWorkspacesLoadedAtLaunch,
         noRecentWorkspaces: recentWorkspacesAtLaunch.length === 0,
         isTestMode: IS_TEST_MODE,
-        isDemoMode: IS_DEMO_MODE,
+        isDemoMode: IS_DEMO_MODE || IS_WEB_UI_SEED_MODE,
       }) ? EXPLICIT_LAUNCH_WORKSPACE : null,
     );
     setExplicitLaunchDecisionComplete(true);
@@ -390,7 +402,7 @@ function AppShell() {
       onboardingComplete: hasCompletedOnboarding(),
       noRecentWorkspaces: recentWorkspacesAtLaunch.length === 0,
       isTestMode: IS_TEST_MODE,
-      isDemoMode: IS_DEMO_MODE,
+      isDemoMode: IS_DEMO_MODE || IS_WEB_UI_SEED_MODE,
       hasExplicitWorkspace: Boolean(explicitWorkspaceForFirstRun),
       forceOnboarding,
     });
@@ -412,7 +424,7 @@ function AppShell() {
     window.location.search.includes('forceTour=true');
   useEffect(() => {
     if (
-      (IS_TEST_MODE || IS_DEMO_MODE || explicitWorkspaceForFirstRun) &&
+      (IS_TEST_MODE || IS_DEMO_MODE || IS_WEB_UI_SEED_MODE || explicitWorkspaceForFirstRun) &&
       !FORCE_TOUR
     )
       return;
@@ -1470,6 +1482,30 @@ function AppShell() {
     };
   }, [IS_DEMO_MODE, rootPath, handleWorkspaceSelected]);
 
+  // web-ui-seed (dev-only, design/ui-iteration worktree): same auto-open
+  // pattern as the demo-mode effect above, but sourcing the workspace from
+  // the dev-only 80-household seed bootstrap instead of the public demo's
+  // single seeded matter. See src/web-ui-seed/WebUiSeedBootstrap.ts.
+  useEffect(() => {
+    if (!IS_WEB_UI_SEED_MODE || rootPath) return;
+    const cancelled = { current: false };
+    void (async () => {
+      try {
+        const { openWebUiSeedWorkspace } = await import('@/web-ui-seed/WebUiSeedBootstrap');
+        const { service, counts, alreadySeeded } = await openWebUiSeedWorkspace();
+        console.log('[App] web-ui-seed workspace ready:', { counts, alreadySeeded });
+        if (cancelled.current) return;
+        await handleWorkspaceSelected(service);
+      } catch (err) {
+        console.error('[App] web-ui-seed workspace auto-open failed:', err);
+        if (!cancelled.current) setWebUiSeedOpenFailed(true);
+      }
+    })();
+    return () => {
+      cancelled.current = true;
+    };
+  }, [rootPath, handleWorkspaceSelected]);
+
   // Tab opening: browser tabs, AI assistant tab, and email-listener wiring
   // (extracted to useTabOpening)
   const { handleOpenBrowserTab, openAIAssistantTab } = useTabOpening({
@@ -1973,7 +2009,8 @@ function AppShell() {
   if (
     !IS_TEST_MODE &&
     (showWorkspaceSelector || !rootPath || showFirstRun) &&
-    !(IS_DEMO_MODE && !demoOpenFailed)
+    !(IS_DEMO_MODE && !demoOpenFailed) &&
+    !(IS_WEB_UI_SEED_MODE && !webUiSeedOpenFailed)
   ) {
     const canDismiss = Boolean(rootPath);
     return (
