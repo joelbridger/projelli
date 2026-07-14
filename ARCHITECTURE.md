@@ -2,8 +2,10 @@
 
 > The canonical map of the frontend codebase (`src/`). Written for both humans
 > and AI agents. If a file's location ever disagrees with this doc, trust the
-> code and fix the doc. The layer rules below are **machine-enforced** by
-> `tests/unit/architecture-boundaries.test.ts`.
+> code and fix the doc. The layer rules below are machine-checked by
+> `tests/unit/architecture-boundaries.test.ts`. A newer shrink-only baseline
+> checker also freezes today's deep cross-feature imports and blocks new ones as
+> the existing debt is reduced.
 
 Keepance is **the private intelligence layer for a financial advisory practice**:
 a local-first Tauri + React app where an advisor's client documents, email, and
@@ -30,11 +32,13 @@ point **left** (down the stack):
 | **`lib/`** | (nothing internal) | Domain-free leaf utilities (`utils.ts`/cn, `hash`, `locale-detect`, `pdf-extract`). |
 | **`ui/`** | `lib` | The design system: Radix/shadcn primitives (`button`, `dialog`, …), the **`ui/kp/`** component library + tokens, and shared presentational pieces used by many surfaces (`SurfaceHeader`, `ConfirmDialog`, `EmptyState`, `brand/`). No business logic. |
 | **`platform/`** | `ui`, `lib`, `platform` | Cross-cutting **capabilities** used by 2+ features — services, stores, hooks, types. Organized by domain (see below). Never imports a feature. |
-| **`features/`** | `platform`, `ui`, `lib` | The product **surfaces** — one folder per surface. A feature may import platform/ui/lib freely. It should **not** import another feature; the few real exceptions are an explicit allowlist in the guard test. |
+| **`features/`** | `platform`, `ui`, `lib`, another feature's `index.ts` only | The product **surfaces** — one folder per surface. A feature may import platform/ui/lib freely. Another feature exposes only its root `index.ts` public surface; it must never be reached through internally. |
 | **`app/`** | anything | The shell that wires the features together: `App.tsx`/`main.tsx` (at `src/` root) plus `src/app/` (lifecycle, dialogs, commands, fileOps, shell routing/layout, workflow runner, app-only hooks). |
 
-**The one rule:** *a layer never imports a layer to its right, and features don't
-import other features (except the documented allowlist).* This is what keeps the
+**The one rule:** *a layer never imports a layer to its right, and a feature never
+imports another feature's internals.* Cross-feature imports may use only
+`@/features/<surface>` (or its `index.ts`); shared behavior belongs in platform.
+This is what keeps the
 app navigable — to understand a surface you read its one folder, and platform
 capabilities can't secretly depend on product UI.
 
