@@ -57,7 +57,7 @@ export default tseslint.config(
   // access behind one wrapper so normal app code goes through WorkspaceService.
   {
     files: ['src/**/*.{ts,tsx}'],
-    ignores: ['src/platform/fs/tauriFsPlugin.ts'],
+    ignores: ['src/platform/fs/tauriFsPlugin.ts', 'src/platform/flags/**'],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -66,6 +66,12 @@ export default tseslint.config(
             {
               name: '@tauri-apps/plugin-fs',
               message: 'Use @/platform/fs/tauriFsPlugin or WorkspaceService instead of direct plugin-fs access.',
+            },
+          ],
+          patterns: [
+            {
+              group: ['**/platform/flags/registry'],
+              message: 'Use isEnabled() or useFlag() from @/platform/flags instead of reading the flag registry directly.',
             },
           ],
         },
