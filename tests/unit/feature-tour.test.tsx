@@ -8,7 +8,8 @@
  * FeatureTour auto-advances — intentional and acceptable (noted in docs).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { useState } from 'react';
 import { FeatureTour } from '@/features/onboarding/FeatureTour';
 import { FEATURE_TOUR_STEPS } from '@/features/onboarding/featureTourSteps';
 
@@ -99,6 +100,68 @@ describe('FeatureTour', () => {
     );
     fireEvent.click(screen.getByTestId('feature-tour-skip'));
     expect(onSkip).toHaveBeenCalledTimes(1);
+  });
+
+  it('fully releases the modal layer so app content is hit-testable after Skip', async () => {
+    function TourHarness() {
+      const [open, setOpen] = useState(true);
+      return (
+        <>
+          <button type="button" data-testid="app-hit-target">App content</button>
+          <FeatureTour
+            open={open}
+            onClose={() => setOpen(false)}
+            onComplete={() => setOpen(false)}
+            onSkip={() => setOpen(false)}
+          />
+        </>
+      );
+    }
+
+    const originalElementFromPoint = document.elementFromPoint;
+    const appTarget = render(<TourHarness />).getByTestId('app-hit-target');
+    const targetRect = {
+      x: 20,
+      y: 20,
+      top: 20,
+      left: 20,
+      right: 220,
+      bottom: 60,
+      width: 200,
+      height: 40,
+      toJSON: () => ({}),
+    } as DOMRect;
+    appTarget.getBoundingClientRect = () => targetRect;
+
+    // jsdom has no layout engine, so model the browser rule that a live modal
+    // layer or Radix's body pointer lock wins the hit test over app content.
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: () => {
+        const openTourLayer = Array.from(document.body.children).find((element) =>
+          element.querySelector('[data-testid="feature-tour-center"]'));
+        if (openTourLayer || document.body.style.pointerEvents === 'none') {
+          return openTourLayer ?? document.documentElement;
+        }
+        return appTarget;
+      },
+    });
+
+    try {
+      expect(document.elementFromPoint(120, 40)).not.toBe(appTarget);
+      fireEvent.click(screen.getByTestId('feature-tour-skip'));
+
+      await waitFor(() => {
+        expect(screen.queryByTestId('feature-tour-center')).not.toBeInTheDocument();
+        expect(document.body.style.pointerEvents).not.toBe('none');
+        expect(document.elementFromPoint(120, 40)).toBe(appTarget);
+      });
+    } finally {
+      Object.defineProperty(document, 'elementFromPoint', {
+        configurable: true,
+        value: originalElementFromPoint,
+      });
+    }
   });
 
   it('skips on Escape key', () => {

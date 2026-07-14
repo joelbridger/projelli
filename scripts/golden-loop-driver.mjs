@@ -166,7 +166,7 @@ async function waitForClickableNamedTestId(label, prefix, name) {
   return testid;
 }
 
-async function waitForVisibleApp() {
+async function waitForVisibleApp({ openCreateMenu = false } = {}) {
   await waitForRendererCallback();
   await waitFor('the Clients navigation control', () => has('spine-nav-matters'));
   await dismissFeatureTourIfPresent();
@@ -179,9 +179,11 @@ async function waitForVisibleApp() {
   await click(clientRow);
   await waitFor('the client Documents tab', () => has('crm-household-tab-documents'));
   await click('crm-household-tab-documents');
-  await waitFor('the Documents create menu', () => has('documents-files-create-menu'));
-  await pointerClick('documents-files-create-menu');
-  await waitFor('the Documents create control', () => has('documents-create-document'));
+  if (openCreateMenu) {
+    await waitFor('the Documents create menu', () => has('documents-files-create-menu'));
+    await pointerClick('documents-files-create-menu');
+    await waitFor('the Documents create control', () => has('documents-create-document'));
+  }
 }
 
 async function prepareExplicitWorkspaceForGoldenLoop() {
@@ -195,7 +197,7 @@ async function prepareExplicitWorkspaceForGoldenLoop() {
     }
     return true;
   })()`);
-  await waitForVisibleApp();
+  await waitForVisibleApp({ openCreateMenu: true });
 }
 
 async function fillPromptAndConfirm() {
@@ -280,6 +282,9 @@ try {
     await assertPresent('immediately after saving');
     console.log(`PASS write: created and displayed ${documentFile}`);
   } else {
+    // The restart half only verifies the saved row. Opening the modal Create
+    // menu here would intentionally make the rest of the page non-hit-testable
+    // while that menu is open, producing a false "leftover tour overlay" failure.
     await waitForVisibleApp();
     await assertPresent('after app restart');
     console.log(`PASS persistence: ${documentFile} survived restart and is visible`);
