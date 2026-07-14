@@ -138,23 +138,37 @@ async function waitForRendererCallback() {
 const has = (testid) =>
   evaluate(`Boolean(document.querySelector('[data-testid=${JSON.stringify(testid)}]'))`);
 
+const clickableNamedTestId = (prefix, name) =>
+  evaluate(`Array.from(document.querySelectorAll('[data-testid]')).find((el) => {
+    const testid = el.getAttribute('data-testid') || '';
+    const rect = el.getBoundingClientRect();
+    return testid.startsWith(${JSON.stringify(prefix)}) &&
+      (el.textContent || '').includes(${JSON.stringify(name)}) &&
+      !el.matches(':disabled, [aria-disabled="true"]') &&
+      rect.width > 0 && rect.height > 0;
+  })?.getAttribute('data-testid') || null`);
+
+async function waitForClickableNamedTestId(label, prefix, name) {
+  let testid = null;
+  await waitFor(label, async () => {
+    testid = await clickableNamedTestId(prefix, name);
+    return testid !== null;
+  });
+  return testid;
+}
+
 async function waitForVisibleApp() {
   await waitForRendererCallback();
   await waitFor('the Clients navigation control', () => has('spine-nav-matters'));
   if (await has('feature-tour-skip')) await click('feature-tour-skip');
-  await waitFor('the Golden Loop client row in the visible Clients rail', () =>
-    evaluate(`Array.from(document.querySelectorAll('[data-testid]')).some((el) =>
-      (el.getAttribute('data-testid') || '').startsWith('spine-client-row-'))`),
+  const clientRow = await waitForClickableNamedTestId(
+    'the clickable Golden Loop client row in the visible Clients rail',
+    'spine-client-row-',
+    'Golden Loop Client',
   );
-  await evaluate(`(() => {
-    const target = Array.from(document.querySelectorAll('[data-testid]')).find((el) =>
-      (el.getAttribute('data-testid') || '').startsWith('spine-client-row-'));
-    if (!target) throw new Error('No Golden Loop client row found');
-    target.click();
-    return true;
-  })()`);
-  await waitFor('the client Documents tab', () => has('hub-subtab-documents'));
-  await click('hub-subtab-documents');
+  await click(clientRow);
+  await waitFor('the client Documents tab', () => has('crm-household-tab-documents'));
+  await click('crm-household-tab-documents');
   await waitFor('the Documents create menu', () => has('documents-files-create-menu'));
   await pointerClick('documents-files-create-menu');
   await waitFor('the Documents create control', () => has('documents-create-document'));
@@ -198,10 +212,11 @@ async function assertPresent(where) {
     const files = await readdir(workspace, { recursive: true });
     return files.some((entry) => String(entry).endsWith(documentFile));
   }, 20_000);
-  await waitFor(`${documentFile} to be visible ${where}`, async () => {
-    const body = await evaluate('document.body.innerText || ""');
-    return String(body).includes(documentFile);
-  }, 20_000);
+  await waitForClickableNamedTestId(
+    `${documentFile} document tile to be visible and clickable ${where}`,
+    'grid-card-',
+    documentFile,
+  );
 }
 
 try {
