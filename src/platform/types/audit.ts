@@ -8,158 +8,17 @@ import type {
 } from '@/platform/privacy/egress';
 
 /**
- * Types of audit actions
+ * App-wide map of registered audit action ids.
+ *
+ * Feature-owned audit descriptors augment this interface. Deliberately do not
+ * add a string index signature: an unregistered or misspelled audit id must
+ * fail TypeScript checking before it can reach the durable audit log.
  */
-export type AuditActionType =
-  | 'file_create'
-  | 'file_update'
-  | 'file_delete'
-  | 'file_move'
-  | 'file_rename'
-  | 'file_export'
-  | 'workflow_start'
-  | 'workflow_complete'
-  | 'workflow_fail'
-  | 'model_call'
-  | 'context_compressed'
-  | 'user_action'
-  // Lantern 3.0 provenance events. These mirror the new AuditEvent variants
-  // below; they are listed here too because `AuditService.append()` stores an
-  // event under `action = event.type`, and the audit-log UI keys its icon /
-  // label / colour maps off `AuditActionType`. Adding them keeps the log
-  // readable for the new events without a separate rendering path.
-  | 'retrieval_executed'
-  | 'citation_verified'
-  | 'privilege_evaluated'
-  | 'scope_active'
-  | 'egress'
-  | 'network_egress'
-  | 'prompt_preparation'
-  // Privileged Matter Mode: an MCP server write was blocked while the mode was
-  // on. Stored under `action = 'mcp_blocked'` so the audit log can label/filter
-  // it as a defensible "nothing exfiltrated" record.
-  | 'mcp_blocked'
-  | 'mcp_list'
-  | 'mcp_read'
-  | 'mcp_search'
-  | 'mcp_write_requested'
-  | 'mcp_write_approved'
-  | 'mcp_write_denied'
-  | 'mcp_matter_access_granted'
-  | 'mcp_matter_access_revoked'
-  // Firm Phase 1 (Task 3) — matter sharing and member management.
-  | 'matter_shared'
-  | 'matter_unshared'
-  | 'member_invited'
-  | 'member_removed'
-  | 'wall_set_from_manager'
-  | 'key_published'
-  | 'seat_revoked'
-  // Wealthbox CRM connector lifecycle events.
-  | 'wealthbox.connect'
-  | 'wealthbox.sync'
-  | 'wealthbox.disconnect'
-  // OneDrive / SharePoint document connector lifecycle events.
-  | 'onedrive.sync'
-  // Mail (Microsoft 365 / Gmail / IMAP) connector sync lifecycle. One row per
-  // provider section per sync, so a run that imported zero messages or failed
-  // still leaves a durable record — the same honesty guarantee OneDrive gives.
-  | 'mail.sync'
-  // Box, Calendly, Calendar, and Addepar connector sync lifecycle. Same
-  // contract: every user-triggered sync leaves a success-with-counts or
-  // plain-error record.
-  | 'box.sync'
-  | 'calendly.sync'
-  | 'calendar.sync'
-  | 'addepar.sync'
-  | 'salesforce.connect'
-  | 'salesforce.sync'
-  | 'salesforce.disconnect'
-  // Email connector: an outbound send from the mail viewer's reply area (a
-  // client's inbound email content going into a cloud AI draft is recorded
-  // under the existing 'egress' action above, not a separate type).
-  | 'email.send'
-  // Wave 0 draft-follow-up: a generated draft written into the advisor's REAL
-  // mailbox Drafts folder (never sent by the app itself). A distinct type from
-  // 'email.send' because the draft still needs the advisor's own review/send.
-  | 'email.draft_saved'
-  // Lantern Intake: an onboarding nudge draft or call suggestion, recorded as
-  // an intent/outcome pair before and after the mailbox draft save.
-  | 'intake_nudge'
-  // Lantern Intake: an authenticated normal-email reply accepted into an
-  // onboarding request. Always written as intent/outcome before effects.
-  | 'intake_email_reply'
-  | 'intake_doc_extraction'
-  // Connector-access: the advisor's one-time decision on whether their firm
-  // permits storing + AI-processing exported reports/notes recognized from
-  // outside tools (RightCapital, Jump). A defensible, timestamped record.
-  | 'external_export_consent'
-  // ACATS transfer review and Schwab prep export.
-  | 'acats.approve'
-  | 'acats.export'
-  // Marketplace template lifecycle (mirrors the AuditEvent variants below).
-  | 'template_installed_from_marketplace'
-  | 'template_uninstalled'
-  | 'template_updated'
-  | 'template_install_failed'
-  // Wave 4 Track B: the advisor dismissed/resolved a beneficiary consistency
-  // finding (MISMATCH/STALE/MISSING) surfaced on their Client Map's gaps.
-  | 'beneficiary_finding_dismissed'
-  | 'client_map_bullet_added'
-  | 'client_map_bullet_edited'
-  | 'client_map_bullet_removed'
-  | 'client_map_section_removed'
-  // Wave 4 Track A: voiceprints are biometric data — every enrollment
-  // (naming/relabeling a diarized speaker) and every deletion is a durable,
-  // defensible record, even though the voiceprint itself never leaves the
-  // machine.
-  | 'voiceprint_enrolled'
-  // R9 (Tier B trust guard): before ANY new voiceprint is enrolled, the
-  // advisor affirms the client consented to creating a voice profile of them.
-  // That biometric-consent attestation is its own durable, defensible record,
-  // distinct from the enrollment event it gates.
-  | 'voiceprint_consent'
-  | 'voiceprint_deleted'
-  // Wave 4 Track D: retention policy sweep — one row per artifact deleted,
-  // plus one run summary. Written Rust-side directly into the hash-chained
-  // store so the trail survives a renderer crash.
-  | 'retention_delete'
-  | 'retention_swept'
-  // Wave 4 Track D: local redaction of a meeting segment (transcript, notes.docx,
-  // and the RAG index all scrubbed; see redact.rs for the completeness guarantee).
-  | 'meeting_redaction'
-  // Wave 3 meeting-capture lifecycle events (declared here ahead of the Wave 3
-  // merge — DEPENDS-WAVE-3 — so Task 17's attestation report can classify them
-  // the moment Wave 3 starts writing them under these exact action strings).
-  | 'meeting_capture_started'
-  | 'meeting_auto_join_started'
-  | 'meeting_recorded'
-  | 'meeting_audio_deleted'
-  // Written directly by the Rust audit-store repair path (never through
-  // AuditService) when the encrypted store's hash-chain seal was missing on
-  // open and the surviving rows were re-sealed by an explicit, acknowledged
-  // repair. See `EncryptedAuditStore::repair` / `build_anomaly_record` in
-  // `src-tauri/src/commands/audit/store.rs`.
-  | 'audit_integrity_reseal'
-  // Redtail CRM connector lifecycle — cleanup3 audit found this provider's
-  // connect/sync/disconnect actions were never added to the union even
-  // though `crm_connect`/`crm_sync_all`/`crm_disconnect` are provider-generic
-  // and already write them (src-tauri/src/commands/crm/commands.rs).
-  | 'redtail.connect'
-  | 'redtail.sync'
-  | 'redtail.disconnect'
-  // Salesforce is the only CRM provider connected via OAuth
-  // (`crm_oauth_connect`), which can be cancelled mid-flow; the compensating
-  // "cancelled after credential was briefly stored" audit entry it writes
-  // was missing from the union.
-  | 'salesforce.connect_cancelled'
-  // Wealthbox is the only CRM provider whose write-back path
-  // (`CrmWriteSource` in src-tauri/src/commands/crm/write.rs) is actually
-  // implemented rather than `NotSupported` — Redtail/Salesforce always error
-  // before an audit entry is written for these, so only Wealthbox needs them.
-  | 'wealthbox.create_note'
-  | 'wealthbox.create_task'
-  | 'wealthbox.field_updated';
+export interface AuditActionMap {
+  // Legacy actions are registered by auditActionRegistry.
+}
+
+export type AuditActionType = Extract<keyof AuditActionMap, string>;
 
 /**
  * The verdict from citation verification (mirrors `CitationVerdict.verdict`
