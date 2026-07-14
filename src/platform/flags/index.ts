@@ -7,4 +7,4 @@ export {
   type FlagRouter,
   type FlagRouterOptions,
 } from './router';
-export { flagRegistry, type FlagDescriptor, type FlagId } from './registry';
+export type { FlagDescriptor, FlagId } from './registry';

@@ -4,6 +4,7 @@ import { readFlagRegistry } from './flag-registry.mjs';
 
 export const ACTIVE_FLAG_CAP = 15;
 
+// This counts registry length and relies on the expiry time-bomb to keep it equal to the active count.
 export function checkFlagCap(flags, cap = ACTIVE_FLAG_CAP) {
   if (flags.length <= cap)
     return {
