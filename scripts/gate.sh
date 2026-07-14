@@ -10,6 +10,8 @@ fail=0
 step () { echo ""; echo "===== $1 ====="; shift; "$@" || { echo "❌ FAILED: $*"; fail=1; }; }
 
 step "Build assets"    node scripts/copy-build-assets.mjs
+step "Module boundaries" npm run boundaries:check
+step "Flag cap"         node scripts/check-flag-cap.mjs
 step "Tauri version parity" node scripts/check-tauri-parity.mjs
 step "Tauri TS/Rust command contracts" node scripts/check-tauri-contracts.mjs
 step "Meeting voice bundle contract" npm run check:meeting-voice-bundle
@@ -61,6 +63,10 @@ step "Design-token leak guard" node scripts/ui-system/token-guard.mjs
 # Consciously-left sites (best-effort by design) are documented in the F2.1
 # handoff. New load-bearing swallows must propagate or surface instead.
 step "Rust tests"      bash -c "cd src-tauri && CI=1 cargo test --workspace --locked"
+# The real desktop loop must use a binary built from this exact, clean source
+# tip. Keep it after Rust tests so it reuses warm Cargo artifacts, while the
+# outer `npm run gate` box slot continues to serialize Rust work on this host.
+step "Golden loop" bash -c 'cd src-tauri && cargo build --locked && ../scripts/golden-loop-launch-app.sh --record-provenance .. target/debug/lantern && ../scripts/golden-loop.sh .. target/debug/lantern'
 
 if [ "$FULL" -eq 1 ]; then
   step "L1 browser E2E (sharded)" bash ./scripts/run-e2e-suite.sh en 6
