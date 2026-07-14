@@ -585,7 +585,9 @@ export function AppSurfaceRouter(props: AppSurfaceRouterProps) {
         },
         onCreateClientDocument: async (matterId) => {
           const folderPath = await prepareClientDocumentsFolder(matterId);
-          if (folderPath) await handleCreateDefaultDocument(folderPath);
+          if (folderPath) {
+            handleCreateDefaultDocument(folderPath);
+          }
         },
         onCreateClientFolder: async (matterId) => {
           const folderPath = await prepareClientDocumentsFolder(matterId);
