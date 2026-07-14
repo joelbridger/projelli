@@ -60,6 +60,7 @@ import {
   getAppSurfaceDescriptor,
 } from '@/app/shell/registry/appSurfaceRegistry';
 import { useAppSurfaceRegistry } from '@/app/shell/runtime/useAppSurfaceRegistry';
+import { sendDiagnosticEvent } from '@/platform/utils/diagnostics';
 
 // Email, Activity Log, Privacy Center, and the full-page Settings surface are
 // lazy-loaded: each is a large, self-contained screen (Settings alone pulls
@@ -185,6 +186,11 @@ export function AppSurfaceRouter(props: AppSurfaceRouterProps) {
     console.error(
       `[AppSurfaceRouter] Unknown surface "${sidebarActiveTab}"; falling back to "${SAFE_APP_SURFACE_ID}".`
     );
+    void sendDiagnosticEvent({
+      event: 'error_caught',
+      component: 'AppSurfaceRouter',
+      code: 'unknown_surface',
+    });
   }, [registryState.ready, requestedDescriptor, sidebarActiveTab]);
 
   useEffect(() => {

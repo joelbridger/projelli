@@ -41,7 +41,6 @@ function legacySurface(options: LegacyDescriptorOptions): AppSurfaceDescriptor {
 
   return {
     ...descriptor,
-    load: () => Promise.resolve({ default: Component }),
     render: (runtime) => createElement(Component, { runtime }),
   };
 }

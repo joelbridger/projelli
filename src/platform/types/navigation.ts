@@ -1,13 +1,24 @@
 /**
- * Open map for shell surface ids.
+ * App-wide map for registered shell surface ids.
  *
- * The concrete ids live in the app-owned surface registry. Keeping this map
- * open lets platform stores name navigation destinations without importing
- * upward from `app/` or maintaining a second fixed union. Runtime navigation
- * is validated by the registry before a surface is mounted.
+ * Interfaces are intentionally augmentable: a future feature that adds a
+ * surface must extend this map with `declare module` in its own module. With
+ * no string index signature, misspelled or unregistered ids fail typecheck.
  */
 export interface AppSurfaceMap {
-  [surfaceId: string]: unknown;
+  home: true;
+  matters: true;
+  search: true;
+  scheduling: true;
+  settings: true;
+  files: true;
+  email: true;
+  workflows: true;
+  audit: true;
+  privacy: true;
+  'ai-assistant': true;
+  research: true;
+  trash: true;
 }
 
 export type AppSurface = Extract<keyof AppSurfaceMap, string>;

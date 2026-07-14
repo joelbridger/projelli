@@ -12,17 +12,15 @@ import type { AppSurfaceDescriptor } from '@/app/shell/registry/types';
 function descriptor(
   overrides: Partial<AppSurfaceDescriptor> = {}
 ): AppSurfaceDescriptor {
-  const Component = () => createElement('div');
   return {
-    id: 'example',
+    id: 'home',
     labelKey: 'example.title',
     icon: Home,
     placement: 'hidden',
     order: 1,
     clientContext: 'firm',
     errorLabel: 'Example',
-    load: () => Promise.resolve({ default: Component }),
-    render: () => createElement(Component),
+    render: () => createElement('div'),
     ...overrides,
   };
 }
@@ -59,14 +57,14 @@ describe('appSurfaceRegistry', () => {
         descriptor(),
         descriptor({ labelKey: 'other.title' }),
       ]);
-    }).toThrow('duplicate surface id: example');
+    }).toThrow('duplicate surface id: home');
   });
 
   it('rejects duplicate shortcuts after normalization', () => {
     expect(() => {
       validateAppSurfaceDescriptors([
-        descriptor({ id: 'one', shortcuts: ['Ctrl+1'] }),
-        descriptor({ id: 'two', shortcuts: ['ctrl+1'] }),
+        descriptor({ id: 'home', shortcuts: ['Ctrl+1'] }),
+        descriptor({ id: 'matters', shortcuts: ['ctrl+1'] }),
       ]);
     }).toThrow('duplicate shortcut: ctrl+1');
   });
@@ -74,6 +72,6 @@ describe('appSurfaceRegistry', () => {
   it('rejects label keys without a translation namespace', () => {
     expect(() => {
       validateAppSurfaceDescriptors([descriptor({ labelKey: 'title' })]);
-    }).toThrow('labelKey must include a namespace: example');
+    }).toThrow('labelKey must include a namespace: home');
   });
 });

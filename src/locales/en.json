@@ -3198,6 +3198,8 @@
   },
   "spine": {
     "nav": {
+      "home": "Home",
+      "clients": "Clients",
       "client-map": "Client Map",
       "ask": "Ask",
       "workflows": "Workflows"

@@ -7,22 +7,27 @@ export type AppSurfaceId = AppSurface;
 export type AppSurfacePlacement = 'primary' | 'utility' | 'hidden';
 export type AppSurfaceClientContext = 'shared' | 'firm' | 'preserve-hidden';
 
-export interface AppSurfaceCommandDescriptor {
-  id: string;
-  labelKey: string;
-  shortcut?: string;
-}
-
 export interface AppSurfaceComponentProps {
   runtime: AppSurfaceRuntime;
 }
 
 export type AppSurfaceComponent = ComponentType<AppSurfaceComponentProps>;
 
+export interface AppSurfaceCommandDescriptor {
+  id: string;
+  labelKey: string;
+  shortcut?: string;
+}
+
 /**
  * One source of truth for a top-level surface's mount and shell metadata.
- * `legacyLabel` exists only to preserve the current untranslated Home/Clients
- * labels during this pure refactor; new surfaces should use `labelKey` alone.
+ *
+ * `render` owns mounting and any lazy-loading behavior. Registry consumers
+ * must not expect a separate loader hook.
+ *
+ * `legacyLabel` takes precedence over `labelKey` only for labels carried over
+ * unchanged during the shell refactor. New surfaces should use `labelKey`
+ * alone, and every key must still exist even when a legacy label masks it.
  */
 export interface AppSurfaceDescriptor {
   id: AppSurfaceId;
@@ -33,7 +38,6 @@ export interface AppSurfaceDescriptor {
   order: number;
   clientContext: AppSurfaceClientContext;
   errorLabel: string;
-  load: () => Promise<{ default: AppSurfaceComponent }>;
   render: (runtime: AppSurfaceRuntime) => ReactNode;
   parentRoute?: AppSurfaceId;
   shortcuts?: readonly string[];
