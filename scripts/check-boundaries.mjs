@@ -57,7 +57,9 @@ function isPublicFeatureImport(sourceRoot, importer, specifier, publicEntrypoint
   if (parts[0] !== 'features' || !parts[1]) return false;
   // @/features/foo is the folder form of its public index module.
   if (parts.length === 2) return true;
-  return parts.length === 3 && publicEntrypoints.includes(parts[2]);
+  // TypeScript resolves the extensionless @/features/foo/index form to the
+  // public index module too.
+  return parts.length === 3 && (parts[2] === 'index' || publicEntrypoints.includes(parts[2]));
 }
 
 function moduleSpecifiers(sourceFile) {
@@ -70,7 +72,8 @@ function moduleSpecifiers(sourceFile) {
       found.push(node.moduleSpecifier.text);
     } else if (
       ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword &&
-      node.arguments.length === 1 && ts.isStringLiteral(node.arguments[0])
+      node.arguments.length === 1 &&
+      (ts.isStringLiteral(node.arguments[0]) || ts.isNoSubstitutionTemplateLiteral(node.arguments[0]))
     ) {
       found.push(node.arguments[0].text);
     }
@@ -92,12 +95,14 @@ export function findBoundaryViolations(options = {}) {
     const source = ts.createSourceFile(filename, readFileSync(filename, 'utf8'), ts.ScriptTarget.Latest, true);
     for (const specifier of moduleSpecifiers(source)) {
       const target = importedFeatureName(sourceRoot, filename, specifier);
-      if (target && target !== owner && !isPublicFeatureImport(sourceRoot, filename, specifier, config.publicEntrypoints)) {
+      const ownerTag = config.compositeFeatureTag(owner);
+      const targetTag = target && config.compositeFeatureTag(target);
+      if (target && targetTag !== ownerTag && !isPublicFeatureImport(sourceRoot, filename, specifier, config.publicEntrypoints)) {
         const relativeFile = path.relative(root, filename).replaceAll(path.sep, '/');
         violations.push({
           file: relativeFile,
           specifier,
-          message: `${config.featureTag(owner)} must import ${config.featureTag(target)} only through its public index module.`,
+          message: `${config.featureTag(ownerTag)} must import ${config.featureTag(targetTag)} only through its public index module.`,
         });
       }
     }

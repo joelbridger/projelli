@@ -2,8 +2,10 @@
 
 > The canonical map of the frontend codebase (`src/`). Written for both humans
 > and AI agents. If a file's location ever disagrees with this doc, trust the
-> code and fix the doc. The layer rules below are **machine-enforced** by
-> `tests/unit/architecture-boundaries.test.ts`.
+> code and fix the doc. The layer rules below are machine-checked by
+> `tests/unit/architecture-boundaries.test.ts`. A newer shrink-only baseline
+> checker also freezes today's deep cross-feature imports and blocks new ones as
+> the existing debt is reduced.
 
 Keepance is **the private intelligence layer for a financial advisory practice**:
 a local-first Tauri + React app where an advisor's client documents, email, and

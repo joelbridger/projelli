@@ -8,7 +8,6 @@ import { checkBoundaryBaseline, findBoundaryViolations } from '../check-boundari
 const temporaryRoots = [];
 const config = {
   sourceRoot: 'src',
-  featureRoot: 'src/features',
   publicEntrypoints: ['index.ts', 'index.tsx'],
   baselineFile: '.baseline.json',
 };
@@ -46,5 +45,26 @@ describe('feature-boundary checker', () => {
     assert.deepEqual(findBoundaryViolations({ repoRoot: root, config }), []);
     assert.deepEqual(checkBoundaryBaseline({ root, config, update: true }), { ok: true, updated: true, count: 0 });
     assert.deepEqual(checkBoundaryBaseline({ root, config }), { ok: true, count: 0, regressions: [] });
+  });
+
+  it('catches a backtick dynamic import that reaches into another feature', () => {
+    const root = fixture({
+      'src/features/alpha/Screen.ts': "const load = () => import(`@/features/beta/private`); export { load };",
+      'src/features/beta/index.ts': 'export const publicApi = true;',
+      'src/features/beta/private.ts': 'export const secret = true;',
+    });
+    assert.deepEqual(findBoundaryViolations({ repoRoot: root, config }).map(({ file, specifier }) => ({ file, specifier })), [
+      { file: 'src/features/alpha/Screen.ts', specifier: '@/features/beta/private' },
+    ]);
+  });
+
+  it('treats CRM folders as one composite feature and allows an extensionless public index', () => {
+    const root = fixture({
+      'src/features/crm-home/Screen.ts': "import { registry } from '@/features/crm-views/registry'; export { registry };",
+      'src/features/crm-views/registry.ts': 'export const registry = true;',
+      'src/features/alpha/Screen.ts': "import { publicApi } from '@/features/beta/index'; export { publicApi };",
+      'src/features/beta/index.ts': 'export const publicApi = true;',
+    });
+    assert.deepEqual(findBoundaryViolations({ repoRoot: root, config }), []);
   });
 });
