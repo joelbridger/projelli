@@ -13,6 +13,9 @@ function memoryWorkspace(
   const files = new Map(Object.entries(initial));
   return {
     files,
+    exists(path) {
+      return Promise.resolve(files.has(path));
+    },
     readFile(path) {
       const value = files.get(path);
       if (value === undefined)
