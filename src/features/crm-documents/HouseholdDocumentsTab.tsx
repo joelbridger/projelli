@@ -11,7 +11,7 @@ import { useMatters } from '@/platform/matter/matterStore';
 import { resolveWorkspaceMatterId } from '@/platform/rag/matterResolver';
 import type { FileNode } from '@/platform/types/workspace';
 import { EV_OPEN_CRM_DOCUMENT } from '@/config/identity';
-import { DocumentsCreateMenu } from '@/features/documents/DocumentsCreateMenu';
+import { DocumentsCreateMenu } from '@/features/documents';
 import { addDocumentRef, isPlausibleClientDocument, linkedDocumentsForHousehold, recordBelongsToHousehold, removeDocumentRef } from './documentLinks';
 
 type Target = { value: string; kind: 'household' | 'person' | 'note' | 'task'; id: string; label: string };
@@ -168,7 +168,7 @@ export function HouseholdDocumentsTab({ household, actions }: HouseholdTabSurfac
           <p style={{ margin: '4px 0 0' }}>It will link to the choice above. You can also choose a document and use the button.</p>
         </div>
         <div aria-label="Saved documents you can drag to link" style={{ display: 'grid', gap: 6, marginTop: 12, maxHeight: 180, overflowY: 'auto' }}>
-          {availableFiles.map((file) => <button key={file.path} type="button" draggable data-testid={`grid-card-${file.path}`} onClick={() => { open({ kind: 'document', id: file.path, label: file.name }); }} onDragStart={(event) => { event.dataTransfer.effectAllowed = 'link'; event.dataTransfer.setData('application/x-lantern-document-path', file.path); event.dataTransfer.setData('text/plain', file.path); }} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '6px 8px', border: '1px solid var(--kp-border)', borderRadius: 7, background: 'white', cursor: 'grab', width: '100%', textAlign: 'left' }}><GripVertical size={15} aria-hidden="true" style={{ color: 'var(--kp-text-faint)' }} /><span data-testid={`crm-document-drag-${file.id}`}>{file.name}</span></button>)}
+          {availableFiles.map((file) => <button key={file.path} type="button" draggable data-testid={`crm-document-card-${file.path}`} onClick={() => { open({ kind: 'document', id: file.path, label: file.name }); }} onDragStart={(event) => { event.dataTransfer.effectAllowed = 'link'; event.dataTransfer.setData('application/x-lantern-document-path', file.path); event.dataTransfer.setData('text/plain', file.path); }} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '6px 8px', border: '1px solid var(--kp-border)', borderRadius: 7, background: 'white', cursor: 'grab', width: '100%', textAlign: 'left' }}><GripVertical size={15} aria-hidden="true" style={{ color: 'var(--kp-text-faint)' }} /><span data-testid={`crm-document-drag-${file.id}`}>{file.name}</span></button>)}
         </div>
       </> : null}
       {message ? <p role="status" data-testid="crm-document-link-status">{message}</p> : null}

@@ -124,7 +124,7 @@ describe('HouseholdDocumentsTab client boundary', () => {
     expect(options).toEqual(['Choose a document', 'Diaz plan.pdf']);
     expect(screen.queryByText('Caldwell plan.pdf')).not.toBeInTheDocument();
     expect(screen.queryByText('Code of Ethics.pdf')).not.toBeInTheDocument();
-    expect(screen.getByTestId('grid-card-Clients/Diaz, Michelle/Diaz plan.pdf'))
+    expect(screen.getByTestId('crm-document-card-Clients/Diaz, Michelle/Diaz plan.pdf'))
       .toBeInTheDocument();
   });
 

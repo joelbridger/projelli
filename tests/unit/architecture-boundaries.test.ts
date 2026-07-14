@@ -39,6 +39,7 @@ const ALLOWED_FEATURE_EDGES = new Set<string>([
   'ask->crm',             // Ask adds client-scoped CRM records to the same consent/audit/citation pipeline
   'crm->ask',             // CRM Ask reuses the primary Ask safety rails and citation contracts
   'crm->acats',           // CRM Reviews makes the ACATS transfer-review workflow reachable from the relevant client record
+  'crm->documents',       // client-scoped document creation doorway, deliberate public API
   'crm->email',           // CRM broadcast reuses the hardened mail provider resolver
   'crm->firm',            // CRM firm setup composes the existing firm administration surface
   'crm->meetings',        // CRM household record's Meeting Notes tab hosts the meeting-notes-review
