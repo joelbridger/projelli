@@ -2,16 +2,14 @@
  * AppSurfaceRouter — presentational shell component that renders the correct
  * main surface for the currently active sidebar tab.
  *
- * Extracted from App.tsx (Phase 3 shell refactor) to keep App.tsx focused
- * on layout + state wiring while this file owns the surface-selection ternary.
+ * The active descriptor comes from appSurfaceRegistry, which is also the
+ * source for shell navigation. There is no second route switch in this file.
  *
- * All handlers and state values are passed down as props. A tiny leaf wrapper
- * below uses an effect to save a client folder only after it already exists.
- * The component is purely presentational: it receives everything it needs and
- * delegates rendering to the appropriate surface component.
+ * Production capabilities arrive through AppSurfaceRuntimeProvider in grouped
+ * domains. The old flat props remain as a test/embedding compatibility seam.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { CrmHome } from '@/features/crm-home';
 import { ClientsSurface } from '@/features/crm-clients';
 import type { AddToHouseholdRequest } from '@/features/crm-clients/adapters';
@@ -38,35 +36,30 @@ import { useDocumentExtractionIngestion } from '@/platform/intake/useDocumentExt
 import { resolveDocumentExtractionProvider } from '@/features/intake/resolveDocumentExtractionProvider';
 import { openRunArtifactFromWorkflows } from '@/app/shell/openRunArtifactFromWorkflows';
 
-import type { AppSurface } from '@/app/lifecycle/useGlobalEventBus';
+import type { AppSurface } from '@/platform/types/navigation';
 import {
   resolveSavedDocumentDirectory,
   resolveSavedDocumentPath,
   routeSavedAskDocument,
 } from '@/app/shell/routeSavedAskDocument';
 import { openMatterDocumentSource } from '@/app/shell/matterDocumentNavigation';
-import type { MattersSurfaceMode } from '@/platform/state/appNavigationStore';
-import type {
-  WorkflowExecution,
-  WorkflowTemplate,
-  InterviewQuestion,
-  RunRecord,
-} from '@/platform/types/workflow';
-import type { AuditEntry } from '@/platform/types/audit';
-import type { AuditIntegrityVerdict } from '@/platform/utils/tauri-commands';
-import type { APIKey } from '@/platform/types';
-import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
-import type { FileNode } from '@/platform/types/workspace';
-import type { SettingCategory } from '@/platform/settings/schema';
-import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
-import type { TrashRetentionPeriod } from '@/features/documents/TrashPanel';
-import type { Matter } from '@/platform/types/matter';
 import {
   EV_OPEN_CRM_DOCUMENT,
   EV_OPEN_ACCOUNT,
   EV_OPEN_EMAIL,
   SK_FIRM_NAME,
 } from '@/config/identity';
+import {
+  legacyRouterPropsToCapabilities,
+  useOptionalAppSurfaceCapabilities,
+  type AppSurfaceRuntime,
+  type LegacyAppSurfaceRouterProps,
+} from '@/app/shell/runtime/AppSurfaceRuntime';
+import {
+  SAFE_APP_SURFACE_ID,
+  getAppSurfaceDescriptor,
+} from '@/app/shell/registry/appSurfaceRegistry';
+import { useAppSurfaceRegistry } from '@/app/shell/runtime/useAppSurfaceRegistry';
 
 // Email, Activity Log, Privacy Center, and the full-page Settings surface are
 // lazy-loaded: each is a large, self-contained screen (Settings alone pulls
@@ -85,92 +78,9 @@ const loadPrivacyCenterHome = () =>
   }));
 const loadSettingsContent = () => import('@/features/settings/SettingsContent');
 
-export interface AppSurfaceRouterProps {
-  sidebarActiveTab: AppSurface;
-  askPrefill: { question: string; autoSubmit?: boolean } | null;
-  setAskPrefill: React.Dispatch<
-    React.SetStateAction<{ question: string; autoSubmit?: boolean } | null>
-  >;
-  documentsView: 'browser' | 'editor';
-  setDocumentsView: (view: 'browser' | 'editor') => void;
-  setSidebarActiveTab: (tab: AppSurface) => void;
-  mattersSurfaceMode: MattersSurfaceMode;
-  setMattersSurfaceMode: (mode: MattersSurfaceMode) => void;
-  pushNavigationSnapshot: () => void;
-  currentExecution: WorkflowExecution | null;
-  activeWorkflowTemplate: WorkflowTemplate | null;
-  showInterviewDialog: boolean;
-  interviewQuestions: InterviewQuestion[] | null;
-  workflowProviderError:
-    | 'needs-provider'
-    | 'ollama-unreachable'
-    | 'needs-client'
-    | null;
-  /** BUG F2 — non-null when the terminal .workflow run-record write failed to
-   *  save after retries. Rendered as a Callout on the workflows home,
-   *  mirroring `workflowProviderError`'s plumbing. */
-  workflowSaveError: string | null;
-  runHistory: RunRecord[];
-  auditEntries: AuditEntry[];
-  auditIntegrity: AuditIntegrityVerdict | undefined;
-  verifyAuditIntegrity: () => Promise<AuditIntegrityVerdict | undefined>;
-  repairAuditSeal: () => Promise<void>;
-  apiKeys: APIKey[];
-  rootPath: string | null | undefined;
-  fileTree: FileNode[];
-  trashItems: TrashedItem[];
-  trashStats: TrashStats;
-  trashRetentionPeriod: TrashRetentionPeriod;
-  trashCustomRetentionDays: number;
-  activeWorkflowFilePath: string | null;
-  openTabs: ReturnType<typeof useEditorStore.getState>['openTabs'];
-  workspaceServiceRef: React.MutableRefObject<WorkspaceService | null>;
-  setFileTree: (tree: FileNode[]) => void;
-  openSettings: (category?: SettingCategory) => void;
-  handleFileOpen: (path: string, name: string) => Promise<boolean>;
-  handleCreateFile: (parentPath: string) => void;
-  handleCreateFolder: (parentPath: string) => void;
-  handleRename: (path: string) => void;
-  handleRenameWithName: (path: string, newName: string) => Promise<void>;
-  handleDelete: (path: string) => void;
-  handleMove: (sourcePath: string, targetPath: string) => Promise<void>;
-  handleDownload: (path: string, name: string) => void;
-  handleCreateDefaultDocument: (parentPath?: string) => void;
-  handleImportFiles: (folderPath?: string | null) => Promise<void>;
-  handleCreateDocxAtRoot: (parentPath?: string) => Promise<void>;
-  handleCreateTextFileAtRoot: () => Promise<void>;
-  handleCreateFolderAtRoot: () => Promise<void>;
-  handleSetLetterheadTemplate: (path: string) => void;
-  handleRestoreFromTrash: (id: string) => Promise<void>;
-  handlePermanentDelete: (id: string) => Promise<void>;
-  handleEmptyTrash: () => Promise<void>;
-  handleTrashRetentionChange: (
-    period: TrashRetentionPeriod,
-    customDays?: number
-  ) => void;
-  refreshFileTree: () => void;
-  addAuditEntry: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
-  handleRequestApiKeySetup: () => void;
-  handleInterviewSubmit: (answers: Record<string, string>) => void;
-  handleInterviewCancel: () => void;
-  handleWorkflowSaveAsFile: (
-    content: string,
-    suggestedName: string
-  ) => Promise<void>;
-  handleWorkflowExportDocx: (
-    content: string,
-    suggestedName: string
-  ) => Promise<void>;
-  handleWorkflowExportPptx: (
-    content: string,
-    suggestedName: string
-  ) => Promise<void>;
-  handleStartWorkflow: (template: WorkflowTemplate) => Promise<void>;
-  handleSettingsAction: (actionId: string) => void;
-  handleSettingsRestartOnboarding: () => void;
-  activeMatter: Matter | null;
-  settingsPageFocus?: { category?: SettingCategory; key: number };
-}
+export type AppSurfaceRouterProps =
+  | { sidebarActiveTab: AppSurface }
+  | LegacyAppSurfaceRouterProps;
 
 type BuildDocumentsHomeOptions = {
   embedded?: boolean;
@@ -179,70 +89,113 @@ type BuildDocumentsHomeOptions = {
   ensureScopeFolderMatterId?: string;
 };
 
-export function AppSurfaceRouter({
-  sidebarActiveTab,
-  askPrefill,
-  setAskPrefill,
-  documentsView,
-  setDocumentsView,
-  setSidebarActiveTab,
-  setMattersSurfaceMode,
-  pushNavigationSnapshot,
-  currentExecution,
-  activeWorkflowTemplate,
-  showInterviewDialog,
-  interviewQuestions,
-  workflowProviderError,
-  workflowSaveError,
-  runHistory,
-  auditEntries,
-  auditIntegrity,
-  verifyAuditIntegrity,
-  repairAuditSeal,
-  apiKeys,
-  rootPath,
-  trashItems,
-  trashStats,
-  trashRetentionPeriod,
-  trashCustomRetentionDays,
-  activeWorkflowFilePath,
-  openTabs,
-  workspaceServiceRef,
-  setFileTree,
-  openSettings,
-  handleFileOpen,
-  handleCreateFile,
-  handleCreateFolder,
-  handleRename,
-  handleRenameWithName,
-  handleDelete,
-  handleMove,
-  handleDownload,
-  handleCreateDefaultDocument,
-  handleImportFiles,
-  handleCreateDocxAtRoot,
-  handleCreateTextFileAtRoot,
-  handleCreateFolderAtRoot,
-  handleSetLetterheadTemplate,
-  handleRestoreFromTrash,
-  handlePermanentDelete,
-  handleEmptyTrash,
-  handleTrashRetentionChange,
-  refreshFileTree,
-  addAuditEntry,
-  handleRequestApiKeySetup,
-  handleInterviewSubmit,
-  handleInterviewCancel,
-  handleWorkflowSaveAsFile,
-  handleWorkflowExportDocx,
-  handleWorkflowExportPptx,
-  handleStartWorkflow,
-  handleSettingsAction,
-  handleSettingsRestartOnboarding,
-  activeMatter,
-  settingsPageFocus,
-}: AppSurfaceRouterProps) {
+export function AppSurfaceRouter(props: AppSurfaceRouterProps) {
+  const providedCapabilities = useOptionalAppSurfaceCapabilities();
+  const capabilities =
+    providedCapabilities ??
+    ('askPrefill' in props ? legacyRouterPropsToCapabilities(props) : null);
+  if (!capabilities) {
+    throw new Error(
+      'AppSurfaceRouter requires AppSurfaceRuntimeProvider or legacy router props'
+    );
+  }
+
+  const { sidebarActiveTab } = props;
+  const {
+    navigation: {
+      setSurface: setSidebarActiveTab,
+      setMattersSurfaceMode,
+      pushSnapshot: pushNavigationSnapshot,
+    },
+    workspace: {
+      rootPath,
+      activeMatter,
+      apiKeys,
+      serviceRef: workspaceServiceRef,
+      setFileTree,
+      refreshFileTree,
+      requestApiKeySetup: handleRequestApiKeySetup,
+    },
+    documents: {
+      view: documentsView,
+      setView: setDocumentsView,
+      open: handleFileOpen,
+      createFile: handleCreateFile,
+      createFolder: handleCreateFolder,
+      rename: handleRename,
+      renameWithName: handleRenameWithName,
+      delete: handleDelete,
+      move: handleMove,
+      download: handleDownload,
+      createDefault: handleCreateDefaultDocument,
+      importFiles: handleImportFiles,
+      createDocxAtRoot: handleCreateDocxAtRoot,
+      createTextFileAtRoot: handleCreateTextFileAtRoot,
+      createFolderAtRoot: handleCreateFolderAtRoot,
+      setLetterheadTemplate: handleSetLetterheadTemplate,
+      trashItems,
+      trashStats,
+      trashRetentionPeriod,
+      trashCustomRetentionDays,
+      restoreFromTrash: handleRestoreFromTrash,
+      permanentlyDelete: handlePermanentDelete,
+      emptyTrash: handleEmptyTrash,
+      changeTrashRetention: handleTrashRetentionChange,
+    },
+    ask: { prefill: askPrefill, setPrefill: setAskPrefill },
+    workflows: {
+      currentExecution,
+      activeTemplate: activeWorkflowTemplate,
+      showInterviewDialog,
+      interviewQuestions,
+      providerError: workflowProviderError,
+      saveError: workflowSaveError,
+      runHistory,
+      activeFilePath: activeWorkflowFilePath,
+      openTabs,
+      submitInterview: handleInterviewSubmit,
+      cancelInterview: handleInterviewCancel,
+      saveAsFile: handleWorkflowSaveAsFile,
+      exportDocx: handleWorkflowExportDocx,
+      exportPptx: handleWorkflowExportPptx,
+      start: handleStartWorkflow,
+    },
+    audit: {
+      entries: auditEntries,
+      integrity: auditIntegrity,
+      verifyIntegrity: verifyAuditIntegrity,
+      repairSeal: repairAuditSeal,
+      addEntry: addAuditEntry,
+    },
+    settings: {
+      open: openSettings,
+      action: handleSettingsAction,
+      restartOnboarding: handleSettingsRestartOnboarding,
+      pageFocus: settingsPageFocus,
+    },
+  } = capabilities;
   const [crmAddRequest, setCrmAddRequest] = useState<CrmHouseholdAddRequest | null>(null);
+  const registryState = useAppSurfaceRegistry();
+  const requestedDescriptor = registryState.descriptors.find(
+    (descriptor) => descriptor.id === sidebarActiveTab
+  );
+
+  useEffect(() => {
+    if (!registryState.ready || requestedDescriptor) return;
+    console.error(
+      `[AppSurfaceRouter] Unknown surface "${sidebarActiveTab}"; falling back to "${SAFE_APP_SURFACE_ID}".`
+    );
+  }, [registryState.ready, requestedDescriptor, sidebarActiveTab]);
+
+  useEffect(() => {
+    if (registryState.error) {
+      console.error(
+        '[AppSurfaceRouter] Surface registry load failed:',
+        registryState.error
+      );
+    }
+  }, [registryState.error]);
+
   useIntakeInboxSync({ workspaceService: workspaceServiceRef.current });
   useEmailReplyIngestion({ resolveEmailProvider });
   useDocumentExtractionIngestion({
@@ -553,263 +506,288 @@ export function AppSurfaceRouter({
     </LazyBoundary>
   );
 
-  return (
-    <>
-      {sidebarActiveTab === 'home' ? (
-        <CrmHome
-          {...(crmAddRequest ? {
-            initialRoute: ({
-              task: 'tasks',
-              opportunity: 'pipeline',
-              workflow: 'workflows',
-            } satisfies Record<CrmHouseholdAddRequest['kind'], CrmHomeRoute>)[crmAddRequest.kind],
+  const renderHome = (): ReactNode => (
+    <CrmHome
+      {...(crmAddRequest
+        ? {
+            initialRoute: (
+              {
+                task: 'tasks',
+                opportunity: 'pipeline',
+                workflow: 'workflows',
+              } satisfies Record<CrmHouseholdAddRequest['kind'], CrmHomeRoute>
+            )[crmAddRequest.kind],
             addRequest: crmAddRequest,
-            onAddRequestConsumed: () => { setCrmAddRequest(null); },
-          } : {})}
-        />
-      ) : sidebarActiveTab === 'matters' ? (
-        <ClientsSurface
-          actions={{
-            onAdd: (request: AddToHouseholdRequest) => {
-              if (
-                request.kind !== 'task' &&
-                request.kind !== 'opportunity' &&
-                request.kind !== 'workflow'
-              ) return;
-              setCrmAddRequest({
-                kind: request.kind,
-                householdId: request.householdRef.id,
-                householdLabel: request.householdRef.label ?? 'Untitled household',
-              });
-              setSidebarActiveTab('home');
+            onAddRequestConsumed: () => {
+              setCrmAddRequest(null);
             },
-          }}
-        />
-      ) : sidebarActiveTab === 'search' ? (
-        // Ask (this lane, fix/sidebar-blank-after-ask): a citation-popup
-        // render error here must be contained the same way every sibling
-        // surface below already is (LazyBoundary) — otherwise, with no
-        // error boundary anywhere above <main> either, an uncaught error
-        // unmounts the ENTIRE React root, taking the left nav down with it
-        // (blank + unresponsive, no recovery short of a full app restart).
-        <ErrorBoundary label="Ask">
-          <CrmAskSurface
-            onSaveToDocument={async (content) => {
-              if (!workspaceServiceRef.current || !rootPath) return;
-              // Word-first: AI answers save as a real .docx (not markdown).
-              const { deriveFilenameFromMessage, resolveUniqueName } =
-                await import('@/platform/utils/fileDrop');
-              const { markdownToDocxBytes, docxBytesToDataUrl } =
-                await import('@/platform/utils/docx-io');
-              const firmName = (() => {
-                try {
-                  return localStorage.getItem(SK_FIRM_NAME) ?? '';
-                } catch {
-                  return '';
-                }
-              })();
-              const base = deriveFilenameFromMessage(content).replace(
-                /\.(md|markdown|txt)$/i,
-                ''
-              );
-              const targetDir = resolveSavedDocumentDirectory({
-                rootPath,
-                activeMatter,
-              });
-              const finalName = await resolveUniqueName(
-                workspaceServiceRef.current,
-                targetDir,
-                `${base}.docx`
-              );
-              const path = resolveSavedDocumentPath({
-                rootPath,
-                activeMatter,
-                fileName: finalName,
-              });
-              const bytes = await markdownToDocxBytes(content, finalName, {
-                firmName,
-              });
-              const buffer = new ArrayBuffer(bytes.byteLength);
-              new Uint8Array(buffer).set(bytes);
-              await workspaceServiceRef.current.writeFileBinary(path, buffer);
-              const tree = await workspaceServiceRef.current.getFileTree();
-              setFileTree(tree);
-              routeSavedAskDocument({
-                activeMatter,
-                savedDocument: {
-                  path,
-                  name: finalName,
-                  content: docxBytesToDataUrl(bytes),
-                },
+          }
+        : {})}
+    />
+  );
+
+  const renderClients = (): ReactNode => (
+    <ClientsSurface
+      actions={{
+        onAdd: (request: AddToHouseholdRequest) => {
+          if (
+            request.kind !== 'task' &&
+            request.kind !== 'opportunity' &&
+            request.kind !== 'workflow'
+          )
+            return;
+          setCrmAddRequest({
+            kind: request.kind,
+            householdId: request.householdRef.id,
+            householdLabel: request.householdRef.label ?? 'Untitled household',
+          });
+          setSidebarActiveTab('home');
+        },
+      }}
+    />
+  );
+
+  const renderAsk = (): ReactNode => (
+    <ErrorBoundary label="Ask">
+      <CrmAskSurface
+        onSaveToDocument={async (content) => {
+          if (!workspaceServiceRef.current || !rootPath) return;
+          const { deriveFilenameFromMessage, resolveUniqueName } =
+            await import('@/platform/utils/fileDrop');
+          const { markdownToDocxBytes, docxBytesToDataUrl } =
+            await import('@/platform/utils/docx-io');
+          const firmName = (() => {
+            try {
+              return localStorage.getItem(SK_FIRM_NAME) ?? '';
+            } catch {
+              return '';
+            }
+          })();
+          const base = deriveFilenameFromMessage(content).replace(
+            /\.(md|markdown|txt)$/i,
+            ''
+          );
+          const targetDir = resolveSavedDocumentDirectory({
+            rootPath,
+            activeMatter,
+          });
+          const finalName = await resolveUniqueName(
+            workspaceServiceRef.current,
+            targetDir,
+            `${base}.docx`
+          );
+          const path = resolveSavedDocumentPath({
+            rootPath,
+            activeMatter,
+            fileName: finalName,
+          });
+          const bytes = await markdownToDocxBytes(content, finalName, {
+            firmName,
+          });
+          const buffer = new ArrayBuffer(bytes.byteLength);
+          new Uint8Array(buffer).set(bytes);
+          await workspaceServiceRef.current.writeFileBinary(path, buffer);
+          const tree = await workspaceServiceRef.current.getFileTree();
+          setFileTree(tree);
+          routeSavedAskDocument({
+            activeMatter,
+            savedDocument: {
+              path,
+              name: finalName,
+              content: docxBytesToDataUrl(bytes),
+            },
+            setDocumentsView,
+            setSidebarActiveTab,
+            setMattersSurfaceMode,
+            pushNavigationSnapshot,
+          });
+        }}
+        prefillRequest={askPrefill}
+        onPrefillConsumed={() => setAskPrefill(null)}
+        onAuditLog={addAuditEntry}
+        onOpenFileAtPath={(p, _paragraphIndex, snippet, matterId) => {
+          if (typeof p === 'string' && p.startsWith('mail:')) {
+            window.dispatchEvent(
+              new CustomEvent(EV_OPEN_EMAIL, { detail: { sourceId: p } })
+            );
+            return;
+          }
+          const citationMatterId = matterId ?? activeMatter?.id;
+          if (citationMatterId && typeof p === 'string') {
+            void openMatterDocumentSource({
+              matterId: citationMatterId,
+              ref: p,
+              ...(snippet ? { snippet } : {}),
+              service: workspaceServiceRef.current,
+              handlers: {
                 setDocumentsView,
                 setSidebarActiveTab,
                 setMattersSurfaceMode,
                 pushNavigationSnapshot,
-              });
-            }}
-            prefillRequest={askPrefill}
-            onPrefillConsumed={() => setAskPrefill(null)}
-            onAuditLog={addAuditEntry}
-            onOpenFileAtPath={(p, _paragraphIndex, snippet, matterId) => {
-              if (typeof p === 'string' && p.startsWith('mail:')) {
-                window.dispatchEvent(
-                  new CustomEvent(EV_OPEN_EMAIL, { detail: { sourceId: p } })
-                );
-                return;
-              }
-              const citationMatterId = matterId ?? activeMatter?.id;
-              if (citationMatterId && typeof p === 'string') {
-                void openMatterDocumentSource({
-                  matterId: citationMatterId,
-                  ref: p,
-                  ...(snippet ? { snippet } : {}),
-                  service: workspaceServiceRef.current,
-                  handlers: {
-                    setDocumentsView,
-                    setSidebarActiveTab,
-                    setMattersSurfaceMode,
-                    pushNavigationSnapshot,
-                  },
-                });
-              }
-            }}
-          />
-        </ErrorBoundary>
-      ) : sidebarActiveTab === 'email' ? (
-        buildEmailWorkspace({})
-      ) : sidebarActiveTab === 'files' ? (
-        buildDocumentsHome({})
-      ) : sidebarActiveTab === 'workflows' ? (
-        <AssociateHome
-          onStartWorkflow={handleStartWorkflow}
-          currentExecution={currentExecution}
-          runHistory={runHistory}
-          providerError={workflowProviderError}
-          saveError={workflowSaveError}
-          onOpenSettings={() => openSettings('ai')}
-          onOpenRunArtifact={(path, name) =>
-            openRunArtifactFromWorkflows({
-              path,
-              name,
-              handleFileOpen,
-              setSidebarActiveTab,
-              setDocumentsView,
-              setMattersSurfaceMode,
-              pushNavigationSnapshot,
-            })
+              },
+            });
           }
-          onFocusExecutionTab={() => {
-            const target =
-              activeWorkflowFilePath ??
-              openTabs.find((t) => isWorkflowFilePath(t.path))?.path ??
-              null;
-            if (target) {
-              useEditorStore.getState().setActiveTab(target);
-            }
-          }}
-        />
-      ) : sidebarActiveTab === 'audit' ? (
-        buildActivity({})
-      ) : sidebarActiveTab === 'privacy' ? (
-        <LazyBoundary
-          loader={loadPrivacyCenterHome}
-          fallback={<SurfaceLoadingFallback />}
-          label="Privacy Center"
-        >
-          {(PrivacyCenterHome) => (
-            <PrivacyCenterHome
-              auditEntries={auditEntries}
-              activeMatter={activeMatter}
-            />
-          )}
-        </LazyBoundary>
-      ) : sidebarActiveTab === 'scheduling' ? (
-        <SchedulingHome />
-      ) : sidebarActiveTab === 'settings' ? (
-        // Full-page Settings surface — the SAME content as the quick modal
-        // (5-section nav, search, accordion sub-sections, Export/Import/Reset),
-        // rendered in the main window instead of a dialog. The gear / Ctrl+,
-        // modal still works for quick, deep-linked access.
-        <div
-          className="flex-1 min-w-0 min-h-0 flex flex-col"
-          data-testid="settings-page"
-        >
-          <LazyBoundary
-            loader={loadSettingsContent}
-            fallback={<SurfaceLoadingFallback />}
-            label="Settings"
-          >
-            {(SettingsContent) => (
-              <SettingsContent
-                key={settingsPageFocus?.key ?? 0}
-                variant="page"
-                auditEntries={auditEntries}
-                templates={loadAllTemplates()}
-                hasWorkspaceOpen={Boolean(rootPath)}
-                onAction={handleSettingsAction}
-                onRestartOnboarding={handleSettingsRestartOnboarding}
-                {...(settingsPageFocus?.category
-                  ? { initialCategory: settingsPageFocus.category }
-                  : {})}
-                extraSections={settingsNestedSections}
-              />
-            )}
-          </LazyBoundary>
-        </div>
-      ) : (
-        <MainPanel
-          onFileOpen={handleFileOpen}
-          onMove={handleMove}
-          onRename={handleRenameWithName}
-          onDownload={handleDownload}
-          apiKeys={apiKeys}
-          workspaceServiceRef={workspaceServiceRef}
-          {...(rootPath ? { rootPath } : {})}
-          onFileTreeChange={refreshFileTree}
-          onAuditLog={addAuditEntry}
-          // M2 — Citations in AI responses navigate through here. We
-          // resolve the retrieval path (workspace-relative) to the full
-          // workspace path, then reuse the existing file-open pipeline.
-          // F-504: the cited chunk's text (`snippet`) is carried through
-          // so the editor can bring the exact passage on screen by search
-          // (the paragraph index is a CHUNK index, only good for an
-          // approximate fallback).
-          onOpenFileAtPath={async (p, paragraphIndex, snippet) => {
-            if (!rootPath) return;
-            // `workspacePath` recognizes an already-absolute `p` via
-            // `isAbsolutePath` (not a naive `startsWith(rootPath)`, which fails
-            // closed/open incorrectly when `p`'s drive-letter case or separator
-            // style differs from `rootPath`) and passes it through unchanged
-            // instead of doubling it.
-            const absPath = workspacePath(rootPath, p);
-            const name = absPath.split('/').pop() ?? absPath;
-            await handleFileOpen(absPath, name);
-            // F-504 — editor scroll request. requestScrollToParagraph both
-            // dispatches the event (already-mounted editors) and stashes a
-            // pending slot the freshly-mounted editor consumes (mount race).
-            if (typeof paragraphIndex === 'number') {
-              requestScrollToParagraph({
-                path: absPath,
-                paragraphIndex,
-                ...(snippet ? { snippet } : {}),
-              });
-            }
-          }}
-          onRequestApiKeySetup={handleRequestApiKeySetup}
-          workflowExecution={currentExecution}
-          workflowTemplate={activeWorkflowTemplate}
-          workflowInterviewQuestions={
-            showInterviewDialog ? null : interviewQuestions
-          }
-          onWorkflowInterviewSubmit={handleInterviewSubmit}
-          onWorkflowCancel={handleInterviewCancel}
-          onWorkflowSaveAsFile={handleWorkflowSaveAsFile}
-          onWorkflowExportDocx={handleWorkflowExportDocx}
-          onWorkflowExportPptx={handleWorkflowExportPptx}
-          workflowProviderError={workflowProviderError}
-          onOpenSettings={() => openSettings('ai')}
+        }}
+      />
+    </ErrorBoundary>
+  );
+
+  const renderWorkflows = (): ReactNode => (
+    <AssociateHome
+      onStartWorkflow={handleStartWorkflow}
+      currentExecution={currentExecution}
+      runHistory={runHistory}
+      providerError={workflowProviderError}
+      saveError={workflowSaveError}
+      onOpenSettings={() => openSettings('ai')}
+      onOpenRunArtifact={(path, name) =>
+        openRunArtifactFromWorkflows({
+          path,
+          name,
+          handleFileOpen,
+          setSidebarActiveTab,
+          setDocumentsView,
+          setMattersSurfaceMode,
+          pushNavigationSnapshot,
+        })
+      }
+      onFocusExecutionTab={() => {
+        const target =
+          activeWorkflowFilePath ??
+          openTabs.find((tab) => isWorkflowFilePath(tab.path))?.path ??
+          null;
+        if (target) useEditorStore.getState().setActiveTab(target);
+      }}
+    />
+  );
+
+  const renderPrivacy = (): ReactNode => (
+    <LazyBoundary
+      loader={loadPrivacyCenterHome}
+      fallback={<SurfaceLoadingFallback />}
+      label="Privacy Center"
+    >
+      {(PrivacyCenterHome) => (
+        <PrivacyCenterHome
+          auditEntries={auditEntries}
+          activeMatter={activeMatter}
         />
       )}
-    </>
+    </LazyBoundary>
   );
+
+  const renderSettings = (): ReactNode => (
+    <div
+      className="flex-1 min-w-0 min-h-0 flex flex-col"
+      data-testid="settings-page"
+    >
+      <LazyBoundary
+        loader={loadSettingsContent}
+        fallback={<SurfaceLoadingFallback />}
+        label="Settings"
+      >
+        {(SettingsContent) => (
+          <SettingsContent
+            key={settingsPageFocus?.key ?? 0}
+            variant="page"
+            auditEntries={auditEntries}
+            templates={loadAllTemplates()}
+            hasWorkspaceOpen={Boolean(rootPath)}
+            onAction={handleSettingsAction}
+            onRestartOnboarding={handleSettingsRestartOnboarding}
+            {...(settingsPageFocus?.category
+              ? { initialCategory: settingsPageFocus.category }
+              : {})}
+            extraSections={settingsNestedSections}
+          />
+        )}
+      </LazyBoundary>
+    </div>
+  );
+
+  const renderMainPanel = (): ReactNode => (
+    <MainPanel
+      onFileOpen={handleFileOpen}
+      onMove={handleMove}
+      onRename={handleRenameWithName}
+      onDownload={handleDownload}
+      apiKeys={apiKeys}
+      workspaceServiceRef={workspaceServiceRef}
+      {...(rootPath ? { rootPath } : {})}
+      onFileTreeChange={refreshFileTree}
+      onAuditLog={addAuditEntry}
+      // M2 — Citations in AI responses navigate through here. We
+      // resolve the retrieval path (workspace-relative) to the full
+      // workspace path, then reuse the existing file-open pipeline.
+      // F-504: the cited chunk's text (`snippet`) is carried through
+      // so the editor can bring the exact passage on screen by search
+      // (the paragraph index is a CHUNK index, only good for an
+      // approximate fallback).
+      onOpenFileAtPath={async (p, paragraphIndex, snippet) => {
+        if (!rootPath) return;
+        // `workspacePath` recognizes an already-absolute `p` via
+        // `isAbsolutePath` (not a naive `startsWith(rootPath)`, which fails
+        // closed/open incorrectly when `p`'s drive-letter case or separator
+        // style differs from `rootPath`) and passes it through unchanged
+        // instead of doubling it.
+        const absPath = workspacePath(rootPath, p);
+        const name = absPath.split('/').pop() ?? absPath;
+        await handleFileOpen(absPath, name);
+        // F-504 — editor scroll request. requestScrollToParagraph both
+        // dispatches the event (already-mounted editors) and stashes a
+        // pending slot the freshly-mounted editor consumes (mount race).
+        if (typeof paragraphIndex === 'number') {
+          requestScrollToParagraph({
+            path: absPath,
+            paragraphIndex,
+            ...(snippet ? { snippet } : {}),
+          });
+        }
+      }}
+      onRequestApiKeySetup={handleRequestApiKeySetup}
+      workflowExecution={currentExecution}
+      workflowTemplate={activeWorkflowTemplate}
+      workflowInterviewQuestions={
+        showInterviewDialog ? null : interviewQuestions
+      }
+      onWorkflowInterviewSubmit={handleInterviewSubmit}
+      onWorkflowCancel={handleInterviewCancel}
+      onWorkflowSaveAsFile={handleWorkflowSaveAsFile}
+      onWorkflowExportDocx={handleWorkflowExportDocx}
+      onWorkflowExportPptx={handleWorkflowExportPptx}
+      workflowProviderError={workflowProviderError}
+      onOpenSettings={() => openSettings('ai')}
+    />
+  );
+
+  const runtime: AppSurfaceRuntime = {
+    ...capabilities,
+    legacy: {
+      home: renderHome,
+      clients: renderClients,
+      ask: renderAsk,
+      email: () => buildEmailWorkspace({}),
+      documents: () => buildDocumentsHome({}),
+      workflows: renderWorkflows,
+      audit: () => buildActivity({}),
+      privacy: renderPrivacy,
+      scheduling: () => <SchedulingHome />,
+      settings: renderSettings,
+      mainPanel: renderMainPanel,
+    },
+  };
+
+  if (!requestedDescriptor && !registryState.ready) {
+    return <SurfaceLoadingFallback />;
+  }
+
+  const descriptor =
+    requestedDescriptor ?? getAppSurfaceDescriptor(SAFE_APP_SURFACE_ID);
+  if (!descriptor) {
+    throw new Error(
+      `[AppSurfaceRouter] Safe fallback "${SAFE_APP_SURFACE_ID}" is not registered`
+    );
+  }
+
+  return descriptor.render(runtime);
 }
