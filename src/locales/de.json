@@ -3802,6 +3802,8 @@
   },
   "spine": {
     "nav": {
+      "home": "Startseite",
+      "clients": "Mandanten",
       "client-map": "Client Map",
       "client-map__sourceHash": "e7f8dd08b4c4ea9e1f2343f492fe3244ffe7558b46ce1f8d436611cabec12f64",
       "ask": "Fragen",

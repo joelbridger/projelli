@@ -92,7 +92,7 @@ describe('en.json structure snapshot', () => {
         "search": 6,
         "settings": 226,
         "shortcuts-overlay": 2,
-        "spine": 10,
+        "spine": 12,
         "tab-guard": 3,
         "tts": 1,
         "updater": 2,

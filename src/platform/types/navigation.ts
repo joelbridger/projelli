@@ -1,18 +1,30 @@
-/** The shell's left-nav surfaces (the `sidebarActiveTab` union). Lives in the
- *  platform layer so platform stores (e.g. the navigation history) can name a
- *  surface without importing upward from `app/` (architecture DAG). The app
- *  layer re-exports it from `useGlobalEventBus` for existing importers. */
-export type AppSurface =
-  | 'home'
-  | 'files'
-  | 'matters'
-  | 'search'
-  | 'email'
-  | 'workflows'
-  | 'ai-assistant'
-  | 'research'
-  | 'audit'
-  | 'privacy'
-  | 'scheduling'
-  | 'settings'
-  | 'trash';
+/**
+ * App-wide map for registered shell surface ids.
+ *
+ * Interfaces are intentionally augmentable: a future feature that adds a
+ * surface must extend this map with `declare module` in its own module. With
+ * no string index signature, misspelled or unregistered ids fail typecheck.
+ */
+export interface AppSurfaceMap {
+  home: true;
+  matters: true;
+  search: true;
+  scheduling: true;
+  settings: true;
+  files: true;
+  email: true;
+  workflows: true;
+  audit: true;
+  privacy: true;
+  'ai-assistant': true;
+  research: true;
+  trash: true;
+}
+
+export type AppSurface = Extract<keyof AppSurfaceMap, string>;
+
+/** A cross-tool navigation request. P0-B will add feature-specific resolvers. */
+export interface NavigationTarget {
+  surface: AppSurface;
+  [key: string]: unknown;
+}

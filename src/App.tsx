@@ -44,6 +44,11 @@ import { TrustBar } from '@/app/shell/layout/TrustBar';
 import { StatusBar } from '@/app/shell/layout/StatusBar';
 import { AppDialogs } from '@/app/shell/AppDialogs';
 import { AppSurfaceRouter } from '@/app/shell/AppSurfaceRouter';
+import {
+  AppSurfaceRuntimeProvider,
+  type AppSurfaceCapabilities,
+} from '@/app/shell/runtime/AppSurfaceRuntime';
+import { getAppSurfaceDescriptor } from '@/app/shell/registry/appSurfaceRegistry';
 import { ErrorBoundary } from '@/ui/ErrorBoundary';
 import { RecordPill } from '@/features/meetings/RecordPill';
 import { MeetingAutoJoinScheduler } from '@/features/meetings/MeetingAutoJoinScheduler';
@@ -53,7 +58,7 @@ import { LazyBoundary } from '@/ui/LazyBoundary';
 import { AppLogo } from '@/ui/brand/AppLogo';
 import { Button } from '@/ui/button';
 import { IconButton } from '@/ui/kp';
-import { CalendarDays, Command } from 'lucide-react';
+import { Command } from 'lucide-react';
 import { TrialBanner } from '@/features/account/trial';
 import { hasCompletedOnboarding } from '@/features/onboarding';
 // FirstRunOverlay renders the live 4-step OnboardingV2 flow.
@@ -2042,6 +2047,89 @@ function AppShell() {
       setShowFirstRun,
     });
 
+  const appSurfaceCapabilities: AppSurfaceCapabilities = {
+    navigation: {
+      setSurface: setSidebarActiveTab,
+      setMattersSurfaceMode,
+      pushSnapshot: pushNavigationSnapshot,
+    },
+    workspace: {
+      rootPath,
+      activeMatter,
+      apiKeys,
+      serviceRef: workspaceServiceRef,
+      setFileTree,
+      refreshFileTree,
+      requestApiKeySetup: handleRequestApiKeySetup,
+    },
+    documents: {
+      view: documentsView,
+      setView: setDocumentsView,
+      open: handleFileOpen,
+      createFile: handleCreateFile,
+      createFolder: handleCreateFolder,
+      rename: handleRename,
+      renameWithName: handleRenameWithName,
+      delete: handleDelete,
+      move: handleMove,
+      download: handleDownload,
+      createDefault: handleCreateDefaultDocument,
+      importFiles: handleImportFiles,
+      createDocxAtRoot: handleCreateDocxAtRoot,
+      createTextFileAtRoot: handleCreateTextFileAtRoot,
+      createFolderAtRoot: handleCreateFolderAtRoot,
+      setLetterheadTemplate: handleSetLetterheadTemplate,
+      trashItems,
+      trashStats,
+      trashRetentionPeriod,
+      trashCustomRetentionDays,
+      restoreFromTrash: handleRestoreFromTrash,
+      permanentlyDelete: handlePermanentDelete,
+      emptyTrash: handleEmptyTrash,
+      changeTrashRetention: handleTrashRetentionChange,
+    },
+    ask: {
+      prefill: askPrefill,
+      setPrefill: setAskPrefill,
+    },
+    workflows: {
+      currentExecution,
+      activeTemplate: activeWorkflowTemplate,
+      showInterviewDialog,
+      interviewQuestions,
+      providerError: workflowProviderError,
+      saveError: workflowSaveError,
+      runHistory,
+      activeFilePath: activeWorkflowFilePath,
+      openTabs,
+      submitInterview: handleInterviewSubmit,
+      cancelInterview: handleInterviewCancel,
+      saveAsFile: handleWorkflowSaveAsFile,
+      exportDocx: handleWorkflowExportDocx,
+      exportPptx: handleWorkflowExportPptx,
+      start: handleStartWorkflow,
+    },
+    audit: {
+      entries: auditEntries,
+      integrity: auditIntegrity,
+      verifyIntegrity: verifyAuditIntegrity,
+      repairSeal: repairAuditSeal,
+      addEntry: emitAuditEntry,
+    },
+    settings: {
+      open: openSettings,
+      action: handleSettingsAction,
+      restartOnboarding: handleSettingsRestartOnboarding,
+      pageFocus: settingsPageFocus,
+    },
+  };
+
+  const schedulingSurface = getAppSurfaceDescriptor('scheduling');
+  const settingsSurface = getAppSurfaceDescriptor('settings');
+  if (!schedulingSurface || !settingsSurface) {
+    throw new Error('Required shell utility surfaces are not registered');
+  }
+
   return (
     <div
       className="h-screen flex flex-col bg-background text-foreground"
@@ -2090,16 +2178,20 @@ function AppShell() {
               egress controls stay in the TrustBar; Email + Documents stay
               reachable from the Client Map's per-client quick actions. */}
           <IconButton
-            icon={CalendarDays}
-            label={t('scheduling.surface.topbar-label')}
+            icon={schedulingSurface.icon}
+            label={t(schedulingSurface.labelKey)}
             size="sm"
-            variant={sidebarActiveTab === 'scheduling' ? 'secondary' : 'ghost'}
-            aria-current={sidebarActiveTab === 'scheduling' ? 'page' : undefined}
+            variant={
+              sidebarActiveTab === schedulingSurface.id ? 'secondary' : 'ghost'
+            }
+            aria-current={
+              sidebarActiveTab === schedulingSurface.id ? 'page' : undefined
+            }
             data-testid="scheduling-topbar-button"
             onClick={openSchedulingPage}
           />
           <SettingsGearButton
-            active={sidebarActiveTab === 'settings'}
+            active={sidebarActiveTab === settingsSurface.id}
             onOpenSettings={() => {
               openSettingsPage();
             }}
@@ -2198,71 +2290,9 @@ function AppShell() {
             descendant, of this boundary, it is never part of the crashed subtree
             and stays mounted and clickable no matter which surface throws. */}
         <ErrorBoundary label="Workspace">
-        <AppSurfaceRouter
-          sidebarActiveTab={sidebarActiveTab}
-          askPrefill={askPrefill}
-          setAskPrefill={setAskPrefill}
-          documentsView={documentsView}
-          setDocumentsView={setDocumentsView}
-          setSidebarActiveTab={setSidebarActiveTab}
-          mattersSurfaceMode={mattersSurfaceMode}
-          setMattersSurfaceMode={setMattersSurfaceMode}
-          pushNavigationSnapshot={pushNavigationSnapshot}
-          currentExecution={currentExecution}
-          activeWorkflowTemplate={activeWorkflowTemplate}
-          showInterviewDialog={showInterviewDialog}
-          interviewQuestions={interviewQuestions}
-          workflowProviderError={workflowProviderError}
-          workflowSaveError={workflowSaveError}
-          runHistory={runHistory}
-          auditEntries={auditEntries}
-          auditIntegrity={auditIntegrity}
-          verifyAuditIntegrity={verifyAuditIntegrity}
-          repairAuditSeal={repairAuditSeal}
-          apiKeys={apiKeys}
-          rootPath={rootPath}
-          fileTree={fileTree}
-          trashItems={trashItems}
-          trashStats={trashStats}
-          trashRetentionPeriod={trashRetentionPeriod}
-          trashCustomRetentionDays={trashCustomRetentionDays}
-          activeWorkflowFilePath={activeWorkflowFilePath}
-          openTabs={openTabs}
-          workspaceServiceRef={workspaceServiceRef}
-          setFileTree={setFileTree}
-          openSettings={openSettings}
-          handleFileOpen={handleFileOpen}
-          handleCreateFile={handleCreateFile}
-          handleCreateFolder={handleCreateFolder}
-          handleRename={handleRename}
-          handleRenameWithName={handleRenameWithName}
-          handleDelete={handleDelete}
-          handleMove={handleMove}
-          handleDownload={handleDownload}
-          handleCreateDefaultDocument={handleCreateDefaultDocument}
-          handleImportFiles={handleImportFiles}
-          handleCreateDocxAtRoot={handleCreateDocxAtRoot}
-          handleCreateTextFileAtRoot={handleCreateTextFileAtRoot}
-          handleCreateFolderAtRoot={handleCreateFolderAtRoot}
-          handleSetLetterheadTemplate={handleSetLetterheadTemplate}
-          handleRestoreFromTrash={handleRestoreFromTrash}
-          handlePermanentDelete={handlePermanentDelete}
-          handleEmptyTrash={handleEmptyTrash}
-          handleTrashRetentionChange={handleTrashRetentionChange}
-          refreshFileTree={refreshFileTree}
-          addAuditEntry={emitAuditEntry}
-          handleRequestApiKeySetup={handleRequestApiKeySetup}
-          handleInterviewSubmit={handleInterviewSubmit}
-          handleInterviewCancel={handleInterviewCancel}
-          handleWorkflowSaveAsFile={handleWorkflowSaveAsFile}
-          handleWorkflowExportDocx={handleWorkflowExportDocx}
-          handleWorkflowExportPptx={handleWorkflowExportPptx}
-          handleStartWorkflow={handleStartWorkflow}
-          handleSettingsAction={handleSettingsAction}
-          handleSettingsRestartOnboarding={handleSettingsRestartOnboarding}
-          activeMatter={activeMatter}
-          settingsPageFocus={settingsPageFocus}
-        />
+          <AppSurfaceRuntimeProvider value={appSurfaceCapabilities}>
+            <AppSurfaceRouter sidebarActiveTab={sidebarActiveTab} />
+          </AppSurfaceRuntimeProvider>
         </ErrorBoundary>
       </main>
 

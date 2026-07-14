@@ -8,9 +8,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Sparkles,
-  Home,
-  Map as MapIcon,
   Plus,
   ChevronDown,
   ChevronLeft,
@@ -19,7 +16,6 @@ import {
   MoreVertical,
   Trash2,
   Pencil,
-  type LucideIcon,
 } from 'lucide-react';
 import {
   useActiveMatters,
@@ -34,6 +30,8 @@ import { AccountIdentity } from './AccountIdentity';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { IconButton } from '@/ui/kp';
+import { getOrderedAppSurfaces } from '@/app/shell/registry/appSurfaceRegistry';
+import { useAppSurfaceRegistry } from '@/app/shell/runtime/useAppSurfaceRegistry';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,18 +44,6 @@ import {
   EV_OPEN_NEW_GROUP,
   EV_MATTER_LAUNCH,
 } from '@/config/identity';
-
-type SpineTab =
-  | 'home'
-  | 'matters'
-  | 'files'
-  | 'search'
-  | 'workflows'
-  | 'audit'
-  | 'email'
-  | 'scheduling'
-  | 'settings'
-  | 'privacy';
 
 interface SpineProps {
   fileTreeContent?: React.ReactNode;
@@ -80,15 +66,6 @@ interface SpineProps {
 }
 
 export function Spine({
-  fileTreeContent,
-  searchContent,
-  workflowContent,
-  auditContent,
-  mattersContent,
-  emailContent,
-  schedulingContent,
-  settingsContent,
-  privacyContent,
   activeTab = 'matters',
   onTabChange,
   onAllClientsSelect,
@@ -97,6 +74,7 @@ export function Spine({
   onCollapsedChange,
 }: SpineProps) {
   const { t } = useTranslation();
+  const { descriptors } = useAppSurfaceRegistry();
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const clientSearchRef = useRef<HTMLInputElement | null>(null);
   // Collapsible "Clients" section: open by default (the active client should
@@ -147,31 +125,12 @@ export function Spine({
     }
   }, [clientSearchExpanded, clientsOpen]);
 
-  // D11: the only primary destinations are Home, Clients, and Ask.
-  // Documents/Email/Activity Log/Privacy Center/Settings are reached via the
-  // gear menu, Ask source filter, and Client Map quick actions — they stay
-  // routable content ids (see `content` below), just not rail tabs.
-  const nav: { id: SpineTab; label: string; Icon: LucideIcon }[] = [
-    { id: 'home', label: 'Home', Icon: Home },
-    { id: 'matters', label: 'Clients', Icon: MapIcon },
-    { id: 'search', label: t('spine.nav.ask'), Icon: Sparkles },
-  ];
-
-  const content: Record<SpineTab, React.ReactNode> = {
-    home: undefined,
-    matters: mattersContent,
-    files: fileTreeContent,
-    search: searchContent,
-    email: emailContent,
-    scheduling: schedulingContent,
-    workflows: workflowContent,
-    audit: auditContent,
-    privacy: privacyContent,
-    settings: settingsContent,
-  };
-
-  const active =
-    (activeTab as SpineTab) in content ? (activeTab as SpineTab) : 'matters';
+  // Placement and order come from the same descriptors the outlet uses.
+  // The current registry preserves D11's three visible destinations exactly.
+  const nav = getOrderedAppSurfaces('primary', descriptors);
+  const active = descriptors.some((descriptor) => descriptor.id === activeTab)
+    ? activeTab
+    : 'matters';
   const allClientsActive =
     allClientsSelected ?? (active === 'matters' && activeMatterId === null);
 
@@ -291,29 +250,40 @@ export function Spine({
             marginBottom: 'var(--kp-space-xs)',
           }}
         />
-        {nav.map(({ id, label, Icon }) => (
-          <button
-            key={id}
-            type="button"
-            title={label}
-            aria-current={active === id && !(id === 'matters' && allClientsActive) ? 'page' : undefined}
-            data-testid={`spine-nav-collapsed-${id}`}
-            onClick={() => onTabChange?.(id)}
-            style={{
-              width: 38,
-              height: 38,
-              borderRadius: 'var(--radius-lg)',
-              border: 0,
-              cursor: 'pointer',
-              color:
-                active === id && !(id === 'matters' && allClientsActive) ? 'var(--kp-side-fg)' : 'var(--kp-side-fg-dim)',
-              background:
-                active === id && !(id === 'matters' && allClientsActive) ? 'var(--kp-side-active-bg)' : 'transparent',
-            }}
-          >
-            <Icon size={18} style={{ margin: '0 auto' }} strokeWidth={1.75} />
-          </button>
-        ))}
+        {nav.map(({ id, labelKey, legacyLabel, icon: Icon }) => {
+          const label = legacyLabel ?? t(labelKey);
+          return (
+            <button
+              key={id}
+              type="button"
+              title={label}
+              aria-current={
+                active === id && !(id === 'matters' && allClientsActive)
+                  ? 'page'
+                  : undefined
+              }
+              data-testid={`spine-nav-collapsed-${id}`}
+              onClick={() => onTabChange?.(id)}
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: 'var(--radius-lg)',
+                border: 0,
+                cursor: 'pointer',
+                color:
+                  active === id && !(id === 'matters' && allClientsActive)
+                    ? 'var(--kp-side-fg)'
+                    : 'var(--kp-side-fg-dim)',
+                background:
+                  active === id && !(id === 'matters' && allClientsActive)
+                    ? 'var(--kp-side-active-bg)'
+                    : 'transparent',
+              }}
+            >
+              <Icon size={18} style={{ margin: '0 auto' }} strokeWidth={1.75} />
+            </button>
+          );
+        })}
         <div style={{ flex: 1 }} />
         <AccountIdentity
           collapsed
@@ -366,7 +336,8 @@ export function Spine({
             flex: 'none',
           }}
         >
-          {nav.map(({ id, label, Icon }) => {
+          {nav.map(({ id, labelKey, legacyLabel, icon: Icon }) => {
+            const label = legacyLabel ?? t(labelKey);
             // The Client Map tab yields its highlight while All Clients mode is on.
             const on = active === id && !(id === 'matters' && allClientsActive);
             return (
