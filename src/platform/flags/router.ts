@@ -22,10 +22,10 @@ export interface FlagRouterOptions<Id extends string = string> {
 }
 
 export interface FlagRouter<Id extends string = string> {
-  isEnabled(this: void, id: Id): boolean;
-  getOverride(this: void, id: Id): boolean | undefined;
-  setDevOverride(this: void, id: Id, enabled: boolean | undefined): void;
-  subscribe(this: void, listener: () => void): () => void;
+  isEnabled(id: Id): boolean;
+  getOverride(id: Id): boolean | undefined;
+  setDevOverride(id: Id, enabled: boolean | undefined): void;
+  subscribe(listener: () => void): () => void;
 }
 
 function environmentKey(id: string) {
@@ -119,6 +119,8 @@ export function createFlagRouter<Id extends string>(
 }
 
 const defaultRouter = createFlagRouter<FlagId>();
+const subscribeToDefaultRouter = (listener: () => void) =>
+  defaultRouter.subscribe(listener);
 
 /** Returns whether a flag is enabled for non-React code. */
 export function isEnabled(id: FlagId): boolean {
@@ -128,7 +130,7 @@ export function isEnabled(id: FlagId): boolean {
 /** React-safe flag access that updates after a development override changes. */
 export function useFlag(id: FlagId): boolean {
   return useSyncExternalStore(
-    defaultRouter.subscribe,
+    subscribeToDefaultRouter,
     () => defaultRouter.isEnabled(id),
     () => defaultRouter.isEnabled(id)
   );
