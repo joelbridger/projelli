@@ -4,7 +4,7 @@
  * These are render adapters over the canonical engine contracts. They carry
  * display labels only and never become a second persistence model.
  */
-export type CrmFreshness = 'live' | 'syncing' | 'last-synced' | 'offline' | 'error';
+export type CrmFreshness = 'idle' | 'live' | 'syncing' | 'last-synced' | 'offline' | 'error';
 
 export interface CrmFreshnessState {
   kind: CrmFreshness;

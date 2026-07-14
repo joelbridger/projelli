@@ -12,9 +12,9 @@ import {
   type LiveCrmRecord,
 } from './liveRecords';
 import {
+  clearLiveRecordRelay,
   ensureLiveRecordRelay,
   publishLiveRecord,
-  stopLiveRecordRelay,
 } from './liveRecordRelay';
 
 // Several CRM surfaces can be mounted at once inside the Home shell. A write
@@ -61,7 +61,7 @@ export function useLiveCrmRecords() {
   }, [reload]);
   useEffect(() => {
     if (!sharedMatterId || !workspaceRoot) {
-      stopLiveRecordRelay();
+      clearLiveRecordRelay();
       return;
     }
     let cancelled = false;
@@ -90,5 +90,11 @@ export function useLiveCrmRecords() {
     window.dispatchEvent(new Event(LIVE_CRM_RECORDS_CHANGED));
     return saved;
   }, [sharedMatterId, workspaceRoot]);
-  return { records, save, reload, error, workspaceRoot, freshness, sharedMatterId };
+  // Derive the user-facing state from the same shared-matter check that starts
+  // the relay. This also prevents a one-frame offline warning while React is
+  // switching from a firm matter to a solo workspace.
+  const effectiveFreshness: CrmEngineFreshness = sharedMatterId && workspaceRoot
+    ? freshness
+    : { kind: 'idle' };
+  return { records, save, reload, error, workspaceRoot, freshness: effectiveFreshness, sharedMatterId };
 }
