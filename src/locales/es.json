@@ -148,6 +148,34 @@
       "byok-confirm-description": "Tu clave se guarda solo en tu navegador. La demo de {{productName}} nunca la ve. Las solicitudes de IA van directamente desde esta pestaña a Anthropic."
     }
   },
+  "commands": {
+    "file": {
+      "new-document": "Nuevo documento",
+      "save": "Guardar archivo",
+      "close": "Cerrar pestaña",
+      "undo-last-operation": "Deshacer la última operación de archivo"
+    },
+    "view": {
+      "outline": "Mostrar u ocultar el panel de esquema",
+      "sidebar": "Mostrar u ocultar la barra lateral",
+      "tab-overflow": "Mostrar u ocultar el desbordamiento de pestañas (desplazar o ajustar)",
+      "split": "Dividir el editor",
+      "ai-assistant": "Abrir el asistente de IA",
+      "browser": "Abrir pestaña del navegador"
+    },
+    "workspace": {
+      "change": "Cambiar espacio de trabajo"
+    },
+    "general": {
+      "settings": "Abrir configuración"
+    },
+    "system": {
+      "palette": "Abrir la paleta de comandos",
+      "palette-alternate": "Abrir la paleta de comandos",
+      "quick-open": "Apertura rápida",
+      "shortcuts": "Atajos de teclado"
+    }
+  },
   "file-import": {
     "picker-unresponsive": "El selector de archivos no respondió. Escribe la ruta de un archivo para añadirlo en su lugar.",
     "picker-unresponsive__sourceHash": "009885d718518472c1da6a3f0b0d8fa1972a2fe71e69b56d84ee8a673917e11d",

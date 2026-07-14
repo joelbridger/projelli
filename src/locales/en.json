@@ -92,6 +92,34 @@
       "byok-confirm-description": "Your key is stored only in your browser. The {{productName}} demo never sees it. AI requests go straight from this tab to Anthropic."
     }
   },
+  "commands": {
+    "file": {
+      "new-document": "New Document",
+      "save": "Save File",
+      "close": "Close Tab",
+      "undo-last-operation": "Undo Last File Operation"
+    },
+    "view": {
+      "outline": "Toggle Outline Panel",
+      "sidebar": "Toggle Sidebar",
+      "tab-overflow": "Toggle Tab Overflow (Scroll / Wrap)",
+      "split": "Split Editor",
+      "ai-assistant": "Open AI Assistant",
+      "browser": "Open Browser Tab"
+    },
+    "workspace": {
+      "change": "Change Workspace"
+    },
+    "general": {
+      "settings": "Open Settings"
+    },
+    "system": {
+      "palette": "Open Command Palette",
+      "palette-alternate": "Open Command Palette",
+      "quick-open": "Quick Open",
+      "shortcuts": "Keyboard Shortcuts"
+    }
+  },
   "file-import": {
     "picker-unresponsive": "The file picker didn't respond. Type the path of one file to add instead.",
     "manual-path-title": "Type a file path",

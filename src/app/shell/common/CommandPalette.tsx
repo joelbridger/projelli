@@ -11,31 +11,11 @@ import {
   DialogTitle,
 } from '@/ui/dialog';
 import { Input } from '@/ui/input';
-import {
-  Search,
-  File,
-  Folder,
-  Play,
-  Settings,
-  History,
-  BookOpen,
-  Layout,
-  Command,
-  ArrowRight,
-} from 'lucide-react';
-/**
- * A command that can be executed from the palette
- */
-export interface PaletteCommand {
-  id: string;
-  label: string;
-  description?: string | undefined;
-  icon?: React.ReactNode | undefined;
-  category: string;
-  shortcut?: string | undefined; // Simple string like "Ctrl+S"
-  action: () => void | Promise<void>;
-  keywords?: string[] | undefined;
-}
+import { Search, Command, ArrowRight } from 'lucide-react';
+import type { PaletteCommand } from '@/app/commands/registry/types';
+
+export type { PaletteCommand } from '@/app/commands/registry/types';
+export { getDefaultCommands } from '@/app/commands/registry/legacyDefaultCommands';
 
 interface CommandPaletteProps {
   open: boolean;
@@ -177,7 +157,7 @@ export function CommandPalette({
   useEffect(() => {
     if (listRef.current) {
       const selectedElement = listRef.current.querySelector(
-        `[data-index="${selectedIndex}"]`
+        `[data-index="${String(selectedIndex)}"]`
       );
       selectedElement?.scrollIntoView({ block: 'nearest' });
     }
@@ -210,7 +190,9 @@ export function CommandPalette({
           <Input
             ref={inputRef}
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+            }}
             onKeyDown={handleKeyDown}
             placeholder="Type a command or search..."
             className="border-0 p-0 h-auto focus-visible:ring-0"
@@ -225,180 +207,63 @@ export function CommandPalette({
           {filteredCommands.length === 0 ? (
             <div className="px-4 py-8 text-center text-muted-foreground">
               <Command className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p className="text-sm">{t('common.command-palette.no-commands')}</p>
+              <p className="text-sm">
+                {t('common.command-palette.no-commands')}
+              </p>
             </div>
           ) : (
-            Array.from(groupedCommands.entries()).map(([category, categoryCommands]) => (
-              <div key={category} className="mb-2 last:mb-0">
-                <div className="px-4 py-1">
-                  <span className="text-xs font-medium text-muted-foreground uppercase">
-                    {category}
-                  </span>
-                </div>
-                {categoryCommands.map((command) => {
-                  const index = currentIndex++;
-                  const isSelected = index === selectedIndex;
+            Array.from(groupedCommands.entries()).map(
+              ([category, categoryCommands]) => (
+                <div key={category} className="mb-2 last:mb-0">
+                  <div className="px-4 py-1">
+                    <span className="text-xs font-medium text-muted-foreground uppercase">
+                      {category}
+                    </span>
+                  </div>
+                  {categoryCommands.map((command) => {
+                    const index = currentIndex++;
+                    const isSelected = index === selectedIndex;
 
-                  return (
-                    <button
-                      key={command.id}
-                      data-index={index}
-                      onClick={() => executeCommand(command)}
-                      className={cn(
-                        'w-full px-4 py-2 flex items-center gap-3 text-left',
-                        'hover:bg-muted/50',
-                        isSelected && 'bg-muted'
-                      )}
-                    >
-                      {command.icon ?? <ArrowRight className="h-4 w-4 text-muted-foreground" />}
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm">{command.label}</div>
-                        {command.description && (
-                          <div className="text-xs text-muted-foreground truncate">
-                            {command.description}
-                          </div>
+                    return (
+                      <button
+                        key={command.id}
+                        data-index={index}
+                        onClick={() => {
+                          executeCommand(command);
+                        }}
+                        className={cn(
+                          'w-full px-4 py-2 flex items-center gap-3 text-left',
+                          'hover:bg-muted/50',
+                          isSelected && 'bg-muted'
                         )}
-                      </div>
-                      {command.shortcut && (
-                        <kbd className="px-1.5 py-0.5 rounded bg-muted text-xs text-muted-foreground">
-                          {command.shortcut}
-                        </kbd>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            ))
+                      >
+                        {command.icon ?? (
+                          <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm">{command.label}</div>
+                          {command.description && (
+                            <div className="text-xs text-muted-foreground truncate">
+                              {command.description}
+                            </div>
+                          )}
+                        </div>
+                        {command.shortcut && (
+                          <kbd className="px-1.5 py-0.5 rounded bg-muted text-xs text-muted-foreground">
+                            {command.shortcut}
+                          </kbd>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )
+            )
           )}
         </div>
       </DialogContent>
     </Dialog>
   );
-}
-
-/**
- * Get default commands for the application
- */
-export function getDefaultCommands(handlers: {
-  onNewFile?: () => void;
-  onOpenFile?: () => void;
-  onSaveFile?: () => void;
-  onToggleSidebar?: () => void;
-  onOpenSettings?: () => void;
-  onOpenWorkflows?: () => void;
-  onOpenResearch?: () => void;
-  onOpenAuditLog?: () => void;
-  onSearch?: () => void;
-}): PaletteCommand[] {
-  const commands: PaletteCommand[] = [];
-
-  if (handlers.onNewFile) {
-    commands.push({
-      id: 'new-file',
-      label: 'New File',
-      description: 'Create a new file',
-      icon: <File className="h-4 w-4" />,
-      category: 'File',
-      keywords: ['create', 'add'],
-      action: handlers.onNewFile,
-    });
-  }
-
-  if (handlers.onOpenFile) {
-    commands.push({
-      id: 'open-file',
-      label: 'Open File',
-      description: 'Open an existing file',
-      icon: <Folder className="h-4 w-4" />,
-      category: 'File',
-      keywords: ['browse', 'find'],
-      action: handlers.onOpenFile,
-    });
-  }
-
-  if (handlers.onSaveFile) {
-    commands.push({
-      id: 'save-file',
-      label: 'Save File',
-      description: 'Save the current file',
-      icon: <File className="h-4 w-4" />,
-      category: 'File',
-      action: handlers.onSaveFile,
-    });
-  }
-
-  if (handlers.onToggleSidebar) {
-    commands.push({
-      id: 'toggle-sidebar',
-      label: 'Toggle Sidebar',
-      description: 'Show or hide the sidebar',
-      icon: <Layout className="h-4 w-4" />,
-      category: 'View',
-      action: handlers.onToggleSidebar,
-    });
-  }
-
-  if (handlers.onOpenSettings) {
-    commands.push({
-      id: 'open-settings',
-      label: 'Open Settings',
-      description: 'Configure application settings',
-      icon: <Settings className="h-4 w-4" />,
-      category: 'General',
-      keywords: ['preferences', 'config'],
-      action: handlers.onOpenSettings,
-    });
-  }
-
-  if (handlers.onOpenWorkflows) {
-    commands.push({
-      id: 'open-workflows',
-      label: 'Open Workflows',
-      description: 'View and run workflows',
-      icon: <Play className="h-4 w-4" />,
-      category: 'Workflows',
-      keywords: ['run', 'execute', 'generate'],
-      action: handlers.onOpenWorkflows,
-    });
-  }
-
-  if (handlers.onOpenResearch) {
-    commands.push({
-      id: 'open-research',
-      label: 'Open Research',
-      description: 'Manage sources and citations',
-      icon: <BookOpen className="h-4 w-4" />,
-      category: 'Research',
-      keywords: ['sources', 'citations', 'references'],
-      action: handlers.onOpenResearch,
-    });
-  }
-
-  if (handlers.onOpenAuditLog) {
-    commands.push({
-      id: 'open-audit-log',
-      label: 'Open Audit Log',
-      description: 'View AI action history',
-      icon: <History className="h-4 w-4" />,
-      category: 'General',
-      keywords: ['history', 'log', 'actions'],
-      action: handlers.onOpenAuditLog,
-    });
-  }
-
-  if (handlers.onSearch) {
-    commands.push({
-      id: 'search',
-      label: 'Search',
-      description: 'Search in workspace',
-      icon: <Search className="h-4 w-4" />,
-      category: 'Search',
-      keywords: ['find', 'query'],
-      action: handlers.onSearch,
-    });
-  }
-
-  return commands;
 }
 
 export default CommandPalette;
