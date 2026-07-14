@@ -61,6 +61,10 @@ import {
 } from '@/app/shell/registry/appSurfaceRegistry';
 import { useAppSurfaceRegistry } from '@/app/shell/runtime/useAppSurfaceRegistry';
 import { sendDiagnosticEvent } from '@/platform/utils/diagnostics';
+import {
+  resolveClientDocumentFolderPaths,
+  shouldBackfillClientDocumentFolder,
+} from '@/app/shell/clientDocumentFolderPaths';
 
 // Email, Activity Log, Privacy Center, and the full-page Settings surface are
 // lazy-loaded: each is a large, self-contained screen (Settings alone pulls
@@ -532,6 +536,36 @@ export function AppSurfaceRouter(props: AppSurfaceRouterProps) {
     />
   );
 
+  /**
+   * Resolve one safe client-owned folder before any Documents write. Existing
+   * mappings are bounded to the open workspace; clients without a mapping get
+   * the same collision-safe folder derivation used by the New Client flow.
+   */
+  const prepareClientDocumentsFolder = async (matterId: string): Promise<string | null> => {
+    if (!rootPath) return null;
+    const store = useMatterStore.getState();
+    const matter = store.matters.find((candidate) => candidate.id === matterId && !candidate.archived);
+    if (!matter) return null;
+
+    const resolvedFolderPaths = resolveClientDocumentFolderPaths({
+      matter,
+      matters: store.matters,
+      workspaceRoot: rootPath,
+    });
+    const folderPath = resolvedFolderPaths[0];
+    if (!folderPath) return null;
+
+    if (shouldBackfillClientDocumentFolder(matter, resolvedFolderPaths)) {
+      store.setFolderPaths(matterId, resolvedFolderPaths);
+    }
+    const workspaceService = workspaceServiceRef.current;
+    if (workspaceService) {
+      await workspaceService.mkdir(folderPath);
+      setFileTree(await workspaceService.getFileTree());
+    }
+    return folderPath;
+  };
+
   const renderClients = (): ReactNode => (
     <ClientsSurface
       actions={{
@@ -548,6 +582,18 @@ export function AppSurfaceRouter(props: AppSurfaceRouterProps) {
             householdLabel: request.householdRef.label ?? 'Untitled household',
           });
           setSidebarActiveTab('home');
+        },
+        onCreateClientDocument: async (matterId) => {
+          const folderPath = await prepareClientDocumentsFolder(matterId);
+          if (folderPath) await handleCreateDefaultDocument(folderPath);
+        },
+        onCreateClientFolder: async (matterId) => {
+          const folderPath = await prepareClientDocumentsFolder(matterId);
+          if (folderPath) handleCreateFolder(folderPath);
+        },
+        onImportClientFiles: async (matterId) => {
+          const folderPath = await prepareClientDocumentsFolder(matterId);
+          if (folderPath) await handleImportFiles(folderPath);
         },
       }}
     />

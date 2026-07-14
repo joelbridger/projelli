@@ -23,7 +23,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ExternalLink, FileText, FolderOpen, FolderTree, LayoutGrid, ListTree, MoreVertical, PanelLeftClose, PanelLeftOpen, Plus, Search, Trash2, Upload, X } from 'lucide-react';
+import { ExternalLink, FileText, FolderOpen, FolderTree, LayoutGrid, ListTree, MoreVertical, PanelLeftClose, PanelLeftOpen, Search, Trash2, X } from 'lucide-react';
 import { IconButton, RailShellHeader, SearchField, TrustNote } from '@/ui/kp';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import {
@@ -43,6 +43,7 @@ import { TabBar } from './editor/TabBar';
 import { scopeFileTreeToFolders, toAbsolute, toScopedFolderPath } from './scopeFileTree';
 import { isPathInFolder } from '@/platform/rag/matterResolver';
 import { SK_FIRST_FILE_TRUST_SHOWN, SK_DOCS_VIEW } from '@/config/identity';
+import { DocumentsCreateMenu } from './DocumentsCreateMenu';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -648,43 +649,11 @@ export function DocumentsHome({
   const trashBadgeCount = trashStats.itemCount;
 
   const filesCreateMenu = (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <IconButton
-          data-testid="documents-files-create-menu"
-          icon={Plus}
-          label={t('workspace.documents.create-menu')}
-          size="sm"
-          variant="ghost"
-        />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
-        <DropdownMenuItem
-          data-testid="documents-create-document"
-          onSelect={handleCreateDocument}
-          className="gap-2"
-        >
-          <FileText className="h-3.5 w-3.5 text-blue-600" />
-          {t('workspace.documents.new-document')}
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          data-testid="documents-create-folder"
-          onSelect={handleCreateFolder}
-          className="gap-2"
-        >
-          <FolderOpen className="h-3.5 w-3.5 text-[var(--kp-navy)]" />
-          {t('workspace.documents.new-folder')}
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          data-testid="add-files-btn"
-          onSelect={handleAddFiles}
-          className="gap-2"
-        >
-          <Upload className="h-3.5 w-3.5 text-[var(--kp-navy)]" />
-          {t('workspace.documents.add-files')}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <DocumentsCreateMenu
+      onCreateDocument={handleCreateDocument}
+      onCreateFolder={handleCreateFolder}
+      onAddFiles={handleAddFiles}
+    />
   );
 
   const filesMoreMenu = rootPath ? (

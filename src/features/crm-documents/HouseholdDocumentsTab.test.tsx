@@ -124,6 +124,8 @@ describe('HouseholdDocumentsTab client boundary', () => {
     expect(options).toEqual(['Choose a document', 'Diaz plan.pdf']);
     expect(screen.queryByText('Caldwell plan.pdf')).not.toBeInTheDocument();
     expect(screen.queryByText('Code of Ethics.pdf')).not.toBeInTheDocument();
+    expect(screen.getByTestId('grid-card-Clients/Diaz, Michelle/Diaz plan.pdf'))
+      .toBeInTheDocument();
   });
 
   it('fails closed when the household does not map to a known client boundary', () => {
@@ -171,5 +173,26 @@ describe('HouseholdDocumentsTab client boundary', () => {
         })],
       }));
     });
+  });
+
+  it('creates from the client tab through the real Documents menu and keeps the client scope', async () => {
+    const onCreateClientDocument = vi.fn();
+    render(
+      <HouseholdDocumentsTab
+        household={household}
+        proposals={[]}
+        timelineRecords={[]}
+        actions={{ onCreateClientDocument }}
+        renderLegacySurface={() => null}
+      />,
+    );
+
+    const trigger = screen.getByTestId('documents-files-create-menu');
+    fireEvent.pointerDown(trigger, new MouseEvent('pointerdown', { bubbles: true }));
+    fireEvent.click(trigger);
+    fireEvent.click(await screen.findByTestId('documents-create-document'));
+
+    expect(onCreateClientDocument).toHaveBeenCalledTimes(1);
+    expect(onCreateClientDocument).toHaveBeenCalledWith('matter-diaz');
   });
 });

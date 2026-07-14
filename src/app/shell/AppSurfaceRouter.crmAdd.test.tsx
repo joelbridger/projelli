@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppSurface } from '@/platform/types/navigation';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import { AppSurfaceRouter, type AppSurfaceRouterProps } from './AppSurfaceRouter';
+import { useMatterStore } from '@/platform/matter/matterStore';
 
 const records: readonly LiveCrmRecord[] = [
   {
@@ -160,11 +161,22 @@ function Harness() {
 describe('CRM household add actions', () => {
   beforeEach(() => {
     localStorage.setItem('lantern:crm:selected-household:/workspace', 'h-1');
+    useMatterStore.setState({
+      matters: [{
+        id: 'h-1',
+        name: 'Henderson household',
+        client: 'Henderson household',
+        folderPaths: ['/workspace/Clients/Henderson household'],
+        createdAt: '2026-07-14T00:00:00.000Z',
+      }],
+      activeMatterId: 'h-1',
+    });
   });
 
   afterEach(() => {
     cleanup();
     localStorage.clear();
+    useMatterStore.setState({ matters: [], activeMatterId: null });
   });
 
   it('opens a new task form with the current household already selected', async () => {
@@ -195,5 +207,27 @@ describe('CRM household add actions', () => {
 
     expect(await screen.findByTestId('crm-live-workflow-household')).toHaveValue('h-1');
     expect(screen.getByTestId('crm-live-workflow-start')).toBeInTheDocument();
+  });
+
+  it('creates a document from the household tab inside that household folder', async () => {
+    const handleCreateDefaultDocument = vi.fn();
+    render(
+      <AppSurfaceRouter
+        {...baseProps('matters', vi.fn())}
+        handleCreateDefaultDocument={handleCreateDefaultDocument}
+      />,
+    );
+
+    fireEvent.click(await screen.findByTestId('crm-household-tab-documents'));
+    const trigger = await screen.findByTestId('documents-files-create-menu');
+    fireEvent.pointerDown(trigger, new MouseEvent('pointerdown', { bubbles: true }));
+    fireEvent.click(trigger);
+    fireEvent.click(await screen.findByTestId('documents-create-document'));
+
+    await waitFor(() => {
+      expect(handleCreateDefaultDocument).toHaveBeenCalledWith(
+        '/workspace/Clients/Henderson household',
+      );
+    });
   });
 });
