@@ -1,0 +1,32 @@
+{
+  "form-activity": {
+    "title": "Form activity",
+    "description": "Firm-wide form submissions, kept readable and ready to trace.",
+    "search-label": "Search form activity",
+    "search-placeholder": "Search forms, people, or status",
+    "status-filter": "Filter by submission status",
+    "source-filter": "Filter by form source",
+    "all-statuses": "All statuses",
+    "all-sources": "All sources",
+    "form": "Form",
+    "submitter": "Submitter",
+    "contact": "Contact",
+    "submitted": "Submitted",
+    "status-label": "Status",
+    "no-submitter": "Not provided",
+    "no-contact": "Not linked",
+    "empty": "No form submissions are available yet.",
+    "no-results": "No form submissions match these filters.",
+    "load-error": "We couldn't load form activity. Please try again.",
+    "source": {
+      "client-facing": "Client-facing form",
+      "internal": "Internal form"
+    },
+    "status": {
+      "unmatched": "Unmatched",
+      "matched": "Matched",
+      "created": "Contact created",
+      "rejected": "Rejected"
+    }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "form-activity": {
+    "title": "Formularaktivität",
+    "description": "Formulareingänge der ganzen Firma, übersichtlich und nachvollziehbar.",
+    "search-label": "Formularaktivität durchsuchen",
+    "search-placeholder": "Formulare, Personen oder Status suchen",
+    "status-filter": "Nach Einsendestatus filtern",
+    "source-filter": "Nach Formularquelle filtern",
+    "all-statuses": "Alle Status",
+    "all-sources": "Alle Quellen",
+    "form": "Formular",
+    "submitter": "Absender",
+    "contact": "Kontakt",
+    "submitted": "Eingereicht",
+    "status-label": "Status",
+    "no-submitter": "Nicht angegeben",
+    "no-contact": "Nicht verknüpft",
+    "empty": "Noch sind keine Formulareingänge verfügbar.",
+    "no-results": "Keine Formulareingänge entsprechen diesen Filtern.",
+    "load-error": "Die Formularaktivität konnte nicht geladen werden. Bitte versuchen Sie es erneut.",
+    "source": {
+      "client-facing": "Kundenformular",
+      "internal": "Internes Formular"
+    },
+    "status": {
+      "unmatched": "Nicht zugeordnet",
+      "matched": "Zugeordnet",
+      "created": "Kontakt erstellt",
+      "rejected": "Abgelehnt"
+    }
+  }
+}

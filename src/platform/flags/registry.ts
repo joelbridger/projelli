@@ -89,7 +89,8 @@ export const flagRegistry = [
   },
   {
     id: 'crm-trash-recovery',
-    description: 'Keeps CRM record soft-delete and 30-day recovery dark until acceptance testing passes.',
+    description:
+      'Keeps CRM record soft-delete and 30-day recovery dark until acceptance testing passes.',
     ownerLane: 'crm-trash-recovery',
     createdAt: '2026-07-15',
     expiresAt: '2026-09-13',
@@ -100,6 +101,15 @@ export const flagRegistry = [
     description:
       'Keeps the permanent v1 navigation and top bar dark until its acceptance drive passes.',
     ownerLane: 'v1-shell-frame',
+    createdAt: '2026-07-15',
+    expiresAt: '2026-09-13',
+    defaultEnabled: false,
+  },
+  {
+    id: 'form-activity',
+    description:
+      'Keeps firm-wide form submission activity dark until its acceptance drive is complete.',
+    ownerLane: 'form-activity',
     createdAt: '2026-07-15',
     expiresAt: '2026-09-13',
     defaultEnabled: false,

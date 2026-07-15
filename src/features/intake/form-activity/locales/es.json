@@ -1,0 +1,32 @@
+{
+  "form-activity": {
+    "title": "Actividad de formularios",
+    "description": "Envíos de formularios de toda la firma, claros y fáciles de rastrear.",
+    "search-label": "Buscar actividad de formularios",
+    "search-placeholder": "Buscar formularios, personas o estado",
+    "status-filter": "Filtrar por estado del envío",
+    "source-filter": "Filtrar por origen del formulario",
+    "all-statuses": "Todos los estados",
+    "all-sources": "Todos los orígenes",
+    "form": "Formulario",
+    "submitter": "Remitente",
+    "contact": "Contacto",
+    "submitted": "Enviado",
+    "status-label": "Estado",
+    "no-submitter": "No proporcionado",
+    "no-contact": "Sin vincular",
+    "empty": "Aún no hay envíos de formularios disponibles.",
+    "no-results": "Ningún envío de formulario coincide con estos filtros.",
+    "load-error": "No pudimos cargar la actividad de formularios. Inténtalo de nuevo.",
+    "source": {
+      "client-facing": "Formulario para clientes",
+      "internal": "Formulario interno"
+    },
+    "status": {
+      "unmatched": "Sin coincidencia",
+      "matched": "Vinculado",
+      "created": "Contacto creado",
+      "rejected": "Rechazado"
+    }
+  }
+}
