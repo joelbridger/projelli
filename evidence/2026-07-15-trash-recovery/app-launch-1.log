@@ -1,0 +1,6 @@
+virtual display: :143
+app instance: bridge=127.0.0.1:9293 workspace=/tmp/crm-trash-final-drive-PvYhxm
+libEGL warning: DRI3 error: Could not get DRI3 device
+libEGL warning: Ensure your X server supports DRI3 to get accelerated rendering
+[2026-07-15][12:29:43][lantern_lib][INFO] [data-dir-setup] OS data dir: FreshInstall
+[2026-07-15][12:29:43][lantern_lib::dev_bridge][INFO] [dev-bridge] listening on 127.0.0.1:9293

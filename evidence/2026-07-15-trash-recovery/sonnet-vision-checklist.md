@@ -2,6 +2,8 @@
 
 Reviewer: Claude Sonnet, high effort
 
+Reviewed: fresh final packaged drive screenshot captured 2026-07-15 UTC
+
 Actual screenshot: `02-trash-after-restart.png`
 
 Reference: `/home/jameson/lantern/design/alt-familiar/prototypes/alt-familiar-hifi-v2/index.html`, `trashSettings()` around lines 546–549.
@@ -19,6 +21,6 @@ Reference: `/home/jameson/lantern/design/alt-familiar/prototypes/alt-familiar-hi
 | Recover action | PASS | The Recover button is visible and styled as the row action. |
 | Firm-admin guard | PASS | “Permanent deletion requires a firm admin.” is visible with a shield icon. Its stronger callout treatment is not a functional gap. |
 
-Non-blocking difference: the real app shows its local-AI setup banner above the page. This is app chrome, not part of the Trash surface.
+Non-blocking differences: the real app shows its local-AI setup banner above the page, and the frozen markup includes a second “Deleted by” filter chip that was not part of this lane’s required search + all-types-filter scope. The real surface labels the Recover column and promotes the admin warning into a stronger callout. None of these differences hide or block the required Trash controls.
 
 OVERALL: PASS

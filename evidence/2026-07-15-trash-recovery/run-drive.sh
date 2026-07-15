@@ -4,6 +4,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 EVIDENCE="$ROOT/evidence/2026-07-15-trash-recovery"
+LOG="$EVIDENCE/packaged-restart-drive.log"
 EXPECTED_SHA="5c78629e27f2a886e5b041b6736d779c24216c5f"
 EXPECTED_BINARY_SHA="fbb244d6b54847d0f4c3e26d38539dad1e22c6662f663703ab641a038df1a791"
 BINARY="${1:?usage: run-drive.sh <exact-binary> <clean-workspace>}"
@@ -14,15 +15,27 @@ APP_PID_FILE="$WORKSPACE/app.pid"
 XVFB_PID_FILE="$WORKSPACE/xvfb.pid"
 LAUNCHER_PID=""
 VITE_PID=""
-PRODUCT_PATHS=(src src-tauri public index.html package.json package-lock.json vite.config.ts)
+
+mkdir -p "$EVIDENCE"
+if [ "${CRM_TRASH_EVIDENCE_LOG_ACTIVE:-}" != "1" ]; then
+  : >"$LOG"
+  exec env CRM_TRASH_EVIDENCE_LOG_ACTIVE=1 "$0" "$@" \
+    > >(sed -u 's/[[:space:]]\+$//' | tee "$LOG") 2>&1
+fi
+
+# A keyring daemon must never join the user's existing desktop D-Bus session.
+# Re-execute the entire drive on a disposable private bus before starting it.
+if [ "${CRM_TRASH_PRIVATE_DBUS:-}" != "1" ]; then
+  exec dbus-run-session -- env CRM_TRASH_PRIVATE_DBUS=1 "$0" "$@"
+fi
 
 fail() { echo "FAIL packaged restart drive: $*" >&2; exit 1; }
 
-[ -z "$(git -C "$ROOT" diff --name-only "$EXPECTED_SHA" -- "${PRODUCT_PATHS[@]}")" ] || fail "product source differs from $EXPECTED_SHA"
-[ -z "$(git -C "$ROOT" status --porcelain --untracked-files=all -- "${PRODUCT_PATHS[@]}")" ] || fail "product source has uncommitted changes"
+[ -z "$(git -C "$ROOT" diff --name-only "$EXPECTED_SHA" -- . ':(exclude)evidence/2026-07-15-trash-recovery')" ] || fail "product source differs from $EXPECTED_SHA"
+[ -z "$(git -C "$ROOT" status --porcelain --untracked-files=all -- . ':(exclude)evidence/2026-07-15-trash-recovery')" ] || fail "product source has uncommitted changes"
 [ -x "$BINARY" ] || fail "exact binary is missing"
 [ "$(sha256sum "$BINARY" | awk '{print $1}')" = "$EXPECTED_BINARY_SHA" ] || fail "binary hash changed"
-mkdir -p "$WORKSPACE" "$EVIDENCE"
+mkdir -p "$WORKSPACE"
 if find "$WORKSPACE" -mindepth 1 -print -quit | grep -q .; then
   fail "workspace must be empty: $WORKSPACE"
 fi
@@ -106,7 +119,7 @@ drive_phase() {
 
 echo "BUILD source_sha=$EXPECTED_SHA binary_sha256=$EXPECTED_BINARY_SHA"
 echo "FRONTEND source_sha=$EXPECTED_SHA private Vite server owned by this run"
-echo "KEYCHAIN audit store uses private Secret Service; CRM core uses the documented encrypted headless test key"
+echo "KEYCHAIN audit store uses private Secret Service on a disposable private D-Bus; CRM core uses the documented encrypted headless test key"
 
 start_vite
 
