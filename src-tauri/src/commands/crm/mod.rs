@@ -13,6 +13,7 @@ pub mod core_schema;
 pub mod core_store;
 pub mod commands;
 pub mod engine;
+pub mod features;
 pub mod importer;
 pub mod migration_commands;
 pub mod migrations;
