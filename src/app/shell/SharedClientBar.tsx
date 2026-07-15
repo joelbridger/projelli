@@ -1,17 +1,30 @@
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { AppSurfaceClientContext } from '@/app/shell/registry/types';
+import { ClientBarV1, type ClientBarDestination } from '@/features/client-bar';
+import { useFlag } from '@/platform/flags';
 import { useClientContextStore } from '@/platform/client-context';
 
 export interface SharedClientBarProps {
-  onChooseClient?: () => void;
+  onChooseClient?: (() => void) | undefined;
+  onNavigate?: ((destination: ClientBarDestination) => void) | undefined;
 }
 
 /** Minimal shell plumbing; the v1 redesign lane owns the final visual swap. */
-export function SharedClientBar({ onChooseClient }: SharedClientBarProps) {
+export function SharedClientBar({
+  onChooseClient,
+  onNavigate,
+}: SharedClientBarProps) {
+  const sharedClientBarV1Enabled = useFlag('shared-client-bar');
   const { t } = useTranslation();
   const client = useClientContextStore((state) => state.client);
   const clearClient = useClientContextStore((state) => state.clearClient);
+
+  if (sharedClientBarV1Enabled) {
+    return (
+      <ClientBarV1 onChooseClient={onChooseClient} onNavigate={onNavigate} />
+    );
+  }
 
   return (
     <section

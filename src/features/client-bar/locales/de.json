@@ -1,0 +1,24 @@
+{
+  "client-bar": {
+    "helper": {
+      "selected": "Dieser Kunde begleitet Sie zwischen CRM, Ask und Meetings.",
+      "empty": "Wählen Sie einen Kunden, um denselben Kontext zwischen den Tools zu behalten."
+    },
+    "quick-actions-label": "Ein Tool für den aktuellen Kunden öffnen",
+    "actions": {
+      "crm": "CRM öffnen",
+      "ask": "Fragen",
+      "meetings": "Meetings"
+    },
+    "picker": {
+      "trigger": "Aktuellen Kunden auswählen",
+      "title": "Aktuellen Kunden auswählen",
+      "search-label": "Personen und Haushalte suchen",
+      "search-placeholder": "Personen und Haushalte suchen",
+      "selected": "Aktueller Kunde",
+      "no-results": "Keine Kunden entsprechen Ihrer Suche.",
+      "clear": "Kunden löschen",
+      "cancel": "Abbrechen"
+    }
+  }
+}
