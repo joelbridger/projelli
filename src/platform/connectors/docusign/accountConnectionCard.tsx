@@ -1,5 +1,10 @@
 import { DocuSignConnect } from './DocuSignConnect';
 import type { ConnectionCardDescriptor } from '@/features/account/accountRegistryTypes';
+declare module '@/platform/types/account' {
+  interface ConnectionCardIdMap {
+    docusign: true;
+  }
+}
 const render = () => <DocuSignConnect />;
 export const docusignConnectionCard: ConnectionCardDescriptor = {
   id: 'docusign',

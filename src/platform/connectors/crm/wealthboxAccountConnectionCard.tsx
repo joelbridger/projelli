@@ -1,5 +1,10 @@
 import { WealthboxConnect } from './WealthboxConnect';
 import type { ConnectionCardDescriptor } from '@/features/account/accountRegistryTypes';
+declare module '@/platform/types/account' {
+  interface ConnectionCardIdMap {
+    wealthbox: true;
+  }
+}
 const render = () => <WealthboxConnect />;
 export const wealthboxConnectionCard: ConnectionCardDescriptor = {
   id: 'wealthbox',

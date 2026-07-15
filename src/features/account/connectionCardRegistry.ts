@@ -20,6 +20,13 @@ import type {
   ConnectionCardPlacement,
 } from './accountRegistryTypes';
 
+declare module '@/platform/types/account' {
+  interface ConnectionCardIdMap {
+    ollama: true;
+    mcp: true;
+  }
+}
+
 /** The only Account mount list for connector cards. Existing order is stable. */
 export const connectionCardRegistry: readonly ConnectionCardDescriptor[] = [
   microsoft365ConnectionCard,

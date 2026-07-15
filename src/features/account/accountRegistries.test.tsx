@@ -13,6 +13,16 @@ import type {
   ConnectionCardDescriptor,
 } from './accountRegistryTypes';
 
+declare module '@/platform/types/account' {
+  interface AccountSectionIdMap {
+    'dummy-section': true;
+  }
+
+  interface ConnectionCardIdMap {
+    'dummy-card': true;
+  }
+}
+
 function section(
   overrides: Partial<AccountSectionDescriptor> = {}
 ): AccountSectionDescriptor {

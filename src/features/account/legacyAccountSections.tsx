@@ -6,6 +6,15 @@ import {
 } from './legacyAccountSectionRenderers';
 import type { AccountSectionDescriptor } from './accountRegistryTypes';
 
+declare module '@/platform/types/account' {
+  interface AccountSectionIdMap {
+    account: true;
+    firm: true;
+    usage: true;
+    connections: true;
+  }
+}
+
 export const legacyAccountSections: readonly AccountSectionDescriptor[] = [
   {
     id: 'account',

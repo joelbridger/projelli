@@ -1,10 +1,14 @@
 import type { ReactNode } from 'react';
 import type { AuditEntry } from '@/platform/types/audit';
+import type {
+  AccountSectionId,
+  ConnectionCardId,
+} from '@/platform/types/account';
 
 /** A feature-owned tab in the Account window. */
 export interface AccountSectionDescriptor {
   /** Stable id used by deep links and the selected Account tab. */
-  id: string;
+  id: AccountSectionId;
   /** Reserved translation key; legacy sections retain their existing labels for now. */
   labelKey: string;
   legacyLabel: string;
@@ -28,7 +32,7 @@ export type ConnectionCardPlacement = 'connections' | 'developer-tools';
  * Account window.
  */
 export interface ConnectionCardDescriptor {
-  id: string;
+  id: ConnectionCardId;
   labelKey: string;
   placement: ConnectionCardPlacement;
   order: number;

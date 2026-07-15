@@ -1,5 +1,10 @@
 import { ZocksConnect } from './ZocksConnect';
 import type { ConnectionCardDescriptor } from '@/features/account/accountRegistryTypes';
+declare module '@/platform/types/account' {
+  interface ConnectionCardIdMap {
+    zocks: true;
+  }
+}
 const render = () => <ZocksConnect />;
 export const zocksConnectionCard: ConnectionCardDescriptor = {
   id: 'zocks',

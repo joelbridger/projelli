@@ -1,5 +1,10 @@
 import { OneDriveConnect } from './OneDriveConnect';
 import type { ConnectionCardDescriptor } from '@/features/account/accountRegistryTypes';
+declare module '@/platform/types/account' {
+  interface ConnectionCardIdMap {
+    onedrive: true;
+  }
+}
 const render = () => <OneDriveConnect />;
 export const oneDriveConnectionCard: ConnectionCardDescriptor = {
   id: 'onedrive',

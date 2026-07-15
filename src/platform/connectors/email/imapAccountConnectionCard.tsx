@@ -1,5 +1,10 @@
 import { MailImapConnect } from './MailImapConnect';
 import type { ConnectionCardDescriptor } from '@/features/account/accountRegistryTypes';
+declare module '@/platform/types/account' {
+  interface ConnectionCardIdMap {
+    'imap-mail': true;
+  }
+}
 const render = () => <MailImapConnect />;
 export const imapConnectionCard: ConnectionCardDescriptor = {
   id: 'imap-mail',
