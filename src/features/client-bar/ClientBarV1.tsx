@@ -15,7 +15,7 @@ import type { ClientPickerHousehold } from './clientPickerHouseholds';
 
 export type ClientBarQuickAction = Pick<
   AppSurfaceDescriptor,
-  'clientContext' | 'id' | 'labelKey' | 'legacyLabel' | 'order' | 'placement'
+  'clientContext' | 'id' | 'labelKey' | 'order' | 'placement'
 >;
 
 export interface ClientBarV1Props {
@@ -126,7 +126,7 @@ export function ClientBarV1({ households, onChooseClient }: ClientBarV1Props) {
               action={action}
               key={action.id}
               label={t('client-bar.actions.open', {
-                surface: action.legacyLabel ?? t(action.labelKey),
+                surface: t(action.labelKey),
               })}
               onNavigate={navigate}
             />
