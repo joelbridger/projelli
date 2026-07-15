@@ -1,0 +1,19 @@
+{
+  "employment": {
+    "title": "Employment",
+    "helper": "Work, income, and retirement dates",
+    "edit": "Edit employment",
+    "close-edit": "Close editor",
+    "member-label": "Household member",
+    "occupation-label": "Occupation",
+    "employer-label": "Employer",
+    "occupation-start-label": "Occupation start",
+    "planned-retirement-label": "Planned retirement",
+    "reduced-schedule-label": "Reduced schedule context",
+    "gross-income-label": "Gross annual income",
+    "save": "Save employment",
+    "cancel": "Cancel",
+    "not-set": "Not set",
+    "no-members": "Add a household member before recording employment information."
+  }
+}

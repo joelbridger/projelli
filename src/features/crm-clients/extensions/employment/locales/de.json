@@ -1,0 +1,19 @@
+{
+  "employment": {
+    "title": "Beschäftigung",
+    "helper": "Arbeit, Einkommen und Ruhestandsdaten",
+    "edit": "Beschäftigung bearbeiten",
+    "close-edit": "Editor schließen",
+    "member-label": "Haushaltsmitglied",
+    "occupation-label": "Beruf",
+    "employer-label": "Arbeitgeber",
+    "occupation-start-label": "Berufsbeginn",
+    "planned-retirement-label": "Geplanter Ruhestand",
+    "reduced-schedule-label": "Kontext für reduzierten Arbeitsplan",
+    "gross-income-label": "Bruttojahreseinkommen",
+    "save": "Beschäftigung speichern",
+    "cancel": "Abbrechen",
+    "not-set": "Nicht festgelegt",
+    "no-members": "Fügen Sie ein Haushaltsmitglied hinzu, bevor Sie Beschäftigungsinformationen erfassen."
+  }
+}

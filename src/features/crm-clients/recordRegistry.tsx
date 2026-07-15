@@ -140,13 +140,14 @@ import {
   legacyHouseholdRecordExtensions,
   legacyHouseholdSections,
 } from './recordRegistryCompatibility';
+import { employmentHouseholdSection } from './extensions/employment';
 
 export const householdHeaderActionRegistry: readonly HouseholdHeaderActionDescriptor[] =
   legacyHouseholdHeaderActions;
 export const householdAddActionRegistry: readonly HouseholdAddActionDescriptor[] =
   legacyHouseholdAddActions;
 export const householdSectionRegistry: readonly HouseholdSectionDescriptor[] =
-  legacyHouseholdSections;
+  [...legacyHouseholdSections, employmentHouseholdSection];
 export const householdRecordExtensionRegistry: readonly HouseholdRecordExtensionDescriptor[] =
   legacyHouseholdRecordExtensions;
 
