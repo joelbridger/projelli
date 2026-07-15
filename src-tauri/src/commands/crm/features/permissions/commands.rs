@@ -5,7 +5,7 @@
 //! loaded from native workspace state. The local-device threat-model boundary
 //! is documented in the feature registry SKILL.md.
 
-use anyhow::{Result, bail};
+use anyhow::{bail, Result};
 use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -17,6 +17,7 @@ use crate::commands::crm::{
 
 const CURRENT_MEMBER_STATE_ID: &str = "firm:current-member";
 const CURRENT_MEMBER_STATE_KIND: &str = "permissions-current-member-state";
+const LEGACY_TEAMS_ROLES_STATE_KIND: &str = "teams-roles-state";
 const OWN_CLIENTS_FLAG_ENV: &str = "LANTERN_FLAG_OWN_CLIENTS_PERMISSIONS";
 const NO_MEMBER_IDENTITY_ERROR: &str = "No member identity configured for own-clients permissions.";
 
@@ -103,6 +104,13 @@ fn record_owner_member_id(record: &Value) -> Option<&str> {
     record.get("ownerMemberId").and_then(Value::as_str)
 }
 
+fn is_internal_authority_record(record: &Value) -> bool {
+    matches!(
+        record.get("kind").and_then(Value::as_str),
+        Some(CURRENT_MEMBER_STATE_KIND | LEGACY_TEAMS_ROLES_STATE_KIND)
+    )
+}
+
 fn has_client_capability(role: &RoleDefinition, operation: PermissionOperation) -> bool {
     let needed = match operation {
         PermissionOperation::Read => "clients:read",
@@ -154,6 +162,9 @@ fn authorize(
     if !enforce {
         return Ok(());
     }
+    if is_internal_authority_record(record) {
+        bail!("CRM authority state is not available through record commands.");
+    }
     let (current_member, role) = current_authority(store, operation)?;
     if !role_permits_record(&role, &current_member.member_id, record) {
         bail!("CRM record is outside the current member's client scope.");
@@ -169,9 +180,7 @@ pub(crate) fn protected_records(store: &CrmCoreStore, enforce: bool) -> Result<V
     let (current_member, role) = current_authority(store, PermissionOperation::Read)?;
     records
         .into_iter()
-        .filter(|record| {
-            record.get("kind").and_then(Value::as_str) != Some(CURRENT_MEMBER_STATE_KIND)
-        })
+        .filter(|record| !is_internal_authority_record(record))
         .filter(|record| role_permits_record(&role, &current_member.member_id, record))
         .map(Ok)
         .collect()
@@ -357,6 +366,32 @@ mod tests {
             .unwrap();
     }
 
+    fn insert_legacy_teams_roles_record(store: &CrmCoreStore) {
+        let record = serde_json::json!({
+            "id": "firm-teams-roles", "kind": LEGACY_TEAMS_ROLES_STATE_KIND,
+            "matterId": "firm", "memberships": [{"memberId": "maya", "roleId": "advisor"}],
+            "updatedAt": "2026-07-14T00:00:00Z"
+        });
+        let encoded = serde_json::to_vec(&record).unwrap();
+        store
+            .with_immediate_transaction(|transaction| {
+                transaction.execute(
+                    "INSERT INTO crm_docs(doc_key,matter_id,doc_id,yjs_state,state_vector,updated_at,deleted)
+                     VALUES(?1,?2,?3,?4,?5,?6,0)",
+                    rusqlite::params![
+                        "firm/live:firm-teams-roles",
+                        "firm",
+                        "live:firm-teams-roles",
+                        encoded,
+                        Vec::<u8>::new(),
+                        "2026-07-14T00:00:00Z"
+                    ],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+    }
+
     #[test]
     fn flag_on_without_a_bound_member_refuses_protected_calls() {
         let directory = tempfile::tempdir().unwrap();
@@ -419,6 +454,23 @@ mod tests {
                 .unwrap_err()
                 .to_string()
                 .contains("does not grant CRM write access")
+        );
+    }
+
+    #[test]
+    fn flag_on_keeps_legacy_authority_state_out_of_record_reads() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = CrmCoreStore::open_with_key(directory.path(), &[22; 32]).unwrap();
+        seed(&store);
+        insert_legacy_teams_roles_record(&store);
+        bind(&store, "casey");
+
+        assert_eq!(protected_records(&store, true).unwrap().len(), 2);
+        assert!(
+            get_protected_record(&store, true, "firm-teams-roles", PermissionOperation::Read)
+                .unwrap_err()
+                .to_string()
+                .contains("authority state")
         );
     }
 
