@@ -32,6 +32,9 @@ role's `clients:read` or `clients:write` capability remains required.
 The native `crm_permissions_*` commands are authoritative and derive the
 member only from native `current_member` storage. With the feature flag on,
 they deny requests when no member is bound or a record is outside that member's
-scope. This protects against UI bugs and forgeable per-call frontend identity
-claims. It does not protect against the machine's local user modifying their
-own local data; that boundary arrives with future firm-relay authentication.
+scope. The existing native `crm_live_list`, `crm_live_upsert`, and
+`crm_live_upsert_many` commands delegate to this same check, so the active CRM
+screen cannot bypass it. This protects against UI bugs and forgeable per-call
+frontend identity claims. It does not protect against the machine's local user
+modifying their own local data; that boundary arrives with future firm-relay
+authentication.
