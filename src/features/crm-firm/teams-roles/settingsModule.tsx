@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ShieldCheck, UsersRound } from 'lucide-react';
 import { Button } from '@/ui/kp';
+import type { SettingsModuleDescriptor } from '@/features/settings';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import { roleForMember, type MemberAssignment } from './contract';
@@ -459,7 +460,7 @@ export function TeamsRolesSettings() {
   );
 }
 
-export const teamsRolesSettingsModule = {
+export const teamsRolesSettingsModule: SettingsModuleDescriptor = {
   id: 'organization',
   order: 80,
   labelKey: 'teams-roles.settings-label',

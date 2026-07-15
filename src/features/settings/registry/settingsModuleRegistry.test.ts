@@ -47,10 +47,10 @@ describe('settingsModuleRegistry', () => {
     if (!organization) throw new Error('Expected a settings descriptor');
     expect(() => {
       validateSettingsModuleDescriptors([
-        ...getSettingsModuleDescriptors(),
-        { ...organization, id: 'organization-test', labelKey: 'organization' },
+        ...getSettingsModuleDescriptors().filter((descriptor) => descriptor.id !== 'workspace'),
+        { ...organization, id: 'organization', labelKey: 'organization' },
       ]);
-    }).toThrow('labelKey must include a namespace: organization-test');
+    }).toThrow('labelKey must include a namespace: organization');
   });
 
   it('adds Organization only when the Teams & Roles flag is on', async () => {
