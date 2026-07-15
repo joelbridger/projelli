@@ -18,18 +18,16 @@
  */
 
 import { brandText } from '@/config/brandText';
+import {
+  getSettingsModuleDefinitions,
+  getSettingsModuleDescriptors,
+} from '@/features/settings/registry/settingsModuleRegistry';
+import type { SettingsSectionId } from '@/features/settings/registry/types';
 
 export type SettingType = 'toggle' | 'select' | 'number' | 'text' | 'shortcut-display';
 
 /** The canonical section ids used in the sidebar nav. */
-export type SectionCategory =
-  | 'workspace'
-  | 'ai'
-  | 'privacy'
-  | 'scheduling'
-  | 'voice'
-  | 'advanced'
-  | 'help';
+export type SectionCategory = SettingsSectionId;
 
 /**
  * SettingCategory includes both the 6 new section ids AND every legacy id so
@@ -89,17 +87,6 @@ export interface SettingDefinition {
   /** For action-link entries (e.g., "Manage API Keys" opens the AI panel). */
   action?: SettingAction;
 }
-
-/** The nav sections shown in the sidebar. */
-export const SETTING_CATEGORIES: { id: SectionCategory; label: string }[] = [
-  { id: 'workspace', label: 'Workspace' },
-  { id: 'ai',        label: 'AI' },
-  { id: 'privacy',   label: 'Privacy' },
-  { id: 'scheduling', label: 'Scheduling' },
-  { id: 'voice',     label: 'Voice' },
-  { id: 'advanced',  label: 'Advanced' },
-  { id: 'help',      label: 'Help' },
-];
 
 /**
  * Maps every legacy category id to the canonical section it now lives in.
@@ -175,7 +162,11 @@ export const EMAIL_REPLY_AI_CLASSIFICATION_SETTING_KEY = 'intake.emailReplyAiCla
  *  are never alarmed on age. */
 export const EXTERNAL_EXPORT_STALE_DAYS_KEY = 'externalExportStaleDays';
 
-export const SETTINGS_SCHEMA: SettingDefinition[] = [
+/**
+ * Existing built-in definitions. The settings registry owns their placement;
+ * keep definitions here as the stable platform contract for stores and imports.
+ */
+export const BASE_SETTINGS_SCHEMA: readonly SettingDefinition[] = [
   // ── Workspace: General ────────────────────────────────────────────────
   {
     key: 'startupBehavior',
@@ -806,6 +797,16 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     action: { label: 'Open GitHub', actionId: 'open-github' },
   },
 ];
+
+/** Flatten feature-owned definition slices in stable registry order. */
+export const SETTINGS_SCHEMA: readonly SettingDefinition[] = getSettingsModuleDefinitions();
+
+/** The nav sections shown in the sidebar, in stable registry order. */
+export const SETTING_CATEGORIES: readonly { id: SectionCategory; label: string }[] =
+  getSettingsModuleDescriptors().map(({ id, legacyLabel }) => ({
+    id,
+    label: legacyLabel,
+  }));
 
 /**
  * Build a map of key -> defaultValue from the schema.
