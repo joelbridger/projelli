@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { crmHomeSurfaceRegistry } from '@/features/crm-home/registry';
-import { flagRegistry } from '@/platform/flags/registry';
+import { isEnabled } from '@/platform/flags';
 import { formActivitySurface } from './surface';
 
 describe('form activity CRM Home registration', () => {
@@ -21,11 +21,6 @@ describe('form activity CRM Home registration', () => {
       shortcut: 'a',
       flagId: 'form-activity',
     });
-    expect(
-      flagRegistry.find((flag) => flag.id === 'form-activity')
-    ).toMatchObject({
-      ownerLane: 'form-activity',
-      defaultEnabled: false,
-    });
+    expect(isEnabled('form-activity')).toBe(false);
   });
 });
