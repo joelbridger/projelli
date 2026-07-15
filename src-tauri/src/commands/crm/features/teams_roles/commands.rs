@@ -402,24 +402,36 @@ fn persist(
     Ok(state)
 }
 
-/// Firm-administration interlock: while own-clients-permissions is active, a
-/// role/team/assignment change requires the native-session member to hold
-/// firm:manage authority. This runs as its own query BEFORE the mutation
-/// transaction (never nested inside it). When the flag is off, teams & roles
-/// behaves exactly as before.
-fn require_firm_manage(store: &CrmCoreStore) -> anyhow::Result<()> {
-    use crate::commands::crm::features::permissions::commands as perms;
-    if !perms::own_clients_permissions_enabled() {
-        return Ok(());
-    }
-    perms::require_firm_manage_authority(store, perms::native_manage_authority().as_ref())
+/// Firm-administration interlock: a role/team/assignment change ALWAYS requires
+/// firm:manage authority, whether or not own-clients enforcement is currently
+/// active (re-review B Finding 2).
+///
+/// Roles are the security configuration that own-clients enforcement trusts the
+/// moment it turns on: `role_for_member`/`role_permits_record` read the persisted
+/// `crm_member_roles`/`crm_roles` rows. If the gate were conditioned on the flag
+/// (as it previously was), a modified renderer could — while the feature is dark
+/// (the default) — self-assign `compliance-admin` (firm-read + firm:manage) and
+/// have that grant silently trusted the instant an admin later enables the
+/// feature. Gating role writes unconditionally closes that pre-enable poison: the
+/// authority must be a bound firm session that holds firm:manage (or the org-admin
+/// bootstrap), deny-closed when signed out. `authority` is resolved by the caller
+/// from the native firm session, never from a renderer argument. This runs as its
+/// own query BEFORE the mutation transaction (never nested inside it).
+fn require_firm_manage(
+    store: &CrmCoreStore,
+    authority: Option<&crate::commands::crm::features::permissions::commands::ManageAuthority>,
+) -> anyhow::Result<()> {
+    crate::commands::crm::features::permissions::commands::require_firm_manage_authority(
+        store, authority,
+    )
 }
 
 fn mutate(
     store: &CrmCoreStore,
+    authority: Option<&crate::commands::crm::features::permissions::commands::ManageAuthority>,
     operation: impl FnOnce(&mut TeamsRolesState) -> anyhow::Result<()>,
 ) -> anyhow::Result<TeamsRolesState> {
-    require_firm_manage(store)?;
+    require_firm_manage(store, authority)?;
     store.with_immediate_transaction(|transaction| {
         let mut current = load(transaction)?;
         operation(&mut current)?;
@@ -455,9 +467,13 @@ pub async fn crm_teams_roles_create_role(
 ) -> Result<TeamsRolesState, String> {
     validate_role(&role)?;
     let workspace = workspace(&state).await?;
+    let authority =
+        crate::commands::crm::features::permissions::commands::native_manage_authority();
     tokio::task::spawn_blocking(move || {
         let store = CrmCoreStore::open(&workspace)?;
-        mutate(&store, |current| create_role(current, role))
+        mutate(&store, authority.as_ref(), |current| {
+            create_role(current, role)
+        })
     })
     .await
     .map_err(|error| error.to_string())?
@@ -470,9 +486,13 @@ pub async fn crm_teams_roles_update_role(
 ) -> Result<TeamsRolesState, String> {
     validate_role(&role)?;
     let workspace = workspace(&state).await?;
+    let authority =
+        crate::commands::crm::features::permissions::commands::native_manage_authority();
     tokio::task::spawn_blocking(move || {
         let store = CrmCoreStore::open(&workspace)?;
-        mutate(&store, |current| update_role(current, role))
+        mutate(&store, authority.as_ref(), |current| {
+            update_role(current, role)
+        })
     })
     .await
     .map_err(|error| error.to_string())?
@@ -485,9 +505,13 @@ pub async fn crm_teams_roles_delete_role(
 ) -> Result<TeamsRolesState, String> {
     nonempty(&role_id, "Role id")?;
     let workspace = workspace(&state).await?;
+    let authority =
+        crate::commands::crm::features::permissions::commands::native_manage_authority();
     tokio::task::spawn_blocking(move || {
         let store = CrmCoreStore::open(&workspace)?;
-        mutate(&store, |current| delete_role(current, &role_id))
+        mutate(&store, authority.as_ref(), |current| {
+            delete_role(current, &role_id)
+        })
     })
     .await
     .map_err(|error| error.to_string())?
@@ -500,9 +524,13 @@ pub async fn crm_teams_roles_create_team(
 ) -> Result<TeamsRolesState, String> {
     validate_team(&team)?;
     let workspace = workspace(&state).await?;
+    let authority =
+        crate::commands::crm::features::permissions::commands::native_manage_authority();
     tokio::task::spawn_blocking(move || {
         let store = CrmCoreStore::open(&workspace)?;
-        mutate(&store, |current| create_team(current, team))
+        mutate(&store, authority.as_ref(), |current| {
+            create_team(current, team)
+        })
     })
     .await
     .map_err(|error| error.to_string())?
@@ -515,9 +543,13 @@ pub async fn crm_teams_roles_update_team(
 ) -> Result<TeamsRolesState, String> {
     validate_team(&team)?;
     let workspace = workspace(&state).await?;
+    let authority =
+        crate::commands::crm::features::permissions::commands::native_manage_authority();
     tokio::task::spawn_blocking(move || {
         let store = CrmCoreStore::open(&workspace)?;
-        mutate(&store, |current| update_team(current, team))
+        mutate(&store, authority.as_ref(), |current| {
+            update_team(current, team)
+        })
     })
     .await
     .map_err(|error| error.to_string())?
@@ -530,9 +562,13 @@ pub async fn crm_teams_roles_delete_team(
 ) -> Result<TeamsRolesState, String> {
     nonempty(&team_id, "Team id")?;
     let workspace = workspace(&state).await?;
+    let authority =
+        crate::commands::crm::features::permissions::commands::native_manage_authority();
     tokio::task::spawn_blocking(move || {
         let store = CrmCoreStore::open(&workspace)?;
-        mutate(&store, |current| delete_team(current, &team_id))
+        mutate(&store, authority.as_ref(), |current| {
+            delete_team(current, &team_id)
+        })
     })
     .await
     .map_err(|error| error.to_string())?
@@ -546,9 +582,13 @@ pub async fn crm_teams_roles_assign_member(
     nonempty(&assignment.member_id, "Member id")?;
     nonempty(&assignment.role_id, "Role id")?;
     let workspace = workspace(&state).await?;
+    let authority =
+        crate::commands::crm::features::permissions::commands::native_manage_authority();
     tokio::task::spawn_blocking(move || {
         let store = CrmCoreStore::open(&workspace)?;
-        mutate(&store, |current| assign_member(current, assignment))
+        mutate(&store, authority.as_ref(), |current| {
+            assign_member(current, assignment)
+        })
     })
     .await
     .map_err(|error| error.to_string())?
@@ -558,7 +598,17 @@ pub async fn crm_teams_roles_assign_member(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::commands::crm::features::permissions::commands::ManageAuthority;
     use std::sync::{Arc, Barrier};
+
+    /// A firm-manage authority for tests — the org-admin bootstrap always
+    /// qualifies, standing in for the SSO-bound firm session.
+    fn admin() -> ManageAuthority {
+        ManageAuthority {
+            member_id: "owner".into(),
+            org_admin: true,
+        }
+    }
 
     fn state() -> TeamsRolesState {
         TeamsRolesState {
@@ -615,7 +665,7 @@ mod tests {
     fn roles_teams_and_memberships_survive_a_store_reopen() {
         let directory = tempfile::tempdir().unwrap();
         let store = CrmCoreStore::open_with_key(directory.path(), &[42; 32]).unwrap();
-        mutate(&store, |state| {
+        mutate(&store, Some(&admin()), |state| {
             create_role(
                 state,
                 RoleDefinition {
@@ -727,7 +777,7 @@ mod tests {
             std::thread::spawn(move || {
                 let store = CrmCoreStore::open_with_key(&path, &[9; 32]).unwrap();
                 barrier.wait();
-                mutate(&store, |current| {
+                mutate(&store, Some(&admin()), |current| {
                     create_role(
                         current,
                         RoleDefinition {
@@ -771,5 +821,93 @@ mod tests {
             .roles
             .iter()
             .any(|role| role.id == "advisor" && role.system));
+    }
+
+    #[test]
+    fn role_mutations_require_firm_manage_even_when_flag_off() {
+        // Re-review B Finding 2 — the pre-enable poison. Role assignments are the
+        // security configuration own-clients enforcement trusts the instant it
+        // turns on, so a role write must ALWAYS require firm:manage authority,
+        // whether or not the flag is currently active. Neither a signed-out
+        // renderer nor an ordinary member may self-assign a privileged role while
+        // the feature is dark.
+        let directory = tempfile::tempdir().unwrap();
+        // System roles (advisor = no firm:manage, compliance-admin = firm:manage)
+        // are seeded by the store on open.
+        let store = CrmCoreStore::open_with_key(directory.path(), &[71; 32]).unwrap();
+
+        // Signed out (no bound firm session) → deny-closed.
+        let signed_out = mutate(&store, None, |current| {
+            assign_member(
+                current,
+                MemberAssignment {
+                    member_id: "attacker".into(),
+                    role_id: "compliance-admin".into(),
+                    team_ids: vec![],
+                },
+            )
+        })
+        .unwrap_err()
+        .to_string();
+        assert!(
+            signed_out.contains("member identity"),
+            "a signed-out role write must be refused: {signed_out}"
+        );
+
+        // A bound member whose role lacks firm:manage cannot administer roles.
+        store
+            .with_immediate_transaction(|transaction| {
+                transaction.execute(
+                    "INSERT INTO crm_member_roles(member_id,role_id,updated_at) VALUES(?1,?2,?3)",
+                    ("maya", "advisor", "2026-07-15T00:00:00Z"),
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        let maya = ManageAuthority {
+            member_id: "maya".into(),
+            org_admin: false,
+        };
+        let self_elevate = mutate(&store, Some(&maya), |current| {
+            assign_member(
+                current,
+                MemberAssignment {
+                    member_id: "maya".into(),
+                    role_id: "compliance-admin".into(),
+                    team_ids: vec![],
+                },
+            )
+        })
+        .unwrap_err()
+        .to_string();
+        assert!(
+            self_elevate.contains("firm-manage authority"),
+            "an ordinary member must not self-assign a privileged role: {self_elevate}"
+        );
+
+        // Nothing was persisted by either refused attempt.
+        let restored = store
+            .with_immediate_transaction(|transaction| load(transaction))
+            .unwrap();
+        assert!(
+            !restored
+                .memberships
+                .iter()
+                .any(|membership| membership.role_id == "compliance-admin"),
+            "no compliance-admin assignment may survive a refused mutation"
+        );
+
+        // The org-admin bootstrap (a genuine firm session) still works.
+        assert!(mutate(&store, Some(&admin()), |current| {
+            assign_member(
+                current,
+                MemberAssignment {
+                    member_id: "trusted".into(),
+                    role_id: "compliance-admin".into(),
+                    team_ids: vec![],
+                },
+            )
+        })
+        .is_ok());
     }
 }
