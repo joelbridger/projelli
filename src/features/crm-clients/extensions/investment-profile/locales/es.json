@@ -1,0 +1,33 @@
+{
+  "investmentProfile": {
+    "title": "Perfil de inversión",
+    "helper": "Horizonte de planificación y preferencias de riesgo",
+    "notSet": "Sin establecer",
+    "save": "Guardar perfil de inversión",
+    "saveError": "No pude guardar este perfil de inversión. Inténtalo de nuevo.",
+    "conflict": "Este perfil de inversión cambió en otro lugar mientras lo editabas. Carga los últimos valores guardados antes de volver a hacer tus cambios.",
+    "useLatest": "Cargar últimos valores guardados",
+    "liquidityPlaceholder": "Por ejemplo, $180 mil en los próximos 3 años",
+    "fields": {
+      "objective": "Objetivo de inversión",
+      "riskTolerance": "Tolerancia al riesgo",
+      "timeHorizon": "Horizonte temporal",
+      "liquidityNeed": "Necesidad de liquidez"
+    },
+    "objectives": {
+      "growth": "Crecimiento",
+      "income": "Ingresos",
+      "preservation": "Preservación"
+    },
+    "risk": {
+      "conservative": "Conservador",
+      "moderate": "Moderado",
+      "aggressive": "Agresivo"
+    },
+    "horizons": {
+      "under-3-years": "0–3 años",
+      "3-to-10-years": "3–10 años",
+      "over-10-years": "Más de 10 años"
+    }
+  }
+}

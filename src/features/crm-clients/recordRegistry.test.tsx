@@ -33,6 +33,7 @@ describe('household record registries', () => {
     );
     expect(getHouseholdSections().map((descriptor) => descriptor.id)).toEqual([
       'client_map',
+      'investment_profile',
     ]);
     expect(
       getHouseholdRecordExtensions().map((descriptor) => descriptor.dataKey)

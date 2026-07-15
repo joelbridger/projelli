@@ -1,0 +1,18 @@
+SONNET VISION CHECKLIST
+Reviewed: 2026-07-15
+Built screenshot: prototype-parity.png
+Frozen reference: design/alt-familiar/prototypes/alt-familiar-hifi-v2/index.html, advisorProfileSections()
+Authoritative lane brief: coordination/prep/wave1-briefs/1b-record-investment-profile.md
+
+VERDICT: PASS
+
+Title: PASS. "Investment profile" matches the frozen subsection heading.
+Helper: PASS. "Planning horizon and risk preferences" matches verbatim.
+Investment objective: PASS. Growth, Income, and Preservation match the vocabulary in contactFilterDrawer().
+Risk tolerance: PASS. Conservative, Moderate, and Aggressive match the frozen vocabulary. The brief allows score/explanation only when the typed model supports it; this model has no score field.
+Time horizon: PASS. 0-3 years, 3-10 years, and 10+ years match the frozen vocabulary.
+Liquidity need: PASS. The editable text field is the editable equivalent of the prototype value.
+Editability/save action: PASS. All four fields are editable and the Save action is wired with loading and error states, as the brief requires.
+Light-theme/calm-card hierarchy: PASS. White background, dark text, muted helper copy, and one raised card preserve the calm light hierarchy.
+
+No mismatch violates the authoritative brief. The section correctly stays inside its one registry-owned Investment profile boundary instead of changing the shared outer profile card or sibling sections.

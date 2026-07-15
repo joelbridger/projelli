@@ -1,0 +1,33 @@
+{
+  "investmentProfile": {
+    "title": "Anlageprofil",
+    "helper": "Planungshorizont und Risikopräferenzen",
+    "notSet": "Nicht festgelegt",
+    "save": "Anlageprofil speichern",
+    "saveError": "Dieses Anlageprofil konnte nicht gespeichert werden. Bitte versuchen Sie es erneut.",
+    "conflict": "Dieses Anlageprofil wurde während Ihrer Bearbeitung an anderer Stelle geändert. Laden Sie die zuletzt gespeicherten Werte, bevor Sie Ihre Änderungen erneut vornehmen.",
+    "useLatest": "Zuletzt gespeicherte Werte laden",
+    "liquidityPlaceholder": "Zum Beispiel 180.000 $ in den nächsten 3 Jahren",
+    "fields": {
+      "objective": "Anlageziel",
+      "riskTolerance": "Risikotoleranz",
+      "timeHorizon": "Zeithorizont",
+      "liquidityNeed": "Liquiditätsbedarf"
+    },
+    "objectives": {
+      "growth": "Wachstum",
+      "income": "Einkommen",
+      "preservation": "Kapitalerhalt"
+    },
+    "risk": {
+      "conservative": "Konservativ",
+      "moderate": "Moderat",
+      "aggressive": "Aggressiv"
+    },
+    "horizons": {
+      "under-3-years": "0–3 Jahre",
+      "3-to-10-years": "3–10 Jahre",
+      "over-10-years": "Mehr als 10 Jahre"
+    }
+  }
+}
