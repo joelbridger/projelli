@@ -50,10 +50,11 @@ describe('TeamsRolesSettings', () => {
     client.deleteRole.mockReset().mockResolvedValue(emptyTeamsRolesState());
   });
 
-  it('has a unique, namespaced Organization settings descriptor', () => {
+  it('has a unique, namespaced Organization settings panel', () => {
     expect(teamsRolesSettingsModule).toEqual(
       expect.objectContaining({
-        id: 'organization',
+        id: 'teams-roles',
+        section: 'organization',
         labelKey: 'teams-roles.settings-label',
       })
     );

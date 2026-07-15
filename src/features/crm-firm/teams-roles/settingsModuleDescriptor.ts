@@ -1,11 +1,12 @@
-import { createElement } from 'react';
 import { TeamsRolesSettings } from './settingsModule';
 
+/** Organization panel mount; the registry owns its rail section. */
 export const teamsRolesSettingsModule = {
-  id: 'organization' as const,
-  order: 80,
+  id: 'teams-roles',
+  section: 'organization',
+  order: 10,
   labelKey: 'teams-roles.settings-label',
-  legacyLabel: 'Organization',
+  flagId: 'teams-roles',
   searchTerms: [
     'people',
     'teams',
@@ -14,5 +15,12 @@ export const teamsRolesSettingsModule = {
     'advisor',
     'compliance',
   ],
-  render: () => createElement(TeamsRolesSettings),
-};
+  groups: [
+    {
+      id: 'teams-roles-directory',
+      section: 'organization',
+      keywords: ['directory'],
+    },
+  ],
+  render: TeamsRolesSettings,
+} as const;

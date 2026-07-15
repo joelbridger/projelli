@@ -38,13 +38,13 @@ import { Button, IconButton, SearchField, Badge, Eyebrow, RailShellHeader } from
 import { cn } from '@/lib/utils';
 import {
   SETTINGS_SCHEMA,
-  SETTING_CATEGORIES,
   resolveSection,
   type SettingCategory,
   type SectionCategory,
   type SettingDefinition,
 } from '@/platform/settings/schema';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
+import { useFlagRegistryVersion } from '@/platform/flags';
 import {
   isLimitExceedingCapability,
   getMaxContextTokens,
@@ -94,12 +94,19 @@ import {
 } from '@/ui/dropdown-menu';
 import {
   settingTestid,
-  SETTINGS_GROUP_SEARCH,
+  getSettingsGroupSearch,
   SETTING_SEARCH_ALIASES,
   groupKeywordMatch,
 } from './settingsContentHelpers';
-import { getSettingsModuleDescriptor } from './registry/settingsModuleRegistry';
-import { registerSettingsSectionRenderer } from './registry/sectionRendererBindings';
+import {
+  getSettingsSearchSectionDescriptors,
+  getSettingsSectionSearchTerms,
+  getVisibleSettingsSectionDescriptors,
+} from './registry/settingsModuleRegistry';
+import {
+  registerSettingsSectionRenderer,
+  renderRegisteredSettingsPanels,
+} from './registry/sectionRendererBindings';
 import type { SettingsSectionRenderProps } from './registry/types';
 import {
   Toggle,
@@ -1076,6 +1083,13 @@ export function SettingsContent({
     useSettingsStore();
 
   const searchActive = searchQuery.trim().length > 0;
+  useFlagRegistryVersion();
+  // The registry is the rail's single source of truth. Empty feature sections
+  // remain hidden, preserving today's screen until their first flag is on.
+  const registeredSections = getVisibleSettingsSectionDescriptors();
+  // The flag registry can change while this screen is open. Rebuild panel
+  // search keywords in the same render as the flag-aware rail descriptors.
+  const settingsGroupSearch = getSettingsGroupSearch();
 
   // A nested "extra" section is being viewed only when one is selected AND no
   // search is active (typing a query always shows the schema-driven settings
@@ -1107,12 +1121,14 @@ export function SettingsContent({
   // Extensions (keyword) rather than an AI field that merely mentions "plugins"
   // in its description, and "language" lands on General rather than Voice.
   const sectionScores = useMemo<Record<SectionCategory, number>>(() => {
-    const scores: Record<SectionCategory, number> = {
-      workspace: 0, ai: 0, privacy: 0, scheduling: 0, voice: 0, advanced: 0, help: 0, organization: 0,
-    };
+    const scores = Object.fromEntries(
+      getSettingsSearchSectionDescriptors().map((section) => [section.id, 0]),
+    ) as Record<SectionCategory, number>;
     const lowerQ = searchQuery.toLowerCase().trim();
     if (!lowerQ) return scores;
-    const bump = (sec: SectionCategory, v: number) => { if (v > scores[sec]) scores[sec] = v; };
+    const bump = (sec: SectionCategory, v: number) => {
+      if (sec in scores && v > scores[sec]) scores[sec] = v;
+    };
     for (const def of SETTINGS_SCHEMA) {
       if (!isVisibleSettingKey(def.key)) continue;
       const sec = resolveSection(def.category);
@@ -1125,8 +1141,17 @@ export function SettingsContent({
       else if (def.key.toLowerCase().includes(lowerQ)) bump(sec, 2);
       else if (def.description.toLowerCase().includes(lowerQ)) bump(sec, 1);
     }
-    for (const [subId, entry] of Object.entries(SETTINGS_GROUP_SEARCH)) {
-      if (groupKeywordMatch(subId, '', lowerQ)) bump(entry.section, 3);
+    for (const [subId, entry] of Object.entries(settingsGroupSearch)) {
+      if (groupKeywordMatch(subId, '', lowerQ, settingsGroupSearch)) {
+        bump(entry.section, 3);
+      }
+    }
+    for (const section of registeredSections) {
+      if (getSettingsSectionSearchTerms(section.id).some(
+        (term) => term.includes(lowerQ) || lowerQ.includes(term),
+      )) {
+        bump(section.id, 3);
+      }
     }
     // Keyboard-shortcut labels live outside the schema; a hit shows Help.
     const shortcutHit = SHORTCUTS.some(
@@ -1137,25 +1162,29 @@ export function SettingsContent({
     );
     if (shortcutHit) bump('help', 2);
     return scores;
-  }, [searchQuery]);
+  }, [searchQuery, registeredSections, settingsGroupSearch]);
 
   // Which sections have any match (score > 0).
   const visibleSections = useMemo<Set<SectionCategory>>(() => {
     if (!searchQuery.trim()) {
-      return new Set<SectionCategory>(['workspace', 'ai', 'privacy', 'scheduling', 'voice', 'advanced', 'help', 'organization']);
+      return new Set<SectionCategory>(registeredSections.map((section) => section.id));
     }
     const sections = new Set<SectionCategory>();
     (Object.keys(sectionScores) as SectionCategory[]).forEach((sec) => {
       if (sectionScores[sec] > 0) sections.add(sec);
     });
     return sections;
-  }, [sectionScores, searchQuery]);
+  }, [sectionScores, searchQuery, registeredSections]);
 
   // While searching, jump to the strongest-matching section, but stay put if the
   // current section is already a top match (so typing doesn't yank you around).
   const effectiveSection: SectionCategory = (() => {
+    const fallbackSection = registeredSections[0]?.id ?? 'workspace';
+    if (!registeredSections.some((section) => section.id === activeSection)) {
+      return fallbackSection;
+    }
     if (!searchActive) return activeSection;
-    const order: SectionCategory[] = ['workspace', 'ai', 'privacy', 'scheduling', 'voice', 'advanced', 'help', 'organization'];
+    const order = registeredSections.map((section) => section.id);
     const maxScore = Math.max(...order.map((s) => sectionScores[s]));
     if (maxScore <= 0) return activeSection;
     if (sectionScores[activeSection] === maxScore) return activeSection;
@@ -1209,7 +1238,9 @@ export function SettingsContent({
       if (confirmed) {
         resetAll();
       }
-    })();
+    })().catch((error: unknown) => {
+      console.error('Could not reset Settings.', error);
+    });
   }, [resetAll, confirm]);
 
   const [showApiKeyTutorial, setShowApiKeyTutorial] = useState(false);
@@ -1349,8 +1380,7 @@ export function SettingsContent({
             ) : null}
             {!railCollapsed && (
             <nav aria-label="Settings sections" className="min-h-0 flex-1 overflow-y-auto py-3">
-              {SETTING_CATEGORIES.map((sec) => {
-              if (sec.id === 'organization' && !getSettingsModuleDescriptor(sec.id)) return null;
+              {registeredSections.map((sec) => {
               const visible = visibleSections.has(sec.id);
               if (!visible) return null;
               const isActive = !viewingExtra && activeSection === sec.id;
@@ -1368,7 +1398,7 @@ export function SettingsContent({
                   )}
                   onClick={(e) => { e.stopPropagation(); setActiveExtraId(null); setActiveSection(sec.id); }}
                   >
-                    <span className="flex-1 truncate">{t(`settings.sections.${sec.id}`, sec.label)}</span>
+                    <span className="flex-1 truncate">{t(sec.labelKey, sec.legacyLabel)}</span>
                     {showUpdateBadge && (
                     <Badge
                       variant="neutral"
@@ -1421,7 +1451,7 @@ export function SettingsContent({
           >
             {activeExtra
               ? activeExtra.content
-              : getSettingsModuleDescriptor(activeSection)?.render(sectionProps) ?? null}
+              : renderRegisteredSettingsPanels(activeSection, sectionProps)}
           </div>
         </div>
         <input

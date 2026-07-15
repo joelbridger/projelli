@@ -121,6 +121,7 @@ export function createFlagRouter<Id extends string>(
 const defaultRouter = createFlagRouter<FlagId>();
 const subscribeToDefaultRouter = (listener: () => void) =>
   defaultRouter.subscribe(listener);
+let defaultRouterVersion = 0;
 
 /** Returns whether a flag is enabled for non-React code. */
 export function isEnabled(id: FlagId): boolean {
@@ -136,10 +137,20 @@ export function useFlag(id: FlagId): boolean {
   );
 }
 
+/** Re-render a registry consumer whenever any development flag changes. */
+export function useFlagRegistryVersion(): number {
+  return useSyncExternalStore(
+    subscribeToDefaultRouter,
+    () => defaultRouterVersion,
+    () => defaultRouterVersion
+  );
+}
+
 /** Development-only override surface; production calls are harmless no-ops. */
 export function setDevFlagOverride(
   id: FlagId,
   enabled: boolean | undefined
 ): void {
+  defaultRouterVersion += 1;
   defaultRouter.setDevOverride(id, enabled);
 }
