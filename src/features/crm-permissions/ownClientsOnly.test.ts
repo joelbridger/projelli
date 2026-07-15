@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { SYSTEM_ROLES } from '@/features/crm-firm/teams-roles';
+import { SYSTEM_ROLE_PERMISSIONS } from '@/features/crm-firm/teams-roles';
 
 const { flagEnabled } = vi.hoisted(() => ({ flagEnabled: { value: true } }));
 
@@ -9,8 +9,10 @@ vi.mock('@/platform/flags/router', () => ({
 
 import { filterOwnClientRecords } from './ownClientsOnly';
 
-const advisor = SYSTEM_ROLES.find((role) => role.id === 'advisor');
-const compliance = SYSTEM_ROLES.find((role) => role.id === 'compliance-admin');
+const advisor = SYSTEM_ROLE_PERMISSIONS.find((role) => role.id === 'advisor');
+const compliance = SYSTEM_ROLE_PERMISSIONS.find(
+  (role) => role.id === 'compliance-admin'
+);
 
 const records = [
   { id: 'owned', kind: 'household', ownerMemberId: 'maya' },
