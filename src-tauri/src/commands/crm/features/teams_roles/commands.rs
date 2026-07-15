@@ -1,16 +1,15 @@
 //! SQLCipher-backed, all-or-nothing teams-and-roles operations.
 //!
-//! Each mutation reads and writes one firm-scoped aggregate document through
-//! `CrmCoreStore`; its document replacement is atomic, so a role/team/member
-//! change never leaves a half-written membership visible to the renderer.
+//! The normalized tables are the sole source of truth. Each mutation takes an
+//! SQLite IMMEDIATE transaction before it reads, validates, and persists the
+//! complete aggregate, so concurrent changes cannot lose one another.
 
+use rusqlite::{Connection, Transaction};
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
 use crate::commands::crm::{commands::CrmState, core_store::CrmCoreStore};
 
-const STATE_ID: &str = "firm:teams-roles";
-const STATE_KIND: &str = "teams-roles-state";
 const CAPABILITIES: &[&str] = &[
     "clients:read",
     "clients:write",
@@ -62,6 +61,7 @@ pub struct TeamsRolesState {
 fn now() -> String {
     chrono::Utc::now().to_rfc3339()
 }
+#[cfg(test)]
 fn system_roles() -> Vec<RoleDefinition> {
     vec![
         RoleDefinition {
@@ -123,14 +123,6 @@ fn system_roles() -> Vec<RoleDefinition> {
         },
     ]
 }
-fn default_state() -> TeamsRolesState {
-    TeamsRolesState {
-        roles: system_roles(),
-        teams: vec![],
-        memberships: vec![],
-        updated_at: now(),
-    }
-}
 fn nonempty(value: &str, label: &str) -> Result<(), String> {
     if value.trim().is_empty() {
         Err(format!("{label} is required."))
@@ -140,13 +132,14 @@ fn nonempty(value: &str, label: &str) -> Result<(), String> {
 }
 fn stable_id(value: &str, label: &str) -> Result<(), String> {
     nonempty(value, label)?;
-    if value
-        .chars()
-        .all(|character| character.is_ascii_lowercase() || character.is_ascii_digit() || character == '-')
-    {
+    if value.chars().all(|character| {
+        character.is_ascii_lowercase() || character.is_ascii_digit() || character == '-'
+    }) {
         Ok(())
     } else {
-        Err(format!("{label} must use lowercase letters, numbers, and hyphens."))
+        Err(format!(
+            "{label} must use lowercase letters, numbers, and hyphens."
+        ))
     }
 }
 fn valid_client_access(value: &str) -> bool {
@@ -291,22 +284,133 @@ fn assign_member(
     Ok(())
 }
 
+/// Generic CRM collection writes must never persist this protected aggregate.
+/// The feature commands below are the only native mutation boundary.
+pub(crate) fn reject_generic_state_write(_: &serde_json::Value) -> anyhow::Result<()> {
+    anyhow::bail!("teams-roles-state is protected; use Teams & Roles commands.")
+}
+
 async fn workspace(state: &CrmState) -> Result<std::path::PathBuf, String> {
     state.service().workspace().await
 }
-fn load(store: &CrmCoreStore) -> anyhow::Result<TeamsRolesState> {
-    let records = store.list_live_records()?;
-    Ok(records
-        .into_iter()
-        .find(|record| record.get("id").and_then(serde_json::Value::as_str) == Some(STATE_ID))
-        .and_then(|record| serde_json::from_value(record).ok())
-        .unwrap_or_else(default_state))
+fn load(conn: &Connection) -> anyhow::Result<TeamsRolesState> {
+    let mut role_statement = conn.prepare(
+        "SELECT role_id,name,description,client_access,capabilities_json,system
+         FROM crm_roles
+         ORDER BY system DESC, role_id ASC",
+    )?;
+    let roles = role_statement
+        .query_map([], |row| {
+            let capabilities_json: String = row.get(4)?;
+            Ok(RoleDefinition {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                description: row.get(2)?,
+                client_access: row.get(3)?,
+                capabilities: serde_json::from_str(&capabilities_json).map_err(|error| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        4,
+                        rusqlite::types::Type::Text,
+                        Box::new(error),
+                    )
+                })?,
+                system: row.get::<_, i64>(5)? != 0,
+            })
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+
+    let mut team_statement = conn
+        .prepare("SELECT team_id,name,description FROM crm_teams ORDER BY name COLLATE NOCASE")?;
+    let teams = team_statement
+        .query_map([], |row| {
+            Ok(TeamDefinition {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                description: row.get(2)?,
+            })
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+
+    let mut member_statement =
+        conn.prepare("SELECT member_id,role_id FROM crm_member_roles ORDER BY member_id")?;
+    let role_assignments = member_statement
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    let mut memberships = Vec::with_capacity(role_assignments.len());
+    for (member_id, role_id) in role_assignments {
+        let mut team_ids = conn
+            .prepare(
+                "SELECT team_id FROM crm_team_memberships WHERE member_id=?1 ORDER BY team_id",
+            )?
+            .query_map([&member_id], |row| row.get::<_, String>(0))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        team_ids.sort();
+        memberships.push(MemberAssignment {
+            member_id,
+            role_id,
+            team_ids,
+        });
+    }
+    Ok(TeamsRolesState {
+        roles,
+        teams,
+        memberships,
+        updated_at: now(),
+    })
 }
-fn persist(store: &CrmCoreStore, mut state: TeamsRolesState) -> anyhow::Result<TeamsRolesState> {
+
+fn persist(
+    transaction: &Transaction<'_>,
+    mut state: TeamsRolesState,
+) -> anyhow::Result<TeamsRolesState> {
     state.updated_at = now();
-    let record = serde_json::json!({ "id": STATE_ID, "kind": STATE_KIND, "matterId": "firm", "roles": state.roles, "teams": state.teams, "memberships": state.memberships, "updatedAt": state.updated_at });
-    store.upsert_live_record(&record)?;
+    transaction.execute("DELETE FROM crm_team_memberships", [])?;
+    transaction.execute("DELETE FROM crm_member_roles", [])?;
+    transaction.execute("DELETE FROM crm_teams", [])?;
+    transaction.execute("DELETE FROM crm_roles", [])?;
+    for role in &state.roles {
+        transaction.execute(
+            "INSERT INTO crm_roles(role_id,name,description,client_access,capabilities_json,system,updated_at)
+             VALUES(?1,?2,?3,?4,?5,?6,?7)",
+            (&role.id, &role.name, &role.description, &role.client_access, serde_json::to_string(&role.capabilities)?, role.system as i64, &state.updated_at),
+        )?;
+    }
+    for team in &state.teams {
+        transaction.execute(
+            "INSERT INTO crm_teams(team_id,name,description,updated_at) VALUES(?1,?2,?3,?4)",
+            (&team.id, &team.name, &team.description, &state.updated_at),
+        )?;
+    }
+    for membership in &state.memberships {
+        transaction.execute(
+            "INSERT INTO crm_member_roles(member_id,role_id,updated_at) VALUES(?1,?2,?3)",
+            (
+                &membership.member_id,
+                &membership.role_id,
+                &state.updated_at,
+            ),
+        )?;
+        for team_id in &membership.team_ids {
+            transaction.execute(
+                "INSERT INTO crm_team_memberships(team_id,member_id,updated_at) VALUES(?1,?2,?3)",
+                (team_id, &membership.member_id, &state.updated_at),
+            )?;
+        }
+    }
     Ok(state)
+}
+
+fn mutate(
+    store: &CrmCoreStore,
+    operation: impl FnOnce(&mut TeamsRolesState) -> anyhow::Result<()>,
+) -> anyhow::Result<TeamsRolesState> {
+    store.with_immediate_transaction(|transaction| {
+        let mut current = load(transaction)?;
+        operation(&mut current)?;
+        persist(transaction, current)
+    })
 }
 
 #[tauri::command]
@@ -314,7 +418,7 @@ pub async fn crm_teams_roles_get(state: State<'_, CrmState>) -> Result<TeamsRole
     let workspace = workspace(&state).await?;
     tokio::task::spawn_blocking(move || {
         let store = CrmCoreStore::open(&workspace)?;
-        load(&store)
+        store.with_immediate_transaction(|transaction| load(transaction))
     })
     .await
     .map_err(|error| error.to_string())?
@@ -329,9 +433,7 @@ pub async fn crm_teams_roles_create_role(
     let workspace = workspace(&state).await?;
     tokio::task::spawn_blocking(move || {
         let store = CrmCoreStore::open(&workspace)?;
-        let mut current = load(&store)?;
-        create_role(&mut current, role)?;
-        persist(&store, current)
+        mutate(&store, |current| create_role(current, role))
     })
     .await
     .map_err(|error| error.to_string())?
@@ -346,9 +448,7 @@ pub async fn crm_teams_roles_update_role(
     let workspace = workspace(&state).await?;
     tokio::task::spawn_blocking(move || {
         let store = CrmCoreStore::open(&workspace)?;
-        let mut current = load(&store)?;
-        update_role(&mut current, role)?;
-        persist(&store, current)
+        mutate(&store, |current| update_role(current, role))
     })
     .await
     .map_err(|error| error.to_string())?
@@ -363,9 +463,7 @@ pub async fn crm_teams_roles_delete_role(
     let workspace = workspace(&state).await?;
     tokio::task::spawn_blocking(move || {
         let store = CrmCoreStore::open(&workspace)?;
-        let mut current = load(&store)?;
-        delete_role(&mut current, &role_id)?;
-        persist(&store, current)
+        mutate(&store, |current| delete_role(current, &role_id))
     })
     .await
     .map_err(|error| error.to_string())?
@@ -380,9 +478,7 @@ pub async fn crm_teams_roles_create_team(
     let workspace = workspace(&state).await?;
     tokio::task::spawn_blocking(move || {
         let store = CrmCoreStore::open(&workspace)?;
-        let mut current = load(&store)?;
-        create_team(&mut current, team)?;
-        persist(&store, current)
+        mutate(&store, |current| create_team(current, team))
     })
     .await
     .map_err(|error| error.to_string())?
@@ -397,9 +493,7 @@ pub async fn crm_teams_roles_update_team(
     let workspace = workspace(&state).await?;
     tokio::task::spawn_blocking(move || {
         let store = CrmCoreStore::open(&workspace)?;
-        let mut current = load(&store)?;
-        update_team(&mut current, team)?;
-        persist(&store, current)
+        mutate(&store, |current| update_team(current, team))
     })
     .await
     .map_err(|error| error.to_string())?
@@ -414,9 +508,7 @@ pub async fn crm_teams_roles_delete_team(
     let workspace = workspace(&state).await?;
     tokio::task::spawn_blocking(move || {
         let store = CrmCoreStore::open(&workspace)?;
-        let mut current = load(&store)?;
-        delete_team(&mut current, &team_id)?;
-        persist(&store, current)
+        mutate(&store, |current| delete_team(current, &team_id))
     })
     .await
     .map_err(|error| error.to_string())?
@@ -432,9 +524,7 @@ pub async fn crm_teams_roles_assign_member(
     let workspace = workspace(&state).await?;
     tokio::task::spawn_blocking(move || {
         let store = CrmCoreStore::open(&workspace)?;
-        let mut current = load(&store)?;
-        assign_member(&mut current, assignment)?;
-        persist(&store, current)
+        mutate(&store, |current| assign_member(current, assignment))
     })
     .await
     .map_err(|error| error.to_string())?
@@ -444,6 +534,16 @@ pub async fn crm_teams_roles_assign_member(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Arc, Barrier};
+
+    fn state() -> TeamsRolesState {
+        TeamsRolesState {
+            roles: system_roles(),
+            teams: vec![],
+            memberships: vec![],
+            updated_at: now(),
+        }
+    }
     #[test]
     fn system_roles_have_the_frozen_access_contract() {
         assert_eq!(
@@ -470,7 +570,7 @@ mod tests {
     }
     #[test]
     fn custom_roles_cannot_claim_system_status_or_unknown_capabilities() {
-        let mut state = default_state();
+        let mut state = state();
         let mut role = RoleDefinition {
             id: "analyst".into(),
             name: "Analyst".into(),
@@ -482,55 +582,58 @@ mod tests {
         assert!(create_role(&mut state, role.clone()).is_err());
         role.system = false;
         role.capabilities = vec!["not-real".into()];
-        assert_eq!(validate_role(&role).unwrap_err(), "Role contains an unknown capability.");
+        assert_eq!(
+            validate_role(&role).unwrap_err(),
+            "Role contains an unknown capability."
+        );
     }
     #[test]
     fn roles_teams_and_memberships_survive_a_store_reopen() {
         let directory = tempfile::tempdir().unwrap();
         let store = CrmCoreStore::open_with_key(directory.path(), &[42; 32]).unwrap();
-        let mut state = load(&store).unwrap();
-        create_role(
-            &mut state,
-            RoleDefinition {
-                id: "analyst".into(),
-                name: "Analyst".into(),
-                description: "Read-only support".into(),
-                client_access: "none".into(),
-                capabilities: vec!["reports:read".into()],
-                system: false,
-            },
-        )
+        mutate(&store, |state| {
+            create_role(
+                state,
+                RoleDefinition {
+                    id: "analyst".into(),
+                    name: "Analyst".into(),
+                    description: "Read-only support".into(),
+                    client_access: "none".into(),
+                    capabilities: vec!["reports:read".into()],
+                    system: false,
+                },
+            )?;
+            create_team(
+                state,
+                TeamDefinition {
+                    id: "planning".into(),
+                    name: "Planning".into(),
+                    description: None,
+                },
+            )?;
+            assign_member(
+                state,
+                MemberAssignment {
+                    member_id: "maya".into(),
+                    role_id: "analyst".into(),
+                    team_ids: vec!["planning".into()],
+                },
+            )
+        })
         .unwrap();
-        create_team(
-            &mut state,
-            TeamDefinition {
-                id: "planning".into(),
-                name: "Planning".into(),
-                description: None,
-            },
-        )
-        .unwrap();
-        assign_member(
-            &mut state,
-            MemberAssignment {
-                member_id: "maya".into(),
-                role_id: "analyst".into(),
-                team_ids: vec!["planning".into()],
-            },
-        )
-        .unwrap();
-        persist(&store, state).unwrap();
         drop(store);
 
         let reopened = CrmCoreStore::open_with_key(directory.path(), &[42; 32]).unwrap();
-        let restored = load(&reopened).unwrap();
+        let restored = reopened
+            .with_immediate_transaction(|transaction| load(transaction))
+            .unwrap();
         assert!(restored.roles.iter().any(|role| role.id == "analyst"));
         assert_eq!(restored.teams[0].id, "planning");
         assert_eq!(restored.memberships[0].team_ids, vec!["planning"]);
     }
     #[test]
     fn deleting_a_team_rewrites_assignments_without_dangling_references() {
-        let mut state = default_state();
+        let mut state = state();
         create_team(
             &mut state,
             TeamDefinition {
@@ -555,7 +658,7 @@ mod tests {
     }
     #[test]
     fn an_assigned_or_system_role_cannot_be_deleted() {
-        let mut state = default_state();
+        let mut state = state();
         assert!(delete_role(&mut state, "advisor")
             .unwrap_err()
             .to_string()
@@ -585,5 +688,64 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("Reassign"));
+    }
+
+    #[test]
+    fn simultaneous_mutations_keep_both_changes() {
+        let directory = tempfile::tempdir().unwrap();
+        let seed = CrmCoreStore::open_with_key(directory.path(), &[9; 32]).unwrap();
+        drop(seed);
+        let barrier = Arc::new(Barrier::new(2));
+        let path = directory.path().to_path_buf();
+        let handles = ["analyst", "operations"].map(|id| {
+            let barrier = Arc::clone(&barrier);
+            let path = path.clone();
+            std::thread::spawn(move || {
+                let store = CrmCoreStore::open_with_key(&path, &[9; 32]).unwrap();
+                barrier.wait();
+                mutate(&store, |current| {
+                    create_role(
+                        current,
+                        RoleDefinition {
+                            id: id.into(),
+                            name: id.into(),
+                            description: "Concurrent test role".into(),
+                            client_access: "none".into(),
+                            capabilities: vec![],
+                            system: false,
+                        },
+                    )
+                })
+                .unwrap();
+            })
+        });
+        for handle in handles {
+            handle.join().unwrap();
+        }
+        let reopened = CrmCoreStore::open_with_key(directory.path(), &[9; 32]).unwrap();
+        let restored = reopened
+            .with_immediate_transaction(|transaction| load(transaction))
+            .unwrap();
+        assert!(restored.roles.iter().any(|role| role.id == "analyst"));
+        assert!(restored.roles.iter().any(|role| role.id == "operations"));
+    }
+
+    #[test]
+    fn generic_live_upsert_cannot_bypass_protected_system_roles() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = CrmCoreStore::open_with_key(directory.path(), &[11; 32]).unwrap();
+        let attempt = serde_json::json!({
+            "id": "firm:teams-roles", "kind": "teams-roles-state", "matterId": "firm",
+            "roles": [{"id": "advisor", "system": false}],
+        });
+        let error = store.upsert_live_record(&attempt).unwrap_err().to_string();
+        assert!(error.contains("protected"));
+        let restored = store
+            .with_immediate_transaction(|transaction| load(transaction))
+            .unwrap();
+        assert!(restored
+            .roles
+            .iter()
+            .any(|role| role.id == "advisor" && role.system));
     }
 }

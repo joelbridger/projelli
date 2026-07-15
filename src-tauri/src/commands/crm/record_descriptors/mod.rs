@@ -23,7 +23,18 @@ pub use registry::{
 
 /// Append feature-owned descriptors in lexical `kind` order. The empty
 /// baseline is intentional: existing live records need no special branches.
-pub const CRM_RECORD_DESCRIPTORS: &[RecordDescriptor] = &[];
+const TEAMS_ROLES_STATE_DESCRIPTOR: RecordDescriptor = RecordDescriptor {
+    kind: "teams-roles-state",
+    validate: Some(
+        crate::commands::crm::features::teams_roles::commands::reject_generic_state_write,
+    ),
+    project: None,
+};
+
+/// Protected feature kinds are validated here before every generic live-record
+/// write. Teams & Roles uses its own native commands and normalized tables;
+/// accepting an aggregate document here would bypass immutable system roles.
+pub const CRM_RECORD_DESCRIPTORS: &[RecordDescriptor] = &[TEAMS_ROLES_STATE_DESCRIPTOR];
 
 #[cfg(test)]
 mod tests {

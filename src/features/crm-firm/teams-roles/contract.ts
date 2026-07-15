@@ -1,9 +1,11 @@
 /**
  * Frozen teams-and-roles contract consumed by firm features.
  *
- * `own-clients-permissions` must import these types and resolve a member's
+ * `own-clients-permissions` must import this type and resolve a member's
  * `clientAccess` from the assigned role. It must not create a second role
- * vocabulary or infer access from a display label.
+ * vocabulary or infer access from a display label. This is intentionally
+ * narrow: names, descriptions, and system bookkeeping stay internal to the
+ * Teams & Roles feature.
  */
 export type SystemRoleId =
   | 'advisor'
@@ -28,17 +30,8 @@ export type CapabilityId =
 
 export interface RoleDefinition {
   id: RoleId;
-  name: string;
-  description: string;
-  clientAccess: ClientAccessScope;
   capabilities: readonly CapabilityId[];
-  system: boolean;
-}
-
-export interface TeamDefinition {
-  id: string;
-  name: string;
-  description?: string;
+  clientAccess: ClientAccessScope;
 }
 
 /** A member has exactly one primary role and may belong to many teams. */
@@ -46,13 +39,6 @@ export interface MemberAssignment {
   memberId: string;
   roleId: RoleId;
   teamIds: readonly string[];
-}
-
-export interface TeamsRolesState {
-  roles: readonly RoleDefinition[];
-  teams: readonly TeamDefinition[];
-  memberships: readonly MemberAssignment[];
-  updatedAt: string;
 }
 
 /**
@@ -69,11 +55,9 @@ export interface ResolvedMemberAccess {
   teamIds: readonly string[];
 }
 
-export const SYSTEM_ROLES: readonly RoleDefinition[] = [
+export const SYSTEM_ROLE_PERMISSIONS: readonly RoleDefinition[] = [
   {
     id: 'advisor',
-    name: 'Advisors',
-    description: 'Assigned clients, Ask, meetings, and reports.',
     clientAccess: 'assigned',
     capabilities: [
       'clients:read',
@@ -83,12 +67,9 @@ export const SYSTEM_ROLES: readonly RoleDefinition[] = [
       'meetings:write',
       'reports:read',
     ],
-    system: true,
   },
   {
     id: 'client-service',
-    name: 'Client service',
-    description: 'Assigned households, tasks, workflows, and meetings.',
     clientAccess: 'assigned',
     capabilities: [
       'clients:read',
@@ -98,12 +79,9 @@ export const SYSTEM_ROLES: readonly RoleDefinition[] = [
       'meetings:read',
       'meetings:write',
     ],
-    system: true,
   },
   {
     id: 'compliance-admin',
-    name: 'Compliance admin',
-    description: 'Firm-wide read access, exports, retention, and audit.',
     clientAccess: 'firm-read',
     capabilities: [
       'clients:read',
@@ -113,50 +91,34 @@ export const SYSTEM_ROLES: readonly RoleDefinition[] = [
       'retention:manage',
       'firm:manage',
     ],
-    system: true,
   },
   {
     id: 'guest-planner',
-    name: 'Guest planner',
-    description:
-      'Only households shared directly with this planner. No exports.',
     clientAccess: 'shared',
     capabilities: ['clients:read', 'ask:use', 'meetings:read'],
-    system: true,
   },
 ] as const;
 
-export function emptyTeamsRolesState(): TeamsRolesState {
-  return {
-    roles: SYSTEM_ROLES,
-    teams: [],
-    memberships: [],
-    updatedAt: new Date(0).toISOString(),
-  };
-}
-
 export function roleForMember(
-  state: TeamsRolesState,
+  roles: readonly RoleDefinition[],
+  memberships: readonly MemberAssignment[],
   memberId: string
 ): RoleDefinition | undefined {
-  const membership = state.memberships.find(
-    (item) => item.memberId === memberId
-  );
+  const membership = memberships.find((item) => item.memberId === memberId);
   return membership
-    ? state.roles.find((role) => role.id === membership.roleId)
+    ? roles.find((role) => role.id === membership.roleId)
     : undefined;
 }
 
 export function resolveMemberAccess(
-  state: TeamsRolesState,
+  roles: readonly RoleDefinition[],
+  memberships: readonly MemberAssignment[],
   memberId: string
 ): ResolvedMemberAccess {
-  const assignment = state.memberships.find(
-    (item) => item.memberId === memberId
-  );
+  const assignment = memberships.find((item) => item.memberId === memberId);
   return {
     memberId,
-    role: roleForMember(state, memberId),
+    role: roleForMember(roles, memberships, memberId),
     teamIds: assignment?.teamIds ?? [],
   };
 }

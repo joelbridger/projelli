@@ -6,8 +6,7 @@
  * files or create a second roles vocabulary.
  */
 export {
-  SYSTEM_ROLES,
-  emptyTeamsRolesState,
+  SYSTEM_ROLE_PERMISSIONS,
   resolveMemberAccess,
   roleForMember,
 } from './contract';
@@ -19,7 +18,5 @@ export type {
   RoleDefinition,
   RoleId,
   SystemRoleId,
-  TeamDefinition,
-  TeamsRolesState,
 } from './contract';
 export { teamsRolesSettingsModule } from './settingsModule';
