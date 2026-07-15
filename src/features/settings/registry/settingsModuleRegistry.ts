@@ -4,8 +4,10 @@ import {
 } from './legacySettingsSections';
 import { BASE_SETTINGS_SCHEMA } from '@/platform/settings/schema';
 import { isEnabled } from '@/platform/flags/router';
-import { teamsRolesSettingsModule } from '@/features/crm-firm';
-import { contactSourcesSettingsPanel } from '@/features/crm-firm/contact-sources';
+import {
+  contactSourcesSettingsPanel,
+  teamsRolesSettingsModule,
+} from '@/features/crm-firm';
 import type {
   SettingsGroupDescriptor,
   SettingsPanelDescriptor,
