@@ -1,53 +1,32 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronDown } from 'lucide-react';
-import { useAppSurfaceRegistry } from '@/app/shell/runtime/useAppSurfaceRegistry';
-import { useOptionalAppSurfaceCapabilities } from '@/app/shell/runtime/AppSurfaceRuntime';
-import type { AppSurfaceDescriptor } from '@/app/shell/registry/types';
 import { useClientContextStore } from '@/platform/client-context';
-import {
-  useActiveMatters,
-  useMatterStore,
-} from '@/platform/matter/matterStore';
 import type { SharedClientIdentity } from '@/platform/client-context';
 import { ClientPickerModal } from './ClientPickerModal';
 import type { ClientPickerHousehold } from './clientPickerHouseholds';
-import {
-  getSharedClientQuickActions,
-  type ClientBarQuickAction,
-} from './quickActions';
+import { type ClientBarQuickAction } from './quickActions';
 
 export interface ClientBarV1Props {
   households?: readonly ClientPickerHousehold[] | undefined;
+  quickActions?: readonly ClientBarQuickAction[] | undefined;
+  onNavigate?: ((surfaceId: string) => void) | undefined;
   /** Called when the picker button is opened, for shell telemetry or focus handling. */
   onChooseClient?: (() => void) | undefined;
 }
 
-export function ClientBarV1({ households, onChooseClient }: ClientBarV1Props) {
+export function ClientBarV1({
+  households,
+  quickActions = [],
+  onChooseClient,
+  onNavigate,
+}: ClientBarV1Props) {
   const { t } = useTranslation();
   const [pickerOpen, setPickerOpen] = useState(false);
-  const { descriptors } = useAppSurfaceRegistry();
-  const capabilities = useOptionalAppSurfaceCapabilities();
   const client = useClientContextStore((state) => state.client);
   const setClient = useClientContextStore((state) => state.setClient);
   const clearClient = useClientContextStore((state) => state.clearClient);
-  const activeMatters = useActiveMatters();
-  const liveHouseholds = useMemo<readonly ClientPickerHousehold[]>(
-    () =>
-      activeMatters.map((matter) => ({
-        householdId: matter.id,
-        displayName: matter.client || matter.name,
-        description: matter.name,
-      })),
-    [activeMatters]
-  );
-  const pickerHouseholds =
-    households ?? (liveHouseholds.length ? liveHouseholds : undefined);
-  const quickActions = useMemo(
-    () => getSharedClientQuickActions(descriptors),
-    [descriptors]
-  );
-  const navigate = capabilities?.navigation.setSurface;
+  const pickerHouseholds = households ?? [];
 
   const openPicker = () => {
     onChooseClient?.();
@@ -56,18 +35,10 @@ export function ClientBarV1({ households, onChooseClient }: ClientBarV1Props) {
 
   const selectClient = (nextClient: SharedClientIdentity) => {
     setClient(nextClient);
-    useMatterStore
-      .getState()
-      .setActiveMatter(
-        activeMatters.some((matter) => matter.id === nextClient.householdId)
-          ? nextClient.householdId
-          : null
-      );
   };
 
   const clearSelectedClient = () => {
     clearClient();
-    useMatterStore.getState().setActiveMatter(null);
   };
 
   return (
@@ -127,7 +98,7 @@ export function ClientBarV1({ households, onChooseClient }: ClientBarV1Props) {
               label={t('client-bar.actions.open', {
                 surface: t(action.labelKey),
               })}
-              onNavigate={navigate}
+              onNavigate={onNavigate}
             />
           ))}
         </div>
@@ -151,7 +122,7 @@ function QuickAction({
 }: {
   action: ClientBarQuickAction;
   label: string;
-  onNavigate?: ((destination: AppSurfaceDescriptor['id']) => void) | undefined;
+  onNavigate?: ((surfaceId: string) => void) | undefined;
 }) {
   return (
     <button

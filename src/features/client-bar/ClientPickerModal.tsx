@@ -9,10 +9,7 @@ import {
   DialogTitle,
 } from '@/ui/dialog';
 import type { SharedClientIdentity } from '@/platform/client-context';
-import {
-  PROTOTYPE_CLIENT_PICKER_HOUSEHOLDS,
-  type ClientPickerHousehold,
-} from './clientPickerHouseholds';
+import type { ClientPickerHousehold } from './clientPickerHouseholds';
 
 interface ClientPickerModalProps {
   households?: readonly ClientPickerHousehold[] | undefined;
@@ -24,7 +21,7 @@ interface ClientPickerModalProps {
 }
 
 export function ClientPickerModal({
-  households = PROTOTYPE_CLIENT_PICKER_HOUSEHOLDS,
+  households = [],
   onClear,
   onOpenChange,
   onSelect,

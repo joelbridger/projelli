@@ -1,9 +1,16 @@
-import type { AppSurfaceDescriptor } from '@/app/shell/registry/types';
-
-export type ClientBarQuickAction = Pick<
-  AppSurfaceDescriptor,
-  'clientContext' | 'id' | 'labelKey' | 'order' | 'placement'
->;
+/**
+ * The small navigation shape the shell supplies to the presentation feature.
+ * Keeping this structural means the feature does not depend on app-shell
+ * registry internals; future lazy surface descriptors can be passed through
+ * unchanged by the shell.
+ */
+export interface ClientBarQuickAction {
+  id: string;
+  labelKey: string;
+  order: number;
+  placement: 'primary' | 'utility' | 'hidden';
+  clientContext: 'shared' | 'firm' | 'preserve-hidden';
+}
 
 /**
  * The prototype's CRM / Ask / Meetings trio is intentionally registry-driven:

@@ -1,7 +1,12 @@
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { AppSurfaceClientContext } from '@/app/shell/registry/types';
-import { ClientBarV1 } from '@/features/client-bar';
+import {
+  ClientBarV1,
+  getSharedClientQuickActions,
+} from '@/features/client-bar';
+import { useAppSurfaceRegistry } from '@/app/shell/runtime/useAppSurfaceRegistry';
+import { useOptionalAppSurfaceCapabilities } from '@/app/shell/runtime/AppSurfaceRuntime';
 import { useFlag } from '@/platform/flags';
 import { useClientContextStore } from '@/platform/client-context';
 
@@ -15,9 +20,25 @@ export function SharedClientBar({ onChooseClient }: SharedClientBarProps) {
   const { t } = useTranslation();
   const client = useClientContextStore((state) => state.client);
   const clearClient = useClientContextStore((state) => state.clearClient);
+  const { descriptors } = useAppSurfaceRegistry();
+  const capabilities = useOptionalAppSurfaceCapabilities();
+  const quickActions = getSharedClientQuickActions(descriptors);
+
+  const navigate = (surfaceId: string) => {
+    const descriptor = descriptors.find(
+      (candidate) => candidate.id === surfaceId
+    );
+    if (descriptor) capabilities?.navigation.setSurface(descriptor.id);
+  };
 
   if (sharedClientBarV1Enabled) {
-    return <ClientBarV1 onChooseClient={onChooseClient} />;
+    return (
+      <ClientBarV1
+        onChooseClient={onChooseClient}
+        onNavigate={navigate}
+        quickActions={quickActions}
+      />
+    );
   }
 
   return (

@@ -1,23 +1,30 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import { SharedClientBar } from '@/app/shell/SharedClientBar';
-import type { AppSurfaceDescriptor } from '@/app/shell/registry/types';
-import {
-  AppSurfaceRuntimeContext,
-  type AppSurfaceCapabilities,
-} from '@/app/shell/runtime/AppSurfaceRuntime';
-import { setDevFlagOverride } from '@/platform/flags';
 import { useClientContextStore } from '@/platform/client-context';
-import { useMatterStore } from '@/platform/matter/matterStore';
-import type { Matter } from '@/platform/types/matter';
 import { ClientBarV1 } from './ClientBarV1';
-import { getSharedClientQuickActions } from './quickActions';
+import {
+  getSharedClientQuickActions,
+  type ClientBarQuickAction,
+} from './quickActions';
+
+const HOUSEHOLDS = [
+  {
+    householdId: 'household-foster',
+    displayName: 'Foster household',
+    primaryPeople: ['Robert Foster', 'Elena Foster'],
+    description: 'Robert & Elena Foster · Active client',
+  },
+  {
+    householdId: 'household-diaz',
+    displayName: 'Diaz household',
+    primaryPeople: ['Camila Diaz', 'Mateo Diaz'],
+    description: 'Camila & Mateo Diaz · Active client',
+  },
+] as const;
 
 describe('ClientBarV1', () => {
   afterEach(() => {
     useClientContextStore.getState().clearClient();
-    useMatterStore.setState({ activeMatterId: null, matters: [] });
-    setDevFlagOverride('shared-client-bar', undefined);
   });
 
   it('shows the empty and selected shared-client states', () => {
@@ -55,18 +62,7 @@ describe('ClientBarV1', () => {
   });
 
   it('searches, selects, and clears the shared household identity', () => {
-    useMatterStore.setState({
-      matters: [
-        {
-          id: 'household-diaz',
-          name: 'Diaz household',
-          client: 'Diaz household',
-          folderPaths: [],
-          createdAt: '2026-07-15T00:00:00.000Z',
-        } as Matter,
-      ],
-    });
-    render(<ClientBarV1 />);
+    render(<ClientBarV1 households={HOUSEHOLDS} />);
 
     fireEvent.click(screen.getByTestId('client-bar-picker'));
     expect(screen.getByTestId('client-picker-modal')).toBeInTheDocument();
@@ -85,21 +81,31 @@ describe('ClientBarV1', () => {
       householdId: 'household-diaz',
       displayName: 'Diaz household',
     });
-    expect(useMatterStore.getState().activeMatterId).toBe('household-diaz');
     expect(screen.queryByTestId('client-picker-modal')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId('client-bar-picker'));
     fireEvent.click(screen.getByTestId('client-picker-clear'));
     expect(useClientContextStore.getState().client).toBeNull();
-    expect(useMatterStore.getState().activeMatterId).toBeNull();
+  });
+
+  it('shows the real empty state when the shell has no household directory', () => {
+    render(<ClientBarV1 />);
+
+    fireEvent.click(screen.getByTestId('client-bar-picker'));
+    expect(screen.getByTestId('client-picker-empty')).toHaveTextContent(
+      'No clients match your search.'
+    );
+    expect(
+      screen.queryByTestId('client-picker-option-household-foster')
+    ).not.toBeInTheDocument();
   });
 
   it('renders quick actions from shared primary surface descriptors', () => {
     const actions = getSharedClientQuickActions([
-      surface({ id: 'home', clientContext: 'firm', order: 10 }),
-      surface({ id: 'matters', clientContext: 'shared', order: 20 }),
-      surface({ id: 'search', clientContext: 'shared', order: 30 }),
-      surface({
+      quickAction({ id: 'home', clientContext: 'firm', order: 10 }),
+      quickAction({ id: 'matters', clientContext: 'shared', order: 20 }),
+      quickAction({ id: 'search', clientContext: 'shared', order: 30 }),
+      quickAction({
         id: 'files',
         clientContext: 'shared',
         order: 40,
@@ -110,55 +116,42 @@ describe('ClientBarV1', () => {
     expect(actions.map((action) => action.id)).toEqual(['matters', 'search']);
   });
 
-  it('uses the shell public navigation action for registered quick actions', () => {
-    const setSurface = vi.fn();
-    const capabilities = {
-      navigation: { setSurface },
-    } as unknown as AppSurfaceCapabilities;
+  it('renders a future lazy-resolved Meetings action without client-bar changes', async () => {
+    const navigate = vi.fn();
+    const lazyMeetingsRegistration = async (): Promise<ClientBarQuickAction> =>
+      quickAction({
+        id: 'meetings',
+        labelKey: 'meetings.surface.title',
+        order: 40,
+      });
+    const meetingsAction = await lazyMeetingsRegistration();
     render(
-      <AppSurfaceRuntimeContext.Provider value={capabilities}>
-        <ClientBarV1 />
-      </AppSurfaceRuntimeContext.Provider>
+      <ClientBarV1 onNavigate={navigate} quickActions={[meetingsAction]} />
     );
 
-    fireEvent.click(screen.getByTestId('client-bar-open-matters'));
-    fireEvent.click(screen.getByTestId('client-bar-open-search'));
+    fireEvent.click(screen.getByTestId('client-bar-open-meetings'));
 
-    expect(setSurface).toHaveBeenNthCalledWith(1, 'matters');
-    expect(setSurface).toHaveBeenNthCalledWith(2, 'search');
-    expect(setSurface).toHaveBeenCalledTimes(2);
-  });
-
-  it('keeps the legacy plumbing bar when the shared-client-bar flag is off', () => {
-    setDevFlagOverride('shared-client-bar', false);
-    render(<SharedClientBar />);
-
-    expect(screen.getByTestId('shared-client-bar')).toBeInTheDocument();
-    expect(screen.queryByTestId('client-bar-v1')).not.toBeInTheDocument();
-  });
-
-  it('swaps to the v1 bar when the shared-client-bar flag is on', () => {
-    setDevFlagOverride('shared-client-bar', true);
-    render(<SharedClientBar />);
-
-    expect(screen.getByTestId('client-bar-v1')).toBeInTheDocument();
-    expect(screen.queryByTestId('shared-client-bar')).not.toBeInTheDocument();
+    expect(navigate).toHaveBeenCalledOnce();
+    expect(navigate).toHaveBeenCalledWith('meetings');
   });
 });
 
-function surface(
-  overrides: Partial<AppSurfaceDescriptor> &
-    Pick<AppSurfaceDescriptor, 'id' | 'clientContext' | 'order'>
-): AppSurfaceDescriptor {
+function quickAction({
+  id,
+  clientContext = 'shared',
+  order = 10,
+  ...overrides
+}: Pick<ClientBarQuickAction, 'id'> &
+  Partial<Omit<ClientBarQuickAction, 'id' | 'clientContext' | 'order'>> & {
+    clientContext?: ClientBarQuickAction['clientContext'];
+    order?: number;
+  }): ClientBarQuickAction {
   return {
-    id: overrides.id,
-    clientContext: overrides.clientContext,
-    order: overrides.order,
+    id,
+    clientContext,
+    order,
     labelKey: 'spine.nav.clients',
-    icon: () => null,
     placement: 'primary',
-    errorLabel: 'Test surface',
-    render: () => null,
     ...overrides,
   };
 }
