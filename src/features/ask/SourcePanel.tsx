@@ -11,6 +11,11 @@ import { EXTERNAL_EXPORT_STALE_DAYS_KEY } from '@/platform/settings/schema';
 import { EV_OPEN_CRM, EV_OPEN_EMAIL, EV_MATTER_LAUNCH } from '@/config/identity';
 import { getFileIcon } from '@/platform/utils/fileIcons';
 import { useCitationVerification, verifyKey, type RealVerdict } from './citationVerification';
+import {
+  getAskSource,
+  openAskSource,
+} from './registry/askRegistries';
+import type { AskSourceOpenContext } from './registry/types';
 
 /* -------------------------------------------------------------------------- */
 /* SourcePanel — the SOURCES column. A list of clean white numbered cards,     */
@@ -31,29 +36,50 @@ const PREVIEW_CHAR_LIMIT = 220;
 // ./citationVerification so the answer header aggregates the SAME live
 // per-citation verdicts these cards render (lp/badge-consistency).
 
-/** Open the cited source (document → contextual editor; email → reading view). */
+function builtInSourceContext(cite: AnswerCitation): AskSourceOpenContext {
+  return {
+    openCrm: (source) => {
+      if (!source.path) return;
+      window.dispatchEvent(
+        new CustomEvent(EV_OPEN_CRM, {
+          detail: { sourceId: source.path, snippet: source.excerpt },
+        }),
+      );
+    },
+    openEmail: (source) => {
+      if (!source.path) return;
+      window.dispatchEvent(
+        new CustomEvent(EV_OPEN_EMAIL, { detail: { sourceId: source.path } }),
+      );
+    },
+    ...(cite.matterId
+      ? {
+          openDocument: (source) => {
+            if (!source.path || !source.matterId) return;
+            const launchSource: {
+              kind: 'document';
+              ref: string;
+              snippet?: string;
+            } = { kind: 'document', ref: source.path };
+            if (source.excerpt) launchSource.snippet = source.excerpt;
+            window.dispatchEvent(
+              new CustomEvent(EV_MATTER_LAUNCH, {
+                detail: {
+                  matterId: source.matterId,
+                  surface: 'files',
+                  source: launchSource,
+                },
+              }),
+            );
+          },
+        }
+      : {}),
+  };
+}
+
+/** Open the cited source through the load-bearing source registry. */
 function openCitation(cite: AnswerCitation): void {
-  if (cite.path?.startsWith('crm:')) {
-    window.dispatchEvent(
-      new CustomEvent(EV_OPEN_CRM, {
-        detail: { sourceId: cite.path, snippet: cite.excerpt },
-      }),
-    );
-    return;
-  }
-  if (cite.path?.startsWith('mail:')) {
-    window.dispatchEvent(new CustomEvent(EV_OPEN_EMAIL, { detail: { sourceId: cite.path } }));
-    return;
-  }
-  if (cite.path && !cite.path.startsWith('crm:') && cite.matterId) {
-    const source: { kind: 'document'; ref: string; snippet?: string } = { kind: 'document', ref: cite.path };
-    if (cite.excerpt) source.snippet = cite.excerpt;
-    window.dispatchEvent(
-      new CustomEvent(EV_MATTER_LAUNCH, {
-        detail: { matterId: cite.matterId, surface: 'files', source },
-      }),
-    );
-  }
+  openAskSource(cite, builtInSourceContext(cite));
 }
 
 function problemMessage(v: RealVerdict, t: (key: string) => string): string {
@@ -179,7 +205,7 @@ function SourceCard({
   const openable = onOpenCitation
     ? true
     : Boolean(
-        cite.path && (cite.path.startsWith('crm:') || cite.path.startsWith('mail:') || cite.matterId),
+        getAskSource(cite)?.canOpen(cite, builtInSourceContext(cite)),
       );
 
   // Only a REAL negative verdict (a proven mismatch) is a "problem" — pending,

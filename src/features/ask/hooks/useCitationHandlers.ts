@@ -5,6 +5,7 @@
 
 import { useCallback } from 'react';
 import { EV_OPEN_EMAIL } from '@/config/identity';
+import { openAskSource } from '../registry/askRegistries';
 
 export interface UseCitationHandlersArgs {
   setMissingSourceWarning: React.Dispatch<React.SetStateAction<string | null>>;
@@ -35,30 +36,51 @@ export function useCitationHandlers({
       snippet?: string,
     ) => {
       setMissingSourceWarning(null);
-      // WS-B/C — email sources resolve to `mail:<message-id>`, not a file on
-      // disk. Open them via a decoupled custom event the mail viewer
-      // subscribes to, rather than the editor's file-open pipeline.
-      if (sourceType === 'mail' || path.startsWith('mail:')) {
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(
-            new CustomEvent(EV_OPEN_EMAIL, {
-              detail: { sourceId: path },
-            }),
-          );
-        }
-        return;
-      }
-      if (!onOpenFileAtPath) return;
-      if (sourceType === 'pdf' && pageNumber != null) {
-        // Open PDF viewer at the specific page using pageNumber as the
-        // navigation hint. The PDF viewer interprets the second argument
-        // as a page number when the file extension is .pdf.
-        void onOpenFileAtPath(path, pageNumber);
-      } else {
-        // F-504: forward the cited chunk's text so the editor can locate
-        // the passage by exact search instead of guessing from the index.
-        void onOpenFileAtPath(path, paragraphIndex, snippet);
-      }
+      openAskSource(
+        { path, paragraphIndex, sourceType, pageNumber, excerpt: snippet },
+        {
+          openEmail: (source) => {
+            if (typeof window === 'undefined' || !source.path) return;
+            // WS-B/C — email sources resolve to `mail:<message-id>`, not a
+            // file on disk. The registered mail route preserves that boundary.
+            window.dispatchEvent(
+              new CustomEvent(EV_OPEN_EMAIL, {
+                detail: { sourceId: source.path },
+              }),
+            );
+          },
+          ...(onOpenFileAtPath
+            ? {
+                // CRM references previously followed this hook's default
+                // caller-provided opener. Keep that host-owned route exactly.
+                openCrm: (source) => {
+                  if (!source.path) return;
+                  void onOpenFileAtPath(
+                    source.path,
+                    source.paragraphIndex,
+                    source.excerpt,
+                  );
+                },
+                openDocument: (source) => {
+                  if (!source.path) return;
+                  if (source.sourceType === 'pdf' && source.pageNumber != null) {
+                    // Open PDF viewer at the specific page using pageNumber as
+                    // the navigation hint.
+                    void onOpenFileAtPath(source.path, source.pageNumber);
+                  } else {
+                    // F-504: forward the cited chunk's text so the editor can
+                    // locate the passage by exact search.
+                    void onOpenFileAtPath(
+                      source.path,
+                      source.paragraphIndex,
+                      source.excerpt,
+                    );
+                  }
+                },
+              }
+            : {}),
+        },
+      );
     },
     // setMissingSourceWarning is a stable useState setter, so listing it does
     // not change the callback's identity — but as a hook argument the linter

@@ -1,5 +1,5 @@
 /* Existing Ask behavior, expressed as descriptors for future feature modules. */
-import { filterHitsByScope, type AskScope } from '../askHelpers';
+import { filterHitsByScope, type AskScope } from '../askScope';
 import type {
   AskAnswerActionDescriptor,
   AskModeDescriptor,
@@ -36,27 +36,30 @@ const normalMode: AskModeDescriptor = {
 const crmSource: AskSourceDescriptor = {
   id: 'crm',
   order: 10,
-  matches: (source) => source.path?.startsWith('crm:') ?? false,
+  matches: (source) =>
+    source.sourceType === 'crm' || (source.path?.startsWith('crm:') ?? false),
+  canOpen: (source, context) => Boolean(source.path && context.openCrm),
   open: (source, context) => {
-    if (source.path) context.openCrm?.(source.path, source.excerpt);
+    if (source.path) context.openCrm?.(source);
   },
 };
 const mailSource: AskSourceDescriptor = {
   id: 'mail',
   order: 20,
   matches: (source) =>
-    source.path?.startsWith('mail:') ?? source.sourceType === 'mail',
+    source.sourceType === 'mail' || (source.path?.startsWith('mail:') ?? false),
+  canOpen: (source, context) => Boolean(source.path && context.openEmail),
   open: (source, context) => {
-    if (source.path) context.openEmail?.(source.path);
+    if (source.path) context.openEmail?.(source);
   },
 };
 const documentSource: AskSourceDescriptor = {
   id: 'document',
   order: 30,
   matches: (source) => Boolean(source.path),
+  canOpen: (source, context) => Boolean(source.path && context.openDocument),
   open: (source, context) => {
-    if (source.path)
-      context.openDocument?.(source.path, source.matterId, source.excerpt);
+    if (source.path) context.openDocument?.(source);
   },
 };
 

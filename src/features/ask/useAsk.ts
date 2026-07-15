@@ -132,8 +132,9 @@ import {
   dedupeRecognizedHits,
   recognizeHit,
 } from './askHelpers';
-import { getAskAnswerActions, getAskMode } from './registry/askRegistries';
+import { getAskMode } from './registry/askRegistries';
 import { NORMAL_ASK_MODE } from './registry/compatibility';
+import { askSendPipeline } from './pipeline/AskSendPipeline';
 import {
   markKeyInvalid,
   markKeyVerified,
@@ -1852,9 +1853,10 @@ export function useAsk({
         // so we do NOT call setSelectedTurnIdx / setSelected inside the updater — doing so
         // inside the functional updater can leave them out of sync for one frame.
         setTurns((prev) => [...prev, completedTurn]);
-        for (const action of getAskAnswerActions()) {
-          await action.execute({ turn: completedTurn, onAnswerCompleted });
-        }
+        await askSendPipeline.completeAnswer({
+          turn: completedTurn,
+          onAnswerCompleted,
+        });
         setStreamingTurn(null);
         setStatus('done');
         pendingQuestionRef.current = null;

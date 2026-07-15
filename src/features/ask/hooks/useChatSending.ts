@@ -122,6 +122,7 @@ import type { APIKey } from '../AIChatViewer';
 import { sendDiagnosticEvent } from '@/platform/utils/diagnostics';
 import { EV_TRASH_CHANGED } from '@/config/identity';
 import { brandText } from '@/config/brandText';
+import { askSendPipeline } from '../pipeline/AskSendPipeline';
 
 export function fileSearchQueryToRegex(query: string): RegExp {
   const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -392,9 +393,10 @@ export function useChatSending(deps: UseChatSendingDeps) {
         return;
       }
       const tokensBefore = estimateMessagesTokens(currentMessages);
-      const compressionScope: AuditScope = activeMatter
-        ? { kind: 'matter', matterId: activeMatter.id, matterName: matterLabel(activeMatter) }
-        : { kind: 'allMatters' };
+      const compressionScope = askSendPipeline.buildContext({
+        activeMatterId: activeMatter?.id ?? null,
+        activeMatterName: activeMatter ? matterLabel(activeMatter) : null,
+      }).auditScope;
       const result = await compressMessages(currentMessages, {
         keepRecentTurns,
         batchTokenTarget: 10_000,
@@ -505,9 +507,11 @@ export function useChatSending(deps: UseChatSendingDeps) {
     // source of truth reused below for retrieval gating, tool registration, the
     // system prompt, and the egress audit). A grant is bound to the scope it was
     // made under; a local provider never leaks, so consent is a cloud concern.
-    const turnConsentScope: ConsentScope = activeMatter
-      ? { kind: 'matter', matterId: activeMatter.id }
-      : { kind: 'allMatters' };
+    const sendContext = askSendPipeline.buildContext({
+      activeMatterId: activeMatter?.id ?? null,
+      activeMatterName: activeMatter ? matterLabel(activeMatter) : null,
+    });
+    const turnConsentScope: ConsentScope = sendContext.consentScope;
     const fileToolsEnabled = fileToolsAllowed(getFileAccessConsent(chatId), turnConsentScope);
     const providerIsCloud = !isLocalProviderId(effectiveProvider);
 
@@ -540,12 +544,8 @@ export function useChatSending(deps: UseChatSendingDeps) {
     // WS-B/C — resolve the retrieval scope from the active matter. Captured at
     // send time so a later rename/delete of the matter doesn't rewrite history.
     // A null active matter is the explicit cross-matter ("all matters") scope.
-    const retrievalScope: RetrievalScope = activeMatter
-      ? { kind: 'matter', matterId: activeMatter.id }
-      : { kind: 'allMatters' };
-    const turnScope: TurnScope = activeMatter
-      ? { kind: 'matter', matterId: activeMatter.id, matterName: matterLabel(activeMatter) }
-      : { kind: 'allMatters' };
+    const retrievalScope: RetrievalScope = sendContext.retrievalScope;
+    const turnScope: TurnScope = sendContext.turnScope;
     // F2.5 — the Ask-my-workspace toggle is on but this cloud conversation hasn't
     // consented to file access, so ambient retrieval was skipped. Say so plainly
     // (mirrors the "Memory is off" hint) instead of silently doing nothing — the
@@ -708,9 +708,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
       // guard below so that a refused turn (zero hits) is still fully auditable.
       // The workspace WAS searched; recording that is important for defensibility.
       if (isMemoryEnabled()) {
-        const auditScope: AuditScope = activeMatter
-          ? { kind: 'matter', matterId: activeMatter.id, matterName: matterLabel(activeMatter) }
-          : { kind: 'allMatters' };
+        const auditScope: AuditScope = sendContext.auditScope;
         const topScore = retrievedSources.reduce<number | null>(
           (max, s) => (max === null ? s.score : Math.max(max, s.score)),
           null,
@@ -963,9 +961,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
           // getActiveScope() would name the NEW client in the Data Map — falsely
           // attributing one client's egress to another. turnScope is frozen at
           // send and carries the human label captured then (matterResolver).
-          const auditScope: AuditScope = turnScope.kind === 'matter' && turnScope.matterId !== undefined
-            ? { kind: 'matter', matterId: turnScope.matterId, ...(turnScope.matterName !== undefined && { matterName: turnScope.matterName }) }
-            : { kind: 'allMatters' };
+          const auditScope: AuditScope = sendContext.auditScope;
           return { egress, auditScope };
         };
 
@@ -1912,9 +1908,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
               signal: abortController.signal,
               ...(attachmentBytes ? { attachmentBytes } : {}),
             },
-            scope: activeMatter
-              ? { kind: 'matter', matterId: activeMatter.id, matterName: matterLabel(activeMatter) }
-              : { kind: 'allMatters' },
+            scope: sendContext.auditScope,
             fileToolsEnabled: fileToolsRegisteredForSend,
             isDemo: IS_DEMO,
             assuredAvailable: Boolean(assuredRoute),

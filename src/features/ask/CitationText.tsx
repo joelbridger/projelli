@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import type { AnswerCitation } from './askHelpers';
 import { AnswerDatePresentation } from '@/platform/retrieval/dates';
 import { EV_OPEN_CRM } from '@/config/identity';
+import { openAskSource } from './registry/askRegistries';
 
 /* -------------------------------------------------------------------------- */
 /* CitationText — the Ask answer renderer (matches the demo Ask answer body).  */
@@ -78,27 +79,59 @@ export function CitationText({
         data-verified={dataVerified}
         onClick={() => {
           onSelect(n);
-          if (cite?.path && (cite.sourceType === 'crm' || cite.path.startsWith('crm:'))) {
-            window.dispatchEvent(
-              new CustomEvent(EV_OPEN_CRM, {
-                detail: { sourceId: cite.path, snippet: cite.excerpt },
-              }),
-            );
-            return;
-          }
-          if (onOpenFileAtPath && cite?.path) {
-            const snippet = cite.excerpt || undefined;
-            if (cite.matterId !== undefined) {
-              onOpenFileAtPath(
-                cite.path,
-                cite.paragraphIndex ?? 0,
-                snippet,
-                cite.matterId
+          if (!cite) return;
+          openAskSource(cite, {
+            openCrm: (source) => {
+              if (!source.path) return;
+              window.dispatchEvent(
+                new CustomEvent(EV_OPEN_CRM, {
+                  detail: { sourceId: source.path, snippet: source.excerpt },
+                }),
               );
-            } else {
-              onOpenFileAtPath(cite.path, cite.paragraphIndex ?? 0, snippet);
-            }
-          }
+            },
+            ...(onOpenFileAtPath
+              ? {
+                  // Preserve this renderer's existing callback route for both
+                  // mail and document sources; the host owns the final opener.
+                  openEmail: (source) => {
+                    if (!source.path) return;
+                    const snippet = source.excerpt || undefined;
+                    if (source.matterId !== undefined) {
+                      onOpenFileAtPath(
+                        source.path,
+                        source.paragraphIndex ?? 0,
+                        snippet,
+                        source.matterId,
+                      );
+                    } else {
+                      onOpenFileAtPath(
+                        source.path,
+                        source.paragraphIndex ?? 0,
+                        snippet,
+                      );
+                    }
+                  },
+                  openDocument: (source) => {
+                    if (!source.path) return;
+                    const snippet = source.excerpt || undefined;
+                    if (source.matterId !== undefined) {
+                      onOpenFileAtPath(
+                        source.path,
+                        source.paragraphIndex ?? 0,
+                        snippet,
+                        source.matterId,
+                      );
+                    } else {
+                      onOpenFileAtPath(
+                        source.path,
+                        source.paragraphIndex ?? 0,
+                        snippet,
+                      );
+                    }
+                  },
+                }
+              : {}),
+          });
         }}
         aria-label={`Citation ${String(n)}: ${cite?.label ?? 'unknown'}. ${proven ? 'Source found.' : sourceFound ? 'Source found, not verified.' : 'Unverified.'}`}
         title={

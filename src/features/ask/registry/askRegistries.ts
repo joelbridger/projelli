@@ -47,6 +47,7 @@ export function validateAskSourceDescriptors(
   for (const descriptor of descriptors) {
     if (
       typeof descriptor.matches !== 'function' ||
+      typeof descriptor.canOpen !== 'function' ||
       typeof descriptor.open !== 'function'
     ) {
       throw new Error(
@@ -79,11 +80,33 @@ export function validateAskAnswerActionDescriptors(
 }
 
 /** Compatibility entries preserve the existing Ask pipeline and source routes. */
-export const askModeRegistry: readonly AskModeDescriptor[] = legacyAskModes;
-export const askSourceRegistry: readonly AskSourceDescriptor[] =
-  legacyAskSources;
+const askModes: AskModeDescriptor[] = [...legacyAskModes];
+const askSources: AskSourceDescriptor[] = [...legacyAskSources];
+const askAnswerActions: AskAnswerActionDescriptor[] = [
+  ...legacyAskAnswerActions,
+];
+
+export const askModeRegistry: readonly AskModeDescriptor[] = askModes;
+export const askSourceRegistry: readonly AskSourceDescriptor[] = askSources;
 export const askAnswerActionRegistry: readonly AskAnswerActionDescriptor[] =
-  legacyAskAnswerActions;
+  askAnswerActions;
+
+export function registerAskMode(descriptor: AskModeDescriptor): void {
+  validateAskModeDescriptors([...askModes, descriptor]);
+  askModes.push(descriptor);
+}
+
+export function registerAskSource(descriptor: AskSourceDescriptor): void {
+  validateAskSourceDescriptors([...askSources, descriptor]);
+  askSources.push(descriptor);
+}
+
+export function registerAskAnswerAction(
+  descriptor: AskAnswerActionDescriptor
+): void {
+  validateAskAnswerActionDescriptors([...askAnswerActions, descriptor]);
+  askAnswerActions.push(descriptor);
+}
 
 export function getAskMode(id: string): AskModeDescriptor {
   validateAskModeDescriptors(askModeRegistry);
@@ -100,6 +123,17 @@ export function getAskSource(
     .slice()
     .sort((a, b) => a.order - b.order)
     .find((entry) => entry.matches(source));
+}
+
+/** Route a source through the registered client-safe opener. */
+export function openAskSource(
+  source: Parameters<AskSourceDescriptor['matches']>[0],
+  context: Parameters<AskSourceDescriptor['open']>[1]
+): boolean {
+  const descriptor = getAskSource(source);
+  if (!descriptor?.canOpen(source, context)) return false;
+  descriptor.open(source, context);
+  return true;
 }
 
 export function getAskAnswerActions(): readonly AskAnswerActionDescriptor[] {

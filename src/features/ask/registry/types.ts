@@ -4,7 +4,8 @@ import type {
   AskModeId,
   AskSourceId,
 } from '@/platform/types/ask';
-import type { AskScope, AskTurn } from '../askHelpers';
+import type { AskTurn } from '../askHelpers';
+import type { AskScope } from '../askScope';
 
 export type {
   AskAnswerActionId,
@@ -40,20 +41,21 @@ export interface AskSourceReference {
   matterId?: string | undefined;
   excerpt?: string | undefined;
   sourceType?: string | undefined;
+  paragraphIndex?: number | undefined;
+  pageNumber?: number | undefined;
 }
 
 export interface AskSourceOpenContext {
-  openDocument?:
-    | ((path: string, matterId?: string, snippet?: string) => void)
-    | undefined;
-  openEmail?: ((sourceId: string) => void) | undefined;
-  openCrm?: ((sourceId: string, snippet?: string) => void) | undefined;
+  openDocument?: ((source: AskSourceReference) => void) | undefined;
+  openEmail?: ((source: AskSourceReference) => void) | undefined;
+  openCrm?: ((source: AskSourceReference) => void) | undefined;
 }
 
 export interface AskSourceDescriptor {
   id: AskSourceId;
   order: number;
   matches: (source: AskSourceReference) => boolean;
+  canOpen: (source: AskSourceReference, context: AskSourceOpenContext) => boolean;
   open: (source: AskSourceReference, context: AskSourceOpenContext) => void;
 }
 

@@ -11,6 +11,10 @@ import {
   getAskAnswerActions,
   getAskMode,
   getAskSource,
+  openAskSource,
+  registerAskAnswerAction,
+  registerAskMode,
+  registerAskSource,
   validateAskAnswerActionDescriptors,
   validateAskModeDescriptors,
   validateAskSourceDescriptors,
@@ -53,8 +57,10 @@ describe('Ask registries', () => {
     const sourceOpen = vi.fn();
     const source: AskSourceDescriptor = {
       id: 'test-dummy-source',
-      order: 99,
+      // Specific sources run before the document fallback (order 30).
+      order: 25,
       matches: (candidate) => candidate.path === 'dummy:',
+      canOpen: () => true,
       open: sourceOpen,
     };
     const actionExecute = vi.fn();
@@ -65,17 +71,60 @@ describe('Ask registries', () => {
       kind: 'answer-completed',
       execute: actionExecute,
     };
-    // Individual descriptor shapes are consumable without changing an orchestration switch.
+    registerAskMode(mode);
+    registerAskSource(source);
+    registerAskAnswerAction(action);
+
     expect(
-      mode.buildRetrievalPlan({ activeMatterId: null, askScope: 'all-matters' })
-        .scope
+      getAskMode('test-dummy-mode').buildRetrievalPlan({
+        activeMatterId: null,
+        askScope: 'all-matters',
+      }).scope
     ).toEqual({ kind: 'allMatters' });
-    source.open({ path: 'dummy:' }, { openDocument: vi.fn() });
-    await action.execute({
+    expect(openAskSource({ path: 'dummy:' }, {})).toBe(true);
+    await getAskAnswerActions()
+      .find((candidate) => candidate.id === 'test-dummy-action')
+      ?.execute({
       turn: { question: 'q', answer: 'a', citations: [], sources: [] },
-    });
+      });
     expect(sourceOpen).toHaveBeenCalledOnce();
     expect(actionExecute).toHaveBeenCalledOnce();
+  });
+
+  it('routes CRM, mail, and documents through their registered openers', () => {
+    const openCrm = vi.fn();
+    const openEmail = vi.fn();
+    const openDocument = vi.fn();
+    const context = { openCrm, openEmail, openDocument };
+    const crm = {
+      path: 'crm:note:1',
+      sourceType: 'crm',
+      matterId: 'matter-1',
+      excerpt: 'Private note',
+    };
+    const mail = { path: 'message-1', sourceType: 'mail' };
+    const document = {
+      path: 'clients/foster/plan.pdf',
+      sourceType: 'pdf',
+      matterId: 'matter-1',
+      pageNumber: 7,
+    };
+
+    expect(openAskSource(crm, context)).toBe(true);
+    expect(openAskSource(mail, context)).toBe(true);
+    expect(openAskSource(document, context)).toBe(true);
+    expect(openCrm).toHaveBeenCalledWith(crm);
+    expect(openEmail).toHaveBeenCalledWith(mail);
+    expect(openDocument).toHaveBeenCalledWith(document);
+  });
+
+  it('keeps a document closed when its client-safe opener is unavailable', () => {
+    expect(
+      openAskSource(
+        { path: 'clients/foster/plan.pdf', matterId: 'matter-1' },
+        {},
+      ),
+    ).toBe(false);
   });
 
   it('fails duplicate ids and invalid metadata deterministically', () => {
