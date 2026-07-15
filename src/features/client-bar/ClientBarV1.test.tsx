@@ -1,14 +1,22 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
+import { SharedClientBar } from '@/app/shell/SharedClientBar';
+import type { AppSurfaceDescriptor } from '@/app/shell/registry/types';
+import {
+  AppSurfaceRuntimeContext,
+  type AppSurfaceCapabilities,
+} from '@/app/shell/runtime/AppSurfaceRuntime';
+import { setDevFlagOverride } from '@/platform/flags';
 import { useClientContextStore } from '@/platform/client-context';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import type { Matter } from '@/platform/types/matter';
-import { ClientBarV1 } from './ClientBarV1';
+import { ClientBarV1, getSharedClientQuickActions } from './ClientBarV1';
 
 describe('ClientBarV1', () => {
   afterEach(() => {
     useClientContextStore.getState().clearClient();
     useMatterStore.setState({ activeMatterId: null, matters: [] });
+    setDevFlagOverride('shared-client-bar', undefined);
   });
 
   it('shows the empty and selected shared-client states', () => {
@@ -85,16 +93,63 @@ describe('ClientBarV1', () => {
     expect(useMatterStore.getState().activeMatterId).toBeNull();
   });
 
-  it('calls the shell-owned quick navigation callbacks', () => {
-    const onNavigate = vi.fn();
-    render(<ClientBarV1 onNavigate={onNavigate} />);
+  it('renders quick actions from shared primary surface descriptors', () => {
+    const actions = getSharedClientQuickActions([
+      surface({ id: 'home', clientContext: 'firm', order: 10 }),
+      surface({ id: 'matters', clientContext: 'shared', order: 20 }),
+      surface({ id: 'search', clientContext: 'shared', order: 30 }),
+      surface({
+        id: 'files',
+        clientContext: 'shared',
+        order: 40,
+        placement: 'hidden',
+      }),
+    ]);
 
-    fireEvent.click(screen.getByTestId('client-bar-open-crm'));
-    fireEvent.click(screen.getByTestId('client-bar-open-ask'));
-    fireEvent.click(screen.getByTestId('client-bar-open-meetings'));
+    expect(actions.map((action) => action.id)).toEqual(['matters', 'search']);
+  });
 
-    expect(onNavigate).toHaveBeenNthCalledWith(1, 'crm');
-    expect(onNavigate).toHaveBeenNthCalledWith(2, 'ask');
-    expect(onNavigate).toHaveBeenNthCalledWith(3, 'meetings');
+  it('uses the shell public navigation action for registered quick actions', () => {
+    const setSurface = vi.fn();
+    const capabilities = {
+      navigation: { setSurface },
+    } as unknown as AppSurfaceCapabilities;
+    render(
+      <AppSurfaceRuntimeContext.Provider value={capabilities}>
+        <ClientBarV1 />
+      </AppSurfaceRuntimeContext.Provider>
+    );
+
+    fireEvent.click(screen.getByTestId('client-bar-open-matters'));
+    fireEvent.click(screen.getByTestId('client-bar-open-search'));
+
+    expect(setSurface).toHaveBeenNthCalledWith(1, 'matters');
+    expect(setSurface).toHaveBeenNthCalledWith(2, 'search');
+    expect(setSurface).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps the legacy plumbing bar when the shared-client-bar flag is off', () => {
+    setDevFlagOverride('shared-client-bar', false);
+    render(<SharedClientBar />);
+
+    expect(screen.getByTestId('shared-client-bar')).toBeInTheDocument();
+    expect(screen.queryByTestId('client-bar-v1')).not.toBeInTheDocument();
   });
 });
+
+function surface(
+  overrides: Partial<AppSurfaceDescriptor> &
+    Pick<AppSurfaceDescriptor, 'id' | 'clientContext' | 'order'>
+): AppSurfaceDescriptor {
+  return {
+    id: overrides.id,
+    clientContext: overrides.clientContext,
+    order: overrides.order,
+    labelKey: 'spine.nav.clients',
+    icon: () => null,
+    placement: 'primary',
+    errorLabel: 'Test surface',
+    render: () => null,
+    ...overrides,
+  };
+}

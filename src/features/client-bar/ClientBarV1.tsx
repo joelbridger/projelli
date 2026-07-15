@@ -1,6 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronDown } from 'lucide-react';
+import { useAppSurfaceRegistry } from '@/app/shell/runtime/useAppSurfaceRegistry';
+import { useOptionalAppSurfaceCapabilities } from '@/app/shell/runtime/AppSurfaceRuntime';
+import type { AppSurfaceDescriptor } from '@/app/shell/registry/types';
 import { useClientContextStore } from '@/platform/client-context';
 import {
   useActiveMatters,
@@ -10,23 +13,22 @@ import type { SharedClientIdentity } from '@/platform/client-context';
 import { ClientPickerModal } from './ClientPickerModal';
 import type { ClientPickerHousehold } from './clientPickerHouseholds';
 
-export type ClientBarDestination = 'crm' | 'ask' | 'meetings';
+export type ClientBarQuickAction = Pick<
+  AppSurfaceDescriptor,
+  'clientContext' | 'id' | 'labelKey' | 'legacyLabel' | 'order' | 'placement'
+>;
 
 export interface ClientBarV1Props {
   households?: readonly ClientPickerHousehold[] | undefined;
-  /** Lets the shell own navigation while this feature stays surface-agnostic. */
-  onNavigate?: ((destination: ClientBarDestination) => void) | undefined;
   /** Called when the picker button is opened, for shell telemetry or focus handling. */
   onChooseClient?: (() => void) | undefined;
 }
 
-export function ClientBarV1({
-  households,
-  onNavigate,
-  onChooseClient,
-}: ClientBarV1Props) {
+export function ClientBarV1({ households, onChooseClient }: ClientBarV1Props) {
   const { t } = useTranslation();
   const [pickerOpen, setPickerOpen] = useState(false);
+  const { descriptors } = useAppSurfaceRegistry();
+  const capabilities = useOptionalAppSurfaceCapabilities();
   const client = useClientContextStore((state) => state.client);
   const setClient = useClientContextStore((state) => state.setClient);
   const clearClient = useClientContextStore((state) => state.clearClient);
@@ -42,6 +44,11 @@ export function ClientBarV1({
   );
   const pickerHouseholds =
     households ?? (liveHouseholds.length ? liveHouseholds : undefined);
+  const quickActions = useMemo(
+    () => getSharedClientQuickActions(descriptors),
+    [descriptors]
+  );
+  const navigate = capabilities?.navigation.setSurface;
 
   const openPicker = () => {
     onChooseClient?.();
@@ -114,21 +121,16 @@ export function ClientBarV1({
           aria-label={t('client-bar.quick-actions-label')}
           className="flex items-center gap-1"
         >
-          <QuickAction
-            destination="crm"
-            label={t('client-bar.actions.crm')}
-            onNavigate={onNavigate}
-          />
-          <QuickAction
-            destination="ask"
-            label={t('client-bar.actions.ask')}
-            onNavigate={onNavigate}
-          />
-          <QuickAction
-            destination="meetings"
-            label={t('client-bar.actions.meetings')}
-            onNavigate={onNavigate}
-          />
+          {quickActions.map((action) => (
+            <QuickAction
+              action={action}
+              key={action.id}
+              label={t('client-bar.actions.open', {
+                surface: action.legacyLabel ?? t(action.labelKey),
+              })}
+              onNavigate={navigate}
+            />
+          ))}
         </div>
       </section>
       <ClientPickerModal
@@ -144,26 +146,44 @@ export function ClientBarV1({
 }
 
 function QuickAction({
-  destination,
+  action,
   label,
   onNavigate,
 }: {
-  destination: ClientBarDestination;
+  action: ClientBarQuickAction;
   label: string;
-  onNavigate?: ((destination: ClientBarDestination) => void) | undefined;
+  onNavigate?: ((destination: AppSurfaceDescriptor['id']) => void) | undefined;
 }) {
   return (
     <button
       className="rounded-md px-2 py-1 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
-      data-testid={`client-bar-open-${destination}`}
+      data-testid={`client-bar-open-${action.id}`}
       onClick={() => {
-        onNavigate?.(destination);
+        onNavigate?.(action.id);
       }}
       type="button"
     >
       {label}
     </button>
   );
+}
+
+/**
+ * The prototype's CRM / Ask / Meetings trio is intentionally registry-driven:
+ * it completes itself when the Meetings surface registers as a shared primary
+ * surface in its later wave.
+ */
+export function getSharedClientQuickActions(
+  descriptors: readonly ClientBarQuickAction[]
+): readonly ClientBarQuickAction[] {
+  return descriptors
+    .filter(
+      (descriptor) =>
+        descriptor.placement === 'primary' &&
+        descriptor.clientContext === 'shared'
+    )
+    .slice()
+    .sort((left, right) => left.order - right.order);
 }
 
 function initials(name: string): string {
