@@ -131,9 +131,11 @@ export function ClientBarV1({
             <QuickAction
               action={action}
               key={action.id}
-              label={t('client-bar.actions.open', {
-                surface: t(action.labelKey),
-              })}
+              label={
+                action.id === 'matters'
+                  ? t('client-bar.actions.open-crm')
+                  : t(action.labelKey)
+              }
               onNavigate={onNavigate}
             />
           ))}

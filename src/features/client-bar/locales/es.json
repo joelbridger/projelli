@@ -6,7 +6,7 @@
     },
     "quick-actions-label": "Abra una herramienta para el cliente actual",
     "actions": {
-      "open": "Abrir {{surface}}"
+      "open-crm": "Abrir CRM"
     },
     "picker": {
       "trigger": "Elegir cliente actual",

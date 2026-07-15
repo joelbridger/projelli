@@ -181,7 +181,12 @@ describe('ClientBarV1', () => {
     const actions = getSharedClientQuickActions([
       quickAction({ id: 'home', clientContext: 'firm', order: 10 }),
       quickAction({ id: 'matters', clientContext: 'shared', order: 20 }),
-      quickAction({ id: 'search', clientContext: 'shared', order: 30 }),
+      quickAction({
+        id: 'search',
+        clientContext: 'shared',
+        labelKey: 'spine.nav.ask',
+        order: 30,
+      }),
       quickAction({
         id: 'files',
         clientContext: 'shared',
@@ -191,6 +196,10 @@ describe('ClientBarV1', () => {
     ]);
 
     expect(actions.map((action) => action.id)).toEqual(['matters', 'search']);
+
+    render(<ClientBarV1 quickActions={actions} />);
+    expect(screen.getByRole('button', { name: 'Open CRM' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ask' })).toBeInTheDocument();
   });
 
   it('renders a future lazy-resolved Meetings action without client-bar changes', async () => {
