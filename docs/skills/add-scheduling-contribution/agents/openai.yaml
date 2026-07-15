@@ -1,0 +1,4 @@
+interface:
+  display_name: "Add Scheduling Contribution"
+  short_description: "Register a calendar or booking mount safely"
+  default_prompt: "Add a feature-owned scheduling contribution using the repository registry."
