@@ -1,0 +1,37 @@
+{
+  "contact-sources": {
+    "settings-label": "Organization",
+    "heading": "Contact sources",
+    "heading-copy": "Choose the sources your firm uses to understand how new contacts found you.",
+    "catalog-title": "Source catalog",
+    "catalog-copy": "Active sources are available for new contacts. Rename and retire actions keep earlier contact history unchanged.",
+    "source-name": "Source name",
+    "source-name-for": "Source name for {{name}}",
+    "source-id": "ID: {{id}}",
+    "previous-names": "Earlier names: {{names}}",
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive",
+      "retired": "Retired"
+    },
+    "save-name": "Save name",
+    "activate": "Activate",
+    "deactivate": "Deactivate",
+    "move-up": "Move {{name}} up",
+    "move-down": "Move {{name}} down",
+    "retire": "Retire",
+    "confirm-retire": "Confirm retire",
+    "new-source": "New source name",
+    "add": "Add source",
+    "name-saved": "Source name saved.",
+    "activated": "Source activated.",
+    "deactivated": "Source deactivated.",
+    "retired": "Source retired. Existing contacts keep their original source.",
+    "order-saved": "Source order saved.",
+    "added": "Source added.",
+    "save-failed": "Could not save the source catalog.",
+    "history-title": "Contact history stays intact",
+    "history-copy": "Renaming, deactivating, or retiring a source never changes source IDs or labels already saved on contacts.",
+    "history-protected": "History protected"
+  }
+}

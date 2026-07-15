@@ -1,0 +1,37 @@
+{
+  "contact-sources": {
+    "settings-label": "Organisation",
+    "heading": "Kontaktquellen",
+    "heading-copy": "Wähle die Quellen, mit denen deine Firma nachvollzieht, wie neue Kontakte zu euch kommen.",
+    "catalog-title": "Quellenkatalog",
+    "catalog-copy": "Aktive Quellen sind für neue Kontakte verfügbar. Umbenennen und Stilllegen ändern den bisherigen Verlauf nicht.",
+    "source-name": "Quellenname",
+    "source-name-for": "Quellenname für {{name}}",
+    "source-id": "ID: {{id}}",
+    "previous-names": "Frühere Namen: {{names}}",
+    "status": {
+      "active": "Aktiv",
+      "inactive": "Inaktiv",
+      "retired": "Stillgelegt"
+    },
+    "save-name": "Name speichern",
+    "activate": "Aktivieren",
+    "deactivate": "Deaktivieren",
+    "move-up": "{{name}} nach oben verschieben",
+    "move-down": "{{name}} nach unten verschieben",
+    "retire": "Stilllegen",
+    "confirm-retire": "Stilllegung bestätigen",
+    "new-source": "Name der neuen Quelle",
+    "add": "Quelle hinzufügen",
+    "name-saved": "Quellenname gespeichert.",
+    "activated": "Quelle aktiviert.",
+    "deactivated": "Quelle deaktiviert.",
+    "retired": "Quelle stillgelegt. Bestehende Kontakte behalten ihre ursprüngliche Quelle.",
+    "order-saved": "Quellenreihenfolge gespeichert.",
+    "added": "Quelle hinzugefügt.",
+    "save-failed": "Der Quellenkatalog konnte nicht gespeichert werden.",
+    "history-title": "Kontaktverlauf bleibt erhalten",
+    "history-copy": "Das Umbenennen, Deaktivieren oder Stilllegen einer Quelle ändert nie bereits gespeicherte IDs oder Bezeichnungen in Kontakten.",
+    "history-protected": "Verlauf geschützt"
+  }
+}

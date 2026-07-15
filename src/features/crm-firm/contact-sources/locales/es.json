@@ -1,0 +1,37 @@
+{
+  "contact-sources": {
+    "settings-label": "Organización",
+    "heading": "Fuentes de contactos",
+    "heading-copy": "Elige las fuentes que usa tu empresa para saber cómo llegaron los nuevos contactos.",
+    "catalog-title": "Catálogo de fuentes",
+    "catalog-copy": "Las fuentes activas están disponibles para contactos nuevos. Renombrar y retirar no cambia el historial anterior.",
+    "source-name": "Nombre de la fuente",
+    "source-name-for": "Nombre de fuente para {{name}}",
+    "source-id": "ID: {{id}}",
+    "previous-names": "Nombres anteriores: {{names}}",
+    "status": {
+      "active": "Activa",
+      "inactive": "Inactiva",
+      "retired": "Retirada"
+    },
+    "save-name": "Guardar nombre",
+    "activate": "Activar",
+    "deactivate": "Desactivar",
+    "move-up": "Mover {{name}} arriba",
+    "move-down": "Mover {{name}} abajo",
+    "retire": "Retirar",
+    "confirm-retire": "Confirmar retiro",
+    "new-source": "Nombre de fuente nueva",
+    "add": "Agregar fuente",
+    "name-saved": "Nombre de fuente guardado.",
+    "activated": "Fuente activada.",
+    "deactivated": "Fuente desactivada.",
+    "retired": "Fuente retirada. Los contactos existentes conservan su fuente original.",
+    "order-saved": "Orden de fuentes guardado.",
+    "added": "Fuente agregada.",
+    "save-failed": "No se pudo guardar el catálogo de fuentes.",
+    "history-title": "El historial de contactos se mantiene intacto",
+    "history-copy": "Renombrar, desactivar o retirar una fuente nunca cambia los IDs ni las etiquetas ya guardadas en contactos.",
+    "history-protected": "Historial protegido"
+  }
+}
