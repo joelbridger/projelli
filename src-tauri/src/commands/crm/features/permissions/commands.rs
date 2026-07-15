@@ -61,6 +61,47 @@ pub(crate) fn native_current_member() -> Option<CurrentMember> {
     })
 }
 
+/// The identity used to authorize firm administration (teams & roles). Carries
+/// the org-admin bit from the relay session so the first firm:manage role can be
+/// bootstrapped by the org owner.
+#[derive(Clone, Debug)]
+pub(crate) struct ManageAuthority {
+    pub member_id: String,
+    pub org_admin: bool,
+}
+
+/// The firm-administration authority of the current native session, or `None`
+/// when signed out.
+pub(crate) fn native_manage_authority() -> Option<ManageAuthority> {
+    crate::commands::firm::session::current_identity().map(|identity| ManageAuthority {
+        member_id: identity.user_id,
+        org_admin: identity.org_admin,
+    })
+}
+
+/// Refuse a firm-administration mutation (role/team/assignment change) unless
+/// the caller holds firm:manage authority. An org admin (per the relay session)
+/// always qualifies — the bootstrap that lets the first firm:manage role be
+/// assigned; otherwise the caller's CRM role must carry `firm:manage`. This is
+/// the interlock that stops an ordinary member self-assigning a privileged role
+/// (e.g. compliance) to widen their own client access. Deny-closed when signed
+/// out.
+pub(crate) fn require_firm_manage_authority(
+    store: &CrmCoreStore,
+    authority: Option<&ManageAuthority>,
+) -> Result<()> {
+    let authority = authority.ok_or_else(|| anyhow::anyhow!(NO_MEMBER_IDENTITY_ERROR))?;
+    if authority.org_admin {
+        return Ok(());
+    }
+    let role = role_for_member(store, &authority.member_id)?
+        .ok_or_else(|| anyhow::anyhow!("Current member has no role assignment."))?;
+    if role.capabilities.iter().any(|cap| cap == "firm:manage") {
+        return Ok(());
+    }
+    bail!("Teams & Roles changes require firm-manage authority.");
+}
+
 fn role_for_member(store: &CrmCoreStore, member_id: &str) -> Result<Option<RoleDefinition>> {
     store.with_immediate_transaction(|transaction| {
         transaction
@@ -621,6 +662,41 @@ mod tests {
             vec!["maya-household"],
             "a forged current-member store record must not widen scope to casey's firm-wide view"
         );
+    }
+
+    fn manage(member_id: &str, org_admin: bool) -> ManageAuthority {
+        ManageAuthority {
+            member_id: member_id.to_string(),
+            org_admin,
+        }
+    }
+
+    #[test]
+    fn firm_manage_authority_gates_role_administration() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = CrmCoreStore::open_with_key(directory.path(), &[31; 32]).unwrap();
+        seed(&store); // maya -> advisor (no firm:manage), casey -> compliance-admin
+
+        // An ordinary member cannot administer roles — the self-assign bypass.
+        let maya = manage("maya", false);
+        assert!(require_firm_manage_authority(&store, Some(&maya))
+            .unwrap_err()
+            .to_string()
+            .contains("firm-manage authority"));
+
+        // A compliance-admin (role carries firm:manage) may.
+        let casey = manage("casey", false);
+        assert!(require_firm_manage_authority(&store, Some(&casey)).is_ok());
+
+        // The org admin may, even before any CRM role is assigned (bootstrap).
+        let owner = manage("brand-new-owner", true);
+        assert!(require_firm_manage_authority(&store, Some(&owner)).is_ok());
+
+        // Deny-closed when signed out.
+        assert!(require_firm_manage_authority(&store, None)
+            .unwrap_err()
+            .to_string()
+            .contains(NO_MEMBER_IDENTITY_ERROR));
     }
 
     #[test]

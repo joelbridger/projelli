@@ -402,10 +402,24 @@ fn persist(
     Ok(state)
 }
 
+/// Firm-administration interlock: while own-clients-permissions is active, a
+/// role/team/assignment change requires the native-session member to hold
+/// firm:manage authority. This runs as its own query BEFORE the mutation
+/// transaction (never nested inside it). When the flag is off, teams & roles
+/// behaves exactly as before.
+fn require_firm_manage(store: &CrmCoreStore) -> anyhow::Result<()> {
+    use crate::commands::crm::features::permissions::commands as perms;
+    if !perms::own_clients_permissions_enabled() {
+        return Ok(());
+    }
+    perms::require_firm_manage_authority(store, perms::native_manage_authority().as_ref())
+}
+
 fn mutate(
     store: &CrmCoreStore,
     operation: impl FnOnce(&mut TeamsRolesState) -> anyhow::Result<()>,
 ) -> anyhow::Result<TeamsRolesState> {
+    require_firm_manage(store)?;
     store.with_immediate_transaction(|transaction| {
         let mut current = load(transaction)?;
         operation(&mut current)?;
