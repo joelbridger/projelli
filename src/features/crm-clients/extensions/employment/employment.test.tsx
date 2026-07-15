@@ -76,7 +76,9 @@ describe('Employment section', () => {
     });
     fireEvent.click(screen.getByTestId('crm-employment-save'));
 
-    await waitFor(() => expect(onSaveHousehold).toHaveBeenCalledTimes(1));
+    await waitFor(() => {
+      expect(onSaveHousehold).toHaveBeenCalledTimes(1);
+    });
     expect(onSaveHousehold).toHaveBeenCalledWith(
       expect.objectContaining({
         extensionData: {

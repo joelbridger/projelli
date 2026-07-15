@@ -12,6 +12,7 @@
     "reduced-schedule-label": "Contexto de horario reducido",
     "gross-income-label": "Ingresos brutos anuales",
     "save": "Guardar empleo",
+    "save-failed": "No se pudo guardar el empleo. Inténtelo de nuevo.",
     "cancel": "Cancelar",
     "not-set": "Sin establecer",
     "no-members": "Agregue un miembro del hogar antes de registrar información laboral."

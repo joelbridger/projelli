@@ -1,10 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Card } from '@/ui/kp';
 import { useFlag } from '@/platform/flags';
 import type { HouseholdRecord } from '../../adapters';
 import {
-  EMPTY_EMPLOYMENT_INFORMATION,
   type EmploymentInformation,
   type EmploymentMemberInformation,
 } from './types';
@@ -58,15 +57,7 @@ export function EmploymentSection({
   );
   const firstMemberId = household.members[0]?.id ?? '';
   const [selectedMemberId, setSelectedMemberId] = useState(firstMemberId);
-
-  useEffect(() => {
-    setInformation(readEmploymentInformation(household));
-    setSelectedMemberId((current) =>
-      household.members.some((member) => member.id === current)
-        ? current
-        : (household.members[0]?.id ?? '')
-    );
-  }, [household]);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   if (!visible) return null;
 
@@ -98,7 +89,14 @@ export function EmploymentSection({
   const save = async () => {
     const payload = persistEmploymentInformation(household, information);
     await onSaveHousehold?.(payload);
+    setSaveError(null);
     setEditing(false);
+  };
+
+  const handleSave = () => {
+    void save().catch(() => {
+      setSaveError(t('employment.save-failed'));
+    });
   };
 
   return (
@@ -129,7 +127,9 @@ export function EmploymentSection({
         <Button
           size="sm"
           variant="secondary"
-          onClick={() => setEditing((current) => !current)}
+          onClick={() => {
+            setEditing((current) => !current);
+          }}
           data-testid="crm-employment-edit"
         >
           {editing ? t('employment.close-edit') : t('employment.edit')}
@@ -146,7 +146,9 @@ export function EmploymentSection({
             <span>{t('employment.member-label')}</span>
             <select
               value={selectedMemberId}
-              onChange={(event) => setSelectedMemberId(event.target.value)}
+              onChange={(event) => {
+                setSelectedMemberId(event.target.value);
+              }}
               data-testid="crm-employment-member"
               disabled={!editing}
             >
@@ -164,9 +166,9 @@ export function EmploymentSection({
                 <span>{t('employment.occupation-label')}</span>
                 <input
                   value={selectedInformation.occupation}
-                  onChange={(event) =>
-                    updateMember('occupation', event.target.value)
-                  }
+                  onChange={(event) => {
+                    updateMember('occupation', event.target.value);
+                  }}
                   data-testid="crm-employment-occupation"
                 />
               </label>
@@ -174,9 +176,9 @@ export function EmploymentSection({
                 <span>{t('employment.employer-label')}</span>
                 <input
                   value={selectedInformation.employer}
-                  onChange={(event) =>
-                    updateMember('employer', event.target.value)
-                  }
+                  onChange={(event) => {
+                    updateMember('employer', event.target.value);
+                  }}
                   data-testid="crm-employment-employer"
                 />
               </label>
@@ -185,9 +187,9 @@ export function EmploymentSection({
                 <input
                   type="date"
                   value={selectedInformation.occupationStart ?? ''}
-                  onChange={(event) =>
-                    updateMember('occupationStart', event.target.value)
-                  }
+                  onChange={(event) => {
+                    updateMember('occupationStart', event.target.value);
+                  }}
                   data-testid="crm-employment-start"
                 />
               </label>
@@ -196,9 +198,9 @@ export function EmploymentSection({
                 <input
                   type="date"
                   value={selectedInformation.plannedRetirement ?? ''}
-                  onChange={(event) =>
-                    updateMember('plannedRetirement', event.target.value)
-                  }
+                  onChange={(event) => {
+                    updateMember('plannedRetirement', event.target.value);
+                  }}
                   data-testid="crm-employment-retirement"
                 />
               </label>
@@ -206,9 +208,9 @@ export function EmploymentSection({
                 <span>{t('employment.reduced-schedule-label')}</span>
                 <input
                   value={selectedInformation.reducedScheduleContext ?? ''}
-                  onChange={(event) =>
-                    updateMember('reducedScheduleContext', event.target.value)
-                  }
+                  onChange={(event) => {
+                    updateMember('reducedScheduleContext', event.target.value);
+                  }}
                   data-testid="crm-employment-reduced-schedule"
                 />
               </label>
@@ -237,7 +239,7 @@ export function EmploymentSection({
               <div style={{ display: 'flex', gap: 8 }}>
                 <Button
                   size="sm"
-                  onClick={() => void save()}
+                  onClick={handleSave}
                   data-testid="crm-employment-save"
                 >
                   {t('employment.save')}
@@ -253,6 +255,7 @@ export function EmploymentSection({
                   {t('employment.cancel')}
                 </Button>
               </div>
+              {saveError ? <p role="alert">{saveError}</p> : null}
             </div>
           ) : (
             <dl
@@ -300,6 +303,3 @@ export function EmploymentSection({
     </Card>
   );
 }
-
-/** Keeps the local-state fallback explicit when a record has no extension yet. */
-export const employmentEmptyInformation = EMPTY_EMPLOYMENT_INFORMATION;

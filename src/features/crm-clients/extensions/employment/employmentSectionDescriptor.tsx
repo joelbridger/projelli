@@ -1,24 +1,6 @@
+import { EMPLOYMENT_EXTENSION_KEY } from './types';
 import type { HouseholdSectionDescriptor } from '../../recordRegistry';
 import { EmploymentSection } from './EmploymentSection';
-
-declare module '../../recordRegistry' {
-  interface HouseholdSectionIdMap {
-    employment: true;
-  }
-}
-
-export { EmploymentSection } from './EmploymentSection';
-export {
-  persistEmploymentInformation,
-  readEmploymentInformation,
-} from './persistence';
-export {
-  EMPTY_EMPLOYMENT_INFORMATION,
-  EMPLOYMENT_EXTENSION_KEY,
-  isEmploymentInformation,
-  type EmploymentInformation,
-  type EmploymentMemberInformation,
-} from './types';
 
 /** Ordered after Professional contacts (10) and before the remaining profile sections. */
 export const employmentHouseholdSection: HouseholdSectionDescriptor = {
@@ -27,6 +9,9 @@ export const employmentHouseholdSection: HouseholdSectionDescriptor = {
   tab: 'client_map',
   mount: ({ household, onSaveHousehold }) => (
     <EmploymentSection
+      key={`${household.id}:${JSON.stringify(
+        household.extensionData?.[EMPLOYMENT_EXTENSION_KEY]
+      )}:${household.members.map((member) => member.id).join(',')}`}
       household={household}
       {...(onSaveHousehold ? { onSaveHousehold } : {})}
     />
