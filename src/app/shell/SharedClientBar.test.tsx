@@ -91,11 +91,11 @@ describe('shared client bar seam', () => {
       'ask',
       'meetings',
     ]);
-    expect(() =>
+    expect(() => {
       validateClientContextAdapters([
         clientContextAdapterRegistry[0],
         clientContextAdapterRegistry[0],
-      ])
-    ).toThrow(/duplicate adapter id/);
+      ]);
+    }).toThrow(/duplicate adapter id/);
   });
 });
