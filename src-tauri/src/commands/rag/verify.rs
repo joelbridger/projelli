@@ -45,18 +45,25 @@ pub async fn rag_verify_citation(
     // Own-clients doorway: citation verification is a cross-matter presence /
     // attribution oracle (a mismatch discloses the real matter). When the flag is
     // on, refuse verification against a matter the member may not read, so it
-    // cannot probe other members' clients. Deny-closed with no member.
-    if crate::commands::crm::features::permissions::commands::own_clients_permissions_enabled() {
-        use crate::commands::crm::features::permissions::commands as perms;
-        let current = perms::native_current_member();
-        let crm_store = crate::commands::crm::core_store::CrmCoreStore::open(&workspace)
-            .map_err(|error| error.to_string())?;
-        let read_scope =
-            perms::matter_read_scope(&crm_store, true, current.as_ref()).map_err(|e| e.to_string())?;
-        if !read_scope.allows(&claimed) {
-            return Err("Matter is outside the current member's client scope.".into());
-        }
-    }
+    // cannot probe other members' clients. Deny-closed with no member. The
+    // resolved scope is also carried into the fallback classification below so a
+    // chunk that really lives OUTSIDE the member's scope is reported as NotFound
+    // rather than disclosing its actual matter (re-review B Finding 4).
+    use crate::commands::crm::features::permissions::commands as perms;
+    let read_scope: Option<perms::MatterReadScope> =
+        if perms::own_clients_permissions_enabled() {
+            let current = perms::native_current_member();
+            let crm_store = crate::commands::crm::core_store::CrmCoreStore::open(&workspace)
+                .map_err(|error| error.to_string())?;
+            let scope = perms::matter_read_scope(&crm_store, true, current.as_ref())
+                .map_err(|e| e.to_string())?;
+            if !scope.allows(&claimed) {
+                return Err("Matter is outside the current member's client scope.".into());
+            }
+            Some(scope)
+        } else {
+            None
+        };
     // P2.1 (Finding 4): reuse the cached open table handle. None = no index →
     // nothing can be verified.
     let Some(table) = cached_chunks_table(&state, &workspace).await? else {
@@ -86,6 +93,16 @@ pub async fn rag_verify_citation(
             Some(other) => {
                 // If the found record is tombstoned, treat as NotFound (fail-closed).
                 if tombstoned_tokens.contains(&other.source_id) {
+                    Verdict::NotFound
+                } else if read_scope
+                    .as_ref()
+                    .is_some_and(|scope| !scope.allows(&other.matter_id))
+                {
+                    // The chunk exists, but under a matter OUTSIDE the member's
+                    // read scope. Disclosing its real matter is a cross-matter
+                    // attribution leak — return NotFound so a foreign chunk is
+                    // indistinguishable from a fabricated id (re-review B
+                    // Finding 4).
                     Verdict::NotFound
                 } else {
                     Verdict::MatterMismatch {
@@ -169,6 +186,27 @@ pub async fn rag_verify_citations_batch(
     }
 
     let workspace = require_workspace(&state).await?;
+
+    // Own-clients doorway (re-review A Finding 1 / re-review B Finding 4): the
+    // batch classifies citations across matters exactly like the single verifier,
+    // so it must apply the SAME scope. Resolve the member's read scope once.
+    // Deny-closed: with the flag on and no bound member, `matter_read_scope`
+    // errors and the whole batch fails (the frontend treats a failed batch as
+    // unverified). None = enforcement off → no scoping, legacy behavior.
+    use crate::commands::crm::features::permissions::commands as perms;
+    let read_scope: Option<perms::MatterReadScope> =
+        if perms::own_clients_permissions_enabled() {
+            let current = perms::native_current_member();
+            let crm_store = crate::commands::crm::core_store::CrmCoreStore::open(&workspace)
+                .map_err(|error| error.to_string())?;
+            Some(
+                perms::matter_read_scope(&crm_store, true, current.as_ref())
+                    .map_err(|e| e.to_string())?,
+            )
+        } else {
+            None
+        };
+
     // P2.1 (Finding 4): reuse the cached open table handle. None = no index →
     // nothing can be verified.
     let Some(table) = cached_chunks_table(&state, &workspace).await? else {
@@ -207,7 +245,14 @@ pub async fn rag_verify_citations_batch(
             };
             let rows: &[&store::ChunkRecord] =
                 by_id.get(c.id.as_str()).map(|v| v.as_slice()).unwrap_or(&[]);
-            classify_citation(rows, &claimed, &c.quoted_text, &tombstoned_tokens, enc_key.as_ref())
+            classify_citation(
+                rows,
+                &claimed,
+                &c.quoted_text,
+                &tombstoned_tokens,
+                enc_key.as_ref(),
+                read_scope.as_ref(),
+            )
         })
         .collect();
 
@@ -234,7 +279,17 @@ pub(crate) fn classify_citation(
     quoted_text: &str,
     tombstoned: &std::collections::HashSet<String>,
     enc_key: Option<&[u8; 32]>,
+    read_scope: Option<&crate::commands::crm::features::permissions::commands::MatterReadScope>,
 ) -> Verdict {
+    // Own-clients: with enforcement on, a CLAIMED matter outside the member's
+    // scope is refused before any probe — fail-closed NotFound, the per-citation
+    // equivalent of the single verifier returning an out-of-scope error
+    // (re-review A Finding 1 / re-review B Finding 4).
+    if let Some(scope) = read_scope {
+        if !scope.allows(claimed_matter) {
+            return Verdict::NotFound;
+        }
+    }
     // SCOPED lookup: consider only rows in the claimed matter — this mirrors the
     // single verifier's `lookup_by_id(id, Some(claimed))`, which the SQL prefilter
     // restricts to the claimed matter (a tombstoned row under ANOTHER matter is
@@ -289,9 +344,20 @@ pub(crate) fn classify_citation(
         return Verdict::NotFound;
     }
     match rows.first() {
-        Some(other) => Verdict::MatterMismatch {
-            actual_matter: other.matter_id.clone(),
-        },
+        Some(other) => {
+            // The chunk lives under a matter OUTSIDE the member's read scope:
+            // disclosing its actual matter is a cross-matter attribution leak, so
+            // report NotFound (indistinguishable from a fabricated id). When
+            // enforcement is off (`read_scope` None) the actual matter is
+            // disclosed as before (re-review B Finding 4).
+            if read_scope.is_some_and(|scope| !scope.allows(&other.matter_id)) {
+                Verdict::NotFound
+            } else {
+                Verdict::MatterMismatch {
+                    actual_matter: other.matter_id.clone(),
+                }
+            }
+        }
         None => Verdict::NotFound,
     }
 }

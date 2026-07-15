@@ -50,6 +50,13 @@ pub(crate) const CLIENT_DATA_DOORWAYS: &[ClientDoorway] = &[
     ClientDoorway { command: "crm_live_upsert", guarded: true },
     ClientDoorway { command: "crm_live_upsert_many", guarded: true },
     ClientDoorway { command: "crm_search", guarded: true },
+    // Direct remote-write compatibility commands. These forward a
+    // renderer-supplied matter to a remote CRM write helper; each now guards
+    // that matter against the member's scope before writing (re-review B
+    // Finding 3).
+    ClientDoorway { command: "crm_create_note", guarded: true },
+    ClientDoorway { command: "crm_create_task", guarded: true },
+    ClientDoorway { command: "crm_update_field", guarded: true },
     ClientDoorway { command: "crm_permissions_list", guarded: true },
     ClientDoorway { command: "crm_permissions_get_record", guarded: true },
     ClientDoorway { command: "crm_permissions_upsert", guarded: true },
@@ -74,6 +81,7 @@ pub(crate) const CLIENT_DATA_DOORWAYS: &[ClientDoorway] = &[
     ClientDoorway { command: "external_write_approve_proposal", guarded: true },
     ClientDoorway { command: "rag_retrieve", guarded: true },
     ClientDoorway { command: "rag_verify_citation", guarded: true },
+    ClientDoorway { command: "rag_verify_citations_batch", guarded: true },
 ];
 
 fn all_doorways_guarded() -> bool {
@@ -1128,6 +1136,25 @@ mod tests {
             "permanently_purge_record",
             "restore_record",
             "is_tombstoned_record",
+            // RAG store client-data reads. Without these the exhaustiveness half
+            // could not see the citation-verification doorways, which is exactly
+            // how `rag_verify_citations_batch` slipped through unregistered
+            // (re-review A Findings 1-2 / re-review B Finding 5). `lookup_by_id`
+            // (single verify), `fetch_records_by_ids` (batch verify), and
+            // `fetch_by_ids_scoped` (retrieval id-fetch) are specific symbols; the
+            // semantic-search primitive `store::nearest` is deliberately NOT
+            // listed because the bare token `nearest` also appears in connector
+            // engines/tests and would misattribute — that path is covered by
+            // `rag_retrieve`'s registration.
+            "lookup_by_id",
+            "fetch_records_by_ids",
+            "fetch_by_ids_scoped",
+            // Direct remote-write helpers the compatibility commands forward to.
+            // Any command whose body reaches one of these mutates a remote client
+            // record and must be a registered, guarded doorway (re-review B
+            // Findings 3 & 5).
+            "crm_create_write",
+            "crm_update_field_from_proposal",
         ];
 
         fn walk(dir: &Path, manifests: &mut Vec<String>, sources: &mut Vec<(PathBuf, String)>) {

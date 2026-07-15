@@ -1116,6 +1116,11 @@ pub async fn crm_create_note(
     provider: Option<String>,
     provenance: Option<String>,
 ) -> Result<WriteReceipt, String> {
+    // Own-clients doorway (re-review B Finding 3): this compatibility command
+    // writes to a remote client record, so a scoped member may only target a
+    // matter they own. No-op when the flag is off; deny-closed with no bound
+    // member. Same guard the proposal-approval write path uses.
+    require_proposal_matter_in_scope(&state, &matter_id).await?;
     crm_create_write(
         app,
         &state,
@@ -1150,6 +1155,8 @@ pub async fn crm_create_task(
     requested_at: String,
     provider: Option<String>,
 ) -> Result<WriteReceipt, String> {
+    // Own-clients doorway (re-review B Finding 3): see `crm_create_note`.
+    require_proposal_matter_in_scope(&state, &matter_id).await?;
     crm_create_write(
         app,
         &state,
@@ -1347,6 +1354,12 @@ pub async fn crm_update_field(
     requested_at: String,
     provider: Option<String>,
 ) -> Result<WriteReceipt, String> {
+    // Own-clients doorway (re-review B Finding 3): this compatibility command
+    // both mutates a remote client field AND, on a stale value, discloses the
+    // record's current remote value — a PII oracle. Guard the target matter
+    // against the member's scope before either can happen. No-op when the flag
+    // is off; deny-closed with no bound member.
+    require_proposal_matter_in_scope(&state, &matter_id).await?;
     crm_update_field_from_proposal(
         app,
         &state,

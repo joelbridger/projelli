@@ -626,7 +626,7 @@ mod tests {
         let rows = [&r];
         let none = std::collections::HashSet::new();
         assert_eq!(
-            classify_citation(&rows, "matterA", "purchase price is $4.2M", &none, None),
+            classify_citation(&rows, "matterA", "purchase price is $4.2M", &none, None, None),
             Verdict::Verified
         );
     }
@@ -637,7 +637,7 @@ mod tests {
         let rows = [&r];
         let none = std::collections::HashSet::new();
         assert_eq!(
-            classify_citation(&rows, "matterA", "ten billion dollars", &none, None),
+            classify_citation(&rows, "matterA", "ten billion dollars", &none, None, None),
             Verdict::TextMismatch
         );
     }
@@ -648,7 +648,7 @@ mod tests {
         let rows = [&r];
         let none = std::collections::HashSet::new();
         assert_eq!(
-            classify_citation(&rows, "matterA", "confidential Acme terms", &none, None),
+            classify_citation(&rows, "matterA", "confidential Acme terms", &none, None, None),
             Verdict::MatterMismatch { actual_matter: "matterB".to_string() }
         );
     }
@@ -657,7 +657,7 @@ mod tests {
     fn classify_notfound_when_no_rows() {
         let none = std::collections::HashSet::new();
         assert_eq!(
-            classify_citation(&[], "matterA", "anything", &none, None),
+            classify_citation(&[], "matterA", "anything", &none, None, None),
             Verdict::NotFound
         );
     }
@@ -670,7 +670,7 @@ mod tests {
         let mut tomb = std::collections::HashSet::new();
         tomb.insert("stale-token".to_string());
         assert_eq!(
-            classify_citation(&rows, "matterA", "purchase price is $4.2M", &tomb, None),
+            classify_citation(&rows, "matterA", "purchase price is $4.2M", &tomb, None, None),
             Verdict::NotFound
         );
     }
@@ -682,7 +682,7 @@ mod tests {
         let mut tomb = std::collections::HashSet::new();
         tomb.insert("stale-token".to_string());
         assert_eq!(
-            classify_citation(&rows, "matterA", "confidential Acme terms", &tomb, None),
+            classify_citation(&rows, "matterA", "confidential Acme terms", &tomb, None, None),
             Verdict::NotFound
         );
     }
@@ -698,7 +698,7 @@ mod tests {
         let mut tomb = std::collections::HashSet::new();
         tomb.insert("stale-token".to_string());
         assert_eq!(
-            classify_citation(&rows, "matterA", "text", &tomb, None),
+            classify_citation(&rows, "matterA", "text", &tomb, None, None),
             Verdict::NotFound
         );
     }
@@ -714,7 +714,7 @@ mod tests {
         let mut tomb = std::collections::HashSet::new();
         tomb.insert("stale-token".to_string());
         assert_eq!(
-            classify_citation(&rows, "matterA", "purchase price is $4.2M", &tomb, None),
+            classify_citation(&rows, "matterA", "purchase price is $4.2M", &tomb, None, None),
             Verdict::NotFound
         );
     }
@@ -730,8 +730,82 @@ mod tests {
         let mut tomb = std::collections::HashSet::new();
         tomb.insert("stale-token".to_string());
         assert_eq!(
-            classify_citation(&rows, "matterA", "purchase price is $4.2M", &tomb, None),
+            classify_citation(&rows, "matterA", "purchase price is $4.2M", &tomb, None, None),
             Verdict::Verified
+        );
+    }
+
+    #[test]
+    fn classify_denies_when_the_claimed_matter_is_out_of_scope() {
+        // re-review B Finding 4 (batch): a claim on a matter outside the member's
+        // scope is refused before any probe — fail-closed NotFound.
+        use crate::commands::crm::features::permissions::commands::MatterReadScope;
+        let r = rec("id1", "matterA", "srcA", "the purchase price is $4.2M");
+        let rows = [&r];
+        let none = std::collections::HashSet::new();
+        let scope = MatterReadScope::Only(["matterMine".to_string()].into_iter().collect());
+        assert_eq!(
+            classify_citation(
+                &rows,
+                "matterA",
+                "purchase price is $4.2M",
+                &none,
+                None,
+                Some(&scope)
+            ),
+            Verdict::NotFound
+        );
+    }
+
+    #[test]
+    fn classify_hides_a_foreign_actual_matter_instead_of_leaking_it() {
+        // re-review B Finding 4: claim an in-scope matter, but the id really lives
+        // under a matter OUTSIDE scope — the actual matter must NOT be disclosed;
+        // it must be indistinguishable from a fabricated id.
+        use crate::commands::crm::features::permissions::commands::MatterReadScope;
+        let r = rec("id1", "matterB", "srcB", "confidential Acme terms");
+        let rows = [&r];
+        let none = std::collections::HashSet::new();
+        let scope = MatterReadScope::Only(["matterMine".to_string()].into_iter().collect());
+        assert_eq!(
+            classify_citation(
+                &rows,
+                "matterMine",
+                "confidential Acme terms",
+                &none,
+                None,
+                Some(&scope)
+            ),
+            Verdict::NotFound,
+            "a foreign actual matter must not leak through MatterMismatch"
+        );
+    }
+
+    #[test]
+    fn classify_discloses_a_mismatch_only_between_two_in_scope_matters() {
+        // A cross-matter mismatch is legitimate to disclose only when BOTH the
+        // claimed and the actual matter are within the member's scope.
+        use crate::commands::crm::features::permissions::commands::MatterReadScope;
+        let r = rec("id1", "matterB", "srcB", "confidential Acme terms");
+        let rows = [&r];
+        let none = std::collections::HashSet::new();
+        let scope = MatterReadScope::Only(
+            ["matterA".to_string(), "matterB".to_string()]
+                .into_iter()
+                .collect(),
+        );
+        assert_eq!(
+            classify_citation(
+                &rows,
+                "matterA",
+                "confidential Acme terms",
+                &none,
+                None,
+                Some(&scope)
+            ),
+            Verdict::MatterMismatch {
+                actual_matter: "matterB".to_string()
+            }
         );
     }
 
