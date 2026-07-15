@@ -21,7 +21,6 @@ describe('settingsModuleRegistry', () => {
     vi.doUnmock('@/platform/flags/router');
     vi.doUnmock('./legacySettingsSections');
     vi.doUnmock('@/features/crm-firm');
-    vi.doUnmock('@/features/crm-firm/custom-fields');
     vi.resetModules();
   });
 
@@ -311,8 +310,6 @@ describe('settingsModuleRegistry', () => {
         order: 30,
         render: () => null,
       },
-    }));
-    vi.doMock('@/features/crm-firm/custom-fields', () => ({
       customFieldsSettingsModule: {
         id: 'custom-fields-firm',
         section: 'organization',
