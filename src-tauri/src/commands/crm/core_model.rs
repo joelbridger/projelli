@@ -121,90 +121,21 @@ core_entity!(IntakeSubmission, "intakeSubmission");
 core_entity!(ImportArchiveManifest, "importArchiveManifest");
 core_entity!(SavedView, "savedView");
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(tag = "kind")]
-pub enum CrmEntity {
-    #[serde(rename = "household")]
-    Household(Household),
-    #[serde(rename = "person")]
-    Person(Person),
-    #[serde(rename = "account")]
-    Account(Account),
-    #[serde(rename = "fact")]
-    Fact(Fact),
-    #[serde(rename = "note")]
-    Note(Note),
-    #[serde(rename = "task")]
-    Task(Task),
-    #[serde(rename = "workflowTemplate")]
-    WorkflowTemplate(WorkflowTemplate),
-    #[serde(rename = "workflowInstance")]
-    WorkflowInstance(WorkflowInstance),
-    #[serde(rename = "servicePolicy")]
-    ServicePolicy(ServicePolicy),
-    #[serde(rename = "activityEvent")]
-    ActivityEvent(ActivityEvent),
-    #[serde(rename = "firmDoc")]
-    FirmDoc(FirmDoc),
-    #[serde(rename = "tag")]
-    Tag(Tag),
-    #[serde(rename = "customFieldDef")]
-    CustomFieldDef(CustomFieldDef),
-    #[serde(rename = "opportunity")]
-    Opportunity(Opportunity),
-    #[serde(rename = "pipelineDef")]
-    PipelineDef(PipelineDef),
-    #[serde(rename = "stageDef")]
-    StageDef(StageDef),
-    #[serde(rename = "proposalRecord")]
-    ProposalRecord(ProposalRecord),
-    #[serde(rename = "project")]
-    Project(Project),
-    #[serde(rename = "legacyProject")]
-    LegacyProject(LegacyProject),
-    #[serde(rename = "firmDirectoryEntry")]
-    FirmDirectoryEntry(FirmDirectoryEntry),
-    #[serde(rename = "householdDirectoryShell")]
-    HouseholdDirectoryShell(HouseholdDirectoryShell),
-    #[serde(rename = "intakeLink")]
-    IntakeLink(IntakeLink),
-    #[serde(rename = "intakeSubmission")]
-    IntakeSubmission(IntakeSubmission),
-    #[serde(rename = "importArchiveManifest")]
-    ImportArchiveManifest(ImportArchiveManifest),
-    #[serde(rename = "savedView")]
-    SavedView(SavedView),
+/// Generic live-record wrapper. Feature kinds remain data, rather than enum
+/// branches in this central model. Features that need stricter validation or a
+/// SQL projection register a descriptor beside their native implementation.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct CrmEntity {
+    #[serde(flatten)]
+    pub base: CrmBaseRecord,
+    #[serde(flatten)]
+    pub fields: Map<String, Value>,
 }
 
 impl CrmEntity {
     pub fn kind(&self) -> &str {
-        match self {
-            Self::Household(v) => v.base.kind.as_str(),
-            Self::Person(v) => v.base.kind.as_str(),
-            Self::Account(v) => v.base.kind.as_str(),
-            Self::Fact(v) => v.base.kind.as_str(),
-            Self::Note(v) => v.base.kind.as_str(),
-            Self::Task(v) => v.base.kind.as_str(),
-            Self::WorkflowTemplate(v) => v.base.kind.as_str(),
-            Self::WorkflowInstance(v) => v.base.kind.as_str(),
-            Self::ServicePolicy(v) => v.base.kind.as_str(),
-            Self::ActivityEvent(v) => v.base.kind.as_str(),
-            Self::FirmDoc(v) => v.base.kind.as_str(),
-            Self::Tag(v) => v.base.kind.as_str(),
-            Self::CustomFieldDef(v) => v.base.kind.as_str(),
-            Self::Opportunity(v) => v.base.kind.as_str(),
-            Self::PipelineDef(v) => v.base.kind.as_str(),
-            Self::StageDef(v) => v.base.kind.as_str(),
-            Self::ProposalRecord(v) => v.base.kind.as_str(),
-            Self::Project(v) => v.base.kind.as_str(),
-            Self::LegacyProject(v) => v.base.kind.as_str(),
-            Self::FirmDirectoryEntry(v) => v.base.kind.as_str(),
-            Self::HouseholdDirectoryShell(v) => v.base.kind.as_str(),
-            Self::IntakeLink(v) => v.base.kind.as_str(),
-            Self::IntakeSubmission(v) => v.base.kind.as_str(),
-            Self::ImportArchiveManifest(v) => v.base.kind.as_str(),
-            Self::SavedView(v) => v.base.kind.as_str(),
-        }
+        self.base.kind.as_str()
     }
 }
 
@@ -347,6 +278,29 @@ pub fn displayed_assignment<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn generic_entity_accepts_a_new_kind_without_an_enum_branch() {
+        let entity: CrmEntity = serde_json::from_value(serde_json::json!({
+            "id": "future-1",
+            "kind": "futureFeature",
+            "matterId": "client-1",
+            "createdAt": "2026-07-15T00:00:00Z",
+            "createdBy": {"userId":"u1","seat":null,"display":"User","kind":"user"},
+            "updatedAt": "2026-07-15T00:00:00Z",
+            "updatedBy": {"userId":"u1","seat":null,"display":"User","kind":"user"},
+            "source": {"kind":"manual"},
+            "deleted": false,
+            "externalRefs": [],
+            "rawRecordRef": null,
+            "schemaVersion": 1,
+            "featurePayload": {"kept": true}
+        }))
+        .unwrap();
+
+        assert_eq!(entity.kind(), "futureFeature");
+        assert_eq!(entity.fields["featurePayload"]["kept"], true);
+    }
+
     #[test]
     fn hlc_orders_actor_and_operation_after_time() {
         let low = HlcStamp {

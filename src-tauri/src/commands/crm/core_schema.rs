@@ -1,19 +1,22 @@
-//! CRM-core SQLCipher schema migration.  All entity tables below are projections
-//! of `crm_docs`; only the three migration-operation tables are operator-local.
+//! Frozen CRM-core SQLCipher baseline.
+//!
+//! All entity tables below are projections of `crm_docs`; only the three
+//! migration-operation tables are operator-local. This file is the immutable
+//! version-1 baseline. New schema changes belong in a numbered file below
+//! `crm/migrations/`, never in this schema string.
 
 use anyhow::Result;
 use rusqlite::Connection;
 
-pub const CRM_CORE_SCHEMA_VERSION: &str = "1";
+pub const CRM_CORE_BASELINE_VERSION: u32 = 1;
 
-pub fn migrate(conn: &Connection) -> Result<()> {
+pub(crate) fn apply_baseline(conn: &Connection) -> Result<()> {
     conn.execute_batch(SCHEMA)?;
-    conn.execute("INSERT INTO meta(key,value) VALUES('schema_version',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value", [CRM_CORE_SCHEMA_VERSION])?;
     Ok(())
 }
 
-// Kept in one migration module so a corruption rebuild can deliberately clear
-// projections without touching crm_docs or the local migration-operation rows.
+// Frozen at version 1. A corruption rebuild can deliberately clear projections
+// without touching crm_docs or the local migration-operation rows.
 const SCHEMA: &str = r#"
 CREATE TABLE IF NOT EXISTS crm_docs (doc_key TEXT PRIMARY KEY, matter_id TEXT NOT NULL, doc_id TEXT NOT NULL, yjs_state BLOB NOT NULL, state_vector BLOB NOT NULL, updated_at TEXT NOT NULL, deleted INTEGER NOT NULL DEFAULT 0);
 CREATE INDEX IF NOT EXISTS idx_crm_docs_scope ON crm_docs(matter_id, doc_id);
@@ -79,7 +82,7 @@ mod tests {
     #[test]
     fn schema_has_required_note_and_org_scoped_notification_indexes() {
         let conn = Connection::open_in_memory().unwrap();
-        migrate(&conn).unwrap();
+        apply_baseline(&conn).unwrap();
         let note_index: String = conn
             .query_row(
                 "SELECT name FROM sqlite_master WHERE type='index' AND name='idx_note_hh_aud'",
