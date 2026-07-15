@@ -154,7 +154,7 @@ describe('ClientsSurface during a CRM search update', () => {
     await vi.waitFor(() => {
       expect(savedRecord).toBeDefined();
     });
-    expect(savedRecord?.extensionData).toEqual({
+    expect(savedRecord?.['extensionData']).toEqual({
       'crm.professional-contacts': expect.objectContaining({
         trusted_contact: expect.objectContaining({
           name: 'Amelia Foster',
@@ -170,7 +170,7 @@ describe('ClientsSurface during a CRM search update', () => {
     expect(
       screen.getByTestId('professional-contacts-summary-trusted_contact')
     ).toHaveTextContent('Amelia Foster');
-    expect(liveCrm.records[0]?.extensionData).toEqual({
+    expect(liveCrm.records[0]?.['extensionData']).toEqual({
       'crm.professional-contacts': expect.objectContaining({
         trusted_contact: expect.objectContaining({ name: 'Amelia Foster' }),
       }),
