@@ -89,8 +89,7 @@ export const flagRegistry = [
   },
   {
     id: 'crm-trash-recovery',
-    description:
-      'Keeps CRM record soft-delete and 30-day recovery dark until acceptance testing passes.',
+    description: 'Keeps CRM record soft-delete and 30-day recovery dark until acceptance testing passes.',
     ownerLane: 'crm-trash-recovery',
     createdAt: '2026-07-15',
     expiresAt: '2026-09-13',

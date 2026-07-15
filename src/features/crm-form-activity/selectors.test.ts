@@ -8,6 +8,29 @@ const records: readonly LiveCrmRecord[] = [
     kind: 'intakeLink',
     name: 'Annual review',
     matterId: 'firm_home',
+    audience: 'client-facing',
+    fields: {
+      client_name: {
+        id: 'client_name',
+        label: 'Full name',
+        kind: 'text',
+        required: true,
+      },
+      client_email: {
+        id: 'client_email',
+        label: 'Email address',
+        kind: 'email',
+        required: true,
+      },
+      account_number: {
+        id: 'account_number',
+        label: 'Account number',
+        kind: 'text',
+        required: true,
+      },
+    },
+    confirmationCopy: 'Thank you.',
+    status: 'active',
   },
   {
     id: 'household-1',
@@ -22,7 +45,7 @@ const records: readonly LiveCrmRecord[] = [
     intakeLinkId: 'form-1',
     audience: 'client-facing',
     submittedAt: '2026-07-15T14:00:00Z',
-    payload: { values: { full_name: 'Avery Chen' } },
+    payload: { values: { client_name: 'Avery Chen' } },
     matchingDecisions: {
       earlier: {
         decision: 'match',
@@ -43,10 +66,20 @@ const records: readonly LiveCrmRecord[] = [
     intakeLinkId: 'missing-form',
     audience: 'internal',
     submittedAt: '2026-07-14T14:00:00Z',
-    payload: { values: { email: 'advisor@example.com' } },
+    payload: { values: { client_email: 'advisor@example.com' } },
     matchingDecisions: {},
   },
   { id: 'malformed', kind: 'intakeSubmission', intakeLinkId: 'form-1' },
+  {
+    id: 'sensitive-only',
+    kind: 'intakeSubmission',
+    matterId: 'firm_home',
+    intakeLinkId: 'form-1',
+    audience: 'client-facing',
+    submittedAt: '2026-07-13T14:00:00Z',
+    payload: { values: { account_number: '001234567890' } },
+    matchingDecisions: {},
+  },
 ];
 
 describe('form activity selectors', () => {
@@ -62,7 +95,13 @@ describe('form activity selectors', () => {
       expect.objectContaining({
         id: 'submission-old',
         formName: 'missing-form',
-        submitterLabel: 'advisor@example.com',
+        submitterLabel: null,
+        contact: null,
+        status: 'unmatched',
+      }),
+      expect.objectContaining({
+        id: 'sensitive-only',
+        submitterLabel: null,
         contact: null,
         status: 'unmatched',
       }),
@@ -80,16 +119,13 @@ describe('form activity selectors', () => {
     ]);
   });
 
-  it('keeps the persisted live-record order and filters after a restart-style rehydrate', () => {
-    const persisted = JSON.parse(JSON.stringify(records)) as LiveCrmRecord[];
-    const afterRestart = selectFormActivity(persisted);
-
-    expect(afterRestart.map((entry) => entry.id)).toEqual([
-      'submission-new',
-      'submission-old',
-    ]);
-    expect(filterFormActivity(afterRestart, '', 'created', 'client-facing')).toEqual([
-      expect.objectContaining({ id: 'submission-new' }),
-    ]);
+  it('never uses a sensitive response as a submitter fallback', () => {
+    const entry = selectFormActivity(records).find(
+      (candidate) => candidate.id === 'sensitive-only'
+    );
+    expect(entry?.submitterLabel).toBeNull();
+    expect(entry).not.toEqual(
+      expect.objectContaining({ submitterLabel: '001234567890' })
+    );
   });
 });

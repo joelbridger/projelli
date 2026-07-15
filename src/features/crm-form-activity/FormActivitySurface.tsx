@@ -56,9 +56,15 @@ function sourceLabel(
 
 export function FormActivitySurface() {
   const enabled = useFlag('form-activity');
-  const live = useLiveCrmRecords();
 
   if (!enabled) return null;
+
+  return <EnabledFormActivitySurface />;
+}
+
+/** Mount the CRM reader only after the feature is explicitly enabled. */
+function EnabledFormActivitySurface() {
+  const live = useLiveCrmRecords();
 
   return <FormActivityPresentation records={live.records} error={live.error} />;
 }
@@ -196,15 +202,11 @@ export function FormActivityPresentation({
                     {entry.submitterLabel ?? t('form-activity.no-submitter')}
                   </td>
                   <td style={cellStyle}>
-                    {entry.contact ? (
-                      <a
-                        href={`#contact-${encodeURIComponent(entry.contact.id)}`}
-                      >
-                        {entry.contact.label}
-                      </a>
-                    ) : (
-                      t('form-activity.no-contact')
-                    )}
+                    {entry.contact
+                      ? // Household navigation has no public CRM Home contract yet.
+                        // Keep this read-only until its owning lane adds one.
+                        entry.contact.label
+                      : t('form-activity.no-contact')}
                   </td>
                   <td style={cellStyle}>
                     {formatTimestamp(entry.submittedAt, i18n.language)}

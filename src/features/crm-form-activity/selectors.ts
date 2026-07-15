@@ -18,6 +18,11 @@ export interface FormActivityEntry {
 
 type UnknownRecord = Record<string, unknown>;
 
+type IntakeLinkDetails = {
+  name: string;
+  fields: ReadonlyMap<string, UnknownRecord>;
+};
+
 function isRecord(value: unknown): value is UnknownRecord {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -51,22 +56,27 @@ function statusForDecision(decision: UnknownRecord | null): FormActivityStatus {
   }
 }
 
-function submitterFromPayload(payload: unknown): string | null {
+function isRecognizedSubmitterField(field: UnknownRecord): boolean {
+  if (field['kind'] === 'email') return true;
+  if (field['kind'] !== 'text') return false;
+  const label = stringValue(field['label']);
+  return Boolean(
+    label && /^(full[ _-]?name|name|submitter|your name)$/i.test(label)
+  );
+}
+
+function submitterFromPayload(
+  payload: unknown,
+  fields: ReadonlyMap<string, UnknownRecord> | undefined
+): string | null {
   if (!isRecord(payload) || !isRecord(payload['values'])) return null;
-  const values = Object.entries(payload['values']);
-  const named = values.find(
-    ([key, value]) =>
-      /^(name|full[_ -]?name|submitter|email)$/i.test(key) &&
-      typeof value === 'string' &&
-      value.trim()
-  );
-  if (named && typeof named[1] === 'string') return named[1].trim();
-  const firstText = values.find(
-    ([, value]) => typeof value === 'string' && value.trim()
-  );
-  return firstText && typeof firstText[1] === 'string'
-    ? firstText[1].trim()
-    : null;
+  if (!fields) return null;
+  for (const [fieldId, value] of Object.entries(payload['values'])) {
+    if (!isRecognizedSubmitterField(fields.get(fieldId) ?? {})) continue;
+    const submitter = stringValue(value);
+    if (submitter) return submitter;
+  }
+  return null;
 }
 
 function householdNames(
@@ -100,11 +110,17 @@ function contactForDecision(
 export function selectFormActivity(
   records: readonly LiveCrmRecord[]
 ): readonly FormActivityEntry[] {
-  const forms = new Map(
+  const forms = new Map<string, IntakeLinkDetails>(
     records.flatMap((record) => {
       if (record.kind !== 'intakeLink') return [];
       const name = stringValue(record['name']);
-      return name ? [[record.id, name] as const] : [];
+      const rawFields = isRecord(record['fields']) ? record['fields'] : {};
+      const fields = new Map(
+        Object.entries(rawFields).flatMap(([id, field]) =>
+          isRecord(field) ? [[id, field] as const] : []
+        )
+      );
+      return name ? [[record.id, { name, fields }] as const] : [];
     })
   );
   const names = householdNames(records);
@@ -124,8 +140,11 @@ export function selectFormActivity(
       return [
         {
           id: record.id,
-          formName: forms.get(intakeLinkId) ?? intakeLinkId,
-          submitterLabel: submitterFromPayload(record['payload']),
+          formName: forms.get(intakeLinkId)?.name ?? intakeLinkId,
+          submitterLabel: submitterFromPayload(
+            record['payload'],
+            forms.get(intakeLinkId)?.fields
+          ),
           contact: contactForDecision(decision, names),
           submittedAt,
           status: statusForDecision(decision),

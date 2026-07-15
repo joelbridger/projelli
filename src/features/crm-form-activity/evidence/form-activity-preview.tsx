@@ -10,8 +10,34 @@ const records = [
     id: 'form-annual',
     kind: 'intakeLink',
     name: 'Annual review questionnaire',
+    fields: {
+      client_name: {
+        id: 'client_name',
+        label: 'Full name',
+        kind: 'text',
+        required: true,
+      },
+      client_email: {
+        id: 'client_email',
+        label: 'Email address',
+        kind: 'email',
+        required: true,
+      },
+    },
   },
-  { id: 'form-onboarding', kind: 'intakeLink', name: 'New client onboarding' },
+  {
+    id: 'form-onboarding',
+    kind: 'intakeLink',
+    name: 'New client onboarding',
+    fields: {
+      client_name: {
+        id: 'client_name',
+        label: 'Full name',
+        kind: 'text',
+        required: true,
+      },
+    },
+  },
   { id: 'household-chen', kind: 'household', name: 'Chen household' },
   { id: 'household-rivera', kind: 'household', name: 'Rivera household' },
   {
@@ -20,7 +46,7 @@ const records = [
     intakeLinkId: 'form-annual',
     audience: 'client-facing',
     submittedAt: '2026-07-15T14:00:00Z',
-    payload: { values: { full_name: 'Avery Chen' } },
+    payload: { values: { client_name: 'Avery Chen' } },
     matchingDecisions: {
       matched: {
         decision: 'match',
@@ -35,7 +61,7 @@ const records = [
     intakeLinkId: 'form-onboarding',
     audience: 'client-facing',
     submittedAt: '2026-07-15T10:30:00Z',
-    payload: { values: { full_name: 'Morgan Rivera' } },
+    payload: { values: { client_name: 'Morgan Rivera' } },
     matchingDecisions: {
       created: {
         decision: 'create',
@@ -50,7 +76,7 @@ const records = [
     intakeLinkId: 'form-annual',
     audience: 'internal',
     submittedAt: '2026-07-14T16:15:00Z',
-    payload: { values: { submitter: 'Jordan Lee' } },
+    payload: { values: { client_name: 'Jordan Lee' } },
     matchingDecisions: {},
   },
 ];
