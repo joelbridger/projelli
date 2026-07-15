@@ -4,7 +4,10 @@ import {
   getHouseholdHeaderActions,
   getHouseholdRecordExtensions,
   getHouseholdSections,
+  validateHouseholdAddActionDescriptors,
+  validateHouseholdHeaderActionDescriptors,
   validateHouseholdRecordExtensionDescriptors,
+  validateHouseholdSectionDescriptors,
 } from './recordRegistry';
 import {
   householdTabRegistry,
@@ -57,6 +60,24 @@ describe('household record registries', () => {
     expect(() => {
       validateHouseholdTabDescriptors([...householdTabRegistry, first]);
     }).toThrow(`duplicate tab id: ${first.id}`);
+  });
+
+  it('rejects duplicate header, Add-menu, and section ids clearly', () => {
+    const header = getHouseholdHeaderActions()[0];
+    const addAction = getHouseholdAddActions()[0];
+    const section = getHouseholdSections()[0];
+    if (!header || !addAction || !section)
+      throw new Error('Expected compatibility registry descriptors');
+
+    expect(() => {
+      validateHouseholdHeaderActionDescriptors([header, header]);
+    }).toThrow(`duplicate id: ${header.id}`);
+    expect(() => {
+      validateHouseholdAddActionDescriptors([addAction, addAction]);
+    }).toThrow(`duplicate id: ${addAction.id}`);
+    expect(() => {
+      validateHouseholdSectionDescriptors([section, section]);
+    }).toThrow(`duplicate id: ${section.id}`);
   });
 
   it('rejects invalid extension descriptors clearly', () => {

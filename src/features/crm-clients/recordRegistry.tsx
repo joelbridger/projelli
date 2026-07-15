@@ -84,6 +84,27 @@ function validateDescriptors(
   }
 }
 
+/** Validate a proposed header-action list before it is mounted in the record shell. */
+export function validateHouseholdHeaderActionDescriptors(
+  descriptors: readonly HouseholdHeaderActionDescriptor[]
+): void {
+  validateDescriptors('householdHeaderActionRegistry', descriptors);
+}
+
+/** Validate a proposed Add-menu action list before it is mounted in the record shell. */
+export function validateHouseholdAddActionDescriptors(
+  descriptors: readonly HouseholdAddActionDescriptor[]
+): void {
+  validateDescriptors('householdAddActionRegistry', descriptors);
+}
+
+/** Validate a proposed record-section list before it is mounted in the record shell. */
+export function validateHouseholdSectionDescriptors(
+  descriptors: readonly HouseholdSectionDescriptor[]
+): void {
+  validateDescriptors('householdSectionRegistry', descriptors);
+}
+
 export function validateHouseholdRecordExtensionDescriptors(
   descriptors: readonly HouseholdRecordExtensionDescriptor[]
 ): void {
@@ -130,20 +151,17 @@ export const householdRecordExtensionRegistry: readonly HouseholdRecordExtension
   legacyHouseholdRecordExtensions;
 
 export function getHouseholdHeaderActions() {
-  validateDescriptors(
-    'householdHeaderActionRegistry',
-    householdHeaderActionRegistry
-  );
+  validateHouseholdHeaderActionDescriptors(householdHeaderActionRegistry);
   return householdHeaderActionRegistry
     .slice()
     .sort((a, b) => a.order - b.order);
 }
 export function getHouseholdAddActions() {
-  validateDescriptors('householdAddActionRegistry', householdAddActionRegistry);
+  validateHouseholdAddActionDescriptors(householdAddActionRegistry);
   return householdAddActionRegistry.slice().sort((a, b) => a.order - b.order);
 }
 export function getHouseholdSections() {
-  validateDescriptors('householdSectionRegistry', householdSectionRegistry);
+  validateHouseholdSectionDescriptors(householdSectionRegistry);
   return householdSectionRegistry.slice().sort((a, b) => a.order - b.order);
 }
 export function getHouseholdRecordExtensions() {
