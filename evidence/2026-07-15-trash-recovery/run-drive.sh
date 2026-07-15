@@ -80,7 +80,7 @@ start_vite() {
   (
     cd "$ROOT"
     npm run dev -- --host 127.0.0.1
-  ) >"$EVIDENCE/vite.log" 2>&1 &
+  ) >"$WORKSPACE/vite.log" 2>&1 &
   VITE_PID="$!"
   local deadline=$((SECONDS + 45))
   until curl -sf http://127.0.0.1:5174 >/dev/null 2>&1; do
@@ -98,7 +98,7 @@ launch_app() {
   LANTERN_XVFB_PID_FILE="$XVFB_PID_FILE" \
   LANTERN_XVFB_DISPLAY="$DISPLAY_ID" \
     "$ROOT/scripts/crm-loop/launch-app.sh" "$PORT" "$WORKSPACE" \
-      >"$EVIDENCE/app-launch-$number.log" 2>&1 &
+      >"$WORKSPACE/app-launch-$number.log" 2>&1 &
   LAUNCHER_PID="$!"
   local deadline=$((SECONDS + 45))
   until curl -sf "http://127.0.0.1:$PORT/health" >/dev/null 2>&1; do
