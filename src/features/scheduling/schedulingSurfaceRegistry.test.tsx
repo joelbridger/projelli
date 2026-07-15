@@ -40,7 +40,7 @@ describe('schedulingSurfaceRegistry', () => {
   it('keeps descriptor order stable and rejects duplicate ids or invalid contracts', () => {
     const later = { ...dummyContribution, id: 'later-scheduling-contribution' as const, order: 30 };
     expect(renderSchedulingSurfaceRegistry(runtime, [later, dummyContribution])).toHaveLength(2);
-    expect(() => validateSchedulingSurfaceDescriptors([dummyContribution, dummyContribution])).toThrow('duplicate surface id');
-    expect(() => validateSchedulingSurfaceDescriptors([{ ...dummyContribution, order: Number.NaN }])).toThrow('invalid order');
+    expect(() => { validateSchedulingSurfaceDescriptors([dummyContribution, dummyContribution]); }).toThrow('duplicate surface id');
+    expect(() => { validateSchedulingSurfaceDescriptors([{ ...dummyContribution, order: Number.NaN }]); }).toThrow('invalid order');
   });
 });
