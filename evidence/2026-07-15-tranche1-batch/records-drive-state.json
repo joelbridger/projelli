@@ -1,0 +1,46 @@
+{
+  "expectedSha": "a6952a0acfe39d82b0375fcbd6be2ffd16d0b230",
+  "householdId": "tranche1-batch-records-household",
+  "extensionData": {
+    "compliance-dates.written-agreements": {
+      "advisoryAgreementSignedOn": "2017-01-18",
+      "financialPlanningAgreementRenewedOn": "2026-01-18",
+      "formAdvDeliveredOn": "2026-03-12",
+      "formCrsDeliveredOn": "2026-03-12",
+      "investmentPolicyStatementUpdatedOn": "2026-06-20",
+      "privacyNoticeDeliveredOn": "2026-01-08"
+    },
+    "crm.employment": {
+      "householdGrossAnnualIncome": 284000,
+      "members": {
+        "member-amara": {
+          "employer": "Okafor & Lane Architects",
+          "occupation": "Managing partner, Okafor & Lane Architects",
+          "occupationStart": "2002-04-01",
+          "plannedRetirement": "2027-03-01",
+          "reducedScheduleContext": "reduced schedule first"
+        }
+      },
+      "version": 1
+    },
+    "crm.professional-contacts": {
+      "cpa": {
+        "email": "thomas.lee@example.com",
+        "name": "Thomas Lee, CPA",
+        "notes": "Coordinates year-end tax filing.",
+        "organization": "Lee & Partners",
+        "phone": "555-0142",
+        "relationship": "Accountant"
+      },
+      "estate_attorney": null,
+      "insurance_professional": null,
+      "trusted_contact": null
+    },
+    "investment-profile.profile": {
+      "investmentObjective": "growth",
+      "liquidityNeed": "$180K over next 3 years",
+      "riskTolerance": "moderate",
+      "timeHorizon": "over-10-years"
+    }
+  }
+}
