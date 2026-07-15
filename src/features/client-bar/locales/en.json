@@ -1,0 +1,26 @@
+{
+  "client-bar": {
+    "helper": {
+      "selected": "This client follows you between CRM, Ask, and Meetings.",
+      "empty": "Choose a client to carry the same context between tools."
+    },
+    "quick-actions-label": "Open a tool for the current client",
+    "actions": {
+      "open-crm": "Open CRM"
+    },
+    "picker": {
+      "trigger": "Choose current client",
+      "title": "Choose current client",
+      "search-label": "Search people and households",
+      "search-placeholder": "Search people and households",
+      "selected": "Current client",
+      "loading": "Loading clients…",
+      "load-error": "Clients could not be loaded. Your CRM data is still safe.",
+      "retry": "Try again",
+      "household-description": "CRM household",
+      "no-results": "No clients match your search.",
+      "clear": "Clear client",
+      "cancel": "Cancel"
+    }
+  }
+}
