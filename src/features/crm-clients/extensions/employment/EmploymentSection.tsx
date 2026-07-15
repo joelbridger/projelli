@@ -43,6 +43,26 @@ function formatIncome(
   }).format(amount);
 }
 
+function formatMonthYear(
+  value: string | undefined,
+  locale: string
+): string | undefined {
+  if (!value) return undefined;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return value;
+  const year = match[1];
+  const month = match[2];
+  const day = match[3];
+  if (!year || !month || !day) return value;
+  const date = new Date(`${year}-${month}-${day}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat(locale, {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(date);
+}
+
 export function EmploymentSection({
   household,
   onSaveHousehold,
@@ -66,6 +86,14 @@ export function EmploymentSection({
     : emptyMemberInformation;
   const income = formatIncome(
     information.householdGrossAnnualIncome,
+    i18n.language
+  );
+  const occupationStart = formatMonthYear(
+    selectedInformation.occupationStart,
+    i18n.language
+  );
+  const plannedRetirement = formatMonthYear(
+    selectedInformation.plannedRetirement,
     i18n.language
   );
 
@@ -279,12 +307,11 @@ export function EmploymentSection({
               </dd>
               <dt>{t('employment.occupation-start-label')}</dt>
               <dd style={{ margin: 0 }}>
-                {selectedInformation.occupationStart || t('employment.not-set')}
+                {occupationStart || t('employment.not-set')}
               </dd>
               <dt>{t('employment.planned-retirement-label')}</dt>
               <dd style={{ margin: 0 }}>
-                {selectedInformation.plannedRetirement ||
-                  t('employment.not-set')}
+                {plannedRetirement || t('employment.not-set')}
                 {selectedInformation.reducedScheduleContext
                   ? ` · ${selectedInformation.reducedScheduleContext}`
                   : ''}
@@ -294,7 +321,9 @@ export function EmploymentSection({
                 style={{ margin: 0 }}
                 data-testid="crm-employment-income-value"
               >
-                {income ?? t('employment.not-set')}
+                {income
+                  ? `${income} ${t('employment.household-suffix')}`
+                  : t('employment.not-set')}
               </dd>
             </dl>
           )}

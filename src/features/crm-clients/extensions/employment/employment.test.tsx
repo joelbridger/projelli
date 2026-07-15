@@ -100,6 +100,37 @@ describe('Employment section', () => {
     );
   });
 
+  it('shows a save error and keeps the unsaved edits when persistence rejects', async () => {
+    const onSaveHousehold = vi
+      .fn()
+      .mockRejectedValue(new Error('store unavailable'));
+    render(
+      <EmploymentSection
+        household={household}
+        onSaveHousehold={onSaveHousehold}
+        enabled
+      />
+    );
+
+    fireEvent.click(screen.getByTestId('crm-employment-edit'));
+    fireEvent.change(screen.getByTestId('crm-employment-occupation'), {
+      target: { value: 'Managing partner' },
+    });
+    fireEvent.change(screen.getByTestId('crm-employment-income'), {
+      target: { value: '284000' },
+    });
+    fireEvent.click(screen.getByTestId('crm-employment-save'));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Employment could not be saved. Please try again.'
+    );
+    expect(onSaveHousehold).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('crm-employment-occupation')).toHaveValue(
+      'Managing partner'
+    );
+    expect(screen.getByTestId('crm-employment-income')).toHaveValue(284000);
+  });
+
   it('keeps each member association separate', () => {
     const saved = persistEmploymentInformation(household, {
       version: 1,
@@ -140,27 +171,55 @@ describe('Employment section', () => {
     ).toEqual({ version: 1, members: {} });
   });
 
-  it('restores saved information after a fresh render', () => {
-    const saved = persistEmploymentInformation(household, {
-      version: 1,
-      householdGrossAnnualIncome: 284000,
-      members: {
-        robert: {
-          occupation: 'Managing partner',
-          employer: 'Foster & Lane Architects',
-          plannedRetirement: '2027-03-01',
-          reducedScheduleContext: 'Four days per week first',
-        },
-      },
+  it('restores information produced by the real editor save path after a fresh render', async () => {
+    let saved: HouseholdRecord | undefined;
+    const firstRender = render(
+      <EmploymentSection
+        household={household}
+        onSaveHousehold={(next) => {
+          saved = next;
+        }}
+        enabled
+      />
+    );
+
+    fireEvent.click(screen.getByTestId('crm-employment-edit'));
+    fireEvent.change(screen.getByTestId('crm-employment-occupation'), {
+      target: { value: 'Managing partner' },
     });
+    fireEvent.change(screen.getByTestId('crm-employment-employer'), {
+      target: { value: 'Foster & Lane Architects' },
+    });
+    fireEvent.change(screen.getByTestId('crm-employment-start'), {
+      target: { value: '2002-04-01' },
+    });
+    fireEvent.change(screen.getByTestId('crm-employment-retirement'), {
+      target: { value: '2027-03-01' },
+    });
+    fireEvent.change(screen.getByTestId('crm-employment-reduced-schedule'), {
+      target: { value: 'Four days per week first' },
+    });
+    fireEvent.change(screen.getByTestId('crm-employment-income'), {
+      target: { value: '284000' },
+    });
+    fireEvent.click(screen.getByTestId('crm-employment-save'));
+
+    await waitFor(() => {
+      expect(saved).toBeDefined();
+    });
+    firstRender.unmount();
+    if (!saved)
+      throw new Error('Expected the editor save path to return a household');
     render(<EmploymentSection household={saved} enabled />);
 
     expect(
       screen.getByTestId('crm-employment-occupation-value')
     ).toHaveTextContent('Managing partner');
     expect(screen.getByTestId('crm-employment-income-value')).toHaveTextContent(
-      '$284,000'
+      '$284,000 household'
     );
+    expect(screen.getByText('April 2002')).toBeInTheDocument();
+    expect(screen.getByText(/March 2027/)).toBeInTheDocument();
     expect(screen.getByText(/Four days per week first/)).toBeInTheDocument();
   });
 });
