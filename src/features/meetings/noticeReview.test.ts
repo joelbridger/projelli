@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { needsReview } from './meetingStore';
+import { needsReview } from './insights/review/meetingReviewArtifactStore';
 import type { MeetingSummary } from './ClientMeetingsTab';
 import type { NoticeState } from './noticeLedger';
 

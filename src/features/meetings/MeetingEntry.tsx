@@ -5,17 +5,7 @@
  */
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  ChevronLeft,
-  Trash2,
-  Check,
-  Pencil,
-  Copy,
-  Download,
-  FileText,
-  MoreVertical,
-  Send,
-} from 'lucide-react';
+import { ChevronLeft, Check, Pencil } from 'lucide-react';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { arrayBufferToDataUrl } from '@/platform/utils/file-utils';
 import {
@@ -30,26 +20,17 @@ import {
   DialogFooter,
 } from '@/ui/dialog';
 import { Button as DialogButton } from '@/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/ui/dropdown-menu';
 import { Badge, SlidePanel } from '@/ui/kp';
-import { TranscriptViewer } from './TranscriptViewer';
-import { SpeakerNamesPanel } from './SpeakerNamesPanel';
 import { MeetingSendPanel } from './MeetingSendPanel';
 import { AuditService } from '@/platform/audit/AuditService';
 import {
-  markMeetingReviewed,
   updateMeetingJson,
   retryMeetingNotes,
   retryMeetingTranscript,
   ensureMeetingNoticeVerified,
   resolveMatterFolder,
 } from './meetingStore';
+import { markMeetingReviewed } from './insights/review/meetingReviewArtifactStore';
 import type { MeetingMeta } from './meetingStore';
 import { NoticeTrail } from './NoticeTrail';
 import { makeConsentLedger } from './consentLedger';
@@ -74,13 +55,12 @@ import {
 import { docxConvertToPdf } from '@/platform/utils/docx-commands';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { readTauriFile } from '@/platform/fs/tauriFsPlugin';
-import { MeetingNotesReview } from '@/platform/meetingNotesReview/MeetingNotesReview';
 import { meetingNoteOutboundGate } from './outboundNoteGate';
 import { deriveNoticeState } from './noticeLedger';
 import { useFirm } from '@/platform/hooks/useFirm';
-import { buildResolvedProviderForGlance } from '@/platform/matter/matterAtAGlance';
-import { MeetingTemplatePanel } from './MeetingTemplatePanel';
-import { createPreparedMeetingTemplateFillProvider } from './meetingTemplateAi';
+import { getMeetingPanels, type MeetingPanelId } from './meetingPanelRegistry';
+import { getMeetingHeaderActions } from './meetingHeaderActionRegistry';
+import { getMeetingInsights } from './meetingInsightRegistry';
 
 export interface MeetingEntryProps {
   matterId: string;
@@ -131,8 +111,6 @@ function dateDurationLine(
   return parts.length ? parts.join(' · ') : null;
 }
 
-type MeetingEntryTab = 'recording' | 'transcript' | 'summary';
-
 function sanitizeFileStem(value: string): string {
   return (
     value
@@ -158,10 +136,6 @@ function transcriptToText(transcript: TranscriptFile | null): string {
     .join('\n');
 }
 
-function transcriptLooksSilent(transcript: TranscriptFile | null): boolean {
-  return !!transcript && transcript.segments.every((seg) => !seg.text.trim());
-}
-
 export function MeetingEntry({
   matterId,
   meetingDir,
@@ -185,7 +159,7 @@ export function MeetingEntry({
   const [audioSrc, setAudioSrc] = useState<string | null>(null);
   const [hasAudio, setHasAudio] = useState(false);
   const [seekMs, setSeekMs] = useState<number | undefined>(initialSeekMs);
-  const [activeTab, setActiveTab] = useState<MeetingEntryTab>('recording');
+  const [activeTab, setActiveTab] = useState<MeetingPanelId>('recording');
   const [sendOpen, setSendOpen] = useState(false);
   const [editingType, setEditingType] = useState(false);
   const [typeInput, setTypeInput] = useState('');
@@ -632,6 +606,7 @@ export function MeetingEntry({
         await ws.writeFileBinary(pdfPath, toExactArrayBuffer(pdfBytes));
         return pdfPath;
       } finally {
+        // eslint-disable-next-line lantern-async/no-silent-failure -- cleanup is best-effort after the export result is already known
         await ws.delete(tempDocxPath).catch(() => undefined);
       }
     }).catch((err: unknown) => {
@@ -674,6 +649,89 @@ export function MeetingEntry({
     },
     [onChanged]
   );
+
+  const handleActionError = useCallback((error: unknown) => {
+    setExportNotice(error instanceof Error ? error.message : String(error));
+  }, []);
+
+  const meetingPanels = getMeetingPanels();
+  const activePanel =
+    meetingPanels.find((descriptor) => descriptor.id === activeTab) ??
+    meetingPanels[0];
+  const meetingHeaderActions = getMeetingHeaderActions();
+  const meetingInsights = getMeetingInsights();
+  const panelContext = {
+    t,
+    matterId,
+    meetingDir,
+    clientName,
+    workspaceRoot,
+    workspaceService,
+    firm,
+    meta,
+    transcript,
+    summaryExtraction,
+    summaryText,
+    audioSrc,
+    renderAudioPlayer: () =>
+      audioSrc ? (
+        <AudioPlayer
+          ref={audioRef}
+          audioSrc={audioSrc}
+          filename={meetingDisplayTitle(meta, t)}
+          compact
+        />
+      ) : null,
+    seekMs,
+    hasAudio,
+    hasNotes,
+    summaryReady,
+    crmBlockedReason,
+    retryingNotes,
+    retryingTranscript,
+    onSeek: handleSeek,
+    onRetryNotes: () => {
+      // PARITY: preserves pre-refactor silent handling; surfacing these errors to the user is a tracked design finding, not a refactor-lane change.
+      void handleRetryNotes();
+    },
+    onRetryTranscript: () => {
+      // PARITY: preserves pre-refactor silent handling; surfacing these errors to the user is a tracked design finding, not a refactor-lane change.
+      void handleRetryTranscript();
+    },
+  };
+  const headerActionContext = {
+    t,
+    meta,
+    transcript,
+    summaryText,
+    hasAudio,
+    hasTranscript,
+    summaryReady,
+    exporting,
+    onOpenSend: () => {
+      setSendOpen(true);
+    },
+    onMarkReviewed: handleMarkReviewed,
+    onDownloadAudio: handleDownloadAudio,
+    onCopyTranscript: () => {
+      // PARITY: preserves pre-refactor silent handling; surfacing these errors to the user is a tracked design finding, not a refactor-lane change.
+      void copyText(
+        transcriptToText(transcript),
+        t('meetings.entry.transcript-copied')
+      );
+    },
+    onCopySummary: () => {
+      // PARITY: preserves pre-refactor silent handling; surfacing these errors to the user is a tracked design finding, not a refactor-lane change.
+      void copyText(summaryText.trim(), t('meetings.entry.summary-copied'));
+    },
+    onExportTranscript: handleExportTranscript,
+    onExportSummaryDocx: handleExportSummaryDocx,
+    onExportSummaryPdf: handleExportSummaryPdf,
+    onRequestDeleteAudio: () => {
+      setConfirmingDelete(true);
+    },
+    onActionError: handleActionError,
+  };
 
   return (
     <div
@@ -892,7 +950,10 @@ export function MeetingEntry({
                       setTypeInput(e.target.value);
                     }}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') void handleSaveType();
+                      if (e.key === 'Enter') {
+                        // PARITY: preserves pre-refactor silent handling; surfacing these errors to the user is a tracked design finding, not a refactor-lane change.
+                        void handleSaveType();
+                      }
                       if (e.key === 'Escape') setEditingType(false);
                     }}
                     style={{
@@ -906,6 +967,7 @@ export function MeetingEntry({
                     type="button"
                     data-testid="meeting-type-save"
                     onClick={() => {
+                      // PARITY: preserves pre-refactor silent handling; surfacing these errors to the user is a tracked design finding, not a refactor-lane change.
                       void handleSaveType();
                     }}
                     style={{
@@ -942,174 +1004,17 @@ export function MeetingEntry({
             flex: 'none',
           }}
         >
-          {/* Send (item 1): primary output action, disabled until reviewed. */}
-          {meta && (
-            <button
-              type="button"
-              data-testid="meeting-entry-send"
-              onClick={() => {
-                setSendOpen(true);
-              }}
-              disabled={!meta.reviewedAt}
-              title={
-                !meta.reviewedAt
-                  ? t('meetings.entry.send-review-first')
-                  : undefined
-              }
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                border: '1px solid var(--kp-divider)',
-                background: meta.reviewedAt
-                  ? 'var(--kp-accent)'
-                  : 'transparent',
-                color: meta.reviewedAt
-                  ? 'var(--color-primary-foreground)'
-                  : 'var(--color-muted-foreground)',
-                borderRadius: 'var(--radius-md)',
-                padding: '6px 12px',
-                fontSize: 'var(--kp-font-xs)',
-                fontWeight: 'var(--kp-weight-semibold)',
-                cursor: meta.reviewedAt ? 'pointer' : 'not-allowed',
-                opacity: meta.reviewedAt ? 1 : 0.6,
-                fontFamily: 'inherit',
-              }}
+          {meetingHeaderActions.map((descriptor) => (
+            <span
+              key={descriptor.id}
+              data-meeting-header-action={descriptor.id}
+              data-placement={descriptor.placement}
+              style={{ display: 'contents' }}
             >
-              <Send style={{ width: 13, height: 13 }} />
-              {t('meetings.entry.send-action')}
-            </button>
-          )}
-          {/* Mark reviewed — the only other visible header button (item 7). */}
-          {meta && !meta.reviewedAt && (
-            <button
-              type="button"
-              data-testid="meeting-entry-mark-reviewed"
-              onClick={() => {
-                void handleMarkReviewed().catch((err: unknown) => {
-                  setExportNotice(
-                    err instanceof Error ? err.message : String(err)
-                  );
-                });
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                border: '1px solid var(--kp-divider)',
-                background: 'transparent',
-                borderRadius: 'var(--radius-md)',
-                padding: '6px 10px',
-                fontSize: 'var(--kp-font-xs)',
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-              }}
-            >
-              <Check style={{ width: 12, height: 12 }} />
-              {t('meetings.entry.mark-reviewed')}
-            </button>
-          )}
-          {/* Utilities + destructive delete audio fold into a ... menu (items 7, 13). */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                data-testid="meeting-entry-actions-menu"
-                aria-label={t('meetings.entry.actions-menu')}
-                title={t('meetings.entry.actions-menu')}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  border: '1px solid var(--kp-divider)',
-                  background: 'transparent',
-                  borderRadius: 'var(--radius-md)',
-                  padding: '6px 8px',
-                  cursor: 'pointer',
-                  color: 'var(--kp-navy)',
-                }}
-              >
-                <MoreVertical style={{ width: 15, height: 15 }} />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              {hasAudio && (
-                <DropdownMenuItem
-                  data-testid="meeting-audio-download"
-                  onClick={handleDownloadAudio}
-                >
-                  <Download className="h-3.5 w-3.5 mr-2" />
-                  {t('meetings.entry.download-audio')}
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuItem
-                data-testid="meeting-transcript-copy"
-                disabled={!transcript}
-                onClick={() => {
-                  void copyText(
-                    transcriptToText(transcript),
-                    t('meetings.entry.transcript-copied')
-                  );
-                }}
-              >
-                <Copy className="h-3.5 w-3.5 mr-2" />
-                {t('meetings.entry.copy-transcript')}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                data-testid="meeting-transcript-export"
-                disabled={!transcript || exporting === 'transcript'}
-                onClick={handleExportTranscript}
-              >
-                <Download className="h-3.5 w-3.5 mr-2" />
-                {t('meetings.entry.export-transcript')}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                data-testid="meeting-summary-copy"
-                disabled={!summaryReady}
-                onClick={() => {
-                  void copyText(
-                    summaryText.trim(),
-                    t('meetings.entry.summary-copied')
-                  );
-                }}
-              >
-                <Copy className="h-3.5 w-3.5 mr-2" />
-                {t('meetings.entry.copy-summary')}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                data-testid="meeting-summary-export-docx"
-                disabled={!summaryReady || exporting === 'summary-docx'}
-                onClick={handleExportSummaryDocx}
-              >
-                <FileText className="h-3.5 w-3.5 mr-2" />
-                {t('meetings.entry.export-summary-word')}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                data-testid="meeting-summary-export-pdf"
-                disabled={!summaryReady || exporting === 'summary-pdf'}
-                onClick={handleExportSummaryPdf}
-              >
-                <Download className="h-3.5 w-3.5 mr-2" />
-                {t('meetings.entry.export-summary-pdf')}
-              </DropdownMenuItem>
-              {hasAudio && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    data-testid="meeting-entry-delete-audio"
-                    className="text-destructive focus:text-destructive"
-                    onClick={() => {
-                      setConfirmingDelete(true);
-                    }}
-                  >
-                    <Trash2 className="h-3.5 w-3.5 mr-2" />
-                    {hasTranscript
-                      ? t('meetings.entry.delete-audio')
-                      : t('meetings.entry.delete-audio-no-transcript')}
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+              {descriptor.mount(headerActionContext)}
+            </span>
+          ))}
+          {/* Compatibility actions above preserve Send, review, and the utilities menu. */}
         </div>
       </div>
 
@@ -1121,93 +1026,40 @@ export function MeetingEntry({
           gap: 6,
         }}
       >
-        <button
-          type="button"
-          data-testid="meeting-subtab-recording"
-          onClick={() => {
-            setActiveTab('recording');
-          }}
-          style={{
-            border: 'none',
-            borderBottom:
-              activeTab === 'recording'
-                ? '2px solid var(--kp-accent)'
-                : '2px solid transparent',
-            background: 'transparent',
-            color:
-              activeTab === 'recording'
-                ? 'var(--kp-navy)'
-                : 'var(--color-muted-foreground)',
-            fontFamily: 'inherit',
-            fontSize: 'var(--kp-font-sm)',
-            fontWeight:
-              activeTab === 'recording'
-                ? 'var(--kp-weight-semibold)'
-                : 'var(--kp-weight-regular)',
-            padding: '8px 10px',
-            cursor: 'pointer',
-          }}
-        >
-          {t('meetings.entry.tab-recording')}
-        </button>
-        <button
-          type="button"
-          data-testid="meeting-subtab-transcript"
-          onClick={() => {
-            setActiveTab('transcript');
-          }}
-          style={{
-            border: 'none',
-            borderBottom:
-              activeTab === 'transcript'
-                ? '2px solid var(--kp-accent)'
-                : '2px solid transparent',
-            background: 'transparent',
-            color:
-              activeTab === 'transcript'
-                ? 'var(--kp-navy)'
-                : 'var(--color-muted-foreground)',
-            fontFamily: 'inherit',
-            fontSize: 'var(--kp-font-sm)',
-            fontWeight:
-              activeTab === 'transcript'
-                ? 'var(--kp-weight-semibold)'
-                : 'var(--kp-weight-regular)',
-            padding: '8px 10px',
-            cursor: 'pointer',
-          }}
-        >
-          {t('meetings.entry.tab-transcript')}
-        </button>
-        <button
-          type="button"
-          data-testid="meeting-subtab-summary"
-          onClick={() => {
-            setActiveTab('summary');
-          }}
-          style={{
-            border: 'none',
-            borderBottom:
-              activeTab === 'summary'
-                ? '2px solid var(--kp-accent)'
-                : '2px solid transparent',
-            background: 'transparent',
-            color:
-              activeTab === 'summary'
-                ? 'var(--kp-navy)'
-                : 'var(--color-muted-foreground)',
-            fontFamily: 'inherit',
-            fontSize: 'var(--kp-font-sm)',
-            fontWeight:
-              activeTab === 'summary'
-                ? 'var(--kp-weight-semibold)'
-                : 'var(--kp-weight-regular)',
-            padding: '8px 10px',
-            cursor: 'pointer',
-          }}
-        >
-          {t('meetings.entry.tab-summary')}
-        </button>
+        {meetingPanels.map((descriptor) => {
+          const active = descriptor.id === activePanel?.id;
+          return (
+            <button
+              key={descriptor.id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              data-testid={`meeting-subtab-${descriptor.id}`}
+              onClick={() => {
+                setActiveTab(descriptor.id);
+              }}
+              style={{
+                border: 'none',
+                borderBottom: active
+                  ? '2px solid var(--kp-accent)'
+                  : '2px solid transparent',
+                background: 'transparent',
+                color: active
+                  ? 'var(--kp-navy)'
+                  : 'var(--color-muted-foreground)',
+                fontFamily: 'inherit',
+                fontSize: 'var(--kp-font-sm)',
+                fontWeight: active
+                  ? 'var(--kp-weight-semibold)'
+                  : 'var(--kp-weight-regular)',
+                padding: '8px 10px',
+                cursor: 'pointer',
+              }}
+            >
+              {t(descriptor.labelKey)}
+            </button>
+          );
+        })}
       </div>
 
       <div
@@ -1243,277 +1095,20 @@ export function MeetingEntry({
         )}
 
         <div style={{ padding: 'var(--kp-gutter)' }}>
-          {activeTab === 'recording' && (
-            <div
-              data-testid="meeting-recording-tab"
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 'var(--kp-space-md)',
-              }}
-            >
-              {hasAudio && audioSrc ? (
-                <AudioPlayer
-                  ref={audioRef}
-                  audioSrc={audioSrc}
-                  filename={meetingDisplayTitle(meta, t)}
-                  compact
-                />
-              ) : meta?.recordingError && !hasAudio ? (
-                <div
-                  data-testid="meeting-entry-recording-incomplete"
-                  style={{
-                    color: 'var(--kp-navy)',
-                    fontSize: 'var(--kp-font-sm)',
-                  }}
-                >
-                  {t('meetings.entry.recording-incomplete')}
-                </div>
-              ) : (
-                <div
-                  data-testid="meeting-entry-no-audio"
-                  style={{
-                    color: 'var(--color-muted-foreground)',
-                    fontSize: 'var(--kp-font-sm)',
-                  }}
-                >
-                  {t('meetings.entry.no-audio')}
-                </div>
-              )}
-              {transcriptLooksSilent(transcript) && (
-                <div
-                  data-testid="meeting-entry-no-one-spoke"
-                  style={{
-                    color: 'var(--color-muted-foreground)',
-                    fontSize: 'var(--kp-font-sm)',
-                  }}
-                >
-                  {t('meetings.entry.no-one-spoke')}
-                </div>
-              )}
-            </div>
-          )}
+          {activePanel?.mount(panelContext)}
 
-          {activeTab === 'transcript' && (
-            <div
-              data-testid="meeting-transcript-tab"
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 'var(--kp-space-md)',
-              }}
-            >
-              {transcript ? (
-                <>
-                  <TranscriptViewer
-                    transcript={transcript}
-                    onSeek={handleSeek}
-                    {...(seekMs !== undefined ? { activeMs: seekMs } : {})}
-                  />
-                  <div style={{ marginTop: 'var(--kp-space-lg)' }}>
-                    <SpeakerNamesPanel
-                      meetingDir={meetingDir}
-                      matterId={matterId}
-                      workspaceRoot={workspaceRoot}
-                    />
-                  </div>
-                  {workspaceService && firm.org && (
-                    <MeetingTemplatePanel
-                      workspace={workspaceService}
-                      firmId={firm.org.org_id}
-                      canManageTemplates={firm.role === 'admin'}
-                      meetingDir={meetingDir}
-                      transcript={transcript}
-                      clientName={clientName}
-                      getProvider={async () => {
-                        const resolved = await buildResolvedProviderForGlance();
-                        return createPreparedMeetingTemplateFillProvider({
-                          matterId,
-                          resolved,
-                        });
-                      }}
-                    />
-                  )}
-                </>
-              ) : meta?.transcriptError ? (
-                <div
-                  data-testid="meeting-entry-transcript-failed"
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 'var(--kp-space-sm)',
-                  }}
-                >
-                  <div
-                    style={{
-                      color: 'var(--kp-navy)',
-                      fontSize: 'var(--kp-font-sm)',
-                    }}
-                  >
-                    {meta.transcriptError.kind === 'not-installed' &&
-                      t('meetings.entry.transcript-failed-not-installed')}
-                    {meta.transcriptError.kind === 'timeout' &&
-                      t('meetings.entry.transcript-failed-timeout')}
-                    {meta.transcriptError.kind === 'error' &&
-                      t('meetings.entry.transcript-failed-error')}
-                  </div>
-                  <button
-                    type="button"
-                    data-testid="meeting-entry-retry-transcript"
-                    onClick={() => {
-                      void handleRetryTranscript();
-                    }}
-                    disabled={retryingTranscript}
-                    style={{
-                      alignSelf: 'flex-start',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      border: '1px solid var(--kp-divider)',
-                      background: 'transparent',
-                      borderRadius: 'var(--radius-md)',
-                      padding: '6px 10px',
-                      fontSize: 'var(--kp-font-xs)',
-                      cursor: 'pointer',
-                      fontFamily: 'inherit',
-                    }}
-                  >
-                    {retryingTranscript
-                      ? t('meetings.entry.retrying-transcript')
-                      : t('meetings.tab.retry-button')}
-                  </button>
+          {meetingInsights.length > 0 && (
+            <div data-testid="meeting-insight-mounts">
+              {meetingInsights.map((descriptor) => (
+                <div key={descriptor.id} data-meeting-insight={descriptor.id}>
+                  {descriptor.renderMeetingSummary({
+                    matterId,
+                    meetingDir,
+                    clientName,
+                    workspaceService,
+                  })}
                 </div>
-              ) : meta?.recordingError && !hasAudio ? (
-                <div
-                  data-testid="meeting-entry-recording-incomplete-transcript"
-                  style={{
-                    color: 'var(--kp-navy)',
-                    fontSize: 'var(--kp-font-sm)',
-                  }}
-                >
-                  {t('meetings.entry.recording-incomplete')}
-                </div>
-              ) : (
-                <div
-                  data-testid="meeting-entry-transcript-pending"
-                  style={{
-                    color: 'var(--color-muted-foreground)',
-                    fontSize: 'var(--kp-font-sm)',
-                  }}
-                >
-                  {t('meetings.entry.transcript-pending')}
-                </div>
-              )}
-            </div>
-          )}
-
-          {activeTab === 'summary' && (
-            <div
-              data-testid="meeting-summary-tab"
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 'var(--kp-space-md)',
-              }}
-            >
-              {summaryReady ? (
-                <>
-                  <MeetingNotesReview
-                    meetingDir={meetingDir}
-                    matterId={matterId}
-                    summaryText={summaryText}
-                    summaryHtml={summaryExtraction?.html ?? ''}
-                    workspaceService={workspaceService}
-                    {...(crmBlockedReason
-                      ? {
-                          crmBlockedReason:
-                            'Mark this meeting reviewed before sending a CRM update.',
-                        }
-                      : {})}
-                  />
-                  <pre
-                    data-testid="meeting-summary-text"
-                    style={{
-                      whiteSpace: 'pre-wrap',
-                      margin: 0,
-                      fontFamily: 'inherit',
-                      color: 'var(--kp-navy)',
-                      fontSize: 'var(--kp-font-sm)',
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    {summaryText.trim()}
-                  </pre>
-                </>
-              ) : hasNotes ? (
-                <div
-                  data-testid="meeting-entry-summary-not-ready"
-                  style={{
-                    color: 'var(--color-muted-foreground)',
-                    fontSize: 'var(--kp-font-sm)',
-                  }}
-                >
-                  {t('meetings.entry.summary-not-ready')}
-                </div>
-              ) : meta?.notesError ? (
-                <div
-                  data-testid="meeting-entry-notes-failed"
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 'var(--kp-space-sm)',
-                  }}
-                >
-                  <div
-                    style={{
-                      color: 'var(--kp-navy)',
-                      fontSize: 'var(--kp-font-sm)',
-                    }}
-                  >
-                    {meta.notesError.kind === 'gate-blocked' &&
-                      t('meetings.entry.notes-failed-blocked')}
-                    {meta.notesError.kind === 'timeout' &&
-                      t('meetings.entry.notes-failed-timeout')}
-                    {meta.notesError.kind === 'error' &&
-                      t('meetings.entry.notes-failed-error')}
-                  </div>
-                  <button
-                    type="button"
-                    data-testid="meeting-entry-retry-notes"
-                    onClick={() => {
-                      void handleRetryNotes();
-                    }}
-                    disabled={retryingNotes}
-                    style={{
-                      alignSelf: 'flex-start',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      border: '1px solid var(--kp-divider)',
-                      background: 'transparent',
-                      borderRadius: 'var(--radius-md)',
-                      padding: '6px 10px',
-                      fontSize: 'var(--kp-font-xs)',
-                      cursor: 'pointer',
-                      fontFamily: 'inherit',
-                    }}
-                  >
-                    {retryingNotes
-                      ? t('meetings.entry.retrying-notes')
-                      : t('meetings.tab.retry-button')}
-                  </button>
-                </div>
-              ) : (
-                <div
-                  data-testid="meeting-entry-notes-pending"
-                  style={{
-                    color: 'var(--color-muted-foreground)',
-                    fontSize: 'var(--kp-font-sm)',
-                  }}
-                >
-                  {t('meetings.entry.notes-pending')}
-                </div>
-              )}
+              ))}
             </div>
           )}
         </div>
@@ -1591,6 +1186,7 @@ export function MeetingEntry({
               data-testid="delete-audio-confirm-button"
               onClick={() => {
                 setConfirmingDelete(false);
+                // PARITY: preserves pre-refactor silent handling; surfacing these errors to the user is a tracked design finding, not a refactor-lane change.
                 void handleDeleteAudio();
               }}
             >
