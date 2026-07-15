@@ -144,13 +144,14 @@ import {
   complianceDatesRecordExtension,
   writtenAgreementsSection,
 } from './extensions/compliance-dates';
+import { employmentHouseholdSection } from './extensions/employment';
 
 export const householdHeaderActionRegistry: readonly HouseholdHeaderActionDescriptor[] =
   legacyHouseholdHeaderActions;
 export const householdAddActionRegistry: readonly HouseholdAddActionDescriptor[] =
   legacyHouseholdAddActions;
 export const householdSectionRegistry: readonly HouseholdSectionDescriptor[] =
-  [...legacyHouseholdSections, writtenAgreementsSection];
+  [...legacyHouseholdSections, employmentHouseholdSection, writtenAgreementsSection];
 export const householdRecordExtensionRegistry: readonly HouseholdRecordExtensionDescriptor[] =
   [...legacyHouseholdRecordExtensions, complianceDatesRecordExtension];
 

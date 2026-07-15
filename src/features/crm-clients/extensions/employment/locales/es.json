@@ -1,0 +1,21 @@
+{
+  "employment": {
+    "title": "Empleo",
+    "helper": "Trabajo, ingresos y fechas de jubilación",
+    "edit": "Editar empleo",
+    "close-edit": "Cerrar editor",
+    "member-label": "Miembro del hogar",
+    "occupation-label": "Ocupación",
+    "employer-label": "Empleador",
+    "occupation-start-label": "Inicio de ocupación",
+    "planned-retirement-label": "Jubilación prevista",
+    "reduced-schedule-label": "Contexto de horario reducido",
+    "gross-income-label": "Ingresos brutos anuales",
+    "household-suffix": "del hogar",
+    "save": "Guardar empleo",
+    "save-failed": "No se pudo guardar el empleo. Inténtelo de nuevo.",
+    "cancel": "Cancelar",
+    "not-set": "Sin establecer",
+    "no-members": "Agregue un miembro del hogar antes de registrar información laboral."
+  }
+}
