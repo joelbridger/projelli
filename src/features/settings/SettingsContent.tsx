@@ -38,6 +38,7 @@ import { Button, IconButton, SearchField, Badge, Eyebrow, RailShellHeader } from
 import { cn } from '@/lib/utils';
 import {
   SETTINGS_SCHEMA,
+  SETTING_CATEGORIES,
   resolveSection,
   type SettingCategory,
   type SectionCategory,
@@ -1367,7 +1368,7 @@ export function SettingsContent({
                   )}
                   onClick={(e) => { e.stopPropagation(); setActiveExtraId(null); setActiveSection(sec.id); }}
                   >
-                    <span className="flex-1 truncate">{t(`settings.sections.${sec.id}`, sec.label)}</span>
+                    <span className="flex-1 truncate">{String(t(`settings.sections.${sec.id}`, sec.label))}</span>
                     {showUpdateBadge && (
                     <Badge
                       variant="neutral"

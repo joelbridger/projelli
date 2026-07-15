@@ -47,11 +47,13 @@ const ROLE_COPY: Readonly<
 };
 
 export const SYSTEM_ROLES: readonly ManagedRole[] = SYSTEM_ROLE_PERMISSIONS.map(
-  (role) => ({
-    ...role,
-    ...ROLE_COPY[role.id],
-    system: true,
-  })
+  (role) => {
+    const copy = ROLE_COPY[role.id];
+    if (copy === undefined) {
+      throw new Error(`Missing management copy for system role ${role.id}`);
+    }
+    return { ...role, ...copy, system: true };
+  }
 );
 
 export function emptyTeamsRolesState(): TeamsRolesState {
