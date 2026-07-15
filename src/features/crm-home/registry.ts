@@ -39,6 +39,7 @@ import { searchSurface } from '@/features/crm-search/surface';
 import { timelineSurface } from '@/features/crm-timeline/surface';
 import { trashSurface } from '@/features/crm-trash/surface';
 import { internalProjectsSurface } from '@/features/crm-projects/internal/surface';
+import { formActivitySurface } from '@/features/crm-form-activity/surface';
 
 /**
  * The only shared list for home surfaces. Feature folders own their descriptor;
@@ -75,4 +76,5 @@ export const crmHomeSurfaceRegistry: readonly CrmHomeSurfaceDescriptor[] = [
   workflowsSurface,
   trashSurface,
   internalProjectsSurface,
+  formActivitySurface,
 ];

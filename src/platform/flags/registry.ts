@@ -113,6 +113,15 @@ export const flagRegistry = [
     expiresAt: '2026-09-13',
     defaultEnabled: false,
   },
+  {
+    id: 'form-activity',
+    description:
+      'Keeps firm-wide form submission activity dark until its acceptance drive is complete.',
+    ownerLane: 'form-activity',
+    createdAt: '2026-07-15',
+    expiresAt: '2026-09-13',
+    defaultEnabled: false,
+  },
 ] as const satisfies readonly FlagDescriptor[];
 
 export type FlagId = (typeof flagRegistry)[number]['id'];
