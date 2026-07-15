@@ -1,10 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { CrmHomeShell } from '@/features/crm-home/CrmHome';
-import type { CrmHomeAdapter } from '@/features/crm-home/types';
+import { CrmHome } from '@/features/crm-home/CrmHome';
 import { setDevFlagOverride } from '@/platform/flags';
-
-const unusedAdapter = {} as CrmHomeAdapter;
 
 afterEach(() => {
   setDevFlagOverride('form-activity', undefined);
@@ -15,7 +12,7 @@ describe('form activity flag-on CRM Home integration', () => {
     setDevFlagOverride('form-activity', true);
 
     render(
-      <CrmHomeShell adapter={unusedAdapter} initialRoute="form-activity" />
+      <CrmHome initialRoute="form-activity" />
     );
 
     expect(
