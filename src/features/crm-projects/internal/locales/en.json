@@ -1,0 +1,18 @@
+{
+  "internal-projects": {
+    "nav": "Internal projects",
+    "title": "Projects",
+    "description": "Internal firm work that is not tied to a client",
+    "new": "New Project",
+    "empty": { "title": "No internal projects yet", "body": "Create a firm project to track work that does not belong to a client.", "action": "Create project" },
+    "create": { "title": "New internal project", "save": "Create project", "cancel": "Cancel" },
+    "fields": { "name": "Project name", "category": "Category", "owner": "Owner", "status": "Status", "due": "Due date", "milestones": "Milestones (one per line)", "collaborators": "Collaborators (separate with commas)" },
+    "columns": { "project": "Project", "status": "Status", "owner": "Owner", "progress": "Progress", "due": "Due" },
+    "status": { "planning": "Planning", "on_track": "On track", "in_progress": "In progress", "needs_attention": "Needs attention", "complete": "Complete" },
+    "progressLabel": "{{completed}} / {{total}} milestones complete",
+    "progressAria": "{{percent}} percent complete",
+    "noCategory": "Internal firm work",
+    "noDue": "No due date",
+    "detail": { "emptyTitle": "Firm project details", "emptyBody": "Select a project to see milestones, files, notes, events, and collaborators.", "owner": "Owner · {{owner}}", "due": "Due {{due}}", "milestones": "Milestones", "noMilestones": "No milestones yet.", "summary": "Files, notes & events", "files": "{{count}} files", "notes": "{{count}} notes", "events": "{{count}} events", "collaborators": "Collaborators", "noCollaborators": "No collaborators yet." }
+  }
+}

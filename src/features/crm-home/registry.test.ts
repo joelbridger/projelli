@@ -17,11 +17,15 @@ function resolveLocaleKey(catalog: LocaleCatalog, key: string): unknown {
 }
 
 describe('crmHomeSurfaceRegistry', () => {
-  it('has unique routes and shortcuts, valid parents, and locale-backed labels', () => {
+  it('has unique IDs, routes, and shortcuts, valid parents, and locale-backed labels', () => {
+    const ids = new Set<string>();
     const routes = new Set<string>();
     const shortcuts = new Set<string>();
 
     for (const surface of crmHomeSurfaceRegistry) {
+      expect(ids.has(surface.id), `duplicate ID: ${surface.id}`).toBe(false);
+      ids.add(surface.id);
+
       expect(
         routes.has(surface.route),
         `duplicate route: ${surface.route}`
@@ -49,4 +53,5 @@ describe('crmHomeSurfaceRegistry', () => {
         expect(routes.has(surface.parentRoute)).toBe(true);
     }
   });
+
 });

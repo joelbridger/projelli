@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Internal Projects acceptance capture</title>
+    <script type="module">
+      import React from 'react';
+      import { createRoot } from 'react-dom/client';
+      import '../../../../i18n.ts';
+      import '../../../../styles/globals.css';
+      import { CrmHomeShell } from '../../../../features/crm-home/CrmHome.tsx';
+      import { createInternalProject } from '../model.ts';
+      import { createInternalProjectRepository } from '../repository.ts';
+
+      const repository = createInternalProjectRepository();
+      const project = createInternalProject({
+        name: '2026 annual ADV update',
+        category: 'Compliance filing',
+        status: 'in_progress',
+        owner: 'Priya Shah',
+        dueDate: '2026-08-12',
+        milestones: ['Review business description', 'Confirm disciplinary disclosures', 'Final partner approval'],
+        collaborators: ['Priya Shah', 'Sarah Morgan', 'Jordan Lee'],
+      }, '2026-07-15T12:00:00.000Z');
+      repository.save({
+        projects: [{
+          ...project,
+          milestones: project.milestones.map((milestone, index) => ({ ...milestone, completed: index === 0 })),
+          summary: { files: 2, notes: 3, events: 1 },
+        }],
+        selectedProjectId: project.id,
+      });
+      const adapter = {
+        freshness: { kind: 'live' },
+        tasks: [],
+        offers: [],
+        migration: { workflowChecklists: [], attachmentAccounting: [], exports: [] },
+        actions: {
+          updateTask: () => undefined,
+          applyPropagation: () => undefined,
+          undoPropagation: () => ({ restored: 0, protectedCells: [] }),
+          markNotificationsRead: () => undefined,
+          recordWorkflowChecklist: () => undefined,
+          recordAttachmentAccounting: () => undefined,
+          createExport: () => undefined,
+          retryExport: () => undefined,
+        },
+      };
+      createRoot(document.getElementById('root')).render(React.createElement(CrmHomeShell, {
+        adapter,
+        initialRoute: 'internal-projects',
+      }));
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
