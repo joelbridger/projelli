@@ -23,6 +23,16 @@ export interface FlagDescriptor {
  * When a feature graduates, remove its descriptor and every guarded branch in
  * the same change. The expiry test and cleanup lane make forgotten flags loud.
  */
-export const flagRegistry = [] as const satisfies readonly FlagDescriptor[];
+export const flagRegistry = [
+  {
+    id: 'shared-client-bar',
+    description:
+      'Keeps the shared client-context bar dark until the v1 shell is ready.',
+    ownerLane: 'p0c',
+    createdAt: '2026-07-15',
+    expiresAt: '2026-09-13',
+    defaultEnabled: false,
+  },
+] as const satisfies readonly FlagDescriptor[];
 
 export type FlagId = (typeof flagRegistry)[number]['id'];

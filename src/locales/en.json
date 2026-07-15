@@ -3430,6 +3430,13 @@
       }
     }
   },
+  "shared-client": {
+    "bar": {
+      "label": "Current client",
+      "empty": "No client selected",
+      "clear": "Clear"
+    }
+  },
   "answer-dates": {
     "title": "Dates in the cited records",
     "record-copy-flagged": "Matching record copies have different timestamps.",

@@ -4448,6 +4448,13 @@
       }
     }
   },
+  "shared-client": {
+    "bar": {
+      "label": "Cliente actual",
+      "empty": "Ningún cliente seleccionado",
+      "clear": "Borrar"
+    }
+  },
   "answer-dates": {
     "title": "Fechas en los registros citados",
     "record-copy-flagged": "Las copias del mismo registro tienen marcas de tiempo distintas.",
