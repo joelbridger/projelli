@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MoreVertical, Plus } from 'lucide-react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RailShell, RailShellActionMenu, RailShellHeader } from '@/ui/kp';
@@ -43,6 +43,13 @@ function installVirtualRailLayout() {
       delete (HTMLElement.prototype as Partial<HTMLElement>).scrollTo;
     }
   };
+}
+
+async function flushVirtualRailTimers() {
+  await act(async () => {
+    await Promise.resolve();
+    await vi.runOnlyPendingTimersAsync();
+  });
 }
 
 describe('RailShell', () => {
@@ -93,6 +100,8 @@ describe('RailShell', () => {
 
   it('can opt into rendering only the visible row window for large lists', async () => {
     const restoreVirtualRailLayout = installVirtualRailLayout();
+    let unmount: (() => void) | undefined;
+    vi.useFakeTimers({ shouldAdvanceTime: true });
 
     try {
       const items = Array.from({ length: 200 }, (_, index) => ({
@@ -101,7 +110,7 @@ describe('RailShell', () => {
         testId: `virtual-rail-row-${String(index)}`,
       }));
 
-      render(
+      ({ unmount } = render(
         <RailShell
           header={<RailShellHeader title="Client work" />}
           listAriaLabel="Client work"
@@ -112,7 +121,7 @@ describe('RailShell', () => {
         >
           <section>Selected detail</section>
         </RailShell>,
-      );
+      ));
 
       await waitFor(() => {
         const rows = screen.getAllByTestId(/^virtual-rail-row-/);
@@ -121,7 +130,13 @@ describe('RailShell', () => {
       });
       expect(screen.queryByText('Client item 199')).toBeNull();
     } finally {
-      restoreVirtualRailLayout();
+      try {
+        await flushVirtualRailTimers();
+      } finally {
+        unmount?.();
+        restoreVirtualRailLayout();
+        vi.useRealTimers();
+      }
     }
   });
 
@@ -194,6 +209,8 @@ describe('RailShell', () => {
 
   it('moves keyboard focus with End-key selection in a virtualized rail', async () => {
     const restoreVirtualRailLayout = installVirtualRailLayout();
+    let unmount: (() => void) | undefined;
+    vi.useFakeTimers({ shouldAdvanceTime: true });
 
     try {
       const items = Array.from({ length: 200 }, (_, index) => ({
@@ -218,7 +235,7 @@ describe('RailShell', () => {
         );
       }
 
-      render(<VirtualKeyboardHarness />);
+      ({ unmount } = render(<VirtualKeyboardHarness />));
 
       await waitFor(() => {
         expect(screen.getAllByTestId(/^virtual-focus-row-/).length).toBeGreaterThan(0);
@@ -240,7 +257,13 @@ describe('RailShell', () => {
         expect(document.activeElement).toBe(lastRow);
       });
     } finally {
-      restoreVirtualRailLayout();
+      try {
+        await flushVirtualRailTimers();
+      } finally {
+        unmount?.();
+        restoreVirtualRailLayout();
+        vi.useRealTimers();
+      }
     }
   });
 
