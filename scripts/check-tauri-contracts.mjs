@@ -326,20 +326,31 @@ function parseRustStructs(files) {
 }
 
 function parseGenerateHandlerNames() {
-  const file = path.join(REPO_ROOT, 'src-tauri/src/lib.rs');
-  const source = fs.readFileSync(file, 'utf8');
-  const start = source.indexOf('tauri::generate_handler![');
-  if (start === -1) return new Set();
-  const open = source.indexOf('[', start);
-  const close = scanBalanced(source, open, '[', ']');
-  if (close === -1) return new Set();
-  const body = source.slice(open + 1, close);
+  // build.rs reads these manifests and writes the real generate_handler! list
+  // into OUT_DIR. Read that same source of truth rather than lib.rs, which only
+  // includes the generated fragment.
+  const manifestRoot = path.join(REPO_ROOT, 'src-tauri/src');
+  const manifests = walk(manifestRoot, (file) => path.basename(file) === 'command-manifest.txt');
   const names = new Set();
-  for (const match of body.matchAll(/commands(?:::[A-Za-z_][A-Za-z0-9_]*)+/g)) {
-    const name = match[0].split('::').at(-1);
-    if (startsWithTargetPrefix(name)) names.add(name);
+  let manifestCommandCount = 0;
+  const rustPath = /^crate::[A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*$/;
+
+  for (const manifest of manifests) {
+    for (const [index, rawLine] of fs.readFileSync(manifest, 'utf8').split(/\r?\n/).entries()) {
+      const line = rawLine.split('#', 1)[0].trim();
+      if (!line) continue;
+      const fields = line.split(/\s+/);
+      if (fields.length < 3 || fields.length > 4 || !['command', 'state'].includes(fields[0])
+        || !/^\d+$/.test(fields[1]) || !rustPath.test(fields[2])) {
+        throw new Error(`${rel(manifest)}:${index + 1}: invalid native command manifest entry`);
+      }
+      if (fields[0] !== 'command') continue;
+      manifestCommandCount += 1;
+      const name = fields[2].split('::').at(-1);
+      if (startsWithTargetPrefix(name)) names.add(name);
+    }
   }
-  return names;
+  return { names, manifestCommandCount };
 }
 
 function resultInner(returnType) {
@@ -434,7 +445,7 @@ function main() {
   const tsTypes = parseTsTypes(tsFiles);
   const rustCommands = parseRustCommands(rustFiles);
   const rustStructs = parseRustStructs(rustFiles);
-  const registered = parseGenerateHandlerNames();
+  const { names: registered, manifestCommandCount } = parseGenerateHandlerNames();
   const errors = [];
   const warnings = [];
 
@@ -491,7 +502,9 @@ function main() {
     process.exit(1);
   }
 
-  console.log(`Tauri contract check passed: ${tsCalls.length} TS invokes, ${registered.size} registered Rust commands checked.`);
+  console.log(
+    `Tauri contract check passed: ${tsCalls.length} TS invokes, ${registered.size} target registered Rust commands checked (${manifestCommandCount} total manifest commands).`,
+  );
 }
 
 main();

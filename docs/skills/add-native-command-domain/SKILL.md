@@ -53,11 +53,11 @@ unique.
 ## Verify
 
 Run the manifest tests, then the normal native test suite with the shared warm
-Cargo target:
+Cargo target. Run these commands from `src-tauri/`:
 
 ```bash
-cargo test -p lantern --test native_command_manifests
-cargo test -p lantern
+CARGO_TARGET_DIR=/home/jameson/lantern/target cargo test -p lantern --test native_command_manifests
+CARGO_TARGET_DIR=/home/jameson/lantern/target cargo test -p lantern
 ```
 
 Treat these build failures as registry bugs and fix the manifest:
@@ -66,7 +66,10 @@ Treat these build failures as registry bugs and fix the manifest:
 - duplicate Rust command path;
 - duplicate public Tauri command name;
 - duplicate state initializer;
-- missing or misspelled function path (reported by Rust compilation).
+- missing or misspelled function path (reported by Rust compilation). The
+  manifest parser cannot prove a Rust symbol exists; this is intentionally a
+  compiler check. Expect `cargo check -p lantern` to fail with a
+  `cannot find function` / `cannot find value` error that names the path.
 
 Do not add a second handler, state list, or command registry to `lib.rs`. Do not
 adopt Specta while performing this workflow. The manifest format is the shared
