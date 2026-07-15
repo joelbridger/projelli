@@ -5,3 +5,4 @@ command 2840 crate::commands::crm::features::trash::commands::crm_trash_soft_del
 command 2850 crate::commands::crm::features::trash::commands::crm_trash_list
 command 2860 crate::commands::crm::features::trash::commands::crm_trash_restore
 command 2870 crate::commands::crm::features::trash::commands::crm_trash_purge
+command 2880 crate::commands::crm::features::trash::commands::crm_trash_is_tombstoned

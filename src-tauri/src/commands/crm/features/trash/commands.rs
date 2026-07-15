@@ -223,6 +223,33 @@ pub fn list_trashed_records(
     })
 }
 
+/// Returns whether a live-record identity is presently protected by an active
+/// trash tombstone. Connector/import lanes use this before recreating a record
+/// so a remote re-import cannot silently resurrect a locally deleted record.
+pub fn is_tombstoned_record(
+    store: &CrmCoreStore,
+    record_id: &str,
+    matter_id: &str,
+    now: DateTime<Utc>,
+) -> Result<bool> {
+    require_value(record_id, "record id")?;
+    require_value(matter_id, "matter id")?;
+    store.transaction(|transaction| {
+        purge_expired_in(transaction, now)?;
+        let tombstone_exists = transaction
+            .query_row(
+                "SELECT EXISTS(
+                    SELECT 1 FROM crm_trash_records
+                    WHERE record_id=?1 AND matter_id=?2
+                      AND restored_at IS NULL AND expires_at > ?3
+                )",
+                params![record_id, matter_id, now.to_rfc3339()],
+                |row| row.get::<_, bool>(0),
+            )?;
+        Ok(tombstone_exists)
+    })
+}
+
 /// Atomically makes a still-recoverable record live again and records the
 /// restoring actor on its tombstone before removing the retained snapshot.
 pub fn restore_record(
@@ -363,6 +390,26 @@ pub async fn crm_trash_list(state: State<'_, CrmState>) -> Result<Vec<TrashRecor
     let workspace = workspace(&state).await?;
     tokio::task::spawn_blocking(move || {
         list_trashed_records(&CrmCoreStore::open(&workspace)?, Utc::now())
+    })
+    .await
+    .map_err(|error| error.to_string())?
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub async fn crm_trash_is_tombstoned(
+    state: State<'_, CrmState>,
+    record_id: String,
+    matter_id: String,
+) -> Result<bool, String> {
+    let workspace = workspace(&state).await?;
+    tokio::task::spawn_blocking(move || {
+        is_tombstoned_record(
+            &CrmCoreStore::open(&workspace)?,
+            &record_id,
+            &matter_id,
+            Utc::now(),
+        )
     })
     .await
     .map_err(|error| error.to_string())?
@@ -567,6 +614,20 @@ mod tests {
             .get_doc("matter-1/live:household-2")
             .unwrap()
             .is_none());
+    }
+
+    #[test]
+    fn tombstone_lookup_prevents_a_connector_resurrection_until_restore_or_expiry() {
+        let (_directory, store) = store();
+        store.upsert_live_record(&live_record("household-connector")).unwrap();
+        let deleted_at = parse_time("2026-07-15T12:00:00Z", "test").unwrap();
+
+        assert!(!is_tombstoned_record(&store, "household-connector", "matter-1", deleted_at).unwrap());
+        soft_delete_record(&store, "household-connector", "matter-1", "advisor-1", deleted_at).unwrap();
+        assert!(is_tombstoned_record(&store, "household-connector", "matter-1", deleted_at).unwrap());
+
+        restore_record(&store, "household-connector", "matter-1", "advisor-1", deleted_at + Duration::days(1)).unwrap();
+        assert!(!is_tombstoned_record(&store, "household-connector", "matter-1", deleted_at + Duration::days(1)).unwrap());
     }
 
     #[test]

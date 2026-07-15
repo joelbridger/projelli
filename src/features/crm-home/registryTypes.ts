@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react';
 import type { LucideIcon } from 'lucide-react';
+import type { FlagId } from '@/platform/flags/registry';
 
 /**
  * Feature-owned CRM Home routes extend this map beside their descriptor.
@@ -24,4 +25,6 @@ export interface CrmHomeSurfaceDescriptor {
   rail?: CrmHomeRailPlacement;
   parentRoute?: CrmHomeRoute;
   shortcut?: string;
+  /** Optional dark-launch guard. Unguarded surfaces remain visible. */
+  flagId?: FlagId;
 }

@@ -14,6 +14,6 @@ export const trashSurface: CrmHomeSurfaceDescriptor = {
   icon: Trash2,
   route: 'trash',
   rail: { group: 'home', order: 260 },
+  flagId: 'crm-trash-recovery',
   Component: TrashRecoverySurface,
 };
-

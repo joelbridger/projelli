@@ -20,7 +20,10 @@
       "expired": "Expired",
       "empty": "No deleted CRM records match this view.",
       "load-error": "We couldn't load deleted CRM records. Please try again.",
-      "restore-error": "We couldn't recover that CRM record. Please try again."
+      "restore-error": "We couldn't recover that CRM record. Please try again.",
+      "audit-soft-deleted": "CRM record moved to Trash & recovery",
+      "audit-restored": "CRM record restored from Trash & recovery",
+      "audit-purge-refused": "CRM permanent deletion refused"
     }
   }
 }

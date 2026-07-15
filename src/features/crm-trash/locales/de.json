@@ -20,7 +20,10 @@
       "expired": "Abgelaufen",
       "empty": "Keine gelöschten CRM-Datensätze entsprechen dieser Ansicht.",
       "load-error": "Gelöschte CRM-Datensätze konnten nicht geladen werden. Bitte erneut versuchen.",
-      "restore-error": "Dieser CRM-Datensatz konnte nicht wiederhergestellt werden. Bitte erneut versuchen."
+      "restore-error": "Dieser CRM-Datensatz konnte nicht wiederhergestellt werden. Bitte erneut versuchen.",
+      "audit-soft-deleted": "CRM-Datensatz in Papierkorb und Wiederherstellung verschoben",
+      "audit-restored": "CRM-Datensatz aus Papierkorb und Wiederherstellung wiederhergestellt",
+      "audit-purge-refused": "Endgültige CRM-Löschung verweigert"
     }
   }
 }

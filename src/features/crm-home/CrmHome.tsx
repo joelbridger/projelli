@@ -2,6 +2,7 @@
 import { createElement, useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Bell } from 'lucide-react';
+import { isEnabled } from '@/platform/flags';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import { crmHomeSurfaceRegistry } from './registry';
 import { CrmHomeSurfaceContext } from './surfaceContext';
@@ -43,7 +44,7 @@ function HomeRail({
         Home
       </div>
       {crmHomeSurfaceRegistry
-        .filter(({ rail }) => rail)
+        .filter(({ rail, flagId }) => rail && (!flagId || isEnabled(flagId)))
         .map(({ route: item, labelKey, icon: Icon }) => (
           <button
             key={item}

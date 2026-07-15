@@ -33,12 +33,14 @@ type Layer = keyof typeof RANK;
 // product surface that legitimately references another (e.g. Settings hosts the
 // templates marketplace; Ask is matter-scoped). Keep this list short and justified.
 const ALLOWED_FEATURE_EDGES = new Set<string>([
+  'audit->crm',           // the audit registry mounts feature-owned CRM trash lifecycle display descriptors
   'account->firm',        // account/licensing surfaces firm seat state
   'account->settings',    // account window opens settings sections
   'ask->matters',         // Ask is matter-scoped (active matter context)
   'ask->crm',             // Ask adds client-scoped CRM records to the same consent/audit/citation pipeline
   'crm->ask',             // CRM Ask reuses the primary Ask safety rails and citation contracts
   'crm->acats',           // CRM Reviews makes the ACATS transfer-review workflow reachable from the relevant client record
+  'crm->audit',           // CRM trash lifecycle descriptors use the audit registry's public display contract
   'crm->documents',       // client-scoped document creation doorway, deliberate public API
   'crm->email',           // CRM broadcast reuses the hardened mail provider resolver
   'crm->firm',            // CRM firm setup composes the existing firm administration surface
