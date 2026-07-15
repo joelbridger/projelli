@@ -122,6 +122,15 @@ export const flagRegistry = [
     expiresAt: '2026-09-13',
     defaultEnabled: false,
   },
+  {
+    id: 'custom-fields-firm',
+    description:
+      'Keeps firm-defined CRM custom fields dark until the settings panel has passed acceptance review.',
+    ownerLane: 'custom-fields-firm',
+    createdAt: '2026-07-15',
+    expiresAt: '2026-09-13',
+    defaultEnabled: false,
+  },
 ] as const satisfies readonly FlagDescriptor[];
 
 export type FlagId = (typeof flagRegistry)[number]['id'];

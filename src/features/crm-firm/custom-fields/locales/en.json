@@ -1,0 +1,42 @@
+{
+  "custom-fields": {
+    "settings-label": "Organization",
+    "heading": "Custom fields",
+    "heading-copy": "Define the details your firm collects before advisors start filling them in.",
+    "catalog-title": "Field catalog",
+    "catalog-copy": "A field’s name can change later. Its saved values keep the same field id.",
+    "add": "Add field",
+    "new-title": "New custom field",
+    "name-label": "Field name",
+    "kind-label": "Field kind",
+    "options-label": "Choices",
+    "options-placeholder": "Conservative, Balanced, Growth",
+    "applies-to-label": "Applies to",
+    "create": "Create field",
+    "cancel": "Cancel",
+    "save": "Save",
+    "rename": "Rename",
+    "rename-label": "New field name",
+    "retire": "Retire",
+    "retired": "Retired fields stay with existing records but are not offered for new details.",
+    "move-up": "Move up",
+    "move-down": "Move down",
+    "empty": "No custom fields yet. Add one when the standard details are not enough.",
+    "saved": "Custom field catalog saved.",
+    "save-failed": "Could not save the custom field catalog.",
+    "load-failed": "Could not load the custom field catalog.",
+    "kind": {
+      "text": "Text",
+      "number": "Number",
+      "money": "Money",
+      "date": "Date",
+      "boolean": "Yes or no",
+      "select": "Choose one",
+      "multi-select": "Choose many"
+    },
+    "applies-to": {
+      "household": "Households",
+      "person": "People, companies, and trusts"
+    }
+  }
+}

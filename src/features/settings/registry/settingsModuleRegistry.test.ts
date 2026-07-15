@@ -310,6 +310,13 @@ describe('settingsModuleRegistry', () => {
         order: 30,
         render: () => null,
       },
+      customFieldsSettingsModule: {
+        id: 'custom-fields-firm',
+        section: 'organization',
+        order: 20,
+        flagId: 'custom-fields-firm',
+        render: () => null,
+      },
     }));
     const registry = await import('./settingsModuleRegistry');
 
@@ -323,6 +330,11 @@ describe('settingsModuleRegistry', () => {
       registry
         .getSettingsPanelDescriptors('organization')
         .map((panel) => panel.id)
-    ).toEqual(['fake-always', 'fake-gated', 'teams-roles']);
+    ).toEqual([
+      'fake-always',
+      'fake-gated',
+      'custom-fields-firm',
+      'teams-roles',
+    ]);
   });
 });

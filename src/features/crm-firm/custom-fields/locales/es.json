@@ -1,0 +1,42 @@
+{
+  "custom-fields": {
+    "settings-label": "Organización",
+    "heading": "Campos personalizados",
+    "heading-copy": "Define los detalles que recopila tu firma antes de que los asesores los completen.",
+    "catalog-title": "Catálogo de campos",
+    "catalog-copy": "El nombre de un campo puede cambiar más tarde. Sus valores guardados conservan el mismo id.",
+    "add": "Agregar campo",
+    "new-title": "Nuevo campo personalizado",
+    "name-label": "Nombre del campo",
+    "kind-label": "Tipo de campo",
+    "options-label": "Opciones",
+    "options-placeholder": "Conservador, Equilibrado, Crecimiento",
+    "applies-to-label": "Se aplica a",
+    "create": "Crear campo",
+    "cancel": "Cancelar",
+    "save": "Guardar",
+    "rename": "Cambiar nombre",
+    "rename-label": "Nuevo nombre del campo",
+    "retire": "Retirar",
+    "retired": "Los campos retirados permanecen en los registros existentes, pero no se ofrecen para nuevos detalles.",
+    "move-up": "Mover arriba",
+    "move-down": "Mover abajo",
+    "empty": "Aún no hay campos personalizados. Agrega uno cuando los detalles estándar no sean suficientes.",
+    "saved": "Catálogo de campos personalizados guardado.",
+    "save-failed": "No se pudo guardar el catálogo de campos personalizados.",
+    "load-failed": "No se pudo cargar el catálogo de campos personalizados.",
+    "kind": {
+      "text": "Texto",
+      "number": "Número",
+      "money": "Dinero",
+      "date": "Fecha",
+      "boolean": "Sí o no",
+      "select": "Elegir uno",
+      "multi-select": "Elegir varios"
+    },
+    "applies-to": {
+      "household": "Hogares",
+      "person": "Personas, empresas y fideicomisos"
+    }
+  }
+}
