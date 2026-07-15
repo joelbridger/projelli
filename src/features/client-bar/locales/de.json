@@ -14,6 +14,10 @@
       "search-label": "Personen und Haushalte suchen",
       "search-placeholder": "Personen und Haushalte suchen",
       "selected": "Aktueller Kunde",
+      "loading": "Kunden werden geladen…",
+      "load-error": "Kunden konnten nicht geladen werden. Ihre CRM-Daten sind weiterhin sicher.",
+      "retry": "Erneut versuchen",
+      "household-description": "CRM-Haushalt",
       "no-results": "Keine Kunden entsprechen Ihrer Suche.",
       "clear": "Kunden löschen",
       "cancel": "Abbrechen"

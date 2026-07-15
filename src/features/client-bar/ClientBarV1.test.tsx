@@ -1,11 +1,20 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
+import { SharedClientBar } from '@/app/shell/SharedClientBar';
 import { useClientContextStore } from '@/platform/client-context';
+import { setDevFlagOverride } from '@/platform/flags';
 import { ClientBarV1 } from './ClientBarV1';
 import {
   getSharedClientQuickActions,
   type ClientBarQuickAction,
 } from './quickActions';
+
+const tauriBoundary = vi.hoisted(() => ({
+  invoke: vi.fn(),
+  isTauri: vi.fn(),
+}));
+
+vi.mock('@tauri-apps/api/core', () => tauriBoundary);
 
 const HOUSEHOLDS = [
   {
@@ -23,8 +32,14 @@ const HOUSEHOLDS = [
 ] as const;
 
 describe('ClientBarV1', () => {
+  beforeEach(() => {
+    tauriBoundary.invoke.mockReset();
+    tauriBoundary.isTauri.mockReturnValue(false);
+  });
+
   afterEach(() => {
     useClientContextStore.getState().clearClient();
+    setDevFlagOverride('shared-client-bar', undefined);
   });
 
   it('shows the empty and selected shared-client states', () => {
@@ -88,16 +103,78 @@ describe('ClientBarV1', () => {
     expect(useClientContextStore.getState().client).toBeNull();
   });
 
-  it('shows the real empty state when the shell has no household directory', () => {
+  it('shows the real empty state when the native household directory is empty', async () => {
     render(<ClientBarV1 />);
 
     fireEvent.click(screen.getByTestId('client-bar-picker'));
-    expect(screen.getByTestId('client-picker-empty')).toHaveTextContent(
+    expect(await screen.findByTestId('client-picker-empty')).toHaveTextContent(
       'No clients match your search.'
     );
     expect(
       screen.queryByTestId('client-picker-option-household-foster')
     ).not.toBeInTheDocument();
+  });
+
+  it('loads and selects households through the native Tauri boundary', async () => {
+    tauriBoundary.isTauri.mockReturnValue(true);
+    tauriBoundary.invoke.mockResolvedValue([
+      { id: 'household-native', name: 'Native household' },
+    ]);
+    render(<ClientBarV1 />);
+
+    fireEvent.click(screen.getByTestId('client-bar-picker'));
+
+    expect(tauriBoundary.invoke).toHaveBeenCalledWith('crm_list_households', {
+      runId: expect.any(String),
+    });
+    fireEvent.click(
+      await screen.findByTestId('client-picker-option-household-native')
+    );
+    expect(useClientContextStore.getState().client).toEqual({
+      householdId: 'household-native',
+      displayName: 'Native household',
+    });
+    expect(screen.getByTestId('client-bar-current')).toHaveTextContent(
+      'Native household'
+    );
+  });
+
+  it('shows a loading state while the native directory request is pending', async () => {
+    tauriBoundary.isTauri.mockReturnValue(true);
+    let finishRequest: ((value: readonly unknown[]) => void) | undefined;
+    tauriBoundary.invoke.mockReturnValue(
+      new Promise((resolve) => {
+        finishRequest = resolve;
+      })
+    );
+    render(<ClientBarV1 />);
+
+    fireEvent.click(screen.getByTestId('client-bar-picker'));
+    expect(screen.getByTestId('client-picker-loading')).toHaveTextContent(
+      'Loading clients…'
+    );
+
+    await act(async () => {
+      finishRequest?.([]);
+    });
+    expect(screen.getByTestId('client-picker-empty')).toBeInTheDocument();
+  });
+
+  it('shows a safe load error and retries the native household request', async () => {
+    tauriBoundary.isTauri.mockReturnValue(true);
+    tauriBoundary.invoke
+      .mockRejectedValueOnce(new Error('native details stay hidden'))
+      .mockResolvedValueOnce([]);
+    render(<ClientBarV1 />);
+
+    fireEvent.click(screen.getByTestId('client-bar-picker'));
+    expect(await screen.findByTestId('client-picker-error')).toHaveTextContent(
+      'Clients could not be loaded. Your CRM data is still safe.'
+    );
+    fireEvent.click(screen.getByTestId('client-picker-retry'));
+
+    expect(await screen.findByTestId('client-picker-empty')).toBeInTheDocument();
+    expect(tauriBoundary.invoke).toHaveBeenCalledTimes(2);
   });
 
   it('renders quick actions from shared primary surface descriptors', () => {
@@ -133,6 +210,18 @@ describe('ClientBarV1', () => {
 
     expect(navigate).toHaveBeenCalledOnce();
     expect(navigate).toHaveBeenCalledWith('meetings');
+  });
+
+  it('keeps the legacy plumbing when the flag is off and swaps to v1 when on', () => {
+    setDevFlagOverride('shared-client-bar', false);
+    const { rerender } = render(<SharedClientBar />);
+    expect(screen.getByTestId('shared-client-bar')).toBeInTheDocument();
+    expect(screen.queryByTestId('client-bar-v1')).not.toBeInTheDocument();
+
+    setDevFlagOverride('shared-client-bar', true);
+    rerender(<SharedClientBar />);
+    expect(screen.getByTestId('client-bar-v1')).toBeInTheDocument();
+    expect(screen.queryByTestId('shared-client-bar')).not.toBeInTheDocument();
   });
 });
 

@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronDown } from 'lucide-react';
 import { useClientContextStore } from '@/platform/client-context';
 import type { SharedClientIdentity } from '@/platform/client-context';
 import { ClientPickerModal } from './ClientPickerModal';
 import type { ClientPickerHousehold } from './clientPickerHouseholds';
+import { fetchClientPickerHouseholds } from './fetchClientPickerHouseholds';
 import { type ClientBarQuickAction } from './quickActions';
 
 export interface ClientBarV1Props {
@@ -23,14 +24,50 @@ export function ClientBarV1({
 }: ClientBarV1Props) {
   const { t } = useTranslation();
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [loadedHouseholds, setLoadedHouseholds] = useState<
+    readonly ClientPickerHousehold[]
+  >([]);
+  const [householdsLoading, setHouseholdsLoading] = useState(false);
+  const [householdsLoadFailed, setHouseholdsLoadFailed] = useState(false);
+  const householdRequestId = useRef(0);
   const client = useClientContextStore((state) => state.client);
   const setClient = useClientContextStore((state) => state.setClient);
   const clearClient = useClientContextStore((state) => state.clearClient);
-  const pickerHouseholds = households ?? [];
+  const pickerHouseholds = households ?? loadedHouseholds;
+
+  const loadHouseholds = useCallback(async () => {
+    if (households) return;
+
+    const requestId = householdRequestId.current + 1;
+    householdRequestId.current = requestId;
+    setHouseholdsLoading(true);
+    setHouseholdsLoadFailed(false);
+    try {
+      const nextHouseholds = await fetchClientPickerHouseholds();
+      if (householdRequestId.current !== requestId) return;
+      setLoadedHouseholds(nextHouseholds);
+    } catch {
+      if (householdRequestId.current !== requestId) return;
+      setLoadedHouseholds([]);
+      setHouseholdsLoadFailed(true);
+    } finally {
+      if (householdRequestId.current === requestId) {
+        setHouseholdsLoading(false);
+      }
+    }
+  }, [households]);
+
+  useEffect(
+    () => () => {
+      householdRequestId.current += 1;
+    },
+    []
+  );
 
   const openPicker = () => {
     onChooseClient?.();
     setPickerOpen(true);
+    void loadHouseholds();
   };
 
   const selectClient = (nextClient: SharedClientIdentity) => {
@@ -54,18 +91,17 @@ export function ClientBarV1({
         <button
           aria-haspopup="dialog"
           aria-label={t('client-bar.picker.trigger')}
-          className="inline-flex min-h-9 items-center gap-2 rounded-full border border-slate-300 bg-white py-1 pl-1 pr-2.5 text-left font-medium text-slate-900 shadow-sm hover:border-slate-400 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+          className={`inline-flex min-h-9 items-center gap-2 rounded-full border px-3 py-1 text-left font-semibold shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-600 ${
+            client
+              ? 'border-rose-500 bg-rose-50 text-slate-900 hover:bg-rose-100'
+              : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:bg-slate-50'
+          }`}
           data-testid="client-bar-picker"
           onClick={openPicker}
           type="button"
         >
           {client ? (
-            <span
-              className="flex size-7 items-center justify-center rounded-full bg-blue-100 text-[11px] font-bold text-blue-700"
-              aria-hidden="true"
-            >
-              {initials(client.displayName)}
-            </span>
+            <span aria-hidden="true">{initials(client.displayName)} ·</span>
           ) : null}
           <span data-testid="client-bar-current">
             {client?.displayName ?? t('shared-client.bar.empty')}
@@ -104,9 +140,12 @@ export function ClientBarV1({
         </div>
       </section>
       <ClientPickerModal
+        loadFailed={householdsLoadFailed}
+        loading={householdsLoading}
         households={pickerHouseholds}
         onClear={clearSelectedClient}
         onOpenChange={setPickerOpen}
+        onRetry={loadHouseholds}
         onSelect={selectClient}
         open={pickerOpen}
         selectedHouseholdId={client?.householdId ?? null}

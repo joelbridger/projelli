@@ -13,8 +13,11 @@ import type { ClientPickerHousehold } from './clientPickerHouseholds';
 
 interface ClientPickerModalProps {
   households?: readonly ClientPickerHousehold[] | undefined;
+  loadFailed?: boolean | undefined;
+  loading?: boolean | undefined;
   onClear: () => void;
   onOpenChange: (open: boolean) => void;
+  onRetry?: (() => void) | undefined;
   onSelect: (client: SharedClientIdentity) => void;
   open: boolean;
   selectedHouseholdId: string | null;
@@ -22,8 +25,11 @@ interface ClientPickerModalProps {
 
 export function ClientPickerModal({
   households = [],
+  loadFailed = false,
+  loading = false,
   onClear,
   onOpenChange,
+  onRetry,
   onSelect,
   open,
   selectedHouseholdId,
@@ -95,7 +101,7 @@ export function ClientPickerModal({
             />
             <input
               autoFocus
-              className="h-10 w-full rounded-md border border-slate-300 bg-white pl-9 pr-3 text-sm text-slate-950 outline-none placeholder:text-slate-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+              className="h-10 w-full rounded-md border border-slate-300 bg-white pl-9 pr-3 text-sm text-slate-950 outline-none placeholder:text-slate-400 focus:border-rose-600 focus:ring-2 focus:ring-rose-100"
               data-testid="client-picker-search"
               onChange={(event) => {
                 setQuery(event.target.value);
@@ -111,13 +117,38 @@ export function ClientPickerModal({
           role="listbox"
           aria-label={t('client-bar.picker.title')}
         >
-          {results.length ? (
+          {loading ? (
+            <p
+              aria-live="polite"
+              className="px-3 py-8 text-center text-sm text-slate-500"
+              data-testid="client-picker-loading"
+            >
+              {t('client-bar.picker.loading')}
+            </p>
+          ) : loadFailed ? (
+            <div
+              className="flex flex-col items-center gap-3 px-3 py-8 text-center text-sm text-slate-500"
+              data-testid="client-picker-error"
+            >
+              <p>{t('client-bar.picker.load-error')}</p>
+              {onRetry ? (
+                <button
+                  className="rounded-md border border-slate-300 bg-white px-3 py-2 font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-600"
+                  data-testid="client-picker-retry"
+                  onClick={onRetry}
+                  type="button"
+                >
+                  {t('client-bar.picker.retry')}
+                </button>
+              ) : null}
+            </div>
+          ) : results.length ? (
             results.map((household) => {
               const selected = household.householdId === selectedHouseholdId;
               return (
                 <button
                   aria-selected={selected}
-                  className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left hover:bg-slate-50 focus-visible:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left hover:bg-rose-50 focus-visible:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-600"
                   data-testid={`client-picker-option-${household.householdId}`}
                   key={household.householdId}
                   onClick={() => {
@@ -126,7 +157,7 @@ export function ClientPickerModal({
                   role="option"
                   type="button"
                 >
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-blue-50 text-xs font-semibold text-blue-700">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-rose-50 text-xs font-semibold text-rose-700">
                     {initials(household.displayName)}
                   </span>
                   <span className="min-w-0 flex-1">
@@ -134,13 +165,14 @@ export function ClientPickerModal({
                       {household.displayName}
                     </span>
                     <span className="mt-0.5 block truncate text-sm text-slate-500">
-                      {household.description}
+                      {household.description ??
+                        t('client-bar.picker.household-description')}
                     </span>
                   </span>
                   {selected ? (
                     <Check
                       aria-label={t('client-bar.picker.selected')}
-                      className="size-4 text-blue-700"
+                      className="size-4 text-rose-700"
                     />
                   ) : null}
                 </button>

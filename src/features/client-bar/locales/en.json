@@ -14,6 +14,10 @@
       "search-label": "Search people and households",
       "search-placeholder": "Search people and households",
       "selected": "Current client",
+      "loading": "Loading clients…",
+      "load-error": "Clients could not be loaded. Your CRM data is still safe.",
+      "retry": "Try again",
+      "household-description": "CRM household",
       "no-results": "No clients match your search.",
       "clear": "Clear client",
       "cancel": "Cancel"

@@ -14,6 +14,10 @@
       "search-label": "Buscar personas y hogares",
       "search-placeholder": "Buscar personas y hogares",
       "selected": "Cliente actual",
+      "loading": "Cargando clientes…",
+      "load-error": "No se pudieron cargar los clientes. Sus datos de CRM siguen seguros.",
+      "retry": "Intentar de nuevo",
+      "household-description": "Hogar de CRM",
       "no-results": "Ningún cliente coincide con su búsqueda.",
       "clear": "Borrar cliente",
       "cancel": "Cancelar"

@@ -5,3 +5,4 @@ export {
   type ClientBarQuickAction,
 } from './quickActions';
 export { type ClientPickerHousehold } from './clientPickerHouseholds';
+export { fetchClientPickerHouseholds } from './fetchClientPickerHouseholds';
