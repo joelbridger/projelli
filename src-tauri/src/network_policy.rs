@@ -20,6 +20,26 @@ use std::{
 };
 use tokio::sync::watch;
 
+mod operations;
+
+// Re-export the per-domain operation constants (LOCAL_LLAMA, WEALTHBOX_AUTH, …),
+// the flattening iterator, the registry, and the logical MCP destination so
+// existing callers keep using `network_policy::…` unchanged after the carve.
+pub use operations::{
+    all_operations, registry_problems, EGRESS_MODULES, MCP_EXTERNAL_CLIENT_LOGICAL_DESTINATION,
+};
+pub use operations::{
+    ADDEPAR_SYNC, BOX_SYNC, CALENDLY_SYNC, CRM_MIGRATION_IMPORT, DOCUSIGN_OAUTH, DOCUSIGN_SYNC,
+    EXTERNAL_NAVIGATION, GMAIL_OAUTH, GMAIL_SYNC, GOOGLE_CALENDAR_OAUTH, GOOGLE_CALENDAR_SYNC,
+    ICS_CALENDAR_SYNC, IMAP_SYNC, JOTFORM_SYNC, LICENSE_VALIDATION, LOCAL_LLAMA,
+    LOCAL_LLM_MODEL_DOWNLOAD, MCP_EXTERNAL_CLIENT_EXPORT, MEETING_AUTO_JOIN, OLLAMA, ONEDRIVE_OAUTH,
+    ONEDRIVE_SYNC, OUTLOOK_CALENDAR_OAUTH, OUTLOOK_CALENDAR_SYNC, OUTLOOK_MAIL_OAUTH,
+    OUTLOOK_MAIL_SYNC, RAG_MODEL_DOWNLOAD, REDTAIL_OAUTH, REDTAIL_SYNC, RERANKER_MODEL_DOWNLOAD,
+    SALESFORCE_IDENTITY, SALESFORCE_LOGIN_IDENTITY, SALESFORCE_OAUTH, SALESFORCE_SYNC,
+    SHAREFILE_SYNC, SMTP_SEND, VOICE_MODEL_DOWNLOAD, WEALTHBOX_AUTH, WEALTHBOX_SYNC, WEALTHBOX_WRITE,
+    ZOCKS_SYNC,
+};
+
 const POLICY_FILE_NAME: &str = "network-policy.json";
 const POLICY_VERSION: u32 = 1;
 const STATE_UNINITIALIZED: u8 = 0;
@@ -85,542 +105,10 @@ pub struct EgressOperation {
     pub receipt_label: &'static str,
 }
 
-pub const LOCAL_LLAMA: EgressOperation = EgressOperation {
-    id: "local-llama",
-    category: EgressCategory::LocalAi,
-    destination_rule: DestinationRule::LiteralLoopbackOnly,
-    data_classes: EgressDataClasses {
-        content: true,
-        metadata: false,
-        credential: false,
-    },
-    receipt_label: "Local AI",
-};
-
-pub const OLLAMA: EgressOperation = EgressOperation {
-    id: "ollama",
-    category: EgressCategory::LocalAi,
-    destination_rule: DestinationRule::LiteralLoopbackOnly,
-    data_classes: EgressDataClasses {
-        content: true,
-        metadata: false,
-        credential: false,
-    },
-    receipt_label: "Ollama",
-};
-
-pub const LICENSE_VALIDATION: EgressOperation = EgressOperation {
-    id: "license-validation",
-    category: EgressCategory::Licensing,
-    destination_rule: DestinationRule::ExactHosts(&["api.lemonsqueezy.com"]),
-    data_classes: EgressDataClasses {
-        content: false,
-        metadata: true,
-        credential: true,
-    },
-    receipt_label: "license validation",
-};
-
-pub const OUTLOOK_MAIL_OAUTH: EgressOperation = EgressOperation {
-    id: "outlook-mail-oauth",
-    category: EgressCategory::Connector,
-    destination_rule: DestinationRule::ExactHosts(&["login.microsoftonline.com"]),
-    data_classes: EgressDataClasses {
-        content: false,
-        metadata: true,
-        credential: true,
-    },
-    receipt_label: "Outlook mail sign-in",
-};
-pub const OUTLOOK_MAIL_SYNC: EgressOperation = EgressOperation {
-    id: "outlook-mail-sync",
-    category: EgressCategory::Connector,
-    destination_rule: DestinationRule::ExactHosts(&["graph.microsoft.com"]),
-    data_classes: EgressDataClasses {
-        content: true,
-        metadata: true,
-        credential: true,
-    },
-    receipt_label: "Outlook mail sync",
-};
-pub const GMAIL_OAUTH: EgressOperation = EgressOperation {
-    id: "gmail-oauth",
-    category: EgressCategory::Connector,
-    destination_rule: DestinationRule::ExactHosts(&[
-        "accounts.google.com",
-        "oauth2.googleapis.com",
-    ]),
-    data_classes: EgressDataClasses {
-        content: false,
-        metadata: true,
-        credential: true,
-    },
-    receipt_label: "Gmail sign-in",
-};
-pub const GMAIL_SYNC: EgressOperation = EgressOperation {
-    id: "gmail-sync",
-    category: EgressCategory::Connector,
-    destination_rule: DestinationRule::ExactHosts(&["gmail.googleapis.com"]),
-    data_classes: EgressDataClasses {
-        content: true,
-        metadata: true,
-        credential: true,
-    },
-    receipt_label: "Gmail sync",
-};
-pub const IMAP_SYNC: EgressOperation = EgressOperation {
-    id: "imap-sync",
-    category: EgressCategory::Connector,
-    destination_rule: DestinationRule::UserConfiguredHost,
-    data_classes: EgressDataClasses {
-        content: true,
-        metadata: true,
-        credential: true,
-    },
-    receipt_label: "IMAP mail sync",
-};
-pub const SMTP_SEND: EgressOperation = EgressOperation {
-    id: "smtp-send",
-    category: EgressCategory::Connector,
-    destination_rule: DestinationRule::UserConfiguredHost,
-    data_classes: EgressDataClasses {
-        content: true,
-        metadata: true,
-        credential: true,
-    },
-    receipt_label: "send mail",
-};
-pub const ONEDRIVE_OAUTH: EgressOperation = EgressOperation {
-    id: "onedrive-oauth",
-    category: EgressCategory::Connector,
-    destination_rule: DestinationRule::ExactHosts(&["login.microsoftonline.com"]),
-    data_classes: EgressDataClasses {
-        content: false,
-        metadata: true,
-        credential: true,
-    },
-    receipt_label: "OneDrive sign-in",
-};
-pub const ONEDRIVE_SYNC: EgressOperation = EgressOperation {
-    id: "onedrive-sync",
-    category: EgressCategory::Connector,
-    destination_rule: DestinationRule::ExactHosts(&["graph.microsoft.com"]),
-    data_classes: EgressDataClasses {
-        content: true,
-        metadata: true,
-        credential: true,
-    },
-    receipt_label: "OneDrive sync",
-};
-pub const OUTLOOK_CALENDAR_OAUTH: EgressOperation = EgressOperation {
-    id: "outlook-calendar-oauth",
-    category: EgressCategory::Connector,
-    destination_rule: DestinationRule::ExactHosts(&["login.microsoftonline.com"]),
-    data_classes: EgressDataClasses {
-        content: false,
-        metadata: true,
-        credential: true,
-    },
-    receipt_label: "Outlook Calendar sign-in",
-};
-pub const OUTLOOK_CALENDAR_SYNC: EgressOperation = EgressOperation {
-    id: "outlook-calendar-sync",
-    category: EgressCategory::Connector,
-    destination_rule: DestinationRule::ExactHosts(&["graph.microsoft.com"]),
-    data_classes: EgressDataClasses {
-        content: true,
-        metadata: true,
-        credential: true,
-    },
-    receipt_label: "Outlook Calendar sync",
-};
-pub const GOOGLE_CALENDAR_OAUTH: EgressOperation = EgressOperation {
-    id: "google-calendar-oauth",
-    category: EgressCategory::Connector,
-    destination_rule: DestinationRule::ExactHosts(&[
-        "accounts.google.com",
-        "oauth2.googleapis.com",
-    ]),
-    data_classes: EgressDataClasses {
-        content: false,
-        metadata: true,
-        credential: true,
-    },
-    receipt_label: "Google Calendar sign-in",
-};
-pub const GOOGLE_CALENDAR_SYNC: EgressOperation = EgressOperation {
-    id: "google-calendar-sync",
-    category: EgressCategory::Connector,
-    destination_rule: DestinationRule::ExactHosts(&["www.googleapis.com"]),
-    data_classes: EgressDataClasses {
-        content: true,
-        metadata: true,
-        credential: true,
-    },
-    receipt_label: "Google Calendar sync",
-};
-pub const ICS_CALENDAR_SYNC: EgressOperation = EgressOperation {
-    id: "ics-calendar-sync",
-    category: EgressCategory::Connector,
-    destination_rule: DestinationRule::UserConfiguredHost,
-    data_classes: EgressDataClasses {
-        content: true,
-        metadata: true,
-        credential: true,
-    },
-    receipt_label: "ICS calendar sync",
-};
-
-pub const WEALTHBOX_AUTH: EgressOperation = EgressOperation {
-    id: "crm-auth-wealthbox",
-    category: EgressCategory::Connector,
-    destination_rule: DestinationRule::ExactHosts(&["api.crmworkspace.com"]),
-    data_classes: EgressDataClasses {
-        content: false,
-        metadata: true,
-        credential: true,
-    },
-    receipt_label: "Wealthbox connection check",
-};
-pub const WEALTHBOX_SYNC: EgressOperation = EgressOperation {
-    id: "crm-sync-wealthbox",
-    category: EgressCategory::Connector,
-    destination_rule: DestinationRule::ExactHosts(&["api.crmworkspace.com"]),
-    data_classes: EgressDataClasses {
-        content: true,
-        metadata: true,
-        credential: true,
-    },
-    receipt_label: "Wealthbox sync",
-};
-pub const WEALTHBOX_WRITE: EgressOperation = EgressOperation {
-    id: "crm-write-wealthbox",
-    category: EgressCategory::Connector,
-    destination_rule: DestinationRule::ExactHosts(&["api.crmworkspace.com"]),
-    data_classes: EgressDataClasses {
-        content: true,
-        metadata: true,
-        credential: true,
-    },
-    receipt_label: "Wealthbox write-back",
-};
-pub const CALENDLY_SYNC: EgressOperation = EgressOperation {
-    id: "calendly-sync",
-    category: EgressCategory::Connector,
-    destination_rule: DestinationRule::ExactHosts(&["api.calendly.com"]),
-    data_classes: EgressDataClasses {
-        content: true,
-        metadata: true,
-        credential: true,
-    },
-    receipt_label: "Calendly sync",
-};
-pub const ADDEPAR_SYNC: EgressOperation = EgressOperation {
-    id: "addepar-sync",
-    category: EgressCategory::Connector,
-    destination_rule: DestinationRule::UserConfiguredHost,
-    data_classes: EgressDataClasses {
-        content: true,
-        metadata: true,
-        credential: true,
-    },
-    receipt_label: "Addepar sync",
-};
-pub const BOX_SYNC: EgressOperation = EgressOperation {
-    id: "box-sync",
-    category: EgressCategory::Connector,
-    destination_rule: DestinationRule::ExactHosts(&["api.box.com", "dl.boxcloud.com"]),
-    data_classes: EgressDataClasses {
-        content: true,
-        metadata: true,
-        credential: true,
-    },
-    receipt_label: "Box sync",
-};
-pub const DOCUSIGN_OAUTH: EgressOperation = EgressOperation {
-    id: "docusign-oauth",
-    category: EgressCategory::Connector,
-    destination_rule: DestinationRule::ExactHosts(&[
-        "account-d.docusign.com",
-        "account.docusign.com",
-    ]),
-    data_classes: EgressDataClasses {
-        content: false,
-        metadata: true,
-        credential: true,
-    },
-    receipt_label: "DocuSign sign-in",
-};
-pub const DOCUSIGN_SYNC: EgressOperation = EgressOperation {
-    id: "docusign-sync",
-    category: EgressCategory::Connector,
-    destination_rule: DestinationRule::UserConfiguredHost,
-    data_classes: EgressDataClasses {
-        content: true,
-        metadata: true,
-        credential: true,
-    },
-    receipt_label: "DocuSign sync",
-};
-pub const JOTFORM_SYNC: EgressOperation = EgressOperation {
-    id: "jotform-sync",
-    category: EgressCategory::Connector,
-    destination_rule: DestinationRule::ExactHosts(&["api.jotform.com"]),
-    data_classes: EgressDataClasses {
-        content: true,
-        metadata: true,
-        credential: true,
-    },
-    receipt_label: "Jotform sync",
-};
-pub const SHAREFILE_SYNC: EgressOperation = EgressOperation {
-    id: "sharefile-sync",
-    category: EgressCategory::Connector,
-    destination_rule: DestinationRule::UserConfiguredHost,
-    data_classes: EgressDataClasses {
-        content: true,
-        metadata: true,
-        credential: true,
-    },
-    receipt_label: "ShareFile sync",
-};
-pub const ZOCKS_SYNC: EgressOperation = EgressOperation {
-    id: "zocks-sync",
-    category: EgressCategory::Connector,
-    destination_rule: DestinationRule::ExactHosts(&["api.zocks.io"]),
-    data_classes: EgressDataClasses {
-        content: true,
-        metadata: true,
-        credential: true,
-    },
-    receipt_label: "Zocks sync",
-};
-pub const SALESFORCE_OAUTH: EgressOperation = EgressOperation {
-    id: "crm-auth-salesforce",
-    category: EgressCategory::Connector,
-    destination_rule: DestinationRule::ExactHosts(&["login.salesforce.com"]),
-    data_classes: EgressDataClasses {
-        content: false,
-        metadata: true,
-        credential: true,
-    },
-    receipt_label: "Salesforce sign-in",
-};
-pub const SALESFORCE_SYNC: EgressOperation = EgressOperation {
-    id: "crm-sync-salesforce",
-    category: EgressCategory::Connector,
-    destination_rule: DestinationRule::UserConfiguredHost,
-    data_classes: EgressDataClasses {
-        content: true,
-        metadata: true,
-        credential: true,
-    },
-    receipt_label: "Salesforce sync",
-};
-pub const SALESFORCE_IDENTITY: EgressOperation = EgressOperation {
-    id: "crm-auth-salesforce-instance",
-    category: EgressCategory::Connector,
-    destination_rule: DestinationRule::UserConfiguredHost,
-    data_classes: EgressDataClasses {
-        content: false,
-        metadata: true,
-        credential: true,
-    },
-    receipt_label: "Salesforce account check",
-};
-pub const SALESFORCE_LOGIN_IDENTITY: EgressOperation = EgressOperation {
-    id: "crm-auth-salesforce-identity",
-    category: EgressCategory::Connector,
-    destination_rule: DestinationRule::ExactHosts(&["login.salesforce.com", "test.salesforce.com"]),
-    data_classes: EgressDataClasses {
-        content: false,
-        metadata: true,
-        credential: true,
-    },
-    receipt_label: "Salesforce account identity",
-};
-pub const REDTAIL_OAUTH: EgressOperation = EgressOperation {
-    id: "crm-auth-redtail",
-    category: EgressCategory::Connector,
-    destination_rule: DestinationRule::ExactHosts(&["api2.redtailtechnology.com"]),
-    data_classes: EgressDataClasses {
-        content: false,
-        metadata: true,
-        credential: true,
-    },
-    receipt_label: "Redtail sign-in",
-};
-pub const REDTAIL_SYNC: EgressOperation = EgressOperation {
-    id: "crm-sync-redtail",
-    category: EgressCategory::Connector,
-    destination_rule: DestinationRule::ExactHosts(&["api2.redtailtechnology.com"]),
-    data_classes: EgressDataClasses {
-        content: true,
-        metadata: true,
-        credential: true,
-    },
-    receipt_label: "Redtail sync",
-};
-pub const CRM_MIGRATION_IMPORT: EgressOperation = EgressOperation {
-    id: "crm-migration-import",
-    category: EgressCategory::Connector,
-    destination_rule: DestinationRule::UserConfiguredHost,
-    data_classes: EgressDataClasses {
-        content: true,
-        metadata: true,
-        credential: true,
-    },
-    receipt_label: "CRM sample migration",
-};
-
-// Hugging Face first resolves on huggingface.co, then redirects model bytes to
-// its Xet storage CDN.  The download client follows redirects manually and
-// authorizes every hop. `us.aws.cdn.hf.co` is the current file-storage host
-// observed for all three production downloads (2026-07-11); keep this list
-// synchronized with the downloader's redirect tests when Hugging Face changes
-// its delivery network.
-const HUGGING_FACE_MODEL_DOWNLOAD_HOSTS: &[&str] = &["huggingface.co", "us.aws.cdn.hf.co"];
-pub const RAG_MODEL_DOWNLOAD: EgressOperation = EgressOperation {
-    id: "rag-model-download",
-    category: EgressCategory::ProductMaintenance,
-    destination_rule: DestinationRule::ExactHosts(HUGGING_FACE_MODEL_DOWNLOAD_HOSTS),
-    data_classes: EgressDataClasses {
-        content: false,
-        metadata: true,
-        credential: false,
-    },
-    receipt_label: "RAG model download",
-};
-pub const RERANKER_MODEL_DOWNLOAD: EgressOperation = EgressOperation {
-    id: "reranker-model-download",
-    category: EgressCategory::ProductMaintenance,
-    destination_rule: DestinationRule::ExactHosts(HUGGING_FACE_MODEL_DOWNLOAD_HOSTS),
-    data_classes: EgressDataClasses {
-        content: false,
-        metadata: true,
-        credential: false,
-    },
-    receipt_label: "reranker model download",
-};
-pub const LOCAL_LLM_MODEL_DOWNLOAD: EgressOperation = EgressOperation {
-    id: "local-llm-model-download",
-    category: EgressCategory::ProductMaintenance,
-    destination_rule: DestinationRule::ExactHosts(HUGGING_FACE_MODEL_DOWNLOAD_HOSTS),
-    data_classes: EgressDataClasses {
-        content: false,
-        metadata: true,
-        credential: false,
-    },
-    receipt_label: "local LLM model download",
-};
-pub const VOICE_MODEL_DOWNLOAD: EgressOperation = EgressOperation {
-    id: "voice-model-download",
-    category: EgressCategory::ProductMaintenance,
-    // Canonical product setting: src/config/brand.ts → BRAND.urls.voices.
-    // Rust cannot import TypeScript at runtime, so keep this literal paired
-    // with the generated brand configuration and its URL below in tts.rs.
-    destination_rule: DestinationRule::ExactHosts(&["advisorprephero.com"]),
-    data_classes: EgressDataClasses {
-        content: false,
-        metadata: true,
-        credential: false,
-    },
-    receipt_label: "voice model download",
-};
-pub const MEETING_AUTO_JOIN: EgressOperation = EgressOperation {
-    id: "meeting-auto-join",
-    category: EgressCategory::Navigation,
-    destination_rule: DestinationRule::UserConfiguredHost,
-    data_classes: EgressDataClasses {
-        content: false,
-        metadata: true,
-        credential: false,
-    },
-    receipt_label: "meeting auto-join",
-};
-pub const EXTERNAL_NAVIGATION: EgressOperation = EgressOperation {
-    id: "external-navigation",
-    category: EgressCategory::Navigation,
-    destination_rule: DestinationRule::UserConfiguredHost,
-    data_classes: EgressDataClasses {
-        content: false,
-        metadata: true,
-        credential: false,
-    },
-    receipt_label: "external navigation",
-};
-pub const MCP_EXTERNAL_CLIENT_EXPORT: EgressOperation = EgressOperation {
-    id: "mcp-external-client-export",
-    category: EgressCategory::ExternalClientExport,
-    // MCP approval crosses the desktop/external-client boundary over a local
-    // rendezvous file, not a remote URL.  This fixed logical host lets that
-    // boundary use the same policy + audit receipt mechanism without ever
-    // resolving or contacting a fictional network endpoint.
-    destination_rule: DestinationRule::ExactHosts(&["mcp-external-client.invalid"]),
-    data_classes: EgressDataClasses {
-        content: true,
-        metadata: true,
-        credential: false,
-    },
-    receipt_label: "MCP access",
-};
-
-/// Logical-only MCP destination. This name is never resolved or contacted;
-/// the MCP sidecar exchanges data through a local rendezvous file. It exists
-/// so both MCP binaries can use one policy operation and one durable receipt
-/// path when they cross the desktop/external-client boundary.
-pub const MCP_EXTERNAL_CLIENT_LOGICAL_DESTINATION: &str = "https://mcp-external-client.invalid/";
-
-/// A small seed registry for Lane 0.  Later lanes extend this list as they
-/// migrate real sinks; authorization never trusts an unregistered operation.
-pub const EGRESS_OPERATION_REGISTRY: &[EgressOperation] = &[
-    LOCAL_LLAMA,
-    OLLAMA,
-    LICENSE_VALIDATION,
-    OUTLOOK_MAIL_OAUTH,
-    OUTLOOK_MAIL_SYNC,
-    GMAIL_OAUTH,
-    GMAIL_SYNC,
-    IMAP_SYNC,
-    SMTP_SEND,
-    ONEDRIVE_OAUTH,
-    ONEDRIVE_SYNC,
-    OUTLOOK_CALENDAR_OAUTH,
-    OUTLOOK_CALENDAR_SYNC,
-    GOOGLE_CALENDAR_OAUTH,
-    GOOGLE_CALENDAR_SYNC,
-    ICS_CALENDAR_SYNC,
-    WEALTHBOX_AUTH,
-    WEALTHBOX_SYNC,
-    WEALTHBOX_WRITE,
-    CALENDLY_SYNC,
-    ADDEPAR_SYNC,
-    BOX_SYNC,
-    DOCUSIGN_OAUTH,
-    DOCUSIGN_SYNC,
-    JOTFORM_SYNC,
-    SHAREFILE_SYNC,
-    ZOCKS_SYNC,
-    SALESFORCE_OAUTH,
-    SALESFORCE_LOGIN_IDENTITY,
-    SALESFORCE_IDENTITY,
-    SALESFORCE_SYNC,
-    REDTAIL_OAUTH,
-    REDTAIL_SYNC,
-    CRM_MIGRATION_IMPORT,
-    RAG_MODEL_DOWNLOAD,
-    RERANKER_MODEL_DOWNLOAD,
-    LOCAL_LLM_MODEL_DOWNLOAD,
-    VOICE_MODEL_DOWNLOAD,
-    MEETING_AUTO_JOIN,
-    EXTERNAL_NAVIGATION,
-    MCP_EXTERNAL_CLIENT_EXPORT,
-];
-
+/// Look up a registered operation by id across every per-domain slice.
+/// Authorization never trusts an unregistered operation.
 pub fn registered_operation(id: &str) -> Option<&'static EgressOperation> {
-    EGRESS_OPERATION_REGISTRY
-        .iter()
-        .find(|operation| operation.id == id)
+    operations::all_operations().find(|operation| operation.id == id)
 }
 
 /// A parsed network destination.  Parsing happens before authorization so the
@@ -823,6 +311,16 @@ impl NetworkPolicy {
     }
 
     pub(crate) fn load_from_directory(app_data_dir: &Path) -> Self {
+        // In debug and test builds, refuse to run against a structurally
+        // malformed egress registry (duplicate id or missing field) — the same
+        // guarantee the renderer registry enforces at module load. This is a
+        // dev/CI backstop with zero release-behavior change: a duplicate id
+        // would let `.find()` shadow a stricter operation with a looser one.
+        debug_assert!(
+            operations::registry_problems(operations::EGRESS_MODULES).is_empty(),
+            "egress module registry is malformed: {:?}",
+            operations::registry_problems(operations::EGRESS_MODULES)
+        );
         let policy_path = app_data_dir.join(POLICY_FILE_NAME);
         let (state, load_error) = match Self::read_or_create_record(&policy_path) {
             Ok(record) => (
@@ -1550,7 +1048,7 @@ mod tests {
     /// human-readable receipt shape.
     #[test]
     fn every_registered_operation_has_receipt_metadata() {
-        for operation in EGRESS_OPERATION_REGISTRY {
+        for operation in operations::all_operations() {
             assert!(!operation.id.is_empty(), "operation id must be non-empty");
             assert!(
                 !operation.receipt_label.is_empty(),
@@ -1570,7 +1068,7 @@ mod tests {
         let policy = NetworkPolicy::load_from_directory(directory.path());
         policy.set_offline_mode(true).unwrap();
 
-        for operation in EGRESS_OPERATION_REGISTRY {
+        for operation in operations::all_operations() {
             let destination = match operation.destination_rule {
                 DestinationRule::LiteralLoopbackOnly => destination("http://127.0.0.1:18089"),
                 _ => destination("https://egress-boundary.example.test"),

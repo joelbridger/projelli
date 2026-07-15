@@ -1,0 +1,1101 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`egress module registry — byte-identical policy parity > freezes every field of every operation, including consent copy 1`] = `
+[
+  {
+    "approvalText": "This sends the selected AI request to the local AI server running on this device.",
+    "category": "local-ai",
+    "dataClasses": [
+      "content",
+    ],
+    "dataSummary": "The prompt and selected AI context stay on this device.",
+    "destination": {
+      "allowedOrigins": [
+        "127.0.0.1",
+        "::1",
+      ],
+      "allowedSchemes": [
+        "http",
+        "https",
+      ],
+      "redirects": "deny",
+    },
+    "id": "local-loopback",
+    "recipient": "The local AI server on this device",
+    "requiresFinalApproval": false,
+    "title": "Use a local AI server",
+  },
+  {
+    "approvalText": "This sends the selected AI request to the AI provider you configured.",
+    "category": "cloud-ai",
+    "dataClasses": [
+      "content",
+      "metadata",
+      "credential",
+    ],
+    "dataSummary": "The prompt, selected AI context, and provider credential needed to answer.",
+    "destination": {
+      "allowedOrigins": [
+        "api.anthropic.com",
+        "api.openai.com",
+        "generativelanguage.googleapis.com",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+    },
+    "id": "cloud-ai",
+    "recipient": "The AI provider you configured",
+    "requiresFinalApproval": false,
+    "title": "Use cloud AI",
+  },
+  {
+    "approvalText": "This contacts Lantern’s licensing service to activate or validate your license.",
+    "category": "licensing",
+    "dataClasses": [
+      "metadata",
+      "credential",
+    ],
+    "dataSummary": "License and device-validation metadata.",
+    "destination": {
+      "allowedOrigins": [
+        "licenses.lanternplatform.app",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+    },
+    "id": "license-api",
+    "recipient": "Lantern licensing",
+    "requiresFinalApproval": false,
+    "title": "Activate or validate a license",
+  },
+  {
+    "approvalText": "This contacts Lantern’s firm service to validate this seat.",
+    "category": "licensing",
+    "dataClasses": [
+      "metadata",
+      "credential",
+    ],
+    "dataSummary": "Firm-seat validation metadata and credential.",
+    "destination": {
+      "allowedOrigins": [
+        "api.lanternplatform.app",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+    },
+    "id": "firm-seat-validation",
+    "recipient": "Lantern firm seat validation",
+    "requiresFinalApproval": false,
+    "title": "Validate a firm seat",
+  },
+  {
+    "approvalText": "This contacts GitHub to check for or download a signed Lantern update.",
+    "category": "product-maintenance",
+    "dataClasses": [
+      "metadata",
+      "binary-download",
+    ],
+    "dataSummary": "App version and update download metadata. No client files.",
+    "destination": {
+      "allowedOrigins": [
+        "github.com",
+        "release-assets.githubusercontent.com",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "allow-listed-only",
+    },
+    "id": "updater-github-releases",
+    "recipient": "GitHub Releases",
+    "requiresFinalApproval": false,
+    "title": "Check for app updates",
+  },
+  {
+    "approvalText": "This contacts the configured marketplace catalog source to download its catalog.",
+    "category": "product-maintenance",
+    "dataClasses": [
+      "metadata",
+      "binary-download",
+    ],
+    "dataSummary": "Marketplace catalog request metadata. No client files.",
+    "destination": {
+      "allowedOrigins": [
+        "raw.githubusercontent.com",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+    },
+    "id": "marketplace-manifest",
+    "recipient": "The Lantern template marketplace",
+    "requiresFinalApproval": false,
+    "title": "Refresh the template marketplace catalog",
+  },
+  {
+    "approvalText": "This downloads the marketplace package you selected.",
+    "category": "product-maintenance",
+    "dataClasses": [
+      "content",
+      "metadata",
+    ],
+    "dataSummary": "The selected package and download metadata. No client files.",
+    "destination": {
+      "allowedOrigins": [
+        "raw.githubusercontent.com",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+    },
+    "id": "marketplace-package",
+    "recipient": "The Lantern template marketplace",
+    "requiresFinalApproval": true,
+    "title": "Download a marketplace package",
+  },
+  {
+    "approvalText": "This sends the optional telemetry you enabled to Lantern.",
+    "category": "telemetry",
+    "dataClasses": [
+      "metadata",
+    ],
+    "dataSummary": "Optional app-use metadata. No client files.",
+    "destination": {
+      "allowedOrigins": [
+        "forms.lanternplatform.app",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+    },
+    "id": "telemetry",
+    "recipient": "Lantern telemetry",
+    "requiresFinalApproval": true,
+    "title": "Send optional telemetry",
+  },
+  {
+    "approvalText": "This sends the optional diagnostic information you enabled to Lantern.",
+    "category": "diagnostics",
+    "dataClasses": [
+      "metadata",
+    ],
+    "dataSummary": "Optional app diagnostic metadata. No client files.",
+    "destination": {
+      "allowedOrigins": [
+        "forms.lanternplatform.app",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+    },
+    "id": "diagnostics",
+    "recipient": "Lantern diagnostics",
+    "requiresFinalApproval": true,
+    "title": "Send optional diagnostics",
+  },
+  {
+    "approvalText": "This opens the external address you selected in your browser.",
+    "category": "navigation",
+    "dataClasses": [
+      "metadata",
+    ],
+    "dataSummary": "The external address you selected.",
+    "destination": {
+      "allowedOrigins": [],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+      "rejectPrivateNetwork": true,
+      "requiresResolvedAddressCheck": true,
+      "userSelectedHost": true,
+    },
+    "id": "external-navigation",
+    "recipient": "The website you selected",
+    "requiresFinalApproval": true,
+    "title": "Open an external link",
+  },
+  {
+    "approvalText": "This sends the bug report and the details you chose to include to Lantern.",
+    "category": "diagnostics",
+    "dataClasses": [
+      "content",
+      "metadata",
+    ],
+    "dataSummary": "The bug-report text and selected diagnostic information.",
+    "destination": {
+      "allowedOrigins": [
+        "forms.lanternplatform.app",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+    },
+    "id": "bug-report",
+    "recipient": "Lantern support",
+    "requiresFinalApproval": true,
+    "title": "Send a bug report",
+  },
+  {
+    "approvalText": "This sends the AI setup help request and the details you chose to include to Lantern.",
+    "category": "diagnostics",
+    "dataClasses": [
+      "content",
+      "metadata",
+    ],
+    "dataSummary": "The help request and selected diagnostic information.",
+    "destination": {
+      "allowedOrigins": [
+        "forms.lanternplatform.app",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+    },
+    "id": "ai-setup-help",
+    "recipient": "Lantern support",
+    "requiresFinalApproval": true,
+    "title": "Ask for AI setup help",
+  },
+  {
+    "approvalText": "This contacts Lantern’s encrypted client intake relay to create or receive encrypted intake data.",
+    "category": "intake-sync",
+    "dataClasses": [
+      "content",
+      "metadata",
+      "credential",
+    ],
+    "dataSummary": "Encrypted intake content, relay metadata, and the credential needed to authenticate the device.",
+    "destination": {
+      "allowedOrigins": [
+        "api.lanternplatform.app",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+    },
+    "id": "intake-relay",
+    "recipient": "Lantern encrypted client intake relay",
+    "requiresFinalApproval": false,
+    "title": "Use the encrypted client intake relay",
+  },
+  {
+    "approvalText": "This opens Microsoft sign-in so Lantern can connect the mailbox you choose.",
+    "category": "connector-authentication",
+    "dataClasses": [
+      "metadata",
+      "credential",
+    ],
+    "dataSummary": "Microsoft sign-in details and the permission you approve.",
+    "destination": {
+      "allowedOrigins": [
+        "login.microsoftonline.com",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+    },
+    "id": "mail-auth-microsoft",
+    "recipient": "Microsoft",
+    "requiresFinalApproval": true,
+    "title": "Connect Microsoft 365 mail",
+  },
+  {
+    "approvalText": "This opens Google sign-in so Lantern can connect the mailbox you choose.",
+    "category": "connector-authentication",
+    "dataClasses": [
+      "metadata",
+      "credential",
+    ],
+    "dataSummary": "Google sign-in details and the permission you approve.",
+    "destination": {
+      "allowedOrigins": [
+        "accounts.google.com",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+    },
+    "id": "mail-auth-google",
+    "recipient": "Google",
+    "requiresFinalApproval": true,
+    "title": "Connect Gmail",
+  },
+  {
+    "approvalText": "This contacts Microsoft 365 and downloads the mail and attachments you selected.",
+    "category": "connector-import",
+    "dataClasses": [
+      "content",
+      "metadata",
+      "credential",
+    ],
+    "dataSummary": "Mail messages, headers, attachments, and mailbox metadata.",
+    "destination": {
+      "allowedOrigins": [
+        "graph.microsoft.com",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+    },
+    "id": "mail-sync-microsoft",
+    "recipient": "Microsoft 365",
+    "requiresFinalApproval": false,
+    "title": "Import Microsoft 365 mail",
+  },
+  {
+    "approvalText": "This contacts Gmail and downloads the mail and attachments you selected.",
+    "category": "connector-import",
+    "dataClasses": [
+      "content",
+      "metadata",
+      "credential",
+    ],
+    "dataSummary": "Mail messages, headers, attachments, and mailbox metadata.",
+    "destination": {
+      "allowedOrigins": [
+        "gmail.googleapis.com",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+    },
+    "id": "mail-sync-gmail",
+    "recipient": "Gmail",
+    "requiresFinalApproval": false,
+    "title": "Import Gmail",
+  },
+  {
+    "approvalText": "This contacts the secure IMAP server you chose and downloads mail from that account.",
+    "category": "connector-import",
+    "dataClasses": [
+      "content",
+      "metadata",
+      "credential",
+    ],
+    "dataSummary": "Mail messages, headers, and mailbox metadata from the selected account.",
+    "destination": {
+      "allowedOrigins": [],
+      "allowedSchemes": [
+        "imaps",
+      ],
+      "redirects": "deny",
+      "rejectPrivateNetwork": true,
+      "requiresResolvedAddressCheck": true,
+      "userSelectedHost": true,
+    },
+    "id": "mail-sync-imap",
+    "recipient": "The IMAP server you selected",
+    "requiresFinalApproval": true,
+    "title": "Import IMAP mail",
+  },
+  {
+    "approvalText": "Sending contacts the selected mail service with the recipients, subject, message, and attachments shown above.",
+    "category": "outgoing-email",
+    "dataClasses": [
+      "content",
+      "metadata",
+      "credential",
+    ],
+    "dataSummary": "Recipient addresses, subject, message body, and selected attachments.",
+    "destination": {
+      "allowedOrigins": [
+        "graph.microsoft.com",
+        "gmail.googleapis.com",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+    },
+    "id": "mail-send",
+    "recipient": "The selected mail service and the recipients you approve",
+    "requiresFinalApproval": true,
+    "title": "Send email",
+  },
+  {
+    "approvalText": "Sending contacts the secure mail server you chose with the recipients, subject, message, and attachments shown above.",
+    "category": "outgoing-email",
+    "dataClasses": [
+      "content",
+      "metadata",
+      "credential",
+    ],
+    "dataSummary": "Recipient addresses, subject, message body, and selected attachments.",
+    "destination": {
+      "allowedOrigins": [],
+      "allowedSchemes": [
+        "smtps",
+      ],
+      "redirects": "deny",
+      "rejectPrivateNetwork": true,
+      "requiresResolvedAddressCheck": true,
+      "userSelectedHost": true,
+    },
+    "id": "mail-send-imap",
+    "recipient": "The SMTP server and recipients you approve",
+    "requiresFinalApproval": true,
+    "title": "Send email through IMAP mail",
+  },
+  {
+    "approvalText": "This saves the draft shown above to the mailbox you selected. It does not send the email.",
+    "category": "outgoing-email",
+    "dataClasses": [
+      "content",
+      "metadata",
+      "credential",
+    ],
+    "dataSummary": "Draft recipients, subject, and message body.",
+    "destination": {
+      "allowedOrigins": [
+        "graph.microsoft.com",
+        "gmail.googleapis.com",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+    },
+    "id": "mail-save-draft",
+    "recipient": "The selected mail service",
+    "requiresFinalApproval": true,
+    "title": "Save email draft",
+  },
+  {
+    "approvalText": "This contacts Outlook Calendar and downloads the events you selected.",
+    "category": "connector-import",
+    "dataClasses": [
+      "content",
+      "metadata",
+      "credential",
+    ],
+    "dataSummary": "Event titles, times, invitees, meeting links, and notes.",
+    "destination": {
+      "allowedOrigins": [
+        "graph.microsoft.com",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+    },
+    "id": "calendar-sync-microsoft",
+    "recipient": "Microsoft Outlook Calendar",
+    "requiresFinalApproval": false,
+    "title": "Import Outlook calendar",
+  },
+  {
+    "approvalText": "This contacts Google Calendar and downloads the events you selected.",
+    "category": "connector-import",
+    "dataClasses": [
+      "content",
+      "metadata",
+      "credential",
+    ],
+    "dataSummary": "Event titles, times, invitees, meeting links, and notes.",
+    "destination": {
+      "allowedOrigins": [
+        "www.googleapis.com",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+    },
+    "id": "calendar-sync-google",
+    "recipient": "Google Calendar",
+    "requiresFinalApproval": false,
+    "title": "Import Google Calendar",
+  },
+  {
+    "approvalText": "This contacts the calendar link you pasted and downloads its event feed.",
+    "category": "connector-import",
+    "dataClasses": [
+      "content",
+      "metadata",
+    ],
+    "dataSummary": "The pasted calendar address and the events it returns.",
+    "destination": {
+      "allowedOrigins": [],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+      "rejectPrivateNetwork": true,
+      "requiresResolvedAddressCheck": true,
+      "userSelectedHost": true,
+    },
+    "id": "calendar-import-ics",
+    "recipient": "The calendar host in the link you pasted",
+    "requiresFinalApproval": true,
+    "title": "Import an ICS calendar link",
+  },
+  {
+    "approvalText": "This contacts Wealthbox to check the API token you entered.",
+    "category": "connector-authentication",
+    "dataClasses": [
+      "metadata",
+      "credential",
+    ],
+    "dataSummary": "Your Wealthbox API token and basic account metadata.",
+    "destination": {
+      "allowedOrigins": [
+        "api.crmworkspace.com",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+    },
+    "id": "crm-auth-wealthbox",
+    "recipient": "Wealthbox",
+    "requiresFinalApproval": true,
+    "title": "Connect Wealthbox",
+  },
+  {
+    "approvalText": "This contacts Wealthbox and downloads the client records you selected.",
+    "category": "connector-import",
+    "dataClasses": [
+      "content",
+      "metadata",
+      "credential",
+    ],
+    "dataSummary": "Client records, notes, tasks, events, and account metadata.",
+    "destination": {
+      "allowedOrigins": [
+        "api.crmworkspace.com",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+    },
+    "id": "crm-sync-wealthbox",
+    "recipient": "Wealthbox",
+    "requiresFinalApproval": false,
+    "title": "Import Wealthbox",
+  },
+  {
+    "approvalText": "This sends only the approved note, task, or field update to the selected Wealthbox client record.",
+    "category": "connector-write",
+    "dataClasses": [
+      "content",
+      "metadata",
+      "credential",
+    ],
+    "dataSummary": "The approved write and the chosen Wealthbox record reference.",
+    "destination": {
+      "allowedOrigins": [
+        "api.crmworkspace.com",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+    },
+    "id": "crm-write-wealthbox",
+    "recipient": "Wealthbox",
+    "requiresFinalApproval": true,
+    "title": "Write back to Wealthbox",
+  },
+  {
+    "approvalText": "This contacts Salesforce to exchange the sign-in code for a saved connection or refresh that connection.",
+    "category": "connector-authentication",
+    "dataClasses": [
+      "metadata",
+      "credential",
+    ],
+    "dataSummary": "The sign-in or refresh credential, app connection details, and connection metadata returned by Salesforce.",
+    "destination": {
+      "allowedOrigins": [
+        "login.salesforce.com",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+    },
+    "id": "crm-auth-salesforce",
+    "recipient": "Salesforce",
+    "requiresFinalApproval": true,
+    "title": "Connect Salesforce",
+  },
+  {
+    "approvalText": "This contacts the Salesforce organization returned by sign-in to check the connected account.",
+    "category": "connector-authentication",
+    "dataClasses": [
+      "metadata",
+      "credential",
+    ],
+    "dataSummary": "The saved Salesforce access credential and the account identity returned by your Salesforce organization.",
+    "destination": {
+      "allowedOrigins": [],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+      "rejectPrivateNetwork": true,
+      "requiresResolvedAddressCheck": true,
+      "userSelectedHost": true,
+    },
+    "id": "crm-auth-salesforce-instance",
+    "recipient": "Your Salesforce organization",
+    "requiresFinalApproval": false,
+    "title": "Check the connected Salesforce account",
+  },
+  {
+    "approvalText": "This checks the Salesforce identity returned by sign-in.",
+    "category": "connector-authentication",
+    "dataClasses": [
+      "metadata",
+      "credential",
+    ],
+    "dataSummary": "The saved Salesforce access credential and the account identity returned by Salesforce.",
+    "destination": {
+      "allowedOrigins": [
+        "login.salesforce.com",
+        "test.salesforce.com",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+    },
+    "id": "crm-auth-salesforce-identity",
+    "recipient": "Salesforce",
+    "requiresFinalApproval": false,
+    "title": "Read the connected Salesforce identity",
+  },
+  {
+    "approvalText": "This contacts the Salesforce organization you connected and downloads the records you selected.",
+    "category": "connector-import",
+    "dataClasses": [
+      "content",
+      "metadata",
+      "credential",
+    ],
+    "dataSummary": "Selected CRM records and connection metadata.",
+    "destination": {
+      "allowedOrigins": [],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+      "rejectPrivateNetwork": true,
+      "requiresResolvedAddressCheck": true,
+      "userSelectedHost": true,
+    },
+    "id": "crm-sync-salesforce",
+    "recipient": "Your Salesforce organization",
+    "requiresFinalApproval": false,
+    "title": "Import Salesforce",
+  },
+  {
+    "approvalText": "This contacts Redtail to exchange the login for a saved UserKey.",
+    "category": "connector-authentication",
+    "dataClasses": [
+      "metadata",
+      "credential",
+    ],
+    "dataSummary": "Your Redtail username and password, Lantern’s Redtail API credential, the saved UserKey, and basic account metadata.",
+    "destination": {
+      "allowedOrigins": [
+        "api2.redtailtechnology.com",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+    },
+    "id": "crm-auth-redtail",
+    "recipient": "Redtail CRM",
+    "requiresFinalApproval": true,
+    "title": "Connect Redtail CRM",
+  },
+  {
+    "approvalText": "This contacts Redtail CRM and downloads the records you selected.",
+    "category": "connector-import",
+    "dataClasses": [
+      "content",
+      "metadata",
+      "credential",
+    ],
+    "dataSummary": "Selected CRM records and connection metadata.",
+    "destination": {
+      "allowedOrigins": [
+        "api2.redtailtechnology.com",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+    },
+    "id": "crm-sync-redtail",
+    "recipient": "Redtail CRM",
+    "requiresFinalApproval": false,
+    "title": "Import Redtail CRM",
+  },
+  {
+    "approvalText": "This contacts the simulator address you entered and imports its prepared sample records.",
+    "category": "connector-import",
+    "dataClasses": [
+      "content",
+      "metadata",
+      "credential",
+    ],
+    "dataSummary": "Prepared sample CRM records and a fabricated test token.",
+    "destination": {
+      "allowedOrigins": [],
+      "allowedSchemes": [
+        "http",
+        "https",
+      ],
+      "redirects": "deny",
+      "rejectPrivateNetwork": false,
+      "userSelectedHost": true,
+    },
+    "id": "crm-migration-import",
+    "recipient": "The simulator address you entered",
+    "requiresFinalApproval": true,
+    "title": "Import a CRM sample migration",
+  },
+  {
+    "approvalText": "This contacts Microsoft and downloads the files and folders you selected.",
+    "category": "connector-import",
+    "dataClasses": [
+      "content",
+      "metadata",
+      "credential",
+    ],
+    "dataSummary": "File names, folder metadata, and selected document bytes.",
+    "destination": {
+      "allowedOrigins": [
+        "graph.microsoft.com",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+    },
+    "id": "files-sync-onedrive",
+    "recipient": "Microsoft OneDrive or SharePoint",
+    "requiresFinalApproval": false,
+    "title": "Import OneDrive or SharePoint files",
+  },
+  {
+    "approvalText": "This contacts Box and downloads the files and folders you selected.",
+    "category": "connector-import",
+    "dataClasses": [
+      "content",
+      "metadata",
+      "credential",
+    ],
+    "dataSummary": "File names, folder metadata, and selected document bytes.",
+    "destination": {
+      "allowedOrigins": [
+        "api.box.com",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+    },
+    "id": "files-sync-box",
+    "recipient": "Box",
+    "requiresFinalApproval": false,
+    "title": "Import Box files",
+  },
+  {
+    "approvalText": "This contacts the ShareFile account you connected and downloads the selected files.",
+    "category": "connector-import",
+    "dataClasses": [
+      "content",
+      "metadata",
+      "credential",
+    ],
+    "dataSummary": "File names, folder metadata, and selected document bytes.",
+    "destination": {
+      "allowedOrigins": [],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+      "rejectPrivateNetwork": true,
+      "requiresResolvedAddressCheck": true,
+      "userSelectedHost": true,
+    },
+    "id": "files-sync-sharefile",
+    "recipient": "Your ShareFile account",
+    "requiresFinalApproval": false,
+    "title": "Import ShareFile files",
+  },
+  {
+    "approvalText": "This contacts DocuSign and downloads the envelopes and documents you selected.",
+    "category": "connector-import",
+    "dataClasses": [
+      "content",
+      "metadata",
+      "credential",
+    ],
+    "dataSummary": "Envelope details, recipients, audit events, and selected document bytes.",
+    "destination": {
+      "allowedOrigins": [
+        "account-d.docusign.com",
+        "www.docusign.net",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+    },
+    "id": "docusign-import",
+    "recipient": "DocuSign",
+    "requiresFinalApproval": false,
+    "title": "Import DocuSign envelopes",
+  },
+  {
+    "approvalText": "This contacts Jotform and downloads the forms and submissions you selected.",
+    "category": "connector-import",
+    "dataClasses": [
+      "content",
+      "metadata",
+      "credential",
+    ],
+    "dataSummary": "Form definitions and selected submission data.",
+    "destination": {
+      "allowedOrigins": [
+        "api.jotform.com",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "forbidCredentialQuery": true,
+      "redirects": "deny",
+    },
+    "id": "jotform-import",
+    "recipient": "Jotform",
+    "requiresFinalApproval": false,
+    "title": "Import Jotform submissions",
+  },
+  {
+    "approvalText": "This contacts Calendly and downloads the scheduling information you selected.",
+    "category": "connector-import",
+    "dataClasses": [
+      "content",
+      "metadata",
+      "credential",
+    ],
+    "dataSummary": "Scheduled events, invitees, and event details.",
+    "destination": {
+      "allowedOrigins": [
+        "api.calendly.com",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+    },
+    "id": "calendly-import",
+    "recipient": "Calendly",
+    "requiresFinalApproval": false,
+    "title": "Import Calendly events",
+  },
+  {
+    "approvalText": "This contacts Addepar and downloads the accounts and reports you selected.",
+    "category": "connector-import",
+    "dataClasses": [
+      "content",
+      "metadata",
+      "credential",
+    ],
+    "dataSummary": "Client, account, portfolio, and selected report data.",
+    "destination": {
+      "allowedOrigins": [
+        "api.addepar.com",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+    },
+    "id": "addepar-import",
+    "recipient": "Addepar",
+    "requiresFinalApproval": false,
+    "title": "Import Addepar data",
+  },
+  {
+    "approvalText": "This contacts Zocks and downloads the meeting records you selected.",
+    "category": "connector-import",
+    "dataClasses": [
+      "content",
+      "metadata",
+      "credential",
+    ],
+    "dataSummary": "Meeting records, transcripts, and account metadata.",
+    "destination": {
+      "allowedOrigins": [
+        "api.zocks.io",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+    },
+    "id": "zocks-import",
+    "recipient": "Zocks",
+    "requiresFinalApproval": false,
+    "title": "Import Zocks meetings",
+  },
+  {
+    "approvalText": "This sends your prompt through Lantern’s zero-retention service before it reaches your firm’s AI provider. Lantern says it does not retain the prompt or answer, but the bytes still pass through that service.",
+    "category": "assured-inference",
+    "dataClasses": [
+      "content",
+      "metadata",
+      "credential",
+    ],
+    "dataSummary": "The prompt, selected AI context, and the provider request needed to answer.",
+    "destination": {
+      "allowedOrigins": [
+        "api.lanternplatform.app",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+    },
+    "id": "assured-ai",
+    "recipient": "Lantern’s zero-retention service, then your firm’s AI provider",
+    "requiresFinalApproval": true,
+    "title": "Use Assured AI",
+  },
+  {
+    "approvalText": "This contacts GitHub to check for a signed Lantern update or download one you approve.",
+    "category": "product-maintenance",
+    "dataClasses": [
+      "metadata",
+      "binary-download",
+    ],
+    "dataSummary": "App version and update download metadata. No client files.",
+    "destination": {
+      "allowedOrigins": [
+        "github.com",
+        "release-assets.githubusercontent.com",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "allow-listed-only",
+    },
+    "id": "app-update-download",
+    "recipient": "GitHub Releases",
+    "requiresFinalApproval": false,
+    "title": "Check for or download an app update",
+  },
+  {
+    "approvalText": "This downloads the local AI model you selected. It does not upload client files.",
+    "category": "product-maintenance",
+    "dataClasses": [
+      "metadata",
+      "binary-download",
+    ],
+    "dataSummary": "Model selection and download metadata. No client files.",
+    "destination": {
+      "allowedOrigins": [],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "allow-listed-only",
+      "rejectPrivateNetwork": true,
+      "requiresResolvedAddressCheck": true,
+      "userSelectedHost": true,
+    },
+    "id": "local-model-download",
+    "recipient": "The model download service shown before download",
+    "requiresFinalApproval": true,
+    "title": "Download a local AI model",
+  },
+  {
+    "approvalText": "This contacts the Lantern template marketplace to download its catalog.",
+    "category": "product-maintenance",
+    "dataClasses": [
+      "metadata",
+      "binary-download",
+    ],
+    "dataSummary": "Marketplace catalog request metadata. No client files.",
+    "destination": {
+      "allowedOrigins": [
+        "raw.githubusercontent.com",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+    },
+    "id": "marketplace-catalog-download",
+    "recipient": "The Lantern template marketplace",
+    "requiresFinalApproval": false,
+    "title": "Refresh the template marketplace",
+  },
+  {
+    "approvalText": "This downloads the template package you selected from the Lantern marketplace.",
+    "category": "product-maintenance",
+    "dataClasses": [
+      "metadata",
+      "binary-download",
+    ],
+    "dataSummary": "The selected template package and download metadata. No client files.",
+    "destination": {
+      "allowedOrigins": [
+        "raw.githubusercontent.com",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+    },
+    "id": "marketplace-package-download",
+    "recipient": "The Lantern template marketplace",
+    "requiresFinalApproval": true,
+    "title": "Download a marketplace template",
+  },
+  {
+    "approvalText": "This lets the named external AI client read the selected client’s files until the session expires. That client may have its own network rules.",
+    "category": "external-client",
+    "dataClasses": [
+      "content",
+      "metadata",
+    ],
+    "dataSummary": "The selected client’s files, search results, and approved tool output.",
+    "destination": {
+      "allowedOrigins": [],
+      "allowedSchemes": [
+        "mcp",
+      ],
+      "redirects": "deny",
+      "userSelectedHost": true,
+    },
+    "id": "mcp-external-client-session",
+    "recipient": "The named external AI client",
+    "requiresFinalApproval": true,
+    "title": "Allow an external AI client to read this client",
+  },
+]
+`;
