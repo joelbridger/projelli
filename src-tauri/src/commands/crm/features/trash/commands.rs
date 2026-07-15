@@ -11,7 +11,10 @@ use serde::Serialize;
 use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager, State};
 
-use crate::commands::audit::store::{AuditEntryRecord, EncryptedAuditStore};
+use crate::commands::audit::{
+    store::{AuditEntryRecord, EncryptedAuditStore},
+    AuditState,
+};
 use crate::commands::crm::{commands::CrmState, core_store::CrmCoreStore};
 
 const RETENTION_DAYS: i64 = 30;
@@ -352,6 +355,7 @@ fn build_trash_audit_record(
     timestamp: String,
     lifecycle: &str,
     description: &str,
+    matter_id: &str,
     metadata: Value,
 ) -> AuditEntryRecord {
     let payload_json = serde_json::json!({
@@ -366,7 +370,8 @@ fn build_trash_audit_record(
         "metadata": {
             "auditEventType": "user_action",
             "source": "crm-trash-backend",
-            "scope": { "kind": "allMatters" },
+            "scope": { "kind": "matter", "matterId": matter_id },
+            "matterId": matter_id,
             "crmLifecycle": lifecycle,
             "details": metadata,
             "auditPersistenceStatus": "saved"
@@ -391,6 +396,7 @@ async fn append_trash_audit_best_effort(
     workspace: std::path::PathBuf,
     lifecycle: &'static str,
     description: &'static str,
+    matter_id: String,
     metadata: Value,
 ) {
     let event_workspace = workspace.clone();
@@ -404,7 +410,8 @@ async fn append_trash_audit_best_effort(
         let mut random = [0_u8; 4];
         rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut random);
         let id = format!("audit_crm_trash_{nanos}_{}", hex::encode(random));
-        let record = build_trash_audit_record(id, timestamp, lifecycle, description, metadata);
+        let record =
+            build_trash_audit_record(id, timestamp, lifecycle, description, &matter_id, metadata);
         store.append(&record)?;
         Ok(record)
     })
@@ -417,7 +424,7 @@ async fn append_trash_audit_best_effort(
             // into a different workspace if the user switched while the
             // native operation was finishing; reopening the original
             // workspace will hydrate its already-persisted row.
-            let active_workspace = app.state::<CrmState>().service().optional_workspace().await;
+            let active_workspace = app.state::<AuditState>().workspace.lock().await.clone();
             if active_workspace.as_ref() == Some(&event_workspace) {
                 let _ = app.emit(CRM_AUDIT_APPENDED_EVENT, &record);
             }
@@ -457,6 +464,7 @@ pub async fn crm_trash_soft_delete(
         workspace,
         "soft-delete",
         "CRM record moved to Trash & recovery",
+        audit_matter_id.clone(),
         serde_json::json!({
             "recordId": audit_record_id,
             "matterId": audit_matter_id,
@@ -529,6 +537,7 @@ pub async fn crm_trash_restore(
         workspace,
         "restore",
         "CRM record restored from Trash & recovery",
+        audit_matter_id.clone(),
         serde_json::json!({
             "recordId": audit_record_id,
             "matterId": audit_matter_id,
@@ -577,6 +586,7 @@ pub async fn crm_trash_purge(
         workspace,
         lifecycle,
         description,
+        audit_matter_id.clone(),
         serde_json::json!({
             "recordId": audit_record_id,
             "matterId": audit_matter_id,
@@ -617,6 +627,7 @@ mod tests {
             "2026-07-15T12:00:00Z".to_owned(),
             "soft-delete",
             "CRM record moved to Trash & recovery",
+            "matter-1",
             serde_json::json!({
                 "recordId": "household-1",
                 "matterId": "matter-1",
@@ -625,7 +636,9 @@ mod tests {
         );
         let payload: Value = serde_json::from_str(&record.payload_json).unwrap();
         assert_eq!(payload["metadata"]["crmLifecycle"], "soft-delete");
-        assert_eq!(payload["metadata"]["scope"]["kind"], "allMatters");
+        assert_eq!(payload["metadata"]["scope"]["kind"], "matter");
+        assert_eq!(payload["metadata"]["scope"]["matterId"], "matter-1");
+        assert_eq!(payload["metadata"]["matterId"], "matter-1");
         assert_eq!(payload["metadata"]["details"]["deletedBy"], "advisor-1");
         assert_eq!(payload["metadata"]["auditPersistenceStatus"], "saved");
     }
