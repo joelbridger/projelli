@@ -47,6 +47,8 @@ import { AppSurfaceRouter } from '@/app/shell/AppSurfaceRouter';
 import { AppSurfaceRuntimeProvider } from '@/app/shell/runtime/AppSurfaceRuntimeProvider';
 import type { AppSurfaceCapabilities } from '@/app/shell/runtime/AppSurfaceRuntime';
 import { getAppSurfaceDescriptor } from '@/app/shell/registry/appSurfaceRegistry';
+import { V1ShellFrame } from '@/app/shell/v1-frame/V1ShellFrame';
+import { useFlag } from '@/platform/flags';
 import { ErrorBoundary } from '@/ui/ErrorBoundary';
 import { RecordPill } from '@/features/meetings/RecordPill';
 import { MeetingAutoJoinScheduler } from '@/features/meetings/MeetingAutoJoinScheduler';
@@ -278,6 +280,7 @@ function App() {
 
 function AppShell() {
   const { t } = useTranslation();
+  const v1ShellFrameEnabled = useFlag('v1-shell-frame');
   const [showWorkspaceSelector, setShowWorkspaceSelector] = useState(
     !IS_TEST_MODE && !IS_DEMO_MODE
   );
@@ -2142,33 +2145,38 @@ function AppShell() {
     throw new Error('Required shell utility surfaces are not registered');
   }
 
-  return (
-    <div
-      className="h-screen flex flex-col bg-background text-foreground"
-      data-testid="app-container"
-    >
-      {/* Accessibility: skip link so keyboard users can bypass the nav */}
-      <a
-        href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:px-3 focus:py-2 focus:rounded focus:bg-background focus:text-foreground focus:shadow-md focus:outline-none focus:ring-2 focus:ring-ring"
-      >
-        Skip to main content
-      </a>
-      {/* QA-33: a failed "open a different recent project" (or a failed
-          silent boot-time reopen that fell through to the ALREADY-open
-          workspace's UI, not the picker) must never be silent. The current
-          workspace is untouched either way, so this is purely informational. */}
+  const handleSurfaceChange = (surface: typeof sidebarActiveTab) => {
+    if (surface !== sidebarActiveTab) {
+      pushNavigationSnapshot();
+    }
+    if (surface === 'files') {
+      setDocumentsView('browser');
+    }
+    if (surface === 'matters') {
+      const matterState = useMatterStore.getState();
+      if (matterState.activeMatterId) {
+        setMattersSurfaceMode('client-map');
+        matterState.setClientMapHubId(matterState.activeMatterId);
+        matterState.setClientMapHubTab('overview');
+      } else {
+        setMattersSurfaceMode('all-clients');
+        matterState.setClientMapHubId(null);
+        matterState.setClientMapHubTab(null);
+      }
+    }
+    setSidebarActiveTab(surface);
+  };
+
+  const preShellNotices = (
+    <>
+      {/* QA-33: a failed workspace switch is informational; the active
+          workspace remains untouched. */}
       {workspaceOpenError && (
         <InlineErrorBanner
           message={workspaceOpenError}
           onDismiss={dismissWorkspaceOpenError}
         />
       )}
-      {/* QA-33: useApiKeys already degrades gracefully when the OS credential
-          service is unavailable (falls back to the last known-good key, never
-          blocks/crashes) — but that was entirely silent, so a user had no way
-          to tell "no AI features right now" apart from "I never set up a key".
-          Documents are unaffected either way, hence purely informational. */}
       {credentialServiceUnavailable && !credentialBannerDismissed && (
         <InlineErrorBanner
           message={t('settings.api-keys.credential-service-unavailable')}
@@ -2177,6 +2185,57 @@ function AppShell() {
           }}
         />
       )}
+    </>
+  );
+
+  const postShellNotices = (
+    <>
+      <ModelDownloadCard />
+      <LocalAiDownloadCard />
+      <RagProgressBanner />
+      <ScopeUpdateBanner />
+      <TrialBanner onActivate={() => {
+        openSettings('license');
+      }} />
+    </>
+  );
+
+  return (
+    <div
+      className="h-screen flex flex-col bg-background text-foreground"
+      data-testid="app-container"
+    >
+      {v1ShellFrameEnabled ? (
+        <V1ShellFrame
+          activeSurface={sidebarActiveTab}
+          globalStatus={<TrustBar inline onOpenAiSettings={() => {
+            openSettingsPage('ai');
+          }} />}
+          sidebarCollapsed={sidebarCollapsed}
+          onSidebarCollapsedChange={setSidebarCollapsed}
+          onOpenCommandPalette={() => {
+            setShowCommandPalette(true);
+          }}
+          onSurfaceChange={handleSurfaceChange}
+          preTopbar={preShellNotices}
+          postTopbar={postShellNotices}
+        >
+          <ErrorBoundary label="Workspace">
+            <AppSurfaceRuntimeProvider value={appSurfaceCapabilities}>
+              <AppSurfaceRouter sidebarActiveTab={sidebarActiveTab} />
+            </AppSurfaceRuntimeProvider>
+          </ErrorBoundary>
+        </V1ShellFrame>
+      ) : (
+        <>
+      {/* Accessibility: skip link so keyboard users can bypass the nav */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:px-3 focus:py-2 focus:rounded focus:bg-background focus:text-foreground focus:shadow-md focus:outline-none focus:ring-2 focus:ring-ring"
+      >
+        Skip to main content
+      </a>
+      {preShellNotices}
       {/* Header bar */}
       <header
         className="flex items-center gap-3 h-14 px-3 border-b bg-background shrink-0"
@@ -2222,21 +2281,7 @@ function AppShell() {
         </div>
       </header>
 
-      {/* Memory: model download + live indexing progress banners. Each
-          renders only while its work is in flight (one-time embedding-model
-          download / workspace indexer running, or briefly after it
-          completes); otherwise it returns null and adds zero layout. */}
-      <ModelDownloadCard />
-      <LocalAiDownloadCard />
-      <RagProgressBanner />
-      {/* QA-44: shows when a privilege / client scope change has not yet
-          applied to search (renders null otherwise). */}
-      <ScopeUpdateBanner />
-
-      {/* Trial countdown banner — only renders during the final week of
-          the free trial (or once expired) and when no license is active.
-          Otherwise null and zero layout. */}
-      <TrialBanner onActivate={() => openSettings('license')} />
+      {postShellNotices}
 
       {/* Main content area — a real <main> landmark and a focus target so the
           "Skip to main content" link moves keyboard focus here, not just scrolls
@@ -2249,31 +2294,9 @@ function AppShell() {
         {/* Sidebar with file tree, workflows, research, and settings */}
         <AppShellNav
           activeTab={sidebarActiveTab}
-          onTabChange={(tab: string) => {
-            if (tab !== sidebarActiveTab) {
-              pushNavigationSnapshot();
-            }
-            // Any click to 'files' in the spine nav lands on the Files browser,
-            // even if a document was the last thing open. This is the user
-            // clicking the nav (vs a file being opened programmatically), so it
-            // always means "show me my files".
-            if (tab === 'files') {
-              setDocumentsView('browser');
-            }
-            if (tab === 'matters') {
-              const matterState = useMatterStore.getState();
-              if (matterState.activeMatterId) {
-                setMattersSurfaceMode('client-map');
-                matterState.setClientMapHubId(matterState.activeMatterId);
-                matterState.setClientMapHubTab('overview');
-              } else {
-                setMattersSurfaceMode('all-clients');
-                matterState.setClientMapHubId(null);
-                matterState.setClientMapHubTab(null);
-              }
-            }
-            setSidebarActiveTab(tab as typeof sidebarActiveTab);
-          }}
+          onTabChange={(tab: string) =>
+            handleSurfaceChange(tab as typeof sidebarActiveTab)
+          }
           onAllClientsSelect={() => {
             if (
               sidebarActiveTab !== 'matters' ||
@@ -2307,6 +2330,8 @@ function AppShell() {
           </AppSurfaceRuntimeProvider>
         </ErrorBoundary>
       </main>
+        </>
+      )}
 
       {/* Wave 3c: the whole recording UI (position: fixed, floats over every
           surface) — mounted here at the app root, not inside MainPanel, so it

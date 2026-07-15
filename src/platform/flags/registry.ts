@@ -33,6 +33,15 @@ export const flagRegistry = [
     expiresAt: '2026-09-13',
     defaultEnabled: false,
   },
+  {
+    id: 'v1-shell-frame',
+    description:
+      'Keeps the permanent v1 navigation and top bar dark until its acceptance drive passes.',
+    ownerLane: 'v1-shell-frame',
+    createdAt: '2026-07-15',
+    expiresAt: '2026-09-13',
+    defaultEnabled: false,
+  },
 ] as const satisfies readonly FlagDescriptor[];
 
 export type FlagId = (typeof flagRegistry)[number]['id'];

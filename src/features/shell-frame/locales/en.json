@@ -1,0 +1,30 @@
+{
+  "shell-frame": {
+    "skip-to-content": "Skip to content",
+    "nav": {
+      "label": "Main navigation",
+      "workspace": "Workspace"
+    },
+    "breadcrumb": {
+      "label": "Breadcrumb",
+      "workspace": "Workspace",
+      "unknown": "Workspace"
+    },
+    "search": {
+      "open": "Open command palette",
+      "placeholder": "Search clients, tasks, meetings, and conversations"
+    },
+    "notifications": {
+      "placeholder": "Notifications will appear here"
+    },
+    "avatar": {
+      "fallback-name": "Advisor",
+      "label": "Signed in as {{name}}"
+    },
+    "firm-card": {
+      "default-name": "Your firm",
+      "summary_one": "Firm workspace · {{count}} person",
+      "summary_other": "Firm workspace · {{count}} people"
+    }
+  }
+}
