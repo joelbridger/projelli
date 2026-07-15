@@ -9,11 +9,13 @@ use chrono::{DateTime, Duration, Utc};
 use rusqlite::{params, OptionalExtension, Transaction};
 use serde::Serialize;
 use serde_json::Value;
-use tauri::State;
+use tauri::{AppHandle, Emitter, Manager, State};
 
+use crate::commands::audit::store::{AuditEntryRecord, EncryptedAuditStore};
 use crate::commands::crm::{commands::CrmState, core_store::CrmCoreStore};
 
 const RETENTION_DAYS: i64 = 30;
+const CRM_AUDIT_APPENDED_EVENT: &str = "crm-audit-appended";
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -216,16 +218,15 @@ pub fn is_tombstoned_record(
     require_value(matter_id, "matter id")?;
     store.transaction(|transaction| {
         retain_expired_tombstones(transaction, now)?;
-        let tombstone_exists = transaction
-            .query_row(
-                "SELECT EXISTS(
+        let tombstone_exists = transaction.query_row(
+            "SELECT EXISTS(
                     SELECT 1 FROM crm_trash_records
                     WHERE record_id=?1 AND matter_id=?2
                       AND restored_at IS NULL AND expires_at > ?3
                 )",
-                params![record_id, matter_id, now.to_rfc3339()],
-                |row| row.get::<_, bool>(0),
-            )?;
+            params![record_id, matter_id, now.to_rfc3339()],
+            |row| row.get::<_, bool>(0),
+        )?;
         Ok(tombstone_exists)
     })
 }
@@ -346,17 +347,102 @@ async fn workspace(state: &CrmState) -> Result<std::path::PathBuf, String> {
     state.service().workspace().await
 }
 
+fn build_trash_audit_record(
+    id: String,
+    timestamp: String,
+    lifecycle: &str,
+    description: &str,
+    metadata: Value,
+) -> AuditEntryRecord {
+    let payload_json = serde_json::json!({
+        "id": &id,
+        "timestamp": &timestamp,
+        "action": "user_action",
+        "description": description,
+        "model": Value::Null,
+        "inputs": {},
+        "outputs": {},
+        "userDecision": Value::Null,
+        "metadata": {
+            "auditEventType": "user_action",
+            "source": "crm-trash-backend",
+            "scope": { "kind": "allMatters" },
+            "crmLifecycle": lifecycle,
+            "details": metadata,
+            "auditPersistenceStatus": "saved"
+        }
+    })
+    .to_string();
+    AuditEntryRecord {
+        id,
+        timestamp,
+        action: "user_action".to_owned(),
+        description: description.to_owned(),
+        payload_json,
+    }
+}
+
+/// Writes against the exact workspace captured by the CRM command. This must
+/// not use the process-wide AuditState: the user may switch workspaces while a
+/// delete or restore is finishing, and the audit row must stay beside the CRM
+/// database that was changed.
+async fn append_trash_audit_best_effort(
+    app: &AppHandle,
+    workspace: std::path::PathBuf,
+    lifecycle: &'static str,
+    description: &'static str,
+    metadata: Value,
+) {
+    let event_workspace = workspace.clone();
+    let result = tokio::task::spawn_blocking(move || -> anyhow::Result<AuditEntryRecord> {
+        let store = EncryptedAuditStore::open(&workspace)?;
+        let timestamp = Utc::now().to_rfc3339();
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or_default();
+        let mut random = [0_u8; 4];
+        rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut random);
+        let id = format!("audit_crm_trash_{nanos}_{}", hex::encode(random));
+        let record = build_trash_audit_record(id, timestamp, lifecycle, description, metadata);
+        store.append(&record)?;
+        Ok(record)
+    })
+    .await;
+
+    match result {
+        Ok(Ok(record)) => {
+            // The existing workspace lifecycle listener deduplicates by id and
+            // inserts this into the open Activity Log immediately. Do not emit
+            // into a different workspace if the user switched while the
+            // native operation was finishing; reopening the original
+            // workspace will hydrate its already-persisted row.
+            let active_workspace = app.state::<CrmState>().service().optional_workspace().await;
+            if active_workspace.as_ref() == Some(&event_workspace) {
+                let _ = app.emit(CRM_AUDIT_APPENDED_EVENT, &record);
+            }
+        }
+        Ok(Err(error)) => log::warn!("CRM trash audit append failed (non-fatal): {error:#}"),
+        Err(error) => log::warn!("CRM trash audit task failed (non-fatal): {error}"),
+    }
+}
+
 #[tauri::command]
 pub async fn crm_trash_soft_delete(
+    app: AppHandle,
     state: State<'_, CrmState>,
     record_id: String,
     matter_id: String,
     deleted_by: String,
 ) -> Result<TrashRecordDto, String> {
     let workspace = workspace(&state).await?;
-    tokio::task::spawn_blocking(move || {
+    let operation_workspace = workspace.clone();
+    let audit_record_id = record_id.clone();
+    let audit_matter_id = matter_id.clone();
+    let audit_actor = deleted_by.clone();
+    let deleted = tokio::task::spawn_blocking(move || {
         soft_delete_record(
-            &CrmCoreStore::open(&workspace)?,
+            &CrmCoreStore::open(&operation_workspace)?,
             &record_id,
             &matter_id,
             &deleted_by,
@@ -365,7 +451,21 @@ pub async fn crm_trash_soft_delete(
     })
     .await
     .map_err(|error| error.to_string())?
-    .map_err(|error| error.to_string())
+    .map_err(|error| error.to_string())?;
+    append_trash_audit_best_effort(
+        &app,
+        workspace,
+        "soft-delete",
+        "CRM record moved to Trash & recovery",
+        serde_json::json!({
+            "recordId": audit_record_id,
+            "matterId": audit_matter_id,
+            "deletedBy": audit_actor,
+            "expiresAt": deleted.expires_at,
+        }),
+    )
+    .await;
+    Ok(deleted)
 }
 
 #[tauri::command]
@@ -401,15 +501,20 @@ pub async fn crm_trash_is_tombstoned(
 
 #[tauri::command]
 pub async fn crm_trash_restore(
+    app: AppHandle,
     state: State<'_, CrmState>,
     record_id: String,
     matter_id: String,
     restored_by: String,
 ) -> Result<TrashRecordDto, String> {
     let workspace = workspace(&state).await?;
-    tokio::task::spawn_blocking(move || {
+    let operation_workspace = workspace.clone();
+    let audit_record_id = record_id.clone();
+    let audit_matter_id = matter_id.clone();
+    let audit_actor = restored_by.clone();
+    let restored = tokio::task::spawn_blocking(move || {
         restore_record(
-            &CrmCoreStore::open(&workspace)?,
+            &CrmCoreStore::open(&operation_workspace)?,
             &record_id,
             &matter_id,
             &restored_by,
@@ -418,20 +523,38 @@ pub async fn crm_trash_restore(
     })
     .await
     .map_err(|error| error.to_string())?
-    .map_err(|error| error.to_string())
+    .map_err(|error| error.to_string())?;
+    append_trash_audit_best_effort(
+        &app,
+        workspace,
+        "restore",
+        "CRM record restored from Trash & recovery",
+        serde_json::json!({
+            "recordId": audit_record_id,
+            "matterId": audit_matter_id,
+            "restoredBy": audit_actor,
+        }),
+    )
+    .await;
+    Ok(restored)
 }
 
 #[tauri::command]
 pub async fn crm_trash_purge(
+    app: AppHandle,
     state: State<'_, CrmState>,
     record_id: String,
     matter_id: String,
     actor_id: String,
 ) -> Result<(), String> {
     let workspace = workspace(&state).await?;
-    tokio::task::spawn_blocking(move || {
+    let operation_workspace = workspace.clone();
+    let audit_record_id = record_id.clone();
+    let audit_matter_id = matter_id.clone();
+    let audit_actor = actor_id.clone();
+    let result = tokio::task::spawn_blocking(move || {
         permanently_purge_record(
-            &CrmCoreStore::open(&workspace)?,
+            &CrmCoreStore::open(&operation_workspace)?,
             &record_id,
             &matter_id,
             &actor_id,
@@ -440,7 +563,28 @@ pub async fn crm_trash_purge(
     })
     .await
     .map_err(|error| error.to_string())?
-    .map_err(|error| error.to_string())
+    .map_err(|error| error.to_string());
+
+    let (lifecycle, description) = match &result {
+        Ok(()) => ("purge", "CRM record permanently deleted"),
+        Err(message) if message.contains("requires a firm admin") => {
+            ("purge-refused", "CRM permanent deletion refused")
+        }
+        Err(_) => return result,
+    };
+    append_trash_audit_best_effort(
+        &app,
+        workspace,
+        lifecycle,
+        description,
+        serde_json::json!({
+            "recordId": audit_record_id,
+            "matterId": audit_matter_id,
+            "actorId": audit_actor,
+        }),
+    )
+    .await;
+    result
 }
 
 #[cfg(test)]
@@ -464,6 +608,26 @@ mod tests {
             "createdAt": "2026-07-15T00:00:00Z", "updatedAt": "2026-07-15T00:00:00Z",
             "name": "Maya Chen"
         })
+    }
+
+    #[test]
+    fn audit_record_keeps_lifecycle_actor_and_workspace_scope_metadata() {
+        let record = build_trash_audit_record(
+            "audit-1".to_owned(),
+            "2026-07-15T12:00:00Z".to_owned(),
+            "soft-delete",
+            "CRM record moved to Trash & recovery",
+            serde_json::json!({
+                "recordId": "household-1",
+                "matterId": "matter-1",
+                "deletedBy": "advisor-1",
+            }),
+        );
+        let payload: Value = serde_json::from_str(&record.payload_json).unwrap();
+        assert_eq!(payload["metadata"]["crmLifecycle"], "soft-delete");
+        assert_eq!(payload["metadata"]["scope"]["kind"], "allMatters");
+        assert_eq!(payload["metadata"]["details"]["deletedBy"], "advisor-1");
+        assert_eq!(payload["metadata"]["auditPersistenceStatus"], "saved");
     }
 
     #[test]
@@ -602,19 +766,45 @@ mod tests {
     #[test]
     fn tombstone_blocks_generic_live_upserts_until_restore() {
         let (_directory, store) = store();
-        store.upsert_live_record(&live_record("household-connector")).unwrap();
+        store
+            .upsert_live_record(&live_record("household-connector"))
+            .unwrap();
         let deleted_at = parse_time("2026-07-15T12:00:00Z", "test").unwrap();
 
-        assert!(!is_tombstoned_record(&store, "household-connector", "matter-1", deleted_at).unwrap());
-        soft_delete_record(&store, "household-connector", "matter-1", "advisor-1", deleted_at).unwrap();
-        assert!(is_tombstoned_record(&store, "household-connector", "matter-1", deleted_at).unwrap());
+        assert!(
+            !is_tombstoned_record(&store, "household-connector", "matter-1", deleted_at).unwrap()
+        );
+        soft_delete_record(
+            &store,
+            "household-connector",
+            "matter-1",
+            "advisor-1",
+            deleted_at,
+        )
+        .unwrap();
+        assert!(
+            is_tombstoned_record(&store, "household-connector", "matter-1", deleted_at).unwrap()
+        );
         assert!(store
             .upsert_live_record(&live_record("household-connector"))
             .is_err());
         assert!(store.list_live_records().unwrap().is_empty());
 
-        restore_record(&store, "household-connector", "matter-1", "advisor-1", deleted_at + Duration::days(1)).unwrap();
-        assert!(!is_tombstoned_record(&store, "household-connector", "matter-1", deleted_at + Duration::days(1)).unwrap());
+        restore_record(
+            &store,
+            "household-connector",
+            "matter-1",
+            "advisor-1",
+            deleted_at + Duration::days(1),
+        )
+        .unwrap();
+        assert!(!is_tombstoned_record(
+            &store,
+            "household-connector",
+            "matter-1",
+            deleted_at + Duration::days(1)
+        )
+        .unwrap());
     }
 
     #[test]

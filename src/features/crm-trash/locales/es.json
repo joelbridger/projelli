@@ -5,7 +5,7 @@
       "description": "Los registros de CRM eliminados se pueden recuperar durante 30 días.",
       "admin-guard": "La eliminación permanente requiere un administrador de la firma.",
       "search-label": "Buscar registros eliminados",
-      "search-placeholder": "Buscar registros",
+      "search-placeholder": "Buscar registros eliminados",
       "type-filter": "Filtrar por tipo de registro",
       "all-types": "Todos los tipos",
       "record": "Registro",

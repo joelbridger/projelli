@@ -5,7 +5,7 @@
       "description": "Gelöschte CRM-Datensätze bleiben 30 Tage lang wiederherstellbar.",
       "admin-guard": "Für die endgültige Löschung ist ein Firmenadministrator erforderlich.",
       "search-label": "Gelöschte Datensätze suchen",
-      "search-placeholder": "Datensätze suchen",
+      "search-placeholder": "Gelöschte Datensätze suchen",
       "type-filter": "Nach Datensatztyp filtern",
       "all-types": "Alle Typen",
       "record": "Datensatz",

@@ -5,7 +5,7 @@
       "description": "Deleted CRM records stay recoverable for 30 days.",
       "admin-guard": "Permanent deletion requires a firm admin.",
       "search-label": "Search deleted records",
-      "search-placeholder": "Search records",
+      "search-placeholder": "Search deleted records",
       "type-filter": "Filter by record type",
       "all-types": "All types",
       "record": "Record",

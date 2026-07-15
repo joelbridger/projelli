@@ -68,6 +68,14 @@ describe('TrashRecoverySurface', () => {
     expect(
       screen.getByRole('columnheader', { name: 'Time remaining' })
     ).toBeInTheDocument();
+    expect(screen.getByTestId('crm-trash-card')).toHaveClass('kp-card');
+    expect(screen.getByTestId('crm-trash-search')).toHaveAttribute(
+      'placeholder',
+      'Search deleted records'
+    );
+    expect(screen.getByTestId('crm-trash-type-filter')).toHaveTextContent(
+      'All types · 2'
+    );
 
     fireEvent.change(screen.getByTestId('crm-trash-search'), {
       target: { value: 'annual' },

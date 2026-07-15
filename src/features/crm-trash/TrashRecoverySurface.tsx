@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArchiveRestore, Search, ShieldAlert, Trash2 } from 'lucide-react';
+import { ShieldAlert, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
-import { Button } from '@/ui/kp';
+import { Button, Card, SearchField } from '@/ui/kp';
 import { useFlag } from '@/platform/flags';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import { useFirmStore } from '@/platform/firm/firmStore';
@@ -11,13 +11,6 @@ import {
   restoreTrashedCrmRecord,
   type TrashedCrmRecord,
 } from './trashClient';
-
-const panel = {
-  border: '1px solid var(--kp-border)',
-  borderRadius: 'var(--radius-lg)',
-  background: 'var(--kp-surface)',
-  padding: 'var(--kp-space-md)',
-} as const;
 
 function recordName(record: TrashedCrmRecord): string {
   const candidate =
@@ -115,7 +108,11 @@ export function TrashRecoverySurface() {
         title={t('crm.trash.title')}
         description={t('crm.trash.description')}
       />
-      <section style={{ ...panel, marginTop: 'var(--kp-space-md)' }}>
+      <Card
+        variant="raised"
+        data-testid="crm-trash-card"
+        style={{ marginTop: 'var(--kp-space-md)' }}
+      >
         <div
           role="status"
           data-testid="crm-trash-admin-guard"
@@ -138,31 +135,29 @@ export function TrashRecoverySurface() {
             marginBottom: 14,
           }}
         >
-          <label style={{ flex: '1 1 220px' }}>
-            <span className="sr-only">{t('crm.trash.search-label')}</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Search size={16} aria-hidden="true" />
-              <input
-                data-testid="crm-trash-search"
-                aria-label={t('crm.trash.search-label')}
-                value={search}
-                onChange={(event) => {
-                  setSearch(event.target.value);
-                }}
-                placeholder={t('crm.trash.search-placeholder')}
-                style={{ width: '100%' }}
-              />
-            </span>
-          </label>
+          <SearchField
+            data-testid="crm-trash-search"
+            aria-label={t('crm.trash.search-label')}
+            value={search}
+            onChange={setSearch}
+            onClear={() => {
+              setSearch('');
+            }}
+            placeholder={t('crm.trash.search-placeholder')}
+            style={{ flex: '1 1 220px' }}
+          />
           <select
             data-testid="crm-trash-type-filter"
             aria-label={t('crm.trash.type-filter')}
+            className="kp-chip kp-chip--sm is-active"
             value={type}
             onChange={(event) => {
               setType(event.target.value);
             }}
           >
-            <option value="all">{t('crm.trash.all-types')}</option>
+            <option value="all">
+              {t('crm.trash.all-types')} · {records.length}
+            </option>
             {types.map((recordType) => (
               <option key={recordType} value={recordType}>
                 {recordType}
@@ -185,7 +180,7 @@ export function TrashRecoverySurface() {
             }}
           >
             <thead>
-              <tr>
+              <tr style={{ background: 'var(--kp-accent-softer)' }}>
                 {[
                   'record',
                   'type',
@@ -198,7 +193,7 @@ export function TrashRecoverySurface() {
                     key={key}
                     scope="col"
                     style={{
-                      borderBottom: '1px solid var(--kp-border)',
+                      borderBottom: '1px solid var(--color-border)',
                       padding: '8px 6px',
                       fontSize: 'var(--kp-font-sm)',
                     }}
@@ -221,7 +216,7 @@ export function TrashRecoverySurface() {
                   >
                     <td
                       style={{
-                        borderBottom: '1px solid var(--kp-border)',
+                        borderBottom: '1px solid var(--color-border)',
                         padding: '10px 6px',
                       }}
                     >
@@ -229,7 +224,7 @@ export function TrashRecoverySurface() {
                     </td>
                     <td
                       style={{
-                        borderBottom: '1px solid var(--kp-border)',
+                        borderBottom: '1px solid var(--color-border)',
                         padding: '10px 6px',
                       }}
                     >
@@ -237,7 +232,7 @@ export function TrashRecoverySurface() {
                     </td>
                     <td
                       style={{
-                        borderBottom: '1px solid var(--kp-border)',
+                        borderBottom: '1px solid var(--color-border)',
                         padding: '10px 6px',
                       }}
                     >
@@ -245,7 +240,7 @@ export function TrashRecoverySurface() {
                     </td>
                     <td
                       style={{
-                        borderBottom: '1px solid var(--kp-border)',
+                        borderBottom: '1px solid var(--color-border)',
                         padding: '10px 6px',
                         minWidth: 150,
                       }}
@@ -267,7 +262,7 @@ export function TrashRecoverySurface() {
                           height: 6,
                           marginTop: 5,
                           borderRadius: 999,
-                          background: 'var(--color-slate-200)',
+                          background: 'var(--color-border)',
                         }}
                       >
                         <span
@@ -283,7 +278,7 @@ export function TrashRecoverySurface() {
                     </td>
                     <td
                       style={{
-                        borderBottom: '1px solid var(--kp-border)',
+                        borderBottom: '1px solid var(--color-border)',
                         padding: '10px 6px',
                       }}
                     >
@@ -291,14 +286,13 @@ export function TrashRecoverySurface() {
                     </td>
                     <td
                       style={{
-                        borderBottom: '1px solid var(--kp-border)',
+                        borderBottom: '1px solid var(--color-border)',
                         padding: '10px 6px',
                       }}
                     >
                       <Button
                         size="sm"
                         data-testid={`crm-trash-recover-${identity}`}
-                        iconLeft={ArchiveRestore}
                         disabled={busyId === identity}
                         onClick={() => {
                           restore(record).catch((reason: unknown) => {
@@ -330,7 +324,7 @@ export function TrashRecoverySurface() {
             </tbody>
           </table>
         </div>
-      </section>
+      </Card>
     </div>
   );
 }

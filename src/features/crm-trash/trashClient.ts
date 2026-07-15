@@ -6,7 +6,6 @@
  * 30-day expiry; this client only scopes calls to the active CRM workspace.
  */
 import { invoke, isTauri } from '@tauri-apps/api/core';
-import { AuditService } from '@/platform/audit/AuditService';
 import { LIVE_CRM_RECORDS_CHANGED } from '@/platform/crm/useLiveCrmRecords';
 import { isEnabled } from '@/platform/flags';
 import { crmSetWorkspace } from '@/platform/utils/wealthbox-commands';
@@ -30,19 +29,6 @@ interface TrashRequest {
 
 function notifyLiveCrmSubscribers(): void {
   window.dispatchEvent(new Event(LIVE_CRM_RECORDS_CHANGED));
-}
-
-async function logTrashAction(
-  workspaceRoot: string | null | undefined,
-  lifecycle: 'soft-delete' | 'restore' | 'purge-refused',
-  description: string,
-  metadata: Record<string, unknown>
-): Promise<void> {
-  const audit = new AuditService();
-  await audit.hydrate(workspaceRoot ?? undefined);
-  await audit.logDurable('user_action', description, {
-    metadata: { ...metadata, crmLifecycle: lifecycle },
-  });
 }
 
 async function inTrashWorkspace<T>(
@@ -77,12 +63,6 @@ export async function softDeleteCrmRecord({
     })
   );
   notifyLiveCrmSubscribers();
-  await logTrashAction(
-    workspaceRoot,
-    'soft-delete',
-    'CRM record moved to Trash & recovery',
-    { recordId, matterId, deletedBy: actorId, expiresAt: deleted.expiresAt }
-  );
   return deleted;
 }
 
@@ -121,12 +101,6 @@ export async function restoreTrashedCrmRecord({
     })
   );
   notifyLiveCrmSubscribers();
-  await logTrashAction(
-    workspaceRoot,
-    'restore',
-    'CRM record restored from Trash & recovery',
-    { recordId, matterId, restoredBy: actorId }
-  );
   return restored;
 }
 
@@ -137,21 +111,8 @@ export async function permanentlyPurgeTrashedCrmRecord({
   matterId,
   actorId,
 }: TrashRequest) {
-  try {
-    await inTrashWorkspace(workspaceRoot, () =>
-      invoke('crm_trash_purge', { recordId, matterId, actorId })
-    );
-    notifyLiveCrmSubscribers();
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (message.includes('requires a firm admin')) {
-      await logTrashAction(
-        workspaceRoot,
-        'purge-refused',
-        'CRM permanent deletion refused',
-        { recordId, matterId, actorId }
-      );
-    }
-    throw error;
-  }
+  await inTrashWorkspace(workspaceRoot, () =>
+    invoke('crm_trash_purge', { recordId, matterId, actorId })
+  );
+  notifyLiveCrmSubscribers();
 }
