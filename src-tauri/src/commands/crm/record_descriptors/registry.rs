@@ -3,6 +3,8 @@ use rusqlite::Connection;
 use serde_json::Value;
 use std::collections::HashSet;
 
+use super::valid_record_identifier;
+
 pub type RecordValidator = fn(&Value) -> Result<()>;
 pub type RecordProjector = fn(&Value, &Connection) -> Result<()>;
 
@@ -24,7 +26,7 @@ pub fn validate_registry(descriptors: &[RecordDescriptor]) -> Result<()> {
     let mut previous_kind = None;
 
     for descriptor in descriptors {
-        if !valid_kind(descriptor.kind) {
+        if !valid_record_identifier(descriptor.kind, false) {
             bail!("invalid CRM record descriptor kind {}", descriptor.kind)
         }
         if !kinds.insert(descriptor.kind) {
@@ -43,6 +45,24 @@ pub fn validate_live_record<'a>(
     record: &'a Value,
     descriptors: &[RecordDescriptor],
 ) -> Result<RecordIdentity<'a>> {
+    validate_live_record_with_syntax(record, descriptors, true)
+}
+
+/// Wealthbox source ids are opaque strings. The importer historically accepted
+/// every non-empty id, so descriptor dispatch must not add a character-set gate
+/// at this lower-level migration boundary.
+pub fn validate_imported_live_record<'a>(
+    record: &'a Value,
+    descriptors: &[RecordDescriptor],
+) -> Result<RecordIdentity<'a>> {
+    validate_live_record_with_syntax(record, descriptors, false)
+}
+
+fn validate_live_record_with_syntax<'a>(
+    record: &'a Value,
+    descriptors: &[RecordDescriptor],
+    enforce_identifier_syntax: bool,
+) -> Result<RecordIdentity<'a>> {
     validate_registry(descriptors)?;
     let object = record
         .as_object()
@@ -57,11 +77,13 @@ pub fn validate_live_record<'a>(
         .and_then(Value::as_str)
         .filter(|value| !value.trim().is_empty())
         .context("CRM live record requires kind")?;
-    if !valid_kind(kind) {
-        bail!("CRM live record kind is invalid")
-    }
-    if !valid_id(id) {
-        bail!("CRM live record id is invalid")
+    if enforce_identifier_syntax {
+        if !valid_record_identifier(kind, false) {
+            bail!("CRM live record kind is invalid")
+        }
+        if !valid_record_identifier(id, true) {
+            bail!("CRM live record id is invalid")
+        }
     }
 
     if let Some(descriptor) = descriptors
@@ -93,16 +115,19 @@ pub fn project_live_record(
     Ok(())
 }
 
-fn valid_kind(kind: &str) -> bool {
-    !kind.is_empty()
-        && kind
-            .chars()
-            .all(|character| character.is_ascii_alphanumeric() || matches!(character, '_' | '-'))
-}
-
-fn valid_id(id: &str) -> bool {
-    !id.is_empty()
-        && id.chars().all(|character| {
-            character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | ':')
-        })
+pub fn project_imported_live_record(
+    record: &Value,
+    conn: &Connection,
+    descriptors: &[RecordDescriptor],
+) -> Result<()> {
+    let identity = validate_imported_live_record(record, descriptors)?;
+    if let Some(project) = descriptors
+        .iter()
+        .find(|descriptor| descriptor.kind == identity.kind)
+        .and_then(|descriptor| descriptor.project)
+    {
+        project(record, conn)
+            .with_context(|| format!("project CRM record kind {}", identity.kind))?;
+    }
+    Ok(())
 }

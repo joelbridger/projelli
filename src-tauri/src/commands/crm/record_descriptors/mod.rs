@@ -6,9 +6,19 @@
 
 mod registry;
 
+pub(crate) fn valid_record_identifier(value: &str, allow_namespace_separator: bool) -> bool {
+    !value.is_empty()
+        && value.chars().all(|character| {
+            character.is_ascii_alphanumeric()
+                || matches!(character, '_' | '-')
+                || (allow_namespace_separator && character == ':')
+        })
+}
+
 pub use registry::{
-    project_live_record, validate_live_record, validate_registry, RecordDescriptor, RecordIdentity,
-    RecordProjector, RecordValidator,
+    project_imported_live_record, project_live_record, validate_imported_live_record,
+    validate_live_record, validate_registry, RecordDescriptor, RecordIdentity, RecordProjector,
+    RecordValidator,
 };
 
 /// Append feature-owned descriptors in lexical `kind` order. The empty

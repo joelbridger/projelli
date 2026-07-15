@@ -123,15 +123,28 @@ impl CrmCoreStore {
     /// second browser cache: it uses the same SQLCipher database, key, backup,
     /// and delete semantics as the CRM core.
     pub fn upsert_live_record(&self, record: &serde_json::Value) -> Result<()> {
-        self.upsert_live_record_with_descriptors(record, CRM_RECORD_DESCRIPTORS)
+        self.upsert_live_record_with_descriptors(record, CRM_RECORD_DESCRIPTORS, true)
+    }
+
+    /// Importer-only persistence boundary. Wealthbox ids are opaque source
+    /// values, and this path accepted every non-empty id before descriptors
+    /// were introduced. Keep that compatibility while still running any
+    /// registered feature validator/projector atomically.
+    pub(super) fn upsert_imported_live_record(&self, record: &serde_json::Value) -> Result<()> {
+        self.upsert_live_record_with_descriptors(record, CRM_RECORD_DESCRIPTORS, false)
     }
 
     fn upsert_live_record_with_descriptors(
         &self,
         record: &serde_json::Value,
         descriptors: &[RecordDescriptor],
+        enforce_identifier_syntax: bool,
     ) -> Result<()> {
-        let identity = record_descriptors::validate_live_record(record, descriptors)?;
+        let identity = if enforce_identifier_syntax {
+            record_descriptors::validate_live_record(record, descriptors)?
+        } else {
+            record_descriptors::validate_imported_live_record(record, descriptors)?
+        };
         let object = record
             .as_object()
             .expect("a validated CRM live record is an object");
@@ -159,7 +172,11 @@ impl CrmCoreStore {
                 updated_at,
             ],
         )?;
-        record_descriptors::project_live_record(record, &transaction, descriptors)?;
+        if enforce_identifier_syntax {
+            record_descriptors::project_live_record(record, &transaction, descriptors)?;
+        } else {
+            record_descriptors::project_imported_live_record(record, &transaction, descriptors)?;
+        }
         transaction.commit()?;
         Ok(())
     }
@@ -646,7 +663,7 @@ mod tests {
         });
 
         store
-            .upsert_live_record_with_descriptors(&record, &descriptors)
+            .upsert_live_record_with_descriptors(&record, &descriptors, true)
             .unwrap();
 
         let projected: String = lock_unpoison(&store.conn)
