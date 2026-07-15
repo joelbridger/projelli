@@ -72,8 +72,21 @@ export interface CrmPerson {
   /** Links to existing workspace documents; the document remains Documents-owned. */
   contextRefs?: readonly EntityRef[];
 }
-export interface CrmContactAddress { id: string; address: string; city: string; state: string; zip: string; kind: string; primary: boolean; }
-export interface CrmContactChannel { id: string; address: string; kind: string; primary: boolean; }
+export interface CrmContactAddress {
+  id: string;
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  kind: string;
+  primary: boolean;
+}
+export interface CrmContactChannel {
+  id: string;
+  address: string;
+  kind: string;
+  primary: boolean;
+}
 export interface CrmNote {
   id: string;
   body: string;
@@ -158,6 +171,8 @@ export interface HouseholdRecord {
   customFields?: readonly CrmFieldValue[];
   tags?: readonly string[];
   schedulingLinkUrl?: string;
+  /** Feature-owned record extensions live under namespaced descriptor keys. */
+  extensionData?: Readonly<Record<string, unknown>>;
   /** Links to existing CRM records or workspace documents. */
   contextRefs?: readonly EntityRef[];
 }

@@ -3,7 +3,11 @@ import type { LucideIcon } from 'lucide-react';
 import type { CrmEngineFreshness } from '@/platform/crm/store';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import type { TimelineRecord } from '@/features/crm-timeline';
-import type { CrmClientsActions, CrmProposal, HouseholdRecord } from './adapters';
+import type {
+  CrmClientsActions,
+  CrmProposal,
+  HouseholdRecord,
+} from './adapters';
 import { clientMapTab } from './clientMapTab';
 import { activityTab } from './fallbackTabs';
 import { documentsTab } from '@/features/crm-documents/surface';
@@ -12,7 +16,9 @@ import { emailTab, meetingsTab } from '@/features/crm-connectors/tabSurface';
 import { meetingNotesTab } from './meetingNotesTab';
 import { reviewsTab } from './reviewsTab';
 
-export type HouseholdTab = 'client_map' | 'timeline' | 'documents' | 'email' | 'meeting_notes' | 'meetings' | 'reviews' | 'activity';
+/** Feature modules augment this map beside their tab descriptor. */
+export interface HouseholdTabRouteMap {}
+export type HouseholdTab = Extract<keyof HouseholdTabRouteMap, string>;
 
 export interface HouseholdTabSurfaceProps {
   household: HouseholdRecord;
@@ -20,7 +26,7 @@ export interface HouseholdTabSurfaceProps {
   actions?: CrmClientsActions;
   timelineRecords: readonly TimelineRecord[];
   timelineFreshness?: CrmEngineFreshness;
-  onSaveActivityRecord?: (record: LiveCrmRecord) => Promise<unknown> | unknown;
+  onSaveActivityRecord?: (record: LiveCrmRecord) => unknown;
   renderLegacySurface: (id: HouseholdTab) => ReactNode;
 }
 
@@ -32,7 +38,7 @@ export interface HouseholdTabDescriptor {
   Component: ComponentType<HouseholdTabSurfaceProps>;
 }
 
-/** The single append-only list of household tabs; no feature edits the record surface to mount itself. */
+/** The append-only list of feature-owned household tabs. Keep existing order stable. */
 export const householdTabRegistry: readonly HouseholdTabDescriptor[] = [
   clientMapTab,
   timelineTab,
@@ -43,3 +49,22 @@ export const householdTabRegistry: readonly HouseholdTabDescriptor[] = [
   reviewsTab,
   activityTab,
 ];
+
+export function validateHouseholdTabDescriptors(
+  descriptors: readonly HouseholdTabDescriptor[]
+): void {
+  const ids = new Set<string>();
+  const routes = new Set<string>();
+  for (const descriptor of descriptors) {
+    if (ids.has(descriptor.id))
+      throw new Error(
+        `[householdTabRegistry] duplicate tab id: ${descriptor.id}`
+      );
+    if (routes.has(descriptor.route))
+      throw new Error(
+        `[householdTabRegistry] duplicate tab route: ${descriptor.route}`
+      );
+    ids.add(descriptor.id);
+    routes.add(descriptor.route);
+  }
+}
