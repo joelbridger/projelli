@@ -140,13 +140,16 @@ import {
   legacyHouseholdRecordExtensions,
   legacyHouseholdSections,
 } from './recordRegistryCompatibility';
+import { professionalContactsSection } from './extensions/professional-contacts/registry';
 
 export const householdHeaderActionRegistry: readonly HouseholdHeaderActionDescriptor[] =
   legacyHouseholdHeaderActions;
 export const householdAddActionRegistry: readonly HouseholdAddActionDescriptor[] =
   legacyHouseholdAddActions;
-export const householdSectionRegistry: readonly HouseholdSectionDescriptor[] =
-  legacyHouseholdSections;
+export const householdSectionRegistry: readonly HouseholdSectionDescriptor[] = [
+  ...legacyHouseholdSections,
+  professionalContactsSection,
+];
 export const householdRecordExtensionRegistry: readonly HouseholdRecordExtensionDescriptor[] =
   legacyHouseholdRecordExtensions;
 

@@ -1,0 +1,38 @@
+{
+  "professionalContacts": {
+    "title": "Contactos profesionales",
+    "helper": "Personas involucradas en la vida financiera de este cliente",
+    "rows": {
+      "trusted_contact": {
+        "label": "Contacto de confianza de FINRA",
+        "empty": "No configurado. Agregue una persona con quien la firma pueda comunicarse si es necesario."
+      },
+      "cpa": {
+        "label": "CPA",
+        "empty": "No configurado. Agregue al contador del cliente."
+      },
+      "estate_attorney": {
+        "label": "Abogado sucesorio",
+        "empty": "No configurado. Agregue al abogado sucesorio del cliente."
+      },
+      "insurance_professional": {
+        "label": "Profesional de seguros",
+        "empty": "No configurado. Agregue un profesional de seguros."
+      }
+    },
+    "editor": {
+      "name": "Nombre",
+      "relationship": "Relación o función",
+      "organization": "Firma u organización",
+      "email": "Correo electrónico",
+      "phone": "Teléfono",
+      "notes": "Notas sobre la relación"
+    },
+    "actions": {
+      "add": "Agregar aquí",
+      "edit": "Editar",
+      "save": "Guardar contacto",
+      "cancel": "Cancelar"
+    }
+  }
+}

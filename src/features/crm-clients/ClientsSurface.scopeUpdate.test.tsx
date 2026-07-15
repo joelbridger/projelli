@@ -95,4 +95,43 @@ describe('ClientsSurface during a CRM search update', () => {
     expect(screen.getByTestId('crm-directory-surface')).toBeInTheDocument();
     expect(screen.getByTestId('crm-directory-household-matter-wealthbox-1')).toBeInTheDocument();
   });
+
+  it('carries every stored extension bag through a reload without interpreting its keys', () => {
+    localStorage.setItem(
+      'lantern:feature-flags',
+      JSON.stringify({
+        'record-professional-contacts': true,
+      })
+    );
+    liveCrm.records = [
+      {
+        id: 'household-1',
+        kind: 'household',
+        matterId: 'matter-wealthbox-1',
+        name: 'Abernathy Household',
+        extensionData: {
+          'crm.professional-contacts': {
+            trusted_contact: {
+              name: 'Amelia Foster',
+              relationship: 'Daughter',
+              organization: '',
+              email: '',
+              phone: '',
+              notes: '',
+            },
+            cpa: null,
+            estate_attorney: null,
+            insurance_professional: null,
+          },
+          'future.extension': { survives: true },
+        },
+      },
+    ];
+
+    render(<ClientsSurface />);
+
+    expect(
+      screen.getByTestId('professional-contacts-summary-trusted_contact')
+    ).toHaveTextContent('Amelia Foster');
+  });
 });
