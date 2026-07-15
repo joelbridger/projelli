@@ -69,7 +69,7 @@ export function createFlagRouter<Id extends string>(
 ): FlagRouter<Id> {
   const registry =
     options.registry ??
-    (flagRegistry as readonly (FlagDescriptor & { id: Id })[]);
+    (flagRegistry as unknown as readonly (FlagDescriptor & { id: Id })[]);
   const descriptors = new Map(registry.map((flag) => [flag.id, flag]));
   const environment = options.environment ?? (import.meta.env as Environment);
   const isDevelopment = options.isDevelopment ?? import.meta.env.DEV;

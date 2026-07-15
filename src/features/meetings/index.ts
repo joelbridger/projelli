@@ -14,3 +14,7 @@ export { ConsentDialog, isMacPermissionError } from './ConsentDialog';
 export { makeConsentLedger } from './consentLedger';
 export type { ConsentEntry } from './consentLedger';
 export { consentModeFor, TWO_PARTY_STATES } from './recordingConsentLaw';
+export {
+  meetingsSharedClientContextAdapter,
+  type MeetingsSharedClientContext,
+} from './sharedClientContext';

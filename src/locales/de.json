@@ -4478,6 +4478,13 @@
       }
     }
   },
+  "shared-client": {
+    "bar": {
+      "label": "Aktueller Kunde",
+      "empty": "Kein Kunde ausgewählt",
+      "clear": "Löschen"
+    }
+  },
   "answer-dates": {
     "title": "Daten in den zitierten Unterlagen",
     "record-copy-flagged": "Passende Kopien desselben Datensatzes haben unterschiedliche Zeitstempel.",

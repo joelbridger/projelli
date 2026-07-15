@@ -61,6 +61,8 @@ import {
 } from '@/app/shell/registry/appSurfaceRegistry';
 import { useAppSurfaceRegistry } from '@/app/shell/runtime/useAppSurfaceRegistry';
 import { sendDiagnosticEvent } from '@/platform/utils/diagnostics';
+import { useFlag } from '@/platform/flags';
+import { SharedClientSurface } from '@/app/shell/SharedClientBar';
 import {
   resolveClientDocumentFolderPaths,
   shouldBackfillClientDocumentFolder,
@@ -95,6 +97,7 @@ type BuildDocumentsHomeOptions = {
 };
 
 export function AppSurfaceRouter(props: AppSurfaceRouterProps) {
+  const sharedClientBarEnabled = useFlag('shared-client-bar');
   const providedCapabilities = useOptionalAppSurfaceCapabilities();
   const capabilities =
     providedCapabilities ??
@@ -843,5 +846,12 @@ export function AppSurfaceRouter(props: AppSurfaceRouterProps) {
     );
   }
 
-  return descriptor.render(runtime);
+  return (
+    <SharedClientSurface
+      enabled={sharedClientBarEnabled}
+      clientContext={descriptor.clientContext}
+    >
+      {descriptor.render(runtime)}
+    </SharedClientSurface>
+  );
 }
