@@ -95,10 +95,11 @@ function memberIdList(value: unknown): readonly string[] {
 function recordAssignment(record: LiveCrmRecord) {
   return {
     ownerMemberId:
-      typeof record.ownerMemberId === 'string' && record.ownerMemberId.trim()
-        ? record.ownerMemberId
+      typeof record['ownerMemberId'] === 'string' &&
+      record['ownerMemberId'].trim()
+        ? record['ownerMemberId']
         : undefined,
-    assignedMemberIds: memberIdList(record.assignedMemberIds),
+    assignedMemberIds: memberIdList(record['assignedMemberIds']),
   };
 }
 
