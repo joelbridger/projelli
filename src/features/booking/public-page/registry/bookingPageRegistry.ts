@@ -31,10 +31,14 @@ export function validateBookingPageDescriptors(
     if (!descriptor.loadPublicPage || !descriptor.loadSettingsPanel || !descriptor.createHostedLink) {
       throw new Error('[bookingPageRegistry] missing required renderer or hosted-link adapter');
     }
-    if (ids.has(descriptor.id!)) {
-      throw new Error(`[bookingPageRegistry] duplicate page id: ${descriptor.id}`);
+    const id = descriptor.id;
+    if (typeof id !== 'string') {
+      throw new Error('[bookingPageRegistry] missing required field: id');
     }
-    ids.add(descriptor.id!);
+    if (ids.has(id)) {
+      throw new Error(`[bookingPageRegistry] duplicate page id: ${id}`);
+    }
+    ids.add(id);
   }
 }
 

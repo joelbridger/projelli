@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useFlag } from '@/platform/flags';
 import type { BookingPageAvailabilityConsumer, BookingPageSlotOption } from './availability';
@@ -32,10 +32,9 @@ export function BookingPublicPage({ branding, availability }: BookingPublicPageP
     ? selectedDateId
     : (dates[0]?.id ?? null);
   const activeDate = dates.find((date) => date.id === activeDateId);
-  const slots = useMemo(() => {
-    if (presentation.state !== 'available' || !activeDateId) return [];
-    return presentation.slotsByDate[activeDateId] ?? [];
-  }, [activeDateId, presentation]);
+  const slots = presentation.state === 'available' && activeDateId
+    ? (presentation.slotsByDate[activeDateId] ?? [])
+    : [];
 
   const selectSlot = (slot: BookingPageSlotOption) => {
     setSelectedSlot(slot);
@@ -83,7 +82,7 @@ export function BookingPublicPage({ branding, availability }: BookingPublicPageP
                 <span style={{ color: 'var(--kp-accent)', fontSize: 13, fontWeight: 700 }}>{t('booking-public-page.public.step-pick')}</span>
                 <h2 style={{ fontSize: 28, margin: '8px 0' }}>{t('booking-public-page.public.choose-time')}</h2>
                 <p style={{ color: 'var(--color-muted-foreground)', marginTop: 0 }}>{t('booking-public-page.public.source-only')}</p>
-                <div aria-label={t('booking-public-page.public.date-picker')} style={{ display: 'grid', gap: 8, gridTemplateColumns: `repeat(${Math.max(dates.length, 1)}, minmax(0, 1fr))`, margin: '24px 0' }}>
+                <div aria-label={t('booking-public-page.public.date-picker')} style={{ display: 'grid', gap: 8, gridTemplateColumns: `repeat(${String(Math.max(dates.length, 1))}, minmax(0, 1fr))`, margin: '24px 0' }}>
                   {dates.map((date) => (
                     <button aria-pressed={date.id === activeDateId} key={date.id} onClick={() => { setSelectedDateId(date.id); setSelectedSlot(null); }} style={dateButtonStyle(date.id === activeDateId)} type="button">
                       {date.label}
@@ -94,7 +93,7 @@ export function BookingPublicPage({ branding, availability }: BookingPublicPageP
                 {slots.length > 0 ? (
                   <div aria-label={t('booking-public-page.public.time-picker')} style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(112px, 1fr))' }}>
                     {slots.map((slot) => (
-                      <button data-testid={`booking-public-page-slot-${slot.id}`} key={slot.id} onClick={() => selectSlot(slot)} style={slotButtonStyle} type="button">{slot.label}</button>
+                      <button data-testid={`booking-public-page-slot-${slot.id}`} key={slot.id} onClick={() => { selectSlot(slot); }} style={slotButtonStyle} type="button">{slot.label}</button>
                     ))}
                   </div>
                 ) : (
@@ -105,7 +104,7 @@ export function BookingPublicPage({ branding, availability }: BookingPublicPageP
             {presentation.state === 'available' && step === 'confirmation-information' ? (
               <ConfirmationInformation
                 advisorName={branding.advisorName}
-                onBack={() => setStep('pick-time')}
+                onBack={() => { setStep('pick-time'); }}
                 selectedDate={activeDate?.accessibleLabel}
                 selectedSlot={selectedSlot?.label}
               />

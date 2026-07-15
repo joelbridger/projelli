@@ -35,7 +35,13 @@ export function BookingPageSettings({
 
   const copyLink = () => {
     const result = onCopyLink?.(hostedLink);
-    void Promise.resolve(result).then(() => setCopied(true));
+    void Promise.resolve(result)
+      .then(() => {
+        setCopied(true);
+      })
+      .catch(() => {
+        setCopied(false);
+      });
   };
 
   return (
@@ -48,7 +54,7 @@ export function BookingPageSettings({
         </div>
         <div aria-label={t('booking-public-page.settings.actions')} style={{ display: 'flex', gap: 8 }}>
           <button data-testid="booking-page-copy-link" onClick={copyLink} style={secondaryButtonStyle} type="button">{copied ? t('booking-public-page.settings.copied') : t('booking-public-page.settings.copy-link')}</button>
-          <button data-testid="booking-page-preview-button" onClick={() => setPreviewOpen((open) => !open)} style={primaryButtonStyle} type="button">{t('booking-public-page.settings.preview')}</button>
+          <button data-testid="booking-page-preview-button" onClick={() => { setPreviewOpen((open) => !open); }} style={primaryButtonStyle} type="button">{t('booking-public-page.settings.preview')}</button>
         </div>
       </header>
 
@@ -63,15 +69,15 @@ export function BookingPageSettings({
           <h2 style={panelTitleStyle}>{t('booking-public-page.settings.branding-title')}</h2>
           <p style={mutedStyle}>{t('booking-public-page.settings.branding-help')}</p>
           <div style={formGridStyle}>
-            <TextField label={t('booking-public-page.settings.firm-name')} value={branding.firmName} onChange={(value) => update('firmName', value)} />
-            <TextField label={t('booking-public-page.settings.firm-mark')} value={branding.firmMark} onChange={(value) => update('firmMark', value)} />
-            <TextField label={t('booking-public-page.settings.landing-copy')} value={branding.landingCopy} onChange={(value) => update('landingCopy', value)} wide />
-            <TextField label={t('booking-public-page.settings.advisor-name')} value={branding.advisorName} onChange={(value) => update('advisorName', value)} />
-            <TextField label={t('booking-public-page.settings.advisor-title')} value={branding.advisorTitle} onChange={(value) => update('advisorTitle', value)} />
-            <TextField label={t('booking-public-page.settings.advisor-photo')} value={branding.advisorPhotoUrl ?? ''} onChange={(value) => update('advisorPhotoUrl', value)} wide />
-            <TextField label={t('booking-public-page.settings.meeting-title')} value={branding.meetingTitle} onChange={(value) => update('meetingTitle', value)} wide />
-            <TextAreaField label={t('booking-public-page.settings.meeting-description')} value={branding.meetingDescription} onChange={(value) => update('meetingDescription', value)} />
-            <TextAreaField label={t('booking-public-page.settings.disclosure')} value={branding.disclosure} onChange={(value) => update('disclosure', value)} />
+            <TextField label={t('booking-public-page.settings.firm-name')} value={branding.firmName} onChange={(value) => { update('firmName', value); }} />
+            <TextField label={t('booking-public-page.settings.firm-mark')} value={branding.firmMark} onChange={(value) => { update('firmMark', value); }} />
+            <TextField label={t('booking-public-page.settings.landing-copy')} value={branding.landingCopy} onChange={(value) => { update('landingCopy', value); }} wide />
+            <TextField label={t('booking-public-page.settings.advisor-name')} value={branding.advisorName} onChange={(value) => { update('advisorName', value); }} />
+            <TextField label={t('booking-public-page.settings.advisor-title')} value={branding.advisorTitle} onChange={(value) => { update('advisorTitle', value); }} />
+            <TextField label={t('booking-public-page.settings.advisor-photo')} value={branding.advisorPhotoUrl ?? ''} onChange={(value) => { update('advisorPhotoUrl', value); }} wide />
+            <TextField label={t('booking-public-page.settings.meeting-title')} value={branding.meetingTitle} onChange={(value) => { update('meetingTitle', value); }} wide />
+            <TextAreaField label={t('booking-public-page.settings.meeting-description')} value={branding.meetingDescription} onChange={(value) => { update('meetingDescription', value); }} />
+            <TextAreaField label={t('booking-public-page.settings.disclosure')} value={branding.disclosure} onChange={(value) => { update('disclosure', value); }} />
           </div>
         </section>
         <section data-testid="booking-page-settings-preview" style={panelStyle}>
@@ -89,11 +95,11 @@ export function BookingPageSettings({
 }
 
 function TextField({ label, onChange, value, wide = false }: { label: string; onChange: (value: string) => void; value: string; wide?: boolean }) {
-  return <label style={{ ...(wide ? { gridColumn: '1 / -1' } : {}) }}>{label}<input onChange={(event) => onChange(event.target.value)} style={inputStyle} value={value} /></label>;
+  return <label style={{ ...(wide ? { gridColumn: '1 / -1' } : {}) }}>{label}<input onChange={(event) => { onChange(event.target.value); }} style={inputStyle} value={value} /></label>;
 }
 
 function TextAreaField({ label, onChange, value }: { label: string; onChange: (value: string) => void; value: string }) {
-  return <label style={{ gridColumn: '1 / -1' }}>{label}<textarea onChange={(event) => onChange(event.target.value)} style={{ ...inputStyle, minHeight: 72 }} value={value} /></label>;
+  return <label style={{ gridColumn: '1 / -1' }}>{label}<textarea onChange={(event) => { onChange(event.target.value); }} style={{ ...inputStyle, minHeight: 72 }} value={value} /></label>;
 }
 
 const panelStyle = { background: 'var(--color-background)', border: '1px solid var(--kp-divider)', borderRadius: 14, padding: 20 };

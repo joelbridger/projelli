@@ -17,12 +17,13 @@ describe('bookingPageRegistry', () => {
   });
 
   it('rejects duplicate descriptor ids', () => {
-    expect(() => validateBookingPageDescriptors([...bookingPageRegistry, bookingPageRegistry[0]!]))
+    const brandedPage = bookingPageRegistry[0];
+    expect(() => { validateBookingPageDescriptors([...bookingPageRegistry, brandedPage]); })
       .toThrow('[bookingPageRegistry] duplicate page id: branded-public-page');
   });
 
   it('rejects missing required fields', () => {
-    expect(() => validateBookingPageDescriptors([{ id: 'missing-fields' }]))
+    expect(() => { validateBookingPageDescriptors([{ id: 'missing-fields' }]); })
       .toThrow('[bookingPageRegistry] missing required field: labelKey');
   });
 
