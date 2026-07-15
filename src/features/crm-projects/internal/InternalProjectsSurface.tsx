@@ -47,7 +47,8 @@ export function InternalProjectsSurface({ repository = createInternalProjectRepo
   const updateMilestone = (project: InternalProject, milestoneId: string) => save({ ...snapshot, projects: snapshot.projects.map((item) => item.id === project.id ? toggleInternalProjectMilestone(item, milestoneId) : item) });
 
   return <div data-testid="internal-projects-surface" style={{ padding: 'var(--kp-space-xl)', overflow: 'auto', width: '100%', display: 'grid', gap: 'var(--kp-space-md)', alignContent: 'start' }}>
-    <SurfaceHeader Icon={ClipboardList} title={t('internal-projects.title')} description={t('internal-projects.description')} actions={<Button data-testid="internal-projects-create" iconLeft={Plus} onClick={() => setCreating((value) => !value)}>{t('internal-projects.new')}</Button>} />
+    <SurfaceHeader Icon={ClipboardList} title={t('internal-projects.title')} description={t('internal-projects.description')} />
+    <div style={{ display: 'flex', justifyContent: 'flex-end' }}><Button data-testid="internal-projects-create" iconLeft={Plus} onClick={() => setCreating((value) => !value)}>{t('internal-projects.new')}</Button></div>
     {creating ? <CreateProjectForm draft={draft} onChange={setDraft} onCancel={() => setCreating(false)} onCreate={create} /> : null}
     {snapshot.projects.length === 0 ? <EmptyState data-testid="internal-projects-empty" icon={ClipboardList} title={t('internal-projects.empty.title')} body={t('internal-projects.empty.body')} actions={<Button data-testid="internal-projects-empty-create" iconLeft={Plus} onClick={() => setCreating(true)}>{t('internal-projects.empty.action')}</Button>} /> : <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.65fr) minmax(280px, 0.85fr)', gap: 'var(--kp-space-md)', alignItems: 'start' }}>
       <ProjectList projects={snapshot.projects} selectedProjectId={selected?.id ?? null} onSelect={select} t={t} />
