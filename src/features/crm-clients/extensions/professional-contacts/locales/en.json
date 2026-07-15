@@ -1,6 +1,7 @@
 {
   "professionalContacts": {
     "title": "Professional contacts",
+    "saveError": "This contact could not be saved. Please try again.",
     "helper": "People involved in this client's financial life",
     "rows": {
       "trusted_contact": {

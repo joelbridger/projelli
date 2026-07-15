@@ -29,17 +29,13 @@ const inputStyle = {
   width: '100%',
 } as const;
 
-function ContactEditor({
-  kind,
-  value,
-  onCancel,
-  onSave,
-}: {
+function ContactEditor(props: {
   kind: ProfessionalContactKind;
   value: ProfessionalContact;
   onCancel(): void;
   onSave(value: ProfessionalContact): void;
 }) {
+  const { kind, value } = props;
   const { t } = useTranslation();
   const [draft, setDraft] = useState(value);
   const update = (field: keyof ProfessionalContact, next: string) => {
@@ -52,7 +48,7 @@ function ContactEditor({
       onSubmit={(event) => {
         event.preventDefault();
         if (!draft.name.trim()) return;
-        onSave({
+        props.onSave({
           ...draft,
           name: draft.name.trim(),
           relationship: draft.relationship.trim(),
@@ -69,7 +65,7 @@ function ContactEditor({
         <input
           autoFocus
           data-testid={`professional-contacts-name-${kind}`}
-          onChange={(event) => update('name', event.target.value)}
+          onChange={(event) => { update('name', event.target.value); }}
           required
           style={inputStyle}
           value={draft.name}
@@ -86,7 +82,7 @@ function ContactEditor({
           {t('professionalContacts.editor.relationship')}
           <input
             data-testid={`professional-contacts-relationship-${kind}`}
-            onChange={(event) => update('relationship', event.target.value)}
+            onChange={(event) => { update('relationship', event.target.value); }}
             style={inputStyle}
             value={draft.relationship}
           />
@@ -95,7 +91,7 @@ function ContactEditor({
           {t('professionalContacts.editor.organization')}
           <input
             data-testid={`professional-contacts-organization-${kind}`}
-            onChange={(event) => update('organization', event.target.value)}
+            onChange={(event) => { update('organization', event.target.value); }}
             style={inputStyle}
             value={draft.organization}
           />
@@ -104,7 +100,7 @@ function ContactEditor({
           {t('professionalContacts.editor.email')}
           <input
             data-testid={`professional-contacts-email-${kind}`}
-            onChange={(event) => update('email', event.target.value)}
+            onChange={(event) => { update('email', event.target.value); }}
             style={inputStyle}
             type="email"
             value={draft.email}
@@ -114,7 +110,7 @@ function ContactEditor({
           {t('professionalContacts.editor.phone')}
           <input
             data-testid={`professional-contacts-phone-${kind}`}
-            onChange={(event) => update('phone', event.target.value)}
+            onChange={(event) => { update('phone', event.target.value); }}
             style={inputStyle}
             type="tel"
             value={draft.phone}
@@ -125,7 +121,7 @@ function ContactEditor({
         {t('professionalContacts.editor.notes')}
         <textarea
           data-testid={`professional-contacts-notes-${kind}`}
-          onChange={(event) => update('notes', event.target.value)}
+          onChange={(event) => { update('notes', event.target.value); }}
           rows={2}
           style={inputStyle}
           value={draft.notes}
@@ -142,7 +138,7 @@ function ContactEditor({
         </Button>
         <Button
           iconLeft={X}
-          onClick={onCancel}
+          onClick={() => { props.onCancel(); }}
           size="sm"
           type="button"
           variant="secondary"
@@ -167,6 +163,7 @@ export function ProfessionalContactsSectionContent(
 ) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState<ProfessionalContactKind | null>(null);
+  const [saveError, setSaveError] = useState(false);
   const contacts = professionalContactsFor(context.household);
   const save = async (
     kind: ProfessionalContactKind,
@@ -176,6 +173,7 @@ export function ProfessionalContactsSectionContent(
     await context.onSaveHousehold?.(
       withProfessionalContacts(context.household, next)
     );
+    setSaveError(false);
     setEditing(null);
   };
 
@@ -243,7 +241,7 @@ export function ProfessionalContactsSectionContent(
                 <Button
                   data-testid={`professional-contacts-edit-${kind}`}
                   iconLeft={contact ? Pencil : Plus}
-                  onClick={() => setEditing(kind)}
+                  onClick={() => { setEditing(kind); }}
                   size="sm"
                   variant="secondary"
                 >
@@ -255,9 +253,9 @@ export function ProfessionalContactsSectionContent(
               {isEditing ? (
                 <ContactEditor
                   kind={kind}
-                  onCancel={() => setEditing(null)}
+                  onCancel={() => { setEditing(null); }}
                   onSave={(value) => {
-                    void save(kind, value);
+                    void save(kind, value).catch(() => { setSaveError(true); });
                   }}
                   value={contact ?? blankProfessionalContact()}
                 />
@@ -266,6 +264,7 @@ export function ProfessionalContactsSectionContent(
           );
         })}
       </div>
+      {saveError ? <p role="alert">{t('professionalContacts.saveError')}</p> : null}
     </Card>
   );
 }

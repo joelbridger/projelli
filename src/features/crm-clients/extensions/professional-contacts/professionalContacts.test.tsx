@@ -86,11 +86,9 @@ describe('professional contacts extension', () => {
         notes: 'Coordinates annual tax planning.',
       },
     });
-    expect(next.extensionData?.[PROFESSIONAL_CONTACTS_DATA_KEY]).toEqual(
-      expect.objectContaining({
-        cpa: expect.objectContaining({ name: 'Thomas Lee' }),
-      })
-    );
+    expect(next.extensionData?.[PROFESSIONAL_CONTACTS_DATA_KEY]).toMatchObject({
+      cpa: { name: 'Thomas Lee' },
+    });
     expect(professionalContactsFor(next).cpa?.organization).toBe('Lee CPA');
   });
 

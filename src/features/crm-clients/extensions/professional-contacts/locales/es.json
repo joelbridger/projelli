@@ -1,6 +1,7 @@
 {
   "professionalContacts": {
     "title": "Contactos profesionales",
+    "saveError": "No se pudo guardar este contacto. Inténtalo de nuevo.",
     "helper": "Personas involucradas en la vida financiera de este cliente",
     "rows": {
       "trusted_contact": {

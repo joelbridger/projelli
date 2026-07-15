@@ -128,10 +128,10 @@ describe('ClientsSurface during a CRM search update', () => {
       },
     ];
     let savedRecord: Record<string, unknown> | undefined;
-    liveCrm.save.mockImplementation(async (record: Record<string, unknown>) => {
+    liveCrm.save.mockImplementation((record: Record<string, unknown>) => {
       savedRecord = record;
       liveCrm.records = [record];
-      return record;
+      return Promise.resolve(record);
     });
 
     const firstMount = render(<ClientsSurface />);
@@ -154,13 +154,13 @@ describe('ClientsSurface during a CRM search update', () => {
     await vi.waitFor(() => {
       expect(savedRecord).toBeDefined();
     });
-    expect(savedRecord?.['extensionData']).toEqual({
-      'crm.professional-contacts': expect.objectContaining({
-        trusted_contact: expect.objectContaining({
+    expect(savedRecord?.['extensionData']).toMatchObject({
+      'crm.professional-contacts': {
+        trusted_contact: {
           name: 'Amelia Foster',
           relationship: 'Daughter',
-        }),
-      }),
+        },
+      },
       'future.extension': { survives: true },
     });
 
@@ -170,10 +170,8 @@ describe('ClientsSurface during a CRM search update', () => {
     expect(
       screen.getByTestId('professional-contacts-summary-trusted_contact')
     ).toHaveTextContent('Amelia Foster');
-    expect(liveCrm.records[0]?.['extensionData']).toEqual({
-      'crm.professional-contacts': expect.objectContaining({
-        trusted_contact: expect.objectContaining({ name: 'Amelia Foster' }),
-      }),
+    expect(liveCrm.records[0]?.['extensionData']).toMatchObject({
+      'crm.professional-contacts': { trusted_contact: { name: 'Amelia Foster' } },
       'future.extension': { survives: true },
     });
   });
