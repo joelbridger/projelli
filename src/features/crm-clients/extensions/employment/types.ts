@@ -30,11 +30,11 @@ function isEmploymentMemberInformation(
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const member = value as Record<string, unknown>;
   return (
-    typeof member.occupation === 'string' &&
-    typeof member.employer === 'string' &&
-    isOptionalText(member.occupationStart) &&
-    isOptionalText(member.plannedRetirement) &&
-    isOptionalText(member.reducedScheduleContext)
+    typeof member['occupation'] === 'string' &&
+    typeof member['employer'] === 'string' &&
+    isOptionalText(member['occupationStart']) &&
+    isOptionalText(member['plannedRetirement']) &&
+    isOptionalText(member['reducedScheduleContext'])
   );
 }
 
@@ -44,22 +44,22 @@ export function isEmploymentInformation(
 ): value is EmploymentInformation {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const candidate = value as Record<string, unknown>;
-  if (candidate.version !== 1) return false;
+  if (candidate['version'] !== 1) return false;
   if (
-    !candidate.members ||
-    typeof candidate.members !== 'object' ||
-    Array.isArray(candidate.members)
+    !candidate['members'] ||
+    typeof candidate['members'] !== 'object' ||
+    Array.isArray(candidate['members'])
   )
     return false;
   if (
-    candidate.householdGrossAnnualIncome !== undefined &&
-    (typeof candidate.householdGrossAnnualIncome !== 'number' ||
-      !Number.isFinite(candidate.householdGrossAnnualIncome) ||
-      candidate.householdGrossAnnualIncome < 0)
+    candidate['householdGrossAnnualIncome'] !== undefined &&
+    (typeof candidate['householdGrossAnnualIncome'] !== 'number' ||
+      !Number.isFinite(candidate['householdGrossAnnualIncome']) ||
+      candidate['householdGrossAnnualIncome'] < 0)
   )
     return false;
 
-  return Object.entries(candidate.members as Record<string, unknown>).every(
+  return Object.entries(candidate['members'] as Record<string, unknown>).every(
     ([memberId, member]) =>
       memberId.length > 0 && isEmploymentMemberInformation(member)
   );

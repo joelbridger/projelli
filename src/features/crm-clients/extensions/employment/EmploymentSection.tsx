@@ -220,12 +220,16 @@ export function EmploymentSection({
                   value={information.householdGrossAnnualIncome ?? ''}
                   onChange={(event) => {
                     const next = event.target.value;
-                    setInformation((current) => ({
-                      ...current,
-                      ...(next === ''
-                        ? { householdGrossAnnualIncome: undefined }
-                        : { householdGrossAnnualIncome: Number(next) }),
-                    }));
+                    setInformation((current) => {
+                      const nextInformation = { ...current };
+                      if (next === '') {
+                        delete nextInformation.householdGrossAnnualIncome;
+                      } else {
+                        nextInformation.householdGrossAnnualIncome =
+                          Number(next);
+                      }
+                      return nextInformation;
+                    });
                   }}
                   data-testid="crm-employment-income"
                 />

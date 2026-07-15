@@ -28,7 +28,7 @@ export const employmentHouseholdSection: HouseholdSectionDescriptor = {
   mount: ({ household, onSaveHousehold }) => (
     <EmploymentSection
       household={household}
-      onSaveHousehold={onSaveHousehold}
+      {...(onSaveHousehold ? { onSaveHousehold } : {})}
     />
   ),
 };
