@@ -317,6 +317,13 @@ describe('settingsModuleRegistry', () => {
         flagId: 'custom-fields-firm',
         render: () => null,
       },
+      contactSourcesSettingsPanel: {
+        id: 'contact-sources',
+        section: 'organization',
+        order: 20,
+        flagId: 'contact-sources',
+        render: () => null,
+      },
     }));
     const registry = await import('./settingsModuleRegistry');
 
@@ -330,11 +337,6 @@ describe('settingsModuleRegistry', () => {
       registry
         .getSettingsPanelDescriptors('organization')
         .map((panel) => panel.id)
-    ).toEqual([
-      'fake-always',
-      'fake-gated',
-      'custom-fields-firm',
-      'teams-roles',
-    ]);
+    ).toEqual(['fake-always', 'fake-gated', 'teams-roles']);
   });
 });
