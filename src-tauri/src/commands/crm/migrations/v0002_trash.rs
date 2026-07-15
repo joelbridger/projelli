@@ -38,7 +38,8 @@ fn apply(conn: &Connection) -> Result<()> {
         CREATE INDEX crm_trash_records_record_id_idx
             ON crm_trash_records(record_id);
         CREATE TABLE crm_trash_restores (
-            doc_key TEXT PRIMARY KEY,
+            restore_id TEXT PRIMARY KEY,
+            doc_key TEXT NOT NULL,
             record_id TEXT NOT NULL,
             record_type TEXT NOT NULL,
             deleted_at TEXT NOT NULL,
@@ -47,6 +48,7 @@ fn apply(conn: &Connection) -> Result<()> {
             restored_at TEXT NOT NULL,
             restored_by TEXT NOT NULL
         );
+        CREATE INDEX crm_trash_restores_doc_key_idx ON crm_trash_restores(doc_key);
         "#,
     )?;
     Ok(())

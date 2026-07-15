@@ -53,8 +53,8 @@ describe('TrashRecoverySurface', () => {
     fireEvent.click(screen.getByTestId('crm-trash-recover-household-1'));
     await waitFor(() => expect(restoreTrashedCrmRecord).toHaveBeenCalledWith(expect.objectContaining({
       recordId: 'household-1', actorId: 'current-advisor',
+      matterId: 'matter-1',
     })));
     expect(reload).toHaveBeenCalled();
   });
 });
-

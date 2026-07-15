@@ -22,6 +22,7 @@ export interface TrashedCrmRecord {
 interface TrashRequest {
   workspaceRoot: string | null | undefined;
   recordId: string;
+  matterId: string;
   actorId: string;
 }
 
@@ -47,6 +48,7 @@ export function softDeleteCrmRecord({ workspaceRoot, recordId, actorId }: TrashR
   return inTrashWorkspace(workspaceRoot, () =>
     invoke<TrashedCrmRecord>('crm_trash_soft_delete', {
       recordId,
+      matterId,
       deletedBy: actorId,
     }),
   );
@@ -63,6 +65,7 @@ export function restoreTrashedCrmRecord({ workspaceRoot, recordId, actorId }: Tr
   return inTrashWorkspace(workspaceRoot, () =>
     invoke<TrashedCrmRecord>('crm_trash_restore', {
       recordId,
+      matterId,
       restoredBy: actorId,
     }),
   );
@@ -71,6 +74,6 @@ export function restoreTrashedCrmRecord({ workspaceRoot, recordId, actorId }: Tr
 /** Native authority denies this until the teams-roles contract is landed. */
 export function permanentlyPurgeTrashedCrmRecord({ workspaceRoot, recordId, actorId }: TrashRequest) {
   return inTrashWorkspace(workspaceRoot, () =>
-    invoke<void>('crm_trash_purge', { recordId, actorId }),
+    invoke<void>('crm_trash_purge', { recordId, matterId, actorId }),
   );
 }

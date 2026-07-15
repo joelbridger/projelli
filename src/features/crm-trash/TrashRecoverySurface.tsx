@@ -70,6 +70,7 @@ export function TrashRecoverySurface() {
       await restoreTrashedCrmRecord({
         workspaceRoot: live.workspaceRoot,
         recordId: record.recordId,
+        matterId: record.matterId,
         actorId: 'current-advisor',
       });
       await Promise.all([reload(), live.reload()]);

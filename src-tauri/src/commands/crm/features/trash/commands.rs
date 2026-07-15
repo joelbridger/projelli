@@ -81,12 +81,16 @@ fn purge_expired_in(transaction: &Transaction<'_>, now: DateTime<Utc>) -> Result
     Ok(expired_doc_keys.len())
 }
 
-fn read_live_record(transaction: &Transaction<'_>, record_id: &str) -> Result<StoredTrashRecord> {
+fn read_live_record(
+    transaction: &Transaction<'_>,
+    record_id: &str,
+    matter_id: &str,
+) -> Result<StoredTrashRecord> {
     transaction
         .query_row(
             "SELECT doc_key, matter_id, yjs_state, state_vector, updated_at
-             FROM crm_docs WHERE doc_id=?1 AND deleted=0",
-            [format!("live:{record_id}")],
+             FROM crm_docs WHERE doc_id=?1 AND matter_id=?2 AND deleted=0",
+            params![format!("live:{record_id}"), matter_id],
             |row| {
                 let snapshot = row.get::<_, Vec<u8>>(2)?;
                 let record: Value = serde_json::from_slice(&snapshot).map_err(|error| {
@@ -137,14 +141,16 @@ fn as_dto(row: StoredTrashRecord) -> Result<TrashRecordDto> {
 pub fn soft_delete_record(
     store: &CrmCoreStore,
     record_id: &str,
+    matter_id: &str,
     deleted_by: &str,
     now: DateTime<Utc>,
 ) -> Result<TrashRecordDto> {
     require_value(record_id, "record id")?;
+    require_value(matter_id, "matter id")?;
     require_value(deleted_by, "actor")?;
     store.transaction(|transaction| {
         purge_expired_in(transaction, now)?;
-        let mut row = read_live_record(transaction, record_id)?;
+        let mut row = read_live_record(transaction, record_id, matter_id)?;
         row.deleted_at = now.to_rfc3339();
         row.deleted_by = deleted_by.trim().to_owned();
         row.expires_at = (now + Duration::days(RETENTION_DAYS)).to_rfc3339();
@@ -222,10 +228,12 @@ pub fn list_trashed_records(
 pub fn restore_record(
     store: &CrmCoreStore,
     record_id: &str,
+    matter_id: &str,
     restored_by: &str,
     now: DateTime<Utc>,
 ) -> Result<TrashRecordDto> {
     require_value(record_id, "record id")?;
+    require_value(matter_id, "matter id")?;
     require_value(restored_by, "actor")?;
     store.transaction(|transaction| {
         purge_expired_in(transaction, now)?;
@@ -234,8 +242,8 @@ pub fn restore_record(
                 "SELECT doc_key,record_id,record_type,matter_id,snapshot,state_vector,original_updated_at,
                         deleted_at,deleted_by,expires_at
                  FROM crm_trash_records
-                 WHERE record_id=?1 AND restored_at IS NULL AND expires_at > ?2",
-                params![record_id, now.to_rfc3339()],
+                 WHERE record_id=?1 AND matter_id=?2 AND restored_at IS NULL AND expires_at > ?3",
+                params![record_id, matter_id, now.to_rfc3339()],
                 |row| {
                     Ok(StoredTrashRecord {
                         doc_key: row.get(0)?, record_id: row.get(1)?, record_type: row.get(2)?,
@@ -260,9 +268,19 @@ pub fn restore_record(
             params![row.doc_key, restored_at, restored_by.trim()],
         )?;
         transaction.execute(
-            "INSERT INTO crm_trash_restores(doc_key,record_id,record_type,deleted_at,deleted_by,expires_at,restored_at,restored_by)
-             VALUES(?1,?2,?3,?4,?5,?6,?7,?8)",
-            params![row.doc_key, row.record_id, row.record_type, row.deleted_at, row.deleted_by, row.expires_at, restored_at, restored_by.trim()],
+            "INSERT INTO crm_trash_restores(restore_id,doc_key,record_id,record_type,deleted_at,deleted_by,expires_at,restored_at,restored_by)
+             VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9)",
+            params![
+                format!("{}:{}", row.doc_key, restored_at),
+                row.doc_key,
+                row.record_id,
+                row.record_type,
+                row.deleted_at,
+                row.deleted_by,
+                row.expires_at,
+                restored_at,
+                restored_by.trim()
+            ],
         )?;
         // The separate restore row retains auditable metadata. Remove the
         // content snapshot only after the live document and metadata commit.
@@ -285,10 +303,12 @@ fn is_firm_admin(_actor_id: &str) -> bool {
 pub fn permanently_purge_record(
     store: &CrmCoreStore,
     record_id: &str,
+    matter_id: &str,
     actor_id: &str,
     now: DateTime<Utc>,
 ) -> Result<()> {
     require_value(record_id, "record id")?;
+    require_value(matter_id, "matter id")?;
     require_value(actor_id, "actor")?;
     if !is_firm_admin(actor_id) {
         bail!("Permanent CRM deletion requires a firm admin")
@@ -297,8 +317,8 @@ pub fn permanently_purge_record(
         purge_expired_in(transaction, now)?;
         let doc_key = transaction
             .query_row(
-                "SELECT doc_key FROM crm_trash_records WHERE record_id=?1 AND restored_at IS NULL",
-                [record_id],
+                "SELECT doc_key FROM crm_trash_records WHERE record_id=?1 AND matter_id=?2 AND restored_at IS NULL",
+                params![record_id, matter_id],
                 |row| row.get::<_, String>(0),
             )
             .optional()?
@@ -320,6 +340,7 @@ async fn workspace(state: &CrmState) -> Result<std::path::PathBuf, String> {
 pub async fn crm_trash_soft_delete(
     state: State<'_, CrmState>,
     record_id: String,
+    matter_id: String,
     deleted_by: String,
 ) -> Result<TrashRecordDto, String> {
     let workspace = workspace(&state).await?;
@@ -327,6 +348,7 @@ pub async fn crm_trash_soft_delete(
         soft_delete_record(
             &CrmCoreStore::open(&workspace)?,
             &record_id,
+            &matter_id,
             &deleted_by,
             Utc::now(),
         )
@@ -351,6 +373,7 @@ pub async fn crm_trash_list(state: State<'_, CrmState>) -> Result<Vec<TrashRecor
 pub async fn crm_trash_restore(
     state: State<'_, CrmState>,
     record_id: String,
+    matter_id: String,
     restored_by: String,
 ) -> Result<TrashRecordDto, String> {
     let workspace = workspace(&state).await?;
@@ -358,6 +381,7 @@ pub async fn crm_trash_restore(
         restore_record(
             &CrmCoreStore::open(&workspace)?,
             &record_id,
+            &matter_id,
             &restored_by,
             Utc::now(),
         )
@@ -371,6 +395,7 @@ pub async fn crm_trash_restore(
 pub async fn crm_trash_purge(
     state: State<'_, CrmState>,
     record_id: String,
+    matter_id: String,
     actor_id: String,
 ) -> Result<(), String> {
     let workspace = workspace(&state).await?;
@@ -378,6 +403,7 @@ pub async fn crm_trash_purge(
         permanently_purge_record(
             &CrmCoreStore::open(&workspace)?,
             &record_id,
+            &matter_id,
             &actor_id,
             Utc::now(),
         )
@@ -399,11 +425,38 @@ mod tests {
     }
 
     fn live_record(id: &str) -> Value {
+        live_record_in_matter(id, "matter-1")
+    }
+
+    fn live_record_in_matter(id: &str, matter_id: &str) -> Value {
         serde_json::json!({
-            "id": id, "kind": "household", "matterId": "matter-1",
+            "id": id, "kind": "household", "matterId": matter_id,
             "createdAt": "2026-07-15T00:00:00Z", "updatedAt": "2026-07-15T00:00:00Z",
             "name": "Maya Chen"
         })
+    }
+
+    #[test]
+    fn soft_delete_is_scoped_to_the_requested_matter() {
+        let (_directory, store) = store();
+        store
+            .upsert_live_record(&live_record_in_matter("same-id", "matter-a"))
+            .unwrap();
+        store
+            .upsert_live_record(&live_record_in_matter("same-id", "matter-b"))
+            .unwrap();
+        let now = parse_time("2026-07-15T12:00:00Z", "test").unwrap();
+
+        soft_delete_record(&store, "same-id", "matter-a", "advisor-1", now).unwrap();
+
+        assert_eq!(
+            list_trashed_records(&store, now).unwrap()[0].matter_id,
+            "matter-a"
+        );
+        assert_eq!(
+            store.list_live_records().unwrap(),
+            vec![live_record_in_matter("same-id", "matter-b")]
+        );
     }
 
     #[test]
@@ -414,7 +467,8 @@ mod tests {
             .unwrap();
         let deleted_at = parse_time("2026-07-15T12:00:00Z", "test").unwrap();
 
-        let deleted = soft_delete_record(&store, "household-1", "advisor-1", deleted_at).unwrap();
+        let deleted =
+            soft_delete_record(&store, "household-1", "matter-1", "advisor-1", deleted_at).unwrap();
         assert_eq!(deleted.record_type, "household");
         assert_eq!(deleted.expires_at, "2026-08-14T12:00:00+00:00");
         assert!(store.list_live_records().unwrap().is_empty());
@@ -429,6 +483,7 @@ mod tests {
         let restored = restore_record(
             &reopened,
             "household-1",
+            "matter-1",
             "advisor-2",
             deleted_at + Duration::days(1),
         )
@@ -462,6 +517,34 @@ mod tests {
                 Ok(())
             })
             .unwrap();
+
+        soft_delete_record(
+            &reopened_after_restore,
+            "household-1",
+            "matter-1",
+            "advisor-3",
+            deleted_at + Duration::days(2),
+        )
+        .unwrap();
+        restore_record(
+            &reopened_after_restore,
+            "household-1",
+            "matter-1",
+            "advisor-4",
+            deleted_at + Duration::days(3),
+        )
+        .unwrap();
+        reopened_after_restore
+            .transaction(|transaction| {
+                let restore_count: i64 = transaction.query_row(
+                    "SELECT COUNT(*) FROM crm_trash_restores WHERE record_id='household-1'",
+                    [],
+                    |row| row.get(0),
+                )?;
+                assert_eq!(restore_count, 2);
+                Ok(())
+            })
+            .unwrap();
     }
 
     #[test]
@@ -471,13 +554,15 @@ mod tests {
             .upsert_live_record(&live_record("household-2"))
             .unwrap();
         let deleted_at = parse_time("2026-07-15T12:00:00Z", "test").unwrap();
-        soft_delete_record(&store, "household-2", "advisor-1", deleted_at).unwrap();
+        soft_delete_record(&store, "household-2", "matter-1", "advisor-1", deleted_at).unwrap();
         let after_expiry = deleted_at + Duration::days(RETENTION_DAYS) + Duration::seconds(1);
 
         assert!(list_trashed_records(&store, after_expiry)
             .unwrap()
             .is_empty());
-        assert!(restore_record(&store, "household-2", "advisor-1", after_expiry).is_err());
+        assert!(
+            restore_record(&store, "household-2", "matter-1", "advisor-1", after_expiry).is_err()
+        );
         assert!(store
             .get_doc("matter-1/live:household-2")
             .unwrap()
@@ -491,10 +576,11 @@ mod tests {
             .upsert_live_record(&live_record("household-3"))
             .unwrap();
         let now = parse_time("2026-07-15T12:00:00Z", "test").unwrap();
-        soft_delete_record(&store, "household-3", "advisor-1", now).unwrap();
+        soft_delete_record(&store, "household-3", "matter-1", "advisor-1", now).unwrap();
 
         let error =
-            permanently_purge_record(&store, "household-3", "pretend-admin", now).unwrap_err();
+            permanently_purge_record(&store, "household-3", "matter-1", "pretend-admin", now)
+                .unwrap_err();
         assert!(error.to_string().contains("requires a firm admin"));
         assert_eq!(list_trashed_records(&store, now).unwrap().len(), 1);
     }
@@ -522,7 +608,7 @@ mod tests {
             transaction.execute("DELETE FROM crm_docs WHERE doc_key=?1", ["matter-1/live:broken"])?;
             Ok(())
         }).unwrap();
-        assert!(restore_record(&store, "broken", "advisor-2", now).is_err());
+        assert!(restore_record(&store, "broken", "matter-1", "advisor-2", now).is_err());
         assert_eq!(list_trashed_records(&store, now).unwrap().len(), 1);
     }
 }
