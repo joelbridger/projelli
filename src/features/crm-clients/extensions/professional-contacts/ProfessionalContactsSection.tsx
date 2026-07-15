@@ -182,7 +182,7 @@ export function ProfessionalContactsSectionContent(
         withProfessionalContacts(context.household, next)
       );
       setSaveError(false);
-      setEditing(null);
+      setEditing((current) => (current === kind ? null : current));
     } finally {
       saveInFlight.current = false;
       setIsSaving(false);

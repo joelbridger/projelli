@@ -122,4 +122,52 @@ describe('professional contacts extension', () => {
       });
     }
   });
+
+  it('blocks an overlapping save without closing a newly opened editor', async () => {
+    let finishFirstSave: (() => void) | undefined;
+    const firstSave = new Promise<void>((resolve) => {
+      finishFirstSave = resolve;
+    });
+    const onSaveHousehold = vi
+      .fn<NonNullable<HouseholdRecordShellContext['onSaveHousehold']>>()
+      .mockImplementationOnce(() => firstSave)
+      .mockResolvedValueOnce();
+    render(
+      <ProfessionalContactsSectionContent
+        {...context(household, onSaveHousehold)}
+      />
+    );
+
+    fireEvent.click(
+      screen.getByTestId('professional-contacts-edit-trusted_contact')
+    );
+    fireEvent.change(
+      screen.getByTestId('professional-contacts-name-trusted_contact'),
+      { target: { value: 'Amelia Foster' } }
+    );
+    fireEvent.click(
+      screen.getByTestId('professional-contacts-save-trusted_contact')
+    );
+    expect(onSaveHousehold).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByTestId('professional-contacts-edit-cpa'));
+    fireEvent.change(screen.getByTestId('professional-contacts-name-cpa'), {
+      target: { value: 'Thomas Lee' },
+    });
+    fireEvent.submit(screen.getByTestId('professional-contacts-editor-cpa'));
+    expect(onSaveHousehold).toHaveBeenCalledTimes(1);
+
+    finishFirstSave?.();
+    await waitFor(() => {
+      expect(
+        screen.getByTestId('professional-contacts-editor-cpa')
+      ).toBeInTheDocument();
+      expect(screen.getByTestId('professional-contacts-save-cpa')).toBeEnabled();
+    });
+
+    fireEvent.click(screen.getByTestId('professional-contacts-save-cpa'));
+    await waitFor(() => {
+      expect(onSaveHousehold).toHaveBeenCalledTimes(2);
+    });
+  });
 });

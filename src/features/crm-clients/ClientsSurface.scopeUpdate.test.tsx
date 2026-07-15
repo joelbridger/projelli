@@ -2,6 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { ClientsSurface } from './ClientsSurface';
+import {
+  householdRecordExtensionRegistry,
+  type HouseholdRecordExtensionDescriptor,
+} from './recordRegistry';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useScopeUpdateStore } from '@/platform/rag/scopeUpdateStore';
 
@@ -56,6 +60,12 @@ describe('ClientsSurface during a CRM search update', () => {
   afterEach(() => {
     cleanup();
     useScopeUpdateStore.getState().clearAll();
+    const extensionRegistry =
+      householdRecordExtensionRegistry as HouseholdRecordExtensionDescriptor[];
+    const probeIndex = extensionRegistry.findIndex(
+      (descriptor) => descriptor.id === 'future-extension-test-probe'
+    );
+    if (probeIndex >= 0) extensionRegistry.splice(probeIndex, 1);
   });
 
   it('opens an imported household selected in the sidebar while its search update is still running', () => {
@@ -97,6 +107,24 @@ describe('ClientsSurface during a CRM search update', () => {
   });
 
   it('saves professional contacts without changing other extension bags, then rehydrates both after remount', async () => {
+    type FutureExtension = { survives: string };
+    const futureExtension: HouseholdRecordExtensionDescriptor = {
+      id: 'future-extension-test-probe',
+      dataKey: 'future.extension' as never,
+      defaultValue: { survives: '' },
+      validate: (value): value is FutureExtension =>
+        typeof value === 'object' &&
+        value !== null &&
+        typeof (value as Record<string, unknown>)['survives'] === 'string',
+      renderSummary: ({ value }) => (
+        <span data-testid="future-extension-summary">
+          {(value as FutureExtension).survives}
+        </span>
+      ),
+    };
+    const extensionRegistry =
+      householdRecordExtensionRegistry as HouseholdRecordExtensionDescriptor[];
+    extensionRegistry.push(futureExtension);
     localStorage.setItem(
       'lantern:feature-flags',
       JSON.stringify({
@@ -123,7 +151,7 @@ describe('ClientsSurface during a CRM search update', () => {
             estate_attorney: null,
             insurance_professional: null,
           },
-          'future.extension': { survives: true },
+          'future.extension': { survives: 'Sibling extension content' },
         },
       },
     ];
@@ -161,7 +189,7 @@ describe('ClientsSurface during a CRM search update', () => {
           relationship: 'Daughter',
         },
       },
-      'future.extension': { survives: true },
+      'future.extension': { survives: 'Sibling extension content' },
     });
 
     firstMount.unmount();
@@ -170,9 +198,8 @@ describe('ClientsSurface during a CRM search update', () => {
     expect(
       screen.getByTestId('professional-contacts-summary-trusted_contact')
     ).toHaveTextContent('Amelia Foster');
-    expect(liveCrm.records[0]?.['extensionData']).toMatchObject({
-      'crm.professional-contacts': { trusted_contact: { name: 'Amelia Foster' } },
-      'future.extension': { survives: true },
-    });
+    expect(screen.getByTestId('future-extension-summary')).toHaveTextContent(
+      'Sibling extension content'
+    );
   });
 });
