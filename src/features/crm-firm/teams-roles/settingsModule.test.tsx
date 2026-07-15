@@ -33,7 +33,7 @@ vi.mock('./teamsRolesClient', () => ({ teamsRolesClient: client }));
 
 import { emptyTeamsRolesState } from './model';
 import { TeamsRolesSettings } from './settingsModule';
-import { teamsRolesSettingsModule } from './settingsModule';
+import { teamsRolesSettingsModule } from './settingsModuleDescriptor';
 
 describe('TeamsRolesSettings', () => {
   beforeEach(() => {

@@ -221,7 +221,9 @@ function TeamsPanel({
           <Button
             size="sm"
             variant="secondary"
-            onClick={() => onDelete(team.id)}
+            onClick={() => {
+              onDelete(team.id);
+            }}
           >
             {t('teams-roles.delete')}
           </Button>
@@ -241,7 +243,9 @@ function TeamsPanel({
           aria-label={t('teams-roles.team-name')}
           data-testid="teams-roles-team-name"
           value={name}
-          onChange={(event) => setName(event.target.value)}
+          onChange={(event) => {
+            setName(event.target.value);
+          }}
           placeholder={t('teams-roles.team-name')}
         />
         <Button type="submit" size="sm" data-testid="teams-roles-create-team">
@@ -283,7 +287,9 @@ function RolesPanel({
           size="sm"
           variant="secondary"
           iconLeft={ShieldCheck}
-          onClick={() => setShowMatrix((value) => !value)}
+          onClick={() => {
+            setShowMatrix((value) => !value);
+          }}
         >
           {t('teams-roles.view-matrix')}
         </Button>
@@ -316,7 +322,9 @@ function RolesPanel({
             <Button
               size="sm"
               variant="secondary"
-              onClick={() => onDelete(role.id)}
+              onClick={() => {
+                onDelete(role.id);
+              }}
             >
               {t('teams-roles.delete')}
             </Button>
@@ -363,7 +371,9 @@ function RolesPanel({
           aria-label={t('teams-roles.role-name')}
           data-testid="teams-roles-role-name"
           value={name}
-          onChange={(event) => setName(event.target.value)}
+          onChange={(event) => {
+            setName(event.target.value);
+          }}
           placeholder={t('teams-roles.role-name')}
         />
         <Button type="submit" size="sm" data-testid="teams-roles-create-role">
@@ -383,7 +393,9 @@ export function TeamsRolesSettings() {
     void teamsRolesClient
       .get()
       .then(setState)
-      .catch(() => setState(emptyTeamsRolesState()));
+      .catch(() => {
+        setState(emptyTeamsRolesState());
+      });
   }, []);
   const members = useMemo(() => membersFrom(records), [records]);
   const save = (operation: Promise<TeamsRolesState>, success: string) => {
@@ -391,13 +403,19 @@ export function TeamsRolesSettings() {
       .then((next) => {
         setState(next);
         setNotice(success);
-        void reload();
+        void reload().catch((error: unknown) => {
+          setNotice(
+            error instanceof Error
+              ? error.message
+              : t('teams-roles.save-failed')
+          );
+        });
       })
-      .catch((error: unknown) =>
+      .catch((error: unknown) => {
         setNotice(
           error instanceof Error ? error.message : t('teams-roles.save-failed')
-        )
-      );
+        );
+      });
   };
   return (
     <div
@@ -424,53 +442,37 @@ export function TeamsRolesSettings() {
       <PeoplePanel
         members={members}
         state={state}
-        onAssign={(assignment) =>
+        onAssign={(assignment) => {
           save(
             teamsRolesClient.assignMember(assignment),
             t('teams-roles.role-saved')
-          )
-        }
+          );
+        }}
       />
       <TeamsPanel
         state={state}
-        onCreate={(team) =>
-          save(teamsRolesClient.createTeam(team), t('teams-roles.team-saved'))
-        }
-        onDelete={(teamId) =>
+        onCreate={(team) => {
+          save(teamsRolesClient.createTeam(team), t('teams-roles.team-saved'));
+        }}
+        onDelete={(teamId) => {
           save(
             teamsRolesClient.deleteTeam(teamId),
             t('teams-roles.team-deleted')
-          )
-        }
+          );
+        }}
       />
       <RolesPanel
         state={state}
-        onCreate={(role) =>
-          save(teamsRolesClient.createRole(role), t('teams-roles.role-saved'))
-        }
-        onDelete={(roleId) =>
+        onCreate={(role) => {
+          save(teamsRolesClient.createRole(role), t('teams-roles.role-saved'));
+        }}
+        onDelete={(roleId) => {
           save(
             teamsRolesClient.deleteRole(roleId),
             t('teams-roles.role-deleted')
-          )
-        }
+          );
+        }}
       />
     </div>
   );
 }
-
-export const teamsRolesSettingsModule = {
-  id: 'organization' as const,
-  order: 80,
-  labelKey: 'teams-roles.settings-label',
-  legacyLabel: 'Organization',
-  searchTerms: [
-    'people',
-    'teams',
-    'roles',
-    'permissions',
-    'advisor',
-    'compliance',
-  ],
-  render: () => <TeamsRolesSettings />,
-};
