@@ -1,0 +1,11 @@
+# Native command registrations owned by this domain.
+# Keep existing order keys stable; add new entries with a new unused key.
+command 2280 crate::commands::addepar::commands::addepar_set_workspace
+command 2290 crate::commands::addepar::commands::addepar_connect
+command 2300 crate::commands::addepar::commands::addepar_is_connected
+command 2310 crate::commands::addepar::commands::addepar_disconnect
+command 2320 crate::commands::addepar::commands::addepar_list_entities
+command 2330 crate::commands::addepar::commands::addepar_sync
+command 2340 crate::commands::addepar::commands::addepar_cancel
+command 2350 crate::commands::addepar::commands::addepar_status
+state 120 crate::commands::addepar::commands::manage_state

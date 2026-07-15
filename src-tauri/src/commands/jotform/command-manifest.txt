@@ -1,0 +1,12 @@
+# Native command registrations owned by this domain.
+# Keep existing order keys stable; add new entries with a new unused key.
+command 2100 crate::commands::jotform::commands::jotform_set_workspace
+command 2110 crate::commands::jotform::commands::jotform_connect
+command 2120 crate::commands::jotform::commands::jotform_is_connected
+command 2130 crate::commands::jotform::commands::jotform_disconnect
+command 2140 crate::commands::jotform::commands::jotform_list_forms
+command 2150 crate::commands::jotform::commands::jotform_sync
+command 2160 crate::commands::jotform::commands::jotform_cancel
+command 2170 crate::commands::jotform::commands::jotform_status
+command 2180 crate::commands::jotform::commands::jotform_list_unassigned
+state 100 crate::commands::jotform::commands::manage_state

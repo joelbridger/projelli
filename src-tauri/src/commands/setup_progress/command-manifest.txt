@@ -1,0 +1,5 @@
+# Native command registrations owned by this domain.
+# Keep existing order keys stable; add new entries with a new unused key.
+command 2710 crate::commands::setup_progress::get_setup_progress
+command 2720 crate::commands::setup_progress::setup_report_client_map
+state 180 crate::commands::setup_progress::manage_state

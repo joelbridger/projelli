@@ -1,0 +1,12 @@
+# Native command registrations owned by this domain.
+# Keep existing order keys stable; add new entries with a new unused key.
+command 2190 crate::commands::zocks::commands::zocks_set_workspace
+command 2200 crate::commands::zocks::commands::zocks_connect
+command 2210 crate::commands::zocks::commands::zocks_is_connected
+command 2220 crate::commands::zocks::commands::zocks_disconnect
+command 2230 crate::commands::zocks::commands::zocks_list_sessions
+command 2240 crate::commands::zocks::commands::zocks_sync
+command 2250 crate::commands::zocks::commands::zocks_cancel
+command 2260 crate::commands::zocks::commands::zocks_status
+command 2270 crate::commands::zocks::commands::zocks_list_unassigned
+state 110 crate::commands::zocks::commands::manage_state

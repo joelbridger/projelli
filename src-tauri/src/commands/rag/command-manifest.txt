@@ -1,0 +1,27 @@
+# Native command registrations owned by this domain.
+# Keep existing order keys stable; add new entries with a new unused key.
+command 250 crate::commands::rag::rag_set_workspace
+command 260 crate::commands::rag::rag_index_file
+command 270 crate::commands::rag::rag_index_workspace
+command 280 crate::commands::rag::rag_reconcile_workspace
+command 290 crate::commands::rag::rag_plan_pdf_index
+command 300 crate::commands::rag::rag_manifest_pdf_fresh
+command 310 crate::commands::rag::rag_manifest_record_pdf
+command 320 crate::commands::rag::rag_manifest_forget_pdf
+command 330 crate::commands::rag::rag_manifest_forget_pdfs
+command 340 crate::commands::rag::rag_retag_matter_batch
+command 350 crate::commands::rag::rag_scope_write_queue_depth
+command 360 crate::commands::rag::rag_retrieve
+command 370 crate::commands::rag::rag_verify_citation
+command 380 crate::commands::rag::rag_verify_citations_batch
+command 390 crate::commands::rag::rag_cancel_indexing
+command 400 crate::commands::rag::rag_delete_path
+command 410 crate::commands::rag::rag_delete_matter
+command 420 crate::commands::rag::rag_index_pdf_chunks
+command 430 crate::commands::rag::rag_retag_privilege
+command 440 crate::commands::rag::rag_retag_matter
+command 450 crate::commands::rag::model_download::model_status
+command 460 crate::commands::rag::model_download::model_ensure
+command 470 crate::commands::rag::reranker_download::reranker_status
+command 480 crate::commands::rag::reranker_download::reranker_ensure
+state 10 crate::commands::rag::manage_state

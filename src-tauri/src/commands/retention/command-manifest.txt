@@ -1,0 +1,6 @@
+# Native command registrations owned by this domain.
+# Keep existing order keys stable; add new entries with a new unused key.
+command 2800 crate::commands::retention::retention_sweep
+command 2810 crate::commands::retention::retention_read_pending_rag_cleanup
+command 2820 crate::commands::retention::retention_clear_pending_rag_cleanup_id
+command 2830 crate::commands::retention::redact::redact_meeting_segments

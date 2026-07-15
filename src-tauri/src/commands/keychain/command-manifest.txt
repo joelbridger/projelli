@@ -1,0 +1,5 @@
+# Native command registrations owned by this domain.
+# Keep existing order keys stable; add new entries with a new unused key.
+command 160 crate::commands::keychain::keychain_set
+command 170 crate::commands::keychain::keychain_get
+command 180 crate::commands::keychain::keychain_delete

@@ -1,0 +1,11 @@
+# Native command registrations owned by this domain.
+# Keep existing order keys stable; add new entries with a new unused key.
+command 2020 crate::commands::docusign::commands::docusign_set_workspace
+command 2030 crate::commands::docusign::commands::docusign_connect
+command 2040 crate::commands::docusign::commands::docusign_is_connected
+command 2050 crate::commands::docusign::commands::docusign_disconnect
+command 2060 crate::commands::docusign::commands::docusign_sync
+command 2070 crate::commands::docusign::commands::docusign_cancel_sync
+command 2080 crate::commands::docusign::commands::docusign_sync_status
+command 2090 crate::commands::docusign::commands::docusign_list_unassigned
+state 90 crate::commands::docusign::commands::manage_state

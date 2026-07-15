@@ -1,0 +1,3 @@
+# Native command registrations owned by this domain.
+# Keep existing order keys stable; add new entries with a new unused key.
+command 730 crate::commands::tarball::extract_tarball

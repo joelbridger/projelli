@@ -1,0 +1,4 @@
+# Native command registrations owned by this domain.
+# Keep existing order keys stable; add new entries with a new unused key.
+command 60 crate::commands::data_dir::migrate_workspace_data_dir
+command 70 crate::commands::data_dir::resolve_workspace_data_dir_name

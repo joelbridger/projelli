@@ -1,0 +1,11 @@
+# Native command registrations owned by this domain.
+# Keep existing order keys stable; add new entries with a new unused key.
+command 1940 crate::commands::sharefile::commands::sharefile_set_workspace
+command 1950 crate::commands::sharefile::commands::sharefile_connect
+command 1960 crate::commands::sharefile::commands::sharefile_is_connected
+command 1970 crate::commands::sharefile::commands::sharefile_disconnect
+command 1980 crate::commands::sharefile::commands::sharefile_list_folders
+command 1990 crate::commands::sharefile::commands::sharefile_sync
+command 2000 crate::commands::sharefile::commands::sharefile_cancel
+command 2010 crate::commands::sharefile::commands::sharefile_status
+state 80 crate::commands::sharefile::commands::manage_state

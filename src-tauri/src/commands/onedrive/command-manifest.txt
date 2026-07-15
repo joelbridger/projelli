@@ -1,0 +1,15 @@
+# Native command registrations owned by this domain.
+# Keep existing order keys stable; add new entries with a new unused key.
+command 1740 crate::commands::onedrive::commands::onedrive_set_workspace
+command 1750 crate::commands::onedrive::commands::onedrive_connect
+command 1760 crate::commands::onedrive::commands::onedrive_connect_cancel
+command 1770 crate::commands::onedrive::commands::onedrive_begin_login
+command 1780 crate::commands::onedrive::commands::onedrive_poll_login
+command 1790 crate::commands::onedrive::commands::onedrive_is_connected
+command 1800 crate::commands::onedrive::commands::onedrive_disconnect
+command 1810 crate::commands::onedrive::commands::onedrive_list_drives
+command 1820 crate::commands::onedrive::commands::onedrive_list_folders
+command 1830 crate::commands::onedrive::commands::onedrive_sync
+command 1840 crate::commands::onedrive::commands::onedrive_cancel
+command 1850 crate::commands::onedrive::commands::onedrive_status
+state 60 crate::commands::onedrive::commands::manage_state
