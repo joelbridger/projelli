@@ -257,34 +257,94 @@ const RESERVED_FIRM_MATTERS: &[&str] = &["firm", "firm_home"];
 /// reserved firm buckets are never client matters, so they never enter the set.
 /// A `requested` matter outside the set yields an empty list, so a forged matter
 /// id returns nothing.
+/// The set of matters a member may READ, the one authority every client-data
+/// doorway shares (live list/search, trash, migration export, RAG retrieval).
+pub(crate) enum MatterReadScope {
+    /// Firm-wide: enforcement is off, or the role has firm-read. Every matter.
+    All,
+    /// Exactly these matters — the member's own or assigned households.
+    Only(std::collections::BTreeSet<String>),
+}
+
+impl MatterReadScope {
+    /// Whether a record in `matter_id` may be returned to this member.
+    pub(crate) fn allows(&self, matter_id: &str) -> bool {
+        match self {
+            MatterReadScope::All => true,
+            MatterReadScope::Only(matters) => matters.contains(matter_id),
+        }
+    }
+
+    /// True only for a firm-wide reader (or enforcement off). Doorways that
+    /// expose the WHOLE book (migration export, all-matter RAG) require this.
+    pub(crate) fn is_firm_wide(&self) -> bool {
+        matches!(self, MatterReadScope::All)
+    }
+}
+
+/// Resolve the current member's matter read scope. Deny-closed: with enforcement
+/// on it errors when no member is bound or the role lacks `clients:read`. A
+/// matter is entitled through a household the member owns or is assigned; the
+/// reserved firm buckets are never client matters and never enter the set.
+pub(crate) fn matter_read_scope(
+    store: &CrmCoreStore,
+    enforce: bool,
+    current: Option<&CurrentMember>,
+) -> Result<MatterReadScope> {
+    if !enforce {
+        return Ok(MatterReadScope::All);
+    }
+    let (current_member, role) = current_authority(store, current, PermissionOperation::Read)?;
+    if role.client_access.as_str() == "firm-read" {
+        return Ok(MatterReadScope::All);
+    }
+    // A matter is in scope only if the member is entitled to EVERY household in
+    // it. A matter that also holds a household the member is not entitled to is
+    // ambiguous — two differently-owned households sharing one matter — and must
+    // deny-close rather than leak the co-located household's PII (item 5). The
+    // reserved firm buckets are never client matters.
+    let mut entitled = std::collections::BTreeSet::new();
+    let mut foreign = std::collections::BTreeSet::new();
+    for household in store
+        .list_live_records()?
+        .iter()
+        .filter(|record| record.get("kind").and_then(Value::as_str) == Some("household"))
+    {
+        let matter = record_matter_id(household).to_owned();
+        if RESERVED_FIRM_MATTERS.contains(&matter.as_str()) {
+            continue;
+        }
+        if role_permits_record(&role, &current_member.member_id, household) {
+            entitled.insert(matter);
+        } else {
+            foreign.insert(matter);
+        }
+    }
+    let permitted = entitled.difference(&foreign).cloned().collect();
+    Ok(MatterReadScope::Only(permitted))
+}
+
+/// Native matter scoping for search-style commands. Delegates to
+/// `matter_read_scope`: `None` means "do not scope" (firm-wide reader or off);
+/// otherwise the requested matter is intersected with the permitted set, so a
+/// forged matter id returns nothing.
 pub(crate) fn permitted_search_scopes(
     store: &CrmCoreStore,
     enforce: bool,
     current: Option<&CurrentMember>,
     requested: Option<&str>,
 ) -> Result<Option<Vec<String>>> {
-    if !enforce {
-        return Ok(None);
+    match matter_read_scope(store, enforce, current)? {
+        MatterReadScope::All => Ok(None),
+        MatterReadScope::Only(permitted) => {
+            let scopes = match requested.map(str::trim).filter(|scope| !scope.is_empty()) {
+                Some(scope) if permitted.contains(scope) => vec![scope.to_owned()],
+                Some(_) => Vec::new(),
+                None => permitted.into_iter().collect(),
+            };
+            Ok(Some(scopes))
+        }
     }
-    // Deny-closed: errors when no member is bound or the role lacks read access.
-    let (current_member, role) = current_authority(store, current, PermissionOperation::Read)?;
-    if role.client_access.as_str() == "firm-read" {
-        return Ok(None);
-    }
-    let permitted: std::collections::BTreeSet<String> = store
-        .list_live_records()?
-        .iter()
-        .filter(|record| record.get("kind").and_then(Value::as_str) == Some("household"))
-        .filter(|record| role_permits_record(&role, &current_member.member_id, record))
-        .map(|record| record_matter_id(record).to_owned())
-        .filter(|matter| !RESERVED_FIRM_MATTERS.contains(&matter.as_str()))
-        .collect();
-    let scopes = match requested.map(str::trim).filter(|scope| !scope.is_empty()) {
-        Some(scope) if permitted.contains(scope) => vec![scope.to_owned()],
-        Some(_) => Vec::new(),
-        None => permitted.into_iter().collect(),
-    };
-    Ok(Some(scopes))
 }
 
 fn get_protected_record(
@@ -892,5 +952,66 @@ mod tests {
         let store = CrmCoreStore::open_with_key(directory.path(), &[28; 32]).unwrap();
         seed_imported(&store);
         assert!(permitted_search_scopes(&store, true, None, None).is_err());
+    }
+
+    #[test]
+    fn multi_owner_matter_denies_closed() {
+        // Item 5: two differently-owned households sharing one matterId must not
+        // leak each other's PII. The shared matter is ambiguous, so it drops out
+        // of BOTH members' read scope entirely.
+        let directory = tempfile::tempdir().unwrap();
+        let store = CrmCoreStore::open_with_key(directory.path(), &[32; 32]).unwrap();
+        store
+            .with_immediate_transaction(|transaction| {
+                transaction.execute(
+                    "INSERT INTO crm_member_roles(member_id,role_id,updated_at) VALUES(?1,?2,?3)",
+                    ("maya", "advisor", "2026-07-15T00:00:00Z"),
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        store
+            .upsert_live_record(&serde_json::json!({
+                "id": "household:maya", "kind": "household", "matterId": "matter:shared",
+                "ownerMemberId": "maya", "updatedAt": "2026-07-15T00:00:00Z"
+            }))
+            .unwrap();
+        store
+            .upsert_live_record(&serde_json::json!({
+                "id": "household:noah", "kind": "household", "matterId": "matter:shared",
+                "ownerMemberId": "noah", "updatedAt": "2026-07-15T00:00:00Z"
+            }))
+            .unwrap();
+        let maya = member("maya");
+        let scope = matter_read_scope(&store, true, Some(&maya)).unwrap();
+        assert!(
+            !scope.allows("matter:shared"),
+            "an ambiguous multi-owner matter must deny-close, not leak"
+        );
+        // And it is absent from the concrete search scope set.
+        assert_eq!(
+            permitted_search_scopes(&store, true, Some(&maya), None).unwrap(),
+            Some(Vec::new())
+        );
+    }
+
+    #[test]
+    fn matter_read_scope_is_firm_wide_for_reader_and_off() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = CrmCoreStore::open_with_key(directory.path(), &[33; 32]).unwrap();
+        seed_imported(&store);
+        // Flag off → firm-wide (no scoping).
+        assert!(matter_read_scope(&store, false, None).unwrap().is_firm_wide());
+        // Firm-read role → firm-wide.
+        let casey = member("casey");
+        assert!(matter_read_scope(&store, true, Some(&casey))
+            .unwrap()
+            .is_firm_wide());
+        // Scoped member → only their matter, not firm-wide.
+        let maya = member("maya");
+        let scope = matter_read_scope(&store, true, Some(&maya)).unwrap();
+        assert!(!scope.is_firm_wide());
+        assert!(scope.allows("matter:maya"));
+        assert!(!scope.allows("matter:noah"));
     }
 }

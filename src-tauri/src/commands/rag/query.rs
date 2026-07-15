@@ -333,6 +333,31 @@ pub async fn rag_retrieve(
         RetrievalScope::AllMatters => None,
     };
     let workspace = require_workspace(&state).await?;
+    // Own-clients doorway: RAG retrieval returns client content. A cross-matter
+    // (`AllMatters`) query requires firm-wide read authority; a single-matter
+    // query must name a matter the member owns. Enforced only when the flag is
+    // on, so the shipped (dark) hot path is untouched; deny-closed with no
+    // member. Ownership lives in the CRM store, opened from the same workspace.
+    if crate::commands::crm::features::permissions::commands::own_clients_permissions_enabled() {
+        use crate::commands::crm::features::permissions::commands as perms;
+        let current = perms::native_current_member();
+        let crm_store = crate::commands::crm::core_store::CrmCoreStore::open(&workspace)
+            .map_err(|error| error.to_string())?;
+        let read_scope =
+            perms::matter_read_scope(&crm_store, true, current.as_ref()).map_err(|e| e.to_string())?;
+        match &scope {
+            RetrievalScope::AllMatters => {
+                if !read_scope.is_firm_wide() {
+                    return Err("Cross-matter retrieval requires firm-wide read authority.".into());
+                }
+            }
+            RetrievalScope::Matter { matter_id } => {
+                if !read_scope.allows(matter_id) {
+                    return Err("Matter is outside the current member's client scope.".into());
+                }
+            }
+        }
+    }
     // P2.1 (Finding 4): reuse the cached open table handle (opens once per
     // workspace, not once per Ask). None = no table yet → empty result so
     // first-launch callers get a clean fall-through.

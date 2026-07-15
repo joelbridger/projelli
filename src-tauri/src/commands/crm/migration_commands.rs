@@ -518,10 +518,23 @@ pub async fn crm_migration_export(
     }
     let workspace = workspace(&state).await?;
     let store_workspace = workspace.clone();
-    let store = tokio::task::spawn_blocking(move || CrmCoreStore::open(&store_workspace))
-        .await
-        .map_err(|error| error.to_string())?
-        .map_err(|error| error.to_string())?;
+    let current = crate::commands::crm::features::permissions::commands::native_current_member();
+    let store = tokio::task::spawn_blocking(move || {
+        use crate::commands::crm::features::permissions::commands as perms;
+        let store = CrmCoreStore::open(&store_workspace)?;
+        // A migration export decrypts the ENTIRE client book to a file. Only a
+        // firm-wide reader may run it; a scoped member is refused (deny-closed
+        // when no member is bound).
+        let scope =
+            perms::matter_read_scope(&store, perms::own_clients_permissions_enabled(), current.as_ref())?;
+        if !scope.is_firm_wide() {
+            anyhow::bail!("Migration export requires firm-wide read authority.");
+        }
+        Ok::<CrmCoreStore, anyhow::Error>(store)
+    })
+    .await
+    .map_err(|error| error.to_string())?
+    .map_err(|error| error.to_string())?;
     let records = store
         .list_live_records()
         .map_err(|error| error.to_string())?;

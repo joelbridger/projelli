@@ -2620,10 +2620,38 @@ fn household_dto_name(contact: &crate::commands::crm::model::CrmContact) -> Stri
 #[tauri::command]
 pub async fn crm_list_households(
     app: AppHandle,
+    state: State<'_, CrmState>,
     policy: State<'_, crate::network_policy::NetworkPolicy>,
     run_id: String,
     provider: Option<String>,
 ) -> Result<Vec<CrmHouseholdDto>, String> {
+    // Own-clients doorway: fetching the firm's whole external client book for
+    // import is a firm-wide operation. When the flag is on, require firm-wide
+    // read authority (deny-closed with no member). Flag off preserves behavior.
+    {
+        use crate::commands::crm::features::permissions::commands as perms;
+        if perms::own_clients_permissions_enabled() {
+            let ws = state
+                .workspace
+                .lock()
+                .await
+                .clone()
+                .ok_or_else(|| "Open a workspace before importing clients.".to_string())?;
+            let current = perms::native_current_member();
+            let scope = tokio::task::spawn_blocking(move || {
+                let store = crate::commands::crm::core_store::CrmCoreStore::open(&ws)?;
+                perms::matter_read_scope(&store, true, current.as_ref())
+            })
+            .await
+            .map_err(|error| error.to_string())?
+            .map_err(|error| error.to_string())?;
+            if !scope.is_firm_wide() {
+                return Err(
+                    "Importing the client book requires firm-wide read authority.".into(),
+                );
+            }
+        }
+    }
     let provider = CrmProvider::from_optional(provider.as_deref())?;
     // This is the first real network call in the Sync-now path, before the
     // advisor confirms import.  Emit it immediately so the UI never displays

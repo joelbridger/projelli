@@ -478,9 +478,23 @@ pub async fn crm_trash_soft_delete(
 
 #[tauri::command]
 pub async fn crm_trash_list(state: State<'_, CrmState>) -> Result<Vec<TrashRecordDto>, String> {
+    use crate::commands::crm::features::permissions::commands as perms;
     let workspace = workspace(&state).await?;
+    let current = perms::native_current_member();
     tokio::task::spawn_blocking(move || {
-        list_trashed_records(&CrmCoreStore::open(&workspace)?, Utc::now())
+        let store = CrmCoreStore::open(&workspace)?;
+        // Own-clients doorway: a trashed record still holds client PII (its full
+        // snapshot). Filter to the matters the member may read; a firm-wide
+        // reader (or flag off) sees all. Deny-closed when no member is bound.
+        let scope =
+            perms::matter_read_scope(&store, perms::own_clients_permissions_enabled(), current.as_ref())?;
+        let records = list_trashed_records(&store, Utc::now())?;
+        Ok::<Vec<TrashRecordDto>, anyhow::Error>(
+            records
+                .into_iter()
+                .filter(|record| scope.allows(&record.matter_id))
+                .collect(),
+        )
     })
     .await
     .map_err(|error| error.to_string())?
@@ -520,14 +534,19 @@ pub async fn crm_trash_restore(
     let audit_record_id = record_id.clone();
     let audit_matter_id = matter_id.clone();
     let audit_actor = restored_by.clone();
+    let current = crate::commands::crm::features::permissions::commands::native_current_member();
     let restored = tokio::task::spawn_blocking(move || {
-        restore_record(
-            &CrmCoreStore::open(&operation_workspace)?,
-            &record_id,
-            &matter_id,
-            &restored_by,
-            Utc::now(),
-        )
+        use crate::commands::crm::features::permissions::commands as perms;
+        let store = CrmCoreStore::open(&operation_workspace)?;
+        // Restore writes client PII back into `matter_id` (renderer-supplied), so
+        // a scoped member may only restore into a matter they own. Deny-closed
+        // when no member is bound; firm-wide readers may restore anywhere.
+        let scope =
+            perms::matter_read_scope(&store, perms::own_clients_permissions_enabled(), current.as_ref())?;
+        if !scope.allows(&matter_id) {
+            bail!("CRM record is outside the current member's client scope.");
+        }
+        restore_record(&store, &record_id, &matter_id, &restored_by, Utc::now())
     })
     .await
     .map_err(|error| error.to_string())?
