@@ -92,6 +92,7 @@ describe('en.json structure snapshot', () => {
         "scheduling": 56,
         "search": 6,
         "settings": 226,
+        "shared-client": 3,
         "shortcuts-overlay": 2,
         "spine": 12,
         "tab-guard": 3,

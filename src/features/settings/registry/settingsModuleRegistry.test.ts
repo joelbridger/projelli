@@ -25,8 +25,11 @@ describe('settingsModuleRegistry', () => {
     const descriptors = getSettingsModuleDescriptors();
     const workspace = descriptors[0];
     expect(workspace).toBeDefined();
+    if (workspace === undefined) {
+      throw new Error('Expected workspace settings descriptor');
+    }
     expect(() => {
-      validateSettingsModuleDescriptors([...descriptors, workspace!]);
+      validateSettingsModuleDescriptors([...descriptors, workspace]);
     }).toThrow(
       'duplicate section id: workspace',
     );
