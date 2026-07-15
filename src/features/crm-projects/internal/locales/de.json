@@ -1,6 +1,6 @@
 {
   "internal-projects": {
-    "nav": "Projekte", "title": "Projekte", "description": "Interne Firmenarbeit ohne Bezug zu einem Kunden", "new": "Neues Projekt",
+    "nav": "Interne Projekte", "title": "Projekte", "description": "Interne Firmenarbeit ohne Bezug zu einem Kunden", "new": "Neues Projekt",
     "empty": { "title": "Noch keine internen Projekte", "body": "Erstellen Sie ein Firmenprojekt für Arbeit, die keinem Kunden gehört.", "action": "Projekt erstellen" },
     "create": { "title": "Neues internes Projekt", "save": "Projekt erstellen", "cancel": "Abbrechen" },
     "fields": { "name": "Projektname", "category": "Kategorie", "owner": "Verantwortlich", "status": "Status", "due": "Fälligkeitsdatum", "milestones": "Meilensteine (einer pro Zeile)", "collaborators": "Mitwirkende (durch Kommas trennen)" },

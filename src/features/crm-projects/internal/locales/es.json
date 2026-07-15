@@ -1,6 +1,6 @@
 {
   "internal-projects": {
-    "nav": "Proyectos", "title": "Proyectos", "description": "Trabajo interno de la firma que no está vinculado a un cliente", "new": "Nuevo proyecto",
+    "nav": "Proyectos internos", "title": "Proyectos", "description": "Trabajo interno de la firma que no está vinculado a un cliente", "new": "Nuevo proyecto",
     "empty": { "title": "Aún no hay proyectos internos", "body": "Cree un proyecto de la firma para seguir el trabajo que no pertenece a un cliente.", "action": "Crear proyecto" },
     "create": { "title": "Nuevo proyecto interno", "save": "Crear proyecto", "cancel": "Cancelar" },
     "fields": { "name": "Nombre del proyecto", "category": "Categoría", "owner": "Responsable", "status": "Estado", "due": "Fecha límite", "milestones": "Hitos (uno por línea)", "collaborators": "Colaboradores (separados por comas)" },
