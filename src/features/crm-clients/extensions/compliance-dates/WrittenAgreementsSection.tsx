@@ -135,8 +135,6 @@ export function WrittenAgreementsSection({
               <span>{label}</span>
               <input
                 type="text"
-                inputMode="numeric"
-                pattern="\\d{4}-\\d{2}-\\d{2}"
                 placeholder="YYYY-MM-DD"
                 value={dateForInput(draft[field])}
                 data-testid={`compliance-dates-input-${field}`}
