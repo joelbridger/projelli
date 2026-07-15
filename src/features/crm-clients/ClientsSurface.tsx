@@ -34,7 +34,7 @@ function syncState(kind: ReturnType<typeof useLiveCrmRecords>['freshness']['kind
   return kind === 'last-synced' ? 'last_synced' : 'needs_attention';
 }
 
-function householdFromRecord(record: LiveCrmRecord, currentSyncState: SyncState, lastSyncedAt?: string): HouseholdRecord {
+export function householdFromRecord(record: LiveCrmRecord, currentSyncState: SyncState, lastSyncedAt?: string): HouseholdRecord {
   return {
     id: record.id,
     name: stringValue(record['name'], 'Untitled household'),
@@ -53,6 +53,9 @@ function householdFromRecord(record: LiveCrmRecord, currentSyncState: SyncState,
     customFields: list(record['customFields']) as NonNullable<HouseholdRecord['customFields']>,
     tags: list(record['tags']).filter((tag): tag is string => typeof tag === 'string'),
     contextRefs: list(record['contextRefs']) as NonNullable<HouseholdRecord['contextRefs']>,
+    ...(record['extensionData'] && typeof record['extensionData'] === 'object' && !Array.isArray(record['extensionData'])
+      ? { extensionData: record['extensionData'] as Readonly<Record<string, unknown>> }
+      : {}),
     ...(typeof record['schedulingLinkUrl'] === 'string' ? { schedulingLinkUrl: record['schedulingLinkUrl'] } : {}),
   };
 }

@@ -1,0 +1,29 @@
+{
+  "complianceDates": {
+    "title": "Acuerdos escritos",
+    "helper": "Fechas de cumplimiento y documentos archivados",
+    "edit": "Editar fechas",
+    "save": "Guardar fechas",
+    "cancel": "Cancelar",
+    "missing": "Fecha pendiente",
+    "validation": {
+      "invalid-date": "Ingrese una fecha real en formato AAAA-MM-DD o déjela en blanco."
+    },
+    "statuses": {
+      "advisoryAgreementSignedOn": "Firmado el {{date}}",
+      "investmentPolicyStatementUpdatedOn": "Actualizado el {{date}}",
+      "formAdvDeliveredOn": "Entregado el {{date}}",
+      "formCrsDeliveredOn": "Entregado el {{date}}",
+      "privacyNoticeDeliveredOn": "Entregado el {{date}}",
+      "financialPlanningAgreementRenewedOn": "Renovado el {{date}}"
+    },
+    "fields": {
+      "advisory-agreement": "Contrato de asesoramiento",
+      "investment-policy-statement": "Declaración de política de inversión",
+      "form-adv-delivered": "Formulario ADV entregado",
+      "form-crs-delivered": "Formulario CRS entregado",
+      "privacy-notice": "Aviso de privacidad",
+      "financial-planning-agreement": "Contrato de planificación financiera"
+    }
+  }
+}

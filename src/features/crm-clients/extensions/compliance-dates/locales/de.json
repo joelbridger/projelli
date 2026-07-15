@@ -1,0 +1,29 @@
+{
+  "complianceDates": {
+    "title": "Schriftliche Vereinbarungen",
+    "helper": "Compliance-Daten und hinterlegte Dokumente",
+    "edit": "Daten bearbeiten",
+    "save": "Daten speichern",
+    "cancel": "Abbrechen",
+    "missing": "Datum fehlt",
+    "validation": {
+      "invalid-date": "Geben Sie ein echtes Datum im Format JJJJ-MM-TT ein oder lassen Sie das Feld leer."
+    },
+    "statuses": {
+      "advisoryAgreementSignedOn": "Unterzeichnet am {{date}}",
+      "investmentPolicyStatementUpdatedOn": "Aktualisiert am {{date}}",
+      "formAdvDeliveredOn": "Zugestellt am {{date}}",
+      "formCrsDeliveredOn": "Zugestellt am {{date}}",
+      "privacyNoticeDeliveredOn": "Zugestellt am {{date}}",
+      "financialPlanningAgreementRenewedOn": "Erneuert am {{date}}"
+    },
+    "fields": {
+      "advisory-agreement": "Beratungsvereinbarung",
+      "investment-policy-statement": "Anlagegrundsatzerklärung",
+      "form-adv-delivered": "Formular ADV zugestellt",
+      "form-crs-delivered": "Formular CRS zugestellt",
+      "privacy-notice": "Datenschutzhinweis",
+      "financial-planning-agreement": "Finanzplanungsvereinbarung"
+    }
+  }
+}

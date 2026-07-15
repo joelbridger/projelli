@@ -140,15 +140,19 @@ import {
   legacyHouseholdRecordExtensions,
   legacyHouseholdSections,
 } from './recordRegistryCompatibility';
+import {
+  complianceDatesRecordExtension,
+  writtenAgreementsSection,
+} from './extensions/compliance-dates';
 
 export const householdHeaderActionRegistry: readonly HouseholdHeaderActionDescriptor[] =
   legacyHouseholdHeaderActions;
 export const householdAddActionRegistry: readonly HouseholdAddActionDescriptor[] =
   legacyHouseholdAddActions;
 export const householdSectionRegistry: readonly HouseholdSectionDescriptor[] =
-  legacyHouseholdSections;
+  [...legacyHouseholdSections, writtenAgreementsSection];
 export const householdRecordExtensionRegistry: readonly HouseholdRecordExtensionDescriptor[] =
-  legacyHouseholdRecordExtensions;
+  [...legacyHouseholdRecordExtensions, complianceDatesRecordExtension];
 
 export function getHouseholdHeaderActions() {
   validateHouseholdHeaderActionDescriptors(householdHeaderActionRegistry);
