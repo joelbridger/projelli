@@ -112,8 +112,8 @@ describe('ClientsSurface during a CRM search update', () => {
         extensionData: {
           'crm.professional-contacts': {
             trusted_contact: {
-              name: 'Amelia Foster',
-              relationship: 'Daughter',
+              name: 'Prior trusted contact',
+              relationship: 'Previous relationship',
               organization: '',
               email: '',
               phone: '',
