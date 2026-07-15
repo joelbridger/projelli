@@ -2145,61 +2145,6 @@ function AppShell() {
     throw new Error('Required shell utility surfaces are not registered');
   }
 
-  const handleSurfaceChange = (surface: typeof sidebarActiveTab) => {
-    if (surface !== sidebarActiveTab) {
-      pushNavigationSnapshot();
-    }
-    if (surface === 'files') {
-      setDocumentsView('browser');
-    }
-    if (surface === 'matters') {
-      const matterState = useMatterStore.getState();
-      if (matterState.activeMatterId) {
-        setMattersSurfaceMode('client-map');
-        matterState.setClientMapHubId(matterState.activeMatterId);
-        matterState.setClientMapHubTab('overview');
-      } else {
-        setMattersSurfaceMode('all-clients');
-        matterState.setClientMapHubId(null);
-        matterState.setClientMapHubTab(null);
-      }
-    }
-    setSidebarActiveTab(surface);
-  };
-
-  const preShellNotices = (
-    <>
-      {/* QA-33: a failed workspace switch is informational; the active
-          workspace remains untouched. */}
-      {workspaceOpenError && (
-        <InlineErrorBanner
-          message={workspaceOpenError}
-          onDismiss={dismissWorkspaceOpenError}
-        />
-      )}
-      {credentialServiceUnavailable && !credentialBannerDismissed && (
-        <InlineErrorBanner
-          message={t('settings.api-keys.credential-service-unavailable')}
-          onDismiss={() => {
-            setCredentialBannerDismissed(true);
-          }}
-        />
-      )}
-    </>
-  );
-
-  const postShellNotices = (
-    <>
-      <ModelDownloadCard />
-      <LocalAiDownloadCard />
-      <RagProgressBanner />
-      <ScopeUpdateBanner />
-      <TrialBanner onActivate={() => {
-        openSettings('license');
-      }} />
-    </>
-  );
-
   return (
     <div
       className="h-screen flex flex-col bg-background text-foreground"
@@ -2208,17 +2153,54 @@ function AppShell() {
       {v1ShellFrameEnabled ? (
         <V1ShellFrame
           activeSurface={sidebarActiveTab}
-          globalStatus={<TrustBar inline onOpenAiSettings={() => {
-            openSettingsPage('ai');
-          }} />}
+          globalStatus={
+            <TrustBar inline onOpenAiSettings={() => openSettingsPage('ai')} />
+          }
           sidebarCollapsed={sidebarCollapsed}
           onSidebarCollapsedChange={setSidebarCollapsed}
-          onOpenCommandPalette={() => {
-            setShowCommandPalette(true);
+          onOpenCommandPalette={() => setShowCommandPalette(true)}
+          onSurfaceChange={(surface) => {
+            if (surface !== sidebarActiveTab) pushNavigationSnapshot();
+            if (surface === 'files') setDocumentsView('browser');
+            if (surface === 'matters') {
+              const matterState = useMatterStore.getState();
+              if (matterState.activeMatterId) {
+                setMattersSurfaceMode('client-map');
+                matterState.setClientMapHubId(matterState.activeMatterId);
+                matterState.setClientMapHubTab('overview');
+              } else {
+                setMattersSurfaceMode('all-clients');
+                matterState.setClientMapHubId(null);
+                matterState.setClientMapHubTab(null);
+              }
+            }
+            setSidebarActiveTab(surface);
           }}
-          onSurfaceChange={handleSurfaceChange}
-          preTopbar={preShellNotices}
-          postTopbar={postShellNotices}
+          preTopbar={
+            <>
+              {workspaceOpenError && (
+                <InlineErrorBanner
+                  message={workspaceOpenError}
+                  onDismiss={dismissWorkspaceOpenError}
+                />
+              )}
+              {credentialServiceUnavailable && !credentialBannerDismissed && (
+                <InlineErrorBanner
+                  message={t('settings.api-keys.credential-service-unavailable')}
+                  onDismiss={() => setCredentialBannerDismissed(true)}
+                />
+              )}
+            </>
+          }
+          postTopbar={
+            <>
+              <ModelDownloadCard />
+              <LocalAiDownloadCard />
+              <RagProgressBanner />
+              <ScopeUpdateBanner />
+              <TrialBanner onActivate={() => openSettings('license')} />
+            </>
+          }
         >
           <ErrorBoundary label="Workspace">
             <AppSurfaceRuntimeProvider value={appSurfaceCapabilities}>
@@ -2235,7 +2217,29 @@ function AppShell() {
       >
         Skip to main content
       </a>
-      {preShellNotices}
+      {/* QA-33: a failed "open a different recent project" (or a failed
+          silent boot-time reopen that fell through to the ALREADY-open
+          workspace's UI, not the picker) must never be silent. The current
+          workspace is untouched either way, so this is purely informational. */}
+      {workspaceOpenError && (
+        <InlineErrorBanner
+          message={workspaceOpenError}
+          onDismiss={dismissWorkspaceOpenError}
+        />
+      )}
+      {/* QA-33: useApiKeys already degrades gracefully when the OS credential
+          service is unavailable (falls back to the last known-good key, never
+          blocks/crashes) — but that was entirely silent, so a user had no way
+          to tell "no AI features right now" apart from "I never set up a key".
+          Documents are unaffected either way, hence purely informational. */}
+      {credentialServiceUnavailable && !credentialBannerDismissed && (
+        <InlineErrorBanner
+          message={t('settings.api-keys.credential-service-unavailable')}
+          onDismiss={() => {
+            setCredentialBannerDismissed(true);
+          }}
+        />
+      )}
       {/* Header bar */}
       <header
         className="flex items-center gap-3 h-14 px-3 border-b bg-background shrink-0"
@@ -2281,7 +2285,21 @@ function AppShell() {
         </div>
       </header>
 
-      {postShellNotices}
+      {/* Memory: model download + live indexing progress banners. Each
+          renders only while its work is in flight (one-time embedding-model
+          download / workspace indexer running, or briefly after it
+          completes); otherwise it returns null and adds zero layout. */}
+      <ModelDownloadCard />
+      <LocalAiDownloadCard />
+      <RagProgressBanner />
+      {/* QA-44: shows when a privilege / client scope change has not yet
+          applied to search (renders null otherwise). */}
+      <ScopeUpdateBanner />
+
+      {/* Trial countdown banner — only renders during the final week of
+          the free trial (or once expired) and when no license is active.
+          Otherwise null and zero layout. */}
+      <TrialBanner onActivate={() => openSettings('license')} />
 
       {/* Main content area — a real <main> landmark and a focus target so the
           "Skip to main content" link moves keyboard focus here, not just scrolls
@@ -2294,9 +2312,31 @@ function AppShell() {
         {/* Sidebar with file tree, workflows, research, and settings */}
         <AppShellNav
           activeTab={sidebarActiveTab}
-          onTabChange={(tab: string) =>
-            handleSurfaceChange(tab as typeof sidebarActiveTab)
-          }
+          onTabChange={(tab: string) => {
+            if (tab !== sidebarActiveTab) {
+              pushNavigationSnapshot();
+            }
+            // Any click to 'files' in the spine nav lands on the Files browser,
+            // even if a document was the last thing open. This is the user
+            // clicking the nav (vs a file being opened programmatically), so it
+            // always means "show me my files".
+            if (tab === 'files') {
+              setDocumentsView('browser');
+            }
+            if (tab === 'matters') {
+              const matterState = useMatterStore.getState();
+              if (matterState.activeMatterId) {
+                setMattersSurfaceMode('client-map');
+                matterState.setClientMapHubId(matterState.activeMatterId);
+                matterState.setClientMapHubTab('overview');
+              } else {
+                setMattersSurfaceMode('all-clients');
+                matterState.setClientMapHubId(null);
+                matterState.setClientMapHubTab(null);
+              }
+            }
+            setSidebarActiveTab(tab as typeof sidebarActiveTab);
+          }}
           onAllClientsSelect={() => {
             if (
               sidebarActiveTab !== 'matters' ||

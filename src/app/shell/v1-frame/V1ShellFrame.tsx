@@ -3,15 +3,15 @@ import { useTranslation } from 'react-i18next';
 import { Bell, Command, Search } from 'lucide-react';
 import type { AppSurface } from '@/platform/types/navigation';
 import {
-  getAppSurfaceDescriptor,
   getOrderedAppSurfaces,
 } from '@/app/shell/registry/appSurfaceRegistry';
 import { SharedClientBar } from '@/app/shell/SharedClientBar';
+import { useAppSurfaceRegistry } from '@/app/shell/runtime/useAppSurfaceRegistry';
 import { BRAND } from '@/config/brand';
 import { EV_OPEN_ACCOUNT } from '@/config/identity';
 import { useFlag } from '@/platform/flags';
 import { useProfileStore } from '@/platform/profile/profileStore';
-import { useFirm } from '@/platform/hooks/useFirm';
+import { useFirmStore } from '@/platform/firm/firmStore';
 
 export interface V1ShellFrameProps {
   activeSurface: AppSurface;
@@ -38,11 +38,13 @@ function RegistryNavItems({
   activeSurface,
   onSurfaceChange,
   placement,
+  descriptors,
 }: Pick<V1ShellFrameProps, 'activeSurface' | 'onSurfaceChange'> & {
   placement: 'primary' | 'utility';
+  descriptors: ReturnType<typeof useAppSurfaceRegistry>['descriptors'];
 }) {
   const { t } = useTranslation();
-  const surfaces = getOrderedAppSurfaces(placement);
+  const surfaces = getOrderedAppSurfaces(placement, descriptors);
 
   return (
     <div
@@ -79,7 +81,7 @@ function RegistryNavItems({
 function FirmCard() {
   const { t } = useTranslation();
   const firmName = useProfileStore((state) => state.firmName);
-  const { org } = useFirm();
+  const firm = useFirmStore((state) => state.session);
 
   return (
     <section
@@ -87,10 +89,10 @@ function FirmCard() {
       data-testid="v1-shell-firm-card"
     >
       <strong className="block truncate text-sm font-semibold text-slate-950">
-        {firmName.trim() || org?.name || t('shell-frame.firm-card.default-name')}
+        {firmName.trim() || firm?.org?.name || t('shell-frame.firm-card.default-name')}
       </strong>
       <span className="mt-1 block text-xs text-slate-500">
-        {t('shell-frame.firm-card.summary', { count: 1 })}
+        {t('shell-frame.firm-card.summary', { count: firm?.seats ?? 1 })}
       </span>
     </section>
   );
@@ -106,7 +108,7 @@ function UserAvatar() {
     <button
       aria-label={t('shell-frame.avatar.label', { name: label })}
       className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-900 text-xs font-bold text-white transition-opacity hover:opacity-85 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
-      data-testid="account-identity"
+      data-testid="v1-shell-account-identity"
       onClick={() => {
         window.dispatchEvent(new CustomEvent(EV_OPEN_ACCOUNT));
       }}
@@ -139,7 +141,8 @@ export function V1ShellFrame({
   children,
 }: V1ShellFrameProps) {
   const { t } = useTranslation();
-  const activeDescriptor = getAppSurfaceDescriptor(activeSurface);
+  const { descriptors } = useAppSurfaceRegistry();
+  const activeDescriptor = descriptors.find((descriptor) => descriptor.id === activeSurface);
   const hasSharedClientContext = activeDescriptor?.clientContext === 'shared';
   const sharedClientBarEnabled = useFlag('shared-client-bar');
 
@@ -176,12 +179,14 @@ export function V1ShellFrame({
           activeSurface={activeSurface}
           onSurfaceChange={onSurfaceChange}
           placement="primary"
+          descriptors={descriptors}
         />
         <div className="mt-auto space-y-3">
           <RegistryNavItems
             activeSurface={activeSurface}
             onSurfaceChange={onSurfaceChange}
             placement="utility"
+            descriptors={descriptors}
           />
           {sidebarCollapsed ? null : <FirmCard />}
         </div>
@@ -227,12 +232,9 @@ export function V1ShellFrame({
 
         {postTopbar}
 
-        {/* AppSurfaceRouter retains ownership of its flag-on transition while
-            the shared-client-bar lane lands. Keeping this fallback row only
-            when that flag is off prevents two copies from rendering together. */}
-        {hasSharedClientContext && !sharedClientBarEnabled ? (
+        {hasSharedClientContext ? (
           <div data-testid="v1-shell-client-bar-slot">
-            <SharedClientBar />
+            {!sharedClientBarEnabled && <SharedClientBar />}
           </div>
         ) : null}
 
