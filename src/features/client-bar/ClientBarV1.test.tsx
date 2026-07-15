@@ -8,8 +8,11 @@ import {
 } from './quickActions';
 
 const tauriBoundary = vi.hoisted(() => ({
-  invoke: vi.fn(),
-  isTauri: vi.fn(),
+  invoke:
+    vi.fn<
+      (command: string, args?: Record<string, unknown>) => Promise<unknown>
+    >(),
+  isTauri: vi.fn<() => boolean>(),
 }));
 
 vi.mock('@tauri-apps/api/core', () => tauriBoundary);
@@ -121,9 +124,10 @@ describe('ClientBarV1', () => {
 
     fireEvent.click(screen.getByTestId('client-bar-picker'));
 
-    expect(tauriBoundary.invoke).toHaveBeenCalledWith('crm_list_households', {
-      runId: expect.any(String),
-    });
+    expect(tauriBoundary.invoke).toHaveBeenCalledOnce();
+    const [command, args] = tauriBoundary.invoke.mock.calls[0] ?? [];
+    expect(command).toBe('crm_list_households');
+    expect(typeof args?.['runId']).toBe('string');
     fireEvent.click(
       await screen.findByTestId('client-picker-option-household-native')
     );
@@ -151,10 +155,10 @@ describe('ClientBarV1', () => {
       'Loading clients…'
     );
 
-    await act(async () => {
+    act(() => {
       finishRequest?.([]);
     });
-    expect(screen.getByTestId('client-picker-empty')).toBeInTheDocument();
+    expect(await screen.findByTestId('client-picker-empty')).toBeInTheDocument();
   });
 
   it('shows a safe load error and retries the native household request', async () => {
@@ -201,12 +205,14 @@ describe('ClientBarV1', () => {
 
   it('renders a future lazy-resolved Meetings action without client-bar changes', async () => {
     const navigate = vi.fn();
-    const lazyMeetingsRegistration = async (): Promise<ClientBarQuickAction> =>
-      quickAction({
-        id: 'meetings',
-        labelKey: 'meetings.surface.title',
-        order: 40,
-      });
+    const lazyMeetingsRegistration = (): Promise<ClientBarQuickAction> =>
+      Promise.resolve(
+        quickAction({
+          id: 'meetings',
+          labelKey: 'meetings.surface.title',
+          order: 40,
+        })
+      );
     const meetingsAction = await lazyMeetingsRegistration();
     render(
       <ClientBarV1 onNavigate={navigate} quickActions={[meetingsAction]} />

@@ -57,6 +57,14 @@ export function ClientBarV1({
     }
   }, [households]);
 
+  const requestHouseholds = useCallback(() => {
+    loadHouseholds().catch(() => {
+      setLoadedHouseholds([]);
+      setHouseholdsLoadFailed(true);
+      setHouseholdsLoading(false);
+    });
+  }, [loadHouseholds]);
+
   useEffect(
     () => () => {
       householdRequestId.current += 1;
@@ -67,7 +75,7 @@ export function ClientBarV1({
   const openPicker = () => {
     onChooseClient?.();
     setPickerOpen(true);
-    void loadHouseholds();
+    requestHouseholds();
   };
 
   const selectClient = (nextClient: SharedClientIdentity) => {
@@ -147,7 +155,7 @@ export function ClientBarV1({
         households={pickerHouseholds}
         onClear={clearSelectedClient}
         onOpenChange={setPickerOpen}
-        onRetry={loadHouseholds}
+        onRetry={requestHouseholds}
         onSelect={selectClient}
         open={pickerOpen}
         selectedHouseholdId={client?.householdId ?? null}
