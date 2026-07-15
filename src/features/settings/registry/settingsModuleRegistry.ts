@@ -8,7 +8,7 @@ import { teamsRolesSettingsModule } from '@/features/crm-firm';
 import {
   notificationPreferencesSettingsPanel,
   notificationPreferencesSettingsSection,
-} from '@/features/notifications/preferences';
+} from '@/features/notifications';
 import type {
   SettingsGroupDescriptor,
   SettingsPanelDescriptor,
