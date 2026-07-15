@@ -19,4 +19,4 @@ export type {
   RoleId,
   SystemRoleId,
 } from './contract';
-export { teamsRolesSettingsModule } from './settingsModule';
+export { teamsRolesSettingsModule } from './settingsModuleDescriptor';
