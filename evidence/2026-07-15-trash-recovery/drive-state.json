@@ -1,0 +1,13 @@
+{
+  "expectedSha": "5c78629e27f2a886e5b041b6736d779c24216c5f",
+  "record": {
+    "id": "trash-drive-household-5c78629e",
+    "kind": "household",
+    "matterId": "trash-drive-matter-5c78629e",
+    "name": "Rivera recovery proof household",
+    "status": "active",
+    "primaryAdvisor": "Maya Patel"
+  },
+  "deletedAt": "2026-07-15T12:31:20.626501569+00:00",
+  "expiresAt": "2026-08-14T12:31:20.626501569+00:00"
+}

@@ -1,0 +1,29 @@
+{
+  "crm": {
+    "trash": {
+      "title": "Papelera y recuperación",
+      "description": "Los registros de CRM eliminados se pueden recuperar durante 30 días.",
+      "admin-guard": "La eliminación permanente requiere un administrador de la firma.",
+      "search-label": "Buscar registros eliminados",
+      "search-placeholder": "Buscar registros eliminados",
+      "type-filter": "Filtrar por tipo de registro",
+      "all-types": "Todos los tipos",
+      "record": "Registro",
+      "type": "Tipo",
+      "deleted": "Eliminado",
+      "time-remaining": "Tiempo restante",
+      "deleted-by": "Eliminado por",
+      "recover": "Recuperar",
+      "recovery-meter": "Tiempo restante de recuperación",
+      "days-remaining_one": "Queda {{count}} día",
+      "days-remaining_other": "Quedan {{count}} días",
+      "expired": "Caducado",
+      "empty": "No hay registros de CRM eliminados que coincidan con esta vista.",
+      "load-error": "No pudimos cargar los registros de CRM eliminados. Inténtalo de nuevo.",
+      "restore-error": "No pudimos recuperar ese registro de CRM. Inténtalo de nuevo.",
+      "audit-soft-deleted": "Registro de CRM movido a Papelera y recuperación",
+      "audit-restored": "Registro de CRM restaurado desde Papelera y recuperación",
+      "audit-purge-refused": "Se rechazó la eliminación permanente de CRM"
+    }
+  }
+}

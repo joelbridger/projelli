@@ -6,6 +6,7 @@
 
 pub mod connector;
 pub mod teams_roles;
+pub mod trash;
 
 /// A small descriptor used by boundary tests and future tooling to enumerate
 /// feature-owned native command modules without inspecting their internals.
@@ -19,6 +20,7 @@ pub struct CrmFeatureDescriptor {
 pub const CRM_FEATURE_REGISTRY: &[CrmFeatureDescriptor] = &[
     connector::FEATURE_DESCRIPTOR,
     teams_roles::FEATURE_DESCRIPTOR,
+    trash::FEATURE_DESCRIPTOR,
 ];
 
 #[cfg(test)]

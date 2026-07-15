@@ -113,6 +113,25 @@ impl CrmCoreStore {
         })
     }
 
+    /// Runs one feature-owned CRM mutation as a single SQLCipher transaction.
+    ///
+    /// The core store remains the sole owner of the encrypted connection and
+    /// its lock. Feature modules may use this narrow boundary when a durable
+    /// operation must change a live document and its own feature tables
+    /// together (for example, CRM trash/recovery). Callers receive no database
+    /// handle after this method returns, so they cannot accidentally split an
+    /// atomic mutation across independent store openings.
+    pub(crate) fn transaction<T>(
+        &self,
+        work: impl FnOnce(&rusqlite::Transaction<'_>) -> Result<T>,
+    ) -> Result<T> {
+        let mut conn = lock_unpoison(&self.conn);
+        let transaction = conn.transaction()?;
+        let result = work(&transaction)?;
+        transaction.commit()?;
+        Ok(result)
+    }
+
     pub fn upsert_doc(&self, row: &CrmDocRow) -> Result<()> {
         lock_unpoison(&self.conn).execute("INSERT INTO crm_docs(doc_key,matter_id,doc_id,yjs_state,state_vector,updated_at,deleted) VALUES(?1,?2,?3,?4,?5,?6,?7) ON CONFLICT(doc_key) DO UPDATE SET matter_id=excluded.matter_id,doc_id=excluded.doc_id,yjs_state=excluded.yjs_state,state_vector=excluded.state_vector,updated_at=excluded.updated_at,deleted=excluded.deleted", params![row.doc_key,row.matter_id,row.doc_id,row.yjs_state,row.state_vector,row.updated_at,row.deleted as i64])?;
         Ok(())

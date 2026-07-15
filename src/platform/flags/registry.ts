@@ -87,6 +87,14 @@ export const flagRegistry = [
     expiresAt: '2026-09-13',
     defaultEnabled: false,
   },
+  {
+    id: 'crm-trash-recovery',
+    description: 'Keeps CRM record soft-delete and 30-day recovery dark until acceptance testing passes.',
+    ownerLane: 'crm-trash-recovery',
+    createdAt: '2026-07-15',
+    expiresAt: '2026-09-13',
+    defaultEnabled: false,
+  },
 ] as const satisfies readonly FlagDescriptor[];
 
 export type FlagId = (typeof flagRegistry)[number]['id'];
