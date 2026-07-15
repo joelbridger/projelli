@@ -12,7 +12,9 @@ The earlier `/tmp/crm-trash-recovery-final.png` existed, but it was not used as 
 
 PASS: a real household was written to the encrypted CRM store, soft-deleted through the public `trashClient` entry point, and shown in Trash with an exact 30-day expiry. The app process and bridge were fully stopped. After launch two, the same timestamps and “30 days remaining” survived. The visible Recover button restored the record. The app was fully stopped again. After launch three, the record remained out of Trash and was visible in the Clients directory.
 
-The headless app was run with a private, unlocked Secret Service keychain. This exercised the normal encrypted audit-store path without reading or changing Jameson’s real keychain. It did not bypass audit persistence.
+The runner started and owned its own Vite server after proving the product source still matched the product build. It refused to run if port 5174 was already occupied, so another checkout could not supply the screen.
+
+The audit store used a private, unlocked Secret Service keychain without reading or changing Jameson’s real keychain. Audit persistence was not bypassed. The CRM core used the project launcher’s documented deterministic headless test key; its SQLCipher store remained encrypted.
 
 ## Files
 

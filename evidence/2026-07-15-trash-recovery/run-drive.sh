@@ -13,10 +13,13 @@ DISPLAY_ID="${LANTERN_XVFB_DISPLAY:-:143}"
 APP_PID_FILE="$WORKSPACE/app.pid"
 XVFB_PID_FILE="$WORKSPACE/xvfb.pid"
 LAUNCHER_PID=""
+VITE_PID=""
+PRODUCT_PATHS=(src src-tauri public index.html package.json package-lock.json vite.config.ts)
 
 fail() { echo "FAIL packaged restart drive: $*" >&2; exit 1; }
 
-[ "$(git -C "$ROOT" rev-parse HEAD)" = "$EXPECTED_SHA" ] || fail "source tip changed"
+[ -z "$(git -C "$ROOT" diff --name-only "$EXPECTED_SHA" -- "${PRODUCT_PATHS[@]}")" ] || fail "product source differs from $EXPECTED_SHA"
+[ -z "$(git -C "$ROOT" status --porcelain --untracked-files=all -- "${PRODUCT_PATHS[@]}")" ] || fail "product source has uncommitted changes"
 [ -x "$BINARY" ] || fail "exact binary is missing"
 [ "$(sha256sum "$BINARY" | awk '{print $1}')" = "$EXPECTED_BINARY_SHA" ] || fail "binary hash changed"
 mkdir -p "$WORKSPACE" "$EVIDENCE"
@@ -46,11 +49,37 @@ stop_app() {
   done
 }
 
-cleanup() { stop_app; }
+stop_vite() {
+  if [ -n "$VITE_PID" ] && kill -0 "$VITE_PID" 2>/dev/null; then
+    kill -TERM "$VITE_PID" 2>/dev/null || true
+    wait "$VITE_PID" 2>/dev/null || true
+  fi
+  VITE_PID=""
+}
+
+cleanup() { stop_app; stop_vite; }
 trap cleanup EXIT INT TERM
+
+start_vite() {
+  if curl -sf http://127.0.0.1:5174 >/dev/null 2>&1; then
+    fail "port 5174 is already in use; refusing an unverified frontend"
+  fi
+  (
+    cd "$ROOT"
+    npm run dev -- --host 127.0.0.1
+  ) >"$EVIDENCE/vite.log" 2>&1 &
+  VITE_PID="$!"
+  local deadline=$((SECONDS + 45))
+  until curl -sf http://127.0.0.1:5174 >/dev/null 2>&1; do
+    kill -0 "$VITE_PID" 2>/dev/null || fail "verified frontend stopped early"
+    [ "$SECONDS" -lt "$deadline" ] || fail "verified frontend timed out"
+    sleep 0.1
+  done
+}
 
 launch_app() {
   local number="$1"
+  DISPLAY= \
   LANTERN_APP_BINARY="$BINARY" \
   LANTERN_APP_PID_FILE="$APP_PID_FILE" \
   LANTERN_XVFB_PID_FILE="$XVFB_PID_FILE" \
@@ -76,7 +105,10 @@ drive_phase() {
 }
 
 echo "BUILD source_sha=$EXPECTED_SHA binary_sha256=$EXPECTED_BINARY_SHA"
-echo "KEYCHAIN private Secret Service session; normal encrypted audit-store path"
+echo "FRONTEND source_sha=$EXPECTED_SHA private Vite server owned by this run"
+echo "KEYCHAIN audit store uses private Secret Service; CRM core uses the documented encrypted headless test key"
+
+start_vite
 
 launch_app 1
 drive_phase delete
