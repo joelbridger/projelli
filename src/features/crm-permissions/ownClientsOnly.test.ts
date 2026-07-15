@@ -1,11 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { SYSTEM_ROLE_PERMISSIONS } from '@/features/crm-firm/teams-roles';
-
-const { flagEnabled } = vi.hoisted(() => ({ flagEnabled: { value: true } }));
-
-vi.mock('@/platform/flags/router', () => ({
-  isEnabled: () => flagEnabled.value,
-}));
 
 import { filterOwnClientRecords } from './ownClientsOnly';
 
@@ -22,35 +16,36 @@ const records = [
 ];
 
 describe('own-clients-only display mirror', () => {
-  it('shows only owned or assigned households to an assigned-scope advisor', () => {
+  it('shows only owned or assigned households to an assigned-scope advisor when native enforcement is active', () => {
     expect(
-      filterOwnClientRecords(records, {
-        memberId: 'maya',
-        role: advisor,
-        operation: 'read',
-      }).map((record) => record.id)
+      filterOwnClientRecords(
+        records,
+        { memberId: 'maya', role: advisor, operation: 'read' },
+        true
+      ).map((record) => record.id)
     ).toEqual(['owned', 'assigned']);
   });
 
   it('shows all households to a firm-wide reader', () => {
     expect(
-      filterOwnClientRecords(records, {
-        memberId: 'compliance',
-        role: compliance,
-        operation: 'read',
-      }).map((record) => record.id)
+      filterOwnClientRecords(
+        records,
+        { memberId: 'compliance', role: compliance, operation: 'read' },
+        true
+      ).map((record) => record.id)
     ).toEqual(['owned', 'assigned', 'other', 'label-only']);
   });
 
-  it('keeps the existing unfiltered display behavior while the flag is off', () => {
-    flagEnabled.value = false;
+  it('keeps the existing unfiltered display behavior when native enforcement is NOT active', () => {
+    // The decision is driven by the native-resolved state passed in, NOT the
+    // renderer flag — so a renderer that believes the feature is on cannot make
+    // the mirror claim isolation the native layer is not applying (Finding 6).
     expect(
-      filterOwnClientRecords(records, {
-        memberId: 'maya',
-        role: advisor,
-        operation: 'read',
-      }).map((record) => record.id)
+      filterOwnClientRecords(
+        records,
+        { memberId: 'maya', role: advisor, operation: 'read' },
+        false
+      ).map((record) => record.id)
     ).toEqual(['owned', 'assigned', 'other', 'label-only']);
-    flagEnabled.value = true;
   });
 });
