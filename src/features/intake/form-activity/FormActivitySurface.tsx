@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { Card, SearchField } from '@/ui/kp';
 import { useFlag } from '@/platform/flags';
+import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import {
   filterFormActivity,
@@ -28,25 +29,59 @@ function formatTimestamp(value: string, locale: string): string {
       }).format(date);
 }
 
+function statusLabel(
+  t: (key: string) => string,
+  status: FormActivityStatus
+): string {
+  switch (status) {
+    case 'unmatched':
+      return t('form-activity.status.unmatched');
+    case 'matched':
+      return t('form-activity.status.matched');
+    case 'created':
+      return t('form-activity.status.created');
+    case 'rejected':
+      return t('form-activity.status.rejected');
+  }
+}
+
+function sourceLabel(
+  t: (key: string) => string,
+  audience: 'internal' | 'client-facing'
+): string {
+  return audience === 'internal'
+    ? t('form-activity.source.internal')
+    : t('form-activity.source.client-facing');
+}
+
 export function FormActivitySurface() {
-  const { t, i18n } = useTranslation();
   const enabled = useFlag('form-activity');
   const live = useLiveCrmRecords();
+
+  if (!enabled) return null;
+
+  return <FormActivityPresentation records={live.records} error={live.error} />;
+}
+
+/** Shared read-only presentation for the CRM Home surface and its visual proof. */
+export function FormActivityPresentation({
+  records,
+  error,
+}: {
+  records: readonly LiveCrmRecord[];
+  error: string | null;
+}) {
+  const { t, i18n } = useTranslation();
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<FormActivityStatus | 'all'>('all');
   const [audience, setAudience] = useState<
     'internal' | 'client-facing' | 'all'
   >('all');
-  const entries = useMemo(
-    () => selectFormActivity(live.records),
-    [live.records]
-  );
+  const entries = useMemo(() => selectFormActivity(records), [records]);
   const visibleEntries = useMemo(
     () => filterFormActivity(entries, query, status, audience),
     [audience, entries, query, status]
   );
-
-  if (!enabled) return null;
 
   return (
     <div
@@ -94,7 +129,7 @@ export function FormActivitySurface() {
             <option value="all">{t('form-activity.all-statuses')}</option>
             {statusValues.map((value) => (
               <option key={value} value={value}>
-                {t(`form-activity.status.${value}`)}
+                {statusLabel(t, value)}
               </option>
             ))}
           </select>
@@ -118,7 +153,7 @@ export function FormActivitySurface() {
             </option>
           </select>
         </div>
-        {live.error && (
+        {error && (
           <p
             role="alert"
             data-testid="form-activity-error"
@@ -138,25 +173,11 @@ export function FormActivitySurface() {
           >
             <thead>
               <tr style={{ background: 'var(--kp-accent-softer)' }}>
-                {[
-                  'form',
-                  'submitter',
-                  'contact',
-                  'submitted',
-                  'status-label',
-                ].map((column) => (
-                  <th
-                    key={column}
-                    scope="col"
-                    style={{
-                      borderBottom: '1px solid var(--color-border)',
-                      padding: '8px 6px',
-                      fontSize: 'var(--kp-font-sm)',
-                    }}
-                  >
-                    {t(`form-activity.${column}`)}
-                  </th>
-                ))}
+                <TableHeader>{t('form-activity.form')}</TableHeader>
+                <TableHeader>{t('form-activity.submitter')}</TableHeader>
+                <TableHeader>{t('form-activity.contact')}</TableHeader>
+                <TableHeader>{t('form-activity.submitted')}</TableHeader>
+                <TableHeader>{t('form-activity.status-label')}</TableHeader>
               </tr>
             </thead>
             <tbody>
@@ -168,7 +189,7 @@ export function FormActivitySurface() {
                   <td style={cellStyle}>
                     <strong>{entry.formName}</strong>
                     <div style={mutedStyle}>
-                      {t(`form-activity.source.${entry.audience}`)}
+                      {sourceLabel(t, entry.audience)}
                     </div>
                   </td>
                   <td style={cellStyle}>
@@ -190,7 +211,7 @@ export function FormActivitySurface() {
                   </td>
                   <td style={cellStyle}>
                     <span className="kp-chip kp-chip--sm">
-                      {t(`form-activity.status.${entry.status}`)}
+                      {statusLabel(t, entry.status)}
                     </span>
                   </td>
                 </tr>
@@ -198,7 +219,7 @@ export function FormActivitySurface() {
             </tbody>
           </table>
         </div>
-        {!live.error && visibleEntries.length === 0 && (
+        {!error && visibleEntries.length === 0 && (
           <p
             data-testid="form-activity-empty"
             role="status"
@@ -219,6 +240,21 @@ const cellStyle = {
   padding: '10px 6px',
   verticalAlign: 'top',
 };
+
+function TableHeader({ children }: { children: string }) {
+  return (
+    <th
+      scope="col"
+      style={{
+        borderBottom: '1px solid var(--color-border)',
+        padding: '8px 6px',
+        fontSize: 'var(--kp-font-sm)',
+      }}
+    >
+      {children}
+    </th>
+  );
+}
 
 const mutedStyle = {
   color: 'var(--kp-text-muted)',

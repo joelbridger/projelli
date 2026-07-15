@@ -79,4 +79,17 @@ describe('form activity selectors', () => {
       expect.objectContaining({ id: 'submission-new' }),
     ]);
   });
+
+  it('keeps the persisted live-record order and filters after a restart-style rehydrate', () => {
+    const persisted = JSON.parse(JSON.stringify(records)) as LiveCrmRecord[];
+    const afterRestart = selectFormActivity(persisted);
+
+    expect(afterRestart.map((entry) => entry.id)).toEqual([
+      'submission-new',
+      'submission-old',
+    ]);
+    expect(filterFormActivity(afterRestart, '', 'created', 'client-facing')).toEqual([
+      expect.objectContaining({ id: 'submission-new' }),
+    ]);
+  });
 });
