@@ -13,6 +13,7 @@ export interface SettingsSectionMap {
   voice: true;
   advanced: true;
   help: true;
+  organization: true;
 }
 
 export type SettingsSectionId = Extract<keyof SettingsSectionMap, string>;

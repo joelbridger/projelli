@@ -1,10 +1,6 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
-import type {
-  MemberAssignment,
-  RoleDefinition,
-  TeamDefinition,
-  TeamsRolesState,
-} from './contract';
+import type { MemberAssignment } from './contract';
+import type { ManagedRole, TeamDefinition, TeamsRolesState } from './model';
 
 function nativeOnly<T>(
   command: string,
@@ -19,9 +15,9 @@ function nativeOnly<T>(
 
 export const teamsRolesClient = {
   get: () => nativeOnly<TeamsRolesState>('crm_teams_roles_get'),
-  createRole: (role: RoleDefinition) =>
+  createRole: (role: ManagedRole) =>
     nativeOnly<TeamsRolesState>('crm_teams_roles_create_role', { role }),
-  updateRole: (role: RoleDefinition) =>
+  updateRole: (role: ManagedRole) =>
     nativeOnly<TeamsRolesState>('crm_teams_roles_update_role', { role }),
   deleteRole: (roleId: string) =>
     nativeOnly<TeamsRolesState>('crm_teams_roles_delete_role', { roleId }),

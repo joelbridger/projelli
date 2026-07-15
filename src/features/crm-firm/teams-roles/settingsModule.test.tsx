@@ -31,21 +31,9 @@ vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
 }));
 vi.mock('./teamsRolesClient', () => ({ teamsRolesClient: client }));
 
-import { emptyTeamsRolesState } from './contract';
+import { emptyTeamsRolesState } from './model';
 import { TeamsRolesSettings } from './settingsModule';
 import { teamsRolesSettingsModule } from './settingsModule';
-import type { SettingsSectionRenderProps } from '@/features/settings';
-
-const settingsSectionProps: SettingsSectionRenderProps = {
-  getSetting: () => undefined,
-  setSetting: () => undefined,
-  onAction: () => undefined,
-  filteredKeys: new Set<string>(),
-  searchQuery: '',
-  searchActive: false,
-  onNavigate: () => undefined,
-  hasWorkspaceOpen: true,
-};
 
 describe('TeamsRolesSettings', () => {
   beforeEach(() => {
@@ -72,7 +60,7 @@ describe('TeamsRolesSettings', () => {
   });
 
   it('renders people, the four role rows, and a role matrix behind the panel action', async () => {
-    render(<TeamsRolesSettings {...settingsSectionProps} />);
+    render(<TeamsRolesSettings />);
     expect(
       await screen.findByTestId('teams-roles-member-maya')
     ).toHaveTextContent('Maya Patel');
@@ -89,7 +77,7 @@ describe('TeamsRolesSettings', () => {
   });
 
   it('creates a team and assigns a member to a selected role', async () => {
-    render(<TeamsRolesSettings {...settingsSectionProps} />);
+    render(<TeamsRolesSettings />);
     await screen.findByTestId('teams-roles-member-maya');
     fireEvent.change(screen.getByTestId('teams-roles-team-name'), {
       target: { value: 'Planning' },

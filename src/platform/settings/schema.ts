@@ -40,6 +40,7 @@ export type SettingCategory =
   | 'voice'
   | 'advanced'
   | 'help'
+  | 'organization'
   // ── legacy aliases (kept for deep-link compatibility) ─────────────────
   | 'account'
   | 'general'
@@ -126,6 +127,7 @@ export const CATEGORY_ALIAS_MAP: Readonly<Record<string, SectionCategory>> = {
   workspace:    'workspace',
   advanced:     'advanced',
   help:         'help',
+  organization: 'organization',
 };
 
 /**
@@ -811,6 +813,7 @@ export const SETTING_CATEGORIES: readonly { id: SectionCategory; label: string }
   { id: 'voice', label: 'Voice' },
   { id: 'advanced', label: 'Advanced' },
   { id: 'help', label: 'Help' },
+  { id: 'organization', label: 'Organization' },
 ];
 
 /**

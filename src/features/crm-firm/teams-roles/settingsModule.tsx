@@ -2,20 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ShieldCheck, UsersRound } from 'lucide-react';
 import { Button } from '@/ui/kp';
-import type {
-  SettingsModuleDescriptor,
-  SettingsSectionRenderProps,
-} from '@/features/settings';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
+import { roleForMember, type MemberAssignment } from './contract';
 import {
   emptyTeamsRolesState,
-  roleForMember,
-  type MemberAssignment,
-  type RoleDefinition,
+  type ManagedRole,
   type TeamDefinition,
   type TeamsRolesState,
-} from './contract';
+} from './model';
 import { teamsRolesClient } from './teamsRolesClient';
 
 declare module '@/platform/types/settings' {
@@ -97,7 +92,7 @@ function PeoplePanel({
       ) : (
         members.map((member) => {
           const memberId = member.userId ?? member.id;
-          const role = roleForMember(state, memberId);
+          const role = roleForMember(state.roles, state.memberships, memberId);
           const current = state.memberships.find(
             (item) => item.memberId === memberId
           );
@@ -263,7 +258,7 @@ function RolesPanel({
   onDelete,
 }: {
   state: TeamsRolesState;
-  onCreate: (role: RoleDefinition) => void;
+  onCreate: (role: ManagedRole) => void;
   onDelete: (roleId: string) => void;
 }) {
   const { t } = useTranslation();
@@ -379,7 +374,7 @@ function RolesPanel({
   );
 }
 
-export function TeamsRolesSettings(_props: SettingsSectionRenderProps) {
+export function TeamsRolesSettings() {
   const { t } = useTranslation();
   const { records, reload } = useLiveCrmRecords();
   const [state, setState] = useState<TeamsRolesState>(emptyTeamsRolesState);
@@ -464,7 +459,7 @@ export function TeamsRolesSettings(_props: SettingsSectionRenderProps) {
   );
 }
 
-export const teamsRolesSettingsModule: SettingsModuleDescriptor = {
+export const teamsRolesSettingsModule = {
   id: 'organization',
   order: 80,
   labelKey: 'teams-roles.settings-label',
@@ -477,5 +472,5 @@ export const teamsRolesSettingsModule: SettingsModuleDescriptor = {
     'advisor',
     'compliance',
   ],
-  render: (props) => <TeamsRolesSettings {...props} />,
+  render: () => <TeamsRolesSettings />,
 };

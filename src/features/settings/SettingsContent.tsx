@@ -97,10 +97,7 @@ import {
   SETTING_SEARCH_ALIASES,
   groupKeywordMatch,
 } from './settingsContentHelpers';
-import {
-  getSettingsModuleDescriptor,
-  getSettingsModuleDescriptors,
-} from './registry/settingsModuleRegistry';
+import { getSettingsModuleDescriptor } from './registry/settingsModuleRegistry';
 import { registerSettingsSectionRenderer } from './registry/sectionRendererBindings';
 import type { SettingsSectionRenderProps } from './registry/types';
 import {
@@ -1030,14 +1027,6 @@ export function SettingsContent({
   extraSections,
 }: SettingsContentProps) {
   const { t } = useTranslation();
-  // The registry supplies the settings rail. Organization is present only
-  // while its teams-and-roles feature flag is on.
-  const settingsCategories = getSettingsModuleDescriptors().map((descriptor) => ({
-    id: descriptor.id,
-    label: t(descriptor.labelKey, descriptor.legacyLabel),
-  }));
-  const sectionOrder = settingsCategories.map((section) => section.id);
-
   // Resolve any legacy alias to the canonical section on mount
   const resolveInitial = (cat?: SettingCategory): SectionCategory =>
     cat ? resolveSection(cat) : 'workspace';
@@ -1152,23 +1141,24 @@ export function SettingsContent({
   // Which sections have any match (score > 0).
   const visibleSections = useMemo<Set<SectionCategory>>(() => {
     if (!searchQuery.trim()) {
-      return new Set<SectionCategory>(sectionOrder);
+      return new Set<SectionCategory>(['workspace', 'ai', 'privacy', 'scheduling', 'voice', 'advanced', 'help', 'organization']);
     }
     const sections = new Set<SectionCategory>();
     (Object.keys(sectionScores) as SectionCategory[]).forEach((sec) => {
       if (sectionScores[sec] > 0) sections.add(sec);
     });
     return sections;
-  }, [sectionOrder, sectionScores, searchQuery]);
+  }, [sectionScores, searchQuery]);
 
   // While searching, jump to the strongest-matching section, but stay put if the
   // current section is already a top match (so typing doesn't yank you around).
   const effectiveSection: SectionCategory = (() => {
     if (!searchActive) return activeSection;
-    const maxScore = Math.max(...sectionOrder.map((s) => sectionScores[s]));
+    const order: SectionCategory[] = ['workspace', 'ai', 'privacy', 'scheduling', 'voice', 'advanced', 'help', 'organization'];
+    const maxScore = Math.max(...order.map((s) => sectionScores[s]));
     if (maxScore <= 0) return activeSection;
     if (sectionScores[activeSection] === maxScore) return activeSection;
-    return sectionOrder.find((s) => sectionScores[s] === maxScore) ?? activeSection;
+    return order.find((s) => sectionScores[s] === maxScore) ?? activeSection;
   })();
 
   if (effectiveSection !== activeSection) {
@@ -1358,7 +1348,8 @@ export function SettingsContent({
             ) : null}
             {!railCollapsed && (
             <nav aria-label="Settings sections" className="min-h-0 flex-1 overflow-y-auto py-3">
-              {settingsCategories.map((sec) => {
+              {SETTING_CATEGORIES.map((sec) => {
+              if (sec.id === 'organization' && !getSettingsModuleDescriptor(sec.id)) return null;
               const visible = visibleSections.has(sec.id);
               if (!visible) return null;
               const isActive = !viewingExtra && activeSection === sec.id;
