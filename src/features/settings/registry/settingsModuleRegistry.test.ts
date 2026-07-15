@@ -323,6 +323,6 @@ describe('settingsModuleRegistry', () => {
       registry
         .getSettingsPanelDescriptors('organization')
         .map((panel) => panel.id)
-    ).toEqual(['fake-always', 'fake-gated', 'teams-roles']);
+    ).toEqual(['fake-always', 'fake-gated', 'contact-sources', 'teams-roles']);
   });
 });
