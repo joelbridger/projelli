@@ -34,7 +34,7 @@ function syncState(kind: ReturnType<typeof useLiveCrmRecords>['freshness']['kind
   return kind === 'last-synced' ? 'last_synced' : 'needs_attention';
 }
 
-export function householdFromRecord(record: LiveCrmRecord, currentSyncState: SyncState, lastSyncedAt?: string): HouseholdRecord {
+function householdFromRecord(record: LiveCrmRecord, currentSyncState: SyncState, lastSyncedAt?: string): HouseholdRecord {
   return {
     id: record.id,
     name: stringValue(record['name'], 'Untitled household'),
