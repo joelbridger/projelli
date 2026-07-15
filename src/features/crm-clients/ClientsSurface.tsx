@@ -57,6 +57,11 @@ function householdFromRecord(record: LiveCrmRecord, currentSyncState: SyncState,
       ? { extensionData: record['extensionData'] as Readonly<Record<string, unknown>> }
       : {}),
     ...(typeof record['schedulingLinkUrl'] === 'string' ? { schedulingLinkUrl: record['schedulingLinkUrl'] } : {}),
+    // Preserve every feature-owned namespaced payload exactly as stored. Each
+    // extension validates its own value at its render boundary.
+    ...(record['extensionData'] && typeof record['extensionData'] === 'object' && !Array.isArray(record['extensionData'])
+      ? { extensionData: record['extensionData'] as Readonly<Record<string, unknown>> }
+      : {}),
   };
 }
 

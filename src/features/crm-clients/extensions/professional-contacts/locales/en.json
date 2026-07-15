@@ -1,0 +1,39 @@
+{
+  "professionalContacts": {
+    "title": "Professional contacts",
+    "saveError": "This contact could not be saved. Please try again.",
+    "helper": "People involved in this client's financial life",
+    "rows": {
+      "trusted_contact": {
+        "label": "FINRA trusted contact",
+        "empty": "Not set. Add a person the firm can contact if needed."
+      },
+      "cpa": {
+        "label": "CPA",
+        "empty": "Not set. Add the client's accountant."
+      },
+      "estate_attorney": {
+        "label": "Estate attorney",
+        "empty": "Not set. Add the client's estate attorney."
+      },
+      "insurance_professional": {
+        "label": "Insurance professional",
+        "empty": "Not set. Add an insurance professional."
+      }
+    },
+    "editor": {
+      "name": "Name",
+      "relationship": "Relationship or role",
+      "organization": "Firm or organization",
+      "email": "Email",
+      "phone": "Phone",
+      "notes": "Relationship notes"
+    },
+    "actions": {
+      "add": "Add inline",
+      "edit": "Edit",
+      "save": "Save contact",
+      "cancel": "Cancel"
+    }
+  }
+}

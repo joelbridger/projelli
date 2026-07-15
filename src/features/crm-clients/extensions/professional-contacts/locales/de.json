@@ -1,0 +1,39 @@
+{
+  "professionalContacts": {
+    "title": "Berufliche Kontakte",
+    "saveError": "Dieser Kontakt konnte nicht gespeichert werden. Bitte versuchen Sie es erneut.",
+    "helper": "Personen, die am Finanzleben dieses Kunden beteiligt sind",
+    "rows": {
+      "trusted_contact": {
+        "label": "FINRA-Vertrauensperson",
+        "empty": "Nicht festgelegt. Fügen Sie eine Person hinzu, die die Firma bei Bedarf kontaktieren kann."
+      },
+      "cpa": {
+        "label": "Steuerberater",
+        "empty": "Nicht festgelegt. Fügen Sie den Steuerberater des Kunden hinzu."
+      },
+      "estate_attorney": {
+        "label": "Nachlassanwalt",
+        "empty": "Nicht festgelegt. Fügen Sie den Nachlassanwalt des Kunden hinzu."
+      },
+      "insurance_professional": {
+        "label": "Versicherungsfachperson",
+        "empty": "Nicht festgelegt. Fügen Sie eine Versicherungsfachperson hinzu."
+      }
+    },
+    "editor": {
+      "name": "Name",
+      "relationship": "Beziehung oder Rolle",
+      "organization": "Kanzlei oder Organisation",
+      "email": "E-Mail",
+      "phone": "Telefon",
+      "notes": "Notizen zur Beziehung"
+    },
+    "actions": {
+      "add": "Direkt hinzufügen",
+      "edit": "Bearbeiten",
+      "save": "Kontakt speichern",
+      "cancel": "Abbrechen"
+    }
+  }
+}

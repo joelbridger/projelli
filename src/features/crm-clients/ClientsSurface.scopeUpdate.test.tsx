@@ -13,6 +13,10 @@ import { useMatterStore } from '@/platform/matter/matterStore';
 import { useScopeUpdateStore } from '@/platform/rag/scopeUpdateStore';
 import { setDevFlagOverride } from '@/platform/flags';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
+import {
+  householdRecordExtensionRegistry,
+  type HouseholdRecordExtensionDescriptor,
+} from './recordRegistry';
 
 const liveCrm = vi.hoisted(() => ({
   records: [] as Array<Record<string, unknown>>,
@@ -273,4 +277,101 @@ describe('ClientsSurface during a CRM search update', () => {
       },
     });
   });
+  it('saves professional contacts without changing other extension bags, then rehydrates both after remount', async () => {
+    type FutureExtension = { survives: string };
+    const futureExtension: HouseholdRecordExtensionDescriptor = {
+      id: 'future-extension-test-probe',
+      dataKey: 'future.extension' as never,
+      defaultValue: { survives: '' },
+      validate: (value): value is FutureExtension =>
+        typeof value === 'object' &&
+        value !== null &&
+        typeof (value as Record<string, unknown>)['survives'] === 'string',
+      renderSummary: ({ value }) => (
+        <span data-testid="future-extension-summary">
+          {(value as FutureExtension).survives}
+        </span>
+      ),
+    };
+    const extensionRegistry =
+      householdRecordExtensionRegistry as HouseholdRecordExtensionDescriptor[];
+    extensionRegistry.push(futureExtension);
+    localStorage.setItem(
+      'lantern:feature-flags',
+      JSON.stringify({
+        'record-professional-contacts': true,
+      })
+    );
+    liveCrm.records = [
+      {
+        id: 'household-1',
+        kind: 'household',
+        matterId: 'matter-wealthbox-1',
+        name: 'Abernathy Household',
+        extensionData: {
+          'crm.professional-contacts': {
+            trusted_contact: {
+              name: 'Prior trusted contact',
+              relationship: 'Previous relationship',
+              organization: '',
+              email: '',
+              phone: '',
+              notes: '',
+            },
+            cpa: null,
+            estate_attorney: null,
+            insurance_professional: null,
+          },
+          'future.extension': { survives: 'Sibling extension content' },
+        },
+      },
+    ];
+    let savedRecord: Record<string, unknown> | undefined;
+    liveCrm.save.mockImplementation((record: Record<string, unknown>) => {
+      savedRecord = record;
+      liveCrm.records = [record];
+      return Promise.resolve(record);
+    });
+
+    const firstMount = render(<ClientsSurface />);
+
+    fireEvent.click(
+      screen.getByTestId('professional-contacts-edit-trusted_contact')
+    );
+    fireEvent.change(
+      screen.getByTestId('professional-contacts-name-trusted_contact'),
+      { target: { value: 'Amelia Foster' } }
+    );
+    fireEvent.change(
+      screen.getByTestId('professional-contacts-relationship-trusted_contact'),
+      { target: { value: 'Daughter' } }
+    );
+    fireEvent.click(
+      screen.getByTestId('professional-contacts-save-trusted_contact')
+    );
+
+    await vi.waitFor(() => {
+      expect(savedRecord).toBeDefined();
+    });
+    expect(savedRecord?.['extensionData']).toMatchObject({
+      'crm.professional-contacts': {
+        trusted_contact: {
+          name: 'Amelia Foster',
+          relationship: 'Daughter',
+        },
+      },
+      'future.extension': { survives: 'Sibling extension content' },
+    });
+
+    firstMount.unmount();
+    render(<ClientsSurface />);
+
+    expect(
+      screen.getByTestId('professional-contacts-summary-trusted_contact')
+    ).toHaveTextContent('Amelia Foster');
+    expect(screen.getByTestId('future-extension-summary')).toHaveTextContent(
+      'Sibling extension content'
+    );
+  });
+
 });

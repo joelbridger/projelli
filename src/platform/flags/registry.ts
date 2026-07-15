@@ -60,6 +60,16 @@ export const flagRegistry = [
     expiresAt: '2026-09-13',
     defaultEnabled: false,
   },
+  {
+    id: 'record-professional-contacts',
+    description:
+      'Keeps professional and trusted-contact details dark until their record drive passes.',
+    ownerLane: 'record-professional-contacts',
+
+    createdAt: '2026-07-15',
+    expiresAt: '2026-09-13',
+    defaultEnabled: false,
+  },
 ] as const satisfies readonly FlagDescriptor[];
 
 export type FlagId = (typeof flagRegistry)[number]['id'];
