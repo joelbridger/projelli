@@ -147,15 +147,29 @@ import {
 import { employmentHouseholdSection } from './extensions/employment';
 import { investmentProfileSection } from './extensions/investment-profile';
 import { professionalContactsSection } from './extensions/professional-contacts/registry';
+import {
+  customFieldsAdvisorRecordExtension,
+  customFieldsAdvisorSection,
+} from './extensions/custom-fields';
 
 export const householdHeaderActionRegistry: readonly HouseholdHeaderActionDescriptor[] =
   legacyHouseholdHeaderActions;
 export const householdAddActionRegistry: readonly HouseholdAddActionDescriptor[] =
   legacyHouseholdAddActions;
-export const householdSectionRegistry: readonly HouseholdSectionDescriptor[] =
-  [...legacyHouseholdSections, professionalContactsSection, employmentHouseholdSection, investmentProfileSection, writtenAgreementsSection];
+export const householdSectionRegistry: readonly HouseholdSectionDescriptor[] = [
+  ...legacyHouseholdSections,
+  professionalContactsSection,
+  employmentHouseholdSection,
+  investmentProfileSection,
+  writtenAgreementsSection,
+  customFieldsAdvisorSection,
+];
 export const householdRecordExtensionRegistry: readonly HouseholdRecordExtensionDescriptor[] =
-  [...legacyHouseholdRecordExtensions, complianceDatesRecordExtension];
+  [
+    ...legacyHouseholdRecordExtensions,
+    complianceDatesRecordExtension,
+    customFieldsAdvisorRecordExtension,
+  ];
 
 export function getHouseholdHeaderActions() {
   validateHouseholdHeaderActionDescriptors(householdHeaderActionRegistry);

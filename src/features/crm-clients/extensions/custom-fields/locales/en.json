@@ -1,0 +1,9 @@
+{
+  "customFields": {
+    "title": "Custom fields",
+    "helper": "Details your firm has chosen to collect for this household",
+    "save": "Save custom fields",
+    "saveError": "I couldn't save these custom fields. Please try again.",
+    "loadError": "I couldn't load your firm's custom fields. Please try again."
+  }
+}
