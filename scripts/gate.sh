@@ -11,6 +11,7 @@ step () { echo ""; echo "===== $1 ====="; shift; "$@" || { echo "❌ FAILED: $*"
 
 step "Build assets"    node scripts/copy-build-assets.mjs
 step "Module boundaries" npm run boundaries:check
+step "Active CRM/client boundary" npm run crm:active-boundary
 step "Flag cap"         node scripts/check-flag-cap.mjs
 step "Tauri version parity" node scripts/check-tauri-parity.mjs
 step "Tauri TS/Rust command contracts" node scripts/check-tauri-contracts.mjs
