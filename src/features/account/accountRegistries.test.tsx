@@ -10,8 +10,8 @@ import {
 } from './connectionCardRegistry';
 import type {
   AccountSectionDescriptor,
-  ConnectionCardDescriptor,
 } from './accountRegistryTypes';
+import type { ConnectionCardDescriptor } from '@/platform/types/account';
 
 declare module '@/platform/types/account' {
   interface AccountSectionIdMap {

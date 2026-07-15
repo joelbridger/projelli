@@ -1,5 +1,5 @@
 import { BoxConnect } from './BoxConnect';
-import type { ConnectionCardDescriptor } from '@/features/account/accountRegistryTypes';
+import type { ConnectionCardDescriptor } from '@/platform/types/account';
 declare module '@/platform/types/account' {
   interface ConnectionCardIdMap {
     box: true;

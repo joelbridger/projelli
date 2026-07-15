@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 /**
  * Closed, augmentable IDs for Account-window sections.
  *
@@ -16,3 +18,16 @@ export type AccountSectionId = Extract<keyof AccountSectionIdMap, string>;
 export interface ConnectionCardIdMap {}
 
 export type ConnectionCardId = Extract<keyof ConnectionCardIdMap, string>;
+
+export type ConnectionCardPlacement = 'connections' | 'developer-tools';
+
+/** A platform connector's Account card contract. */
+export interface ConnectionCardDescriptor {
+  id: ConnectionCardId;
+  labelKey: string;
+  placement: ConnectionCardPlacement;
+  order: number;
+  render: () => ReactNode;
+  renderStatus: () => ReactNode;
+  renderSafeDisconnect: () => ReactNode;
+}

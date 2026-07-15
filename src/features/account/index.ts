@@ -1,6 +1,8 @@
 export type {
   AccountSectionDescriptor,
   AccountSectionRenderProps,
+} from './accountRegistryTypes';
+export type {
   ConnectionCardDescriptor,
   ConnectionCardPlacement,
-} from './accountRegistryTypes';
+} from '@/platform/types/account';

@@ -1,5 +1,5 @@
 import { DocuSignConnect } from './DocuSignConnect';
-import type { ConnectionCardDescriptor } from '@/features/account/accountRegistryTypes';
+import type { ConnectionCardDescriptor } from '@/platform/types/account';
 declare module '@/platform/types/account' {
   interface ConnectionCardIdMap {
     docusign: true;

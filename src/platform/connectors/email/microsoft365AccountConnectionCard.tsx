@@ -1,5 +1,5 @@
 import { MailConnect } from './MailConnect';
-import type { ConnectionCardDescriptor } from '@/features/account/accountRegistryTypes';
+import type { ConnectionCardDescriptor } from '@/platform/types/account';
 declare module '@/platform/types/account' {
   interface ConnectionCardIdMap {
     'microsoft-365-mail': true;

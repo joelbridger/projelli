@@ -1,5 +1,5 @@
 import { ShareFileConnect } from './ShareFileConnect';
-import type { ConnectionCardDescriptor } from '@/features/account/accountRegistryTypes';
+import type { ConnectionCardDescriptor } from '@/platform/types/account';
 declare module '@/platform/types/account' {
   interface ConnectionCardIdMap {
     sharefile: true;

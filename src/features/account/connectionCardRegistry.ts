@@ -18,7 +18,7 @@ import { McpSettingsSection, OllamaSettingsSection } from '@/features/settings';
 import type {
   ConnectionCardDescriptor,
   ConnectionCardPlacement,
-} from './accountRegistryTypes';
+} from '@/platform/types/account';
 
 declare module '@/platform/types/account' {
   interface ConnectionCardIdMap {
