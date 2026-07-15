@@ -13,10 +13,12 @@ import { crmClientsSharedClientContextAdapter } from '@/features/crm-clients';
 import { askSharedClientContextAdapter } from '@/features/ask';
 import { meetingsSharedClientContextAdapter } from '@/features/meetings';
 import { readSharedClientContext } from '@/platform/client-context';
+import { setDevFlagOverride } from '@/platform/flags';
 
 describe('shared client bar seam', () => {
   afterEach(() => {
     useClientContextStore.getState().clearClient();
+    setDevFlagOverride('shared-client-bar', undefined);
   });
 
   it('renders no bar when the feature flag is off', () => {
@@ -60,6 +62,18 @@ describe('shared client bar seam', () => {
     expect(screen.getByTestId('shared-client-bar-current')).toHaveTextContent(
       'No client selected'
     );
+  });
+
+  it('keeps legacy plumbing off and swaps to the v1 bar only when enabled', () => {
+    setDevFlagOverride('shared-client-bar', false);
+    const { rerender } = render(<SharedClientBar />);
+    expect(screen.getByTestId('shared-client-bar')).toBeInTheDocument();
+    expect(screen.queryByTestId('client-bar-v1')).not.toBeInTheDocument();
+
+    setDevFlagOverride('shared-client-bar', true);
+    rerender(<SharedClientBar />);
+    expect(screen.getByTestId('client-bar-v1')).toBeInTheDocument();
+    expect(screen.queryByTestId('shared-client-bar')).not.toBeInTheDocument();
   });
 
   it('propagates one CRM selection across Ask and Meetings adapters', () => {

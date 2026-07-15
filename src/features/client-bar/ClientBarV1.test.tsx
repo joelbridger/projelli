@@ -1,8 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import { SharedClientBar } from '@/app/shell/SharedClientBar';
 import { useClientContextStore } from '@/platform/client-context';
-import { setDevFlagOverride } from '@/platform/flags';
 import { ClientBarV1 } from './ClientBarV1';
 import {
   getSharedClientQuickActions,
@@ -39,7 +37,6 @@ describe('ClientBarV1', () => {
 
   afterEach(() => {
     useClientContextStore.getState().clearClient();
-    setDevFlagOverride('shared-client-bar', undefined);
   });
 
   it('shows the empty and selected shared-client states', () => {
@@ -221,17 +218,6 @@ describe('ClientBarV1', () => {
     expect(navigate).toHaveBeenCalledWith('meetings');
   });
 
-  it('keeps the legacy plumbing when the flag is off and swaps to v1 when on', () => {
-    setDevFlagOverride('shared-client-bar', false);
-    const { rerender } = render(<SharedClientBar />);
-    expect(screen.getByTestId('shared-client-bar')).toBeInTheDocument();
-    expect(screen.queryByTestId('client-bar-v1')).not.toBeInTheDocument();
-
-    setDevFlagOverride('shared-client-bar', true);
-    rerender(<SharedClientBar />);
-    expect(screen.getByTestId('client-bar-v1')).toBeInTheDocument();
-    expect(screen.queryByTestId('shared-client-bar')).not.toBeInTheDocument();
-  });
 });
 
 function quickAction({
