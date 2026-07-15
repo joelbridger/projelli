@@ -42,6 +42,9 @@ The central maps intentionally have no string index signature. A misspelled ID
 must fail type checking. Do not add a fixed union or widen `DirectoryContext`
 for one feature; put feature-local state behind its descriptor component.
 
+The registry test currently has four `it()` blocks and sixteen explicit
+assertions. Do not describe it as “25 tests”; report the actual Vitest result.
+
 ## Mount once and verify
 
 Append the descriptor to the matching registry only. Keep all existing entries

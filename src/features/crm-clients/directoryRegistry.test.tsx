@@ -40,6 +40,12 @@ describe('client directory registries', () => {
     expect(directoryActionRegistry.map(({ id }) => id)).toEqual(['create-household']);
     expect(directoryRailRegistry.map(({ id }) => id)).toEqual(['person-details']);
     expect(directoryViewRegistry.map(({ id }) => id)).toEqual(['directory', 'book']);
+    const bookContext: DirectoryContext = { ...context, sort: { ...context.sort, value: 'book' } };
+    const tabSwitch = directoryToolRegistry.find(({ id }) => id === 'tab-switch');
+    const personDetails = directoryRailRegistry.find(({ id }) => id === 'person-details');
+    if (!tabSwitch || !personDetails) throw new Error('Expected frozen compatibility descriptors');
+    render(<>{tabSwitch.mount(bookContext)}{personDetails.mount(bookContext)}</>);
+    expect([screen.queryByTestId('crm-directory-tab-households') !== null, screen.queryByTestId('crm-directory-person-panel') === null]).toEqual([true, true]);
   });
 
   it('mounts one dummy tool, action, rail, and view through their descriptors', () => {
