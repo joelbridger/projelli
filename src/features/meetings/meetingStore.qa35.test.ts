@@ -21,7 +21,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
 vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock, isTauri: () => false }));
 
-import { useMeetingStore, needsReview, checkLowDiskSpaceWarning } from './meetingStore';
+import { useMeetingStore, checkLowDiskSpaceWarning } from './meetingStore';
+import { needsReview } from './insights/review/meetingReviewArtifactStore';
 import type { MeetingSummary } from './ClientMeetingsTab';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 

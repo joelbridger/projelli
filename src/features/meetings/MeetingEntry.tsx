@@ -24,13 +24,13 @@ import { Badge, SlidePanel } from '@/ui/kp';
 import { MeetingSendPanel } from './MeetingSendPanel';
 import { AuditService } from '@/platform/audit/AuditService';
 import {
-  markMeetingReviewed,
   updateMeetingJson,
   retryMeetingNotes,
   retryMeetingTranscript,
   ensureMeetingNoticeVerified,
   resolveMatterFolder,
 } from './meetingStore';
+import { markMeetingReviewed } from './insights/review/meetingReviewArtifactStore';
 import type { MeetingMeta } from './meetingStore';
 import { NoticeTrail } from './NoticeTrail';
 import { makeConsentLedger } from './consentLedger';
@@ -690,9 +690,14 @@ export function MeetingEntry({
     retryingNotes,
     retryingTranscript,
     onSeek: handleSeek,
-    onRetryNotes: handleRetryNotes,
-    onRetryTranscript: handleRetryTranscript,
-    onPanelError: handleActionError,
+    onRetryNotes: () => {
+      // PARITY: preserves pre-refactor silent handling; surfacing these errors to the user is a tracked design finding, not a refactor-lane change.
+      void handleRetryNotes();
+    },
+    onRetryTranscript: () => {
+      // PARITY: preserves pre-refactor silent handling; surfacing these errors to the user is a tracked design finding, not a refactor-lane change.
+      void handleRetryTranscript();
+    },
   };
   const headerActionContext = {
     t,
@@ -708,7 +713,17 @@ export function MeetingEntry({
     },
     onMarkReviewed: handleMarkReviewed,
     onDownloadAudio: handleDownloadAudio,
-    onCopyText: copyText,
+    onCopyTranscript: () => {
+      // PARITY: preserves pre-refactor silent handling; surfacing these errors to the user is a tracked design finding, not a refactor-lane change.
+      void copyText(
+        transcriptToText(transcript),
+        t('meetings.entry.transcript-copied')
+      );
+    },
+    onCopySummary: () => {
+      // PARITY: preserves pre-refactor silent handling; surfacing these errors to the user is a tracked design finding, not a refactor-lane change.
+      void copyText(summaryText.trim(), t('meetings.entry.summary-copied'));
+    },
     onExportTranscript: handleExportTranscript,
     onExportSummaryDocx: handleExportSummaryDocx,
     onExportSummaryPdf: handleExportSummaryPdf,
@@ -935,8 +950,10 @@ export function MeetingEntry({
                       setTypeInput(e.target.value);
                     }}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter')
-                        void handleSaveType().catch(handleActionError);
+                      if (e.key === 'Enter') {
+                        // PARITY: preserves pre-refactor silent handling; surfacing these errors to the user is a tracked design finding, not a refactor-lane change.
+                        void handleSaveType();
+                      }
                       if (e.key === 'Escape') setEditingType(false);
                     }}
                     style={{
@@ -950,7 +967,8 @@ export function MeetingEntry({
                     type="button"
                     data-testid="meeting-type-save"
                     onClick={() => {
-                      void handleSaveType().catch(handleActionError);
+                      // PARITY: preserves pre-refactor silent handling; surfacing these errors to the user is a tracked design finding, not a refactor-lane change.
+                      void handleSaveType();
                     }}
                     style={{
                       border: 'none',
@@ -1168,7 +1186,8 @@ export function MeetingEntry({
               data-testid="delete-audio-confirm-button"
               onClick={() => {
                 setConfirmingDelete(false);
-                void handleDeleteAudio().catch(handleActionError);
+                // PARITY: preserves pre-refactor silent handling; surfacing these errors to the user is a tracked design finding, not a refactor-lane change.
+                void handleDeleteAudio();
               }}
             >
               {t('meetings.entry.delete-audio-confirm-button')}

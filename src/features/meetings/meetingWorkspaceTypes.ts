@@ -40,9 +40,8 @@ export interface MeetingPanelContext {
   retryingNotes: boolean;
   retryingTranscript: boolean;
   onSeek: (ms: number) => void;
-  onRetryNotes: () => Promise<void>;
-  onRetryTranscript: () => Promise<void>;
-  onPanelError: (error: unknown) => void;
+  onRetryNotes: () => void;
+  onRetryTranscript: () => void;
 }
 
 export interface MeetingPanelDescriptor {
@@ -66,7 +65,8 @@ export interface MeetingHeaderActionContext {
   onOpenSend: () => void;
   onMarkReviewed: () => Promise<void>;
   onDownloadAudio: () => void;
-  onCopyText: (text: string, notice: string) => Promise<void>;
+  onCopyTranscript: () => void;
+  onCopySummary: () => void;
   onExportTranscript: () => void;
   onExportSummaryDocx: () => void;
   onExportSummaryPdf: () => void;
@@ -106,6 +106,18 @@ export interface MeetingInsightArtifactProducer {
   ) => Promise<MeetingInsightArtifact | null>;
 }
 
+export interface MeetingInsightArtifactStore {
+  artifactId: string;
+  version: number;
+  read: (
+    context: MeetingInsightArtifactContext
+  ) => Promise<MeetingInsightArtifact | null>;
+  write: (
+    context: MeetingInsightArtifactContext,
+    artifact: MeetingInsightArtifact
+  ) => Promise<MeetingInsightArtifact | null>;
+}
+
 export interface MeetingInsightSettingsContext {
   workspaceService: WorkspaceService | null;
 }
@@ -134,8 +146,14 @@ export interface MeetingInsightDescriptor {
   id: MeetingInsightId;
   order: number;
   version: number;
+  mounts: {
+    meetingSummary: boolean;
+    clientSummary: boolean;
+  };
   prerequisites: readonly MeetingInsightPrerequisite[];
+  artifactStore: MeetingInsightArtifactStore;
   artifactProducer: MeetingInsightArtifactProducer;
+  selectors: Readonly<Record<string, unknown>>;
   settings: MeetingInsightSettingsDescriptor;
   renderMeetingSummary: (
     context: MeetingInsightMeetingSummaryContext

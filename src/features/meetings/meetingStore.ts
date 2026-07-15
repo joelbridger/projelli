@@ -40,13 +40,7 @@ import { AuditService } from '@/platform/audit/AuditService';
 import { detectMeetingType, makeMeetingTypesStore } from './meetingTypes';
 import { dictationToMeeting } from './dictationToMeeting';
 import { makeConsentLedger } from './consentLedger';
-import type { NoticeState } from './noticeLedger';
-import { customNoticeScript, type NoticePolicy } from './noticeSettings';
-import {
-  noticeEvidenceSatisfied,
-  type NoticeCardEvidence,
-  type NoticeEvidenceRule,
-} from './noticeCard/noticeCardEvidence';
+import { customNoticeScript } from './noticeSettings';
 import { startNoticeCard, stopNoticeCard } from './noticeCard/noticeCardLifecycle';
 import type { NoticeCardStatus } from './noticeCard/supervisor';
 import type { NoticeCardPlatform } from './noticeCard/noticeCardTypes';
@@ -54,7 +48,6 @@ import type { NoticeCardVisual } from './noticeCard/canvasCard';
 import { ensureNoticeVerified, type NoticeVerificationDeps } from './noticeVerification';
 import type { NoticeLocale } from './noticeMatcher';
 import i18n from '@/i18n';
-import type { MeetingSummary } from './ClientMeetingsTab';
 import type { MeetingDeliveryPlan } from './meetingRecipientPlan';
 import type { MeetingDeliveryStatus } from './meetingArtifactDelivery';
 
@@ -774,118 +767,6 @@ export async function recordChatNoticeForActiveMeeting(text: string): Promise<vo
   } catch {
     // best-effort — copying to the clipboard still worked.
   }
-}
-
-export type ReviewItemKind =
-  | 'unreviewed-note'
-  | 'crm-waiting'
-  | 'no-followup'
-  | 'unreadable-meta'
-  // Recording Notice Kit: no spoken recording notice was detected in the
-  // meeting's first minutes. 'notice-unverified' is the Standard-policy flag;
-  // 'notice-quarantined' is the stronger Strict-policy state (meeting stays
-  // in-review until a human resolves it — never auto-deleted or auto-stopped).
-  | 'notice-unverified'
-  | 'notice-quarantined'
-  // QA-40: transcribe_meeting failed (missing engine/model, wedged sidecar, or
-  // other error) — surfaced honestly with a retry rather than an eternal queue.
-  | 'transcript-failed'
-  // QA-35 review round 2: capture_stop failed AND no audio.wav ever got
-  // finalized (most commonly the disk was still full when finalize_session
-  // tried to write it) — there's nothing to transcribe/generate notes from,
-  // so this is a genuine dead end, not a transient "still generating" state.
-  // No retry offered (there's no recourse short of re-recording the
-  // meeting); surfaced so it's never mistaken for an eternal pending queue.
-  | 'recording-incomplete';
-export interface ReviewItem {
-  kind: ReviewItemKind;
-}
-
-interface CrmQueueItemLike {
-  matterId: string;
-  sourceRef: string;
-  status: string;
-}
-
-/**
- * Task 12b — per-client (never practice-wide) "Needs review" flags for one
- * meeting. Pure so it's cheap to call per row in ClientMeetingsTab's list.
- */
-export function needsReview(
-  meeting: MeetingSummary,
-  crmQueue: CrmQueueItemLike[],
-  now: number = Date.now(),
-  // Recording Notice Kit: the meeting's derived notice state + the firm policy.
-  // Optional so existing callers (meeting, crmQueue) keep working unchanged.
-  // Notice Card (additive): full-duration card presence + the firm evidence
-  // rule. When absent, behavior is identical to before (verbal-only, 'either').
-  notice?: {
-    state: NoticeState;
-    policy: NoticePolicy;
-    cardEvidence?: NoticeCardEvidence;
-    evidenceRule?: NoticeEvidenceRule;
-  }
-): ReviewItem[] {
-  const items: ReviewItem[] = [];
-  // A meeting folder with a missing/corrupt meeting.json is an orphaned or
-  // incomplete recording — it must be surfaced honestly here, never silently
-  // hidden or rendered as if it were a normal, fully-formed meeting.
-  if (meeting.meta === null) items.push({ kind: 'unreadable-meta' });
-  // QA-40: a failed transcription is a silent dead-end otherwise — surface
-  // it in the same review queue the advisor already checks, not just on the
-  // meeting's own detail page.
-  if (meeting.meta?.transcriptError) items.push({ kind: 'transcript-failed' });
-  // QA-35 review round 2: a recordingError with no salvaged audio at all
-  // (see runPostStopPipeline's doc — a 'disk-full' failure DOES salvage
-  // real audio and runs the normal pipeline on it instead) has nothing that
-  // will ever transcribe/generate notes on its own — flag it rather than
-  // let it read as an ordinary in-progress meeting forever.
-  if (meeting.meta?.recordingError && !meeting.hasAudio) {
-    items.push({ kind: 'recording-incomplete' });
-  }
-  if (meeting.hasNotes && !meeting.meta?.reviewedAt)
-    items.push({ kind: 'unreviewed-note' });
-  const waiting = crmQueue.some(
-    (q) =>
-      q.status === 'proposed' &&
-      q.sourceRef.startsWith(`meeting:${meeting.dir}`)
-  );
-  if (waiting) items.push({ kind: 'crm-waiting' });
-  // "No follow-up drafted" only nags once the meeting is a day old — flagging
-  // a meeting recorded five minutes ago is noise, not a review queue.
-  const ageMs = now - Date.parse(meeting.meta?.startedAt ?? '');
-  if (
-    !meeting.meta?.followupDraftedAt &&
-    Number.isFinite(ageMs) &&
-    ageMs > 24 * 3_600_000
-  ) {
-    items.push({ kind: 'no-followup' });
-  }
-  // Recording Notice Kit + Notice Card: a meeting needs attention when its
-  // notice is NOT satisfied by the firm's evidence rule. By default ('either'),
-  // a verified spoken notice OR the card present for the whole recording
-  // satisfies it; a firm can require both. 'unchecked' (not yet transcribed)
-  // never flags. Strict escalates the same condition to a quarantine state
-  // instead of a plain review flag. With no card evidence + the default rule,
-  // this is identical to the verbal-only behavior it replaces.
-  if (notice && notice.state.status !== 'unchecked') {
-    const cardEvidence: NoticeCardEvidence = notice.cardEvidence ?? { presentForEntireRecording: false };
-    const rule: NoticeEvidenceRule = notice.evidenceRule ?? 'either';
-    if (!noticeEvidenceSatisfied(notice.state, cardEvidence, rule)) {
-      items.push({ kind: notice.policy === 'strict' ? 'notice-quarantined' : 'notice-unverified' });
-    }
-  }
-  return items;
-}
-
-/** Task 12b — set `meeting.json.reviewedAt`, marking a meeting reviewed. */
-export async function markMeetingReviewed(
-  meetingDir: string
-): Promise<MeetingMeta | null> {
-  return updateMeetingJson(meetingDir, (current) => ({
-    ...current,
-    reviewedAt: new Date().toISOString(),
-  }));
 }
 
 /**

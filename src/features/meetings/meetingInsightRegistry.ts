@@ -2,11 +2,13 @@ import type {
   MeetingInsightDescriptor,
   MeetingInsightPrerequisite,
 } from './meetingWorkspaceTypes';
+import { meetingReviewInsightDescriptor } from './insights/review/meetingReviewArtifactStore';
 
 export type {
   MeetingInsightArtifact,
   MeetingInsightArtifactContext,
   MeetingInsightArtifactProducer,
+  MeetingInsightArtifactStore,
   MeetingInsightClientSummaryContext,
   MeetingInsightDescriptor,
   MeetingInsightId,
@@ -39,7 +41,7 @@ export function validateMeetingInsightDescriptors(
 ): void {
   const ids = new Set<string>();
   for (const descriptor of descriptors) {
-    const id = String(descriptor.id);
+    const id = descriptor.id;
     if (ids.has(id)) {
       throw new Error(`[meetingInsightRegistry] duplicate insight id: ${id}`);
     }
@@ -51,6 +53,14 @@ export function validateMeetingInsightDescriptors(
       throw new Error(
         `[meetingInsightRegistry] version must be a positive integer: ${id}`
       );
+    }
+    const mounts: unknown = descriptor.mounts;
+    if (
+      !isRecord(mounts) ||
+      typeof mounts['meetingSummary'] !== 'boolean' ||
+      typeof mounts['clientSummary'] !== 'boolean'
+    ) {
+      throw new Error(`[meetingInsightRegistry] mounts are required: ${id}`);
     }
     const prerequisites: unknown = descriptor.prerequisites;
     if (!Array.isArray(prerequisites)) {
@@ -81,6 +91,28 @@ export function validateMeetingInsightDescriptors(
         `[meetingInsightRegistry] artifact producer is required: ${id}`
       );
     }
+    const artifactStore: unknown = descriptor.artifactStore;
+    if (
+      !isRecord(artifactStore) ||
+      artifactStore['artifactId'] !== artifactProducer['artifactId'] ||
+      artifactStore['version'] !== descriptor.version ||
+      typeof artifactStore['read'] !== 'function' ||
+      typeof artifactStore['write'] !== 'function'
+    ) {
+      throw new Error(
+        `[meetingInsightRegistry] artifact store is required: ${id}`
+      );
+    }
+    const selectors: unknown = descriptor.selectors;
+    if (
+      !isRecord(selectors) ||
+      Object.keys(selectors).length === 0 ||
+      Object.values(selectors).some(
+        (selector) => typeof selector !== 'function'
+      )
+    ) {
+      throw new Error(`[meetingInsightRegistry] selectors are required: ${id}`);
+    }
     const settings: unknown = descriptor.settings;
     if (
       !isRecord(settings) ||
@@ -106,14 +138,25 @@ export function validateMeetingInsightDescriptors(
 }
 
 /**
- * Future insight features append their own complete descriptors here. The seam
- * intentionally ships empty: this refactor does not create intelligence.
+ * Append-only insight mount list. Each entry owns its versioned store and
+ * selectors in its feature folder, so meetingStore never grows feature state.
  */
-export const meetingInsightRegistry: readonly MeetingInsightDescriptor[] = [];
+export const meetingInsightRegistry: readonly MeetingInsightDescriptor[] = [
+  meetingReviewInsightDescriptor,
+];
 
-export function getMeetingInsights(
+export function getRegisteredMeetingInsights(
   descriptors: readonly MeetingInsightDescriptor[] = meetingInsightRegistry
 ): readonly MeetingInsightDescriptor[] {
   validateMeetingInsightDescriptors(descriptors);
   return descriptors.slice().sort((a, b) => a.order - b.order);
+}
+
+/** Descriptors that visibly mount on MeetingEntry's existing summary area. */
+export function getMeetingInsights(
+  descriptors: readonly MeetingInsightDescriptor[] = meetingInsightRegistry
+): readonly MeetingInsightDescriptor[] {
+  return getRegisteredMeetingInsights(descriptors).filter(
+    (descriptor) => descriptor.mounts.meetingSummary
+  );
 }

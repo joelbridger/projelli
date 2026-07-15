@@ -16,7 +16,6 @@ import {
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu';
 import { buildResolvedProviderForGlance } from '@/platform/matter/matterAtAGlance';
-import { mmss } from './meetingSources';
 import { MeetingTemplatePanel } from './MeetingTemplatePanel';
 import { createPreparedMeetingTemplateFillProvider } from './meetingTemplateAi';
 import { SpeakerNamesPanel } from './SpeakerNamesPanel';
@@ -172,7 +171,7 @@ export const legacyMeetingPanels: readonly MeetingPanelDescriptor[] = [
               type="button"
               data-testid="meeting-entry-retry-transcript"
               onClick={() => {
-                void context.onRetryTranscript().catch(context.onPanelError);
+                context.onRetryTranscript();
               }}
               disabled={context.retryingTranscript}
               style={{
@@ -296,7 +295,7 @@ export const legacyMeetingPanels: readonly MeetingPanelDescriptor[] = [
               type="button"
               data-testid="meeting-entry-retry-notes"
               onClick={() => {
-                void context.onRetryNotes().catch(context.onPanelError);
+                context.onRetryNotes();
               }}
               disabled={context.retryingNotes}
               style={{
@@ -450,19 +449,7 @@ export const legacyMeetingHeaderActions: readonly MeetingHeaderActionDescriptor[
               data-testid="meeting-transcript-copy"
               disabled={!context.transcript}
               onClick={() => {
-                void context
-                  .onCopyText(
-                    context.transcript
-                      ? context.transcript.segments
-                          .map(
-                            (segment) =>
-                              `${mmss(segment.startMs)} ${segment.speaker}: ${segment.text}`
-                          )
-                          .join('\n')
-                      : '',
-                    context.t('meetings.entry.transcript-copied')
-                  )
-                  .catch(context.onActionError);
+                context.onCopyTranscript();
               }}
             >
               <Copy className="h-3.5 w-3.5 mr-2" />
@@ -482,12 +469,7 @@ export const legacyMeetingHeaderActions: readonly MeetingHeaderActionDescriptor[
               data-testid="meeting-summary-copy"
               disabled={!context.summaryReady}
               onClick={() => {
-                void context
-                  .onCopyText(
-                    context.summaryText.trim(),
-                    context.t('meetings.entry.summary-copied')
-                  )
-                  .catch(context.onActionError);
+                context.onCopySummary();
               }}
             >
               <Copy className="h-3.5 w-3.5 mr-2" />

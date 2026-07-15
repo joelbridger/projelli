@@ -5,10 +5,11 @@ description: Add a typed meeting panel, header action, or insight without editin
 
 # Add a meeting workspace extension
 
-The active meeting page is a generic shell. Feature folders own descriptors;
-the three meeting registries only compose and validate them. Do not add a new
-switch to `MeetingEntry.tsx`, a feature-specific field to `meetingStore.ts`, or
-business logic to a registry file.
+The active `MeetingEntry` page maps the panel, header-action, and insight
+registries directly. Feature folders own descriptors; the registries only
+compose and validate them. A new descriptor needs zero `MeetingEntry` edits.
+Do not add a new switch to `MeetingEntry.tsx`, a feature-specific field to
+`meetingStore.ts`, or business logic to a registry file.
 
 ## Choose one registry
 
@@ -67,14 +68,19 @@ does not learn feature rules.
 Every insight must supply all of these fields:
 
 - a positive integer `version`;
+- explicit meeting/client summary `mounts` flags (artifact-only insights set
+  both to `false`);
 - an explicit `prerequisites` list, including an empty list when none exist;
+- a versioned `artifactStore` with matching read/write behavior;
 - an `artifactProducer` with a stable artifact id and async producer;
+- a non-empty set of feature-owned `selectors`;
 - a namespaced `settings` descriptor and mount;
 - both `renderMeetingSummary` and `renderClientSummary`.
 
-Keep the producer, settings UI, and renderers beside the insight feature.
-Store its settings and derived state there too. Never add insight-specific
-state to `meetingStore`; that store is only for shared recording lifecycle.
+Keep the artifact store, selectors, producer, settings UI, and renderers beside
+the insight feature. Store its settings and derived state there too. Never add
+insight-specific state to `meetingStore`; that store is only for durable core
+meeting identity, artifacts, and shared recording lifecycle.
 
 ## Add exactly one registration
 
@@ -108,5 +114,6 @@ npm run i18n:completeness
 npx vitest run tests/unit/architecture-boundaries.test.ts
 ```
 
-Add a focused test for the new feature. A descriptor-only test should prove
-the mount is reachable without editing `MeetingEntry` or `meetingStore`.
+Add a focused test for the new feature. It should prove the registered mount is
+reachable and its versioned artifact store reads/writes without editing
+`MeetingEntry` or `meetingStore`.

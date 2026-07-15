@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { needsReview } from '@/features/meetings/meetingStore';
+import { needsReview } from '@/features/meetings/insights/review/meetingReviewArtifactStore';
 import type { MeetingSummary } from '@/features/meetings/ClientMeetingsTab';
 
 const baseMeeting: MeetingSummary = {

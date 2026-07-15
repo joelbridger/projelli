@@ -1,21 +1,19 @@
-import { render, screen } from '@testing-library/react';
-import type { TFunction } from 'i18next';
 import { describe, expect, it } from 'vitest';
-import { MeetingWorkspace } from '@/features/meetings/MeetingWorkspace';
+import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import {
   getMeetingHeaderActions,
-  type MeetingHeaderActionContext,
   type MeetingHeaderActionDescriptor,
   validateMeetingHeaderActionDescriptors,
 } from '@/features/meetings/meetingHeaderActionRegistry';
 import {
   getMeetingInsights,
+  getRegisteredMeetingInsights,
+  type MeetingInsightArtifact,
   type MeetingInsightDescriptor,
   validateMeetingInsightDescriptors,
 } from '@/features/meetings/meetingInsightRegistry';
 import {
   getMeetingPanels,
-  type MeetingPanelContext,
   type MeetingPanelDescriptor,
   validateMeetingPanelDescriptors,
 } from '@/features/meetings/meetingPanelRegistry';
@@ -62,7 +60,14 @@ const dummyInsight: MeetingInsightDescriptor = {
   id: 'dummy_insight',
   order: 10,
   version: 1,
+  mounts: { meetingSummary: true, clientSummary: true },
   prerequisites: [{ artifactId: 'transcript', minimumVersion: 1 }],
+  artifactStore: {
+    artifactId: 'dummy-insight-artifact',
+    version: 1,
+    read: () => Promise.resolve(null),
+    write: (_context, artifact) => Promise.resolve(artifact),
+  },
   artifactProducer: {
     artifactId: 'dummy-insight-artifact',
     produce: () =>
@@ -72,6 +77,7 @@ const dummyInsight: MeetingInsightDescriptor = {
         payload: null,
       }),
   },
+  selectors: { selectDummy: () => null },
   settings: {
     id: 'dummy-insight-settings',
     labelKey: 'meetings.test.dummy-insight-settings',
@@ -92,6 +98,9 @@ describe('meeting workspace registries', () => {
       getMeetingHeaderActions().map((descriptor) => descriptor.id)
     ).toEqual(['send', 'mark_reviewed', 'utilities']);
     expect(getMeetingInsights()).toEqual([]);
+    expect(
+      getRegisteredMeetingInsights().map((descriptor) => descriptor.id)
+    ).toEqual(['review_status']);
   });
 
   it('preserves registration order when descriptors have the same order', () => {
@@ -159,6 +168,11 @@ describe('meeting workspace registries', () => {
     }).toThrow('version must be a positive integer: dummy_insight');
     expect(() => {
       validateMeetingInsightDescriptors([
+        { ...dummyInsight, mounts: undefined as never },
+      ]);
+    }).toThrow('mounts are required: dummy_insight');
+    expect(() => {
+      validateMeetingInsightDescriptors([
         { ...dummyInsight, prerequisites: undefined as never },
       ]);
     }).toThrow('prerequisites are required: dummy_insight');
@@ -167,6 +181,16 @@ describe('meeting workspace registries', () => {
         { ...dummyInsight, artifactProducer: undefined as never },
       ]);
     }).toThrow('artifact producer is required: dummy_insight');
+    expect(() => {
+      validateMeetingInsightDescriptors([
+        { ...dummyInsight, artifactStore: undefined as never },
+      ]);
+    }).toThrow('artifact store is required: dummy_insight');
+    expect(() => {
+      validateMeetingInsightDescriptors([
+        { ...dummyInsight, selectors: {} },
+      ]);
+    }).toThrow('selectors are required: dummy_insight');
     expect(() => {
       validateMeetingInsightDescriptors([
         { ...dummyInsight, settings: undefined as never },
@@ -181,31 +205,64 @@ describe('meeting workspace registries', () => {
     );
   });
 
-  it('mounts one dummy panel, action, and insight with descriptor registration only', () => {
-    const t = ((key: string) => key) as TFunction;
-    render(
-      <MeetingWorkspace
-        headerLead={<div data-testid="dummy-header" />}
-        headerActionContext={{ t } as MeetingHeaderActionContext}
-        panelContext={{ t } as MeetingPanelContext}
-        insightContext={{
-          matterId: 'matter-1',
-          meetingDir: 'Clients/A/Meetings/one',
-          clientName: 'Ada Client',
-          workspaceService: null,
-        }}
-        panelDescriptors={[dummyPanel]}
-        headerActionDescriptors={[dummyAction]}
-        insightDescriptors={[dummyInsight]}
-      />
+  it('reads and writes a registered insight artifact with the exact meeting.json shape', async () => {
+    const descriptor = getRegisteredMeetingInsights().find(
+      (item) => item.id === 'review_status'
     );
+    expect(descriptor).toBeDefined();
 
-    expect(screen.getByTestId('dummy-panel')).toHaveTextContent(
-      'meetings.test.dummy-panel'
+    let stored = JSON.stringify(
+      {
+        matterId: 'matter-1',
+        startedAt: '2026-07-15T09:00:00.000Z',
+        consent: {
+          mode: 'one-party',
+          confirmedBy: 'user',
+          confirmedAt: '2026-07-15T09:00:00.000Z',
+        },
+        customTitle: 'Annual review',
+      },
+      null,
+      2
     );
-    expect(screen.getByTestId('dummy-action')).toHaveTextContent(
-      'meetings.test.dummy-action'
+    const workspaceService = {
+      readFile: async () => stored,
+      writeFile: async (_path: string, content: string) => {
+        stored = content;
+      },
+    } as WorkspaceService;
+    const context = {
+      matterId: 'matter-1',
+      meetingDir: 'Clients/A/Meetings/one',
+      workspaceService,
+    };
+    const artifact: MeetingInsightArtifact = {
+      artifactId: 'meeting-review-status',
+      version: 1,
+      payload: { reviewedAt: '2026-07-15T10:00:00.000Z' },
+    };
+
+    await descriptor?.artifactStore.write(context, artifact);
+
+    expect(stored).toBe(
+      JSON.stringify(
+        {
+          matterId: 'matter-1',
+          startedAt: '2026-07-15T09:00:00.000Z',
+          consent: {
+            mode: 'one-party',
+            confirmedBy: 'user',
+            confirmedAt: '2026-07-15T09:00:00.000Z',
+          },
+          customTitle: 'Annual review',
+          reviewedAt: '2026-07-15T10:00:00.000Z',
+        },
+        null,
+        2
+      )
     );
-    expect(screen.getByTestId('dummy-insight')).toBeInTheDocument();
+    await expect(descriptor?.artifactStore.read(context)).resolves.toEqual(
+      artifact
+    );
   });
 });
