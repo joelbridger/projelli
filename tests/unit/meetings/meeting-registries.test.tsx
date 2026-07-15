@@ -230,7 +230,7 @@ describe('meeting workspace registries', () => {
       writeFile: async (_path: string, content: string) => {
         stored = content;
       },
-    } as WorkspaceService;
+    } as unknown as WorkspaceService;
     const context = {
       matterId: 'matter-1',
       meetingDir: 'Clients/A/Meetings/one',
