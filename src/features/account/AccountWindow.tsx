@@ -12,35 +12,7 @@ import { useProfileStore } from '@/platform/profile/profileStore';
 import { useFirm } from '@/platform/hooks/useFirm';
 import { readImageAsDataUrl } from '@/platform/utils/imageUpload';
 import type { AuditEntry } from '@/platform/types/audit';
-import { LicenseSettings } from '@/features/settings/LicenseSettings';
-import { FirmSignIn } from '@/features/firm/FirmSignIn';
-import { FirmAdminConsole } from '@/features/firm/FirmAdminConsole';
-import { UseWithFirmFlow } from '@/features/firm/UseWithFirmFlow';
-import { CostMetrics } from '@/platform/analysis/ui/CostMetrics';
-import { MailConnect } from '@/platform/connectors/email/MailConnect';
-import { MailImapConnect } from '@/platform/connectors/email/MailImapConnect';
-import { MailGmailConnect } from '@/platform/connectors/email/MailGmailConnect';
-import { WealthboxConnect } from '@/platform/connectors/crm/WealthboxConnect';
-import { OneDriveConnect } from '@/platform/connectors/onedrive/OneDriveConnect';
-import { BoxConnect } from '@/platform/connectors/box/BoxConnect';
-import { DocuSignConnect } from '@/platform/connectors/docusign/DocuSignConnect';
-import { ShareFileConnect } from '@/platform/connectors/sharefile/ShareFileConnect';
-import { JotformConnect } from '@/platform/connectors/jotform/JotformConnect';
-import { ZocksConnect } from '@/platform/connectors/zocks/ZocksConnect';
-import { AddeparConnect } from '@/platform/connectors/addepar/AddeparConnect';
-import { CalendlyConnect } from '@/platform/connectors/calendly/CalendlyConnect';
-import { CalendarConnect } from '@/platform/connectors/calendar/CalendarConnect';
-import { SalesforceConnect } from '@/platform/connectors/crm/SalesforceConnect';
-import { RedtailConnect } from '@/platform/connectors/crm/RedtailConnect';
-import { McpSettingsSection } from '@/features/settings/McpSettingsSection';
-import { OllamaSettingsSection } from '@/features/settings/OllamaSettingsSection';
-import { BRAND } from '@/config/brand';
-import {
-  Accordion,
-  AccordionItem,
-  AccordionTrigger,
-  AccordionContent,
-} from '@/ui/accordion';
+import { getAccountSectionDescriptors } from './accountSectionRegistry';
 
 interface AccountWindowProps {
   open: boolean;
@@ -50,26 +22,20 @@ interface AccountWindowProps {
   initialTab?: string | undefined;
 }
 
-const ACCOUNT_TABS = [
-  { id: 'account', label: 'Account' },
-  { id: 'firm', label: 'Firm' },
-  { id: 'usage', label: 'Usage' },
-  { id: 'connections', label: 'Connections' },
-] as const;
-
 /**
  * AccountWindow — opened from the rail's account identity. Holds the profile /
  * firm editor (name + uploadable photo or logo) and the account content that
  * used to live in the Settings "Account" tab (License, Firm, Usage,
  * Connections). The Account tab was removed from Settings in favor of this.
  */
-export function AccountWindow({ open, onOpenChange, auditEntries, initialTab }: AccountWindowProps) {
-  const { isSignedIn, hasActiveSeat, org } = useFirm();
+export function AccountWindow({
+  open,
+  onOpenChange,
+  auditEntries,
+  initialTab,
+}: AccountWindowProps) {
+  const { isSignedIn, org } = useFirm();
   const isFirm = isSignedIn;
-  // A solo user has no active firm seat; they get the "Use this with my firm"
-  // bridge entry. Active-seat firm users see the normal firm console instead.
-  const isSolo = !isSignedIn || !hasActiveSeat;
-  const [showBridge, setShowBridge] = useState(false);
   const profile = useProfileStore();
   const fileRef = useRef<HTMLInputElement>(null);
   // Horizontal tabs, collapsed by default: no tab selected on open, so the
@@ -96,7 +62,9 @@ export function AccountWindow({ open, onOpenChange, auditEntries, initialTab }: 
   const setImage = isFirm ? profile.setFirmLogo : profile.setSoloAvatar;
   // A firm's name flows from its subscription (org.name); the typed value is an
   // optional display override. Solo users just type their name.
-  const namePlaceholder = isFirm ? (org?.name || 'Firm name') : 'Your name';
+  const namePlaceholder = isFirm ? org?.name || 'Firm name' : 'Your name';
+  const sections = getAccountSectionDescriptors();
+  const activeSection = sections.find((section) => section.id === activeTab);
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -104,6 +72,7 @@ export function AccountWindow({ open, onOpenChange, auditEntries, initialTab }: 
     if (!file) return;
     try {
       setImage(await readImageAsDataUrl(file));
+      // eslint-disable-next-line lantern-async/no-silent-failure -- unreadable images are intentionally ignored.
     } catch {
       // ignore unreadable images
     }
@@ -116,7 +85,9 @@ export function AccountWindow({ open, onOpenChange, auditEntries, initialTab }: 
         className="max-w-3xl w-[90vw] h-[80vh] max-h-[700px] p-0 flex flex-col overflow-hidden [&>button]:hidden"
       >
         <DialogTitle className="sr-only">Account</DialogTitle>
-        <DialogDescription className="sr-only">Your account, firm, usage, and connections.</DialogDescription>
+        <DialogDescription className="sr-only">
+          Your account, firm, usage, and connections.
+        </DialogDescription>
 
         {/* Profile / firm editor */}
         <div
@@ -144,17 +115,31 @@ export function AccountWindow({ open, onOpenChange, auditEntries, initialTab }: 
             }}
           >
             {image ? (
-              <img src={image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <img
+                src={image}
+                alt=""
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
             ) : isFirm ? (
-              <Building2 size={26} strokeWidth={1.75} style={{ color: 'var(--color-muted-foreground)' }} />
+              <Building2
+                size={26}
+                strokeWidth={1.75}
+                style={{ color: 'var(--color-muted-foreground)' }}
+              />
             ) : (
-              <User size={26} strokeWidth={1.75} style={{ color: 'var(--color-muted-foreground)' }} />
+              <User
+                size={26}
+                strokeWidth={1.75}
+                style={{ color: 'var(--color-muted-foreground)' }}
+              />
             )}
           </span>
           <div style={{ flex: 1, minWidth: 0 }}>
             <input
               value={name}
-              onChange={(e) => { setName(e.target.value); }}
+              onChange={(e) => {
+                setName(e.target.value);
+              }}
               placeholder={namePlaceholder}
               aria-label={isFirm ? 'Firm name' : 'Your name'}
               data-testid="account-name-input"
@@ -171,12 +156,30 @@ export function AccountWindow({ open, onOpenChange, auditEntries, initialTab }: 
                 outline: 'none',
               }}
             />
-            <div style={{ marginTop: 8, display: 'flex', gap: 'var(--kp-space-xs)', alignItems: 'center' }}>
-              <Button variant="secondary" size="sm" iconLeft={Upload} onClick={() => fileRef.current?.click()}>
+            <div
+              style={{
+                marginTop: 8,
+                display: 'flex',
+                gap: 'var(--kp-space-xs)',
+                alignItems: 'center',
+              }}
+            >
+              <Button
+                variant="secondary"
+                size="sm"
+                iconLeft={Upload}
+                onClick={() => fileRef.current?.click()}
+              >
                 {isFirm ? 'Upload logo' : 'Upload photo'}
               </Button>
               {image ? (
-                <Button variant="ghost" size="sm" onClick={() => { setImage(null); }}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setImage(null);
+                  }}
+                >
                   Remove
                 </Button>
               ) : null}
@@ -184,18 +187,36 @@ export function AccountWindow({ open, onOpenChange, auditEntries, initialTab }: 
                 ref={fileRef}
                 type="file"
                 accept="image/*"
-                onChange={(e) => { void handleFile(e); }}
+                onChange={(e) => {
+                  // eslint-disable-next-line lantern-async/no-silent-failure -- handleFile contains the best-effort error handling for image uploads.
+                  void handleFile(e);
+                }}
                 style={{ display: 'none' }}
                 data-testid="account-image-input"
               />
             </div>
           </div>
-          <IconButton icon={X} label="Close" variant="ghost" size="sm" onClick={() => { onOpenChange(false); }} />
+          <IconButton
+            icon={X}
+            label="Close"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              onOpenChange(false);
+            }}
+          />
         </div>
 
         {/* Account content (moved out of Settings) as horizontal tabs, collapsed
             by default so the window opens compact. */}
-        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        <div
+          style={{
+            flex: 1,
+            minHeight: 0,
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
           <div
             role="tablist"
             aria-label="Account sections"
@@ -207,16 +228,20 @@ export function AccountWindow({ open, onOpenChange, auditEntries, initialTab }: 
               flexShrink: 0,
             }}
           >
-            {ACCOUNT_TABS.map((tab) => {
-              const active = activeTab === tab.id;
+            {sections.map((section) => {
+              const active = activeTab === section.id;
               return (
                 <button
-                  key={tab.id}
+                  key={section.id}
                   type="button"
                   role="tab"
                   aria-selected={active}
-                  data-testid={`account-tab-${tab.id}`}
-                  onClick={() => { setActiveTab((prev) => (prev === tab.id ? '' : tab.id)); }}
+                  data-testid={`account-tab-${section.id}`}
+                  onClick={() => {
+                    setActiveTab((prev) =>
+                      prev === section.id ? '' : section.id
+                    );
+                  }}
                   style={{
                     appearance: 'none',
                     border: 0,
@@ -224,14 +249,20 @@ export function AccountWindow({ open, onOpenChange, auditEntries, initialTab }: 
                     cursor: 'pointer',
                     padding: 'var(--kp-space-sm) var(--kp-space-md)',
                     fontSize: 'var(--kp-font-sm)',
-                    fontWeight: active ? 'var(--kp-weight-semibold)' : 'var(--kp-weight-medium)',
-                    color: active ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
-                    borderBottom: active ? '2px solid var(--kp-navy)' : '2px solid transparent',
+                    fontWeight: active
+                      ? 'var(--kp-weight-semibold)'
+                      : 'var(--kp-weight-medium)',
+                    color: active
+                      ? 'var(--kp-navy)'
+                      : 'var(--color-muted-foreground)',
+                    borderBottom: active
+                      ? '2px solid var(--kp-navy)'
+                      : '2px solid transparent',
                     marginBottom: -1,
                     fontFamily: 'var(--font-sans)',
                   }}
                 >
-                  {tab.label}
+                  {section.legacyLabel}
                 </button>
               );
             })}
@@ -258,91 +289,7 @@ export function AccountWindow({ open, onOpenChange, auditEntries, initialTab }: 
                 Choose a section above to manage it.
               </p>
             )}
-            {activeTab === 'account' && <LicenseSettings />}
-            {activeTab === 'firm' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-lg)' }}>
-                {isSolo && !showBridge && (
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: 'var(--kp-space-md)',
-                      padding: 'var(--kp-space-md)',
-                      borderRadius: 'var(--kp-radius-md)',
-                      border: '1px solid var(--color-primary)',
-                      background: 'color-mix(in srgb, var(--color-primary) 6%, transparent)',
-                    }}
-                  >
-                    <Building2 size={20} style={{ color: 'var(--color-primary)', flexShrink: 0, marginTop: 2 }} aria-hidden />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontWeight: 600, fontSize: 'var(--kp-font-sm)' }}>
-                        Use {BRAND.name} with your firm
-                      </p>
-                      <p style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)', margin: '4px 0 8px' }}>
-                        Start a firm or join one, then bring your clients over. You choose for each client whether it stays private or is shared with colleagues.
-                      </p>
-                      <Button
-                        size="sm"
-                        data-testid="use-with-firm-action"
-                        onClick={() => {
-                          setShowBridge(true);
-                        }}
-                      >
-                        Use this with my firm
-                      </Button>
-                    </div>
-                  </div>
-                )}
-                {showBridge ? (
-                  <UseWithFirmFlow
-                    onClose={() => {
-                      setShowBridge(false);
-                    }}
-                  />
-                ) : (
-                  <>
-                    <FirmSignIn />
-                    <FirmAdminConsole />
-                  </>
-                )}
-              </div>
-            )}
-            {activeTab === 'usage' && <CostMetrics entries={auditEntries ?? []} />}
-            {activeTab === 'connections' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-lg)' }}>
-                <MailConnect />
-                <MailImapConnect />
-                <MailGmailConnect />
-                <OneDriveConnect />
-                <BoxConnect />
-                <WealthboxConnect />
-                <AddeparConnect />
-                <DocuSignConnect />
-                <ShareFileConnect />
-                <JotformConnect />
-                <ZocksConnect />
-                <CalendlyConnect />
-                <CalendarConnect />
-                <SalesforceConnect />
-                <RedtailConnect />
-                <OllamaSettingsSection />
-                {/* Developer tools — connecting Lantern to outside AI clients
-                    (Claude Desktop, Cursor) via MCP. This is power-user
-                    plumbing, not something a typical advisor needs, so it's
-                    tucked behind a closed disclosure by default and stays one
-                    click away for anyone who wants it. */}
-                <Accordion data-testid="connections-developer-tools">
-                  <AccordionItem value="developer-tools">
-                    <AccordionTrigger data-testid="connections-developer-tools-trigger">
-                      Developer tools
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      <McpSettingsSection />
-                    </AccordionContent>
-                  </AccordionItem>
-                </Accordion>
-              </div>
-            )}
+            {activeSection?.render({ auditEntries })}
           </div>
         </div>
       </DialogContent>
