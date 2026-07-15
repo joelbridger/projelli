@@ -51,10 +51,12 @@ describe('TeamsRolesSettings', () => {
   beforeEach(() => {
     client.get.mockReset().mockResolvedValue(emptyTeamsRolesState());
     client.assignMember.mockReset().mockResolvedValue(emptyTeamsRolesState());
-    client.createTeam.mockReset().mockImplementation(async (team) => ({
-      ...emptyTeamsRolesState(),
-      teams: [team],
-    }));
+    client.createTeam.mockReset().mockImplementation((team) =>
+      Promise.resolve({
+        ...emptyTeamsRolesState(),
+        teams: [team],
+      })
+    );
     client.deleteTeam.mockReset().mockResolvedValue(emptyTeamsRolesState());
     client.createRole.mockReset().mockResolvedValue(emptyTeamsRolesState());
     client.deleteRole.mockReset().mockResolvedValue(emptyTeamsRolesState());
@@ -93,21 +95,21 @@ describe('TeamsRolesSettings', () => {
       target: { value: 'Planning' },
     });
     fireEvent.click(screen.getByTestId('teams-roles-create-team'));
-    await waitFor(() =>
+    await waitFor(() => {
       expect(client.createTeam).toHaveBeenCalledWith({
         id: 'planning',
         name: 'Planning',
-      })
-    );
+      });
+    });
     fireEvent.change(screen.getByTestId('teams-roles-role-maya'), {
       target: { value: 'advisor' },
     });
-    await waitFor(() =>
+    await waitFor(() => {
       expect(client.assignMember).toHaveBeenCalledWith({
         memberId: 'maya',
         roleId: 'advisor',
         teamIds: [],
-      })
-    );
+      });
+    });
   });
 });
