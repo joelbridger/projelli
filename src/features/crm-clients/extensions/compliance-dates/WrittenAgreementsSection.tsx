@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Card } from '@/ui/kp';
 import type { HouseholdRecordShellContext } from '../../recordRegistry';
@@ -58,10 +58,6 @@ export function WrittenAgreementsSection({
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setDraft(saved);
-  }, [household.id, household.extensionData]);
-
   const update = (field: ComplianceDateField, value: string) => {
     setDraft((current) => ({ ...current, [field]: value || null }));
     setError(null);
@@ -76,6 +72,12 @@ export function WrittenAgreementsSection({
     if (!onSaveHousehold) return;
     await onSaveHousehold(persistComplianceDates(household, result.value));
     setEditing(false);
+  };
+
+  const handleSave = () => {
+    void save().catch(() => {
+      setError(t('complianceDates.saveFailed'));
+    });
   };
 
   return (
@@ -109,7 +111,9 @@ export function WrittenAgreementsSection({
             size="sm"
             variant="secondary"
             data-testid="compliance-dates-edit"
-            onClick={() => setEditing(true)}
+            onClick={() => {
+              setEditing(true);
+            }}
           >
             {t('complianceDates.edit')}
           </Button>
@@ -138,7 +142,9 @@ export function WrittenAgreementsSection({
                 placeholder="YYYY-MM-DD"
                 value={dateForInput(draft[field])}
                 data-testid={`compliance-dates-input-${field}`}
-                onChange={(event) => update(field, event.target.value)}
+                onChange={(event) => {
+                  update(field, event.target.value);
+                }}
               />
             </label>
           ) : (
@@ -167,7 +173,7 @@ export function WrittenAgreementsSection({
           <Button
             size="sm"
             data-testid="compliance-dates-save"
-            onClick={() => void save()}
+            onClick={handleSave}
           >
             {t('complianceDates.save')}
           </Button>

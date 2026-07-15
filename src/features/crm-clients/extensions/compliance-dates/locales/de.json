@@ -4,6 +4,7 @@
     "helper": "Compliance-Daten und hinterlegte Dokumente",
     "edit": "Daten bearbeiten",
     "save": "Daten speichern",
+    "saveFailed": "Die Daten konnten nicht gespeichert werden. Versuchen Sie es erneut.",
     "cancel": "Abbrechen",
     "missing": "Datum fehlt",
     "validation": {

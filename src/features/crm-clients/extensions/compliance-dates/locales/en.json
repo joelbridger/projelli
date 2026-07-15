@@ -4,6 +4,7 @@
     "helper": "Compliance dates and documents on file",
     "edit": "Edit dates",
     "save": "Save dates",
+    "saveFailed": "Dates could not be saved. Try again.",
     "cancel": "Cancel",
     "missing": "Missing date",
     "validation": {

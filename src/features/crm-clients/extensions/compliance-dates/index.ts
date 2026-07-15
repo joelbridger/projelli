@@ -1,3 +1,4 @@
+import { createElement } from 'react';
 import { isEnabled } from '@/platform/flags/router';
 import type {
   HouseholdRecordExtensionDescriptor,
@@ -31,12 +32,13 @@ export const writtenAgreementsSection: HouseholdSectionDescriptor = {
   order: 40,
   tab: 'client_map',
   mount: ({ household, onSaveHousehold }) =>
-    isEnabled('record-compliance-dates') ? (
-      <WrittenAgreementsSection
-        household={household}
-        {...(onSaveHousehold ? { onSaveHousehold } : {})}
-      />
-    ) : null,
+    isEnabled('record-compliance-dates')
+      ? createElement(WrittenAgreementsSection, {
+          key: `${household.id}-${JSON.stringify(household.extensionData?.[COMPLIANCE_DATES_DATA_KEY] ?? null)}`,
+          household,
+          ...(onSaveHousehold ? { onSaveHousehold } : {}),
+        })
+      : null,
 };
 
 export {

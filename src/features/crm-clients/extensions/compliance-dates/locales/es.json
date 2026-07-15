@@ -4,6 +4,7 @@
     "helper": "Fechas de cumplimiento y documentos archivados",
     "edit": "Editar fechas",
     "save": "Guardar fechas",
+    "saveFailed": "No se pudieron guardar las fechas. Inténtelo de nuevo.",
     "cancel": "Cancelar",
     "missing": "Fecha pendiente",
     "validation": {

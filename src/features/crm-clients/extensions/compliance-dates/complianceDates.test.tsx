@@ -85,7 +85,7 @@ describe('written agreement compliance dates', () => {
 
   it('renders six clear missing values, saves dates, and reads them after a restart', async () => {
     setDevFlagOverride('record-compliance-dates', true);
-    const onSaveHousehold = vi.fn();
+    const onSaveHousehold = vi.fn<(saved: HouseholdRecord) => void>();
     const context = {
       household,
       onSaveHousehold,
@@ -110,19 +110,15 @@ describe('written agreement compliance dates', () => {
     );
     fireEvent.click(screen.getByTestId('compliance-dates-save'));
     await waitFor(() => {
-      expect(onSaveHousehold).toHaveBeenCalledWith(
-        expect.objectContaining({
-          extensionData: expect.objectContaining({
-            [COMPLIANCE_DATES_DATA_KEY]: expect.objectContaining({
-              advisoryAgreementSignedOn: '2017-01-18',
-              formAdvDeliveredOn: '2026-03-12',
-            }),
-          }),
-        })
-      );
+      expect(onSaveHousehold).toHaveBeenCalledTimes(1);
     });
 
-    const restarted = onSaveHousehold.mock.calls.at(-1)?.[0] as HouseholdRecord;
+    const restarted = onSaveHousehold.mock.calls.at(-1)?.[0];
+    if (!restarted) throw new Error('Expected the date save callback to run.');
+    expect(restarted.extensionData?.[COMPLIANCE_DATES_DATA_KEY]).toMatchObject({
+      advisoryAgreementSignedOn: '2017-01-18',
+      formAdvDeliveredOn: '2026-03-12',
+    });
     mounted.unmount();
     render(
       <>
@@ -140,7 +136,7 @@ describe('written agreement compliance dates', () => {
 
   it('shows validation and does not call the connected save callback for an invalid date', async () => {
     setDevFlagOverride('record-compliance-dates', true);
-    const onSaveHousehold = vi.fn();
+    const onSaveHousehold = vi.fn<(saved: HouseholdRecord) => void>();
     render(
       <>
         {writtenAgreementsSection.mount({
