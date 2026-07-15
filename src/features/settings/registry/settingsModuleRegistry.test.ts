@@ -297,7 +297,7 @@ describe('settingsModuleRegistry', () => {
     let flagOn = false;
     vi.resetModules();
     vi.doMock('@/platform/flags/router', () => ({
-      isEnabled: () => flagOn,
+      isEnabled: (id: string) => id === 'teams-roles' && flagOn,
     }));
     vi.doMock('./legacySettingsSections', () => ({
       legacySettingsSections: [],
@@ -323,6 +323,6 @@ describe('settingsModuleRegistry', () => {
       registry
         .getSettingsPanelDescriptors('organization')
         .map((panel) => panel.id)
-    ).toEqual(['fake-always', 'fake-gated', 'contact-sources', 'teams-roles']);
+    ).toEqual(['fake-always', 'fake-gated', 'teams-roles']);
   });
 });
