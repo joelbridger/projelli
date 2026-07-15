@@ -18,11 +18,7 @@
  */
 
 import { brandText } from '@/config/brandText';
-import {
-  getSettingsModuleDefinitions,
-  getSettingsModuleDescriptors,
-} from '@/features/settings/registry/settingsModuleRegistry';
-import type { SettingsSectionId } from '@/features/settings/registry/types';
+import type { SettingsSectionId } from '@/platform/types/settings';
 
 export type SettingType = 'toggle' | 'select' | 'number' | 'text' | 'shortcut-display';
 
@@ -798,15 +794,24 @@ export const BASE_SETTINGS_SCHEMA: readonly SettingDefinition[] = [
   },
 ];
 
-/** Flatten feature-owned definition slices in stable registry order. */
-export const SETTINGS_SCHEMA: readonly SettingDefinition[] = getSettingsModuleDefinitions();
+/**
+ * The durable schema is deliberately kept in its authored order. Apart from
+ * being a stable contract, this order is used when exporting settings JSON.
+ * Feature registries consume this schema to mount UI sections; the platform
+ * never imports a feature registry to construct its own store contract.
+ */
+export const SETTINGS_SCHEMA: readonly SettingDefinition[] = BASE_SETTINGS_SCHEMA;
 
-/** The nav sections shown in the sidebar, in stable registry order. */
-export const SETTING_CATEGORIES: readonly { id: SectionCategory; label: string }[] =
-  getSettingsModuleDescriptors().map(({ id, legacyLabel }) => ({
-    id,
-    label: legacyLabel,
-  }));
+/** The canonical nav sections shown in the sidebar. */
+export const SETTING_CATEGORIES: readonly { id: SectionCategory; label: string }[] = [
+  { id: 'workspace', label: 'Workspace' },
+  { id: 'ai', label: 'AI' },
+  { id: 'privacy', label: 'Privacy' },
+  { id: 'scheduling', label: 'Scheduling' },
+  { id: 'voice', label: 'Voice' },
+  { id: 'advanced', label: 'Advanced' },
+  { id: 'help', label: 'Help' },
+];
 
 /**
  * Build a map of key -> defaultValue from the schema.

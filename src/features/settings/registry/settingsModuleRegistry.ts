@@ -1,4 +1,5 @@
 import { legacySettingsSections } from './legacySettingsSections';
+import { BASE_SETTINGS_SCHEMA } from '@/platform/settings/schema';
 import type { SettingsGroupDescriptor, SettingsModuleDescriptor } from './types';
 
 /** The append-only mount list for feature-owned settings sections. */
@@ -57,10 +58,23 @@ export function getSettingsModuleDescriptor(id: string): SettingsModuleDescripto
 }
 
 export function getSettingsModuleDefinitions() {
-  return ordered().flatMap((descriptor) => {
+  const registeredDefinitions = ordered().flatMap((descriptor) => {
     const definitions = descriptor.definitions;
     return typeof definitions === 'function' ? definitions() : (definitions ?? []);
   });
+
+  const definitionByKey = new Map(registeredDefinitions.map((definition) => [definition.key, definition]));
+  const baseKeys = new Set(BASE_SETTINGS_SCHEMA.map((definition) => definition.key));
+
+  // The UI registry may group sections in rail order, but the flattened schema
+  // keeps the authored platform order. Settings export serializes this order.
+  return [
+    ...BASE_SETTINGS_SCHEMA.flatMap((definition) => {
+      const registered = definitionByKey.get(definition.key);
+      return registered ? [registered] : [];
+    }),
+    ...registeredDefinitions.filter((definition) => !baseKeys.has(definition.key)),
+  ];
 }
 
 export function getSettingsGroupDescriptors(): readonly SettingsGroupDescriptor[] {

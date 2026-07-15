@@ -2,18 +2,6 @@ import { BASE_SETTINGS_SCHEMA } from '@/platform/settings/schema';
 import { renderRegisteredSettingsSection } from './sectionRendererBindings';
 import type { SettingsModuleDescriptor } from './types';
 
-declare module './types' {
-  interface SettingsSectionMap {
-    workspace: true;
-    ai: true;
-    privacy: true;
-    scheduling: true;
-    voice: true;
-    advanced: true;
-    help: true;
-  }
-}
-
 const definitionsFor = (section: string) =>
   () => BASE_SETTINGS_SCHEMA.filter((definition) =>
     section === 'ai'

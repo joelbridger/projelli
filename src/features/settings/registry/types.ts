@@ -2,17 +2,14 @@ import type { ReactNode } from 'react';
 import type { SectionCategory, SettingDefinition } from '@/platform/settings/schema';
 import type { AuditEntry } from '@/platform/types/audit';
 import type { WorkflowTemplate } from '@/platform/types/workflow';
+import type { SettingsSectionId } from '@/platform/types/settings';
 
 /**
- * Closed, augmentable vocabulary for settings rail sections. Feature modules
- * add their own id with module augmentation; unregistered ids stay type errors.
+ * Closed, augmentable vocabulary for settings rail sections. The platform owns
+ * the base vocabulary; feature modules may augment that platform map beside a
+ * descriptor. Unregistered ids stay type errors.
  */
-export interface SettingsSectionMap {
-  // Feature modules register their ids with `declare module` beside the
-  // descriptor. Keeping this empty prevents an accidental central id list.
-}
-
-export type SettingsSectionId = Extract<keyof SettingsSectionMap, string>;
+export type { SettingsSectionId } from '@/platform/types/settings';
 
 export interface SettingsSectionRenderProps {
   getSetting: (key: string) => unknown;
