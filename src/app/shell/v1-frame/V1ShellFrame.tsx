@@ -2,9 +2,7 @@ import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Bell, Command, Search } from 'lucide-react';
 import type { AppSurface } from '@/platform/types/navigation';
-import {
-  getOrderedAppSurfaces,
-} from '@/app/shell/registry/appSurfaceRegistry';
+import { getOrderedAppSurfaces } from '@/app/shell/registry/appSurfaceRegistry';
 import { SharedClientBar } from '@/app/shell/SharedClientBar';
 import { useAppSurfaceRegistry } from '@/app/shell/runtime/useAppSurfaceRegistry';
 import { BRAND } from '@/config/brand';
@@ -23,6 +21,22 @@ export interface V1ShellFrameProps {
   preTopbar?: ReactNode;
   postTopbar?: ReactNode;
   children: ReactNode;
+}
+
+interface V1ShellFrameFlagGateProps extends V1ShellFrameProps {
+  legacy: ReactNode;
+}
+
+/** Keeps the feature-flag read out of the legacy app shell. */
+export function V1ShellFrameFlagGate({
+  legacy,
+  ...frameProps
+}: V1ShellFrameFlagGateProps) {
+  return useFlag('v1-shell-frame') ? (
+    <V1ShellFrame {...frameProps} />
+  ) : (
+    legacy
+  );
 }
 
 function initials(name: string): string {
@@ -89,7 +103,9 @@ function FirmCard() {
       data-testid="v1-shell-firm-card"
     >
       <strong className="block truncate text-sm font-semibold text-slate-950">
-        {firmName.trim() || firm?.org?.name || t('shell-frame.firm-card.default-name')}
+        {firmName.trim() ||
+          firm?.org?.name ||
+          t('shell-frame.firm-card.default-name')}
       </strong>
       <span className="mt-1 block text-xs text-slate-500">
         {t('shell-frame.firm-card.summary', { count: firm?.seats ?? 1 })}
@@ -142,9 +158,10 @@ export function V1ShellFrame({
 }: V1ShellFrameProps) {
   const { t } = useTranslation();
   const { descriptors } = useAppSurfaceRegistry();
-  const activeDescriptor = descriptors.find((descriptor) => descriptor.id === activeSurface);
+  const activeDescriptor = descriptors.find(
+    (descriptor) => descriptor.id === activeSurface
+  );
   const hasSharedClientContext = activeDescriptor?.clientContext === 'shared';
-  const sharedClientBarEnabled = useFlag('shared-client-bar');
 
   return (
     <div
@@ -162,17 +179,33 @@ export function V1ShellFrame({
         className={`flex shrink-0 flex-col overflow-hidden border-r border-slate-200 bg-white py-4 transition-[width] ${sidebarCollapsed ? 'w-16 px-2' : 'w-60 px-3'}`}
         data-testid="v1-shell-global-nav"
       >
-        <button className="mb-7 flex items-center gap-2 px-2" onClick={() => {
-          onSidebarCollapsedChange(!sidebarCollapsed);
-        }} type="button">
+        <button
+          className="mb-7 flex items-center gap-2 px-2"
+          onClick={() => {
+            onSidebarCollapsedChange(!sidebarCollapsed);
+          }}
+          type="button"
+        >
           <span className="flex size-7 items-center justify-center rounded-lg bg-slate-900 text-sm font-bold text-white">
             {BRAND.nameShort.slice(0, 1)}
           </span>
-          <span className={sidebarCollapsed ? 'sr-only' : 'truncate text-sm font-bold tracking-tight text-slate-950'}>
+          <span
+            className={
+              sidebarCollapsed
+                ? 'sr-only'
+                : 'truncate text-sm font-bold tracking-tight text-slate-950'
+            }
+          >
             {BRAND.nameShort}
           </span>
         </button>
-        <p className={sidebarCollapsed ? 'sr-only' : 'mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400'}>
+        <p
+          className={
+            sidebarCollapsed
+              ? 'sr-only'
+              : 'mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400'
+          }
+        >
           {t('shell-frame.nav.workspace')}
         </p>
         <RegistryNavItems
@@ -198,11 +231,20 @@ export function V1ShellFrame({
           className="flex h-14 min-w-0 shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-5"
           data-testid="v1-shell-topbar"
         >
-          <nav aria-label={t('shell-frame.breadcrumb.label')} className="min-w-0 shrink-0 text-sm">
-            <span className="text-slate-400">{t('shell-frame.breadcrumb.workspace')}</span>
-            <span aria-hidden="true" className="mx-2 text-slate-300">/</span>
+          <nav
+            aria-label={t('shell-frame.breadcrumb.label')}
+            className="min-w-0 shrink-0 text-sm"
+          >
+            <span className="text-slate-400">
+              {t('shell-frame.breadcrumb.workspace')}
+            </span>
+            <span aria-hidden="true" className="mx-2 text-slate-300">
+              /
+            </span>
             <span className="font-medium text-slate-800">
-              {activeDescriptor ? t(activeDescriptor.labelKey) : t('shell-frame.breadcrumb.unknown')}
+              {activeDescriptor
+                ? t(activeDescriptor.labelKey)
+                : t('shell-frame.breadcrumb.unknown')}
             </span>
           </nav>
           {globalStatus}
@@ -214,7 +256,9 @@ export function V1ShellFrame({
             type="button"
           >
             <Search aria-hidden="true" className="size-4 shrink-0" />
-            <span className="truncate">{t('shell-frame.search.placeholder')}</span>
+            <span className="truncate">
+              {t('shell-frame.search.placeholder')}
+            </span>
             <kbd className="ml-auto rounded border border-slate-200 bg-white px-1.5 py-0.5 font-sans text-[11px] font-medium text-slate-500">
               <Command aria-hidden="true" className="mr-0.5 inline size-3" />K
             </kbd>
@@ -234,11 +278,15 @@ export function V1ShellFrame({
 
         {hasSharedClientContext ? (
           <div data-testid="v1-shell-client-bar-slot">
-            {!sharedClientBarEnabled && <SharedClientBar />}
+            <SharedClientBar />
           </div>
         ) : null}
 
-        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" id="main-content" tabIndex={-1}>
+        <main
+          className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+          id="main-content"
+          tabIndex={-1}
+        >
           {children}
         </main>
       </section>

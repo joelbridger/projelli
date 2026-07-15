@@ -47,8 +47,7 @@ import { AppSurfaceRouter } from '@/app/shell/AppSurfaceRouter';
 import { AppSurfaceRuntimeProvider } from '@/app/shell/runtime/AppSurfaceRuntimeProvider';
 import type { AppSurfaceCapabilities } from '@/app/shell/runtime/AppSurfaceRuntime';
 import { getAppSurfaceDescriptor } from '@/app/shell/registry/appSurfaceRegistry';
-import { V1ShellFrame } from '@/app/shell/v1-frame/V1ShellFrame';
-import { useFlag } from '@/platform/flags';
+import { V1ShellFrameFlagGate } from '@/app/shell/v1-frame/V1ShellFrame';
 import { ErrorBoundary } from '@/ui/ErrorBoundary';
 import { RecordPill } from '@/features/meetings/RecordPill';
 import { MeetingAutoJoinScheduler } from '@/features/meetings/MeetingAutoJoinScheduler';
@@ -280,7 +279,6 @@ function App() {
 
 function AppShell() {
   const { t } = useTranslation();
-  const v1ShellFrameEnabled = useFlag('v1-shell-frame');
   const [showWorkspaceSelector, setShowWorkspaceSelector] = useState(
     !IS_TEST_MODE && !IS_DEMO_MODE
   );
@@ -2150,66 +2148,73 @@ function AppShell() {
       className="h-screen flex flex-col bg-background text-foreground"
       data-testid="app-container"
     >
-      {v1ShellFrameEnabled ? (
-        <V1ShellFrame
-          activeSurface={sidebarActiveTab}
-          globalStatus={
-            <TrustBar inline onOpenAiSettings={() => openSettingsPage('ai')} />
-          }
-          sidebarCollapsed={sidebarCollapsed}
-          onSidebarCollapsedChange={setSidebarCollapsed}
-          onOpenCommandPalette={() => setShowCommandPalette(true)}
-          onSurfaceChange={(surface) => {
-            if (surface !== sidebarActiveTab) pushNavigationSnapshot();
-            if (surface === 'files') setDocumentsView('browser');
-            if (surface === 'matters') {
-              const matterState = useMatterStore.getState();
-              if (matterState.activeMatterId) {
-                setMattersSurfaceMode('client-map');
-                matterState.setClientMapHubId(matterState.activeMatterId);
-                matterState.setClientMapHubTab('overview');
-              } else {
-                setMattersSurfaceMode('all-clients');
-                matterState.setClientMapHubId(null);
-                matterState.setClientMapHubTab(null);
-              }
+      <V1ShellFrameFlagGate
+        activeSurface={sidebarActiveTab}
+        globalStatus={
+          <TrustBar
+            inline
+            onOpenAiSettings={() => {
+              openSettingsPage('ai');
+            }}
+          />
+        }
+        sidebarCollapsed={sidebarCollapsed}
+        onSidebarCollapsedChange={(collapsed) => {
+          setSidebarCollapsed(collapsed);
+        }}
+        onOpenCommandPalette={() => {
+          setShowCommandPalette(true);
+        }}
+        onSurfaceChange={(surface) => {
+          if (surface !== sidebarActiveTab) pushNavigationSnapshot();
+          if (surface === 'files') setDocumentsView('browser');
+          if (surface === 'matters') {
+            const matterState = useMatterStore.getState();
+            if (matterState.activeMatterId) {
+              setMattersSurfaceMode('client-map');
+              matterState.setClientMapHubId(matterState.activeMatterId);
+              matterState.setClientMapHubTab('overview');
+            } else {
+              setMattersSurfaceMode('all-clients');
+              matterState.setClientMapHubId(null);
+              matterState.setClientMapHubTab(null);
             }
-            setSidebarActiveTab(surface);
-          }}
-          preTopbar={
-            <>
-              {workspaceOpenError && (
-                <InlineErrorBanner
-                  message={workspaceOpenError}
-                  onDismiss={dismissWorkspaceOpenError}
-                />
-              )}
-              {credentialServiceUnavailable && !credentialBannerDismissed && (
-                <InlineErrorBanner
-                  message={t('settings.api-keys.credential-service-unavailable')}
-                  onDismiss={() => setCredentialBannerDismissed(true)}
-                />
-              )}
-            </>
           }
-          postTopbar={
-            <>
-              <ModelDownloadCard />
-              <LocalAiDownloadCard />
-              <RagProgressBanner />
-              <ScopeUpdateBanner />
-              <TrialBanner onActivate={() => openSettings('license')} />
-            </>
-          }
-        >
-          <ErrorBoundary label="Workspace">
-            <AppSurfaceRuntimeProvider value={appSurfaceCapabilities}>
-              <AppSurfaceRouter sidebarActiveTab={sidebarActiveTab} />
-            </AppSurfaceRuntimeProvider>
-          </ErrorBoundary>
-        </V1ShellFrame>
-      ) : (
-        <>
+          setSidebarActiveTab(surface);
+        }}
+        preTopbar={
+          <>
+            {workspaceOpenError && (
+              <InlineErrorBanner
+                message={workspaceOpenError}
+                onDismiss={dismissWorkspaceOpenError}
+              />
+            )}
+            {credentialServiceUnavailable && !credentialBannerDismissed && (
+              <InlineErrorBanner
+                message={t('settings.api-keys.credential-service-unavailable')}
+                onDismiss={() => {
+                  setCredentialBannerDismissed(true);
+                }}
+              />
+            )}
+          </>
+        }
+        postTopbar={
+          <>
+            <ModelDownloadCard />
+            <LocalAiDownloadCard />
+            <RagProgressBanner />
+            <ScopeUpdateBanner />
+            <TrialBanner
+              onActivate={() => {
+                openSettings('license');
+              }}
+            />
+          </>
+        }
+        legacy={
+          <>
       {/* Accessibility: skip link so keyboard users can bypass the nav */}
       <a
         href="#main-content"
@@ -2370,8 +2375,15 @@ function AppShell() {
           </AppSurfaceRuntimeProvider>
         </ErrorBoundary>
       </main>
-        </>
-      )}
+          </>
+        }
+      >
+        <ErrorBoundary label="Workspace">
+          <AppSurfaceRuntimeProvider value={appSurfaceCapabilities}>
+            <AppSurfaceRouter sidebarActiveTab={sidebarActiveTab} />
+          </AppSurfaceRuntimeProvider>
+        </ErrorBoundary>
+      </V1ShellFrameFlagGate>
 
       {/* Wave 3c: the whole recording UI (position: fixed, floats over every
           surface) — mounted here at the app root, not inside MainPanel, so it
