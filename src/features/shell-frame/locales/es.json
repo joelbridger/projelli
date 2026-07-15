@@ -1,0 +1,30 @@
+{
+  "shell-frame": {
+    "skip-to-content": "Ir al contenido",
+    "nav": {
+      "label": "Navegación principal",
+      "workspace": "Espacio de trabajo"
+    },
+    "breadcrumb": {
+      "label": "Ruta de navegación",
+      "workspace": "Espacio de trabajo",
+      "unknown": "Espacio de trabajo"
+    },
+    "search": {
+      "open": "Abrir paleta de comandos",
+      "placeholder": "Buscar clientes, tareas, reuniones y conversaciones"
+    },
+    "notifications": {
+      "placeholder": "Las notificaciones aparecerán aquí"
+    },
+    "avatar": {
+      "fallback-name": "Asesor",
+      "label": "Sesión iniciada como {{name}}"
+    },
+    "firm-card": {
+      "default-name": "Tu firma",
+      "summary_one": "Espacio de trabajo de la firma · {{count}} persona",
+      "summary_other": "Espacio de trabajo de la firma · {{count}} personas"
+    }
+  }
+}

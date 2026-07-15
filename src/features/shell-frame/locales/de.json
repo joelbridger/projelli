@@ -1,0 +1,30 @@
+{
+  "shell-frame": {
+    "skip-to-content": "Zum Inhalt springen",
+    "nav": {
+      "label": "Hauptnavigation",
+      "workspace": "Arbeitsbereich"
+    },
+    "breadcrumb": {
+      "label": "Navigationspfad",
+      "workspace": "Arbeitsbereich",
+      "unknown": "Arbeitsbereich"
+    },
+    "search": {
+      "open": "Befehlspalette öffnen",
+      "placeholder": "Kunden, Aufgaben, Besprechungen und Unterhaltungen suchen"
+    },
+    "notifications": {
+      "placeholder": "Benachrichtigungen werden hier angezeigt"
+    },
+    "avatar": {
+      "fallback-name": "Berater",
+      "label": "Angemeldet als {{name}}"
+    },
+    "firm-card": {
+      "default-name": "Ihre Firma",
+      "summary_one": "Arbeitsbereich der Firma · {{count}} Person",
+      "summary_other": "Arbeitsbereich der Firma · {{count}} Personen"
+    }
+  }
+}
