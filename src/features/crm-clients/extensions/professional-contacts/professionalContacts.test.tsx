@@ -33,7 +33,9 @@ const household: HouseholdRecord = {
 
 function context(
   current: HouseholdRecord,
-  onSaveHousehold = vi.fn()
+  onSaveHousehold: NonNullable<
+    HouseholdRecordShellContext['onSaveHousehold']
+  > = vi.fn()
 ): HouseholdRecordShellContext {
   return {
     household: current,

@@ -96,7 +96,7 @@ describe('ClientsSurface during a CRM search update', () => {
     expect(screen.getByTestId('crm-directory-household-matter-wealthbox-1')).toBeInTheDocument();
   });
 
-  it('carries every stored extension bag through a reload without interpreting its keys', () => {
+  it('saves professional contacts without changing other extension bags, then rehydrates both after remount', async () => {
     localStorage.setItem(
       'lantern:feature-flags',
       JSON.stringify({
@@ -127,11 +127,54 @@ describe('ClientsSurface during a CRM search update', () => {
         },
       },
     ];
+    let savedRecord: Record<string, unknown> | undefined;
+    liveCrm.save.mockImplementation(async (record: Record<string, unknown>) => {
+      savedRecord = record;
+      liveCrm.records = [record];
+      return record;
+    });
 
+    const firstMount = render(<ClientsSurface />);
+
+    fireEvent.click(
+      screen.getByTestId('professional-contacts-edit-trusted_contact')
+    );
+    fireEvent.change(
+      screen.getByTestId('professional-contacts-name-trusted_contact'),
+      { target: { value: 'Amelia Foster' } }
+    );
+    fireEvent.change(
+      screen.getByTestId('professional-contacts-relationship-trusted_contact'),
+      { target: { value: 'Daughter' } }
+    );
+    fireEvent.click(
+      screen.getByTestId('professional-contacts-save-trusted_contact')
+    );
+
+    await vi.waitFor(() => {
+      expect(savedRecord).toBeDefined();
+    });
+    expect(savedRecord?.extensionData).toEqual({
+      'crm.professional-contacts': expect.objectContaining({
+        trusted_contact: expect.objectContaining({
+          name: 'Amelia Foster',
+          relationship: 'Daughter',
+        }),
+      }),
+      'future.extension': { survives: true },
+    });
+
+    firstMount.unmount();
     render(<ClientsSurface />);
 
     expect(
       screen.getByTestId('professional-contacts-summary-trusted_contact')
     ).toHaveTextContent('Amelia Foster');
+    expect(liveCrm.records[0]?.extensionData).toEqual({
+      'crm.professional-contacts': expect.objectContaining({
+        trusted_contact: expect.objectContaining({ name: 'Amelia Foster' }),
+      }),
+      'future.extension': { survives: true },
+    });
   });
 });
