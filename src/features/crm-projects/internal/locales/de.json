@@ -1,0 +1,12 @@
+{
+  "internal-projects": {
+    "nav": "Projekte", "title": "Projekte", "description": "Interne Firmenarbeit ohne Bezug zu einem Kunden", "new": "Neues Projekt",
+    "empty": { "title": "Noch keine internen Projekte", "body": "Erstellen Sie ein Firmenprojekt für Arbeit, die keinem Kunden gehört.", "action": "Projekt erstellen" },
+    "create": { "title": "Neues internes Projekt", "save": "Projekt erstellen", "cancel": "Abbrechen" },
+    "fields": { "name": "Projektname", "category": "Kategorie", "owner": "Verantwortlich", "status": "Status", "due": "Fälligkeitsdatum", "milestones": "Meilensteine (einer pro Zeile)", "collaborators": "Mitwirkende (durch Kommas trennen)" },
+    "columns": { "project": "Projekt", "status": "Status", "owner": "Verantwortlich", "progress": "Fortschritt", "due": "Fällig" },
+    "status": { "planning": "Planung", "on_track": "Im Plan", "in_progress": "In Arbeit", "needs_attention": "Braucht Aufmerksamkeit", "complete": "Abgeschlossen" },
+    "progressLabel": "{{completed}} / {{total}} Meilensteine abgeschlossen", "progressAria": "{{percent}} Prozent abgeschlossen", "noCategory": "Interne Firmenarbeit", "noDue": "Kein Fälligkeitsdatum",
+    "detail": { "emptyTitle": "Details zum Firmenprojekt", "emptyBody": "Wählen Sie ein Projekt, um Meilensteine, Dateien, Notizen, Ereignisse und Mitwirkende zu sehen.", "owner": "Verantwortlich · {{owner}}", "due": "Fällig {{due}}", "milestones": "Meilensteine", "noMilestones": "Noch keine Meilensteine.", "summary": "Dateien, Notizen und Ereignisse", "files": "{{count}} Dateien", "notes": "{{count}} Notizen", "events": "{{count}} Ereignisse", "collaborators": "Mitwirkende", "noCollaborators": "Noch keine Mitwirkenden." }
+  }
+}

@@ -104,6 +104,15 @@ export const flagRegistry = [
     expiresAt: '2026-09-13',
     defaultEnabled: false,
   },
+  {
+    id: 'internal-projects',
+    description:
+      'Keeps internal firm project tracking dark until its CRM acceptance drive is complete.',
+    ownerLane: 'internal-projects',
+    createdAt: '2026-07-15',
+    expiresAt: '2026-09-13',
+    defaultEnabled: false,
+  },
 ] as const satisfies readonly FlagDescriptor[];
 
 export type FlagId = (typeof flagRegistry)[number]['id'];

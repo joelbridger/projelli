@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { deCatalog as de, enCatalog as en, esCatalog as es } from '@/i18nCatalogs';
 import { crmHomeSurfaceRegistry } from './registry';
+import { flagRegistry } from '@/platform/flags/registry';
 
 type LocaleCatalog = Record<string, unknown>;
 
@@ -48,5 +49,19 @@ describe('crmHomeSurfaceRegistry', () => {
       if (surface.parentRoute)
         expect(routes.has(surface.parentRoute)).toBe(true);
     }
+  });
+
+  it('keeps internal firm projects dark until their feature flag is enabled', () => {
+    const surface = crmHomeSurfaceRegistry.find(
+      (entry) => entry.id === 'internal-projects'
+    );
+    expect(surface).toMatchObject({
+      route: 'internal-projects',
+      flagId: 'internal-projects',
+    });
+    expect(flagRegistry.find((flag) => flag.id === 'internal-projects')).toMatchObject({
+      defaultEnabled: false,
+      ownerLane: 'internal-projects',
+    });
   });
 });
