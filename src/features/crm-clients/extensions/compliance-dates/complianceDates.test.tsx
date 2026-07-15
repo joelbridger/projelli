@@ -138,13 +138,38 @@ describe('written agreement compliance dates', () => {
     expect(screen.getAllByText('Missing date')).toHaveLength(4);
   });
 
-  it('does not persist an invalid date', () => {
+  it('shows validation and does not call the connected save callback for an invalid date', async () => {
+    setDevFlagOverride('record-compliance-dates', true);
     const onSaveHousehold = vi.fn();
-    const invalid = {
-      ...EMPTY_COMPLIANCE_DATES,
-      privacyNoticeDeliveredOn: '2026-02-29',
-    };
-    expect(validateComplianceDates(invalid).valid).toBe(false);
+    render(
+      <>
+        {writtenAgreementsSection.mount({
+          household,
+          onSaveHousehold,
+          openPanel: vi.fn(),
+          setNoteAudience: vi.fn(),
+          setAdding: vi.fn(),
+          setEditingPerson: vi.fn(),
+          deleteFact: vi.fn(),
+          renderLegacyClientMap: vi.fn(),
+        })}
+      </>
+    );
+
+    fireEvent.click(screen.getByTestId('compliance-dates-edit'));
+    fireEvent.change(
+      screen.getByTestId('compliance-dates-input-privacyNoticeDeliveredOn'),
+      { target: { value: '2026-02-29' } }
+    );
+    fireEvent.click(screen.getByTestId('compliance-dates-save'));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          'Enter a real date in YYYY-MM-DD format, or leave it blank.'
+        )
+      ).toBeInTheDocument();
+    });
     expect(onSaveHousehold).not.toHaveBeenCalled();
   });
 

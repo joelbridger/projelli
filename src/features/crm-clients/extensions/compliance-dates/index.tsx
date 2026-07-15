@@ -4,7 +4,7 @@ import type {
   HouseholdSectionDescriptor,
 } from '../../recordRegistry';
 import { COMPLIANCE_DATES_DATA_KEY } from './persistence';
-import { EMPTY_COMPLIANCE_DATES, type ComplianceDatesPayload } from './types';
+import { EMPTY_COMPLIANCE_DATES } from './types';
 import { isComplianceDatesPayload } from './validation';
 import { WrittenAgreementsSection } from './WrittenAgreementsSection';
 
@@ -17,7 +17,7 @@ declare module '../../recordRegistry' {
   }
 }
 
-export const complianceDatesRecordExtension: HouseholdRecordExtensionDescriptor<ComplianceDatesPayload> =
+export const complianceDatesRecordExtension: HouseholdRecordExtensionDescriptor =
   {
     id: 'compliance-dates-written-agreements',
     dataKey: COMPLIANCE_DATES_DATA_KEY,

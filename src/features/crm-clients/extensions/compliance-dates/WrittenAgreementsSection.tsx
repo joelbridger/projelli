@@ -9,7 +9,6 @@ import {
 import {
   COMPLIANCE_DATE_FIELDS,
   type ComplianceDateField,
-  type ComplianceDatesPayload,
 } from './types';
 import { readComplianceDates, validateComplianceDates } from './validation';
 
@@ -135,7 +134,10 @@ export function WrittenAgreementsSection({
             >
               <span>{label}</span>
               <input
-                type="date"
+                type="text"
+                inputMode="numeric"
+                pattern="\\d{4}-\\d{2}-\\d{2}"
+                placeholder="YYYY-MM-DD"
                 value={dateForInput(draft[field])}
                 data-testid={`compliance-dates-input-${field}`}
                 onChange={(event) => update(field, event.target.value)}
