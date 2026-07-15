@@ -65,7 +65,15 @@ export const flagRegistry = [
     description:
       'Keeps professional and trusted-contact details dark until their record drive passes.',
     ownerLane: 'record-professional-contacts',
-
+    createdAt: '2026-07-15',
+    expiresAt: '2026-09-13',
+    defaultEnabled: false,
+  },
+  {
+    id: 'booking-public-page',
+    description:
+      'Keeps the branded public booking-page presentation dark until its hosted route is mounted.',
+    ownerLane: 'booking-public-page',
     createdAt: '2026-07-15',
     expiresAt: '2026-09-13',
     defaultEnabled: false,
