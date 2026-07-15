@@ -38,6 +38,7 @@ import { useProfileStore } from '@/platform/profile/profileStore';
 import { cn } from '@/lib/utils';
 import { computeOpenSlots } from './availability';
 import { useSchedulingStore } from './schedulingStore';
+import { renderSchedulingSurfaceRegistry } from './schedulingSurfaceRegistry';
 import {
   WEEKDAYS,
   type BookableSlot,
@@ -60,7 +61,8 @@ interface MeetingTypeDraft {
   bufferAfterMin: number;
 }
 
-export function SchedulingHome() {
+/** Compatibility implementation kept intact behind the descriptor registry. */
+export function LegacySchedulingSurface() {
   const { t } = useTranslation();
   const [activeSection, setActiveSection] = useState<SchedulingSection>('upcoming');
   const [copiedAction, setCopiedAction] = useState<string | null>(null);
@@ -313,6 +315,12 @@ export function SchedulingHome() {
       />
     </div>
   );
+}
+
+/** Generic scheduling shell. New calendar and booking surfaces register mounts. */
+export function SchedulingHome() {
+  const state = useSchedulingStore();
+  return <>{renderSchedulingSurfaceRegistry({ state })}</>;
 }
 
 function UpcomingPanel({
