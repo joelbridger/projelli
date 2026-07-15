@@ -5,7 +5,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use tauri::State;
 
-use super::{commands::CrmState, core_store::CrmCoreStore};
+use super::{commands::CrmState, core_store::CrmCoreStore, record_descriptors::valid_record_identifier};
 
 async fn workspace(state: &CrmState) -> Result<std::path::PathBuf, String> {
     state.workspace.lock().await.clone().ok_or_else(|| "Open a workspace before using CRM data.".to_string())
@@ -67,10 +67,10 @@ fn normalize_live_record(mut record: Value) -> Result<Value, String> {
     let object = record.as_object_mut().ok_or("CRM live record must be an object")?;
     let id = object.get("id").and_then(Value::as_str).filter(|value| !value.trim().is_empty()).ok_or("CRM live record requires id")?;
     let kind = object.get("kind").and_then(Value::as_str).filter(|value| !value.trim().is_empty()).ok_or("CRM live record requires kind")?;
-    if !kind.chars().all(|value| value.is_ascii_alphanumeric() || value == '_' || value == '-') {
+    if !valid_record_identifier(kind, false) {
         return Err("CRM live record kind is invalid".to_string());
     }
-    if !id.chars().all(|value| value.is_ascii_alphanumeric() || matches!(value, '-' | '_' | ':')) {
+    if !valid_record_identifier(id, true) {
         return Err("CRM live record id is invalid".to_string());
     }
     let now = chrono::Utc::now().to_rfc3339();

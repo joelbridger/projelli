@@ -10,7 +10,8 @@ use std::{
 
 use super::{
     core_model::{AssignmentOperation, CompletionOperation, HlcStamp, PropagationDecision},
-    core_schema,
+    migrations,
+    record_descriptors::{self, RecordDescriptor, CRM_RECORD_DESCRIPTORS},
 };
 use crate::util::sync::lock_unpoison;
 
@@ -105,7 +106,7 @@ impl CrmCoreStore {
             .with_context(|| format!("open CRM core database {}", path.display()))?;
         conn.execute_batch(&format!("PRAGMA key = \"x'{}'\";", hex::encode(key)))?;
         conn.busy_timeout(std::time::Duration::from_secs(5))?;
-        core_schema::migrate(&conn)?;
+        migrations::migrate(&conn)?;
         Ok(Self {
             conn: Mutex::new(conn),
             workspace_root: workspace_root.to_path_buf(),
@@ -122,12 +123,31 @@ impl CrmCoreStore {
     /// second browser cache: it uses the same SQLCipher database, key, backup,
     /// and delete semantics as the CRM core.
     pub fn upsert_live_record(&self, record: &serde_json::Value) -> Result<()> {
-        let object = record.as_object().context("CRM live record must be an object")?;
-        let id = object
-            .get("id")
-            .and_then(serde_json::Value::as_str)
-            .filter(|value| !value.trim().is_empty())
-            .context("CRM live record requires id")?;
+        self.upsert_live_record_with_descriptors(record, CRM_RECORD_DESCRIPTORS, true)
+    }
+
+    /// Importer-only persistence boundary. Wealthbox ids are opaque source
+    /// values, and this path accepted every non-empty id before descriptors
+    /// were introduced. Keep that compatibility while still running any
+    /// registered feature validator/projector atomically.
+    pub(super) fn upsert_imported_live_record(&self, record: &serde_json::Value) -> Result<()> {
+        self.upsert_live_record_with_descriptors(record, CRM_RECORD_DESCRIPTORS, false)
+    }
+
+    fn upsert_live_record_with_descriptors(
+        &self,
+        record: &serde_json::Value,
+        descriptors: &[RecordDescriptor],
+        enforce_identifier_syntax: bool,
+    ) -> Result<()> {
+        let identity = if enforce_identifier_syntax {
+            record_descriptors::validate_live_record(record, descriptors)?
+        } else {
+            record_descriptors::validate_imported_live_record(record, descriptors)?
+        };
+        let object = record
+            .as_object()
+            .expect("a validated CRM live record is an object");
         let matter_id = object
             .get("matterId")
             .and_then(serde_json::Value::as_str)
@@ -138,15 +158,27 @@ impl CrmCoreStore {
             .and_then(serde_json::Value::as_str)
             .filter(|value| !value.trim().is_empty())
             .unwrap_or("unknown");
-        self.upsert_doc(&CrmDocRow {
-            doc_key: format!("{matter_id}/live:{id}"),
-            matter_id: matter_id.to_string(),
-            doc_id: format!("live:{id}"),
-            yjs_state: serde_json::to_vec(record).context("encode CRM live record")?,
-            state_vector: Vec::new(),
-            updated_at: updated_at.to_string(),
-            deleted: false,
-        })
+        let encoded = serde_json::to_vec(record).context("encode CRM live record")?;
+        let mut conn = lock_unpoison(&self.conn);
+        let transaction = conn.transaction()?;
+        transaction.execute(
+            "INSERT INTO crm_docs(doc_key,matter_id,doc_id,yjs_state,state_vector,updated_at,deleted) VALUES(?1,?2,?3,?4,?5,?6,0) ON CONFLICT(doc_key) DO UPDATE SET matter_id=excluded.matter_id,doc_id=excluded.doc_id,yjs_state=excluded.yjs_state,state_vector=excluded.state_vector,updated_at=excluded.updated_at,deleted=excluded.deleted",
+            params![
+                format!("{matter_id}/live:{}", identity.id),
+                matter_id,
+                format!("live:{}", identity.id),
+                encoded,
+                Vec::<u8>::new(),
+                updated_at,
+            ],
+        )?;
+        if enforce_identifier_syntax {
+            record_descriptors::project_live_record(record, &transaction, descriptors)?;
+        } else {
+            record_descriptors::project_imported_live_record(record, &transaction, descriptors)?;
+        }
+        transaction.commit()?;
+        Ok(())
     }
 
     pub fn list_live_records(&self) -> Result<Vec<serde_json::Value>> {
@@ -509,6 +541,8 @@ fn self_quarantine(conn: &Connection, org_id: &str, stamp: &HlcStamp, reason: &s
 mod tests {
     use super::*;
     use crate::commands::crm::core_model::ActorRef;
+    use anyhow::bail;
+    use serde_json::Value;
     use tempfile::TempDir;
     fn store() -> (TempDir, CrmCoreStore) {
         let dir = TempDir::new().unwrap();
@@ -534,7 +568,7 @@ mod tests {
     }
     #[test]
     fn live_records_round_trip_through_the_encrypted_document_store() {
-        let (_d, s) = store();
+        let (directory, store) = store();
         let record = serde_json::json!({
             "id": "household-northcrest",
             "kind": "household",
@@ -542,8 +576,105 @@ mod tests {
             "name": "Northcrest household",
             "updatedAt": "2026-07-11T00:00:00Z"
         });
-        s.upsert_live_record(&record).unwrap();
-        assert_eq!(s.list_live_records().unwrap(), vec![record]);
+        store.upsert_live_record(&record).unwrap();
+        drop(store);
+
+        let reopened = CrmCoreStore::open_with_key(directory.path(), &[7; 32]).unwrap();
+        assert_eq!(reopened.list_live_records().unwrap(), vec![record]);
+    }
+
+    #[test]
+    fn legacy_baseline_database_is_adopted_and_round_trips_unchanged() {
+        let directory = TempDir::new().unwrap();
+        let path = CrmCoreStore::db_path(directory.path());
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let legacy = Connection::open(&path).unwrap();
+        legacy
+            .execute_batch(&format!("PRAGMA key = \"x'{}'\";", hex::encode([9; 32])))
+            .unwrap();
+        crate::commands::crm::core_schema::apply_baseline(&legacy).unwrap();
+        let record = serde_json::json!({
+            "id": "existing-1",
+            "kind": "futureFeature",
+            "matterId": "client-1",
+            "label": "Already stored",
+            "updatedAt": "2026-07-14T00:00:00Z"
+        });
+        legacy
+            .execute(
+                "INSERT INTO crm_docs(doc_key,matter_id,doc_id,yjs_state,state_vector,updated_at,deleted) VALUES(?1,?2,?3,?4,?5,?6,0)",
+                (
+                    "client-1/live:existing-1",
+                    "client-1",
+                    "live:existing-1",
+                    serde_json::to_vec(&record).unwrap(),
+                    Vec::<u8>::new(),
+                    "2026-07-14T00:00:00Z",
+                ),
+            )
+            .unwrap();
+        drop(legacy);
+
+        let adopted = CrmCoreStore::open_with_key(directory.path(), &[9; 32]).unwrap();
+        assert_eq!(adopted.list_live_records().unwrap(), vec![record.clone()]);
+        adopted.upsert_live_record(&record).unwrap();
+        drop(adopted);
+
+        let reopened = CrmCoreStore::open_with_key(directory.path(), &[9; 32]).unwrap();
+        assert_eq!(reopened.list_live_records().unwrap(), vec![record]);
+    }
+
+    fn validate_projected_record(record: &Value) -> Result<()> {
+        if record.get("label").and_then(Value::as_str).is_none() {
+            bail!("label is required")
+        }
+        Ok(())
+    }
+
+    fn project_test_record(record: &Value, conn: &Connection) -> Result<()> {
+        conn.execute(
+            "INSERT INTO test_record_projection(id,label) VALUES(?1,?2)",
+            (
+                record["id"].as_str().unwrap(),
+                record["label"].as_str().unwrap(),
+            ),
+        )?;
+        Ok(())
+    }
+
+    #[test]
+    fn feature_descriptor_validates_and_projects_with_the_generic_document_write() {
+        let (_directory, store) = store();
+        lock_unpoison(&store.conn)
+            .execute_batch(
+                "CREATE TABLE test_record_projection(id TEXT PRIMARY KEY,label TEXT NOT NULL);",
+            )
+            .unwrap();
+        let descriptors = [RecordDescriptor {
+            kind: "futureFeature",
+            validate: Some(validate_projected_record),
+            project: Some(project_test_record),
+        }];
+        let record = serde_json::json!({
+            "id": "future-1",
+            "kind": "futureFeature",
+            "matterId": "client-1",
+            "label": "Future record"
+        });
+
+        store
+            .upsert_live_record_with_descriptors(&record, &descriptors, true)
+            .unwrap();
+
+        let projected: String = lock_unpoison(&store.conn)
+            .query_row(
+                "SELECT label FROM test_record_projection WHERE id='future-1'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(projected, "Future record");
+        assert_eq!(store.list_live_records().unwrap(), vec![record]);
     }
     #[test]
     fn observed_relay_time_caps_issued_stamp_and_quarantines_old_future_stamp() {

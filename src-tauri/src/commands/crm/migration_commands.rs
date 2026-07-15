@@ -13,7 +13,7 @@ use super::{
     core_store::CrmCoreStore,
     importer::{
         fetch_activity_page, fetch_custom_fields_page, fetch_page, write_decrypted_archive,
-        write_rollback_csv, SourceType, IMPORTER_PAGE_SIZE,
+        write_rollback_csv, SourceType, TypedSourceRecord, IMPORTER_PAGE_SIZE,
     },
 };
 
@@ -143,6 +143,29 @@ fn matrix_row(source_type: &str, fetched: usize, imported: usize, skipped: usize
     json!({ "sourceType": source_type, "fetched": fetched, "imported": imported, "skipped": skipped, "rejected": 0, "plainReason": plain_reason })
 }
 
+fn imported_live_record(
+    provider: &str,
+    record: &TypedSourceRecord,
+    source_id_field: &str,
+) -> (Value, &'static str, String) {
+    let kind = source_kind(record.source_type, &record.payload);
+    let id = format!("{provider}:{kind}:{}", record.source_id);
+    let label = source_label(&record.payload, &id);
+    let live = json!({
+        "id": id,
+        "kind": kind,
+        "matterId": "firm",
+        "sourceType": record.source_type.as_str(),
+        "sourceId": record.source_id,
+        "externalId": record.source_id,
+        "externalIdField": source_id_field,
+        "sourceProvider": provider,
+        "label": label,
+        "sourcePayload": record.payload,
+    });
+    (live, kind, label)
+}
+
 #[tauri::command]
 pub async fn crm_migration_import(
     state: State<'_, CrmState>,
@@ -233,10 +256,8 @@ pub async fn crm_migration_import(
                     }));
                     continue;
                 }
-                let kind = source_kind(record.source_type, &record.payload);
-                let id = format!("{provider}:{kind}:{}", record.source_id);
-                let label = source_label(&record.payload, &id);
-                let mut live = json!({ "id": id, "kind": kind, "matterId": "firm", "sourceType": record.source_type.as_str(), "sourceId": record.source_id, "externalId": record.source_id, "externalIdField": source_id_field, "sourceProvider": provider, "label": label, "sourcePayload": record.payload });
+                let (mut live, kind, label) =
+                    imported_live_record(provider, &record, &source_id_field);
                 if kind == "household" {
                     let name = live
                         .get("label")
@@ -343,7 +364,7 @@ pub async fn crm_migration_import(
                     .iter()
                     .any(|saved| saved.get("id") == live.get("id"));
                 store
-                    .upsert_live_record(&live)
+                    .upsert_imported_live_record(&live)
                     .map_err(|error| error.to_string())?;
                 *imported.entry(source.as_str().to_string()).or_default() += 1;
                 if already {
@@ -409,7 +430,7 @@ pub async fn crm_migration_import(
         live["appliesTo"] = json!(["household", "person"]);
         live["archived"] = Value::Bool(false);
         store
-            .upsert_live_record(&live)
+            .upsert_imported_live_record(&live)
             .map_err(|error| error.to_string())?;
     }
     let mut cursor: Option<String> = None;
@@ -423,7 +444,7 @@ pub async fn crm_migration_import(
             *imported.entry("activity".into()).or_default() += 1;
             let live = json!({ "id": format!("{provider}:activity:{}", record.source_id), "kind": "activity", "matterId": "firm", "sourceType": "activity", "sourceId": record.source_id, "externalId": record.source_id, "externalIdField": source_id_field, "sourceProvider": provider, "sourcePayload": record.payload });
             store
-                .upsert_live_record(&live)
+                .upsert_imported_live_record(&live)
                 .map_err(|error| error.to_string())?;
         }
         if count == 0 || activity.next_cursor.is_none() {
@@ -434,18 +455,18 @@ pub async fn crm_migration_import(
     let workflow_count = workflow_rows.len();
     for item in workflow_rows {
         store
-            .upsert_live_record(&item)
+            .upsert_imported_live_record(&item)
             .map_err(|error| error.to_string())?;
     }
     for item in note_gap_rows {
         store
-            .upsert_live_record(&item)
+            .upsert_imported_live_record(&item)
             .map_err(|error| error.to_string())?;
     }
     for (household_id, household_label) in &households {
         let item = json!({ "id": format!("migration-attachment:{provider}:{household_id}"), "kind": "migration_attachment_accounting", "matterId": "firm", "clientLabel": household_label, "status": "pending", "sourceProvider": provider });
         store
-            .upsert_live_record(&item)
+            .upsert_imported_live_record(&item)
             .map_err(|error| error.to_string())?;
     }
     let all_rows = [
@@ -477,10 +498,10 @@ pub async fn crm_migration_import(
     .collect::<Vec<_>>();
     let report = json!({ "id": format!("migration-report:{provider}"), "kind": "migration_report", "matterId": "firm", "batchId": batch_id, "sourceProvider": provider, "externalIdField": source_id_field, "generatedAt": chrono::Utc::now().to_rfc3339(), "matrix": all_rows, "attachments": { "viaApi": "0% via API", "affected": households.len(), "exported": 0, "gaps": 0, "unaccounted": households.len() }, "workflows": { "checklists": workflow_count, "pending": workflow_count }, "message": format!("{provider} sample import finished. The report below shows exactly what was brought over and what still needs a person to check.") });
     store
-        .upsert_live_record(&report)
+        .upsert_imported_live_record(&report)
         .map_err(|error| error.to_string())?;
     for kind in ["archive", "rollback"] {
-        store.upsert_live_record(&json!({ "id": format!("migration-export:{kind}"), "kind": "migration_export", "matterId": "firm", "exportKind": kind, "status": "ready" })).map_err(|error| error.to_string())?;
+        store.upsert_imported_live_record(&json!({ "id": format!("migration-export:{kind}"), "kind": "migration_export", "matterId": "firm", "exportKind": kind, "status": "ready" })).map_err(|error| error.to_string())?;
     }
     Ok(
         json!({ "batchId": batch_id, "sourceProvider": provider, "imported": imported.values().sum::<usize>(), "unchanged": unchanged }),
@@ -540,7 +561,7 @@ pub async fn crm_migration_export(
         }),
     };
     store
-        .upsert_live_record(&record)
+        .upsert_imported_live_record(&record)
         .map_err(|error| error.to_string())?;
     if record.get("status").and_then(Value::as_str) == Some("failed") {
         return Err(record
@@ -550,4 +571,63 @@ pub async fn crm_migration_export(
             .to_string());
     }
     Ok(record)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::commands::crm::importer::{RawHttpResponse, RawWealthboxTransport};
+    use async_trait::async_trait;
+    use tempfile::TempDir;
+
+    struct WealthboxContactResponse {
+        response_bytes: Vec<u8>,
+    }
+
+    #[async_trait]
+    impl RawWealthboxTransport for WealthboxContactResponse {
+        async fn get_raw(
+            &self,
+            path: &str,
+            _query: &[(String, String)],
+        ) -> anyhow::Result<RawHttpResponse> {
+            Ok(RawHttpResponse {
+                request_path: path.to_string(),
+                response_bytes: self.response_bytes.clone(),
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn wealthbox_import_path_preserves_opaque_source_id_characters() {
+        let source_id = "client / 550e8400-e29b-41d4-a716-446655440000+legacy";
+        let transport = WealthboxContactResponse {
+            response_bytes: serde_json::to_vec(&json!({
+                "contacts": [{
+                    "id": source_id,
+                    "type": "person",
+                    "name": "Adversarial identifier"
+                }]
+            }))
+            .unwrap(),
+        };
+
+        let page = fetch_page(&transport, SourceType::Contact, 1, None)
+            .await
+            .unwrap();
+        let fetched = &page.records[0];
+        assert_eq!(fetched.source_id, source_id);
+
+        let directory = TempDir::new().unwrap();
+        let store = CrmCoreStore::open_with_key(directory.path(), &[23; 32]).unwrap();
+        let (live, kind, _) = imported_live_record("wealthbox", fetched, "external_id");
+        assert_eq!(kind, "person");
+        store.upsert_imported_live_record(&live).unwrap();
+
+        let saved = store.list_live_records().unwrap();
+        assert_eq!(saved.len(), 1);
+        assert_eq!(saved[0]["sourceId"], source_id);
+        assert_eq!(saved[0]["id"], format!("wealthbox:person:{source_id}"));
+        assert_eq!(saved[0]["sourcePayload"]["id"], source_id);
+    }
 }
