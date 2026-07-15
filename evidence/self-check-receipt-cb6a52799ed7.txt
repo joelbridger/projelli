@@ -1,0 +1,16 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 2
+repo: /home/jameson/v1-1b2-notification-preferences
+sha: cb6a52799ed7ae33ed7cebb89de157fef857ecf5
+tree: d14db58072b565483b01bb4a527ac82de35d06c5
+gate_base: 89311de16da47316d450c5d4153734a81b3ab40b
+tool_blob: 8778855b110d19c54950d76b6b57ba15da32b24f
+utc: 2026-07-15T21:35:18Z
+step: gate:changed | exit=1 | 21:35:18Z..21:39:58Z | bytes=26844 | sha256=0898dc162ad02fb61d2feb870014d77417ae47e93dc9c4ff91c1a4cf4804e8ae | tail: iles 199 passed (199) Tests 1467 passed (1467) Start at 21:38:31 Duration 87.43s (transform 18.02s, setup 25.89s, import 137.11s, tests 92.25s, environment 71.34s) CHANGED GATE RED see failures above 
+step: typecheck | exit=0 | 21:39:58Z..21:40:18Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit 
+step: typecheck:tests | exit=0 | 21:40:18Z..21:40:42Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit 
+step: handle-guard | exit=0 | 21:40:42Z..21:40:42Z | bytes=1267 | sha256=59d77c481e2658b38f36b25f2d6fa0778a8e94c380ce95c1bae61f8c2a6f766b | tail: t-picker-cancel + client-picker-clear + client-picker-empty + client-picker-error +107 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen). 
+step: arch-dag-guard | exit=0 | 21:40:42Z..21:40:43Z | bytes=231 | sha256=f10ccea65d6eb3d1c16b4591b7c9a5a6e2c494fc0af064e2affb3b6d2f63c45f | tail: .3 /home/jameson/v1-1b2-notification-preferences Test Files 1 passed (1) Tests 1 passed (1) Start at 21:40:42 Duration 834ms (transform 147ms, setup 233ms, import 260ms, tests 3ms, environment 258ms) 
+step: i18n-snapshot | exit=0 | 21:40:43Z..21:40:44Z | bytes=232 | sha256=5c6ccd15670254a15d5c48ef1d51d1cb1ff09c61579f73a0dfa3f3d08b818e18 | tail: 3 /home/jameson/v1-1b2-notification-preferences Test Files 1 passed (1) Tests 5 passed (5) Start at 21:40:43 Duration 862ms (transform 189ms, setup 277ms, import 227ms, tests 15ms, environment 261ms) 
+step: focused | exit=0 | 21:40:44Z..21:40:45Z | bytes=232 | sha256=e1c0de70a7057cebdca8e57a8e0bd2f837046a0122a6c4cd3d789d4ccc458537 | tail: 3 /home/jameson/v1-1b2-notification-preferences Test Files 1 passed (1) Tests 4 passed (4) Start at 21:40:44 Duration 1.04s (transform 273ms, setup 238ms, import 404ms, tests 58ms, environment 262ms) 
+overall: RED

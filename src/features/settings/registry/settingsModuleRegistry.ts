@@ -9,6 +9,10 @@ import {
   contactSourcesSettingsPanel,
   teamsRolesSettingsModule,
 } from '@/features/crm-firm';
+import {
+  notificationPreferencesSettingsPanel,
+  notificationPreferencesSettingsSection,
+} from '@/features/notifications';
 import type {
   SettingsGroupDescriptor,
   SettingsPanelDescriptor,
@@ -28,6 +32,7 @@ export const settingsSectionRegistry: readonly SettingsSectionDescriptor[] = [
     labelKey: 'teams-roles.settings-label',
     legacyLabel: 'Organization',
   },
+  notificationPreferencesSettingsSection,
 ];
 
 /**
@@ -40,6 +45,7 @@ export const settingsPanelRegistry: readonly SettingsPanelDescriptor[] = [
   teamsRolesSettingsModule,
   customFieldsSettingsModule,
   contactSourcesSettingsPanel,
+  notificationPreferencesSettingsPanel,
 ];
 
 function definitionsFor(

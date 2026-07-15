@@ -72,6 +72,7 @@ const ALLOWED_FEATURE_EDGES = new Set<string>([
   'settings->onboarding', // settings can relaunch onboarding flows
   'settings->scheduling', // settings hosts the local scheduling availability panel; the scheduling feature owns booking rules and slot math
   'settings->crm',        // Settings mounts the feature-owned Organization descriptor through its public CRM doorway.
+  'settings->notifications', // Settings mounts the personal notification-preferences descriptor through Notifications' public doorway.
   'settings->workflows',  // settings hosts the templates marketplace tab
 ]);
 

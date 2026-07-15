@@ -1,0 +1,23 @@
+{
+  "notification-preferences": {
+    "settings-section-label": "Meine Einstellungen",
+    "title": "Benachrichtigungseinstellungen",
+    "description": "Wähle die für dich wichtigen Aktivitäten und wie eine spätere Zustellung erfolgen soll.",
+    "no-delivery": "Diese Auswahl wird nur gespeichert. E-Mails, Textnachrichten und Zusammenfassungen sind noch nicht verbunden.",
+    "categories-title": "Aktivität in der App",
+    "categories-description": "Wähle, welche Aktivitätstypen für dich angezeigt werden sollen.",
+    "categories": {
+      "mentions": "Erwähnungen",
+      "assignments": "Zuweisungen",
+      "approvals": "Erforderliche Freigaben",
+      "reminders": "Erinnerungen"
+    },
+    "delivery-title": "Spätere Zustellung",
+    "delivery-description": "Damit wird deine Auswahl für einen späteren Zustellungskanal gespeichert. Diese Einstellung versendet heute nichts.",
+    "delivery": {
+      "immediate": "Sofort",
+      "digest": "Tägliche Zusammenfassung",
+      "off": "Nicht senden"
+    }
+  }
+}
