@@ -1,0 +1,210 @@
+{
+  "workflow": {
+    "browser": {
+      "error-title": "Unable to load page",
+      "iframe-blocked-hint": "Some websites (like Google, GitHub, etc.) block iframe embedding for security. Click the button below to open this URL in your default browser.",
+      "open-external": "Open in browser",
+      "search-placeholder": "Search or enter URL"
+    },
+    "chain-builder": {
+      "title": "New chain",
+      "description": "Run templates in order, using one output as the next input.",
+      "no-steps": "No steps yet. Add one to start composing a chain.",
+      "map-outputs": "Map upstream outputs:"
+    },
+    "interview": {
+      "select-option": "Select an option",
+      "running": "Running",
+      "cancel": "Cancel",
+      "required": "This field is required",
+      "run": "Run"
+    },
+    "associate": {
+      "rail-list-label": "Workflow templates",
+      "search-placeholder": "Search workflows",
+      "show-list": "Show workflows",
+      "hide-list": "Hide workflows",
+      "filter-label": "Filter workflows",
+      "filter-all": "All workflows",
+      "start-here": "Start here",
+      "live-run": "Running",
+      "step-progress": "Step {{current}}/{{total}}",
+      "run": "Run",
+      "running": "Running",
+      "trial-ended-title": "Trial ended. Your files are still here. Activate a license to run workflows.",
+      "trial-ended-description": "Your files are still here. Activate a license to run workflows.",
+      "run-workflow": "Run {{name}}",
+      "egress-local": "Runs on your computer. Nothing leaves.",
+      "egress-cloud": "Runs on your AI provider with your own key.",
+      "egress-none": "Connect an AI provider to run this.",
+      "other-running-title": "Finish or stop the current run first.",
+      "other-running-body": "Finish or stop the current run first.",
+      "steps": "Steps",
+      "no-steps": "No setup steps",
+      "recent-runs": "Recent runs",
+      "file-missing": "File missing",
+      "workflow-result": "Workflow result",
+      "empty-title": "No matches",
+      "empty-body": "Clear search to see all workflows.",
+      "clear-search": "Clear search",
+      "needs-client-title": "Pick your client first.",
+      "needs-client-body": "Choose a client, then run the workflow again.",
+      "ollama-unreachable-title": "Local AI is offline",
+      "ollama-unreachable-body": "This workflow uses Local AI only. Start Local AI, then try again.",
+      "needs-provider-title": "Add an AI provider",
+      "needs-provider-body": "Add an API key or choose Local AI.",
+      "save-error-title": "Run record may not have saved.",
+      "inputs-count_other": "{{count}} inputs",
+      "steps-count_other": "{{count}} steps",
+      "categories": {
+        "legal": {
+          "label": "Legal",
+          "description": "Litigation, discovery, client intake, and transactional work"
+        },
+        "tax": {
+          "label": "Tax",
+          "description": "Tax research, planning, and compliance workflows"
+        },
+        "consulting": {
+          "label": "Consulting",
+          "description": "Client engagements, strategy, and deliverables"
+        },
+        "advisors": {
+          "label": "Advisors",
+          "description": "Advisor workflows and client management, so that client work stays organized."
+        },
+        "research": {
+          "label": "Research",
+          "description": "General research and analysis"
+        },
+        "analysis": {
+          "label": "Analysis",
+          "description": "Document and data analysis"
+        },
+        "planning": {
+          "label": "Planning",
+          "description": "Business and project planning"
+        },
+        "kickoff": {
+          "label": "Kickoff",
+          "description": "New project and client onboarding"
+        },
+        "custom": {
+          "label": "Custom",
+          "description": "Your own saved templates"
+        }
+      },
+      "trust-no-ai": "No AI connected",
+      "trust-assured": "Assured AI route",
+      "trust-local": "Local AI only",
+      "details": "Details",
+      "trust-open-settings": "Open AI settings",
+      "steps-count_one": "1 step",
+      "outputs-count_other": "{{count}} outputs",
+      "outputs-count_one": "1 output",
+      "inputs-count_one": "1 input",
+      "trust-direct": "Sends directly to {{provider}}",
+      "required-inputs-count_other": "{{count}} inputs",
+      "required-inputs-count_one": "{{count}} input"
+    },
+    "execution": {
+      "waiting-for-answers": "Answer these questions",
+      "may-take-moment": "This may take a moment depending on the AI provider.",
+      "save-as-file": "Save",
+      "use-as-input": "Use output in another workflow",
+      "recommended-next": "Recommended next steps",
+      "other-templates": "More workflows",
+      "needs-provider-title": "Add an AI provider",
+      "needs-provider-body": "Add an API key or choose Local AI.",
+      "needs-provider-action": "Open AI settings",
+      "ollama-unreachable-title": "Local AI is offline",
+      "ollama-unreachable-body": "This workflow uses Local AI only. Start Local AI, then try again.",
+      "ollama-unreachable-action": "Try again",
+      "generating": "Generating",
+      "no-steps": "No steps",
+      "export-docx-description": "Add the firm name for this export.",
+      "complete": "Complete",
+      "export-docx": "Export .docx",
+      "created-file": "Created file",
+      "preview-text": "Preview text",
+      "draft-ready": "Draft ready",
+      "show-all-steps": "Show all steps",
+      "step-short": "Step {{current}}/{{total}}",
+      "cancel": "Cancel",
+      "failed": "Failed",
+      "export": "Export",
+      "export-pptx": "Export .pptx",
+      "more-actions": "More actions",
+      "open": "Open",
+      "generating-step": "Generating {{step}}",
+      "firm-name-placeholder": "e.g. Acme Law PLLC",
+      "needs-client-title": "Pick your client first.",
+      "workflow-failed": "Workflow failed",
+      "hide-all-steps": "Hide all steps",
+      "firm-name": "Firm name",
+      "needs-client-body": "Choose a client, then run the workflow again."
+    },
+    "panel": {
+      "trial-ended-label": "Trial ended.",
+      "trial-ended-description": "Activate a license in Settings, License to run workflows.",
+      "step-of-click": "Step {{current}} of {{total}}, click to view",
+      "modal-title": "Browse workflows",
+      "modal-description": "Pick a workflow to run.",
+      "no-matches": "No workflows match \"{{query}}\".",
+      "template-actions": "Actions for {{name}}",
+      "ai-calls-count_other": "{{count}} AI calls",
+      "local-estimate-note": "This workflow runs on Local AI. No provider charge.",
+      "delete-template": "Delete",
+      "current-execution": "Current run",
+      "actions": "Workflow actions",
+      "estimate-line": "{{steps}} · {{calls}} · est. {{cost}}",
+      "run-history": "Run history",
+      "estimate-note": "Estimate only. Your AI provider bills the actual cost.",
+      "ai-calls-count_one": "1 AI call",
+      "start-workflow": "Start workflow"
+    },
+    "fork": {
+      "title": "Copy template",
+      "description": "Make an editable copy of this template.",
+      "persona-hint": "Optional instructions for how the AI should write.",
+      "ai-instructions": "AI instructions"
+    },
+    "marketplace": {
+      "search-templates": "Search templates"
+    }
+  },
+  "marketplace": {
+    "tab": {
+      "title": "Marketplace",
+      "description": "Browse community templates and plugins. Installs are stored in your workspace and can be removed at any time."
+    },
+    "installed-plugins": {
+      "empty": "No plugins installed yet. Browse the marketplace to add one."
+    },
+    "installed-templates": {
+      "empty": "No templates installed yet. Browse the marketplace to add one."
+    },
+    "plugins-tab": {
+      "open-workspace": "Open a workspace to browse community plugins."
+    },
+    "templates-tab": {
+      "open-workspace": "Open a workspace to browse community templates."
+    },
+    "plugin-consent": {
+      "approve-description": "By approving, you trust this plugin with the permissions listed below. You can revoke them at any time by uninstalling the plugin."
+    },
+    "plugin-permissions": {
+      "empty": "This plugin requests no special permissions."
+    },
+    "plugin-error": {
+      "show-recent-log_one": "Show recent log (1 entry)",
+      "show-recent-log_other": "Show recent log ({{count}} entries)"
+    },
+    "detail": {
+      "back-to-catalog": "Back to catalog",
+      "files-in-plugin": "Files in this plugin",
+      "files-in-template": "Files in this template",
+      "view-audit-log": "View in Audit Log"
+    }
+  }
+}

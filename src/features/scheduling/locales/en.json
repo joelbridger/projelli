@@ -1,0 +1,76 @@
+{
+  "scheduling": {
+    "surface": {
+      "title": "Scheduling",
+      "description": "Share a booking link, review requests, and keep your open times current.",
+      "topbar-label": "Scheduling",
+      "header-menu-label": "More scheduling actions",
+      "rail": {
+        "title": "Scheduling",
+        "list-label": "Scheduling sections",
+        "menu-label": "More scheduling actions",
+        "upcoming": "Upcoming",
+        "upcoming-support": "Bookings and requests",
+        "availability": "Availability",
+        "availability-support": "Working hours",
+        "meeting-types": "Meeting types",
+        "meeting-types-support": "Duration and buffers"
+      },
+      "booking-link": {
+        "title": "Your booking link",
+        "body": "Use this placeholder link until the public page is connected.",
+        "copy": "Copy",
+        "copied": "Copied",
+        "preview": "Preview",
+        "share": "Share",
+        "share-title": "Book a meeting",
+        "share-text": "Pick a time that works for you.",
+        "trust": "Clients only see your open times, never your calendar details."
+      },
+      "upcoming": {
+        "title": "Upcoming and requests",
+        "body": "Confirmed meetings stay quiet. Pending requests ask for a clear yes or no.",
+        "empty-title": "Share your link to start taking bookings.",
+        "unknown-meeting": "Meeting",
+        "confirm": "Confirm",
+        "decline": "Decline"
+      },
+      "status": {
+        "confirmed": "Confirmed",
+        "pending": "Needs confirmation",
+        "declined": "Declined",
+        "expired": "Expired"
+      },
+      "availability": {
+        "title": "Availability",
+        "body": "Choose the weekdays and hours clients can book.",
+        "available": "Available",
+        "closed": "Closed",
+        "day-toggle-label": "Toggle {{day}} availability",
+        "advanced-title": "Advanced"
+      },
+      "meeting-types": {
+        "title": "Meeting types",
+        "body": "Keep the list short so clients choose quickly.",
+        "add": "Add type",
+        "add-title": "Add meeting type",
+        "edit-title": "Edit meeting type",
+        "panel-body": "Set the length and breathing room before or after the meeting.",
+        "new-default-name": "Planning call",
+        "duration-summary": "{{minutes}} min",
+        "buffer-summary": "{{before}} before, {{after}} after",
+        "row-menu-label": "More actions for {{name}}",
+        "edit": "Edit",
+        "delete": "Delete",
+        "save": "Save",
+        "cancel": "Cancel",
+        "close": "Close"
+      },
+      "preview": {
+        "title": "Next open slots",
+        "body": "This preview updates from your hours, buffers, and current requests.",
+        "empty": "No open slots in the current window."
+      }
+    }
+  }
+}

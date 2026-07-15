@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import en from '@/locales/en.json';
-import es from '@/locales/es.json';
-import de from '@/locales/de.json';
+import { deCatalog as de, enCatalog as en, esCatalog as es } from '@/i18nCatalogs';
 import { crmHomeSurfaceRegistry } from './registry';
 
 type LocaleCatalog = Record<string, unknown>;

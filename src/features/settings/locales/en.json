@@ -1,0 +1,334 @@
+{
+  "settings": {
+    "modal": {
+      "title": "Settings",
+      "description": "Configure {{productName}} preferences",
+      "search-placeholder": "Search settings",
+      "clear-search-aria": "Clear search",
+      "close-aria": "Close settings",
+      "show-sections": "Show settings sections",
+      "hide-sections": "Hide settings sections",
+      "marketplace-badge-aria": "{{count}} marketplace updates available",
+      "no-matches": "No settings match your search in this category.",
+      "context-warning": "Selected model maxes at {{max}} tokens. Lower the limit or switch to a larger-context model.",
+      "about-tagline": "Local-first workspace for confidential client work.",
+      "export": "Export",
+      "import": "Import",
+      "reset": "Reset to Defaults",
+      "shortcuts": {
+        "no-matches": "No shortcuts match your search.",
+        "quick-tip-label": "Quick Tip:",
+        "quick-tip-press": "Press",
+        "quick-tip-open-file": "to quickly open any file by name. Press",
+        "quick-tip-overlay": "to show the keyboard shortcuts overlay anywhere in the app."
+      }
+    },
+    "sections": {
+      "workspace": "Workspace",
+      "ai": "AI",
+      "privacy": "Privacy",
+      "scheduling": "Scheduling",
+      "voice": "Voice",
+      "advanced": "Advanced",
+      "help": "Help"
+    },
+    "scheduling": {
+      "nav-subsection": "Booking",
+      "link": {
+        "title": "Booking link",
+        "slug-label": "Link ending",
+        "placeholder-note": "This is a local placeholder. The public booking page is wired in the next phase."
+      },
+      "hours": {
+        "title": "Working hours",
+        "to": "to",
+        "start-label": "{{day}} start time",
+        "end-label": "{{day}} end time"
+      },
+      "weekdays": {
+        "monday": "Monday",
+        "tuesday": "Tuesday",
+        "wednesday": "Wednesday",
+        "thursday": "Thursday",
+        "friday": "Friday",
+        "saturday": "Saturday",
+        "sunday": "Sunday"
+      },
+      "meetings": {
+        "title": "Meeting types",
+        "name-label": "Name",
+        "duration-label": "Duration minutes",
+        "buffer-before-label": "Buffer before",
+        "buffer-after-label": "Buffer after"
+      },
+      "rules": {
+        "title": "Booking rules",
+        "timezone-label": "Advisor timezone",
+        "min-notice-label": "Minimum notice hours",
+        "max-horizon-label": "Maximum days ahead"
+      }
+    },
+    "license": {
+      "title": "License",
+      "description": "A license keeps AI chat, workflows, and all {{productName}} features running after your trial. Keys are available at <pricingLink>lantern.com</pricingLink>.",
+      "deactivate-confirm": "Deactivate this license? You will lose access to paid features until you re-activate.",
+      "badge": {
+        "activated": "ACTIVATED",
+        "trial-ended": "TRIAL ENDED",
+        "trial": "TRIAL"
+      },
+      "tier": {
+        "personal": "Solo",
+        "professional": "Professional",
+        "practice": "Firm",
+        "free": "Free"
+      },
+      "packs": {
+        "legal": "Legal workflows",
+        "tax": "Tax workflows",
+        "consulting": "Consulting workflows"
+      },
+      "active-pack": "Profession pack: {{pack}}",
+      "all-packs": "All profession packs included",
+      "seats": "Up to {{count}} seats",
+      "valid-until": "Valid until: {{date}}",
+      "ownership-tagline": "Your files are always yours. If you ever cancel, you keep every document, email, and client you have made. A lapsed subscription turns off the AI features and updates, not your data.",
+      "refresh": "Refresh",
+      "deactivate": "Deactivate",
+      "activate": "Activate",
+      "activating": "Activating",
+      "activate-success": "License activated successfully.",
+      "activate-to-continue": "Activate to continue",
+      "trial-expired-detail": "Your {{days}}-day free trial ended on <endDateBold>{{endDate}}</endDateBold>. AI chat and workflows are paused. Your existing files are still here, fully readable. Activate a license to keep building.",
+      "trial-active-detail": "You're on the free trial. Every {{productName}} feature is unlocked for {{days}} days from first launch, bring your own AI keys, run workflows, edit files, the works. When the trial ends, AI chat and workflows pause until you activate a license; your files stay accessible.",
+      "days-left_one": "1 day left",
+      "days-left_other": "{{count}} days left",
+      "get-license-cta": "Get a license at lantern.com",
+      "already-have-key": "Already have a license key?",
+      "recovery-heading": "Already bought {{productName}}?",
+      "recovery-detail": "Enter your license code to restore it on this computer. No account needed.",
+      "recovery-restore": "Restore",
+      "recovery-restoring": "Restoring",
+      "unlocks-heading": "What your license unlocks:",
+      "unlocks": {
+        "ai-chat": "AI chat with your own keys (Claude, OpenAI, Gemini)",
+        "workflows": "All workflow templates",
+        "workspaces": "Open as many folders as you need, files, and version history",
+        "whiteboard-audio-research": "Audio recording and research citations",
+        "multi-model": "Multi-model comparison",
+        "commercial": "Commercial use license",
+        "updates": "Continuous updates, legal-content maintenance, and security patches",
+        "one-pack": "All firm workflow templates (Professional)",
+        "all-packs": "Shared clients, admin console, and assured zero-retention routing (Firm)"
+      }
+    },
+    "privacy": {
+      "title": "Privacy",
+      "description": "{{productName}} keeps your work on this computer. Optional sharing is off unless you turn it on.",
+      "optional-sharing": {
+        "title": "Optional sharing",
+        "description": "{{productName}} keeps your work on this computer. Optional sharing is off unless you turn it on.",
+        "details-label": "What is shared?"
+      },
+      "design-partner": {
+        "title": "Error reporting",
+        "description": "Sends structure-only counts when the app gets stuck.",
+        "enabled": "Enabled",
+        "disabled": "Disabled",
+        "what-is-sent": "What is sent, exactly:",
+        "not-sent": "Never your content, file names, client names, or prompts.",
+        "field-features": "Which features you used: ask, workflow, search, email import. A count only, not what you asked.",
+        "field-workflow-id": "Which workflow template you ran (the template id, not the output).",
+        "field-search-count": "How many searches you ran. No query text.",
+        "field-install-id": "Your anonymous install id plus app version and platform.",
+        "endpoint-note": "Endpoint: forms.lanternplatform.app/api/forms/lantern/design-partner-event. Used only to improve the product for your firm."
+      },
+      "telemetry": {
+        "title": "Usage stats",
+        "description": "Sends basic app events like launch, trial start, and license activation. No content, files, AI prompts, or email.",
+        "enabled": "Enabled",
+        "disabled": "Disabled",
+        "what-is-sent": "What is sent, exactly:",
+        "field-install-id": "<c>install_id</c>: a random UUID generated on this machine (visible below). Not tied to your email or license.",
+        "field-app-version": "<c>app_version</c>, <c>platform</c>: which build of {{productName}}, and macOS / Windows / Linux.",
+        "field-event": "<c>event</c>: one of <c>app_launch</c>, <c>trial_start</c>, <c>trial_end</c>, <c>license_activated</c>, <c>license_deactivated</c>.",
+        "field-license-tier": "<c>license_tier</c> (when relevant): trial, personal, professional, firm.",
+        "endpoint-note": "Endpoint: <c>forms.lanternplatform.app/api/forms/lantern/app-event</c>. JSONL stored on {{productNamePossessive}} server. Used only for funnel metrics and roadmap decisions.",
+        "install-id-display": "Your install ID: <c>{{id}}</c>"
+      },
+      "email": {
+        "title": "Email updates",
+        "intro": "If you opted into email updates at first launch (or via the website), you'll get launch announcements and discount codes. No drip campaigns, no weekly newsletters.",
+        "unsub": "To remove yourself from the list, reply <c>UNSUB</c> to any {{productName}} email. All replies go straight to support.",
+        "empty": "You haven't signed up for product emails."
+      },
+      "data-map": {
+        "title": "Where your data lives and who can see it",
+        "description": "A plain-English map of what stays on your machine, what is sent to your AI provider, and what {{productNamePossessive}} own servers see (only a license check). You can print it or save it as a PDF to show a client.",
+        "cta": "Open Data Map"
+      },
+      "email-reply-ai": {
+        "title": "AI email reply classification",
+        "description": "Off by default. When enabled, {{productName}} sends the text of authenticated client email replies to your firm's configured AI provider to help match an onboarding item. Turn this on only when your firm approves that sharing.",
+        "enabled": "Enabled",
+        "off": "Off"
+      }
+    },
+    "mcp": {
+      "title": "MCP server",
+      "description": "Expose your {{productName}} workspace to any MCP-compatible AI client. Install once, then ask Claude Desktop, Cursor, or any other client about your notes, chats, and memory facts without copy-pasting.",
+      "copied-status": "Copied bundle path to clipboard: {{path}}",
+      "status": {
+        "loading": "Looking up bundle path",
+        "ready": "Ready to install in Claude Desktop",
+        "unavailable": "MCP server is not available in this build. Install the desktop app to use MCP."
+      },
+      "download-cta": "Download .mcpb for Claude Desktop",
+      "whats-mcp": "What's MCP?",
+      "disabled-title": "MCP is off: network lockdown is on",
+      "disabled-body": "While a client with network lockdown is active (or On this computer only is selected), MCP servers are disabled so confidential work cannot leave your machine through an outside AI client. Any write an MCP client attempts is blocked and recorded in your audit log. Turn off network lockdown to use MCP again.",
+      "install": {
+        "heading": "How to install:",
+        "step-download": "Click <b>Download .mcpb</b> above to copy the bundle path to your clipboard.",
+        "step-open-claude": "Open Claude Desktop.",
+        "step-config": "Open <b>Settings, Developer, Edit Config</b>, or drag the <c>.mcpb</c> file into the Claude Desktop window.",
+        "step-pick-folder": "When prompted for a workspace folder, pick the same folder you opened in {{productName}}.",
+        "after-install": "After install, ask Claude \"search my {{productName}} workspace for X\" or \"read notes/plan.md\" and watch it work."
+      }
+    },
+    "mcp-approval": {
+      "title": "Claude Desktop wants to write to your workspace",
+      "description": "Review the change below. Nothing happens until you approve.",
+      "bytes": "{{bytes}} bytes",
+      "overwrite-suffix": ", overwrite",
+      "new-file-suffix": ", new file",
+      "more-queued_one": "1 more write queued after this one.",
+      "more-queued_other": "{{count}} more writes queued after this one.",
+      "deny": "Deny",
+      "approve-all-session": "Approve all this session",
+      "approve-write": "Approve this write",
+      "privileged-blocked": "Network lockdown is on. MCP servers are disabled, so this write was blocked and nothing was changed on your machine.",
+      "privileged-auto-denied": "Blocked and recorded in your audit log. Turn off network lockdown to allow external AI writes again.",
+      "title-blocked": "External AI write blocked"
+    },
+    "ollama": {
+      "title": "Ollama (local models)",
+      "description": "Run AI models directly on your machine: free, offline, private. {{productName}} talks to a locally running Ollama daemon on <c>127.0.0.1:11434</c>.",
+      "status": {
+        "checking": "Checking Ollama",
+        "ready_one": "Ollama ready, {{count}} model installed",
+        "ready_other": "Ollama ready, {{count}} models installed",
+        "more-suffix": ", +{{count}} more",
+        "not-running": "Ollama not running. Install it to run AI models locally, free."
+      },
+      "check-cta": "Check Ollama connection",
+      "install-link": "Install Ollama",
+      "no-models-hint": "Ollama is running but no models are installed. Pull one with <c>ollama pull llama3.2:3b</c> and click Check again.",
+      "why": {
+        "heading": "Why Ollama?",
+        "zero-cost": "Zero cost. Inference runs on your GPU / CPU.",
+        "zero-network": "Zero network. Works on a plane, offline, in a tunnel.",
+        "zero-data": "Zero data sharing. Your prompts never leave the machine."
+      },
+      "recommended-model": "Recommended first model: <c>llama3.2:3b</c> (about 2 GB, runs on almost any laptop)."
+    },
+    "memory-facts": {
+      "title": "Memory Facts",
+      "description": "Durable facts about you that the AI always knows. Stored locally at <c>.lantern/memory.json</c> in your workspace.",
+      "load-error": "Couldn't load facts: {{error}}",
+      "empty": "No saved facts yet.",
+      "delete-aria": "Delete fact",
+      "add-toggle": "Add fact",
+      "add-placeholder": "Add a fact..."
+    },
+    "template-models": {
+      "empty": "No workflow templates yet.",
+      "title": "Per-template model assignment",
+      "description": "Pin a provider and model for each template. Leave blank to use the template's built-in default (or your global default)."
+    },
+    "mobile-page": {
+      "title": "Phone access",
+      "description": "Read this workspace on your phone with iCloud, Dropbox, Syncthing, or Google Drive.",
+      "heads-up-label": "Heads up:",
+      "heads-up-text": "For now, read on phone. Edit on one device at a time.",
+      "setup-steps": "Setup steps",
+      "things-to-know": "Things to know",
+      "full-guide": "Full guide",
+      "providers": {
+        "icloud": {
+          "label": "iCloud Drive",
+          "guidance": "Best if you use Apple devices.",
+          "open-app": "Open Files on iPhone"
+        },
+        "dropbox": {
+          "label": "Dropbox",
+          "guidance": "Works across Mac, Windows, iPhone, and Android.",
+          "open-app": "Open Dropbox on iPhone"
+        },
+        "syncthing": {
+          "label": "Syncthing",
+          "guidance": "Keeps data between your own devices without a cloud account."
+        },
+        "gdrive": {
+          "label": "Google Drive",
+          "guidance": "Best if you already use Google Drive, especially on Android."
+        }
+      }
+    },
+    "api-keys": {
+      "title": "AI Account Keys",
+      "description": "Configure account keys for AI model providers. Keys are stored securely and never logged.",
+      "get-key-link": "Get account key",
+      "add-key": "Add account key",
+      "credential-service-unavailable": "Windows' credential storage service isn't running, so {{productName}} can't reach your saved AI keys right now. This does not affect your documents. Restart the \"Credential Manager\" service (services.msc), or try again shortly."
+    },
+    "plugins": {
+      "title": "Plugins",
+      "description": "Manage installed plugins and the settings each plugin contributes.",
+      "installed-heading": "Installed",
+      "empty": "No plugins installed yet. Install one from a plugin tarball to see it here.",
+      "plugin-settings-heading": "Plugin settings"
+    },
+    "voice": {
+      "title": "Voice input",
+      "description": "Hands-free capture via a bundled offline speech-recognition model. Audio never leaves your machine. Press-to-talk inserts into the focused text field; voice-to-note saves a new text file into <c>Inbox/</c>.",
+      "status-checking": "Checking voice availability",
+      "status-missing": "Voice unavailable in this build",
+      "status-denied": "Mic permission denied. Allow microphone access to use voice.",
+      "status-ready": "Ready"
+    },
+    "advanced": {
+      "title": "Advanced",
+      "description": "Power-user settings, including per-feature kill switches. Streams populate as features land."
+    },
+    "language": {
+      "label": "Language",
+      "description": "Choose the language used throughout the app.",
+      "options": {
+        "en": "English",
+        "es": "Español",
+        "de": "Deutsch"
+      }
+    }
+  },
+  "plugins": {
+    "settings-page": {
+      "contributed-by": "Settings contributed by plugin {{pluginId}}.",
+      "no-settings": "This plugin did not declare any settings."
+    },
+    "sidebar": {
+      "no-panels": "No plugin panels installed.",
+      "no-html": "This plugin panel did not render any HTML."
+    }
+  },
+  "local-ai-settings": {
+    "title": "{{localAiName}}",
+    "description": "A private AI that runs entirely on this computer. Your files and questions never leave the machine. It's slightly less sharp than the cloud models, but nothing you ask ever goes online. One-time download, about 2.4 GB.",
+    "download": "Download {{localAiName}}",
+    "downloading": "Downloading {{pct}}%",
+    "verifying": "Checking the download",
+    "ready": "Local AI installed.",
+    "error": "The download was interrupted. Nothing is lost.",
+    "retry": "Resume download"
+  }
+}

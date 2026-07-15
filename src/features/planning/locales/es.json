@@ -1,0 +1,60 @@
+{
+  "research": {
+    "source-panel": {
+      "add-first-source": "Añade tu primera fuente",
+      "add-first-source__sourceHash": "275451f4b7c68a1d0af221892b8d1d1757b915fddc5b8374c7bf2fa5191ce675"
+    },
+    "source-form": {
+      "quote-label": "Cita o fragmento",
+      "quote-label__sourceHash": "c0dbaa5e61d5a19138ae35d70bf7dae3da31eaea0fe432f31cd9d181af4b867d",
+      "optional-suffix": "(opcional)",
+      "optional-suffix__sourceHash": "0059798b7f7023e4d9e5c4595f7b9ba7ee64f69993ee524824d57e5a48b1228c",
+      "reliability-help": "Incluye palabras clave como \"verificado\", \"oficial\", \"fuente primaria\" para alta fiabilidad, o \"especulación\", \"no verificado\" para baja fiabilidad.",
+      "reliability-help__sourceHash": "f735c06c671ed66098a2e0d5235509127b98db0b1cfa3e871d9e6df6a0bcc8df",
+      "tags-help": "Añade etiquetas para organizar y filtrar tus fuentes (p. ej., \"competidor\", \"estudio-de-mercado\", \"precios\")",
+      "tags-help__sourceHash": "16c87978e03915f0d19837f5946575c61bd521175ae418fc0b8290405e57748c"
+    },
+    "source-editor": {
+      "parse-error-help": "Es posible que este archivo esté dañado. Puedes intentar editarlo como archivo de texto o eliminarlo y volver a crearlo.",
+      "parse-error-help__sourceHash": "9357a4e321f64667d6721f2cf79901e14ecc357f958a38eb136b5cc2c2ea0da1",
+      "iframe-blocked": "El sitio bloquea la inserción en iframe",
+      "iframe-blocked__sourceHash": "5c7e1905368209f9f99d7123706bce701152cc53f196bacf9c78e55f19c8779d",
+      "quote-label": "Cita o fragmento",
+      "quote-label__sourceHash": "c0dbaa5e61d5a19138ae35d70bf7dae3da31eaea0fe432f31cd9d181af4b867d",
+      "tags-help": "Añade etiquetas para organizar y filtrar tus fuentes",
+      "tags-help__sourceHash": "f053ff9c3d30182670fb32bcf66636ffb955e6b15923bdd0eb371e999c7682cd",
+      "source-id-label": "ID de fuente (solo lectura)",
+      "source-id-label__sourceHash": "08cbc31e9bb4f7c723f61220efcfe5ee4636b5beb6d25a46044af7029262f9dd",
+      "save-immediately": "para guardar de inmediato",
+      "save-immediately__sourceHash": "bb29a2f783a14cdb21d73115b88d6bde1a1c6a4916fdfd0826369348c3c13c6a"
+    }
+  },
+  "analysis": {
+    "comparison": {
+      "no-outputs": "No hay resultados para comparar",
+      "no-outputs__sourceHash": "8a4a212f1a529561dd2ddf0a09cbcff7c5ffa5d4c262d3b005ca76e2d6919c35"
+    },
+    "cost-metrics": {
+      "description": "Tu gasto en IA durante el mes actual, desglosado por proveedor. Datos desde la versión 1.5 en adelante (puede faltar actividad anterior).",
+      "description__sourceHash": "460e1792ab392f485d8176975a267497a7a9e7a387bb4b2b9e5893456c9cd564",
+      "by-provider": "Por proveedor (este mes)",
+      "by-provider__sourceHash": "0dd68a14332a9444415dc94de7ac7102e67fd1b879e8965144dd35e86aab85e5",
+      "no-costs": "Aún no hay costes registrados este mes. Inicia un chat para ver los datos aquí.",
+      "no-costs__sourceHash": "bad028283201e7bbad83f226f9ede10697fa7397efb9513fcd7ecadda4ec5750"
+    },
+    "multi-interview": {
+      "title": "Síntesis de múltiples entrevistas",
+      "title__sourceHash": "92c249f08ef1098f613e7edf07863b7f9bc983fbc7442f90f9bbf8a924ab3241",
+      "description": "Arrastra 3 o más transcripciones (o pégalas a continuación) para obtener temas, contradicciones, tareas pendientes y una lista de funciones ordenada por prioridad.",
+      "description__sourceHash": "22d9ccef1b93d468b18820f774249143b45e1e6729a864a6d009757cc1319fa6",
+      "drop-here": "Suelta aquí las transcripciones .md o .txt",
+      "drop-here__sourceHash": "a38b7fb1b25e3c4717d0f0d14efd01b8211e023db853b8e5558cfbfb49e24689",
+      "paste-label": "O pega las transcripciones (separadas por `---`)",
+      "paste-label__sourceHash": "48830aa4eeee988446f3c9a6b170f49ae1bd0ced6f70484f7da9ed536731babb",
+      "save-as": "Guardar como INTERVIEW_SYNTHESIS.md",
+      "save-as__sourceHash": "d6971588eee2276b70f2b51e3cf3db31172d46860a58614b2e68e68eaad76211",
+      "jobs-title": "Tareas pendientes",
+      "jobs-title__sourceHash": "2e58612e4899ac100f7600fff61dc7d5e089602a229f364cc7a85afc5a467c1e"
+    }
+  }
+}

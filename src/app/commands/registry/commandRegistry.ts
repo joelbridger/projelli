@@ -1,5 +1,5 @@
 import { legacyAppCommandDescriptors } from '@/app/commands/registry/legacyAppCommandDescriptors';
-import en from '@/locales/en.json';
+import { enCatalog as en } from '@/i18nCatalogs';
 import type {
   CommandDescriptor,
   CommandRegistration,

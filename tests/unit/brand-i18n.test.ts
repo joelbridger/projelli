@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import i18n, { brandInterpolation } from '@/i18n';
 import { BRAND } from '@/config/brand';
 import { brandText, brandValue, LOCAL_AI_NAME } from '@/config/brandText';
-import en from '@/locales/en.json';
+import { enCatalog as en } from '@/i18nCatalogs';
 
 function collectStrings(value: unknown, out: string[] = []): string[] {
   if (typeof value === 'string') {

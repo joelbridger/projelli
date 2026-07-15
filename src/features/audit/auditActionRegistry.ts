@@ -28,7 +28,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import type { AuditActionType } from '@/platform/types/audit';
-import en from '@/locales/en.json';
+import { enCatalog as en } from '@/i18nCatalogs';
 
 export type ActionCategory =
   | 'file'

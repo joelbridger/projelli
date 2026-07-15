@@ -17,9 +17,7 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useFirmStore } from '@/platform/firm/firmStore';
 import { useMatterSyncStore } from '@/platform/matter/matterSyncStore';
-import en from '@/locales/en.json';
-import es from '@/locales/es.json';
-import de from '@/locales/de.json';
+import { deCatalog as de, enCatalog as en, esCatalog as es } from '@/i18nCatalogs';
 
 // ── Mock Tauri keychain (firm modules need it) ───────────────────────────────
 const keychainStore = new Map<string, string>();

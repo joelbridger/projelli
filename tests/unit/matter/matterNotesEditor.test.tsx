@@ -23,9 +23,7 @@ import { useMatterSyncStore } from '@/platform/matter/matterSyncStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useEditorStore } from '@/platform/state/editorStore';
 import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
-import en from '@/locales/en.json';
-import es from '@/locales/es.json';
-import de from '@/locales/de.json';
+import { deCatalog as de, enCatalog as en, esCatalog as es } from '@/i18nCatalogs';
 
 // ── i18n setup (the global setup already inits i18next; this is a no-op guard)
 // ── Keychain mock (firm modules need it) ─────────────────────────────────────

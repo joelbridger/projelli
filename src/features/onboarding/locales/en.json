@@ -1,0 +1,368 @@
+{
+  "onboarding": {
+    "workspace-picker": {
+      "picker-unresponsive-own-data": "The folder picker didn't respond. Type the folder path where your firm files should live.",
+      "picker-unresponsive-sample": "The folder picker didn't respond. Type the folder path where your sample firm should be created."
+    },
+    "v2": {
+      "nav": {
+        "dialog-label": "Set up {{productName}}",
+        "back": "Back",
+        "continue": "Continue",
+        "go-to-step": "Go to step {{step}}",
+        "close": "Close"
+      },
+      "intro": {
+        "headline": "The AI you're actually allowed to use with client data.",
+        "flow": {
+          "connect": {
+            "title": "Connect your firm",
+            "body": "Bring together your files, email, and CRM, so that you can ask about client work in one place."
+          },
+          "client-map": {
+            "title": "It builds a Client Map",
+            "body": "Link each household to its source records, so that you can check every answer."
+          },
+          "ask": {
+            "title": "Ask anything",
+            "body": "Ask across client work, so that every answer points to a source you can open."
+          }
+        },
+        "trust-line": "Your files stay on your computer. Cloud AI goes straight to your own provider account, not through us.",
+        "help-line": "You can reopen this walkthrough anytime from Help.",
+        "cta": "Go!"
+      },
+      "choose": {
+        "headline": "How do you want to start?",
+        "help": "You can explore a ready-made sample firm right now, or point {{productName}} at your own data. You can always switch later.",
+        "sample": {
+          "badge": "Recommended",
+          "title": "Start with a sample firm",
+          "help": "Explore the Hendricks Household with real documents and a ready Client Map, so that you can ask a cited question in your first minute.",
+          "bullet-1": "A worked household you can explore",
+          "bullet-2": "A filled, cited Client Map",
+          "bullet-3": "No real client data needed",
+          "loading": "Setting up",
+          "cta": "Use the sample"
+        },
+        "own": {
+          "title": "Connect my own data",
+          "help": "Choose a folder for your firm. Then connect your email, files, and Wealthbox so that {{productName}} can build Client Maps from your real client work.",
+          "bullet-1": "Pick where your firm lives",
+          "bullet-2": "Import email, files, and Wealthbox next",
+          "bullet-3": "Your files stay on your machine, not ours",
+          "loading": "Opening",
+          "cta": "Choose my folder"
+        },
+        "error": "Something went wrong. Please try again."
+      },
+      "compliance": {
+        "headline": "Why you can use this when you can't use ChatGPT",
+        "body": "Most firms do not allow client files in public chat tools. {{productName}} is built so the files stay under your control.",
+        "point-1": "Your files stay on your computer. {{productName}} searches them locally before any AI request is sent.",
+        "point-2": "When you use cloud AI, your question and needed context go straight to your own provider account, not through {{productName}} servers.",
+        "point-3": "You get a simple security one-pager to hand to the person who reviews new tools.",
+        "cta": "For your compliance officer",
+        "modal-title": "Compliance & Security",
+        "modal-body": "One-pager coming: data flow, encryption, SOC 2 status.",
+        "modal-cta": "Got it"
+      },
+      "ai": {
+        "headline": "1. Bring your own AI",
+        "mode-note": "Either way, your source files stay on your machine. Cloud AI sends your question and needed context to your own AI account. On-device AI keeps even the question on this computer.",
+        "providers": {
+          "openai": "ChatGPT (OpenAI)",
+          "anthropic": "Claude (Anthropic)",
+          "google": "Gemini (Google)"
+        },
+        "cloud": {
+          "title": "Use ChatGPT, Claude, or Gemini",
+          "bullet-1": "Your source files stay on your machine",
+          "bullet-2": "Questions and needed context go from your computer to your own AI account",
+          "bullet-3": "{{productName}} servers never see your key, prompts, or client data",
+          "bullet-4": "Training controls live in your AI provider account",
+          "bullet-5": "Pay the AI provider directly for what you use",
+          "what-link": "What is this?",
+          "pick-label": "Pick your provider, then get your key",
+          "connect": "Connect",
+          "connecting": "Connecting",
+          "connected": "Connected",
+          "saved": "Saved"
+        },
+        "steps": {
+          "open-prefix": "Open the",
+          "open-link": "{{provider}} API keys page",
+          "open-suffix": "and sign in.",
+          "create-key": "Create a free key.",
+          "paste-key": "Paste it below."
+        },
+        "key-placeholder": "Paste your {{provider}} key",
+        "error-empty": "Paste your key first.",
+        "error-save": "Could not save your key.",
+        "connected-status": "Connected. You can continue.",
+        "saved-unverified": "I saved your key, but I couldn't reach {{provider}} just now to check it. You can continue. I'll verify it the first time you use it.",
+        "local": {
+          "title": "Use on-device AI",
+          "bullet-1": "Runs on this computer",
+          "bullet-2": "Your files and questions stay on this computer",
+          "bullet-3": "2.5 GB download, about 5 minutes",
+          "bullet-4": "Good at answering questions across lots of files",
+          "bullet-5": "Less strong for complex reasoning",
+          "more-link": "Tell me more",
+          "try-local": "Try on-device AI",
+          "switch-note": "You can switch to cloud AI anytime"
+        },
+        "ollama": {
+          "title": "We found Ollama on this computer",
+          "model-installed_one": "1 model is installed",
+          "model-installed_other": "{{count}} models are installed",
+          "suffix": "You can use it now, no download needed.",
+          "use-ollama": "Use my Ollama",
+          "local-ready": "On-device AI ready, continue",
+          "starting-download": "Starting download",
+          "download-built-in": "Or download the built-in model"
+        },
+        "pay-modal": {
+          "title": "Pay as you go, with your own key",
+          "body": "You get an API key from the AI company you pick: ChatGPT, Claude, or Gemini. You pay them directly, only for what you actually use, usually a few cents per question. {{productName}} never charges you for AI. Your prompts go straight from your machine to that provider, not through {{productName}} servers.",
+          "got": "Got it"
+        },
+        "local-modal": {
+          "title": "On-device AI, explained",
+          "body": "On-device AI runs on your own computer. It's free and fully private, so your files and questions stay on this machine. It's a one-time download of about 2.5 GB. It's good at answering questions across lots of files, though not as strong on complex reasoning. You can switch to cloud AI any time.",
+          "got": "Got it"
+        }
+      },
+      "connect": {
+        "headline": "2. Connect your firm",
+        "pills": {
+          "encrypted": "Encrypted in transit",
+          "device": "Files stay on your device",
+          "private": "{{productName}} servers never see your data"
+        },
+        "cards": {
+          "m365": {
+            "title": "Microsoft 365 / Outlook",
+            "description": "Email from Outlook and Microsoft 365."
+          },
+          "gmail": {
+            "title": "Gmail",
+            "description": "Email from your Google account."
+          },
+          "onedrive": {
+            "title": "OneDrive",
+            "description": "Client folders from OneDrive and SharePoint."
+          },
+          "calendar": {
+            "title": "Calendar",
+            "description": "Read-only Outlook, Google, or ICS events for meeting prep."
+          },
+          "wealthbox": {
+            "title": "Wealthbox",
+            "description": "Reads your contacts, households, notes, tasks and calendar in to build the Client Map, and can write notes and tasks back to Wealthbox, with your approval. It never deletes anything."
+          },
+          "imap": {
+            "toggle": "Other email option (IMAP)",
+            "title": "Other email",
+            "description": "Standard IMAP accounts."
+          }
+        },
+        "badges": {
+          "reads-in": "Reads in",
+          "two-way": "Two-way"
+        },
+        "groups": {
+          "now-label": "Connect now",
+          "built-label": "Also built, ready to switch on for your firm",
+          "roadmap-label": "On the roadmap",
+          "calendars-note": "Calendly connects from Settings once you're set up."
+        },
+        "built": {
+          "salesforce": {
+            "name": "Salesforce",
+            "desc": "CRM: reads clients in, can write notes/tasks back."
+          },
+          "redtail": {
+            "name": "Redtail",
+            "desc": "CRM: reads clients in, can write notes/tasks back."
+          },
+          "docusign": {
+            "name": "DocuSign",
+            "desc": "Sees envelope/signature status."
+          },
+          "addepar": {
+            "name": "Addepar",
+            "desc": "Reads portfolio data."
+          },
+          "box": {
+            "name": "Box",
+            "desc": "Reads your files."
+          },
+          "sharefile": {
+            "name": "ShareFile",
+            "desc": "Reads your files."
+          },
+          "jotform": {
+            "name": "Jotform",
+            "desc": "Reads form submissions."
+          },
+          "zocks": {
+            "name": "Zocks",
+            "desc": "Reads meeting notes."
+          }
+        },
+        "coming-soon-label": "Coming soon",
+        "works-with": {
+          "title": "Start with CRM, email, and files",
+          "body": "{{productName}} reads the files you already have: CRM notes, email, OneDrive or SharePoint folders, PDFs, and Word files. It cites those files in answers, so that you can check where each answer came from.",
+          "disclaimer": "{{productName}} reads saved files and notes from your own folders."
+        }
+      },
+      "firm": {
+        "headline": "3. Setting up your firm",
+        "sub": "You can continue to the app and these will load in the background.",
+        "your-ai": "Your AI",
+        "importing": "Importing your data",
+        "ai-label": "Downloading your private AI",
+        "ai-retry-label": "AI setup needs a retry",
+        "ai-unverified-label": "AI key saved, not verified yet",
+        "ai-cloud-ready-label": "Your AI provider is connected",
+        "client-map-title": "Building your Client Maps",
+        "client-map-sub": "Assembling the whole story of every client and household.",
+        "client-map-note": "I build a Client Map for each client automatically the first time you open them.",
+        "asks-header": "Things you can ask {{productName}}",
+        "idle": "Getting ready. Your AI and data will start loading here.",
+        "cta": "Continue to the app",
+        "status": {
+          "failed": "Failed",
+          "done": "Done",
+          "working": "Working",
+          "not-started": "Not started",
+          "not-verified": "Not verified",
+          "retrying": "Retrying",
+          "retry": "Retry"
+        },
+        "rows": {
+          "email": "Email",
+          "wealthbox": "Wealthbox",
+          "onedrive": "OneDrive",
+          "files": "Files",
+          "imported": "{{count}} imported",
+          "checked": "{{count}} checked",
+          "households": "{{count}} households"
+        },
+        "questions": {
+          "q1": "Which client is doing a 1031 exchange?",
+          "q2": "Who has a 529 for the kids?",
+          "q3": "What changed for the Hendricks since our last review?",
+          "q4": "Which clients are over-concentrated in one stock?",
+          "q5": "Who turns 73 this year for RMDs?",
+          "q6": "Which households haven't been contacted in 90 days?",
+          "q7": "Who has a CD maturing next month?",
+          "q8": "Which clients mentioned retiring early?",
+          "q9": "Who is a good candidate for a Roth conversion?",
+          "q10": "Which accounts are missing a beneficiary?",
+          "q11": "Who had a major life event this quarter?",
+          "q12": "Who has cash sitting uninvested?",
+          "q13": "Which clients asked about the market last week?",
+          "q14": "Who is closest to their retirement goal?",
+          "q15": "Which clients hold concentrated employer stock?",
+          "q16": "Who mentioned a home purchase or move?"
+        }
+      }
+    },
+    "first-run": {
+      "skip-for-now": "Skip for now",
+      "back": "Back",
+      "welcome": {
+        "title": "Welcome to {{productName}}",
+        "subtitle": "The private place your firm lives, that answers you back.",
+        "body-1": "{{productName}} keeps your clients' files, documents, and imported email on your own machine. Ask a question across your whole firm, so that you get a cited answer you can verify. Your files stay real files in a folder you control.",
+        "body-2": "Setup takes about 2 minutes. I'll help you pick a folder for your work, connect your AI provider account (optional), and run your first workflow.",
+        "step-1": "Step 1. Pick a folder for your work",
+        "step-2": "Step 2. Connect your AI provider account (optional)",
+        "step-3": "Step 3. Run your first workflow",
+        "cta": "Let's go"
+      },
+      "workspace": {
+        "title": "Pick a folder for your work",
+        "subtitle": "Your client files stay on your machine, in a folder you control.",
+        "body-1": "This is where your client work will live: real Word documents, PDFs, and notes in a normal folder on your hard drive. Nothing is uploaded to our servers. Pick a location that's easy to find and easy to back up.",
+        "body-2": "Pro tip: a folder inside Dropbox, iCloud, or OneDrive syncs across devices, but that also means your files sit with that provider. For client-confidential work, keep the folder local.",
+        "common-choices": "Common choices:",
+        "icloud-path": "~/iCloud Drive/{{productName}}",
+        "body-3": "The next screen will let you actually pick the folder. For now, just confirm you understand what we're about to ask.",
+        "cta": "Got it"
+      },
+      "apikey": {
+        "title": "Add an AI provider key",
+        "subtitle": "Optional, but you'll need one to use the AI features.",
+        "body-1": "{{productName}} is a \"bring your own key\" tool. You sign up with an AI provider directly and paste their account key here. Your keys are stored in your operating system's secure keychain, never sent to us, and used from your computer when it talks to your provider.",
+        "body-2": "The fastest way to get started is with <s>Anthropic Claude</s>:",
+        "step-go-to": "Go to <a>console.anthropic.com</a>",
+        "step-signup": "Sign up (free, $5 in credits to start)",
+        "step-create-key": "Click API Keys, Create Key",
+        "step-copy-key": "Copy the key (starts with <c>sk-ant-</c>) and paste it below",
+        "skip-hint": "You can skip this and add a key later in Settings, AI Account Keys.",
+        "save-cta": "Save key"
+      },
+      "demo": {
+        "title": "Run your first workflow",
+        "subtitle": "See a real deliverable come together in seconds.",
+        "body-1": "The fastest way to see what {{productName}} does is to run a workflow. Pick any template from the Workflows tab, answer the questions it asks, and watch it produce a finished Word document in your folder.",
+        "step-1": "Click <s>Workflows</s> in the sidebar",
+        "step-2": "Pick any template that fits your firm",
+        "step-3": "Answer the questions and click <s>Generate</s>",
+        "outcome": "You'll get back finished work as real Word documents, ready to open, edit, and send to clients.",
+        "populate-toggle": "Add {{count}} sample client files to get started",
+        "populate-help": "Adds finished examples so you can see what a completed workflow looks like before running your first real project. You can delete them any time.",
+        "copy-error": "Could not copy samples: {{error}}. Don't worry, you're still in.",
+        "setting-up": "Setting up",
+        "open-cta": "Open my workspace"
+      }
+    },
+    "disk-encryption": {
+      "title": "One thing to check: your disk encryption",
+      "body": "{{productName}} keeps your documents as normal files in your workspace folder, on your machine. If the laptop is lost or stolen, your operating system's full-disk encryption is what protects them. It takes a minute to confirm it is on.",
+      "check-windows": "Windows: Settings, then Privacy & security, then Device encryption (or search for BitLocker). It should say On.",
+      "check-macos": "Mac: System Settings, then Privacy & Security, then FileVault. It should say FileVault is turned on.",
+      "check-linux": "Linux: most installers offer LUKS full-disk encryption. Check your distribution's disk settings, or run lsblk and look for a crypt entry."
+    },
+    "api-key-card": {
+      "title": "Next step: add your AI account key",
+      "description": "{{productName}} uses your own account key from Anthropic, OpenAI, or Google, so your AI usage goes straight to your provider with no markup from us. Your {{productName}} plan covers the software.",
+      "walk-me-through": "Walk me through it",
+      "add-key": "Add account key",
+      "keys-local": "Account keys are stored locally on your computer. Never sent to us."
+    },
+    "api-key-wizard": {
+      "step-1": {
+        "body": "Click the button below to open <s>{{dashboard}}</s> in your browser. You'll need to sign in (or sign up) to get to the keys page."
+      },
+      "step-2-ollama": {
+        "body": "Download Ollama for your OS, then in a terminal run <c>ollama pull llama3.2</c> (or any model you want). {{productName}} auto-detects Ollama on the next step."
+      },
+      "ollama-running": "Ollama is running",
+      "ollama-models-ready_one": "1 model ready",
+      "ollama-models-ready_other": "{{count}} models ready",
+      "ollama-not-running": "Ollama is not running. Install it, then click Check.",
+      "check-ollama": "Check Ollama connection"
+    },
+    "tutorial": {
+      "open-api-keys": "Open account keys page",
+      "direct-urls": "Direct URLs (click to open in your browser):"
+    },
+    "welcome": {
+      "title": "Welcome to {{productName}}",
+      "description": "A couple of optional things, both off by default. Skip if you'd rather not.",
+      "email-optin-label": "Email me launch updates, tips, and discount codes",
+      "email-optin-help": "Real updates only, no drip campaigns, no weekly newsletters. Unsubscribe any time. Goes straight to the {{productName}} team.",
+      "telemetry-label": "Help improve {{productName}} with anonymous usage stats",
+      "telemetry-help": "Sends a random install ID, the app version, your platform, and lifecycle events (trial started, license activated, etc.). No content, no files, no AI prompts, no email. You can turn this off in Settings, Privacy."
+    },
+    "api-key-explainer": {
+      "privacy-body": "That direct connection is what makes {{productName}} private: your prompts go straight from your machine to the provider you chose. {{productNamePossessive}} servers never see your work, your files, or your conversations.",
+      "what-is-body": "An API key is like a password that lets your computer talk directly to an AI company (Anthropic, OpenAI, or Google). You create it on their site, paste it here once, and {{productName}} stores it in your operating system's secure keychain."
+    }
+  }
+}

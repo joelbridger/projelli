@@ -1,0 +1,63 @@
+{
+  "privacy": {
+    "prompt-preparation": {
+      "title": "Review private links",
+      "description_one": "I found {{count}} private access link in the material for this AI request. I made a safe copy with the private parts hidden. Send that safe copy?",
+      "description_other": "I found {{count}} private access links in the material for this AI request. I made a safe copy with the private parts hidden. Send that safe copy?",
+      "send-redacted-copy": "Send redacted copy"
+    },
+    "egress": {
+      "local": {
+        "label": "On your machine. No cloud AI",
+        "note": "This runs on a local model ({{provider}}). No AI prompt or file is sent to a cloud AI."
+      },
+      "direct": {
+        "label": "Sent to your {{provider}} account",
+        "note": "Sent straight from your machine to {{provider}} with your own account key. {{productName}} is not in between. {{provider}} receives the prompt and may keep it briefly for abuse monitoring; control training opt-out in your {{provider}} account."
+      },
+      "demo": {
+        "label": "Browser demo. Do not use with client data",
+        "note": "In this online demo, messages pass through a shared {{productName}} relay. The desktop app never does this. Do not enter confidential or client information here."
+      },
+      "checking": {
+        "label": "Checking AI destination",
+        "note": "{{productName}} is confirming where this request will go before sending."
+      },
+      "none": {
+        "label": "No AI connected",
+        "note": "Connect an AI provider to start getting answers."
+      },
+      "local-pending": {
+        "label": "Local AI setting up",
+        "note": "Your on device AI is still downloading or starting up. Nothing has been sent anywhere. Check its progress in Settings, then try again."
+      },
+      "sending": "Sending to your AI provider"
+    },
+    "privileged-matter": {
+      "badge": "Isolated client: outside connections are blocked so nothing can leave this client.",
+      "title-manual": "Network lockdown: network plugins and MCP servers are disabled.",
+      "title-privileged-matter": "On because the active client has network lockdown. Network plugins and MCP servers are disabled.",
+      "title-local-only": "On because On this computer only is selected. Network plugins and MCP servers are disabled."
+    },
+    "retention": {
+      "title": "Deleted files",
+      "subtitle": "Choose what happens to recordings on this computer. Deletions are recorded in your audit log.",
+      "mode-keep": "Keep everything",
+      "mode-keep-hint": "Audio, transcript, and notes stay until you delete them.",
+      "mode-days": "Delete audio after {{count}} days, keep the transcript",
+      "mode-days-hint": "The recording is removed on schedule. Transcript and notes stay.",
+      "mode-summary": "Summary only",
+      "mode-summary-hint": "Audio and transcript are removed once notes exist. Only the notes stay.",
+      "days-label": "Days to keep audio",
+      "change": "Change",
+      "more-actions": "More deleted-file actions",
+      "run-now": "Clean up now",
+      "last-sweep": "Last cleanup: {{when}}, removed {{count}} items",
+      "never-swept": "No cleanup yet.",
+      "datamap-title": "Meeting recording retention",
+      "sweep-errors": "{{count}} items could not be removed. See the audit log.",
+      "attestation-button": "Export attestation report (Word)",
+      "attestation-done": "Saved to {{path}}"
+    }
+  }
+}
