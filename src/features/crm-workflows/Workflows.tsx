@@ -4,12 +4,38 @@ import { Plus, Workflow } from 'lucide-react';
 import { Button } from '@/ui/kp';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import { STARTER_WORKFLOWS } from '@/features/crm-workflows-library';
-import { FreshnessBanner, Screen, mutedStyle, panelStyle } from '@/features/crm-home/shared/ui';
-import type { CrmHomeRoute, CrmHouseholdAddRequest } from '@/features/crm-home/routes';
-import { addWorkflowStepNote, completeWorkflowStep, createMeetingWorkflowProposal, createTemplate, offerForInstance, publishTemplateUpdate, renameWorkflowStepLocally, startWorkflow, updateWorkflowTemplate, workflowRecords, type LiveWorkflowInstance, type WorkflowScheduleDraft, type WorkflowStepOutcomeDraft } from '@/features/crm-home/workflowLive';
+import {
+  FreshnessBanner,
+  Screen,
+  mutedStyle,
+  panelStyle,
+} from '@/features/crm-home/shared/ui';
+import type {
+  CrmHomeRoute,
+  CrmHouseholdAddRequest,
+} from '@/features/crm-home/routes';
+import {
+  addWorkflowStepNote,
+  completeWorkflowStep,
+  createMeetingWorkflowProposal,
+  createTemplate,
+  offerForInstance,
+  publishTemplateUpdate,
+  renameWorkflowStepLocally,
+  startWorkflow,
+  updateWorkflowTemplate,
+  workflowRecords,
+  type LiveWorkflowInstance,
+  type WorkflowScheduleDraft,
+  type WorkflowStepOutcomeDraft,
+} from '@/features/crm-home/workflowLive';
 import type { CrmFreshnessState } from '@/features/crm-home/types';
 import { useCrmHomeSurfaceContext } from '@/features/crm-home/surfaceContext';
 import { liveStepTitle } from '@/features/crm-home/shared/workflowDisplay';
+import {
+  mountWorkflowRules,
+  mountWorkflowStepExtensions,
+} from './workflowExtensionRegistry';
 
 export function Workflows({
   freshness,
@@ -47,10 +73,27 @@ export function Workflows({
 }
 
 export function WorkflowsSurface() {
-  const { adapter, navigate, workflowData, workflowHouseholds, saveLiveRecord, addRequest, onAddRequestConsumed } = useCrmHomeSurfaceContext();
-  return workflowData && workflowHouseholds && saveLiveRecord
-    ? <LiveWorkflows data={workflowData} households={workflowHouseholds} onSave={saveLiveRecord} onNavigate={navigate} {...(addRequest ? { addRequest } : {})} {...(onAddRequestConsumed ? { onAddRequestConsumed } : {})} />
-    : <Workflows freshness={adapter.freshness} onNavigate={navigate} />;
+  const {
+    adapter,
+    navigate,
+    workflowData,
+    workflowHouseholds,
+    saveLiveRecord,
+    addRequest,
+    onAddRequestConsumed,
+  } = useCrmHomeSurfaceContext();
+  return workflowData && workflowHouseholds && saveLiveRecord ? (
+    <LiveWorkflows
+      data={workflowData}
+      households={workflowHouseholds}
+      onSave={saveLiveRecord}
+      onNavigate={navigate}
+      {...(addRequest ? { addRequest } : {})}
+      {...(onAddRequestConsumed ? { onAddRequestConsumed } : {})}
+    />
+  ) : (
+    <Workflows freshness={adapter.freshness} onNavigate={navigate} />
+  );
 }
 
 export type LiveWorkflowData = ReturnType<typeof workflowRecords>;
@@ -408,203 +451,214 @@ export function LiveWorkflows({
                     }}
                   />
                 </label>
-                <section
-                  data-testid="crm-live-workflow-schedule"
-                  style={{
-                    borderTop: '1px solid var(--kp-border)',
-                    marginTop: 12,
-                    paddingTop: 12,
-                  }}
-                >
-                  <strong>Scheduled workflow</strong>
-                  <p style={mutedStyle}>
-                    When this time arrives, this app creates a workflow for the
-                    selected households. It never sends anything outside
-                    Lantern.
-                  </p>
-                  <label>
-                    <input
-                      data-testid="crm-live-workflow-schedule-enabled"
-                      type="checkbox"
-                      checked={schedule.enabled}
-                      onChange={(event) => {
-                        setSchedule((current) => ({
-                          ...current,
-                          enabled: event.target.checked,
-                        }));
-                      }}
-                    />{' '}
-                    Start on a schedule
-                  </label>
-                  <label style={{ display: 'block', marginTop: 8 }}>
-                    Repeat
-                    <select
-                      data-testid="crm-live-workflow-schedule-frequency"
-                      value={schedule.frequency}
-                      onChange={(event) => {
-                        setSchedule((current) => ({
-                          ...current,
-                          frequency: event.target
-                            .value as WorkflowScheduleDraft['frequency'],
-                        }));
-                      }}
-                    >
-                      {[
-                        'daily',
-                        'weekly',
-                        'monthly',
-                        'quarterly',
-                        'annual',
-                      ].map((frequency) => (
-                        <option key={frequency} value={frequency}>
-                          {frequency}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label style={{ display: 'block', marginTop: 8 }}>
-                    First run
-                    <input
-                      data-testid="crm-live-workflow-schedule-starts-at"
-                      type="date"
-                      value={schedule.startsAt.slice(0, 10)}
-                      onChange={(event) => {
-                        setSchedule((current) => ({
-                          ...current,
-                          startsAt: event.target.value,
-                        }));
-                      }}
-                    />
-                  </label>
-                  <label style={{ display: 'block', marginTop: 8 }}>
-                    Households
-                    <select
-                      data-testid="crm-live-workflow-schedule-households"
-                      multiple
-                      value={schedule.householdIds}
-                      onChange={(event) => {
-                        setSchedule((current) => ({
-                          ...current,
-                          householdIds: Array.from(
-                            event.currentTarget.selectedOptions,
-                            (option) => option.value
-                          ),
-                        }));
-                      }}
-                    >
-                      {households.map((household) => (
-                        <option key={household.id} value={household.id}>
-                          {household.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </section>
-                <section
-                  data-testid="crm-live-workflow-outcome-add"
-                  style={{
-                    borderTop: '1px solid var(--kp-border)',
-                    marginTop: 12,
-                    paddingTop: 12,
-                  }}
-                >
-                  <strong>Step outcomes and branching</strong>
-                  <p style={mutedStyle}>
-                    A completed step can move work to another step, restart work
-                    at a step, or finish this workflow.
-                  </p>
-                  {template.steps.map((step) => (
-                    <div key={step.id} style={{ marginTop: 8 }}>
-                      <strong>{step.title}</strong>
-                      {(outcomes[step.id] ?? []).map((outcome) => (
-                        <div
-                          key={outcome.id}
-                          style={{
-                            display: 'flex',
-                            gap: 6,
-                            marginTop: 6,
-                            flexWrap: 'wrap',
-                          }}
-                        >
+                {mountWorkflowRules({
+                  template,
+                  compatibilityMount: (
+                    <>
+                      <section
+                        data-testid="crm-live-workflow-schedule"
+                        style={{
+                          borderTop: '1px solid var(--kp-border)',
+                          marginTop: 12,
+                          paddingTop: 12,
+                        }}
+                      >
+                        <strong>Scheduled workflow</strong>
+                        <p style={mutedStyle}>
+                          When this time arrives, this app creates a workflow
+                          for the selected households. It never sends anything
+                          outside Lantern.
+                        </p>
+                        <label>
                           <input
-                            data-testid={`crm-live-workflow-outcome-label-${outcome.id}`}
-                            aria-label={`Outcome label for ${step.title}`}
-                            value={outcome.label}
-                            placeholder="Outcome, such as Approved"
+                            data-testid="crm-live-workflow-schedule-enabled"
+                            type="checkbox"
+                            checked={schedule.enabled}
                             onChange={(event) => {
-                              editOutcome(step.id, outcome.id, {
-                                label: event.target.value,
-                              });
+                              setSchedule((current) => ({
+                                ...current,
+                                enabled: event.target.checked,
+                              }));
                             }}
-                          />
+                          />{' '}
+                          Start on a schedule
+                        </label>
+                        <label style={{ display: 'block', marginTop: 8 }}>
+                          Repeat
                           <select
-                            data-testid={`crm-live-workflow-outcome-action-${outcome.id}`}
-                            value={
-                              outcome.restartAtStepId
-                                ? `restart:${outcome.restartAtStepId}`
-                                : outcome.nextStepId
-                                  ? `next:${outcome.nextStepId}`
-                                  : 'complete'
-                            }
+                            data-testid="crm-live-workflow-schedule-frequency"
+                            value={schedule.frequency}
                             onChange={(event) => {
-                              const [kind, target] =
-                                event.target.value.split(':');
-                              editOutcome(
-                                step.id,
-                                outcome.id,
-                                kind === 'next'
-                                  ? {
-                                      nextStepId: target,
-                                      restartAtStepId: undefined,
-                                    }
-                                  : kind === 'restart'
-                                    ? {
-                                        restartAtStepId: target,
-                                        nextStepId: undefined,
-                                      }
-                                    : {
-                                        nextStepId: undefined,
-                                        restartAtStepId: undefined,
-                                      }
-                              );
+                              setSchedule((current) => ({
+                                ...current,
+                                frequency: event.target
+                                  .value as WorkflowScheduleDraft['frequency'],
+                              }));
                             }}
                           >
-                            <option value="complete">Complete workflow</option>
-                            {template.steps
-                              .filter((candidate) => candidate.id !== step.id)
-                              .map((candidate) => (
-                                <option
-                                  key={`next-${candidate.id}`}
-                                  value={`next:${candidate.id}`}
-                                >
-                                  Go to {candidate.title}
-                                </option>
-                              ))}
-                            {template.steps.map((candidate) => (
-                              <option
-                                key={`restart-${candidate.id}`}
-                                value={`restart:${candidate.id}`}
-                              >
-                                Restart at {candidate.title}
+                            {[
+                              'daily',
+                              'weekly',
+                              'monthly',
+                              'quarterly',
+                              'annual',
+                            ].map((frequency) => (
+                              <option key={frequency} value={frequency}>
+                                {frequency}
                               </option>
                             ))}
                           </select>
-                        </div>
-                      ))}
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        data-testid={`crm-live-workflow-add-outcome-${step.id}`}
-                        style={{ marginTop: 6 }}
-                        onClick={() => {
-                          addOutcome(step.id);
+                        </label>
+                        <label style={{ display: 'block', marginTop: 8 }}>
+                          First run
+                          <input
+                            data-testid="crm-live-workflow-schedule-starts-at"
+                            type="date"
+                            value={schedule.startsAt.slice(0, 10)}
+                            onChange={(event) => {
+                              setSchedule((current) => ({
+                                ...current,
+                                startsAt: event.target.value,
+                              }));
+                            }}
+                          />
+                        </label>
+                        <label style={{ display: 'block', marginTop: 8 }}>
+                          Households
+                          <select
+                            data-testid="crm-live-workflow-schedule-households"
+                            multiple
+                            value={schedule.householdIds}
+                            onChange={(event) => {
+                              setSchedule((current) => ({
+                                ...current,
+                                householdIds: Array.from(
+                                  event.currentTarget.selectedOptions,
+                                  (option) => option.value
+                                ),
+                              }));
+                            }}
+                          >
+                            {households.map((household) => (
+                              <option key={household.id} value={household.id}>
+                                {household.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </section>
+                      <section
+                        data-testid="crm-live-workflow-outcome-add"
+                        style={{
+                          borderTop: '1px solid var(--kp-border)',
+                          marginTop: 12,
+                          paddingTop: 12,
                         }}
                       >
-                        Add outcome
-                      </Button>
-                    </div>
-                  ))}
-                </section>
+                        <strong>Step outcomes and branching</strong>
+                        <p style={mutedStyle}>
+                          A completed step can move work to another step,
+                          restart work at a step, or finish this workflow.
+                        </p>
+                        {template.steps.map((step) => (
+                          <div key={step.id} style={{ marginTop: 8 }}>
+                            <strong>{step.title}</strong>
+                            {(outcomes[step.id] ?? []).map((outcome) => (
+                              <div
+                                key={outcome.id}
+                                style={{
+                                  display: 'flex',
+                                  gap: 6,
+                                  marginTop: 6,
+                                  flexWrap: 'wrap',
+                                }}
+                              >
+                                <input
+                                  data-testid={`crm-live-workflow-outcome-label-${outcome.id}`}
+                                  aria-label={`Outcome label for ${step.title}`}
+                                  value={outcome.label}
+                                  placeholder="Outcome, such as Approved"
+                                  onChange={(event) => {
+                                    editOutcome(step.id, outcome.id, {
+                                      label: event.target.value,
+                                    });
+                                  }}
+                                />
+                                <select
+                                  data-testid={`crm-live-workflow-outcome-action-${outcome.id}`}
+                                  value={
+                                    outcome.restartAtStepId
+                                      ? `restart:${outcome.restartAtStepId}`
+                                      : outcome.nextStepId
+                                        ? `next:${outcome.nextStepId}`
+                                        : 'complete'
+                                  }
+                                  onChange={(event) => {
+                                    const [kind, target] =
+                                      event.target.value.split(':');
+                                    editOutcome(
+                                      step.id,
+                                      outcome.id,
+                                      kind === 'next'
+                                        ? {
+                                            nextStepId: target,
+                                            restartAtStepId: undefined,
+                                          }
+                                        : kind === 'restart'
+                                          ? {
+                                              restartAtStepId: target,
+                                              nextStepId: undefined,
+                                            }
+                                          : {
+                                              nextStepId: undefined,
+                                              restartAtStepId: undefined,
+                                            }
+                                    );
+                                  }}
+                                >
+                                  <option value="complete">
+                                    Complete workflow
+                                  </option>
+                                  {template.steps
+                                    .filter(
+                                      (candidate) => candidate.id !== step.id
+                                    )
+                                    .map((candidate) => (
+                                      <option
+                                        key={`next-${candidate.id}`}
+                                        value={`next:${candidate.id}`}
+                                      >
+                                        Go to {candidate.title}
+                                      </option>
+                                    ))}
+                                  {template.steps.map((candidate) => (
+                                    <option
+                                      key={`restart-${candidate.id}`}
+                                      value={`restart:${candidate.id}`}
+                                    >
+                                      Restart at {candidate.title}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            ))}
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              data-testid={`crm-live-workflow-add-outcome-${step.id}`}
+                              style={{ marginTop: 6 }}
+                              onClick={() => {
+                                addOutcome(step.id);
+                              }}
+                            >
+                              Add outcome
+                            </Button>
+                          </div>
+                        ))}
+                      </section>
+                    </>
+                  ),
+                })}
                 <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                   <Button
                     data-testid="crm-live-workflow-publish"
@@ -694,76 +748,76 @@ export function LiveWorkflows({
               data-testid="crm-live-workflow-meeting-proposal"
               style={panelStyle}
             >
-            <strong>Propose a workflow from a meeting</strong>
-            <p style={mutedStyle}>
-              Meeting content can suggest a workflow. It always waits for a
-              person to approve before it starts.
-            </p>
-            {data.meetings.length === 0 ? (
-              <p style={mutedStyle}>No meeting activity is available yet.</p>
-            ) : (
-              <>
-                <label>
-                  Meeting
-                  <select
-                    data-testid="crm-live-meeting-select"
-                    value={meetingId}
-                    onChange={(event) => {
-                      setMeetingId(event.target.value);
-                    }}
-                  >
-                    <option value="">Choose a meeting</option>
-                    {data.meetings.map((meeting) => (
-                      <option key={meeting.id} value={meeting.id}>
-                        {typeof meeting['summary'] === 'string'
-                          ? meeting['summary']
-                          : 'Untitled meeting'}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label style={{ display: 'block', marginTop: 8 }}>
-                  Household
-                  <select
-                    data-testid="crm-live-meeting-household"
-                    value={meetingHouseholdId}
-                    onChange={(event) => {
-                      setMeetingHouseholdId(event.target.value);
-                    }}
-                  >
-                    <option value="">Choose a household</option>
-                    {households.map((household) => (
-                      <option key={household.id} value={household.id}>
-                        {household.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <Button
-                  data-testid="crm-live-meeting-propose-workflow"
-                  style={{ marginTop: 8 }}
-                  disabled={!meetingId || !meetingHouseholdId}
-                  onClick={() => {
-                    const meeting = data.meetings.find(
-                      (item) => item.id === meetingId
-                    );
-                    const household = households.find(
-                      (item) => item.id === meetingHouseholdId
-                    );
-                    if (meeting && household)
-                      void save(
-                        createMeetingWorkflowProposal(
-                          meeting,
-                          template,
-                          household
-                        )
+              <strong>Propose a workflow from a meeting</strong>
+              <p style={mutedStyle}>
+                Meeting content can suggest a workflow. It always waits for a
+                person to approve before it starts.
+              </p>
+              {data.meetings.length === 0 ? (
+                <p style={mutedStyle}>No meeting activity is available yet.</p>
+              ) : (
+                <>
+                  <label>
+                    Meeting
+                    <select
+                      data-testid="crm-live-meeting-select"
+                      value={meetingId}
+                      onChange={(event) => {
+                        setMeetingId(event.target.value);
+                      }}
+                    >
+                      <option value="">Choose a meeting</option>
+                      {data.meetings.map((meeting) => (
+                        <option key={meeting.id} value={meeting.id}>
+                          {typeof meeting['summary'] === 'string'
+                            ? meeting['summary']
+                            : 'Untitled meeting'}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label style={{ display: 'block', marginTop: 8 }}>
+                    Household
+                    <select
+                      data-testid="crm-live-meeting-household"
+                      value={meetingHouseholdId}
+                      onChange={(event) => {
+                        setMeetingHouseholdId(event.target.value);
+                      }}
+                    >
+                      <option value="">Choose a household</option>
+                      {households.map((household) => (
+                        <option key={household.id} value={household.id}>
+                          {household.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <Button
+                    data-testid="crm-live-meeting-propose-workflow"
+                    style={{ marginTop: 8 }}
+                    disabled={!meetingId || !meetingHouseholdId}
+                    onClick={() => {
+                      const meeting = data.meetings.find(
+                        (item) => item.id === meetingId
                       );
-                  }}
-                >
-                  Create proposal for approval
-                </Button>
-              </>
-            )}
+                      const household = households.find(
+                        (item) => item.id === meetingHouseholdId
+                      );
+                      if (meeting && household)
+                        void save(
+                          createMeetingWorkflowProposal(
+                            meeting,
+                            template,
+                            household
+                          )
+                        );
+                    }}
+                  >
+                    Create proposal for approval
+                  </Button>
+                </>
+              )}
             </section>
           </div>
         </>
@@ -819,132 +873,143 @@ function LiveInstanceCard({
           >
             <span>{step.status === 'done' ? '✓' : '□'}</span>
             <strong>{liveStepTitle(instance, step.stepId)}</strong>
-            {step.status === 'done' ? (
-              <span style={mutedStyle}>
-                {step.outcome ? `Completed: ${step.outcome}. ` : ''}Completed
-                work stays as it is.
-              </span>
-            ) : (
-              <>
+            {mountWorkflowStepExtensions({
+              instance,
+              stepId: step.stepId,
+              compatibilityMount: (
                 <>
-                  {choices.length > 0 && (
-                    <select
-                      data-testid={`crm-live-workflow-outcome-choice-${instance.id}-${step.stepId}`}
-                      value={outcomeIds[step.stepId] ?? ''}
+                  {step.status === 'done' ? (
+                    <span style={mutedStyle}>
+                      {step.outcome ? `Completed: ${step.outcome}. ` : ''}
+                      Completed work stays as it is.
+                    </span>
+                  ) : (
+                    <>
+                      <>
+                        {choices.length > 0 && (
+                          <select
+                            data-testid={`crm-live-workflow-outcome-choice-${instance.id}-${step.stepId}`}
+                            value={outcomeIds[step.stepId] ?? ''}
+                            onChange={(event) => {
+                              setOutcomeIds((current) => ({
+                                ...current,
+                                [step.stepId]: event.target.value,
+                              }));
+                            }}
+                          >
+                            <option value="">Choose an outcome</option>
+                            {choices.map((outcome) => (
+                              <option key={outcome.id} value={outcome.id}>
+                                {outcome.label}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        data-testid={`crm-live-workflow-complete-${instance.id}-${step.stepId}`}
+                        onClick={() => {
+                          void onSave(
+                            completeWorkflowStep(
+                              instance,
+                              step.stepId,
+                              outcomeIds[step.stepId]
+                            )
+                          );
+                        }}
+                      >
+                        Complete step
+                      </Button>
+                    </>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    data-testid={`crm-live-workflow-edit-local-${instance.id}-${step.stepId}`}
+                    onClick={() => {
+                      setEditingStep(step.stepId);
+                      setLocalTitle(liveStepTitle(instance, step.stepId));
+                    }}
+                  >
+                    Edit for this household
+                  </Button>
+                  {editingStep === step.stepId && (
+                    <span>
+                      <input
+                        data-testid={`crm-live-workflow-local-title-${instance.id}-${step.stepId}`}
+                        value={localTitle}
+                        onChange={(event) => {
+                          setLocalTitle(event.target.value);
+                        }}
+                      />
+                      <Button
+                        size="sm"
+                        data-testid={`crm-live-workflow-local-save-${instance.id}-${step.stepId}`}
+                        onClick={() => {
+                          void onSave(
+                            renameWorkflowStepLocally(
+                              instance,
+                              step.stepId,
+                              localTitle
+                            )
+                          );
+                          setEditingStep(null);
+                        }}
+                      >
+                        Save
+                      </Button>
+                    </span>
+                  )}
+                  <div
+                    data-testid="crm-live-workflow-step-comment"
+                    style={{ width: '100%' }}
+                  >
+                    <textarea
+                      data-testid={`crm-live-workflow-step-note-${instance.id}-${step.stepId}`}
+                      value={notes[step.stepId] ?? ''}
+                      placeholder="Add an internal step comment"
                       onChange={(event) => {
-                        setOutcomeIds((current) => ({
+                        setNotes((current) => ({
                           ...current,
                           [step.stepId]: event.target.value,
                         }));
                       }}
+                    />
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      data-testid={`crm-live-workflow-save-note-${instance.id}-${step.stepId}`}
+                      disabled={!notes[step.stepId]?.trim()}
+                      onClick={() => {
+                        void onSave(
+                          addWorkflowStepNote(
+                            instance,
+                            step.stepId,
+                            notes[step.stepId] ?? ''
+                          )
+                        );
+                        setNotes((current) => ({
+                          ...current,
+                          [step.stepId]: '',
+                        }));
+                      }}
                     >
-                      <option value="">Choose an outcome</option>
-                      {choices.map((outcome) => (
-                        <option key={outcome.id} value={outcome.id}>
-                          {outcome.label}
-                        </option>
-                      ))}
-                    </select>
-                  )}
+                      Save comment
+                    </Button>
+                    {step.stepNotes && (
+                      <p
+                        data-testid={`crm-live-workflow-step-notes-${instance.id}-${step.stepId}`}
+                        style={mutedStyle}
+                      >
+                        {step.stepNotes}
+                      </p>
+                    )}
+                  </div>
                 </>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  data-testid={`crm-live-workflow-complete-${instance.id}-${step.stepId}`}
-                  onClick={() => {
-                    void onSave(
-                      completeWorkflowStep(
-                        instance,
-                        step.stepId,
-                        outcomeIds[step.stepId]
-                      )
-                    );
-                  }}
-                >
-                  Complete step
-                </Button>
-              </>
-            )}
-            <Button
-              size="sm"
-              variant="secondary"
-              data-testid={`crm-live-workflow-edit-local-${instance.id}-${step.stepId}`}
-              onClick={() => {
-                setEditingStep(step.stepId);
-                setLocalTitle(liveStepTitle(instance, step.stepId));
-              }}
-            >
-              Edit for this household
-            </Button>
-            {editingStep === step.stepId && (
-              <span>
-                <input
-                  data-testid={`crm-live-workflow-local-title-${instance.id}-${step.stepId}`}
-                  value={localTitle}
-                  onChange={(event) => {
-                    setLocalTitle(event.target.value);
-                  }}
-                />
-                <Button
-                  size="sm"
-                  data-testid={`crm-live-workflow-local-save-${instance.id}-${step.stepId}`}
-                  onClick={() => {
-                    void onSave(
-                      renameWorkflowStepLocally(
-                        instance,
-                        step.stepId,
-                        localTitle
-                      )
-                    );
-                    setEditingStep(null);
-                  }}
-                >
-                  Save
-                </Button>
-              </span>
-            )}
-            <div
-              data-testid="crm-live-workflow-step-comment"
-              style={{ width: '100%' }}
-            >
-              <textarea
-                data-testid={`crm-live-workflow-step-note-${instance.id}-${step.stepId}`}
-                value={notes[step.stepId] ?? ''}
-                placeholder="Add an internal step comment"
-                onChange={(event) => {
-                  setNotes((current) => ({
-                    ...current,
-                    [step.stepId]: event.target.value,
-                  }));
-                }}
-              />
-              <Button
-                size="sm"
-                variant="secondary"
-                data-testid={`crm-live-workflow-save-note-${instance.id}-${step.stepId}`}
-                disabled={!notes[step.stepId]?.trim()}
-                onClick={() => {
-                  void onSave(
-                    addWorkflowStepNote(
-                      instance,
-                      step.stepId,
-                      notes[step.stepId] ?? ''
-                    )
-                  );
-                  setNotes((current) => ({ ...current, [step.stepId]: '' }));
-                }}
-              >
-                Save comment
-              </Button>
-              {step.stepNotes && (
-                <p
-                  data-testid={`crm-live-workflow-step-notes-${instance.id}-${step.stepId}`}
-                  style={mutedStyle}
-                >
-                  {step.stepNotes}
-                </p>
-              )}
-            </div>
+              ),
+            })}
           </div>
         );
       })}

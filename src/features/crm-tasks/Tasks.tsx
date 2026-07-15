@@ -1,30 +1,31 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string -- Frozen CRM screen copy needs its translation catalog in a separate product change. */
 import { useState } from 'react';
-import { ListChecks, Plus } from 'lucide-react';
+import { ListChecks } from 'lucide-react';
 import { Button } from '@/ui/kp';
 import { buildCapacityTriage } from '@/platform/crm/tasks';
-import { AskBar, FreshnessBanner, Screen, mutedStyle, panelStyle } from '@/features/crm-home/shared/ui';
+import {
+  AskBar,
+  FreshnessBanner,
+  Screen,
+  mutedStyle,
+  panelStyle,
+} from '@/features/crm-home/shared/ui';
 import { dailyWorkItems } from '@/features/crm-home/shared/workItems';
-import type { CrmFreshnessState, CrmFirmMember, CrmTask, CrmTaskSavedView, CrmWorkflowWorkItem } from '@/features/crm-home/types';
+import type {
+  CrmFreshnessState,
+  CrmFirmMember,
+  CrmTask,
+  CrmTaskSavedView,
+  CrmWorkflowWorkItem,
+} from '@/features/crm-home/types';
 import { useCrmHomeSurfaceContext } from '@/features/crm-home/surfaceContext';
 import type { CrmHouseholdAddRequest } from '@/features/crm-home/routes';
-
-function newTaskDraft(addRequest?: CrmHouseholdAddRequest): CrmTask {
-  const household = addRequest?.kind === 'task' ? addRequest : undefined;
-  return {
-    id: `new-task-${crypto.randomUUID()}`,
-    title: '',
-    body: '',
-    ...(household ? {
-      householdId: household.householdId,
-      householdLabel: household.householdLabel,
-    } : {}),
-    assigneeUserId: null,
-    status: 'open',
-    priority: 'normal',
-    contextRefs: household ? [household.householdId] : [],
-  };
-}
+import {
+  getTaskTemplates,
+  mountTaskActions,
+  mountTaskFields,
+  mountTaskTemplates,
+} from './taskExtensionRegistry';
 
 export function Tasks({
   tasks,
@@ -56,7 +57,9 @@ export function Tasks({
   const [view, setView] = useState<'list' | 'board'>('list');
   const [filter, setFilter] = useState('');
   const [editing, setEditing] = useState<CrmTask | null>(() =>
-    addRequest?.kind === 'task' ? newTaskDraft(addRequest) : null
+    addRequest?.kind === 'task'
+      ? (getTaskTemplates()[0]?.create(addRequest) ?? null)
+      : null
   );
   const [savingView, setSavingView] = useState(false);
   const [viewName, setViewName] = useState('');
@@ -77,19 +80,12 @@ export function Tasks({
       status: task.status === 'done' ? 'open' : 'done',
     });
   };
-  const newTask = () => {
-    setEditing(newTaskDraft());
-  };
   return (
     <Screen
       title="Tasks"
       description="One work list for tasks and workflow steps"
       Icon={ListChecks}
-      action={
-        <Button data-testid="crm-task-new" iconLeft={Plus} onClick={newTask}>
-          New task
-        </Button>
-      }
+      action={mountTaskTemplates({ onCreate: setEditing })}
     >
       <div
         style={{
@@ -127,16 +123,20 @@ export function Tasks({
           }}
           placeholder="Search tasks"
         />{' '}
-        <Button
-          variant="secondary"
-          size="sm"
-          data-testid="crm-task-save-view-open"
-          onClick={() => {
-            setSavingView(true);
-          }}
-        >
-          Save view
-        </Button>
+        {mountTaskActions({
+          compatibilityMount: (
+            <Button
+              variant="secondary"
+              size="sm"
+              data-testid="crm-task-save-view-open"
+              onClick={() => {
+                setSavingView(true);
+              }}
+            >
+              Save view
+            </Button>
+          ),
+        })}
       </div>
       {savingView && (
         <section style={panelStyle}>
@@ -270,20 +270,25 @@ export function Tasks({
 }
 
 export function TasksSurface() {
-  const { adapter, addRequest, onAddRequestConsumed } = useCrmHomeSurfaceContext();
-  return <Tasks
-    tasks={adapter.tasks}
-    workflowWorkItems={adapter.workflowWorkItems ?? []}
-    firmMembers={adapter.firmMembers ?? []}
-    households={adapter.households ?? []}
-    savedViews={adapter.savedTaskViews ?? []}
-    freshness={adapter.freshness}
-    onUpdateTask={(task) => adapter.actions.updateTask?.(task)}
-    onCompleteWorkflowWorkItem={(item) => adapter.actions.completeWorkflowWorkItem?.(item)}
-    onSaveView={(view) => adapter.actions.saveTaskView?.(view)}
-    {...(addRequest ? { addRequest } : {})}
-    {...(onAddRequestConsumed ? { onAddRequestConsumed } : {})}
-  />;
+  const { adapter, addRequest, onAddRequestConsumed } =
+    useCrmHomeSurfaceContext();
+  return (
+    <Tasks
+      tasks={adapter.tasks}
+      workflowWorkItems={adapter.workflowWorkItems ?? []}
+      firmMembers={adapter.firmMembers ?? []}
+      households={adapter.households ?? []}
+      savedViews={adapter.savedTaskViews ?? []}
+      freshness={adapter.freshness}
+      onUpdateTask={(task) => adapter.actions.updateTask?.(task)}
+      onCompleteWorkflowWorkItem={(item) =>
+        adapter.actions.completeWorkflowWorkItem?.(item)
+      }
+      onSaveView={(view) => adapter.actions.saveTaskView?.(view)}
+      {...(addRequest ? { addRequest } : {})}
+      {...(onAddRequestConsumed ? { onAddRequestConsumed } : {})}
+    />
+  );
 }
 
 function TaskRow({
@@ -327,7 +332,8 @@ function TaskRow({
       >
         <strong data-testid={`crm-task-title-${task.id}`}>{task.title}</strong>
         <span style={mutedStyle}>
-          {' '}· {task.householdLabel ?? 'No client'} ·{' '}
+          {' '}
+          · {task.householdLabel ?? 'No client'} ·{' '}
           <span data-testid={`crm-task-priority-label-${task.id}`}>
             {task.priority}
           </span>{' '}
@@ -337,7 +343,8 @@ function TaskRow({
           </span>
           {task.recurrence && (
             <span data-testid={`crm-task-recurrence-label-${task.id}`}>
-              {' '}· Recurring
+              {' '}
+              · Recurring
             </span>
           )}
         </span>
@@ -508,163 +515,173 @@ function TaskDetail({
       }}
     >
       <h2 style={{ marginTop: 0 }}>Task detail</h2>
-      <label>
-        Title
-        <input
-          data-testid="crm-task-title-input"
-          value={draft.title}
-          onChange={(event) => {
-            setDraft({ ...draft, title: event.target.value });
-          }}
-        />
-      </label>
-      <label>
-        Notes
-        <textarea
-          data-testid="crm-task-body"
-          value={draft.body ?? ''}
-          onChange={(event) => {
-            setDraft({ ...draft, body: event.target.value });
-          }}
-        />
-      </label>
-      <label>
-        Client
-        <select
-          data-testid="crm-task-household"
-          value={householdId}
-          onChange={(event) => {
-            selectHousehold(event.target.value);
-          }}
-        >
-          <option value="">Whole firm</option>
-          {households.map((household) => (
-            <option key={household.id} value={household.id}>
-              {household.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        Assignee
-        <select
-          data-testid="crm-task-assignee"
-          value={draft.assigneeUserId ?? ''}
-          onChange={(event) => {
-            const member = firmMembers.find(
-              (item) => item.userId === event.target.value
-            );
-            setDraft({
-              ...draft,
-              assigneeUserId: member?.userId ?? null,
-              assigneeLabel: member?.displayName,
-            });
-          }}
-        >
-          <option value="">Unassigned</option>
-          {firmMembers.map((member) => (
-            <option key={member.userId} value={member.userId}>
-              {member.displayName}
-              {member.title ? ` · ${member.title}` : ''}
-            </option>
-          ))}
-        </select>
-      </label>
-      {firmMembers.length === 0 && (
-        <p data-testid="crm-task-no-members" style={mutedStyle}>
-          No active firm members are available to assign yet.
-        </p>
-      )}
-      <label>
-        Status
-        <select
-          data-testid="crm-task-status"
-          value={draft.status}
-          onChange={(event) => {
-            setDraft({
-              ...draft,
-              status: event.target.value as CrmTask['status'],
-            });
-          }}
-        >
-          <option value="open">To do</option>
-          <option value="in_progress">In progress</option>
-          <option value="blocked">Blocked</option>
-          <option value="done">Done</option>
-        </select>
-      </label>
-      <label>
-        Priority
-        <select
-          data-testid="crm-task-priority"
-          value={draft.priority}
-          onChange={(event) => {
-            setDraft({
-              ...draft,
-              priority: event.target.value as CrmTask['priority'],
-            });
-          }}
-        >
-          <option value="high">High</option>
-          <option value="normal">Normal</option>
-          <option value="low">Low</option>
-        </select>
-      </label>
-      <label>
-        Due date
-        <input
-          data-testid="crm-task-due"
-          type="date"
-          value={draft.dueAt ?? ''}
-          onChange={(event) => {
-            const due = event.target.value;
-            setDraft({
-              ...draft,
-              dueAt: due || undefined,
-              dueLabel: due || undefined,
-            });
-          }}
-        />
-      </label>
-      <label>
-        Repeat
-        <select
-          data-testid="crm-task-recurrence"
-          value={recurrence?.freq ?? ''}
-          onChange={(event) => {
-            setRecurrence(event.target.value);
-          }}
-        >
-          <option value="">Does not repeat</option>
-          <option value="daily">Daily</option>
-          <option value="weekly">Weekly</option>
-          <option value="monthly">Monthly</option>
-          <option value="yearly">Yearly</option>
-        </select>
-      </label>
-      {recurrence && (
-        <label>
-          Every{' '}
-          <input
-            data-testid="crm-task-recurrence-interval"
-            type="number"
-            min="1"
-            value={recurrence.interval}
-            onChange={(event) => {
-              setDraft({
-                ...draft,
-                recurrence: {
-                  ...recurrence,
-                  interval: Math.max(1, Number(event.target.value) || 1),
-                },
-              });
-            }}
-          />
-        </label>
-      )}
-      <p style={mutedStyle}>
-        One assignee. Notes live in the task body. Tasks have no comments.
-      </p>
+      {mountTaskFields({
+        task: draft,
+        updateTask: setDraft,
+        households,
+        firmMembers,
+        compatibilityMount: (
+          <>
+            <label>
+              Title
+              <input
+                data-testid="crm-task-title-input"
+                value={draft.title}
+                onChange={(event) => {
+                  setDraft({ ...draft, title: event.target.value });
+                }}
+              />
+            </label>
+            <label>
+              Notes
+              <textarea
+                data-testid="crm-task-body"
+                value={draft.body ?? ''}
+                onChange={(event) => {
+                  setDraft({ ...draft, body: event.target.value });
+                }}
+              />
+            </label>
+            <label>
+              Client
+              <select
+                data-testid="crm-task-household"
+                value={householdId}
+                onChange={(event) => {
+                  selectHousehold(event.target.value);
+                }}
+              >
+                <option value="">Whole firm</option>
+                {households.map((household) => (
+                  <option key={household.id} value={household.id}>
+                    {household.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Assignee
+              <select
+                data-testid="crm-task-assignee"
+                value={draft.assigneeUserId ?? ''}
+                onChange={(event) => {
+                  const member = firmMembers.find(
+                    (item) => item.userId === event.target.value
+                  );
+                  setDraft({
+                    ...draft,
+                    assigneeUserId: member?.userId ?? null,
+                    assigneeLabel: member?.displayName,
+                  });
+                }}
+              >
+                <option value="">Unassigned</option>
+                {firmMembers.map((member) => (
+                  <option key={member.userId} value={member.userId}>
+                    {member.displayName}
+                    {member.title ? ` · ${member.title}` : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {firmMembers.length === 0 && (
+              <p data-testid="crm-task-no-members" style={mutedStyle}>
+                No active firm members are available to assign yet.
+              </p>
+            )}
+            <label>
+              Status
+              <select
+                data-testid="crm-task-status"
+                value={draft.status}
+                onChange={(event) => {
+                  setDraft({
+                    ...draft,
+                    status: event.target.value as CrmTask['status'],
+                  });
+                }}
+              >
+                <option value="open">To do</option>
+                <option value="in_progress">In progress</option>
+                <option value="blocked">Blocked</option>
+                <option value="done">Done</option>
+              </select>
+            </label>
+            <label>
+              Priority
+              <select
+                data-testid="crm-task-priority"
+                value={draft.priority}
+                onChange={(event) => {
+                  setDraft({
+                    ...draft,
+                    priority: event.target.value as CrmTask['priority'],
+                  });
+                }}
+              >
+                <option value="high">High</option>
+                <option value="normal">Normal</option>
+                <option value="low">Low</option>
+              </select>
+            </label>
+            <label>
+              Due date
+              <input
+                data-testid="crm-task-due"
+                type="date"
+                value={draft.dueAt ?? ''}
+                onChange={(event) => {
+                  const due = event.target.value;
+                  setDraft({
+                    ...draft,
+                    dueAt: due || undefined,
+                    dueLabel: due || undefined,
+                  });
+                }}
+              />
+            </label>
+            <label>
+              Repeat
+              <select
+                data-testid="crm-task-recurrence"
+                value={recurrence?.freq ?? ''}
+                onChange={(event) => {
+                  setRecurrence(event.target.value);
+                }}
+              >
+                <option value="">Does not repeat</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="yearly">Yearly</option>
+              </select>
+            </label>
+            {recurrence && (
+              <label>
+                Every{' '}
+                <input
+                  data-testid="crm-task-recurrence-interval"
+                  type="number"
+                  min="1"
+                  value={recurrence.interval}
+                  onChange={(event) => {
+                    setDraft({
+                      ...draft,
+                      recurrence: {
+                        ...recurrence,
+                        interval: Math.max(1, Number(event.target.value) || 1),
+                      },
+                    });
+                  }}
+                />
+              </label>
+            )}
+            <p style={mutedStyle}>
+              One assignee. Notes live in the task body. Tasks have no comments.
+            </p>
+          </>
+        ),
+      })}
       <div style={{ display: 'flex', gap: 8 }}>
         <Button
           data-testid="crm-task-save"
