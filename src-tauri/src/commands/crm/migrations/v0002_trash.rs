@@ -37,6 +37,20 @@ fn apply(conn: &Connection) -> Result<()> {
             WHERE restored_at IS NULL;
         CREATE INDEX crm_trash_records_record_id_idx
             ON crm_trash_records(record_id);
+        -- Generic CRM upserts and imports must never revive a record still
+        -- inside its recovery window. Restore clears restored_at in the same
+        -- transaction before changing crm_docs.deleted back to zero.
+        CREATE TRIGGER crm_trash_prevent_resurrection
+        BEFORE UPDATE OF deleted ON crm_docs
+        WHEN OLD.deleted = 1 AND NEW.deleted = 0 AND EXISTS (
+            SELECT 1 FROM crm_trash_records
+            WHERE doc_key = OLD.doc_key
+              AND restored_at IS NULL
+              AND julianday(expires_at) > julianday(CURRENT_TIMESTAMP)
+        )
+        BEGIN
+            SELECT RAISE(ABORT, 'CRM record has an active trash tombstone');
+        END;
         CREATE TABLE crm_trash_restores (
             restore_id TEXT PRIMARY KEY,
             doc_key TEXT NOT NULL,

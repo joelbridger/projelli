@@ -1,9 +1,8 @@
 //! Native, transactional CRM record trash/recovery service.
 //!
 //! A record is hidden from the live collection and its recoverable snapshot is
-//! written in one SQLCipher transaction. The same service purges expired rows
-//! before a list, delete, restore, or permanent-purge operation, so the
-//! 30-day window is durable across application restarts rather than a UI timer.
+//! written in one SQLCipher transaction. Expiry removes a record from the
+//! recovery list but never bypasses the firm-admin permanent-purge boundary.
 
 use anyhow::{bail, Context, Result};
 use chrono::{DateTime, Duration, Utc};
@@ -55,30 +54,11 @@ fn parse_time(value: &str, label: &str) -> Result<DateTime<Utc>> {
         .map(|time| time.with_timezone(&Utc))
 }
 
-fn purge_expired_in(transaction: &Transaction<'_>, now: DateTime<Utc>) -> Result<usize> {
-    let expired_doc_keys = {
-        let mut statement = transaction.prepare(
-            "SELECT doc_key FROM crm_trash_records WHERE restored_at IS NULL AND expires_at <= ?1",
-        )?;
-        let expired = statement
-            .query_map([now.to_rfc3339()], |row| row.get::<_, String>(0))?
-            .collect::<rusqlite::Result<Vec<_>>>()?;
-        expired
-    };
-
-    for doc_key in &expired_doc_keys {
-        // Delete only a document that is still hidden. A later restore cannot
-        // be erased by a stale expiry sweep.
-        transaction.execute(
-            "DELETE FROM crm_docs WHERE doc_key=?1 AND deleted=1",
-            [doc_key],
-        )?;
-    }
-    transaction.execute(
-        "DELETE FROM crm_trash_records WHERE restored_at IS NULL AND expires_at <= ?1",
-        [now.to_rfc3339()],
-    )?;
-    Ok(expired_doc_keys.len())
+fn retain_expired_tombstones(_transaction: &Transaction<'_>, _now: DateTime<Utc>) -> Result<()> {
+    // The recovery window controls listing and restore eligibility, not data
+    // destruction. Only the native firm-admin purge command may erase a
+    // hidden record, so expiry can never silently become a hard delete.
+    Ok(())
 }
 
 fn read_live_record(
@@ -149,7 +129,7 @@ pub fn soft_delete_record(
     require_value(matter_id, "matter id")?;
     require_value(deleted_by, "actor")?;
     store.transaction(|transaction| {
-        purge_expired_in(transaction, now)?;
+        retain_expired_tombstones(transaction, now)?;
         let mut row = read_live_record(transaction, record_id, matter_id)?;
         row.deleted_at = now.to_rfc3339();
         row.deleted_by = deleted_by.trim().to_owned();
@@ -192,7 +172,7 @@ pub fn list_trashed_records(
     now: DateTime<Utc>,
 ) -> Result<Vec<TrashRecordDto>> {
     store.transaction(|transaction| {
-        purge_expired_in(transaction, now)?;
+        retain_expired_tombstones(transaction, now)?;
         let rows = {
             let mut statement = transaction.prepare(
                 "SELECT doc_key,record_id,record_type,matter_id,snapshot,state_vector,original_updated_at,
@@ -235,7 +215,7 @@ pub fn is_tombstoned_record(
     require_value(record_id, "record id")?;
     require_value(matter_id, "matter id")?;
     store.transaction(|transaction| {
-        purge_expired_in(transaction, now)?;
+        retain_expired_tombstones(transaction, now)?;
         let tombstone_exists = transaction
             .query_row(
                 "SELECT EXISTS(
@@ -283,6 +263,13 @@ pub fn restore_record(
             .optional()?
             .ok_or_else(|| anyhow::anyhow!("CRM record is no longer recoverable"))?;
         let restored_at = now.to_rfc3339();
+        // Clear recoverability first. The migration-level resurrection guard
+        // then allows this single, transactional, intentional restore while
+        // still blocking generic imports and live upserts.
+        transaction.execute(
+            "UPDATE crm_trash_records SET restored_at=?2, restored_by=?3 WHERE doc_key=?1",
+            params![row.doc_key, restored_at, restored_by.trim()],
+        )?;
         let affected = transaction.execute(
             "UPDATE crm_docs SET deleted=0, updated_at=?2 WHERE doc_key=?1 AND deleted=1",
             params![row.doc_key, restored_at],
@@ -290,10 +277,6 @@ pub fn restore_record(
         if affected != 1 {
             bail!("CRM recovery record no longer has a matching tombstone")
         }
-        transaction.execute(
-            "UPDATE crm_trash_records SET restored_at=?2, restored_by=?3 WHERE doc_key=?1",
-            params![row.doc_key, restored_at, restored_by.trim()],
-        )?;
         transaction.execute(
             "INSERT INTO crm_trash_restores(restore_id,doc_key,record_id,record_type,deleted_at,deleted_by,expires_at,restored_at,restored_by)
              VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9)",
@@ -341,7 +324,7 @@ pub fn permanently_purge_record(
         bail!("Permanent CRM deletion requires a firm admin")
     }
     store.transaction(|transaction| {
-        purge_expired_in(transaction, now)?;
+        retain_expired_tombstones(transaction, now)?;
         let doc_key = transaction
             .query_row(
                 "SELECT doc_key FROM crm_trash_records WHERE record_id=?1 AND matter_id=?2 AND restored_at IS NULL",
@@ -595,7 +578,7 @@ mod tests {
     }
 
     #[test]
-    fn expired_records_are_purged_and_cannot_be_restored() {
+    fn expired_records_fall_out_of_recovery_without_hard_deleting_data() {
         let (_directory, store) = store();
         store
             .upsert_live_record(&live_record("household-2"))
@@ -613,11 +596,11 @@ mod tests {
         assert!(store
             .get_doc("matter-1/live:household-2")
             .unwrap()
-            .is_none());
+            .is_some_and(|row| row.deleted));
     }
 
     #[test]
-    fn tombstone_lookup_prevents_a_connector_resurrection_until_restore_or_expiry() {
+    fn tombstone_blocks_generic_live_upserts_until_restore() {
         let (_directory, store) = store();
         store.upsert_live_record(&live_record("household-connector")).unwrap();
         let deleted_at = parse_time("2026-07-15T12:00:00Z", "test").unwrap();
@@ -625,6 +608,10 @@ mod tests {
         assert!(!is_tombstoned_record(&store, "household-connector", "matter-1", deleted_at).unwrap());
         soft_delete_record(&store, "household-connector", "matter-1", "advisor-1", deleted_at).unwrap();
         assert!(is_tombstoned_record(&store, "household-connector", "matter-1", deleted_at).unwrap());
+        assert!(store
+            .upsert_live_record(&live_record("household-connector"))
+            .is_err());
+        assert!(store.list_live_records().unwrap().is_empty());
 
         restore_record(&store, "household-connector", "matter-1", "advisor-1", deleted_at + Duration::days(1)).unwrap();
         assert!(!is_tombstoned_record(&store, "household-connector", "matter-1", deleted_at + Duration::days(1)).unwrap());

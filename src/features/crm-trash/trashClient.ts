@@ -39,7 +39,7 @@ async function logTrashAction(
   metadata: Record<string, unknown>
 ): Promise<void> {
   const audit = new AuditService();
-  await audit.hydrate(workspaceRoot);
+  await audit.hydrate(workspaceRoot ?? undefined);
   await audit.logDurable(action, description, { metadata });
 }
 
