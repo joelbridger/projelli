@@ -90,6 +90,22 @@ describe('V1ShellFrame', () => {
     );
   });
 
+  it('does not invent a seat count when there is no firm session', () => {
+    render(
+      <V1ShellFrame
+        activeSurface="home"
+        onOpenCommandPalette={vi.fn()}
+        onSurfaceChange={vi.fn()}
+      >
+        <div />
+      </V1ShellFrame>
+    );
+
+    expect(screen.getByTestId('v1-shell-firm-card')).not.toHaveTextContent(
+      'Firm workspace'
+    );
+  });
+
   it('keeps the account window reachable from the avatar', () => {
     const onOpenAccount = vi.fn();
     window.addEventListener('lantern:open-account', onOpenAccount, {

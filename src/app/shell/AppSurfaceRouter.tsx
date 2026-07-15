@@ -98,6 +98,7 @@ type BuildDocumentsHomeOptions = {
 
 export function AppSurfaceRouter(props: AppSurfaceRouterProps) {
   const sharedClientBarEnabled = useFlag('shared-client-bar');
+  const v1ShellFrameEnabled = useFlag('v1-shell-frame');
   const providedCapabilities = useOptionalAppSurfaceCapabilities();
   const capabilities =
     providedCapabilities ??
@@ -848,7 +849,7 @@ export function AppSurfaceRouter(props: AppSurfaceRouterProps) {
 
   return (
     <SharedClientSurface
-      enabled={sharedClientBarEnabled}
+      enabled={sharedClientBarEnabled && !v1ShellFrameEnabled}
       clientContext={descriptor.clientContext}
     >
       {descriptor.render(runtime)}

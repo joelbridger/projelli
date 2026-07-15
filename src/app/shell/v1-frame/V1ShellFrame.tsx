@@ -107,9 +107,11 @@ function FirmCard() {
           firm?.org?.name ||
           t('shell-frame.firm-card.default-name')}
       </strong>
-      <span className="mt-1 block text-xs text-slate-500">
-        {t('shell-frame.firm-card.summary', { count: firm?.seats ?? 1 })}
-      </span>
+      {firm ? (
+        <span className="mt-1 block text-xs text-slate-500">
+          {t('shell-frame.firm-card.summary', { count: firm.seats })}
+        </span>
+      ) : null}
     </section>
   );
 }
