@@ -33,6 +33,13 @@ function FlaggedRailItem({
   return useFlag(flagId) ? children : null;
 }
 
+function useSurfaceFlag(flagId: FlagId | undefined): boolean {
+  // Hooks must subscribe consistently. The result is ignored for unguarded
+  // surfaces, so the stable fallback only supplies that subscription.
+  const enabled = useFlag(flagId ?? 'shared-client-bar');
+  return flagId === undefined || enabled;
+}
+
 function HomeRail({
   route,
   onNavigate,
@@ -175,14 +182,23 @@ export function CrmHomeShell({
     };
   }, [reportUndo, route]);
 
-  const selectedSurface =
-    crmHomeSurfaceRegistry.find((surface) => surface.route === route) ??
+  const defaultSurface =
+    crmHomeSurfaceRegistry.find((surface) => surface.route === 'today') ??
     crmHomeSurfaceRegistry.find((surface) => surface.route === 'firm-setup')!;
+  const resolvedSurface = crmHomeSurfaceRegistry.find(
+    (surface) => surface.route === route
+  );
+  const resolvedSurfaceEnabled = useSurfaceFlag(resolvedSurface?.flagId);
+  const selectedSurface =
+    resolvedSurface && resolvedSurfaceEnabled
+      ? resolvedSurface
+      : defaultSurface;
+  const activeRoute = selectedSurface.route;
   const content = (
     <CrmHomeSurfaceContext.Provider
       value={{
         adapter,
-        route,
+        route: activeRoute,
         navigate: (next) => {
           jump(next as CrmHomeRoute);
         },
@@ -228,7 +244,7 @@ export function CrmHomeShell({
           Preview mode. Not connected to CRM data.
         </div>
       )}
-      <HomeRail route={route} onNavigate={jump} />
+      <HomeRail route={activeRoute} onNavigate={jump} />
       <div
         style={{
           flex: 1,

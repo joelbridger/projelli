@@ -88,6 +88,24 @@ describe('CrmHome', () => {
     useFlag.mockImplementation(() => false);
   });
 
+  it('falls back to Today when a flag-gated route is requested while off', () => {
+    render(<CrmHome initialRoute="internal-projects" />);
+
+    expect(screen.getByTestId('crm-screen-today')).toBeInTheDocument();
+    expect(
+      screen.queryByTestId('internal-projects-surface')
+    ).not.toBeInTheDocument();
+  });
+
+  it('renders a flag-gated route when its flag is on', () => {
+    useFlag.mockImplementation((id: string) => id === 'internal-projects');
+
+    render(<CrmHome initialRoute="internal-projects" />);
+
+    expect(screen.getByTestId('internal-projects-surface')).toBeInTheDocument();
+    useFlag.mockImplementation(() => false);
+  });
+
   it('uses the same Search records name in the navigation and on the destination', () => {
     render(<CrmHome />);
     const navigationItem = screen.getByTestId('crm-home-nav-search');

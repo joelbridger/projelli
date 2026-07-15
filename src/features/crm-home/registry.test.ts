@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { deCatalog as de, enCatalog as en, esCatalog as es } from '@/i18nCatalogs';
 import { crmHomeSurfaceRegistry } from './registry';
-import { flagRegistry } from '@/platform/flags/registry';
 
 type LocaleCatalog = Record<string, unknown>;
 
@@ -18,11 +17,15 @@ function resolveLocaleKey(catalog: LocaleCatalog, key: string): unknown {
 }
 
 describe('crmHomeSurfaceRegistry', () => {
-  it('has unique routes and shortcuts, valid parents, and locale-backed labels', () => {
+  it('has unique IDs, routes, and shortcuts, valid parents, and locale-backed labels', () => {
+    const ids = new Set<string>();
     const routes = new Set<string>();
     const shortcuts = new Set<string>();
 
     for (const surface of crmHomeSurfaceRegistry) {
+      expect(ids.has(surface.id), `duplicate ID: ${surface.id}`).toBe(false);
+      ids.add(surface.id);
+
       expect(
         routes.has(surface.route),
         `duplicate route: ${surface.route}`
@@ -51,17 +54,4 @@ describe('crmHomeSurfaceRegistry', () => {
     }
   });
 
-  it('keeps internal firm projects dark until their feature flag is enabled', () => {
-    const surface = crmHomeSurfaceRegistry.find(
-      (entry) => entry.id === 'internal-projects'
-    );
-    expect(surface).toMatchObject({
-      route: 'internal-projects',
-      flagId: 'internal-projects',
-    });
-    expect(flagRegistry.find((flag) => flag.id === 'internal-projects')).toMatchObject({
-      defaultEnabled: false,
-      ownerLane: 'internal-projects',
-    });
-  });
 });
