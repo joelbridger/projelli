@@ -1,0 +1,42 @@
+{
+  "custom-fields": {
+    "settings-label": "Organisation",
+    "heading": "Benutzerdefinierte Felder",
+    "heading-copy": "Legen Sie die Angaben fest, die Ihre Firma sammelt, bevor Berater sie ausfüllen.",
+    "catalog-title": "Feldkatalog",
+    "catalog-copy": "Der Name eines Feldes kann sich später ändern. Seine gespeicherten Werte behalten dieselbe ID.",
+    "add": "Feld hinzufügen",
+    "new-title": "Neues benutzerdefiniertes Feld",
+    "name-label": "Feldname",
+    "kind-label": "Feldtyp",
+    "options-label": "Auswahlmöglichkeiten",
+    "options-placeholder": "Konservativ, Ausgewogen, Wachstum",
+    "applies-to-label": "Gilt für",
+    "create": "Feld erstellen",
+    "cancel": "Abbrechen",
+    "save": "Speichern",
+    "rename": "Umbenennen",
+    "rename-label": "Neuer Feldname",
+    "retire": "Stilllegen",
+    "retired": "Stillgelegte Felder bleiben in bestehenden Datensätzen, werden aber nicht für neue Angaben angeboten.",
+    "move-up": "Nach oben",
+    "move-down": "Nach unten",
+    "empty": "Noch keine benutzerdefinierten Felder. Fügen Sie eines hinzu, wenn die Standardangaben nicht ausreichen.",
+    "saved": "Feldkatalog gespeichert.",
+    "save-failed": "Der Feldkatalog konnte nicht gespeichert werden.",
+    "load-failed": "Der Feldkatalog konnte nicht geladen werden.",
+    "kind": {
+      "text": "Text",
+      "number": "Zahl",
+      "money": "Geldbetrag",
+      "date": "Datum",
+      "boolean": "Ja oder nein",
+      "select": "Eine Auswahl",
+      "multi-select": "Mehrere Auswahlmöglichkeiten"
+    },
+    "applies-to": {
+      "household": "Haushalte",
+      "person": "Personen, Unternehmen und Trusts"
+    }
+  }
+}

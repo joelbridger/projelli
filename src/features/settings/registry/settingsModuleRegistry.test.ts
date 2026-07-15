@@ -21,6 +21,7 @@ describe('settingsModuleRegistry', () => {
     vi.doUnmock('@/platform/flags/router');
     vi.doUnmock('./legacySettingsSections');
     vi.doUnmock('@/features/crm-firm');
+    vi.doUnmock('@/features/crm-firm/custom-fields');
     vi.resetModules();
   });
 
@@ -311,6 +312,15 @@ describe('settingsModuleRegistry', () => {
         render: () => null,
       },
     }));
+    vi.doMock('@/features/crm-firm/custom-fields', () => ({
+      customFieldsSettingsModule: {
+        id: 'custom-fields-firm',
+        section: 'organization',
+        order: 20,
+        flagId: 'custom-fields-firm',
+        render: () => null,
+      },
+    }));
     const registry = await import('./settingsModuleRegistry');
 
     expect(
@@ -323,6 +333,11 @@ describe('settingsModuleRegistry', () => {
       registry
         .getSettingsPanelDescriptors('organization')
         .map((panel) => panel.id)
-    ).toEqual(['fake-always', 'fake-gated', 'teams-roles']);
+    ).toEqual([
+      'fake-always',
+      'fake-gated',
+      'custom-fields-firm',
+      'teams-roles',
+    ]);
   });
 });

@@ -5,6 +5,7 @@ import {
 import { BASE_SETTINGS_SCHEMA } from '@/platform/settings/schema';
 import { isEnabled } from '@/platform/flags/router';
 import { teamsRolesSettingsModule } from '@/features/crm-firm';
+import { customFieldsSettingsModule } from '@/features/crm-firm/custom-fields';
 import type {
   SettingsGroupDescriptor,
   SettingsPanelDescriptor,
@@ -34,6 +35,7 @@ export const settingsSectionRegistry: readonly SettingsSectionDescriptor[] = [
 export const settingsPanelRegistry: readonly SettingsPanelDescriptor[] = [
   ...legacySettingsPanels,
   teamsRolesSettingsModule,
+  customFieldsSettingsModule,
 ];
 
 function definitionsFor(
