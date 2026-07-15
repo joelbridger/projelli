@@ -5,6 +5,7 @@
 //! compatibility baseline and must not be edited for later features.
 
 mod v0001_core_baseline;
+mod v0002_trash;
 
 #[cfg(test)]
 mod v0002_test_dummy;
@@ -22,7 +23,10 @@ pub struct Migration {
 
 /// Append new entries in ascending version order. Existing entries are
 /// immutable once shipped.
-pub const CRM_MIGRATIONS: &[Migration] = &[v0001_core_baseline::MIGRATION];
+pub const CRM_MIGRATIONS: &[Migration] = &[
+    v0001_core_baseline::MIGRATION,
+    v0002_trash::MIGRATION,
+];
 
 const CREATE_MIGRATIONS_TABLE: &str = r#"
 CREATE TABLE IF NOT EXISTS crm_migrations (
@@ -231,6 +235,31 @@ mod tests {
                 (2, "0002_test_dummy".to_string()),
             ]
         );
+    }
+
+    #[test]
+    fn trash_migration_applies_once_and_remains_recorded() {
+        let conn = Connection::open_in_memory().unwrap();
+
+        migrate(&conn).unwrap();
+        migrate(&conn).unwrap();
+
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM crm_migrations WHERE version=2 AND id='0002_trash'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let table_exists: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='crm_trash_records'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1);
+        assert_eq!(table_exists, 1);
     }
 
     #[test]

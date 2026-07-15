@@ -1,0 +1,26 @@
+{
+  "crm": {
+    "trash": {
+      "title": "Trash & recovery",
+      "description": "Deleted CRM records stay recoverable for 30 days.",
+      "admin-guard": "Permanent deletion requires a firm admin.",
+      "search-label": "Search deleted records",
+      "search-placeholder": "Search records",
+      "type-filter": "Filter by record type",
+      "all-types": "All types",
+      "record": "Record",
+      "type": "Type",
+      "deleted": "Deleted",
+      "time-remaining": "Time remaining",
+      "deleted-by": "Deleted by",
+      "recover": "Recover",
+      "recovery-meter": "Recovery time remaining",
+      "days-remaining_one": "{{count}} day remaining",
+      "days-remaining_other": "{{count}} days remaining",
+      "expired": "Expired",
+      "empty": "No deleted CRM records match this view.",
+      "load-error": "We couldn't load deleted CRM records. Please try again.",
+      "restore-error": "We couldn't recover that CRM record. Please try again."
+    }
+  }
+}

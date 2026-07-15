@@ -1,0 +1,26 @@
+{
+  "crm": {
+    "trash": {
+      "title": "Papierkorb und Wiederherstellung",
+      "description": "Gelöschte CRM-Datensätze bleiben 30 Tage lang wiederherstellbar.",
+      "admin-guard": "Für die endgültige Löschung ist ein Firmenadministrator erforderlich.",
+      "search-label": "Gelöschte Datensätze suchen",
+      "search-placeholder": "Datensätze suchen",
+      "type-filter": "Nach Datensatztyp filtern",
+      "all-types": "Alle Typen",
+      "record": "Datensatz",
+      "type": "Typ",
+      "deleted": "Gelöscht",
+      "time-remaining": "Verbleibende Zeit",
+      "deleted-by": "Gelöscht von",
+      "recover": "Wiederherstellen",
+      "recovery-meter": "Verbleibende Wiederherstellungszeit",
+      "days-remaining_one": "{{count}} Tag verbleibend",
+      "days-remaining_other": "{{count}} Tage verbleibend",
+      "expired": "Abgelaufen",
+      "empty": "Keine gelöschten CRM-Datensätze entsprechen dieser Ansicht.",
+      "load-error": "Gelöschte CRM-Datensätze konnten nicht geladen werden. Bitte erneut versuchen.",
+      "restore-error": "Dieser CRM-Datensatz konnte nicht wiederhergestellt werden. Bitte erneut versuchen."
+    }
+  }
+}

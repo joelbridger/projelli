@@ -5,6 +5,7 @@
 //! `crm::commands` compatibility facade.
 
 pub mod connector;
+pub mod trash;
 
 /// A small descriptor used by boundary tests and future tooling to enumerate
 /// feature-owned native command modules without inspecting their internals.
@@ -15,7 +16,10 @@ pub struct CrmFeatureDescriptor {
 }
 
 /// Append-only registry of CRM native feature modules.
-pub const CRM_FEATURE_REGISTRY: &[CrmFeatureDescriptor] = &[connector::FEATURE_DESCRIPTOR];
+pub const CRM_FEATURE_REGISTRY: &[CrmFeatureDescriptor] = &[
+    connector::FEATURE_DESCRIPTOR,
+    trash::FEATURE_DESCRIPTOR,
+];
 
 #[cfg(test)]
 mod tests {
