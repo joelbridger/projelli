@@ -1,6 +1,12 @@
 import { Clock3 } from 'lucide-react';
 import { CrmActivitySurface } from '@/features/crm-activity/CrmActivitySurface';
-import type { CrmHomeSurfaceDescriptor } from '@/features/crm-home/registry';
+import type { CrmHomeSurfaceDescriptor } from '@/features/crm-home/registryTypes';
+
+declare module '@/features/crm-home/registryTypes' {
+  interface CrmHomeRouteMap {
+    timeline: true;
+  }
+}
 
 /**
  * The firm-wide Timeline uses the shared activity reader, but this feature
@@ -8,11 +14,11 @@ import type { CrmHomeSurfaceDescriptor } from '@/features/crm-home/registry';
  */
 export const timelineSurface: CrmHomeSurfaceDescriptor = {
   id: 'timeline',
-  label: 'Timeline',
+  labelKey: 'crm.home.destinations.timeline',
   icon: Clock3,
   route: 'timeline',
   // Keep the old route working for saved links, but Activity is the one
   // visible destination for this shared screen.
-  rail: false,
+  parentRoute: 'activity',
   Component: CrmActivitySurface,
 };

@@ -1,33 +1,7 @@
 import type { CrmHomeAdapter } from './types';
+import type { CrmHomeRoute } from './registryTypes';
 
-export type CrmHomeRoute =
-  | 'today'
-  | 'tasks'
-  | 'projects'
-  | 'workflows'
-  | 'propagation'
-  | 'pipeline'
-  | 'pipeline-settings'
-  | 'reports'
-  | 'activity'
-  | 'views'
-  | 'firm-setup'
-  | 'firm-organization'
-  | 'fields-tags'
-  | 'intake-links'
-  | 'workspaces'
-  | 'migration'
-  | 'fidelity'
-  | 'workflow-recreation'
-  | 'attachment-accounting'
-  | 'archive-export'
-  | 'rollback-export'
-  | 'search'
-  | 'email'
-  | 'email-dropbox'
-  | 'email-broadcast'
-  | 'calendar'
-  | 'timeline';
+export type { CrmHomeRoute } from './registryTypes';
 
 export interface CrmHouseholdAddRequest {
   kind: 'task' | 'opportunity' | 'workflow';

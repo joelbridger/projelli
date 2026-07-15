@@ -4407,6 +4407,36 @@
     "home": {
       "nav": {
         "activity": "Aktivität"
+      },
+      "destinations": {
+        "activity": "Aktivität",
+        "archive-export": "Archive export",
+        "attachment-accounting": "Attachment accounting",
+        "calendar": "Calendar",
+        "email-broadcast": "Email broadcast",
+        "email": "Email",
+        "email-dropbox": "Email dropbox",
+        "fidelity": "Fidelity report",
+        "firm-setup": "Firm",
+        "firm-organization": "Firm overview",
+        "fields-tags": "Fields and tags",
+        "intake-links": "Intake links",
+        "workspaces": "Firm spaces",
+        "migration": "Migration",
+        "pipeline": "Pipeline",
+        "pipeline-settings": "Pipeline settings",
+        "propagation": "Propagation review",
+        "projects": "Projects",
+        "reports": "Reports",
+        "rollback-export": "Rollback export",
+        "search": "Datensätze durchsuchen",
+        "tasks": "Tasks",
+        "timeline": "Timeline",
+        "today": "Today",
+        "views": "Saved views",
+        "workflow-recreation": "Workflow recreation",
+        "workflows": "Workflows",
+        "ask": "Ask"
       }
     },
     "search": {

@@ -68,7 +68,7 @@ describe('en.json structure snapshot', () => {
         "citation": 3,
         "commands": 16,
         "common": 75,
-        "crm": 22,
+        "crm": 50,
         "editor": 27,
         "entity-label": 50,
         "file-import": 3,
