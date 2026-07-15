@@ -12,7 +12,15 @@ import { describe, it, expect } from 'vitest';
 import { enCatalog as en } from '../../src/i18nCatalogs';
 
 // Narrow down to the first-run onboarding subtree
-const firstRun = JSON.stringify(en.onboarding['first-run']);
+const onboarding = en['onboarding'];
+if (
+  typeof onboarding !== 'object' ||
+  onboarding === null ||
+  !('first-run' in onboarding)
+) {
+  throw new Error('English catalog must include onboarding.first-run');
+}
+const firstRun = JSON.stringify(onboarding['first-run']);
 
 describe('onboarding copy matches 3.0 positioning', () => {
   it('first-run copy never mentions markdown', () => {
