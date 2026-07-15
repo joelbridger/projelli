@@ -243,7 +243,7 @@ pub fn restore_record(
     require_value(matter_id, "matter id")?;
     require_value(restored_by, "actor")?;
     store.transaction(|transaction| {
-        purge_expired_in(transaction, now)?;
+        retain_expired_tombstones(transaction, now)?;
         let row = transaction
             .query_row(
                 "SELECT doc_key,record_id,record_type,matter_id,snapshot,state_vector,original_updated_at,
