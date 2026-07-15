@@ -15,9 +15,7 @@
 
 import { describe, it, expect, beforeAll } from 'vitest';
 import i18nGlobal from '@/i18n';
-import en from '@/locales/en.json';
-import es from '@/locales/es.json';
-import de from '@/locales/de.json';
+import { deCatalog as de, enCatalog as en, esCatalog as es } from '@/i18nCatalogs';
 
 type JsonValue = string | { [key: string]: JsonValue };
 

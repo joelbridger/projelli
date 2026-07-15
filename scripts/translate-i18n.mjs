@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Hash-incremental LLM translation for src/locales/{es,de}.json from en.json.
+// Hash-incremental LLM translation for the base and feature-owned locale shards.
 //
 // Per spec section 8.4 + Stream E plan task 4.x. Reproducible by design:
 // re-running with no English changes produces zero API calls and zero diff.
@@ -8,7 +8,7 @@
 //   ANTHROPIC_API_KEY=sk-ant-... npm run translate-i18n
 //
 // Flags:
-//   --dry-run         Walk en.json + report what would change, no API calls.
+//   --dry-run         Walk every English catalog + report what would change, no API calls.
 //   --max-tokens=N    Cost cap (default 5,000,000 tokens, ~$15 at Sonnet rates).
 //                     Aborts BEFORE the first API call if estimate exceeds.
 //   --batch-size=N    Keys per Anthropic request (default 50).
@@ -24,15 +24,14 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { createHash } from 'node:crypto';
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const __filename = fileURLToPath(import.meta.url);
 const ROOT = join(dirname(__filename), '..');
-const EN_PATH = join(ROOT, 'src/locales/en.json');
-const ES_PATH = join(ROOT, 'src/locales/es.json');
-const DE_PATH = join(ROOT, 'src/locales/de.json');
+const LOCALES_DIR = join(ROOT, 'src/locales');
+const FEATURES_DIR = join(ROOT, 'src/features');
 
 const DEFAULT_MAX_TOKENS = 5_000_000;
 const DEFAULT_BATCH_SIZE = 50;
@@ -110,6 +109,29 @@ function readJson(path) {
 
 function writeJson(path, obj) {
   writeFileSync(path, JSON.stringify(obj, null, 2) + '\n', 'utf8');
+}
+
+/**
+ * Returns the base catalog followed by feature-owned locale shards in a
+ * stable path order. A shard is registered simply by living beside a feature.
+ */
+function discoverEnglishCatalogPaths() {
+  const paths = [join(LOCALES_DIR, 'en.json')];
+  const walk = (directory) => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const entryPath = join(directory, entry.name);
+      if (entry.isDirectory()) walk(entryPath);
+      else if (entry.isFile() && entry.name === 'en.json' && entryPath.includes('/locales/')) {
+        paths.push(entryPath);
+      }
+    }
+  };
+  walk(FEATURES_DIR);
+  return [paths[0], ...paths.slice(1).sort()];
+}
+
+function localePathFor(englishPath, locale) {
+  return englishPath.replace(/\/en\.json$/, `/${locale}.json`);
 }
 
 // In the existing locale, look up the translated value alongside its
@@ -326,20 +348,23 @@ async function main() {
     process.exit(2);
   }
 
-  const en = readJson(EN_PATH);
-  const enKeyCount = Object.keys(flatten(en)).length;
-  console.log(`Loaded en.json with ${enKeyCount} leaf keys.`);
+  const englishPaths = discoverEnglishCatalogPaths();
+  const enKeyCount = englishPaths.reduce((count, path) => count + Object.keys(flatten(readJson(path))).length, 0);
+  console.log(`Discovered ${englishPaths.length} English locale catalog(s) with ${enKeyCount} leaf keys.`);
 
   const client = new Anthropic();
   const costTracker = { estimatedTokens: 0, actualInputTokens: 0, actualOutputTokens: 0 };
 
-  for (const locale of flags.locales) {
-    const path = locale === 'es' ? ES_PATH : DE_PATH;
-    const existing = readJson(path);
-    const next = await translateLocale(client, locale, en, existing, flags, costTracker);
-    if (!flags.dryRun) {
-      writeJson(path, next);
-      console.log(`[${locale}] wrote ${path}`);
+  for (const englishPath of englishPaths) {
+    const en = readJson(englishPath);
+    for (const locale of flags.locales) {
+      const path = localePathFor(englishPath, locale);
+      const existing = readJson(path);
+      const next = await translateLocale(client, locale, en, existing, flags, costTracker);
+      if (!flags.dryRun) {
+        writeJson(path, next);
+        console.log(`[${locale}] wrote ${path}`);
+      }
     }
   }
 
@@ -372,4 +397,6 @@ export {
   estimateTokens,
   parseFlags,
   translateLocale,
+  discoverEnglishCatalogPaths,
+  localePathFor,
 };

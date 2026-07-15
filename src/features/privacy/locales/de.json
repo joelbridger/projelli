@@ -1,0 +1,76 @@
+{
+  "privacy": {
+    "prompt-preparation": {
+      "title": "Private Zugriffslinks prüfen",
+      "title__sourceHash": "a10e310e7f6a8ccbd88f0a6063654f08f51c03a4dceab2bbf760773852a60bdf",
+      "description_one": "Im Material für diese KI-Anfrage wurde {{count}} privater Zugriffslink gefunden. Ich habe eine sichere Kopie erstellt, in der die privaten Teile ausgeblendet sind. Diese sichere Kopie senden?",
+      "description_one__sourceHash": "eb80accb651027da083d38a62acb6ed46533bc6d99a1d1de6d9b748a0443fd41",
+      "description_other": "Im Material für diese KI-Anfrage wurden {{count}} private Zugriffslinks gefunden. Ich habe eine sichere Kopie erstellt, in der die privaten Teile ausgeblendet sind. Diese sichere Kopie senden?",
+      "description_other__sourceHash": "a9e137e329123ddcf0e51af557f2c7a21dd92111fcaf56934e360831d0b3da4e",
+      "send-redacted-copy": "Geschwärzte Kopie senden",
+      "send-redacted-copy__sourceHash": "b05aca0a5522d7aeacece30c728c02e3fac76a668b13dcf48eed5735ef1b72f6"
+    },
+    "egress": {
+      "local": {
+        "label": "On your machine. No cloud AI",
+        "note": "This runs on a local model ({{provider}}). No AI prompt or file is sent to a cloud AI."
+      },
+      "direct": {
+        "label": "Direct to {{provider}} (your account)",
+        "note": "Sent straight from your machine to {{provider}} with your own API key. {{productName}} is not in between. {{provider}} receives the prompt and may keep it briefly for abuse monitoring; control training opt-out in your {{provider}} account."
+      },
+      "demo": {
+        "label": "Browser demo. Do not use with client data",
+        "note": "In this online demo, messages pass through a shared {{productName}} relay. The desktop app never does this. Do not enter confidential or client information here."
+      },
+      "checking": {
+        "label": "KI-Ziel wird geprüft",
+        "note": "{{productName}} bestätigt, wohin diese Anfrage gesendet wird, bevor sie abgeschickt wird.",
+        "label__sourceHash": "261eafaa0ca58f57d83b98557eacc3a7e7af03830a3fa3d03bcafab252a1152b",
+        "note__sourceHash": "a3482fcc43661d2c22c4979b0d1f710fb41d0d72561574d354ffad7a11a7bac9"
+      },
+      "none": {
+        "label": "Keine KI verbunden",
+        "note": "Verbinden Sie einen KI-Anbieter, um Antworten zu erhalten.",
+        "label__sourceHash": "6b5fff4cf033eded872eff66089df78f7ec1efd252ca8545172e242a9b3c9a67",
+        "note__sourceHash": "2eabd3bbc144e51028417a87d82ba3135907fa5ae5ad6905b18035d858682ff9"
+      },
+      "local-pending": {
+        "label": "Lokale KI wird eingerichtet",
+        "label__sourceHash": "d27363c33900bf0323e06af383513548cbdfcaf38a83f21bbc490f13d22cc775",
+        "note": "Deine KI auf dem Gerät wird noch heruntergeladen oder gestartet. Es wurde nichts irgendwohin gesendet. Prüfe den Fortschritt in den Einstellungen und versuche es dann erneut.",
+        "note__sourceHash": "db83bc8e00888ce7b6ee59104bea846b4d67442743d33325fc7362e791c3155e"
+      },
+      "sending": "Wird an Ihren KI-Anbieter gesendet",
+      "sending__locked": true
+    },
+    "privileged-matter": {
+      "badge": "Privilegierter Mandant: externe Verbindungen sind gesperrt, damit nichts diesen Mandanten verlassen kann",
+      "title-manual": "Netzwerk-Plugins und MCP-Server sind deaktiviert.",
+      "title-privileged-matter": "Aktiviert, weil der aktive Mandant privilegiert ist. Netzwerk-Plugins und MCP-Server sind deaktiviert.",
+      "title-local-only": "Aktiviert, weil Nur lokal ausgewählt ist. Netzwerk-Plugins und MCP-Server sind deaktiviert."
+    },
+    "retention": {
+      "title": "Besprechungsaufnahmen",
+      "subtitle": "Wählen Sie, was mit Aufnahmen auf diesem Computer geschieht. Löschungen werden in Ihrem Prüfprotokoll erfasst.",
+      "mode-keep": "Alles behalten",
+      "mode-keep-hint": "Audio, Transkript und Notizen bleiben erhalten, bis Sie sie löschen.",
+      "mode-days": "Audio nach {{count}} Tagen löschen, Transkript behalten",
+      "mode-days-hint": "Die Aufnahme wird planmäßig entfernt. Transkript und Notizen bleiben erhalten.",
+      "mode-summary": "Nur Zusammenfassung",
+      "mode-summary-hint": "Audio und Transkript werden entfernt, sobald Notizen vorhanden sind. Nur die Notizen bleiben.",
+      "days-label": "Tage, die Audio aufbewahrt wird",
+      "change": "Ändern",
+      "change__sourceHash": "c0bf75bd78bf9572596720d596bd5a20a5b9145cde0fe50dec1e783cb184d69b",
+      "more-actions": "Weitere Aktionen für gelöschte Dateien",
+      "more-actions__sourceHash": "47184fdb9687045650cc03e0eda9c97a3cf738a3ead28b2471d185475ec77723",
+      "run-now": "Bereinigung jetzt ausführen",
+      "last-sweep": "Letzte Bereinigung: {{when}}, {{count}} Elemente entfernt",
+      "never-swept": "Die Bereinigung wurde noch nicht ausgeführt.",
+      "datamap-title": "Aufbewahrung von Besprechungsaufnahmen",
+      "sweep-errors": "{{count}} Elemente konnten nicht entfernt werden. Siehe Prüfprotokoll.",
+      "attestation-button": "Bestätigungsbericht exportieren (Word)",
+      "attestation-done": "Gespeichert unter {{path}}"
+    }
+  }
+}

@@ -1,0 +1,300 @@
+{
+  "file-import": {
+    "picker-unresponsive": "The file picker didn't respond. Type the path of one file to add instead.",
+    "manual-path-title": "Type a file path",
+    "manual-path-placeholder": "e.g. C:\\Users\\you\\Documents\\contract.docx"
+  },
+  "workspace": {
+    "file-tree": {
+      "new": {
+        "plain-text": "Plain Text (.txt)",
+        "rich-text": "Rich Text (.rt)",
+        "word-document": "Word Document (.docx)",
+        "audio-file": "Audio File (.webm)"
+      },
+      "reserved-name-error": "That name isn't allowed on Windows. Try a different name (avoid names like CON, PRN, NUL and trailing dots or spaces).",
+      "drop-to-root": "Drop here to move to root",
+      "open-on-desktop": "Show on computer",
+      "open-on-desktop-browser-only": "This is only available in the desktop app.",
+      "open-on-desktop-failed": "Could not open the folder: {{error}}",
+      "empty-title": "No files yet",
+      "empty-description": "Create or add a file to start.",
+      "selected-count_one": "{{count}} selected",
+      "selected-count_other": "{{count}} selected",
+      "clear-selection": "Clear selection",
+      "download-selected": "Download selected files",
+      "delete-selected": "Delete selected items"
+    },
+    "selector": {
+      "browser-reselect-note": "Recent workspaces require re-selecting the folder due to browser security.",
+      "tagline": "Your firm folder. Your files. Your machine.",
+      "open-existing-hint": "Select a workspace folder",
+      "picker-unresponsive-open": "The folder picker didn't respond. Type the folder path instead.",
+      "picker-unresponsive-create": "The folder picker didn't respond. Type the folder path where your new workspace should be created.",
+      "manual-path-title": "Type the folder path",
+      "manual-path-placeholder": "e.g. C:\\Users\\you\\Documents\\MyFirm"
+    },
+    "grid": {
+      "empty-folder-hint": "This folder contains no files or subfolders"
+    },
+    "documents": {
+      "title": "Documents",
+      "create-menu": "New or add",
+      "new-document": "New document",
+      "new-folder": "New folder",
+      "add-files": "Add files",
+      "files": "All files",
+      "trash": "Trash",
+      "view-files-trash": "View files or trash",
+      "view-mode": "View",
+      "tree": "Tree",
+      "grid": "Grid",
+      "search-files": "Search files",
+      "search-placeholder": "Search",
+      "more-actions": "More file actions",
+      "show-rail": "Show files",
+      "hide-rail": "Hide files",
+      "trust-banner": "Indexed locally. Nothing uploaded.",
+      "trust-dismiss": "Dismiss trust note",
+      "empty-title": "No files yet",
+      "empty-body": "Create or add a file to start.",
+      "all-files": "All files",
+      "search-results_one": "{{count}} result",
+      "search-results_other": "{{count}} results",
+      "no-results-title": "No results",
+      "no-results-body": "No files match your search. Try a different name."
+    },
+    "project-manager": {
+      "reselect-hint": "Re-select folder to reopen",
+      "rename-description": "Enter a new name for your project. This will rename the workspace folder."
+    },
+    "open-error": {
+      "credential-service-unavailable": "Windows' credential storage service isn't running, so {{productName}} couldn't finish opening this workspace. Your files are safe. Try again, or restart the \"Credential Manager\" service (services.msc) if this keeps happening.",
+      "generic": "Could not open this workspace. Please try again.",
+      "dismiss": "Dismiss"
+    }
+  },
+  "editor": {
+    "backlinks": {
+      "empty": "No other documents link to this file."
+    },
+    "outline": {
+      "empty": "No headings found"
+    },
+    "tab-bar": {
+      "files-in-group": "Files in group",
+      "close-other-tabs": "Close other tabs",
+      "rename-group": "Rename group",
+      "ungroup": "Ungroup",
+      "close-group": "Close group"
+    },
+    "tab-group-manager": {
+      "title": "Tab groups",
+      "description": "Create and organize tab groups to better manage your open files.",
+      "create-new": "Create New Group",
+      "group-name-placeholder": "Group name",
+      "existing-groups": "Existing Groups ({{count}})",
+      "no-groups": "No groups yet. Create one above to get started.",
+      "drop-to-add": "Drop tabs here to add them to this group",
+      "ungrouped-label": "Ungrouped Tabs ({{count}})",
+      "drag-to-ungroup": "Drag tabs here to ungroup them",
+      "add-to-group": "Add to group"
+    },
+    "autosave": {
+      "saved": "Saved",
+      "unsaved": "Unsaved changes",
+      "saving": "Saving",
+      "save-failed": "Save failed",
+      "retry": "Retry",
+      "last-saved": "Last saved {{time}}",
+      "unsaved-tooltip": "Unsaved changes. Auto-save will run shortly.",
+      "save-failed-tooltip": "Save failed: {{error}}",
+      "unknown-error": "unknown error",
+      "no-file-open": "No file open"
+    }
+  },
+  "media": {
+    "presentation": {
+      "basic-preview": "Basic preview, install <a>LibreOffice</a> for full fidelity.",
+      "no-slides": "No slides found.",
+      "slide-label": "Slide {{number}}",
+      "no-text-content": "(no text content)",
+      "checking-libreoffice": "Checking for LibreOffice",
+      "rendering-slides": "Rendering slides",
+      "first-open-converts": "First open converts the deck; later opens are instant.",
+      "cannot-preview": "Could not preview this file. Download it to view in PowerPoint.",
+      "download-file": "Download File",
+      "could-not-render": "Couldn't render {{fileName}}",
+      "try-again": "Try again"
+    },
+    "docx-editor": {
+      "could-not-open": "Couldn't open {{fileName}}",
+      "concurrent-edit-conflict": "This text changed elsewhere while you were editing it, so your last change wasn't applied. Please make the edit again.",
+      "formatting-warning": "Some advanced formatting (tables, images, page headers) may not be preserved when saving. A backup of the original file is created before your first edit.",
+      "opening": "Opening {{fileName}}",
+      "desktop-only": "Editing Word documents with tracked changes is only available in the {{productName}} desktop app. Showing a read-only preview here.",
+      "reviewing": "Review",
+      "reviewing-hint": "Show changes. Turn off for final view.",
+      "review": "Review",
+      "show-review": "Show review pane",
+      "hide-review": "Hide review pane",
+      "accept-all": "Accept all",
+      "reject-all": "Reject all",
+      "accept": "Accept change",
+      "reject": "Reject change",
+      "changes": "Changes",
+      "no-changes": "No changes to review.",
+      "comments": "Comments",
+      "insertion": "Insert",
+      "deletion": "Delete",
+      "empty-change": "(no text)",
+      "preserved-block": "[preserved content - table, section, or other element kept as-is]",
+      "final-view-note": "Showing the final document. Turn on Review to accept or reject individual changes inline.",
+      "orphan-comment": "no anchor",
+      "rename-file": "Rename",
+      "document-actions": "Document actions",
+      "download": "Download",
+      "history": "History",
+      "history-with-count": "History ({{count}})",
+      "split-horizontally": "Split right",
+      "split-vertically": "Split down",
+      "toggle-outline": "Outline",
+      "revise-with-ai": "Revise with AI",
+      "draft-follow-up": "Draft follow-up",
+      "draft-follow-up-title": "Draft a follow-up email from this document",
+      "send-to-wealthbox-disconnected": "Connect Wealthbox from Your account → Connections to send notes.",
+      "outbound-blocked-checking": "Checking this note before it can leave",
+      "outbound-blocked-needs-review": "Review this note first. It hasn't been checked yet.",
+      "outbound-blocked-errored": "This note couldn't be generated cleanly. Review it before it leaves.",
+      "outbound-blocked-notice-quarantined": "This meeting's recording notice needs review before this note can leave.",
+      "redline-placeholder": "What should change? Example: \"shorten by 20%\".",
+      "redline-submit": "Suggest",
+      "redline-working": "Thinking",
+      "redline-need-key": "Add an account key for your AI provider (AI Assistant → Keys) to use AI redline.",
+      "redline-ai-paused": "AI redlining is paused while your subscription is inactive. You can still open, edit, and export this document. Resubscribe to turn AI features back on.",
+      "redline-error": "AI redline failed",
+      "redline-close": "Close",
+      "redline-dismiss": "Dismiss",
+      "redline-egress-note": "Sends this document to your AI provider with your key.",
+      "redline-summary-headline": "{{productAiName}} proposed {{applied}} tracked change(s).",
+      "redline-skipped": "· {{skipped}} could not be placed",
+      "redline-no-changes": "{{productAiName}} suggested no changes.",
+      "redline-op-insert": "Inserted text",
+      "redline-op-delete": "Deleted text",
+      "redline-op-replace": "Replaced text",
+      "redline-op-edit": "Edited text",
+      "export": "Export",
+      "export-as": "Export",
+      "export-word": "Word (.docx)",
+      "export-pdf": "PDF",
+      "export-clean-section": "Clean copies",
+      "export-clean": "Clean copy",
+      "export-clean-hint": "Removes hidden data.",
+      "export-clean-final": "Final clean copy",
+      "export-clean-final-hint": "Accepts changes and removes comments.",
+      "export-saved-word": "Saved a Word copy.",
+      "export-saved-pdf": "Saved a PDF copy.",
+      "export-saved-clean": "Saved a clean copy with hidden metadata removed.",
+      "export-saved-clean-final": "Saved a clean final copy: changes accepted, comments and hidden metadata removed.",
+      "export-dismiss": "Dismiss",
+      "save-blocked-title": "This document can't be saved right now",
+      "save-blocked-body": "Another program (often antivirus, backup, or cloud sync) may be blocking the file. Your changes are safe here and I'll keep trying automatically. If it doesn't clear, save a copy somewhere else so nothing is lost.",
+      "save-retry-now": "Try again now",
+      "save-copy-elsewhere": "Save a copy elsewhere",
+      "save-copy-saving": "Saving copy",
+      "save-copy-success": "Saved a rescue copy to {{path}}.",
+      "save-copy-failed": "Couldn't save the copy: {{message}}",
+      "pdf-needs-libreoffice-title": "PDF export needs LibreOffice",
+      "pdf-needs-libreoffice-body": "{{productName}} converts Word to PDF locally using LibreOffice, a free program. Nothing leaves your machine. Install it, then run the export again.",
+      "pdf-libreoffice-copy": "Copy link",
+      "pdf-libreoffice-copied": "Copied"
+    },
+    "docx-viewer": {
+      "could-not-open": "Couldn't open {{fileName}}",
+      "open-native": "Open in native app"
+    },
+    "pdf-viewer": {
+      "no-inline-support": "Your browser may not support inline PDF viewing.",
+      "open-new-tab": "Open in New Tab"
+    },
+    "rtf-editor": {
+      "could-not-open": "Couldn't open {{fileName}}",
+      "formatting-warning": "RTF is a simpler format than Word. Complex formatting (tables, images, custom fonts) may be simplified on save. A backup of the original file is created before your first edit."
+    },
+    "spreadsheet": {
+      "empty-sheet": "This sheet is empty.",
+      "could-not-open": "Couldn't open {{fileName}}",
+      "open-native": "Open in native app"
+    }
+  },
+  "whiteboard": {
+    "manager": {
+      "info": "Whiteboards open as full tabs in the editor."
+    }
+  },
+  "vault": {
+    "control": {
+      "checking": "Checking vault status",
+      "on-title": "Vault is on",
+      "on-body": "This workspace's files are encrypted at rest. {{productName}} decrypts them transparently, so your work is unchanged.",
+      "locked-note": "This vault is locked. Reopen the workspace to unlock it with your recovery phrase."
+    },
+    "ceremony": {
+      "cannot-recover-warning": "{{productName}} cannot recover this for you. If you lose this phrase and your device's keychain, your encrypted files will be permanently inaccessible.",
+      "phrase-label": "Your 24-word recovery phrase",
+      "copy-phrase": "Copy phrase",
+      "copied": "Copied",
+      "confirm-prompt": "Confirm you've saved the phrase. Enter the words at these positions:",
+      "word-label": "Word #{{pos}}",
+      "word-placeholder": "Word #{{pos}}",
+      "activate": "Activate"
+    },
+    "enable": {
+      "title": "Encrypt this workspace",
+      "subtitle": "AES-256 at rest, transparent in {{productName}}",
+      "detail": "When enabled, every document file in this workspace is stored as ciphertext on disk. {{productName}} decrypts them transparently so your workflow is unchanged.",
+      "bullet-names-visible": "File names and folder structure remain visible",
+      "bullet-phrase-once": "A 24-word recovery phrase is generated once. You must save it.",
+      "bullet-no-recovery": "If you lose the phrase and the keychain, files cannot be recovered",
+      "bullet-firm-escrow": "A firm admin can recover this vault via escrow",
+      "cancel": "Cancel",
+      "enable-button": "Enable vault",
+      "setting-up": "Setting up",
+      "loading-phrase": "Loading phrase",
+      "ceremony-heading": "Save your recovery phrase",
+      "ceremony-subheading": "Write it down somewhere safe. Shown once only.",
+      "escrow-notice": "A firm admin will be able to recover this vault on your behalf using the firm's escrow key. This is in addition to your personal recovery phrase.",
+      "confirm-continue": "Confirm and continue",
+      "encrypting-title": "Encrypting workspace files",
+      "encrypting-subtitle": "This may take a moment for large workspaces.",
+      "done-title": "Workspace encrypted",
+      "done-subtitle": "All files are now protected at rest.",
+      "done-button": "Done"
+    },
+    "locked": {
+      "title": "Vault locked",
+      "subtitle": "This workspace is encrypted and the key is not on this machine.",
+      "explanation": "Enter your 24-word recovery phrase to unlock this vault. {{productName}} will restore the key to your keychain so you can open this workspace normally from now on.",
+      "phrase-hint": "Recovery phrases are 24 words separated by spaces.",
+      "phrase-label": "Recovery phrase",
+      "phrase-placeholder": "word1 word2 word3 ",
+      "escape-hatch": "Turn off vault and decrypt files",
+      "unlock": "Unlock",
+      "error-invalid-phrase": "That phrase has an invalid format. Check each word and try again.",
+      "error-recovery-failed": "That phrase is valid, but it does not match this vault. Make sure you are using the correct recovery phrase."
+    },
+    "escape-hatch": {
+      "title": "Decrypt this workspace and turn off the vault",
+      "description": "This will convert every encrypted file back to a normal, unencrypted file on this disk. The vault will be disabled and removed from this workspace.",
+      "warning-title": "After this, at-rest protection reverts to OS disk encryption only.",
+      "warning-body": "Your files will be readable by any process that has access to this folder. Make sure your operating system's full-disk encryption is enabled if you handle sensitive documents.",
+      "working": "Decrypting files this may take a moment for large workspaces.",
+      "done-message": "All files have been decrypted and the vault has been removed. Your files are normal unencrypted files on disk.",
+      "cancel": "Cancel",
+      "confirm-button": "Decrypt and turn off vault",
+      "try-again": "Try again",
+      "working-button": "Working",
+      "done-button": "Done"
+    }
+  }
+}

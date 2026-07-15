@@ -1,0 +1,39 @@
+{
+  "research": {
+    "source-panel": {
+      "add-first-source": "Add your first source"
+    },
+    "source-form": {
+      "quote-label": "Quote or Snippet",
+      "optional-suffix": "(optional)",
+      "reliability-help": "Include keywords like \"verified\", \"official\", \"primary source\" for high reliability, or \"speculation\", \"unverified\" for low reliability.",
+      "tags-help": "Add tags to organize and filter your sources (e.g., \"competitor\", \"market-research\", \"pricing\")"
+    },
+    "source-editor": {
+      "parse-error-help": "This file may have been corrupted. You can try editing it as a text file or deleting and recreating it.",
+      "iframe-blocked": "Site blocks iframe embedding",
+      "quote-label": "Quote or Snippet",
+      "tags-help": "Add tags to organize and filter your sources",
+      "source-id-label": "Source ID (Read-only)",
+      "save-immediately": "to save immediately"
+    }
+  },
+  "analysis": {
+    "comparison": {
+      "no-outputs": "No outputs to compare"
+    },
+    "cost-metrics": {
+      "description": "Your AI spend for the current month, broken down by provider. Data from v1.5+ (earlier activity may be missing).",
+      "by-provider": "By provider (this month)",
+      "no-costs": "No recorded costs yet this month. Run a chat to see data here."
+    },
+    "multi-interview": {
+      "title": "Multi-interview synthesis",
+      "description": "Drop 3+ transcripts (or paste them below) to produce themes, contradictions, jobs-to-be-done, and a priority-ranked feature list.",
+      "drop-here": "Drop .md or .txt transcripts here",
+      "paste-label": "Or paste transcripts (separated by `---`)",
+      "save-as": "Save as INTERVIEW_SYNTHESIS.md",
+      "jobs-title": "Jobs to be done"
+    }
+  }
+}

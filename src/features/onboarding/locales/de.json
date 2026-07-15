@@ -1,0 +1,459 @@
+{
+  "onboarding": {
+    "workspace-picker": {
+      "picker-unresponsive-own-data": "Die Ordnerauswahl hat nicht reagiert. Gib den Ordnerpfad ein, in dem deine Kanzleidateien liegen sollen.",
+      "picker-unresponsive-own-data__sourceHash": "41465de8a1e093b4aa8e6bb148e892626899f5ed2ad5cb6272e0e5a93556d8d0",
+      "picker-unresponsive-sample": "Die Ordnerauswahl hat nicht reagiert. Gib den Ordnerpfad ein, in dem deine Beispielkanzlei erstellt werden soll.",
+      "picker-unresponsive-sample__sourceHash": "2f5e9abfbc7358fe16b1c8d4968cec220b28c17b01ed1e14a484998d9707af03"
+    },
+    "v2": {
+      "nav": {
+        "dialog-label": "Set up {{productName}}",
+        "back": "Back",
+        "continue": "Continue",
+        "go-to-step": "Go to step {{step}}",
+        "close": "Close"
+      },
+      "intro": {
+        "headline": "The AI you're actually allowed to use with client data.",
+        "flow": {
+          "connect": {
+            "title": "Verbinde deine Firma",
+            "body": "Bring deine Dateien, E-Mails und dein CRM zusammen, damit du Kundenarbeit an einem Ort durchsuchen kannst."
+          },
+          "client-map": {
+            "title": "It builds a Client Map",
+            "body": "Verknüpfe jeden Haushalt mit seinen Quellen, damit du jede Antwort prüfen kannst."
+          },
+          "ask": {
+            "title": "Ask anything",
+            "body": "Frage zu deiner Kundenarbeit, damit jede Antwort auf eine Quelle verweist, die du öffnen kannst."
+          }
+        },
+        "trust-line": "Your client data never touches our servers, the cloud, or any AI's training. Ever.",
+        "help-line": "You can reopen this walkthrough anytime from Help.",
+        "cta": "Go!"
+      },
+      "choose": {
+        "headline": "How do you want to start?",
+        "help": "Du kannst jetzt eine fertige Beispielfirma erkunden oder {{productName}} auf deine eigenen Daten richten. Du kannst später jederzeit wechseln.",
+        "sample": {
+          "badge": "Recommended",
+          "title": "Mit einer Beispielfirma starten",
+          "help": "Erkunde den Haushalt Hendricks mit echten Dokumenten und einer fertigen Client Map, damit du in deiner ersten Minute eine Frage mit Quellen stellen kannst.",
+          "bullet-1": "A worked household you can explore",
+          "bullet-2": "A filled, cited Client Map",
+          "bullet-3": "Nothing leaves your computer",
+          "loading": "Setting up",
+          "cta": "Use the sample"
+        },
+        "own": {
+          "title": "Connect my own data",
+          "help": "Wähle einen Ordner für deine Firma. Verbinde dann E-Mail, Dateien und Wealthbox, damit {{productName}} Client Maps aus deiner echten Kundenarbeit erstellen kann.",
+          "bullet-1": "Lege fest, wo deine Firma liegt",
+          "bullet-2": "Import email, files, and Wealthbox next",
+          "bullet-3": "Your data stays on your machine",
+          "loading": "Opening",
+          "cta": "Choose my folder"
+        },
+        "error": "Something went wrong. Please try again."
+      },
+      "compliance": {
+        "headline": "Why you can use this when you can't use ChatGPT",
+        "body": "Most firms do not allow client files in public chat tools. {{productName}} is built so the files stay under your control.",
+        "point-1": "Your files stay on your computer. The AI reads them locally.",
+        "point-2": "When you use a cloud AI, it's your account and your key. We never see your data, and the provider doesn't train on it.",
+        "point-3": "You get a simple security one-pager to hand to the person who reviews new tools.",
+        "cta": "For your compliance officer",
+        "modal-title": "Compliance & Security",
+        "modal-body": "One-pager coming: data flow, encryption, SOC 2 status.",
+        "modal-cta": "Got it"
+      },
+      "ai": {
+        "headline": "1. Bring your own AI",
+        "mode-note": "Either way, your client files stay on your machine. Cloud AI sends questions to your own AI account. On-device AI keeps even the questions on this computer.",
+        "providers": {
+          "openai": "ChatGPT (OpenAI)",
+          "anthropic": "Claude (Anthropic)",
+          "google": "Gemini (Google)"
+        },
+        "cloud": {
+          "title": "Use ChatGPT, Claude, or Gemini",
+          "bullet-1": "Your client files stay on your machine",
+          "bullet-2": "Questions go from your computer to your own AI account",
+          "bullet-3": "{{productName}} never sees your key, prompts, or client data",
+          "bullet-4": "Paid API usage is not used for training",
+          "bullet-5": "Pay the AI provider directly for what you use",
+          "what-link": "What is this?",
+          "pick-label": "Pick your provider, then get your key",
+          "connect": "Connect",
+          "connecting": "Connecting",
+          "connected": "Connected",
+          "saved": "Saved"
+        },
+        "steps": {
+          "open-prefix": "Open the",
+          "open-link": "{{provider}} API keys page",
+          "open-suffix": "and sign in.",
+          "create-key": "Create a free key.",
+          "paste-key": "Paste it below."
+        },
+        "key-placeholder": "Paste your {{provider}} key",
+        "error-empty": "Paste your key first.",
+        "error-save": "Could not save your key.",
+        "connected-status": "Connected. You can continue.",
+        "saved-unverified": "I saved your key, but I couldn't reach {{provider}} just now to check it. You can continue. I'll verify it the first time you use it.",
+        "local": {
+          "title": "Use on-device AI",
+          "bullet-1": "Runs on this computer",
+          "bullet-2": "Your files and questions stay on this computer",
+          "bullet-3": "2.5 GB download, about 5 minutes",
+          "bullet-4": "Good at answering questions across lots of files",
+          "bullet-5": "Less strong for complex reasoning",
+          "more-link": "Tell me more",
+          "try-local": "Try on-device AI",
+          "switch-note": "You can switch to cloud AI anytime"
+        },
+        "ollama": {
+          "title": "We found Ollama on this computer",
+          "model-installed_one": "1 model is installed",
+          "model-installed_other": "{{count}} models are installed",
+          "suffix": "You can use it now, no download needed.",
+          "use-ollama": "Use my Ollama",
+          "local-ready": "On-device AI ready, continue",
+          "starting-download": "Starting download",
+          "download-built-in": "Or download the built-in model"
+        },
+        "pay-modal": {
+          "title": "Pay as you go, with your own key",
+          "body": "You get an API key from the AI company you pick: ChatGPT, Claude, or Gemini. You pay them directly, only for what you actually use, usually a few cents per question. {{productName}} never charges you for AI, and never sees your key or your data.",
+          "got": "Got it"
+        },
+        "local-modal": {
+          "title": "On-device AI, explained",
+          "body": "On-device AI runs on your own computer. It's free and fully private, so your files and questions stay on this machine. It's a one-time download of about 2.5 GB. It's good at answering questions across lots of files, though not as strong on complex reasoning. You can switch to cloud AI any time.",
+          "got": "Got it"
+        }
+      },
+      "connect": {
+        "headline": "2. Verbinde deine Firma",
+        "pills": {
+          "encrypted": "Encrypted in transit",
+          "device": "Stays on your device",
+          "private": "{{productName}} never sees your data"
+        },
+        "cards": {
+          "m365": {
+            "title": "Microsoft 365 / Outlook",
+            "description": "Email from Outlook and Microsoft 365."
+          },
+          "gmail": {
+            "title": "Gmail",
+            "description": "Email from your Google account."
+          },
+          "onedrive": {
+            "title": "OneDrive",
+            "description": "Client folders from OneDrive and SharePoint."
+          },
+          "calendar": {
+            "title": "Kalender",
+            "title__sourceHash": "d5d0a30b517e3beab07609d7e54c378db5e15066f22280af453f587f7eec7474",
+            "description": "Schreibgeschützte Outlook-, Google- oder ICS-Termine zur Vorbereitung von Besprechungen.",
+            "description__sourceHash": "2ac81cc0c98133f254fac2d97c19c2c573769cd93f1c7a84b733867058f8e658"
+          },
+          "wealthbox": {
+            "title": "Wealthbox",
+            "description": "Households and CRM notes from Wealthbox."
+          },
+          "imap": {
+            "toggle": "Other email option (IMAP)",
+            "title": "Other email",
+            "description": "Standard IMAP accounts."
+          }
+        },
+        "badges": {
+          "reads-in": "Liest ein",
+          "reads-in__sourceHash": "0b886d58b53d06e419e99f5b63d7d105849294a8afa4d8290b142bba1d2a6072",
+          "two-way": "Beidseitig",
+          "two-way__sourceHash": "14af917119a7cfe2023795db4bc8ee939d613760d422ab9086373b3149a4ecdc"
+        },
+        "groups": {
+          "now-label": "Jetzt verbinden",
+          "now-label__sourceHash": "f5e732583fb2ef751e97835ad9c97ef2248319fa3e5ede1d56c997b6329c5a89",
+          "built-label": "Ebenfalls fertig, bereit zur Aktivierung für deine Beratungspraxis",
+          "built-label__sourceHash": "dd07ab6e442ae53316db473d449a238705688d0ec8b2d4c815c9a6234ee4ce61",
+          "roadmap-label": "Auf der Roadmap",
+          "roadmap-label__sourceHash": "b502df0c4e56753b4a704b52a96dcb89834e45b04cb2867e8b39693fb868e336",
+          "calendars-note": "Calendly lässt sich nach der Einrichtung über die Einstellungen verbinden.",
+          "calendars-note__sourceHash": "cb45792f74801e53845904790150770b18a0b82ac302fc677d69967eb9dae1af"
+        },
+        "built": {
+          "salesforce": {
+            "name": "Salesforce",
+            "name__sourceHash": "33a7935db79df2a3bf5ac7ff9f2421015ff61623e005da1cf0cc9e1352c98069",
+            "desc": "CRM: liest Kunden ein und kann Notizen/Aufgaben zurückschreiben.",
+            "desc__sourceHash": "8786e207c0744833693e7cf45fc15366d7a4c007653a526e398c6b417b9f4e56"
+          },
+          "redtail": {
+            "name": "Redtail",
+            "name__sourceHash": "96e1821a17d46daf042fb7f0d8a8c816ab03407655d6b7376915836057699432",
+            "desc": "CRM: liest Kunden ein und kann Notizen/Aufgaben zurückschreiben.",
+            "desc__sourceHash": "8786e207c0744833693e7cf45fc15366d7a4c007653a526e398c6b417b9f4e56"
+          },
+          "docusign": {
+            "name": "DocuSign",
+            "name__sourceHash": "3dec998a84c39a7da6ff05565c08a5d6aa9d275ed21d76bcfa254865b5df2e8a",
+            "desc": "Liest den Status von Umschlägen und Signaturen.",
+            "desc__sourceHash": "c601578853435522445f245332034bee1577a49ed5ea58714eb68935f4203d61"
+          },
+          "addepar": {
+            "name": "Addepar",
+            "name__sourceHash": "dd2fe2dfaaea2c5fbe8cc5d41338568f3ed80c540a4ca4c1485940091bb2b805",
+            "desc": "Liest Portfoliodaten.",
+            "desc__sourceHash": "68a2ab0c7d0d652f9b2e161a39f35aafb4cee4ee5b38758818b778e5ab5e0305"
+          },
+          "box": {
+            "name": "Box",
+            "name__sourceHash": "512fd3c6042cd1d9150d46fa59b5911a1f97b8275d73eb0a841daa31e93bd349",
+            "desc": "Liest deine Dateien.",
+            "desc__sourceHash": "a6bc42a9d86906e37174323a661422fae30d65abd90e732fab4fd5a4699eba13"
+          },
+          "sharefile": {
+            "name": "ShareFile",
+            "name__sourceHash": "e97ac48c49d9ec3b4e46a8592d05ecd8d1557174e1f272c43aaf74c378e2b572",
+            "desc": "Liest deine Dateien.",
+            "desc__sourceHash": "a6bc42a9d86906e37174323a661422fae30d65abd90e732fab4fd5a4699eba13"
+          },
+          "jotform": {
+            "name": "Jotform",
+            "name__sourceHash": "1c0b0717900a458bc49fd2badea6c596b03d3e4ecf6bab4b2d0b308fb271feb0",
+            "desc": "Liest Formularübermittlungen.",
+            "desc__sourceHash": "ab1ae7e3ec82b5c468a14a217e10c5a13a534e07f88e687f86dacd909b97d174"
+          },
+          "zocks": {
+            "name": "Zocks",
+            "name__sourceHash": "2b2582f43765daf875dd5d97cc223ad80bc02d048a0b3e73b9263f50bd3ee821",
+            "desc": "Liest Besprechungsnotizen.",
+            "desc__sourceHash": "3dbac4291e19b9af2b3facdcf7b8ba5a5e7cad2305ef4f2c1857718526db99fe"
+          }
+        },
+        "coming-soon-label": "Coming soon",
+        "works-with": {
+          "title": "Start with CRM, email, and files",
+          "body": "{{productName}} liest die Dateien, die du bereits hast: CRM-Notizen, E-Mails, OneDrive- oder SharePoint-Ordner, PDFs und Word-Dateien. Es zitiert diese Dateien in Antworten, damit du prüfen kannst, woher jede Antwort kommt.",
+          "disclaimer": "{{productName}} liest gespeicherte Dateien und Notizen aus deinen eigenen Ordnern."
+        }
+      },
+      "firm": {
+        "headline": "3. Setting up your firm",
+        "sub": "You can continue to the app and these will load in the background.",
+        "your-ai": "Your AI",
+        "importing": "Importing your data",
+        "ai-label": "Downloading your private AI",
+        "ai-retry-label": "AI setup needs a retry",
+        "ai-unverified-label": "AI key saved, not verified yet",
+        "ai-cloud-ready-label": "Your AI provider is connected",
+        "client-map-title": "Building your Client Maps",
+        "client-map-sub": "Assembling the whole story of every client and household.",
+        "client-map-note": "I build a Client Map for each client automatically the first time you open them.",
+        "asks-header": "Things you can ask {{productName}}",
+        "idle": "Getting ready. Your AI and data will start loading here.",
+        "cta": "Continue to the app",
+        "status": {
+          "failed": "Failed",
+          "done": "Done",
+          "working": "Working",
+          "not-started": "Not started",
+          "not-verified": "Not verified",
+          "retrying": "Retrying",
+          "retry": "Retry"
+        },
+        "rows": {
+          "email": "Email",
+          "wealthbox": "Wealthbox",
+          "onedrive": "OneDrive",
+          "files": "Files",
+          "imported": "{{count}} imported",
+          "checked": "{{count}} checked",
+          "households": "{{count}} households"
+        },
+        "questions": {
+          "q1": "Which client is doing a 1031 exchange?",
+          "q2": "Who has a 529 for the kids?",
+          "q3": "What changed for the Hendricks since our last review?",
+          "q4": "Which clients are over-concentrated in one stock?",
+          "q5": "Who turns 73 this year for RMDs?",
+          "q6": "Which households haven't been contacted in 90 days?",
+          "q7": "Who has a CD maturing next month?",
+          "q8": "Which clients mentioned retiring early?",
+          "q9": "Who is a good candidate for a Roth conversion?",
+          "q10": "Which accounts are missing a beneficiary?",
+          "q11": "Who had a major life event this quarter?",
+          "q12": "Who has cash sitting uninvested?",
+          "q13": "Which clients asked about the market last week?",
+          "q14": "Who is closest to their retirement goal?",
+          "q15": "Which clients hold concentrated employer stock?",
+          "q16": "Who mentioned a home purchase or move?"
+        }
+      }
+    },
+    "first-run": {
+      "skip-for-now": "Vorerst überspringen",
+      "skip-for-now__sourceHash": "b58eb52c8810b97857e264ea9de45f7bd7edb754bb0edad30ffab78ff027c45e",
+      "back": "Zurück",
+      "back__sourceHash": "76900f1bfd16c8d4dd3d25e6f46638d7165aee23883ccea6bfe071c514421769",
+      "welcome": {
+        "title": "Willkommen bei {{productName}}",
+        "title__sourceHash": "d5fe9d81910bf07d222bc1fc1ac71c79057fc7dc8b3e44249867b6ac44906218",
+        "subtitle": "Der private Ort, an dem deine Kanzlei lebt und der dir antwortet.",
+        "subtitle__sourceHash": "d3c0e8a5e320c6ac7bdcb081098198a4dfbb6517cd033de9bc7130507ee1035e",
+        "body-1": "{{productName}} speichert deine Mandanten, Dokumente und E-Mails auf deinem eigenen Rechner. Stelle eine Frage über deine gesamte Kanzlei und erhalte eine Antwort mit Quellenangaben, die du prüfen kannst. Deine Dateien bleiben echte Dateien in einem Ordner, den du kontrollierst.",
+        "body-1__sourceHash": "23fed4b3172431891f54f89e1b0e25690fc34a81553caf51b673fdbd348c3468",
+        "body-2": "Die Einrichtung dauert etwa 2 Minuten. Ich helfe dir, einen Ordner für deine Mandanten auszuwählen, dein KI-Anbieterkonto zu verbinden (optional) und deinen ersten Workflow zu starten.",
+        "body-2__sourceHash": "c268d7a5eed759795bc6481324db162cd67595fffa5a0e97326b28b7859cd459",
+        "step-1": "Schritt 1. Ordner für deine Mandanten auswählen",
+        "step-1__sourceHash": "aa70176605a70156f1905f70f5220513a125809b4903401ddbfaafeca88298ce",
+        "step-2": "Schritt 2. KI-Anbieterkonto verbinden (optional)",
+        "step-2__sourceHash": "d60be790bee53ea3565b5afbcb8e0390a2dd6d9483e262ec49766d9fbc452df2",
+        "step-3": "Schritt 3. Ersten Mandanten-Workflow starten",
+        "step-3__sourceHash": "becfd684b104bdc90f055fcdbb31fe254ecc446d6c8c2086c2cae948088fd697",
+        "cta": "Los geht's",
+        "cta__sourceHash": "b59bed0f2717102272cf63d540efc0623ae829a6ba23eb50e7dba40c9e359281"
+      },
+      "workspace": {
+        "title": "Ordner für deine Mandanten auswählen",
+        "title__sourceHash": "27e5faafd712288d5d66567cb3d783c9a2b968eda0d162d0dd97d085c46cc673",
+        "subtitle": "Deine Mandantendateien bleiben auf deinem Rechner, in einem Ordner, den du selbst verwaltest.",
+        "subtitle__sourceHash": "80e97355387abed9c27d9ec1baf2d13da1da1b1e2687f9c14325f49da54061b5",
+        "body-1": "Hier werden deine Mandanten gespeichert: echte Word-Dokumente, PDFs und Notizen in einem normalen Ordner auf deiner Festplatte. Nichts wird hochgeladen. Wähle einen Speicherort, der leicht zu finden und einfach zu sichern ist.",
+        "body-1__sourceHash": "85afac66cee415f0235629e02ad2c3f5c97cc32f52da9b65aaefd9bf130f0219",
+        "body-2": "Tipp: Ein Ordner in Dropbox, iCloud oder OneDrive synchronisiert geräteübergreifend, aber dann liegen deine Dateien auch beim jeweiligen Anbieter. Für vertrauliche Mandantenarbeit lass den Ordner lokal.",
+        "body-2__sourceHash": "0cc1368f13d536662588c71b75314a0a60b78b68f571fd04e1a6a973fec2dfc5",
+        "common-choices": "Häufige Optionen:",
+        "common-choices__sourceHash": "d8005a99652714a2ecb00a765f6dc9d139a58c8ddc997ae5d97d2272c1e3fd17",
+        "icloud-path": "~/iCloud Drive/{{productName}}",
+        "icloud-path__sourceHash": "0fb118852e14a717940090f1b04161d04a135d54d74bbec70869e417129587ac",
+        "body-3": "Im nächsten Schritt können Sie den Ordner tatsächlich auswählen. Bestätigen Sie zunächst, dass Sie verstanden haben, was wir gleich von Ihnen möchten.",
+        "body-3__sourceHash": "a92248a0d302065c465b91b75db19433058fb8cde2b8cbec0f1e21c229655425",
+        "cta": "Verstanden",
+        "cta__sourceHash": "5ad3dbd1242a4cea217e8b68a9fd2c8187f2c337258279193f6d9a31a9f1a69c"
+      },
+      "apikey": {
+        "title": "KI-Anbieter-Schlüssel hinzufügen",
+        "title__sourceHash": "0fa2908448436feb2149a025eb14201396b7669e548bec4963d57ebda84fecdc",
+        "subtitle": "Optional, aber für die KI-Funktionen benötigst du einen Schlüssel.",
+        "subtitle__sourceHash": "e5cc2dcf151bc5441244b503b1af0014d2a8f9a2830aca19bedf22add0a0432c",
+        "body-1": "{{productName}} ist ein \"Bring your own key\"-Tool. Du registrierst dich direkt bei einem KI-Anbieter und fügst den API-Schlüssel hier ein. Deine Schlüssel werden im sicheren Schlüsselbund deines Betriebssystems gespeichert und verlassen deinen Computer nie.",
+        "body-1__sourceHash": "050c447d3705bacc9890d9e4b2a5a70cec4528dfbae7a6ed1c0ab97d3fb2a905",
+        "body-2": "Der schnellste Einstieg gelingt mit <s>Anthropic Claude</s>:",
+        "body-2__sourceHash": "8a00f17d9a512bcb8e303517949578cd6508bab7cc4b32fe4eae6b1ed1d1e8fb",
+        "step-go-to": "Gehe zu <a>console.anthropic.com</a>",
+        "step-go-to__sourceHash": "359a9aac456300460c0a2074e12868d96fe3512770edbad2e152c6ace8095761",
+        "step-signup": "Registrieren (kostenlos, 5 $ Startguthaben)",
+        "step-signup__sourceHash": "353eab5577bf43d759df1835ff95f58be9b545c02293be96f44258bc6f0c2a0d",
+        "step-create-key": "Auf 'API Keys' klicken, dann 'Create Key'",
+        "step-create-key__sourceHash": "5556afe7445db64aac51c7499d4f2f98a42f4feb5eba99c750bdaa23e206a4c2",
+        "step-copy-key": "Den Schlüssel kopieren (beginnt mit <c>sk-ant-</c>) und unten einfügen",
+        "step-copy-key__sourceHash": "ce8b8da108caacf4975b81f25f60eeeb101f5d6f96655fe87ad4b1fa743470b3",
+        "skip-hint": "Du kannst diesen Schritt überspringen und den Schlüssel später unter Einstellungen, API-Schlüssel hinzufügen.",
+        "skip-hint__sourceHash": "3c3cef9919048cd5da553cd69293013f2a4fafba90d6247e8091922b33475798",
+        "save-cta": "Schlüssel speichern",
+        "save-cta__sourceHash": "b6e0aef2a9f1eda5d44e17f83826029b93502e4c5efe98d56febf36fc8f3b45e"
+      },
+      "demo": {
+        "title": "Deinen ersten Mandanten-Workflow ausführen",
+        "title__sourceHash": "fb5d039c2235b5eb8b418f01f663b4d12570862073cdf8506aaf2c0dd9adf56e",
+        "subtitle": "Sieh, wie ein echtes Dokument in Sekunden entsteht.",
+        "subtitle__sourceHash": "7ccaa29a70ea83efa7c68f2ef0737753ef92ef70edea9acab3b255a5ccedd228",
+        "body-1": "Am schnellsten siehst du, was {{productName}} kann, wenn du einen Workflow ausführst. Wähle eine Vorlage im Tab Workflows, beantworte die gestellten Fragen und sieh zu, wie ein fertiges Word-Dokument in deinem Mandantenordner entsteht.",
+        "body-1__sourceHash": "4799e581b29751d13d4d02e21d86aed2b3a65447d65ac61209c781d6d392b5e1",
+        "step-1": "Klicke in der Seitenleiste auf <s>Workflows</s>",
+        "step-1__sourceHash": "0be72e15852586347bcd761f9ca624fd5890d4aa12711f4903162b2b645f4742",
+        "step-2": "Wähle eine Vorlage, die zu deiner Kanzlei passt",
+        "step-2__sourceHash": "ab3abd855ca7ae2a3e2fcd6320f24cff7d338dee657d6fbab3c700a7fcd6a3b5",
+        "step-3": "Beantworte die Fragen und klicke auf <s>Generieren</s>",
+        "step-3__sourceHash": "b8d138d5b05b1503fd888b686b2ed1e35f6682d8ed0044fcc9ef21be30612375",
+        "outcome": "Du erhältst fertige Arbeit als echte Word-Dokumente, die du öffnen, bearbeiten und an Mandanten senden kannst.",
+        "outcome__sourceHash": "a1ddb3d7a6ade4053fb40bc6304b790f03526a55df8f84f4a78770ebe4b19c05",
+        "populate-toggle": "{{count}} Beispiel-Mandantendateien zum Einstieg hinzufügen",
+        "populate-toggle__sourceHash": "fe2a8db72a7fe85dc60df638a1bd3dc2e166c8e58337ee2f938a97a48b4f9e08",
+        "populate-help": "Fügt fertige Beispiele hinzu, damit du siehst, wie ein abgeschlossener Workflow aussieht, bevor du deinen ersten echten Mandanten bearbeitest. Du kannst sie jederzeit löschen.",
+        "populate-help__sourceHash": "1ba17e0a14ef6074c75a34400262225d468772dd264d34e82d2cb570afe91d47",
+        "copy-error": "Beispiele konnten nicht kopiert werden: {{error}}. Kein Problem, du bist trotzdem dabei.",
+        "copy-error__sourceHash": "6796c283201c6b8815b9ed3ed734a6750ab5b0789f8d853abe259c40083708ef",
+        "setting-up": "Wird eingerichtet...",
+        "setting-up__sourceHash": "e9d6212ef873a5ab8d31a36e62661fc599acc44b4de8d212989adb0a24f6e5d0",
+        "open-cta": "Meinen Arbeitsbereich öffnen",
+        "open-cta__sourceHash": "6cd386e81fb2613854d73cb21165215ab6b4cb9362c492ef123e915c9b4829b7"
+      }
+    },
+    "disk-encryption": {
+      "title": "Eine Sache zum Prüfen: deine Festplattenverschlüsselung",
+      "body": "{{productName}} speichert deine Dokumente als normale Dateien in deinem Arbeitsordner, auf deinem Rechner. Geht der Laptop verloren oder wird er gestohlen, schützt sie die Festplattenverschlüsselung deines Betriebssystems. Zu prüfen, ob sie eingeschaltet ist, dauert nur eine Minute.",
+      "check-windows": "Windows: Einstellungen, dann Datenschutz und Sicherheit, dann Geräteverschlüsselung (oder suche nach BitLocker). Dort sollte Ein stehen.",
+      "check-macos": "Mac: Systemeinstellungen, dann Datenschutz & Sicherheit, dann FileVault. Dort sollte stehen, dass FileVault aktiviert ist.",
+      "check-linux": "Linux: Die meisten Installer bieten LUKS-Festplattenverschlüsselung an. Prüfe die Datenträgereinstellungen deiner Distribution oder führe lsblk aus und suche nach einem crypt-Eintrag.",
+      "title__locked": true,
+      "body__locked": true,
+      "check-windows__locked": true,
+      "check-macos__locked": true,
+      "check-linux__locked": true
+    },
+    "api-key-card": {
+      "title": "Nächster Schritt: KI-Schlüssel hinzufügen",
+      "title__sourceHash": "6c12e9c2353854280698e1a8efa880daeebe480cd0d533a784017fa309dcc3bd",
+      "description": "{{productName}} verwendet deinen eigenen API-Schlüssel von Anthropic, OpenAI oder Google, damit deine KI-Nutzung direkt an deinen Anbieter geht, ohne Aufschlag von uns. Dein {{productName}}-Plan deckt die Software ab.",
+      "description__sourceHash": "e49759058f108ef5e37c23d0ad9cde9b5f0b2cfbf04a9e39da8b88cff0cfee58",
+      "walk-me-through": "Schritt für Schritt führen",
+      "walk-me-through__sourceHash": "83a76e6892919b343df3fefcfef65efcac4dac23bc91b8df9b421f0d0c128ae8",
+      "add-key": "API-Schlüssel hinzufügen",
+      "add-key__sourceHash": "6f2d3db3648e0b3ea15c536674d2a498056388d793273c0a492d05a43b346bb2",
+      "keys-local": "Schlüssel werden lokal auf deinem Computer gespeichert und nie an uns übertragen.",
+      "keys-local__sourceHash": "e2204f8849038c283dc7e2856cfe1a22cd8f3df1e2d7498c1b409407df06d65f"
+    },
+    "api-key-wizard": {
+      "step-1": {
+        "body": "Klicke auf die Schaltfläche unten, um <s>{{dashboard}}</s> in deinem Browser zu öffnen. Du musst dich anmelden (oder registrieren), um zur Schlüsselseite zu gelangen.",
+        "body__sourceHash": "ba89ec2f74e9a88d5e5486c303f2055b5141e3caeb6fae64af5b5db863fd1f63"
+      },
+      "step-2-ollama": {
+        "body": "Lade Ollama für dein Betriebssystem herunter und führe dann in einem Terminal <c>ollama pull llama3.2</c> aus (oder ein beliebiges Modell). {{productName}} erkennt Ollama im nächsten Schritt automatisch.",
+        "body__sourceHash": "04438c6482e9b1d0621311e3d0f683df60508a34d0b559c6a82165199594f6b5"
+      },
+      "ollama-running": "Ollama läuft",
+      "ollama-running__sourceHash": "afea168799b6bcdb259676a41b211bc7cef67ff4ff09d31e8c9e477449eaa8af",
+      "ollama-models-ready_one": "1 Modell bereit",
+      "ollama-models-ready_one__sourceHash": "04a33c8a095e5079280d7d5e633084053448ddfcd2c3343cc3ddc0ed0f866fae",
+      "ollama-models-ready_other": "{{count}} Modelle bereit",
+      "ollama-models-ready_other__sourceHash": "84d4e49eb51b2cdc8697571a7328edb615f790d57c4fd8d0dc93693d047b9cd6",
+      "ollama-not-running": "Ollama läuft nicht. Installiere es und klicke dann auf 'Prüfen'.",
+      "ollama-not-running__sourceHash": "5f540e644cf27e97b1dc4d8a1e62124db23a04f014511e4983680c03265fbcf9",
+      "check-ollama": "Ollama-Verbindung prüfen",
+      "check-ollama__sourceHash": "c2180b86c5f1d8a536bbd47dd0d81d5f2f122176466a7c2c2a7e26c5e7091308"
+    },
+    "tutorial": {
+      "open-api-keys": "API-Schlüsselseite öffnen",
+      "open-api-keys__sourceHash": "257a90ac99a815d3920bd17d2c8ae15a72af21508132ef9065b1f498e9723902",
+      "direct-urls": "Direkte URLs (zum Öffnen im Browser anklicken):",
+      "direct-urls__sourceHash": "2376e4561159cc03481bfcb6b4d0bd4f6009baa31ee6cba855710f7f9cf8b02e"
+    },
+    "welcome": {
+      "title": "Willkommen bei {{productName}}",
+      "title__sourceHash": "d5fe9d81910bf07d222bc1fc1ac71c79057fc7dc8b3e44249867b6ac44906218",
+      "description": "Ein paar optionale Einstellungen, beide standardmäßig deaktiviert. Überspringe sie, wenn du möchtest.",
+      "description__sourceHash": "81f5ec87b429ff9eaccaac3e1991d66957862668a1077e8bed7ef866f534b709",
+      "email-optin-label": "E-Mail-Updates, Tipps und Rabattcodes zusenden",
+      "email-optin-label__sourceHash": "484a32d897b9fa023757a516543b3b7bfb3f0d1e8137f1850eb6f5d2239dbd22",
+      "email-optin-help": "Nur echte Updates, keine Drip-Kampagnen, keine wöchentlichen Newsletter. Jederzeit abbestellbar. Geht direkt an das {{productName}}-Team.",
+      "email-optin-help__sourceHash": "2221fab2b8aca62d29f43156c58785f7325e7aff47187c2cf662ae0509a2cc6a",
+      "telemetry-label": "{{productName}} mit anonymen Nutzungsstatistiken verbessern helfen",
+      "telemetry-label__sourceHash": "5e9554dbf5aff7af0d7ae4aa41fc6c1d1160edc15b3e94722e21df4dd9013184",
+      "telemetry-help": "Sendet eine zufällige Installations-ID, die App-Version, Ihre Plattform und Lifecycle-Ereignisse (Testversion gestartet, Lizenz aktiviert usw.). Keine Inhalte, keine Dateien, keine KI-Prompts, keine E-Mail. Sie können dies in den Einstellungen unter 'Datenschutz' deaktivieren.",
+      "telemetry-help__sourceHash": "5d8887ac3c6fdfe0be0db46d61436aa9fbd7b576e9d4b8fa0ebc3878039d7b84"
+    },
+    "api-key-explainer": {
+      "privacy-body": "Diese direkte Verbindung macht {{productName}} privat: Deine Prompts gehen direkt von deinem Computer an den Anbieter, den du gewählt hast. {{productNamePossessive}} Server sehen deine Arbeit, deine Dateien oder deine Gespräche nie.",
+      "what-is-body": "Ein API-Schlussel ist wie ein Passwort, mit dem dein Computer direkt mit einem KI-Anbieter (Anthropic, OpenAI oder Google) sprechen kann. Du erstellst ihn dort, fugst ihn hier einmal ein, und {{productName}} speichert ihn im sicheren Schlusselbund deines Betriebssystems."
+    }
+  }
+}

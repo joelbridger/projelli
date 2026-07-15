@@ -7,9 +7,7 @@
 // gracefully falls back to English without crashing.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import i18n from '@/i18n';
-import en from '@/locales/en.json';
-import es from '@/locales/es.json';
-import de from '@/locales/de.json';
+import { deCatalog as de, enCatalog as en, esCatalog as es } from '@/i18nCatalogs';
 
 type JsonValue = string | { [key: string]: JsonValue };
 

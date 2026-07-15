@@ -1,0 +1,87 @@
+{
+  "crm": {
+    "household": {
+      "activity": {
+        "title": "Actividad",
+        "title__sourceHash": "38da1505ca8373288489495101b14f24ac95078f520ad64df18272aa6054f750",
+        "empty-title": "Aún no hay historial",
+        "empty-title__sourceHash": "94fe92a1ed510a17a84b126887e581c3d21ca724d82d61db7b1c2da1d4981e78",
+        "empty-description": "La actividad de este hogar aparecerá aquí.",
+        "empty-description__sourceHash": "9dc7eb54c01b32969e148f51e8c67568a59e809692bf613f506ebb429d314451"
+      }
+    },
+    "home": {
+      "nav": {
+        "activity": "Actividad"
+      },
+      "destinations": {
+        "activity": "Actividad",
+        "archive-export": "Archive export",
+        "attachment-accounting": "Attachment accounting",
+        "calendar": "Calendar",
+        "email-broadcast": "Email broadcast",
+        "email": "Email",
+        "email-dropbox": "Email dropbox",
+        "fidelity": "Fidelity report",
+        "firm-setup": "Firm",
+        "firm-organization": "Firm overview",
+        "fields-tags": "Fields and tags",
+        "intake-links": "Intake links",
+        "workspaces": "Firm spaces",
+        "migration": "Migration",
+        "pipeline": "Pipeline",
+        "pipeline-settings": "Pipeline settings",
+        "propagation": "Propagation review",
+        "projects": "Projects",
+        "reports": "Reports",
+        "rollback-export": "Rollback export",
+        "search": "Buscar registros",
+        "tasks": "Tasks",
+        "timeline": "Timeline",
+        "today": "Today",
+        "views": "Saved views",
+        "workflow-recreation": "Workflow recreation",
+        "workflows": "Workflows",
+        "ask": "Ask"
+      }
+    },
+    "search": {
+      "title": "Buscar registros"
+    },
+    "documents": {
+      "no-client-files": "Esta carpeta del cliente todavía no tiene documentos. Añade un archivo a la carpeta del cliente en Documentos y vuelve aquí para enlazarlo.",
+      "folder-not-ready": "La carpeta de documentos de este cliente aún no está lista. Termina de configurar al cliente y vuelve aquí."
+    },
+    "offline": {
+      "message": "Trabajas sin conexión. Los cambios locales funcionan; el envío espera hasta que vuelvas a conectarte."
+    },
+    "wealthbox": {
+      "connect-failed": "No pudimos conectar con Wealthbox. Revisa tu clave de API e inténtalo de nuevo.",
+      "disconnect-failed": "No pudimos desconectar Wealthbox. Inténtalo de nuevo.",
+      "indexing-incomplete_one": "Tu hogar se importó y aparece en el Mapa de clientes, pero todavía no se puede buscar en Ask. Tus otros archivos siguen disponibles para buscar. Selecciona Reintentar preparación de búsqueda.",
+      "indexing-incomplete_other": "Tus {{count}} hogares se importaron y aparecen en el Mapa de clientes, pero todavía no se pueden buscar en Ask. Tus otros archivos siguen disponibles para buscar. Selecciona Reintentar preparación de búsqueda.",
+      "retry-search-setup": "Reintentar preparación de búsqueda",
+      "lockdown": {
+        "title": "Wealthbox está en pausa por el bloqueo de red.",
+        "active": "Mientras esta opción esté activada, no se enviará nada a Wealthbox ni se descargará nada desde allí. Desactívala en los ajustes de Privacidad para conectar o sincronizar.",
+        "pending": "La protección de privacidad se está actualizando. Wealthbox seguirá en pausa hasta que termine.",
+        "update-failed": "El bloqueo de red sigue activado porque no se pudo actualizar el ajuste de privacidad. No se enviará nada a Wealthbox ni se descargará nada desde allí. Selecciona Reintentar para volver a intentarlo."
+      },
+      "sync-failed": "No pudimos terminar de sincronizar Wealthbox. Inténtalo de nuevo.",
+      "sync-timeout": "Wealthbox no respondió a tiempo. Revisa tu conexión e inténtalo de nuevo."
+    },
+    "network-lockdown": {
+      "retry": "Reintentar la actualización de privacidad"
+    },
+    "redtail": {
+      "lockdown": {
+        "title": "Redtail está en pausa por el bloqueo de red."
+      }
+    },
+    "salesforce": {
+      "lockdown": {
+        "title": "Salesforce está en pausa por el bloqueo de red."
+      }
+    }
+  }
+}

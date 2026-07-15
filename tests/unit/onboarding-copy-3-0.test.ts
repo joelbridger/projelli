@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import en from '../../src/locales/en.json';
+import { enCatalog as en } from '../../src/i18nCatalogs';
 
 // Narrow down to the first-run onboarding subtree
 const firstRun = JSON.stringify(en.onboarding['first-run']);

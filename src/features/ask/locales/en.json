@@ -1,0 +1,327 @@
+{
+  "ai": {
+    "assistant": {
+      "start-new-chat": "Start new chat:",
+      "how-to-get-keys": "How to get account keys",
+      "keys-stored-locally": "Account keys are stored securely on your machine and never sent to our servers.",
+      "model-saved-per-workspace": "Model settings are saved per workspace and apply to all new chats."
+    },
+    "chat": {
+      "proposed-facts_one": "1 proposed memory fact",
+      "proposed-facts_other": "{{count}} proposed memory facts",
+      "ask-workspace": "Ask my workspace",
+      "ask-workspace-on-title": "Ask my workspace is ON, every message searches your files first",
+      "ask-workspace-off-title": "Ask my workspace is OFF, click to have every message search your files",
+      "retry-last-message": "Retry last message",
+      "copy-diagnostic": "Copy diagnostic info",
+      "trial-ended": "Your {{days}}-day trial has ended.",
+      "trial-ended-help": "Activate a license in Settings, License to keep chatting with AI. Your existing files stay accessible. Only AI calls and workflows are paused.",
+      "model-not-ready-refuse": "Your private search engine is still downloading, so I can't search your workspace yet and won't answer from your client. Watch the setup banner for progress, or turn off \"Ask my workspace\" to send this without workspace grounding.",
+      "retrieval-failed-refuse": "I couldn't search your workspace just now, so I won't answer from your client. {{reason}} You can turn off \"Ask my workspace\" to send this without workspace grounding.",
+      "workspace-empty-refuse": "I searched your workspace and found nothing relevant to that, so I won't answer from your client. Try rephrasing, or turn off \"Ask my workspace\" to get a general answer."
+    },
+    "cost-chip": {
+      "today-so-far": "Today so far: {{cost}}",
+      "no-requests": "No AI requests yet today."
+    },
+    "privilege-explainer": {
+      "title": "What does privilege exclusion do?",
+      "body": "Sources tagged privileged are filtered out of workspace retrieval itself, before anything reaches the AI. It is enforced in the search engine, not just a label.",
+      "demo": "See it work on my own files",
+      "no-question": "Type a question in the chat box first, then run this check.",
+      "withheld": "Privilege exclusion is withholding {{count}} source(s) from this question right now. Top withheld source: {{name}}.",
+      "none-withheld": "No privileged sources matched this question, so nothing was withheld.",
+      "desktop-only": "This live check runs in the desktop app."
+    },
+    "write-approval": {
+      "title": {
+        "create-file": "The AI wants to create a file",
+        "overwrite-file": "The AI wants to change a file",
+        "create-folder": "The AI wants to create a folder",
+        "move-file": "The AI wants to move a file",
+        "delete-file": "The AI wants to delete a file"
+      },
+      "description": "Review the change below. Nothing happens until you approve.",
+      "move-overwrite-warning": "This replaces an existing file at the destination.",
+      "delete-trash-note": "The file will be moved to Trash, so you can recover it.",
+      "binary-note": "This is a non-text file, so there's no preview here. Approve to let the AI change it.",
+      "skip": "Skip",
+      "approve": "Approve"
+    },
+    "batch-review": {
+      "title": "Review what the AI changed",
+      "description": "The AI applied these changes during this turn. Keep them all, or undo any you don't want.",
+      "op": {
+        "create-file": "Created",
+        "overwrite-file": "Changed",
+        "create-folder": "Created folder",
+        "move-file": "Moved",
+        "delete-file": "Deleted"
+      },
+      "binary-note": "This is a non-text file, so there's no preview.",
+      "not-undoable": "This change can't be undone automatically.",
+      "undo-selected": "Undo selected",
+      "keep-all": "Keep all changes",
+      "unsafe-partial": "Some of these changes build on each other, so undoing only part of them could lose work. Select the related later changes too, or choose Keep all changes."
+    }
+  },
+  "chat": {
+    "input": {
+      "drop-here": "Drop image or PDF here"
+    },
+    "compressed": {
+      "expanded-for-next-send": "Expanded for next send"
+    },
+    "compression": {
+      "title": "This conversation is getting long",
+      "body": "This message would go over the AI's memory limit for this chat. Shortening the earlier conversation lets it through. Nothing is deleted from your files, only this chat's history is trimmed.",
+      "cancel": "Cancel",
+      "send-anyway": "Send Anyway",
+      "compress-send": "Shorten history and send"
+    },
+    "context-meter": {
+      "next-msg": "~{{cost}} next msg at {{model}}"
+    },
+    "pdf-preview": {
+      "encrypted": "This PDF is password-protected. Remove the password and re-attach.",
+      "scanned": "This PDF appears to be a scanned image with no text layer. Extracted text may be empty.",
+      "send-as-native": "Send as native PDF instead (lets the AI read the image)"
+    },
+    "run-on-all": {
+      "title": "Multi-provider comparison ({{count}})"
+    }
+  },
+  "search": {
+    "filter-by-type": "Filter by file type",
+    "no-results": "No results found",
+    "tip-quick-open": "to quickly open any file by name",
+    "tip-content": "Searches filenames AND file content",
+    "tip-formats": "Text files, docx, xlsx, pptx, RTF are all indexed",
+    "tip-snippet": "Click a result to open the file with a match snippet"
+  },
+  "memory": {
+    "rag-banner": {
+      "ready_one": "Memory ready, indexed 1 file.",
+      "ready_other": "Memory ready, indexed {{count}} files.",
+      "ready-with-skips_one": "Memory ready, indexed 1 file ({{skipped}} skipped).",
+      "ready-with-skips_other": "Memory ready, indexed {{count}} files ({{skipped}} skipped)."
+    },
+    "ocr-progress": "Reading scanned pages with local OCR: page {{page}} of {{total}}. Nothing leaves your machine.",
+    "pdf-progress": "Indexing PDFs: {{processed}} / {{total}}. Nothing leaves your machine."
+  },
+  "citation": {
+    "scanned": "scanned",
+    "scanned-low": "low-confidence scan",
+    "scanned-low-title": "This passage was read from a scanned page by local OCR with low confidence. Open the source and verify before relying on it."
+  },
+  "model-download": {
+    "title": "Setting up your private AI (1 of 2: search)",
+    "body": "{{productName}} is downloading the part that searches your files (about 465 MB), one time. You can keep working. Search and AI answers from your files switch on when it finishes.",
+    "verifying": "Checking the downloaded files",
+    "progress": "{{done}} MB of {{total}} MB",
+    "progress-unknown": "{{done}} MB so far",
+    "stalled": "The download looks stuck. Restarting {{productName}} resumes it where it stopped.",
+    "error-title": "The search engine download was interrupted",
+    "error-body": "Nothing is lost. The download resumes where it stopped.",
+    "retry": "Resume download"
+  },
+  "local-ai-download": {
+    "title": "Setting up your private AI (2 of 2: the AI that writes answers)",
+    "body": "{{productName}} is downloading the part that writes answers (about 2.4 GB), one time. You can keep working. It runs fully offline once it's ready.",
+    "verifying": "Checking the downloaded model",
+    "progress": "{{done}} MB of {{total}} MB",
+    "progress-unknown": "{{done}} MB so far",
+    "stalled": "The download looks stuck. Restarting {{productName}} resumes it where it stopped.",
+    "error-title": "The {{localAiName}} download was interrupted",
+    "error-body": "Nothing is lost. The download resumes where it stopped.",
+    "retry": "Resume download"
+  },
+  "ask": {
+    "scope-pill": {
+      "this-matter": "This client",
+      "all-matters": "All clients",
+      "email": "Email",
+      "documents": "Documents",
+      "whole-practice": "Book Overview"
+    },
+    "book": {
+      "option-label": "Book Overview",
+      "option-helper": "from your Client Maps",
+      "loading": "Reading your client summaries",
+      "no-facts": "No client summaries are built yet. Open a client and build their Client Map first.",
+      "no-matches": "No clients in your book match that question.",
+      "matches-heading": "Matches",
+      "open-client": "Open client",
+      "summaries-note": "Summary-only.",
+      "summaries-note-title": "Answered from saved Client Maps. Documents were not searched across clients."
+    },
+    "whole-practice-confirm": {
+      "title": "Send client summaries?",
+      "body_one": "Send summary for {{count}} client to {{provider}}?",
+      "body_other": "Send summaries for {{count}} clients to {{provider}}?",
+      "provider-fallback": "your AI provider",
+      "remember": "Remember for Book asks",
+      "cancel": "Cancel",
+      "continue": "Continue"
+    },
+    "scope-menu": {
+      "this-client": "This client",
+      "all-clients": "All clients",
+      "all-selected": "All",
+      "email": "Email",
+      "documents": "Documents",
+      "documents-selected": "Docs",
+      "book-overview": "Book overview",
+      "book-selected": "Book"
+    },
+    "scope-toggle": {
+      "this-entity": "This {{entity}}",
+      "all-entity": "All {{entity}}",
+      "aria-label": "Ask scope"
+    },
+    "composer": {
+      "placeholder-all-entity": "Ask across all {{entity}}",
+      "placeholder-client": "Ask {{name}}",
+      "placeholder-email": "Ask about imported email",
+      "placeholder-documents": "Ask across your documents",
+      "placeholder-book": "Ask across saved Client Maps",
+      "aria-label": "Ask this {{entity}}"
+    },
+    "demo-intro": {
+      "body": "Answers are cited to these files. Click a citation to open the source."
+    },
+    "empty": {
+      "sample-title": "Try one of these sample questions.",
+      "whole-book-prefix": "Whole book: {{question}}"
+    },
+    "indexing": {
+      "notice": "Index documents for cited answers.",
+      "enable": "Enable"
+    },
+    "file-access": {
+      "all-entity-scope": "all your {{entity}}",
+      "prompt-title": "Allow AI file access for {{scopeLabel}}?",
+      "prompt-body": "It can search and read files. File text may go to {{provider}}. Any edit still asks first.",
+      "reconfirm": "This chat now covers {{scopeLabel}}, so it needs your OK again.",
+      "details-link": "Details",
+      "details": "Until you allow it, the AI only uses what you type and files you open or attach yourself.",
+      "allow": "Allow",
+      "allow-all": "Allow all",
+      "not-now": "Not now",
+      "turn-off": "Turn off",
+      "granted": "File access on. Edits still ask first.",
+      "denied": "File access off."
+    },
+    "action": {
+      "ask": "Ask",
+      "searching": "Searching",
+      "answering": "Answering",
+      "searching-documents": "Searching your documents"
+    },
+    "conversations": {
+      "title": "Conversations",
+      "title-short": "Chats",
+      "show": "Show conversations",
+      "hide": "Hide conversations",
+      "new-question": "New question",
+      "new": "New",
+      "rename": "Rename conversation",
+      "other": "Other",
+      "more-actions": "Conversation actions",
+      "search-placeholder": "Search",
+      "empty": "Your conversations will appear here.",
+      "no-results": "No conversations found."
+    },
+    "sources": {
+      "title": "Sources",
+      "collapse": "Collapse sources",
+      "show-panel": "Show sources",
+      "show-more": "Show more",
+      "show-less": "Show less",
+      "header-suffix-files-only": "from your files only",
+      "empty-hint": "No file sources for this answer.",
+      "footer-note": "No file sources for this answer.",
+      "provenance-title": "{{productName}} reads the files you already have. This is not a live connection.",
+      "provenance-file": "Reads the file you already have",
+      "provenance-file-date": "Reads the file you already have · {{date}}",
+      "provenance-stale-title": "This file may be out of date. Add a newer file when you have one.",
+      "provenance-stale-suffix": "may be out of date",
+      "status": {
+        "verified": "Verified",
+        "found": "Found",
+        "quote-not-found": "Quote not found",
+        "quote-mismatch": "Quote mismatch",
+        "wrong-client": "Wrong client",
+        "could-not-verify": "Could not verify",
+        "verified-title": "The stored source was checked and contains this exact quote.",
+        "checking-title": "Checking this quote against the stored source.",
+        "found-title": "This source was found. The automatic check could not confirm the exact quote."
+      }
+    },
+    "answer-scope": {
+      "title": "Answer settings",
+      "settings-label": "Answer settings",
+      "helper": "Control sources and file access for this chat.",
+      "files-only": "Files only",
+      "files-general": "Files + general",
+      "files-only-toggle": "Use files only",
+      "files-only-title": "Answer only from your files, cited, with no general knowledge or drafts."
+    },
+    "answer-blocks": {
+      "label": {
+        "files": "Files",
+        "nothing-found": "No file match",
+        "files-unverified": "Found, not verified",
+        "files-checking": "Checking",
+        "general": "General",
+        "draft": "Draft"
+      },
+      "general-verifyline": "General knowledge. Verify current rules.",
+      "draft-note": "Draft for you to review before sending. Nothing is sent automatically.",
+      "cited-attestation": "Cited from your files. Open any number to check.",
+      "show-cited-files": "Show cited files",
+      "nothing-found-note": "No file match. General guidance is marked.",
+      "tally": {
+        "cited-claims_one": "1 claim cited from your files",
+        "cited-claims_other": "{{count}} claims cited from your files",
+        "checking-sources_one": "Checking 1 source",
+        "checking-sources_other": "Checking {{count}} sources",
+        "sources-unverified_one": "1 source found, not verified",
+        "sources-unverified_other": "{{count}} sources found, not verified",
+        "general": "General"
+      }
+    },
+    "turn": {
+      "view-ai-status": "View AI status",
+      "decline-note-client": "Nothing found in your files. Try a question about this client.",
+      "decline-note-all": "Nothing found in your files. Try a question about your clients.",
+      "still-importing-decline": "Still importing. Try again when it finishes.",
+      "uncited-warning": "Not cited from your files. Verify this before relying on it.",
+      "stale-plan-warning": "Uses old plan exports: {{exports}}. Re-export to refresh.",
+      "stale-plan-age_one": "1 day old",
+      "stale-plan-age_other": "{{count}} days old",
+      "answer-actions": "Answer actions",
+      "saving": "Saving",
+      "save-to-doc": "Save to doc",
+      "importing-banner": "Importing files and email. Answers may be incomplete."
+    },
+    "message-scope": {
+      "all-title": "This answer searched across all {{entity}}.",
+      "matter-title": "This answer was confined to the active {{entity}}. Other clients' data was not searched.",
+      "this-entity-fallback": "this {{entity}}"
+    },
+    "sample-bridge": {
+      "body": "Sample data. Add your first {{entity}} to search your files.",
+      "add-button": "Add {{entity}}",
+      "dismiss": "Dismiss"
+    },
+    "cost-dashboard": {
+      "provider-note": "Costs are billed directly by {{provider}}, not by {{productName}}."
+    }
+  },
+  "answer-dates": {
+    "title": "Dates in the cited records",
+    "record-copy-flagged": "Matching record copies have different timestamps.",
+    "review-record-copies": "Check the cited copies before relying on either date."
+  }
+}

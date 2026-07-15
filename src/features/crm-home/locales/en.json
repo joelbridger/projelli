@@ -1,0 +1,84 @@
+{
+  "crm": {
+    "household": {
+      "activity": {
+        "title": "Activity",
+        "empty-title": "No history yet",
+        "empty-description": "Activity for this household will appear here."
+      }
+    },
+    "home": {
+      "nav": {
+        "activity": "Activity"
+      },
+      "destinations": {
+        "activity": "Activity",
+        "archive-export": "Archive export",
+        "attachment-accounting": "Attachment accounting",
+        "calendar": "Calendar",
+        "email-broadcast": "Email broadcast",
+        "email": "Email",
+        "email-dropbox": "Email dropbox",
+        "fidelity": "Fidelity report",
+        "firm-setup": "Firm",
+        "firm-organization": "Firm overview",
+        "fields-tags": "Fields and tags",
+        "intake-links": "Intake links",
+        "workspaces": "Firm spaces",
+        "migration": "Migration",
+        "pipeline": "Pipeline",
+        "pipeline-settings": "Pipeline settings",
+        "propagation": "Propagation review",
+        "projects": "Projects",
+        "reports": "Reports",
+        "rollback-export": "Rollback export",
+        "search": "Search records",
+        "tasks": "Tasks",
+        "timeline": "Timeline",
+        "today": "Today",
+        "views": "Saved views",
+        "workflow-recreation": "Workflow recreation",
+        "workflows": "Workflows",
+        "ask": "Ask"
+      }
+    },
+    "search": {
+      "title": "Search records"
+    },
+    "documents": {
+      "no-client-files": "There are no documents in this client's folder yet. Add a file to this client's folder in Documents, then come back here to link it.",
+      "folder-not-ready": "This client's document folder is not ready yet. Finish setting up this client, then come back here."
+    },
+    "offline": {
+      "message": "Working offline. Local edits work; delivery waits until you reconnect."
+    },
+    "wealthbox": {
+      "connect-failed": "We couldn't connect to Wealthbox. Check your API key and try again.",
+      "disconnect-failed": "We couldn't disconnect Wealthbox. Please try again.",
+      "indexing-incomplete_one": "Your household was imported and appears in the Client Map, but it isn't searchable in Ask yet. Your other files are still searchable. Select Retry search setup.",
+      "indexing-incomplete_other": "Your {{count}} households were imported and appear in the Client Map, but they aren't searchable in Ask yet. Your other files are still searchable. Select Retry search setup.",
+      "retry-search-setup": "Retry search setup",
+      "lockdown": {
+        "title": "Wealthbox is paused by Network lockdown.",
+        "active": "Nothing will be sent to or downloaded from Wealthbox while this is on. Turn it off in Privacy settings to connect or sync.",
+        "pending": "Privacy protection is updating. Wealthbox stays paused until it finishes.",
+        "update-failed": "Network lockdown is still on because the privacy setting couldn't be updated. Nothing will be sent to or downloaded from Wealthbox. Select Retry to try again."
+      },
+      "sync-failed": "We couldn't finish syncing Wealthbox. Please try again.",
+      "sync-timeout": "Wealthbox didn't respond in time. Check your connection and try again."
+    },
+    "network-lockdown": {
+      "retry": "Retry privacy update"
+    },
+    "redtail": {
+      "lockdown": {
+        "title": "Redtail is paused by Network lockdown."
+      }
+    },
+    "salesforce": {
+      "lockdown": {
+        "title": "Salesforce is paused by Network lockdown."
+      }
+    }
+  }
+}

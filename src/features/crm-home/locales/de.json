@@ -1,0 +1,87 @@
+{
+  "crm": {
+    "household": {
+      "activity": {
+        "title": "Aktivität",
+        "title__sourceHash": "38da1505ca8373288489495101b14f24ac95078f520ad64df18272aa6054f750",
+        "empty-title": "Noch kein Verlauf",
+        "empty-title__sourceHash": "94fe92a1ed510a17a84b126887e581c3d21ca724d82d61db7b1c2da1d4981e78",
+        "empty-description": "Aktivitäten für diesen Haushalt werden hier angezeigt.",
+        "empty-description__sourceHash": "9dc7eb54c01b32969e148f51e8c67568a59e809692bf613f506ebb429d314451"
+      }
+    },
+    "home": {
+      "nav": {
+        "activity": "Aktivität"
+      },
+      "destinations": {
+        "activity": "Aktivität",
+        "archive-export": "Archive export",
+        "attachment-accounting": "Attachment accounting",
+        "calendar": "Calendar",
+        "email-broadcast": "Email broadcast",
+        "email": "Email",
+        "email-dropbox": "Email dropbox",
+        "fidelity": "Fidelity report",
+        "firm-setup": "Firm",
+        "firm-organization": "Firm overview",
+        "fields-tags": "Fields and tags",
+        "intake-links": "Intake links",
+        "workspaces": "Firm spaces",
+        "migration": "Migration",
+        "pipeline": "Pipeline",
+        "pipeline-settings": "Pipeline settings",
+        "propagation": "Propagation review",
+        "projects": "Projects",
+        "reports": "Reports",
+        "rollback-export": "Rollback export",
+        "search": "Datensätze durchsuchen",
+        "tasks": "Tasks",
+        "timeline": "Timeline",
+        "today": "Today",
+        "views": "Saved views",
+        "workflow-recreation": "Workflow recreation",
+        "workflows": "Workflows",
+        "ask": "Ask"
+      }
+    },
+    "search": {
+      "title": "Datensätze durchsuchen"
+    },
+    "documents": {
+      "no-client-files": "Im Ordner dieses Kunden befinden sich noch keine Dokumente. Fügen Sie dem Kundenordner unter Dokumente eine Datei hinzu und kehren Sie dann hierher zurück, um sie zu verknüpfen.",
+      "folder-not-ready": "Der Dokumentenordner dieses Kunden ist noch nicht bereit. Schließen Sie die Einrichtung des Kunden ab und kehren Sie dann hierher zurück."
+    },
+    "offline": {
+      "message": "Sie arbeiten offline. Lokale Änderungen funktionieren; die Übertragung wartet, bis Sie wieder verbunden sind."
+    },
+    "wealthbox": {
+      "connect-failed": "Die Verbindung zu Wealthbox konnte nicht hergestellt werden. Prüfen Sie Ihren API-Schlüssel und versuchen Sie es erneut.",
+      "disconnect-failed": "Die Verbindung zu Wealthbox konnte nicht getrennt werden. Versuchen Sie es erneut.",
+      "indexing-incomplete_one": "Ihr Haushalt wurde importiert und erscheint in der Kundenübersicht, ist aber noch nicht in Ask durchsuchbar. Ihre anderen Dateien bleiben durchsuchbar. Wählen Sie Suchvorbereitung erneut versuchen.",
+      "indexing-incomplete_other": "Ihre {{count}} Haushalte wurden importiert und erscheinen in der Kundenübersicht, sind aber noch nicht in Ask durchsuchbar. Ihre anderen Dateien bleiben durchsuchbar. Wählen Sie Suchvorbereitung erneut versuchen.",
+      "retry-search-setup": "Suchvorbereitung erneut versuchen",
+      "lockdown": {
+        "title": "Wealthbox wurde durch die Netzwerksperre angehalten.",
+        "active": "Solange diese Einstellung aktiv ist, werden keine Daten an Wealthbox gesendet oder von dort heruntergeladen. Deaktivieren Sie sie in den Datenschutzeinstellungen, um eine Verbindung herzustellen oder zu synchronisieren.",
+        "pending": "Der Datenschutz wird aktualisiert. Wealthbox bleibt angehalten, bis der Vorgang abgeschlossen ist.",
+        "update-failed": "Die Netzwerksperre ist weiterhin aktiv, weil die Datenschutzeinstellung nicht aktualisiert werden konnte. Es werden keine Daten an Wealthbox gesendet oder von dort heruntergeladen. Wählen Sie Erneut versuchen, um es noch einmal zu versuchen."
+      },
+      "sync-failed": "Die Wealthbox-Synchronisierung konnte nicht abgeschlossen werden. Versuchen Sie es erneut.",
+      "sync-timeout": "Wealthbox hat nicht rechtzeitig geantwortet. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut."
+    },
+    "network-lockdown": {
+      "retry": "Datenschutzaktualisierung erneut versuchen"
+    },
+    "redtail": {
+      "lockdown": {
+        "title": "Redtail wurde durch die Netzwerksperre angehalten."
+      }
+    },
+    "salesforce": {
+      "lockdown": {
+        "title": "Salesforce wurde durch die Netzwerksperre angehalten."
+      }
+    }
+  }
+}
