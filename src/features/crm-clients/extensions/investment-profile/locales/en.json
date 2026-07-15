@@ -1,0 +1,33 @@
+{
+  "investmentProfile": {
+    "title": "Investment profile",
+    "helper": "Planning horizon and risk preferences",
+    "notSet": "Not set",
+    "save": "Save investment profile",
+    "saveError": "I couldn't save this investment profile. Please try again.",
+    "conflict": "This investment profile changed elsewhere while you were editing. Load the latest saved values before making your changes again.",
+    "useLatest": "Load latest saved values",
+    "liquidityPlaceholder": "For example, $180K over the next 3 years",
+    "fields": {
+      "objective": "Investment objective",
+      "riskTolerance": "Risk tolerance",
+      "timeHorizon": "Time horizon",
+      "liquidityNeed": "Liquidity need"
+    },
+    "objectives": {
+      "growth": "Growth",
+      "income": "Income",
+      "preservation": "Preservation"
+    },
+    "risk": {
+      "conservative": "Conservative",
+      "moderate": "Moderate",
+      "aggressive": "Aggressive"
+    },
+    "horizons": {
+      "under-3-years": "0–3 years",
+      "3-to-10-years": "3–10 years",
+      "over-10-years": "10+ years"
+    }
+  }
+}

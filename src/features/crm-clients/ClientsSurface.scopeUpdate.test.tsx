@@ -222,4 +222,55 @@ describe('ClientsSurface during a CRM search update', () => {
       },
     });
   });
+
+  it('keeps every extension namespace through save and reload', async () => {
+    localStorage.setItem(
+      'lantern:feature-flags',
+      JSON.stringify({ 'record-investment-profile': true })
+    );
+    liveCrm.records = [
+      {
+        id: 'household-investment-profile',
+        kind: 'household',
+        matterId: 'matter-wealthbox-1',
+        name: 'Abernathy Household',
+        extensionData: {
+          'investment-profile.profile': {
+            investmentObjective: 'growth',
+            riskTolerance: 'moderate',
+            timeHorizon: 'over-10-years',
+            liquidityNeed: '$90K in 2 years',
+          },
+          'another-feature.value': { stays: 'intact' },
+        },
+      },
+    ];
+
+    render(<ClientsSurface />);
+
+    expect(screen.getByLabelText('Investment objective')).toHaveValue('growth');
+    expect(screen.getByLabelText('Risk tolerance')).toHaveValue('moderate');
+    expect(screen.getByLabelText('Time horizon')).toHaveValue('over-10-years');
+    expect(screen.getByLabelText('Liquidity need')).toHaveValue('$90K in 2 years');
+    fireEvent.change(screen.getByLabelText('Liquidity need'), {
+      target: { value: '$120K in 3 years' },
+    });
+    fireEvent.click(screen.getByTestId('investment-profile-save'));
+
+    await waitFor(() => {
+      expect(liveCrm.save).toHaveBeenCalledTimes(1);
+    });
+    expect(liveCrm.save.mock.calls[0]?.[0]).toMatchObject({
+      id: 'household-investment-profile',
+      extensionData: {
+        'investment-profile.profile': {
+          investmentObjective: 'growth',
+          riskTolerance: 'moderate',
+          timeHorizon: 'over-10-years',
+          liquidityNeed: '$120K in 3 years',
+        },
+        'another-feature.value': { stays: 'intact' },
+      },
+    });
+  });
 });

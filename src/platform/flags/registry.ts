@@ -51,6 +51,15 @@ export const flagRegistry = [
     expiresAt: '2026-09-13',
     defaultEnabled: false,
   },
+  {
+    id: 'record-investment-profile',
+    description:
+      'Keeps the editable investment profile dark until its record-depth acceptance drive is complete.',
+    ownerLane: 'record-investment-profile',
+    createdAt: '2026-07-15',
+    expiresAt: '2026-09-13',
+    defaultEnabled: false,
+  },
 ] as const satisfies readonly FlagDescriptor[];
 
 export type FlagId = (typeof flagRegistry)[number]['id'];
