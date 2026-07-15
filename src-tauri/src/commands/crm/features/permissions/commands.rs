@@ -6,19 +6,17 @@
 //! is documented in the feature registry SKILL.md.
 
 use anyhow::{Result, bail};
+use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::State;
 
 use crate::commands::crm::{
-    commands::CrmState,
-    core_store::CrmCoreStore,
-    features::teams_roles::{MemberAssignment, RoleDefinition, TeamsRolesState},
+    commands::CrmState, core_store::CrmCoreStore, features::teams_roles::RoleDefinition,
 };
 
 const CURRENT_MEMBER_STATE_ID: &str = "firm:current-member";
 const CURRENT_MEMBER_STATE_KIND: &str = "permissions-current-member-state";
-const TEAMS_ROLES_STATE_ID: &str = "firm:teams-roles";
 const OWN_CLIENTS_FLAG_ENV: &str = "LANTERN_FLAG_OWN_CLIENTS_PERMISSIONS";
 const NO_MEMBER_IDENTITY_ERROR: &str = "No member identity configured for own-clients permissions.";
 
@@ -61,27 +59,36 @@ fn load_current_member(store: &CrmCoreStore) -> Result<Option<CurrentMember>> {
         .map(|record| record.and_then(|value| serde_json::from_value(value).ok()))
 }
 
-fn load_teams_roles(store: &CrmCoreStore) -> Result<Option<TeamsRolesState>> {
-    find_state_record(store, TEAMS_ROLES_STATE_ID)
-        .map(|record| record.and_then(|value| serde_json::from_value(value).ok()))
-}
-
-fn role_for_member<'a>(state: &'a TeamsRolesState, member_id: &str) -> Option<&'a RoleDefinition> {
-    let membership = state
-        .memberships
-        .iter()
-        .find(|assignment| assignment.member_id == member_id)?;
-    state
-        .roles
-        .iter()
-        .find(|role| role.id == membership.role_id)
-}
-
-fn member_is_configurable(state: &TeamsRolesState, member_id: &str) -> bool {
-    state
-        .memberships
-        .iter()
-        .any(|assignment: &MemberAssignment| assignment.member_id == member_id)
+fn role_for_member(store: &CrmCoreStore, member_id: &str) -> Result<Option<RoleDefinition>> {
+    store.with_immediate_transaction(|transaction| {
+        transaction
+            .query_row(
+                "SELECT role.role_id,role.name,role.description,role.client_access,role.capabilities_json,role.system
+                 FROM crm_member_roles AS member
+                 JOIN crm_roles AS role ON role.role_id=member.role_id
+                 WHERE member.member_id=?1",
+                [member_id],
+                |row| {
+                    let capabilities_json: String = row.get(4)?;
+                    Ok(RoleDefinition {
+                        id: row.get(0)?,
+                        name: row.get(1)?,
+                        description: row.get(2)?,
+                        client_access: row.get(3)?,
+                        capabilities: serde_json::from_str(&capabilities_json).map_err(|error| {
+                            rusqlite::Error::FromSqlConversionFailure(
+                                4,
+                                rusqlite::types::Type::Text,
+                                Box::new(error),
+                            )
+                        })?,
+                        system: row.get::<_, i64>(5)? != 0,
+                    })
+                },
+            )
+            .optional()
+            .map_err(Into::into)
+    })
 }
 
 fn member_id_list(record: &Value) -> Vec<&str> {
@@ -124,11 +131,8 @@ fn current_authority(
 ) -> Result<(CurrentMember, RoleDefinition)> {
     let current_member =
         load_current_member(store)?.ok_or_else(|| anyhow::anyhow!(NO_MEMBER_IDENTITY_ERROR))?;
-    let teams_roles = load_teams_roles(store)?
-        .ok_or_else(|| anyhow::anyhow!("No teams-and-roles state is configured."))?;
-    let role = role_for_member(&teams_roles, &current_member.member_id)
-        .ok_or_else(|| anyhow::anyhow!("Current member has no role assignment."))?
-        .clone();
+    let role = role_for_member(store, &current_member.member_id)?
+        .ok_or_else(|| anyhow::anyhow!("Current member has no role assignment."))?;
     if !has_client_capability(&role, operation) {
         bail!(
             "Current member role does not grant CRM {} access.",
@@ -166,10 +170,7 @@ pub(crate) fn protected_records(store: &CrmCoreStore, enforce: bool) -> Result<V
     records
         .into_iter()
         .filter(|record| {
-            !matches!(
-                record.get("kind").and_then(Value::as_str),
-                Some(CURRENT_MEMBER_STATE_KIND) | Some("teams-roles-state")
-            )
+            record.get("kind").and_then(Value::as_str) != Some(CURRENT_MEMBER_STATE_KIND)
         })
         .filter(|record| role_permits_record(&role, &current_member.member_id, record))
         .map(Ok)
@@ -250,9 +251,7 @@ pub async fn crm_permissions_set_current_member(
     let workspace = workspace(&state).await?;
     tokio::task::spawn_blocking(move || {
         let store = CrmCoreStore::open(&workspace)?;
-        let teams_roles = load_teams_roles(&store)?
-            .ok_or_else(|| anyhow::anyhow!("No teams-and-roles state is configured."))?;
-        if !member_is_configurable(&teams_roles, &member_id) {
+        if role_for_member(&store, &member_id)?.is_none() {
             bail!("Member does not have a teams-and-roles assignment.");
         }
         let current_member = CurrentMember { member_id };
@@ -321,33 +320,19 @@ pub async fn crm_permissions_upsert(
 mod tests {
     use super::*;
 
-    fn teams_roles_state() -> TeamsRolesState {
-        serde_json::from_value(serde_json::json!({
-            "roles": [
-                {"id":"advisor","name":"Advisor","description":"","clientAccess":"assigned","capabilities":["clients:read","clients:write"],"system":true},
-                {"id":"compliance","name":"Compliance","description":"","clientAccess":"firm-read","capabilities":["clients:read"],"system":true}
-            ],
-            "teams": [],
-            "memberships": [
-                {"memberId":"maya","roleId":"advisor","teamIds":[]},
-                {"memberId":"casey","roleId":"compliance","teamIds":[]}
-            ],
-            "updatedAt":"2026-07-15T00:00:00Z"
-        })).unwrap()
-    }
-
     fn seed(store: &CrmCoreStore) {
-        let state = teams_roles_state();
         store
-            .upsert_live_record(&serde_json::json!({
-                "id": TEAMS_ROLES_STATE_ID,
-                "kind": "teams-roles-state",
-                "matterId": "firm",
-                "roles": state.roles,
-                "teams": state.teams,
-                "memberships": state.memberships,
-                "updatedAt": state.updated_at,
-            }))
+            .with_immediate_transaction(|transaction| {
+                transaction.execute(
+                    "INSERT INTO crm_member_roles(member_id,role_id,updated_at) VALUES(?1,?2,?3)",
+                    ("maya", "advisor", "2026-07-15T00:00:00Z"),
+                )?;
+                transaction.execute(
+                    "INSERT INTO crm_member_roles(member_id,role_id,updated_at) VALUES(?1,?2,?3)",
+                    ("casey", "compliance-admin", "2026-07-15T00:00:00Z"),
+                )?;
+                Ok(())
+            })
             .unwrap();
         store
             .upsert_live_record(&serde_json::json!({
@@ -442,6 +427,6 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let store = CrmCoreStore::open_with_key(directory.path(), &[21; 32]).unwrap();
         seed(&store);
-        assert_eq!(protected_records(&store, false).unwrap().len(), 3);
+        assert_eq!(protected_records(&store, false).unwrap().len(), 2);
     }
 }
