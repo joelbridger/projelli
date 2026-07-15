@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { PermissionPolicyDescriptor } from './permissionPolicyRegistry';
 import {
   ownClientsOnlyPolicy,
@@ -6,7 +9,17 @@ import {
   validatePermissionPolicyRegistry,
 } from './permissionPolicyRegistry';
 
+const registryDirectory = dirname(fileURLToPath(import.meta.url));
+const registrySkillPath = join(registryDirectory, 'SKILL.md');
+
 describe('permissionPolicyRegistry', () => {
+  it('keeps the required registry instructions beside the append-only registry', () => {
+    expect(existsSync(registrySkillPath)).toBe(true);
+    expect(readFileSync(registrySkillPath, 'utf8')).toContain(
+      'Permission policy registry'
+    );
+  });
+
   it('exports the own-clients-only policy for consumers', () => {
     expect(permissionPolicyRegistry).toEqual([ownClientsOnlyPolicy]);
   });
