@@ -61,6 +61,31 @@ pub fn all_operations() -> impl Iterator<Item = &'static EgressOperation> {
     EGRESS_MODULES.iter().flat_map(|slice| slice.iter())
 }
 
+/// Fail-closed lookup by id. Returns the operation ONLY when exactly one
+/// registered slice declares that id:
+///  - zero matches  → `None` (unregistered → authorization denies),
+///  - two or more matches (a duplicate across slices) → `None`, so a duplicate
+///    can NEVER silently shadow a stricter operation with a looser one via a
+///    first-match `.find()`. Ambiguity is denied, not resolved.
+///
+/// This is release-active (unlike the debug/CI structural checks) so the
+/// shadowing weakness is impossible in every build profile.
+pub fn lookup_operation(
+    modules: &'static [&'static [EgressOperation]],
+    id: &str,
+) -> Option<&'static EgressOperation> {
+    let mut found: Option<&'static EgressOperation> = None;
+    for operation in modules.iter().flat_map(|slice| slice.iter()) {
+        if operation.id == id {
+            if found.is_some() {
+                return None;
+            }
+            found = Some(operation);
+        }
+    }
+    found
+}
+
 /// Structural gate for a set of egress module slices. Returns a stable list of
 /// problems (empty when well-formed). It rejects a duplicate operation id and a
 /// missing required field (empty id or empty receipt label) — the fields native
@@ -192,6 +217,33 @@ mod parity_tests {
         assert!(problems
             .iter()
             .any(|problem| problem.contains("duplicate operation id local-llama")));
+    }
+
+    #[test]
+    fn duplicate_id_across_slices_is_rejected_not_shadowed() {
+        // Two separate slices both declaring the same id. A future duplicate
+        // must be impossible to weaponize: the fail-closed lookup denies the
+        // ambiguous id (None) instead of silently returning the first — possibly
+        // looser — definition, and the structural validator flags it too.
+        const SLICE_A: &[EgressOperation] = &[local_ai::LOCAL_LLAMA];
+        const SLICE_B: &[EgressOperation] = &[local_ai::LOCAL_LLAMA];
+        const DUP_MODULES: &[&[EgressOperation]] = &[SLICE_A, SLICE_B];
+
+        assert!(
+            registry_problems(DUP_MODULES)
+                .iter()
+                .any(|problem| problem.contains("duplicate operation id local-llama")),
+            "structural validation must flag the duplicate"
+        );
+        assert!(
+            lookup_operation(DUP_MODULES, "local-llama").is_none(),
+            "a duplicate id must be denied (fail closed), never shadowed"
+        );
+
+        // A uniquely-declared id still resolves normally.
+        const SOLO: &[&[EgressOperation]] = &[&[local_ai::OLLAMA]];
+        assert!(lookup_operation(SOLO, "ollama").is_some());
+        assert!(lookup_operation(SOLO, "not-registered").is_none());
     }
 
     #[test]

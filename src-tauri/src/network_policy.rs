@@ -106,9 +106,10 @@ pub struct EgressOperation {
 }
 
 /// Look up a registered operation by id across every per-domain slice.
-/// Authorization never trusts an unregistered operation.
+/// Authorization never trusts an unregistered operation, and a duplicate id is
+/// denied rather than shadowed (see `operations::lookup_operation`).
 pub fn registered_operation(id: &str) -> Option<&'static EgressOperation> {
-    operations::all_operations().find(|operation| operation.id == id)
+    operations::lookup_operation(operations::EGRESS_MODULES, id)
 }
 
 /// A parsed network destination.  Parsing happens before authorization so the
@@ -311,15 +312,17 @@ impl NetworkPolicy {
     }
 
     pub(crate) fn load_from_directory(app_data_dir: &Path) -> Self {
-        // In debug and test builds, refuse to run against a structurally
-        // malformed egress registry (duplicate id or missing field) — the same
-        // guarantee the renderer registry enforces at module load. This is a
-        // dev/CI backstop with zero release-behavior change: a duplicate id
-        // would let `.find()` shadow a stricter operation with a looser one.
-        debug_assert!(
-            operations::registry_problems(operations::EGRESS_MODULES).is_empty(),
-            "egress module registry is malformed: {:?}",
-            operations::registry_problems(operations::EGRESS_MODULES)
+        // Fail closed on a structurally malformed egress registry (duplicate id
+        // or missing field) — the same guarantee the renderer registry enforces
+        // at module load. This is release-active, not a debug-only backstop: a
+        // duplicate or malformed entry must REFUSE to start rather than let the
+        // effective policy be altered silently. The registry is compile-time
+        // constant and CI-validated, so a correct build never trips this; it
+        // exists so a broken build cannot open the egress boundary.
+        let registry_problems = operations::registry_problems(operations::EGRESS_MODULES);
+        assert!(
+            registry_problems.is_empty(),
+            "egress module registry is malformed; refusing to start: {registry_problems:?}"
         );
         let policy_path = app_data_dir.join(POLICY_FILE_NAME);
         let (state, load_error) = match Self::read_or_create_record(&policy_path) {
