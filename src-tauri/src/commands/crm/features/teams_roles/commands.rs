@@ -735,11 +735,11 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let store = CrmCoreStore::open_with_key(directory.path(), &[11; 32]).unwrap();
         let attempt = serde_json::json!({
-            "id": "firm:teams-roles", "kind": "teams-roles-state", "matterId": "firm",
+            "id": "firm-teams-roles", "kind": "teams-roles-state", "matterId": "firm",
             "roles": [{"id": "advisor", "system": false}],
         });
-        let error = store.upsert_live_record(&attempt).unwrap_err().to_string();
-        assert!(error.contains("protected"));
+        let error = format!("{:#}", store.upsert_live_record(&attempt).unwrap_err());
+        assert!(error.contains("protected"), "{error}");
         let restored = store
             .with_immediate_transaction(|transaction| load(transaction))
             .unwrap();
