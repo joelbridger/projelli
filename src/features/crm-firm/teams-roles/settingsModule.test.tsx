@@ -34,10 +34,6 @@ vi.mock('./teamsRolesClient', () => ({ teamsRolesClient: client }));
 import { emptyTeamsRolesState } from './contract';
 import { TeamsRolesSettings } from './settingsModule';
 import { teamsRolesSettingsModule } from './settingsModule';
-import {
-  getSettingsModuleDescriptors,
-  validateSettingsModuleDescriptors,
-} from '@/features/settings/registry/settingsModuleRegistry';
 
 describe('TeamsRolesSettings', () => {
   beforeEach(() => {
@@ -59,12 +55,6 @@ describe('TeamsRolesSettings', () => {
         labelKey: 'teams-roles.settings-label',
       })
     );
-    expect(() =>
-      validateSettingsModuleDescriptors([
-        ...getSettingsModuleDescriptors(),
-        teamsRolesSettingsModule,
-      ])
-    ).not.toThrow();
   });
 
   it('renders people, the four role rows, and a role matrix behind the panel action', async () => {

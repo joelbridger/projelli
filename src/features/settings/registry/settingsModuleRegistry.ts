@@ -1,7 +1,7 @@
 import { legacySettingsSections } from './legacySettingsSections';
 import { BASE_SETTINGS_SCHEMA } from '@/platform/settings/schema';
 import { isEnabled } from '@/platform/flags/router';
-import { teamsRolesSettingsModule } from '@/features/crm-firm/teams-roles';
+import { teamsRolesSettingsModule } from '@/features/crm-firm';
 import type { SettingsGroupDescriptor, SettingsModuleDescriptor } from './types';
 
 /** The append-only mount list for feature-owned settings sections. */

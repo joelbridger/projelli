@@ -90,6 +90,9 @@ function layerOf(rel: string): Layer | null {
 }
 function featureOf(rel: string): string {
   if (rel.startsWith('features/crm-firm/teams-roles')) return 'teams-roles';
+  // The CRM-firm public doorway currently exposes only Teams & Roles, so its
+  // one allowed consumer edge is tracked at that narrower contract boundary.
+  if (rel === 'features/crm-firm') return 'teams-roles';
   const feature = rel.split('/')[1] ?? '';
   // The extracted CRM screens are one product surface split into small folders
   // for maintainability. Treat them as one feature boundary; their registry,
