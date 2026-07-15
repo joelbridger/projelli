@@ -20,20 +20,16 @@ async function inCrmWorkspace<T>(
 
 /** Native authority client; no method accepts a caller/member identity. */
 export const permissionsClient = {
-  getCurrentMember: (workspaceRoot: string | null | undefined) =>
-    inCrmWorkspace<CurrentMember | null>(
-      workspaceRoot,
-      'crm_permissions_get_current_member'
-    ),
-  setCurrentMember: (
-    workspaceRoot: string | null | undefined,
-    memberId: string
-  ) =>
-    inCrmWorkspace<CurrentMember>(
-      workspaceRoot,
-      'crm_permissions_set_current_member',
-      { memberId }
-    ),
+  /**
+   * The current member is resolved natively from the authenticated firm
+   * session (established by the SSO exchange), NOT from the renderer. There is
+   * deliberately no `setCurrentMember`: the renderer cannot assume an identity.
+   */
+  getCurrentMember: () => {
+    if (!isTauri())
+      throw new Error('CRM permissions are available only in the desktop app.');
+    return invoke<CurrentMember | null>('crm_permissions_get_current_member');
+  },
   list: (workspaceRoot: string | null | undefined) =>
     inCrmWorkspace<readonly LiveCrmRecord[]>(
       workspaceRoot,

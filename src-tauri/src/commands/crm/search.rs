@@ -13,7 +13,9 @@ use tauri::State;
 use super::{
     commands::CrmState,
     core_store::CrmCoreStore,
-    features::permissions::commands::{own_clients_permissions_enabled, permitted_search_scopes},
+    features::permissions::commands::{
+        native_current_member, own_clients_permissions_enabled, permitted_search_scopes,
+    },
 };
 
 #[derive(Debug, Serialize)]
@@ -272,6 +274,7 @@ pub async fn crm_search(
         .await
         .clone()
         .ok_or_else(|| "Open a workspace before searching CRM records.".to_string())?;
+    let current = native_current_member();
     tokio::task::spawn_blocking(move || {
         let store = CrmCoreStore::open(&workspace)?;
         let matters = rebuild_live_index(&store)?;
@@ -283,6 +286,7 @@ pub async fn crm_search(
         let scopes = match permitted_search_scopes(
             &store,
             own_clients_permissions_enabled(),
+            current.as_ref(),
             matter_id.as_deref(),
         )? {
             Some(scopes) => scopes,
@@ -396,13 +400,14 @@ mod tests {
             .unwrap();
     }
 
-    fn bind_current_member(store: &CrmCoreStore, member_id: &str) {
-        store
-            .upsert_live_record(&serde_json::json!({
-                "id": "firm:current-member", "kind": "permissions-current-member-state",
-                "matterId": "firm", "memberId": member_id, "updatedAt": "2026-07-15T00:00:00Z"
-            }))
-            .unwrap();
+    // The current member is the native-session identity, passed explicitly to
+    // the authority functions — never read from the store.
+    fn member(
+        member_id: &str,
+    ) -> crate::commands::crm::features::permissions::commands::CurrentMember {
+        crate::commands::crm::features::permissions::commands::CurrentMember {
+            member_id: member_id.to_string(),
+        }
     }
 
     fn hits_over(store: &CrmCoreStore, scopes: &[String], term: &str) -> usize {
@@ -418,10 +423,10 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let store = CrmCoreStore::open_with_key(directory.path(), &[37; 32]).unwrap();
         seed_two_households(&store);
-        bind_current_member(&store, "maya");
+        let maya = member("maya");
         rebuild_live_index(&store).unwrap();
 
-        let scopes = permitted_search_scopes(&store, true, None)
+        let scopes = permitted_search_scopes(&store, true, Some(&maya), None)
             .unwrap()
             .expect("enforcement on returns a scope set");
         assert_eq!(scopes, vec!["matter:maya".to_string()]);
@@ -447,7 +452,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let store = CrmCoreStore::open_with_key(directory.path(), &[41; 32]).unwrap();
         seed_two_households(&store);
-        bind_current_member(&store, "maya");
+        let maya = member("maya");
         // The Finding-1 bypass end to end: maya tries to write a record she "owns"
         // into noah's matter. The write doorway refuses it, so it never reaches
         // the index, and her scope never gains noah's matter.
@@ -456,10 +461,12 @@ mod tests {
             "ownerMemberId": "maya", "body": "Zephyr",
             "updatedAt": "2026-07-15T00:00:00Z"
         });
-        assert!(authorize_record_save(&store, true, &injected).is_err());
+        assert!(authorize_record_save(&store, true, Some(&maya), &injected).is_err());
 
         rebuild_live_index(&store).unwrap();
-        let scopes = permitted_search_scopes(&store, true, None).unwrap().unwrap();
+        let scopes = permitted_search_scopes(&store, true, Some(&maya), None)
+            .unwrap()
+            .unwrap();
         assert_eq!(scopes, vec!["matter:maya".to_string()]);
         assert_eq!(
             hits_over(&store, &scopes, "Zephyr"),
@@ -473,12 +480,13 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let store = CrmCoreStore::open_with_key(directory.path(), &[38; 32]).unwrap();
         seed_two_households(&store);
-        bind_current_member(&store, "maya");
+        let maya = member("maya");
         rebuild_live_index(&store).unwrap();
 
         // A renderer that supplies another member's matter id is scoped to an
         // empty set, so no rows are returned.
-        let forged = permitted_search_scopes(&store, true, Some("matter:noah")).unwrap();
+        let forged =
+            permitted_search_scopes(&store, true, Some(&maya), Some("matter:noah")).unwrap();
         assert_eq!(forged, Some(Vec::new()));
     }
 
@@ -487,15 +495,17 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let store = CrmCoreStore::open_with_key(directory.path(), &[39; 32]).unwrap();
         // Deny-closed: no current member is bound.
-        assert!(permitted_search_scopes(&store, true, None).is_err());
+        assert!(permitted_search_scopes(&store, true, None, None).is_err());
     }
 
     #[test]
     fn flag_off_leaves_search_scoping_untouched() {
         let directory = tempfile::tempdir().unwrap();
         let store = CrmCoreStore::open_with_key(directory.path(), &[40; 32]).unwrap();
-        assert!(permitted_search_scopes(&store, false, Some("noah-household"))
-            .unwrap()
-            .is_none());
+        assert!(
+            permitted_search_scopes(&store, false, None, Some("noah-household"))
+                .unwrap()
+                .is_none()
+        );
     }
 }

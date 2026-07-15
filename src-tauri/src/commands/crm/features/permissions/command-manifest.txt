@@ -1,6 +1,8 @@
 # Own-clients permission commands. Numeric keys are append-only and unique globally.
+# 2980 (crm_permissions_set_current_member) was REMOVED in the identity-binding
+# fix: the current member is derived from the native firm session, never a
+# renderer setter. The key is retired, not reused.
 command 2970 crate::commands::crm::features::permissions::crm_permissions_get_current_member
-command 2980 crate::commands::crm::features::permissions::crm_permissions_set_current_member
 command 2990 crate::commands::crm::features::permissions::crm_permissions_list
 command 3000 crate::commands::crm::features::permissions::crm_permissions_get_record
 command 3010 crate::commands::crm::features::permissions::crm_permissions_upsert

@@ -15,7 +15,6 @@ use crate::commands::crm::{
     commands::CrmState, core_store::CrmCoreStore, features::teams_roles::RoleDefinition,
 };
 
-const CURRENT_MEMBER_STATE_ID: &str = "firm:current-member";
 const CURRENT_MEMBER_STATE_KIND: &str = "permissions-current-member-state";
 const LEGACY_TEAMS_ROLES_STATE_KIND: &str = "teams-roles-state";
 const OWN_CLIENTS_FLAG_ENV: &str = "LANTERN_FLAG_OWN_CLIENTS_PERMISSIONS";
@@ -48,16 +47,18 @@ async fn workspace(state: &CrmState) -> Result<std::path::PathBuf, String> {
     state.service().workspace().await
 }
 
-fn find_state_record(store: &CrmCoreStore, id: &str) -> Result<Option<Value>> {
-    Ok(store
-        .list_live_records()?
-        .into_iter()
-        .find(|record| record.get("id").and_then(Value::as_str) == Some(id)))
-}
-
-fn load_current_member(store: &CrmCoreStore) -> Result<Option<CurrentMember>> {
-    find_state_record(store, CURRENT_MEMBER_STATE_ID)
-        .map(|record| record.and_then(|value| serde_json::from_value(value).ok()))
+/// The authenticated CRM member, derived ONLY from the native firm session that
+/// the SSO exchange established (`crate::commands::firm::session`). The renderer
+/// has no command that can set or overwrite it, so it cannot assume another
+/// member's identity. `member_id` IS the firm `user_id` (org-scoped).
+///
+/// A record the renderer may have written into the CRM store (e.g. a forged
+/// `permissions-current-member-state`) has NO bearing here — identity never
+/// comes from the store.
+pub(crate) fn native_current_member() -> Option<CurrentMember> {
+    crate::commands::firm::session::current_identity().map(|identity| CurrentMember {
+        member_id: identity.user_id,
+    })
 }
 
 fn role_for_member(store: &CrmCoreStore, member_id: &str) -> Result<Option<RoleDefinition>> {
@@ -135,10 +136,12 @@ fn role_permits_record(role: &RoleDefinition, member_id: &str, record: &Value) -
 
 fn current_authority(
     store: &CrmCoreStore,
+    current: Option<&CurrentMember>,
     operation: PermissionOperation,
 ) -> Result<(CurrentMember, RoleDefinition)> {
-    let current_member =
-        load_current_member(store)?.ok_or_else(|| anyhow::anyhow!(NO_MEMBER_IDENTITY_ERROR))?;
+    let current_member = current
+        .cloned()
+        .ok_or_else(|| anyhow::anyhow!(NO_MEMBER_IDENTITY_ERROR))?;
     let role = role_for_member(store, &current_member.member_id)?
         .ok_or_else(|| anyhow::anyhow!("Current member has no role assignment."))?;
     if !has_client_capability(&role, operation) {
@@ -156,6 +159,7 @@ fn current_authority(
 fn authorize(
     store: &CrmCoreStore,
     enforce: bool,
+    current: Option<&CurrentMember>,
     operation: PermissionOperation,
     record: &Value,
 ) -> Result<()> {
@@ -165,19 +169,23 @@ fn authorize(
     if is_internal_authority_record(record) {
         bail!("CRM authority state is not available through record commands.");
     }
-    let (current_member, role) = current_authority(store, operation)?;
+    let (current_member, role) = current_authority(store, current, operation)?;
     if !role_permits_record(&role, &current_member.member_id, record) {
         bail!("CRM record is outside the current member's client scope.");
     }
     Ok(())
 }
 
-pub(crate) fn protected_records(store: &CrmCoreStore, enforce: bool) -> Result<Vec<Value>> {
+pub(crate) fn protected_records(
+    store: &CrmCoreStore,
+    enforce: bool,
+    current: Option<&CurrentMember>,
+) -> Result<Vec<Value>> {
     let records = store.list_live_records()?;
     if !enforce {
         return Ok(records);
     }
-    let (current_member, role) = current_authority(store, PermissionOperation::Read)?;
+    let (current_member, role) = current_authority(store, current, PermissionOperation::Read)?;
     records
         .into_iter()
         .filter(|record| !is_internal_authority_record(record))
@@ -211,13 +219,14 @@ const RESERVED_FIRM_MATTERS: &[&str] = &["firm", "firm_home"];
 pub(crate) fn permitted_search_scopes(
     store: &CrmCoreStore,
     enforce: bool,
+    current: Option<&CurrentMember>,
     requested: Option<&str>,
 ) -> Result<Option<Vec<String>>> {
     if !enforce {
         return Ok(None);
     }
     // Deny-closed: errors when no member is bound or the role lacks read access.
-    let (current_member, role) = current_authority(store, PermissionOperation::Read)?;
+    let (current_member, role) = current_authority(store, current, PermissionOperation::Read)?;
     if role.client_access.as_str() == "firm-read" {
         return Ok(None);
     }
@@ -240,6 +249,7 @@ pub(crate) fn permitted_search_scopes(
 fn get_protected_record(
     store: &CrmCoreStore,
     enforce: bool,
+    current: Option<&CurrentMember>,
     record_id: &str,
     operation: PermissionOperation,
 ) -> Result<Value> {
@@ -248,7 +258,7 @@ fn get_protected_record(
         .into_iter()
         .find(|record| record.get("id").and_then(Value::as_str) == Some(record_id))
         .ok_or_else(|| anyhow::anyhow!("CRM record not found."))?;
-    authorize(store, enforce, operation, &record)?;
+    authorize(store, enforce, current, operation, &record)?;
     Ok(record)
 }
 
@@ -274,12 +284,16 @@ fn record_matter_id(record: &Value) -> &str {
         .unwrap_or("firm")
 }
 
-fn authorize_matter_claim(store: &CrmCoreStore, record: &Value) -> Result<()> {
+fn authorize_matter_claim(
+    store: &CrmCoreStore,
+    current: Option<&CurrentMember>,
+    record: &Value,
+) -> Result<()> {
     let matter = record_matter_id(record);
     if RESERVED_FIRM_MATTERS.contains(&matter) {
         return Ok(());
     }
-    let (current_member, role) = current_authority(store, PermissionOperation::Write)?;
+    let (current_member, role) = current_authority(store, current, PermissionOperation::Write)?;
     // A matter's entitlement is established by its household record(s). Scan the
     // whole matter, not just households: a matter that holds any live record but
     // no household the member owns is either another member's matter or an
@@ -312,6 +326,7 @@ fn authorize_matter_claim(store: &CrmCoreStore, record: &Value) -> Result<()> {
 pub(crate) fn authorize_record_save(
     store: &CrmCoreStore,
     enforce: bool,
+    current: Option<&CurrentMember>,
     record: &Value,
 ) -> Result<()> {
     let record_id = record
@@ -328,76 +343,45 @@ pub(crate) fn authorize_record_save(
         // Authorize against the stored record before accepting a replacement.
         // Otherwise a forged payload could relabel another member's record as
         // owned by the caller and turn a denied write into a takeover.
-        authorize(store, enforce, PermissionOperation::Write, &existing)?;
+        authorize(store, enforce, current, PermissionOperation::Write, &existing)?;
     } else if enforce {
         // New records must already be within the caller's scope. This prevents
         // a caller from creating an inaccessible record for another member.
-        authorize(store, true, PermissionOperation::Write, record)?;
+        authorize(store, true, current, PermissionOperation::Write, record)?;
     }
     if enforce {
         // Guard the record's TARGET matter (its `matterId`), for both new and
         // replaced records, so a member cannot place — or move — a record into a
         // matter another member owns.
-        authorize_matter_claim(store, record)?;
+        authorize_matter_claim(store, current, record)?;
     }
     Ok(())
 }
 
-fn save_protected_record(store: &CrmCoreStore, enforce: bool, record: Value) -> Result<Value> {
-    authorize_record_save(store, enforce, &record)?;
+fn save_protected_record(
+    store: &CrmCoreStore,
+    enforce: bool,
+    current: Option<&CurrentMember>,
+    record: Value,
+) -> Result<Value> {
+    authorize_record_save(store, enforce, current, &record)?;
     store.upsert_live_record(&record)?;
     Ok(record)
 }
 
 #[tauri::command]
-pub async fn crm_permissions_get_current_member(
-    state: State<'_, CrmState>,
-) -> Result<Option<CurrentMember>, String> {
-    let workspace = workspace(&state).await?;
-    tokio::task::spawn_blocking(move || {
-        let store = CrmCoreStore::open(&workspace)?;
-        load_current_member(&store)
-    })
-    .await
-    .map_err(|error| error.to_string())?
-    .map_err(|error| error.to_string())
-}
-
-#[tauri::command]
-pub async fn crm_permissions_set_current_member(
-    state: State<'_, CrmState>,
-    member_id: String,
-) -> Result<CurrentMember, String> {
-    if member_id.trim().is_empty() {
-        return Err("Member id is required.".into());
-    }
-    let workspace = workspace(&state).await?;
-    tokio::task::spawn_blocking(move || {
-        let store = CrmCoreStore::open(&workspace)?;
-        if role_for_member(&store, &member_id)?.is_none() {
-            bail!("Member does not have a teams-and-roles assignment.");
-        }
-        let current_member = CurrentMember { member_id };
-        store.upsert_live_record(&serde_json::json!({
-            "id": CURRENT_MEMBER_STATE_ID,
-            "kind": CURRENT_MEMBER_STATE_KIND,
-            "matterId": "firm",
-            "memberId": current_member.member_id,
-            "updatedAt": chrono::Utc::now().to_rfc3339(),
-        }))?;
-        Ok(current_member)
-    })
-    .await
-    .map_err(|error| error.to_string())?
-    .map_err(|error| error.to_string())
+pub async fn crm_permissions_get_current_member() -> Result<Option<CurrentMember>, String> {
+    // Identity is the native firm session — never the renderer, never the store.
+    Ok(native_current_member())
 }
 
 #[tauri::command]
 pub async fn crm_permissions_list(state: State<'_, CrmState>) -> Result<Vec<Value>, String> {
     let workspace = workspace(&state).await?;
+    let current = native_current_member();
     tokio::task::spawn_blocking(move || {
         let store = CrmCoreStore::open(&workspace)?;
-        protected_records(&store, own_clients_permissions_enabled())
+        protected_records(&store, own_clients_permissions_enabled(), current.as_ref())
     })
     .await
     .map_err(|error| error.to_string())?
@@ -410,11 +394,13 @@ pub async fn crm_permissions_get_record(
     record_id: String,
 ) -> Result<Value, String> {
     let workspace = workspace(&state).await?;
+    let current = native_current_member();
     tokio::task::spawn_blocking(move || {
         let store = CrmCoreStore::open(&workspace)?;
         get_protected_record(
             &store,
             own_clients_permissions_enabled(),
+            current.as_ref(),
             &record_id,
             PermissionOperation::Read,
         )
@@ -430,9 +416,15 @@ pub async fn crm_permissions_upsert(
     record: Value,
 ) -> Result<Value, String> {
     let workspace = workspace(&state).await?;
+    let current = native_current_member();
     tokio::task::spawn_blocking(move || {
         let store = CrmCoreStore::open(&workspace)?;
-        save_protected_record(&store, own_clients_permissions_enabled(), record)
+        save_protected_record(
+            &store,
+            own_clients_permissions_enabled(),
+            current.as_ref(),
+            record,
+        )
     })
     .await
     .map_err(|error| error.to_string())?
@@ -471,10 +463,21 @@ mod tests {
             .unwrap();
     }
 
-    fn bind(store: &CrmCoreStore, member_id: &str) {
+    /// The current member is now an explicit, native-session-derived identity
+    /// passed into the authority functions — never read from the store. Tests
+    /// construct it directly, standing in for the SSO-bound firm `user_id`.
+    fn member(member_id: &str) -> CurrentMember {
+        CurrentMember {
+            member_id: member_id.to_string(),
+        }
+    }
+
+    /// A record the renderer could write into the store to try to declare an
+    /// identity. Under the identity-binding fix it must have no effect.
+    fn write_forged_current_member_record(store: &CrmCoreStore, member_id: &str) {
         store
             .upsert_live_record(&serde_json::json!({
-                "id": CURRENT_MEMBER_STATE_ID, "kind": CURRENT_MEMBER_STATE_KIND,
+                "id": "firm:current-member", "kind": CURRENT_MEMBER_STATE_KIND,
                 "matterId": "firm", "memberId": member_id, "updatedAt": "2026-07-15T00:00:00Z"
             }))
             .unwrap();
@@ -512,13 +515,13 @@ mod tests {
         let store = CrmCoreStore::open_with_key(directory.path(), &[17; 32]).unwrap();
         seed(&store);
         assert_eq!(
-            get_protected_record(&store, true, "maya-household", PermissionOperation::Read)
+            get_protected_record(&store, true, None, "maya-household", PermissionOperation::Read)
                 .unwrap_err()
                 .to_string(),
             NO_MEMBER_IDENTITY_ERROR
         );
         assert_eq!(
-            protected_records(&store, true).unwrap_err().to_string(),
+            protected_records(&store, true, None).unwrap_err().to_string(),
             NO_MEMBER_IDENTITY_ERROR
         );
     }
@@ -528,9 +531,9 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let store = CrmCoreStore::open_with_key(directory.path(), &[18; 32]).unwrap();
         seed(&store);
-        bind(&store, "maya");
+        let maya = member("maya");
         assert_eq!(
-            protected_records(&store, true)
+            protected_records(&store, true, Some(&maya))
                 .unwrap()
                 .into_iter()
                 .map(|record| record["id"].as_str().unwrap().to_owned())
@@ -544,14 +547,14 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let store = CrmCoreStore::open_with_key(directory.path(), &[19; 32]).unwrap();
         seed(&store);
-        bind(&store, "maya");
+        let maya = member("maya");
         assert!(
-            get_protected_record(&store, true, "noah-household", PermissionOperation::Read)
+            get_protected_record(&store, true, Some(&maya), "noah-household", PermissionOperation::Read)
                 .unwrap_err()
                 .to_string()
                 .contains("outside the current member's client scope")
         );
-        assert!(save_protected_record(&store, true, serde_json::json!({
+        assert!(save_protected_record(&store, true, Some(&maya), serde_json::json!({
             "id": "noah-household", "kind": "household", "matterId": "noah-household", "ownerMemberId": "noah"
         })).unwrap_err().to_string().contains("outside the current member's client scope"));
     }
@@ -561,10 +564,10 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let store = CrmCoreStore::open_with_key(directory.path(), &[20; 32]).unwrap();
         seed(&store);
-        bind(&store, "casey");
-        assert_eq!(protected_records(&store, true).unwrap().len(), 2);
+        let casey = member("casey");
+        assert_eq!(protected_records(&store, true, Some(&casey)).unwrap().len(), 2);
         assert!(
-            get_protected_record(&store, true, "maya-household", PermissionOperation::Write)
+            get_protected_record(&store, true, Some(&casey), "maya-household", PermissionOperation::Write)
                 .unwrap_err()
                 .to_string()
                 .contains("does not grant CRM write access")
@@ -577,11 +580,11 @@ mod tests {
         let store = CrmCoreStore::open_with_key(directory.path(), &[22; 32]).unwrap();
         seed(&store);
         insert_legacy_teams_roles_record(&store);
-        bind(&store, "casey");
+        let casey = member("casey");
 
-        assert_eq!(protected_records(&store, true).unwrap().len(), 2);
+        assert_eq!(protected_records(&store, true, Some(&casey)).unwrap().len(), 2);
         assert!(
-            get_protected_record(&store, true, "firm-teams-roles", PermissionOperation::Read)
+            get_protected_record(&store, true, Some(&casey), "firm-teams-roles", PermissionOperation::Read)
                 .unwrap_err()
                 .to_string()
                 .contains("authority state")
@@ -593,7 +596,49 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let store = CrmCoreStore::open_with_key(directory.path(), &[21; 32]).unwrap();
         seed(&store);
-        assert_eq!(protected_records(&store, false).unwrap().len(), 2);
+        assert_eq!(protected_records(&store, false, None).unwrap().len(), 2);
+    }
+
+    #[test]
+    fn identity_never_comes_from_a_renderer_written_store_record() {
+        // The decisive item-1 property: a forged current-member record in the
+        // store (the shape the old renderer setter wrote) does NOT determine who
+        // the current member is. Enforcement uses ONLY the identity passed in
+        // from the native firm session. Here the store claims "casey"
+        // (firm-wide), but the bound identity is maya (assigned) — and maya's
+        // scope is enforced, so the forged record has no effect.
+        let directory = tempfile::tempdir().unwrap();
+        let store = CrmCoreStore::open_with_key(directory.path(), &[30; 32]).unwrap();
+        seed(&store);
+        write_forged_current_member_record(&store, "casey");
+        let maya = member("maya");
+        assert_eq!(
+            protected_records(&store, true, Some(&maya))
+                .unwrap()
+                .into_iter()
+                .map(|record| record["id"].as_str().unwrap().to_owned())
+                .collect::<Vec<_>>(),
+            vec!["maya-household"],
+            "a forged current-member store record must not widen scope to casey's firm-wide view"
+        );
+    }
+
+    #[test]
+    fn native_current_member_reads_only_the_firm_session() {
+        // The ONLY test that touches the process-global firm session, so it
+        // cannot race another test. Proves current_member comes from the
+        // SSO-established session and nowhere else.
+        use crate::commands::firm::session::{clear_identity, set_identity, FirmIdentity};
+        clear_identity();
+        assert_eq!(native_current_member(), None, "signed out is deny-closed");
+        set_identity(FirmIdentity {
+            user_id: "user-maya".into(),
+            org_id: "org-1".into(),
+            org_admin: false,
+        });
+        assert_eq!(native_current_member().unwrap().member_id, "user-maya");
+        clear_identity();
+        assert_eq!(native_current_member(), None);
     }
 
     /// Imported clients (Wealthbox/Salesforce/Redtail) give a household an `id`
@@ -635,10 +680,10 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let store = CrmCoreStore::open_with_key(directory.path(), &[23; 32]).unwrap();
         seed_imported(&store);
-        bind(&store, "maya");
+        let maya = member("maya");
         // Maya's own imported client (id != matterId) is searchable; noah's is not.
         assert_eq!(
-            permitted_search_scopes(&store, true, None).unwrap(),
+            permitted_search_scopes(&store, true, Some(&maya), None).unwrap(),
             Some(vec!["matter:maya".to_string()])
         );
     }
@@ -648,7 +693,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let store = CrmCoreStore::open_with_key(directory.path(), &[24; 32]).unwrap();
         seed_imported(&store);
-        bind(&store, "maya");
+        let maya = member("maya");
         // The Finding-1 bypass for imported clients: no live record has id
         // "matter:noah", so the id-existence check cannot catch it — the matter
         // claim guard must. Maya may "own" the payload, but the matter is noah's.
@@ -656,7 +701,7 @@ mod tests {
             "id": "matter:noah", "kind": "note", "matterId": "matter:noah",
             "ownerMemberId": "maya", "body": "x", "updatedAt": "2026-07-15T00:00:00Z"
         });
-        assert!(authorize_record_save(&store, true, &injected)
+        assert!(authorize_record_save(&store, true, Some(&maya), &injected)
             .unwrap_err()
             .to_string()
             .contains("belongs to another member"));
@@ -665,13 +710,13 @@ mod tests {
             "id": "note:probe", "kind": "note", "matterId": "matter:noah",
             "ownerMemberId": "maya", "body": "x", "updatedAt": "2026-07-15T00:00:00Z"
         });
-        assert!(authorize_record_save(&store, true, &child).is_err());
+        assert!(authorize_record_save(&store, true, Some(&maya), &child).is_err());
         // And a forged household claiming noah's matter is refused.
         let forged_household = serde_json::json!({
             "id": "household:fake", "kind": "household", "matterId": "matter:noah",
             "ownerMemberId": "maya", "updatedAt": "2026-07-15T00:00:00Z"
         });
-        assert!(authorize_record_save(&store, true, &forged_household).is_err());
+        assert!(authorize_record_save(&store, true, Some(&maya), &forged_household).is_err());
     }
 
     #[test]
@@ -679,19 +724,19 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let store = CrmCoreStore::open_with_key(directory.path(), &[25; 32]).unwrap();
         seed_imported(&store);
-        bind(&store, "maya");
+        let maya = member("maya");
         // Onboarding a brand-new client: a household in a matter with none yet.
         let new_household = serde_json::json!({
             "id": "household:new", "kind": "household", "matterId": "matter:new",
             "ownerMemberId": "maya", "updatedAt": "2026-07-15T00:00:00Z"
         });
-        assert!(authorize_record_save(&store, true, &new_household).is_ok());
+        assert!(authorize_record_save(&store, true, Some(&maya), &new_household).is_ok());
         // A record inside maya's own matter is allowed.
         let own_note = serde_json::json!({
             "id": "note:1", "kind": "note", "matterId": "matter:maya",
             "ownerMemberId": "maya", "body": "x", "updatedAt": "2026-07-15T00:00:00Z"
         });
-        assert!(authorize_record_save(&store, true, &own_note).is_ok());
+        assert!(authorize_record_save(&store, true, Some(&maya), &own_note).is_ok());
     }
 
     #[test]
@@ -716,19 +761,19 @@ mod tests {
                 "body": "Zephyr trust details", "updatedAt": "2026-07-15T00:00:00Z"
             }))
             .unwrap();
-        bind(&store, "maya");
+        let maya = member("maya");
         // Maya cannot park a record into the orphan matter to promote it.
         let claim = serde_json::json!({
             "id": "note:probe", "kind": "note", "matterId": "matter:noah",
             "ownerMemberId": "maya", "body": "x", "updatedAt": "2026-07-15T00:00:00Z"
         });
-        assert!(authorize_record_save(&store, true, &claim)
+        assert!(authorize_record_save(&store, true, Some(&maya), &claim)
             .unwrap_err()
             .to_string()
             .contains("belongs to another member"));
         // And the orphan matter is not in her search scope to begin with.
         assert_eq!(
-            permitted_search_scopes(&store, true, None).unwrap(),
+            permitted_search_scopes(&store, true, Some(&maya), None).unwrap(),
             Some(Vec::new())
         );
     }
@@ -738,7 +783,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let store = CrmCoreStore::open_with_key(directory.path(), &[26; 32]).unwrap();
         seed_imported(&store);
-        bind(&store, "maya");
+        let maya = member("maya");
         // A firm-bucket record maya owns must not enter her client search scope,
         // and the write guard leaves the firm bucket to the capability check.
         store
@@ -748,7 +793,7 @@ mod tests {
             }))
             .unwrap();
         assert_eq!(
-            permitted_search_scopes(&store, true, None).unwrap(),
+            permitted_search_scopes(&store, true, Some(&maya), None).unwrap(),
             Some(vec!["matter:maya".to_string()])
         );
     }
@@ -758,8 +803,11 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let store = CrmCoreStore::open_with_key(directory.path(), &[27; 32]).unwrap();
         seed_imported(&store);
-        bind(&store, "casey"); // compliance-admin: firm-read
-        assert_eq!(permitted_search_scopes(&store, true, None).unwrap(), None);
+        let casey = member("casey"); // compliance-admin: firm-read
+        assert_eq!(
+            permitted_search_scopes(&store, true, Some(&casey), None).unwrap(),
+            None
+        );
     }
 
     #[test]
@@ -767,6 +815,6 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let store = CrmCoreStore::open_with_key(directory.path(), &[28; 32]).unwrap();
         seed_imported(&store);
-        assert!(permitted_search_scopes(&store, true, None).is_err());
+        assert!(permitted_search_scopes(&store, true, None, None).is_err());
     }
 }

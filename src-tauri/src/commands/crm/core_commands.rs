@@ -9,7 +9,8 @@ use super::{
     commands::CrmState,
     core_store::CrmCoreStore,
     features::permissions::commands::{
-        authorize_record_save, own_clients_permissions_enabled, protected_records,
+        authorize_record_save, native_current_member, own_clients_permissions_enabled,
+        protected_records,
     },
     record_descriptors::valid_record_identifier,
 };
@@ -94,9 +95,10 @@ pub async fn crm_live_upsert(state: State<'_, CrmState>, record: Value) -> Resul
     let workspace = workspace(&state).await?;
     let record = normalize_live_record(record)?;
     let saved = record.clone();
+    let current = native_current_member();
     tokio::task::spawn_blocking(move || {
         let store = CrmCoreStore::open(&workspace)?;
-        authorize_record_save(&store, own_clients_permissions_enabled(), &saved)?;
+        authorize_record_save(&store, own_clients_permissions_enabled(), current.as_ref(), &saved)?;
         store.upsert_live_record(&saved)
     })
         .await.map_err(|error| error.to_string())?.map_err(|error| error.to_string())?;
@@ -111,13 +113,14 @@ pub async fn crm_live_upsert_many(state: State<'_, CrmState>, records: Vec<Value
     let workspace = workspace(&state).await?;
     let records = records.into_iter().map(normalize_live_record).collect::<Result<Vec<_>, _>>()?;
     let saved = records.clone();
+    let current = native_current_member();
     tokio::task::spawn_blocking(move || {
         let store = CrmCoreStore::open(&workspace)?;
         let enforce = own_clients_permissions_enabled();
         // Authorize the full batch before its first write so a later denied
         // record cannot leave an earlier record persisted.
         for record in &saved {
-            authorize_record_save(&store, enforce, record)?;
+            authorize_record_save(&store, enforce, current.as_ref(), record)?;
         }
         for record in saved {
             store.upsert_live_record(&record)?;
@@ -132,9 +135,10 @@ pub async fn crm_live_upsert_many(state: State<'_, CrmState>, records: Vec<Value
 #[tauri::command]
 pub async fn crm_live_list(state: State<'_, CrmState>) -> Result<Vec<Value>, String> {
     let workspace = workspace(&state).await?;
+    let current = native_current_member();
     tokio::task::spawn_blocking(move || {
         let store = CrmCoreStore::open(&workspace)?;
-        protected_records(&store, own_clients_permissions_enabled())
+        protected_records(&store, own_clients_permissions_enabled(), current.as_ref())
     })
         .await.map_err(|error| error.to_string())?.map_err(|error| error.to_string())
 }

@@ -2,4 +2,5 @@
 # Keep existing order keys stable; add new entries with a new unused key.
 command 2590 crate::commands::firm::sso::firm_sso_authenticate
 command 2600 crate::commands::firm::sso::firm_sso_cancel
+command 3020 crate::commands::firm::sso::firm_session_end
 state 150 crate::commands::firm::sso::manage_state

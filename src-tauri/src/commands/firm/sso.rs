@@ -129,6 +129,16 @@ pub async fn firm_sso_cancel(state: State<'_, FirmSsoState>) -> Result<(), Strin
     Ok(())
 }
 
+/// Drop the native firm-session identity on sign-out. Clearing only ever
+/// deny-closes CRM own-clients enforcement, so it is safe for the renderer to
+/// call; it can never be used to ASSUME an identity (only the TLS SSO exchange
+/// sets one).
+#[tauri::command]
+pub async fn firm_session_end() -> Result<(), String> {
+    crate::commands::firm::session::clear_identity();
+    Ok(())
+}
+
 async fn run(backend_base: String, email: String, cancel: Arc<AtomicBool>) -> anyhow::Result<String> {
     let base = backend_base.trim_end_matches('/').to_string();
 
@@ -187,7 +197,52 @@ async fn run(backend_base: String, email: String, cancel: Arc<AtomicBool>) -> an
             .to_string());
     }
 
+    // Bind the native firm-session identity from THIS exchange. `run` performed
+    // the code exchange directly with the relay over TLS, so the returned member
+    // fields are trustworthy — the renderer never touched them. This is the only
+    // place the CRM own-clients identity is established; there is no renderer
+    // command that can set it. `user_id` is the CRM `member_id` (org-scoped).
+    if let Some(user_id) = exchange
+        .get("user")
+        .and_then(|user| user.get("user_id"))
+        .and_then(|value| value.as_str())
+        .filter(|value| !value.trim().is_empty())
+    {
+        let org_admin = exchange
+            .get("user")
+            .and_then(|user| user.get("role"))
+            .and_then(|value| value.as_str())
+            == Some("admin");
+        let org_id = exchange
+            .get("access_token")
+            .and_then(|value| value.as_str())
+            .and_then(access_token_org_id)
+            .unwrap_or_default();
+        crate::commands::firm::session::set_identity(crate::commands::firm::session::FirmIdentity {
+            user_id: user_id.to_string(),
+            org_id,
+            org_admin,
+        });
+    }
+
     Ok(exchange.to_string())
+}
+
+/// Read the `org_id` claim from a relay access-token JWT WITHOUT verifying the
+/// signature. This is sound only because the token was just fetched directly
+/// from the relay over TLS in `run` (never from the renderer); we are reading a
+/// trusted transport's payload, not authenticating an untrusted token.
+fn access_token_org_id(token: &str) -> Option<String> {
+    use base64::Engine;
+    let payload = token.split('.').nth(1)?;
+    let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(payload)
+        .ok()?;
+    let claims: serde_json::Value = serde_json::from_slice(&decoded).ok()?;
+    claims
+        .get("org_id")
+        .and_then(|value| value.as_str())
+        .map(str::to_owned)
 }
 
 /// Accept one connection, read the GET request line, respond to the browser,
