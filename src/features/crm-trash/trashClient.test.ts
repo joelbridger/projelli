@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   isCrmRecordTombstoned,
   permanentlyPurgeTrashedCrmRecord,
@@ -11,6 +11,10 @@ const invoke = vi.fn<
   (command: string, args?: Record<string, unknown>) => Promise<unknown>
 >();
 const crmSetWorkspace = vi.fn<(workspaceRoot: string) => Promise<void>>();
+const hydrate = vi.fn<(workspaceRoot?: string) => Promise<void>>();
+const logDurable = vi.fn<
+  (action: string, description: string, options: unknown) => Promise<unknown>
+>();
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: (command: string, args?: Record<string, unknown>) =>
@@ -21,6 +25,17 @@ vi.mock('@/platform/flags', () => ({ isEnabled: () => true }));
 vi.mock('@/platform/utils/wealthbox-commands', () => ({
   crmSetWorkspace: (workspaceRoot: string) => crmSetWorkspace(workspaceRoot),
 }));
+vi.mock('@/platform/audit/AuditService', () => ({
+  AuditService: class {
+    hydrate(workspaceRoot?: string) {
+      return hydrate(workspaceRoot);
+    }
+
+    logDurable(action: string, description: string, options: unknown) {
+      return logDurable(action, description, options);
+    }
+  },
+}));
 
 const request = {
   workspaceRoot: '/crm-workspace',
@@ -30,6 +45,10 @@ const request = {
 };
 
 describe('trashClient', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it('uses the stable native soft-delete, recovery, and tombstone contract', async () => {
     const changed = vi.fn();
     window.addEventListener(LIVE_CRM_RECORDS_CHANGED, changed);
@@ -54,6 +73,32 @@ describe('trashClient', () => {
       recordId: 'record-1',
       matterId: 'matter-1',
     });
+    expect(hydrate).toHaveBeenCalledWith('/crm-workspace');
+    expect(logDurable).toHaveBeenCalledWith(
+      'user_action',
+      'CRM record moved to Trash & recovery',
+      {
+        metadata: {
+          crmLifecycle: 'soft-delete',
+          recordId: 'record-1',
+          matterId: 'matter-1',
+          deletedBy: 'advisor-1',
+          expiresAt: '2026-08-14T12:00:00Z',
+        },
+      }
+    );
+    expect(logDurable).toHaveBeenCalledWith(
+      'user_action',
+      'CRM record restored from Trash & recovery',
+      {
+        metadata: {
+          crmLifecycle: 'restore',
+          recordId: 'record-1',
+          matterId: 'matter-1',
+          restoredBy: 'advisor-1',
+        },
+      }
+    );
     expect(changed).toHaveBeenCalledTimes(2);
     window.removeEventListener(LIVE_CRM_RECORDS_CHANGED, changed);
   });
@@ -72,5 +117,17 @@ describe('trashClient', () => {
       matterId: 'matter-1',
       actorId: 'advisor-1',
     });
+    expect(logDurable).toHaveBeenCalledWith(
+      'user_action',
+      'CRM permanent deletion refused',
+      {
+        metadata: {
+          crmLifecycle: 'purge-refused',
+          recordId: 'record-1',
+          matterId: 'matter-1',
+          actorId: 'advisor-1',
+        },
+      }
+    );
   });
 });
