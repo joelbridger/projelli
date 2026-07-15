@@ -1,0 +1,37 @@
+# Native command registrations owned by this domain.
+# Keep existing order keys stable; add new entries with a new unused key.
+command 830 crate::commands::mail::mail_set_workspace
+command 840 crate::commands::mail::mail_begin_login
+command 850 crate::commands::mail::mail_poll_login
+command 860 crate::commands::mail::mail_is_connected
+command 870 crate::commands::mail::mail_disconnect
+command 880 crate::commands::mail::mail_sync_all
+command 890 crate::commands::mail::mail_cancel_sync
+command 900 crate::commands::mail::mail_check_dropbox_folder
+command 910 crate::commands::mail::mail_get_message
+command 920 crate::commands::mail::mail_list_messages
+command 930 crate::commands::mail::mail_list_messages_by_matter
+command 940 crate::commands::mail::mail_retag_folder_matter
+command 950 crate::commands::mail::mail_retag_messages_matter
+command 960 crate::commands::mail::mail_retag_message_matter
+command 970 crate::commands::mail::mail_list_pending_rag_retags
+command 980 crate::commands::mail::mail_repair_pending_rag_retags
+command 990 crate::commands::mail::mail_clear_matter_filings
+command 1000 crate::commands::mail::mail_get_attachment
+command 1010 crate::commands::mail::mail_persist_attachment
+command 1020 crate::commands::mail::mail_backfill_rag
+command 1030 crate::commands::mail::mail_connected_accounts
+command 1040 crate::commands::mail::fde::mail_fde_status
+command 1050 crate::commands::mail::mail_imap_connect
+command 1060 crate::commands::mail::mail_imap_is_connected
+command 1070 crate::commands::mail::mail_imap_disconnect
+command 1080 crate::commands::mail::gmail_connect
+command 1090 crate::commands::mail::gmail_connect_cancel
+command 1100 crate::commands::mail::gmail_oauth_configured
+command 1110 crate::commands::mail::gmail_is_connected
+command 1120 crate::commands::mail::gmail_disconnect
+command 1130 crate::commands::mail::outlook_connect
+command 1140 crate::commands::mail::outlook_connect_cancel
+command 1150 crate::commands::mail::mail_send
+command 1160 crate::commands::mail::mail_save_draft
+state 30 crate::commands::mail::manage_state

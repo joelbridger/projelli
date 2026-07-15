@@ -1,0 +1,9 @@
+# Native command registrations owned by this domain.
+# Keep existing order keys stable; add new entries with a new unused key.
+command 490 crate::commands::local_llm::model_download::local_llm_model_status
+command 500 crate::commands::local_llm::model_download::local_llm_model_ensure
+command 510 crate::commands::local_llm::local_llm_sidecar_start
+command 520 crate::commands::local_llm::local_llm_sidecar_stop
+command 530 crate::commands::local_llm::local_llm_sidecar_health
+command 540 crate::commands::local_llm::local_llm_sidecar_is_running
+state 20 crate::commands::local_llm::manage_state

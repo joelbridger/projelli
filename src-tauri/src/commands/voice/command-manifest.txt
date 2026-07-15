@@ -1,0 +1,4 @@
+# Native command registrations owned by this domain.
+# Keep existing order keys stable; add new entries with a new unused key.
+command 590 crate::commands::voice::voice_sidecar_available
+command 600 crate::commands::voice::transcribe_audio

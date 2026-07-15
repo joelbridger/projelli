@@ -1,0 +1,7 @@
+# Native command registrations owned by this domain.
+# Keep existing order keys stable; add new entries with a new unused key.
+command 2750 crate::commands::voiceprint::voiceprint_list
+command 2760 crate::commands::voiceprint::voiceprint_enroll
+command 2770 crate::commands::voiceprint::voiceprint_match
+command 2780 crate::commands::voiceprint::voiceprint_confirm
+command 2790 crate::commands::voiceprint::voiceprint_delete

@@ -1,0 +1,6 @@
+# Native command registrations owned by this domain.
+# Keep existing order keys stable; add new entries with a new unused key.
+command 680 crate::commands::tts::tts_sidecar_available
+command 690 crate::commands::tts::tts_speak
+command 700 crate::commands::tts::tts_stop
+command 710 crate::commands::tts::tts_download_voice

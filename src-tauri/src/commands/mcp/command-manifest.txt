@@ -1,0 +1,5 @@
+# Native command registrations owned by this domain.
+# Keep existing order keys stable; add new entries with a new unused key.
+command 560 crate::commands::mcp::mcp_list_pending_approvals
+command 570 crate::commands::mcp::mcp_approve_write
+command 580 crate::commands::mcp::mcp_bundle_path

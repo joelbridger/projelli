@@ -1,0 +1,4 @@
+interface:
+  display_name: "Add Native Command Domain"
+  short_description: "Register native commands without editing the app root"
+  default_prompt: "Use $add-native-command-domain to register a new Lantern native command domain safely."

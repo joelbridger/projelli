@@ -1,0 +1,6 @@
+# Native command registrations owned by this domain.
+# Keep existing order keys stable; add new entries with a new unused key.
+command 2550 crate::commands::notice_card::notice_card_open
+command 2560 crate::commands::notice_card::notice_card_close
+command 2570 crate::commands::notice_card::notice_card_status
+command 2580 crate::commands::notice_card::notice_card_announce

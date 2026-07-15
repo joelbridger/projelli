@@ -1,0 +1,9 @@
+# Native command registrations owned by this domain.
+# Keep existing order keys stable; add new entries with a new unused key.
+command 1560 crate::commands::writeback::commands::external_write_set_workspace
+command 1570 crate::commands::writeback::commands::external_write_save_proposal
+command 1580 crate::commands::writeback::commands::external_write_prepare_proposal
+command 1590 crate::commands::writeback::commands::external_write_approve_proposal
+command 1600 crate::commands::writeback::commands::external_write_list_proposals
+command 1610 crate::commands::writeback::commands::external_write_delete_proposal
+state 50 crate::commands::writeback::commands::manage_state

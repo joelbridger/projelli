@@ -1,0 +1,4 @@
+# Native command registrations owned by this domain.
+# Keep existing order keys stable; add new entries with a new unused key.
+command 2730 crate::commands::diarize::diarize_meeting
+command 2740 crate::commands::diarize::apply_speaker_names

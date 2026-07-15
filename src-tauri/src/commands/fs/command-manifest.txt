@@ -1,0 +1,9 @@
+# Native command registrations owned by this domain.
+# Keep existing order keys stable; add new entries with a new unused key.
+command 40 crate::commands::fs::check_path
+command 50 crate::commands::fs::get_home_dir
+command 80 crate::commands::fs::open_in_explorer
+command 90 crate::commands::fs::detect_libreoffice
+command 100 crate::commands::fs::convert_doc_to_docx
+command 110 crate::commands::fs::convert_ppt_to_pdf
+command 120 crate::commands::fs::convert_docx_to_pdf

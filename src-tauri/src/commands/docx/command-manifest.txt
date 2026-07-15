@@ -1,0 +1,11 @@
+# Native command registrations owned by this domain.
+# Keep existing order keys stable; add new entries with a new unused key.
+command 740 crate::commands::docx::docx_open
+command 750 crate::commands::docx::docx_save
+command 760 crate::commands::docx::docx_author_revision
+command 770 crate::commands::docx::docx_author_revisions
+command 780 crate::commands::docx::docx_resolve_revision
+command 790 crate::commands::docx::docx_resolve_all
+command 800 crate::commands::docx::docx_export_copy
+command 810 crate::commands::docx::docx_export_clean_copy
+command 820 crate::commands::docx::docx_apply_letterhead

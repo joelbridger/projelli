@@ -1,0 +1,5 @@
+# Native command registrations owned by this domain.
+# Keep existing order keys stable; add new entries with a new unused key.
+command 130 crate::commands::http::fetch_url_title
+command 140 crate::commands::http::ollama_list_models
+command 150 crate::commands::http::ollama_chat_stream

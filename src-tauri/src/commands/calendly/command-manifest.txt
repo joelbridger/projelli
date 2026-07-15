@@ -1,0 +1,10 @@
+# Native command registrations owned by this domain.
+# Keep existing order keys stable; add new entries with a new unused key.
+command 2360 crate::commands::calendly::commands::calendly_set_workspace
+command 2370 crate::commands::calendly::commands::calendly_connect
+command 2380 crate::commands::calendly::commands::calendly_is_connected
+command 2390 crate::commands::calendly::commands::calendly_disconnect
+command 2400 crate::commands::calendly::commands::calendly_sync_all
+command 2410 crate::commands::calendly::commands::calendly_sync_status
+command 2420 crate::commands::calendly::commands::calendly_cancel_sync
+state 130 crate::commands::calendly::commands::manage_state

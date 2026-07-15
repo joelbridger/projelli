@@ -1,0 +1,26 @@
+# Native command registrations owned by this domain.
+# Keep existing order keys stable; add new entries with a new unused key.
+command 1330 crate::commands::intake::intake_set_workspace
+command 1340 crate::commands::intake::intake_pdf_template_artifact_write
+command 1350 crate::commands::intake::intake_pdf_template_artifact_read
+command 1360 crate::commands::intake::intake_pdf_template_artifact_delete
+command 1370 crate::commands::intake::intake_fact_upsert
+command 1380 crate::commands::intake::intake_fact_list
+command 1390 crate::commands::intake::intake_fact_reveal
+command 1400 crate::commands::intake::intake_fact_purge
+command 1410 crate::commands::intake::intake_email_reply_save_proposal
+command 1420 crate::commands::intake::intake_email_reply_save_quarantine
+command 1430 crate::commands::intake::intake_email_reply_list_proposals
+command 1440 crate::commands::intake::intake_email_reply_get_proposal
+command 1450 crate::commands::intake::intake_email_reply_mark_row_completed
+command 1460 crate::commands::intake::intake_email_reply_set_proposal_status
+command 1470 crate::commands::intake::intake_document_extraction_save_proposal
+command 1480 crate::commands::intake::intake_document_extraction_list_proposals
+command 1490 crate::commands::intake::intake_document_extraction_get_proposal
+command 1500 crate::commands::intake::intake_document_extraction_accept_row
+command 1510 crate::commands::intake::intake_document_extraction_mark_row_completed
+command 1520 crate::commands::intake::intake_document_extraction_set_proposal_status
+command 1530 crate::commands::intake::intake_email_reply_list_quarantines
+command 1540 crate::commands::intake::intake_email_reply_get_quarantine
+command 1550 crate::commands::intake::intake_email_reply_set_quarantine_status
+state 170 crate::commands::intake::manage_state

@@ -1,0 +1,5 @@
+# Native command registrations owned by this domain.
+# Keep existing order keys stable; add new entries with a new unused key.
+command 10 crate::dev_bridge::dev_bridge_result cfg(debug_assertions)
+command 20 crate::set_offline_mode
+command 30 crate::network_policy_status

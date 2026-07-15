@@ -1,0 +1,15 @@
+# Native command registrations owned by this domain.
+# Keep existing order keys stable; add new entries with a new unused key.
+command 2430 crate::commands::calendar::commands::calendar_set_workspace
+command 2440 crate::commands::calendar::commands::calendar_connect_outlook
+command 2450 crate::commands::calendar::commands::calendar_connect_outlook_cancel
+command 2460 crate::commands::calendar::commands::calendar_connect_google
+command 2470 crate::commands::calendar::commands::calendar_connect_google_cancel
+command 2480 crate::commands::calendar::commands::calendar_connect_ics
+command 2490 crate::commands::calendar::commands::calendar_is_connected
+command 2500 crate::commands::calendar::commands::calendar_disconnect
+command 2510 crate::commands::calendar::commands::calendar_sync_all
+command 2520 crate::commands::calendar::commands::calendar_sync_status
+command 2530 crate::commands::calendar::commands::calendar_cancel_sync
+command 2540 crate::commands::calendar::commands::calendar_list_events
+state 140 crate::commands::calendar::commands::manage_state

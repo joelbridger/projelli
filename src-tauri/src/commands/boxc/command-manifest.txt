@@ -1,0 +1,11 @@
+# Native command registrations owned by this domain.
+# Keep existing order keys stable; add new entries with a new unused key.
+command 1860 crate::commands::boxc::commands::box_set_workspace
+command 1870 crate::commands::boxc::commands::box_connect
+command 1880 crate::commands::boxc::commands::box_is_connected
+command 1890 crate::commands::boxc::commands::box_disconnect
+command 1900 crate::commands::boxc::commands::box_list_folders
+command 1910 crate::commands::boxc::commands::box_sync
+command 1920 crate::commands::boxc::commands::box_cancel
+command 1930 crate::commands::boxc::commands::box_status
+state 70 crate::commands::boxc::commands::manage_state

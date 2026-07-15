@@ -1,0 +1,9 @@
+# Native command registrations owned by this domain.
+# Keep existing order keys stable; add new entries with a new unused key.
+command 190 crate::commands::audit::audit_set_workspace
+command 200 crate::commands::audit::audit_append
+command 210 crate::commands::audit::audit_list
+command 220 crate::commands::audit::audit_count
+command 230 crate::commands::audit::audit_verify_integrity
+command 240 crate::commands::audit::audit_repair_seal
+state 160 crate::commands::audit::manage_state

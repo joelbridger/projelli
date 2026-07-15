@@ -1,0 +1,12 @@
+# Native command registrations owned by this domain.
+# Keep existing order keys stable; add new entries with a new unused key.
+command 2610 crate::commands::vault::vault_status
+command 2620 crate::commands::vault::vault_create
+command 2630 crate::commands::vault::vault_read_file
+command 2640 crate::commands::vault::vault_write_file
+command 2650 crate::commands::vault::vault_unlock_with_recovery
+command 2660 crate::commands::vault::vault_export_vmk_for_escrow
+command 2670 crate::commands::vault::vault_set_escrow_wraps
+command 2680 crate::commands::vault::vault_encrypt_all
+command 2690 crate::commands::vault::vault_decrypt_all
+command 2700 crate::commands::vault::vault_disable

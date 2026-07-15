@@ -1,0 +1,9 @@
+# Native command registrations owned by this domain.
+# Keep existing order keys stable; add new entries with a new unused key.
+command 610 crate::commands::capture::engine::capture_start
+command 620 crate::commands::capture::engine::capture_stop
+command 630 crate::commands::capture::engine::capture_status
+command 640 crate::commands::capture::engine::capture_free_disk_bytes
+command 650 crate::commands::capture::recovery::capture_find_orphans
+command 660 crate::commands::capture::recovery::capture_recover
+command 670 crate::commands::capture::transcribe::transcribe_meeting
