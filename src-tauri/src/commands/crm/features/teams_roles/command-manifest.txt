@@ -1,0 +1,9 @@
+# Teams-and-roles commands. Numeric keys are append-only and unique globally.
+command 2840 crate::commands::crm::features::teams_roles::crm_teams_roles_get
+command 2850 crate::commands::crm::features::teams_roles::crm_teams_roles_create_role
+command 2860 crate::commands::crm::features::teams_roles::crm_teams_roles_update_role
+command 2870 crate::commands::crm::features::teams_roles::crm_teams_roles_delete_role
+command 2880 crate::commands::crm::features::teams_roles::crm_teams_roles_create_team
+command 2890 crate::commands::crm::features::teams_roles::crm_teams_roles_update_team
+command 2900 crate::commands::crm::features::teams_roles::crm_teams_roles_delete_team
+command 2910 crate::commands::crm::features::teams_roles::crm_teams_roles_assign_member

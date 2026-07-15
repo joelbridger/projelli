@@ -98,9 +98,7 @@ import {
   SETTING_SEARCH_ALIASES,
   groupKeywordMatch,
 } from './settingsContentHelpers';
-import {
-  getSettingsModuleDescriptor,
-} from './registry/settingsModuleRegistry';
+import { getSettingsModuleDescriptor } from './registry/settingsModuleRegistry';
 import { registerSettingsSectionRenderer } from './registry/sectionRendererBindings';
 import type { SettingsSectionRenderProps } from './registry/types';
 import {
@@ -1030,7 +1028,6 @@ export function SettingsContent({
   extraSections,
 }: SettingsContentProps) {
   const { t } = useTranslation();
-
   // Resolve any legacy alias to the canonical section on mount
   const resolveInitial = (cat?: SettingCategory): SectionCategory =>
     cat ? resolveSection(cat) : 'workspace';
@@ -1111,7 +1108,7 @@ export function SettingsContent({
   // in its description, and "language" lands on General rather than Voice.
   const sectionScores = useMemo<Record<SectionCategory, number>>(() => {
     const scores: Record<SectionCategory, number> = {
-      workspace: 0, ai: 0, privacy: 0, scheduling: 0, voice: 0, advanced: 0, help: 0,
+      workspace: 0, ai: 0, privacy: 0, scheduling: 0, voice: 0, advanced: 0, help: 0, organization: 0,
     };
     const lowerQ = searchQuery.toLowerCase().trim();
     if (!lowerQ) return scores;
@@ -1145,7 +1142,7 @@ export function SettingsContent({
   // Which sections have any match (score > 0).
   const visibleSections = useMemo<Set<SectionCategory>>(() => {
     if (!searchQuery.trim()) {
-      return new Set<SectionCategory>(['workspace', 'ai', 'privacy', 'scheduling', 'voice', 'advanced', 'help']);
+      return new Set<SectionCategory>(['workspace', 'ai', 'privacy', 'scheduling', 'voice', 'advanced', 'help', 'organization']);
     }
     const sections = new Set<SectionCategory>();
     (Object.keys(sectionScores) as SectionCategory[]).forEach((sec) => {
@@ -1158,7 +1155,7 @@ export function SettingsContent({
   // current section is already a top match (so typing doesn't yank you around).
   const effectiveSection: SectionCategory = (() => {
     if (!searchActive) return activeSection;
-    const order: SectionCategory[] = ['workspace', 'ai', 'privacy', 'scheduling', 'voice', 'advanced', 'help'];
+    const order: SectionCategory[] = ['workspace', 'ai', 'privacy', 'scheduling', 'voice', 'advanced', 'help', 'organization'];
     const maxScore = Math.max(...order.map((s) => sectionScores[s]));
     if (maxScore <= 0) return activeSection;
     if (sectionScores[activeSection] === maxScore) return activeSection;
@@ -1353,6 +1350,7 @@ export function SettingsContent({
             {!railCollapsed && (
             <nav aria-label="Settings sections" className="min-h-0 flex-1 overflow-y-auto py-3">
               {SETTING_CATEGORIES.map((sec) => {
+              if (sec.id === 'organization' && !getSettingsModuleDescriptor(sec.id)) return null;
               const visible = visibleSections.has(sec.id);
               if (!visible) return null;
               const isActive = !viewingExtra && activeSection === sec.id;

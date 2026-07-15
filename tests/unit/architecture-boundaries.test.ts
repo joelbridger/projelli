@@ -71,6 +71,7 @@ const ALLOWED_FEATURE_EDGES = new Set<string>([
   'settings->meetings',   // RecordingNoticeSettings (Recording Notice Kit) configures the meetings notice policy + spoken-script, reusing meetings/noticeSettings' pure readers (mirrors settings->ask / settings->dictation config edges)
   'settings->onboarding', // settings can relaunch onboarding flows
   'settings->scheduling', // settings hosts the local scheduling availability panel; the scheduling feature owns booking rules and slot math
+  'settings->crm',        // Settings mounts the feature-owned Organization descriptor through its public CRM doorway.
   'settings->workflows',  // settings hosts the templates marketplace tab
 ]);
 

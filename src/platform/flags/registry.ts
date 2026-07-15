@@ -78,6 +78,15 @@ export const flagRegistry = [
     expiresAt: '2026-09-13',
     defaultEnabled: false,
   },
+  {
+    id: 'teams-roles',
+    description:
+      'Keeps Organization people, teams, and roles dark until their acceptance drive passes.',
+    ownerLane: 'teams-roles',
+    createdAt: '2026-07-15',
+    expiresAt: '2026-09-13',
+    defaultEnabled: false,
+  },
 ] as const satisfies readonly FlagDescriptor[];
 
 export type FlagId = (typeof flagRegistry)[number]['id'];

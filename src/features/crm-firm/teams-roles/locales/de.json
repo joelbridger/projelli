@@ -1,0 +1,43 @@
+{
+  "teams-roles": {
+    "settings-label": "Organisation",
+    "heading": "Personen und Berechtigungen",
+    "heading-copy": "Verwalten Sie Personen, Teams und Rollen Ihrer Firma an einem Ort.",
+    "people-title": "Personen",
+    "people-copy": "Weisen Sie jeder aktiven Person eine Rolle und ihre Teams zu.",
+    "active-count": "{{count}} aktive Mitglieder",
+    "people-empty": "Personen erscheinen hier, nachdem sie zu Ihrer Firma hinzugefügt wurden.",
+    "unnamed-member": "Unbenanntes Mitglied",
+    "active": "Aktiv",
+    "inactive": "Inaktiv",
+    "role-label": "Rolle",
+    "role-for": "Rolle für {{name}}",
+    "choose-role": "Rolle auswählen",
+    "teams-label": "Teams",
+    "teams-title": "Teams",
+    "teams-copy": "Nutzen Sie Teams zur Organisation von Personen. Rollen, nicht Teams, entscheiden über Zugriffe.",
+    "team-name": "Teamname",
+    "add-team": "Team hinzufügen",
+    "team-saved": "Team gespeichert.",
+    "team-deleted": "Team gelöscht.",
+    "roles-title": "Teams und Rollen",
+    "roles-copy": "Die Rollenmatrix macht den Kundenzugriff klar, bevor jemand einen Datensatz öffnet.",
+    "view-matrix": "Rollenmatrix anzeigen",
+    "matrix-title": "Rollenmatrix",
+    "access-summary": "Kundenzugriff: {{access}} · {{count}} Personen",
+    "scope": {
+      "assigned": "zugewiesene Kunden",
+      "shared": "geteilte Kunden",
+      "firm-read": "firmenweiter Lesezugriff",
+      "none": "kein Kundenzugriff"
+    },
+    "no-capabilities": "Keine Berechtigungen",
+    "role-name": "Rollenname",
+    "add-role": "Rolle hinzufügen",
+    "custom-role-description": "Benutzerdefinierte Firmenrolle.",
+    "role-saved": "Rolle gespeichert.",
+    "role-deleted": "Rolle gelöscht.",
+    "delete": "Löschen",
+    "save-failed": "Die Änderung konnte nicht gespeichert werden."
+  }
+}

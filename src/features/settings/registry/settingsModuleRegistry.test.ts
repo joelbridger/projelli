@@ -1,12 +1,18 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BASE_SETTINGS_SCHEMA, SETTINGS_SCHEMA } from '@/platform/settings/schema';
 import {
   getSettingsModuleDescriptors,
+  getSettingsModuleDescriptor,
   getSettingsModuleDefinitions,
   validateSettingsModuleDescriptors,
 } from './settingsModuleRegistry';
 
 describe('settingsModuleRegistry', () => {
+  afterEach(() => {
+    vi.doUnmock('@/platform/flags/router');
+    vi.resetModules();
+  });
+
   it('keeps every legacy section and definition in its existing order', () => {
     expect(getSettingsModuleDescriptors().map((descriptor) => descriptor.id)).toEqual([
       'workspace', 'ai', 'privacy', 'scheduling', 'voice', 'advanced', 'help',
@@ -33,5 +39,29 @@ describe('settingsModuleRegistry', () => {
     }).toThrow(
       'duplicate section id: workspace',
     );
+  });
+
+  it('rejects an Organization descriptor without a namespaced label key', () => {
+    const organization = getSettingsModuleDescriptor('workspace');
+    expect(organization).toBeDefined();
+    if (!organization) throw new Error('Expected a settings descriptor');
+    expect(() => {
+      validateSettingsModuleDescriptors([
+        ...getSettingsModuleDescriptors().filter((descriptor) => descriptor.id !== 'workspace'),
+        { ...organization, id: 'organization', labelKey: 'organization' },
+      ]);
+    }).toThrow('labelKey must include a namespace: organization');
+  });
+
+  it('adds Organization only when the Teams & Roles flag is on', async () => {
+    vi.resetModules();
+    vi.doMock('@/platform/flags/router', () => ({
+      isEnabled: (id: string) => id === 'teams-roles',
+    }));
+    const enabledRegistry = await import('./settingsModuleRegistry');
+    expect(enabledRegistry.getSettingsModuleDescriptors().map((descriptor) => descriptor.id)).toEqual([
+      'workspace', 'ai', 'privacy', 'scheduling', 'voice', 'advanced', 'help', 'organization',
+    ]);
+    expect(enabledRegistry.getSettingsModuleDescriptor('organization')?.render).toBeTypeOf('function');
   });
 });

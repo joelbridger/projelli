@@ -126,6 +126,21 @@ impl CrmCoreStore {
         self.upsert_live_record_with_descriptors(record, CRM_RECORD_DESCRIPTORS, true)
     }
 
+    /// Run one domain mutation under SQLite's write lock. The closure loads,
+    /// validates, and persists its aggregate before another connection may
+    /// start a competing write, preventing stale read-modify-write loss.
+    pub fn with_immediate_transaction<T>(
+        &self,
+        operation: impl FnOnce(&rusqlite::Transaction<'_>) -> Result<T>,
+    ) -> Result<T> {
+        let mut conn = lock_unpoison(&self.conn);
+        let transaction =
+            conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let result = operation(&transaction)?;
+        transaction.commit()?;
+        Ok(result)
+    }
+
     /// Importer-only persistence boundary. Wealthbox ids are opaque source
     /// values, and this path accepted every non-empty id before descriptors
     /// were introduced. Keep that compatibility while still running any
