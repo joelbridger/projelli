@@ -25,10 +25,7 @@ import { KeychainService } from '@/platform/providers/KeychainService';
 import { assertCloudGenerationAllowed, isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
 import { LOCAL_AI_NAME } from '@/config/brandText';
 import {
-  fileToolsAllowed,
-  broadestConsentScope,
   type ConsentScope,
-  type FileAccessConsent,
 } from '@/platform/ai/fileAccessConsent';
 import { IS_DEMO } from '@/web-demo/demoModeFlag';
 import { createDemoProvider } from '@/web-demo/demoAIProvider';
@@ -47,64 +44,27 @@ import {
 import type { AuditSourceIdentity } from '@/platform/types/audit';
 import type { EgressDestination } from '@/platform/privacy/egress';
 
+export {
+  askConsentScope,
+  composerIsBusy,
+  defaultAskScope,
+  filterHitsByScope,
+  isMailHit,
+  normalizeVisibleAskScope,
+} from './askScope';
+export type { AskScope } from './askScope';
+export {
+  buildHistoryBlock,
+  buildRecentAskSessions,
+  deriveTurnGrounding,
+  selectHistoryTurns,
+  sessionBelongsToWorkspace,
+  turnIsFileDerived,
+} from './askHistory';
+
 /* -------------------------------------------------------------------------- */
 /* Types                                                                       */
 /* -------------------------------------------------------------------------- */
-
-/**
- * Which slice of the user's data to search.
- * - 'this-matter'    search only within the active matter (same as today's default)
- * - 'all-matters'    cross-matter (same as today's no-active-matter default)
- * - 'email'          restrict to mail: sourceId / sourceType === 'mail' chunks
- * - 'documents'      restrict to non-mail chunks (files, PDFs, transcripts, etc.)
- * - 'whole-practice' book-level questions answered from per-client Client Map
- *   summaries only (Wave 4 Track C); never reaches retrieval — matter
- *   isolation stays intact because raw cross-matter chunks are never read.
- */
-export type AskScope = 'this-matter' | 'all-matters' | 'email' | 'documents' | 'whole-practice';
-
-export function defaultAskScope(hasMatter: boolean): AskScope {
-  return hasMatter ? 'this-matter' : 'all-matters';
-}
-
-export function normalizeVisibleAskScope(scope: AskScope, hasMatter: boolean): AskScope {
-  return scope === 'this-matter' && !hasMatter ? 'all-matters' : scope;
-}
-
-/**
- * F2.5 — the file-access consent scope for an Ask turn. It MUST mirror the
- * turn's RETRIEVAL scope (`retrievalScope` in useAsk), so a grant is bound to
- * exactly the slice of client data a send could pull:
- *  - a single active client, scope not "all-matters"  → that client's matter;
- *  - no active client, OR the user picked "All matters" → all clients.
- *
- * Binding consent to the same scope as retrieval is what makes an all-clients
- * Ask demand its own (stricter) grant: a single-client grant never satisfies an
- * all-clients turn (see {@link fileToolsAllowed}). Pure — one source of truth
- * for the send-path gate and the composer banner so the two can never disagree.
- */
-export function askConsentScope(
-  activeMatterId: string | null | undefined,
-  askScope: AskScope,
-): ConsentScope {
-  // whole-practice spans every client's summary, same as all-matters — an
-  // active single client must never narrow its consent scope (Codex review:
-  // a single-client grant must not silently cover a book-wide send).
-  return activeMatterId && askScope !== 'all-matters' && askScope !== 'whole-practice'
-    ? { kind: 'matter', matterId: activeMatterId }
-    : { kind: 'allMatters' };
-}
-
-/**
- * Whether the composer's input/submit button should show busy. `bookLoading`
- * (a whole-practice send in flight) must only disable the composer WHILE that
- * scope is active — otherwise switching away to This client/Email/Documents
- * while a book-wide send is still running in the background would leave the
- * visible (and unrelated) composer stuck disabled (Coordinator review round 1).
- */
-export function composerIsBusy(isBusy: boolean, bookLoading: boolean, askScope: AskScope): boolean {
-  return isBusy || (askScope === 'whole-practice' && bookLoading);
-}
 
 export type AskFailureStage =
   | 'setup'
@@ -266,12 +226,6 @@ export interface RecentAskSession {
   chatId: string;
   label: string;
   dateLabel: string;
-}
-
-interface AskSessionLike {
-  messages: ChatMessage[];
-  workspaceRoot?: string;
-  title?: string;
 }
 
 export interface BoundAnswerCitations {
@@ -580,153 +534,6 @@ export function friendlyErrorMessage(
     : "I couldn't get an answer from your AI. Try again in a moment, or search by keyword instead.";
 }
 /* eslint-enable lantern-i18n/no-hardcoded-string */
-
-/** Build conversation history block for system prompt (last N turns). */
-/**
- * F2.5b (Codex P1/round-3) — true when a turn's answer was built from client
- * file content (so re-sending it is "sending" that content again). Uses the
- * DURABLE `groundedFromFiles` marker set at creation, with citations/sources/
- * files-block as a heuristic backstop for legacy/reconstructed turns.
- */
-export function turnIsFileDerived(turn: AskTurn): boolean {
-  // Any positive file signal → file-derived.
-  if (
-    turn.citations.length > 0 ||
-    turn.sources.length > 0 ||
-    (turn.blocks?.some((b) => b.kind === 'files') ?? false)
-  ) {
-    return true;
-  }
-  // FAIL CLOSED (Codex round 5): the current code stamps EVERY Ask turn with a
-  // definite `groundedFromFiles` (true or false), so only `false` means "the
-  // grounding WAS evaluated and this answer used no file content" → safe to keep.
-  // `undefined` is a LEGACY turn persisted before the marker existed: its
-  // provenance is unknown, so treat it as file-derived (redacted from a later
-  // denied/narrower cloud send) rather than assume it's safe.
-  return turn.groundedFromFiles !== false;
-}
-
-/**
- * F2.5b (Codex P1/round-3) — the subset of prior turns whose answers may be
- * included in the history block of the NEXT send. "Reading is sending" covers
- * conversation history: a prior file-grounded answer carries retrieved client
- * facts, so a CLOUD send may re-send it ONLY when the current consent covers the
- * scope THAT answer was grounded under. So a single-client grant can't drag an
- * all-clients (or other-scope) prior answer — even one grounded on an earlier
- * LOCAL turn that never needed consent — into a cloud prompt. Purely general
- * turns are always kept; a local send keeps the full history (it never leaks); a
- * legacy file-derived turn with no stored scope assumes the widest scope (all
- * clients), the conservative default (kept only under an all-clients grant).
- */
-export function selectHistoryTurns(
-  turns: AskTurn[],
-  consent: FileAccessConsent,
-  providerIsCloud: boolean,
-  currentTurnScope: ConsentScope,
-): AskTurn[] {
-  if (!providerIsCloud) return turns;
-  // The CURRENT turn must itself be permitted file content for THIS scope, else
-  // NO file-derived history rides along either (Codex round 12): e.g. a chat
-  // switched to "all clients" with only a single-client grant must not send that
-  // client's prior file answer during the all-clients send.
-  const currentAllowsFileContent = fileToolsAllowed(consent, currentTurnScope);
-  return turns.filter((turn) => {
-    if (!turnIsFileDerived(turn)) return true;
-    if (!currentAllowsFileContent) return false;
-    const groundedScope: ConsentScope = turn.groundingScope ?? { kind: 'allMatters' };
-    return fileToolsAllowed(consent, groundedScope);
-  });
-}
-
-/**
- * F2.5b (Codex round 4) — a turn's grounding is TRANSITIVE. An answer draws on
- * client file content not only from THIS turn's fresh retrieval but also from any
- * file-grounded prior answers included in its history block (e.g. "summarize what
- * you just said" repeats earlier client facts with no fresh hits). So a turn is
- * file-derived if it had fresh hits OR its history carried file content, and its
- * EFFECTIVE grounding scope is the broadest of every contributing source — so a
- * later denied/narrower cloud send correctly redacts it. `historyTurns` is the
- * set actually placed in the history block (already consent-filtered upstream).
- */
-export function deriveTurnGrounding(opts: {
-  hadFreshHits: boolean;
-  turnScope: ConsentScope;
-  historyTurns: AskTurn[];
-}): { usedFileContent: boolean; scope?: ConsentScope } {
-  const fileDerivedHistory = opts.historyTurns.filter(turnIsFileDerived);
-  const usedFileContent = opts.hadFreshHits || fileDerivedHistory.length > 0;
-  if (!usedFileContent) return { usedFileContent: false };
-  const contributing: ConsentScope[] = [
-    ...(opts.hadFreshHits ? [opts.turnScope] : []),
-    ...fileDerivedHistory.map((t) => t.groundingScope ?? { kind: 'allMatters' as const }),
-  ];
-  return { usedFileContent: true, scope: broadestConsentScope(contributing) };
-}
-
-export function buildHistoryBlock(turns: AskTurn[], maxTurns = 6): string {
-  if (turns.length === 0) return '';
-  const recent = turns.slice(-maxTurns);
-  const lines: string[] = ['Conversation so far (last exchanges):'];
-  for (const t of recent) {
-    lines.push(`Q: ${t.question}`);
-    lines.push(`A: ${t.answer}`);
-  }
-  lines.push('\nNow answer the new question below, citing sources with [filename paragraph N] as before.');
-  return lines.join('\n');
-}
-
-function dateLabelFromTimestamp(ts: string | undefined): string {
-  if (!ts) return '';
-  try {
-    const d = new Date(ts);
-    return `${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
-  } catch {
-    return '';
-  }
-}
-
-export function sessionBelongsToWorkspace(
-  session: { workspaceRoot?: string; messages?: unknown[] },
-  workspaceRoot: string | null | undefined,
-): boolean {
-  if (!workspaceRoot) return true;
-  return session.workspaceRoot === workspaceRoot;
-}
-
-export function buildRecentAskSessions(
-  sessions: Record<string, AskSessionLike>,
-  workspaceRoot: string | null | undefined,
-  options: {
-    prefix?: string;
-    excludeChatId?: string;
-    limit?: number;
-  } = {},
-): RecentAskSession[] {
-  const prefix = options.prefix ?? 'ask-';
-  const limit = options.limit ?? 5;
-
-  return Object.entries(sessions)
-    .filter(([key, session]) =>
-      key.startsWith(prefix) &&
-      key !== options.excludeChatId &&
-      sessionBelongsToWorkspace(session, workspaceRoot) &&
-      session.messages.some((m) => m.role === 'user'),
-    )
-    .sort(([, a], [, b]) => {
-      const aTs = a.messages.find((m) => m.role === 'user')?.timestamp ?? '';
-      const bTs = b.messages.find((m) => m.role === 'user')?.timestamp ?? '';
-      return bTs.localeCompare(aTs);
-    })
-    .map(([key, session]) => {
-      const firstUserMsg = session.messages.find((m) => m.role === 'user');
-      return {
-        chatId: key,
-        label: session.title?.trim() || firstUserMsg?.content || key,
-        dateLabel: dateLabelFromTimestamp(firstUserMsg?.timestamp),
-      };
-    })
-    .slice(0, limit);
-}
 
 export function buildWorkspaceSources(hits: RagHit[]): WorkspaceSource[] {
   return buildDatedWorkspaceSources(hits);
@@ -1626,21 +1433,4 @@ export function reconstructTurns(messages: ChatMessage[]): AskTurn[] {
     }
   }
   return turns;
-}
-
-/** Returns true for a hit that came from imported email. */
-export function isMailHit(hit: RagHit): boolean {
-  return hit.sourceType === 'mail' || hit.path.startsWith('mail:') || (hit.sourceId?.startsWith('mail:') ?? false);
-}
-
-/**
- * Filter retrieved hits according to the user-selected scope.
- * 'this-matter' and 'all-matters' keep all hits (retrieval scope is already
- * correct from the Tauri-level query). 'email' keeps only mail: chunks;
- * 'documents' keeps only non-mail chunks.
- */
-export function filterHitsByScope(hits: RagHit[], scope: AskScope): RagHit[] {
-  if (scope === 'email') return hits.filter(isMailHit);
-  if (scope === 'documents') return hits.filter((h) => !isMailHit(h));
-  return hits;
 }
