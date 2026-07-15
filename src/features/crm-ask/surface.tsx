@@ -1,12 +1,12 @@
 import { Search } from 'lucide-react';
 import { CrmAskSurface } from './CrmAskSurface';
-import type { CrmHomeSurfaceDescriptor } from '@/features/crm-home/registry';
+import type { CrmHomeSurfaceDescriptor } from '@/features/crm-home/registryTypes';
 
 export const crmAskSurface: CrmHomeSurfaceDescriptor = {
   id: 'search',
-  label: 'Ask',
+  labelKey: 'crm.home.destinations.ask',
   icon: Search,
   route: 'search',
-  rail: true,
+  rail: { group: 'home', order: 190 },
   Component: CrmAskSurface,
 };

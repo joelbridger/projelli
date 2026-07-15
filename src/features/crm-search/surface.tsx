@@ -1,5 +1,18 @@
 import { Search } from 'lucide-react';
 import { CrmSearchSurface } from './CrmSearchSurface';
-import type { CrmHomeSurfaceDescriptor } from '@/features/crm-home/registry';
+import type { CrmHomeSurfaceDescriptor } from '@/features/crm-home/registryTypes';
 
-export const searchSurface: CrmHomeSurfaceDescriptor = { id: 'search', label: 'Search records', icon: Search, route: 'search', rail: true, Component: CrmSearchSurface };
+declare module '@/features/crm-home/registryTypes' {
+  interface CrmHomeRouteMap {
+    search: true;
+  }
+}
+
+export const searchSurface: CrmHomeSurfaceDescriptor = {
+  id: 'search',
+  labelKey: 'crm.home.destinations.search',
+  icon: Search,
+  route: 'search',
+  rail: { group: 'home', order: 200 },
+  Component: CrmSearchSurface,
+};
