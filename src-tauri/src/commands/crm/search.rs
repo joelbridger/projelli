@@ -10,7 +10,11 @@ use serde::Serialize;
 use serde_json::Value;
 use tauri::State;
 
-use super::{commands::CrmState, core_store::CrmCoreStore};
+use super::{
+    commands::CrmState,
+    core_store::CrmCoreStore,
+    features::permissions::commands::{own_clients_permissions_enabled, permitted_search_scopes},
+};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -271,9 +275,21 @@ pub async fn crm_search(
     tokio::task::spawn_blocking(move || {
         let store = CrmCoreStore::open(&workspace)?;
         let matters = rebuild_live_index(&store)?;
-        let scopes = match matter_id.filter(|scope| !scope.trim().is_empty()) {
-            Some(scope) => vec![scope],
-            None => matters.into_iter().collect(),
+        // Own-clients enforcement: when the flag is on, a non-firm-wide member's
+        // search is restricted to the matters they own or are assigned, at the
+        // native layer — a non-owned client's rows are refused, not hidden by the
+        // renderer. Deny-closed if no member is bound. Flag off keeps the original
+        // firm-wide behavior. Authority mirrors list/get (crm::features::permissions).
+        let scopes = match permitted_search_scopes(
+            &store,
+            own_clients_permissions_enabled(),
+            matter_id.as_deref(),
+        )? {
+            Some(scopes) => scopes,
+            None => match matter_id.filter(|scope| !scope.trim().is_empty()) {
+                Some(scope) => vec![scope],
+                None => matters.into_iter().collect(),
+            },
         };
         let mut hits = Vec::new();
         for scope in scopes {
@@ -349,5 +365,137 @@ mod tests {
         assert!(snippet.contains("As of 2026-07-13"));
         assert!(!snippet.contains("\"label\""));
         assert!(!snippet.contains("internal-id"));
+    }
+
+    // Imported-style fixtures: a household's `id` differs from its `matterId`
+    // (Wealthbox/Salesforce/Redtail imports), which is where a matter root has no
+    // same-id live record. Scope must still key on household ownership.
+    fn seed_two_households(store: &CrmCoreStore) {
+        store
+            .with_immediate_transaction(|transaction| {
+                transaction.execute(
+                    "INSERT INTO crm_member_roles(member_id,role_id,updated_at) VALUES(?1,?2,?3)",
+                    ("maya", "advisor", "2026-07-15T00:00:00Z"),
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        store
+            .upsert_live_record(&serde_json::json!({
+                "id": "household:maya", "kind": "household", "matterId": "matter:maya",
+                "ownerMemberId": "maya", "name": "Galleon Family",
+                "updatedAt": "2026-07-15T00:00:00Z"
+            }))
+            .unwrap();
+        store
+            .upsert_live_record(&serde_json::json!({
+                "id": "household:noah", "kind": "household", "matterId": "matter:noah",
+                "ownerMemberId": "noah", "name": "Zephyr Family",
+                "updatedAt": "2026-07-15T00:00:00Z"
+            }))
+            .unwrap();
+    }
+
+    fn bind_current_member(store: &CrmCoreStore, member_id: &str) {
+        store
+            .upsert_live_record(&serde_json::json!({
+                "id": "firm:current-member", "kind": "permissions-current-member-state",
+                "matterId": "firm", "memberId": member_id, "updatedAt": "2026-07-15T00:00:00Z"
+            }))
+            .unwrap();
+    }
+
+    fn hits_over(store: &CrmCoreStore, scopes: &[String], term: &str) -> usize {
+        let query = fts_query(term).unwrap();
+        scopes
+            .iter()
+            .map(|scope| store.search_fts(scope, &query).unwrap().len())
+            .sum()
+    }
+
+    #[test]
+    fn flag_on_refuses_a_search_matching_a_non_owned_client() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = CrmCoreStore::open_with_key(directory.path(), &[37; 32]).unwrap();
+        seed_two_households(&store);
+        bind_current_member(&store, "maya");
+        rebuild_live_index(&store).unwrap();
+
+        let scopes = permitted_search_scopes(&store, true, None)
+            .unwrap()
+            .expect("enforcement on returns a scope set");
+        assert_eq!(scopes, vec!["matter:maya".to_string()]);
+
+        // A term that only appears in noah's non-owned household must return
+        // nothing natively — refused/filtered at this layer, not hidden by the
+        // renderer.
+        assert_eq!(
+            hits_over(&store, &scopes, "Zephyr"),
+            0,
+            "search must not reach a non-owned client's rows"
+        );
+        // The bound member's own household stays searchable within her scope.
+        assert!(
+            hits_over(&store, &scopes, "Galleon") >= 1,
+            "the member's own client stays searchable"
+        );
+    }
+
+    #[test]
+    fn flag_on_refuses_search_after_attempting_to_inject_a_foreign_matter() {
+        use crate::commands::crm::features::permissions::commands::authorize_record_save;
+        let directory = tempfile::tempdir().unwrap();
+        let store = CrmCoreStore::open_with_key(directory.path(), &[41; 32]).unwrap();
+        seed_two_households(&store);
+        bind_current_member(&store, "maya");
+        // The Finding-1 bypass end to end: maya tries to write a record she "owns"
+        // into noah's matter. The write doorway refuses it, so it never reaches
+        // the index, and her scope never gains noah's matter.
+        let injected = serde_json::json!({
+            "id": "matter:noah", "kind": "note", "matterId": "matter:noah",
+            "ownerMemberId": "maya", "body": "Zephyr",
+            "updatedAt": "2026-07-15T00:00:00Z"
+        });
+        assert!(authorize_record_save(&store, true, &injected).is_err());
+
+        rebuild_live_index(&store).unwrap();
+        let scopes = permitted_search_scopes(&store, true, None).unwrap().unwrap();
+        assert_eq!(scopes, vec!["matter:maya".to_string()]);
+        assert_eq!(
+            hits_over(&store, &scopes, "Zephyr"),
+            0,
+            "a refused injection must not widen search scope"
+        );
+    }
+
+    #[test]
+    fn flag_on_ignores_a_forged_non_owned_matter_scope() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = CrmCoreStore::open_with_key(directory.path(), &[38; 32]).unwrap();
+        seed_two_households(&store);
+        bind_current_member(&store, "maya");
+        rebuild_live_index(&store).unwrap();
+
+        // A renderer that supplies another member's matter id is scoped to an
+        // empty set, so no rows are returned.
+        let forged = permitted_search_scopes(&store, true, Some("matter:noah")).unwrap();
+        assert_eq!(forged, Some(Vec::new()));
+    }
+
+    #[test]
+    fn flag_on_without_a_bound_member_refuses_search() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = CrmCoreStore::open_with_key(directory.path(), &[39; 32]).unwrap();
+        // Deny-closed: no current member is bound.
+        assert!(permitted_search_scopes(&store, true, None).is_err());
+    }
+
+    #[test]
+    fn flag_off_leaves_search_scoping_untouched() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = CrmCoreStore::open_with_key(directory.path(), &[40; 32]).unwrap();
+        assert!(permitted_search_scopes(&store, false, Some("noah-household"))
+            .unwrap()
+            .is_none());
     }
 }

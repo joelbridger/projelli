@@ -5,6 +5,7 @@
 //! `crm::commands` compatibility facade.
 
 pub mod connector;
+pub mod permissions;
 pub mod teams_roles;
 pub mod trash;
 
@@ -19,6 +20,7 @@ pub struct CrmFeatureDescriptor {
 /// Append-only registry of CRM native feature modules.
 pub const CRM_FEATURE_REGISTRY: &[CrmFeatureDescriptor] = &[
     connector::FEATURE_DESCRIPTOR,
+    permissions::FEATURE_DESCRIPTOR,
     teams_roles::FEATURE_DESCRIPTOR,
     trash::FEATURE_DESCRIPTOR,
 ];
