@@ -10,6 +10,5 @@ export { VoiceSettingsSection } from './VoiceSettingsSection';
 // that mount a Settings section.
 export { registerSettingsSectionRenderer } from './registry/sectionRendererBindings';
 export type {
-  SettingsModuleDescriptor,
   SettingsSectionRenderProps,
 } from './registry/types';

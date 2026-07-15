@@ -1,3 +1,4 @@
+import { createElement } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -34,6 +35,7 @@ vi.mock('./teamsRolesClient', () => ({ teamsRolesClient: client }));
 import { emptyTeamsRolesState } from './model';
 import { TeamsRolesSettings } from './settingsModule';
 import { teamsRolesSettingsModule } from './settingsModuleDescriptor';
+import { teamsRolesSettingsPanel } from './settingsModule';
 
 describe('TeamsRolesSettings', () => {
   beforeEach(() => {
@@ -50,13 +52,43 @@ describe('TeamsRolesSettings', () => {
     client.deleteRole.mockReset().mockResolvedValue(emptyTeamsRolesState());
   });
 
-  it('has a unique, namespaced Organization settings descriptor', () => {
+  it('has a unique, namespaced Organization settings panel', () => {
     expect(teamsRolesSettingsModule).toEqual(
       expect.objectContaining({
-        id: 'organization',
+        id: 'teams-roles',
+        section: 'organization',
         labelKey: 'teams-roles.settings-label',
       })
     );
+  });
+
+  it('keeps the Organization DOM identical when mounted as a composed panel', async () => {
+    const baseline = render(<TeamsRolesSettings />);
+    await waitFor(() => {
+      expect(
+        baseline.getByTestId('teams-roles-member-maya')
+      ).toBeInTheDocument();
+    });
+    const composed = render(
+      createElement(teamsRolesSettingsPanel.render, {
+        getSetting: () => undefined,
+        setSetting: () => undefined,
+        onAction: () => undefined,
+        filteredKeys: new Set<string>(),
+        searchQuery: '',
+        searchActive: false,
+        onNavigate: () => undefined,
+        hasWorkspaceOpen: true,
+      })
+    );
+    await waitFor(() => {
+      expect(
+        composed.container.querySelector(
+          '[data-testid="teams-roles-member-maya"]'
+        )
+      ).toBeInTheDocument();
+    });
+    expect(composed.container.innerHTML).toBe(baseline.container.innerHTML);
   });
 
   it('renders people, the four role rows, and a role matrix behind the panel action', async () => {

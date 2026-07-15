@@ -1,8 +1,10 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
 import { SettingsContent } from '@/features/settings/SettingsContent';
+import { setDevFlagOverride } from '@/platform/flags';
 
 afterEach(() => {
+  setDevFlagOverride('teams-roles', undefined);
   cleanup();
 });
 
@@ -174,5 +176,24 @@ describe('SettingsContent', () => {
   it('keeps the settings navigation landmark label', () => {
     render(<SettingsContent variant="page" />);
     expect(screen.getByRole('navigation', { name: 'Settings sections' })).toBeInTheDocument();
+  });
+
+  it('updates the rail when a panel flag changes while Settings is open', async () => {
+    setDevFlagOverride('teams-roles', false);
+    render(<SettingsContent variant="page" />);
+    expect(screen.queryByTestId('settings-category-organization')).not.toBeInTheDocument();
+
+    setDevFlagOverride('teams-roles', true);
+    await waitFor(() => {
+      expect(screen.getByTestId('settings-category-organization')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('settings-category-organization'));
+
+    setDevFlagOverride('teams-roles', false);
+    await waitFor(() => {
+      expect(screen.queryByTestId('settings-category-organization')).not.toBeInTheDocument();
+      expect(screen.getByTestId('settings-category-workspace')).toHaveAttribute('aria-current', 'page');
+      expect(screen.getByTestId('section-workspace')).toBeInTheDocument();
+    });
   });
 });

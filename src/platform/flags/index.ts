@@ -4,6 +4,7 @@ export {
   isEnabled,
   setDevFlagOverride,
   useFlag,
+  useFlagRegistryVersion,
   type FlagRouter,
   type FlagRouterOptions,
 } from './router';
