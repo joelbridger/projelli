@@ -136,6 +136,14 @@ describe('ClientBarV1', () => {
     expect(screen.getByTestId('shared-client-bar')).toBeInTheDocument();
     expect(screen.queryByTestId('client-bar-v1')).not.toBeInTheDocument();
   });
+
+  it('swaps to the v1 bar when the shared-client-bar flag is on', () => {
+    setDevFlagOverride('shared-client-bar', true);
+    render(<SharedClientBar />);
+
+    expect(screen.getByTestId('client-bar-v1')).toBeInTheDocument();
+    expect(screen.queryByTestId('shared-client-bar')).not.toBeInTheDocument();
+  });
 });
 
 function surface(
