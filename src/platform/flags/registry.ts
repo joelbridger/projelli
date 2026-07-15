@@ -127,6 +127,11 @@ export const flagRegistry = [
     description:
       'Keeps firm-defined CRM custom fields dark until the settings panel has passed acceptance review.',
     ownerLane: 'custom-fields-firm',
+    createdAt: '2026-07-15',
+    expiresAt: '2026-09-13',
+    defaultEnabled: false,
+  },
+  {
     id: 'contact-sources',
     description:
       'Keeps firm contact-source management dark until its acceptance drive is complete.',
