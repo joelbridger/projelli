@@ -32,7 +32,46 @@ enum PermissionOperation {
     Write,
 }
 
-pub(crate) fn own_clients_permissions_enabled() -> bool {
+/// A native command that returns or mutates client data, and whether it carries
+/// an own-clients authority guard. This is the single inventory the interlock
+/// (item 4) and the machine-checkable test (item 7) both read: every registered
+/// client-returning CRM command must appear here, and enforcement cannot turn on
+/// while any entry is unguarded.
+pub(crate) struct ClientDoorway {
+    pub command: &'static str,
+    pub guarded: bool,
+}
+
+/// Every doorway that can return or mutate client PII. Keep this exhaustive: the
+/// item-7 test fails if a registered client-returning command is missing, and
+/// the interlock keeps enforcement OFF if any entry is `guarded: false`.
+pub(crate) const CLIENT_DATA_DOORWAYS: &[ClientDoorway] = &[
+    ClientDoorway { command: "crm_live_list", guarded: true },
+    ClientDoorway { command: "crm_live_upsert", guarded: true },
+    ClientDoorway { command: "crm_live_upsert_many", guarded: true },
+    ClientDoorway { command: "crm_search", guarded: true },
+    ClientDoorway { command: "crm_permissions_list", guarded: true },
+    ClientDoorway { command: "crm_permissions_get_record", guarded: true },
+    ClientDoorway { command: "crm_permissions_upsert", guarded: true },
+    ClientDoorway { command: "crm_trash_list", guarded: true },
+    ClientDoorway { command: "crm_trash_restore", guarded: true },
+    ClientDoorway { command: "crm_migration_export", guarded: true },
+    ClientDoorway { command: "crm_list_households", guarded: true },
+    ClientDoorway { command: "rag_retrieve", guarded: true },
+];
+
+fn all_doorways_guarded() -> bool {
+    CLIENT_DATA_DOORWAYS.iter().all(|doorway| doorway.guarded)
+}
+
+/// The interlock, as a pure function so it can be tested with a synthetic
+/// unguarded doorway: enforcement is active only when the flag is on AND every
+/// doorway is guarded.
+fn resolve_enforcement(flag_on: bool, doorways: &[ClientDoorway]) -> bool {
+    flag_on && doorways.iter().all(|doorway| doorway.guarded)
+}
+
+fn flag_env_on() -> bool {
     matches!(
         std::env::var(OWN_CLIENTS_FLAG_ENV)
             .ok()
@@ -41,6 +80,17 @@ pub(crate) fn own_clients_permissions_enabled() -> bool {
             .as_deref(),
         Some("1" | "true" | "on")
     )
+}
+
+/// The SINGLE native source of truth for whether own-clients enforcement is
+/// active. Interlock (item 4): even with the flag env on, enforcement stays OFF
+/// while any registered client-returning doorway is unguarded, so a future flag
+/// flip cannot silently reintroduce a leak — the feature is all-doorways-on or
+/// honestly off, never partially enforced. The renderer reads this resolved
+/// state via `crm_permissions_enforcement_active`, so the UI can never believe
+/// protection is on while native has it off (item 6).
+pub(crate) fn own_clients_permissions_enabled() -> bool {
+    resolve_enforcement(flag_env_on(), CLIENT_DATA_DOORWAYS)
 }
 
 async fn workspace(state: &CrmState) -> Result<std::path::PathBuf, String> {
@@ -474,6 +524,15 @@ fn save_protected_record(
 pub async fn crm_permissions_get_current_member() -> Result<Option<CurrentMember>, String> {
     // Identity is the native firm session — never the renderer, never the store.
     Ok(native_current_member())
+}
+
+/// The resolved native enforcement state (item 6): the renderer reads THIS, the
+/// single source of truth, rather than assuming from its own flag — so the UI
+/// can never show "protected" while native enforcement is actually off (e.g. the
+/// interlock disabled it because a doorway is unguarded).
+#[tauri::command]
+pub async fn crm_permissions_enforcement_active() -> Result<bool, String> {
+    Ok(own_clients_permissions_enabled())
 }
 
 #[tauri::command]
@@ -993,6 +1052,95 @@ mod tests {
             permitted_search_scopes(&store, true, Some(&maya), None).unwrap(),
             Some(Vec::new())
         );
+    }
+
+    #[test]
+    fn interlock_keeps_enforcement_off_when_a_doorway_is_unguarded() {
+        // Item 4: a future flag flip cannot silently reintroduce a leak. Even
+        // with the flag on, one unguarded doorway keeps enforcement OFF.
+        let all_guarded = &[ClientDoorway { command: "a", guarded: true }];
+        let one_unguarded = &[
+            ClientDoorway { command: "a", guarded: true },
+            ClientDoorway { command: "b", guarded: false },
+        ];
+        assert!(resolve_enforcement(true, all_guarded));
+        assert!(
+            !resolve_enforcement(true, one_unguarded),
+            "an unguarded doorway must keep enforcement OFF"
+        );
+        assert!(!resolve_enforcement(false, all_guarded), "flag off is off");
+        // And the shipped registry is fully guarded (so the flag can enable).
+        assert!(all_doorways_guarded());
+    }
+
+    #[test]
+    fn every_client_doorway_is_registered_and_invokes_native_authority() {
+        // Item 7: machine-checkable — each client-returning command in the
+        // registry (1) is a real registered native command and (2) its source
+        // function actually invokes a native authorization symbol. A doorway
+        // marked guarded but calling no guard, or missing from the manifests,
+        // fails here.
+        use std::fs;
+        use std::path::{Path, PathBuf};
+
+        const GUARD_SYMBOLS: &[&str] = &[
+            "matter_read_scope",
+            "protected_records",
+            "permitted_search_scopes",
+            "authorize_record_save",
+            "save_protected_record",
+            "get_protected_record",
+            "require_firm_manage_authority",
+        ];
+
+        fn walk(dir: &Path, manifests: &mut Vec<String>, sources: &mut Vec<(PathBuf, String)>) {
+            for entry in fs::read_dir(dir).unwrap() {
+                let path = entry.unwrap().path();
+                if path.is_dir() {
+                    walk(&path, manifests, sources);
+                } else if path.file_name().and_then(|n| n.to_str()) == Some("command-manifest.txt") {
+                    for line in fs::read_to_string(&path).unwrap().lines() {
+                        if let Some(rest) = line.trim().strip_prefix("command ") {
+                            if let Some(fq) = rest.split_whitespace().nth(1) {
+                                if let Some(name) = fq.rsplit("::").next() {
+                                    manifests.push(name.to_string());
+                                }
+                            }
+                        }
+                    }
+                } else if path.extension().and_then(|e| e.to_str()) == Some("rs") {
+                    sources.push((path.clone(), fs::read_to_string(&path).unwrap()));
+                }
+            }
+        }
+
+        let src = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut manifest_commands = Vec::new();
+        let mut sources = Vec::new();
+        walk(&src, &mut manifest_commands, &mut sources);
+
+        for doorway in CLIENT_DATA_DOORWAYS {
+            assert!(
+                manifest_commands.iter().any(|name| name == doorway.command),
+                "doorway {} is not a registered native command",
+                doorway.command
+            );
+            if !doorway.guarded {
+                continue;
+            }
+            let declaration = format!("fn {}(", doorway.command);
+            let (_, text) = sources
+                .iter()
+                .find(|(_, text)| text.contains(&declaration))
+                .unwrap_or_else(|| panic!("no source declares {}", doorway.command));
+            let position = text.find(&declaration).unwrap();
+            let window = &text[position..(position + 4500).min(text.len())];
+            assert!(
+                GUARD_SYMBOLS.iter().any(|symbol| window.contains(symbol)),
+                "doorway {} is marked guarded but its function invokes no native authority symbol",
+                doorway.command
+            );
+        }
     }
 
     #[test]

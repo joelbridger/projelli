@@ -30,6 +30,18 @@ export const permissionsClient = {
       throw new Error('CRM permissions are available only in the desktop app.');
     return invoke<CurrentMember | null>('crm_permissions_get_current_member');
   },
+  /**
+   * The single source of truth for whether native own-clients enforcement is
+   * actually active (item 6). The renderer must read THIS before showing the
+   * client-isolation posture as "on": the native interlock may hold enforcement
+   * off (e.g. a doorway is unguarded) even when the feature flag reads enabled,
+   * and the UI must never claim protection that native is not applying. In the
+   * browser (no native layer) enforcement is never active.
+   */
+  enforcementActive: () =>
+    isTauri()
+      ? invoke<boolean>('crm_permissions_enforcement_active')
+      : Promise.resolve(false),
   list: (workspaceRoot: string | null | undefined) =>
     inCrmWorkspace<readonly LiveCrmRecord[]>(
       workspaceRoot,

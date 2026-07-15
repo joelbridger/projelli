@@ -6,3 +6,4 @@ command 2970 crate::commands::crm::features::permissions::crm_permissions_get_cu
 command 2990 crate::commands::crm::features::permissions::crm_permissions_list
 command 3000 crate::commands::crm::features::permissions::crm_permissions_get_record
 command 3010 crate::commands::crm::features::permissions::crm_permissions_upsert
+command 3030 crate::commands::crm::features::permissions::crm_permissions_enforcement_active
