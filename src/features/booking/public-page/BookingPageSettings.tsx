@@ -39,12 +39,12 @@ export function BookingPageSettings({
   };
 
   return (
-    <section data-testid="booking-page-settings" style={{ color: '#182230' }}>
+    <section data-testid="booking-page-settings" style={{ color: 'var(--kp-navy)' }}>
       <header style={{ alignItems: 'start', display: 'flex', gap: 16, justifyContent: 'space-between', marginBottom: 22 }}>
         <div>
-          <span style={{ color: '#667085', fontSize: 13, fontWeight: 700 }}>{t('booking-public-page.settings.eyebrow')}</span>
+          <span style={{ color: 'var(--color-muted-foreground)', fontSize: 13, fontWeight: 700 }}>{t('booking-public-page.settings.eyebrow')}</span>
           <h1 style={{ fontSize: 28, margin: '6px 0' }}>{t('booking-public-page.settings.title')}</h1>
-          <p style={{ color: '#667085', margin: 0 }}>{t('booking-public-page.settings.description')}</p>
+          <p style={{ color: 'var(--color-muted-foreground)', margin: 0 }}>{t('booking-public-page.settings.description')}</p>
         </div>
         <div aria-label={t('booking-public-page.settings.actions')} style={{ display: 'flex', gap: 8 }}>
           <button data-testid="booking-page-copy-link" onClick={copyLink} style={secondaryButtonStyle} type="button">{copied ? t('booking-public-page.settings.copied') : t('booking-public-page.settings.copy-link')}</button>
@@ -52,10 +52,10 @@ export function BookingPageSettings({
         </div>
       </header>
 
-      <div data-testid="booking-page-hosted-link-rail" style={{ background: '#f8fafc', border: '1px solid #e4e7ec', borderRadius: 12, marginBottom: 20, padding: 16 }}>
+      <div data-testid="booking-page-hosted-link-rail" style={{ background: 'var(--color-secondary)', border: '1px solid var(--kp-divider)', borderRadius: 12, marginBottom: 20, padding: 16 }}>
         <strong>{t('booking-public-page.settings.hosted-link')}</strong>
-        <code data-testid="booking-page-hosted-link" style={{ color: '#175cd3', display: 'block', marginTop: 6, overflowWrap: 'anywhere' }}>{hostedLink}</code>
-        <p style={{ color: '#667085', fontSize: 13, marginBottom: 0 }}>{t('booking-public-page.settings.hosted-link-help')}</p>
+        <code data-testid="booking-page-hosted-link" style={{ color: 'var(--kp-accent)', display: 'block', marginTop: 6, overflowWrap: 'anywhere' }}>{hostedLink}</code>
+        <p style={{ color: 'var(--color-muted-foreground)', fontSize: 13, marginBottom: 0 }}>{t('booking-public-page.settings.hosted-link-help')}</p>
       </div>
 
       <div style={{ display: 'grid', gap: 20, gridTemplateColumns: 'minmax(300px, 1fr) minmax(300px, 1fr)' }}>
@@ -75,10 +75,10 @@ export function BookingPageSettings({
           </div>
         </section>
         <section data-testid="booking-page-settings-preview" style={panelStyle}>
-          <span style={{ color: '#175cd3', fontSize: 13, fontWeight: 700 }}>{t('booking-public-page.settings.preview-label')}</span>
+          <span style={{ color: 'var(--kp-accent)', fontSize: 13, fontWeight: 700 }}>{t('booking-public-page.settings.preview-label')}</span>
           <h2 style={panelTitleStyle}>{branding.firmName}</h2>
           <p style={mutedStyle}>{t('booking-public-page.settings.preview-help')}</p>
-          <div style={{ border: '1px solid #e4e7ec', borderRadius: 10, overflow: 'hidden', transform: 'scale(.92)', transformOrigin: 'top left', width: '108.7%' }}>
+          <div style={{ border: '1px solid var(--kp-divider)', borderRadius: 10, overflow: 'hidden', transform: 'scale(.92)', transformOrigin: 'top left', width: '108.7%' }}>
             <BookingPublicPage availability={availability} branding={branding} />
           </div>
         </section>
@@ -96,10 +96,10 @@ function TextAreaField({ label, onChange, value }: { label: string; onChange: (v
   return <label style={{ gridColumn: '1 / -1' }}>{label}<textarea onChange={(event) => onChange(event.target.value)} style={{ ...inputStyle, minHeight: 72 }} value={value} /></label>;
 }
 
-const panelStyle = { background: 'white', border: '1px solid #e4e7ec', borderRadius: 14, padding: 20 };
+const panelStyle = { background: 'var(--color-background)', border: '1px solid var(--kp-divider)', borderRadius: 14, padding: 20 };
 const panelTitleStyle = { fontSize: 19, margin: '8px 0' };
-const mutedStyle = { color: '#667085', lineHeight: 1.5 };
+const mutedStyle = { color: 'var(--color-muted-foreground)', lineHeight: 1.5 };
 const formGridStyle = { display: 'grid', gap: 14, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', marginTop: 20 };
-const inputStyle = { border: '1px solid #d0d5dd', borderRadius: 8, boxSizing: 'border-box' as const, display: 'block', marginTop: 6, padding: 9, width: '100%' };
-const secondaryButtonStyle = { background: 'white', border: '1px solid #98a2b3', borderRadius: 8, color: '#344054', cursor: 'pointer', padding: '9px 12px' };
-const primaryButtonStyle = { background: '#173f5f', border: '1px solid #173f5f', borderRadius: 8, color: 'white', cursor: 'pointer', padding: '9px 12px' };
+const inputStyle = { border: '1px solid var(--color-border)', borderRadius: 8, boxSizing: 'border-box' as const, display: 'block', marginTop: 6, padding: 9, width: '100%' };
+const secondaryButtonStyle = { background: 'var(--color-background)', border: '1px solid var(--kp-divider-strong)', borderRadius: 8, color: 'var(--kp-navy)', cursor: 'pointer', padding: '9px 12px' };
+const primaryButtonStyle = { background: 'var(--kp-navy)', border: '1px solid var(--kp-navy)', borderRadius: 8, color: 'var(--color-primary-foreground)', cursor: 'pointer', padding: '9px 12px' };
