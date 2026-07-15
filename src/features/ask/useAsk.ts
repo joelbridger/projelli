@@ -52,7 +52,10 @@ import {
   type ConfidentialityMode,
   type EgressInfo,
 } from '@/platform/privacy/egress';
-import { sendPreparedMessageWithEgressAudit, sendPreparedStreamingWithEgressAudit } from '@/platform/privacy/promptPreparation';
+import {
+  sendPreparedMessageWithEgressAudit,
+  sendPreparedStreamingWithEgressAudit,
+} from '@/platform/privacy/promptPreparation';
 import {
   fileToolsAllowed,
   resolveWorkspaceRetrieval,
@@ -122,7 +125,6 @@ import {
   isAuthRejectionError,
   buildHistoryBlock,
   reconstructTurns,
-  filterHitsByScope,
   bindAnswerCitations,
   selectHistoryTurns,
   deriveTurnGrounding,
@@ -130,6 +132,8 @@ import {
   dedupeRecognizedHits,
   recognizeHit,
 } from './askHelpers';
+import { getAskAnswerActions, getAskMode } from './registry/askRegistries';
+import { NORMAL_ASK_MODE } from './registry/compatibility';
 import {
   markKeyInvalid,
   markKeyVerified,
@@ -218,6 +222,9 @@ export function useAsk({
   onAuditLog,
   onAnswerCompleted,
 }: UseAskProps) {
+  // The shipped Ask flow is a descriptor, not a special case in this hook.
+  // Future modes contribute the same three contracts (scope, retrieval, prompt).
+  const askMode = getAskMode(NORMAL_ASK_MODE);
   const activeMatter = useActiveMatter();
   const hasActiveMatter = Boolean(activeMatter);
   const rootPath = useWorkspaceStore((s) => s.rootPath);
@@ -275,13 +282,15 @@ export function useAsk({
 
   // Scope toggle — default to 'this-matter' when a matter is active, else 'all-matters'.
   // Reset to appropriate default when the active matter changes.
-  const defaultScope = (): AskScope =>
-    defaultAskScope(hasActiveMatter);
+  const defaultScope = (): AskScope => defaultAskScope(hasActiveMatter);
   const [storedAskScope, setStoredAskScope] = useState<AskScope>(defaultScope);
   const askScope = normalizeVisibleAskScope(storedAskScope, hasActiveMatter);
-  const setAskScope = useCallback((nextScope: AskScope) => {
-    setStoredAskScope(normalizeVisibleAskScope(nextScope, hasActiveMatter));
-  }, [hasActiveMatter]);
+  const setAskScope = useCallback(
+    (nextScope: AskScope) => {
+      setStoredAskScope(normalizeVisibleAskScope(nextScope, hasActiveMatter));
+    },
+    [hasActiveMatter]
+  );
 
   // Reset the manual selection + scope when the active matter OR workspace root
   // changes (chatId itself is derived above, so it's already consistent).
@@ -316,7 +325,9 @@ export function useAsk({
   const [selected, setSelected] = useState<number | null>(null);
   const [selectedTurnIdx, setSelectedTurnIdx] = useState<number | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [crmUnavailableNotice, setCrmUnavailableNotice] = useState<string | null>(null);
+  const [crmUnavailableNotice, setCrmUnavailableNotice] = useState<
+    string | null
+  >(null);
   const [status, setStatus] = useState<
     'idle' | 'retrieving' | 'answering' | 'done' | 'error'
   >('idle');
@@ -656,9 +667,12 @@ export function useAsk({
     [rootPath]
   );
 
-  const handleRenameSession = useCallback((sid: string, title: string) => {
-    renameSession(sid, title);
-  }, [renameSession]);
+  const handleRenameSession = useCallback(
+    (sid: string, title: string) => {
+      renameSession(sid, title);
+    },
+    [renameSession]
+  );
 
   const buildAuditScope = useCallback(
     (retrievalScope: RetrievalScope): AuditScope => {
@@ -868,10 +882,11 @@ export function useAsk({
          * within that matter's boundary first, then filter by source type. This
          * preserves the confidentiality partition at the database level.
          */
-        const retrievalScope: RetrievalScope =
-          activeMatter && askScope !== 'all-matters'
-            ? { kind: 'matter', matterId: activeMatter.id }
-            : { kind: 'allMatters' };
+        const retrievalPlan = askMode.buildRetrievalPlan({
+          activeMatterId: activeMatter?.id ?? null,
+          askScope,
+        });
+        const retrievalScope: RetrievalScope = retrievalPlan.scope;
 
         let hits: RagHit[] = [];
         const memoryEnabled = isMemoryEnabled();
@@ -909,7 +924,7 @@ export function useAsk({
           );
           failedStage = 'post-retrieval';
           // Apply client-side type filter for Email/Documents scopes.
-          hits = filterHitsByScope(rawHits, askScope);
+          hits = retrievalPlan.filterHits(rawHits);
           // Connector-access: collapse the SAME recognized export that arrived via
           // two paths (e.g. a Jump note synced to Wealthbox AND saved as a
           // SharePoint PDF) so it is never used as evidence twice in one answer.
@@ -958,7 +973,7 @@ export function useAsk({
           rootPath,
           q,
           retrievalScope.kind === 'matter' ? retrievalScope.matterId : null,
-          setCrmUnavailableNotice,
+          setCrmUnavailableNotice
         );
         hits = [...hits, ...crmHits];
 
@@ -1054,7 +1069,9 @@ export function useAsk({
           if (!alreadyConsented) {
             const toolsLabel = formatToolList(recognizedTools);
             const consented = await confirmExportConsent(
-              brandText(`Lantern found a report you exported or saved from ${toolsLabel} among the files it would use to answer. Lantern reads exported files; it is not connected to ${toolsLabel}. Confirm your firm permits you to store this exported report in Lantern and use your chosen AI on it.`),
+              brandText(
+                `Lantern found a report you exported or saved from ${toolsLabel} among the files it would use to answer. Lantern reads exported files; it is not connected to ${toolsLabel}. Confirm your firm permits you to store this exported report in Lantern and use your chosen AI on it.`
+              ),
               {
                 title: `Use exported reports from ${toolsLabel}?`,
                 confirmLabel: 'Yes, my firm permits this',
@@ -1279,22 +1296,24 @@ export function useAsk({
           const maxContextTokens =
             resolvedProvider.provider.getMetadata().capabilities
               ?.maxContextTokens ?? LANTERN_LOCAL_CONTEXT_WINDOW;
-          const staticSystemPrompt = filesOnly
-            ? buildAskSystemPrompt({
-                scopeHint: matterHint,
-                workspaceBlock: '',
-                historyBlock: '',
-              })
-            : buildSmartAskSystemPrompt({
-                scopeHint: matterHint,
-                workspaceBlock: '',
-                historyBlock: '',
-                // Estimate with the LONGER no-evidence hint: smart-mode trimming
-                // may drop every chunk (round-2 F2), flipping the real prompt to
-                // the no-evidence variant — sizing against the longer of the two
-                // keeps the estimate an upper bound in both outcomes.
-                hasEvidence: false,
-              });
+          const promptFormat = askMode.promptFormat(filesOnly);
+          const staticSystemPrompt =
+            promptFormat.kind === 'files-only'
+              ? buildAskSystemPrompt({
+                  scopeHint: matterHint,
+                  workspaceBlock: '',
+                  historyBlock: '',
+                })
+              : buildSmartAskSystemPrompt({
+                  scopeHint: matterHint,
+                  workspaceBlock: '',
+                  historyBlock: '',
+                  // Estimate with the LONGER no-evidence hint: smart-mode trimming
+                  // may drop every chunk (round-2 F2), flipping the real prompt to
+                  // the no-evidence variant — sizing against the longer of the two
+                  // keeps the estimate an upper bound in both outcomes.
+                  hasEvidence: false,
+                });
           const trimResult = trimForLocalContext(
             {
               fixedText: `${staticSystemPrompt}\n\n${q}`,
@@ -1303,7 +1322,7 @@ export function useAsk({
               // Smart mode may drop even the last chunk (answering honestly from
               // history / general knowledge via the no-evidence prompt below);
               // files-only must decline instead — see localContextTrim.ts.
-              mode: filesOnly ? 'files-only' : 'smart',
+              mode: promptFormat.kind,
               buildWorkspaceBlock: buildWorkspaceContextBlock,
               buildHistoryBlock: (turnsForBlock) =>
                 buildHistoryBlock(turnsForBlock, HISTORY_WINDOW),
@@ -1347,18 +1366,20 @@ export function useAsk({
         // the source-aware advisor prompt. `hasEvidence` reflects the CONSENT-GATED
         // grounding set, so a consent-blocked cloud turn correctly leads with an
         // honest nothing-found block instead of a green, fake-cited claim.
-        const systemPrompt = filesOnly
-          ? buildAskSystemPrompt({
-              scopeHint: matterHint,
-              workspaceBlock,
-              historyBlock,
-            })
-          : buildSmartAskSystemPrompt({
-              scopeHint: matterHint,
-              workspaceBlock,
-              historyBlock,
-              hasEvidence: groundingHits.length > 0,
-            });
+        const promptFormat = askMode.promptFormat(filesOnly);
+        const systemPrompt =
+          promptFormat.kind === 'files-only'
+            ? buildAskSystemPrompt({
+                scopeHint: matterHint,
+                workspaceBlock,
+                historyBlock,
+              })
+            : buildSmartAskSystemPrompt({
+                scopeHint: matterHint,
+                workspaceBlock,
+                historyBlock,
+                hasEvidence: groundingHits.length > 0,
+              });
 
         const resolveEgressForSend = (): EgressInfo | null => {
           if (!providerAudit) return null;
@@ -1525,11 +1546,21 @@ export function useAsk({
           const saveDurableIntent = async () => {
             const egressIntent = buildEgressEntry();
             if (egressIntent) {
-              await mustLogAuditPhase(onAuditLog, egressIntent, 'intent', auditPairId);
+              await mustLogAuditPhase(
+                onAuditLog,
+                egressIntent,
+                'intent',
+                auditPairId
+              );
             }
             const modelCallIntent = buildModelCallEntry(0);
             if (modelCallIntent) {
-              await mustLogAuditPhase(onAuditLog, modelCallIntent, 'intent', auditPairId);
+              await mustLogAuditPhase(
+                onAuditLog,
+                modelCallIntent,
+                'intent',
+                auditPairId
+              );
             }
           };
           if (typeof provider.sendMessageStreaming === 'function') {
@@ -1545,30 +1576,45 @@ export function useAsk({
                 prompt: q,
                 options: {
                   systemPrompt,
-                    // lp/localai-patience (round 2) — align the provider's whole-
-                    // request timeout with the UI first-token budget for local sends.
-                    ...(providerRequestTimeoutMs !== undefined
-                      ? { requestTimeoutMs: providerRequestTimeoutMs }
-                      : {}),
-                    onChunk: (chunk) => {
-                      if (abort.signal.aborted) return;
-                      watchdog.markProgress();
-                      setAnswerStalled(false);
-                      // lp/localai-patience — the first token means eval is done and
-                      // generation has begun; drop the calm "reading your documents"
-                      // state so the streamed answer replaces the spinner.
-                      setLocalEvaluating(false);
-                      answerText += chunk;
-                      setStreamingTurn((prev) =>
-                        prev ? { ...prev, answer: answerText } : prev
-                      );
-                    },
+                  // lp/localai-patience (round 2) — align the provider's whole-
+                  // request timeout with the UI first-token budget for local sends.
+                  ...(providerRequestTimeoutMs !== undefined
+                    ? { requestTimeoutMs: providerRequestTimeoutMs }
+                    : {}),
+                  onChunk: (chunk) => {
+                    if (abort.signal.aborted) return;
+                    watchdog.markProgress();
+                    setAnswerStalled(false);
+                    // lp/localai-patience — the first token means eval is done and
+                    // generation has begun; drop the calm "reading your documents"
+                    // state so the streamed answer replaces the spinner.
+                    setLocalEvaluating(false);
+                    answerText += chunk;
+                    setStreamingTurn((prev) =>
+                      prev ? { ...prev, answer: answerText } : prev
+                    );
+                  },
                   signal: abort.signal,
                 },
                 parts: [
-                  { id: 'prompt', origin: 'typed_question', label: 'Your question', text: q },
-                  { id: 'retrieval', origin: 'retrieval', label: 'Retrieved workspace material', text: workspaceBlock },
-                  { id: 'chat-history', origin: 'chat_history', label: 'Earlier Ask answers', text: historyBlock },
+                  {
+                    id: 'prompt',
+                    origin: 'typed_question',
+                    label: 'Your question',
+                    text: q,
+                  },
+                  {
+                    id: 'retrieval',
+                    origin: 'retrieval',
+                    label: 'Retrieved workspace material',
+                    text: workspaceBlock,
+                  },
+                  {
+                    id: 'chat-history',
+                    origin: 'chat_history',
+                    label: 'Earlier Ask answers',
+                    text: historyBlock,
+                  },
                 ],
                 onAuditLog: preparedAuditLogger,
                 beforeEgress: saveDurableIntent,
@@ -1577,9 +1623,18 @@ export function useAsk({
             ]);
             answerText = streamResp.content;
             await emitSuccessfulEgress(auditPairId);
-            const modelCallOutcome = buildModelCallEntry(answerText.length, streamResp.usage, streamResp.cost);
+            const modelCallOutcome = buildModelCallEntry(
+              answerText.length,
+              streamResp.usage,
+              streamResp.cost
+            );
             if (modelCallOutcome) {
-              await mustLogAuditPhase(onAuditLog, modelCallOutcome, 'outcome', auditPairId);
+              await mustLogAuditPhase(
+                onAuditLog,
+                modelCallOutcome,
+                'outcome',
+                auditPairId
+              );
             }
           } else {
             failedStage = 'provider-send';
@@ -1607,9 +1662,24 @@ export function useAsk({
                 onAuditLog: preparedAuditLogger,
                 beforeEgress: saveDurableIntent,
                 parts: [
-                  { id: 'prompt', origin: 'typed_question', label: 'Your question', text: q },
-                  { id: 'retrieval', origin: 'retrieval', label: 'Retrieved workspace material', text: workspaceBlock },
-                  { id: 'chat-history', origin: 'chat_history', label: 'Earlier Ask answers', text: historyBlock },
+                  {
+                    id: 'prompt',
+                    origin: 'typed_question',
+                    label: 'Your question',
+                    text: q,
+                  },
+                  {
+                    id: 'retrieval',
+                    origin: 'retrieval',
+                    label: 'Retrieved workspace material',
+                    text: workspaceBlock,
+                  },
+                  {
+                    id: 'chat-history',
+                    origin: 'chat_history',
+                    label: 'Earlier Ask answers',
+                    text: historyBlock,
+                  },
                 ],
               }),
               stallPromise,
@@ -1619,9 +1689,18 @@ export function useAsk({
             }
             answerText = resp.content;
             await emitSuccessfulEgress(auditPairId);
-            const modelCallOutcome = buildModelCallEntry(answerText.length, resp.usage, resp.cost);
+            const modelCallOutcome = buildModelCallEntry(
+              answerText.length,
+              resp.usage,
+              resp.cost
+            );
             if (modelCallOutcome) {
-              await mustLogAuditPhase(onAuditLog, modelCallOutcome, 'outcome', auditPairId);
+              await mustLogAuditPhase(
+                onAuditLog,
+                modelCallOutcome,
+                'outcome',
+                auditPairId
+              );
             }
           }
         } finally {
@@ -1694,7 +1773,9 @@ export function useAsk({
           ...(blocks ? { blocks } : {}),
           readSources: readSourcesForPrompt,
           providerId: providerAudit.providerId,
-          ...(egressDestinationForReceipt ? { egressDestination: egressDestinationForReceipt } : {}),
+          ...(egressDestinationForReceipt
+            ? { egressDestination: egressDestinationForReceipt }
+            : {}),
           // F2.5b (Codex P1) — durable "this answer used client file content"
           // marker, from the consent-gated grounding set (not the rendered
           // citations), so a grounded-but-uncited answer is still redacted from
@@ -1749,7 +1830,9 @@ export function useAsk({
             : {}),
           askReadSources: readSourcesForPrompt,
           askProviderId: providerAudit.providerId,
-          ...(egressDestinationForReceipt ? { askEgressDestination: egressDestinationForReceipt } : {}),
+          ...(egressDestinationForReceipt
+            ? { askEgressDestination: egressDestinationForReceipt }
+            : {}),
           // F2.5b (Codex P1) — persist the file-grounding marker so history redaction
           // still works after a reload (reconstructTurns restores it).
           // F2.5b (Codex round 5) — persist the grounding decision ALWAYS (true OR
@@ -1769,7 +1852,9 @@ export function useAsk({
         // so we do NOT call setSelectedTurnIdx / setSelected inside the updater — doing so
         // inside the functional updater can leave them out of sync for one frame.
         setTurns((prev) => [...prev, completedTurn]);
-        onAnswerCompleted?.(completedTurn);
+        for (const action of getAskAnswerActions()) {
+          await action.execute({ turn: completedTurn, onAnswerCompleted });
+        }
         setStreamingTurn(null);
         setStatus('done');
         pendingQuestionRef.current = null;
@@ -1883,6 +1968,7 @@ export function useAsk({
       buildAuditScope,
       confirmExportConsent,
       onAnswerCompleted,
+      askMode,
     ]
   );
 
