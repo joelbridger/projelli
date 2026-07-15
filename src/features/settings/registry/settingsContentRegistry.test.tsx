@@ -32,16 +32,18 @@ const personalPanel: SettingsPanelDescriptor = {
 describe('SettingsContent registry-derived rail', () => {
   afterEach(() => {
     vi.resetModules();
-    vi.doUnmock('./settingsModuleRegistry');
+    vi.doUnmock('./legacySettingsSections');
   });
 
   it('shows, searches, and renders a newly augmented section without a SettingsContent list edit', async () => {
-    vi.doMock('./settingsModuleRegistry', () => ({
-      getVisibleSettingsSectionDescriptors: () => [personalSection],
-      getSettingsSectionSearchTerms: () => personalSection.searchTerms ?? [],
-      getSettingsGroupDescriptors: () => [],
-      getSettingsPanelDescriptors: () => [personalPanel],
-    }));
+    vi.doMock('./legacySettingsSections', async (importOriginal) => {
+      const actual = await importOriginal<typeof import('./legacySettingsSections')>();
+      return {
+        ...actual,
+        legacySettingsSections: [...actual.legacySettingsSections, personalSection],
+        legacySettingsPanels: [...actual.legacySettingsPanels, personalPanel],
+      };
+    });
     const { SettingsContent } = await import('../SettingsContent');
 
     render(<SettingsContent variant="page" />);

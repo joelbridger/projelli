@@ -178,14 +178,23 @@ describe('SettingsContent', () => {
     expect(screen.getByRole('navigation', { name: 'Settings sections' })).toBeInTheDocument();
   });
 
-  it('updates the rail when a panel flag changes while Settings is open', async () => {
+  it('updates rail and panel group search data when a panel flag changes while Settings is open', async () => {
     setDevFlagOverride('teams-roles', false);
     render(<SettingsContent variant="page" />);
+    expect(screen.queryByTestId('settings-category-organization')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('settings-search-toggle'));
+    fireEvent.change(screen.getByTestId('settings-search'), {
+      target: { value: 'directory' },
+    });
     expect(screen.queryByTestId('settings-category-organization')).not.toBeInTheDocument();
 
     setDevFlagOverride('teams-roles', true);
     await waitFor(() => {
       expect(screen.getByTestId('settings-category-organization')).toBeInTheDocument();
+    });
+    fireEvent.change(screen.getByTestId('settings-search'), {
+      target: { value: '' },
     });
     fireEvent.click(screen.getByTestId('settings-category-organization'));
 

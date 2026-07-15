@@ -28,8 +28,8 @@ export const settingsSectionRegistry: readonly SettingsSectionDescriptor[] = [
 
 /**
  * Append-only feature-panel mount point. Feature lanes add exactly one line
- * here for an existing section. A lane introducing a new section adds its
- * section beside the section list, then one panel here.
+ * here for an existing section. A lane introducing a new section makes two
+ * append-only changes in this file: one section entry above and one panel here.
  */
 export const settingsPanelRegistry: readonly SettingsPanelDescriptor[] = [
   ...legacySettingsPanels,
@@ -94,6 +94,11 @@ export function validateSettingsModuleDescriptors(
   };
 
   for (const section of sections) {
+    if ('render' in section || 'section' in section || 'flagId' in section) {
+      throw new Error(
+        `[settingsModuleRegistry] panel-shaped object in section list: ${section.id}`
+      );
+    }
     if (sectionIds.has(section.id)) {
       throw new Error(
         `[settingsModuleRegistry] duplicate section id: ${section.id}`
@@ -144,6 +149,11 @@ function panelIsVisible(panel: SettingsPanelDescriptor): boolean {
 export function getSettingsSectionDescriptors(): readonly SettingsSectionDescriptor[] {
   validateSettingsModuleDescriptors(settingsSectionRegistry);
   return ordered(settingsSectionRegistry);
+}
+
+/** All registered sections are the stable search-scoring vocabulary. */
+export function getSettingsSearchSectionDescriptors(): readonly SettingsSectionDescriptor[] {
+  return getSettingsSectionDescriptors();
 }
 
 /** Sections that have at least one visible panel, in stable rail order. */

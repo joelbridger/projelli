@@ -6,7 +6,7 @@ import type {
 import type { AuditEntry } from '@/platform/types/audit';
 import type { WorkflowTemplate } from '@/platform/types/workflow';
 import type { SettingsSectionId } from '@/platform/types/settings';
-import type { FlagId } from '@/platform/flags/registry';
+import type { FlagId } from '@/platform/flags';
 
 /**
  * Closed, augmentable vocabulary for settings rail sections. The platform owns

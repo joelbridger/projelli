@@ -5,6 +5,7 @@ import {
 } from '@/platform/settings/schema';
 import {
   getSettingsPanelDescriptors,
+  getSettingsSearchSectionDescriptors,
   getSettingsSectionDescriptors,
   getSettingsModuleDefinitions,
   getVisibleSettingsSectionDescriptors,
@@ -19,7 +20,7 @@ describe('settingsModuleRegistry', () => {
   afterEach(() => {
     vi.doUnmock('@/platform/flags/router');
     vi.doUnmock('./legacySettingsSections');
-    vi.doUnmock('@/features/crm-firm/teams-roles/settingsModule');
+    vi.doUnmock('@/features/crm-firm');
     vi.resetModules();
   });
 
@@ -129,16 +130,16 @@ describe('settingsModuleRegistry', () => {
       order: 1,
       render: () => null,
     };
-    expect(() =>
-      validateSettingsModuleDescriptors([section], [panel, panel])
-    ).toThrow('duplicate panel id: fake-panel');
-    expect(() =>
+    expect(() => {
+      validateSettingsModuleDescriptors([section], [panel, panel]);
+    }).toThrow('duplicate panel id: fake-panel');
+    expect(() => {
       validateSettingsModuleDescriptors(
         [section],
         [{ ...panel, section: 'organization' }]
-      )
-    ).toThrow('panel belongs to an unknown section: fake-panel');
-    expect(() =>
+      );
+    }).toThrow('panel belongs to an unknown section: fake-panel');
+    expect(() => {
       validateSettingsModuleDescriptors(
         [section],
         [
@@ -156,8 +157,86 @@ describe('settingsModuleRegistry', () => {
             ],
           },
         ]
-      )
-    ).toThrow('duplicate setting key: shared');
+      );
+    }).toThrow('duplicate setting key: shared');
+  });
+
+  it('rejects panel-shaped objects in the section list', () => {
+    const invalidSection = {
+      id: 'workspace',
+      order: 1,
+      labelKey: 'settings.sections.workspace',
+      legacyLabel: 'Workspace',
+      section: 'workspace',
+      render: () => null,
+    } as unknown as SettingsSectionDescriptor;
+    expect(() => {
+      validateSettingsModuleDescriptors([invalidSection], []);
+    }).toThrow('panel-shaped object in section list: workspace');
+  });
+
+  it('rejects a duplicate panel id across different sections', () => {
+    const sections: SettingsSectionDescriptor[] = [
+      {
+        id: 'workspace',
+        order: 1,
+        labelKey: 'settings.sections.workspace',
+        legacyLabel: 'Workspace',
+      },
+      {
+        id: 'organization',
+        order: 2,
+        labelKey: 'teams-roles.settings-label',
+        legacyLabel: 'Organization',
+      },
+    ];
+    const first: SettingsPanelDescriptor = {
+      id: 'shared-panel',
+      section: 'workspace',
+      order: 1,
+      render: () => null,
+    };
+    const second: SettingsPanelDescriptor = {
+      ...first,
+      section: 'organization',
+    };
+    expect(() => {
+      validateSettingsModuleDescriptors(sections, [first, second]);
+    }).toThrow('duplicate panel id: shared-panel');
+  });
+
+  it('rejects duplicate setting keys across two different panels', () => {
+    const section: SettingsSectionDescriptor = {
+      id: 'workspace',
+      order: 1,
+      labelKey: 'settings.sections.workspace',
+      legacyLabel: 'Workspace',
+    };
+    const definition = {
+      key: 'shared-panel-key',
+      category: 'workspace' as const,
+      label: 'Shared',
+      description: '',
+      type: 'text' as const,
+      defaultValue: '',
+    };
+    const first: SettingsPanelDescriptor = {
+      id: 'first-panel',
+      section: 'workspace',
+      order: 1,
+      definitions: [definition],
+      render: () => null,
+    };
+    const second: SettingsPanelDescriptor = {
+      id: 'second-panel',
+      section: 'workspace',
+      order: 2,
+      definitions: [definition],
+      render: () => null,
+    };
+    expect(() => {
+      validateSettingsModuleDescriptors([section], [first, second]);
+    }).toThrow('duplicate setting key: shared-panel-key');
   });
 
   it('keeps legacy rail order, visibility, and schema order unchanged', () => {
@@ -183,6 +262,18 @@ describe('settingsModuleRegistry', () => {
       'voice',
       'advanced',
       'help',
+    ]);
+    expect(
+      getSettingsSearchSectionDescriptors().map((descriptor) => descriptor.id)
+    ).toEqual([
+      'workspace',
+      'ai',
+      'privacy',
+      'scheduling',
+      'voice',
+      'advanced',
+      'help',
+      'organization',
     ]);
     expect(
       getSettingsPanelDescriptors('workspace').map((panel) => panel.id)
@@ -212,8 +303,8 @@ describe('settingsModuleRegistry', () => {
       legacySettingsSections: [],
       legacySettingsPanels: [alwaysVisible, gated],
     }));
-    vi.doMock('@/features/crm-firm/teams-roles/settingsModule', () => ({
-      teamsRolesSettingsPanel: {
+    vi.doMock('@/features/crm-firm', () => ({
+      teamsRolesSettingsModule: {
         id: 'teams-roles',
         section: 'organization',
         order: 30,

@@ -34,7 +34,8 @@ function panel(
 describe('renderRegisteredSettingsPanels', () => {
   afterEach(() => {
     vi.resetModules();
-    vi.doUnmock('./settingsModuleRegistry');
+    vi.doUnmock('./legacySettingsSections');
+    vi.doUnmock('@/platform/flags/router');
   });
 
   it('stacks two independent panels in within-section order and hides flag-gated panels when dark', async () => {
@@ -44,12 +45,12 @@ describe('renderRegisteredSettingsPanels', () => {
       panel('first', 10),
       panel('gated', 30, 'teams-roles'),
     ];
-    vi.doMock('./settingsModuleRegistry', () => ({
-      getSettingsPanelDescriptors: (section?: string) =>
-        panels
-          .filter((item) => section === undefined || item.section === section)
-          .filter((item) => item.flagId === undefined || flagOn)
-          .sort((a, b) => a.order - b.order),
+    vi.doMock('@/platform/flags/router', () => ({
+      isEnabled: () => flagOn,
+    }));
+    vi.doMock('./legacySettingsSections', () => ({
+      legacySettingsSections: [],
+      legacySettingsPanels: panels,
     }));
     const { renderRegisteredSettingsPanels } =
       await import('./sectionRendererBindings');

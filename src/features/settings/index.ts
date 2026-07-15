@@ -8,7 +8,11 @@ export { VoiceSettingsSection } from './VoiceSettingsSection';
 // Feature settings modules use this small public doorway rather than reaching
 // into Settings internals. It keeps the registry contract stable for lanes
 // that mount a Settings section.
-export { registerSettingsSectionRenderer } from './registry/sectionRendererBindings';
+export {
+  registerSettingsSectionRenderer,
+  renderRegisteredSettingsPanels,
+} from './registry/sectionRendererBindings';
 export type {
+  SettingsPanelDescriptor,
   SettingsSectionRenderProps,
 } from './registry/types';

@@ -476,21 +476,3 @@ export function TeamsRolesSettings() {
     </div>
   );
 }
-
-/** Organization panel mount; the registry owns its rail section. */
-export const teamsRolesSettingsPanel = {
-  id: 'teams-roles',
-  section: 'organization' as const,
-  order: 10,
-  labelKey: 'teams-roles.settings-label',
-  flagId: 'teams-roles' as const,
-  searchTerms: [
-    'people',
-    'teams',
-    'roles',
-    'permissions',
-    'advisor',
-    'compliance',
-  ],
-  render: TeamsRolesSettings,
-};

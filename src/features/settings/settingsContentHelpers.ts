@@ -31,13 +31,17 @@ export function settingTestid(key: string): string | undefined {
  * picker and the Extensions/templates group entirely. The key is the SubSection
  * `id`; `section` is the top-level category the group lives in.
  */
-export const SETTINGS_GROUP_SEARCH: Record<string, { section: SectionCategory; keywords: string[] }> =
-  Object.fromEntries(
+export function getSettingsGroupSearch(): Record<
+  string,
+  { section: SectionCategory; keywords: string[] }
+> {
+  return Object.fromEntries(
     getSettingsGroupDescriptors().map((group) => [
       group.id,
       { section: group.section, keywords: [...group.keywords] },
-    ]),
+    ])
   );
+}
 
 export const SETTING_SEARCH_ALIASES: Record<string, string[]> = {
   autoSave: ['auto save', 'auto-save', 'automatic save', 'save automatically'],
@@ -55,9 +59,14 @@ export function kwMatches(keywords: string[], lowerQ: string): boolean {
 }
 
 /** True when a sub-section's own keywords or label match the query. */
-export function groupKeywordMatch(subId: string, label: string, lowerQ: string): boolean {
+export function groupKeywordMatch(
+  subId: string,
+  label: string,
+  lowerQ: string,
+  groupSearch = getSettingsGroupSearch()
+): boolean {
   if (!lowerQ) return false;
   if (label.toLowerCase().includes(lowerQ)) return true;
-  const entry = SETTINGS_GROUP_SEARCH[subId];
+  const entry = groupSearch[subId];
   return entry ? kwMatches(entry.keywords, lowerQ) : false;
 }

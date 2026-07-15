@@ -94,11 +94,12 @@ import {
 } from '@/ui/dropdown-menu';
 import {
   settingTestid,
-  SETTINGS_GROUP_SEARCH,
+  getSettingsGroupSearch,
   SETTING_SEARCH_ALIASES,
   groupKeywordMatch,
 } from './settingsContentHelpers';
 import {
+  getSettingsSearchSectionDescriptors,
   getSettingsSectionSearchTerms,
   getVisibleSettingsSectionDescriptors,
 } from './registry/settingsModuleRegistry';
@@ -1086,6 +1087,9 @@ export function SettingsContent({
   // The registry is the rail's single source of truth. Empty feature sections
   // remain hidden, preserving today's screen until their first flag is on.
   const registeredSections = getVisibleSettingsSectionDescriptors();
+  // The flag registry can change while this screen is open. Rebuild panel
+  // search keywords in the same render as the flag-aware rail descriptors.
+  const settingsGroupSearch = getSettingsGroupSearch();
 
   // A nested "extra" section is being viewed only when one is selected AND no
   // search is active (typing a query always shows the schema-driven settings
@@ -1118,7 +1122,7 @@ export function SettingsContent({
   // in its description, and "language" lands on General rather than Voice.
   const sectionScores = useMemo<Record<SectionCategory, number>>(() => {
     const scores = Object.fromEntries(
-      registeredSections.map((section) => [section.id, 0]),
+      getSettingsSearchSectionDescriptors().map((section) => [section.id, 0]),
     ) as Record<SectionCategory, number>;
     const lowerQ = searchQuery.toLowerCase().trim();
     if (!lowerQ) return scores;
@@ -1137,8 +1141,10 @@ export function SettingsContent({
       else if (def.key.toLowerCase().includes(lowerQ)) bump(sec, 2);
       else if (def.description.toLowerCase().includes(lowerQ)) bump(sec, 1);
     }
-    for (const [subId, entry] of Object.entries(SETTINGS_GROUP_SEARCH)) {
-      if (groupKeywordMatch(subId, '', lowerQ)) bump(entry.section, 3);
+    for (const [subId, entry] of Object.entries(settingsGroupSearch)) {
+      if (groupKeywordMatch(subId, '', lowerQ, settingsGroupSearch)) {
+        bump(entry.section, 3);
+      }
     }
     for (const section of registeredSections) {
       if (getSettingsSectionSearchTerms(section.id).some(
@@ -1156,7 +1162,7 @@ export function SettingsContent({
     );
     if (shortcutHit) bump('help', 2);
     return scores;
-  }, [searchQuery, registeredSections]);
+  }, [searchQuery, registeredSections, settingsGroupSearch]);
 
   // Which sections have any match (score > 0).
   const visibleSections = useMemo<Set<SectionCategory>>(() => {
@@ -1232,7 +1238,9 @@ export function SettingsContent({
       if (confirmed) {
         resetAll();
       }
-    })();
+    })().catch((error: unknown) => {
+      console.error('Could not reset Settings.', error);
+    });
   }, [resetAll, confirm]);
 
   const [showApiKeyTutorial, setShowApiKeyTutorial] = useState(false);
