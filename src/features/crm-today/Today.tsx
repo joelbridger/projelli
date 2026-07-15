@@ -5,7 +5,7 @@ import { Button } from '@/ui/kp';
 import { buildCapacityTriage, dailyWorkReason } from '@/platform/crm/tasks';
 import { AskBar, FreshnessBanner, Screen, mutedStyle, panelStyle } from '@/features/crm-home/shared/ui';
 import type { CrmHomeRoute } from '@/features/crm-home/routes';
-import type { CrmActivity, CrmApproval, CrmFirmMember, CrmFreshnessState, CrmTask } from '@/features/crm-home/types';
+import type { CrmActivity, CrmApproval, CrmFirmMember, CrmFreshnessState, CrmHomeAdapter, CrmTask } from '@/features/crm-home/types';
 import { useCrmHomeSurfaceContext } from '@/features/crm-home/surfaceContext';
 import { dailyWorkItems, workHousehold, workLabel, type CrmDailyWorkItem } from '@/features/crm-home/shared/workItems';
 
@@ -343,11 +343,12 @@ export function Today({
 }
 
 export function TodaySurface() {
-  const { adapter, navigate } = useCrmHomeSurfaceContext();
+  const { adapter: suppliedAdapter, navigate } = useCrmHomeSurfaceContext();
+  const adapter = suppliedAdapter as Omit<CrmHomeAdapter, 'tasks'> & { tasks?: readonly CrmTask[] };
   const workflowWorkItems = adapter.workflowWorkItems ?? [];
   const updateTask = async (task: CrmTask) => { await adapter.actions.updateTask?.(task); };
   return <Today
-    workItems={dailyWorkItems(adapter.tasks, workflowWorkItems)}
+    workItems={dailyWorkItems(adapter.tasks ?? [], workflowWorkItems)}
     firmMembers={adapter.firmMembers ?? []}
     approvals={adapter.approvals ?? []}
     activity={adapter.activity ?? []}

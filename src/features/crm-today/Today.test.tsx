@@ -1,7 +1,9 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string -- Test fixtures cover frozen CRM copy. */
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { Today } from './Today';
+import { CrmHomeSurfaceContext } from '@/features/crm-home/surfaceContext';
+import type { CrmHomeAdapter } from '@/features/crm-home/types';
+import { Today, TodaySurface } from './Today';
 
 const baseProps = {
   approvals: [],
@@ -13,6 +15,38 @@ const baseProps = {
 };
 
 describe('Today', () => {
+  it('renders safely when an adapter omits its optional work lists at runtime', () => {
+    const adapter = {
+      freshness: { kind: 'live' },
+      tasks: undefined,
+      offers: [],
+      migration: {
+        workflowChecklists: [],
+        attachmentAccounting: [],
+        exports: [],
+      },
+      actions: {},
+    } as unknown as CrmHomeAdapter;
+
+    render(
+      <CrmHomeSurfaceContext.Provider
+        value={{
+          adapter,
+          route: 'today',
+          navigate: vi.fn(),
+          undoReport: null,
+          reportUndo: vi.fn(),
+          adapterProvided: true,
+        }}
+      >
+        <TodaySurface />
+      </CrmHomeSurfaceContext.Provider>
+    );
+
+    expect(screen.getByTestId('crm-screen-today')).toBeInTheDocument();
+    expect(screen.getByTestId('crm-today-first-use')).toBeInTheDocument();
+  });
+
   it('computes the visible plan from live open work and active members', () => {
     render(
       <Today
