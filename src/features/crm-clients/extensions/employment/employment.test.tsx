@@ -171,6 +171,24 @@ describe('Employment section', () => {
     ).toEqual({ version: 1, members: {} });
   });
 
+  it('shows an impossible persisted date exactly as stored', () => {
+    const saved = persistEmploymentInformation(household, {
+      version: 1,
+      members: {
+        robert: {
+          occupation: 'Managing partner',
+          employer: 'Foster & Lane Architects',
+          plannedRetirement: '2024-02-31',
+        },
+      },
+    });
+
+    render(<EmploymentSection household={saved} enabled />);
+
+    expect(screen.getByText('2024-02-31')).toBeInTheDocument();
+    expect(screen.queryByText('March 2024')).toBeNull();
+  });
+
   it('restores information produced by the real editor save path after a fresh render', async () => {
     let saved: HouseholdRecord | undefined;
     const firstRender = render(

@@ -56,6 +56,7 @@ function formatMonthYear(
   if (!year || !month || !day) return value;
   const date = new Date(`${year}-${month}-${day}T00:00:00Z`);
   if (Number.isNaN(date.getTime())) return value;
+  if (date.toISOString().slice(0, 10) !== value) return value;
   return new Intl.DateTimeFormat(locale, {
     month: 'long',
     year: 'numeric',
