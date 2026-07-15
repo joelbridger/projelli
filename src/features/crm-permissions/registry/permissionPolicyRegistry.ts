@@ -8,7 +8,13 @@ export type PermissionOperation = 'read' | 'write';
 
 export interface PermissionPolicyContext {
   memberId: string;
-  role: Pick<RoleDefinition, 'clientAccess' | 'capabilities'> | undefined;
+  /**
+   * The complete frozen role surface this policy may consume. Do not widen
+   * this to display or management fields from teams-and-roles.
+   */
+  role:
+    | Pick<RoleDefinition, 'id' | 'clientAccess' | 'capabilities'>
+    | undefined;
   operation: PermissionOperation;
 }
 
@@ -18,7 +24,7 @@ export interface PermissionPolicyDescriptor {
   name: string;
   description: string;
   /** Native enforcement is authoritative; this mirror protects display paths. */
-  authority: 'native-command-layer';
+  authority: string;
   filterRecords(
     records: readonly LiveCrmRecord[],
     context: PermissionPolicyContext

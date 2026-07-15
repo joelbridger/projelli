@@ -1,16 +1,16 @@
-import { describe, expect, it } from 'vitest';
-import { SYSTEM_ROLES, type TeamsRolesState } from '@/features/crm-firm/teams-roles';
+import { describe, expect, it, vi } from 'vitest';
+import { SYSTEM_ROLES } from '@/features/crm-firm/teams-roles';
+
+const { flagEnabled } = vi.hoisted(() => ({ flagEnabled: { value: true } }));
+
+vi.mock('@/platform/flags/router', () => ({
+  isEnabled: () => flagEnabled.value,
+}));
+
 import { filterOwnClientRecords } from './ownClientsOnly';
 
-const teamsRoles: TeamsRolesState = {
-  roles: SYSTEM_ROLES,
-  teams: [],
-  memberships: [
-    { memberId: 'maya', roleId: 'advisor', teamIds: [] },
-    { memberId: 'compliance', roleId: 'compliance-admin', teamIds: [] },
-  ],
-  updatedAt: '2026-07-15T00:00:00.000Z',
-};
+const advisor = SYSTEM_ROLES.find((role) => role.id === 'advisor');
+const compliance = SYSTEM_ROLES.find((role) => role.id === 'compliance-admin');
 
 const records = [
   { id: 'owned', kind: 'household', ownerMemberId: 'maya' },
@@ -24,7 +24,7 @@ describe('own-clients-only display mirror', () => {
     expect(
       filterOwnClientRecords(records, {
         memberId: 'maya',
-        teamsRoles,
+        role: advisor,
         operation: 'read',
       }).map((record) => record.id)
     ).toEqual(['owned', 'assigned']);
@@ -34,9 +34,21 @@ describe('own-clients-only display mirror', () => {
     expect(
       filterOwnClientRecords(records, {
         memberId: 'compliance',
-        teamsRoles,
+        role: compliance,
         operation: 'read',
       }).map((record) => record.id)
     ).toEqual(['owned', 'assigned', 'other', 'label-only']);
+  });
+
+  it('keeps the existing unfiltered display behavior while the flag is off', () => {
+    flagEnabled.value = false;
+    expect(
+      filterOwnClientRecords(records, {
+        memberId: 'maya',
+        role: advisor,
+        operation: 'read',
+      }).map((record) => record.id)
+    ).toEqual(['owned', 'assigned', 'other', 'label-only']);
+    flagEnabled.value = true;
   });
 });

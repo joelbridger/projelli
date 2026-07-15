@@ -12,12 +12,12 @@ describe('permissionPolicyRegistry', () => {
   });
 
   it('rejects duplicate policy ids', () => {
-    expect(() =>
+    expect(() => {
       validatePermissionPolicyRegistry([
         ownClientsOnlyPolicy,
         { ...ownClientsOnlyPolicy },
-      ])
-    ).toThrow('Duplicate permission policy id: own-clients-only.');
+      ]);
+    }).toThrow('Duplicate permission policy id: own-clients-only.');
   });
 
   it('rejects missing required policy fields', () => {
@@ -26,8 +26,18 @@ describe('permissionPolicyRegistry', () => {
       id: 'missing-description',
       description: '',
     };
-    expect(() => validatePermissionPolicyRegistry([missingDescription])).toThrow(
-      'Permission policy missing-description requires a description.'
+    expect(() => {
+      validatePermissionPolicyRegistry([missingDescription]);
+    }).toThrow('Permission policy missing-description requires a description.');
+  });
+
+  it('rejects a policy that names a frontend authority', () => {
+    expect(() => {
+      validatePermissionPolicyRegistry([
+        { ...ownClientsOnlyPolicy, id: 'frontend-only', authority: 'frontend' },
+      ]);
+    }).toThrow(
+      'Permission policy frontend-only must name native-command-layer as authority.'
     );
   });
 });
