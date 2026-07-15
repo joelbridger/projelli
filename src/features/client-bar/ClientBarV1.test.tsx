@@ -10,7 +10,8 @@ import { setDevFlagOverride } from '@/platform/flags';
 import { useClientContextStore } from '@/platform/client-context';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import type { Matter } from '@/platform/types/matter';
-import { ClientBarV1, getSharedClientQuickActions } from './ClientBarV1';
+import { ClientBarV1 } from './ClientBarV1';
+import { getSharedClientQuickActions } from './quickActions';
 
 describe('ClientBarV1', () => {
   afterEach(() => {

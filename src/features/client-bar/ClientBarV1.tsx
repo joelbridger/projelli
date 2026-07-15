@@ -12,11 +12,10 @@ import {
 import type { SharedClientIdentity } from '@/platform/client-context';
 import { ClientPickerModal } from './ClientPickerModal';
 import type { ClientPickerHousehold } from './clientPickerHouseholds';
-
-export type ClientBarQuickAction = Pick<
-  AppSurfaceDescriptor,
-  'clientContext' | 'id' | 'labelKey' | 'order' | 'placement'
->;
+import {
+  getSharedClientQuickActions,
+  type ClientBarQuickAction,
+} from './quickActions';
 
 export interface ClientBarV1Props {
   households?: readonly ClientPickerHousehold[] | undefined;
@@ -166,24 +165,6 @@ function QuickAction({
       {label}
     </button>
   );
-}
-
-/**
- * The prototype's CRM / Ask / Meetings trio is intentionally registry-driven:
- * it completes itself when the Meetings surface registers as a shared primary
- * surface in its later wave.
- */
-export function getSharedClientQuickActions(
-  descriptors: readonly ClientBarQuickAction[]
-): readonly ClientBarQuickAction[] {
-  return descriptors
-    .filter(
-      (descriptor) =>
-        descriptor.placement === 'primary' &&
-        descriptor.clientContext === 'shared'
-    )
-    .slice()
-    .sort((left, right) => left.order - right.order);
 }
 
 function initials(name: string): string {
