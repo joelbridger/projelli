@@ -42,6 +42,15 @@ export const flagRegistry = [
     expiresAt: '2026-09-13',
     defaultEnabled: false,
   },
+  {
+    id: 'own-clients-permissions',
+    description:
+      'Keeps native household ownership and assignment enforcement dark until its acceptance drive passes.',
+    ownerLane: 'own-clients-permissions',
+    createdAt: '2026-07-15',
+    expiresAt: '2026-09-13',
+    defaultEnabled: false,
+  },
 ] as const satisfies readonly FlagDescriptor[];
 
 export type FlagId = (typeof flagRegistry)[number]['id'];

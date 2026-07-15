@@ -1,0 +1,6 @@
+# Own-clients permission commands. Numeric keys are append-only and unique globally.
+command 2920 crate::commands::crm::features::permissions::crm_permissions_get_current_member
+command 2930 crate::commands::crm::features::permissions::crm_permissions_set_current_member
+command 2940 crate::commands::crm::features::permissions::crm_permissions_list
+command 2950 crate::commands::crm::features::permissions::crm_permissions_get_record
+command 2960 crate::commands::crm::features::permissions::crm_permissions_upsert

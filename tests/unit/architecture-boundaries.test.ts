@@ -47,6 +47,7 @@ const ALLOWED_FEATURE_EDGES = new Set<string>([
                           // used to own before the CRM merge dropped its mount (fix/matterhub-entry-point)
   'crm->planning',        // CRM Reviews shows pending planning-system write reviews in the relevant client record
   'crm->matters',         // The live CRM Client Map tab hosts the proven Client Map build, refresh, ranking, and cited-summary surfaces after the combined merge orphaned their old MattersHome/MatterHub mount.
+  'crm->teams-roles',     // Own-clients permissions consumes the frozen role/member access contract; it does not create a second role vocabulary.
   'crm-connectors->crm-views', // Broadcast uses the saved-view query language to define its recipient list
   'crm-connectors->email', // Broadcast reuses the hardened mail AI provider resolver; delivery still uses the platform mail connector
   'documents->firm',      // file navigator shows privilege/vault affordances
