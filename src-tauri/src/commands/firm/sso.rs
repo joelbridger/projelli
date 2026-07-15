@@ -139,8 +139,47 @@ pub async fn firm_session_end() -> Result<(), String> {
     Ok(())
 }
 
+/// The production firm relay this desktop binary trusts to mint firm identities.
+/// Kept in sync with `BRAND.urls.firmApi` on the renderer side
+/// (`src/platform/firm/firmConfig.ts`).
+const PINNED_FIRM_RELAY_BASE: &str = "https://api.lanternplatform.app";
+
+/// Native-only relay override for developer machines and custom on-prem deploys.
+/// This is read from the PROCESS environment, which a renderer cannot write — so
+/// it is a trusted native configuration knob, unlike the renderer-supplied
+/// `backend_base`.
+const FIRM_RELAY_BASE_ENV: &str = "LANTERN_FIRM_RELAY_BASE";
+
+/// Resolve the relay base the native layer will trust and REJECT a
+/// renderer-supplied `backend_base` that does not match it.
+///
+/// re-review B Finding 1: `backend_base` arrives as an IPC argument, so a
+/// modified renderer could point identity establishment at a relay IT chose and
+/// have Rust store whatever `user_id`/`role`/`org_admin` that fake relay returned.
+/// TLS only authenticates the host the *attacker named*; it does not make a
+/// renderer-chosen host the genuine relay. The trusted relay is therefore fixed
+/// natively — the compiled production host, or a base set via a process env var
+/// the renderer cannot reach — and the requested base must equal it. In
+/// production the renderer supplies exactly the pinned host, so this is
+/// transparent; a tampered renderer that points elsewhere is refused.
+fn trusted_relay_base(requested: &str) -> anyhow::Result<String> {
+    let requested = requested.trim().trim_end_matches('/');
+    let trusted = std::env::var(FIRM_RELAY_BASE_ENV)
+        .ok()
+        .map(|value| value.trim().trim_end_matches('/').to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| PINNED_FIRM_RELAY_BASE.to_string());
+    if requested == trusted {
+        Ok(trusted)
+    } else {
+        anyhow::bail!("SSO must run against the configured firm relay, not a renderer-supplied host.")
+    }
+}
+
 async fn run(backend_base: String, email: String, cancel: Arc<AtomicBool>) -> anyhow::Result<String> {
-    let base = backend_base.trim_end_matches('/').to_string();
+    // Finding 1: bind identity establishment to the natively-trusted relay, never
+    // a host the renderer chose.
+    let base = trusted_relay_base(&backend_base)?;
 
     // Bind a loopback listener on an OS-assigned port.
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
@@ -202,36 +241,42 @@ async fn run(backend_base: String, email: String, cancel: Arc<AtomicBool>) -> an
     // command that can set it, and a forged store record has no effect.
     // `user_id` is the CRM `member_id` (org-scoped).
     //
-    // ⚠️ KNOWN-OPEN (security re-review Finding 1): `backend_base` is a renderer
-    // argument, so `run` performed this exchange against a relay the RENDERER
-    // chose. A modified renderer can therefore point it at a fake relay and mint
-    // any `user_id`/`role`. These fields are trustworthy ONLY when `backend_base`
-    // is the genuine relay. Closing this requires a pinned trust anchor the
-    // renderer cannot swap — an allowlisted/compiled relay host, or verifying the
-    // relay-signed Ed25519 seat token before trusting the identity (Option A).
-    // Tracked for the coordinator's trust-anchor decision; the shipped feature is
-    // dark until then.
-    if let Some(user_id) = exchange
+    // The exchange ran against the natively-trusted relay (`trusted_relay_base`
+    // above, Finding 1), so — over TLS — the `user_id`/`role` fields genuinely
+    // came from the real relay rather than a renderer-chosen host.
+    let user_id = exchange
         .get("user")
         .and_then(|user| user.get("user_id"))
         .and_then(|value| value.as_str())
-        .filter(|value| !value.trim().is_empty())
-    {
-        let org_admin = exchange
-            .get("user")
-            .and_then(|user| user.get("role"))
-            .and_then(|value| value.as_str())
-            == Some("admin");
-        let org_id = exchange
-            .get("access_token")
-            .and_then(|value| value.as_str())
-            .and_then(access_token_org_id)
-            .unwrap_or_default();
-        crate::commands::firm::session::set_identity(crate::commands::firm::session::FirmIdentity {
-            user_id: user_id.to_string(),
-            org_id,
-            org_admin,
-        });
+        .filter(|value| !value.trim().is_empty());
+    match user_id {
+        Some(user_id) => {
+            let org_admin = exchange
+                .get("user")
+                .and_then(|user| user.get("role"))
+                .and_then(|value| value.as_str())
+                == Some("admin");
+            let org_id = exchange
+                .get("access_token")
+                .and_then(|value| value.as_str())
+                .and_then(access_token_org_id)
+                .unwrap_or_default();
+            crate::commands::firm::session::set_identity(
+                crate::commands::firm::session::FirmIdentity {
+                    user_id: user_id.to_string(),
+                    org_id,
+                    org_admin,
+                },
+            );
+        }
+        None => {
+            // re-review B Finding 7: a "successful" exchange (an access_token was
+            // present) that carries no usable `user_id` must NOT leave a previous
+            // member's identity authorized — a malformed or malicious response
+            // could otherwise hand the new session the prior user's client scope.
+            // Deny-close by dropping any existing identity.
+            crate::commands::firm::session::clear_identity();
+        }
     }
 
     Ok(exchange.to_string())
@@ -239,9 +284,10 @@ async fn run(backend_base: String, email: String, cancel: Arc<AtomicBool>) -> an
 
 /// Read the `org_id` claim from a relay access-token JWT WITHOUT verifying the
 /// signature. Sound to the same degree as the rest of the identity: the token
-/// came from the relay `run` contacted over TLS — but that relay is chosen by
-/// the renderer-supplied `backend_base` (see the KNOWN-OPEN note above), so this
-/// is only as trustworthy as `backend_base` being the genuine relay.
+/// came from the natively-trusted relay (`trusted_relay_base`, Finding 1) over
+/// TLS. The access token is HS256 (relay-secret-signed), so the client cannot
+/// verify it independently — the trust comes from the pinned relay host, not the
+/// signature.
 fn access_token_org_id(token: &str) -> Option<String> {
     use base64::Engine;
     let payload = token.split('.').nth(1)?;
@@ -382,6 +428,29 @@ async fn drain_sso_request_headers(socket: &mut tokio::net::TcpStream) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn trusted_relay_base_pins_production_and_rejects_renderer_chosen_hosts() {
+        // Finding 1: a renderer cannot point identity establishment at a relay it
+        // chose. With no native override, only the pinned production host is
+        // accepted; everything else is refused. Skip if the test environment has
+        // configured an override (avoids depending on ambient env).
+        if std::env::var(FIRM_RELAY_BASE_ENV).is_ok() {
+            return;
+        }
+        assert_eq!(
+            trusted_relay_base("https://api.lanternplatform.app").unwrap(),
+            "https://api.lanternplatform.app"
+        );
+        // Trailing slash is normalized, not treated as a different host.
+        assert_eq!(
+            trusted_relay_base("https://api.lanternplatform.app/").unwrap(),
+            "https://api.lanternplatform.app"
+        );
+        // The fake-relay attack: a renderer-supplied loopback / foreign host.
+        assert!(trusted_relay_base("http://127.0.0.1:8899").is_err());
+        assert!(trusted_relay_base("https://evil.example.com").is_err());
+    }
 
     #[test]
     fn parse_loopback_redirect_extracts_sso_code() {
