@@ -1,0 +1,43 @@
+{
+  "teams-roles": {
+    "settings-label": "Organization",
+    "heading": "People and permissions",
+    "heading-copy": "Manage your firm’s people, teams, and roles in one place.",
+    "people-title": "People",
+    "people-copy": "Assign each active person one role and any teams they work with.",
+    "active-count": "{{count}} active members",
+    "people-empty": "People will appear here after they are added to your firm.",
+    "unnamed-member": "Unnamed member",
+    "active": "Active",
+    "inactive": "Inactive",
+    "role-label": "Role",
+    "role-for": "Role for {{name}}",
+    "choose-role": "Choose a role",
+    "teams-label": "Teams",
+    "teams-title": "Teams",
+    "teams-copy": "Use teams to organize people. Roles, not teams, decide what a person can access.",
+    "team-name": "Team name",
+    "add-team": "Add team",
+    "team-saved": "Team saved.",
+    "team-deleted": "Team deleted.",
+    "roles-title": "Teams & roles",
+    "roles-copy": "The role matrix makes client access clear before someone opens a record.",
+    "view-matrix": "View role matrix",
+    "matrix-title": "Role matrix",
+    "access-summary": "Client access: {{access}} · {{count}} people",
+    "scope": {
+      "assigned": "assigned clients",
+      "shared": "shared clients",
+      "firm-read": "firm-wide read",
+      "none": "no client access"
+    },
+    "no-capabilities": "No capabilities",
+    "role-name": "Role name",
+    "add-role": "Add role",
+    "custom-role-description": "Custom firm role.",
+    "role-saved": "Role saved.",
+    "role-deleted": "Role deleted.",
+    "delete": "Delete",
+    "save-failed": "Could not save the change."
+  }
+}

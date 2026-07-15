@@ -5,6 +5,7 @@
 //! compatibility baseline and must not be edited for later features.
 
 mod v0001_core_baseline;
+mod v0003_teams_roles;
 
 #[cfg(test)]
 mod v0002_test_dummy;
@@ -22,7 +23,8 @@ pub struct Migration {
 
 /// Append new entries in ascending version order. Existing entries are
 /// immutable once shipped.
-pub const CRM_MIGRATIONS: &[Migration] = &[v0001_core_baseline::MIGRATION];
+pub const CRM_MIGRATIONS: &[Migration] =
+    &[v0001_core_baseline::MIGRATION, v0003_teams_roles::MIGRATION];
 
 const CREATE_MIGRATIONS_TABLE: &str = r#"
 CREATE TABLE IF NOT EXISTS crm_migrations (

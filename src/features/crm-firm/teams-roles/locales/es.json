@@ -1,0 +1,43 @@
+{
+  "teams-roles": {
+    "settings-label": "Organización",
+    "heading": "Personas y permisos",
+    "heading-copy": "Administra las personas, los equipos y los roles de tu firma en un solo lugar.",
+    "people-title": "Personas",
+    "people-copy": "Asigna a cada persona activa un rol y los equipos con los que trabaja.",
+    "active-count": "{{count}} miembros activos",
+    "people-empty": "Las personas aparecerán aquí después de agregarlas a tu firma.",
+    "unnamed-member": "Miembro sin nombre",
+    "active": "Activo",
+    "inactive": "Inactivo",
+    "role-label": "Rol",
+    "role-for": "Rol para {{name}}",
+    "choose-role": "Elige un rol",
+    "teams-label": "Equipos",
+    "teams-title": "Equipos",
+    "teams-copy": "Usa equipos para organizar personas. Los roles, no los equipos, deciden a qué puede acceder una persona.",
+    "team-name": "Nombre del equipo",
+    "add-team": "Agregar equipo",
+    "team-saved": "Equipo guardado.",
+    "team-deleted": "Equipo eliminado.",
+    "roles-title": "Equipos y roles",
+    "roles-copy": "La matriz de roles aclara el acceso de clientes antes de que alguien abra un registro.",
+    "view-matrix": "Ver matriz de roles",
+    "matrix-title": "Matriz de roles",
+    "access-summary": "Acceso de clientes: {{access}} · {{count}} personas",
+    "scope": {
+      "assigned": "clientes asignados",
+      "shared": "clientes compartidos",
+      "firm-read": "lectura de toda la firma",
+      "none": "sin acceso a clientes"
+    },
+    "no-capabilities": "Sin capacidades",
+    "role-name": "Nombre del rol",
+    "add-role": "Agregar rol",
+    "custom-role-description": "Rol personalizado de la firma.",
+    "role-saved": "Rol guardado.",
+    "role-deleted": "Rol eliminado.",
+    "delete": "Eliminar",
+    "save-failed": "No se pudo guardar el cambio."
+  }
+}

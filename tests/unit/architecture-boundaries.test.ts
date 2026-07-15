@@ -71,7 +71,9 @@ const ALLOWED_FEATURE_EDGES = new Set<string>([
   'settings->meetings',   // RecordingNoticeSettings (Recording Notice Kit) configures the meetings notice policy + spoken-script, reusing meetings/noticeSettings' pure readers (mirrors settings->ask / settings->dictation config edges)
   'settings->onboarding', // settings can relaunch onboarding flows
   'settings->scheduling', // settings hosts the local scheduling availability panel; the scheduling feature owns booking rules and slot math
+  'settings->teams-roles', // Settings mounts the feature-owned Organization descriptor through its public doorway.
   'settings->workflows',  // settings hosts the templates marketplace tab
+  'teams-roles->settings', // Teams & Roles uses Settings' public registry doorway to register its feature-owned section.
 ]);
 
 function walk(dir: string, acc: string[] = []): string[] {
@@ -87,6 +89,7 @@ function layerOf(rel: string): Layer | null {
   return top in RANK ? (top as Layer) : null;
 }
 function featureOf(rel: string): string {
+  if (rel.startsWith('features/crm-firm/teams-roles')) return 'teams-roles';
   const feature = rel.split('/')[1] ?? '';
   // The extracted CRM screens are one product surface split into small folders
   // for maintainability. Treat them as one feature boundary; their registry,
