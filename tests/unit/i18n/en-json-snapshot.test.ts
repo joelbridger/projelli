@@ -66,6 +66,7 @@ describe('en.json structure snapshot', () => {
         "audio": 1,
         "chat": 12,
         "citation": 3,
+        "commands": 16,
         "common": 75,
         "crm": 22,
         "editor": 27,
