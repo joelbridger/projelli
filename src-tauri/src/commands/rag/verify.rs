@@ -42,6 +42,21 @@ pub async fn rag_verify_citation(
         .to_string();
 
     let workspace = require_workspace(&state).await?;
+    // Own-clients doorway: citation verification is a cross-matter presence /
+    // attribution oracle (a mismatch discloses the real matter). When the flag is
+    // on, refuse verification against a matter the member may not read, so it
+    // cannot probe other members' clients. Deny-closed with no member.
+    if crate::commands::crm::features::permissions::commands::own_clients_permissions_enabled() {
+        use crate::commands::crm::features::permissions::commands as perms;
+        let current = perms::native_current_member();
+        let crm_store = crate::commands::crm::core_store::CrmCoreStore::open(&workspace)
+            .map_err(|error| error.to_string())?;
+        let read_scope =
+            perms::matter_read_scope(&crm_store, true, current.as_ref()).map_err(|e| e.to_string())?;
+        if !read_scope.allows(&claimed) {
+            return Err("Matter is outside the current member's client scope.".into());
+        }
+    }
     // P2.1 (Finding 4): reuse the cached open table handle. None = no index →
     // nothing can be verified.
     let Some(table) = cached_chunks_table(&state, &workspace).await? else {

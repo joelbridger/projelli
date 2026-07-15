@@ -197,11 +197,20 @@ async fn run(backend_base: String, email: String, cancel: Arc<AtomicBool>) -> an
             .to_string());
     }
 
-    // Bind the native firm-session identity from THIS exchange. `run` performed
-    // the code exchange directly with the relay over TLS, so the returned member
-    // fields are trustworthy — the renderer never touched them. This is the only
+    // Bind the native firm-session identity from THIS exchange. This is the only
     // place the CRM own-clients identity is established; there is no renderer
-    // command that can set it. `user_id` is the CRM `member_id` (org-scoped).
+    // command that can set it, and a forged store record has no effect.
+    // `user_id` is the CRM `member_id` (org-scoped).
+    //
+    // ⚠️ KNOWN-OPEN (security re-review Finding 1): `backend_base` is a renderer
+    // argument, so `run` performed this exchange against a relay the RENDERER
+    // chose. A modified renderer can therefore point it at a fake relay and mint
+    // any `user_id`/`role`. These fields are trustworthy ONLY when `backend_base`
+    // is the genuine relay. Closing this requires a pinned trust anchor the
+    // renderer cannot swap — an allowlisted/compiled relay host, or verifying the
+    // relay-signed Ed25519 seat token before trusting the identity (Option A).
+    // Tracked for the coordinator's trust-anchor decision; the shipped feature is
+    // dark until then.
     if let Some(user_id) = exchange
         .get("user")
         .and_then(|user| user.get("user_id"))
@@ -229,9 +238,10 @@ async fn run(backend_base: String, email: String, cancel: Arc<AtomicBool>) -> an
 }
 
 /// Read the `org_id` claim from a relay access-token JWT WITHOUT verifying the
-/// signature. This is sound only because the token was just fetched directly
-/// from the relay over TLS in `run` (never from the renderer); we are reading a
-/// trusted transport's payload, not authenticating an untrusted token.
+/// signature. Sound to the same degree as the rest of the identity: the token
+/// came from the relay `run` contacted over TLS — but that relay is chosen by
+/// the renderer-supplied `backend_base` (see the KNOWN-OPEN note above), so this
+/// is only as trustworthy as `backend_base` being the genuine relay.
 fn access_token_org_id(token: &str) -> Option<String> {
     use base64::Engine;
     let payload = token.split('.').nth(1)?;

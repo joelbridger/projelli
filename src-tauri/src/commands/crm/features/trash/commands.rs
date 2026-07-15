@@ -447,14 +447,19 @@ pub async fn crm_trash_soft_delete(
     let audit_record_id = record_id.clone();
     let audit_matter_id = matter_id.clone();
     let audit_actor = deleted_by.clone();
+    let current = crate::commands::crm::features::permissions::commands::native_current_member();
     let deleted = tokio::task::spawn_blocking(move || {
-        soft_delete_record(
-            &CrmCoreStore::open(&operation_workspace)?,
-            &record_id,
-            &matter_id,
-            &deleted_by,
-            Utc::now(),
-        )
+        use crate::commands::crm::features::permissions::commands as perms;
+        let store = CrmCoreStore::open(&operation_workspace)?;
+        // Soft-delete mutates client data (and returns its snapshot). A scoped
+        // member may only delete within a matter they own; deny-closed with no
+        // member.
+        let scope =
+            perms::matter_read_scope(&store, perms::own_clients_permissions_enabled(), current.as_ref())?;
+        if !scope.allows(&matter_id) {
+            bail!("CRM record is outside the current member's client scope.");
+        }
+        soft_delete_record(&store, &record_id, &matter_id, &deleted_by, Utc::now())
     })
     .await
     .map_err(|error| error.to_string())?
@@ -508,13 +513,18 @@ pub async fn crm_trash_is_tombstoned(
     matter_id: String,
 ) -> Result<bool, String> {
     let workspace = workspace(&state).await?;
+    let current = crate::commands::crm::features::permissions::commands::native_current_member();
     tokio::task::spawn_blocking(move || {
-        is_tombstoned_record(
-            &CrmCoreStore::open(&workspace)?,
-            &record_id,
-            &matter_id,
-            Utc::now(),
-        )
+        use crate::commands::crm::features::permissions::commands as perms;
+        let store = CrmCoreStore::open(&workspace)?;
+        // Existence-probe for a matter's record: scope it so a member cannot
+        // enumerate a non-owned matter's records. Deny-closed with no member.
+        let scope =
+            perms::matter_read_scope(&store, perms::own_clients_permissions_enabled(), current.as_ref())?;
+        if !scope.allows(&matter_id) {
+            bail!("CRM record is outside the current member's client scope.");
+        }
+        is_tombstoned_record(&store, &record_id, &matter_id, Utc::now())
     })
     .await
     .map_err(|error| error.to_string())?
@@ -580,14 +590,20 @@ pub async fn crm_trash_purge(
     let audit_record_id = record_id.clone();
     let audit_matter_id = matter_id.clone();
     let audit_actor = actor_id.clone();
+    let current = crate::commands::crm::features::permissions::commands::native_current_member();
     let result = tokio::task::spawn_blocking(move || {
-        permanently_purge_record(
-            &CrmCoreStore::open(&operation_workspace)?,
-            &record_id,
-            &matter_id,
-            &actor_id,
-            Utc::now(),
-        )
+        use crate::commands::crm::features::permissions::commands as perms;
+        let store = CrmCoreStore::open(&operation_workspace)?;
+        // Native matter-scope guard on top of the existing firm-admin boundary:
+        // a scoped member may only purge within a matter they own (the firm-admin
+        // check below keys on a renderer-supplied actor id). Deny-closed with no
+        // member.
+        let scope =
+            perms::matter_read_scope(&store, perms::own_clients_permissions_enabled(), current.as_ref())?;
+        if !scope.allows(&matter_id) {
+            bail!("CRM record is outside the current member's client scope.");
+        }
+        permanently_purge_record(&store, &record_id, &matter_id, &actor_id, Utc::now())
     })
     .await
     .map_err(|error| error.to_string())?

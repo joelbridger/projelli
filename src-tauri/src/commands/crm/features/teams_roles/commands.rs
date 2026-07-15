@@ -429,6 +429,16 @@ fn mutate(
 
 #[tauri::command]
 pub async fn crm_teams_roles_get(state: State<'_, CrmState>) -> Result<TeamsRolesState, String> {
+    // Reading the roster reveals who holds firm:manage / firm-read. When
+    // enforcement is active, require a bound firm session so an unauthenticated
+    // renderer cannot enumerate it (deny-closed when signed out). A bound member
+    // may read their firm's roster.
+    {
+        use crate::commands::crm::features::permissions::commands as perms;
+        if perms::own_clients_permissions_enabled() && perms::native_current_member().is_none() {
+            return Err("Sign in to view Teams & Roles.".into());
+        }
+    }
     let workspace = workspace(&state).await?;
     tokio::task::spawn_blocking(move || {
         let store = CrmCoreStore::open(&workspace)?;

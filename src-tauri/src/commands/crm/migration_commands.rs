@@ -192,6 +192,28 @@ pub async fn crm_migration_import(
         "salesforce" => "salesforce",
         _ => return Err("Choose the Wealthbox, Redtail, or Salesforce sample source.".into()),
     };
+    // Own-clients doorway: a migration import writes the firm's whole client book
+    // into the store. Require firm-wide read authority (deny-closed with no
+    // member). Flag off preserves behavior.
+    {
+        use crate::commands::crm::features::permissions::commands as perms;
+        if perms::own_clients_permissions_enabled() {
+            let ws = workspace(&state).await?;
+            let current = perms::native_current_member();
+            let firm_wide = tokio::task::spawn_blocking(move || {
+                let store = CrmCoreStore::open(&ws)?;
+                Ok::<bool, anyhow::Error>(
+                    perms::matter_read_scope(&store, true, current.as_ref())?.is_firm_wide(),
+                )
+            })
+            .await
+            .map_err(|error| error.to_string())?
+            .map_err(|error| error.to_string())?;
+            if !firm_wide {
+                return Err("Importing the client book requires firm-wide read authority.".into());
+            }
+        }
+    }
     let batch_id = format!("{provider}-simulator");
     let source_id_field = source_id_field
         .unwrap_or_else(|| "external_id".into())

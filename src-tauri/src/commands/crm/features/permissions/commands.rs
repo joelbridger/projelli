@@ -55,9 +55,25 @@ pub(crate) const CLIENT_DATA_DOORWAYS: &[ClientDoorway] = &[
     ClientDoorway { command: "crm_permissions_upsert", guarded: true },
     ClientDoorway { command: "crm_trash_list", guarded: true },
     ClientDoorway { command: "crm_trash_restore", guarded: true },
+    ClientDoorway { command: "crm_trash_soft_delete", guarded: true },
+    ClientDoorway { command: "crm_trash_purge", guarded: true },
+    ClientDoorway { command: "crm_trash_is_tombstoned", guarded: true },
     ClientDoorway { command: "crm_migration_export", guarded: true },
+    ClientDoorway { command: "crm_migration_import", guarded: true },
     ClientDoorway { command: "crm_list_households", guarded: true },
+    ClientDoorway { command: "crm_list_write_proposals", guarded: true },
+    ClientDoorway { command: "crm_save_write_proposal", guarded: true },
+    ClientDoorway { command: "crm_prepare_write_proposal", guarded: true },
+    ClientDoorway { command: "crm_delete_write_proposal", guarded: true },
+    ClientDoorway { command: "crm_approve_write_proposal", guarded: true },
+    ClientDoorway { command: "crm_teams_roles_get", guarded: true },
+    ClientDoorway { command: "external_write_list_proposals", guarded: true },
+    ClientDoorway { command: "external_write_save_proposal", guarded: true },
+    ClientDoorway { command: "external_write_prepare_proposal", guarded: true },
+    ClientDoorway { command: "external_write_delete_proposal", guarded: true },
+    ClientDoorway { command: "external_write_approve_proposal", guarded: true },
     ClientDoorway { command: "rag_retrieve", guarded: true },
+    ClientDoorway { command: "rag_verify_citation", guarded: true },
 ];
 
 fn all_doorways_guarded() -> bool {
@@ -1083,6 +1099,7 @@ mod tests {
         use std::fs;
         use std::path::{Path, PathBuf};
 
+        // A guarded doorway's function body must reference one of these.
         const GUARD_SYMBOLS: &[&str] = &[
             "matter_read_scope",
             "protected_records",
@@ -1091,6 +1108,26 @@ mod tests {
             "save_protected_record",
             "get_protected_record",
             "require_firm_manage_authority",
+            "require_proposal_matter_in_scope",
+            "require_external_matter_in_scope",
+            "native_current_member",
+        ];
+        // Low-level client-data access primitives. ANY command whose body calls
+        // one directly returns/mutates client PII and MUST be a registered
+        // doorway — this is the exhaustiveness half of the check, so a new
+        // client-returning command cannot be added without registration.
+        const CLIENT_DATA_PRIMITIVES: &[&str] = &[
+            "list_live_records",
+            "search_fts",
+            "list_trashed_records",
+            "proposal_list_pending",
+            "proposal_get",
+            "proposal_upsert",
+            "proposal_delete",
+            "soft_delete_record",
+            "permanently_purge_record",
+            "restore_record",
+            "is_tombstoned_record",
         ];
 
         fn walk(dir: &Path, manifests: &mut Vec<String>, sources: &mut Vec<(PathBuf, String)>) {
@@ -1114,11 +1151,33 @@ mod tests {
             }
         }
 
+        // The body of a command function, bounded at the next top-level fn so a
+        // primitive in a neighbouring function is not misattributed.
+        fn command_body<'a>(sources: &'a [(PathBuf, String)], name: &str) -> Option<&'a str> {
+            let declaration = format!("fn {name}(");
+            let text = sources
+                .iter()
+                .find(|(_, text)| text.contains(&declaration))
+                .map(|(_, text)| text.as_str())?;
+            let start = text.find(&declaration)?;
+            let rest = &text[start + declaration.len()..];
+            let end = rest
+                .find("\npub async fn ")
+                .into_iter()
+                .chain(rest.find("\npub fn "))
+                .chain(rest.find("\nasync fn "))
+                .min()
+                .unwrap_or(rest.len());
+            Some(&rest[..end])
+        }
+
         let src = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
         let mut manifest_commands = Vec::new();
         let mut sources = Vec::new();
         walk(&src, &mut manifest_commands, &mut sources);
 
+        // Part A — every registered doorway is a real command that invokes a
+        // native authority symbol.
         for doorway in CLIENT_DATA_DOORWAYS {
             assert!(
                 manifest_commands.iter().any(|name| name == doorway.command),
@@ -1128,18 +1187,35 @@ mod tests {
             if !doorway.guarded {
                 continue;
             }
-            let declaration = format!("fn {}(", doorway.command);
-            let (_, text) = sources
-                .iter()
-                .find(|(_, text)| text.contains(&declaration))
+            let body = command_body(&sources, doorway.command)
                 .unwrap_or_else(|| panic!("no source declares {}", doorway.command));
-            let position = text.find(&declaration).unwrap();
-            let window = &text[position..(position + 4500).min(text.len())];
             assert!(
-                GUARD_SYMBOLS.iter().any(|symbol| window.contains(symbol)),
+                GUARD_SYMBOLS.iter().any(|symbol| body.contains(symbol)),
                 "doorway {} is marked guarded but its function invokes no native authority symbol",
                 doorway.command
             );
+        }
+
+        // Part B — exhaustiveness: every registered command whose body calls a
+        // client-data primitive directly is registered as a doorway. A new
+        // client-returning command added without registration fails here, so the
+        // interlock's inventory cannot silently miss a leak.
+        let registered: std::collections::BTreeSet<&str> =
+            CLIENT_DATA_DOORWAYS.iter().map(|d| d.command).collect();
+        for command in &manifest_commands {
+            let Some(body) = command_body(&sources, command) else {
+                continue;
+            };
+            if CLIENT_DATA_PRIMITIVES
+                .iter()
+                .any(|primitive| body.contains(primitive))
+                && !registered.contains(command.as_str())
+            {
+                panic!(
+                    "command {command} reads/mutates client data (calls a client-data primitive) \
+                     but is not in CLIENT_DATA_DOORWAYS — register + guard it",
+                );
+            }
         }
     }
 

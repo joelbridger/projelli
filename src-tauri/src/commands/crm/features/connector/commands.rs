@@ -853,11 +853,47 @@ fn verify_crm_proposal(proposal: &PendingCrmProposal) -> Result<(), String> {
     Ok(())
 }
 
+/// Own-clients guard for write-proposal commands: a proposal carries client
+/// content tied to a matter, so a scoped member may only create/modify/remove
+/// one in a matter they own. No-op when the flag is off; deny-closed with no
+/// bound member.
+async fn require_proposal_matter_in_scope(
+    state: &State<'_, CrmState>,
+    matter_id: &str,
+) -> Result<(), String> {
+    use crate::commands::crm::features::permissions::commands as perms;
+    if !perms::own_clients_permissions_enabled() {
+        return Ok(());
+    }
+    let ws = state
+        .workspace
+        .lock()
+        .await
+        .clone()
+        .ok_or_else(|| "Open a workspace before editing client data.".to_string())?;
+    let current = perms::native_current_member();
+    let matter = matter_id.to_string();
+    let allowed = tokio::task::spawn_blocking(move || {
+        let core = crate::commands::crm::core_store::CrmCoreStore::open(&ws)?;
+        Ok::<bool, anyhow::Error>(
+            perms::matter_read_scope(&core, true, current.as_ref())?.allows(&matter),
+        )
+    })
+    .await
+    .map_err(|error| error.to_string())?
+    .map_err(|error| error.to_string())?;
+    if !allowed {
+        return Err("This client is outside the current member's client scope.".into());
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn crm_save_write_proposal(
     state: State<'_, CrmState>,
     proposal: CrmWriteProposalDto,
 ) -> Result<CrmWriteProposalRecordDto, String> {
+    require_proposal_matter_in_scope(&state, &proposal.matter_id).await?;
     let proposal = crm_proposal_from_dto(proposal)?;
     let store = crm_store_from_state(&state).await?;
     store
@@ -887,6 +923,7 @@ pub async fn crm_prepare_write_proposal(
         .proposal_get(&proposal_id)
         .map_err(|e| e.to_string())?
         .ok_or("CRM proposal not found — reopen the client and try again")?;
+    require_proposal_matter_in_scope(&state, &proposal.matter_id).await?;
     if proposal.status == "sent" {
         return Err("this CRM proposal was already sent".to_string());
     }
@@ -913,11 +950,36 @@ pub async fn crm_prepare_write_proposal(
 pub async fn crm_list_write_proposals(
     state: State<'_, CrmState>,
 ) -> Result<Vec<CrmWriteProposalRecordDto>, String> {
+    use crate::commands::crm::features::permissions::commands as perms;
     let store = crm_store_from_state(&state).await?;
-    store
+    let dtos: Vec<CrmWriteProposalRecordDto> = store
         .proposal_list_pending()
         .map(|rows| rows.into_iter().map(crm_proposal_to_dto).collect())
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    if !perms::own_clients_permissions_enabled() {
+        return Ok(dtos);
+    }
+    // Own-clients doorway: a pending proposal carries client content (note/task
+    // body, field value) tied to a matter. Filter to the member's readable
+    // matters; deny-closed with no member.
+    let ws = state
+        .workspace
+        .lock()
+        .await
+        .clone()
+        .ok_or_else(|| "Open a workspace before listing write proposals.".to_string())?;
+    let current = perms::native_current_member();
+    let scope = tokio::task::spawn_blocking(move || {
+        let core = crate::commands::crm::core_store::CrmCoreStore::open(&ws)?;
+        perms::matter_read_scope(&core, true, current.as_ref())
+    })
+    .await
+    .map_err(|error| error.to_string())?
+    .map_err(|error| error.to_string())?;
+    Ok(dtos
+        .into_iter()
+        .filter(|dto| scope.allows(&dto.matter_id))
+        .collect())
 }
 
 #[tauri::command]
@@ -929,6 +991,10 @@ pub async fn crm_delete_write_proposal(
         return Ok(());
     }
     let store = crm_store_from_state(&state).await?;
+    // A scoped member may only delete a proposal in a matter they own.
+    if let Some(proposal) = store.proposal_get(&proposal_id).map_err(|e| e.to_string())? {
+        require_proposal_matter_in_scope(&state, &proposal.matter_id).await?;
+    }
     store
         .proposal_delete(&proposal_id)
         .map(|_| ())
@@ -954,6 +1020,8 @@ pub async fn crm_approve_write_proposal(
         verify_crm_proposal(&proposal)?;
         proposal
     };
+    // A scoped member may only approve (send) a proposal in a matter they own.
+    require_proposal_matter_in_scope(&state, &proposal.matter_id).await?;
     let requested_at = proposal
         .requested_at
         .clone()

@@ -527,11 +527,47 @@ pub async fn external_write_set_workspace(
     Ok(())
 }
 
+/// Own-clients guard for external-write proposals: each carries client content
+/// (`current_json`/`source_json`/`final_json`) tied to a matter, so a scoped
+/// member may only create/modify/remove/approve one in a matter they own. No-op
+/// when the flag is off; deny-closed with no bound member.
+async fn require_external_matter_in_scope(
+    state: &State<'_, ExternalWriteState>,
+    matter_id: &str,
+) -> Result<(), String> {
+    use crate::commands::crm::features::permissions::commands as perms;
+    if !perms::own_clients_permissions_enabled() {
+        return Ok(());
+    }
+    let ws = state
+        .workspace
+        .lock()
+        .await
+        .clone()
+        .ok_or_else(|| "workspace not set - call external_write_set_workspace first".to_string())?;
+    let current = perms::native_current_member();
+    let matter = matter_id.to_string();
+    let allowed = tokio::task::spawn_blocking(move || {
+        let core = crate::commands::crm::core_store::CrmCoreStore::open(&ws)?;
+        Ok::<bool, anyhow::Error>(
+            perms::matter_read_scope(&core, true, current.as_ref())?.allows(&matter),
+        )
+    })
+    .await
+    .map_err(|error| error.to_string())?
+    .map_err(|error| error.to_string())?;
+    if !allowed {
+        return Err("This client is outside the current member's client scope.".into());
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn external_write_save_proposal(
     state: State<'_, ExternalWriteState>,
     proposal: ExternalWriteProposalDto,
 ) -> Result<ExternalWriteProposalRecordDto, String> {
+    require_external_matter_in_scope(&state, &proposal.matter_id).await?;
     let proposal = proposal_from_dto(proposal)?;
     let store = store_from_state(&state).await?;
     store
@@ -560,6 +596,7 @@ pub async fn external_write_prepare_proposal(
         .proposal_get(&proposal_id)
         .map_err(|e| e.to_string())?
         .ok_or("external write proposal not found - reopen the client and try again")?;
+    require_external_matter_in_scope(&state, &proposal.matter_id).await?;
     if proposal.status == "sent" {
         return Err("this external write proposal was already sent".into());
     }
@@ -578,11 +615,35 @@ pub async fn external_write_prepare_proposal(
 pub async fn external_write_list_proposals(
     state: State<'_, ExternalWriteState>,
 ) -> Result<Vec<ExternalWriteProposalRecordDto>, String> {
+    use crate::commands::crm::features::permissions::commands as perms;
     let store = store_from_state(&state).await?;
-    store
+    let dtos: Vec<ExternalWriteProposalRecordDto> = store
         .proposal_list_pending()
         .map(|rows| rows.into_iter().map(proposal_to_dto).collect())
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    if !perms::own_clients_permissions_enabled() {
+        return Ok(dtos);
+    }
+    // Own-clients doorway: each pending proposal carries client content tied to a
+    // matter. Filter to the member's readable matters; deny-closed with no member.
+    let ws = state
+        .workspace
+        .lock()
+        .await
+        .clone()
+        .ok_or_else(|| "workspace not set - call external_write_set_workspace first".to_string())?;
+    let current = perms::native_current_member();
+    let scope = tokio::task::spawn_blocking(move || {
+        let core = crate::commands::crm::core_store::CrmCoreStore::open(&ws)?;
+        perms::matter_read_scope(&core, true, current.as_ref())
+    })
+    .await
+    .map_err(|error| error.to_string())?
+    .map_err(|error| error.to_string())?;
+    Ok(dtos
+        .into_iter()
+        .filter(|dto| scope.allows(&dto.matter_id))
+        .collect())
 }
 
 #[tauri::command]
@@ -594,6 +655,10 @@ pub async fn external_write_delete_proposal(
         return Ok(());
     }
     let store = store_from_state(&state).await?;
+    // A scoped member may only delete a proposal in a matter they own.
+    if let Some(proposal) = store.proposal_get(&proposal_id).map_err(|e| e.to_string())? {
+        require_external_matter_in_scope(&state, &proposal.matter_id).await?;
+    }
     store
         .proposal_delete(&proposal_id)
         .map(|_| ())
@@ -611,6 +676,7 @@ pub async fn external_write_approve_proposal(
         .proposal_get(&proposal_id)
         .map_err(|e| e.to_string())?
         .ok_or("external write proposal not found - reopen the client and try again")?;
+    require_external_matter_in_scope(&state, &proposal.matter_id).await?;
     let socket = socket_for_target(proposal.target)?;
     let audit = TauriWritebackAuditAppender { app: &app };
     approve_external_write_proposal_with_socket(

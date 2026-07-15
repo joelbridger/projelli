@@ -107,13 +107,21 @@ against the machine's local user tampering with the process itself.
 Every native command that can return or mutate client PII carries the same
 authority (`matter_read_scope` / `protected_records` / `permitted_search_scopes`
 / `authorize_record_save` in `crm::features::permissions`), and each is listed in
-the `CLIENT_DATA_DOORWAYS` registry: `crm_live_list`, `crm_live_upsert`,
-`crm_live_upsert_many`, `crm_search`, `crm_permissions_list` /
-`crm_permissions_get_record` / `crm_permissions_upsert`, `crm_trash_list`,
-`crm_trash_restore`, `crm_migration_export`, `crm_list_households`, and
-`rag_retrieve` (all-matter retrieval requires firm-wide authority). A
-machine-checkable test asserts every entry is a registered command whose function
-invokes a native authority symbol.
+the `CLIENT_DATA_DOORWAYS` registry: the live commands (`crm_live_list`,
+`crm_live_upsert`, `crm_live_upsert_many`, `crm_search`, `crm_permissions_*`); the
+trash commands (`crm_trash_list`/`restore`/`soft_delete`/`purge`/`is_tombstoned`);
+migration (`crm_migration_export`/`import`, firm-wide only); `crm_list_households`
+(firm-wide); the CRM and external write-proposal queues
+(`crm_*_write_proposal`, `external_write_*_proposal` — proposals carry client
+content tied to a matter); `crm_teams_roles_get`; and RAG
+(`rag_retrieve`/`rag_verify_citation`, all-matter requires firm-wide authority).
+
+A machine-checkable test enforces BOTH halves: every registered doorway is a real
+command whose function invokes a native authority symbol, AND — the exhaustiveness
+half — every command whose body calls a client-data primitive (`list_live_records`,
+`search_fts`, `list_trashed_records`, `proposal_*`, trash record ops) IS a
+registered doorway. A new client-returning command therefore cannot be added
+without registration, so the interlock's inventory cannot silently miss a leak.
 
 **Interlock (code-enforced):** `own_clients_permissions_enabled()` is the single
 native source of truth and returns true only when the flag is on AND every
@@ -137,5 +145,13 @@ Two things must be true before this flag is enabled; until then it ships dark.
    A firm whose members sign in by password (that path does not pass through
    Rust) has no native identity, so enforcement deny-closes for them until a
    firm-auth-into-Rust seam covers password login. Safe, but SSO is required to
-   use the feature. (Independent Ed25519 seat-token verification in Rust is a
-   tracked defense-in-depth follow-up, not required for this binding.)
+   use the feature.
+3. **Pinned relay trust anchor (security re-review Finding 1, KNOWN-OPEN).** The
+   SSO exchange runs against `backend_base`, which is a renderer argument, so a
+   modified renderer can point it at a fake relay and mint any `user_id`/`role`.
+   The identity binding is only sound once the relay is a trust anchor the
+   renderer cannot swap: an allowlisted/compiled relay host, or verifying the
+   relay-signed Ed25519 seat token before trusting the identity (Option A). Until
+   that lands, the "renderer cannot assume another member" guarantee holds
+   against a store record or a command arg, but NOT against a renderer that
+   redirects the SSO exchange. Coordinator trust-anchor decision required.
