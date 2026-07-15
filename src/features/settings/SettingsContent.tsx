@@ -99,6 +99,11 @@ import {
   groupKeywordMatch,
 } from './settingsContentHelpers';
 import {
+  getSettingsModuleDescriptor,
+} from './registry/settingsModuleRegistry';
+import { registerSettingsSectionRenderer } from './registry/sectionRendererBindings';
+import type { SettingsSectionRenderProps } from './registry/types';
+import {
   Toggle,
   NumberStepper,
   AboutHeader,
@@ -565,7 +570,7 @@ function ShortcutsSection({ searchQuery }: { searchQuery: string }) {
 // Section content renderers
 // ---------------------------------------------------------------------------
 
-interface SectionProps {
+export interface SettingsContentSectionProps extends SettingsSectionRenderProps {
   getSetting: (key: string) => unknown;
   setSetting: (key: string, value: unknown) => void;
   onAction: (actionId: string) => void;
@@ -582,14 +587,14 @@ interface SectionProps {
 
 /** Does any of `keys` survive the current search filter? Used to decide
  *  whether a search-active group should stay expanded. */
-function anyMatch(keys: string[], props: SectionProps): boolean {
+function anyMatch(keys: string[], props: SettingsContentSectionProps): boolean {
   if (!props.searchActive) return true;
   return keys.some((k) => props.filteredKeys.has(k));
 }
 
 function renderRows(
   keys: string[],
-  props: SectionProps,
+  props: SettingsContentSectionProps,
 ) {
   return keys
     .filter((k) => props.filteredKeys.has(k))
@@ -620,7 +625,7 @@ function settingMatchesQuery(def: SettingDefinition, lowerQ: string): boolean {
   );
 }
 
-function WorkspaceSection(props: SectionProps) {
+export function WorkspaceSection(props: SettingsContentSectionProps) {
   const generalKeys = ['startupBehavior', 'showWhatsNew'];
   const editorKeys  = ['fontSize', 'autoSave', 'autoSaveInterval', 'wordWrap', 'lineNumbers'];
   const filesKeys   = ['defaultNewFileType', 'letterheadTemplatePath', 'trashRetention', 'showHiddenFiles'];
@@ -658,7 +663,7 @@ function WorkspaceSection(props: SectionProps) {
   );
 }
 
-function AiSection(props: SectionProps) {
+export function AiSection(props: SettingsContentSectionProps) {
   // Token-limit keys go under a collapsed "Advanced" group (NEW-016): non-technical
   // advisors shouldn't see raw token numbers up front.
   const aiMainKeys     = ['ambientFileContext', 'keepRecentTurns', 'manageApiKeys', 'manageAIRules'];
@@ -729,7 +734,7 @@ function AiSection(props: SectionProps) {
   );
 }
 
-function PrivacySection(props: SectionProps) {
+export function PrivacySection(props: SettingsContentSectionProps) {
   const noticeKeys = ['meetings.noticePolicy', 'meetings.noticeScript'];
   const lowerQ = props.searchQuery.toLowerCase();
   const privacyMatch = !props.searchActive
@@ -764,7 +769,7 @@ function PrivacySection(props: SectionProps) {
   );
 }
 
-function SchedulingSection(props: SectionProps) {
+export function SchedulingSection(props: SettingsContentSectionProps) {
   const { t } = useTranslation();
   const lowerQ = props.searchQuery.toLowerCase();
   const schedulingMatch = !props.searchActive
@@ -787,7 +792,7 @@ function SchedulingSection(props: SectionProps) {
   );
 }
 
-function VoiceSection(props: SectionProps) {
+export function VoiceSection(props: SettingsContentSectionProps) {
   const voiceInputKeys = [
     'voiceEnabled',
     'voiceModel',
@@ -829,7 +834,7 @@ function VoiceSection(props: SectionProps) {
   );
 }
 
-function AdvancedSection(props: SectionProps) {
+export function AdvancedSection(props: SettingsContentSectionProps) {
   const updatesKeys = ['autoUpdateCheck', 'updateChannel', 'manualCheckNow'];
   // Power-user / developer-view toggles (e.g. the AI cost & usage meters,
   // which are off by default so the assistant doesn't read like a dev console).
@@ -891,7 +896,7 @@ function AdvancedSection(props: SectionProps) {
   );
 }
 
-function HelpSection(props: SectionProps) {
+export function HelpSection(props: SettingsContentSectionProps) {
   const onboardKeys = ['viewApiKeyTutorial', 'resetFeatureTour'];
   const aboutKeys   = ['aboutWhatsNew', 'aboutWebsite', 'aboutGithub'];
 
@@ -946,6 +951,16 @@ function HelpSection(props: SectionProps) {
     </div>
   );
 }
+
+// Compatibility registration for the existing section bodies. New feature
+// modules register their descriptor and renderer beside the feature instead.
+registerSettingsSectionRenderer('workspace', WorkspaceSection);
+registerSettingsSectionRenderer('ai', AiSection);
+registerSettingsSectionRenderer('privacy', PrivacySection);
+registerSettingsSectionRenderer('scheduling', SchedulingSection);
+registerSettingsSectionRenderer('voice', VoiceSection);
+registerSettingsSectionRenderer('advanced', AdvancedSection);
+registerSettingsSectionRenderer('help', HelpSection);
 
 function SettingsActionsMenu({
   onExport,
@@ -1214,7 +1229,7 @@ export function SettingsContent({
     [onAction, onRequestClose]
   );
 
-  const sectionProps: SectionProps = {
+  const sectionProps: SettingsContentSectionProps = {
     getSetting,
     setSetting,
     onAction: handleAction,
@@ -1406,23 +1421,9 @@ export function SettingsContent({
             data-testid="settings-content-scroll"
             className="flex-1 min-h-0 overflow-y-auto px-8 py-6"
           >
-            {activeExtra ? (
-              activeExtra.content
-            ) : activeSection === 'workspace' ? (
-              <WorkspaceSection {...sectionProps} />
-            ) : activeSection === 'ai' ? (
-              <AiSection {...sectionProps} />
-            ) : activeSection === 'privacy' ? (
-              <PrivacySection {...sectionProps} />
-            ) : activeSection === 'scheduling' ? (
-              <SchedulingSection {...sectionProps} />
-            ) : activeSection === 'voice' ? (
-              <VoiceSection {...sectionProps} />
-            ) : activeSection === 'advanced' ? (
-              <AdvancedSection {...sectionProps} />
-            ) : (
-              <HelpSection {...sectionProps} />
-            )}
+            {activeExtra
+              ? activeExtra.content
+              : getSettingsModuleDescriptor(activeSection)?.render(sectionProps) ?? null}
           </div>
         </div>
         <input

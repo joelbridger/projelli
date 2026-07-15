@@ -2,6 +2,7 @@
 // No React, no JSX, no component state.
 
 import type { SectionCategory } from '@/platform/settings/schema';
+import { getSettingsGroupDescriptors } from './registry/settingsModuleRegistry';
 
 /** Map a SETTINGS_SCHEMA `key` to the kebab-case test id callers know
  *  about. Keeps test selectors stable when refactoring. */
@@ -30,24 +31,13 @@ export function settingTestid(key: string): string | undefined {
  * picker and the Extensions/templates group entirely. The key is the SubSection
  * `id`; `section` is the top-level category the group lives in.
  */
-export const SETTINGS_GROUP_SEARCH: Record<string, { section: SectionCategory; keywords: string[] }> = {
-  'ws-general':     { section: 'workspace',  keywords: ['general', 'language', 'locale', 'translation', 'interface language', 'app language', 'english', 'spanish', 'startup', 'update notification'] },
-  'ws-editor':      { section: 'workspace',  keywords: ['editor', 'font', 'font size', 'text size', 'auto save', 'auto-save', 'autosave', 'automatic save', 'word wrap', 'line numbers'] },
-  'ws-files':       { section: 'workspace',  keywords: ['files', 'workspace', 'file type', 'letterhead', 'trash', 'hidden files', 'folder'] },
-  'aip-ai':         { section: 'ai',         keywords: ['model', 'models', 'provider', 'api key', 'anthropic', 'openai', 'claude', 'gpt', 'gemini', 'byok', 'language model'] },
-  'aip-memory':     { section: 'ai',         keywords: ['memory', 'facts', 'remember', 'context', 'recall'] },
-  'privacy-core':   { section: 'privacy',    keywords: ['privacy', 'telemetry', 'tracking', 'analytics', 'anonymous', 'opt out', 'confidential', 'privileged', 'egress', 'network', 'local only', 'data map'] },
-  'privacy-recording': { section: 'privacy', keywords: ['recording', 'notice', 'meeting', 'consent', 'strict', 'spoken notice', 'notice card'] },
-  'scheduling-booking': { section: 'scheduling', keywords: ['scheduling', 'booking', 'calendar link', 'availability', 'working hours', 'meeting type', 'buffer', 'minimum notice', 'timezone'] },
-  'voice-input':    { section: 'voice',      keywords: ['voice', 'microphone', 'speech to text', 'dictation', 'transcribe', 'transcription', 'push to talk'] },
-  'voice-tts':      { section: 'voice',      keywords: ['voice', 'text to speech', 'read aloud', 'narration', 'pronunciation', 'spoken language'] },
-  'adv-extensions': { section: 'advanced',   keywords: ['extension', 'extensions', 'plugin', 'plugins', 'marketplace', 'integration', 'integrations', 'connector', 'claude desktop', 'template model', 'add on', 'addon'] },
-  'adv-updates':    { section: 'advanced',   keywords: ['update', 'updates', 'version', 'upgrade', 'release', 'new version'] },
-  'adv-advanced':   { section: 'advanced',   keywords: ['advanced', 'developer', 'debug', 'diagnostics', 'reset', 'experimental'] },
-  'adv-shortcuts':  { section: 'help',       keywords: ['shortcut', 'shortcuts', 'keyboard', 'hotkey', 'hotkeys', 'keybinding'] },
-  'adv-setup':      { section: 'help',       keywords: ['setup', 'onboarding', 'tour', 'guide', 'tutorial', 'getting started', 'restart setup', 'walkthrough'] },
-  'adv-about':      { section: 'help',       keywords: ['about', 'legal', 'credits', 'licenses', 'acknowledgements'] },
-};
+export const SETTINGS_GROUP_SEARCH: Record<string, { section: SectionCategory; keywords: string[] }> =
+  Object.fromEntries(
+    getSettingsGroupDescriptors().map((group) => [
+      group.id,
+      { section: group.section, keywords: [...group.keywords] },
+    ]),
+  );
 
 export const SETTING_SEARCH_ALIASES: Record<string, string[]> = {
   autoSave: ['auto save', 'auto-save', 'automatic save', 'save automatically'],

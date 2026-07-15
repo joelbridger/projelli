@@ -18,18 +18,12 @@
  */
 
 import { brandText } from '@/config/brandText';
+import type { SettingsSectionId } from '@/platform/types/settings';
 
 export type SettingType = 'toggle' | 'select' | 'number' | 'text' | 'shortcut-display';
 
 /** The canonical section ids used in the sidebar nav. */
-export type SectionCategory =
-  | 'workspace'
-  | 'ai'
-  | 'privacy'
-  | 'scheduling'
-  | 'voice'
-  | 'advanced'
-  | 'help';
+export type SectionCategory = SettingsSectionId;
 
 /**
  * SettingCategory includes both the 6 new section ids AND every legacy id so
@@ -89,17 +83,6 @@ export interface SettingDefinition {
   /** For action-link entries (e.g., "Manage API Keys" opens the AI panel). */
   action?: SettingAction;
 }
-
-/** The nav sections shown in the sidebar. */
-export const SETTING_CATEGORIES: { id: SectionCategory; label: string }[] = [
-  { id: 'workspace', label: 'Workspace' },
-  { id: 'ai',        label: 'AI' },
-  { id: 'privacy',   label: 'Privacy' },
-  { id: 'scheduling', label: 'Scheduling' },
-  { id: 'voice',     label: 'Voice' },
-  { id: 'advanced',  label: 'Advanced' },
-  { id: 'help',      label: 'Help' },
-];
 
 /**
  * Maps every legacy category id to the canonical section it now lives in.
@@ -175,7 +158,11 @@ export const EMAIL_REPLY_AI_CLASSIFICATION_SETTING_KEY = 'intake.emailReplyAiCla
  *  are never alarmed on age. */
 export const EXTERNAL_EXPORT_STALE_DAYS_KEY = 'externalExportStaleDays';
 
-export const SETTINGS_SCHEMA: SettingDefinition[] = [
+/**
+ * Existing built-in definitions. The settings registry owns their placement;
+ * keep definitions here as the stable platform contract for stores and imports.
+ */
+export const BASE_SETTINGS_SCHEMA: readonly SettingDefinition[] = [
   // ── Workspace: General ────────────────────────────────────────────────
   {
     key: 'startupBehavior',
@@ -805,6 +792,25 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     defaultValue: '',
     action: { label: 'Open GitHub', actionId: 'open-github' },
   },
+];
+
+/**
+ * The durable schema is deliberately kept in its authored order. Apart from
+ * being a stable contract, this order is used when exporting settings JSON.
+ * Feature registries consume this schema to mount UI sections; the platform
+ * never imports a feature registry to construct its own store contract.
+ */
+export const SETTINGS_SCHEMA: readonly SettingDefinition[] = BASE_SETTINGS_SCHEMA;
+
+/** The canonical nav sections shown in the sidebar. */
+export const SETTING_CATEGORIES: readonly { id: SectionCategory; label: string }[] = [
+  { id: 'workspace', label: 'Workspace' },
+  { id: 'ai', label: 'AI' },
+  { id: 'privacy', label: 'Privacy' },
+  { id: 'scheduling', label: 'Scheduling' },
+  { id: 'voice', label: 'Voice' },
+  { id: 'advanced', label: 'Advanced' },
+  { id: 'help', label: 'Help' },
 ];
 
 /**
