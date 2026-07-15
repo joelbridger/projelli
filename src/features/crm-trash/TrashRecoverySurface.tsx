@@ -5,6 +5,7 @@ import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { Button } from '@/ui/kp';
 import { useFlag } from '@/platform/flags';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
+import { useFirmStore } from '@/platform/firm/firmStore';
 import {
   listTrashedCrmRecords,
   restoreTrashedCrmRecord,
@@ -31,10 +32,15 @@ function remainingRatio(expiresAt: string): number {
   return Math.max(0, Math.min(1, milliseconds / (30 * 24 * 60 * 60 * 1000)));
 }
 
+function rowIdentity(record: TrashedCrmRecord): string {
+  return `${encodeURIComponent(record.matterId)}--${encodeURIComponent(record.recordId)}`;
+}
+
 export function TrashRecoverySurface() {
   const { t } = useTranslation();
   const enabled = useFlag('crm-trash-recovery');
   const live = useLiveCrmRecords();
+  const signedInUserId = useFirmStore((state) => state.session?.userId);
   const [records, setRecords] = useState<readonly TrashedCrmRecord[]>([]);
   const [search, setSearch] = useState('');
   const [type, setType] = useState('all');
@@ -53,8 +59,14 @@ export function TrashRecoverySurface() {
   }, [live.workspaceRoot, t]);
 
   useEffect(() => {
-    if (enabled) void reload();
-  }, [enabled, reload]);
+    if (enabled) {
+      reload().catch((reason: unknown) => {
+        setError(
+          reason instanceof Error ? reason.message : t('crm.trash.load-error')
+        );
+      });
+    }
+  }, [enabled, reload, t]);
 
   const types = useMemo(
     () => [...new Set(records.map((record) => record.recordType))].sort(),
@@ -72,14 +84,14 @@ export function TrashRecoverySurface() {
   }, [records, search, type]);
 
   const restore = async (record: TrashedCrmRecord) => {
-    setBusyId(record.recordId);
+    setBusyId(rowIdentity(record));
     try {
       setError(null);
       await restoreTrashedCrmRecord({
         workspaceRoot: live.workspaceRoot,
         recordId: record.recordId,
         matterId: record.matterId,
-        actorId: 'current-advisor',
+        actorId: signedInUserId ?? 'local-user',
       });
       await Promise.all([reload(), live.reload()]);
     } catch (reason) {
@@ -134,7 +146,9 @@ export function TrashRecoverySurface() {
                 data-testid="crm-trash-search"
                 aria-label={t('crm.trash.search-label')}
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                }}
                 placeholder={t('crm.trash.search-placeholder')}
                 style={{ width: '100%' }}
               />
@@ -144,7 +158,9 @@ export function TrashRecoverySurface() {
             data-testid="crm-trash-type-filter"
             aria-label={t('crm.trash.type-filter')}
             value={type}
-            onChange={(event) => setType(event.target.value)}
+            onChange={(event) => {
+              setType(event.target.value);
+            }}
           >
             <option value="all">{t('crm.trash.all-types')}</option>
             {types.map((recordType) => (
@@ -194,13 +210,14 @@ export function TrashRecoverySurface() {
             </thead>
             <tbody>
               {visibleRecords.map((record) => {
+                const identity = rowIdentity(record);
                 const milliseconds =
                   new Date(record.expiresAt).getTime() - Date.now();
                 const ratio = remainingRatio(record.expiresAt);
                 return (
                   <tr
-                    key={record.recordId}
-                    data-testid={`crm-trash-row-${record.recordId}`}
+                    key={identity}
+                    data-testid={`crm-trash-row-${identity}`}
                   >
                     <td
                       style={{
@@ -243,7 +260,7 @@ export function TrashRecoverySurface() {
                             })}
                       </span>
                       <span
-                        data-testid={`crm-trash-meter-${record.recordId}`}
+                        data-testid={`crm-trash-meter-${identity}`}
                         aria-label={t('crm.trash.recovery-meter')}
                         style={{
                           display: 'block',
@@ -280,11 +297,17 @@ export function TrashRecoverySurface() {
                     >
                       <Button
                         size="sm"
-                        data-testid={`crm-trash-recover-${record.recordId}`}
+                        data-testid={`crm-trash-recover-${identity}`}
                         iconLeft={ArchiveRestore}
-                        disabled={busyId === record.recordId}
+                        disabled={busyId === identity}
                         onClick={() => {
-                          void restore(record);
+                          restore(record).catch((reason: unknown) => {
+                            setError(
+                              reason instanceof Error
+                                ? reason.message
+                                : t('crm.trash.restore-error')
+                            );
+                          });
                         }}
                       >
                         {t('crm.trash.recover')}

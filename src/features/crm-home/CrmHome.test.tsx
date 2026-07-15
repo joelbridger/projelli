@@ -4,9 +4,11 @@ import { describe, expect, it, vi } from 'vitest';
 import { CrmHome } from './CrmHome';
 import type { CrmHomeAdapter } from './types';
 
-const { isEnabled } = vi.hoisted(() => ({ isEnabled: vi.fn(() => false) }));
+const { useFlag } = vi.hoisted(() => ({
+  useFlag: vi.fn((_id: string) => false),
+}));
 
-vi.mock('@/platform/flags', () => ({ isEnabled }));
+vi.mock('@/platform/flags', () => ({ useFlag }));
 
 const migration: CrmHomeAdapter['migration'] = {
   workflowChecklists: [
@@ -77,14 +79,13 @@ describe('CrmHome', () => {
   });
 
   it('hides a flag-gated rail destination until its flag is enabled', () => {
-    const { unmount } = render(<CrmHome />);
+    const { rerender } = render(<CrmHome />);
     expect(screen.queryByTestId('crm-home-nav-trash')).not.toBeInTheDocument();
 
-    unmount();
-    isEnabled.mockImplementation((id: string) => id === 'crm-trash-recovery');
-    render(<CrmHome />);
+    useFlag.mockImplementation((id: string) => id === 'crm-trash-recovery');
+    rerender(<CrmHome />);
     expect(screen.getByTestId('crm-home-nav-trash')).toBeInTheDocument();
-    isEnabled.mockImplementation(() => false);
+    useFlag.mockImplementation(() => false);
   });
 
   it('uses the same Search records name in the navigation and on the destination', () => {

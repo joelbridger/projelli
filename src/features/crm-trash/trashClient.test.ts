@@ -5,25 +5,21 @@ import {
   restoreTrashedCrmRecord,
   softDeleteCrmRecord,
 } from './trashClient';
+import { LIVE_CRM_RECORDS_CHANGED } from '@/platform/crm/useLiveCrmRecords';
 
-const invoke = vi.fn();
-const crmSetWorkspace = vi.fn();
-const hydrate = vi.fn();
-const logDurable = vi.fn();
+const invoke = vi.fn<
+  (command: string, args?: Record<string, unknown>) => Promise<unknown>
+>();
+const crmSetWorkspace = vi.fn<(workspaceRoot: string) => Promise<void>>();
 
 vi.mock('@tauri-apps/api/core', () => ({
-  invoke: (...args: unknown[]) => invoke(...args),
+  invoke: (command: string, args?: Record<string, unknown>) =>
+    invoke(command, args),
   isTauri: () => true,
 }));
 vi.mock('@/platform/flags', () => ({ isEnabled: () => true }));
 vi.mock('@/platform/utils/wealthbox-commands', () => ({
-  crmSetWorkspace: (...args: unknown[]) => crmSetWorkspace(...args),
-}));
-vi.mock('@/platform/audit/AuditService', () => ({
-  AuditService: class {
-    hydrate = (...args: unknown[]) => hydrate(...args);
-    logDurable = (...args: unknown[]) => logDurable(...args);
-  },
+  crmSetWorkspace: (workspaceRoot: string) => crmSetWorkspace(workspaceRoot),
 }));
 
 const request = {
@@ -35,6 +31,8 @@ const request = {
 
 describe('trashClient', () => {
   it('uses the stable native soft-delete, recovery, and tombstone contract', async () => {
+    const changed = vi.fn();
+    window.addEventListener(LIVE_CRM_RECORDS_CHANGED, changed);
     invoke.mockResolvedValue({ expiresAt: '2026-08-14T12:00:00Z' });
 
     await softDeleteCrmRecord(request);
@@ -56,21 +54,8 @@ describe('trashClient', () => {
       recordId: 'record-1',
       matterId: 'matter-1',
     });
-    expect(hydrate).toHaveBeenCalledWith('/crm-workspace');
-    expect(logDurable).toHaveBeenCalledWith(
-      'crm_record_soft_deleted',
-      'CRM record moved to Trash & recovery',
-      expect.objectContaining({
-        metadata: expect.objectContaining({ recordId: 'record-1' }),
-      })
-    );
-    expect(logDurable).toHaveBeenCalledWith(
-      'crm_record_restored',
-      'CRM record restored from Trash & recovery',
-      expect.objectContaining({
-        metadata: expect.objectContaining({ recordId: 'record-1' }),
-      })
-    );
+    expect(changed).toHaveBeenCalledTimes(2);
+    window.removeEventListener(LIVE_CRM_RECORDS_CHANGED, changed);
   });
 
   it('passes the actor only to the native firm-admin purge boundary', async () => {
@@ -87,12 +72,5 @@ describe('trashClient', () => {
       matterId: 'matter-1',
       actorId: 'advisor-1',
     });
-    expect(logDurable).toHaveBeenCalledWith(
-      'crm_record_purge_refused',
-      'CRM permanent deletion refused',
-      expect.objectContaining({
-        metadata: expect.objectContaining({ actorId: 'advisor-1' }),
-      })
-    );
   });
 });

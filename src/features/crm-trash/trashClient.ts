@@ -6,7 +6,7 @@
  * 30-day expiry; this client only scopes calls to the active CRM workspace.
  */
 import { invoke, isTauri } from '@tauri-apps/api/core';
-import { AuditService } from '@/platform/audit/AuditService';
+import { LIVE_CRM_RECORDS_CHANGED } from '@/platform/crm/useLiveCrmRecords';
 import { isEnabled } from '@/platform/flags';
 import { crmSetWorkspace } from '@/platform/utils/wealthbox-commands';
 
@@ -27,20 +27,8 @@ interface TrashRequest {
   actorId: string;
 }
 
-type TrashAuditAction =
-  | 'crm_record_soft_deleted'
-  | 'crm_record_restored'
-  | 'crm_record_purge_refused';
-
-async function logTrashAction(
-  workspaceRoot: string | null | undefined,
-  action: TrashAuditAction,
-  description: string,
-  metadata: Record<string, unknown>
-): Promise<void> {
-  const audit = new AuditService();
-  await audit.hydrate(workspaceRoot ?? undefined);
-  await audit.logDurable(action, description, { metadata });
+function notifyLiveCrmSubscribers(): void {
+  window.dispatchEvent(new Event(LIVE_CRM_RECORDS_CHANGED));
 }
 
 async function inTrashWorkspace<T>(
@@ -74,17 +62,7 @@ export async function softDeleteCrmRecord({
       deletedBy: actorId,
     })
   );
-  await logTrashAction(
-    workspaceRoot,
-    'crm_record_soft_deleted',
-    'CRM record moved to Trash & recovery',
-    {
-      recordId,
-      matterId,
-      deletedBy: actorId,
-      expiresAt: deleted.expiresAt,
-    }
-  );
+  notifyLiveCrmSubscribers();
   return deleted;
 }
 
@@ -122,16 +100,7 @@ export async function restoreTrashedCrmRecord({
       restoredBy: actorId,
     })
   );
-  await logTrashAction(
-    workspaceRoot,
-    'crm_record_restored',
-    'CRM record restored from Trash & recovery',
-    {
-      recordId,
-      matterId,
-      restoredBy: actorId,
-    }
-  );
+  notifyLiveCrmSubscribers();
   return restored;
 }
 
@@ -142,24 +111,8 @@ export async function permanentlyPurgeTrashedCrmRecord({
   matterId,
   actorId,
 }: TrashRequest) {
-  try {
-    await inTrashWorkspace(workspaceRoot, () =>
-      invoke<void>('crm_trash_purge', { recordId, matterId, actorId })
-    );
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (message.includes('requires a firm admin')) {
-      await logTrashAction(
-        workspaceRoot,
-        'crm_record_purge_refused',
-        'CRM permanent deletion refused',
-        {
-          recordId,
-          matterId,
-          actorId,
-        }
-      );
-    }
-    throw error;
-  }
+  await inTrashWorkspace(workspaceRoot, () =>
+    invoke('crm_trash_purge', { recordId, matterId, actorId })
+  );
+  notifyLiveCrmSubscribers();
 }

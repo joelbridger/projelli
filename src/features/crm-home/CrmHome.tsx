@@ -1,8 +1,15 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string -- Frozen CRM screen copy needs its translation catalog in a separate product change. */
-import { createElement, useCallback, useEffect, useState } from 'react';
+import {
+  createElement,
+  Fragment,
+  useCallback,
+  useEffect,
+  useState,
+  type ReactNode,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import { Bell } from 'lucide-react';
-import { isEnabled } from '@/platform/flags';
+import { useFlag, type FlagId } from '@/platform/flags';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import { crmHomeSurfaceRegistry } from './registry';
 import { CrmHomeSurfaceContext } from './surfaceContext';
@@ -15,6 +22,16 @@ import type {
 } from '@/features/crm-workflows/Workflows';
 
 export type { CrmHomeProps, CrmHomeRoute } from './routes';
+
+function FlaggedRailItem({
+  flagId,
+  children,
+}: {
+  flagId: FlagId;
+  children: ReactNode;
+}) {
+  return useFlag(flagId) ? children : null;
+}
 
 function HomeRail({
   route,
@@ -44,36 +61,48 @@ function HomeRail({
         Home
       </div>
       {crmHomeSurfaceRegistry
-        .filter(({ rail, flagId }) => rail && (!flagId || isEnabled(flagId)))
-        .map(({ route: item, labelKey, icon: Icon }) => (
-          <button
-            key={item}
-            data-testid={`crm-home-nav-${item}`}
-            onClick={() => {
-              onNavigate(item);
-            }}
-            aria-current={activeParent === item ? 'page' : undefined}
-            style={{
-              display: 'flex',
-              width: '100%',
-              alignItems: 'center',
-              gap: 8,
-              border: 0,
-              borderRadius: 7,
-              padding: '8px 9px',
-              marginBottom: 3,
-              cursor: 'pointer',
-              textAlign: 'left',
-              background:
-                activeParent === item ? 'var(--kp-assured-bg)' : 'transparent',
-              color:
-                activeParent === item ? 'var(--kp-assured)' : 'var(--kp-text)',
-            }}
-          >
-            <Icon size={16} />
-            {t(labelKey)}
-          </button>
-        ))}
+        .filter(({ rail }) => rail)
+        .map(({ route: item, labelKey, icon: Icon, flagId }) => {
+          const button = (
+            <button
+              data-testid={`crm-home-nav-${item}`}
+              onClick={() => {
+                onNavigate(item);
+              }}
+              aria-current={activeParent === item ? 'page' : undefined}
+              style={{
+                display: 'flex',
+                width: '100%',
+                alignItems: 'center',
+                gap: 8,
+                border: 0,
+                borderRadius: 7,
+                padding: '8px 9px',
+                marginBottom: 3,
+                cursor: 'pointer',
+                textAlign: 'left',
+                background:
+                  activeParent === item
+                    ? 'var(--kp-assured-bg)'
+                    : 'transparent',
+                color:
+                  activeParent === item
+                    ? 'var(--kp-assured)'
+                    : 'var(--kp-text)',
+              }}
+            >
+              <Icon size={16} />
+              {t(labelKey)}
+            </button>
+          );
+          return flagId ? (
+            <FlaggedRailItem key={item} flagId={flagId}>
+              {button}
+            </FlaggedRailItem>
+          ) : (
+            <Fragment key={item}>{button}</Fragment>
+          );
+        })}
     </aside>
   );
 }

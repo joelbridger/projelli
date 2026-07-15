@@ -29,7 +29,6 @@ import {
 } from 'lucide-react';
 import type { AuditActionType } from '@/platform/types/audit';
 import { enCatalog as en } from '@/i18nCatalogs';
-import { trashAuditActionDescriptors } from '@/features/crm-trash/auditActions';
 
 export type ActionCategory =
   | 'file'
@@ -632,10 +631,8 @@ export const legacyAuditActionDescriptors: readonly AuditActionDescriptor[] = [
 ];
 
 /** Append-only public mount list; audit writes and business logic stay outside. */
-export const auditActionRegistry: readonly AuditActionDescriptor[] = [
-  ...legacyAuditActionDescriptors,
-  ...trashAuditActionDescriptors,
-];
+export const auditActionRegistry: readonly AuditActionDescriptor[] =
+  legacyAuditActionDescriptors;
 
 export function validateAuditActionDescriptors(
   descriptors: readonly AuditActionDescriptor[],

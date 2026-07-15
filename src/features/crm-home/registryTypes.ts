@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import type { FlagId } from '@/platform/flags/registry';
+import type { FlagId } from '@/platform/flags';
 
 /**
  * Feature-owned CRM Home routes extend this map beside their descriptor.
