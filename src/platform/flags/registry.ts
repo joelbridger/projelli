@@ -122,6 +122,15 @@ export const flagRegistry = [
     expiresAt: '2026-09-13',
     defaultEnabled: false,
   },
+  {
+    id: 'notification-preferences',
+    description:
+      'Keeps personal notification preference capture dark until its acceptance drive is complete.',
+    ownerLane: 'notification-preferences',
+    createdAt: '2026-07-15',
+    expiresAt: '2026-09-13',
+    defaultEnabled: false,
+  },
 ] as const satisfies readonly FlagDescriptor[];
 
 export type FlagId = (typeof flagRegistry)[number]['id'];

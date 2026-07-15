@@ -1,0 +1,23 @@
+{
+  "notification-preferences": {
+    "settings-section-label": "My settings",
+    "title": "Notification preferences",
+    "description": "Choose the activity updates that matter to you and how future delivery should be handled.",
+    "no-delivery": "These choices are saved only. Email, text messages, and digests are not connected yet.",
+    "categories-title": "In-app activity",
+    "categories-description": "Choose which activity types should appear for you.",
+    "categories": {
+      "mentions": "Mentions",
+      "assignments": "Assignments",
+      "approvals": "Approvals needed",
+      "reminders": "Reminders"
+    },
+    "delivery-title": "Future delivery",
+    "delivery-description": "This records your choice for a future delivery channel. Nothing is sent from this setting today.",
+    "delivery": {
+      "immediate": "Right away",
+      "digest": "Daily digest",
+      "off": "Do not send"
+    }
+  }
+}

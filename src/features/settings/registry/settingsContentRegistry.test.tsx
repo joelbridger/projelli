@@ -31,6 +31,7 @@ const personalPanel: SettingsPanelDescriptor = {
 
 describe('SettingsContent registry-derived rail', () => {
   afterEach(() => {
+    localStorage.clear();
     vi.resetModules();
     vi.doUnmock('./legacySettingsSections');
   });
@@ -60,5 +61,31 @@ describe('SettingsContent registry-derived rail', () => {
     expect(
       screen.getByTestId('settings-category-personalTest')
     ).toBeInTheDocument();
+  });
+
+  it('self-serves the real My settings rail, visible panel, and search terms without a SettingsContent edit', async () => {
+    const flags = await import('@/platform/flags');
+    flags.setDevFlagOverride('notification-preferences', undefined);
+    const { SettingsContent } = await import('../SettingsContent');
+
+    const { rerender } = render(<SettingsContent variant="page" />);
+    expect(screen.queryByTestId('settings-category-personal')).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId('notification-preferences-panel')
+    ).not.toBeInTheDocument();
+
+    flags.setDevFlagOverride('notification-preferences', true);
+    rerender(<SettingsContent variant="page" />);
+    expect(screen.getByTestId('settings-category-personal')).toHaveTextContent(
+      'My settings'
+    );
+    fireEvent.click(screen.getByTestId('settings-category-personal'));
+    expect(screen.getByTestId('notification-preferences-panel')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('settings-search-toggle'));
+    fireEvent.change(screen.getByTestId('settings-search'), {
+      target: { value: 'digest' },
+    });
+    expect(screen.getByTestId('settings-category-personal')).toBeInTheDocument();
   });
 });

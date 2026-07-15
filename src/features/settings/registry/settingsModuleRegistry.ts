@@ -5,6 +5,10 @@ import {
 import { BASE_SETTINGS_SCHEMA } from '@/platform/settings/schema';
 import { isEnabled } from '@/platform/flags/router';
 import { teamsRolesSettingsModule } from '@/features/crm-firm';
+import {
+  notificationPreferencesSettingsPanel,
+  notificationPreferencesSettingsSection,
+} from '@/features/notifications/preferences';
 import type {
   SettingsGroupDescriptor,
   SettingsPanelDescriptor,
@@ -24,6 +28,7 @@ export const settingsSectionRegistry: readonly SettingsSectionDescriptor[] = [
     labelKey: 'teams-roles.settings-label',
     legacyLabel: 'Organization',
   },
+  notificationPreferencesSettingsSection,
 ];
 
 /**
@@ -34,6 +39,7 @@ export const settingsSectionRegistry: readonly SettingsSectionDescriptor[] = [
 export const settingsPanelRegistry: readonly SettingsPanelDescriptor[] = [
   ...legacySettingsPanels,
   teamsRolesSettingsModule,
+  notificationPreferencesSettingsPanel,
 ];
 
 function definitionsFor(

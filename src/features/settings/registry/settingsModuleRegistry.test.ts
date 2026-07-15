@@ -8,6 +8,7 @@ import {
   getSettingsSearchSectionDescriptors,
   getSettingsSectionDescriptors,
   getSettingsModuleDefinitions,
+  settingsPanelRegistry,
   getVisibleSettingsSectionDescriptors,
   validateSettingsModuleDescriptors,
 } from './settingsModuleRegistry';
@@ -21,6 +22,7 @@ describe('settingsModuleRegistry', () => {
     vi.doUnmock('@/platform/flags/router');
     vi.doUnmock('./legacySettingsSections');
     vi.doUnmock('@/features/crm-firm');
+    vi.doUnmock('@/features/notifications/preferences');
     vi.resetModules();
   });
 
@@ -250,6 +252,7 @@ describe('settingsModuleRegistry', () => {
       'voice',
       'advanced',
       'help',
+      'personal',
       'organization',
     ]);
     expect(
@@ -273,11 +276,44 @@ describe('settingsModuleRegistry', () => {
       'voice',
       'advanced',
       'help',
+      'personal',
       'organization',
     ]);
     expect(
       getSettingsPanelDescriptors('workspace').map((panel) => panel.id)
     ).toEqual(['legacy-workspace']);
+  });
+
+  it('registers the Personal section and notification panel as a valid new-section pair', () => {
+    const personal = getSettingsSectionDescriptors().find(
+      (descriptor) => descriptor.id === 'personal'
+    );
+    const notifications = settingsPanelRegistry.find(
+      (panel) => panel.id === 'notification-preferences'
+    );
+
+    expect(personal).toEqual(
+      expect.objectContaining({
+        id: 'personal',
+        legacyLabel: 'My settings',
+        labelKey: 'notification-preferences.settings-section-label',
+      })
+    );
+    expect(notifications).toEqual(
+      expect.objectContaining({
+        id: 'notification-preferences',
+        section: 'personal',
+        flagId: 'notification-preferences',
+      })
+    );
+    expect(getSettingsPanelDescriptors('personal')).toEqual([]); // Dark panels never mount.
+    expect(() => {
+      validateSettingsModuleDescriptors(
+        getSettingsSectionDescriptors(),
+        settingsPanelRegistry
+      );
+    }
+    ).not.toThrow();
   });
 
   it('hides a registered flag-gated panel while dark and restores it when enabled', async () => {

@@ -1,0 +1,23 @@
+{
+  "notification-preferences": {
+    "settings-section-label": "Mis ajustes",
+    "title": "Preferencias de notificaciones",
+    "description": "Elige las actualizaciones de actividad que te importan y cómo debería manejarse la entrega futura.",
+    "no-delivery": "Estas opciones solo se guardan. El correo, los mensajes de texto y los resúmenes aún no están conectados.",
+    "categories-title": "Actividad en la aplicación",
+    "categories-description": "Elige qué tipos de actividad deberían aparecer para ti.",
+    "categories": {
+      "mentions": "Menciones",
+      "assignments": "Asignaciones",
+      "approvals": "Aprobaciones necesarias",
+      "reminders": "Recordatorios"
+    },
+    "delivery-title": "Entrega futura",
+    "delivery-description": "Esto registra tu elección para un canal de entrega futuro. Hoy no se envía nada desde este ajuste.",
+    "delivery": {
+      "immediate": "De inmediato",
+      "digest": "Resumen diario",
+      "off": "No enviar"
+    }
+  }
+}
