@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Card } from '@/ui/kp';
 import { useFlag } from '@/platform/flags';
@@ -32,7 +32,10 @@ function memberInformation(
   return information.members[memberId] ?? emptyMemberInformation;
 }
 
-function formatIncome(amount: number | undefined, locale: string): string | undefined {
+function formatIncome(
+  amount: number | undefined,
+  locale: string
+): string | undefined {
   if (amount === undefined) return undefined;
   return new Intl.NumberFormat(locale, {
     style: 'currency',
@@ -61,21 +64,19 @@ export function EmploymentSection({
     setSelectedMemberId((current) =>
       household.members.some((member) => member.id === current)
         ? current
-        : household.members[0]?.id ?? ''
+        : (household.members[0]?.id ?? '')
     );
   }, [household]);
-
-  const selectedMember = useMemo(
-    () => household.members.find((member) => member.id === selectedMemberId),
-    [household.members, selectedMemberId]
-  );
 
   if (!visible) return null;
 
   const selectedInformation = selectedMemberId
     ? memberInformation(information, selectedMemberId)
     : emptyMemberInformation;
-  const income = formatIncome(information.householdGrossAnnualIncome, i18n.language);
+  const income = formatIncome(
+    information.householdGrossAnnualIncome,
+    i18n.language
+  );
 
   const updateMember = (
     field: keyof EmploymentMemberInformation,
@@ -107,11 +108,21 @@ export function EmploymentSection({
       style={{ display: 'grid', gap: 16, marginTop: 14 }}
     >
       <div
-        style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          gap: 12,
+          flexWrap: 'wrap',
+        }}
       >
         <div>
           <h2 style={{ margin: 0, fontSize: 18 }}>{t('employment.title')}</h2>
-          <p style={{ margin: '4px 0 0', color: 'var(--color-muted-foreground)' }}>
+          <p
+            style={{
+              margin: '4px 0 0',
+              color: 'var(--color-muted-foreground)',
+            }}
+          >
             {t('employment.helper')}
           </p>
         </div>
@@ -126,7 +137,9 @@ export function EmploymentSection({
       </div>
 
       {household.members.length === 0 ? (
-        <p data-testid="crm-employment-no-members">{t('employment.no-members')}</p>
+        <p data-testid="crm-employment-no-members">
+          {t('employment.no-members')}
+        </p>
       ) : (
         <>
           <label style={{ display: 'grid', gap: 4, maxWidth: 320 }}>
@@ -151,7 +164,9 @@ export function EmploymentSection({
                 <span>{t('employment.occupation-label')}</span>
                 <input
                   value={selectedInformation.occupation}
-                  onChange={(event) => updateMember('occupation', event.target.value)}
+                  onChange={(event) =>
+                    updateMember('occupation', event.target.value)
+                  }
                   data-testid="crm-employment-occupation"
                 />
               </label>
@@ -159,7 +174,9 @@ export function EmploymentSection({
                 <span>{t('employment.employer-label')}</span>
                 <input
                   value={selectedInformation.employer}
-                  onChange={(event) => updateMember('employer', event.target.value)}
+                  onChange={(event) =>
+                    updateMember('employer', event.target.value)
+                  }
                   data-testid="crm-employment-employer"
                 />
               </label>
@@ -168,7 +185,9 @@ export function EmploymentSection({
                 <input
                   type="date"
                   value={selectedInformation.occupationStart ?? ''}
-                  onChange={(event) => updateMember('occupationStart', event.target.value)}
+                  onChange={(event) =>
+                    updateMember('occupationStart', event.target.value)
+                  }
                   data-testid="crm-employment-start"
                 />
               </label>
@@ -177,7 +196,9 @@ export function EmploymentSection({
                 <input
                   type="date"
                   value={selectedInformation.plannedRetirement ?? ''}
-                  onChange={(event) => updateMember('plannedRetirement', event.target.value)}
+                  onChange={(event) =>
+                    updateMember('plannedRetirement', event.target.value)
+                  }
                   data-testid="crm-employment-retirement"
                 />
               </label>
@@ -185,7 +206,9 @@ export function EmploymentSection({
                 <span>{t('employment.reduced-schedule-label')}</span>
                 <input
                   value={selectedInformation.reducedScheduleContext ?? ''}
-                  onChange={(event) => updateMember('reducedScheduleContext', event.target.value)}
+                  onChange={(event) =>
+                    updateMember('reducedScheduleContext', event.target.value)
+                  }
                   data-testid="crm-employment-reduced-schedule"
                 />
               </label>
@@ -208,7 +231,11 @@ export function EmploymentSection({
                 />
               </label>
               <div style={{ display: 'flex', gap: 8 }}>
-                <Button size="sm" onClick={() => void save()} data-testid="crm-employment-save">
+                <Button
+                  size="sm"
+                  onClick={() => void save()}
+                  data-testid="crm-employment-save"
+                >
                   {t('employment.save')}
                 </Button>
                 <Button
@@ -233,22 +260,33 @@ export function EmploymentSection({
               }}
             >
               <dt>{t('employment.occupation-label')}</dt>
-              <dd style={{ margin: 0 }} data-testid="crm-employment-occupation-value">
+              <dd
+                style={{ margin: 0 }}
+                data-testid="crm-employment-occupation-value"
+              >
                 {selectedInformation.occupation || t('employment.not-set')}
               </dd>
               <dt>{t('employment.employer-label')}</dt>
-              <dd style={{ margin: 0 }}>{selectedInformation.employer || t('employment.not-set')}</dd>
+              <dd style={{ margin: 0 }}>
+                {selectedInformation.employer || t('employment.not-set')}
+              </dd>
               <dt>{t('employment.occupation-start-label')}</dt>
-              <dd style={{ margin: 0 }}>{selectedInformation.occupationStart || t('employment.not-set')}</dd>
+              <dd style={{ margin: 0 }}>
+                {selectedInformation.occupationStart || t('employment.not-set')}
+              </dd>
               <dt>{t('employment.planned-retirement-label')}</dt>
               <dd style={{ margin: 0 }}>
-                {selectedInformation.plannedRetirement || t('employment.not-set')}
+                {selectedInformation.plannedRetirement ||
+                  t('employment.not-set')}
                 {selectedInformation.reducedScheduleContext
                   ? ` · ${selectedInformation.reducedScheduleContext}`
                   : ''}
               </dd>
               <dt>{t('employment.gross-income-label')}</dt>
-              <dd style={{ margin: 0 }} data-testid="crm-employment-income-value">
+              <dd
+                style={{ margin: 0 }}
+                data-testid="crm-employment-income-value"
+              >
                 {income ?? t('employment.not-set')}
               </dd>
             </dl>

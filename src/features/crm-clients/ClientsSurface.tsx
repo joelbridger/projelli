@@ -54,6 +54,9 @@ function householdFromRecord(record: LiveCrmRecord, currentSyncState: SyncState,
     tags: list(record['tags']).filter((tag): tag is string => typeof tag === 'string'),
     contextRefs: list(record['contextRefs']) as NonNullable<HouseholdRecord['contextRefs']>,
     ...(typeof record['schedulingLinkUrl'] === 'string' ? { schedulingLinkUrl: record['schedulingLinkUrl'] } : {}),
+    ...(record['extensionData'] && typeof record['extensionData'] === 'object' && !Array.isArray(record['extensionData'])
+      ? { extensionData: record['extensionData'] as Readonly<Record<string, unknown>> }
+      : {}),
   };
 }
 

@@ -7,10 +7,7 @@ import {
   persistEmploymentInformation,
   readEmploymentInformation,
 } from './persistence';
-import {
-  EMPLOYMENT_EXTENSION_KEY,
-  isEmploymentInformation,
-} from './types';
+import { EMPLOYMENT_EXTENSION_KEY, isEmploymentInformation } from './types';
 
 const household: HouseholdRecord = {
   id: 'household-1',
@@ -112,17 +109,17 @@ describe('Employment section', () => {
     });
     render(<EmploymentSection household={saved} enabled />);
 
-    expect(screen.getByTestId('crm-employment-occupation-value')).toHaveTextContent(
-      'Architect'
-    );
+    expect(
+      screen.getByTestId('crm-employment-occupation-value')
+    ).toHaveTextContent('Architect');
     fireEvent.click(screen.getByTestId('crm-employment-edit'));
     fireEvent.change(screen.getByTestId('crm-employment-member'), {
       target: { value: 'elena' },
     });
     fireEvent.click(screen.getByTestId('crm-employment-edit'));
-    expect(screen.getByTestId('crm-employment-occupation-value')).toHaveTextContent(
-      'Teacher'
-    );
+    expect(
+      screen.getByTestId('crm-employment-occupation-value')
+    ).toHaveTextContent('Teacher');
   });
 
   it('rejects malformed persisted information and safely starts empty', () => {
@@ -134,7 +131,9 @@ describe('Employment section', () => {
     ).toBe(false);
     expect(
       readEmploymentInformation({
-        extensionData: { [EMPLOYMENT_EXTENSION_KEY]: { version: 2, members: {} } },
+        extensionData: {
+          [EMPLOYMENT_EXTENSION_KEY]: { version: 2, members: {} },
+        },
       })
     ).toEqual({ version: 1, members: {} });
   });
@@ -154,9 +153,9 @@ describe('Employment section', () => {
     });
     render(<EmploymentSection household={saved} enabled />);
 
-    expect(screen.getByTestId('crm-employment-occupation-value')).toHaveTextContent(
-      'Managing partner'
-    );
+    expect(
+      screen.getByTestId('crm-employment-occupation-value')
+    ).toHaveTextContent('Managing partner');
     expect(screen.getByTestId('crm-employment-income-value')).toHaveTextContent(
       '$284,000'
     );

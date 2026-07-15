@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { ClientsSurface } from './ClientsSurface';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useScopeUpdateStore } from '@/platform/rag/scopeUpdateStore';
+import { setDevFlagOverride } from '@/platform/flags';
 
 const liveCrm = vi.hoisted(() => ({
   records: [] as Array<Record<string, unknown>>,
@@ -55,6 +56,7 @@ describe('ClientsSurface during a CRM search update', () => {
 
   afterEach(() => {
     cleanup();
+    setDevFlagOverride('record-employment', undefined);
     useScopeUpdateStore.getState().clearAll();
   });
 
@@ -94,5 +96,50 @@ describe('ClientsSurface during a CRM search update', () => {
 
     expect(screen.getByTestId('crm-directory-surface')).toBeInTheDocument();
     expect(screen.getByTestId('crm-directory-household-matter-wealthbox-1')).toBeInTheDocument();
+  });
+
+  it('keeps every persisted extension bag when a household is rehydrated', () => {
+    setDevFlagOverride('record-employment', true);
+    liveCrm.records = [
+      {
+        id: 'household-employment-1',
+        kind: 'household',
+        matterId: 'matter-wealthbox-1',
+        name: 'Abernathy Household',
+        lifecycle: 'Active',
+        primaryAdvisor: 'Maya',
+        serviceTier: 'Standard',
+        members: [
+          {
+            id: 'member-1',
+            name: 'Avery Abernathy',
+            personType: 'person',
+            roles: [],
+            relatedHouseholds: 1,
+          },
+        ],
+        extensionData: {
+          'crm.employment': {
+            version: 1,
+            members: {
+              'member-1': {
+                occupation: 'Architect',
+                employer: 'Abernathy Studio',
+                plannedRetirement: '2030-01-01',
+              },
+            },
+            householdGrossAnnualIncome: 284000,
+          },
+          'another-feature.value': { survives: true },
+        },
+      },
+    ];
+    useMatterStore.setState({ clientMapHubId: 'matter-wealthbox-1' });
+
+    render(<ClientsSurface />);
+
+    expect(screen.getByTestId('crm-employment-section')).toBeInTheDocument();
+    expect(screen.getByTestId('crm-employment-occupation-value')).toHaveTextContent('Architect');
+    expect(screen.getByTestId('crm-employment-income-value')).toHaveTextContent('$284,000');
   });
 });

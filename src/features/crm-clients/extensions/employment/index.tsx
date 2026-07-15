@@ -26,6 +26,9 @@ export const employmentHouseholdSection: HouseholdSectionDescriptor = {
   order: 20,
   tab: 'client_map',
   mount: ({ household, onSaveHousehold }) => (
-    <EmploymentSection household={household} onSaveHousehold={onSaveHousehold} />
+    <EmploymentSection
+      household={household}
+      onSaveHousehold={onSaveHousehold}
+    />
   ),
 };

@@ -146,8 +146,10 @@ export const householdHeaderActionRegistry: readonly HouseholdHeaderActionDescri
   legacyHouseholdHeaderActions;
 export const householdAddActionRegistry: readonly HouseholdAddActionDescriptor[] =
   legacyHouseholdAddActions;
-export const householdSectionRegistry: readonly HouseholdSectionDescriptor[] =
-  [...legacyHouseholdSections, employmentHouseholdSection];
+export const householdSectionRegistry: readonly HouseholdSectionDescriptor[] = [
+  ...legacyHouseholdSections,
+  employmentHouseholdSection,
+];
 export const householdRecordExtensionRegistry: readonly HouseholdRecordExtensionDescriptor[] =
   legacyHouseholdRecordExtensions;
 

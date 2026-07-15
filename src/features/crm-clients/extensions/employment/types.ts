@@ -45,7 +45,11 @@ export function isEmploymentInformation(
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const candidate = value as Record<string, unknown>;
   if (candidate.version !== 1) return false;
-  if (!candidate.members || typeof candidate.members !== 'object' || Array.isArray(candidate.members))
+  if (
+    !candidate.members ||
+    typeof candidate.members !== 'object' ||
+    Array.isArray(candidate.members)
+  )
     return false;
   if (
     candidate.householdGrossAnnualIncome !== undefined &&
@@ -56,6 +60,7 @@ export function isEmploymentInformation(
     return false;
 
   return Object.entries(candidate.members as Record<string, unknown>).every(
-    ([memberId, member]) => memberId.length > 0 && isEmploymentMemberInformation(member)
+    ([memberId, member]) =>
+      memberId.length > 0 && isEmploymentMemberInformation(member)
   );
 }
