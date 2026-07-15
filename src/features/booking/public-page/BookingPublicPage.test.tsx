@@ -2,10 +2,16 @@ import '@/i18n';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { BookingPageSettings } from './BookingPageSettings';
-import { BookingPublicPage } from './BookingPublicPage';
+import { BookingPublicPage, FlaggedBookingPublicPage } from './BookingPublicPage';
 import { createBookingPageAvailabilityStub } from './availability';
 import { createHostedBookingLink } from './hostedLink';
-import { defaultBookingPageBranding } from './types';
+import { createLocalBookingImageSource, defaultBookingPageBranding, type BookingPageBranding } from './types';
+
+const useFlagMock = vi.hoisted(() => vi.fn<() => boolean>());
+
+vi.mock('@/platform/flags', () => ({
+  useFlag: useFlagMock,
+}));
 
 const available = createBookingPageAvailabilityStub({
   state: 'available',
@@ -14,7 +20,10 @@ const available = createBookingPageAvailabilityStub({
     { id: 'jul-22', label: 'Wed 22', accessibleLabel: 'Wednesday, July 22' },
   ],
   slotsByDate: {
-    'jul-21': [{ id: '10-30', label: '10:30 AM' }, { id: '1-30', label: '1:30 PM' }],
+    'jul-21': [
+      { id: '10-30', label: '10:30 AM' },
+      { id: '1-30', label: '1:30 PM' },
+    ],
     'jul-22': [{ id: '9-00', label: '9:00 AM' }],
   },
 });
@@ -25,7 +34,9 @@ describe('BookingPublicPage', () => {
 
     expect(screen.getByTestId('booking-public-page-brand-header')).toHaveTextContent('Northstar Advisory');
     expect(screen.getByTestId('booking-public-page-advisor')).toHaveTextContent('Sarah Morgan');
+    expect(screen.getByTestId('booking-public-page-meeting-details')).toHaveTextContent('45-minute planning meeting');
     expect(screen.getByTestId('booking-public-page-slot-10-30')).toBeInTheDocument();
+    expect(screen.getByTestId('booking-public-page-privacy-reassurance')).toHaveTextContent('Private calendar details are never shown');
     expect(screen.queryByTestId('booking-public-page-confirmation-information')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId('booking-public-page-slot-10-30'));
@@ -36,7 +47,14 @@ describe('BookingPublicPage', () => {
   });
 
   it('renders a safe unavailable state without slots or busy details', () => {
-    render(<BookingPublicPage availability={createBookingPageAvailabilityStub({ state: 'unavailable' })} branding={defaultBookingPageBranding} />);
+    render(
+      <BookingPublicPage
+        availability={createBookingPageAvailabilityStub({
+          state: 'unavailable',
+        })}
+        branding={defaultBookingPageBranding}
+      />
+    );
 
     expect(screen.getByTestId('booking-public-page-unavailable')).toHaveTextContent('Booking is unavailable right now');
     expect(screen.queryByTestId(/booking-public-page-slot-/)).not.toBeInTheDocument();
@@ -48,6 +66,44 @@ describe('BookingPublicPage', () => {
 
     expect(screen.getByTestId('booking-public-page-loading')).toHaveTextContent('Checking available times');
     expect(screen.queryByRole('button', { name: /Tue 21/ })).not.toBeInTheDocument();
+  });
+
+  it('renders a validated local photo but blocks a remote source at runtime', () => {
+    const { rerender } = render(
+      <BookingPublicPage
+        availability={available}
+        branding={{
+          ...defaultBookingPageBranding,
+          advisorPhotoSource: createLocalBookingImageSource('/assets/sarah.png'),
+        }}
+      />
+    );
+    expect(screen.getByRole('img', { name: 'Sarah Morgan' })).toHaveAttribute('src', '/assets/sarah.png');
+
+    const malformedBranding = {
+      ...defaultBookingPageBranding,
+      advisorPhotoSource: 'https://tracking.example/advisor.png',
+    } as unknown as BookingPageBranding;
+    rerender(<BookingPublicPage availability={available} branding={malformedBranding} />);
+    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+    expect(() => createLocalBookingImageSource('https://tracking.example/advisor.png')).toThrow('advisor photo must be a local image source');
+  });
+});
+
+describe('FlaggedBookingPublicPage', () => {
+  it('renders nothing while booking-public-page is OFF', () => {
+    useFlagMock.mockReturnValue(false);
+    render(<FlaggedBookingPublicPage availability={available} branding={defaultBookingPageBranding} />);
+
+    expect(useFlagMock).toHaveBeenCalledWith('booking-public-page');
+    expect(screen.queryByTestId('booking-public-page')).not.toBeInTheDocument();
+  });
+
+  it('renders the public page while booking-public-page is ON', () => {
+    useFlagMock.mockReturnValue(true);
+    render(<FlaggedBookingPublicPage availability={available} branding={defaultBookingPageBranding} />);
+
+    expect(screen.getByTestId('booking-public-page')).toBeInTheDocument();
   });
 });
 
@@ -61,10 +117,33 @@ describe('BookingPageSettings', () => {
     expect(screen.getByTestId('booking-page-settings-preview')).toHaveTextContent('Northstar Advisory');
     fireEvent.click(screen.getByTestId('booking-page-copy-link'));
     expect(copy).toHaveBeenCalledWith('https://book.lantern.local/p/sarah-morgan');
-    fireEvent.change(screen.getByDisplayValue('Northstar Advisory'), { target: { value: 'Juniper Wealth' } });
+    fireEvent.change(screen.getByDisplayValue('Northstar Advisory'), {
+      target: { value: 'Juniper Wealth' },
+    });
     expect(onBrandingChange).toHaveBeenCalledWith(expect.objectContaining({ firmName: 'Juniper Wealth' }));
     fireEvent.click(screen.getByTestId('booking-page-preview-button'));
     expect(screen.getByTestId('booking-page-expanded-preview')).toBeInTheDocument();
+  });
+
+  it('disables copy when no copy callback is connected and never claims success', () => {
+    render(<BookingPageSettings availability={available} branding={defaultBookingPageBranding} />);
+
+    const copyButton = screen.getByTestId('booking-page-copy-link');
+    expect(copyButton).toBeDisabled();
+    fireEvent.click(copyButton);
+    expect(copyButton).toHaveTextContent('Copy booking link');
+    expect(copyButton).not.toHaveTextContent('Copied');
+  });
+
+  it('rejects remote advisor photo input before branding can change', () => {
+    const onBrandingChange = vi.fn();
+    render(<BookingPageSettings availability={available} branding={defaultBookingPageBranding} onBrandingChange={onBrandingChange} />);
+
+    fireEvent.change(screen.getByLabelText('Local advisor photo source'), {
+      target: { value: 'https://tracking.example/advisor.png' },
+    });
+    expect(screen.getByRole('alert')).toHaveTextContent('bundled or imported local image');
+    expect(onBrandingChange).not.toHaveBeenCalled();
   });
 });
 

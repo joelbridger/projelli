@@ -10,31 +10,39 @@ export interface BookingPageDescriptor {
   createHostedLink: typeof createHostedBookingLink;
 }
 
-function requiredString(
-  descriptor: Partial<BookingPageDescriptor>,
-  field: 'id' | 'labelKey' | 'description',
-): void {
-  if (typeof descriptor[field] !== 'string' || descriptor[field].trim() === '') {
+type DescriptorField = keyof BookingPageDescriptor;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function requiredString(descriptor: Record<string, unknown>, field: Extract<DescriptorField, 'id' | 'labelKey' | 'description'>): string {
+  const value = descriptor[field];
+  if (typeof value !== 'string' || value.trim() === '') {
     throw new Error(`[bookingPageRegistry] missing required field: ${field}`);
+  }
+  return value;
+}
+
+function requiredFunction(descriptor: Record<string, unknown>, field: Exclude<DescriptorField, 'id' | 'labelKey' | 'description'>): void {
+  if (typeof descriptor[field] !== 'function') {
+    throw new Error(`[bookingPageRegistry] invalid field type: ${field} (expected function)`);
   }
 }
 
 /** Machine validation for descriptors contributed by future booking page types. */
-export function validateBookingPageDescriptors(
-  descriptors: readonly Partial<BookingPageDescriptor>[],
-): asserts descriptors is readonly BookingPageDescriptor[] {
+export function validateBookingPageDescriptors(descriptors: readonly unknown[]): asserts descriptors is readonly BookingPageDescriptor[] {
   const ids = new Set<string>();
   for (const descriptor of descriptors) {
-    requiredString(descriptor, 'id');
+    if (!isRecord(descriptor)) {
+      throw new Error('[bookingPageRegistry] descriptor must be an object');
+    }
+    const id = requiredString(descriptor, 'id');
     requiredString(descriptor, 'labelKey');
     requiredString(descriptor, 'description');
-    if (!descriptor.loadPublicPage || !descriptor.loadSettingsPanel || !descriptor.createHostedLink) {
-      throw new Error('[bookingPageRegistry] missing required renderer or hosted-link adapter');
-    }
-    const id = descriptor.id;
-    if (typeof id !== 'string') {
-      throw new Error('[bookingPageRegistry] missing required field: id');
-    }
+    requiredFunction(descriptor, 'loadPublicPage');
+    requiredFunction(descriptor, 'loadSettingsPanel');
+    requiredFunction(descriptor, 'createHostedLink');
     if (ids.has(id)) {
       throw new Error(`[bookingPageRegistry] duplicate page id: ${id}`);
     }
@@ -56,6 +64,8 @@ export const bookingPageRegistry = [
     createHostedLink: createHostedBookingLink,
   },
 ] as const satisfies readonly BookingPageDescriptor[];
+
+validateBookingPageDescriptors(bookingPageRegistry);
 
 export function getBookingPageDescriptor(id: string): BookingPageDescriptor | undefined {
   validateBookingPageDescriptors(bookingPageRegistry);
