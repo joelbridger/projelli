@@ -23,16 +23,16 @@ export interface SchedulingStateContract {
   availabilityRule: AvailabilityRule;
   bookingSlug: BookingSlug;
   bookingRequests: BookingRequest[];
-  setBookingSlug(slug: string): void;
-  setDayEnabled(weekday: Weekday, enabled: boolean): void;
-  updateWorkingHours(weekday: Weekday, updates: Partial<LocalTimeRange>): void;
-  addMeetingType(meetingType?: Partial<MeetingType>): string;
-  updateMeetingType(meetingTypeId: string, updates: Partial<MeetingType>): void;
-  removeMeetingType(meetingTypeId: string): void;
-  confirmBookingRequest(requestId: string): void;
-  declineBookingRequest(requestId: string): void;
-  setMinNoticeHours(hours: number): void;
-  setMaxHorizonDays(days: number): void;
+  setBookingSlug: (slug: string) => void;
+  setDayEnabled: (weekday: Weekday, enabled: boolean) => void;
+  updateWorkingHours: (weekday: Weekday, updates: Partial<LocalTimeRange>) => void;
+  addMeetingType: (meetingType?: Partial<MeetingType>) => string;
+  updateMeetingType: (meetingTypeId: string, updates: Partial<MeetingType>) => void;
+  removeMeetingType: (meetingTypeId: string) => void;
+  confirmBookingRequest: (requestId: string) => void;
+  declineBookingRequest: (requestId: string) => void;
+  setMinNoticeHours: (hours: number) => void;
+  setMaxHorizonDays: (days: number) => void;
 }
 
 export interface SchedulingSurfaceRuntime { state: SchedulingStateContract; }

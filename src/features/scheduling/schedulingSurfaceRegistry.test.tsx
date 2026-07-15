@@ -21,6 +21,7 @@ const runtime = {
 
 const dummyContribution: SchedulingSurfaceDescriptor = {
   id: 'test-scheduling-contribution', slot: 'calendar-grid', order: 20,
+  // eslint-disable-next-line lantern-i18n/no-hardcoded-string -- test fixture content, not user-facing copy.
   mount: () => <div data-testid="dummy-scheduling-contribution">Mounted through a descriptor</div>,
 };
 

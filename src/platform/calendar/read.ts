@@ -8,7 +8,8 @@ export async function calendarListEvents(fromUtc: string, toUtc: string): Promis
     try {
       const raw = localStorage.getItem(CALENDAR_EVENTS_SEED_KEY);
       if (raw) return JSON.parse(raw) as CalendarEventDto[];
-    } catch {
+    } catch (error) {
+      console.warn('Unable to read marketing-capture calendar events; falling back to the desktop calendar.', error);
       // Fall through to the desktop calendar read.
     }
   }

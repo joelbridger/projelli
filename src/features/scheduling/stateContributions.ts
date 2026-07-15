@@ -63,17 +63,27 @@ export function createAvailabilityStateContribution(set: SchedulingSet) {
         return { availabilityRule: { ...state.availabilityRule, meetingTypes: state.availabilityRule.meetingTypes.filter((type) => type.id !== meetingTypeId) } };
       });
     },
-    setMinNoticeHours: (hours: number) => set((state) => ({ availabilityRule: { ...state.availabilityRule, minNoticeHours: clampNonNegativeInt(hours) } })),
-    setMaxHorizonDays: (days: number) => set((state) => ({ availabilityRule: { ...state.availabilityRule, maxHorizonDays: clampPositiveInt(days) } })),
+    setMinNoticeHours: (hours: number) => {
+      set((state) => ({ availabilityRule: { ...state.availabilityRule, minNoticeHours: clampNonNegativeInt(hours) } }));
+    },
+    setMaxHorizonDays: (days: number) => {
+      set((state) => ({ availabilityRule: { ...state.availabilityRule, maxHorizonDays: clampPositiveInt(days) } }));
+    },
   };
 }
 
 /** Feature-owned booking state, ready for future booking-page contributions. */
 export function createBookingStateContribution(set: SchedulingSet) {
   return {
-    setBookingSlug: (slug: string) => set((state) => ({ bookingSlug: { ...state.bookingSlug, slug: sanitizeSlug(slug) } })),
-    confirmBookingRequest: (requestId: string) => set((state) => ({ bookingRequests: state.bookingRequests.map((request) => request.id === requestId ? { ...request, status: 'confirmed' } : request) })),
-    declineBookingRequest: (requestId: string) => set((state) => ({ bookingRequests: state.bookingRequests.map((request) => request.id === requestId ? { ...request, status: 'declined' } : request) })),
+    setBookingSlug: (slug: string) => {
+      set((state) => ({ bookingSlug: { ...state.bookingSlug, slug: sanitizeSlug(slug) } }));
+    },
+    confirmBookingRequest: (requestId: string) => {
+      set((state) => ({ bookingRequests: state.bookingRequests.map((request) => request.id === requestId ? { ...request, status: 'confirmed' } : request) }));
+    },
+    declineBookingRequest: (requestId: string) => {
+      set((state) => ({ bookingRequests: state.bookingRequests.map((request) => request.id === requestId ? { ...request, status: 'declined' } : request) }));
+    },
   };
 }
 
