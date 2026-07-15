@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { HouseholdRecord } from '../../adapters';
 import type { HouseholdRecordShellContext } from '../../recordRegistry';
 import {
@@ -100,7 +100,7 @@ describe('professional contacts extension', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('adds and renders trusted, CPA, attorney, and insurance relationships inline', () => {
+  it('adds and renders trusted, CPA, attorney, and insurance relationships inline', async () => {
     render(<EnabledHarness />);
     const rows = [
       ['trusted_contact', 'Amelia Foster'],
@@ -115,9 +115,11 @@ describe('professional contacts extension', () => {
         { target: { value: name } }
       );
       fireEvent.click(screen.getByTestId(`professional-contacts-save-${kind}`));
-      expect(
-        screen.getByTestId(`professional-contacts-summary-${kind}`)
-      ).toHaveTextContent(name);
+      await waitFor(() => {
+        expect(
+          screen.getByTestId(`professional-contacts-summary-${kind}`)
+        ).toHaveTextContent(name);
+      });
     }
   });
 });

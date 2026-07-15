@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Pencil, Plus, Save, ShieldCheck, X } from 'lucide-react';
 import { Button, Card } from '@/ui/kp';
 import { useFlag } from '@/platform/flags/router';
@@ -32,6 +32,7 @@ const inputStyle = {
 function ContactEditor(props: {
   kind: ProfessionalContactKind;
   value: ProfessionalContact;
+  isSaving: boolean;
   onCancel(): void;
   onSave(value: ProfessionalContact): void;
 }) {
@@ -130,6 +131,7 @@ function ContactEditor(props: {
       <div style={{ display: 'flex', gap: 8 }}>
         <Button
           data-testid={`professional-contacts-save-${kind}`}
+          disabled={props.isSaving}
           iconLeft={Save}
           size="sm"
           type="submit"
@@ -163,18 +165,28 @@ export function ProfessionalContactsSectionContent(
 ) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState<ProfessionalContactKind | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState(false);
+  const saveInFlight = useRef(false);
   const contacts = professionalContactsFor(context.household);
   const save = async (
     kind: ProfessionalContactKind,
     value: ProfessionalContact
   ) => {
+    if (saveInFlight.current) return;
+    saveInFlight.current = true;
+    setIsSaving(true);
     const next = { ...contacts, [kind]: value };
-    await context.onSaveHousehold?.(
-      withProfessionalContacts(context.household, next)
-    );
-    setSaveError(false);
-    setEditing(null);
+    try {
+      await context.onSaveHousehold?.(
+        withProfessionalContacts(context.household, next)
+      );
+      setSaveError(false);
+      setEditing(null);
+    } finally {
+      saveInFlight.current = false;
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -253,6 +265,7 @@ export function ProfessionalContactsSectionContent(
               {isEditing ? (
                 <ContactEditor
                   kind={kind}
+                  isSaving={isSaving}
                   onCancel={() => { setEditing(null); }}
                   onSave={(value) => {
                     void save(kind, value).catch(() => { setSaveError(true); });
