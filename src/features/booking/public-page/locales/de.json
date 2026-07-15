@@ -1,0 +1,51 @@
+{
+  "booking-public-page": {
+    "settings": {
+      "eyebrow": "Meine Einstellungen",
+      "title": "Buchungsseiten",
+      "description": "Wähle das Aussehen deiner öffentlichen Seite und teile ihren gehosteten Link.",
+      "actions": "Aktionen für Buchungsseite",
+      "copy-link": "Buchungslink kopieren",
+      "copied": "Kopiert",
+      "preview": "Öffentliche Seite ansehen",
+      "hosted-link": "Gehosteter Buchungslink",
+      "hosted-link-help": "Dies ist ein lokaler Vorschaulink, bis die gehostete Route verbunden ist.",
+      "branding-title": "Marke",
+      "branding-help": "Firmenname, Zeichen, Beraterfoto, Einführungstext und Hinweis erscheinen auf der öffentlichen Seite.",
+      "firm-name": "Firmenname",
+      "firm-mark": "Firmenzeichen",
+      "landing-copy": "Einführungstext",
+      "advisor-name": "Name des Beraters",
+      "advisor-title": "Titel des Beraters",
+      "advisor-photo": "Foto-URL des Beraters",
+      "meeting-title": "Besprechungstitel",
+      "meeting-description": "Besprechungsbeschreibung",
+      "disclosure": "Hinweis und Datenschutz-Fußzeile",
+      "preview-label": "Öffentliche Vorschau",
+      "preview-help": "Kalendernamen und Belegt-Details werden nie angezeigt."
+    },
+    "public": {
+      "meet-with": "Treffen mit {{advisor}}",
+      "loading-title": "Verfügbare Zeiten werden geprüft",
+      "loading-body": "Bitte warten Sie, während diese Seite anzeigefertige Zeiten erhält.",
+      "unavailable-title": "Buchung ist derzeit nicht verfügbar",
+      "unavailable-body": "Bitte kontaktieren Sie die Firma direkt, um ein Treffen zu vereinbaren.",
+      "step-pick": "1 · Tag und Zeit auswählen",
+      "choose-time": "Zeit auswählen",
+      "source-only": "Hier erscheinen nur Zeiten, die vom Verfügbarkeitsdienst des Beraters geliefert werden.",
+      "date-picker": "Verfügbare Daten",
+      "time-picker": "Verfügbare Zeiten",
+      "no-slots-title": "Keine Zeiten an diesem Tag",
+      "no-slots-body": "Wählen Sie ein anderes Datum oder kontaktieren Sie die Firma direkt.",
+      "step-information": "2 · Ihre Angaben",
+      "confirm-title": "Erzählen Sie uns etwas über sich",
+      "with-advisor": "mit {{advisor}}",
+      "name": "Ihr Name",
+      "email": "E-Mail",
+      "discussion": "Worüber möchten Sie sprechen? (optional)",
+      "not-connected-title": "Diese Seite bucht noch keine Termine",
+      "not-connected-body": "In dieser Vorschau wird keine Zeit reserviert und keine Information gesendet.",
+      "back": "Zurück zu den Zeiten"
+    }
+  }
+}

@@ -1,0 +1,105 @@
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { BookingPageAvailabilityConsumer } from './availability';
+import { BookingPublicPage } from './BookingPublicPage';
+import { createHostedBookingLink } from './hostedLink';
+import type { BookingPageBranding } from './types';
+
+export interface BookingPageSettingsProps {
+  branding: BookingPageBranding;
+  availability: BookingPageAvailabilityConsumer;
+  pageId?: string | undefined;
+  onBrandingChange?: ((next: BookingPageBranding) => void) | undefined;
+  onCopyLink?: ((link: string) => void | Promise<void>) | undefined;
+}
+
+/**
+ * The settings presentation owns only its draft. The enclosing settings owner
+ * chooses if and how it persists branding after the feature is mounted.
+ */
+export function BookingPageSettings({
+  availability,
+  branding,
+  onBrandingChange,
+  onCopyLink,
+  pageId = 'advisor-booking-page',
+}: BookingPageSettingsProps) {
+  const { t } = useTranslation();
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const hostedLink = createHostedBookingLink({ pageId });
+
+  const update = (field: keyof BookingPageBranding, value: string) => {
+    onBrandingChange?.({ ...branding, [field]: value });
+  };
+
+  const copyLink = () => {
+    const result = onCopyLink?.(hostedLink);
+    void Promise.resolve(result).then(() => setCopied(true));
+  };
+
+  return (
+    <section data-testid="booking-page-settings" style={{ color: '#182230' }}>
+      <header style={{ alignItems: 'start', display: 'flex', gap: 16, justifyContent: 'space-between', marginBottom: 22 }}>
+        <div>
+          <span style={{ color: '#667085', fontSize: 13, fontWeight: 700 }}>{t('booking-public-page.settings.eyebrow')}</span>
+          <h1 style={{ fontSize: 28, margin: '6px 0' }}>{t('booking-public-page.settings.title')}</h1>
+          <p style={{ color: '#667085', margin: 0 }}>{t('booking-public-page.settings.description')}</p>
+        </div>
+        <div aria-label={t('booking-public-page.settings.actions')} style={{ display: 'flex', gap: 8 }}>
+          <button data-testid="booking-page-copy-link" onClick={copyLink} style={secondaryButtonStyle} type="button">{copied ? t('booking-public-page.settings.copied') : t('booking-public-page.settings.copy-link')}</button>
+          <button data-testid="booking-page-preview-button" onClick={() => setPreviewOpen((open) => !open)} style={primaryButtonStyle} type="button">{t('booking-public-page.settings.preview')}</button>
+        </div>
+      </header>
+
+      <div data-testid="booking-page-hosted-link-rail" style={{ background: '#f8fafc', border: '1px solid #e4e7ec', borderRadius: 12, marginBottom: 20, padding: 16 }}>
+        <strong>{t('booking-public-page.settings.hosted-link')}</strong>
+        <code data-testid="booking-page-hosted-link" style={{ color: '#175cd3', display: 'block', marginTop: 6, overflowWrap: 'anywhere' }}>{hostedLink}</code>
+        <p style={{ color: '#667085', fontSize: 13, marginBottom: 0 }}>{t('booking-public-page.settings.hosted-link-help')}</p>
+      </div>
+
+      <div style={{ display: 'grid', gap: 20, gridTemplateColumns: 'minmax(300px, 1fr) minmax(300px, 1fr)' }}>
+        <section data-testid="booking-page-branding" style={panelStyle}>
+          <h2 style={panelTitleStyle}>{t('booking-public-page.settings.branding-title')}</h2>
+          <p style={mutedStyle}>{t('booking-public-page.settings.branding-help')}</p>
+          <div style={formGridStyle}>
+            <TextField label={t('booking-public-page.settings.firm-name')} value={branding.firmName} onChange={(value) => update('firmName', value)} />
+            <TextField label={t('booking-public-page.settings.firm-mark')} value={branding.firmMark} onChange={(value) => update('firmMark', value)} />
+            <TextField label={t('booking-public-page.settings.landing-copy')} value={branding.landingCopy} onChange={(value) => update('landingCopy', value)} wide />
+            <TextField label={t('booking-public-page.settings.advisor-name')} value={branding.advisorName} onChange={(value) => update('advisorName', value)} />
+            <TextField label={t('booking-public-page.settings.advisor-title')} value={branding.advisorTitle} onChange={(value) => update('advisorTitle', value)} />
+            <TextField label={t('booking-public-page.settings.advisor-photo')} value={branding.advisorPhotoUrl ?? ''} onChange={(value) => update('advisorPhotoUrl', value)} wide />
+            <TextField label={t('booking-public-page.settings.meeting-title')} value={branding.meetingTitle} onChange={(value) => update('meetingTitle', value)} wide />
+            <TextAreaField label={t('booking-public-page.settings.meeting-description')} value={branding.meetingDescription} onChange={(value) => update('meetingDescription', value)} />
+            <TextAreaField label={t('booking-public-page.settings.disclosure')} value={branding.disclosure} onChange={(value) => update('disclosure', value)} />
+          </div>
+        </section>
+        <section data-testid="booking-page-settings-preview" style={panelStyle}>
+          <span style={{ color: '#175cd3', fontSize: 13, fontWeight: 700 }}>{t('booking-public-page.settings.preview-label')}</span>
+          <h2 style={panelTitleStyle}>{branding.firmName}</h2>
+          <p style={mutedStyle}>{t('booking-public-page.settings.preview-help')}</p>
+          <div style={{ border: '1px solid #e4e7ec', borderRadius: 10, overflow: 'hidden', transform: 'scale(.92)', transformOrigin: 'top left', width: '108.7%' }}>
+            <BookingPublicPage availability={availability} branding={branding} />
+          </div>
+        </section>
+      </div>
+      {previewOpen ? <div data-testid="booking-page-expanded-preview" style={{ marginTop: 20 }}><BookingPublicPage availability={availability} branding={branding} /></div> : null}
+    </section>
+  );
+}
+
+function TextField({ label, onChange, value, wide = false }: { label: string; onChange: (value: string) => void; value: string; wide?: boolean }) {
+  return <label style={{ ...(wide ? { gridColumn: '1 / -1' } : {}) }}>{label}<input onChange={(event) => onChange(event.target.value)} style={inputStyle} value={value} /></label>;
+}
+
+function TextAreaField({ label, onChange, value }: { label: string; onChange: (value: string) => void; value: string }) {
+  return <label style={{ gridColumn: '1 / -1' }}>{label}<textarea onChange={(event) => onChange(event.target.value)} style={{ ...inputStyle, minHeight: 72 }} value={value} /></label>;
+}
+
+const panelStyle = { background: 'white', border: '1px solid #e4e7ec', borderRadius: 14, padding: 20 };
+const panelTitleStyle = { fontSize: 19, margin: '8px 0' };
+const mutedStyle = { color: '#667085', lineHeight: 1.5 };
+const formGridStyle = { display: 'grid', gap: 14, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', marginTop: 20 };
+const inputStyle = { border: '1px solid #d0d5dd', borderRadius: 8, boxSizing: 'border-box' as const, display: 'block', marginTop: 6, padding: 9, width: '100%' };
+const secondaryButtonStyle = { background: 'white', border: '1px solid #98a2b3', borderRadius: 8, color: '#344054', cursor: 'pointer', padding: '9px 12px' };
+const primaryButtonStyle = { background: '#173f5f', border: '1px solid #173f5f', borderRadius: 8, color: 'white', cursor: 'pointer', padding: '9px 12px' };
