@@ -1,8 +1,8 @@
 # Atomic CRM trash and recovery command registrations.
 # Permanent purge remains deny-by-default until the teams-roles authority
 # contract is wired into is_firm_admin in this feature.
-command 2840 crate::commands::crm::features::trash::commands::crm_trash_soft_delete
-command 2850 crate::commands::crm::features::trash::commands::crm_trash_list
-command 2860 crate::commands::crm::features::trash::commands::crm_trash_restore
-command 2870 crate::commands::crm::features::trash::commands::crm_trash_purge
-command 2880 crate::commands::crm::features::trash::commands::crm_trash_is_tombstoned
+command 2920 crate::commands::crm::features::trash::commands::crm_trash_soft_delete
+command 2930 crate::commands::crm::features::trash::commands::crm_trash_list
+command 2940 crate::commands::crm::features::trash::commands::crm_trash_restore
+command 2950 crate::commands::crm::features::trash::commands::crm_trash_purge
+command 2960 crate::commands::crm::features::trash::commands::crm_trash_is_tombstoned
