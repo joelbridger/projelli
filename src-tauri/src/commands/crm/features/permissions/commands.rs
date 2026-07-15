@@ -34,7 +34,7 @@ enum PermissionOperation {
     Write,
 }
 
-fn flag_enabled_from_environment() -> bool {
+pub(crate) fn own_clients_permissions_enabled() -> bool {
     matches!(
         std::env::var(OWN_CLIENTS_FLAG_ENV)
             .ok()
@@ -157,7 +157,7 @@ fn authorize(
     Ok(())
 }
 
-fn protected_records(store: &CrmCoreStore, enforce: bool) -> Result<Vec<Value>> {
+pub(crate) fn protected_records(store: &CrmCoreStore, enforce: bool) -> Result<Vec<Value>> {
     let records = store.list_live_records()?;
     if !enforce {
         return Ok(records);
@@ -191,7 +191,11 @@ fn get_protected_record(
     Ok(record)
 }
 
-fn save_protected_record(store: &CrmCoreStore, enforce: bool, record: Value) -> Result<Value> {
+pub(crate) fn authorize_record_save(
+    store: &CrmCoreStore,
+    enforce: bool,
+    record: &Value,
+) -> Result<()> {
     let record_id = record
         .get("id")
         .and_then(Value::as_str)
@@ -210,8 +214,13 @@ fn save_protected_record(store: &CrmCoreStore, enforce: bool, record: Value) -> 
     } else if enforce {
         // New records must already be within the caller's scope. This prevents
         // a caller from creating an inaccessible record for another member.
-        authorize(store, true, PermissionOperation::Write, &record)?;
+        authorize(store, true, PermissionOperation::Write, record)?;
     }
+    Ok(())
+}
+
+fn save_protected_record(store: &CrmCoreStore, enforce: bool, record: Value) -> Result<Value> {
+    authorize_record_save(store, enforce, &record)?;
     store.upsert_live_record(&record)?;
     Ok(record)
 }
@@ -266,7 +275,7 @@ pub async fn crm_permissions_list(state: State<'_, CrmState>) -> Result<Vec<Valu
     let workspace = workspace(&state).await?;
     tokio::task::spawn_blocking(move || {
         let store = CrmCoreStore::open(&workspace)?;
-        protected_records(&store, flag_enabled_from_environment())
+        protected_records(&store, own_clients_permissions_enabled())
     })
     .await
     .map_err(|error| error.to_string())?
@@ -283,7 +292,7 @@ pub async fn crm_permissions_get_record(
         let store = CrmCoreStore::open(&workspace)?;
         get_protected_record(
             &store,
-            flag_enabled_from_environment(),
+            own_clients_permissions_enabled(),
             &record_id,
             PermissionOperation::Read,
         )
@@ -301,7 +310,7 @@ pub async fn crm_permissions_upsert(
     let workspace = workspace(&state).await?;
     tokio::task::spawn_blocking(move || {
         let store = CrmCoreStore::open(&workspace)?;
-        save_protected_record(&store, flag_enabled_from_environment(), record)
+        save_protected_record(&store, own_clients_permissions_enabled(), record)
     })
     .await
     .map_err(|error| error.to_string())?
