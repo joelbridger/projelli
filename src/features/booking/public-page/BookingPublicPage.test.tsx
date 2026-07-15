@@ -1,5 +1,5 @@
 import '@/i18n';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { BookingPageSettings } from './BookingPageSettings';
 import { BookingPublicPage, FlaggedBookingPublicPage } from './BookingPublicPage';
@@ -108,15 +108,32 @@ describe('FlaggedBookingPublicPage', () => {
 });
 
 describe('BookingPageSettings', () => {
-  it('provides the hosted-link rail, copy action, branding draft, and matching preview', () => {
-    const copy = vi.fn();
+  it('provides the hosted-link rail, copy action, branding draft, and matching preview', async () => {
+    let resolveCopy!: () => void;
+    const pendingCopy = new Promise<void>((resolve) => {
+      resolveCopy = resolve;
+    });
+    const copy = vi.fn().mockReturnValueOnce(pendingCopy).mockRejectedValueOnce(new Error('Clipboard unavailable'));
     const onBrandingChange = vi.fn();
     render(<BookingPageSettings availability={available} branding={defaultBookingPageBranding} onBrandingChange={onBrandingChange} onCopyLink={copy} pageId="sarah-morgan" />);
 
     expect(screen.getByTestId('booking-page-hosted-link')).toHaveTextContent('https://book.lantern.local/p/sarah-morgan');
     expect(screen.getByTestId('booking-page-settings-preview')).toHaveTextContent('Northstar Advisory');
-    fireEvent.click(screen.getByTestId('booking-page-copy-link'));
+    const copyButton = screen.getByTestId('booking-page-copy-link');
+    fireEvent.click(copyButton);
     expect(copy).toHaveBeenCalledWith('https://book.lantern.local/p/sarah-morgan');
+    expect(copyButton).not.toHaveTextContent('Copied');
+    await act(async () => {
+      resolveCopy();
+      await pendingCopy;
+    });
+    expect(copyButton).toHaveTextContent('Copied');
+    await act(async () => {
+      fireEvent.click(copyButton);
+      await Promise.resolve();
+    });
+    expect(copy).toHaveBeenCalledTimes(2);
+    expect(copyButton).not.toHaveTextContent('Copied');
     fireEvent.change(screen.getByDisplayValue('Northstar Advisory'), {
       target: { value: 'Juniper Wealth' },
     });
