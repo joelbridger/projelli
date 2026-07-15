@@ -46,6 +46,18 @@ const activityRecords = [
         kind: 'text',
         required: true,
       },
+      social_security_number: {
+        id: 'social_security_number',
+        label: 'Social Security number',
+        kind: 'text',
+        required: true,
+      },
+      home_address: {
+        id: 'home_address',
+        label: 'Home address',
+        kind: 'textarea',
+        required: true,
+      },
     },
     confirmationCopy: 'Thank you.',
     status: 'active',
@@ -81,7 +93,13 @@ const activityRecords = [
     intakeLinkId: 'form-1',
     audience: 'client-facing',
     submittedAt: '2026-07-13T14:00:00Z',
-    payload: { values: { account_number: '001234567890' } },
+    payload: {
+      values: {
+        account_number: '001234567890',
+        social_security_number: '123-45-6789',
+        home_address: '42 Pine Street, Hartford, CT 06103',
+      },
+    },
     matchingDecisions: {},
   },
 ];
@@ -109,6 +127,8 @@ describe('FormActivitySurface', () => {
     expect(
       screen.getByTestId('form-activity-row-submission-sensitive-only')
     ).not.toHaveTextContent('001234567890');
+    expect(document.body).not.toHaveTextContent('123-45-6789');
+    expect(document.body).not.toHaveTextContent('42 Pine Street, Hartford, CT 06103');
     expect(screen.getByText('Chen household')).toBeInTheDocument();
     expect(
       screen.queryByRole('link', { name: 'Chen household' })
