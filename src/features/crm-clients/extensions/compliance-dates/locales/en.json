@@ -1,0 +1,30 @@
+{
+  "complianceDates": {
+    "title": "Written agreements",
+    "helper": "Compliance dates and documents on file",
+    "edit": "Edit dates",
+    "save": "Save dates",
+    "saveFailed": "Dates could not be saved. Try again.",
+    "cancel": "Cancel",
+    "missing": "Missing date",
+    "validation": {
+      "invalid-date": "Enter a real date in YYYY-MM-DD format, or leave it blank."
+    },
+    "statuses": {
+      "advisoryAgreementSignedOn": "Signed {{date}}",
+      "investmentPolicyStatementUpdatedOn": "Updated {{date}}",
+      "formAdvDeliveredOn": "Delivered {{date}}",
+      "formCrsDeliveredOn": "Delivered {{date}}",
+      "privacyNoticeDeliveredOn": "Delivered {{date}}",
+      "financialPlanningAgreementRenewedOn": "Renewed {{date}}"
+    },
+    "fields": {
+      "advisory-agreement": "Advisory agreement",
+      "investment-policy-statement": "Investment policy statement",
+      "form-adv-delivered": "Form ADV delivered",
+      "form-crs-delivered": "Form CRS delivered",
+      "privacy-notice": "Privacy notice",
+      "financial-planning-agreement": "Financial planning agreement"
+    }
+  }
+}

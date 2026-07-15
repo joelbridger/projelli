@@ -33,10 +33,11 @@ describe('household record registries', () => {
     );
     expect(getHouseholdSections().map((descriptor) => descriptor.id)).toEqual([
       'client_map',
+      'written-agreements',
     ]);
     expect(
       getHouseholdRecordExtensions().map((descriptor) => descriptor.dataKey)
-    ).toEqual(['legacy.record-metadata']);
+    ).toEqual(['legacy.record-metadata', 'compliance-dates.written-agreements']);
   });
 
   it('rejects duplicate extension data keys clearly', () => {
