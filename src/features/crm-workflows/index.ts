@@ -25,6 +25,7 @@ export {
   WorkflowTemplateError,
 } from './workflowTemplateStore';
 export { WorkflowAuthoringRuleMount } from './authoring/WorkflowAuthoringMount';
+export { workflowFiltersAuthoringExtension } from './filters';
 export {
   createWorkflowAuthoringLibraryComposition,
   createWorkflowRecordStartComposition,

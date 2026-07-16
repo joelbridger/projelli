@@ -1,0 +1,28 @@
+{
+  "workflow-filters": {
+    "title": "Workflows filtern",
+    "status": {
+      "label": "Workflow-Status",
+      "all": "Alle Status",
+      "draft": "Entwurf",
+      "published": "Veröffentlicht"
+    },
+    "search": {
+      "label": "Name oder Schritt suchen",
+      "placeholder": "Zum Beispiel Jahresgespräch"
+    },
+    "results": "{{count}} von {{total}} Workflows werden angezeigt",
+    "empty": {
+      "library": "Es sind noch keine Workflow-Vorlagen verfügbar.",
+      "matches": "Keine Workflows entsprechen diesen Filtern."
+    },
+    "details": {
+      "title": "Workflow-Details",
+      "status": "Status: {{status}}",
+      "empty": "Dieser Workflow hat noch keine Schritte.",
+      "step": "Schritt {{number}}: {{title}}",
+      "stable-id": "Gespeicherte Schritt-ID: {{id}}",
+      "tag-ids": "Gespeicherte Tag-IDs: {{ids}}"
+    }
+  }
+}

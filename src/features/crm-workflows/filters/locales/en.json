@@ -1,0 +1,28 @@
+{
+  "workflow-filters": {
+    "title": "Filter workflows",
+    "status": {
+      "label": "Workflow state",
+      "all": "All states",
+      "draft": "Draft",
+      "published": "Published"
+    },
+    "search": {
+      "label": "Search name or step",
+      "placeholder": "For example, annual review"
+    },
+    "results": "Showing {{count}} of {{total}} workflows",
+    "empty": {
+      "library": "No workflow templates are available yet.",
+      "matches": "No workflows match these filters."
+    },
+    "details": {
+      "title": "Workflow details",
+      "status": "State: {{status}}",
+      "empty": "This workflow has no steps yet.",
+      "step": "Step {{number}}: {{title}}",
+      "stable-id": "Saved step ID: {{id}}",
+      "tag-ids": "Saved tag IDs: {{ids}}"
+    }
+  }
+}

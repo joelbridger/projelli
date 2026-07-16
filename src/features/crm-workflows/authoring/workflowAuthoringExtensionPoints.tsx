@@ -4,6 +4,7 @@ import type {
   StartWorkflowInput,
   WorkflowTemplateRecord,
 } from '../workflowTemplateStore';
+import { workflowFiltersAuthoringExtension } from '../filters';
 
 export type WorkflowRecordStartRequest = Readonly<
   CrmHouseholdAddRequest & { kind: 'workflow' }
@@ -181,7 +182,7 @@ export function defineWorkflowAuthoringLibraryDescriptor<
 
 /** Append feature-owned library controls/details here without changing the editor. */
 export const workflowAuthoringLibraryRegistry: readonly WorkflowAuthoringLibraryDescriptor[] =
-  [];
+  [defineWorkflowAuthoringLibraryDescriptor(workflowFiltersAuthoringExtension)];
 
 export function validateWorkflowAuthoringLibraryDescriptors(
   descriptors: readonly WorkflowAuthoringLibraryDescriptor[]

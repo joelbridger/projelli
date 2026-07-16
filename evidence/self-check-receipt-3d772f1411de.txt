@@ -1,0 +1,19 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/v1-w2-workflow-filters
+sha: 3d772f1411deb18b036f3385956436b30ef3e072
+tree: fa7e0b427807a86e62a541c3645a41948ee6f417
+gate_base: 88a92af682868063d055a50e2d8053de603169b9
+tool_blob: 7912bf11eefdacea0702600b19d3bc5b3d7f2606
+utc: 2026-07-16T17:08:19Z
+step_timeout_seconds: 1200
+loadavg: 7.26 12.81 14.23
+running_vitest_eslint_procs: 10
+step: gate:changed | status=PASS | exit=0 | 17:08:19Z..17:18:58Z | bytes=55994 | sha256=207fc78c197dca83c227e2d14b13590fb2880ca46a41fac614dbc5c1c119d935 | tail: ssed | 3 skipped (1069) Tests 8621 passed | 29 skipped (8650) Start at 17:11:36 Duration 442.05s (transform 34.91s, setup 233.81s, import 584.01s, tests 289.47s, environment 509.92s) CHANGED GATE GREEN
+step: typecheck | status=PASS | exit=0 | 17:18:58Z..17:19:25Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit
+step: typecheck:tests | status=PASS | exit=0 | 17:19:25Z..17:19:53Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit
+step: handle-guard | status=PASS | exit=0 | 17:19:53Z..17:19:53Z | bytes=1322 | sha256=6ef2694dbea33049cb85591ce5e5cbe757bb37826e4542ddb9b4fa18fa8a180f | tail: ic-page-unavailable + client-bar-clear + client-bar-current + client-bar-open-${} +318 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen).
+step: arch-dag-guard | status=PASS | exit=0 | 17:19:53Z..17:19:54Z | bytes=222 | sha256=ef3950956143fb22dc16c2fb2a87533d94939512253dac9f79a04ea05ce1935a | tail: RUN v4.1.3 /home/jameson/v1-w2-workflow-filters Test Files 1 passed (1) Tests 1 passed (1) Start at 17:19:53 Duration 1.01s (transform 231ms, setup 370ms, import 260ms, tests 3ms, environment 285ms)
+step: i18n-snapshot | status=PASS | exit=0 | 17:19:54Z..17:19:55Z | bytes=223 | sha256=f8c56ff10fd7d61732eba51ee8ab6a33b0b3eed639c24b9c2fe8efbb3f5cd75d | tail: UN v4.1.3 /home/jameson/v1-w2-workflow-filters Test Files 1 passed (1) Tests 5 passed (5) Start at 17:19:54 Duration 1.01s (transform 233ms, setup 350ms, import 222ms, tests 18ms, environment 321ms)
+step: focused | status=PASS | exit=0 | 17:19:55Z..17:19:59Z | bytes=226 | sha256=4207195f78d8d5c5307e82f57ff9e42943ce9b9591b260d287dc8bea3a283347 | tail:  v4.1.3 /home/jameson/v1-w2-workflow-filters Test Files 3 passed (3) Tests 12 passed (12) Start at 17:19:56 Duration 3.01s (transform 3.81s, setup 1.10s, import 5.35s, tests 623ms, environment 966ms)
+overall: GREEN
