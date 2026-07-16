@@ -1,0 +1,19 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/v1-w2-flag-mock-lint
+sha: 8f7236d02e8ec6d0970d9f050faa91a0e9a41c71
+tree: f8d5acefc534cef72b603e8efc13638bb8da5ba7
+gate_base: f37de83f785c02150721cd56641eb76d0182e741
+tool_blob: 7912bf11eefdacea0702600b19d3bc5b3d7f2606
+utc: 2026-07-16T19:59:14Z
+step_timeout_seconds: 120
+loadavg: 43.04 42.90 35.54
+running_vitest_eslint_procs: 33
+step: gate:changed | status=INCONCLUSIVE-UNDER-LOAD | exit=124 | 19:59:15Z..20:01:15Z | bytes=5680 | sha256=095819d1f0508825890883e680ce90031157e924d39110666ca1614d835c0800 | tail: lename collisions. ===== TypeScript ===== > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit ===== TypeScript (tests) ===== > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit Terminated
+step: typecheck | status=PASS | exit=0 | 20:01:15Z..20:02:36Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit
+step: typecheck:tests | status=PASS | exit=0 | 20:02:36Z..20:04:01Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit
+step: handle-guard | status=PASS | exit=0 | 20:04:01Z..20:04:01Z | bytes=1322 | sha256=07f5ce4a9f71d01ce18203d19f530be8b3fd83502c1343206bdf858d1732cd7a | tail: ic-page-unavailable + client-bar-clear + client-bar-current + client-bar-open-${} +330 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen).
+step: arch-dag-guard | status=PASS | exit=0 | 20:04:01Z..20:04:05Z | bytes=220 | sha256=9f1f9a64cd7f57d208980d79e5b1403c1f5b41cbb9e7468462c28f8e2ef875f1 | tail:  RUN v4.1.3 /home/jameson/v1-w2-flag-mock-lint Test Files 1 passed (1) Tests 1 passed (1) Start at 20:04:02 Duration 3.23s (transform 966ms, setup 1.40s, import 496ms, tests 6ms, environment 1.10s)
+step: i18n-snapshot | status=PASS | exit=0 | 20:04:05Z..20:04:08Z | bytes=221 | sha256=0d0f34f8ac37ad5455b072dbe133a106b258ddffec70a851bcee5c673c09ec41 | tail:  RUN v4.1.3 /home/jameson/v1-w2-flag-mock-lint Test Files 1 passed (1) Tests 5 passed (5) Start at 20:04:06 Duration 2.70s (transform 939ms, setup 1.27s, import 468ms, tests 56ms, environment 708ms)
+step: focused | status=PASS | exit=0 | 20:04:08Z..20:04:32Z | bytes=231 | sha256=8ddd2101dc0c00e2c428bac3de32e7de5ec04dff839f354127b51588201df360 | tail: .3 /home/jameson/v1-w2-flag-mock-lint Test Files 19 passed (19) Tests 70 passed (70) Start at 20:04:09 Duration 22.96s (transform 19.35s, setup 15.58s, import 41.95s, tests 6.12s, environment 15.36s)
+overall: INCONCLUSIVE
