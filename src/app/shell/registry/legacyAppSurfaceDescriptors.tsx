@@ -23,7 +23,7 @@ import type {
 import { LegacyMainPanelSurface } from '@/app/shell/registry/LegacyMainPanelSurface';
 import { HomeSurfaceFlagGate } from '@/features/home';
 import { CrmShellSurface } from '@/features/crm-shell';
-import { SettingsV1Surface } from '@/features/settings/v1-frame';
+import { SettingsV1Surface } from '@/features/settings';
 
 type LegacyDescriptorOptions = {
   id: AppSurfaceId;

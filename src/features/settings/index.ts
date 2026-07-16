@@ -5,6 +5,7 @@ export { McpSettingsSection } from './McpSettingsSection';
 export { OllamaSettingsSection } from './OllamaSettingsSection';
 export { SettingsModal } from './SettingsModal';
 export { VoiceSettingsSection } from './VoiceSettingsSection';
+export { SettingsV1Surface } from './v1-frame';
 // Feature settings modules use this small public doorway rather than reaching
 // into Settings internals. It keeps the registry contract stable for lanes
 // that mount a Settings section.
