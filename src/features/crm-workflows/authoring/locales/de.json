@@ -1,0 +1,20 @@
+{
+  "workflow-authoring": {
+    "title": "Workflow-Bibliothek",
+    "description": "Erstelle eine wiederverwendbare Vorlage und veröffentliche sie, bevor du sie für einen Haushalt startest.",
+    "new": "Neue Vorlage",
+    "template-title": "Vorlagenname",
+    "template-tags": "Vorlagen-Tags",
+    "step": "Schritt {{number}}",
+    "step-title": "Name für Schritt {{number}}",
+    "add-step": "Schritt hinzufügen",
+    "save": "Entwurf speichern",
+    "publish": "Vorlage veröffentlichen",
+    "household": "Haushalts-ID",
+    "start": "Workflow starten",
+    "saved": "Entwurf gespeichert.",
+    "published": "Vorlage veröffentlicht.",
+    "started": "Workflow gestartet.",
+    "error": "Die Workflow-Vorlage konnte nicht gespeichert werden."
+  }
+}

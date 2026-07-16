@@ -1,0 +1,20 @@
+{
+  "workflow-authoring": {
+    "title": "Workflow library",
+    "description": "Build a reusable template, then publish it before you start it for a household.",
+    "new": "New template",
+    "template-title": "Template name",
+    "template-tags": "Template tags",
+    "step": "Step {{number}}",
+    "step-title": "Step {{number}} name",
+    "add-step": "Add step",
+    "save": "Save draft",
+    "publish": "Publish template",
+    "household": "Household ID",
+    "start": "Start workflow",
+    "saved": "Draft saved.",
+    "published": "Template published.",
+    "started": "Workflow started.",
+    "error": "Could not save the workflow template."
+  }
+}

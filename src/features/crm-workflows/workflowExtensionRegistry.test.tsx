@@ -35,6 +35,7 @@ describe('workflow extension registries', () => {
   it('keeps compatibility descriptors in stable order', () => {
     expect(getWorkflowRules().map(({ id }) => id)).toEqual([
       'legacy.schedule-and-outcomes',
+      'workflow-authoring.library',
     ]);
     expect(getWorkflowStepExtensions().map(({ id }) => id)).toEqual([
       'legacy.step-controls',

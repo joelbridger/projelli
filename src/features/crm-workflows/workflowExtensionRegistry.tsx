@@ -8,6 +8,7 @@ import {
   legacyWorkflowStepExtensions,
 } from './workflowExtensionRegistryCompatibility';
 import type { WorkflowStepMetadataPatch } from './workflowStepPersistence';
+import { workflowAuthoringRuleDescriptor } from './authoring';
 
 /** Feature modules augment these maps beside their descriptors. */
 export interface WorkflowStepExtensionIdMap {}
@@ -87,8 +88,10 @@ export function validateWorkflowRuleDescriptors(
 /** Append-only mount lists. Existing entries keep their order. */
 export const workflowStepExtensionRegistry: readonly WorkflowStepExtensionDescriptor[] =
   legacyWorkflowStepExtensions;
-export const workflowRuleRegistry: readonly WorkflowRuleDescriptor[] =
-  legacyWorkflowRules;
+export const workflowRuleRegistry: readonly WorkflowRuleDescriptor[] = [
+  ...legacyWorkflowRules,
+  workflowAuthoringRuleDescriptor,
+];
 
 export function getWorkflowStepExtensions(
   descriptors: readonly WorkflowStepExtensionDescriptor[] = workflowStepExtensionRegistry

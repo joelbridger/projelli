@@ -52,7 +52,7 @@ export const flagRegistry = [
   defineFlag('crm-trash-recovery', 'Keeps CRM record soft-delete and 30-day recovery dark until acceptance testing passes.', 'crm-trash-recovery', '2026-07-15', '2026-09-13'),
   defineFlag('v1-shell-frame', 'Keeps the permanent v1 navigation and top bar dark until its acceptance drive passes.', 'v1-shell-frame', '2026-07-15', '2026-09-13'),
   defineFlag('internal-projects', 'Keeps internal firm project tracking dark until its CRM acceptance drive is complete.', 'internal-projects', '2026-07-15', '2026-09-13'),
-  defineFlag('form-activity', 'Keeps firm-wide form submission activity dark until its acceptance drive is complete.', 'form-activity', '2026-07-15', '2026-09-13'),
+  defineFlag('form-activity', 'Keeps firm-wide form submission activity dark until its CRM acceptance drive is complete.', 'form-activity', '2026-07-15', '2026-09-13'),
   defineFlag('custom-fields-firm', 'Keeps firm-defined CRM custom fields dark until the settings panel has passed acceptance review.', 'custom-fields-firm', '2026-07-15', '2026-09-13'),
   defineFlag('contact-sources', 'Keeps firm contact-source management dark until its acceptance drive is complete.', 'contact-sources', '2026-07-15', '2026-09-13'),
   defineFlag('notification-preferences', 'Keeps personal notification preference capture dark until its acceptance drive is complete.', 'notification-preferences', '2026-07-15', '2026-09-13'),
@@ -71,6 +71,7 @@ export const flagRegistry = [
   defineFlag('crm-list-sort', 'Keeps CRM directory result sorting dark until its acceptance review is complete.', 'crm-list-sort', '2026-07-16', '2026-09-14'),
   defineFlag('crm-tags-rail', 'Keeps the CRM directory tag quick-filter dark until its acceptance review is complete.', 'crm-tags-rail', '2026-07-16', '2026-09-14'),
   defineFlag('crm-contact-table', 'Keeps the CRM contact table dark until its directory acceptance review is complete.', 'crm-contact-table', '2026-07-16', '2026-09-14'),
+  defineFlag('workflow-authoring', 'Keeps reusable workflow template authoring dark until its acceptance drive is complete.', 'workflow-authoring', '2026-07-16', '2026-09-14'),
 ] as const satisfies readonly FlagDescriptor[];
 
 export type FlagId = (typeof flagRegistry)[number]['id'];
