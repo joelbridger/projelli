@@ -250,11 +250,12 @@ export function SchwabPrefillReview({ household }: SchwabReviewInput) {
                       candidate.value === field.value && candidate.sourceRef
                   )
                 : undefined;
+              const privateFactId = privateCandidate?.sourceRef;
               const revealedValue =
-                privateCandidate?.sourceRef &&
+                privateFactId &&
                 revealScope.current === activeRevealScope &&
-                revealedFactIds.has(privateCandidate.sourceRef)
-                  ? revealedFacts.current.get(privateCandidate.sourceRef)
+                revealedFactIds.has(privateFactId)
+                  ? revealedFacts.current.get(privateFactId)
                   : undefined;
               return (
                 <div key={field.key} style={{ display: 'contents' }}>
@@ -289,16 +290,14 @@ export function SchwabPrefillReview({ household }: SchwabReviewInput) {
                         </select>
                       </>
                     ) : null}
-                    {privateCandidate?.sourceRef ? (
+                    {privateFactId ? (
                       <div>
                         <Button
                           size="sm"
                           onClick={() => {
-                            void reveal(privateCandidate.sourceRef).catch(
-                              () => {
-                                setError(t('schwabPrefill.revealError'));
-                              }
-                            );
+                            void reveal(privateFactId).catch(() => {
+                              setError(t('schwabPrefill.revealError'));
+                            });
                           }}
                         >
                           {t('schwabPrefill.reveal')}
