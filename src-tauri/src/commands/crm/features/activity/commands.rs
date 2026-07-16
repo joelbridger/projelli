@@ -399,6 +399,7 @@ fn now() -> String {
 }
 
 fn persist(store: &CrmCoreStore, record: TeamActivityRecordDto) -> Result<TeamActivityRecordDto> {
+    validate_typed_record(&record)?;
     store.upsert_live_record(&record.as_value()?)?;
     Ok(record)
 }
