@@ -14,9 +14,17 @@ export type DirectoryRailId = Extract<keyof DirectoryRailIdMap, string>;
 export type DirectoryViewId = Extract<keyof DirectoryViewIdMap, string>;
 export type DirectoryQueryId = Extract<keyof DirectoryQueryIdMap, string>;
 
+type DeepReadonly<T> = T extends (...args: never[]) => unknown
+  ? T
+  : T extends readonly (infer Item)[]
+    ? readonly DeepReadonly<Item>[]
+    : T extends object
+      ? { readonly [Key in keyof T]: DeepReadonly<T[Key]> }
+      : T;
+
 export type DirectoryResult =
-  | { kind: 'household'; record: HouseholdDirectoryEntry }
-  | { kind: 'person'; record: CrmPerson };
+  | Readonly<{ kind: 'household'; record: DeepReadonly<HouseholdDirectoryEntry> }>
+  | Readonly<{ kind: 'person'; record: DeepReadonly<CrmPerson> }>;
 
 export interface DirectoryContext {
   query: { value: string; setValue(value: string): void };
@@ -196,7 +204,7 @@ export function resolveDirectoryView(
   return selected[0] ?? descriptors.find((descriptor) => descriptor.fallback) as DirectoryViewDescriptor<string>;
 }
 
-/** Applies feature filters and ordering to a copied projection, never to stored records. */
+/** Applies feature filters and ordering to copied projections, never to stored records. */
 export function projectDirectoryResults<T extends CrmPerson | HouseholdDirectoryEntry>(
   kind: DirectoryResult['kind'],
   records: readonly T[],
@@ -208,7 +216,11 @@ export function projectDirectoryResults<T extends CrmPerson | HouseholdDirectory
   if (active.length === 0) return records;
 
   const projected = records
-    .map((record, index) => ({ result: { kind, record } as DirectoryResult, record, index }))
+    .map((record, index) => ({
+      result: { kind, record: structuredClone(record) } as DirectoryResult,
+      record,
+      index,
+    }))
     .filter(({ result }) => active.every((descriptor) => descriptor.filter?.(result, context) ?? true));
   const hasComparator = active.some((descriptor) => typeof descriptor.compare === 'function');
   if (!hasComparator) return projected.map(({ record }) => record);
