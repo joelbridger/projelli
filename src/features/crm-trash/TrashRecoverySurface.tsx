@@ -30,8 +30,15 @@ function rowIdentity(record: TrashedCrmRecord): string {
 }
 
 export function TrashRecoverySurface() {
-  const { t } = useTranslation();
   const enabled = useFlag('crm-trash-recovery');
+
+  if (!enabled) return null;
+
+  return <EnabledTrashRecoverySurface />;
+}
+
+function EnabledTrashRecoverySurface() {
+  const { t } = useTranslation();
   const live = useLiveCrmRecords();
   const signedInUserId = useFirmStore((state) => state.session?.userId);
   const [records, setRecords] = useState<readonly TrashedCrmRecord[]>([]);
@@ -52,14 +59,12 @@ export function TrashRecoverySurface() {
   }, [live.workspaceRoot, t]);
 
   useEffect(() => {
-    if (enabled) {
-      reload().catch((reason: unknown) => {
-        setError(
-          reason instanceof Error ? reason.message : t('crm.trash.load-error')
-        );
-      });
-    }
-  }, [enabled, reload, t]);
+    reload().catch((reason: unknown) => {
+      setError(
+        reason instanceof Error ? reason.message : t('crm.trash.load-error')
+      );
+    });
+  }, [reload, t]);
 
   const types = useMemo(
     () => [...new Set(records.map((record) => record.recordType))].sort(),
@@ -95,8 +100,6 @@ export function TrashRecoverySurface() {
       setBusyId(null);
     }
   };
-
-  if (!enabled) return null;
 
   return (
     <div

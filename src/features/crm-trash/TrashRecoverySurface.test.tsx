@@ -3,7 +3,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TrashRecoverySurface } from './TrashRecoverySurface';
 import type { TrashedCrmRecord } from './trashClient';
 
-const reload = vi.fn();
+const { reload, useFirmStore, useFlag, useLiveCrmRecords } = vi.hoisted(() => ({
+  reload: vi.fn(),
+  useFirmStore: vi.fn(
+    (selector: (state: { session: { userId: string } }) => unknown) =>
+      selector({ session: { userId: 'advisor-9' } })
+  ),
+  useFlag: vi.fn<(flagId: string) => boolean>(() => true),
+  useLiveCrmRecords: vi.fn(() => ({
+    workspaceRoot: '/workspace',
+    reload,
+  })),
+}));
 const listTrashedCrmRecords = vi.fn<
   (workspaceRoot: string) => Promise<readonly TrashedCrmRecord[]>
 >();
@@ -11,14 +22,11 @@ const restoreTrashedCrmRecord = vi.fn<
   (request: unknown) => Promise<unknown>
 >();
 
-vi.mock('@/platform/flags', () => ({ useFlag: () => true }));
+vi.mock('@/platform/flags', () => ({ useFlag }));
 vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
-  useLiveCrmRecords: () => ({ workspaceRoot: '/workspace', reload }),
+  useLiveCrmRecords,
 }));
-vi.mock('@/platform/firm/firmStore', () => ({
-  useFirmStore: (selector: (state: { session: { userId: string } }) => unknown) =>
-    selector({ session: { userId: 'advisor-9' } }),
-}));
+vi.mock('@/platform/firm/firmStore', () => ({ useFirmStore }));
 vi.mock('./trashClient', () => ({
   listTrashedCrmRecords: (workspaceRoot: string) =>
     listTrashedCrmRecords(workspaceRoot),
@@ -29,6 +37,7 @@ vi.mock('./trashClient', () => ({
 describe('TrashRecoverySurface', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useFlag.mockReturnValue(true);
     listTrashedCrmRecords.mockResolvedValue([
       {
         recordId: 'household-1',
@@ -50,6 +59,27 @@ describe('TrashRecoverySurface', () => {
       },
     ]);
     restoreTrashedCrmRecord.mockResolvedValue({});
+  });
+
+  it('only mounts CRM and trash data loaders while the feature is enabled', async () => {
+    useFlag.mockReturnValue(false);
+
+    const { container, rerender } = render(<TrashRecoverySurface />);
+
+    expect(container).toBeEmptyDOMElement();
+    expect(useLiveCrmRecords).not.toHaveBeenCalled();
+    expect(useFirmStore).not.toHaveBeenCalled();
+    expect(listTrashedCrmRecords).not.toHaveBeenCalled();
+
+    useFlag.mockReturnValue(true);
+    listTrashedCrmRecords.mockImplementation(() => new Promise(() => {}));
+    rerender(<TrashRecoverySurface />);
+
+    await waitFor(() => {
+      expect(listTrashedCrmRecords).toHaveBeenCalledOnce();
+    });
+    expect(useLiveCrmRecords).toHaveBeenCalledTimes(1);
+    expect(useFirmStore).toHaveBeenCalledTimes(1);
   });
 
   it('matches the Trash & recovery table: search, type filter, recovery meter, guard, and recover action', async () => {
