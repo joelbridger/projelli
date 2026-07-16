@@ -6,6 +6,10 @@ kinds are `household`, `person`, `organization`, and `trust`.
 - Read reactively with `useContactRecordStore()`.
 - Create or edit only with its async `create` and `update` methods. Do not
   import `useLiveCrmRecords`, `saveLiveCrmRecord`, or a raw CRM command.
+- Validate drafts and references with the public validators. Contact IDs,
+  channel IDs, tag IDs, and relationship IDs are stable and duplicate-free.
+- Check a custom type with `contactTypeAppliesTo(definition, kind)`; a type
+  never changes the record's durable kind.
 - Resolve/open a record with `resolve(ref)` and make references with
   `toRecordRef(contact)`. Labels are never identity.
 - Project a directory once with `projectDirectoryContacts`; do not build a

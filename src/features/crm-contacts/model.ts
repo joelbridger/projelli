@@ -34,7 +34,8 @@ function stringList(value: unknown, field: string): readonly string[] {
   if (!Array.isArray(value) || value.some((item) => typeof item !== 'string' || !item.trim())) {
     throw new Error(`${field} must contain stable IDs.`);
   }
-  const result = value.map((item) => item.trim());
+  const items: readonly unknown[] = value;
+  const result = items.map((item) => requiredString(item, field));
   if (new Set(result).size !== result.length) throw new Error(`${field} cannot contain duplicates.`);
   return result;
 }
@@ -125,10 +126,10 @@ export function validateContactCreate(input: ContactCreateInput): ContactCreateI
 }
 
 export function validateContactPatch(patch: ContactPatch): ContactPatch {
-  if ('name' in patch && patch.name !== undefined) requiredString(patch.name, 'name');
-  if ('firstName' in patch && patch.firstName !== undefined) requiredString(patch.firstName, 'firstName');
-  if ('lastName' in patch && patch.lastName !== undefined) requiredString(patch.lastName, 'lastName');
-  if ('lifecycle' in patch && patch.lifecycle !== undefined) requiredString(patch.lifecycle, 'lifecycle');
+  if (patch.name !== undefined) requiredString(patch.name, 'name');
+  if (patch.firstName !== undefined) requiredString(patch.firstName, 'firstName');
+  if (patch.lastName !== undefined) requiredString(patch.lastName, 'lastName');
+  if (patch.lifecycle !== undefined) requiredString(patch.lifecycle, 'lifecycle');
   stringList(patch.tagIds, 'tagIds');
   validateContactChannels(patch.channels);
   validateRefs(patch.contextRefs);
@@ -156,29 +157,41 @@ export function contactInputDocument(input: ContactCreateInput, id: string): Rec
 
 export function contactRecordFromDocument(source: Readonly<Record<string, unknown>>): ContactRecord | null {
   if (!isContactKind(source['kind']) || typeof source['id'] !== 'string' || typeof source['matterId'] !== 'string') return null;
-  const name = displayNameFor(source);
-  if (!name) return null;
   const kind = source['kind'];
-  const base = {
-    id: source['id'],
-    kind,
-    matterId: source['matterId'],
-    displayName: name,
-    lifecycle: typeof source['lifecycle'] === 'string' && source['lifecycle'].trim() ? source['lifecycle'] : 'Active',
-    ...(typeof source['ownerMemberId'] === 'string' ? { ownerMemberId: source['ownerMemberId'] } : {}),
-    ...(typeof source['primaryAdvisor'] === 'string' ? { primaryAdvisor: source['primaryAdvisor'] } : {}),
-    tagIds: Array.isArray(source['tagIds']) && source['tagIds'].every((value) => typeof value === 'string') ? source['tagIds'] : [],
-    ...(typeof source['createdAt'] === 'string' ? { createdAt: source['createdAt'] } : {}),
-    ...(typeof source['updatedAt'] === 'string' ? { updatedAt: source['updatedAt'] } : {}),
-    contextRefs: Array.isArray(source['contextRefs']) ? source['contextRefs'] as readonly EntityRef[] : [],
-    ...(source['extensionData'] && typeof source['extensionData'] === 'object' && !Array.isArray(source['extensionData']) ? { extensionData: source['extensionData'] as Readonly<Record<string, unknown>> } : {}),
-    source,
-    channels: Array.isArray(source['channels']) ? source['channels'] as readonly ContactChannel[] : [],
-    contactLinks: Array.isArray(source['contactLinks']) ? source['contactLinks'] as readonly ContactLink[] : [],
-  } as const;
-  if (kind === 'household') return { ...base, kind, name };
-  if (kind === 'person') return { ...base, kind, ...(typeof source['firstName'] === 'string' ? { firstName: source['firstName'] } : {}), ...(typeof source['lastName'] === 'string' ? { lastName: source['lastName'] } : {}), ...(typeof source['name'] === 'string' ? { name: source['name'] } : {}) };
-  return { ...base, kind, name };
+  try {
+    const displayName = kind === 'person'
+      ? requiredString(displayNameFor(source), 'person identity')
+      : requiredString(source['name'], `${kind}.name`);
+    const extensions = extensionData(source['extensionData']);
+    const base = {
+      id: assertStableId(source['id'], 'id'),
+      kind,
+      matterId: requiredString(source['matterId'], 'matterId'),
+      displayName,
+      lifecycle: typeof source['lifecycle'] === 'string' && source['lifecycle'].trim() ? source['lifecycle'].trim() : 'Active',
+      ...(typeof source['ownerMemberId'] === 'string' && source['ownerMemberId'].trim() ? { ownerMemberId: source['ownerMemberId'].trim() } : {}),
+      ...(typeof source['primaryAdvisor'] === 'string' && source['primaryAdvisor'].trim() ? { primaryAdvisor: source['primaryAdvisor'].trim() } : {}),
+      tagIds: stringList(source['tagIds'], 'tagIds'),
+      ...(typeof source['createdAt'] === 'string' ? { createdAt: source['createdAt'] } : {}),
+      ...(typeof source['updatedAt'] === 'string' ? { updatedAt: source['updatedAt'] } : {}),
+      contextRefs: validateRefs(source['contextRefs']),
+      ...(extensions ? { extensionData: extensions } : {}),
+      source,
+      channels: validateContactChannels(source['channels']),
+      contactLinks: validateContactLinks(source['contactLinks']),
+    } as const;
+    if (kind === 'household') return { ...base, kind, name: displayName };
+    if (kind === 'person') return {
+      ...base,
+      kind,
+      ...(typeof source['firstName'] === 'string' && source['firstName'].trim() ? { firstName: source['firstName'].trim() } : {}),
+      ...(typeof source['lastName'] === 'string' && source['lastName'].trim() ? { lastName: source['lastName'].trim() } : {}),
+      ...(typeof source['name'] === 'string' && source['name'].trim() ? { name: source['name'].trim() } : {}),
+    };
+    return { ...base, kind, name: displayName };
+  } catch {
+    return null;
+  }
 }
 
 export function toRecordRef(contact: Pick<ContactRecord, 'id' | 'kind' | 'matterId' | 'displayName'>): ContactRef {
@@ -190,10 +203,19 @@ export function validateContactRef(ref: ContactRef): ContactRef {
 }
 
 export function validateContactTypeDefinition(value: ContactTypeDefinition): ContactTypeDefinition {
-  requiredString(value.id, 'contact type id');
+  assertStableId(value.id, 'contact type id');
   requiredString(value.label, 'contact type label');
   if (!Array.isArray(value.appliesTo) || !value.appliesTo.length || value.appliesTo.some((kind) => !isContactKind(kind))) {
     throw new Error('contact type must apply to one or more contact kinds.');
   }
+  if (new Set(value.appliesTo).size !== value.appliesTo.length) {
+    throw new Error('contact type cannot repeat a contact kind.');
+  }
   return value;
+}
+
+export function contactTypeAppliesTo(value: ContactTypeDefinition, kind: ContactKind): boolean {
+  validateContactTypeDefinition(value);
+  if (!isContactKind(kind)) throw new Error('contact kind is invalid.');
+  return value.appliesTo.includes(kind);
 }

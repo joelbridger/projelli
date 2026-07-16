@@ -37,6 +37,10 @@ export {
   type DirectoryPreferenceValue,
 } from './directoryPreferences';
 export type {
+  HouseholdAddActionDescriptor,
+  HouseholdHeaderActionDescriptor,
   HouseholdRecordExtensionDescriptor,
   HouseholdRecordShellContext,
+  HouseholdSectionDescriptor,
 } from './recordRegistry';
+export type { HouseholdTabDescriptor } from './tabRegistry';

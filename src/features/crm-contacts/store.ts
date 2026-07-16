@@ -122,15 +122,15 @@ export function createContactRecordStore(live: LivePort): ContactRecordStore {
   return {
     records,
     listDirectory: () => projectDirectoryContacts(live.records),
-    async get(id) {
-      return recordFor(live.records, id);
+    get(id) {
+      return Promise.resolve(recordFor(live.records, id));
     },
-    async resolve(ref) {
+    resolve(ref) {
       try {
         const contact = requireContact(ref);
-        return { ref: toRecordRef(contact), contact, title: contact.displayName };
+        return Promise.resolve({ ref: toRecordRef(contact), contact, title: contact.displayName });
       } catch {
-        return null;
+        return Promise.resolve(null);
       }
     },
     async create(input) {
@@ -141,6 +141,9 @@ export function createContactRecordStore(live: LivePort): ContactRecordStore {
       validateContactPatch(patch);
       const current = recordFor(live.records, id);
       if (!current) throw new Error('Contact is missing or deleted.');
+      if (current.kind !== 'person' && (patch.firstName !== undefined || patch.lastName !== undefined)) {
+        throw new Error('Only a person contact can use first or last name fields.');
+      }
       const next: Record<string, unknown> = {
         ...current.source,
         ...patch,
@@ -175,22 +178,22 @@ export function createContactRecordStore(live: LivePort): ContactRecordStore {
       if (!links.some((link) => link.contactId === contact.id)) throw new Error('This contact is not linked to the household.');
       return saveAndReload({ ...household.source, contactLinks: links.filter((link) => link.contactId !== contact.id) });
     },
-    async listRelated(ref) {
+    listRelated(ref) {
       const contact = requireContact(ref);
       const contacts = activeContactRecords(live.records);
       const byId = new Map(contacts.map((candidate) => [candidate.id, candidate]));
       if (contact.kind === 'household') {
-        return validateContactLinks(contact.source['contactLinks']).flatMap((link): RelatedContactProjection[] => {
+        return Promise.resolve(validateContactLinks(contact.source['contactLinks']).flatMap((link): RelatedContactProjection[] => {
           const related = byId.get(link.contactId);
           return related && related.kind === link.kind && related.matterId === contact.matterId
             ? [{ ref: toRecordRef(related), ...(link.role ? { role: link.role } : {}), label: related.displayName }]
             : [];
-        });
+        }));
       }
-      return contacts.filter((candidate) => candidate.kind === 'household' && candidate.matterId === contact.matterId)
+      return Promise.resolve(contacts.filter((candidate) => candidate.kind === 'household' && candidate.matterId === contact.matterId)
         .flatMap((household): RelatedContactProjection[] => validateContactLinks(household.source['contactLinks'])
           .filter((link) => link.contactId === contact.id && link.kind === contact.kind)
-          .map((link) => ({ ref: toRecordRef(household), ...(link.role ? { role: link.role } : {}), label: household.displayName })));
+          .map((link) => ({ ref: toRecordRef(household), ...(link.role ? { role: link.role } : {}), label: household.displayName }))));
     },
   };
 }

@@ -108,13 +108,14 @@ function ContactTableView({ context }: { context: DirectoryContext }) {
     () => new Map(tagStore.catalog.tags.map((tag) => [tag.id, tag.name])),
     [tagStore.catalog.tags]
   );
-  const contactRefs = useMemo(
-    () => new Map((context.contacts ?? []).map((contact) => [contact.id, contact.ref])),
+  const contactsById = useMemo(
+    () => new Map((context.contacts ?? []).map((contact) => [contact.id, contact])),
     [context.contacts],
   );
   const rows = useMemo(
     () =>
-      projectDirectoryResults(context.contacts ? rowsFromContacts(context.contacts) : [
+      projectDirectoryResults(context.contacts ? rowsFromContacts(context.contacts)
+        .filter((row) => row.record.name.toLowerCase().includes(query)) : [
         ...context.records.households
           .filter((household) => household.name.toLowerCase().includes(query))
           .map((record) => ({ kind: 'household' as const, record })),
@@ -296,8 +297,9 @@ function ContactTableView({ context }: { context: DirectoryContext }) {
             {rows.map((row) => {
               const record = row.record;
               const tagIds = record.tagIds ?? [];
-              const status = row.kind === 'household' ? row.record.lifecycle : '—';
-              const owner = row.kind === 'household' ? row.record.primaryAdvisor : '—';
+              const contact = contactsById.get(row.record.id);
+              const status = contact?.status ?? (row.kind === 'household' ? row.record.lifecycle : '—');
+              const owner = contact?.ownerDisplay ?? (row.kind === 'household' ? row.record.primaryAdvisor : '—');
               return (
                 <tr
                   key={`${row.kind}-${record.id}`}
@@ -309,9 +311,11 @@ function ContactTableView({ context }: { context: DirectoryContext }) {
                       type="button"
                       data-testid={`crm-contact-table-open-${row.kind}-${record.id}`}
                       onClick={() => {
-                        const ref = contactRefs.get(row.record.id);
+                        const ref = contact?.ref;
                         if (ref && context.repository.openContact) {
-                          void context.repository.openContact(ref);
+                          void context.repository.openContact(ref).catch((error: unknown) => {
+                            console.error('Could not open the contact record.', error);
+                          });
                         } else if (row.kind === 'household') {
                           context.repository.openHousehold(row.record.id);
                         } else {
