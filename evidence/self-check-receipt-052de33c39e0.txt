@@ -1,0 +1,19 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/v1-w2-schwab-prefill
+sha: 052de33c39e0285b684f3900adc43ddc19aba369
+tree: ddd25747a2629d3c0d3989205438f520a84ba814
+gate_base: 19d016a6c80bd6a7125e3ab9a352de3122766900
+tool_blob: 2a8a0211c0565e6bbcb39b6891e5d0839375074a
+utc: 2026-07-16T08:02:59Z
+step_timeout_seconds: 300
+loadavg: 13.29 18.57 15.62
+running_vitest_eslint_procs: 1
+step: gate:changed | status=INCONCLUSIVE-UNDER-LOAD | exit=124 | 08:02:59Z..08:07:59Z | bytes=11207 | sha256=68941bbb5ab61e69978517dc519bf1fc81b5f2e6c8e940dad16ba0abc4fe54bb | tail: anvas npm package Not implemented: HTMLMediaElement's pause() method Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package Not implemented: HTMLMediaElement's pause() method 
+step: typecheck | status=FAIL | exit=2 | 08:07:59Z..08:08:20Z | bytes=635 | sha256=d751bb3dfa767b3d8f7be8fea4cbb4ffb2ca3782d94f89f7679490bbed0237f3 | tail: ord<SchwabFieldKey, string>>': email, address, phone, ownerName, and 17 more. src/features/accounts/schwab/review/SchwabPrefillReview.test.tsx(69,16): error TS2339: Property 'value' does not exist on type 'HTMLElement'. 
+step: typecheck:tests | status=FAIL | exit=2 | 08:08:20Z..08:08:44Z | bytes=663 | sha256=8ff4c93120c2d8e8f49c67aaa776e5e988d1eb07487c5bc76169086b7eb74206 | tail: ord<SchwabFieldKey, string>>': email, address, phone, ownerName, and 17 more. src/features/accounts/schwab/review/SchwabPrefillReview.test.tsx(69,16): error TS2339: Property 'value' does not exist on type 'HTMLElement'. 
+step: handle-guard | status=PASS | exit=0 | 08:08:44Z..08:08:45Z | bytes=1267 | sha256=9eaab854c17cfdd8ec5b7d801a6b5a6f93e71502438bfe42d9a26e4fa26e7b33 | tail: t-picker-cancel + client-picker-clear + client-picker-empty + client-picker-error +162 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen). 
+step: arch-dag-guard | status=PASS | exit=0 | 08:08:45Z..08:08:46Z | bytes=220 | sha256=667bf3f39ec8e620d226dbe5241c93ca75537501326c258195957decde597ede | tail:  RUN v4.1.3 /home/jameson/v1-w2-schwab-prefill Test Files 1 passed (1) Tests 1 passed (1) Start at 08:08:45 Duration 922ms (transform 184ms, setup 295ms, import 257ms, tests 3ms, environment 281ms) 
+step: i18n-snapshot | status=PASS | exit=0 | 08:08:46Z..08:08:47Z | bytes=221 | sha256=e3fd6801b1350f94fcb1397115e43e84e4efe6538ea79095e5ceeec99130a9e9 | tail:  RUN v4.1.3 /home/jameson/v1-w2-schwab-prefill Test Files 1 passed (1) Tests 5 passed (5) Start at 08:08:46 Duration 838ms (transform 172ms, setup 257ms, import 211ms, tests 15ms, environment 270ms) 
+step: focused | status=PASS | exit=0 | 08:08:47Z..08:08:50Z | bytes=224 | sha256=9f2d5968bdf44831d3c1465feda2a830db13847ba642a8fba4ebe34c926fa33d | tail: N v4.1.3 /home/jameson/v1-w2-schwab-prefill Test Files 5 passed (5) Tests 14 passed (14) Start at 08:08:47 Duration 2.70s (transform 2.07s, setup 1.21s, import 1.76s, tests 2.28s, environment 1.54s) 
+overall: INCONCLUSIVE
