@@ -3,10 +3,11 @@ import { useEffect, type ReactNode } from 'react';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import { nextRecurringDue } from '@/platform/crm/tasks';
 import { createMigrationExport, runWealthboxMigration } from '@/platform/crm/migration';
-import { completeWorkflowStep, createTemplate, startScheduledWorkflows, startWorkflow, stepValue, workflowRecords } from '../workflowLive';
+import { completeWorkflowStep, createTemplate, startScheduledWorkflows, startWorkflow, workflowRecords } from '../workflowLive';
 import { CrmHomeShell } from '../CrmHome';
 import type { HouseholdChoice } from '@/features/crm-workflows/Workflows';
-import { liveStepTitle } from './workflowDisplay';
+import { mergeCrmTaskRecord, projectCrmTask } from './liveTaskAdapter';
+import { projectCrmWorkflowWorkItem } from './liveWorkflowWorkItemAdapter';
 import type { CrmHomeProps } from '../routes';
 import type { CrmActivity, CrmApproval, CrmFirmMember, CrmFreshnessState, CrmHomeAdapter, CrmTask, CrmTaskSavedView, CrmWorkflowWorkItem, AttachmentAccountingRecord, ExportJobStatus, MigrationFidelityReport, MigrationNoteGap, MigrationWorkflowChecklist, PropagationOffer } from '../types';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
@@ -258,6 +259,7 @@ export function LiveCrmHome({
             ? [value]
             : value &&
                 typeof value === 'object' &&
+                (value as { kind?: unknown }).kind === 'household' &&
                 typeof (value as { id?: unknown }).id === 'string'
               ? [(value as { id: string }).id]
               : []
@@ -277,74 +279,12 @@ export function LiveCrmHome({
     .filter((record) => record.kind === 'task')
     .map((record) => {
       const householdId = householdIdFor(record);
-      const recurrence = record['recurrence'];
-      const recurrenceFrequencyValue = (recurrence as { freq?: unknown } | null)
-        ?.freq;
-      const recurrenceFrequency =
-        typeof recurrenceFrequencyValue === 'string'
-          ? recurrenceFrequencyValue
-          : '';
-      const validRecurrence =
-        recurrence &&
-        typeof recurrence === 'object' &&
-        ['daily', 'weekly', 'monthly', 'yearly'].includes(recurrenceFrequency)
-          ? {
-              freq: recurrenceFrequency as NonNullable<
-                CrmTask['recurrence']
-              >['freq'],
-              interval: Math.max(
-                1,
-                Number((recurrence as { interval?: unknown }).interval) || 1
-              ),
-              regenerateOnComplete:
-                (recurrence as { regenerateOnComplete?: unknown })
-                  .regenerateOnComplete !== false,
-            }
-          : undefined;
-      return {
-        id: record.id,
-        title:
-          typeof record['title'] === 'string'
-            ? record['title']
-            : 'Untitled task',
-        ...(typeof record['body'] === 'string' ? { body: record['body'] } : {}),
-        assigneeUserId:
-          typeof record['assigneeUserId'] === 'string'
-            ? record['assigneeUserId']
-            : null,
-        ...(firmMembers.find(
-          (member) => member.userId === record['assigneeUserId']
-        )
-          ? {
-              assigneeLabel: firmMembers.find(
-                (member) => member.userId === record['assigneeUserId']
-              )?.displayName,
-            }
-          : {}),
-        status:
-          record['status'] === 'in_progress' ||
-          record['status'] === 'blocked' ||
-          record['status'] === 'done' ||
-          record['status'] === 'cancelled'
-            ? record['status']
-            : 'open',
-        priority:
-          record['priority'] === 'high' || record['priority'] === 'low'
-            ? record['priority']
-            : 'normal',
-        ...(householdId
-          ? { householdId, householdLabel: householdName(householdId) }
-          : {}),
-        ...(typeof record['due'] === 'string'
-          ? { dueAt: record['due'], dueLabel: record['due'] }
-          : typeof record['dueAt'] === 'string'
-            ? { dueAt: record['dueAt'], dueLabel: record['dueAt'] }
-            : {}),
-        ...(validRecurrence
-          ? { recurrence: validRecurrence, recurrenceLabel: 'Recurring' }
-          : {}),
-        contextRefs: contextIds(record),
-      };
+      const member = firmMembers.find((candidate) => candidate.userId === record['assigneeUserId']);
+      const householdLabel = householdId ? householdName(householdId) : undefined;
+      return projectCrmTask(record, {
+        ...(householdLabel ? { householdLabel } : {}),
+        ...(member ? { assigneeLabel: member.displayName } : {}),
+      });
     });
   const liveWorkflowWorkItems: readonly CrmWorkflowWorkItem[] = workflowRecords(
     live.records
@@ -356,28 +296,7 @@ export function LiveCrmHome({
         const member = firmMembers.find(
           (candidate) => candidate.userId === assigneeUserId
         );
-        const dueValue = stepValue(instance, step.stepId, 'dueOffset');
-        const offset = typeof dueValue === 'number' ? dueValue : undefined;
-        const started = new Date(
-          instance['createdAt'] ?? new Date().toISOString()
-        );
-        if (offset !== undefined)
-          started.setUTCDate(started.getUTCDate() + offset);
-        return {
-          id: `${instance.id}:${step.stepId}`,
-          instanceId: instance.id,
-          stepId: step.stepId,
-          title: liveStepTitle(instance, step.stepId),
-          householdId: instance.householdId,
-          householdLabel: instance.householdLabel,
-          assigneeUserId,
-          ...(member ? { assigneeLabel: member.displayName } : {}),
-          status: step.status === 'in_progress' ? 'in_progress' : 'open',
-          priority: 'normal' as const,
-          ...(offset !== undefined
-            ? { dueAt: started.toISOString().slice(0, 10) }
-            : {}),
-        };
+        return projectCrmWorkflowWorkItem(instance, step, member?.displayName);
       })
   );
   const liveApprovals: readonly CrmApproval[] = live.records
@@ -597,24 +516,8 @@ export function LiveCrmHome({
   const saveTask = async (task: CrmTask) => {
     const householdId = task.householdId ?? task.contextRefs?.[0];
     const previous = liveTasks.find((item) => item.id === task.id);
-    const householdRef = householdId
-      ? { kind: 'household', id: householdId, matterId: householdId }
-      : null;
-    await live.save({
-      id: task.id,
-      kind: 'task',
-      matterId: 'firm_home',
-      title: task.title.trim(),
-      body: task.body ?? '',
-      assigneeUserId: task.assigneeUserId,
-      status: task.status,
-      ...(task.dueAt ? { due: task.dueAt } : {}),
-      priority: task.priority,
-      ...(task.recurrence ? { recurrence: task.recurrence } : {}),
-      householdRef,
-      contextRefs: householdRef ? [householdRef] : [],
-      customFields: {},
-    });
+    const current = live.records.find((record) => record.kind === 'task' && record.id === task.id);
+    await live.save(mergeCrmTaskRecord(task, current));
     await recordActivity(
       task.status === 'done' && previous?.status !== 'done'
         ? `Completed task: ${task.title}`
@@ -640,21 +543,7 @@ export function LiveCrmHome({
         status: 'open',
         ...(dueAt ? { dueAt, dueLabel: dueAt } : {}),
       };
-      await live.save({
-        id: child.id,
-        kind: 'task',
-        matterId: 'firm_home',
-        title: child.title,
-        body: child.body ?? '',
-        assigneeUserId: child.assigneeUserId,
-        status: 'open',
-        ...(dueAt ? { due: dueAt } : {}),
-        priority: child.priority,
-        recurrence: child.recurrence,
-        householdRef,
-        contextRefs: householdRef ? [householdRef] : [],
-        customFields: {},
-      });
+      await live.save(mergeCrmTaskRecord(child));
       await recordActivity(
         `Created next recurring task: ${child.title}`,
         child
@@ -869,6 +758,7 @@ export function LiveCrmHome({
               assigneeUserId: proposalTask.assigneeUserId ?? null,
               status: 'open',
               priority: proposalTask.priority ?? 'normal',
+              tagIds: proposalTask.tagIds ?? [],
               ...(proposalTask.householdId
                 ? { householdId: proposalTask.householdId }
                 : householdIdFor(record)

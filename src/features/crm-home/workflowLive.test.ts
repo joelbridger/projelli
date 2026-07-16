@@ -12,6 +12,7 @@ import {
   startWorkflow,
   undoWorkflowApply,
   updateWorkflowTemplate,
+  workflowRecords,
 } from './workflowLive';
 
 describe('saved CRM workflow wiring', () => {
@@ -69,5 +70,49 @@ describe('saved CRM workflow wiring', () => {
     expect(proposal['proposalKind']).toBe('workflow_launch');
     expect(proposal['state']).toBe('pending');
     expect(proposal['contextRefs']).toEqual([{ kind: 'activityEvent', id: 'meeting-1', matterId: 'h-1' }]);
+  });
+
+  it('retains stable step ids and tag ids through template save, reload, and start', () => {
+    const template = createTemplate('Annual review', ['Prepare', 'Meet']);
+    const originalIds = template.steps.map((step) => step.id);
+    const tagged = updateWorkflowTemplate(template, {
+      steps: template.steps.map((step, index) => ({
+        ...step,
+        tagIds: index === 0 ? ['tag:prep'] : ['tag:meeting'],
+      })),
+    });
+    const reloaded = structuredClone(tagged);
+    const started = startWorkflow(reloaded, { id: 'household-1', label: 'River household' });
+
+    expect(reloaded.steps.map((step) => step.id)).toEqual(originalIds);
+    expect(reloaded.steps.map((step) => step.tagIds)).toEqual([['tag:prep'], ['tag:meeting']]);
+    expect(Object.values(started.snapshot.steps).map((step) => step.tagIds)).toEqual([
+      ['tag:prep'],
+      ['tag:meeting'],
+    ]);
+
+    const published = publishTemplateUpdate(reloaded, 'Meet with client', 'Follow up');
+    expect(published.template.steps.find((step) => step.id === originalIds[1])?.tagIds)
+      .toEqual(['tag:meeting']);
+    expect(published.template.steps.at(-1)?.tagIds).toEqual([]);
+  });
+
+  it('normalizes pre-foundation template and instance metadata without inventing values', () => {
+    const template = createTemplate('Legacy workflow', ['Prepare']);
+    const instance = startWorkflow(template, { id: 'household-1', label: 'River household' });
+    const templateStep = template.steps[0];
+    const instanceStep = Object.values(instance.snapshot.steps)[0];
+    if (!templateStep || !instanceStep) throw new Error('Expected workflow steps.');
+    Reflect.deleteProperty(templateStep, 'tagIds');
+    Reflect.deleteProperty(instanceStep, 'tagIds');
+    Reflect.deleteProperty(instanceStep, 'documentRefs');
+
+    const normalized = workflowRecords([template, instance]);
+
+    expect(normalized.templates[0]?.steps[0]?.tagIds).toEqual([]);
+    expect(Object.values(normalized.instances[0]?.snapshot.steps ?? {})[0]).toMatchObject({
+      tagIds: [],
+      documentRefs: [],
+    });
   });
 });

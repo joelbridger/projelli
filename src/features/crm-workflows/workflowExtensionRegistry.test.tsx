@@ -1,6 +1,6 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string -- Dummy labels are test-only registry mounts. */
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   createTemplate,
   startWorkflow,
@@ -62,6 +62,7 @@ describe('workflow extension registries', () => {
           {
             instance,
             stepId: Object.keys(instance.snapshot.steps)[0] ?? 'step-1',
+            saveStepMetadata: vi.fn().mockResolvedValue(instance),
             compatibilityMount: null,
           },
           [dummyStep]

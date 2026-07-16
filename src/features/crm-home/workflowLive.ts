@@ -6,11 +6,11 @@ import {
   setOfferDecision,
   undoApply,
 } from '@/platform/crm/propagation';
-import { UNTOUCHED, type PropagationEngineOffer, type PropagationTransactionPayload, type WorkflowInstanceSnapshot, type WorkflowTemplateSnapshot } from '@/platform/crm/types';
+import { UNTOUCHED, type EntityRef, type PropagationEngineOffer, type PropagationTransactionPayload, type WorkflowInstanceSnapshot, type WorkflowTemplateSnapshot } from '@/platform/crm/types';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 
 export type WorkflowStepOutcomeDraft = { id: string; label: string; nextStepId?: string | undefined; restartAtStepId?: string | undefined };
-export type WorkflowStepDraft = { id: string; title: string; role: string; dueOffset: number; required: boolean; outcomes: WorkflowStepOutcomeDraft[] };
+export type WorkflowStepDraft = { id: string; title: string; role: string; dueOffset: number; required: boolean; outcomes: WorkflowStepOutcomeDraft[]; tagIds: string[] };
 export type WorkflowScheduleDraft = {
   frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'annual';
   timezone: string;
@@ -34,6 +34,35 @@ export type LiveWorkflowOffer = LiveCrmRecord & {
 const now = () => new Date().toISOString();
 const unique = (prefix: string) => `${prefix}-${String(Date.now())}-${Math.random().toString(36).slice(2, 7)}`;
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+const storedTagIds = (value: unknown): string[] => Array.isArray(value)
+  ? [...new Set(value.filter((id): id is string => typeof id === 'string' && Boolean(id.trim())))]
+  : [];
+const storedDocumentRefs = (value: unknown): Array<EntityRef & { kind: 'document' }> => {
+  if (!Array.isArray(value)) return [];
+  const paths = new Set<string>();
+  return value.flatMap((candidate) => {
+    if (!candidate || typeof candidate !== 'object') return [];
+    const ref = candidate as Partial<EntityRef>;
+    if (ref.kind !== 'document' || typeof ref.id !== 'string') return [];
+    const path = ref.id.replace(/\\/g, '/');
+    const segments = path.split('/');
+    if (!path.trim() || path.startsWith('/') || /^[a-zA-Z]:\//.test(path) || segments.includes('..') || segments.includes('.') || paths.has(path)) return [];
+    paths.add(path);
+    return [{ ...ref, kind: 'document' as const, id: path }];
+  });
+};
+const cleanTagIds = (values: readonly string[]): string[] => {
+  const candidates: readonly unknown[] = values;
+  if (candidates.some((value) => typeof value !== 'string' || !value.trim() || value !== value.trim())) throw new Error('Workflow tags must use stable non-empty IDs.');
+  const ids = candidates.map(String);
+  if (new Set(ids).size !== ids.length) throw new Error('Workflow tag IDs must not be duplicated.');
+  return ids;
+};
+const cleanSteps = (steps: readonly WorkflowStepDraft[]): WorkflowStepDraft[] => {
+  const ids = steps.map((step) => step.id);
+  if (ids.some((id) => !id.trim()) || new Set(ids).size !== ids.length) throw new Error('Workflow steps need unique stable IDs.');
+  return steps.map((step) => ({ ...step, outcomes: [...step.outcomes], tagIds: cleanTagIds(Array.isArray(step.tagIds) ? step.tagIds : []) }));
+};
 const fieldsFor = (step: WorkflowStepDraft, changeKind: 'add' | 'modify' = 'add') => [
   { stepId: step.id, field: 'title' as const, value: step.title, changeKind },
   { stepId: step.id, field: 'defaultAssigneeRole' as const, value: step.role, changeKind },
@@ -43,8 +72,24 @@ const fieldsFor = (step: WorkflowStepDraft, changeKind: 'add' | 'modify' = 'add'
 
 export function workflowRecords(records: readonly LiveCrmRecord[]) {
   return {
-    templates: records.filter((record): record is LiveWorkflowTemplate => record.kind === 'crm_workflow_template' && typeof record['name'] === 'string' && Boolean(record['snapshot'])),
-    instances: records.filter((record): record is LiveWorkflowInstance => record.kind === 'crm_workflow_instance' && typeof record['templateId'] === 'string' && Boolean(record['snapshot'])),
+    templates: records
+      .filter((record): record is LiveWorkflowTemplate => record.kind === 'crm_workflow_template' && typeof record['name'] === 'string' && Boolean(record['snapshot']))
+      .map((record) => ({
+        ...record,
+        steps: Array.isArray(record.steps)
+          ? record.steps.map((step) => ({ ...step, tagIds: storedTagIds(step.tagIds) }))
+          : [],
+      })),
+    instances: records
+      .filter((record): record is LiveWorkflowInstance => record.kind === 'crm_workflow_instance' && typeof record['templateId'] === 'string' && Boolean(record['snapshot']))
+      .map((record) => {
+        const normalized = clone(record);
+        for (const step of Object.values(normalized.snapshot.steps)) {
+          step.tagIds = storedTagIds(step.tagIds);
+          step.documentRefs = storedDocumentRefs(step.documentRefs);
+        }
+        return normalized;
+      }),
     offers: records.filter((record): record is LiveWorkflowOffer => record.kind === 'crm_workflow_offer' && typeof record['templateId'] === 'string' && Boolean(record['engineOffer'])),
     meetings: records.filter((record) => record.kind === 'activityEvent' && typeof record['verb'] === 'string' && record['verb'].startsWith('meeting.')),
   };
@@ -59,6 +104,7 @@ export function createTemplate(name: string, titles: readonly string[]): LiveWor
     dueOffset: index,
     required: true,
     outcomes: [],
+    tagIds: [],
   }));
   const rootRevisionId = `${templateId}-starting-steps`;
   return {
@@ -95,6 +141,13 @@ export function startWorkflow(template: LiveWorkflowTemplate, household: { id: s
   const offer = createOffer(template.snapshot, base, unique('workflow-start'));
   const capture = captureTransaction();
   const applied = applyOffer(template.snapshot, base, offer, unique('start'), capture.transaction);
+  const startedSnapshot = clone(applied.instance);
+  for (const templateStep of template.steps) {
+    const instanceStep = startedSnapshot.steps[templateStep.id];
+    if (!instanceStep) continue;
+    instanceStep.tagIds = cleanTagIds(Array.isArray(templateStep.tagIds) ? templateStep.tagIds : []);
+    instanceStep.documentRefs = [];
+  }
   return {
     id: instanceId,
     kind: 'crm_workflow_instance',
@@ -103,7 +156,7 @@ export function startWorkflow(template: LiveWorkflowTemplate, household: { id: s
     householdId: household.id,
     householdLabel: household.label,
     name: template.name,
-    snapshot: applied.instance,
+    snapshot: startedSnapshot,
     outcomesByStep: Object.fromEntries(template.steps.map((step) => [step.id, step.outcomes])),
     ...(options?.scheduleRunKey ? { scheduleRunKey: options.scheduleRunKey } : {}),
     status: 'open',
@@ -139,11 +192,14 @@ export function addWorkflowStepNote(instance: LiveWorkflowInstance, stepId: stri
   return { ...next, snapshot: reconcileTemplateRemovals(next.snapshot) };
 }
 
-export function updateWorkflowTemplate(template: LiveWorkflowTemplate, change: { schedule?: WorkflowScheduleDraft; outcomes?: Record<string, WorkflowStepOutcomeDraft[]> }): LiveWorkflowTemplate {
+export function updateWorkflowTemplate(template: LiveWorkflowTemplate, change: { schedule?: WorkflowScheduleDraft; outcomes?: Record<string, WorkflowStepOutcomeDraft[]>; steps?: readonly WorkflowStepDraft[] }): LiveWorkflowTemplate {
+  const steps = change.steps ? cleanSteps(change.steps) : template.steps;
   return {
     ...template,
     ...(change.schedule ? { schedule: change.schedule } : {}),
-    ...(change.outcomes ? { steps: template.steps.map((step) => ({ ...step, outcomes: change.outcomes?.[step.id] ?? step.outcomes })) } : {}),
+    steps: change.outcomes
+      ? steps.map((step) => ({ ...step, outcomes: change.outcomes?.[step.id] ?? step.outcomes }))
+      : steps,
   };
 }
 
@@ -152,10 +208,10 @@ function scheduledRunKey(schedule: WorkflowScheduleDraft, at: Date): string | nu
   if (Number.isNaN(start.getTime()) || start.getTime() > at.getTime()) return null;
   const year = at.getUTCFullYear();
   const month = at.getUTCMonth() + 1;
-  if (schedule.frequency === 'daily') return `${year}-${String(month).padStart(2, '0')}-${String(at.getUTCDate()).padStart(2, '0')}`;
-  if (schedule.frequency === 'weekly') return `${year}-w${Math.floor((Date.UTC(year, month - 1, at.getUTCDate()) - Date.UTC(year, 0, 1)) / 604800000)}`;
-  if (schedule.frequency === 'monthly') return `${year}-${String(month).padStart(2, '0')}`;
-  if (schedule.frequency === 'quarterly') return `${year}-q${String(Math.floor((month - 1) / 3) + 1)}`;
+  if (schedule.frequency === 'daily') return `${String(year)}-${String(month).padStart(2, '0')}-${String(at.getUTCDate()).padStart(2, '0')}`;
+  if (schedule.frequency === 'weekly') return `${String(year)}-w${String(Math.floor((Date.UTC(year, month - 1, at.getUTCDate()) - Date.UTC(year, 0, 1)) / 604800000))}`;
+  if (schedule.frequency === 'monthly') return `${String(year)}-${String(month).padStart(2, '0')}`;
+  if (schedule.frequency === 'quarterly') return `${String(year)}-q${String(Math.floor((month - 1) / 3) + 1)}`;
   return String(year);
 }
 
@@ -200,7 +256,7 @@ export function renameWorkflowStepLocally(instance: LiveWorkflowInstance, stepId
 export function publishTemplateUpdate(template: LiveWorkflowTemplate, title: string, addedTitle: string) {
   const changed = template.steps[1] ?? template.steps[0];
   if (!changed) throw new Error('A workflow needs at least one step.');
-  const added: WorkflowStepDraft = { id: unique(`${template.id}-step`), title: addedTitle.trim() || 'New follow-up', role: 'Client service', dueOffset: template.steps.length, required: true, outcomes: [] };
+  const added: WorkflowStepDraft = { id: unique(`${template.id}-step`), title: addedTitle.trim() || 'New follow-up', role: 'Client service', dueOffset: template.steps.length, required: true, outcomes: [], tagIds: [] };
   const revisionId = unique(`${template.id}-update`);
   const nextTitle = title.trim() || changed.title;
   const revision = {
@@ -215,7 +271,7 @@ export function publishTemplateUpdate(template: LiveWorkflowTemplate, title: str
     ],
   };
   const snapshot = publishRevision(template.snapshot, revision);
-  const nextTemplate: LiveWorkflowTemplate = { ...template, snapshot, steps: [{ ...changed, title: nextTitle }, ...template.steps.slice(1), added] };
+  const nextTemplate: LiveWorkflowTemplate = { ...template, snapshot, steps: [{ ...changed, title: nextTitle, tagIds: storedTagIds(changed.tagIds) }, ...template.steps.slice(1).map((step) => ({ ...step, tagIds: storedTagIds(step.tagIds) })), added] };
   return { template: nextTemplate, revisionId, label: revision.label };
 }
 

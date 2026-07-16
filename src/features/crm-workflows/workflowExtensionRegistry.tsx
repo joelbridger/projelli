@@ -7,6 +7,7 @@ import {
   legacyWorkflowRules,
   legacyWorkflowStepExtensions,
 } from './workflowExtensionRegistryCompatibility';
+import type { WorkflowStepMetadataPatch } from './workflowStepPersistence';
 
 /** Feature modules augment these maps beside their descriptors. */
 export interface WorkflowStepExtensionIdMap {}
@@ -21,6 +22,8 @@ export type WorkflowRuleId = Extract<keyof WorkflowRuleIdMap, string>;
 export interface WorkflowStepExtensionContext {
   instance: LiveWorkflowInstance;
   stepId: string;
+  /** Validates, saves, and returns the canonical instance state after the patch. */
+  saveStepMetadata: (patch: WorkflowStepMetadataPatch) => Promise<LiveWorkflowInstance>;
   /** Preserves the current step controls while they move behind this seam. */
   compatibilityMount: ReactNode;
 }

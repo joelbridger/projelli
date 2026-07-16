@@ -35,6 +35,7 @@ const task: CrmTask = {
   assigneeUserId: null,
   status: 'open',
   priority: 'normal',
+  tagIds: [],
 };
 
 describe('task extension registries', () => {
