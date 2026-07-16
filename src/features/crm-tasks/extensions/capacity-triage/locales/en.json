@@ -1,0 +1,31 @@
+{
+  "capacityTriage": {
+    "open": "Plan work",
+    "heading": "Open work plan",
+    "summary": "{{shown}} of {{open}} open items shown. {{unassigned}} unassigned and {{unscheduled}} without a due date.",
+    "assignee": "Assignee ",
+    "allAssignees": "All assignees",
+    "unassigned": "Unassigned",
+    "duePressure": "Due date ",
+    "allDuePressure": "Any due date",
+    "dueNow": "Due now or overdue",
+    "scheduled": "Scheduled",
+    "unscheduled": "No due date",
+    "priority": "Priority ",
+    "allPriorities": "Any priority",
+    "high": "High",
+    "normal": "Normal",
+    "low": "Low",
+    "tags": "Tags",
+    "tagList": "Firm tags",
+    "loading": "Loading firm tags…",
+    "catalogUnavailable": "Firm tags are unavailable right now. Your saved plan has not changed.",
+    "noTags": "No firm tags are available yet.",
+    "retired": "Retired",
+    "noMatchingWork": "No open work matches this plan.",
+    "kind": {
+      "task": "Task",
+      "workflow_step": "Workflow step"
+    }
+  }
+}

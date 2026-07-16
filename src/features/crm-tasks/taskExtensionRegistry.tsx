@@ -10,6 +10,7 @@ import {
   legacyTaskFields,
   legacyTaskTemplates,
 } from './taskExtensionRegistryCompatibility';
+import { capacityTriageTaskAction } from './extensions/capacity-triage';
 
 /** Feature modules augment these maps beside their descriptors. */
 export interface TaskFieldIdMap {}
@@ -118,8 +119,10 @@ export function validateTaskTemplateDescriptors(
 /** Append-only mount lists. Existing entries keep their order. */
 export const taskFieldRegistry: readonly TaskFieldDescriptor[] =
   legacyTaskFields;
-export const taskActionRegistry: readonly TaskActionDescriptor[] =
-  legacyTaskActions;
+export const taskActionRegistry: readonly TaskActionDescriptor[] = [
+  ...legacyTaskActions,
+  capacityTriageTaskAction,
+];
 export const taskTemplateRegistry: readonly TaskTemplateDescriptor[] =
   legacyTaskTemplates;
 

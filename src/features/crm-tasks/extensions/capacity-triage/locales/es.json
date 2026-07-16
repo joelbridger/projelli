@@ -1,0 +1,31 @@
+{
+  "capacityTriage": {
+    "open": "Planificar trabajo",
+    "heading": "Plan de trabajo abierto",
+    "summary": "Se muestran {{shown}} de {{open}} elementos abiertos. {{unassigned}} sin asignar y {{unscheduled}} sin fecha de vencimiento.",
+    "assignee": "Asignado a ",
+    "allAssignees": "Todos los asignados",
+    "unassigned": "Sin asignar",
+    "duePressure": "Fecha de vencimiento ",
+    "allDuePressure": "Cualquier fecha",
+    "dueNow": "Vence ahora o atrasado",
+    "scheduled": "Programado",
+    "unscheduled": "Sin fecha de vencimiento",
+    "priority": "Prioridad ",
+    "allPriorities": "Cualquier prioridad",
+    "high": "Alta",
+    "normal": "Normal",
+    "low": "Baja",
+    "tags": "Etiquetas",
+    "tagList": "Etiquetas de la firma",
+    "loading": "Cargando etiquetas de la firma…",
+    "catalogUnavailable": "Las etiquetas de la firma no están disponibles ahora. El plan guardado no ha cambiado.",
+    "noTags": "Todavía no hay etiquetas de la firma disponibles.",
+    "retired": "Retirada",
+    "noMatchingWork": "Ningún trabajo abierto coincide con este plan.",
+    "kind": {
+      "task": "Tarea",
+      "workflow_step": "Paso del flujo de trabajo"
+    }
+  }
+}
