@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Card } from '@/ui/kp';
 import { emitAuditEntry, type AuditWriteEntry } from '@/features/audit';
@@ -7,7 +7,6 @@ import {
   buildSchwabProposal,
   type SchwabAccountType,
   type SchwabFieldKey,
-  type SchwabHousehold,
   type SchwabProposedField,
 } from '../mapping';
 import { schwabPrivateFacts } from '../private-facts';
@@ -17,6 +16,11 @@ import {
   saveApprovedSchwabPacket,
   type SchwabPacketReceipt,
 } from '../packet';
+import type {
+  SchwabApprovalResult,
+  SchwabRedactedProposalStatus,
+  SchwabReviewInput,
+} from '../contracts';
 
 type EditableField = SchwabProposedField & { confirmed: boolean };
 function withState(fields: readonly SchwabProposedField[]): EditableField[] {
@@ -54,11 +58,7 @@ function auditEntry(
   };
 }
 
-export function SchwabPrefillReview({
-  household,
-}: {
-  household: SchwabHousehold;
-}) {
+export function SchwabPrefillReview({ household }: SchwabReviewInput) {
   const { t } = useTranslation();
   const [accountType, setAccountType] =
     useState<SchwabAccountType>('individual');
@@ -70,6 +70,23 @@ export function SchwabPrefillReview({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<SchwabPacketReceipt | undefined>();
+  const revealedFacts = useRef(new Map<string, string>());
+  const [revealedFactIds, setRevealedFactIds] = useState<ReadonlySet<string>>(
+    new Set()
+  );
+  const activeRevealScope = `${household.id}:${accountType}`;
+  const revealScope = useRef(activeRevealScope);
+  const activeRevealScopeRef = useRef(activeRevealScope);
+  activeRevealScopeRef.current = activeRevealScope;
+  useEffect(() => {
+    const sessionReveals = revealedFacts.current;
+    sessionReveals.clear();
+    revealScope.current = activeRevealScope;
+    setRevealedFactIds(new Set());
+    return () => {
+      sessionReveals.clear();
+    };
+  }, [activeRevealScope]);
   useEffect(() => {
     let live = true;
     setLoading(true);
@@ -98,14 +115,21 @@ export function SchwabPrefillReview({
     setFields(withState(proposed));
     setReceipt(findSchwabPacketReceipt(household.id, accountType));
   }, [accountType, household.id, proposed]);
-  const ready =
-    fields.length > 0 &&
-    fields.every(
-      (field) =>
-        (!field.required || field.value.trim()) &&
-        !field.conflict &&
-        field.confirmed
-    );
+  const proposalStatus: SchwabRedactedProposalStatus = {
+    accountType,
+    fieldCount: fields.length,
+    unresolvedConflictCount: fields.filter((field) => field.conflict).length,
+    ready:
+      fields.length > 0 &&
+      fields.every(
+        (field) =>
+          !field.conflict &&
+          (field.required
+            ? Boolean(field.value.trim()) && field.confirmed
+            : !field.value.trim() || field.confirmed)
+      ),
+  };
+  const ready = proposalStatus.ready;
   function update(key: SchwabFieldKey, value: string) {
     setFields((current) =>
       current.map((field) =>
@@ -140,8 +164,19 @@ export function SchwabPrefillReview({
       )
     );
   }
-  async function approve() {
-    if (!ready || saving) return;
+  async function reveal(factId: string): Promise<void> {
+    const scope = activeRevealScope;
+    try {
+      const value = await schwabPrivateFacts.reveal(household.id, factId);
+      if (activeRevealScopeRef.current !== scope) return;
+      revealedFacts.current.set(factId, value);
+      setRevealedFactIds((current) => new Set(current).add(factId));
+    } catch {
+      setError(t('schwabPrefill.revealError'));
+    }
+  }
+  async function approve(): Promise<SchwabApprovalResult | undefined> {
+    if (!ready || saving) return undefined;
     setSaving(true);
     setError(null);
     try {
@@ -158,8 +193,10 @@ export function SchwabPrefillReview({
       );
       const packet = saveApprovedSchwabPacket(prepared, audit.id);
       setReceipt(packet.receipt);
+      return { status: 'approved', receipt: packet.receipt };
     } catch {
       setError(t('schwabPrefill.auditStalled'));
+      return { status: 'stalled', receipt: undefined };
     } finally {
       setSaving(false);
     }
@@ -179,6 +216,8 @@ export function SchwabPrefillReview({
           aria-label={t('schwabPrefill.accountType')}
           value={accountType}
           onChange={(event) => {
+            revealedFacts.current.clear();
+            setRevealedFactIds(new Set());
             setAccountType(event.target.value as SchwabAccountType);
           }}
         >
@@ -204,66 +243,103 @@ export function SchwabPrefillReview({
             <strong>{t('schwabPrefill.existing')}</strong>
             <strong>{t('schwabPrefill.application')}</strong>
             <strong>{t('schwabPrefill.confirm')}</strong>
-            {fields.map((field) => (
-              <div key={field.key} style={{ display: 'contents' }}>
-                <div>
-                  <strong>{t(`schwabPrefill.fields.${field.label}`)}</strong>
-                  <p>
-                    {field.candidates
-                      .map((candidate) => candidate.value)
-                      .join(' / ') || t('schwabPrefill.none')}
-                  </p>
-                  {field.conflict ? (
-                    <>
-                      <p role="alert">{t('schwabPrefill.conflict')}</p>
-                      <select
-                        aria-label={`${t('schwabPrefill.chooseSource')} ${t(`schwabPrefill.fields.${field.label}`)}`}
-                        defaultValue=""
-                        onChange={(event) => {
-                          choose(field.key, event.target.value);
-                        }}
-                      >
-                        <option value="" disabled>
-                          {t('schwabPrefill.chooseSource')}
-                        </option>
-                        {field.candidates.map((candidate) => (
-                          <option
-                            key={`${candidate.source}-${candidate.value}`}
-                            value={candidate.value}
-                          >
-                            {candidate.value}
+            {fields.map((field) => {
+              const privateCandidate = field.secret
+                ? field.candidates.find(
+                    (candidate) =>
+                      candidate.value === field.value && candidate.sourceRef
+                  )
+                : undefined;
+              const revealedValue =
+                privateCandidate?.sourceRef &&
+                revealScope.current === activeRevealScope &&
+                revealedFactIds.has(privateCandidate.sourceRef)
+                  ? revealedFacts.current.get(privateCandidate.sourceRef)
+                  : undefined;
+              return (
+                <div key={field.key} style={{ display: 'contents' }}>
+                  <div>
+                    <strong>{t(`schwabPrefill.fields.${field.label}`)}</strong>
+                    <p>
+                      {field.candidates
+                        .map((candidate) => candidate.value)
+                        .join(' / ') || t('schwabPrefill.none')}
+                    </p>
+                    {field.conflict ? (
+                      <>
+                        <p role="alert">{t('schwabPrefill.conflict')}</p>
+                        <select
+                          aria-label={`${t('schwabPrefill.chooseSource')} ${t(`schwabPrefill.fields.${field.label}`)}`}
+                          defaultValue=""
+                          onChange={(event) => {
+                            choose(field.key, event.target.value);
+                          }}
+                        >
+                          <option value="" disabled>
+                            {t('schwabPrefill.chooseSource')}
                           </option>
-                        ))}
-                      </select>
-                    </>
-                  ) : null}
-                </div>
-                <input
-                  aria-label={t(`schwabPrefill.fields.${field.label}`)}
-                  value={field.value}
-                  onChange={(event) => {
-                    update(field.key, event.target.value);
-                  }}
-                />
-                <label>
+                          {field.candidates.map((candidate) => (
+                            <option
+                              key={`${candidate.source}-${candidate.value}`}
+                              value={candidate.value}
+                            >
+                              {candidate.value}
+                            </option>
+                          ))}
+                        </select>
+                      </>
+                    ) : null}
+                    {privateCandidate?.sourceRef ? (
+                      <div>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            void reveal(privateCandidate.sourceRef).catch(
+                              () => {
+                                setError(t('schwabPrefill.revealError'));
+                              }
+                            );
+                          }}
+                        >
+                          {t('schwabPrefill.reveal')}
+                        </Button>
+                        {revealedValue ? (
+                          <output
+                            data-testid={`schwab-prefill-revealed-${field.key}`}
+                          >
+                            {revealedValue}
+                          </output>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
                   <input
-                    type="checkbox"
-                    checked={field.confirmed}
-                    disabled={field.conflict || !field.value.trim()}
+                    aria-label={t(`schwabPrefill.fields.${field.label}`)}
+                    value={field.value}
                     onChange={(event) => {
-                      setFields((current) =>
-                        current.map((item) =>
-                          item.key === field.key
-                            ? { ...item, confirmed: event.target.checked }
-                            : item
-                        )
-                      );
+                      update(field.key, event.target.value);
                     }}
                   />
-                  {t('schwabPrefill.confirm')}
-                </label>
-              </div>
-            ))}
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={field.confirmed}
+                      disabled={field.conflict || !field.value.trim()}
+                      onChange={(event) => {
+                        setFields((current) =>
+                          current.map((item) =>
+                            item.key === field.key
+                              ? { ...item, confirmed: event.target.checked }
+                              : item
+                          )
+                        );
+                      }}
+                    />
+                    {t('schwabPrefill.confirm')}
+                  </label>
+                </div>
+              );
+            })}
           </div>
         </Card>
       )}

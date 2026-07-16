@@ -7,6 +7,7 @@
     "existing": "Existing client record",
     "application": "Schwab application",
     "confirm": "Confirm",
+    "reveal": "Reveal",
     "none": "No proposed value",
     "conflict": "Choose or enter one value before confirming.",
     "chooseSource": "Choose source",
@@ -14,6 +15,7 @@
     "saving": "Saving durable approval…",
     "saved": "Approved Schwab prep packet saved locally.",
     "loadError": "Private facts could not be loaded.",
+    "revealError": "The private value could not be revealed.",
     "auditStalled": "Approval stopped because its durable audit record could not be saved. No packet was created.",
     "types": {
       "individual": "Individual",

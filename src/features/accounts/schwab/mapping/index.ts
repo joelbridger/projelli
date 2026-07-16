@@ -279,16 +279,17 @@ export function buildSchwabProposal(
     if (crm) candidates.push({ value: crm, source: 'crm' });
     const meeting = input.meetingSuggestions?.[definition.key];
     if (meeting) candidates.push({ value: meeting, source: 'meeting' });
-    const unique = [
-      ...new Map(
-        candidates
-          .sort(
-            (left, right) =>
-              sourcePriority[left.source] - sourcePriority[right.source]
-          )
-          .map((candidate) => [candidate.value, candidate])
-      ).values(),
-    ];
+    const seenValues = new Set<string>();
+    const unique = candidates
+      .sort(
+        (left, right) =>
+          sourcePriority[left.source] - sourcePriority[right.source]
+      )
+      .filter((candidate) => {
+        if (seenValues.has(candidate.value)) return false;
+        seenValues.add(candidate.value);
+        return true;
+      });
     const chosen = unique[0];
     return {
       ...definition,

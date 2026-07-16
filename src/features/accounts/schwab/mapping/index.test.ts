@@ -102,6 +102,54 @@ describe('Schwab mappings', () => {
       value: '',
     });
   });
+  it('keeps the highest-priority source when every source agrees', () => {
+    const agreedValue = '1980-01-01';
+    const fields = buildSchwabProposal('individual', {
+      household: {
+        ...household,
+        facts: [{ label: 'dob', value: agreedValue }],
+      },
+      facts: [
+        {
+          fact_id: 'advisor-dob',
+          matter_id: household.id,
+          subject: 'primary',
+          kind: 'dob',
+          sensitivity: 'confidential',
+          display_value: agreedValue,
+          provenance: {
+            channel: 'manual',
+            entered_by: 'advisor',
+            at: '2026-07-16',
+          },
+          verification: 'advisor_confirmed',
+          status: 'active',
+        },
+        {
+          fact_id: 'verified-dob',
+          matter_id: household.id,
+          subject: 'primary',
+          kind: 'dob',
+          sensitivity: 'confidential',
+          display_value: agreedValue,
+          provenance: {
+            channel: 'client',
+            entered_by: 'client',
+            at: '2026-07-16',
+          },
+          verification: 'client_stated',
+          status: 'active',
+        },
+      ],
+      meetingSuggestions: { ownerDob: agreedValue },
+    });
+    expect(fields.find((field) => field.key === 'ownerDob')).toMatchObject({
+      value: agreedValue,
+      source: 'advisor-intake',
+      conflict: false,
+      candidates: [{ source: 'advisor-intake', sourceRef: 'advisor-dob' }],
+    });
+  });
   it('uses a decedent fact only for an inherited-IRA decedent field', () => {
     const fields = buildSchwabProposal('inherited-ira', {
       household,

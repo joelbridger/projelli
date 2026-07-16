@@ -7,6 +7,7 @@
     "existing": "Registro existente",
     "application": "Solicitud Schwab",
     "confirm": "Confirmar",
+    "reveal": "Mostrar",
     "none": "Sin valor",
     "conflict": "Elija un valor.",
     "chooseSource": "Elegir fuente",
@@ -14,6 +15,7 @@
     "saving": "Guardando…",
     "saved": "Paquete guardado.",
     "loadError": "No se pudieron cargar los datos.",
+    "revealError": "No se pudo mostrar el valor privado.",
     "auditStalled": "La aprobación se detuvo.",
     "types": {
       "individual": "Individual",

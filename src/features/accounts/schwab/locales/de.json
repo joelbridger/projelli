@@ -7,6 +7,7 @@
     "existing": "Bestehender Datensatz",
     "application": "Schwab-Antrag",
     "confirm": "Bestätigen",
+    "reveal": "Anzeigen",
     "none": "Kein Wert",
     "conflict": "Wert wählen.",
     "chooseSource": "Quelle wählen",
@@ -14,6 +15,7 @@
     "saving": "Speichert…",
     "saved": "Paket gespeichert.",
     "loadError": "Daten konnten nicht geladen werden.",
+    "revealError": "Der private Wert konnte nicht angezeigt werden.",
     "auditStalled": "Bestätigung wurde gestoppt.",
     "types": {
       "individual": "Einzelkonto",
