@@ -1,0 +1,18 @@
+{
+  "workflowStepAttachments": {
+    "heading": "Dokumente",
+    "copy": "Verknüpfen Sie ein bereits für diesen Kunden gespeichertes Dokument. Die Originaldatei bleibt in Dokumente.",
+    "tags": "Schritt-Tags",
+    "retired": "Stillgelegt",
+    "unavailableTag": "Nicht verfügbares Tag: {{id}}",
+    "document": "Dokument",
+    "chooseDocument": "Dokument auswählen",
+    "add": "Dokument verknüpfen",
+    "remove": "Verknüpfung entfernen",
+    "removeFor": "{{name}} entfernen",
+    "workspaceNeeded": "Öffnen Sie diesen Arbeitsbereich, um ein gespeichertes Dokument zu verknüpfen.",
+    "noFiles": "Es gibt noch keine gespeicherten Dokumente zum Verknüpfen.",
+    "empty": "Mit diesem Schritt sind noch keine Dokumente verknüpft.",
+    "saveFailed": "Die Dokumentverknüpfung konnte nicht gespeichert werden. Versuchen Sie es erneut."
+  }
+}

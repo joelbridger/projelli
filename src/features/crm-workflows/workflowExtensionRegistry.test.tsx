@@ -53,6 +53,7 @@ describe('workflow extension registries', () => {
     ]);
     expect(getWorkflowStepExtensions().map(({ id }) => id)).toEqual([
       'legacy.step-controls',
+      'workflow-step.attachments',
     ]);
   });
 

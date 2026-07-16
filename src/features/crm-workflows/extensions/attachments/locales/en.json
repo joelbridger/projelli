@@ -1,0 +1,18 @@
+{
+  "workflowStepAttachments": {
+    "heading": "Documents",
+    "copy": "Link a document already saved for this client. The original file stays in Documents.",
+    "tags": "Step tags",
+    "retired": "Retired",
+    "unavailableTag": "Unavailable tag: {{id}}",
+    "document": "Document",
+    "chooseDocument": "Choose a document",
+    "add": "Link document",
+    "remove": "Remove link",
+    "removeFor": "Remove {{name}}",
+    "workspaceNeeded": "Open this workspace to link a saved document.",
+    "noFiles": "There are no saved documents to link yet.",
+    "empty": "No documents are linked to this step yet.",
+    "saveFailed": "The document link could not be saved. Try again."
+  }
+}

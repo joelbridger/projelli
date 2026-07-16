@@ -7,6 +7,7 @@ import {
   legacyWorkflowRules,
   legacyWorkflowStepExtensions,
 } from './workflowExtensionRegistryCompatibility';
+import { workflowStepAttachmentsExtension } from './extensions/attachments';
 import type { WorkflowStepMetadataPatch } from './workflowStepPersistence';
 
 /** Feature modules augment these maps beside their descriptors. */
@@ -86,7 +87,7 @@ export function validateWorkflowRuleDescriptors(
 
 /** Append-only mount lists. Existing entries keep their order. */
 export const workflowStepExtensionRegistry: readonly WorkflowStepExtensionDescriptor[] =
-  legacyWorkflowStepExtensions;
+  [...legacyWorkflowStepExtensions, workflowStepAttachmentsExtension];
 export const workflowRuleRegistry: readonly WorkflowRuleDescriptor[] =
   legacyWorkflowRules;
 

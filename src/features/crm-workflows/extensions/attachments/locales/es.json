@@ -1,0 +1,18 @@
+{
+  "workflowStepAttachments": {
+    "heading": "Documentos",
+    "copy": "Vincula un documento ya guardado para este cliente. El archivo original permanece en Documentos.",
+    "tags": "Etiquetas del paso",
+    "retired": "Retirada",
+    "unavailableTag": "Etiqueta no disponible: {{id}}",
+    "document": "Documento",
+    "chooseDocument": "Elige un documento",
+    "add": "Vincular documento",
+    "remove": "Quitar vínculo",
+    "removeFor": "Quitar {{name}}",
+    "workspaceNeeded": "Abre este espacio de trabajo para vincular un documento guardado.",
+    "noFiles": "Aún no hay documentos guardados para vincular.",
+    "empty": "Aún no hay documentos vinculados a este paso.",
+    "saveFailed": "No se pudo guardar el vínculo del documento. Inténtalo de nuevo."
+  }
+}
