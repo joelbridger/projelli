@@ -109,14 +109,34 @@ function validateDueTime(value: string): string {
 }
 
 /** Merge-save used by the legacy Tasks adapter; it never replaces a canonical record with a UI projection. */
-export function mergeCrmTaskRecord(task: CrmTask, current?: LiveCrmRecord): LiveCrmRecord {
+export function mergeCrmTaskRecord(
+  task: CrmTask,
+  current?: LiveCrmRecord,
+  mappedHouseholdMatterId?: string
+): LiveCrmRecord {
   const now = new Date().toISOString();
   const householdId = task.householdId ?? task.contextRefs?.[0];
-  const householdRef = householdId ? { kind: 'household' as const, id: householdId, matterId: householdId } : null;
   const currentRefs = entityRefs(current?.['contextRefs']);
-  const retainedContext = current
-    ? currentRefs.filter((ref) => ref.kind !== 'household')
-    : [...(task.documentRefs ?? [])];
+  const storedHouseholdRef = current?.['householdRef'];
+  const storedHousehold = storedHouseholdRef && typeof storedHouseholdRef === 'object'
+    ? storedHouseholdRef as Partial<EntityRef>
+    : undefined;
+  const householdMatterId = mappedHouseholdMatterId?.trim() || (
+    storedHousehold?.kind === 'household' &&
+    storedHousehold.id === householdId && typeof storedHousehold.matterId === 'string'
+      ? storedHousehold.matterId
+      : householdId
+  );
+  const householdRef = householdId
+    ? { kind: 'household' as const, id: householdId, matterId: householdMatterId }
+    : null;
+  const retainedRelations = currentRefs.filter(
+    (ref) => ref.kind !== 'household' && ref.kind !== 'document'
+  );
+  const retainedDocuments = task.documentRefs === undefined
+    ? documentRefs(currentRefs)
+    : documentRefs(task.documentRefs);
+  const retainedContext = [...retainedRelations, ...retainedDocuments];
   const contextRefs = householdRef ? [householdRef, ...retainedContext] : retainedContext;
   const next: LiveCrmRecord = {
     ...(current ?? {}),

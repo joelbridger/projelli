@@ -466,6 +466,7 @@ function TaskDetail({
 }) {
   const [draft, setDraft] = useState(task);
   const [saving, setSaving] = useState(false);
+  const [fieldPersistenceBusy, setFieldPersistenceBusy] = useState(false);
   const householdId = draft.householdId ?? draft.contextRefs?.[0] ?? '';
   const selectHousehold = (id: string) => {
     const household = households.find((item) => item.id === id);
@@ -518,6 +519,7 @@ function TaskDetail({
       {mountTaskFields({
         task: draft,
         updateTask: setDraft,
+        setPersistenceBusy: setFieldPersistenceBusy,
         households,
         firmMembers,
         compatibilityMount: (
@@ -685,7 +687,7 @@ function TaskDetail({
       <div style={{ display: 'flex', gap: 8 }}>
         <Button
           data-testid="crm-task-save"
-          disabled={saving || !draft.title.trim()}
+          disabled={saving || fieldPersistenceBusy || !draft.title.trim()}
           onClick={() => {
             void save();
           }}

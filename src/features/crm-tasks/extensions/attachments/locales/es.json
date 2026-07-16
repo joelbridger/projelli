@@ -1,0 +1,26 @@
+{
+  "task-attachments": {
+    "title": "Archivos adjuntos",
+    "helper": "Vincula un documento guardado. El archivo original permanece en Documentos.",
+    "tag-context": "Etiquetas de la tarea",
+    "retired": "retirada",
+    "file-label": "Documento guardado",
+    "choose-file": "Elige un documento guardado",
+    "add": "Agregar archivo adjunto",
+    "remove": "Quitar",
+    "empty": "Aún no hay archivos adjuntos.",
+    "status": {
+      "added": "Se agregó {{name}}.",
+      "removed": "Archivo adjunto quitado."
+    },
+    "errors": {
+      "choose-file": "Primero elige un documento guardado.",
+      "duplicate": "Ese documento ya está adjunto.",
+      "invalid-document": "Ese archivo no se puede adjuntar a esta tarea del cliente.",
+      "save-task-first": "Guarda esta tarea del cliente antes de agregar documentos.",
+      "remove-before-client-change": "Quita los archivos adjuntos antes de cambiar el cliente de esta tarea.",
+      "task-unavailable": "Esta tarea ya no está disponible. Ciérrala e inténtalo de nuevo.",
+      "save": "No se pudo guardar el archivo adjunto. Inténtalo de nuevo."
+    }
+  }
+}

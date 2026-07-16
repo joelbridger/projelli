@@ -1,0 +1,26 @@
+{
+  "task-attachments": {
+    "title": "Anhänge",
+    "helper": "Verknüpfen Sie ein gespeichertes Dokument. Die Originaldatei bleibt in Dokumente.",
+    "tag-context": "Aufgaben-Tags",
+    "retired": "ausgemustert",
+    "file-label": "Gespeichertes Dokument",
+    "choose-file": "Gespeichertes Dokument auswählen",
+    "add": "Anhang hinzufügen",
+    "remove": "Entfernen",
+    "empty": "Noch keine Anhänge.",
+    "status": {
+      "added": "{{name}} wurde hinzugefügt.",
+      "removed": "Anhang entfernt."
+    },
+    "errors": {
+      "choose-file": "Wählen Sie zuerst ein gespeichertes Dokument aus.",
+      "duplicate": "Dieses Dokument ist bereits angehängt.",
+      "invalid-document": "Diese Datei kann nicht an diese Kundenaufgabe angehängt werden.",
+      "save-task-first": "Speichern Sie diese Kundenaufgabe, bevor Sie Dokumente hinzufügen.",
+      "remove-before-client-change": "Entfernen Sie die Anhänge, bevor Sie den Kunden dieser Aufgabe ändern.",
+      "task-unavailable": "Diese Aufgabe ist nicht mehr verfügbar. Schließen Sie sie und versuchen Sie es erneut.",
+      "save": "Der Anhang konnte nicht gespeichert werden. Bitte versuchen Sie es erneut."
+    }
+  }
+}
