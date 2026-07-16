@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -13,6 +14,7 @@ import { setDevFlagOverride } from '@/platform/flags';
 import type { HouseholdRecord } from '../../adapters';
 import { householdRecordExtensionRegistry } from '../../recordRegistry';
 import { HouseholdRecordSurface } from '../../HouseholdRecordSurface';
+import type { HouseholdTabSurfaceProps } from '../../tabRegistry';
 import {
   CUSTOM_FIELD_VALUES_DATA_KEY,
   readCustomFieldValues,
@@ -20,7 +22,7 @@ import {
 } from './customFieldValues';
 import { CustomFieldsSectionContent } from './CustomFieldsSection';
 
-const { live, catalogPersistence } = vi.hoisted(() => ({
+const { live, catalogPersistence, useLiveCrmRecords } = vi.hoisted(() => ({
   live: {
     records: [] as unknown[],
     save: vi.fn(),
@@ -29,6 +31,7 @@ const { live, catalogPersistence } = vi.hoisted(() => ({
     load: vi.fn(),
     save: vi.fn(),
   },
+  useLiveCrmRecords: vi.fn(),
 }));
 
 vi.mock('@/features/crm-firm', async (importOriginal) => {
@@ -40,7 +43,21 @@ vi.mock('@/features/crm-firm', async (importOriginal) => {
 });
 
 vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
-  useLiveCrmRecords: () => live,
+  useLiveCrmRecords,
+}));
+
+// The real Client Map tab has its own live-record reader. This focused shell
+// integration test replaces only that unrelated tab, so its spy measures the
+// custom-fields section's reader alone.
+vi.mock('../../clientMapTab', () => ({
+  clientMapTab: {
+    id: 'client-map',
+    label: 'Client Map',
+    route: 'client_map',
+    Component: ({ renderLegacySurface }: HouseholdTabSurfaceProps) => (
+      <>{renderLegacySurface('client_map')}</>
+    ),
+  },
 }));
 
 const household: HouseholdRecord = {
@@ -158,6 +175,8 @@ beforeEach(() => {
       updatedAt: '2026-07-15T00:00:00.000Z',
     })),
   ];
+  useLiveCrmRecords.mockReset();
+  useLiveCrmRecords.mockReturnValue(live);
   live.save.mockReset();
   catalogPersistence.load.mockReset();
   catalogPersistence.load.mockResolvedValue(catalog);
@@ -190,8 +209,12 @@ describe('advisor custom fields extension', () => {
     expect(catalogPersistence.load).not.toHaveBeenCalled();
     expect(catalogPersistence.save).not.toHaveBeenCalled();
     expect(live.save).not.toHaveBeenCalled();
+    expect(useLiveCrmRecords).not.toHaveBeenCalled();
 
-    setDevFlagOverride('custom-fields-advisor', true);
+    act(() => {
+      setDevFlagOverride('custom-fields-advisor', true);
+    });
+    expect(useLiveCrmRecords).toHaveBeenCalledTimes(1);
     expect(
       await screen.findByTestId('custom-fields-advisor-section')
     ).toBeInTheDocument();
