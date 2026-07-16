@@ -1,0 +1,19 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/v1-w2-crm-list-sort-v2
+sha: 2fa8f77d7bd5f1c8a8a72a2cfac0db1ab94a9ba1
+tree: c0f10d0e172dec74e5d0966d24df51d14adec825
+gate_base: 3f5fed1079cfb22dc78d8d927fcbf4185a11aee0
+tool_blob: 2a8a0211c0565e6bbcb39b6891e5d0839375074a
+utc: 2026-07-16T09:11:47Z
+step_timeout_seconds: 1800
+loadavg: 25.25 17.94 18.21
+running_vitest_eslint_procs: 24
+step: gate:changed | status=PASS | exit=0 | 09:11:47Z..09:23:08Z | bytes=55002 | sha256=ff211b7e0d3407a7f10cd6d5bf90929fd0a8390b6f6b5a2411e444b715293f82 | tail: ssed | 3 skipped (1025) Tests 8448 passed | 29 skipped (8477) Start at 09:17:20 Duration 347.70s (transform 27.65s, setup 165.97s, import 461.99s, tests 230.40s, environment 409.51s) CHANGED GATE GREEN 
+step: typecheck | status=PASS | exit=0 | 09:23:08Z..09:23:31Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit 
+step: typecheck:tests | status=PASS | exit=0 | 09:23:31Z..09:24:05Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit 
+step: handle-guard | status=PASS | exit=0 | 09:24:05Z..09:24:05Z | bytes=1267 | sha256=ff7e6fa8070e7a4543d954868c4f9d349053b44aab643188e7eb61b44219868d | tail: t-picker-cancel + client-picker-clear + client-picker-empty + client-picker-error +197 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen). 
+step: arch-dag-guard | status=PASS | exit=0 | 09:24:05Z..09:24:07Z | bytes=222 | sha256=0e7f53c6febfc10190c516d607cee99ddc7842002024b6682746ceb761be8b5f | tail: RUN v4.1.3 /home/jameson/v1-w2-crm-list-sort-v2 Test Files 1 passed (1) Tests 1 passed (1) Start at 09:24:06 Duration 921ms (transform 172ms, setup 269ms, import 246ms, tests 3ms, environment 297ms) 
+step: i18n-snapshot | status=PASS | exit=0 | 09:24:07Z..09:24:08Z | bytes=223 | sha256=f08dae54e9d6a197f4c1738ccacf184fcef68b65e91f6364d539b0354c54f131 | tail: UN v4.1.3 /home/jameson/v1-w2-crm-list-sort-v2 Test Files 1 passed (1) Tests 5 passed (5) Start at 09:24:07 Duration 830ms (transform 174ms, setup 267ms, import 212ms, tests 17ms, environment 256ms) 
+step: focused | status=PASS | exit=0 | 09:24:08Z..09:24:11Z | bytes=223 | sha256=af3c41b0f8cfa2d2d947d7e261fd53edade0d3204d0df6fe3448b33c1c04a966 | tail: UN v4.1.3 /home/jameson/v1-w2-crm-list-sort-v2 Test Files 1 passed (1) Tests 4 passed (4) Start at 09:24:08 Duration 2.85s (transform 1.50s, setup 267ms, import 2.14s, tests 90ms, environment 267ms) 
+overall: GREEN
