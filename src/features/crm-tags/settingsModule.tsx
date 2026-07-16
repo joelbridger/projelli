@@ -11,16 +11,12 @@ import type {
   FirmTagStore,
 } from './contract';
 import { FirmTagError } from './contract';
+import {
+  FIRM_TAG_COLORS,
+  INITIAL_FIRM_TAG_COLOR,
+  firmTagPaint,
+} from './tagPalette';
 import { useFirmTagStore } from './useFirmTagStore';
-
-const COLORS = [
-  { value: '#2563eb', label: 'blue' },
-  { value: '#15803d', label: 'green' },
-  { value: '#b45309', label: 'amber' },
-  { value: '#dc2626', label: 'red' },
-  { value: '#7e22ce', label: 'purple' },
-  { value: '#475569', label: 'slate' },
-] as const satisfies readonly { value: FirmTagColor; label: string }[];
 
 const card = {
   border: '1px solid var(--kp-border)',
@@ -43,7 +39,7 @@ function TagDot({ color }: { color: FirmTagColor }) {
         height: 10,
         display: 'inline-block',
         borderRadius: '50%',
-        background: color,
+        background: firmTagPaint(color),
       }}
     />
   );
@@ -125,10 +121,10 @@ function TagRow({
               onColor(event.target.value as FirmTagColor);
             }}
           >
-            {!COLORS.some((color) => color.value === tag.color) && (
+            {!FIRM_TAG_COLORS.some((color) => color.value === tag.color) && (
               <option value={tag.color}>{tag.color}</option>
             )}
-            {COLORS.map((color) => (
+            {FIRM_TAG_COLORS.map((color) => (
               <option key={color.value} value={color.value}>
                 {t(`crm-tags.color.${color.label}`)}
               </option>
@@ -182,7 +178,7 @@ export function UniversalTagsEnabledSettings({
 }) {
   const { t } = useTranslation();
   const [newName, setNewName] = useState('');
-  const [newColor, setNewColor] = useState<FirmTagColor>('#2563eb');
+  const [newColor, setNewColor] = useState<FirmTagColor>(INITIAL_FIRM_TAG_COLOR);
   const [notice, setNotice] = useState<string | null>(null);
 
   const failureMessage = (error: unknown): string => {
@@ -294,7 +290,7 @@ export function UniversalTagsEnabledSettings({
               setNewColor(event.target.value as FirmTagColor);
             }}
           >
-            {COLORS.map((color) => (
+            {FIRM_TAG_COLORS.map((color) => (
               <option key={color.value} value={color.value}>
                 {t(`crm-tags.color.${color.label}`)}
               </option>

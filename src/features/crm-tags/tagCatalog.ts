@@ -10,9 +10,9 @@ import type {
   FirmTagStore,
 } from './contract';
 import { FirmTagError as StableFirmTagError } from './contract';
+import { DEFAULT_FIRM_TAG_COLOR } from './tagPalette';
 
 const MAX_TAG_NAME_LENGTH = 80;
-const DEFAULT_TAG_COLOR: FirmTagColor = '#475569';
 
 type CanonicalTagRecord = LiveCrmRecord & {
   kind: 'tag';
@@ -67,7 +67,7 @@ function toFirmTag(record: CanonicalTagRecord): FirmTag {
     name: record.name,
     // Old records can predate the normalized color contract. Never place an
     // arbitrary stored string into a CSS property.
-    color: cleanColorSafely(record.color) ?? DEFAULT_TAG_COLOR,
+    color: cleanColorSafely(record.color) ?? DEFAULT_FIRM_TAG_COLOR,
     status: record.deleted ? 'retired' : 'active',
   };
 }

@@ -8,7 +8,7 @@
  */
 export type FirmTagStatus = 'active' | 'retired';
 
-/** A normalized six-digit hex color, for example `#2563eb`. */
+/** A normalized six-digit hex color: `#` followed by six hex digits. */
 export type FirmTagColor = `#${string}`;
 
 /** Stable machine-readable outcomes for all public tag operations. */

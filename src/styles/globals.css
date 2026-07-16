@@ -95,6 +95,14 @@
   --kp-date-conflict-bg: #fef6e6;
   --kp-date-conflict-text: #754b00;
 
+  /* Firm tag palette. Records persist the matching values; components paint via these tokens. */
+  --kp-tag-blue: #2563eb;
+  --kp-tag-green: #15803d;
+  --kp-tag-amber: #b45309;
+  --kp-tag-red: #dc2626;
+  --kp-tag-purple: #7e22ce;
+  --kp-tag-slate: #475569;
+
   /* Connector logo paint. These are brand marks, not app theme colours. */
   --connector-gmail-blue: #4285f4;
   --connector-gmail-green: #34a853;
