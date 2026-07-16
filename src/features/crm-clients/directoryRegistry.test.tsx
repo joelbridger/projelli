@@ -12,6 +12,7 @@ import {
   directoryRailRegistry,
   directoryToolRegistry,
   directoryViewRegistry,
+  defaultDirectoryComposition,
   validateDirectoryActionDescriptors,
   validateDirectoryRailDescriptors,
   validateDirectoryToolDescriptors,
@@ -28,10 +29,12 @@ declare module './directoryRegistry' {
 const context: DirectoryContext = {
   query: { value: '', setValue: vi.fn() },
   selection: { person: null, setPerson: vi.fn() },
+  view: { value: 'directory', setValue: vi.fn() },
   sort: { value: 'directory', setValue: vi.fn() },
   filters: { tab: 'households', setTab: vi.fn(), externalOnly: false, setExternalOnly: vi.fn(), needsVerification: false, setNeedsVerification: vi.fn() },
   records: { people: [], households: [] },
   repository: { openHousehold: vi.fn(), reviewRecipient: vi.fn(), createHousehold: vi.fn() },
+  composition: defaultDirectoryComposition,
 };
 
 describe('client directory registries', () => {
@@ -52,7 +55,7 @@ describe('client directory registries', () => {
     const tool: DirectoryToolDescriptor = { id: 'test-tool', order: 1, mount: () => <div data-testid="dummy-tool" /> };
     const action: DirectoryActionDescriptor = { id: 'test-action', order: 1, mount: () => <div data-testid="dummy-action" /> };
     const rail: DirectoryRailDescriptor = { id: 'test-rail', order: 1, mount: () => <div data-testid="dummy-rail" /> };
-    const view: DirectoryViewDescriptor = { id: 'test-view', order: 1, mount: () => <div data-testid="dummy-view" /> };
+    const view: DirectoryViewDescriptor = { id: 'test-view', order: 1, isActive: () => true, mount: () => <div data-testid="dummy-view" /> };
     render(<>{tool.mount(context)}{action.mount(context)}{rail.mount(context)}{view.mount(context)}</>);
     expect(screen.getByTestId('dummy-tool')).toBeTruthy();
     expect(screen.getByTestId('dummy-action')).toBeTruthy();
