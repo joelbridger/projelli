@@ -61,10 +61,10 @@ const template = {
   retired: false,
 };
 
-function HandoffHarness({ onConsumed, onUpdateTask }: { onConsumed: () => void; onUpdateTask?: (task: CrmTask) => Promise<void> }) {
+function HandoffHarness({ onConsumed, onUpdateTask, tasks = [] }: { onConsumed: () => void; onUpdateTask?: (task: CrmTask) => Promise<void>; tasks?: readonly CrmTask[] }) {
   const [addRequest, setAddRequest] = useState<CrmHouseholdAddRequest | null>(request);
   return <Tasks
-    tasks={[]}
+    tasks={tasks}
     workflowWorkItems={[]}
     firmMembers={[]}
     households={[{ id: request.householdId, name: request.householdLabel }]}
@@ -127,6 +127,29 @@ describe('Tasks template household handoff', () => {
     await waitFor(() => { expect(consumed).toHaveBeenCalledTimes(1); });
     fireEvent.click(screen.getByTestId('crm-task-new'));
     expect(within(screen.getByTestId('crm-task-detail')).getByTestId('crm-task-household')).toHaveValue('');
+  });
+
+  it('keeps a different open task editor when applying a household template', async () => {
+    templatesEnabled = true;
+    const existing: CrmTask = {
+      id: 'task:existing',
+      title: 'Keep my draft',
+      assigneeUserId: null,
+      status: 'open',
+      priority: 'normal',
+      tagIds: [],
+    };
+    render(<HandoffHarness onConsumed={vi.fn()} tasks={[existing]} />);
+
+    fireEvent.click(within(screen.getByTestId('crm-task-detail')).getByText('Close'));
+    fireEvent.click(screen.getByTestId(`crm-task-open-${existing.id}`));
+    expect(screen.getByTestId('crm-task-title-input')).toHaveValue('Keep my draft');
+    fireEvent.click(screen.getByTestId('crm-task-template-library-open'));
+    await screen.findByTestId('crm-task-template-task-template:review');
+    fireEvent.click(screen.getByText('Use template'));
+
+    await waitFor(() => { expect(taskCreate).toHaveBeenCalledTimes(1); });
+    expect(screen.getByTestId('crm-task-title-input')).toHaveValue('Keep my draft');
   });
 
   it('clears the request after closing, so a later new task does not inherit it', async () => {
