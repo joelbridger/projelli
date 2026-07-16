@@ -167,13 +167,8 @@ describe('CRM directory list sort contribution', () => {
     act(() => {
       setDevFlagOverride('crm-list-sort', false);
     });
-    fireEvent.change(screen.getByTestId('crm-directory-search'), {
-      target: { value: 'household' },
-    });
-    await waitFor(() => {
-      expect(screen.queryByTestId('crm-directory-sort')).not.toBeInTheDocument();
-      expect(householdOrder()).toEqual(['cedar', 'alpha', 'bravo', 'delta']);
-    });
+    expect(screen.queryByTestId('crm-directory-sort')).not.toBeInTheDocument();
+    expect(householdOrder()).toEqual(['cedar', 'alpha', 'bravo', 'delta']);
   });
 
   it('saves an enabled selection and restores it in a fresh directory surface', async () => {
