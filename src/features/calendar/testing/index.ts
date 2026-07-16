@@ -33,10 +33,18 @@ export async function roundTripCalendarFoundation(
   input: CalendarFoundationRoundTripInput,
 ): Promise<CalendarFoundationRoundTripResult> {
   let eventId: string | undefined;
+  let writtenEvent: CalendarEventRecord | undefined;
   if (input.event) {
     const writer = renderHook(() => useCalendarEventStore());
     try {
-      eventId = (await writer.result.current.create(input.event)).id;
+      const beforeInitialReload = writer.result.current;
+      await waitFor(() => {
+        if (writer.result.current === beforeInitialReload) {
+          throw new Error('The calendar event store has not loaded its canonical records yet.');
+        }
+      });
+      writtenEvent = await writer.result.current.create(input.event);
+      eventId = writtenEvent.id;
     } finally {
       writer.unmount();
     }
@@ -71,6 +79,9 @@ export async function roundTripCalendarFoundation(
       if (eventId) {
         event = await reader.result.current.events.get(eventId);
         if (!event) throw new Error('The saved calendar event has not reloaded yet.');
+        if (JSON.stringify(event) !== JSON.stringify(writtenEvent)) {
+          throw new Error('The event write did not return the fresh canonical projection.');
+        }
       }
       if (input.capability) {
         capability = await reader.result.current.capabilities.get();
@@ -89,7 +100,7 @@ export async function roundTripCalendarFoundation(
     reader.unmount();
   }
   return {
-    ...(event ? { event } : {}),
+    ...(writtenEvent ? { event: writtenEvent } : {}),
     ...(capability ? { capability } : {}),
     ...(availability ? { availability } : {}),
   };

@@ -38,6 +38,11 @@ const draft = createDraftFromRecord(
 await events.create(draft);
 ```
 
+Invalid timestamps and unsafe calendar targets reject with
+`CalendarFoundationError`. Dependents may inspect its stable `code` without
+guessing from message text; unknown calendars use `calendar_not_found`, and
+external read-only calendars use `calendar_read_only`.
+
 Availability consumers use `useCalendarCapabilityStore()`,
 `useBookingAvailabilityStore()`, `getBusyBlocks()`, and `getBookableSlots()`
 from the same index. A public booking page receives only the result of

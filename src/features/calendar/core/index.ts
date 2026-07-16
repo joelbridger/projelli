@@ -53,6 +53,7 @@ export {
   type BookingAvailabilityConsumerInput,
   type BookingPageAvailabilityConsumerContract,
 } from './bookingAdapter';
+export { CalendarFoundationError, type CalendarFoundationErrorCode } from './errors';
 export { validateCalendarEventDraft, validateContextReference, validateRecurrenceRule } from './validation';
 export { MAX_CALENDAR_RANGE_DAYS } from './time';
 export type {

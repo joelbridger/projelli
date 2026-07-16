@@ -2,16 +2,26 @@ import { describe, expect, it, vi } from 'vitest';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import { createCalendarEventStore, createDraftFromRecord } from './eventStore';
 
-function port(initial: LiveCrmRecord[] = []) {
+function port(
+  initial: LiveCrmRecord[] = [],
+  canonicalize: (record: LiveCrmRecord) => LiveCrmRecord = (record) => record,
+) {
   const records = [...initial];
   const save = vi.fn((record: LiveCrmRecord) => {
-    const clone = structuredClone(record);
-    const index = records.findIndex((candidate) => candidate.id === clone.id);
-    if (index >= 0) records[index] = clone;
-    else records.push(clone);
-    return Promise.resolve(structuredClone(clone));
+    const saveEcho = structuredClone(record);
+    const canonical = structuredClone(canonicalize(saveEcho));
+    const index = records.findIndex((candidate) => candidate.id === canonical.id);
+    if (index >= 0) records[index] = canonical;
+    else records.push(canonical);
+    return Promise.resolve(saveEcho);
   });
-  return { records, workspaceRoot: '/workspace', error: null, save, reload: vi.fn(() => Promise.resolve()) };
+  return {
+    records,
+    workspaceRoot: '/workspace',
+    error: null,
+    save,
+    reloadRecords: vi.fn(() => Promise.resolve(structuredClone(records))),
+  };
 }
 
 const baseDraft = {
@@ -46,5 +56,21 @@ describe('calendar event store', () => {
     expect(cancelled.status).toBe('cancelled');
     expect(live.records).toHaveLength(1);
     expect(live.records[0]?.['deleted']).toBe(false);
+  });
+
+  it('returns the canonical reload result from create, update, and cancel rather than the save echo', async () => {
+    const live = port([], (record) => ({
+      ...record,
+      notes: `canonical:${String(record['status'])}:${String(record['title'])}`,
+    }));
+    const created = await createCalendarEventStore(live).create(baseDraft);
+    expect(created.notes).toBe('canonical:scheduled:Annual review');
+
+    const updated = await createCalendarEventStore(live).update(created.id, { title: 'Canonical update' });
+    expect(updated.notes).toBe('canonical:scheduled:Canonical update');
+
+    const cancelled = await createCalendarEventStore(live).cancel(created.id);
+    expect(cancelled.notes).toBe('canonical:cancelled:Canonical update');
+    expect(live.reloadRecords).toHaveBeenCalledTimes(3);
   });
 });

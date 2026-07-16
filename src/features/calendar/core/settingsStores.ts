@@ -110,6 +110,12 @@ function storedCapability(record: LiveCrmRecord | undefined): CalendarCapability
   }
 }
 
+export function calendarCapabilityFromRecords(records: readonly LiveCrmRecord[]): CalendarCapabilityState {
+  return storedCapability(records.find(
+    (candidate) => candidate.id === CAPABILITY_RECORD_ID && candidate.kind === 'calendar_capability',
+  ));
+}
+
 function capabilityRecord(draftInput: CalendarCapabilityDraft, existing?: LiveCrmRecord): LiveCrmRecord {
   const draft = validateCalendarCapabilityDraft(draftInput);
   const timestamp = now();
@@ -135,7 +141,7 @@ function capabilityRecord(draftInput: CalendarCapabilityDraft, existing?: LiveCr
 
 export function createCalendarCapabilityStore(port: CalendarSettingsPort): CalendarCapabilityStore {
   const record = port.records.find((candidate) => candidate.id === CAPABILITY_RECORD_ID && candidate.kind === 'calendar_capability');
-  const state = storedCapability(record);
+  const state = calendarCapabilityFromRecords(port.records);
   const save = async (draft: CalendarCapabilityDraft): Promise<CalendarCapabilityState> => {
     requireAvailable(port);
     const saved = await port.save(capabilityRecord(draft, record));

@@ -30,7 +30,7 @@ vi.mock('@/platform/crm/liveRecordRelay', () => ({
   publishLiveRecord: vi.fn(),
 }));
 
-import { useCalendarEventStore } from '@/features/calendar';
+import { CalendarFoundationError, useCalendarEventStore } from '@/features/calendar';
 import { roundTripCalendarEvent, roundTripCalendarFoundation } from '@/features/calendar/testing';
 
 const baseEvent = {
@@ -41,6 +41,34 @@ const baseEvent = {
   allDay: false,
   calendarId: 'calendar:local',
 } as const;
+
+function capabilityRecord(calendars: readonly {
+  id: string;
+  label: string;
+  ownership: 'local' | 'external-read-only';
+  canBlockBusyTime: boolean;
+}[]): LiveCrmRecord {
+  return {
+    id: 'calendar-capability:local-user',
+    kind: 'calendar_capability',
+    calendars,
+    homeCalendarId: 'calendar:local',
+    busyCalendarIds: ['calendar:local'],
+  };
+}
+
+async function expectCalendarFailure(
+  promise: Promise<unknown>,
+  code: 'calendar_not_found' | 'calendar_read_only',
+): Promise<void> {
+  try {
+    await promise;
+    throw new Error(`Expected calendar failure ${code}.`);
+  } catch (error) {
+    expect(error).toBeInstanceOf(CalendarFoundationError);
+    expect(error).toMatchObject({ code });
+  }
+}
 
 describe('roundTripCalendarFoundation', () => {
   beforeEach(() => {
@@ -77,7 +105,7 @@ describe('roundTripCalendarFoundation', () => {
     vi.clearAllMocks();
   });
 
-  it('round-trips one-time, recurring, and record-derived events through a fresh canonical reload', async () => {
+  it('returns the canonical list value from the write itself and confirms it through a fresh reader', async () => {
     const oneTime = await roundTripCalendarEvent(baseEvent);
     expect(oneTime.notes).toBe('Loaded from crm_live_list');
 
@@ -136,8 +164,9 @@ describe('roundTripCalendarFoundation', () => {
     await waitFor(async () => {
       if (!await editor.result.current.get(created.id)) throw new Error('Waiting for the editor reload.');
     });
-    await editor.result.current.update(created.id, { title: 'Thin title patch' });
+    const updated = await editor.result.current.update(created.id, { title: 'Thin title patch' });
     editor.unmount();
+    expect(updated.notes).toBe('Loaded from crm_live_list');
 
     const reader = renderHook(() => useCalendarEventStore());
     let reloaded = undefined as Awaited<ReturnType<typeof reader.result.current.get>>;
@@ -148,5 +177,25 @@ describe('roundTripCalendarFoundation', () => {
     reader.unmount();
     expect(reloaded?.contextRef).toMatchObject({ id: 'household-2', matterId: 'matter-2' });
     expect(canonical.records.find((record) => record.id === created.id)?.['canonicalReloadMarker']).toBe(true);
+  });
+
+  it('rejects an unknown calendar ID through the public event harness', async () => {
+    await expectCalendarFailure(
+      roundTripCalendarEvent({ ...baseEvent, calendarId: 'calendar:missing' }),
+      'calendar_not_found',
+    );
+    expect(canonical.commands).not.toContain('crm_live_upsert');
+  });
+
+  it('rejects an external read-only calendar through the public event harness', async () => {
+    canonical.records = [capabilityRecord([
+      { id: 'calendar:local', label: 'My calendar', ownership: 'local', canBlockBusyTime: true },
+      { id: 'calendar:external', label: 'External', ownership: 'external-read-only', canBlockBusyTime: true },
+    ])];
+    await expectCalendarFailure(
+      roundTripCalendarEvent({ ...baseEvent, calendarId: 'calendar:external' }),
+      'calendar_read_only',
+    );
+    expect(canonical.commands).not.toContain('crm_live_upsert');
   });
 });

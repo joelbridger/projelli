@@ -1,6 +1,8 @@
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
-import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
+import { loadLiveCrmRecords, type LiveCrmRecord } from '@/platform/crm/liveRecords';
+import { CalendarFoundationError } from './errors';
 import { expandCalendarEvents } from './recurrence';
+import { calendarCapabilityFromRecords } from './settingsStores';
 import type {
   CalendarContextReference,
   CalendarEventDraft,
@@ -14,8 +16,10 @@ import { validateCalendarEventDraft, validateContextReference, validateRecurrenc
 
 type CalendarLivePort = Pick<
   ReturnType<typeof useLiveCrmRecords>,
-  'records' | 'workspaceRoot' | 'error' | 'save' | 'reload'
->;
+  'records' | 'workspaceRoot' | 'error' | 'save'
+> & {
+  reloadRecords(): Promise<readonly LiveCrmRecord[] | undefined>;
+};
 
 function actor() {
   return { userId: 'local-user', display: 'You', kind: 'user' as const };
@@ -167,10 +171,27 @@ export function createCalendarEventStore(port: CalendarLivePort): CalendarEventS
     const projected = tryProject(record);
     return projected ? [projected] : [];
   });
+  const capability = calendarCapabilityFromRecords(port.records);
+  const requireWritableCalendar = (calendarId: string): void => {
+    const calendar = capability.calendars.find((candidate) => candidate.id === calendarId);
+    if (!calendar) {
+      throw new CalendarFoundationError('calendar_not_found', 'The selected calendar does not exist.');
+    }
+    if (calendar.ownership !== 'local') {
+      throw new CalendarFoundationError('calendar_read_only', 'The selected calendar is read-only.');
+    }
+  };
   const save = async (record: LiveCrmRecord): Promise<CalendarEventRecord> => {
-    const saved = await port.save(record);
-    await port.reload();
-    return projectCalendarEvent(saved);
+    await port.save(record);
+    const reloaded = await port.reloadRecords();
+    const canonical = reloaded?.find((candidate) => candidate.id === record.id);
+    if (!canonical) {
+      throw new CalendarFoundationError(
+        'canonical_reload_missing',
+        'The saved calendar event was not present after the canonical reload.',
+      );
+    }
+    return projectCalendarEvent(canonical);
   };
   return {
     events,
@@ -182,18 +203,22 @@ export function createCalendarEventStore(port: CalendarLivePort): CalendarEventS
     }),
     create: (draft) => {
       requireAvailable(port);
-      return save(canonicalEvent(draft));
+      const record = canonicalEvent(draft);
+      requireWritableCalendar(storedString(record, 'calendarId'));
+      return save(record);
     },
     update: (id, patch) => {
       requireAvailable(port);
       const record = records.find((candidate) => candidate.id === id);
       if (!record) throw new Error('That calendar event no longer exists.');
+      requireWritableCalendar(projectCalendarEvent(record).calendarId);
       return save(mergeEventPatch(record, patch));
     },
     cancel: (id) => {
       requireAvailable(port);
       const record = records.find((candidate) => candidate.id === id);
       if (!record) throw new Error('That calendar event no longer exists.');
+      requireWritableCalendar(projectCalendarEvent(record).calendarId);
       return save({ ...record, status: 'cancelled', updatedAt: now(), updatedBy: actor() });
     },
     listOccurrences: (range: CalendarRange) => Promise.resolve().then(() => {
@@ -205,7 +230,14 @@ export function createCalendarEventStore(port: CalendarLivePort): CalendarEventS
 
 /** Reactive adapter over the current canonical encrypted live-record snapshot. */
 export function useCalendarEventStore(): CalendarEventStore {
-  return createCalendarEventStore(useLiveCrmRecords());
+  const live = useLiveCrmRecords();
+  return createCalendarEventStore({
+    records: live.records,
+    workspaceRoot: live.workspaceRoot,
+    error: live.error,
+    save: live.save,
+    reloadRecords: () => loadLiveCrmRecords(live.workspaceRoot),
+  });
 }
 
 export interface CalendarRecordDraftDefaults {

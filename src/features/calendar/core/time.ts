@@ -1,10 +1,11 @@
 import type { CalendarRange, CalendarWeekday } from './types';
+import { CalendarFoundationError } from './errors';
 
 export const MINUTE_MS = 60_000;
 export const DAY_MS = 24 * 60 * MINUTE_MS;
 export const MAX_CALENDAR_RANGE_DAYS = 370;
 
-const UTC_ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
+const UTC_ISO = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{3}))?Z$/;
 const LOCAL_TIME = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 const WEEKDAYS: readonly CalendarWeekday[] = [
   'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday',
@@ -23,9 +24,36 @@ export interface LocalDateTime extends LocalDate {
 }
 
 export function parseUtc(value: string, label = 'UTC date'): number {
-  if (!UTC_ISO.test(value)) throw new Error(`${label} must be a complete UTC ISO timestamp.`);
+  const match = UTC_ISO.exec(value);
+  if (!match) {
+    throw new CalendarFoundationError('invalid_utc_timestamp', `${label} must be a complete UTC ISO timestamp.`);
+  }
+  const [, yearText, monthText, dayText, hourText, minuteText, secondText, millisecondText = '000'] = match;
+  const expected = {
+    year: Number(yearText),
+    month: Number(monthText),
+    day: Number(dayText),
+    hour: Number(hourText),
+    minute: Number(minuteText),
+    second: Number(secondText),
+    millisecond: Number(millisecondText),
+  };
   const parsed = Date.parse(value);
-  if (!Number.isFinite(parsed)) throw new Error(`${label} is invalid.`);
+  if (!Number.isFinite(parsed)) {
+    throw new CalendarFoundationError('invalid_utc_timestamp', `${label} is invalid.`);
+  }
+  const date = new Date(parsed);
+  if (
+    date.getUTCFullYear() !== expected.year ||
+    date.getUTCMonth() + 1 !== expected.month ||
+    date.getUTCDate() !== expected.day ||
+    date.getUTCHours() !== expected.hour ||
+    date.getUTCMinutes() !== expected.minute ||
+    date.getUTCSeconds() !== expected.second ||
+    date.getUTCMilliseconds() !== expected.millisecond
+  ) {
+    throw new CalendarFoundationError('invalid_utc_timestamp', `${label} is invalid.`);
+  }
   return parsed;
 }
 
