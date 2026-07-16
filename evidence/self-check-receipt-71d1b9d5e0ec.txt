@@ -1,0 +1,24 @@
+SELF-CHECK RECEIPT
+format_version: 3
+repo: /home/jameson/v1-trash-leak-fix
+code_sha: 71d1b9d5e0ec75e29617534c3a99248ca1e09887
+code_parent: f6e9388527d4373e81ee040cfd445162449fce5b
+utc: 2026-07-16T06:57:57Z
+
+scope:
+- Made the outer Trash Recovery surface return null before mounting any data or firm-state reader when crm-trash-recovery is disabled.
+- Added a regression proof: CRM reader, firm-state reader, and trash-list adapter are all called zero times while off; each mounts when the flag turns on.
+
+checks:
+- npx vitest run src/features/crm-trash — PASS (2 files, 5 tests)
+- npm run typecheck:tests — PASS
+- npm run boundaries:check — PASS (64 existing baseline findings; no regression)
+- scoped ESLint (TrashRecoverySurface.tsx and TrashRecoverySurface.test.tsx) — PASS
+- git diff --check — PASS
+- npm run typecheck — BLOCKED by missing pdf-lib in this worktree's linked dependency directory. Errors are limited to existing intake-page PDF-fill and DocuSign signing files; this change does not touch them.
+
+not_run:
+- Cargo/Rust checks — NOT RUN (explicitly excluded by task)
+- Push or merge — NOT RUN (explicitly excluded by task)
+
+overall: PARTIAL — the focused feature proof and all requested scoped checks pass; the repository-wide source typecheck cannot complete until the worktree has pdf-lib installed.
