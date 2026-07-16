@@ -59,6 +59,7 @@ function configureWorkspace() {
     rootPath: '/workspace',
     fileTree: [{ id: 'river', name: 'River', path: '/workspace/Clients/River', type: 'folder', children: [
       { id: 'review', name: 'review.docx', path: '/workspace/Clients/River/review.docx', type: 'file' },
+      { id: 'summary', name: 'summary.pdf', path: '/workspace/Clients/River/summary.pdf', type: 'file' },
       { id: 'other', name: 'other.pdf', path: '/workspace/Clients/Other/other.pdf', type: 'file' },
     ] }],
   });
@@ -98,7 +99,7 @@ describe('workflow-step attachments', () => {
     const test = makeContext();
     useFirmTagStore.mockReturnValue(makeStore());
     setDevFlagOverride('workflow-step-attachments', true);
-    render(<WorkflowStepAttachments context={test.context} />);
+    const view = render(<WorkflowStepAttachments context={test.context} />);
     fireEvent.change(screen.getByTestId('workflow-step-attachment-picker'), { target: { value: '/workspace/Clients/River/review.docx' } });
     fireEvent.click(screen.getByTestId('workflow-step-attachment-add'));
     await waitFor(() => { expect(screen.getByTestId('workflow-step-attachment-list')).toHaveTextContent('review.docx'); });
@@ -111,6 +112,8 @@ describe('workflow-step attachments', () => {
     const reopenedContext = { ...test.context, instance: reopened };
     expect(listWorkflowStepAttachmentRefs(reopenedContext)).toEqual([{ kind: 'document', id: 'Clients/River/review.docx', label: 'review.docx', matterId: 'matter-river' }]);
 
+    view.rerender(<WorkflowStepAttachments context={reopenedContext} />);
+    await waitFor(() => { expect(screen.getByTestId('workflow-step-attachment-remove-Clients/River/review.docx')).not.toBeDisabled(); });
     fireEvent.click(screen.getByTestId('workflow-step-attachment-remove-Clients/River/review.docx'));
     await waitFor(() => { expect(screen.getByTestId('workflow-step-attachment-empty')).toBeInTheDocument(); });
   });
@@ -135,5 +138,33 @@ describe('workflow-step attachments', () => {
     const saved = test.saves[0];
     if (!saved) throw new Error('Expected saved attachment');
     await expect(addWorkflowStepAttachmentRef({ ...test.context, instance: saved }, ref)).rejects.toMatchObject({ code: 'duplicate' });
+  });
+
+  it('holds further saves until the live step refreshes, then preserves earlier references', async () => {
+    configureWorkspace();
+    const test = makeContext();
+    useFirmTagStore.mockReturnValue(makeStore());
+    setDevFlagOverride('workflow-step-attachments', true);
+    const view = render(<WorkflowStepAttachments context={test.context} />);
+
+    fireEvent.change(screen.getByTestId('workflow-step-attachment-picker'), { target: { value: '/workspace/Clients/River/review.docx' } });
+    fireEvent.click(screen.getByTestId('workflow-step-attachment-add'));
+    await waitFor(() => { expect(test.saves).toHaveLength(1); });
+    expect(screen.getByTestId('workflow-step-attachment-add')).toBeDisabled();
+
+    const saved = test.saves[0];
+    if (!saved) throw new Error('Expected first saved attachment');
+    view.rerender(<WorkflowStepAttachments context={{ ...test.context, instance: saved }} />);
+    await waitFor(() => { expect(screen.getByTestId('workflow-step-attachment-picker')).not.toBeDisabled(); });
+    fireEvent.change(screen.getByTestId('workflow-step-attachment-picker'), { target: { value: '/workspace/Clients/River/summary.pdf' } });
+    fireEvent.click(screen.getByTestId('workflow-step-attachment-add'));
+    await waitFor(() => { expect(test.saves).toHaveLength(2); });
+
+    const secondSave = test.saves[1];
+    if (!secondSave) throw new Error('Expected second saved attachment');
+    expect(listWorkflowStepAttachmentRefs({ ...test.context, instance: secondSave }).map((ref) => ref.id)).toEqual([
+      'Clients/River/review.docx',
+      'Clients/River/summary.pdf',
+    ]);
   });
 });

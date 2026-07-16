@@ -22,15 +22,24 @@ function filesIn(tree: readonly FileNode[]): FileNode[] {
   return tree.flatMap((node) => node.type === 'file' ? [node] : filesIn(node.children ?? []));
 }
 
+function sameAttachments(
+  left: readonly WorkspaceDocumentRef[],
+  right: readonly WorkspaceDocumentRef[],
+): boolean {
+  return left.length === right.length && left.every((reference, index) =>
+    reference.id === right[index].id &&
+    reference.label === right[index].label &&
+    reference.matterId === right[index].matterId,
+  );
+}
+
 function WorkflowStepAttachmentsEnabled({ context }: { context: WorkflowStepExtensionContext }) {
   const { t } = useTranslation();
   const rootPath = useWorkspaceStore((state) => state.rootPath);
   const fileTree = useWorkspaceStore((state) => state.fileTree);
   const matters = useMatters();
   const tagStore = useFirmTagStore();
-  const [attachments, setAttachments] = useState<readonly WorkspaceDocumentRef[]>(
-    () => listWorkflowStepAttachmentRefs(context),
-  );
+  const [pendingAttachments, setPendingAttachments] = useState<readonly WorkspaceDocumentRef[] | null>(null);
   const [selectedPath, setSelectedPath] = useState('');
   const [saving, setSaving] = useState(false);
   const [catalogReady, setCatalogReady] = useState(false);
@@ -49,6 +58,12 @@ function WorkflowStepAttachmentsEnabled({ context }: { context: WorkflowStepExte
   }, [tagStore]);
 
   const step = context.instance.snapshot.steps[context.stepId];
+  const savedAttachments = listWorkflowStepAttachmentRefs(context);
+  const refreshComplete = pendingAttachments !== null && sameAttachments(savedAttachments, pendingAttachments);
+  const attachments = refreshComplete || pendingAttachments === null
+    ? savedAttachments
+    : pendingAttachments;
+  const busy = saving && !refreshComplete;
   const targetMatterId = context.instance.matterId?.trim() || context.instance.householdId;
   const availableFiles = useMemo(
     () => rootPath ? filesIn(fileTree) : [],
@@ -60,7 +75,7 @@ function WorkflowStepAttachmentsEnabled({ context }: { context: WorkflowStepExte
   }, [step?.tagIds, tagStore.catalog.tags]);
 
   const add = async () => {
-    if (!rootPath || !selectedPath || saving) return;
+    if (!rootPath || !selectedPath || busy) return;
     setSaving(true);
     setError(null);
     try {
@@ -72,24 +87,22 @@ function WorkflowStepAttachmentsEnabled({ context }: { context: WorkflowStepExte
         targetMatterId,
         existing: attachments,
       });
-      setAttachments(await addWorkflowStepAttachmentRef(context, reference));
+      setPendingAttachments(await addWorkflowStepAttachmentRef(context, reference));
       setSelectedPath('');
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : t('workflowStepAttachments.saveFailed'));
-    } finally {
       setSaving(false);
     }
   };
 
   const remove = async (documentPath: string) => {
-    if (saving) return;
+    if (busy) return;
     setSaving(true);
     setError(null);
     try {
-      setAttachments(await removeWorkflowStepAttachmentRef(context, documentPath));
+      setPendingAttachments(await removeWorkflowStepAttachmentRef(context, documentPath));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : t('workflowStepAttachments.saveFailed'));
-    } finally {
       setSaving(false);
     }
   };
@@ -115,12 +128,12 @@ function WorkflowStepAttachmentsEnabled({ context }: { context: WorkflowStepExte
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
         <label>
           {t('workflowStepAttachments.document')}
-          <select data-testid="workflow-step-attachment-picker" disabled={!rootPath || saving} onChange={(event) => { setSelectedPath(event.target.value); }} value={selectedPath}>
+          <select data-testid="workflow-step-attachment-picker" disabled={!rootPath || busy} onChange={(event) => { setSelectedPath(event.target.value); }} value={selectedPath}>
             <option value="">{t('workflowStepAttachments.chooseDocument')}</option>
             {availableFiles.map((file) => <option key={file.path} value={file.path}>{file.name}</option>)}
           </select>
         </label>
-        <Button data-testid="workflow-step-attachment-add" disabled={!selectedPath || saving} iconLeft={Link2} onClick={() => {
+        <Button data-testid="workflow-step-attachment-add" disabled={!selectedPath || busy} iconLeft={Link2} onClick={() => {
           void add().catch((reason: unknown) => {
             setError(reason instanceof Error ? reason.message : t('workflowStepAttachments.saveFailed'));
           });
@@ -135,7 +148,7 @@ function WorkflowStepAttachmentsEnabled({ context }: { context: WorkflowStepExte
           {attachments.map((attachment) => (
             <li key={attachment.id}>
               <span>{attachment.label}</span>
-              <Button aria-label={t('workflowStepAttachments.removeFor', { name: attachment.label })} data-testid={`workflow-step-attachment-remove-${attachment.id}`} disabled={saving} iconLeft={X} onClick={() => {
+              <Button aria-label={t('workflowStepAttachments.removeFor', { name: attachment.label })} data-testid={`workflow-step-attachment-remove-${attachment.id}`} disabled={busy} iconLeft={X} onClick={() => {
                 void remove(attachment.id).catch((reason: unknown) => {
                   setError(reason instanceof Error ? reason.message : t('workflowStepAttachments.saveFailed'));
                 });
