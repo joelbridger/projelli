@@ -1,18 +1,18 @@
-import {
-  loadLiveCrmRecords,
-  saveLiveCrmRecord,
-  type LiveCrmRecord,
-} from '@/platform/crm/liveRecords';
+import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
+import type { Tag } from '@/platform/crm/types';
 import type {
   CreateFirmTagInput,
   FirmTag,
   FirmTagCatalog,
   FirmTagColor,
+  FirmTagError,
+  FirmTagErrorCode,
   FirmTagStore,
 } from './contract';
+import { FirmTagError as StableFirmTagError } from './contract';
 
 const MAX_TAG_NAME_LENGTH = 80;
-const DEFAULT_TAG_COLOR = '#475569';
+const DEFAULT_TAG_COLOR: FirmTagColor = '#475569';
 
 type CanonicalTagRecord = LiveCrmRecord & {
   kind: 'tag';
@@ -21,25 +21,36 @@ type CanonicalTagRecord = LiveCrmRecord & {
   deleted?: boolean;
 };
 
+/** The live hook is the sole record path. This adapter never opens storage itself. */
+export interface LiveFirmTagPort {
+  readonly records: readonly LiveCrmRecord[];
+  readonly workspaceRoot: string | null | undefined;
+  readonly error: string | null;
+  save(record: LiveCrmRecord): Promise<LiveCrmRecord>;
+  reload(): Promise<void>;
+}
+
 function timestamp(): string {
   return new Date().toISOString();
 }
 
+function failure(code: FirmTagErrorCode, message?: string): FirmTagError {
+  return new StableFirmTagError(code, message);
+}
+
 function cleanName(value: string): string {
   const name = value.trim().replace(/\s+/g, ' ');
-  if (!name) throw new Error('A tag needs a name.');
+  if (!name) throw failure('invalid_name');
   if (name.length > MAX_TAG_NAME_LENGTH) {
-    throw new Error(
-      `A tag name must be ${String(MAX_TAG_NAME_LENGTH)} characters or fewer.`
-    );
+    throw failure('invalid_name');
   }
   return name;
 }
 
-function cleanColor(value: FirmTagColor): string {
-  const color = value.trim();
-  if (!color) throw new Error('Choose a tag color.');
-  return color;
+function cleanColor(value: string): FirmTagColor {
+  const color = value.trim().toLowerCase();
+  if (!/^#[0-9a-f]{6}$/.test(color)) throw failure('invalid_color');
+  return color as FirmTagColor;
 }
 
 function nameKey(value: string): string {
@@ -54,9 +65,20 @@ function toFirmTag(record: CanonicalTagRecord): FirmTag {
   return {
     id: record.id,
     name: record.name,
-    color: record.color?.trim() || DEFAULT_TAG_COLOR,
+    // Old records can predate the normalized color contract. Never place an
+    // arbitrary stored string into a CSS property.
+    color: cleanColorSafely(record.color) ?? DEFAULT_TAG_COLOR,
     status: record.deleted ? 'retired' : 'active',
   };
+}
+
+function cleanColorSafely(value: unknown): FirmTagColor | null {
+  if (typeof value !== 'string') return null;
+  try {
+    return cleanColor(value);
+  } catch {
+    return null;
+  }
 }
 
 function toCatalog(records: readonly CanonicalTagRecord[]): FirmTagCatalog {
@@ -76,7 +98,7 @@ function requireAvailableName(
   const existing = records.find(
     (tag) => tag.id !== exceptId && nameKey(tag.name) === nameKey(name)
   );
-  if (existing) throw new Error('This tag name is already in use.');
+  if (existing) throw failure('duplicate_name');
 }
 
 function activeTagAt(
@@ -84,8 +106,8 @@ function activeTagAt(
   id: string
 ): CanonicalTagRecord {
   const tag = records.find((record) => record.id === id);
-  if (!tag) throw new Error('This tag no longer exists.');
-  if (tag.deleted) throw new Error('A retired tag cannot be changed.');
+  if (!tag) throw failure('not_found');
+  if (tag.deleted) throw failure('retired');
   return tag;
 }
 
@@ -93,77 +115,130 @@ function newTagId(): string {
   return `tag:${crypto.randomUUID()}`;
 }
 
+function actor() {
+  return { userId: 'local-user', display: 'You', kind: 'user' as const };
+}
+
+function newCanonicalTag(name: string, color: FirmTagColor): Tag {
+  const now = timestamp();
+  // Keep this value typed as the canonical CRM entity. Omitting any CrmBase
+  // field here is therefore a compile-time failure, not a hidden index-signature
+  // escape hatch on LiveCrmRecord.
+  return {
+    id: newTagId(),
+    kind: 'tag',
+    matterId: 'firm_home',
+    name,
+    color,
+    createdAt: now,
+    createdBy: actor(),
+    updatedAt: now,
+    updatedBy: actor(),
+    source: { origin: 'user', sources: [] },
+    deleted: false,
+    externalRefs: [],
+    schemaVersion: 1,
+  };
+}
+
+function availabilityError(port: LiveFirmTagPort):
+  | 'workspace_unavailable'
+  | 'persistence_failed'
+  | null {
+  if (!port.workspaceRoot) return 'workspace_unavailable';
+  if (port.error) return 'persistence_failed';
+  return null;
+}
+
+function assertAvailable(port: LiveFirmTagPort): void {
+  const code = availabilityError(port);
+  if (code) throw failure(code);
+}
+
+function persistenceFailure(error: unknown): FirmTagError {
+  if (error instanceof StableFirmTagError) return error;
+  return failure('persistence_failed');
+}
+
 /**
  * Adapts the one canonical CRM `kind: 'tag'` record set for feature lanes.
  * There is no browser catalog: every read and write goes through the same
  * encrypted CRM persistence path used by the existing firm tag screen.
  */
-export function createFirmTagStore(
-  workspaceRoot: string | null | undefined
-): FirmTagStore {
-  const loadTags = async (): Promise<CanonicalTagRecord[]> =>
-    (await loadLiveCrmRecords(workspaceRoot)).filter(isCanonicalTag);
-  const list = async (): Promise<FirmTagCatalog> => toCatalog(await loadTags());
+export function createFirmTagStore(port: LiveFirmTagPort): FirmTagStore {
+  const tags = port.records.filter(isCanonicalTag);
+  const catalog = toCatalog(tags);
+  const list = (): Promise<FirmTagCatalog> => {
+    try {
+      assertAvailable(port);
+      return Promise.resolve(catalog);
+    } catch (error: unknown) {
+      return Promise.reject(
+        error instanceof Error ? error : failure('persistence_failed')
+      );
+    }
+  };
+  const saveAndReload = async (record: LiveCrmRecord): Promise<void> => {
+    try {
+      await port.save(record);
+      await port.reload();
+    } catch (error: unknown) {
+      throw persistenceFailure(error);
+    }
+  };
 
   return {
+    catalog,
+    errorCode: availabilityError(port),
     list,
     create: async (input: CreateFirmTagInput) => {
-      const records = await loadTags();
+      assertAvailable(port);
       const name = cleanName(input.name);
       const color = cleanColor(input.color);
-      requireAvailableName(records, name);
-      const now = timestamp();
-      await saveLiveCrmRecord(workspaceRoot, {
-        id: newTagId(),
-        kind: 'tag',
-        matterId: 'firm_home',
-        name,
-        color,
-        deleted: false,
-        createdAt: now,
-        updatedAt: now,
-      });
-      return list();
+      requireAvailableName(tags, name);
+      const record = newCanonicalTag(name, color);
+      await saveAndReload(record);
+      return toCatalog([...tags, record]);
     },
     rename: async (id: string, rawName: string) => {
-      const records = await loadTags();
-      const tag = activeTagAt(records, id);
+      assertAvailable(port);
+      const tag = activeTagAt(tags, id);
       const name = cleanName(rawName);
-      requireAvailableName(records, name, id);
+      requireAvailableName(tags, name, id);
       if (name !== tag.name) {
-        await saveLiveCrmRecord(workspaceRoot, {
+        await saveAndReload({
           ...tag,
           name,
           updatedAt: timestamp(),
         });
       }
-      return list();
+      return toCatalog(tags.map((item) => item.id === id ? { ...item, name } : item));
     },
     setColor: async (id: string, rawColor: FirmTagColor) => {
-      const records = await loadTags();
-      const tag = activeTagAt(records, id);
+      assertAvailable(port);
+      const tag = activeTagAt(tags, id);
       const color = cleanColor(rawColor);
-      if (color !== tag.color) {
-        await saveLiveCrmRecord(workspaceRoot, {
+      if (color !== cleanColorSafely(tag.color)) {
+        await saveAndReload({
           ...tag,
           color,
           updatedAt: timestamp(),
         });
       }
-      return list();
+      return toCatalog(tags.map((item) => item.id === id ? { ...item, color } : item));
     },
     retire: async (id: string) => {
-      const records = await loadTags();
-      const tag = records.find((record) => record.id === id);
-      if (!tag) throw new Error('This tag no longer exists.');
+      assertAvailable(port);
+      const tag = tags.find((record) => record.id === id);
+      if (!tag) throw failure('not_found');
       if (!tag.deleted) {
-        await saveLiveCrmRecord(workspaceRoot, {
+        await saveAndReload({
           ...tag,
           deleted: true,
           updatedAt: timestamp(),
         });
       }
-      return list();
+      return toCatalog(tags.map((item) => item.id === id ? { ...item, deleted: true } : item));
     },
   };
 }

@@ -33,6 +33,15 @@
     "retired": "Tag retired. Earlier work keeps its saved tag ID.",
     "added": "Tag added.",
     "save-failed": "Could not save the tag catalog.",
+    "error": {
+      "workspace_unavailable": "Open a workspace before managing firm tags.",
+      "invalid_name": "Give the tag a name of 80 characters or fewer.",
+      "invalid_color": "Choose one of the approved tag colors.",
+      "duplicate_name": "That tag name is already in use.",
+      "not_found": "That tag no longer exists.",
+      "retired": "A retired tag cannot be changed.",
+      "persistence_failed": "Could not save the tag catalog."
+    },
     "references-title": "Earlier work stays connected",
     "references-copy": "Renaming, recoloring, or retiring a tag never changes the tag IDs saved by tasks, workflows, events, files, or bulk work.",
     "references-protected": "Saved IDs protected"

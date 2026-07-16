@@ -8,12 +8,32 @@
  */
 export type FirmTagStatus = 'active' | 'retired';
 
+/** A normalized six-digit hex color, for example `#2563eb`. */
+export type FirmTagColor = `#${string}`;
+
+/** Stable machine-readable outcomes for all public tag operations. */
+export type FirmTagErrorCode =
+  | 'workspace_unavailable'
+  | 'invalid_name'
+  | 'invalid_color'
+  | 'duplicate_name'
+  | 'not_found'
+  | 'retired'
+  | 'persistence_failed';
+
 /**
- * A CSS display color stored by the canonical CRM tag record. It is
- * presentation data, not identity; existing CRM tags may use any valid
- * existing color value.
+ * A public failure whose `code` is safe for callers to branch on. Its message
+ * is for diagnostics only and must never be used as an application contract.
  */
-export type FirmTagColor = string;
+export class FirmTagError extends Error {
+  readonly code: FirmTagErrorCode;
+
+  constructor(code: FirmTagErrorCode, message?: string) {
+    super(message ?? code);
+    this.name = 'FirmTagError';
+    this.code = code;
+  }
+}
 
 /** The reusable tag value read by tasks, workflows, events, files, and bulk tools. */
 export interface FirmTag {
@@ -47,6 +67,10 @@ export interface CreateFirmTagInput {
  * a rename or retirement.
  */
 export interface FirmTagStore {
+  /** The current canonical CRM snapshot. It changes when any CRM peer writes. */
+  readonly catalog: FirmTagCatalog;
+  /** Distinguishes an empty catalog from a CRM workspace that cannot be used. */
+  readonly errorCode: 'workspace_unavailable' | 'persistence_failed' | null;
   list(): Promise<FirmTagCatalog>;
   create(input: CreateFirmTagInput): Promise<FirmTagCatalog>;
   rename(id: string, name: string): Promise<FirmTagCatalog>;

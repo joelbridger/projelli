@@ -1,16 +1,16 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { isEnabled } from '@/platform/flags';
-import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import { Badge, Button } from '@/ui/kp';
 import type {
   FirmTag,
-  FirmTagCatalog,
   FirmTagColor,
+  FirmTagErrorCode,
   FirmTagStore,
 } from './contract';
-import { createFirmTagStore } from './tagCatalog';
+import { FirmTagError } from './contract';
+import { useFirmTagStore } from './useFirmTagStore';
 
 const COLORS = [
   { value: '#2563eb', label: 'blue' },
@@ -19,7 +19,7 @@ const COLORS = [
   { value: '#dc2626', label: 'red' },
   { value: '#7e22ce', label: 'purple' },
   { value: '#475569', label: 'slate' },
-] as const;
+] as const satisfies readonly { value: FirmTagColor; label: string }[];
 
 const card = {
   border: '1px solid var(--kp-border)',
@@ -60,9 +60,13 @@ function TagRow({
   onRetire: () => void;
 }) {
   const { t } = useTranslation();
-  const [name, setName] = useState(tag.name);
+  const [draft, setDraft] = useState({ value: tag.name, sourceName: tag.name });
   const [confirmRetire, setConfirmRetire] = useState(false);
   const retired = tag.status === 'retired';
+  // A remote canonical update wins over an unsaved draft based on an older
+  // value. This avoids a local React copy masking a change from another CRM
+  // screen, without a synchronizing effect that creates a second state loop.
+  const name = draft.sourceName === tag.name ? draft.value : tag.name;
   const renamed = name.trim() !== tag.name;
 
   return (
@@ -86,7 +90,7 @@ function TagRow({
             disabled={retired}
             value={name}
             onChange={(event) => {
-              setName(event.target.value);
+              setDraft({ value: event.target.value, sourceName: tag.name });
             }}
             style={{ display: 'block', marginTop: 4, width: '100%' }}
           />
@@ -117,7 +121,7 @@ function TagRow({
             disabled={retired}
             value={tag.color}
             onChange={(event) => {
-              onColor(event.target.value);
+              onColor(event.target.value as FirmTagColor);
             }}
           >
             {!COLORS.some((color) => color.value === tag.color) && (
@@ -176,45 +180,26 @@ export function UniversalTagsEnabledSettings({
   store: FirmTagStore;
 }) {
   const { t } = useTranslation();
-  const [catalog, setCatalog] = useState<FirmTagCatalog>({
-    version: 1,
-    tags: [],
-  });
   const [newName, setNewName] = useState('');
   const [newColor, setNewColor] = useState<FirmTagColor>('#2563eb');
   const [notice, setNotice] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    void store
-      .list()
-      .then((loaded) => {
-        if (!cancelled) setCatalog(loaded);
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          setNotice(
-            error instanceof Error ? error.message : t('crm-tags.save-failed')
-          );
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [store, t]);
+  const failureMessage = (error: unknown): string => {
+    if (!(error instanceof FirmTagError)) return t('crm-tags.error.persistence_failed');
+    const key: FirmTagErrorCode = error.code;
+    return t(`crm-tags.error.${key}`);
+  };
 
   const update = async (
     operation: () => Promise<FirmTagCatalog>,
     success: string
   ): Promise<boolean> => {
     try {
-      setCatalog(await operation());
+      await operation();
       setNotice(success);
       return true;
     } catch (error: unknown) {
-      setNotice(
-        error instanceof Error ? error.message : t('crm-tags.save-failed')
-      );
+      setNotice(failureMessage(error));
       return false;
     }
   };
@@ -224,9 +209,7 @@ export function UniversalTagsEnabledSettings({
     success: string
   ) => {
     void update(operation, success).catch((error: unknown) => {
-      setNotice(
-        error instanceof Error ? error.message : t('crm-tags.save-failed')
-      );
+      setNotice(failureMessage(error));
     });
   };
 
@@ -240,6 +223,9 @@ export function UniversalTagsEnabledSettings({
         <h1 style={{ margin: '4px 0' }}>{t('crm-tags.heading')}</h1>
         <p style={muted}>{t('crm-tags.heading-copy')}</p>
       </header>
+      {store.errorCode && (
+        <p role="alert">{t(`crm-tags.error.${store.errorCode}`)}</p>
+      )}
       {notice && <p role="status">{notice}</p>}
       <div style={card}>
         <div>
@@ -250,7 +236,7 @@ export function UniversalTagsEnabledSettings({
           aria-label={t('crm-tags.catalog-title')}
           style={{ listStyle: 'none', margin: 0, padding: 0 }}
         >
-          {catalog.tags.map((tag) => (
+          {store.catalog.tags.map((tag) => (
             <TagRow
               key={tag.id}
               tag={tag}
@@ -284,9 +270,7 @@ export function UniversalTagsEnabledSettings({
               })
               .catch((error: unknown) => {
                 setNotice(
-                  error instanceof Error
-                    ? error.message
-                    : t('crm-tags.save-failed')
+                  failureMessage(error)
                 );
               });
           }}
@@ -339,12 +323,7 @@ export function UniversalTagsEnabledSettings({
  * store, reads persistence, subscribes, selects state, or starts an effect.
  */
 function UniversalTagsCanonicalSettings() {
-  const { workspaceRoot } = useLiveCrmRecords();
-  const store = useMemo(
-    () => createFirmTagStore(workspaceRoot),
-    [workspaceRoot]
-  );
-  return <UniversalTagsEnabledSettings store={store} />;
+  return <UniversalTagsEnabledSettings store={useFirmTagStore()} />;
 }
 
 export function UniversalTagsSettingsMount({

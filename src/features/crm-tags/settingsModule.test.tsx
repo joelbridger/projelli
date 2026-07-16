@@ -7,6 +7,10 @@ import { universalTagsSettingsPanel } from './settingsModuleDescriptor';
 function inMemoryStore(): FirmTagStore {
   let catalog: FirmTagCatalog = { version: 1, tags: [] };
   return {
+    get catalog() {
+      return catalog;
+    },
+    errorCode: null,
     list: () => Promise.resolve(catalog),
     create: ({ name, color }) => {
       catalog = {

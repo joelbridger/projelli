@@ -33,6 +33,15 @@
     "retired": "Etiqueta retirada. El trabajo anterior conserva su ID de etiqueta.",
     "added": "Etiqueta agregada.",
     "save-failed": "No se pudo guardar el catálogo de etiquetas.",
+    "error": {
+      "workspace_unavailable": "Abre un espacio de trabajo antes de administrar las etiquetas de la empresa.",
+      "invalid_name": "Dale a la etiqueta un nombre de 80 caracteres o menos.",
+      "invalid_color": "Elige uno de los colores de etiqueta aprobados.",
+      "duplicate_name": "Ese nombre de etiqueta ya está en uso.",
+      "not_found": "Esa etiqueta ya no existe.",
+      "retired": "No se puede cambiar una etiqueta retirada.",
+      "persistence_failed": "No se pudo guardar el catálogo de etiquetas."
+    },
     "references-title": "El trabajo anterior sigue conectado",
     "references-copy": "Cambiar el nombre, color o retirar una etiqueta nunca cambia los IDs de etiqueta guardados por tareas, flujos de trabajo, eventos, archivos o trabajo masivo.",
     "references-protected": "IDs guardados protegidos"

@@ -33,6 +33,15 @@
     "retired": "Tag stillgelegt. Frühere Arbeit behält ihre gespeicherte Tag-ID.",
     "added": "Tag hinzugefügt.",
     "save-failed": "Der Tag-Katalog konnte nicht gespeichert werden.",
+    "error": {
+      "workspace_unavailable": "Öffne einen Arbeitsbereich, bevor du Firmen-Tags verwaltest.",
+      "invalid_name": "Gib dem Tag einen Namen mit höchstens 80 Zeichen.",
+      "invalid_color": "Wähle eine der zugelassenen Tag-Farben.",
+      "duplicate_name": "Dieser Tag-Name wird bereits verwendet.",
+      "not_found": "Dieser Tag existiert nicht mehr.",
+      "retired": "Ein stillgelegter Tag kann nicht geändert werden.",
+      "persistence_failed": "Der Tag-Katalog konnte nicht gespeichert werden."
+    },
     "references-title": "Frühere Arbeit bleibt verbunden",
     "references-copy": "Das Umbenennen, Umfärben oder Stilllegen eines Tags ändert nie gespeicherte Tag-IDs in Aufgaben, Workflows, Ereignissen, Dateien oder Massenbearbeitungen.",
     "references-protected": "Gespeicherte IDs geschützt"
