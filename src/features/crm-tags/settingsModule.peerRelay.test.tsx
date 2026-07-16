@@ -4,6 +4,10 @@ import * as Y from 'yjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MatterSyncCallbacks } from '@/platform/firm/MatterSyncClient';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
+import type { PlatformFlagsMockState } from '@/testing/platform-flags';
+
+const { mockPlatformFlags, resetPlatformFlagsOverrides, setPlatformFlagsOverrides } =
+  await vi.hoisted(async () => import('@/testing/platform-flags'));
 
 const peer = vi.hoisted(() => ({
   doc: null as Y.Doc | null,
@@ -11,8 +15,13 @@ const peer = vi.hoisted(() => ({
   records: [] as LiveCrmRecord[],
   invoke: vi.fn<(command: string, args?: { record?: LiveCrmRecord }) => Promise<unknown>>(),
 }));
+const flagsMock = vi.hoisted(() => ({
+  overrides: { isEnabled: undefined } as PlatformFlagsMockState['overrides'],
+}));
 
-vi.mock('@/platform/flags', () => ({ isEnabled: () => true }));
+vi.mock('@/platform/flags', async (importOriginal) =>
+  mockPlatformFlags(importOriginal, flagsMock)
+);
 vi.mock('@tauri-apps/api/core', () => ({
   isTauri: () => true,
   invoke: (command: string, args?: { record?: LiveCrmRecord }) => peer.invoke(command, args),
@@ -97,6 +106,11 @@ function RelayPanels({ showOwner }: { showOwner: boolean }) {
 }
 
 describe('UniversalTagsSettingsMount peer relay integration', () => {
+  beforeEach(() => {
+    resetPlatformFlagsOverrides(flagsMock);
+    setPlatformFlagsOverrides(flagsMock, { isEnabled: () => true });
+  });
+
   beforeEach(() => {
     peer.doc = null;
     peer.callbacks = null;

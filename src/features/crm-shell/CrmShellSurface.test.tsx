@@ -1,17 +1,24 @@
 import '@/i18n';
 import { fireEvent, render, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { crmHomeSurfaceRegistry } from '@/features/crm-home';
 import { CrmShellSurface } from './CrmShellSurface';
 import { getCrmShellRailDestinations } from './crmHomeRegistryAdapter';
 import type { CrmShellRuntime } from './runtime';
+import type { PlatformFlagsMockState } from '@/testing/platform-flags';
+
+const { mockPlatformFlags, resetPlatformFlagsOverrides, setPlatformFlagsOverrides } =
+  await vi.hoisted(async () => import('@/testing/platform-flags'));
 
 let crmShellEnabled = false;
-
-vi.mock('@/platform/flags', () => ({
-  useFlag: (id: string) => id === 'crm-shell-v1' && crmShellEnabled,
+const flagsMock = vi.hoisted(() => ({
+  overrides: { useFlag: undefined } as PlatformFlagsMockState['overrides'],
 }));
+
+vi.mock('@/platform/flags', async (importOriginal) =>
+  mockPlatformFlags(importOriginal, flagsMock)
+);
 
 function runtimeWithLegacy(legacyHome: () => ReactNode): CrmShellRuntime {
   return {
@@ -20,6 +27,17 @@ function runtimeWithLegacy(legacyHome: () => ReactNode): CrmShellRuntime {
 }
 
 describe('CrmShellSurface', () => {
+  beforeEach(() => {
+    resetPlatformFlagsOverrides(flagsMock);
+    setPlatformFlagsOverrides(flagsMock, {
+      useFlag: (id: string) => id === 'crm-shell-v1' && crmShellEnabled,
+    });
+  });
+
+  afterEach(() => {
+    resetPlatformFlagsOverrides(flagsMock);
+  });
+
   it('uses the CRM Home public registry for every rail destination and its order', () => {
     const expected = crmHomeSurfaceRegistry
       .filter(

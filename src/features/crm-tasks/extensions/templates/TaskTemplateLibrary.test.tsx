@@ -5,8 +5,15 @@ import type { FirmTag } from '@/features/crm-tags';
 import type { TaskRecord } from '@/features/crm-tasks';
 import type { TaskTemplate } from './contract';
 import { TaskTemplateLibrary } from './TaskTemplateLibrary';
+import type { PlatformFlagsMockState } from '@/testing/platform-flags';
+
+const { mockPlatformFlags, resetPlatformFlagsOverrides, setPlatformFlagsOverrides } =
+  await vi.hoisted(async () => import('@/testing/platform-flags'));
 
 let enabled = false;
+const flagsMock = vi.hoisted(() => ({
+  overrides: { useFlag: undefined } as PlatformFlagsMockState['overrides'],
+}));
 const tagList = vi.fn();
 const taskCreate = vi.fn();
 const templateList = vi.fn();
@@ -14,7 +21,9 @@ const templateApply = vi.fn();
 const templateUpdate = vi.fn();
 const templateRetire = vi.fn();
 
-vi.mock('@/platform/flags', () => ({ useFlag: () => enabled }));
+vi.mock('@/platform/flags', async (importOriginal) =>
+  mockPlatformFlags(importOriginal, flagsMock)
+);
 vi.mock('@/features/crm-tags', () => ({ useFirmTagStore: () => ({ list: tagList }) }));
 vi.mock('@/features/crm-tasks', () => ({ useTaskRecordStore: () => ({ create: taskCreate }) }));
 vi.mock('./taskTemplateStore', () => ({
@@ -39,6 +48,8 @@ const template: TaskTemplate = {
 
 describe('TaskTemplateLibrary', () => {
   beforeEach(() => {
+    resetPlatformFlagsOverrides(flagsMock);
+    setPlatformFlagsOverrides(flagsMock, { useFlag: () => enabled });
     enabled = false;
     vi.clearAllMocks();
     tagList.mockResolvedValue({ version: 1, tags: [activeTag] });

@@ -6,18 +6,27 @@ import {
   softDeleteCrmRecord,
 } from './trashClient';
 import { LIVE_CRM_RECORDS_CHANGED } from '@/platform/crm/useLiveCrmRecords';
+import type { PlatformFlagsMockState } from '@/testing/platform-flags';
+
+const { mockPlatformFlags, resetPlatformFlagsOverrides, setPlatformFlagsOverrides } =
+  await vi.hoisted(async () => import('@/testing/platform-flags'));
 
 const invoke = vi.fn<
   (command: string, args?: Record<string, unknown>) => Promise<unknown>
 >();
 const crmSetWorkspace = vi.fn<(workspaceRoot: string) => Promise<void>>();
+const flagsMock = vi.hoisted(() => ({
+  overrides: { isEnabled: undefined } as PlatformFlagsMockState['overrides'],
+}));
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: (command: string, args?: Record<string, unknown>) =>
     invoke(command, args),
   isTauri: () => true,
 }));
-vi.mock('@/platform/flags', () => ({ isEnabled: () => true }));
+vi.mock('@/platform/flags', async (importOriginal) =>
+  mockPlatformFlags(importOriginal, flagsMock)
+);
 vi.mock('@/platform/utils/wealthbox-commands', () => ({
   crmSetWorkspace: (workspaceRoot: string) => crmSetWorkspace(workspaceRoot),
 }));
@@ -32,6 +41,8 @@ const request = {
 describe('trashClient', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetPlatformFlagsOverrides(flagsMock);
+    setPlatformFlagsOverrides(flagsMock, { isEnabled: () => true });
   });
 
   it('uses the stable native soft-delete, recovery, and tombstone contract', async () => {

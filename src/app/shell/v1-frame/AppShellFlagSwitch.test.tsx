@@ -1,11 +1,18 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
+import type { PlatformFlagsMockState } from '@/testing/platform-flags';
+
+const { mockPlatformFlags, resetPlatformFlagsOverrides, setPlatformFlagsOverrides } =
+  await vi.hoisted(async () => import('@/testing/platform-flags'));
 
 let shellEnabled = false;
-
-vi.mock('@/platform/flags', () => ({
-  useFlag: () => shellEnabled,
+const flagsMock = vi.hoisted(() => ({
+  overrides: { useFlag: undefined } as PlatformFlagsMockState['overrides'],
 }));
+
+vi.mock('@/platform/flags', async (importOriginal) =>
+  mockPlatformFlags(importOriginal, flagsMock)
+);
 
 vi.mock('@/app/shell/AppSurfaceRouter', () => ({
   AppSurfaceRouter: () => <div data-testid="app-surface-router" />,
@@ -56,6 +63,15 @@ window.history.pushState({}, '', '/?testMode=true');
 const { default: App } = await import('@/App');
 
 describe('App v1 shell-frame flag switch', () => {
+  beforeEach(() => {
+    resetPlatformFlagsOverrides(flagsMock);
+    setPlatformFlagsOverrides(flagsMock, { useFlag: () => shellEnabled });
+  });
+
+  afterEach(() => {
+    resetPlatformFlagsOverrides(flagsMock);
+  });
+
   it('keeps the legacy chrome when the flag is off', () => {
     shellEnabled = false;
     render(<App />);

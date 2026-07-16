@@ -2,6 +2,10 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
+import type { PlatformFlagsMockState } from '@/testing/platform-flags';
+
+const { mockPlatformFlags, resetPlatformFlagsOverrides, setPlatformFlagsOverrides } =
+  await vi.hoisted(async () => import('@/testing/platform-flags'));
 
 const boundary = vi.hoisted(() => ({
   records: [] as LiveCrmRecord[],
@@ -9,8 +13,13 @@ const boundary = vi.hoisted(() => ({
   setWorkspace: vi.fn<(workspace: string) => Promise<void>>(),
   publish: vi.fn<(record: LiveCrmRecord) => void>(),
 }));
+const flagsMock = vi.hoisted(() => ({
+  overrides: { isEnabled: undefined } as PlatformFlagsMockState['overrides'],
+}));
 
-vi.mock('@/platform/flags', () => ({ isEnabled: () => true }));
+vi.mock('@/platform/flags', async (importOriginal) =>
+  mockPlatformFlags(importOriginal, flagsMock)
+);
 vi.mock('@tauri-apps/api/core', () => ({
   isTauri: () => true,
   invoke: (command: string, args?: { record?: LiveCrmRecord }) => boundary.invoke(command, args),
@@ -49,6 +58,11 @@ function savedTag(name: string): LiveCrmRecord {
 }
 
 describe('UniversalTagsSettingsMount live CRM integration', () => {
+  beforeEach(() => {
+    resetPlatformFlagsOverrides(flagsMock);
+    setPlatformFlagsOverrides(flagsMock, { isEnabled: () => true });
+  });
+
   beforeEach(() => {
     boundary.records = [savedTag('Planning')];
     boundary.invoke.mockReset();

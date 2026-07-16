@@ -1,14 +1,30 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { V1ShellFrameFlagGate } from '@/app/shell/v1-frame';
+import type { PlatformFlagsMockState } from '@/testing/platform-flags';
+
+const { mockPlatformFlags, resetPlatformFlagsOverrides, setPlatformFlagsOverrides } =
+  await vi.hoisted(async () => import('@/testing/platform-flags'));
 
 const shellFlag = vi.hoisted(() => ({ enabled: false }));
-
-vi.mock('@/platform/flags', () => ({
-  useFlag: () => shellFlag.enabled,
+const flagsMock = vi.hoisted(() => ({
+  overrides: { useFlag: undefined } as PlatformFlagsMockState['overrides'],
 }));
 
+vi.mock('@/platform/flags', async (importOriginal) =>
+  mockPlatformFlags(importOriginal, flagsMock)
+);
+
 describe('notification-bell flag-gate pass-through', () => {
+  beforeEach(() => {
+    resetPlatformFlagsOverrides(flagsMock);
+    setPlatformFlagsOverrides(flagsMock, { useFlag: () => shellFlag.enabled });
+  });
+
+  afterEach(() => {
+    resetPlatformFlagsOverrides(flagsMock);
+  });
+
   it('does not call the supplied renderer while the v1 frame is off', () => {
     shellFlag.enabled = false;
     const renderNotificationBell = vi.fn(() => (

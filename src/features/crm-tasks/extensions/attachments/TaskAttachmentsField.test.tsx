@@ -4,6 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FirmTagStore } from '@/features/crm-tags';
 import type { TaskRecord, TaskRecordStore } from '@/features/crm-tasks';
 import type { FileNode } from '@/platform/types/workspace';
+import type { PlatformFlagsMockState } from '@/testing/platform-flags';
+
+const { mockPlatformFlags, resetPlatformFlagsOverrides, setPlatformFlagsOverrides } =
+  await vi.hoisted(async () => import('@/testing/platform-flags'));
 
 const boundary = vi.hoisted(() => ({
   enabled: false,
@@ -14,10 +18,13 @@ const boundary = vi.hoisted(() => ({
   workspaceReads: 0,
   matterReads: 0,
 }));
-
-vi.mock('@/platform/flags', () => ({
-  useFlag: () => boundary.enabled,
+const flagsMock = vi.hoisted(() => ({
+  overrides: { useFlag: undefined } as PlatformFlagsMockState['overrides'],
 }));
+
+vi.mock('@/platform/flags', async (importOriginal) =>
+  mockPlatformFlags(importOriginal, flagsMock)
+);
 vi.mock('@/features/crm-tasks', () => ({
   useTaskRecordStore: () => boundary.useTaskRecordStore(),
 }));
@@ -119,6 +126,8 @@ function taggedTask(): TaskRecord {
 
 describe('TaskAttachmentsField', () => {
   beforeEach(() => {
+    resetPlatformFlagsOverrides(flagsMock);
+    setPlatformFlagsOverrides(flagsMock, { useFlag: () => boundary.enabled });
     boundary.enabled = false;
     boundary.taskRecord = taggedTask();
     boundary.fileTree = [

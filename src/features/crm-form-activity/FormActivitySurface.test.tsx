@@ -1,12 +1,19 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { FormActivitySurface } from './FormActivitySurface';
+import type { PlatformFlagsMockState } from '@/testing/platform-flags';
+
+const { mockPlatformFlags, resetPlatformFlagsOverrides, setPlatformFlagsOverrides } =
+  await vi.hoisted(async () => import('@/testing/platform-flags'));
 
 const mocks = vi.hoisted(() => ({
   useLiveCrmRecords: vi.fn(),
 }));
 
 let enabled = true;
+const flagsMock = vi.hoisted(() => ({
+  overrides: { useFlag: undefined } as PlatformFlagsMockState['overrides'],
+}));
 let liveState: {
   records: readonly Record<string, unknown>[];
   error: string | null;
@@ -15,7 +22,9 @@ let liveState: {
   error: null,
 };
 
-vi.mock('@/platform/flags', () => ({ useFlag: () => enabled }));
+vi.mock('@/platform/flags', async (importOriginal) =>
+  mockPlatformFlags(importOriginal, flagsMock)
+);
 vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
   useLiveCrmRecords: mocks.useLiveCrmRecords,
 }));
@@ -105,6 +114,11 @@ const activityRecords = [
 ];
 
 describe('FormActivitySurface', () => {
+  beforeEach(() => {
+    resetPlatformFlagsOverrides(flagsMock);
+    setPlatformFlagsOverrides(flagsMock, { useFlag: () => enabled });
+  });
+
   beforeEach(() => {
     enabled = true;
     liveState = { records: activityRecords, error: null };

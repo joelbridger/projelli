@@ -2,6 +2,10 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TrashRecoverySurface } from './TrashRecoverySurface';
 import type { TrashedCrmRecord } from './trashClient';
+import type { PlatformFlagsMockState } from '@/testing/platform-flags';
+
+const { mockPlatformFlags, resetPlatformFlagsOverrides, setPlatformFlagsOverrides } =
+  await vi.hoisted(async () => import('@/testing/platform-flags'));
 
 const { reload, useFirmStore, useFlag, useLiveCrmRecords } = vi.hoisted(() => ({
   reload: vi.fn(),
@@ -15,6 +19,9 @@ const { reload, useFirmStore, useFlag, useLiveCrmRecords } = vi.hoisted(() => ({
     reload,
   })),
 }));
+const flagsMock = vi.hoisted(() => ({
+  overrides: { useFlag: undefined } as PlatformFlagsMockState['overrides'],
+}));
 const listTrashedCrmRecords = vi.fn<
   (workspaceRoot: string) => Promise<readonly TrashedCrmRecord[]>
 >();
@@ -22,7 +29,9 @@ const restoreTrashedCrmRecord = vi.fn<
   (request: unknown) => Promise<unknown>
 >();
 
-vi.mock('@/platform/flags', () => ({ useFlag }));
+vi.mock('@/platform/flags', async (importOriginal) =>
+  mockPlatformFlags(importOriginal, flagsMock)
+);
 vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
   useLiveCrmRecords,
 }));
@@ -37,6 +46,8 @@ vi.mock('./trashClient', () => ({
 describe('TrashRecoverySurface', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetPlatformFlagsOverrides(flagsMock);
+    setPlatformFlagsOverrides(flagsMock, { useFlag });
     useFlag.mockReturnValue(true);
     listTrashedCrmRecords.mockResolvedValue([
       {

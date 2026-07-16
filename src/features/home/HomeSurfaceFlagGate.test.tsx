@@ -1,14 +1,22 @@
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { HomeSurfaceFlagGate, type HomeSurfaceRuntime } from '@/features/home';
+import type { PlatformFlagsMockState } from '@/testing/platform-flags';
 
-const { useFlagMock } = vi.hoisted(() => ({
-  useFlagMock: vi.fn<() => boolean>(),
-}));
+const { mockPlatformFlags, resetPlatformFlagsOverrides, setPlatformFlagsOverrides } =
+  await vi.hoisted(async () => import('@/testing/platform-flags'));
 
-vi.mock('@/platform/flags', () => ({
-  useFlag: useFlagMock,
-}));
+const { flagsMock, useFlagMock } = vi.hoisted(() => {
+  const useFlagMock = vi.fn<() => boolean>();
+  return {
+    flagsMock: { overrides: { useFlag: useFlagMock } } as PlatformFlagsMockState,
+    useFlagMock,
+  };
+});
+
+vi.mock('@/platform/flags', async (importOriginal) =>
+  mockPlatformFlags(importOriginal, flagsMock)
+);
 
 function runtime(): HomeSurfaceRuntime {
   return {
@@ -21,6 +29,8 @@ function runtime(): HomeSurfaceRuntime {
 describe('HomeSurfaceFlagGate', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetPlatformFlagsOverrides(flagsMock);
+    setPlatformFlagsOverrides(flagsMock, { useFlag: useFlagMock });
   });
 
   it('uses the legacy renderer and mounts no v1 data child while the flag is off', () => {

@@ -5,6 +5,10 @@ import {
   type TeamActivityPost,
 } from './contracts';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
+import type { PlatformFlagsMockState } from '@/testing/platform-flags';
+
+const { mockPlatformFlags, resetPlatformFlagsOverrides, setPlatformFlagsOverrides } =
+  await vi.hoisted(async () => import('@/testing/platform-flags'));
 
 const mocks = vi.hoisted(() => ({
   emitAuditEntry: vi.fn(),
@@ -13,10 +17,15 @@ const mocks = vi.hoisted(() => ({
   isTauri: vi.fn(),
   crmSetWorkspace: vi.fn(),
 }));
+const flagsMock = vi.hoisted(() => ({
+  overrides: { isEnabled: undefined } as PlatformFlagsMockState['overrides'],
+}));
 
 vi.mock('@/features/audit', () => ({ emitAuditEntry: mocks.emitAuditEntry }));
 vi.mock('@tauri-apps/api/core', () => ({ invoke: mocks.invoke, isTauri: mocks.isTauri }));
-vi.mock('@/platform/flags', () => ({ isEnabled: mocks.isEnabled }));
+vi.mock('@/platform/flags', async (importOriginal) =>
+  mockPlatformFlags(importOriginal, flagsMock)
+);
 vi.mock('@/platform/utils/wealthbox-commands', () => ({ crmSetWorkspace: mocks.crmSetWorkspace }));
 vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
   LIVE_CRM_RECORDS_CHANGED: 'lantern:crm-live-records-changed',
@@ -27,6 +36,8 @@ import { createNativeTeamActivityStore } from './activityClient';
 describe('native team activity client', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetPlatformFlagsOverrides(flagsMock);
+    setPlatformFlagsOverrides(flagsMock, { isEnabled: mocks.isEnabled });
     mocks.isEnabled.mockReturnValue(true);
     mocks.isTauri.mockReturnValue(true);
     mocks.crmSetWorkspace.mockResolvedValue(undefined);
