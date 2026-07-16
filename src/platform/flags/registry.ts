@@ -204,6 +204,15 @@ export const flagRegistry = [
     expiresAt: '2026-09-14',
     defaultEnabled: false,
   },
+  {
+    id: 'own-clients-permissions',
+    description:
+      'Keeps own-client permission scoping dark: the read-side policy doorway is present, but the native enforcement engine is deferred, so consumers stay off until provable no-bypass enforcement lands.',
+    ownerLane: 'own-clients-permissions',
+    createdAt: '2026-07-16',
+    expiresAt: '2026-09-14',
+    defaultEnabled: false,
+  },
 ] as const satisfies readonly FlagDescriptor[];
 
 export type FlagId = (typeof flagRegistry)[number]['id'];
