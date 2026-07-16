@@ -1,0 +1,32 @@
+{
+  "capacityTriage": {
+    "open": "Arbeit planen",
+    "heading": "Plan für offene Arbeit",
+    "summary": "{{shown}} von {{open}} offenen Einträgen werden angezeigt. {{unassigned}} nicht zugeordnet und {{unscheduled}} ohne Fälligkeitsdatum.",
+    "assignee": "Zugewiesen an ",
+    "allAssignees": "Alle Zuständigen",
+    "unassigned": "Nicht zugeordnet",
+    "duePressure": "Fälligkeitsdatum ",
+    "allDuePressure": "Jedes Fälligkeitsdatum",
+    "dueNow": "Jetzt fällig oder überfällig",
+    "scheduled": "Geplant",
+    "unscheduled": "Ohne Fälligkeitsdatum",
+    "priority": "Priorität ",
+    "allPriorities": "Jede Priorität",
+    "high": "Hoch",
+    "normal": "Normal",
+    "low": "Niedrig",
+    "tags": "Tags",
+    "tagList": "Firmen-Tags",
+    "loading": "Firmen-Tags werden geladen…",
+    "catalogUnavailable": "Firmen-Tags sind derzeit nicht verfügbar. Ihr gespeicherter Plan wurde nicht geändert.",
+    "preferenceUnavailable": "Dieser Triage-Plan konnte nicht gespeichert werden. Versuchen Sie es nach dem Neuladen der CRM-Daten erneut.",
+    "noTags": "Es sind noch keine Firmen-Tags verfügbar.",
+    "retired": "Stillgelegt",
+    "noMatchingWork": "Keine offene Arbeit entspricht diesem Plan.",
+    "kind": {
+      "task": "Aufgabe",
+      "workflow_step": "Workflow-Schritt"
+    }
+  }
+}
