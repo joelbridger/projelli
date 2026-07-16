@@ -97,13 +97,13 @@ export function HouseholdDocumentsTab({ household, actions }: HouseholdTabSurfac
       }
       if (target.value.startsWith('embedded-note:')) {
         if (!householdRecord) throw new Error('This household has not finished loading yet. Try again.');
-        const notes: unknown[] = Array.isArray(householdRecord['notes']) ? householdRecord['notes'] as unknown[] : [];
+        const notes = Array.isArray(householdRecord['notes']) ? householdRecord['notes'] : [];
         await live.save({ ...householdRecord, notes: notes.map((note) => note && typeof note === 'object' && (note as { id?: unknown }).id === target.id ? { ...(note as Record<string, unknown>), links: change((note as Record<string, unknown>)['links']) } : note) });
         return;
       }
       if (target.kind === 'person') {
         if (!householdRecord) throw new Error('This household has not finished loading yet. Try again.');
-        const updatePeople = (people: unknown): unknown => Array.isArray(people) ? (people as unknown[]).map((person) => person && typeof person === 'object' && (person as { id?: unknown }).id === target.id ? { ...(person as Record<string, unknown>), contextRefs: change((person as Record<string, unknown>)['contextRefs']) } : person) : people;
+        const updatePeople = (people: unknown) => Array.isArray(people) ? people.map((person) => person && typeof person === 'object' && (person as { id?: unknown }).id === target.id ? { ...(person as Record<string, unknown>), contextRefs: change((person as Record<string, unknown>)['contextRefs']) } : person) : people;
         await live.save({ ...householdRecord, members: updatePeople(householdRecord['members']), externalParties: updatePeople(householdRecord['externalParties']) });
         return;
       }
