@@ -1,0 +1,50 @@
+{
+  "task-templates-admin": {
+    "settings-label": "Aufgabenvorlagen",
+    "heading": "Aufgabenvorlagen",
+    "description": "Erstellen und verwalten Sie wiederverwendbare Aufgabenstarts für Ihr {{productName}}-Team.",
+    "library-title": "Gespeicherte Vorlagen",
+    "loading": "Aufgabenvorlagen werden geladen…",
+    "empty": "Noch keine Aufgabenvorlagen vorhanden.",
+    "new": "Neue Vorlage",
+    "new-title": "Neue Aufgabenvorlage",
+    "edit": "Bearbeiten",
+    "edit-title": "Aufgabenvorlage bearbeiten",
+    "editor-copy": "Änderungen werden mit der Aufgabenvorlagenauswahl geteilt.",
+    "save": "Vorlage speichern",
+    "retire": "Stilllegen",
+    "retired": "Stillgelegt",
+    "retired-tag": "Stillgelegtes Tag",
+    "retire-confirmation": {
+      "title": "{{name}} stilllegen?",
+      "description": "Diese Vorlage bleibt hier sichtbar, kann aber nicht mehr bearbeitet oder zum Starten einer Aufgabe verwendet werden.",
+      "cancel": "Vorlage behalten",
+      "confirm": "Vorlage stilllegen"
+    },
+    "messages": {
+      "saved": "Vorlage gespeichert.",
+      "retired": "Vorlage stillgelegt."
+    },
+    "fields": {
+      "name": "Vorlagenname",
+      "title": "Aufgabentitel",
+      "body": "Notizen",
+      "priority": "Priorität",
+      "category": "Kategorie",
+      "due": "Fälligkeitsdatum",
+      "due-time": "Fälligkeitszeit",
+      "relation-prompt": "Kundenhinweis",
+      "tags": "Tags"
+    },
+    "priority": {
+      "high": "Hoch",
+      "normal": "Normal",
+      "low": "Niedrig"
+    },
+    "errors": {
+      "load": "Aufgabenvorlagen konnten nicht geladen werden.",
+      "save": "Aufgabenvorlage konnte nicht gespeichert werden.",
+      "retired-tag": "Ein stillgelegtes Tag kann nicht in einer Aufgabenvorlage verwendet werden."
+    }
+  }
+}

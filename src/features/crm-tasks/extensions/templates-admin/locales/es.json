@@ -1,0 +1,50 @@
+{
+  "task-templates-admin": {
+    "settings-label": "Plantillas de tareas",
+    "heading": "Plantillas de tareas",
+    "description": "Crea y mantiene puntos de partida reutilizables para las tareas de tu equipo de {{productName}}.",
+    "library-title": "Plantillas guardadas",
+    "loading": "Cargando plantillas de tareas…",
+    "empty": "Aún no hay plantillas de tareas.",
+    "new": "Nueva plantilla",
+    "new-title": "Nueva plantilla de tarea",
+    "edit": "Editar",
+    "edit-title": "Editar plantilla de tarea",
+    "editor-copy": "Los cambios se comparten con el selector de plantillas de tareas.",
+    "save": "Guardar plantilla",
+    "retire": "Retirar",
+    "retired": "Retirada",
+    "retired-tag": "Etiqueta retirada",
+    "retire-confirmation": {
+      "title": "¿Retirar {{name}}?",
+      "description": "Esta plantilla seguirá visible aquí, pero ya no se podrá editar ni usar para iniciar una tarea.",
+      "cancel": "Conservar plantilla",
+      "confirm": "Retirar plantilla"
+    },
+    "messages": {
+      "saved": "Plantilla guardada.",
+      "retired": "Plantilla retirada."
+    },
+    "fields": {
+      "name": "Nombre de la plantilla",
+      "title": "Título de la tarea",
+      "body": "Notas",
+      "priority": "Prioridad",
+      "category": "Categoría",
+      "due": "Fecha de vencimiento",
+      "due-time": "Hora de vencimiento",
+      "relation-prompt": "Mensaje para el cliente",
+      "tags": "Etiquetas"
+    },
+    "priority": {
+      "high": "Alta",
+      "normal": "Normal",
+      "low": "Baja"
+    },
+    "errors": {
+      "load": "No se pudieron cargar las plantillas de tareas.",
+      "save": "No se pudo guardar la plantilla de tarea.",
+      "retired-tag": "No se puede usar una etiqueta retirada en una plantilla de tarea."
+    }
+  }
+}

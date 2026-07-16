@@ -14,6 +14,7 @@ import {
   notificationPreferencesSettingsSection,
 } from '@/features/notifications';
 import { universalTagsSettingsPanel } from '@/features/crm-tags';
+import { taskTemplatesAdminSettingsPanel } from '@/features/crm-tasks/extensions/templates-admin';
 import type {
   SettingsGroupDescriptor,
   SettingsPanelDescriptor,
@@ -48,6 +49,7 @@ export const settingsPanelRegistry: readonly SettingsPanelDescriptor[] = [
   contactSourcesSettingsPanel,
   notificationPreferencesSettingsPanel,
   universalTagsSettingsPanel,
+  taskTemplatesAdminSettingsPanel,
 ];
 
 function definitionsFor(
