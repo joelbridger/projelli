@@ -29,7 +29,10 @@ import {
 } from '@/ui/dropdown-menu';
 import { getVisibleSettingsSectionDescriptors } from '@/features/settings/registry/settingsModuleRegistry';
 import { renderRegisteredSettingsPanels } from '@/features/settings/registry/sectionRendererBindings';
-import { getSettingsSearchResults } from '@/features/settings/settingsSearch';
+import {
+  getSettingsSearchActiveSection,
+  getSettingsSearchResults,
+} from '@/features/settings/settingsSearch';
 import type {
   SettingsSectionDescriptor,
   SettingsSectionRenderProps,
@@ -152,16 +155,20 @@ export function SettingsV1FrameEnabled({
   }
 
   const searchActive = searchQuery.trim().length > 0;
-  const { filteredKeys, visibleSectionIds } = useMemo(
+  const { filteredKeys, sectionScores, visibleSectionIds } = useMemo(
     () => getSettingsSearchResults(searchQuery, sections),
     [searchQuery, sections],
   );
   const visibleSections = sections.filter((section) => visibleSectionIds.has(section.id));
-  const effectiveSection = visibleSections.some(
-    (section) => section.id === activeSection
-  )
-    ? activeSection
-    : (visibleSections[0]?.id ?? sections[0]?.id ?? 'workspace');
+  const effectiveSection = getSettingsSearchActiveSection(
+    activeSection,
+    searchActive,
+    sections,
+    sectionScores,
+  );
+  if (effectiveSection !== activeSection) {
+    queueMicrotask(() => { setActiveSection(effectiveSection); });
+  }
   const activeExtra = !searchActive
     ? runtime.settings.extraSections.find((section) => section.id === activeExtraId)
     : undefined;

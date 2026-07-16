@@ -234,7 +234,9 @@ describe('real Settings surface flag-gated swap', () => {
     const reportButton = screen.getByTestId('privacy-center-report-button');
     expect(reportButton).toHaveTextContent('Confidentiality Report');
     fireEvent.click(reportButton);
-    expect(await screen.findByTestId('confidentiality-report')).toBeVisible();
+    expect(await screen.findByTestId('confidentiality-report')).toHaveTextContent(
+      'Northstar review',
+    );
 
     fireEvent.click(screen.getByTestId('settings-category-activity-log'));
     expect(await screen.findByTestId('audit-home-search')).toBeInTheDocument();

@@ -44,6 +44,24 @@ describe('SettingsV1FrameEnabled', () => {
     expect(screen.queryByTestId('legacy-settings-body')).not.toBeInTheDocument();
   });
 
+  it('shows the strongest shared search result before an earlier weak match', () => {
+    render(<SettingsV1FrameEnabled runtime={runtime} />);
+
+    fireEvent.change(screen.getByTestId('settings-v1-search'), {
+      target: { value: 'plug' },
+    });
+
+    expect(screen.getByTestId('settings-v1-section-ai')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-v1-section-ai')).not.toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(screen.getByTestId('settings-v1-section-advanced')).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+  });
+
   it('keeps the existing profile and workspace destinations reachable through menus', async () => {
     useProfileStore.setState({
       soloName: 'Maya Patel',

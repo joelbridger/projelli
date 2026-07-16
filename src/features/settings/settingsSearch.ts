@@ -45,6 +45,30 @@ export interface SettingsSearchResults {
 }
 
 /**
+ * Select the search result the Settings surfaces should show first. Ties keep
+ * the current section when possible, then use the registered section order.
+ */
+export function getSettingsSearchActiveSection(
+  activeSection: SectionCategory,
+  searchActive: boolean,
+  registeredSections: readonly SettingsSectionDescriptor[],
+  sectionScores: Record<SectionCategory, number>,
+): SectionCategory {
+  const fallbackSection = registeredSections[0]?.id ?? 'workspace';
+  if (!registeredSections.some((section) => section.id === activeSection)) {
+    return fallbackSection;
+  }
+  if (!searchActive) return activeSection;
+
+  const order = registeredSections.map((section) => section.id);
+  const maxScore = Math.max(...order.map((section) => sectionScores[section]));
+  if (maxScore <= 0 || sectionScores[activeSection] === maxScore) {
+    return activeSection;
+  }
+  return order.find((section) => sectionScores[section] === maxScore) ?? activeSection;
+}
+
+/**
  * The one Settings search contract shared by the legacy surface and v1 frame.
  * It deliberately indexes schema labels, descriptions, keys, option labels,
  * aliases, group keywords, registered-section terms, and shortcut metadata.

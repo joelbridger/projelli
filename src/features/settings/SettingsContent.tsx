@@ -93,7 +93,10 @@ import {
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu';
 import { settingTestid, groupKeywordMatch } from './settingsContentHelpers';
-import { getSettingsSearchResults } from './settingsSearch';
+import {
+  getSettingsSearchActiveSection,
+  getSettingsSearchResults,
+} from './settingsSearch';
 import { getVisibleSettingsSectionDescriptors } from './registry/settingsModuleRegistry';
 import {
   registerSettingsSectionRenderer,
@@ -1078,18 +1081,12 @@ export function SettingsContent({
 
   // While searching, jump to the strongest-matching section, but stay put if the
   // current section is already a top match (so typing doesn't yank you around).
-  const effectiveSection: SectionCategory = (() => {
-    const fallbackSection = registeredSections[0]?.id ?? 'workspace';
-    if (!registeredSections.some((section) => section.id === activeSection)) {
-      return fallbackSection;
-    }
-    if (!searchActive) return activeSection;
-    const order = registeredSections.map((section) => section.id);
-    const maxScore = Math.max(...order.map((s) => sectionScores[s]));
-    if (maxScore <= 0) return activeSection;
-    if (sectionScores[activeSection] === maxScore) return activeSection;
-    return order.find((s) => sectionScores[s] === maxScore) ?? activeSection;
-  })();
+  const effectiveSection = getSettingsSearchActiveSection(
+    activeSection,
+    searchActive,
+    registeredSections,
+    sectionScores,
+  );
 
   if (effectiveSection !== activeSection) {
     queueMicrotask(() => { setActiveSection(effectiveSection); });
