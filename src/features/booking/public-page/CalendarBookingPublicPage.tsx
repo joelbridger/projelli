@@ -52,6 +52,16 @@ interface CalendarBookingPublicPageLoaderProps extends CalendarBookingPublicPage
   readonly eventStore: CalendarEventStore;
 }
 
+interface CalendarBookingPageResult {
+  readonly availabilityStore: BookingAvailabilityStore;
+  readonly capabilityStore: CalendarCapabilityStore;
+  readonly consumer: BookingPageAvailabilityConsumerContract;
+  readonly eventStore: CalendarEventStore;
+  readonly locale: string | undefined;
+  readonly nowUtc: string | undefined;
+  readonly range: CalendarRange;
+}
+
 function CalendarBookingPublicPageLoader({
   availabilityStore,
   branding,
@@ -61,11 +71,10 @@ function CalendarBookingPublicPageLoader({
   nowUtc,
   range,
 }: CalendarBookingPublicPageLoaderProps) {
-  const [consumer, setConsumer] = useState<BookingPageAvailabilityConsumerContract>(loadingCalendarBookingPageConsumer);
+  const [result, setResult] = useState<CalendarBookingPageResult | null>(null);
 
   useEffect(() => {
     let disposed = false;
-    setConsumer(loadingCalendarBookingPageConsumer());
 
     void Promise.all([
       capabilityStore.get(),
@@ -73,22 +82,49 @@ function CalendarBookingPublicPageLoader({
       eventStore.listOccurrences(range),
     ]).then(([capability, availability, occurrences]) => {
       if (disposed) return;
-      setConsumer(toCalendarBookingPageAvailabilityConsumer({
-        availability,
-        capability,
-        occurrences,
+      setResult({
+        availabilityStore,
+        capabilityStore,
+        consumer: toCalendarBookingPageAvailabilityConsumer({
+          availability,
+          capability,
+          occurrences,
+          range,
+          ...(locale === undefined ? {} : { locale }),
+          ...(nowUtc === undefined ? {} : { nowUtc }),
+        }),
+        eventStore,
+        locale,
+        nowUtc,
         range,
-        ...(locale === undefined ? {} : { locale }),
-        ...(nowUtc === undefined ? {} : { nowUtc }),
-      }));
+      });
     }).catch(() => {
-      if (!disposed) setConsumer(unavailableCalendarBookingPageConsumer());
+      if (!disposed) {
+        setResult({
+          availabilityStore,
+          capabilityStore,
+          consumer: unavailableCalendarBookingPageConsumer(),
+          eventStore,
+          locale,
+          nowUtc,
+          range,
+        });
+      }
     });
 
     return () => {
       disposed = true;
     };
   }, [availabilityStore, capabilityStore, eventStore, locale, nowUtc, range]);
+
+  const matchesCurrentRequest = result !== null
+    && result.availabilityStore === availabilityStore
+    && result.capabilityStore === capabilityStore
+    && result.eventStore === eventStore
+    && result.locale === locale
+    && result.nowUtc === nowUtc
+    && result.range === range;
+  const consumer = matchesCurrentRequest ? result.consumer : loadingCalendarBookingPageConsumer();
 
   return <BookingPublicPage availability={consumer} branding={branding} />;
 }

@@ -76,7 +76,7 @@ describe('CalendarBookingPublicPage fresh calendar read', () => {
           monday: [{ startLocal: '09:00', endLocal: '11:00' }],
           tuesday: [], wednesday: [], thursday: [], friday: [], saturday: [], sunday: [],
         },
-        meetingTypes: [{ id: 'intro', name: 'Private meeting name', durationMinutes: 30, bufferBeforeMinutes: 0, bufferAfterMinutes: 0 }],
+        meetingTypes: [{ id: 'Private meeting name', name: 'Private meeting name', durationMinutes: 30, bufferBeforeMinutes: 0, bufferAfterMinutes: 0 }],
         minimumNoticeMinutes: 0,
         maximumHorizonDays: 14,
       },
