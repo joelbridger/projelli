@@ -85,7 +85,11 @@ export function Tasks({
       title="Tasks"
       description="One work list for tasks and workflow steps"
       Icon={ListChecks}
-      action={mountTaskTemplates({ onCreate: setEditing })}
+      action={mountTaskTemplates({
+        onCreate: setEditing,
+        ...(addRequest ? { addRequest } : {}),
+        ...(onAddRequestConsumed ? { onAddRequestConsumed } : {}),
+      })}
     >
       <div
         style={{

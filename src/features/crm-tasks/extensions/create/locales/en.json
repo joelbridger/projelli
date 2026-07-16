@@ -1,0 +1,24 @@
+{
+  "task-create-v1": {
+    "open": "Create task",
+    "saved": "Task {{id}} was created.",
+    "composer-label": "Create task",
+    "heading": "New task",
+    "related-record": "For {{name}}",
+    "title": "Task name",
+    "description": "Description",
+    "due-date": "Due date",
+    "due-time": "Due time",
+    "priority": "Priority",
+    "priority-high": "High",
+    "priority-normal": "Normal",
+    "priority-low": "Low",
+    "category": "Category",
+    "tags": "Tags",
+    "retired": "Retired",
+    "save": "Create task",
+    "cancel": "Cancel",
+    "tag-load-failed": "Tags could not be loaded.",
+    "save-failed": "The task could not be created. Please check the details and try again."
+  }
+}

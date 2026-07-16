@@ -10,6 +10,7 @@ import {
   legacyTaskFields,
   legacyTaskTemplates,
 } from './taskExtensionRegistryCompatibility';
+import { taskCreateV1Template } from './extensions/create';
 
 /** Feature modules augment these maps beside their descriptors. */
 export interface TaskFieldIdMap {}
@@ -38,6 +39,7 @@ export interface TaskActionContext {
 
 export interface TaskTemplateContext {
   addRequest?: CrmHouseholdAddRequest;
+  onAddRequestConsumed?: () => void;
   onCreate: (task: CrmTask) => void;
 }
 
@@ -121,7 +123,7 @@ export const taskFieldRegistry: readonly TaskFieldDescriptor[] =
 export const taskActionRegistry: readonly TaskActionDescriptor[] =
   legacyTaskActions;
 export const taskTemplateRegistry: readonly TaskTemplateDescriptor[] =
-  legacyTaskTemplates;
+  [...legacyTaskTemplates, taskCreateV1Template];
 
 function ordered<T extends { order: number }>(descriptors: readonly T[]): T[] {
   return descriptors.slice().sort((left, right) => left.order - right.order);
