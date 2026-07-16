@@ -1,5 +1,4 @@
-/* eslint-disable lantern-i18n/no-hardcoded-string -- Dummy labels are test-only registry mounts. */
-import '@/i18n';
+import i18n from '@/i18n';
 import type { ReactNode } from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
@@ -128,21 +127,21 @@ describe('team activity tool registry seam', () => {
       id: 'test.reactive-filter',
       order: 10,
       mount: (context) => <button type="button" onClick={() => { context.state.set('maya'); }}>
-        Show Maya ({context.visibleItems.length})
+        {i18n.t('team-activity-feed.mentioned')} ({context.visibleItems.length})
       </button>,
       filter: (candidate, context) => context.state.get() === undefined
         || candidate.author.memberId === context.state.get(),
-      renderEmptyResult: () => <p role="status">No activity matches.</p>,
+      renderEmptyResult: () => <p role="status">{i18n.t('team-activity-feed.empty')}</p>,
     };
 
     render(<TeamActivitySurface composition={createActivityToolComposition(tool)} />);
     await screen.findByTestId('team-activity-item-post-third');
-    fireEvent.click(screen.getByRole('button', { name: 'Show Maya (3)' }));
+    fireEvent.click(screen.getByRole('button', { name: `${i18n.t('team-activity-feed.mentioned')} (3)` }));
 
     expect(screen.getByTestId('team-activity-item-post-first')).toBeInTheDocument();
     expect(screen.queryByTestId('team-activity-item-post-second')).not.toBeInTheDocument();
     expect(screen.getByTestId('team-activity-item-post-third')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Show Maya (2)' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: `${i18n.t('team-activity-feed.mentioned')} (2)` })).toBeInTheDocument();
   });
 
   it('passes copies to filters so a tool cannot mutate source data or another filter view', () => {
@@ -193,7 +192,7 @@ describe('team activity tool registry seam', () => {
 
   it('excludes a dark feature before its tool or filter can receive feed data', async () => {
     mocks.items = [sourceItems[0] as TeamActivityItem];
-    const mount = vi.fn(() => <button type="button">Dark tool</button>);
+    const mount = vi.fn(() => <button type="button">{i18n.t('team-activity-feed.title')}</button>);
     const filter = vi.fn(() => true);
     const darkTool: ActivityToolDescriptor = {
       id: 'test.dark-tool',
@@ -207,7 +206,7 @@ describe('team activity tool registry seam', () => {
     await screen.findByTestId('team-activity-item-post-first');
 
     expect(screen.queryByTestId('team-activity-tools')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Dark tool' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: i18n.t('team-activity-feed.title') })).not.toBeInTheDocument();
     expect(mount).not.toHaveBeenCalled();
     expect(filter).not.toHaveBeenCalled();
   });
@@ -218,7 +217,7 @@ describe('team activity tool registry seam', () => {
       id: 'test.feed-dark',
       order: 10,
       isEnabled: enabledCheck,
-      mount: () => <button type="button">Tool</button>,
+      mount: () => <button type="button">{i18n.t('team-activity-feed.post')}</button>,
     };
     mocks.useFlag.mockReturnValue(false);
 
