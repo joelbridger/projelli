@@ -4,18 +4,12 @@ import {
   schwabAccountTypes,
   schwabFieldMaps,
 } from './index';
-import type { HouseholdRecord } from '@/features/crm-clients/adapters';
+import type { SchwabHousehold } from './index';
 
-const household: HouseholdRecord = {
+const household: SchwabHousehold = {
   id: 'household-1',
   name: 'Mills family',
-  lifecycle: 'active',
-  primaryAdvisor: 'Ada',
-  ownership: 'mine',
-  serviceTier: 'standard',
-  syncState: 'live',
   facts: [],
-  accounts: [],
   members: [
     {
       id: 'primary',
@@ -54,8 +48,6 @@ const household: HouseholdRecord = {
       relatedHouseholds: 1,
     },
   ],
-  externalParties: [],
-  notes: [],
 };
 
 describe('Schwab mappings', () => {

@@ -12,18 +12,12 @@ vi.mock('../private-facts', () => ({
   },
 }));
 import { SchwabPrefillReview } from './SchwabPrefillReview';
-import type { HouseholdRecord } from '@/features/crm-clients/adapters';
+import type { SchwabHousehold } from '../mapping';
 
-const household: HouseholdRecord = {
+const household: SchwabHousehold = {
   id: 'h-review',
   name: 'Taylor family',
-  lifecycle: 'active',
-  primaryAdvisor: 'Ada',
-  ownership: 'mine',
-  serviceTier: 'standard',
-  syncState: 'live',
   facts: [],
-  accounts: [],
   members: [
     {
       id: 'p',
@@ -48,8 +42,6 @@ const household: HouseholdRecord = {
       phones: [{ id: 'p', address: '555', kind: 'mobile', primary: true }],
     },
   ],
-  externalParties: [],
-  notes: [],
 };
 afterEach(() => {
   cleanup();
