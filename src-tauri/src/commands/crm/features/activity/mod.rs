@@ -1,6 +1,6 @@
 //! Native, matter-scoped team-activity validation and persistence.
 
-use super::super::CrmFeatureDescriptor;
+use crate::commands::crm::features::CrmFeatureDescriptor;
 
 pub mod commands;
 pub use commands::*;
