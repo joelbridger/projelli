@@ -117,76 +117,10 @@ function resolveSpecifier(specifier, containingFile, compilerOptions) {
   throw new Error(`Cannot resolve local import ${specifier} from ${relative(containingFile)}`);
 }
 
-// Collects local names that resolve to Node's createRequire / Worker exports
-// (direct import, aliased import, or namespace-qualified access), in a
-// dedicated pass so usage sites can be recognized regardless of source order.
-function collectCapabilityBindings(source) {
-  const createRequireNames = new Set();
-  const moduleNamespaceNames = new Set();
-  const workerConstructorNames = new Set();
-  const workerNamespaceNames = new Set();
-
-  function fromModule(node, specifiers) {
-    return node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier) && specifiers.has(node.moduleSpecifier.text);
-  }
-
-  function visitImports(node) {
-    if (ts.isImportDeclaration(node) && node.importClause) {
-      const isModuleSource = fromModule(node, new Set(['node:module', 'module']));
-      const isWorkerSource = fromModule(node, new Set(['node:worker_threads', 'worker_threads']));
-      const bindings = node.importClause.namedBindings;
-      if (bindings && ts.isNamedImports(bindings)) {
-        for (const element of bindings.elements) {
-          const importedName = (element.propertyName ?? element.name).text;
-          if (isModuleSource && importedName === 'createRequire') createRequireNames.add(element.name.text);
-          if (isWorkerSource && importedName === 'Worker') workerConstructorNames.add(element.name.text);
-        }
-      }
-      if (bindings && ts.isNamespaceImport(bindings)) {
-        if (isModuleSource) moduleNamespaceNames.add(bindings.name.text);
-        if (isWorkerSource) workerNamespaceNames.add(bindings.name.text);
-      }
-    }
-    ts.forEachChild(node, visitImports);
-  }
-  visitImports(source);
-
-  function isCreateRequireCallee(expression) {
-    if (ts.isIdentifier(expression) && createRequireNames.has(expression.text)) return true;
-    if (ts.isPropertyAccessExpression(expression) && ts.isIdentifier(expression.expression)
-      && moduleNamespaceNames.has(expression.expression.text) && expression.name.text === 'createRequire') return true;
-    return false;
-  }
-
-  // A second pass, using the bindings collected above: `const req =
-  // createRequire(...)` makes `req` require-like too, so a caller cannot
-  // escape recognition just by not naming the variable `require` (the round-4
-  // "rename erases meaning" pattern applied to createRequire).
-  const requireLikeNames = new Set(['require']);
-  function visitAssignments(node) {
-    if (ts.isVariableDeclaration(node) && node.initializer && ts.isIdentifier(node.name)
-      && ts.isCallExpression(node.initializer) && isCreateRequireCallee(node.initializer.expression)) {
-      requireLikeNames.add(node.name.text);
-    }
-    ts.forEachChild(node, visitAssignments);
-  }
-  visitAssignments(source);
-
-  function isWorkerConstructor(expression) {
-    if (ts.isIdentifier(expression) && workerConstructorNames.has(expression.text)) return true;
-    if (ts.isPropertyAccessExpression(expression) && ts.isIdentifier(expression.expression)
-      && workerNamespaceNames.has(expression.expression.text) && expression.name.text === 'Worker') return true;
-    return false;
-  }
-
-  return { requireLikeNames, isCreateRequireCallee, isWorkerConstructor };
-}
-
 export function staticImports(file) {
   const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, false);
   const imports = new Set();
   let hasUnknownDynamicImport = false;
-  const { requireLikeNames, isCreateRequireCallee, isWorkerConstructor } = collectCapabilityBindings(source);
 
   // Filesystem access is a capability, not a particular call spelling. A test
   // whose graph can import one of these modules may inspect any local source at
@@ -196,22 +130,48 @@ export function staticImports(file) {
   const filesystemModules = new Set(['node:fs', 'node:fs/promises', 'fs', 'fs/promises', 'fs-extra']);
   let filesystemCapability = false;
 
-  // Reproduced (REVIEW-speedup-b-REDESIGN-VERDICT.md): a test can read a
-  // production source file's raw text without ever importing an fs module.
-  // child_process (`execFileSync('cat', [path])`) and process.getBuiltinModule
-  // are genuine, unbounded OS/global-level capabilities that cannot be reduced
-  // to a resolvable specifier -- they stay a blanket capability signal, same
-  // spirit as the fs set above (a denylist, but there is no more precise
-  // structural alternative; the declared-dependency manifest is how a
-  // reviewed, non-reading use of either gets un-suspected). createRequire and
-  // `new Worker(...)`, by contrast, both ultimately name a *module specifier*
-  // (the required id; the worker's script path) -- so instead of blanket-
-  // flagging every node:module/worker_threads import (which would falsely
-  // suspect the common `createRequire(import.meta.url)` ESM/CJS interop
-  // pattern used elsewhere in this suite), those specifiers are resolved and
-  // added as real graph edges below, and capability propagates through them
-  // exactly like an ordinary import.
-  const escapeVectorModules = new Set(['node:child_process', 'child_process']);
+  // Reproduced (REVIEW-speedup-b-REDESIGN-VERDICT.md, then REVIEW-speedup-b-
+  // MANIFEST-VERDICT.md): a test can read a production source file's raw text
+  // without ever importing an fs module -- via child_process,
+  // worker_threads, createRequire, or process.getBuiltinModule.
+  //
+  // An earlier version of this file tried to be cleverer about createRequire
+  // and Worker: resolve the *specifier they're called with* (the required
+  // id; the worker's script path) into a real graph edge, instead of
+  // blanket-flagging the import. That recognition re-entered the exact
+  // "rename erases meaning" game this tool has lost five times before --
+  // MANIFEST-VERDICT reproduced it end to end: `const cr = createRequire;
+  // cr(x)('node:fs')` and `const W = Worker; new W(...)` both aliased the
+  // *function itself* (not its result), which no amount of "track one more
+  // alias level" closes (`const cr2 = cr`, `[createRequire][0]`, `({cr:
+  // createRequire}).cr` all escape the same way).
+  //
+  // The fix that actually ends the regress: capability is keyed to whether
+  // the module was imported AT ALL, never to how the caller names or calls
+  // what it got back. An import specifier can't be aliased away -- `import {
+  // createRequire as x } from 'node:module'` still names 'node:module' right
+  // there in the specifier -- so node:child_process, node:worker_threads, and
+  // node:module are all blanket capability signals, same spirit as the fs set
+  // above. This gives up the (illusory) precision of resolving createRequire
+  // calls to their exact target specifier or Worker calls to their exact
+  // script path; the declared-dependency manifest is how a reviewed test
+  // using one of these for a legitimate, non-reading purpose gets narrowed
+  // back down (see scripts/test-impact-manifest.json -- e.g. the three
+  // eslint-plugin-lantern-* tests, which use createRequire(import.meta.url)
+  // for real ESM/CJS interop and are manifest-declared to their rule file
+  // instead of relying on this recognition).
+  //
+  // process.getBuiltinModule needs no import at all (process is a Node
+  // global), so it cannot be keyed to a specifier; it is matched on the
+  // call-site property name alone, further below -- a receiver can be
+  // aliased (`const p = process; p.getBuiltinModule(...)`) but the property
+  // name `getBuiltinModule` cannot be, so that recognition does not reopen
+  // the same regress.
+  const escapeVectorModules = new Set([
+    'node:child_process', 'child_process',
+    'node:worker_threads', 'worker_threads',
+    'node:module', 'module',
+  ]);
   let escapeVectorCapability = false;
 
   function recordImport(specifier) {
@@ -220,47 +180,24 @@ export function staticImports(file) {
     if (escapeVectorModules.has(specifier)) escapeVectorCapability = true;
   }
 
-  // `new URL('./worker.js', import.meta.url)` is the standard way to point a
-  // Worker at a script relative to the current module. Unwrap it to the
-  // literal path so the Worker-script edge below resolves the same as a
-  // plain string argument would.
-  function literalModuleArgument(expression) {
-    if (ts.isStringLiteralLike(expression)) return expression.text;
-    if (ts.isNewExpression(expression) && ts.isIdentifier(expression.expression) && expression.expression.text === 'URL') {
-      const [first] = expression.arguments ?? [];
-      if (first && ts.isStringLiteralLike(first)) return first.text;
-    }
-    return undefined;
-  }
-
   function visit(node) {
     if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
       recordImport(node.moduleSpecifier.text);
     }
     if (ts.isCallExpression(node)) {
       const [first] = node.arguments;
-      const isDynamicImport = node.expression.kind === ts.SyntaxKind.ImportKeyword;
-      const isRequireLike = ts.isIdentifier(node.expression) && requireLikeNames.has(node.expression.text);
-      // An immediately-invoked createRequire(...)('specifier') call, never
-      // bound to a name at all.
-      const isInlineCreateRequireCall = ts.isCallExpression(node.expression) && isCreateRequireCallee(node.expression.expression);
-      if ((isDynamicImport || isRequireLike || isInlineCreateRequireCall) && first) {
+      if ((node.expression.kind === ts.SyntaxKind.ImportKeyword || (ts.isIdentifier(node.expression) && node.expression.text === 'require')) && first) {
         if (ts.isStringLiteralLike(first)) recordImport(first.text);
         else hasUnknownDynamicImport = true;
       }
       // process.getBuiltinModule(...) needs no import (process is ambient), so
       // it cannot be caught by recordImport. Match on the property name alone
-      // (not the receiver) so `const p = process; p.getBuiltinModule(...)`
-      // still trips it -- the round-4 rename escape applies to receivers too.
+      // (not the receiver) -- see the block comment above for why that is
+      // enough, unlike the createRequire/Worker call-site recognition this
+      // replaced.
       if (ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === 'getBuiltinModule') {
         escapeVectorCapability = true;
       }
-    }
-    if (ts.isNewExpression(node) && isWorkerConstructor(node.expression)) {
-      const [first] = node.arguments ?? [];
-      const literal = first ? literalModuleArgument(first) : undefined;
-      if (literal !== undefined) recordImport(literal);
-      else hasUnknownDynamicImport = true;
     }
     if (ts.isCallExpression(node)
       && ts.isPropertyAccessExpression(node.expression)

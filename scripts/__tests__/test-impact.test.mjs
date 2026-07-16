@@ -172,34 +172,72 @@ test('always runs a process.getBuiltinModule source guard without needing a sour
   assert.deepEqual(result.testFiles, [fixture]);
 });
 
-test('classifies a require bound to a non-require name via createRequire as filesystem-capable', () => {
-  // Structural fix, not a blanket node:module flag: createRequire(...)('node:fs')
-  // is tracked back to the fs specifier itself, so this shows up as ordinary
-  // filesystem capability, exactly like a literal `require('node:fs')` would.
+test('classifies a require bound to a non-require name via createRequire as an escape-vector capability', () => {
+  // Blanket node:module flag (REVIEW-speedup-b-MANIFEST-VERDICT.md), not
+  // call-site resolution: the import specifier itself is what is flagged, so
+  // it doesn't matter that `req` isn't named `require` or what it's later
+  // called with.
   const fixture = 'scripts/__tests__/fixtures/CreateRequireSourceReadAdversarial.test.ts';
   const parsed = staticImports(fileURLToPath(new URL(`../../${fixture}`, import.meta.url)));
-  assert.equal(parsed.filesystemCapability, true);
+  assert.equal(parsed.filesystemCapability, false);
+  assert.equal(parsed.escapeVectorCapability, true);
   assert.equal(parsed.opaque, true);
   const result = selectTestsForChanges({
     testFiles: [fixture],
     changedFiles: ['src/platform/flags/registry.ts'],
   });
-  assert.deepEqual(result.filesystemCapabilityTestFiles, [fixture]);
+  assert.deepEqual(result.escapeVectorCapabilityTestFiles, [fixture]);
   assert.deepEqual(result.testFiles, [fixture]);
 });
 
-test('always runs a test whose worker thread reads source, via the resolved worker-script edge', () => {
-  // Structural fix, not a blanket node:worker_threads flag: new Worker(url)'s
-  // literal script path is resolved as a real graph edge into
-  // WorkerThreadsSourceReadWorker.ts, whose own node:fs import is what makes
-  // this opaque -- transitively, the same mechanism as the existing local
-  // re-export fixtures use.
+test('always runs a test whose worker thread reads source, via a blanket node:worker_threads flag', () => {
+  // Blanket flag (REVIEW-speedup-b-MANIFEST-VERDICT.md: free, zero real test
+  // importers), not call-site resolution of the Worker constructor's script
+  // argument -- WorkerThreadsSourceReadWorker.ts's own node:fs import is no
+  // longer what makes this opaque; importing node:worker_threads at all is.
   const fixture = 'scripts/__tests__/fixtures/WorkerThreadsSourceReadAdversarial.test.ts';
+  const parsed = staticImports(fileURLToPath(new URL(`../../${fixture}`, import.meta.url)));
+  assert.equal(parsed.escapeVectorCapability, true);
   const result = selectTestsForChanges({
     testFiles: [fixture],
     changedFiles: ['src/platform/flags/registry.ts'],
   });
-  assert.deepEqual(result.filesystemCapabilityTestFiles, [fixture]);
+  assert.deepEqual(result.escapeVectorCapabilityTestFiles, [fixture]);
+  assert.deepEqual(result.testFiles, [fixture]);
+});
+
+// --- Function-alias regressions (REVIEW-speedup-b-MANIFEST-VERDICT.md) -----
+// Aliasing createRequire/Worker themselves (not their results) escaped the
+// prior call-site recognition -- a rename-erases-meaning miss of the exact
+// shape that has sunk this tool five times before. The blanket node:module /
+// node:worker_threads flags above close these structurally (the import
+// specifier can't be aliased away), but these two fixtures pin the exact
+// reproduced forms as permanent regressions so a future "let's resolve the
+// call site more precisely" change can't reopen the class silently.
+
+test('always runs a test with an aliased createRequire function (the reproduced function-alias escape)', () => {
+  const fixture = 'scripts/__tests__/fixtures/AliasedCreateRequireSourceReadAdversarial.test.ts';
+  const parsed = staticImports(fileURLToPath(new URL(`../../${fixture}`, import.meta.url)));
+  assert.equal(parsed.escapeVectorCapability, true);
+  assert.equal(parsed.opaque, true);
+  const result = selectTestsForChanges({
+    testFiles: [fixture],
+    changedFiles: ['src/platform/flags/registry.ts'],
+  });
+  assert.deepEqual(result.escapeVectorCapabilityTestFiles, [fixture]);
+  assert.deepEqual(result.testFiles, [fixture]);
+});
+
+test('always runs a test with an aliased Worker constructor (the reproduced function-alias escape)', () => {
+  const fixture = 'scripts/__tests__/fixtures/AliasedWorkerConstructorSourceReadAdversarial.test.ts';
+  const parsed = staticImports(fileURLToPath(new URL(`../../${fixture}`, import.meta.url)));
+  assert.equal(parsed.escapeVectorCapability, true);
+  assert.equal(parsed.opaque, true);
+  const result = selectTestsForChanges({
+    testFiles: [fixture],
+    changedFiles: ['src/platform/flags/registry.ts'],
+  });
+  assert.deepEqual(result.escapeVectorCapabilityTestFiles, [fixture]);
   assert.deepEqual(result.testFiles, [fixture]);
 });
 
