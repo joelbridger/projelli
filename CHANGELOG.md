@@ -54,6 +54,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `src/config/identity.ts`; tests: `tests/unit/matter/matterWorkspacePersistence.test.ts`.
 
 ### Added
+- **Shared task save-and-reload test harness.** Task-family tests can now use
+  the test-only `@/features/crm-tasks/testing` entry point to create a task
+  through the canonical live-record route and assert against a fresh reload.
+  The paved-path example lives in
+  `docs/skills/add-work-management-extension/SKILL.md`.
 - **Lantern Intake — Wave 1 (the honest E2EE onboarding slice).** An advisor
   presses New client, composes the locked "New household" checklist (DOB, SSN,
   driver's license front/back, income, spending), and sends one link; the client
