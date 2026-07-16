@@ -1,0 +1,28 @@
+{
+  "workflow-filters": {
+    "title": "Filtrar flujos de trabajo",
+    "status": {
+      "label": "Estado del flujo de trabajo",
+      "all": "Todos los estados",
+      "draft": "Borrador",
+      "published": "Publicado"
+    },
+    "search": {
+      "label": "Buscar nombre o paso",
+      "placeholder": "Por ejemplo, revisión anual"
+    },
+    "results": "Mostrando {{count}} de {{total}} flujos de trabajo",
+    "empty": {
+      "library": "Todavía no hay plantillas de flujo de trabajo disponibles.",
+      "matches": "Ningún flujo de trabajo coincide con estos filtros."
+    },
+    "details": {
+      "title": "Detalles del flujo de trabajo",
+      "status": "Estado: {{status}}",
+      "empty": "Este flujo de trabajo todavía no tiene pasos.",
+      "step": "Paso {{number}}: {{title}}",
+      "stable-id": "ID de paso guardado: {{id}}",
+      "tag-ids": "ID de etiquetas guardados: {{ids}}"
+    }
+  }
+}

@@ -116,7 +116,9 @@ describe('WorkflowAuthoringRuleMount', () => {
   });
 
   it('reloads a changed live snapshot and starts in the selected household matter', async () => {
-    vi.doMock('@/platform/flags', () => ({ isEnabled: () => true }));
+    vi.doMock('@/platform/flags', () => ({
+      isEnabled: (id: string) => id === 'workflow-authoring',
+    }));
     const { WorkflowAuthoringRuleMount } =
       await import('./WorkflowAuthoringMount');
     const { CrmHomeSurfaceContext } = await import('@/features/crm-home');
@@ -254,7 +256,9 @@ describe('WorkflowAuthoringRuleMount', () => {
   });
 
   it('composes an outside filter and detail renderer into the canonical library', async () => {
-    vi.doMock('@/platform/flags', () => ({ isEnabled: () => true }));
+    vi.doMock('@/platform/flags', () => ({
+      isEnabled: (id: string) => id === 'workflow-authoring',
+    }));
     const { WorkflowAuthoringRuleMount } =
       await import('./WorkflowAuthoringMount');
     const draft: WorkflowTemplateRecord = {
@@ -360,7 +364,9 @@ describe('WorkflowAuthoringRuleMount', () => {
   });
 
   it('does not give canonical library data to a disabled extension', async () => {
-    vi.doMock('@/platform/flags', () => ({ isEnabled: () => true }));
+    vi.doMock('@/platform/flags', () => ({
+      isEnabled: (id: string) => id === 'workflow-authoring',
+    }));
     const { WorkflowAuthoringRuleMount } =
       await import('./WorkflowAuthoringMount');
     const mountFilterControl = vi.fn(() => null);
