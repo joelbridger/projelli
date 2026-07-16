@@ -520,9 +520,12 @@ export function LiveCrmHome({
   };
   const saveTask = async (task: CrmTask) => {
     const householdId = task.householdId ?? task.contextRefs?.[0];
+    const householdMatterId = households.find(
+      (household) => household.id === householdId
+    )?.matterId;
     const previous = liveTasks.find((item) => item.id === task.id);
     const current = live.records.find((record) => record.kind === 'task' && record.id === task.id);
-    await live.save(mergeCrmTaskRecord(task, current));
+    await live.save(mergeCrmTaskRecord(task, current, householdMatterId));
     await recordActivity(
       task.status === 'done' && previous?.status !== 'done'
         ? `Completed task: ${task.title}`
@@ -548,7 +551,7 @@ export function LiveCrmHome({
         status: 'open',
         ...(dueAt ? { dueAt, dueLabel: dueAt } : {}),
       };
-      await live.save(mergeCrmTaskRecord(child));
+      await live.save(mergeCrmTaskRecord(child, undefined, householdMatterId));
       await recordActivity(
         `Created next recurring task: ${child.title}`,
         child

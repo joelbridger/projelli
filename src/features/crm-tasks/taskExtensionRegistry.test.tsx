@@ -53,7 +53,10 @@ const workflowWorkItem: CrmWorkflowWorkItem = {
 
 describe('task extension registries', () => {
   it('keeps compatibility descriptors in stable order', () => {
-    expect(getTaskFields().map(({ id }) => id)).toEqual(['legacy.core-fields']);
+    expect(getTaskFields().map(({ id }) => id)).toEqual([
+      'legacy.core-fields',
+      'attachments.files',
+    ]);
     expect(getTaskActions().map(({ id }) => id)).toEqual([
       'legacy.save-view',
       'capacity-triage.toolbar',

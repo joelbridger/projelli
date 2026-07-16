@@ -12,7 +12,7 @@ import { resolveWorkspaceMatterId } from '@/platform/rag/matterResolver';
 import type { FileNode } from '@/platform/types/workspace';
 import { EV_OPEN_CRM_DOCUMENT } from '@/config/identity';
 import { DocumentsCreateMenu } from '@/features/documents';
-import { addDocumentRef, isPlausibleClientDocument, linkedDocumentsForHousehold, recordBelongsToHousehold, removeDocumentRef } from './documentLinks';
+import { addDocumentRef, isPlausibleClientDocument, linkedDocumentsForHousehold, recordBelongsToHousehold, removeDocumentRef, resolveWorkspaceDocumentRef } from './documentLinks';
 
 type Target = { value: string; kind: 'household' | 'person' | 'note' | 'task'; id: string; label: string };
 
@@ -22,6 +22,12 @@ function filesIn(tree: readonly FileNode[]): FileNode[] {
 
 function nameForPath(path: string): string {
   return path.split(/[\\/]/).pop() || path;
+}
+
+function documentAliasKey(path: string, workspaceRoot: string | null): string {
+  return workspaceRoot && /^[a-zA-Z]:[\\/]/.test(workspaceRoot)
+    ? path.toLocaleLowerCase()
+    : path;
 }
 
 export function HouseholdDocumentsTab({ household, actions }: HouseholdTabSurfaceProps) {
@@ -50,7 +56,28 @@ export function HouseholdDocumentsTab({ household, actions }: HouseholdTabSurfac
       : [],
     [householdMatterId, matters, rootPath, tree]
   );
-  const fileByPath = useMemo(() => new Map(availableFiles.map((file) => [file.path, file])), [availableFiles]);
+  const fileByPath = useMemo(() => {
+    const byPath = new Map(
+      availableFiles.map((file) => [documentAliasKey(file.path, rootPath), file])
+    );
+    if (!rootPath || !householdMatterId) return byPath;
+    for (const file of availableFiles) {
+      try {
+        const ref = resolveWorkspaceDocumentRef({
+          path: file.path,
+          workspaceRoot: rootPath,
+          fileTree: [file],
+          matters,
+          targetMatterId: householdMatterId,
+        });
+        byPath.set(documentAliasKey(ref.id, rootPath), file);
+      } catch (reason: unknown) {
+        // `availableFiles` already fails closed; an unresolvable alias stays absent.
+        if (!(reason instanceof Error)) console.error('Document alias resolution failed.');
+      }
+    }
+    return byPath;
+  }, [availableFiles, householdMatterId, matters, rootPath]);
   const targets = useMemo<Target[]>(() => [
     { value: 'household', kind: 'household', id: household.id, label: `${household.name} household` },
     ...[...household.members, ...household.externalParties].map((person) => ({ value: `person:${person.id}`, kind: 'person' as const, id: person.id, label: `Person: ${person.name}` })),
@@ -91,7 +118,7 @@ export function HouseholdDocumentsTab({ household, actions }: HouseholdTabSurfac
 
   const attach = async (path = filePath) => {
     const target = targets.find((item) => item.value === targetValue);
-    const file = fileByPath.get(path);
+    const file = fileByPath.get(documentAliasKey(path, rootPath));
     if (!target || !file || !householdMatterId) return;
     setError(null);
     setMessage(null);
@@ -116,7 +143,9 @@ export function HouseholdDocumentsTab({ household, actions }: HouseholdTabSurfac
     }
   };
   const open = (ref: EntityRef) => {
-    window.dispatchEvent(new CustomEvent(EV_OPEN_CRM_DOCUMENT, { detail: { path: ref.id, name: ref.label || nameForPath(ref.id) } }));
+    const file = fileByPath.get(documentAliasKey(ref.id, rootPath));
+    if (!file) return;
+    window.dispatchEvent(new CustomEvent(EV_OPEN_CRM_DOCUMENT, { detail: { path: file.path, name: ref.label || file.name || nameForPath(ref.id) } }));
   };
 
   const isDocumentDrag = (event: DragEvent) => Array.from(event.dataTransfer.types).some((type) => type === 'application/x-lantern-document-path' || type === 'text/plain');
@@ -124,7 +153,7 @@ export function HouseholdDocumentsTab({ household, actions }: HouseholdTabSurfac
     event.preventDefault();
     setDropActive(false);
     const path = event.dataTransfer.getData('application/x-lantern-document-path') || event.dataTransfer.getData('text/plain');
-    if (!fileByPath.has(path)) {
+    if (!fileByPath.has(documentAliasKey(path, rootPath))) {
       setError('That document is not available in this workspace. Choose a saved document below instead.');
       return;
     }
@@ -152,7 +181,7 @@ export function HouseholdDocumentsTab({ household, actions }: HouseholdTabSurfac
       <SurfaceToolbar>
         <label>Link to <select data-testid="crm-document-target" value={targetValue} onChange={(event) => { setTargetValue(event.target.value); }}>{targets.map((target) => <option key={target.value} value={target.value}>{target.label}</option>)}</select></label>
         <label>Document <select data-testid="crm-document-file" value={filePath} onChange={(event) => { setFilePath(event.target.value); }}><option value="">Choose a document</option>{availableFiles.map((file) => <option key={file.path} value={file.path}>{file.name}</option>)}</select></label>
-        <Button size="sm" iconLeft={Link2} data-testid="crm-document-attach" disabled={!fileByPath.has(filePath) || saving} onClick={() => { void attach(); }}>Link document</Button>
+        <Button size="sm" iconLeft={Link2} data-testid="crm-document-attach" disabled={!fileByPath.has(documentAliasKey(filePath, rootPath)) || saving} onClick={() => { void attach(); }}>Link document</Button>
       </SurfaceToolbar>
       {availableFiles.length === 0 ? <p data-testid="crm-documents-no-files">{householdMatterId ? t('crm.documents.no-client-files') : t('crm.documents.folder-not-ready')}</p> : null}
       {availableFiles.length ? <>
@@ -175,7 +204,7 @@ export function HouseholdDocumentsTab({ household, actions }: HouseholdTabSurfac
       {error ? <p role="alert" data-testid="crm-document-link-error">{error}</p> : null}
     </Card>
     {linked.length === 0 ? <EmptyState icon={FileText} title="No linked documents yet" body="Link a saved document to this household, a note, or a task. The original file stays in Documents." /> : linked.map((entry) => {
-      const file = fileByPath.get(entry.ref.id);
+      const file = fileByPath.get(documentAliasKey(entry.ref.id, rootPath));
       const label = entry.ref.label || file?.name || nameForPath(entry.ref.id);
       return <Card key={`${entry.ref.id}:${entry.target}:${entry.targetId}`} variant="raised" data-testid={`crm-linked-document-${entry.target}-${entry.targetId}`}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}><div><strong>{label}</strong><p style={{ marginBottom: 0 }}>{file ? `Linked to ${entry.targetLabel}` : `File is no longer available. It is still linked to ${entry.targetLabel}.`}</p></div><div style={{ display: 'flex', gap: 8 }}><Button size="sm" variant="secondary" data-testid={`crm-document-open-${entry.target}-${entry.targetId}`} disabled={!file} onClick={() => { open(entry.ref); }}>Open document</Button><Button size="sm" variant="secondary" iconLeft={Unlink} data-testid={`crm-document-detach-${entry.target}-${entry.targetId}`} disabled={saving} onClick={() => { void detach(entry); }}>Remove link</Button></div></div>

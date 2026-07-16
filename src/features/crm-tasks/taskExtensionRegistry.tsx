@@ -6,6 +6,7 @@ import type {
   CrmWorkflowWorkItem,
 } from '@/features/crm-home/types';
 import { taskTemplatesLibrary } from './extensions/templates';
+import { taskAttachmentsField } from '@/features/crm-tasks/extensions/attachments';
 import {
   legacyTaskActions,
   legacyTaskFields,
@@ -26,6 +27,8 @@ export type TaskTemplateId = Extract<keyof TaskTemplateIdMap, string>;
 export interface TaskFieldContext {
   task: CrmTask;
   updateTask: (task: CrmTask) => void;
+  /** Lets a field prevent the parent save from racing its own canonical write. */
+  setPersistenceBusy?: (busy: boolean) => void;
   households: readonly { id: string; name: string }[];
   firmMembers: readonly CrmFirmMember[];
   /** Preserves the current task fields while they move behind this seam. */
@@ -121,7 +124,7 @@ export function validateTaskTemplateDescriptors(
 
 /** Append-only mount lists. Existing entries keep their order. */
 export const taskFieldRegistry: readonly TaskFieldDescriptor[] =
-  legacyTaskFields;
+  [...legacyTaskFields, taskAttachmentsField];
 export const taskActionRegistry: readonly TaskActionDescriptor[] = [
   ...legacyTaskActions,
   capacityTriageTaskAction,

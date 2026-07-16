@@ -13,7 +13,10 @@ const recordSnapshot: readonly unknown[] = [];
 
 vi.mock('@/platform/flags', () => ({ useFlag: () => templatesEnabled }));
 vi.mock('@/features/crm-tags', () => ({
-  useFirmTagStore: () => ({ list: vi.fn().mockResolvedValue({ version: 1, tags: [] }) }),
+  useFirmTagStore: () => ({
+    list: vi.fn().mockResolvedValue({ version: 1, tags: [] }),
+    catalog: { version: 1, tags: [] },
+  }),
 }));
 vi.mock('@/features/crm-tasks', () => ({
   useTaskRecordStore: () => ({ create: taskCreate }),

@@ -5,6 +5,7 @@ import { HouseholdDocumentsTab } from './HouseholdDocumentsTab';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import type { HouseholdRecord } from '@/features/crm-clients/adapters';
+import { EV_OPEN_CRM_DOCUMENT } from '@/config/identity';
 
 const liveCrm = vi.hoisted(() => ({
   records: [] as Array<Record<string, unknown>>,
@@ -173,6 +174,67 @@ describe('HouseholdDocumentsTab client boundary', () => {
         })],
       }));
     });
+  });
+
+  it('matches a portable task pointer to its current workspace file', () => {
+    useMatterStore.setState({
+      matters: [{
+        id: 'matter-diaz',
+        name: 'Diaz, Michelle',
+        client: 'Diaz, Michelle',
+        folderPaths: ['C:/practice/Clients/Diaz, Michelle'],
+        createdAt: '2026-07-13T00:00:00.000Z',
+      }],
+      activeMatterId: 'matter-diaz',
+    });
+    liveCrm.records.push({
+      id: 'task-1',
+      kind: 'task',
+      householdRef: { kind: 'household', id: household.id, matterId: 'matter-diaz' },
+      title: 'Prepare review',
+      contextRefs: [{
+        kind: 'document',
+        id: 'Clients/Diaz, Michelle/diaz plan.pdf',
+        label: 'Diaz plan.pdf',
+        matterId: 'matter-diaz',
+      }],
+    });
+    useWorkspaceStore.setState({
+      rootPath: 'C:/practice',
+      fileTree: [{
+        id: 'diaz-plan',
+        name: 'Diaz plan.pdf',
+        path: 'C:/practice/Clients/Diaz, Michelle/Diaz Plan.pdf',
+        type: 'file',
+      }],
+    });
+    const opened = vi.fn();
+    window.addEventListener(EV_OPEN_CRM_DOCUMENT, opened);
+
+    render(
+      <HouseholdDocumentsTab
+        household={household}
+        proposals={[]}
+        timelineRecords={[]}
+        renderLegacySurface={() => null}
+      />,
+    );
+
+    fireEvent.change(screen.getByTestId('crm-document-file'), {
+      target: {
+        value: 'C:/practice/Clients/Diaz, Michelle/Diaz Plan.pdf',
+      },
+    });
+    expect(screen.getByTestId('crm-document-attach')).not.toBeDisabled();
+    const card = screen.getByTestId('crm-linked-document-task-task-1');
+    const openButton = within(card).getByRole('button', { name: 'Open document' });
+    expect(openButton).not.toBeDisabled();
+    fireEvent.click(openButton);
+    expect(opened).toHaveBeenCalledTimes(1);
+    expect((opened.mock.calls[0]?.[0] as CustomEvent).detail).toMatchObject({
+      path: 'C:/practice/Clients/Diaz, Michelle/Diaz Plan.pdf',
+    });
+    window.removeEventListener(EV_OPEN_CRM_DOCUMENT, opened);
   });
 
   it('creates from the client tab through the real Documents menu and keeps the client scope', async () => {

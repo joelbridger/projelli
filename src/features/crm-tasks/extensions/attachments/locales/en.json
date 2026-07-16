@@ -1,0 +1,26 @@
+{
+  "task-attachments": {
+    "title": "Attachments",
+    "helper": "Link a saved document. The original file stays in Documents.",
+    "tag-context": "Task tags",
+    "retired": "retired",
+    "file-label": "Saved document",
+    "choose-file": "Choose a saved document",
+    "add": "Add attachment",
+    "remove": "Remove",
+    "empty": "No attachments yet.",
+    "status": {
+      "added": "Added {{name}}.",
+      "removed": "Attachment removed."
+    },
+    "errors": {
+      "choose-file": "Choose a saved document first.",
+      "duplicate": "That document is already attached.",
+      "invalid-document": "That file cannot be attached to this client task.",
+      "save-task-first": "Save this client task before adding documents.",
+      "remove-before-client-change": "Remove its attachments before changing this task's client.",
+      "task-unavailable": "This task is no longer available. Close it and try again.",
+      "save": "The attachment could not be saved. Please try again."
+    }
+  }
+}

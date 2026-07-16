@@ -76,4 +76,70 @@ describe('legacy live task adapter', () => {
       expect.objectContaining({ kind: 'document', id: 'Clients/River/review.docx' }),
     ]));
   });
+
+  it('uses the household directory matter for new and legacy client tasks', () => {
+    const projected = projectCrmTask(canonical);
+    const newTask = mergeCrmTaskRecord(
+      { ...projected, id: 'task-new' },
+      undefined,
+      'matter-1'
+    );
+    const legacy = {
+      ...canonical,
+      householdRef: {
+        kind: 'household',
+        id: 'household-1',
+        matterId: 'household-1',
+      },
+    };
+    const repaired = mergeCrmTaskRecord(projected, legacy, 'matter-1');
+
+    expect(newTask['householdRef']).toEqual({
+      kind: 'household',
+      id: 'household-1',
+      matterId: 'matter-1',
+    });
+    expect(repaired['householdRef']).toEqual({
+      kind: 'household',
+      id: 'household-1',
+      matterId: 'matter-1',
+    });
+  });
+
+  it('honors a confirmed draft document list while retaining other relations', () => {
+    const current: LiveCrmRecord = {
+      ...canonical,
+      contextRefs: [
+        ...(canonical['contextRefs'] as object[]),
+        { kind: 'note', id: 'note-1', matterId: 'matter-1' },
+      ],
+    };
+    const projected = projectCrmTask(current);
+    const replacement = {
+      kind: 'document' as const,
+      id: 'Clients/River/summary.pdf',
+      matterId: 'matter-1',
+      label: 'Summary',
+    };
+
+    const replaced = mergeCrmTaskRecord(
+      { ...projected, documentRefs: [replacement] },
+      current
+    );
+    expect(replaced['householdRef']).toMatchObject({ matterId: 'matter-1' });
+    expect(replaced['contextRefs']).toEqual([
+      expect.objectContaining({ kind: 'household', id: 'household-1' }),
+      expect.objectContaining({ kind: 'note', id: 'note-1' }),
+      replacement,
+    ]);
+
+    const removed = mergeCrmTaskRecord(
+      { ...projected, documentRefs: [] },
+      current
+    );
+    expect(removed['contextRefs']).toEqual([
+      expect.objectContaining({ kind: 'household', id: 'household-1' }),
+      expect.objectContaining({ kind: 'note', id: 'note-1' }),
+    ]);
+  });
 });
