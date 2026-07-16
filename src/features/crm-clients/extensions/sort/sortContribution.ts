@@ -62,7 +62,10 @@ export const crmListSortDirectoryContribution = {
       id: 'crm-list-sort',
       order: 54,
       isEnabled: () => isFlagEnabled('crm-list-sort'),
-      mount: (context) => createElement(SortDirectoryTool, { context }),
+      mount: (context) =>
+        isFlagEnabled('crm-list-sort')
+          ? createElement(SortDirectoryTool, { context })
+          : null,
     },
   ],
   queries: [
