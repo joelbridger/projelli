@@ -1,6 +1,10 @@
 import { Fragment, type ReactNode } from 'react';
 import type { CrmHouseholdAddRequest } from '@/features/crm-home/routes';
-import type { CrmFirmMember, CrmTask } from '@/features/crm-home/types';
+import type {
+  CrmFirmMember,
+  CrmTask,
+  CrmWorkflowWorkItem,
+} from '@/features/crm-home/types';
 import {
   legacyTaskActions,
   legacyTaskFields,
@@ -26,6 +30,8 @@ export interface TaskFieldContext {
 }
 
 export interface TaskActionContext {
+  tasks: readonly CrmTask[];
+  workflowWorkItems: readonly CrmWorkflowWorkItem[];
   /** Preserves the current task action while it moves behind this seam. */
   compatibilityMount: ReactNode;
 }

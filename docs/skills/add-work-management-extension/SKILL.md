@@ -24,6 +24,9 @@ The workflow contracts live in
 `src/features/crm-workflows/workflowExtensionRegistry.tsx`, task contracts in
 `src/features/crm-tasks/taskExtensionRegistry.tsx`, and pipeline contracts in
 `src/features/crm-pipeline/pipelineExtensionRegistry.tsx`.
+Consumers outside those features use only the matching feature `index.ts`.
+For example, `workflowStepExtensionRegistry` and its descriptor/context types
+are exported from `@/features/crm-workflows`.
 
 ## Declare the id beside the descriptor
 
@@ -56,6 +59,22 @@ behavior is preserved:
 - `workflowExtensionRegistryCompatibility.tsx`
 - `taskExtensionRegistryCompatibility.tsx`
 - `pipelineExtensionRegistryCompatibility.tsx`
+
+For one workflow-step extension, import its one descriptor into
+`workflowExtensionRegistry.tsx` and add exactly one final array entry:
+
+```tsx
+import { workflowStepAttachmentsExtension } from './extensions/attachments';
+
+export const workflowStepExtensionRegistry: readonly WorkflowStepExtensionDescriptor[] = [
+  ...legacyWorkflowStepExtensions,
+  workflowStepAttachmentsExtension,
+];
+```
+
+The extension package owns the descriptor and its ID augmentation. Other
+features read the finished registry only through `@/features/crm-workflows`;
+they do not mutate it or import the private registry file.
 
 Registries contain mount metadata only. Keep persistence, validation, and
 business rules in the feature that owns the descriptor. Put new user-facing

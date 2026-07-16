@@ -6,12 +6,17 @@ import {
   startWorkflow,
 } from '@/features/crm-home/workflowLive';
 import {
+  workflowStepExtensionRegistry as publicWorkflowStepExtensionRegistry,
+  type WorkflowStepExtensionDescriptor as PublicWorkflowStepExtensionDescriptor,
+} from '@/features/crm-workflows';
+import {
   getWorkflowRules,
   getWorkflowStepExtensions,
   mountWorkflowRules,
   mountWorkflowStepExtensions,
   validateWorkflowRuleDescriptors,
   validateWorkflowStepExtensionDescriptors,
+  workflowStepExtensionRegistry,
   type WorkflowRuleDescriptor,
   type WorkflowStepExtensionDescriptor,
 } from './workflowExtensionRegistry';
@@ -32,6 +37,16 @@ const instance = startWorkflow(template, {
 });
 
 describe('workflow extension registries', () => {
+  it('exports the step-extension registry through the public doorway', () => {
+    const descriptor: PublicWorkflowStepExtensionDescriptor | undefined =
+      publicWorkflowStepExtensionRegistry[0];
+
+    expect(publicWorkflowStepExtensionRegistry).toBe(
+      workflowStepExtensionRegistry
+    );
+    expect(descriptor?.id).toBe('legacy.step-controls');
+  });
+
   it('keeps compatibility descriptors in stable order', () => {
     expect(getWorkflowRules().map(({ id }) => id)).toEqual([
       'legacy.schedule-and-outcomes',

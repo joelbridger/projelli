@@ -7,6 +7,10 @@
  */
 export { useTaskRecordStore } from './taskRecordStore';
 export type {
+  TaskActionContext,
+  TaskActionDescriptor,
+} from './taskExtensionRegistry';
+export type {
   CreateTaskRecordInput,
   TaskDocumentRef,
   TaskHouseholdRef,
