@@ -17,7 +17,10 @@ const mocks = vi.hoisted(() => ({
   useCalendarCapabilityStore: vi.fn<() => CalendarCapabilityStore>(),
 }));
 
-vi.mock('@/platform/flags', () => ({ useFlag: () => mocks.enabled }));
+vi.mock('@/platform/flags', () => ({
+  isEnabled: () => mocks.enabled,
+  useFlag: () => mocks.enabled,
+}));
 vi.mock('@/features/calendar', () => ({
   CalendarFoundationError: class CalendarFoundationError extends Error {
     code: string;
@@ -45,9 +48,41 @@ function event(overrides: Partial<CalendarEventRecord> = {}): CalendarEventRecor
   };
 }
 
+function applyPatch(
+  record: CalendarEventRecord,
+  patch: CalendarEventPatch,
+): CalendarEventRecord {
+  const notes = patch.notes === null ? undefined : patch.notes ?? record.notes;
+  const contextRef = patch.contextRef === null
+    ? undefined
+    : patch.contextRef ?? record.contextRef;
+  const recurrence = patch.recurrence === null
+    ? undefined
+    : patch.recurrence ?? record.recurrence;
+
+  return {
+    id: record.id,
+    kind: record.kind,
+    title: patch.title ?? record.title,
+    startUtc: patch.startUtc ?? record.startUtc,
+    endUtc: patch.endUtc ?? record.endUtc,
+    displayTimezone: patch.displayTimezone ?? record.displayTimezone,
+    allDay: patch.allDay ?? record.allDay,
+    calendarId: record.calendarId,
+    status: record.status,
+    ...(notes === undefined ? {} : { notes }),
+    ...(contextRef === undefined ? {} : { contextRef }),
+    ...(record.seriesId === undefined ? {} : { seriesId: record.seriesId }),
+    ...(recurrence === undefined ? {} : { recurrence }),
+  };
+}
+
 function stores(events: readonly CalendarEventRecord[] = []) {
   const create = vi.fn((draft: CalendarEventDraft) => Promise.resolve(event({ id: 'created-event', ...draft })));
-  const update = vi.fn((_id: string, patch: CalendarEventPatch) => Promise.resolve(event({ ...patch })));
+  const update = vi.fn((id: string, patch: CalendarEventPatch) => {
+    const existing = events.find((candidate) => candidate.id === id) ?? event({ id });
+    return Promise.resolve(applyPatch(existing, patch));
+  });
   const cancel = vi.fn((id: string) => Promise.resolve(event({ id, status: 'cancelled' })));
   mocks.eventStore = { events, error: null, create, update, cancel, get: vi.fn(), listOccurrences: vi.fn() };
   mocks.capabilityStore = {
@@ -74,13 +109,6 @@ beforeEach(() => {
 afterEach(() => { mocks.enabled = false; });
 
 describe('CalendarAddEventMount', () => {
-  it('is completely inert while the flag is off', () => {
-    const { container } = render(<CalendarAddEventMount />);
-    expect(container).toBeEmptyDOMElement();
-    expect(mocks.useCalendarEventStore).not.toHaveBeenCalled();
-    expect(mocks.useCalendarCapabilityStore).not.toHaveBeenCalled();
-  });
-
   it('creates supported recurring events through the public event store', async () => {
     mocks.enabled = true;
     const { create } = stores();

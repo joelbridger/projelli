@@ -1,5 +1,6 @@
 import { createElement } from 'react';
 import type { SchedulingSurfaceDescriptor } from '@/platform/calendar';
+import { isEnabled } from '@/platform/flags';
 import { CalendarAddEventMount } from './CalendarAddEventMount';
 
 declare module '@/platform/calendar' {
@@ -15,3 +16,7 @@ export const calendarAddEventSurface: SchedulingSurfaceDescriptor = {
   order: 20,
   mount: () => createElement(CalendarAddEventMount),
 };
+
+/** The host receives no descriptor while the feature is dark. */
+export const calendarAddEventSurfaces: readonly SchedulingSurfaceDescriptor[] =
+  isEnabled('calendar-add-event') ? [calendarAddEventSurface] : [];

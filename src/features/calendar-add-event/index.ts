@@ -1,2 +1,5 @@
 export { CalendarAddEventMount } from './CalendarAddEventMount';
-export { calendarAddEventSurface } from './calendarAddEventSurface';
+export {
+  calendarAddEventSurface,
+  calendarAddEventSurfaces,
+} from './calendarAddEventSurface';
