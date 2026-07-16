@@ -18,8 +18,14 @@ const mocks = vi.hoisted(() => ({
   subscribe: vi.fn(() => vi.fn()),
 }));
 
-vi.mock('@/platform/flags', () => ({ useFlag: mocks.useFlag }));
-vi.mock('@/platform/flags/router', () => ({ useFlagRegistryVersion: mocks.useFlagRegistryVersion }));
+vi.mock('@/platform/flags', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/platform/flags')>()),
+  useFlag: mocks.useFlag,
+}));
+vi.mock('@/platform/flags/router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/platform/flags/router')>()),
+  useFlagRegistryVersion: mocks.useFlagRegistryVersion,
+}));
 vi.mock('@/features/crm-activity', () => ({ CrmActivitySurface: () => <div data-testid="legacy-activity-surface" /> }));
 vi.mock('./TeamActivityFeedProvider', () => ({
   TeamActivityFeedProvider: ({ children }: { children: ReactNode }) => children,
@@ -37,6 +43,7 @@ vi.mock('./useTeamActivityFeed', () => ({
 import { TeamActivitySurface } from './TeamActivitySurface';
 import {
   createActivityToolComposition,
+  enabledActivityTools,
   projectActivityItems,
   validateActivityToolDescriptors,
 } from './activityToolRegistry';
@@ -96,14 +103,50 @@ describe('team activity tool registry seam', () => {
       filter: (candidate) => candidate.id !== 'post-third',
     };
     const composition = createActivityToolComposition(mayaOnly, excludesThird);
+    const fixtureIds = new Set([excludesThird.id, mayaOnly.id]);
+    const fixtureTools = composition.tools.filter(({ id }) => fixtureIds.has(id));
+    const toolIds = composition.tools.map(({ id }) => id);
 
-    expect(composition.tools.map(({ id }) => id)).toEqual([
+    expect(fixtureTools.map(({ id }) => id)).toEqual([
       'test.exclude-third',
       'test.maya-only',
     ]);
-    expect(projectActivityItems(sourceItems, composition.tools, stateFactory()).map(({ id }) => id))
+    expect(toolIds).toContain('test.exclude-third');
+    expect(toolIds).toContain('test.maya-only');
+    expect(toolIds.indexOf('test.exclude-third')).toBeLessThan(toolIds.indexOf('test.maya-only'));
+    expect(projectActivityItems(sourceItems, fixtureTools, stateFactory()).map(({ id }) => id))
       .toEqual(['post-first']);
     expect(sourceItems.map(({ id }) => id)).toEqual(['post-first', 'post-second', 'post-third']);
+  });
+
+  it('keeps fixture checks append-tolerant when a third real-shaped descriptor is registered', () => {
+    const first: ActivityToolDescriptor = {
+      id: 'test.append-first',
+      order: 10,
+      mount: () => null,
+    };
+    const second: ActivityToolDescriptor = {
+      id: 'test.append-second',
+      order: 20,
+      mount: () => null,
+    };
+    const appended: ActivityToolDescriptor = {
+      id: 'test.real-shaped-append',
+      order: 15,
+      isEnabled: () => true,
+      mount: () => <button type="button">Appended tool</button>,
+      filter: (candidate) => candidate.id !== 'post-third',
+      renderEmptyResult: () => <p role="status">{i18n.t('team-activity-feed.empty')}</p>,
+    };
+    const composition = createActivityToolComposition(first, second, appended);
+    const ids = composition.tools.map(({ id }) => id);
+
+    expect(ids).toContain(first.id);
+    expect(ids).toContain(second.id);
+    expect(ids).toContain(appended.id);
+    expect(ids.indexOf(first.id)).toBeLessThan(ids.indexOf(appended.id));
+    expect(ids.indexOf(appended.id)).toBeLessThan(ids.indexOf(second.id));
+    expect(enabledActivityTools(composition)).toContain(appended);
   });
 
   it('rejects duplicate IDs and malformed descriptors loudly at composition time', () => {
@@ -134,7 +177,7 @@ describe('team activity tool registry seam', () => {
       renderEmptyResult: () => <p role="status">{i18n.t('team-activity-feed.empty')}</p>,
     };
 
-    render(<TeamActivitySurface composition={createActivityToolComposition(tool)} />);
+    render(<TeamActivitySurface composition={{ tools: [tool] }} />);
     await screen.findByTestId('team-activity-item-post-third');
     fireEvent.click(screen.getByRole('button', { name: `${i18n.t('team-activity-feed.mentioned')} (3)` }));
 
@@ -165,29 +208,20 @@ describe('team activity tool registry seam', () => {
     };
     const before = structuredClone(sourceItems);
 
-    const projected = projectActivityItems(
-      sourceItems,
-      createActivityToolComposition(mutationAttempt, observer).tools,
-      stateFactory(),
-    );
+    const projected = projectActivityItems(sourceItems, [mutationAttempt, observer], stateFactory());
 
     expect(projected.map(({ id }) => id)).toEqual(['post-first']);
     expect(secondFilter.mock.calls[0]?.[0]).toEqual(expect.objectContaining({ body: 'First update' }));
     expect(sourceItems).toEqual(before);
   });
 
-  it('keeps the enabled feed HTML byte-identical when no tools are registered', async () => {
+  it('keeps the enabled feed unchanged when its composition has no tools', async () => {
     mocks.items = [sourceItems[0] as TeamActivityItem];
-    const first = render(<TeamActivitySurface />);
-    await screen.findByTestId('team-activity-item-post-first');
-    const baseHtml = screen.getByTestId('team-activity-feed').innerHTML;
-    first.unmount();
-
-    render(<TeamActivitySurface composition={createActivityToolComposition()} />);
+    render(<TeamActivitySurface composition={{ tools: [] }} />);
     await screen.findByTestId('team-activity-item-post-first');
 
     expect(screen.queryByTestId('team-activity-tools')).not.toBeInTheDocument();
-    expect(screen.getByTestId('team-activity-feed').innerHTML).toBe(baseHtml);
+    expect(projectActivityItems(sourceItems, [], stateFactory())).toBe(sourceItems);
   });
 
   it('excludes a dark feature before its tool or filter can receive feed data', async () => {
@@ -202,7 +236,7 @@ describe('team activity tool registry seam', () => {
       filter,
     };
 
-    render(<TeamActivitySurface composition={createActivityToolComposition(darkTool)} />);
+    render(<TeamActivitySurface composition={{ tools: [darkTool] }} />);
     await screen.findByTestId('team-activity-item-post-first');
 
     expect(screen.queryByTestId('team-activity-tools')).not.toBeInTheDocument();

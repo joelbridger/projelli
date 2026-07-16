@@ -7,7 +7,10 @@ const { useFlag, useLiveCrmRecords } = vi.hoisted(() => ({
   useLiveCrmRecords: vi.fn(),
 }));
 
-vi.mock('@/platform/flags', () => ({ useFlag }));
+vi.mock('@/platform/flags', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/platform/flags')>()),
+  useFlag,
+}));
 vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
   LIVE_CRM_RECORDS_CHANGED: 'lantern:crm-live-records-changed',
   useLiveCrmRecords,
