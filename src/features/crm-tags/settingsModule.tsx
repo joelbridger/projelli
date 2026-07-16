@@ -5,6 +5,7 @@ import { isEnabled } from '@/platform/flags';
 import { Badge, Button } from '@/ui/kp';
 import type {
   FirmTag,
+  FirmTagCatalog,
   FirmTagColor,
   FirmTagErrorCode,
   FirmTagStore,
@@ -290,7 +291,7 @@ export function UniversalTagsEnabledSettings({
             data-testid="firm-tag-new-color"
             value={newColor}
             onChange={(event) => {
-              setNewColor(event.target.value);
+              setNewColor(event.target.value as FirmTagColor);
             }}
           >
             {COLORS.map((color) => (
