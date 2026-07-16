@@ -19,7 +19,8 @@ const sharedDescriptor: AppSurfaceDescriptor = {
   render: () => <div data-testid="shared-surface-content" />,
 };
 
-vi.mock('@/platform/flags', () => ({
+vi.mock('@/platform/flags', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/platform/flags')>()),
   useFlag: (id: string) => {
     flagsRead.push(id);
     return id === 'shared-client-bar' || id === 'v1-shell-frame';
