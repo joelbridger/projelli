@@ -242,11 +242,16 @@ export function startScheduledWorkflows(template: LiveWorkflowTemplate, househol
   return { template: { ...template, scheduledRunKeys: [...(template.scheduledRunKeys ?? []), runKey] }, instances };
 }
 
-export function createMeetingWorkflowProposal(meeting: LiveCrmRecord, template: LiveWorkflowTemplate, household: { id: string; label: string }): LiveCrmRecord {
+export function createMeetingWorkflowProposal(
+  meeting: LiveCrmRecord,
+  template: LiveWorkflowTemplate,
+  household: { id: string; label: string; matterId?: string }
+): LiveCrmRecord {
   const summary = typeof meeting['summary'] === 'string' ? meeting['summary'] : 'Meeting follow-up';
+  const householdMatterId = household.matterId?.trim() || household.id;
   return {
     id: unique('workflow-proposal'), kind: 'proposalRecord', matterId: 'firm_home', title: `Review proposed ${template.name} workflow`,
-    householdRef: { kind: 'household', id: household.id, matterId: household.id }, proposalKind: 'workflow_launch',
+    householdRef: { kind: 'household', id: household.id, matterId: householdMatterId }, proposalKind: 'workflow_launch',
     proposedMutation: { kind: 'workflow_launch', workflowTemplateId: template.id },
     proposedBy: { userId: 'meeting-ai', display: 'Meeting assistant', kind: 'ai' },
     rationale: `Meeting notes suggest “${template.name}” may help: ${summary}`,
@@ -297,7 +302,7 @@ export function offerForInstance(template: LiveWorkflowTemplate, instance: LiveW
   engineOffer.decisions = engineOffer.decisions.filter((decision) =>
     decision.revisionId === revisionId && instance.snapshot.steps[decision.stepId]?.status !== 'done',
   );
-  return { id: engineOffer.offerId, kind: 'crm_workflow_offer', matterId: instance.householdId, templateId: template.id, householdLabel: instance.householdLabel, revisionLabel: label, engineOffer };
+  return { id: engineOffer.offerId, kind: 'crm_workflow_offer', matterId: instance.matterId?.trim() || instance.householdId, templateId: template.id, householdLabel: instance.householdLabel, revisionLabel: label, engineOffer };
 }
 
 export function decideOffer(offer: LiveWorkflowOffer, decisionId: string, decision: 'accepted' | 'rejected'): LiveWorkflowOffer {

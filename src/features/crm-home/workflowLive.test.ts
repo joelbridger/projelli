@@ -74,6 +74,25 @@ describe('saved CRM workflow wiring', () => {
     expect(instance.matterId).toBe('matter-1');
   });
 
+  it('keeps later workflow update offers in the started instance matter', () => {
+    const template = createTemplate('Annual review', ['Prepare review']);
+    const instance = startWorkflow(template, {
+      id: 'household-1',
+      matterId: 'matter-1',
+      label: 'River household',
+    });
+    const update = publishTemplateUpdate(template, 'Prepare client review', 'Follow up');
+
+    const offer = offerForInstance(
+      update.template,
+      instance,
+      update.revisionId,
+      update.label
+    );
+
+    expect(offer.matterId).toBe('matter-1');
+  });
+
   it('makes a meeting-based launch a reviewable proposal instead of starting work', () => {
     const template = createTemplate('Trade request', ['Review request']);
     const proposal = createMeetingWorkflowProposal({ id: 'meeting-1', kind: 'activityEvent', matterId: 'h-1', summary: 'Discussed an account transfer' }, template, { id: 'h-1', label: 'River household' });
@@ -82,6 +101,21 @@ describe('saved CRM workflow wiring', () => {
     expect(proposal['proposalKind']).toBe('workflow_launch');
     expect(proposal['state']).toBe('pending');
     expect(proposal['contextRefs']).toEqual([{ kind: 'activityEvent', id: 'meeting-1', matterId: 'h-1' }]);
+  });
+
+  it('keeps a meeting proposal household reference in the mapped client matter', () => {
+    const template = createTemplate('Trade request', ['Review request']);
+    const proposal = createMeetingWorkflowProposal(
+      { id: 'meeting-1', kind: 'activityEvent', matterId: 'matter-1' },
+      template,
+      { id: 'household-1', matterId: 'matter-1', label: 'River household' }
+    );
+
+    expect(proposal['householdRef']).toEqual({
+      kind: 'household',
+      id: 'household-1',
+      matterId: 'matter-1',
+    });
   });
 
   it('retains stable step ids and tag ids through template save, reload, and start', () => {
