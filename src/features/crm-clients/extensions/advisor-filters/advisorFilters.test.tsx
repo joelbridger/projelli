@@ -109,11 +109,16 @@ describe('CRM advisor-field directory filters', () => {
   it('leaves no toolbar mount or layout gap while the flag is off', () => {
     setDevFlagOverride('crm-advisor-filters', false);
 
+    const { unmount } = render(<DirectorySurface people={[]} households={households} />);
+    const legacyHtml = screen.getByTestId('crm-directory-surface').innerHTML;
+    unmount();
+
     render(<DirectorySurface people={[]} households={households} composition={createDirectoryComposition(advisorFiltersDirectoryContribution)} />);
 
     expect(advisorFiltersDirectoryContribution.tools?.[0]?.isEnabled?.()).toBe(false);
     expect(screen.getByTestId('crm-directory-toolbar').children).toHaveLength(6);
     expect(screen.queryByTestId('crm-directory-advisor-filters')).not.toBeInTheDocument();
+    expect(screen.getByTestId('crm-directory-surface').innerHTML).toBe(legacyHtml);
   });
 
   it('shows applied chips, removes one field, and resets every active field', () => {
