@@ -1,0 +1,19 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/v1-w2-activity-filter-search
+sha: 81550fcfc35d1b193128b383c2ab3f15c8047530
+tree: c5c9d88229ee42d05086f6a836ca74c70dc8123b
+gate_base: 57cf56e377c51367fc5b072f33dbc17757c193b1
+tool_blob: 2a8a0211c0565e6bbcb39b6891e5d0839375074a
+utc: 2026-07-16T11:22:39Z
+step_timeout_seconds: 300
+loadavg: 5.14 6.53 8.34
+running_vitest_eslint_procs: 1
+step: gate:changed | status=INCONCLUSIVE-UNDER-LOAD | exit=124 | 11:22:39Z..11:27:39Z | bytes=41880 | sha256=7beff8ace739ad6e7f865fb342e4aa11dacda6fac75e2e02124c6d43241670c8 | tail:  at performUnitOfWork (/home/jameson/lantern/app/node_modules/react-dom/cjs/react-dom.development.js:26599:12) at workLoopSync (/home/jameson/lantern/app/node_modules/react-dom/cjs/react-dom.development.js:26505:5) 
+step: typecheck | status=FAIL | exit=2 | 11:27:39Z..11:28:10Z | bytes=741 | sha256=cb39fbda7a512cc067c8105600c608858b28d465bd79562f23d5581164319e17 | tail: ): error TS7006: Parameter 'page' implicitly has an 'any' type. src/platform/docusignSigning/signatureWorkflowCoordinates.test.ts(2,29): error TS2307: Cannot find module 'pdf-lib' or its corresponding type declarations. 
+step: typecheck:tests | status=FAIL | exit=2 | 11:28:10Z..11:28:47Z | bytes=2108 | sha256=4d7ddf0bae3814908250f9c75e598436fdefe397ceb6f5bd8bb612a3ad3674d6 | tail: rgence.test.ts(25,31): error TS7006: Parameter 'index' implicitly has an 'any' type. tests/live/docusignSandboxRoundtrip.test.ts(18,49): error TS2307: Cannot find module 'pdf-lib' or its corresponding type declarations. 
+step: handle-guard | status=PASS | exit=0 | 11:28:47Z..11:28:47Z | bytes=1343 | sha256=947d5fa4af9789edcb8bbb884f617acac112827f4909278786097aa8dbf57846 | tail: lot-${} + booking-public-page-unavailable + client-bar-clear + client-bar-current +240 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen). 
+step: arch-dag-guard | status=PASS | exit=0 | 11:28:47Z..11:28:48Z | bytes=228 | sha256=8796407018dde0db31db31591befc2eaddbf9cd15c8a72e9553eebfc9022dc99 | tail: 4.1.3 /home/jameson/v1-w2-activity-filter-search Test Files 1 passed (1) Tests 1 passed (1) Start at 11:28:47 Duration 1.35s (transform 332ms, setup 525ms, import 316ms, tests 4ms, environment 390ms) 
+step: i18n-snapshot | status=PASS | exit=0 | 11:28:48Z..11:28:50Z | bytes=229 | sha256=acef838b7b831a7039721fd6d44c725cf152feeaf45be97e050a01ccd8f20e26 | tail: .1.3 /home/jameson/v1-w2-activity-filter-search Test Files 1 passed (1) Tests 5 passed (5) Start at 11:28:49 Duration 1.21s (transform 305ms, setup 456ms, import 294ms, tests 22ms, environment 328ms) 
+step: focused | status=PASS | exit=0 | 11:28:50Z..11:28:53Z | bytes=230 | sha256=27b36e65cd32ff180cdee45a7a0392f1c29c6203b4a48fb4ed34806d0db6f136 | tail: 1.3 /home/jameson/v1-w2-activity-filter-search Test Files 1 passed (1) Tests 4 passed (4) Start at 11:28:50 Duration 2.31s (transform 892ms, setup 460ms, import 1.22s, tests 157ms, environment 367ms) 
+overall: INCONCLUSIVE
