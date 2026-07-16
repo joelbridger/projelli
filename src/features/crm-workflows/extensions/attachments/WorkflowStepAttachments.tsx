@@ -28,8 +28,8 @@ function sameAttachments(
 ): boolean {
   return left.length === right.length && left.every((reference, index) => {
     const candidate = right[index];
-    return Boolean(candidate) &&
-      reference.id === candidate.id &&
+    if (!candidate) return false;
+    return reference.id === candidate.id &&
       reference.label === candidate.label &&
       reference.matterId === candidate.matterId;
   });
