@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
+import { createInstance } from 'i18next';
+import { I18nextProvider } from 'react-i18next';
+import { localeCatalogs } from '@/i18nCatalogs';
 import {
   type NotificationBellSlotDescriptor,
   V1ShellFrame,
@@ -85,6 +88,36 @@ describe('V1ShellFrame', () => {
     );
     expect(placeholders[0]?.querySelector('svg')).toHaveClass('size-4');
     expect(screen.queryByTestId('custom-notification-button')).toBeNull();
+  });
+
+  it('gets the empty-slot legacy text from the active shell translation context', async () => {
+    const shellI18n = createInstance();
+    await shellI18n.init({
+      fallbackLng: false,
+      lng: 'es',
+      resources: {
+        es: {
+          translation: localeCatalogs.es,
+        },
+      },
+    });
+
+    render(
+      <I18nextProvider i18n={shellI18n}>
+        <V1ShellFrame
+          activeSurface="home"
+          onOpenCommandPalette={vi.fn()}
+          onSurfaceChange={vi.fn()}
+        >
+          <div />
+        </V1ShellFrame>
+      </I18nextProvider>
+    );
+
+    expect(screen.getByTestId('v1-shell-notification-slot')).toHaveAttribute(
+      'aria-label',
+      'Las notificaciones aparecerán aquí'
+    );
   });
 
   it('replaces the fallback once at the real top-bar position', () => {
