@@ -10,12 +10,10 @@ import type { CrmShellRuntime } from './runtime';
 let crmShellEnabled = false;
 
 vi.mock('@/platform/flags', () => ({
-  useFlag: () => crmShellEnabled,
+  useFlag: (id: string) => id === 'crm-shell-v1' && crmShellEnabled,
 }));
 
-function runtimeWithLegacy(
-  legacyHome: () => ReactNode
-): CrmShellRuntime {
+function runtimeWithLegacy(legacyHome: () => ReactNode): CrmShellRuntime {
   return {
     legacy: { home: legacyHome },
   };
@@ -25,7 +23,9 @@ describe('CrmShellSurface', () => {
   it('uses the CRM Home public registry for every rail destination and its order', () => {
     const expected = crmHomeSurfaceRegistry
       .filter(
-        (surface): surface is (typeof crmHomeSurfaceRegistry)[number] & {
+        (
+          surface
+        ): surface is (typeof crmHomeSurfaceRegistry)[number] & {
           rail: NonNullable<(typeof crmHomeSurfaceRegistry)[number]['rail']>;
         } => surface.rail !== undefined
       )
@@ -54,15 +54,22 @@ describe('CrmShellSurface', () => {
     if (!first || !next) throw new Error('Expected CRM rail destinations');
 
     render(
-      <CrmShellSurface runtime={runtimeWithLegacy(() => <div />)} />
+      <CrmShellSurface
+        runtime={runtimeWithLegacy(() => (
+          <div />
+        ))}
+      />
     );
 
     expect(await screen.findByTestId('crm-shell-frame')).toBeInTheDocument();
+    const visibleDestinations = destinations.filter(
+      (destination) => destination.flagId === undefined
+    );
     expect(
       screen
         .getByRole('navigation', { name: 'CRM navigation' })
         .querySelectorAll('button')
-    ).toHaveLength(destinations.length);
+    ).toHaveLength(visibleDestinations.length);
     expect(screen.getByTestId(`crm-shell-nav-${first.route}`)).toHaveAttribute(
       'aria-current',
       'page'
@@ -75,6 +82,9 @@ describe('CrmShellSurface', () => {
       'page'
     );
     expect(screen.getByTestId('crm-shell-content')).toHaveTextContent(
+      'Calendar'
+    );
+    expect(screen.getByTestId('crm-shell-content')).not.toHaveTextContent(
       'This CRM destination will appear inside the new practice workspace frame.'
     );
   });

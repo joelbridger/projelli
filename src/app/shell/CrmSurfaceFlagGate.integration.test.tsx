@@ -1,7 +1,10 @@
 import { useState } from 'react';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { AppSurfaceRouter, type AppSurfaceRouterProps } from '@/app/shell/AppSurfaceRouter';
+import {
+  AppSurfaceRouter,
+  type AppSurfaceRouterProps,
+} from '@/app/shell/AppSurfaceRouter';
 import {
   getAppSurfaceDescriptor,
   getAppSurfaceDescriptors,
@@ -13,7 +16,19 @@ import type { AppSurface } from '@/platform/types/navigation';
 
 const { useLiveCrmRecords } = vi.hoisted(() => ({
   useLiveCrmRecords: vi.fn(() => ({
-    records: [],
+    records: [
+      {
+        id: 'shell-live-task',
+        kind: 'task',
+        matterId: 'firm_home',
+        title: 'Review Northcrest plan',
+        assigneeUserId: null,
+        status: 'open',
+        priority: 'normal',
+        contextRefs: [],
+        customFields: {},
+      },
+    ],
     save: vi.fn(() => Promise.resolve()),
     reload: vi.fn(),
     error: null,
@@ -155,7 +170,7 @@ describe('real CRM surface flag-gated swap', () => {
     expect(useLiveCrmRecords).toHaveBeenCalledOnce();
   });
 
-  it('uses that same Home route to render the v1 CRM frame and resolve its registry destinations', async () => {
+  it('uses that same Home route to render real, live registry destinations without exposing dark destinations', async () => {
     setShellFlags(true);
     render(<CrmRouteHarness />);
 
@@ -163,6 +178,19 @@ describe('real CRM surface flag-gated swap', () => {
     expect(screen.queryByTestId('crm-home')).not.toBeInTheDocument();
     expect(screen.queryByTestId('v1-shell-nav-crm')).not.toBeInTheDocument();
     expect(screen.getByTestId('crm-shell-nav-today')).toBeInTheDocument();
-    expect(useLiveCrmRecords).not.toHaveBeenCalled();
+    expect(
+      screen.queryByTestId('crm-shell-nav-internal-projects')
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId('crm-shell-nav-form-activity')
+    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId('crm-shell-nav-trash')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('crm-shell-nav-tasks'));
+
+    expect(
+      screen.getByTestId('crm-task-record-shell-live-task')
+    ).toHaveTextContent('Review Northcrest plan');
+    expect(useLiveCrmRecords).toHaveBeenCalled();
   });
 });

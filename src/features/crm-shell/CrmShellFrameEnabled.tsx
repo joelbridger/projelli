@@ -1,18 +1,114 @@
-import { useState } from 'react';
+import { createElement, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useFlag } from '@/platform/flags';
 import type { CrmHomeRoute } from '@/features/crm-home';
+import { CrmHomeSurfaceContext } from '@/features/crm-home/surfaceContext';
+import type { CrmRailDestination } from './crmHomeRegistryAdapter';
 import { getCrmShellRailDestinations } from './crmHomeRegistryAdapter';
+import type { LiveCrmHomeRuntime } from '@/features/crm-home/shared/LiveCrmHome';
+
+function useDestinationEnabled(
+  destination: CrmRailDestination | undefined
+): boolean {
+  // Each call uses a stable fallback flag so unguarded registry entries still
+  // subscribe consistently without creating a second registry policy here.
+  const enabled = useFlag(destination?.flagId ?? 'shared-client-bar');
+  return (
+    destination === undefined || destination.flagId === undefined || enabled
+  );
+}
+
+function CrmShellRailItem({
+  destination,
+  selected,
+  onSelect,
+}: {
+  destination: CrmRailDestination;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const { t } = useTranslation();
+  const enabled = useDestinationEnabled(destination);
+  if (!enabled) return null;
+
+  const Icon = destination.icon;
+  return (
+    <button
+      aria-current={selected ? 'page' : undefined}
+      className={
+        selected
+          ? 'flex min-h-10 w-full items-center gap-3 rounded-lg bg-slate-900 px-3 text-left text-sm font-semibold text-white shadow-sm'
+          : 'flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-950'
+      }
+      data-testid={`crm-shell-nav-${destination.route}`}
+      onClick={onSelect}
+      type="button"
+    >
+      <Icon aria-hidden="true" className="size-4 shrink-0" />
+      <span>{t(destination.labelKey)}</span>
+    </button>
+  );
+}
+
+function CrmShellDestination({
+  destination,
+  fallback,
+  runtime,
+  onFallback,
+  onNavigate,
+}: {
+  destination: CrmRailDestination | undefined;
+  fallback: CrmRailDestination | undefined;
+  runtime: LiveCrmHomeRuntime;
+  onFallback: () => void;
+  onNavigate: (route: CrmHomeRoute) => void;
+}) {
+  const selectedEnabled = useDestinationEnabled(destination);
+  const activeDestination = selectedEnabled ? destination : fallback;
+  useEffect(() => {
+    if (!selectedEnabled && destination && fallback) onFallback();
+  }, [destination, fallback, onFallback, selectedEnabled]);
+  if (!activeDestination) {
+    return (
+      <p className="text-sm text-slate-600">No CRM destination is available.</p>
+    );
+  }
+  return (
+    <CrmHomeSurfaceContext.Provider
+      value={{
+        adapter: runtime.adapter,
+        route: activeDestination.route,
+        navigate: (route) => {
+          onNavigate(route as CrmHomeRoute);
+        },
+        ...(runtime.workflowData ? { workflowData: runtime.workflowData } : {}),
+        ...(runtime.workflowHouseholds
+          ? { workflowHouseholds: runtime.workflowHouseholds }
+          : {}),
+        ...(runtime.saveLiveRecord
+          ? { saveLiveRecord: runtime.saveLiveRecord }
+          : {}),
+        undoReport: null,
+        reportUndo: () => undefined,
+        adapterProvided: runtime.adapterProvided,
+      }}
+    >
+      {createElement(activeDestination.Component)}
+    </CrmHomeSurfaceContext.Provider>
+  );
+}
 
 /** The enabled-only CRM frame. Its destinations come solely from CRM Home. */
-export function CrmShellFrameEnabled() {
+export function CrmShellFrameEnabled(runtime: LiveCrmHomeRuntime) {
   const { t } = useTranslation();
   const destinations = getCrmShellRailDestinations();
+  const fallback = destinations.find((destination) => !destination.flagId);
   const [activeRoute, setActiveRoute] = useState<CrmHomeRoute | null>(
-    () => destinations[0]?.route ?? null
+    () => fallback?.route ?? null
   );
-  const activeDestination =
-    destinations.find((destination) => destination.route === activeRoute) ??
-    destinations[0];
+  const activeDestination = destinations.find(
+    (destination) => destination.route === activeRoute
+  );
 
   return (
     <div
@@ -30,26 +126,16 @@ export function CrmShellFrameEnabled() {
         </div>
         <nav aria-label={t('crm-shell.rail.label')} className="space-y-1">
           {destinations.map((destination) => {
-            const Icon = destination.icon;
             const selected = destination.route === activeDestination?.route;
             return (
-              <button
-                aria-current={selected ? 'page' : undefined}
-                className={
-                  selected
-                    ? 'flex min-h-10 w-full items-center gap-3 rounded-lg bg-slate-900 px-3 text-left text-sm font-semibold text-white shadow-sm'
-                    : 'flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-950'
-                }
-                data-testid={`crm-shell-nav-${destination.route}`}
+              <CrmShellRailItem
+                destination={destination}
                 key={destination.id}
-                onClick={() => {
+                onSelect={() => {
                   setActiveRoute(destination.route);
                 }}
-                type="button"
-              >
-                <Icon aria-hidden="true" className="size-4 shrink-0" />
-                <span>{t(destination.labelKey)}</span>
-              </button>
+                selected={selected}
+              />
             );
           })}
         </nav>
@@ -60,23 +146,15 @@ export function CrmShellFrameEnabled() {
         className="flex min-w-0 flex-1 flex-col overflow-auto px-8 py-7"
         data-testid="crm-shell-content"
       >
-        {activeDestination ? (
-          <>
-            <p className="text-sm font-medium text-slate-500">
-              {t('crm-shell.content.eyebrow')}
-            </p>
-            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">
-              {t(activeDestination.labelKey)}
-            </h2>
-            <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600">
-              {t('crm-shell.content.frame-copy')}
-            </p>
-          </>
-        ) : (
-          <p className="text-sm text-slate-600">
-            {t('crm-shell.content.empty')}
-          </p>
-        )}
+        <CrmShellDestination
+          destination={activeDestination}
+          fallback={fallback}
+          onFallback={() => {
+            if (fallback) setActiveRoute(fallback.route);
+          }}
+          onNavigate={setActiveRoute}
+          runtime={runtime}
+        />
       </main>
     </div>
   );
