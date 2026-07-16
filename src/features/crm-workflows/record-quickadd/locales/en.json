@@ -1,0 +1,22 @@
+{
+  "workflow-record-quickadd": {
+    "title": "Add workflow",
+    "bound-household": "Choose a published template for {{household}}. This household is already selected.",
+    "loading": "Loading workflow templates…",
+    "choose": "Workflow template",
+    "published": "Published",
+    "draft": "Draft — publish before starting",
+    "start": "Start workflow",
+    "starting": "Starting workflow…",
+    "cancel": "Cancel",
+    "empty": {
+      "title": "No published templates yet",
+      "description": "Create and publish a template in the workflow library, then return to this household to start it.",
+      "action": "Go to workflow library"
+    },
+    "errors": {
+      "load": "The workflow templates could not be loaded.",
+      "start": "The workflow could not be started. Try again."
+    }
+  }
+}
