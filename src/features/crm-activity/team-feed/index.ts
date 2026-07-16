@@ -4,6 +4,16 @@
  */
 export { teamActivitySurface } from './surface';
 export { useTeamActivityFeed } from './useTeamActivityFeed';
+export {
+  activityToolRegistry,
+  createActivityToolComposition,
+  defaultActivityToolComposition,
+  type ActivityToolComposition,
+  type ActivityToolContext,
+  type ActivityToolDescriptor,
+  type ActivityToolState,
+  type ActivityToolStateValue,
+} from './activityToolRegistry';
 export type {
   AddTeamActivityComment,
   CreateTeamActivityPost,
