@@ -115,6 +115,7 @@ export function staticImports(file) {
   const fileDependencies = new Set();
   const nodeFilesystemBindings = new Map();
   const nodeFilesystemNamespaces = new Set();
+  const nodeFilesystemPromiseNamespaces = new Set();
   const nodeChildProcessBindings = new Map();
   const nodeChildProcessNamespaces = new Set();
   let hasUnknownDynamicImport = false;
@@ -123,8 +124,9 @@ export function staticImports(file) {
   const childProcessMethods = new Set(['exec', 'execSync', 'execFile', 'execFileSync', 'spawn', 'spawnSync']);
 
   function bindNodeApi(name, sourceModule, importedName = name, namespace = false) {
-    if (sourceModule === 'node:fs' || sourceModule === 'node:fs/promises' || sourceModule === 'fs' || sourceModule === 'fs/promises') {
+    if (sourceModule === 'node:fs' || sourceModule === 'node:fs/promises' || sourceModule === 'fs' || sourceModule === 'fs/promises' || sourceModule === 'fs-extra') {
       if (namespace) nodeFilesystemNamespaces.add(name);
+      else if (importedName === 'promises') nodeFilesystemPromiseNamespaces.add(name);
       else if (filesystemMethods.has(importedName)) nodeFilesystemBindings.set(name, importedName);
     }
     if (sourceModule === 'node:child_process' || sourceModule === 'child_process') {
@@ -154,6 +156,24 @@ export function staticImports(file) {
         }
       }
     }
+    // Dynamic Node imports are valid bindings too. If a form is not recognized
+    // below, the source-path boundary in visit() still marks it opaque rather
+    // than treating an invisible dependency as safe to skip.
+    if (ts.isVariableDeclaration(node) && node.initializer) {
+      let initializer = node.initializer;
+      while (ts.isAwaitExpression(initializer) || ts.isParenthesizedExpression(initializer)) initializer = initializer.expression;
+      const importCall = ts.isCallExpression(initializer) ? initializer : undefined;
+      if (importCall && importCall.expression.kind === ts.SyntaxKind.ImportKeyword
+        && importCall.arguments[0] && ts.isStringLiteralLike(importCall.arguments[0])) {
+        const sourceModule = importCall.arguments[0].text;
+        if (ts.isIdentifier(node.name)) bindNodeApi(node.name.text, sourceModule, undefined, true);
+        if (ts.isObjectBindingPattern(node.name)) {
+          for (const element of node.name.elements) {
+            if (ts.isIdentifier(element.name)) bindNodeApi(element.name.text, sourceModule, element.propertyName?.getText(source) ?? element.name.text);
+          }
+        }
+      }
+    }
     ts.forEachChild(node, collectNodeApiBindings);
   }
 
@@ -174,6 +194,7 @@ export function staticImports(file) {
       if (!ts.isIdentifier(namespaceExpression)) return undefined;
       const namespace = namespaceExpression.text;
       if (nodeFilesystemNamespaces.has(namespace) && filesystemMethods.has(method)) return { kind: 'filesystem', method };
+      if (nodeFilesystemPromiseNamespaces.has(namespace) && filesystemMethods.has(method)) return { kind: 'filesystem', method };
       if (nodeChildProcessNamespaces.has(namespace) && childProcessMethods.has(method)) return { kind: 'child-process', method };
     }
     return undefined;
@@ -209,6 +230,21 @@ export function staticImports(file) {
     return undefined;
   }
 
+  function pathMayReachSource(node) {
+    const target = constantPath(node);
+    if (target !== undefined) return path.resolve(root, target).startsWith(`${path.join(root, 'src')}${path.sep}`);
+    let reachesSource = false;
+    function inspect(part) {
+      if (ts.isStringLiteralLike(part) || ts.isNoSubstitutionTemplateLiteral(part)) {
+        const normalized = part.text.replace(/\\\\/g, '/');
+        if (normalized === 'src' || normalized.startsWith('src/') || normalized.includes('/src/')) reachesSource = true;
+      }
+      ts.forEachChild(part, inspect);
+    }
+    inspect(node);
+    return reachesSource;
+  }
+
   function visit(node) {
     if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
       const value = constantPath(node.initializer);
@@ -233,8 +269,20 @@ export function staticImports(file) {
       // not guessed. The caller opens the selector to the full suite instead.
       hasUnknownDynamicImport = true;
     }
+    const first = ts.isCallExpression(node) ? node.arguments[0] : undefined;
     const api = nodeApiMethod(node);
-    if (api) {
+    const methodName = ts.isCallExpression(node) && ts.isIdentifier(node.expression) ? node.expression.text
+      : ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) ? node.expression.name.text : undefined;
+    const sourcePathAccess = ts.isCallExpression(node) && Boolean(first) && pathMayReachSource(first)
+      && (api?.kind === 'filesystem' || filesystemMethods.has(methodName));
+    if (sourcePathAccess) {
+      // A test that inspects production source via the filesystem has a
+      // dependency boundary the static import graph cannot prove complete.
+      // Keep a precise edge when available, but always run the test as well.
+      const target = constantPath(first);
+      if (target !== undefined && path.resolve(root, target).startsWith(`${root}${path.sep}`)) fileDependencies.add(path.resolve(root, target));
+      hasUnknownDynamicImport = true;
+    } else if (api) {
       const target = node.arguments[0] ? constantPath(node.arguments[0]) : undefined;
       if (!target || !path.resolve(target).startsWith(`${root}${path.sep}`)
         || api.kind === 'child-process' || ['readdirSync', 'globSync'].includes(api.method)) {

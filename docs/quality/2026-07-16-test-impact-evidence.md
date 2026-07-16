@@ -22,18 +22,18 @@ The three real lane ranges are now narrow while retaining the always-run floor a
 
 | Representative lane-shaped range | Selection |
 | --- | ---: |
-| `37f29f741^..37f29f741` — record-member | **affected, 40/1,014** |
-| `a8457767b^..a8457767b` — bell-slot | **affected, 51/1,014** |
-| `ec42ef163..6780be2d0` — directory-composition | **affected, 70/1,014** |
+| `37f29f741^..37f29f741` — record-member | **affected, 46/1,015** |
+| `a8457767b^..a8457767b` — bell-slot | **affected, 55/1,015** |
+| `ec42ef163..6780be2d0` — directory-composition | **affected, 74/1,015** |
 
 The three reviewed merge-commit ranges deliberately remain broad, because their combined-parent history is not a single safe lane diff:
 
 | Merge range | Selection |
 | --- | ---: |
-| `19d016a6c^..19d016a6c` | **full, 1,014/1,014** |
-| `76066dc69^..76066dc69` | **full, 1,014/1,014** |
-| `c601443f0^..c601443f0` | **full, 1,014/1,014** |
+| `19d016a6c^..19d016a6c` | **full, 1,015/1,015** |
+| `76066dc69^..76066dc69` | **full, 1,015/1,015** |
+| `c601443f0^..c601443f0` | **full, 1,015/1,015** |
 
-The original path-read miss range, `c601443f0^..c601443f0`, still includes `src/features/home/HomeSurfaceBoundaries.test.ts`; the dedicated adversarial path-read selector test also passes without an import edge.
+The original path-read miss range, `c601443f0^..c601443f0`, still includes `src/features/home/HomeSurfaceBoundaries.test.ts`. The permanent `registry.source-read.test.ts` guard uses the aliased `node:fs` promises API and is classified opaque/always-run; the adversarial selector fixtures cover both it and `fs-extra` without an import edge.
 
-Verification in this round: `node --test scripts/__tests__/test-impact.test.mjs` passed 13/13, `npm run typecheck` and `npm run typecheck:tests` passed, and all six measurements above were obtained from `node scripts/test-impact.mjs --range <range> --json`.
+Verification in round 4: `node --test scripts/__tests__/test-impact.test.mjs` passed 13/13, the permanent filesystem guard passed, `npm run typecheck` and `npm run typecheck:tests` passed, and all six measurements above were obtained from `node scripts/test-impact.mjs --range <range> --json`.

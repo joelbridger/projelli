@@ -14,18 +14,18 @@ test('finds the static imports used by a real Vitest file', () => {
   assert.ok(imports.includes('vitest'));
 });
 
-test('models a source file read through a path assembled at runtime', () => {
+test('marks an fs-extra source file read through a path assembled at runtime as always-run', () => {
   const descriptor = fileURLToPath(new URL('../../src/app/shell/registry/legacyAppSurfaceDescriptors.tsx', import.meta.url));
   const parsed = staticImports(fileURLToPath(new URL('../../src/features/home/HomeSurfaceBoundaries.test.ts', import.meta.url)));
-  assert.equal(parsed.opaque, false);
+  assert.equal(parsed.opaque, true);
   assert.ok(parsed.fileDependencies.includes(descriptor));
 });
 
-test('models a Node filesystem namespace read while ignoring lookalike app methods', () => {
+test('marks a Node filesystem promises-alias source read as always-run', () => {
   const registry = fileURLToPath(new URL('../../src/platform/flags/registry.ts', import.meta.url));
   const fixture = fileURLToPath(new URL('./fixtures/NodeFilesystemNamespaceAdversarial.test.ts', import.meta.url));
   const parsed = staticImports(fixture);
-  assert.equal(parsed.opaque, false);
+  assert.equal(parsed.opaque, true);
   assert.ok(parsed.fileDependencies.includes(registry));
 });
 
@@ -39,7 +39,7 @@ test('keeps a merge-commit range on the full suite', () => {
   const result = selectImpact({ range: `${parent}..19d016a6c` });
   assert.equal(result.mode, 'full');
   assert.equal(result.selectedCount, result.fullCount);
-  assert.equal(result.fullCount, 1014);
+  assert.equal(result.fullCount, 1015);
   assert.match(result.reasons[0], /merge commit/i);
   assert.ok(result.testFiles.includes('tests/unit/architecture-boundaries.test.ts'));
   assert.ok(result.testFiles.includes('tests/unit/i18n/en-json-snapshot.test.ts'));
@@ -49,7 +49,7 @@ test('selects a narrow lane while always running runtime-discovery coverage', ()
   const parent = execFileSync('git', ['rev-parse', '37f29f741^'], { encoding: 'utf8' }).trim();
   const result = selectImpact({ range: `${parent}..37f29f741` });
   assert.equal(result.mode, 'affected');
-  assert.equal(result.selectedCount, 40);
+  assert.equal(result.selectedCount, 46);
   assert.ok(result.testFiles.includes('src/features/crm-clients/extensions/record-member-kebab/memberRail.test.tsx'));
   assert.ok(result.testFiles.includes('tests/unit/architecture-boundaries.test.ts'));
   assert.ok(result.testFiles.includes('tests/unit/website-content-lint.test.ts'));
@@ -74,7 +74,7 @@ test('selects an adversarial path-read dependency without an import edge', () =>
     testFiles: [fixture],
     changedFiles: ['src/platform/flags/registry.ts'],
   });
-  assert.equal(result.opaque, false);
+  assert.equal(result.opaque, true);
   assert.deepEqual(result.testFiles, [fixture]);
 });
 

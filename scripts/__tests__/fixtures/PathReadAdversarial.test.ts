@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync } from 'fs-extra';
 import { resolve } from 'node:path';
 
 const sourceRoot = resolve(process.cwd(), 'src/platform');
