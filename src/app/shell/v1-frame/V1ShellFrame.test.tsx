@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { V1ShellFrame } from './V1ShellFrame';
+import { createInstance } from 'i18next';
+import { I18nextProvider } from 'react-i18next';
+import { localeCatalogs } from '@/i18nCatalogs';
+import {
+  type NotificationBellSlotDescriptor,
+  V1ShellFrame,
+} from '@/app/shell/v1-frame';
 import { getOrderedAppSurfaces } from '@/app/shell/registry/appSurfaceRegistry';
 import { useFirmStore } from '@/platform/firm/firmStore';
 
@@ -51,6 +57,103 @@ describe('V1ShellFrame', () => {
 
     fireEvent.click(screen.getByTestId('v1-shell-command-trigger'));
     expect(onOpenCommandPalette).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the exact legacy notification placeholder when no slot is supplied', () => {
+    render(
+      <V1ShellFrame
+        activeSurface="home"
+        onOpenCommandPalette={vi.fn()}
+        onSurfaceChange={vi.fn()}
+      >
+        <div />
+      </V1ShellFrame>
+    );
+
+    const placeholders = screen.getAllByTestId('v1-shell-notification-slot');
+    expect(placeholders).toHaveLength(1);
+    expect(placeholders[0]).toHaveAttribute(
+      'aria-label',
+      'Notifications will appear here'
+    );
+    expect(placeholders[0]).toHaveAttribute('role', 'img');
+    expect(placeholders[0]).toHaveClass(
+      'flex',
+      'size-8',
+      'shrink-0',
+      'items-center',
+      'justify-center',
+      'rounded-md',
+      'text-slate-500'
+    );
+    expect(placeholders[0]?.querySelector('svg')).toHaveClass('size-4');
+    expect(screen.queryByTestId('custom-notification-button')).toBeNull();
+  });
+
+  it('gets the empty-slot legacy text from the active shell translation context', async () => {
+    const shellI18n = createInstance();
+    await shellI18n.init({
+      fallbackLng: false,
+      lng: 'es',
+      resources: {
+        es: {
+          translation: localeCatalogs.es,
+        },
+      },
+    });
+
+    render(
+      <I18nextProvider i18n={shellI18n}>
+        <V1ShellFrame
+          activeSurface="home"
+          onOpenCommandPalette={vi.fn()}
+          onSurfaceChange={vi.fn()}
+        >
+          <div />
+        </V1ShellFrame>
+      </I18nextProvider>
+    );
+
+    expect(screen.getByTestId('v1-shell-notification-slot')).toHaveAttribute(
+      'aria-label',
+      'Las notificaciones aparecerán aquí'
+    );
+  });
+
+  it('replaces the fallback once at the real top-bar position', () => {
+    const renderNotificationBell = vi.fn(() => (
+      <button data-testid="custom-notification-button" type="button">
+        Custom notifications
+      </button>
+    ));
+    const notificationBellSlot: NotificationBellSlotDescriptor = {
+      render: renderNotificationBell,
+    };
+
+    render(
+      <V1ShellFrame
+        activeSurface="home"
+        notificationBellSlot={notificationBellSlot}
+        onOpenCommandPalette={vi.fn()}
+        onSurfaceChange={vi.fn()}
+      >
+        <div />
+      </V1ShellFrame>
+    );
+
+    const topbar = screen.getByTestId('v1-shell-topbar');
+    const customButton = screen.getByTestId('custom-notification-button');
+    expect(renderNotificationBell).toHaveBeenCalledOnce();
+    expect(topbar).toContainElement(customButton);
+    expect(customButton.parentElement).toBe(topbar);
+    expect(customButton.previousElementSibling).toBe(
+      screen.getByTestId('v1-shell-command-trigger')
+    );
+    expect(customButton.nextElementSibling).toBe(
+      screen.getByTestId('v1-shell-account-identity')
+    );
+    expect(screen.queryByTestId('v1-shell-notification-slot')).toBeNull();
+    expect(screen.getAllByTestId('custom-notification-button')).toHaveLength(1);
   });
 
   it('uses the live firm seat count in the firm-card summary', () => {

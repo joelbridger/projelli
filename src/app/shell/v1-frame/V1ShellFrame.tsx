@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bell, Command, Search } from 'lucide-react';
+import { Command, Search } from 'lucide-react';
 import type { AppSurface } from '@/platform/types/navigation';
 import { getOrderedAppSurfaces } from '@/app/shell/registry/appSurfaceRegistry';
 import { SharedClientBar } from '@/app/shell/SharedClientBar';
@@ -10,6 +10,10 @@ import { EV_OPEN_ACCOUNT } from '@/config/identity';
 import { useFlag } from '@/platform/flags';
 import { useProfileStore } from '@/platform/profile/profileStore';
 import { useFirmStore } from '@/platform/firm/firmStore';
+import {
+  NotificationBellSlot,
+  type NotificationBellSlotDescriptor,
+} from './NotificationBellSlot';
 
 export interface V1ShellFrameProps {
   activeSurface: AppSurface;
@@ -20,6 +24,7 @@ export interface V1ShellFrameProps {
   globalStatus?: ReactNode;
   preTopbar?: ReactNode;
   postTopbar?: ReactNode;
+  notificationBellSlot?: NotificationBellSlotDescriptor;
   children: ReactNode;
 }
 
@@ -156,6 +161,7 @@ export function V1ShellFrame({
   globalStatus,
   preTopbar,
   postTopbar,
+  notificationBellSlot,
   children,
 }: V1ShellFrameProps) {
   const { t } = useTranslation();
@@ -265,14 +271,7 @@ export function V1ShellFrame({
               <Command aria-hidden="true" className="mr-0.5 inline size-3" />K
             </kbd>
           </button>
-          <span
-            aria-label={t('shell-frame.notifications.placeholder')}
-            className="flex size-8 shrink-0 items-center justify-center rounded-md text-slate-500"
-            data-testid="v1-shell-notification-slot"
-            role="img"
-          >
-            <Bell aria-hidden="true" className="size-4" />
-          </span>
+          <NotificationBellSlot slot={notificationBellSlot} />
           <UserAvatar />
         </header>
 

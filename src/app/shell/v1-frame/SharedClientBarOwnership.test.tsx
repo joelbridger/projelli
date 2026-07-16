@@ -5,7 +5,7 @@ import { AppSurfaceRouter } from '@/app/shell/AppSurfaceRouter';
 import type { AppSurfaceDescriptor } from '@/app/shell/registry/types';
 import type { AppSurfaceCapabilities } from '@/app/shell/runtime/AppSurfaceRuntime';
 import { AppSurfaceRuntimeProvider } from '@/app/shell/runtime/AppSurfaceRuntimeProvider';
-import { V1ShellFrameFlagGate } from './V1ShellFrame';
+import { V1ShellFrameFlagGate } from '@/app/shell/v1-frame';
 
 const flagsRead = vi.hoisted(() => [] as string[]);
 const sharedDescriptor: AppSurfaceDescriptor = {
