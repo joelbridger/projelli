@@ -144,7 +144,9 @@ function EnabledWorkflowRecordQuickAdd({
             <Button
               variant="secondary"
               data-testid="workflow-record-quickadd-open-library"
-              onClick={() => openWorkflowTemplateLibrary(context)}
+              onClick={() => {
+                openWorkflowTemplateLibrary(context);
+              }}
             >
               {t('workflow-record-quickadd.empty.action')}
             </Button>

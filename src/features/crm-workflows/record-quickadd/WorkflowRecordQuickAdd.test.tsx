@@ -9,10 +9,12 @@ import { WorkflowRecordQuickAdd } from './WorkflowRecordQuickAdd';
 import { workflowRecordQuickAddDescriptor } from './descriptor';
 
 let enabled = true;
-const createStore = vi.fn();
-const list = vi.fn<() => Promise<readonly WorkflowTemplateRecord[]>>();
-const start = vi.fn();
-const openTemplateLibrary = vi.fn();
+const { createStore, list, start, openTemplateLibrary } = vi.hoisted(() => ({
+  createStore: vi.fn(),
+  list: vi.fn<() => Promise<readonly WorkflowTemplateRecord[]>>(),
+  start: vi.fn(),
+  openTemplateLibrary: vi.fn(),
+}));
 
 vi.mock('@/platform/flags', () => ({
   isEnabled: () => enabled,

@@ -18,9 +18,10 @@ import { LiveWorkflows, type LiveWorkflowData } from '../Workflows';
 
 const canonicalBoundary = vi.hoisted(() => ({
   records: [] as LiveCrmRecord[],
-  invoke: vi.fn<
-    (command: string, args?: { record?: LiveCrmRecord }) => Promise<unknown>
-  >(),
+  invoke:
+    vi.fn<
+      (command: string, args?: { record?: LiveCrmRecord }) => Promise<unknown>
+    >(),
 }));
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -60,7 +61,9 @@ function isCanonicalWorkflowTemplate(
   );
 }
 
-function storedWorkflowTemplate(id: string): LiveWorkflowData['templates'][number] {
+function storedWorkflowTemplate(
+  id: string
+): LiveWorkflowData['templates'][number] {
   const template = canonicalBoundary.records
     .filter(isCanonicalWorkflowTemplate)
     .find((record) => record.id === id);
@@ -68,27 +71,89 @@ function storedWorkflowTemplate(id: string): LiveWorkflowData['templates'][numbe
   return template;
 }
 
-function HandoffHarness({ data }: { data: LiveWorkflowData }) {
-  const [addRequest, setAddRequest] =
-    useState<CrmHouseholdAddRequest | null>(request);
-  return (
-    <LiveWorkflows
-      data={data}
-      households={[
-        {
-          id: 'household:river',
-          label: 'River household',
-          matterId: 'matter:river',
-        },
-      ]}
-      onSave={() => Promise.resolve()}
-      onNavigate={vi.fn()}
-      {...(addRequest ? { addRequest } : {})}
-      onAddRequestConsumed={() => {
-        setAddRequest(null);
-      }}
-    />
+function instanceUpsertCalls() {
+  return canonicalBoundary.invoke.mock.calls.filter(
+    ([command, args]) =>
+      command === 'crm_live_upsert' &&
+      args?.record?.kind === 'crm_workflow_instance'
   );
+}
+
+function storedInstances() {
+  return canonicalBoundary.records.filter(
+    (record) => record.kind === 'crm_workflow_instance'
+  );
+}
+
+function HandoffHarness({
+  data,
+  initialRequest = request,
+  onConsumed = () => undefined,
+}: {
+  data: LiveWorkflowData;
+  initialRequest?: CrmHouseholdAddRequest;
+  onConsumed?: () => void;
+}) {
+  const [addRequest, setAddRequest] = useState<CrmHouseholdAddRequest | null>(
+    initialRequest
+  );
+  const [showWorkflows, setShowWorkflows] = useState(true);
+  return (
+    <>
+      <button
+        data-testid="handoff-leave"
+        onClick={() => {
+          setShowWorkflows(false);
+        }}
+      >
+        Leave workflows
+      </button>
+      <button
+        data-testid="handoff-revisit"
+        onClick={() => {
+          setShowWorkflows(true);
+        }}
+      >
+        Revisit workflows
+      </button>
+      {showWorkflows ? (
+        <LiveWorkflows
+          data={data}
+          households={[
+            {
+              id: 'household:river',
+              label: 'River household',
+              matterId: 'matter:river',
+            },
+          ]}
+          onSave={() => Promise.resolve()}
+          onNavigate={vi.fn()}
+          {...(addRequest ? { addRequest } : {})}
+          onAddRequestConsumed={() => {
+            onConsumed();
+            setAddRequest(null);
+          }}
+        />
+      ) : null}
+    </>
+  );
+}
+
+async function createPublishedTemplate() {
+  const author = renderHook(() => useWorkflowTemplateStore());
+  const created = await author.result.current.create({
+    name: 'Annual review',
+    steps: [{ title: 'Prepare review' }],
+  });
+  const createdStep = created.steps[0];
+  if (!createdStep) throw new Error('Expected the canonical template step');
+  const published = await author.result.current.publish(created.id);
+  author.unmount();
+  return {
+    createdStep,
+    published,
+    storedTemplate: storedWorkflowTemplate(published.id),
+  };
 }
 
 describe('record workflow quick-add canonical handoff', () => {
@@ -123,26 +188,25 @@ describe('record workflow quick-add canonical handoff', () => {
   });
 
   it('starts once for the handed-off household and proves it from a fresh reader', async () => {
-    const author = renderHook(() => useWorkflowTemplateStore());
-    const created = await author.result.current.create({
-      name: 'Annual review',
-      steps: [{ title: 'Prepare review' }],
-    });
-    const createdStep = created.steps[0];
-    if (!createdStep) throw new Error('Expected the canonical template step');
-    const published = await author.result.current.publish(created.id);
-    author.unmount();
-
-    const storedTemplate = storedWorkflowTemplate(published.id);
+    const onConsumed = vi.fn();
+    const { createdStep, published, storedTemplate } =
+      await createPublishedTemplate();
+    canonicalBoundary.invoke.mockClear();
     const app = render(
       <HandoffHarness
-        data={{ templates: [storedTemplate], instances: [], offers: [], meetings: [] }}
+        data={{
+          templates: [storedTemplate],
+          instances: [],
+          offers: [],
+          meetings: [],
+        }}
+        onConsumed={onConsumed}
       />
     );
 
-    expect(await screen.findByTestId('workflow-record-quickadd')).toHaveTextContent(
-      'River household'
-    );
+    expect(
+      await screen.findByTestId('workflow-record-quickadd')
+    ).toHaveTextContent('River household');
     expect(
       await screen.findByTestId(
         `workflow-record-quickadd-template-${published.id}`
@@ -155,18 +219,18 @@ describe('record workflow quick-add canonical handoff', () => {
         screen.queryByTestId('workflow-record-quickadd')
       ).not.toBeInTheDocument();
     });
+    expect(onConsumed).toHaveBeenCalledTimes(1);
     const storedInstance = canonicalBoundary.records.find(
       (record) => record.kind === 'crm_workflow_instance'
     );
-    if (!storedInstance) throw new Error('Expected the canonical instance write');
+    if (!storedInstance)
+      throw new Error('Expected the canonical instance write');
     expect(storedInstance).toMatchObject({
       matterId: 'matter:river',
       householdId: request.householdId,
       householdLabel: request.householdLabel,
       templateId: published.id,
     });
-    app.unmount();
-
     const freshReader = renderHook(() => useWorkflowTemplateStore());
     await waitFor(async () => {
       await expect(
@@ -180,18 +244,86 @@ describe('record workflow quick-add canonical handoff', () => {
     });
     freshReader.unmount();
 
-    expect(
-      canonicalBoundary.invoke.mock.calls.filter(
-        ([command, args]) =>
-          command === 'crm_live_upsert' &&
-          args?.record?.kind === 'crm_workflow_instance'
-      )
-    ).toHaveLength(1);
+    expect(instanceUpsertCalls()).toHaveLength(1);
     expect(
       canonicalBoundary.invoke.mock.calls.filter(
         ([command]) => command === 'crm_live_list'
       ).length
     ).toBeGreaterThanOrEqual(2);
+
+    fireEvent.click(screen.getByTestId('handoff-leave'));
+    fireEvent.click(screen.getByTestId('handoff-revisit'));
+    expect(
+      screen.queryByTestId('workflow-record-quickadd')
+    ).not.toBeInTheDocument();
+    expect(instanceUpsertCalls()).toHaveLength(1);
+    expect(storedInstances()).toHaveLength(1);
+    expect(onConsumed).toHaveBeenCalledTimes(1);
+    app.unmount();
+  });
+
+  it('cancels through the live handoff with no canonical instance write', async () => {
+    const onConsumed = vi.fn();
+    const { storedTemplate } = await createPublishedTemplate();
+    canonicalBoundary.invoke.mockClear();
+
+    render(
+      <HandoffHarness
+        data={{
+          templates: [storedTemplate],
+          instances: [],
+          offers: [],
+          meetings: [],
+        }}
+        onConsumed={onConsumed}
+      />
+    );
+    await screen.findByTestId('workflow-record-quickadd');
+    fireEvent.click(screen.getByTestId('workflow-record-quickadd-cancel'));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId('workflow-record-quickadd')
+      ).not.toBeInTheDocument();
+    });
+    expect(onConsumed).toHaveBeenCalledTimes(1);
+    expect(instanceUpsertCalls()).toHaveLength(0);
+    expect(storedInstances()).toHaveLength(0);
+  });
+
+  it('keeps a real rejected start request unconsumed and writes no instance', async () => {
+    const onConsumed = vi.fn();
+    const { published, storedTemplate } = await createPublishedTemplate();
+    canonicalBoundary.invoke.mockClear();
+    const invalidRequest: CrmHouseholdAddRequest = {
+      ...request,
+      householdLabel: '   ',
+    };
+
+    render(
+      <HandoffHarness
+        data={{
+          templates: [storedTemplate],
+          instances: [],
+          offers: [],
+          meetings: [],
+        }}
+        initialRequest={invalidRequest}
+        onConsumed={onConsumed}
+      />
+    );
+    await screen.findByTestId(
+      `workflow-record-quickadd-template-${published.id}`
+    );
+    fireEvent.click(screen.getByTestId('workflow-record-quickadd-start'));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Choose a household before starting a workflow.'
+    );
+    expect(screen.getByTestId('workflow-record-quickadd')).toBeVisible();
+    expect(onConsumed).not.toHaveBeenCalled();
+    expect(instanceUpsertCalls()).toHaveLength(0);
+    expect(storedInstances()).toHaveLength(0);
   });
 
   it('leaves the existing workflow surface usable and unread while dark', async () => {
@@ -208,11 +340,18 @@ describe('record workflow quick-add canonical handoff', () => {
 
     render(
       <HandoffHarness
-        data={{ templates: [storedTemplate], instances: [], offers: [], meetings: [] }}
+        data={{
+          templates: [storedTemplate],
+          instances: [],
+          offers: [],
+          meetings: [],
+        }}
       />
     );
 
-    expect(screen.queryByTestId('workflow-record-quickadd')).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId('workflow-record-quickadd')
+    ).not.toBeInTheDocument();
     expect(screen.getByTestId('crm-live-workflow-household')).toHaveValue(
       request.householdId
     );
