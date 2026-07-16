@@ -4,9 +4,9 @@ import {
   schwabAccountTypes,
   schwabFieldMaps,
 } from './index';
-import type { SchwabHousehold } from './index';
+import type { HouseholdRecord } from '@/features/crm-clients/adapters';
 
-const household: SchwabHousehold = {
+const household: HouseholdRecord = {
   id: 'household-1',
   name: 'Mills family',
   lifecycle: 'active',

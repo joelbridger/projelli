@@ -12,9 +12,9 @@ vi.mock('../private-facts', () => ({
   },
 }));
 import { SchwabPrefillReview } from './SchwabPrefillReview';
-import type { SchwabHousehold } from '../mapping';
+import type { HouseholdRecord } from '@/features/crm-clients/adapters';
 
-const household: SchwabHousehold = {
+const household: HouseholdRecord = {
   id: 'h-review',
   name: 'Taylor family',
   lifecycle: 'active',
