@@ -275,8 +275,10 @@ export const getDirectoryViews = () =>
   sorted(directoryViewRegistry, validateDirectoryViewDescriptors);
 
 const featureStatePortFactory = Symbol('directory feature state port factory');
+const contributionActivityVersion = Symbol('directory contribution activity version');
 type DirectoryHostContext = DirectoryContext & {
   readonly [featureStatePortFactory]?: <Value extends DirectoryFeatureStateValue>(namespace: string) => DirectoryFeatureState<Value>;
+  readonly [contributionActivityVersion]?: number;
 };
 
 export function withDirectoryFeatureStatePort<Value extends DirectoryFeatureStateValue>(
@@ -291,8 +293,9 @@ export function withDirectoryFeatureStatePort<Value extends DirectoryFeatureStat
 export function createDirectoryContextWithFeatureStatePorts(
   context: DirectoryContext,
   factory: NonNullable<DirectoryHostContext[typeof featureStatePortFactory]>,
+  activityVersion = 0,
 ): DirectoryContext {
-  return { ...context, [featureStatePortFactory]: factory } as DirectoryHostContext;
+  return { ...context, [featureStatePortFactory]: factory, [contributionActivityVersion]: activityVersion } as DirectoryHostContext;
 }
 
 type BoundDirectoryContribution = {

@@ -6,7 +6,7 @@ import { createDirectoryContextWithFeatureStatePorts, defaultDirectoryCompositio
 import type { CrmClientsActions, CrmPerson, HouseholdDirectoryEntry } from './adapters';
 
 export function DirectorySurface({ people, households = [], actions, onCreateHousehold, error, composition = defaultDirectoryComposition }: { people: readonly CrmPerson[]; households?: readonly HouseholdDirectoryEntry[]; actions?: CrmClientsActions; onCreateHousehold?: (name: string) => Promise<void> | void; error?: string | null; composition?: DirectoryComposition; }) {
-  useFlagRegistryVersion();
+  const flagRegistryVersion = useFlagRegistryVersion();
   const [query, setQuery] = useState('');
   const [person, setPerson] = useState<CrmPerson | null>(null);
   const [view, setView] = useState<string | null>('directory');
@@ -22,7 +22,7 @@ export function DirectorySurface({ people, households = [], actions, onCreateHou
         : new Map(previous).set(namespace, value));
     },
   }), [featureStateValues]);
-  const context = useMemo<DirectoryContext>(() => createDirectoryContextWithFeatureStatePorts({ query: { value: query, setValue: setQuery }, selection: { person, setPerson }, view: { value: view, setValue: setView }, sort: { value: view, setValue: setView }, filters: { tab, setTab, externalOnly, setExternalOnly, needsVerification, setNeedsVerification }, records: { people, households }, repository: { openHousehold: (id) => { actions?.onOpenHousehold?.(id); }, reviewRecipient: (id) => { actions?.onReviewRecipient?.(id); }, createHousehold: (name) => onCreateHousehold?.(name) }, composition }, featureStatePort), [actions, composition, externalOnly, featureStatePort, households, needsVerification, onCreateHousehold, people, person, query, tab, view]);
+  const context = useMemo<DirectoryContext>(() => createDirectoryContextWithFeatureStatePorts({ query: { value: query, setValue: setQuery }, selection: { person, setPerson }, view: { value: view, setValue: setView }, sort: { value: view, setValue: setView }, filters: { tab, setTab, externalOnly, setExternalOnly, needsVerification, setNeedsVerification }, records: { people, households }, repository: { openHousehold: (id) => { actions?.onOpenHousehold?.(id); }, reviewRecipient: (id) => { actions?.onReviewRecipient?.(id); }, createHousehold: (name) => onCreateHousehold?.(name) }, composition }, featureStatePort, flagRegistryVersion), [actions, composition, externalOnly, featureStatePort, flagRegistryVersion, households, needsVerification, onCreateHousehold, people, person, query, tab, view]);
   const activeView = resolveDirectoryView(context);
   return <section data-testid="crm-directory-surface"><header><p style={{ marginBottom: 2 }}>Clients / Directory</p><h1 style={{ marginTop: 0 }}>People and external parties</h1></header><SurfaceToolbar data-testid="crm-directory-toolbar">{composition.tools.filter((descriptor) => descriptor.isEnabled?.() ?? true).map((descriptor) => <span key={descriptor.id}>{descriptor.mount(context)}</span>)}{getDirectoryActions().map((descriptor) => <span key={descriptor.id}>{descriptor.mount(context)}</span>)}</SurfaceToolbar>{error ? <Card variant="raised" role="alert">Could not load the saved CRM records: {error}</Card> : null}{activeView.mount(context)}{getDirectoryRails().map((descriptor) => <span key={descriptor.id}>{descriptor.mount(context)}</span>)}</section>;
 }

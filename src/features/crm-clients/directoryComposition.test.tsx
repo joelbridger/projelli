@@ -1,6 +1,6 @@
 import '@/i18n';
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import {
   DirectorySurface,
   createDirectoryComposition,
@@ -16,6 +16,7 @@ import type { HouseholdDirectoryEntry } from '@/features/crm-clients';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import type { Matter } from '@/platform/types/matter';
+import { isEnabled, setDevFlagOverride } from '@/platform/flags/router';
 
 declare module './directoryRegistry' {
   interface DirectoryToolIdMap {
@@ -91,6 +92,9 @@ function legacyMountShape(surface: HTMLElement) {
 
 afterEach(() => {
   localStorage.clear();
+  act(() => {
+    setDevFlagOverride('crm-bulk-select', undefined);
+  });
   useMatterStore.setState({ matters: [] });
   useClientMapStore.setState({ maps: {}, clientQuestions: {} });
 });
@@ -200,6 +204,33 @@ describe('directory composition public seam', () => {
     ]);
     expect(compare).toHaveBeenCalled();
     expect(households.map(({ id }) => id)).toEqual(['h-c', 'h-a', 'h-b']);
+  });
+
+  it('restores legacy order immediately when a contribution flag turns off', () => {
+    const flagGatedSort: DirectoryQueryDescriptor<'test-flag-gated-sort'> = {
+      id: 'test-flag-gated-sort',
+      order: 10,
+      isActive: () => isEnabled('crm-bulk-select'),
+      compare: (left, right) => left.record.name.localeCompare(right.record.name),
+    };
+    const composition = createDirectoryComposition({ queries: [flagGatedSort] });
+    setDevFlagOverride('crm-bulk-select', true);
+
+    render(<DirectorySurface people={[]} households={households} composition={composition} />);
+
+    expect(screen.getAllByTestId(/^crm-directory-household-/).map((row) => row.dataset['testid'])).toEqual([
+      'crm-directory-household-h-a',
+      'crm-directory-household-h-b',
+      'crm-directory-household-h-c',
+    ]);
+    act(() => {
+      setDevFlagOverride('crm-bulk-select', false);
+    });
+    expect(screen.getAllByTestId(/^crm-directory-household-/).map((row) => row.dataset['testid'])).toEqual([
+      'crm-directory-household-h-c',
+      'crm-directory-household-h-a',
+      'crm-directory-household-h-b',
+    ]);
   });
 
   it('re-projects through the public seam when a mounted feature tool changes its state', () => {
