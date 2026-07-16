@@ -177,6 +177,15 @@ export const flagRegistry = [
     expiresAt: '2026-09-14',
     defaultEnabled: false,
   },
+  {
+    id: 'record-member-kebab',
+    description:
+      'Keeps the household-member rail and its scoped record actions dark until review is complete.',
+    ownerLane: 'record-member-kebab',
+    createdAt: '2026-07-16',
+    expiresAt: '2026-09-14',
+    defaultEnabled: false,
+  },
 ] as const satisfies readonly FlagDescriptor[];
 
 export type FlagId = (typeof flagRegistry)[number]['id'];

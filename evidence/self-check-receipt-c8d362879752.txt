@@ -1,0 +1,16 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 2
+repo: /home/jameson/v1-w2-record-member-kebab
+sha: c8d3628797526efe057ba53ba375716dfe519642
+tree: 2fcfca4c0d5150737555323580af018692211794
+gate_base: 161996c146097081dd8b6e65fad25ec5c7ce0fd8
+tool_blob: 47e279d4399792a5cc19fc7f1ced01c5863b18af
+utc: 2026-07-16T02:45:56Z
+step: gate:changed | exit=0 | 02:45:56Z..02:54:37Z | bytes=7735 | sha256=b934dabd4f8d7fed239894c94b0901072c5dfde98d9969dad1ddb7a45855adf3 | tail: v1-w2-record-member-kebab Test Files 2 passed (2) Tests 2 passed (2) Start at 02:54:35 Duration 2.51s (transform 1.02s, setup 1.29s, import 953ms, tests 645ms, environment 1.18s) CHANGED GATE GREEN 
+step: typecheck | exit=0 | 02:54:37Z..02:55:11Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit 
+step: typecheck:tests | exit=0 | 02:55:11Z..02:56:06Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit 
+step: handle-guard | exit=0 | 02:56:06Z..02:56:06Z | bytes=1267 | sha256=96af6b41cbe12f01bd7aa8b530f372cf41f3d7fbb79a4d737932c4468cb52c85 | tail: t-picker-cancel + client-picker-clear + client-picker-empty + client-picker-error +141 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen). 
+step: arch-dag-guard | exit=0 | 02:56:06Z..02:56:08Z | bytes=225 | sha256=bccaa8862ca14e4a84a467e0d2a9917e36236d7a93c662501239d4fa9bea9344 | tail:  v4.1.3 /home/jameson/v1-w2-record-member-kebab Test Files 1 passed (1) Tests 1 passed (1) Start at 02:56:06 Duration 1.45s (transform 316ms, setup 503ms, import 324ms, tests 4ms, environment 470ms) 
+step: i18n-snapshot | exit=0 | 02:56:08Z..02:56:09Z | bytes=226 | sha256=b4eb93264a607e5226a075dc76ace244a387d3a223127b98aea4374a890e8873 | tail:  v4.1.3 /home/jameson/v1-w2-record-member-kebab Test Files 1 passed (1) Tests 5 passed (5) Start at 02:56:08 Duration 1.42s (transform 340ms, setup 503ms, import 327ms, tests 21ms, environment 443ms) 
+step: focused | exit=0 | 02:56:09Z..02:56:12Z | bytes=227 | sha256=d4adf82139e8ca1982587b1599453d8d41d5544cfe2d563862ac52505ac20045 | tail: v4.1.3 /home/jameson/v1-w2-record-member-kebab Test Files 2 passed (2) Tests 2 passed (2) Start at 02:56:10 Duration 1.92s (transform 775ms, setup 996ms, import 777ms, tests 507ms, environment 877ms) 
+overall: GREEN

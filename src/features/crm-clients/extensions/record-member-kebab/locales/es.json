@@ -1,0 +1,15 @@
+{
+  "memberRail": {
+    "title": "Miembros del hogar",
+    "helper_one": "{{count}} persona en este hogar",
+    "helper_other": "{{count}} personas en este hogar",
+    "member": "Miembro del hogar",
+    "options": "Opciones para {{name}}",
+    "empty": "Aún no se han agregado miembros del hogar.",
+    "actions": {
+      "review": "Revisar contacto",
+      "email": "Iniciar borrador de correo",
+      "task": "Crear tarea"
+    }
+  }
+}
