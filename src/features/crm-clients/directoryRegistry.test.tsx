@@ -162,8 +162,8 @@ describe('client directory registries', () => {
   });
 
   it('keeps descriptor IDs closed to registered feature augmentations', () => {
-    // @ts-expect-error an unregistered directory tool id must not typecheck.
     const typo: DirectoryToolDescriptor = {
+      // @ts-expect-error an unregistered directory tool id must not typecheck.
       id: 'test-toool',
       order: 1,
       mount: () => null,

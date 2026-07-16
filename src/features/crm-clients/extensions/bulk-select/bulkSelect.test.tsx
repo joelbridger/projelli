@@ -78,13 +78,16 @@ function PublicContractProbe() {
   );
 }
 
-function renderRegisteredTool(context = directoryContext()) {
+function renderRegisteredTool(
+  context = directoryContext(),
+  includePublicContract = true
+) {
   const descriptor = getDirectoryTools().find(({ id }) => id === 'bulk-select');
   if (!descriptor) throw new Error('Expected the registered bulk-select tool.');
   return render(
     <>
       {descriptor.mount(context)}
-      <PublicContractProbe />
+      {includePublicContract && <PublicContractProbe />}
     </>
   );
 }
@@ -95,7 +98,7 @@ afterEach(() => {
 });
 
 describe('CRM directory bulk selection', () => {
-  it('is absent while flag-off without reading directory data or subscribing to selection', () => {
+  it('is absent while flag-off without reading directory data', () => {
     setDevFlagOverride('crm-bulk-select', false);
     const loadHouseholds = vi.fn(() => households);
     const records = {
@@ -105,7 +108,7 @@ describe('CRM directory bulk selection', () => {
       },
     };
 
-    renderRegisteredTool(directoryContext({ records }));
+    renderRegisteredTool(directoryContext({ records }), false);
 
     expect(
       screen.queryByTestId('crm-directory-bulk-select')
