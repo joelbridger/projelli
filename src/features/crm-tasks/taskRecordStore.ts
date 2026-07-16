@@ -1,6 +1,7 @@
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import type { EntityRef, RecurrenceRule, Task } from '@/platform/crm/types';
+import { validateContactRef, type ContactRef } from '@/features/crm-contacts';
 
 export type TaskStatus = Task['status'];
 export type TaskPriority = Task['priority'];
@@ -12,6 +13,9 @@ export type TaskHouseholdRef = Pick<EntityRef, 'kind' | 'id' | 'matterId' | 'lab
 export type TaskDocumentRef = Pick<EntityRef, 'kind' | 'id' | 'matterId' | 'label'> & {
   kind: 'document';
 };
+
+/** Public task relation: existing Documents pointers plus any durable contact kind. */
+export type TaskContextRef = TaskDocumentRef | ContactRef;
 
 /** The task fields feature lanes may read. Storage metadata stays private. */
 export interface TaskRecord {
@@ -27,7 +31,7 @@ export interface TaskRecord {
   readonly priority: TaskPriority;
   readonly category?: string;
   readonly tagIds: readonly string[];
-  readonly contextRefs: readonly TaskDocumentRef[];
+  readonly contextRefs: readonly TaskContextRef[];
 }
 
 export interface CreateTaskRecordInput {
@@ -42,7 +46,7 @@ export interface CreateTaskRecordInput {
   priority?: TaskPriority;
   category?: string;
   tagIds?: readonly string[];
-  contextRefs?: readonly TaskDocumentRef[];
+  contextRefs?: readonly TaskContextRef[];
 }
 
 /** `null` clears an optional value; omitted fields retain their current value. */
@@ -58,7 +62,7 @@ export interface UpdateTaskRecordPatch {
   priority?: TaskPriority;
   category?: string | null;
   tagIds?: readonly string[];
-  contextRefs?: readonly TaskDocumentRef[];
+  contextRefs?: readonly TaskContextRef[];
 }
 
 /** Async because every mutation uses the encrypted canonical live-record route. */
@@ -247,6 +251,60 @@ function storedDocumentRefs(value: unknown): TaskDocumentRef[] {
   });
 }
 
+function cleanContextRefs(
+  values: readonly TaskContextRef[],
+  householdRef: TaskHouseholdRef | null,
+): TaskContextRef[] {
+  const targetMatterId = taskMatterId(householdRef);
+  const documents = cleanDocumentRefs(
+    values.filter((value): value is TaskDocumentRef => value.kind === 'document'),
+    householdRef,
+  );
+  const documentById = new Map(documents.map((ref) => [ref.id, ref]));
+  const seen = new Set<string>();
+  return values.map((value) => {
+    if (value.kind === 'document') {
+      const document = documentById.get(value.id.replace(/\\/g, '/'));
+      if (!document) throw new Error('Task document reference is malformed.');
+      const key = `${document.kind}:${document.id}`;
+      if (seen.has(key)) throw new Error('Task context references must not be duplicated.');
+      seen.add(key);
+      return document;
+    }
+    const contact = validateContactRef(value);
+    if (targetMatterId && contact.matterId !== targetMatterId) {
+      throw new Error('Task contacts must belong to the same client as the task.');
+    }
+    const key = `${contact.kind}:${contact.id}`;
+    if (seen.has(key)) throw new Error('Task context references must not be duplicated.');
+    seen.add(key);
+    return contact;
+  });
+}
+
+function storedContextRefs(value: unknown): TaskContextRef[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  return value.flatMap((candidate): TaskContextRef[] => {
+    const document = storedDocumentRefs([candidate])[0];
+    if (document) {
+      const key = `${document.kind}:${document.id}`;
+      if (seen.has(key)) return [];
+      seen.add(key);
+      return [document];
+    }
+    try {
+      const contact = validateContactRef(candidate as ContactRef);
+      const key = `${contact.kind}:${contact.id}`;
+      if (seen.has(key)) return [];
+      seen.add(key);
+      return [contact];
+    } catch {
+      return [];
+    }
+  });
+}
+
 function storedHouseholdRef(value: unknown): TaskHouseholdRef | null {
   if (!value || typeof value !== 'object') return null;
   const ref = value as Partial<EntityRef>;
@@ -306,7 +364,7 @@ function toTaskRecord(record: LiveCrmRecord): TaskRecord {
     priority,
     ...(category ? { category } : {}),
     tagIds: storedTagIds(record['tagIds']),
-    contextRefs: storedDocumentRefs(record['contextRefs']),
+    contextRefs: storedContextRefs(record['contextRefs']),
   };
 }
 
@@ -338,7 +396,7 @@ function canonicalTask(input: CreateTaskRecordInput): LiveCrmRecord & Task {
     priority: cleanPriority(input.priority ?? 'normal'),
     ...(category ? { category } : {}),
     tagIds: cleanTagIds(input.tagIds ?? []),
-    contextRefs: cleanDocumentRefs(input.contextRefs ?? [], householdRef),
+    contextRefs: cleanContextRefs(input.contextRefs ?? [], householdRef),
     customFields: {},
   };
   return canonical as LiveCrmRecord & Task;
@@ -371,22 +429,11 @@ function mergePatch(record: LiveCrmRecord, patch: UpdateTaskRecordPatch): LiveCr
   }
   if ('tagIds' in patch) next['tagIds'] = cleanTagIds(patch.tagIds);
   if ('contextRefs' in patch || 'householdRef' in patch) {
-    const rawRefs: unknown[] = Array.isArray(record['contextRefs']) ? record['contextRefs'] : [];
-    const nonDocuments = rawRefs.filter((ref): ref is EntityRef =>
-      Boolean(ref) &&
-      typeof ref === 'object' &&
-      typeof (ref as Partial<EntityRef>).kind === 'string' &&
-      (ref as Partial<EntityRef>).kind !== 'document' &&
-      typeof (ref as Partial<EntityRef>).id === 'string'
-    );
-    const requestedDocuments = 'contextRefs' in patch
+    const requestedRefs = 'contextRefs' in patch
       ? patch.contextRefs
-      : storedDocumentRefs(record['contextRefs']);
+      : storedContextRefs(record['contextRefs']);
     const nextHouseholdRef = storedHouseholdRef(next['householdRef']);
-    next['contextRefs'] = [
-      ...nonDocuments,
-      ...cleanDocumentRefs(requestedDocuments, nextHouseholdRef),
-    ];
+    next['contextRefs'] = cleanContextRefs(requestedRefs, nextHouseholdRef);
   }
   return next;
 }

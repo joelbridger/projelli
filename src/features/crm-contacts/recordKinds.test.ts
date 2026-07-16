@@ -6,6 +6,7 @@ import {
   projectDirectoryContacts,
   validateContactChannels,
   validateContactCreate,
+  validateContactPatch,
   validateContactRef,
   validateContactTypeDefinition,
   type ContactCreateInput,
@@ -28,7 +29,7 @@ function livePort(seed: readonly LiveCrmRecord[] = []) {
   return {
     get records() { return records; },
     save,
-    reload: vi.fn(() => Promise.resolve()),
+    reloadRecords: vi.fn(() => Promise.resolve(records)),
     sharedMatterId: 'matter-1',
   };
 }
@@ -45,7 +46,7 @@ describe('four-kind contact foundation', () => {
     const store = createContactRecordStore(live);
     const created = await Promise.all(inputs.map((input) => store.create(input)));
     expect(created.map((contact) => contact.kind)).toEqual(['household', 'person', 'organization', 'trust']);
-    expect(live.reload).toHaveBeenCalledTimes(4);
+    expect(live.reloadRecords).toHaveBeenCalledTimes(4);
 
     const fresh = createContactRecordStore(live);
     for (const contact of created) {
@@ -114,6 +115,8 @@ describe('four-kind contact foundation', () => {
     expect(() => validateContactCreate({ kind: 'trust', matterId: 'matter-1', name: ' ' })).toThrow('required');
     expect(() => validateContactCreate({ kind: 'household', matterId: 'matter-1', name: 'Valid', tagIds: ['tag:a', 'tag:a'] })).toThrow('duplicates');
     expect(() => validateContactChannels([{ id: 'bad id', kind: 'email', address: 'a@example.com', primary: true }])).toThrow('stable ID');
+    expect(() => validateContactChannels([{ id: 'email:1', kind: 'email', address: 'a@example.com', primary: 'yes' }])).toThrow('boolean');
+    expect(() => validateContactPatch({ contextRefs: [{ kind: 'lookalike', id: 'record:1' }] as never })).toThrow('kind');
     expect(() => validateContactRef({ kind: 'person', id: 'bad id', matterId: 'matter-1' })).toThrow('stable ID');
     expect(() => validateContactTypeDefinition({ id: 'client', label: 'Client', appliesTo: ['person', 'person'] })).toThrow('repeat');
     const clientType = validateContactTypeDefinition({ id: 'client', label: 'Client', appliesTo: ['household', 'person'] });

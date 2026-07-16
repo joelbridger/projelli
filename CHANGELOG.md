@@ -32,6 +32,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Four-kind CRM contact foundation review gaps are closed.** Tasks, activity,
+  files, mail, and print now expose real `ContactRef` fields through their
+  public package doorways; the directory repository always requires open and
+  resolve; contact mutations return the fresh reloaded record; and malformed
+  channel booleans or context-reference kinds fail before save. Consumer-shaped
+  compile fixtures and focused regressions cover each contract. Files:
+  `src/features/crm-{contacts,clients,tasks,timeline,documents,connectors}/`,
+  `src/platform/crm/useLiveCrmRecords.ts`.
 - **Test-impact selection is now fail-open at the final runner boundary.**
   The runner starts with the full Vitest command and can narrow it only after a
   successful, non-empty selector result. It now falls back to the full suite for

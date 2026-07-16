@@ -1,3 +1,5 @@
+import type { ContactRef } from '@/features/crm-contacts';
+
 export type TimelineEntryType = 'note' | 'fact' | 'task' | 'workflow' | 'activity' | 'email' | 'meeting' | 'document';
 
 export interface TimelineSource {
@@ -30,4 +32,12 @@ export interface TimelineRecord {
   createdAt?: string;
   updatedAt?: string;
   [key: string]: unknown;
+}
+
+/** Public activity shape for an event that targets any durable contact kind. */
+export interface TimelineActivityRecord extends TimelineRecord {
+  kind: 'activityEvent';
+  at: string;
+  summary: string;
+  targetRef: ContactRef;
 }

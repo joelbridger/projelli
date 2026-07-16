@@ -48,16 +48,19 @@ describe('contact record store canonical live-route integration', () => {
       canonical.commands.push(command);
       if (command === 'crm_live_list') return Promise.resolve(structuredClone(canonical.records));
       if (command === 'crm_live_upsert' && args?.record) {
-        const saved = {
+        const canonicalRecord = {
           ...structuredClone(args.record),
           createdAt: args.record.createdAt ?? '2026-07-16T00:00:00.000Z',
           updatedAt: '2026-07-16T00:00:00.000Z',
           canonicalMarker: 'loaded-from-crm-live-list',
         };
-        canonical.records = canonical.records.some((record) => record.id === saved.id)
-          ? canonical.records.map((record) => record.id === saved.id ? saved : record)
-          : [...canonical.records, saved];
-        return Promise.resolve(structuredClone(saved));
+        canonical.records = canonical.records.some((record) => record.id === canonicalRecord.id)
+          ? canonical.records.map((record) => record.id === canonicalRecord.id ? canonicalRecord : record)
+          : [...canonical.records, canonicalRecord];
+        return Promise.resolve({
+          ...structuredClone(canonicalRecord),
+          canonicalMarker: 'returned-from-crm-live-upsert',
+        });
       }
       return Promise.reject(new Error(`Unexpected command ${command}`));
     });
@@ -73,6 +76,7 @@ describe('contact record store canonical live-route integration', () => {
     await act(async () => {
       for (const input of inputs) created.push(await first.result.current.create(input));
     });
+    expect(created.every((contact) => contact.source['canonicalMarker'] === 'loaded-from-crm-live-list')).toBe(true);
     expect(canonical.commands.filter((command) => command === 'crm_live_upsert')).toHaveLength(4);
     first.unmount();
 

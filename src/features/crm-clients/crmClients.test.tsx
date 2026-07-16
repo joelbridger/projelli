@@ -329,9 +329,9 @@ describe('crm clients surfaces', () => {
     fireEvent.click(screen.getByTestId('crm-open-mail-surface'));
     expect(onDraftEmail).toHaveBeenCalledWith({
       kind: 'open_mail_surface',
-      householdRef: { kind: 'household', id: 'h-1', label: 'Henderson household' },
-      contextRefs: [{ kind: 'household', id: 'h-1', label: 'Henderson household' }],
-      source: 'crm_household',
+      contactRef: { kind: 'household', id: 'h-1', matterId: 'h-1', label: 'Henderson household' },
+      contextRefs: [{ kind: 'household', id: 'h-1', matterId: 'h-1', label: 'Henderson household' }],
+      source: 'crm_contact',
     });
   });
 
@@ -374,7 +374,7 @@ describe('crm clients surfaces', () => {
   });
 
   it('saves a trust contact with separate household and person roles plus primary contact details', () => {
-    const onSaveHousehold = vi.fn();
+    const onSaveHousehold = vi.fn<(saved: HouseholdRecord) => void>();
     render(<HouseholdRecordSurface household={household} onSaveHousehold={onSaveHousehold} />);
     fireEvent.click(screen.getByTestId('crm-household-add'));
     fireEvent.click(screen.getByTestId('crm-household-add-person'));
@@ -385,16 +385,15 @@ describe('crm clients surfaces', () => {
     fireEvent.click(screen.getByTestId('crm-person-email-add'));
     fireEvent.change(screen.getByLabelText('Email 1'), { target: { value: 'trust@example.test' } });
     fireEvent.click(screen.getByTestId('crm-person-save'));
-    expect(onSaveHousehold).toHaveBeenCalledWith(expect.objectContaining({
-      members: expect.arrayContaining([expect.objectContaining({
-        personType: 'trust', householdRole: 'Trust', roles: ['Beneficiary contact'],
-        emails: [expect.objectContaining({ address: 'trust@example.test', primary: true })],
-      })]),
-    }));
+    const saved = onSaveHousehold.mock.calls[0]?.[0];
+    expect(saved?.members.some((member) => member.personType === 'trust'
+      && member.householdRole === 'Trust'
+      && member.roles.includes('Beneficiary contact')
+      && member.emails?.some((email) => email.address === 'trust@example.test' && email.primary))).toBe(true);
   });
 
   it('saves a dated fact with recorded provenance and lets it be removed', () => {
-    const onSaveHousehold = vi.fn();
+    const onSaveHousehold = vi.fn<(saved: HouseholdRecord) => void>();
     render(<HouseholdRecordSurface household={household} onSaveHousehold={onSaveHousehold} />);
     fireEvent.click(screen.getByTestId('crm-household-add'));
     fireEvent.click(screen.getByTestId('crm-household-add-fact'));
@@ -404,7 +403,10 @@ describe('crm clients surfaces', () => {
     fireEvent.change(screen.getByTestId('crm-fact-source'), { target: { value: 'Annual review meeting' } });
     fireEvent.change(screen.getByTestId('crm-fact-source-ref'), { target: { value: 'mail:review-1' } });
     fireEvent.click(screen.getByTestId('crm-fact-save'));
-    expect(onSaveHousehold).toHaveBeenCalledWith(expect.objectContaining({ facts: expect.arrayContaining([expect.objectContaining({ label: 'Preferred review month', asOf: '2026-07-12', sources: [expect.objectContaining({ label: 'Annual review meeting', ref: 'mail:review-1' })] })]) }));
+    const saved = onSaveHousehold.mock.calls[0]?.[0];
+    expect(saved?.facts.some((fact) => fact.label === 'Preferred review month'
+      && fact.asOf === '2026-07-12'
+      && fact.sources.some((source) => source.label === 'Annual review meeting' && source.ref === 'mail:review-1'))).toBe(true);
     fireEvent.click(screen.getByTestId('crm-fact-remove-f-1'));
     expect(onSaveHousehold).toHaveBeenLastCalledWith(expect.objectContaining({ facts: [] }));
   });

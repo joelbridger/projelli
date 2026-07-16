@@ -8,8 +8,11 @@ export {
   listWorkspaceDocumentRefs,
   removeWorkspaceDocumentRef,
   resolveWorkspaceDocumentRef,
+  linkWorkspaceDocumentToContact,
 } from './documentLinks';
 export type {
+  ContactFileLink,
+  LinkedDocument,
   ResolveWorkspaceDocumentRefInput,
   WorkspaceDocumentRef,
   WorkspaceDocumentRefErrorCode,

@@ -22,7 +22,7 @@ import type {
   RelatedContactSummaryProjection,
 } from './types';
 
-type LivePort = Pick<ReturnType<typeof useLiveCrmRecords>, 'records' | 'save' | 'reload' | 'sharedMatterId'>;
+type LivePort = Pick<ReturnType<typeof useLiveCrmRecords>, 'records' | 'save' | 'reloadRecords' | 'sharedMatterId'>;
 
 function asDocument(record: LiveCrmRecord): Readonly<Record<string, unknown>> {
   return record as Readonly<Record<string, unknown>>;
@@ -98,10 +98,10 @@ export interface ContactRecordStore {
 export function createContactRecordStore(live: LivePort): ContactRecordStore {
   const records = activeContactRecords(live.records);
   const saveAndReload = async (document: Record<string, unknown>): Promise<ContactRecord> => {
-    const saved = await live.save(document as LiveCrmRecord);
-    await live.reload();
-    const contact = contactRecordFromDocument(asDocument(saved));
-    if (!contact) throw new Error('Saved record is not a valid contact.');
+    await live.save(document as LiveCrmRecord);
+    const reloaded = await live.reloadRecords();
+    const contact = reloaded ? recordFor(reloaded, String(document['id'])) : null;
+    if (!contact) throw new Error('Saved record was not present in the fresh canonical list.');
     return contact;
   };
   const requireHousehold = (ref: ContactRef): ContactRecord => {

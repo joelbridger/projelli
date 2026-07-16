@@ -13,6 +13,7 @@ export type {
 export type {
   CreateTaskRecordInput,
   TaskDocumentRef,
+  TaskContextRef,
   TaskHouseholdRef,
   TaskPriority,
   TaskRecord,

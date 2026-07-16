@@ -42,7 +42,7 @@ export function useLiveCrmRecords() {
     getCrmEngineFreshness,
   );
   useEffect(() => subscribeCrmEngineFreshness(setFreshness), []);
-  const reload = useCallback(async () => {
+  const reloadRecords = useCallback(async () => {
     const rootAtStart = workspaceRoot;
     try {
       const loaded = await loadLiveCrmRecords(rootAtStart);
@@ -51,12 +51,17 @@ export function useLiveCrmRecords() {
       setRecords(loaded);
       setErrorWorkspaceRoot(rootAtStart);
       setError(null);
+      return loaded;
     } catch (reason) {
       if (workspaceRootRef.current !== rootAtStart) return;
       setErrorWorkspaceRoot(rootAtStart);
       setError(reason instanceof Error ? reason.message : String(reason));
+      return undefined;
     }
   }, [workspaceRoot]);
+  const reload = useCallback(async (): Promise<void> => {
+    await reloadRecords();
+  }, [reloadRecords]);
   useEffect(() => {
     void Promise.resolve().then(reload);
   }, [reload]);
@@ -122,6 +127,7 @@ export function useLiveCrmRecords() {
     save,
     publishSavedRecord,
     reload,
+    reloadRecords,
     error: errorWorkspaceRoot === workspaceRoot ? error : null,
     workspaceRoot,
     freshness: effectiveFreshness,

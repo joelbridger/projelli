@@ -1,4 +1,4 @@
-import type { EntityRef } from '@/platform/crm/types';
+import type { EntityKind, EntityRef } from '@/platform/crm/types';
 import type {
   ContactChannel,
   ContactCreateInput,
@@ -13,6 +13,16 @@ import type {
 export const CONTACT_KINDS: readonly ContactKind[] = ['household', 'person', 'organization', 'trust'];
 
 const stableId = /^[A-Za-z0-9][A-Za-z0-9:_-]*$/;
+const entityKinds = [
+  'household', 'person', 'organization', 'trust', 'account', 'fact', 'note', 'task',
+  'document', 'workflowTemplate', 'workflowInstance', 'servicePolicy', 'activityEvent',
+  'activityComment', 'activityReaction', 'firmDoc', 'tag', 'customFieldDef', 'opportunity',
+  'pipelineDef', 'stageDef', 'proposalRecord', 'project', 'legacyProject',
+  'firmDirectoryEntry', 'firmWorkspaceSummary', 'firmSeatSummary', 'householdDirectoryShell',
+  'intakeLink', 'intakeSubmission', 'importArchiveManifest', 'savedView', 'savedReport',
+  'reportRun',
+] as const satisfies readonly EntityKind[];
+const entityKindSet = new Set<EntityKind>(entityKinds);
 
 export function isContactKind(value: unknown): value is ContactKind {
   return typeof value === 'string' && (CONTACT_KINDS as readonly string[]).includes(value);
@@ -50,11 +60,12 @@ export function validateContactChannels(value: unknown): readonly ContactChannel
     const id = assertStableId(channel['id'], 'channel.id');
     if (ids.has(id)) throw new Error('channels cannot contain duplicate IDs.');
     ids.add(id);
+    if (typeof channel['primary'] !== 'boolean') throw new Error('channel.primary must be a boolean.');
     return {
       id,
       address: requiredString(channel['address'], 'channel.address'),
       kind: requiredString(channel['kind'], 'channel.kind'),
-      primary: Boolean(channel['primary']),
+      primary: channel['primary'],
     };
   });
 }
@@ -86,7 +97,10 @@ function validateRefs(value: unknown): readonly EntityRef[] {
   return value.map((item) => {
     if (!item || typeof item !== 'object' || Array.isArray(item)) throw new Error('contextRef must be an object.');
     const ref = item as Record<string, unknown>;
-    const kind = requiredString(ref['kind'], 'contextRef.kind');
+    const kind = ref['kind'];
+    if (typeof kind !== 'string' || !entityKindSet.has(kind as EntityKind)) {
+      throw new Error('contextRef.kind is invalid.');
+    }
     const id = assertStableId(ref['id'], 'contextRef.id');
     const key = `${kind}:${id}`;
     if (seen.has(key)) throw new Error('contextRefs cannot contain duplicates.');

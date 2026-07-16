@@ -1,6 +1,11 @@
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import type { EntityRef } from '@/platform/crm/types';
 import type { HouseholdRecord } from '@/features/crm-clients/adapters';
+import {
+  validateContactRef,
+  type ContactKind,
+  type ContactRef,
+} from '@/features/crm-contacts';
 import { PathValidator } from '@/platform/fs';
 import { resolveWorkspaceMatterId } from '@/platform/rag/matterResolver';
 import { UNASSIGNED_MATTER_ID, type Matter } from '@/platform/types/matter';
@@ -41,13 +46,23 @@ export interface ResolveWorkspaceDocumentRefInput {
   existing?: unknown;
 }
 
-export type LinkedDocument = {
+type LinkedDocumentBase = {
   ref: EntityRef;
-  target: 'household' | 'person' | 'note' | 'task';
   targetId: string;
   targetLabel: string;
   linkedAt?: string;
 };
+
+export type LinkedDocument = LinkedDocumentBase & (
+  | { target: ContactKind; contactRef: ContactRef }
+  | { target: 'note' | 'task'; contactRef?: never }
+);
+
+/** Public record-file link. The file stays Documents-owned. */
+export interface ContactFileLink {
+  contactRef: ContactRef;
+  documentRef: WorkspaceDocumentRef;
+}
 
 const CLIENT_DOCUMENT_EXTENSIONS = new Set([
   'pdf',
@@ -111,6 +126,19 @@ function validPortableDocumentRef(value: unknown): WorkspaceDocumentRef | null {
     label,
     ...(typeof ref.matterId === 'string' && ref.matterId ? { matterId: ref.matterId } : {}),
   };
+}
+
+export function linkWorkspaceDocumentToContact(
+  contactRef: ContactRef,
+  documentRef: WorkspaceDocumentRef,
+): ContactFileLink {
+  const contact = validateContactRef(contactRef);
+  const document = validPortableDocumentRef(documentRef);
+  if (!document) throw new WorkspaceDocumentRefError('malformed');
+  if (document.matterId && document.matterId !== contact.matterId) {
+    throw new WorkspaceDocumentRefError('wrong_matter');
+  }
+  return { contactRef: contact, documentRef: document };
 }
 
 /** Stable document-only view over a mixed CRM relation list. */
@@ -221,9 +249,10 @@ function hasHousehold(record: LiveCrmRecord, householdId: string): boolean {
 /** The document itself stays in Documents. These are only pointers saved on CRM records. */
 export function linkedDocumentsForHousehold(household: HouseholdRecord, records: readonly LiveCrmRecord[]): LinkedDocument[] {
   const entries: LinkedDocument[] = [];
-  refs(household.contextRefs).forEach((ref) => entries.push({ ref, target: 'household', targetId: household.id, targetLabel: household.name }));
+  const matterId = household.matterId ?? household.id;
+  refs(household.contextRefs).forEach((ref) => entries.push({ ref, target: 'household', contactRef: { kind: 'household', id: household.id, matterId, label: household.name }, targetId: household.id, targetLabel: household.name }));
   [...household.members, ...household.externalParties].forEach((person) => {
-    refs(person.contextRefs).forEach((ref) => entries.push({ ref, target: 'person', targetId: person.id, targetLabel: person.name }));
+    refs(person.contextRefs).forEach((ref) => entries.push({ ref, target: person.personType, contactRef: { kind: person.personType, id: person.id, matterId, label: person.name }, targetId: person.id, targetLabel: person.name }));
   });
   household.notes.forEach((note) => {
     refs(note.links).forEach((ref) => entries.push({ ref, target: 'note', targetId: note.id, targetLabel: note.body.slice(0, 60) || 'Untitled note', ...((note.updatedAt ?? note.createdAt) ? { linkedAt: note.updatedAt ?? note.createdAt } : {}) }));

@@ -150,7 +150,7 @@ function ContactTableView({ context }: { context: DirectoryContext }) {
     if (!name || submittingHousehold) return;
     setAddError(null);
     setSubmittingHousehold(true);
-    void Promise.resolve().then(() => context.repository.createHousehold(name)).then(() => {
+    void Promise.resolve().then(() => context.legacyRepository.createHousehold(name)).then(() => {
       setHouseholdName('');
       setAddingHousehold(false);
     }).catch(() => {
@@ -312,12 +312,12 @@ function ContactTableView({ context }: { context: DirectoryContext }) {
                       data-testid={`crm-contact-table-open-${row.kind}-${record.id}`}
                       onClick={() => {
                         const ref = contact?.ref;
-                        if (ref && context.repository.openContact) {
+                        if (ref) {
                           void context.repository.openContact(ref).catch((error: unknown) => {
                             console.error('Could not open the contact record.', error);
                           });
                         } else if (row.kind === 'household') {
-                          context.repository.openHousehold(row.record.id);
+                          context.legacyRepository.openHousehold(row.record.id);
                         } else {
                           context.selection.setPerson(row.record);
                         }

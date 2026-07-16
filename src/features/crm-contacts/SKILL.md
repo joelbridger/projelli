@@ -8,6 +8,8 @@ kinds are `household`, `person`, `organization`, and `trust`.
   import `useLiveCrmRecords`, `saveLiveCrmRecord`, or a raw CRM command.
 - Validate drafts and references with the public validators. Contact IDs,
   channel IDs, tag IDs, and relationship IDs are stable and duplicate-free.
+  Channel `primary` values must be real booleans, and `contextRefs` must use a
+  known public `EntityKind`; truthy strings and lookalike kinds fail closed.
 - Check a custom type with `contactTypeAppliesTo(definition, kind)`; a type
   never changes the record's durable kind.
 - Resolve/open a record with `resolve(ref)` and make references with
@@ -18,7 +20,12 @@ kinds are `household`, `person`, `organization`, and `trust`.
   `listRelated`; never write a paired reverse household list.
 - The old embedded household people adapter is read-only:
   `adaptLegacyHouseholdRecord(household)`.
+- Cross-feature links keep the complete `ContactRef`: task `contextRefs`,
+  timeline activity `targetRef`, Documents `ContactFileLink`, mail
+  `OpenMailSurfaceRequest.contactRef`, and `ContactPrintProjection.ref`.
 
 Every consumer needs a small outside-package import fixture that imports only
-public contacts and CRM-clients indexes. Unknown namespaced `extensionData`
-and canonical base fields are preserved on updates.
+its public owner index plus `@/features/crm-contacts`. Unknown namespaced
+`extensionData` and canonical base fields are preserved on updates. Every
+contact mutation returns the record found in the fresh canonical reload, not
+the earlier upsert response.

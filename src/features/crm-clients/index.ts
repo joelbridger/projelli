@@ -10,6 +10,7 @@ export {
   type CrmClientsSharedContext,
 } from './sharedClientContext';
 export type * from './adapters';
+export type { OpenMailSurfaceRequest } from '@/features/crm-connectors';
 export {
   createDirectoryComposition,
   defaultDirectoryComposition,
@@ -25,6 +26,7 @@ export {
   type DirectoryFeatureToolDescriptor,
   type DirectoryFeatureViewDescriptor,
   type DirectoryQueryDescriptor,
+  type DirectoryLegacyRepository,
   type DirectoryRepository,
   type DirectoryResult,
   type DirectoryToolDescriptor,

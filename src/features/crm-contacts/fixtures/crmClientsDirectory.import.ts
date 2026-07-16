@@ -11,3 +11,12 @@ export type CrmClientsDirectoryPublicImports = {
   repository: DirectoryRepository;
   ref: ContactRef;
 };
+
+export async function exerciseDirectoryRepository(
+  context: DirectoryContext,
+  ref: ContactRef,
+) {
+  const repository: DirectoryRepository = context.repository;
+  await repository.openContact(ref);
+  return repository.resolveContact(ref);
+}

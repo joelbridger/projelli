@@ -3,6 +3,8 @@
  * intentionally mirror the frozen B1 CRM contracts, so the eventual engine
  * import is a type move, not a data-shape migration. This lane owns no storage.
  */
+import type { OpenMailSurfaceRequest } from '@/features/crm-connectors';
+
 export type SyncState =
   | 'live'
   | 'syncing'
@@ -162,6 +164,8 @@ export interface CrmFieldValue {
 }
 export interface HouseholdRecord {
   id: string;
+  /** Canonical workspace/client scope when known. */
+  matterId?: string;
   name: string;
   /** Optional canonical CRM timestamps; directory projections preserve them when present. */
   createdAt?: string;
@@ -238,14 +242,6 @@ export interface AddToHouseholdRequest {
     | 'workflow';
   householdRef: EntityRef;
   contextRefs: readonly EntityRef[];
-}
-
-/** Typed handoff to the existing mail surface, not an email send. */
-export interface OpenMailSurfaceRequest {
-  kind: 'open_mail_surface';
-  householdRef: EntityRef;
-  contextRefs: readonly EntityRef[];
-  source: 'crm_household';
 }
 
 /** Integration points. Implementations belong to the CRM engine and mail lanes. */

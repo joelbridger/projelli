@@ -68,6 +68,7 @@ function householdFromRecord(record: LiveCrmRecord, currentSyncState: SyncState,
   const tagIds = optionalStringList(record['tagIds']);
   return {
     id: record.id,
+    ...(typeof record.matterId === 'string' ? { matterId: record.matterId } : {}),
     name: stringValue(record['name'], 'Untitled household'),
     ...(typeof record.createdAt === 'string' ? { createdAt: record.createdAt } : {}),
     ...(typeof record.updatedAt === 'string' ? { updatedAt: record.updatedAt } : {}),
@@ -106,6 +107,7 @@ function householdFromRecord(record: LiveCrmRecord, currentSyncState: SyncState,
 function householdFromMatter(matter: Matter, currentSyncState: SyncState): HouseholdRecord {
   return {
     id: matter.id,
+    matterId: matter.id,
     name: matter.client.trim() || matter.name,
     ...(typeof matter.createdAt === 'string' ? { createdAt: matter.createdAt } : {}),
     lifecycle: 'Active',

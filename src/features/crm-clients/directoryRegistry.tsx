@@ -62,6 +62,13 @@ export interface DirectoryRepository {
   resolveContact(ref: ContactRef): Promise<RecordScreenProjection | null>;
 }
 
+/** Household-only helpers retained solely by the pre-WB-010 directory mounts. */
+export interface DirectoryLegacyRepository {
+  openHousehold(id: string): void;
+  reviewRecipient(id: string): void;
+  createHousehold(name: string): Promise<void> | void;
+}
+
 export interface DirectoryContext {
   query: { value: string; setValue(value: string): void };
   selection: {
@@ -86,11 +93,8 @@ export interface DirectoryContext {
   }>;
   /** Present for the four-kind directory path; legacy descriptors retain their narrow adapter. */
   contacts?: readonly ContactDirectoryProjection[];
-  repository: Partial<DirectoryRepository> & {
-    openHousehold(id: string): void;
-    reviewRecipient(id: string): void;
-    createHousehold(name: string): Promise<void> | void;
-  };
+  repository: DirectoryRepository;
+  legacyRepository: DirectoryLegacyRepository;
   composition: DirectoryComposition;
 }
 
