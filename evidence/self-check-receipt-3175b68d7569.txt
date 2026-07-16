@@ -1,0 +1,16 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 2
+repo: /home/jameson/v1-w2-audit-write-seam
+sha: 3175b68d7569a12b37862815b7c1d54db1e2027c
+tree: 7ffe2e54cabebabdeb47398cfc191049a7ec819f
+gate_base: 086f78a3bd9699795a1fea417960c30a278b21ba
+tool_blob: 47e279d4399792a5cc19fc7f1ced01c5863b18af
+utc: 2026-07-16T04:45:36Z
+step: gate:changed | exit=0 | 04:45:36Z..04:55:43Z | bytes=54703 | sha256=0933b27a980bb83a74c407e48669551a0a36d723457053c810925d2bfa982d25 | tail: assed | 3 skipped (999) Tests 8352 passed | 29 skipped (8381) Start at 04:49:05 Duration 397.94s (transform 28.63s, setup 186.57s, import 528.30s, tests 234.43s, environment 493.05s) CHANGED GATE GREEN 
+step: typecheck | exit=0 | 04:55:43Z..04:56:25Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit 
+step: typecheck:tests | exit=0 | 04:56:25Z..04:57:08Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit 
+step: handle-guard | exit=0 | 04:57:08Z..04:57:08Z | bytes=1267 | sha256=d7d39deba2f120a44481417dece3edfe7fd18522f66ca525f0b3b5f605547bb8 | tail: t-picker-cancel + client-picker-clear + client-picker-empty + client-picker-error +133 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen). 
+step: arch-dag-guard | exit=0 | 04:57:08Z..04:57:10Z | bytes=222 | sha256=5354a1ad2b8a9fcae2bda178037fa0fb6abbf2572906c7bacd0ee6bb96d406df | tail: RUN v4.1.3 /home/jameson/v1-w2-audit-write-seam Test Files 1 passed (1) Tests 1 passed (1) Start at 04:57:08 Duration 1.29s (transform 255ms, setup 408ms, import 346ms, tests 3ms, environment 415ms) 
+step: i18n-snapshot | exit=0 | 04:57:10Z..04:57:11Z | bytes=223 | sha256=10e9263efe21f0272c4370a075894218b67cf837705d3bcb546edcc3a8ee9797 | tail: UN v4.1.3 /home/jameson/v1-w2-audit-write-seam Test Files 1 passed (1) Tests 5 passed (5) Start at 04:57:10 Duration 1.04s (transform 243ms, setup 347ms, import 247ms, tests 18ms, environment 320ms) 
+step: focused | exit=0 | 04:57:11Z..04:57:18Z | bytes=226 | sha256=373e0f72ba2e22c284a7b4b2362fdbb166db7edc0ee8d74a8dfc5c2c8e20dac6 | tail:  v4.1.3 /home/jameson/v1-w2-audit-write-seam Test Files 3 passed (3) Tests 11 passed (11) Start at 04:57:11 Duration 6.87s (transform 4.63s, setup 1.18s, import 6.20s, tests 512ms, environment 1.35s) 
+overall: GREEN

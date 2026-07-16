@@ -113,6 +113,10 @@ import type { TrashedItem } from '@/platform/history/TrashService';
 
 import type { AuditEntry } from '@/platform/types/audit';
 import { AuditService } from '@/platform/audit/AuditService';
+import {
+  setAuditWriteEmitter,
+  type AuditWriteEntry,
+} from '@/features/audit';
 import { setEmailAuditEmitter } from '@/features/email/EmailViewer';
 import { setIntakeNudgeAuditEmitter } from '@/platform/intake/nudgeAudit';
 import { setIntakeEmailReplyAuditEmitter } from '@/platform/intake/emailReplyAudit';
@@ -1615,7 +1619,10 @@ function AppShell() {
   // persisted row and the on-screen row describe the same event. Append-only on
   // both sides: we only ever prepend a new entry.
   const addAuditEntry = useCallback(
-    async (entry: Omit<AuditEntry, 'id' | 'timestamp'>): Promise<AuditEntry> => {
+    async (
+      entry: AuditWriteEntry,
+      requirePersistence = false
+    ): Promise<AuditEntry> => {
       const options = {
         ...(entry.model !== undefined ? { model: entry.model } : {}),
         inputs: entry.inputs,
@@ -1635,7 +1642,10 @@ function AppShell() {
           ? { provider: entry.provider }
           : {}),
       };
-      if (entry.metadata['auditMustPersist'] === true) {
+      if (
+        requirePersistence ||
+        entry.metadata['auditMustPersist'] === true
+      ) {
         const newEntry = await auditServiceRef.current.mustLogDurable(
           entry.action,
           entry.description,
@@ -1673,6 +1683,24 @@ function AppShell() {
     },
     []
   );
+
+  // The public feature doorway is fail-closed: unlike legacy App callers, it
+  // resolves only after the canonical store confirms the append. Keep this
+  // separate from addAuditEntry's default pending behavior so existing
+  // callbacks remain unchanged.
+  const addDurableAuditEntry = useCallback(
+    (entry: AuditWriteEntry): Promise<AuditEntry> =>
+      addAuditEntry(entry, true),
+    [addAuditEntry]
+  );
+
+  useEffect(() => {
+    setAuditWriteEmitter(addDurableAuditEntry);
+    return () => {
+      setAuditWriteEmitter(null);
+    };
+  }, [addDurableAuditEntry]);
+
   const emitAuditEntry = useCallback(
     (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => {
       void addAuditEntry(entry);
