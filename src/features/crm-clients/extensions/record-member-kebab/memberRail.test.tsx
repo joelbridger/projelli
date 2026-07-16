@@ -1,8 +1,38 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import type { ComponentType } from 'react';
 import { setDevFlagOverride } from '@/platform/flags';
 import type { HouseholdRecord } from '@/features/crm-clients';
+import type { HouseholdTabSurfaceProps } from '../../tabRegistry';
+
+const EmptyTab: ComponentType<HouseholdTabSurfaceProps> = () => null;
+
+// Keep the real registry and household screen under test. Only the unrelated
+// tab implementations are replaced, so module reloads stay below this lane's
+// five-second test timeout.
+vi.mock('../../clientMapTab', () => ({
+  clientMapTab: { id: 'client-map', label: 'Client Map', route: 'client_map', Component: EmptyTab },
+}));
+vi.mock('../../fallbackTabs', () => ({
+  activityTab: { id: 'activity', label: 'Activity', route: 'activity', Component: EmptyTab },
+}));
+vi.mock('@/features/crm-documents/surface', () => ({
+  documentsTab: { id: 'documents', label: 'Documents', route: 'documents', Component: EmptyTab },
+}));
+vi.mock('@/features/crm-timeline/tabSurface', () => ({
+  timelineTab: { id: 'timeline', label: 'Timeline', route: 'timeline', Component: EmptyTab },
+}));
+vi.mock('@/features/crm-connectors/tabSurface', () => ({
+  emailTab: { id: 'email', label: 'Email', route: 'email', Component: EmptyTab },
+  meetingsTab: { id: 'meetings', label: 'Meetings', route: 'meetings', Component: EmptyTab },
+}));
+vi.mock('../../meetingNotesTab', () => ({
+  meetingNotesTab: { id: 'meeting-notes', label: 'Meeting notes', route: 'meeting_notes', Component: EmptyTab },
+}));
+vi.mock('../../reviewsTab', () => ({
+  reviewsTab: { id: 'reviews', label: 'Reviews', route: 'reviews', Component: EmptyTab },
+}));
 
 const household: HouseholdRecord = {
   id: 'household-member-rail',
@@ -39,19 +69,24 @@ afterEach(() => {
 describe('household member rail extension', () => {
   it('renders the enabled member rail and limits each kebab action to existing public record contracts', async () => {
     setDevFlagOverride('record-member-kebab', true);
-    const { MemberRailTab } = await import('./MemberRailTab');
+    vi.resetModules();
+    const { HouseholdRecordSurface } = await import('../../HouseholdRecordSurface');
+    const { householdTabRegistry } = await import('../../tabRegistry');
     const onAdd = vi.fn();
     const onDraftEmail = vi.fn();
     const onReviewRecipient = vi.fn();
-    const onSaveHousehold = vi.fn();
 
     render(
-      <MemberRailTab
+      <HouseholdRecordSurface
         household={household}
         actions={{ onAdd, onDraftEmail, onReviewRecipient }}
       />
     );
 
+    expect(
+      householdTabRegistry.some((descriptor) => descriptor.id === 'household-members')
+    ).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Members' }));
     expect(screen.getByTestId('crm-household-member-rail')).toBeInTheDocument();
     expect(screen.getByTestId('crm-household-member-member-jordan')).toHaveTextContent(
       'Jordan Henderson'
@@ -103,6 +138,5 @@ describe('household member rail extension', () => {
         { kind: 'person', id: 'member-jordan', label: 'Jordan Henderson' },
       ],
     });
-    expect(onSaveHousehold).not.toHaveBeenCalled();
   });
 });

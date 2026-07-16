@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import type { ComponentType } from 'react';
 import { setDevFlagOverride } from '@/platform/flags';
 import type { HouseholdTabSurfaceProps } from '../../tabRegistry';
@@ -42,17 +42,9 @@ vi.mock('../../meetingNotesTab', () => ({
 vi.mock('../../reviewsTab', () => ({
   reviewsTab: { id: 'reviews', label: 'Reviews', route: 'reviews', Component: EmptyTab },
 }));
-vi.mock('@/features/crm-clients/extensions/record-member-kebab', () => ({
-  memberRailTab: {
-    id: 'household-members',
-    label: 'Members',
-    route: 'household_members',
-    Component: memberRailTabMount,
-  },
-}));
-
 afterEach(() => {
   cleanup();
+  vi.doUnmock('./MemberRailTab');
   memberRailTabMount.mockClear();
   setDevFlagOverride('record-member-kebab', undefined);
 });
@@ -61,9 +53,16 @@ describe('household member rail extension while dark', () => {
   it('is absent at mount and does not mount member-rail work', async () => {
     setDevFlagOverride('record-member-kebab', false);
     vi.resetModules();
+    // This is the real extension descriptor and real registry. The stand-in
+    // marks the member-rail boundary that must stay unreachable while dark.
+    vi.doMock('./MemberRailTab', () => ({ MemberRailTab: memberRailTabMount }));
+    const { HouseholdRecordSurface } = await import('../../HouseholdRecordSurface');
     const { householdTabRegistry, validateHouseholdTabDescriptors } = await import(
       '../../tabRegistry'
     );
+    const onAdd = vi.fn();
+    const onDraftEmail = vi.fn();
+    const onReviewRecipient = vi.fn();
 
     expect(() => {
       validateHouseholdTabDescriptors(householdTabRegistry);
@@ -72,19 +71,32 @@ describe('household member rail extension while dark', () => {
       householdTabRegistry.some((descriptor) => descriptor.id === 'household-members')
     ).toBe(false);
 
-    // This is the same registry-driven mount shape used by the household
-    // screen. With no descriptor there is no path that can reach the extension.
-    const selectedTab = householdTabRegistry[0];
-    if (!selectedTab) throw new Error('Expected the legacy Client Map tab');
     render(
-      <selectedTab.Component
-        household={{} as HouseholdTabSurfaceProps['household']}
-        proposals={[]}
-        timelineRecords={[]}
-        renderLegacySurface={() => null}
+      <HouseholdRecordSurface
+        household={{
+          id: 'household-member-rail',
+          name: 'Henderson household',
+          lifecycle: 'Active',
+          primaryAdvisor: 'Maya',
+          ownership: 'mine',
+          serviceTier: 'Platinum',
+          syncState: 'live',
+          facts: [],
+          accounts: [],
+          members: [],
+          externalParties: [],
+          notes: [],
+        }}
+        actions={{ onAdd, onDraftEmail, onReviewRecipient }}
       />
     );
 
+    expect(screen.queryByRole('button', { name: 'Members' })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('crm-household-member-rail')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('crm-household-member-member-jordan')).not.toBeInTheDocument();
     expect(memberRailTabMount).not.toHaveBeenCalled();
+    expect(onAdd).not.toHaveBeenCalled();
+    expect(onDraftEmail).not.toHaveBeenCalled();
+    expect(onReviewRecipient).not.toHaveBeenCalled();
   });
 });
