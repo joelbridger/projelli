@@ -1,0 +1,18 @@
+{
+  "advisorFilters": {
+    "open": "Filters",
+    "heading": "Filter directory",
+    "applied": "Applied filters",
+    "primaryAdvisor": "Primary advisor",
+    "allPrimaryAdvisors": "All primary advisors",
+    "serviceTier": "Service tier",
+    "allServiceTiers": "All service tiers",
+    "lifecycle": "Client status",
+    "allLifecycles": "All client statuses",
+    "chip": "{{field}}: {{value}}",
+    "remove": "Remove",
+    "removeLabel": "Remove {{label}} filter",
+    "reset": "Reset filters",
+    "empty": "No households match these filters."
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "advisorFilters": {
+    "open": "Filtros",
+    "heading": "Filtrar directorio",
+    "applied": "Filtros aplicados",
+    "primaryAdvisor": "Asesor principal",
+    "allPrimaryAdvisors": "Todos los asesores principales",
+    "serviceTier": "Nivel de servicio",
+    "allServiceTiers": "Todos los niveles de servicio",
+    "lifecycle": "Estado del cliente",
+    "allLifecycles": "Todos los estados de cliente",
+    "chip": "{{field}}: {{value}}",
+    "remove": "Eliminar",
+    "removeLabel": "Eliminar el filtro {{label}}",
+    "reset": "Restablecer filtros",
+    "empty": "Ningún hogar coincide con estos filtros."
+  }
+}
