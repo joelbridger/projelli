@@ -1,0 +1,226 @@
+import { act, renderHook, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
+
+const boundary = vi.hoisted(() => ({
+  records: [] as LiveCrmRecord[],
+  commands: [] as string[],
+  published: [] as LiveCrmRecord[],
+  invoke:
+    vi.fn<
+      (command: string, args?: { record?: LiveCrmRecord }) => Promise<unknown>
+    >(),
+}));
+
+vi.mock('@tauri-apps/api/core', () => ({
+  isTauri: () => true,
+  invoke: (command: string, args?: { record?: LiveCrmRecord }) =>
+    boundary.invoke(command, args),
+}));
+vi.mock('@/platform/utils/wealthbox-commands', () => ({
+  crmSetWorkspace: () => Promise.resolve(),
+}));
+vi.mock('@/platform/fs/workspaceStore', () => ({
+  useWorkspaceStore: <T,>(selector: (state: { rootPath: string }) => T) =>
+    selector({ rootPath: '/workspace' }),
+}));
+vi.mock('@/platform/matter/matterStore', () => ({
+  useMatterStore: <T,>(
+    selector: (state: { matters: []; activeMatterId: null }) => T
+  ) => selector({ matters: [], activeMatterId: null }),
+}));
+vi.mock('@/platform/crm/store', () => ({
+  getCrmEngineFreshness: () => ({ kind: 'idle' }),
+  subscribeCrmEngineFreshness: () => () => undefined,
+}));
+vi.mock('@/platform/crm/liveRecordRelay', () => ({
+  clearLiveRecordRelay: vi.fn(),
+  ensureLiveRecordRelay: vi.fn(() => Promise.resolve(null)),
+  removeLiveRecordRelayWriter: vi.fn(),
+  publishLiveRecord: (record: LiveCrmRecord) => {
+    boundary.published.push(structuredClone(record));
+  },
+}));
+
+import { LIVE_CRM_RECORDS_CHANGED } from '@/platform/crm/useLiveCrmRecords';
+import {
+  useMeetingArtifactStore,
+  useMeetingFoundationPreferencesStore,
+  useMeetingFoundationStore,
+  useMeetingIntelligenceSettingsStore,
+  useMeetingTemplateStore,
+  useMeetingTypeStore,
+} from './contract';
+
+const draft = {
+  workspaceId: 'workspace-1',
+  householdRef: 'household-1',
+  matterId: 'matter-1',
+  typeId: 'review',
+  ownerRef: 'member-1',
+  scheduledStartUtc: '2026-07-20T09:00:00.000Z',
+  scheduledEndUtc: '2026-07-20T10:00:00.000Z',
+  timezone: 'America/Chicago',
+  references: ['existing'],
+};
+
+describe('meetings canonical live-record round trip', () => {
+  beforeEach(() => {
+    boundary.records = [];
+    boundary.commands = [];
+    boundary.published = [];
+    boundary.invoke.mockReset();
+    boundary.invoke.mockImplementation((command, args) => {
+      boundary.commands.push(command);
+      if (command === 'crm_live_list')
+        return Promise.resolve(structuredClone(boundary.records));
+      if (command === 'crm_live_upsert' && args?.record) {
+        const echo = structuredClone(args.record);
+        const canonical = { ...echo, canonicalReloadMarker: true };
+        boundary.records = boundary.records.some(
+          (item) => item.id === canonical.id
+        )
+          ? boundary.records.map((item) =>
+              item.id === canonical.id ? canonical : item
+            )
+          : [...boundary.records, canonical];
+        return Promise.resolve(echo);
+      }
+      return Promise.reject(new Error(`Unexpected command ${command}`));
+    });
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('survives save, independent fresh mounts, and peer relay refresh without losing fields', async () => {
+    const writer = renderHook(() => useMeetingFoundationStore());
+    const created = await writer.result.current.createDraft(draft);
+    boundary.records = boundary.records.map((record) =>
+      record.id === created.id
+        ? { ...record, futureField: { survives: true } }
+        : record
+    );
+    await writer.result.current.update(created.id, { references: ['added'] });
+    writer.unmount();
+
+    const freshMeeting = renderHook(() => useMeetingFoundationStore());
+    await waitFor(async () => {
+      await expect(
+        freshMeeting.result.current.get(created.id)
+      ).resolves.toMatchObject({
+        references: ['existing', 'added'],
+      });
+    });
+    expect(
+      boundary.records.find((record) => record.id === created.id)
+    ).toMatchObject({
+      futureField: { survives: true },
+      canonicalReloadMarker: true,
+    });
+
+    const artifactWriter = renderHook(() => useMeetingArtifactStore());
+    const artifact = await artifactWriter.result.current.append({
+      meetingId: created.id,
+      kind: 'structured-notes',
+      schemaVersion: 2,
+      producedAt: '2026-07-20T10:00:00.000Z',
+      sourceRefs: ['document-1'],
+      provenance: 'local-entry',
+      payload: { summary: 'Fresh record proof' },
+    });
+    await artifactWriter.result.current.approve(artifact.id, {
+      from: 'produced',
+      to: 'approved',
+      at: '2026-07-20T10:01:00.000Z',
+    });
+    artifactWriter.unmount();
+    const freshArtifact = renderHook(() => useMeetingArtifactStore());
+    await waitFor(() => {
+      expect(
+        freshArtifact.result.current
+          .readerFor(
+            freshMeeting.result.current,
+            { householdRef: 'household-1', matterId: 'matter-1' },
+            [{ kind: 'structured-notes', minimumSchemaVersion: 2 }]
+          )
+          .get(artifact.id)
+      ).toMatchObject({
+        state: 'approved',
+        sourceRefs: ['document-1'],
+      });
+    });
+
+    const types = renderHook(() => useMeetingTypeStore());
+    await types.result.current.save([{ id: 'review', label: 'Review' }]);
+    types.unmount();
+    const freshTypes = renderHook(() => useMeetingTypeStore());
+    await expect(freshTypes.result.current.get()).resolves.toEqual([
+      { id: 'review', label: 'Review' },
+    ]);
+
+    const templates = renderHook(() => useMeetingTemplateStore());
+    await templates.result.current.save([
+      { id: 'notes', label: 'Notes', artifactKinds: ['structured-notes'] },
+    ]);
+    templates.unmount();
+    const freshTemplates = renderHook(() => useMeetingTemplateStore());
+    await expect(freshTemplates.result.current.get()).resolves.toMatchObject([
+      { id: 'notes' },
+    ]);
+
+    const settings = renderHook(() => useMeetingIntelligenceSettingsStore());
+    await settings.result.current.save({
+      keywordTrackingEnabled: true,
+      clientSignalsEnabled: true,
+      displayPreference: 'compact',
+    });
+    settings.unmount();
+    const freshSettings = renderHook(() =>
+      useMeetingIntelligenceSettingsStore()
+    );
+    await expect(freshSettings.result.current.get()).resolves.toMatchObject({
+      clientSignalsEnabled: true,
+      displayPreference: 'compact',
+    });
+
+    const preferences = renderHook(() =>
+      useMeetingFoundationPreferencesStore()
+    );
+    await preferences.result.current.save({
+      visibilityPolicies: [{ id: 'inherit', mode: 'inherit-household' }],
+      owners: [{ id: 'member-1', label: 'Maya' }],
+      deferredDescriptors: [
+        { id: 'automation', kind: 'automation-rule', label: 'Draft follow-up' },
+      ],
+    });
+    preferences.unmount();
+    const freshPreferences = renderHook(() =>
+      useMeetingFoundationPreferencesStore()
+    );
+    await expect(freshPreferences.result.current.get()).resolves.toMatchObject({
+      owners: [{ id: 'member-1', label: 'Maya' }],
+    });
+
+    boundary.records = boundary.records.map((record) =>
+      record.id === created.id ? { ...record, ownerRef: 'peer-member' } : record
+    );
+    act(() => {
+      window.dispatchEvent(new Event(LIVE_CRM_RECORDS_CHANGED));
+    });
+    await waitFor(() => {
+      expect(
+        freshMeeting.result.current.list.find(
+          (meeting) => meeting.id === created.id
+        )
+      ).toMatchObject({ ownerRef: 'peer-member' });
+    });
+
+    expect(boundary.published.some((record) => record.id === created.id)).toBe(
+      true
+    );
+    const firstUpsert = boundary.commands.indexOf('crm_live_upsert');
+    expect(boundary.commands.slice(firstUpsert + 1)).toContain('crm_live_list');
+  });
+});

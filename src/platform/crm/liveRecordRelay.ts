@@ -12,7 +12,10 @@ import { MatterDocSyncClient } from '@/platform/firm/coedit/MatterDocSyncClient'
 import type { SyncStatus } from '@/platform/firm/MatterSyncClient';
 import { obtainMatterKey } from '@/platform/firm/matterKeyService';
 import { useFirmStore } from '@/platform/firm/firmStore';
-import { setCrmEngineFreshness, type CrmEngineFreshness } from '@/platform/crm/store';
+import {
+  setCrmEngineFreshness,
+  type CrmEngineFreshness,
+} from '@/platform/crm/store';
 import type { LiveCrmRecord } from './liveRecords';
 
 const CRM_LIVE_RECORDS_DOC_ID = 'crm:live-records';
@@ -33,7 +36,10 @@ function mapSyncStatusToFreshness(status: SyncStatus): CrmEngineFreshness {
     case 'catching-up':
       return { kind: 'syncing' };
     case 'error':
-      return { kind: 'error', error: 'CRM record delivery hit an error and could not sync.' };
+      return {
+        kind: 'error',
+        error: 'CRM record delivery hit an error and could not sync.',
+      };
     case 'idle':
     case 'offline':
       return { kind: 'offline' };
@@ -60,7 +66,10 @@ let pendingRemoteWriters: Set<RemoteWriter> | null = null;
 function decodeRecord(value: Y.Map<string>): LiveCrmRecord | null {
   try {
     const record = Object.fromEntries(
-      [...value.entries()].map(([field, encoded]) => [field, JSON.parse(encoded)]),
+      [...value.entries()].map(([field, encoded]) => [
+        field,
+        JSON.parse(encoded),
+      ])
     ) as LiveCrmRecord;
     return typeof record.id === 'string' && typeof record.kind === 'string'
       ? record
@@ -70,12 +79,15 @@ function decodeRecord(value: Y.Map<string>): LiveCrmRecord | null {
   }
 }
 
-function relayEpoch(
-  matterId: string,
-  seatToken: string,
-): Promise<number> {
-  return useFirmStore.getState().client().matterMine(seatToken)
-    .then(({ matters }) => matters.find((matter) => matter.matter_id === matterId)?.key_epoch ?? 1)
+function relayEpoch(matterId: string, seatToken: string): Promise<number> {
+  return useFirmStore
+    .getState()
+    .client()
+    .matterMine(seatToken)
+    .then(
+      ({ matters }) =>
+        matters.find((matter) => matter.matter_id === matterId)?.key_epoch ?? 1
+    )
     .catch(() => 1);
 }
 
@@ -83,8 +95,15 @@ function relayEpoch(
 // records that apply across the firm retain the canonical `firm_home` scope.
 // Both scopes are therefore carried by that stream; this applies to every
 // whole-firm CRM record, not one feature's record kind.
-function belongsToFirmRelay(record: LiveCrmRecord, firmMatterId: string): boolean {
-  return record.matterId === firmMatterId || record.matterId === FIRM_HOME_MATTER_ID;
+function belongsToFirmRelay(
+  record: LiveCrmRecord,
+  firmMatterId: string
+): boolean {
+  return (
+    record.matterId === firmMatterId ||
+    record.matterId === FIRM_HOME_MATTER_ID ||
+    record['relayMatterId'] === firmMatterId
+  );
 }
 
 /**
@@ -94,14 +113,15 @@ function belongsToFirmRelay(record: LiveCrmRecord, firmMatterId: string): boolea
  */
 export function ensureLiveRecordRelay(
   firmMatterId: string,
-  onRemote: RemoteWriter,
+  onRemote: RemoteWriter
 ): Promise<LiveRecordSession | null> {
   if (session?.firmMatterId === firmMatterId) {
     session.remoteWriters.add(onRemote);
     return Promise.resolve(session);
   }
   if (pending) {
-    if (pendingFirmMatterId === firmMatterId) pendingRemoteWriters?.add(onRemote);
+    if (pendingFirmMatterId === firmMatterId)
+      pendingRemoteWriters?.add(onRemote);
     return pending;
   }
   // Reaching this function means the workspace really has firm delivery
@@ -126,7 +146,7 @@ export function removeLiveRecordRelayWriter(onRemote: RemoteWriter): void {
 
 async function build(
   firmMatterId: string,
-  remoteWriters: Set<RemoteWriter>,
+  remoteWriters: Set<RemoteWriter>
 ): Promise<LiveRecordSession | null> {
   stopLiveRecordRelay();
   const firm = useFirmStore.getState();
@@ -155,8 +175,12 @@ async function build(
     seatToken: firm.seatToken,
     client,
     callbacks: {
-      onRemoteUpdate: () => { void applyRemote(live); },
-      onStatus: (status) => { setCrmEngineFreshness(mapSyncStatusToFreshness(status)); },
+      onRemoteUpdate: () => {
+        void applyRemote(live);
+      },
+      onStatus: (status) => {
+        setCrmEngineFreshness(mapSyncStatusToFreshness(status));
+      },
     },
   });
   (live as { sync: MatterDocSyncClient }).sync = sync;
@@ -189,20 +213,30 @@ async function applyRemote(live: LiveRecordSession): Promise<void> {
 /** Put one local SQLCipher record into the encrypted shared-client stream. */
 export function publishLiveRecord(record: LiveCrmRecord): void {
   const activeSession = session;
-  if (!activeSession || activeSession.applyingRemote || !belongsToFirmRelay(record, activeSession.firmMatterId)) return;
-  const baseline: Record<string, unknown> = activeSession.lastRecords.get(record.id) ?? {};
+  if (
+    !activeSession ||
+    activeSession.applyingRemote ||
+    !belongsToFirmRelay(record, activeSession.firmMatterId)
+  )
+    return;
+  const baseline: Record<string, unknown> =
+    activeSession.lastRecords.get(record.id) ?? {};
   activeSession.doc.transact(() => {
     let target = activeSession.records.get(record.id);
     if (!target) {
       target = new Y.Map<string>();
       activeSession.records.set(record.id, target);
     }
+    for (const field of Object.keys(baseline)) {
+      if (!(field in record)) target.delete(field);
+    }
     // Each field is its own CRDT cell.  Two advisors changing title and due
     // date from the same stale task view therefore converge without either
     // app writing back the other's old field value.
     for (const [field, value] of Object.entries(record)) {
       const encoded = JSON.stringify(value);
-      if (encoded !== JSON.stringify(baseline[field])) target.set(field, encoded);
+      if (encoded !== JSON.stringify(baseline[field]))
+        target.set(field, encoded);
     }
   });
   activeSession.lastRecords.set(record.id, record);

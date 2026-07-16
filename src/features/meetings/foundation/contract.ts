@@ -27,6 +27,21 @@ export type MeetingArtifactKind =
   | 'talk-time-result'
   | 'client-signal';
 
+const MEETING_ARTIFACT_KINDS: readonly MeetingArtifactKind[] = [
+  'agenda',
+  'pre-meeting-brief',
+  'structured-notes',
+  'summary',
+  'transcript',
+  'diarization',
+  'notice-evidence',
+  'action-update-proposal',
+  'follow-up-draft',
+  'keyword-match',
+  'talk-time-result',
+  'client-signal',
+];
+
 /** Deliberately small: a display name is never authorization. */
 export interface ClientBoundary {
   readonly householdRef: string;
@@ -114,8 +129,16 @@ export interface MeetingArtifactInput {
 export interface MeetingArtifact extends MeetingArtifactInput {
   readonly id: MeetingArtifactRef;
   readonly kind: MeetingArtifactKind;
+  readonly householdRef: string;
+  readonly matterId: string;
   readonly state: 'produced' | 'approved';
   readonly createdAt: string;
+}
+
+export interface MeetingArtifactTransition {
+  readonly from: 'produced' | 'approved';
+  readonly to: 'approved';
+  readonly at: string;
 }
 
 export interface MeetingArtifactReader {
@@ -126,15 +149,32 @@ export interface MeetingArtifactReader {
   get(id: MeetingArtifactRef): MeetingArtifact | null;
 }
 
-export interface ApprovedMeetingArtifactReader {
-  listApproved(
-    meeting: MeetingRef,
-    kinds: readonly MeetingArtifactKind[]
-  ): readonly MeetingArtifact[];
+export interface MeetingArtifactRequirement {
+  readonly kind: MeetingArtifactKind;
+  readonly minimumSchemaVersion: number;
 }
 
-export interface MeetingArtifactStore extends MeetingArtifactReader {
+export interface ApprovedMeetingArtifactReader {
+  readonly client: ClientBoundary;
+  readonly kinds: readonly MeetingArtifactKind[];
+  listApproved(
+    meeting: MeetingRef,
+    kinds?: readonly MeetingArtifactKind[]
+  ): readonly MeetingArtifact[];
+  get(id: MeetingArtifactRef): MeetingArtifact | null;
+}
+
+export interface MeetingArtifactStore {
+  readerFor(
+    meetings: MeetingStore,
+    client: ClientBoundary,
+    requirements: readonly MeetingArtifactRequirement[]
+  ): MeetingArtifactReader;
   append(input: MeetingArtifactInput): Promise<MeetingArtifact>;
+  approve(
+    id: MeetingArtifactRef,
+    transition: MeetingArtifactTransition
+  ): Promise<MeetingArtifact>;
 }
 
 export interface NoticeEvidenceInput {
@@ -159,25 +199,6 @@ export interface NoticeEvidenceReadModel {
   get(id: NoticeEvidenceRef): NoticeEvidenceProjection | null;
 }
 
-export interface MeetingInsightDescriptor {
-  readonly id: string;
-  readonly order: number;
-  readonly version: number;
-  readonly artifactPrerequisites: readonly {
-    kind: MeetingArtifactKind;
-    minimumSchemaVersion: number;
-  }[];
-  readonly isAvailable: (context: MeetingInsightContext) => boolean;
-  readonly renderMeeting: (context: MeetingInsightContext) => unknown;
-  readonly renderClientSummary: (context: MeetingInsightContext) => unknown;
-}
-
-export interface MeetingInsightContext {
-  readonly meeting: MeetingProjection;
-  readonly approvedArtifacts: ApprovedMeetingArtifactReader;
-  readonly settings: MeetingIntelligenceSettingsProjection;
-}
-
 export interface CitedMeetingInsight {
   readonly descriptorId: string;
   readonly meetingId: MeetingRef;
@@ -186,76 +207,9 @@ export interface CitedMeetingInsight {
   readonly sourceArtifactIds: readonly MeetingArtifactRef[];
 }
 
-export interface MeetingPanelContext {
-  readonly meeting: MeetingProjection;
-  readonly client: ClientBoundary;
-  readonly artifacts: MeetingArtifactReader;
-}
-export interface MeetingPanelDescriptor {
-  readonly id: string;
-  readonly order: number;
-  readonly isAvailable: (context: MeetingPanelContext) => boolean;
-  readonly render: (context: MeetingPanelContext) => unknown;
-}
-export interface MeetingHeaderActionContext {
-  readonly meeting: MeetingProjection;
-  readonly transition: MeetingLifecycleTransition;
-  readonly notice: NoticeEvidenceReadModel;
-}
-export interface MeetingHeaderActionDescriptor {
-  readonly id: string;
-  readonly order: number;
-  readonly isAvailable: (context: MeetingHeaderActionContext) => boolean;
-  readonly render: (context: MeetingHeaderActionContext) => unknown;
-}
 export interface MeetingListProjection {
   readonly meetings: readonly MeetingProjection[];
   readonly scope: 'firm' | 'household' | 'owner';
-}
-export interface MeetingListContext {
-  readonly client: ClientBoundary | null;
-  readonly list: MeetingListProjection;
-  readonly openMeeting: (ref: MeetingRef) => Promise<void>;
-}
-export interface MeetingListDescriptor {
-  readonly id: string;
-  readonly order: number;
-  readonly isAvailable: (context: MeetingListContext) => boolean;
-  readonly render: (context: MeetingListContext) => unknown;
-}
-export interface MeetingListToolContext {
-  readonly list: MeetingListProjection;
-  readonly currentMemberId?: string;
-  readonly setOwnerFilter: (ownerId: string | null) => void;
-}
-export interface MeetingListToolDescriptor {
-  readonly id: string;
-  readonly order: number;
-  readonly isAvailable: (context: MeetingListToolContext) => boolean;
-  readonly render: (context: MeetingListToolContext) => unknown;
-}
-export interface MeetingArtifactContext {
-  readonly meeting: MeetingProjection;
-  readonly append: (artifact: MeetingArtifactInput) => Promise<MeetingArtifact>;
-  readonly read: MeetingArtifactReader;
-}
-export interface MeetingArtifactDescriptor {
-  readonly id: string;
-  readonly order: number;
-  readonly isAvailable: (context: MeetingArtifactContext) => boolean;
-  readonly render: (context: MeetingArtifactContext) => unknown;
-}
-export interface NoticeEvidenceProviderContext {
-  readonly meeting: MeetingProjection;
-  readonly appendNoticeEvidence: (
-    input: NoticeEvidenceInput
-  ) => Promise<MeetingArtifact>;
-}
-export interface NoticeEvidenceProviderDescriptor {
-  readonly id: string;
-  readonly order: number;
-  readonly isAvailable: (context: NoticeEvidenceProviderContext) => boolean;
-  readonly provide: (context: NoticeEvidenceProviderContext) => unknown;
 }
 
 export interface MeetingIntelligenceSettingsProjection {
@@ -275,6 +229,10 @@ export interface MeetingTemplateProjection {
   readonly id: string;
   readonly label: string;
   readonly artifactKinds: readonly MeetingArtifactKind[];
+}
+export interface MeetingOwnerProjection {
+  readonly id: string;
+  readonly label: string;
 }
 export interface MeetingTypeStore {
   readonly types: readonly MeetingTypeDefinition[];
@@ -300,6 +258,19 @@ export interface MeetingIntelligenceSettingsStore {
     settings: MeetingIntelligenceSettingsProjection
   ): Promise<MeetingIntelligenceSettingsProjection>;
 }
+export interface MeetingFoundationPreferences {
+  readonly visibilityPolicies: readonly MeetingVisibilityPolicy[];
+  readonly owners: readonly MeetingOwnerProjection[];
+  readonly deferredDescriptors: readonly MeetingDeferredDescriptor[];
+}
+export interface MeetingFoundationPreferencesStore {
+  readonly preferences: MeetingFoundationPreferences;
+  readonly error: string | null;
+  get(): Promise<MeetingFoundationPreferences>;
+  save(
+    value: MeetingFoundationPreferences
+  ): Promise<MeetingFoundationPreferences>;
+}
 /** Read-only Part A descriptors. They never run, send, export, or clean up. */
 export interface MeetingDeferredDescriptor {
   readonly id: string;
@@ -315,42 +286,16 @@ export interface MeetingSourceAdapter {
     client: ClientBoundary
   ): Promise<readonly CitedMeetingInsight[]>;
 }
-export interface MeetingIntelligenceSettingsModule {
-  readonly id: 'meeting-intelligence-settings';
-  readonly order: number;
-  readonly isAvailable: () => boolean;
-  readonly settings: () => MeetingIntelligenceSettingsProjection;
-}
-/** A contribution value only. The Settings registry remains owned by Settings. */
-export const meetingIntelligenceSettingsModule: MeetingIntelligenceSettingsModule =
-  {
-    id: 'meeting-intelligence-settings',
-    order: 3200,
-    isAvailable: () => true,
-    settings: () => ({
-      keywordTrackingEnabled: false,
-      clientSignalsEnabled: false,
-      displayPreference: 'comfortable',
-    }),
-  };
-export interface MeetingSignalsHouseholdSection {
-  readonly id: 'meeting-signals';
-  readonly order: number;
-  readonly isAvailable: (client: ClientBoundary) => boolean;
-  readonly render: (client: ClientBoundary) => unknown;
-}
-/** A contribution value only. The household-section registry remains CRM-clients owned. */
-export const meetingSignalsHouseholdSection: MeetingSignalsHouseholdSection = {
-  id: 'meeting-signals',
-  order: 3200,
-  isAvailable: () => true,
-  render: () => null,
-};
+// Settings and CRM-clients own their composition contracts. This package does
+// not publish local lookalikes for owner seams that are not exported from the
+// owners' public indexes. The manifest records those dependents as blocked.
 
 type LivePort = Pick<
   ReturnType<typeof useLiveCrmRecords>,
   'records' | 'workspaceRoot' | 'error' | 'save'
 > & {
+  readonly sharedMatterId?: string | null;
+  readonly sharedLocalMatterId?: string | null;
   reloadRecords(): Promise<readonly LiveCrmRecord[] | undefined>;
 };
 
@@ -363,8 +308,33 @@ const nonEmpty = (value: unknown, name: string): string => {
 };
 const timestamp = (value: unknown, name: string): string => {
   const parsed = nonEmpty(value, name);
-  if (!Number.isFinite(Date.parse(parsed)))
-    throw new Error(`${name} must be an ISO timestamp.`);
+  const match =
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{3}))?Z$/.exec(
+      parsed
+    );
+  if (!match) throw new Error(`${name} must be an ISO timestamp.`);
+  const [, year, month, day, hour, minute, second, millis = '000'] = match;
+  const date = new Date(
+    Date.UTC(
+      Number(year),
+      Number(month) - 1,
+      Number(day),
+      Number(hour),
+      Number(minute),
+      Number(second),
+      Number(millis)
+    )
+  );
+  if (
+    date.getUTCFullYear() !== Number(year) ||
+    date.getUTCMonth() + 1 !== Number(month) ||
+    date.getUTCDate() !== Number(day) ||
+    date.getUTCHours() !== Number(hour) ||
+    date.getUTCMinutes() !== Number(minute) ||
+    date.getUTCSeconds() !== Number(second) ||
+    date.getUTCMilliseconds() !== Number(millis)
+  )
+    throw new Error(`${name} must be a real ISO timestamp.`);
   return parsed;
 };
 const strings = (value: unknown, name: string): readonly string[] => {
@@ -381,10 +351,8 @@ const strings = (value: unknown, name: string): readonly string[] => {
 export function validateMeetingDraft(
   input: CreateMeetingDraft
 ): CreateMeetingDraft & { readonly references: readonly string[] } {
-  const start = nonEmpty(input.scheduledStartUtc, 'Meeting start');
-  const end = nonEmpty(input.scheduledEndUtc, 'Meeting end');
-  if (!Number.isFinite(Date.parse(start)) || !Number.isFinite(Date.parse(end)))
-    throw new Error('Meeting times must be ISO timestamps.');
+  const start = timestamp(input.scheduledStartUtc, 'Meeting start');
+  const end = timestamp(input.scheduledEndUtc, 'Meeting end');
   if (Date.parse(end) <= Date.parse(start))
     throw new Error('Meeting end must be after its start.');
   return {
@@ -478,43 +446,52 @@ function requireAvailable(port: LivePort) {
       'Meeting records are unavailable until CRM records reload.'
     );
 }
-async function saveAndReload(
-  port: LivePort,
-  record: LiveCrmRecord
-): Promise<LiveCrmRecord> {
-  await port.save(record);
-  const fresh = await port.reloadRecords();
-  const saved = fresh?.find((candidate) => candidate.id === record.id);
-  if (!saved)
-    throw new Error(
-      'The saved meeting was missing after its canonical reload.'
-    );
-  return saved;
-}
-
 export function createMeetingStore(port: LivePort): MeetingStore {
-  const raw = port.records.filter((record) => record.kind === 'meeting');
-  const list = meetingRecords(raw).sort((left, right) =>
-    left.scheduledStartUtc.localeCompare(right.scheduledStartUtc)
-  );
+  let raw = port.records.filter((record) => record.kind === 'meeting');
+  const currentList = () =>
+    meetingRecords(raw).sort((left, right) =>
+      left.scheduledStartUtc.localeCompare(right.scheduledStartUtc)
+    );
   const getRaw = (id: string) => raw.find((record) => record.id === id);
-  return {
-    list,
-    error: port.error,
+  const persist = async (record: LiveCrmRecord) => {
+    await port.save(record);
+    const fresh = await port.reloadRecords();
+    raw = (fresh ?? []).filter((candidate) => candidate.kind === 'meeting');
+    const saved = getRaw(record.id);
+    if (!saved)
+      throw new Error(
+        'The saved meeting was missing after its canonical reload.'
+      );
+    return saved;
+  };
+  const store: MeetingStore = {
+    get list() {
+      return currentList();
+    },
+    get error() {
+      return port.error;
+    },
     get: (id) =>
-      Promise.resolve().then(() => {
+      Promise.resolve().then(async () => {
         requireAvailable(port);
+        const fresh = await port.reloadRecords();
+        raw = (fresh ?? []).filter((candidate) => candidate.kind === 'meeting');
         const record = getRaw(id);
         return record ? projectMeetingRecord(record) : undefined;
       }),
     createDraft: async (input) => {
       requireAvailable(port);
       const draft = validateMeetingDraft(input);
+      if (port.sharedMatterId && port.sharedLocalMatterId !== draft.matterId)
+        throw new Error(
+          'Meeting matter must match the active shared client before relay.'
+        );
       const savedAt = now();
       const record: LiveCrmRecord = {
         id: recordId('meeting'),
         kind: 'meeting',
         matterId: draft.matterId,
+        ...(port.sharedMatterId ? { relayMatterId: port.sharedMatterId } : {}),
         createdAt: savedAt,
         updatedAt: savedAt,
         workspaceId: draft.workspaceId,
@@ -530,10 +507,12 @@ export function createMeetingStore(port: LivePort): MeetingStore {
           ? { visibilityPolicyId: draft.visibilityPolicyId }
           : {}),
       };
-      return projectMeetingRecord(await saveAndReload(port, record));
+      return projectMeetingRecord(await persist(record));
     },
     update: async (id, patch) => {
       requireAvailable(port);
+      const fresh = await port.reloadRecords();
+      raw = (fresh ?? []).filter((candidate) => candidate.kind === 'meeting');
       const rawRecord = getRaw(id);
       if (!rawRecord) throw new Error('That meeting no longer exists.');
       const current = projectMeetingRecord(rawRecord);
@@ -548,7 +527,12 @@ export function createMeetingStore(port: LivePort): MeetingStore {
         scheduledStartUtc: patch.scheduledStartUtc ?? current.scheduledStartUtc,
         scheduledEndUtc: patch.scheduledEndUtc ?? current.scheduledEndUtc,
         timezone: patch.timezone ?? current.timezone,
-        references: patch.references ?? current.references,
+        references: patch.references
+          ? strings(
+              [...current.references, ...patch.references],
+              'Meeting references'
+            )
+          : current.references,
         ...(patch.visibilityPolicyId === null
           ? {}
           : {
@@ -569,10 +553,12 @@ export function createMeetingStore(port: LivePort): MeetingStore {
       if (patch.visibilityPolicyId === null) delete next['visibilityPolicyId'];
       else if (draft.visibilityPolicyId)
         next['visibilityPolicyId'] = draft.visibilityPolicyId;
-      return projectMeetingRecord(await saveAndReload(port, next));
+      return projectMeetingRecord(await persist(next));
     },
     transition: async (id, transition) => {
       requireAvailable(port);
+      const fresh = await port.reloadRecords();
+      raw = (fresh ?? []).filter((candidate) => candidate.kind === 'meeting');
       const rawRecord = getRaw(id);
       if (!rawRecord) throw new Error('That meeting no longer exists.');
       const current = projectMeetingRecord(rawRecord);
@@ -581,7 +567,7 @@ export function createMeetingStore(port: LivePort): MeetingStore {
         from: current.state,
       });
       return projectMeetingRecord(
-        await saveAndReload(port, {
+        await persist({
           ...rawRecord,
           state: valid.to,
           updatedAt: valid.at,
@@ -589,30 +575,20 @@ export function createMeetingStore(port: LivePort): MeetingStore {
       );
     },
   };
+  return store;
 }
 
-function projectArtifact(record: LiveCrmRecord): MeetingArtifact {
+function projectArtifact(
+  record: LiveCrmRecord,
+  transitionRecords: readonly LiveCrmRecord[] = []
+): MeetingArtifact {
   if (record.kind !== 'meeting_artifact')
     throw new Error('That record is not a meeting artifact.');
   const kind = nonEmpty(
     record['artifactKind'],
     'Artifact kind'
   ) as MeetingArtifactKind;
-  const allowed: readonly MeetingArtifactKind[] = [
-    'agenda',
-    'pre-meeting-brief',
-    'structured-notes',
-    'summary',
-    'transcript',
-    'diarization',
-    'notice-evidence',
-    'action-update-proposal',
-    'follow-up-draft',
-    'keyword-match',
-    'talk-time-result',
-    'client-signal',
-  ];
-  if (!allowed.includes(kind))
+  if (!MEETING_ARTIFACT_KINDS.includes(kind))
     throw new Error('Meeting artifact kind is invalid.');
   const schemaVersion = Number(record['schemaVersion']);
   if (!Number.isInteger(schemaVersion) || schemaVersion < 1)
@@ -624,18 +600,40 @@ function projectArtifact(record: LiveCrmRecord): MeetingArtifact {
     )
   )
     throw new Error('Artifact provenance is invalid.');
-  const approvedAt =
-    typeof record['approvedAt'] === 'string' ? record['approvedAt'] : undefined;
+  const state = record['artifactState'];
+  if (state !== 'produced') throw new Error('Artifact state is invalid.');
+  const producedAt = timestamp(record['producedAt'], 'Produced timestamp');
+  const approval = transitionRecords
+    .filter(
+      (candidate) =>
+        candidate.kind === 'meeting_artifact_transition' &&
+        candidate['artifactId'] === record.id &&
+        candidate.matterId === record.matterId &&
+        candidate['householdRef'] === record['householdRef']
+    )
+    .sort((left, right) =>
+      String(left['transitionAt']).localeCompare(String(right['transitionAt']))
+    )
+    .at(-1);
+  const safeApprovedAt = approval
+    ? validateMeetingArtifactTransition({
+        from: approval['fromState'] as MeetingArtifactTransition['from'],
+        to: approval['toState'] as MeetingArtifactTransition['to'],
+        at: approval['transitionAt'] as string,
+      }).at
+    : undefined;
+  if (safeApprovedAt && Date.parse(safeApprovedAt) < Date.parse(producedAt))
+    throw new Error('Artifact approval cannot predate production.');
   return {
     id: nonEmpty(record.id, 'Artifact ID'),
     meetingId: nonEmpty(record['meetingId'], 'Meeting ID'),
+    householdRef: nonEmpty(record['householdRef'], 'Household'),
+    matterId: nonEmpty(record.matterId, 'Matter'),
     kind,
     schemaVersion,
-    state: approvedAt ? 'approved' : 'produced',
-    producedAt: timestamp(record['producedAt'], 'Produced timestamp'),
-    ...(approvedAt
-      ? { approvedAt: timestamp(approvedAt, 'Approval timestamp') }
-      : {}),
+    state: safeApprovedAt ? 'approved' : 'produced',
+    producedAt,
+    ...(safeApprovedAt ? { approvedAt: safeApprovedAt } : {}),
     sourceRefs: strings(record['sourceRefs'], 'Artifact source references'),
     provenance: provenance as MeetingArtifact['provenance'],
     payload: (record['payload'] && typeof record['payload'] === 'object'
@@ -648,46 +646,85 @@ function projectArtifact(record: LiveCrmRecord): MeetingArtifact {
 export function createMeetingArtifactStore(
   port: LivePort
 ): MeetingArtifactStore {
-  const artifacts = port.records
-    .filter((record) => record.kind === 'meeting_artifact')
-    .flatMap((record) => {
-      try {
-        return [projectArtifact(record)];
-      } catch {
-        return [];
-      }
-    });
+  let raw = port.records.filter(
+    (record) =>
+      record.kind === 'meeting_artifact' ||
+      record.kind === 'meeting_artifact_transition'
+  );
+  const artifacts = () =>
+    raw
+      .filter((record) => record.kind === 'meeting_artifact')
+      .flatMap((record) => {
+        try {
+          return [projectArtifact(record, raw)];
+        } catch {
+          return [];
+        }
+      });
+  const persist = async (record: LiveCrmRecord) => {
+    await port.save(record);
+    const fresh = await port.reloadRecords();
+    raw = (fresh ?? []).filter(
+      (candidate) =>
+        candidate.kind === 'meeting_artifact' ||
+        candidate.kind === 'meeting_artifact_transition'
+    );
+    const saved = raw.find((candidate) => candidate.id === record.id);
+    if (!saved)
+      throw new Error(
+        'The saved meeting artifact was missing after its canonical reload.'
+      );
+    return saved;
+  };
   const reader: MeetingArtifactReader = {
     listForMeeting: (meeting, kinds) =>
-      artifacts.filter(
+      artifacts().filter(
         (artifact) =>
           artifact.meetingId === meeting &&
           (!kinds || kinds.includes(artifact.kind))
       ),
-    get: (id) => artifacts.find((artifact) => artifact.id === id) ?? null,
+    get: (id) => artifacts().find((artifact) => artifact.id === id) ?? null,
   };
   return {
-    ...reader,
+    readerFor: (meetings, client, requirements) => {
+      const minimumVersion = artifactMinimumVersions(requirements);
+      const ownsMeeting = (meetingId: MeetingRef) =>
+        meetings.list.some(
+          (meeting) =>
+            meeting.id === meetingId &&
+            meeting.householdRef === client.householdRef &&
+            meeting.matterId === client.matterId
+        );
+      const allowedArtifact = (artifact: MeetingArtifact) =>
+        ownsMeeting(artifact.meetingId) &&
+        artifact.householdRef === client.householdRef &&
+        artifact.matterId === client.matterId &&
+        artifact.schemaVersion >=
+          (minimumVersion.get(artifact.kind) ?? Infinity);
+      return {
+        listForMeeting: (meeting, requestedKinds) => {
+          if (!ownsMeeting(meeting)) return [];
+          const kinds = requestedKinds ?? [...minimumVersion.keys()];
+          if (kinds.some((kind) => !minimumVersion.has(kind))) return [];
+          return reader.listForMeeting(meeting, kinds).filter(allowedArtifact);
+        },
+        get: (id) => {
+          const artifact = reader.get(id);
+          return artifact && allowedArtifact(artifact) ? artifact : null;
+        },
+      };
+    },
     append: async (input) => {
       requireAvailable(port);
+      const freshRecords = await port.reloadRecords();
+      raw = (freshRecords ?? []).filter(
+        (candidate) =>
+          candidate.kind === 'meeting_artifact' ||
+          candidate.kind === 'meeting_artifact_transition'
+      );
       if (!Number.isInteger(input.schemaVersion) || input.schemaVersion < 1)
         throw new Error('Artifact schema version must be a positive integer.');
-      if (
-        ![
-          'agenda',
-          'pre-meeting-brief',
-          'structured-notes',
-          'summary',
-          'transcript',
-          'diarization',
-          'notice-evidence',
-          'action-update-proposal',
-          'follow-up-draft',
-          'keyword-match',
-          'talk-time-result',
-          'client-signal',
-        ].includes(input.kind)
-      )
+      if (!MEETING_ARTIFACT_KINDS.includes(input.kind))
         throw new Error('Meeting artifact kind is invalid.');
       if (
         !['local-entry', 'local-processing', 'attached-statement'].includes(
@@ -699,8 +736,10 @@ export function createMeetingArtifactStore(
       const approvedAt = input.approvedAt
         ? timestamp(input.approvedAt, 'Approval timestamp')
         : undefined;
+      if (approvedAt && Date.parse(approvedAt) < Date.parse(producedAt))
+        throw new Error('Artifact approval cannot predate production.');
       const savedAt = now();
-      const parent = port.records.find(
+      const parent = freshRecords?.find(
         (candidate) =>
           candidate.id === input.meetingId && candidate.kind === 'meeting'
       );
@@ -710,30 +749,148 @@ export function createMeetingArtifactStore(
         id: recordId('meeting-artifact'),
         kind: 'meeting_artifact',
         matterId: parent.matterId as string,
+        householdRef: nonEmpty(parent['householdRef'], 'Household'),
+        ...(typeof parent['relayMatterId'] === 'string'
+          ? { relayMatterId: parent['relayMatterId'] }
+          : {}),
         createdAt: savedAt,
         updatedAt: savedAt,
         meetingId: nonEmpty(input.meetingId, 'Meeting ID'),
         artifactKind: input.kind,
         schemaVersion: input.schemaVersion,
         producedAt,
-        ...(approvedAt ? { approvedAt } : {}),
+        artifactState: 'produced',
         sourceRefs: strings(input.sourceRefs, 'Artifact source references'),
         provenance: input.provenance,
         payload: input.payload,
       };
-      return projectArtifact(await saveAndReload(port, record));
+      const saved = projectArtifact(await persist(record), raw);
+      return approvedAt
+        ? approveArtifact(saved, {
+            from: 'produced',
+            to: 'approved',
+            at: approvedAt,
+          })
+        : saved;
+    },
+    approve: async (id, transition) => {
+      requireAvailable(port);
+      const fresh = await port.reloadRecords();
+      raw = (fresh ?? []).filter(
+        (candidate) =>
+          candidate.kind === 'meeting_artifact' ||
+          candidate.kind === 'meeting_artifact_transition'
+      );
+      const current = raw.find((record) => record.id === id);
+      if (!current) throw new Error('That meeting artifact no longer exists.');
+      const projected = projectArtifact(current, raw);
+      const valid = validateMeetingArtifactTransition({
+        ...transition,
+        from: projected.state,
+      });
+      return approveArtifact(projected, valid);
     },
   };
+
+  async function approveArtifact(
+    artifact: MeetingArtifact,
+    transition: MeetingArtifactTransition
+  ): Promise<MeetingArtifact> {
+    const valid = validateMeetingArtifactTransition(transition);
+    if (Date.parse(valid.at) < Date.parse(artifact.producedAt))
+      throw new Error('Artifact approval cannot predate production.');
+    const base = raw.find(
+      (candidate) =>
+        candidate.kind === 'meeting_artifact' && candidate.id === artifact.id
+    );
+    if (!base) throw new Error('The artifact disappeared before approval.');
+    await persist({
+      id: recordId('meeting-artifact-transition'),
+      kind: 'meeting_artifact_transition',
+      matterId: artifact.matterId,
+      householdRef: artifact.householdRef,
+      ...(typeof base['relayMatterId'] === 'string'
+        ? { relayMatterId: base['relayMatterId'] }
+        : {}),
+      createdAt: valid.at,
+      updatedAt: valid.at,
+      artifactId: artifact.id,
+      fromState: valid.from,
+      toState: valid.to,
+      transitionAt: valid.at,
+    });
+    const reloadedBase = raw.find(
+      (candidate) =>
+        candidate.kind === 'meeting_artifact' && candidate.id === artifact.id
+    );
+    if (!reloadedBase)
+      throw new Error('The approved artifact disappeared after reload.');
+    return projectArtifact(reloadedBase, raw);
+  }
 }
 
-export function approvedMeetingArtifacts(
-  reader: MeetingArtifactReader
+export function validateMeetingArtifactTransition(
+  transition: MeetingArtifactTransition
+): MeetingArtifactTransition {
+  const runtime = transition as { from: unknown; to: unknown; at: unknown };
+  if (runtime.from !== 'produced' || runtime.to !== 'approved')
+    throw new Error(
+      `Illegal meeting artifact transition: ${transition.from} to ${transition.to}.`
+    );
+  return { ...transition, at: timestamp(transition.at, 'Approval timestamp') };
+}
+
+function artifactMinimumVersions(
+  requirements: readonly MeetingArtifactRequirement[]
+): ReadonlyMap<MeetingArtifactKind, number> {
+  return new Map(
+    requirements.map((item) => {
+      if (
+        !Number.isInteger(item.minimumSchemaVersion) ||
+        item.minimumSchemaVersion < 1
+      )
+        throw new Error('Artifact minimum schema version must be positive.');
+      return [item.kind, item.minimumSchemaVersion] as const;
+    })
+  );
+}
+
+export function meetingArtifactsForClient(
+  meetings: MeetingStore,
+  store: MeetingArtifactStore,
+  client: ClientBoundary,
+  requirements: readonly MeetingArtifactRequirement[]
+): MeetingArtifactReader {
+  return store.readerFor(meetings, client, requirements);
+}
+
+export function approvedMeetingArtifactsForClient(
+  meetings: MeetingStore,
+  store: MeetingArtifactStore,
+  client: ClientBoundary,
+  requirements: readonly MeetingArtifactRequirement[]
 ): ApprovedMeetingArtifactReader {
+  const kinds = [...new Set(requirements.map((item) => item.kind))];
+  const scoped = meetingArtifactsForClient(
+    meetings,
+    store,
+    client,
+    requirements
+  );
+  const permitsKind = (kind: MeetingArtifactKind) => kinds.includes(kind);
   return {
-    listApproved: (meeting, kinds) =>
-      reader
-        .listForMeeting(meeting, kinds)
-        .filter((artifact) => artifact.state === 'approved'),
+    client,
+    kinds,
+    listApproved: (meeting, requestedKinds = kinds) => {
+      if (requestedKinds.some((kind) => !permitsKind(kind))) return [];
+      return scoped
+        .listForMeeting(meeting, requestedKinds)
+        .filter((artifact) => artifact.state === 'approved');
+    },
+    get: (id) => {
+      const artifact = scoped.get(id);
+      return artifact && artifact.state === 'approved' ? artifact : null;
+    },
   };
 }
 export function createNoticeEvidenceReadModel(
@@ -792,147 +949,6 @@ export async function appendNoticeEvidence(
   });
 }
 
-function registry<T extends { readonly id: string; readonly order: number }>(
-  name: string,
-  descriptors: readonly T[],
-  available: (descriptor: T) => boolean
-): readonly T[] {
-  const ids = new Set<string>();
-  for (const descriptor of descriptors) {
-    if (!descriptor.id.trim() || ids.has(descriptor.id))
-      throw new Error(`[${name}] descriptor IDs must be unique.`);
-    if (!Number.isFinite(descriptor.order))
-      throw new Error(`[${name}] descriptor order must be finite.`);
-    ids.add(descriptor.id);
-    if (!available(descriptor))
-      throw new Error(`[${name}] descriptor is malformed: ${descriptor.id}`);
-  }
-  return [...descriptors].sort((left, right) => left.order - right.order);
-}
-const isFunction = (value: unknown): value is (...args: never[]) => unknown =>
-  typeof value === 'function';
-export function composeMeetingPanelRegistry(
-  descriptors: readonly MeetingPanelDescriptor[]
-) {
-  return registry(
-    'meetingPanelRegistry',
-    descriptors,
-    (d) => isFunction(d.isAvailable) && isFunction(d.render)
-  );
-}
-export function composeMeetingHeaderActionRegistry(
-  descriptors: readonly MeetingHeaderActionDescriptor[]
-) {
-  return registry(
-    'meetingHeaderActionRegistry',
-    descriptors,
-    (d) => isFunction(d.isAvailable) && isFunction(d.render)
-  );
-}
-export function composeMeetingInsightRegistry(
-  descriptors: readonly MeetingInsightDescriptor[]
-) {
-  return registry(
-    'meetingInsightRegistry',
-    descriptors,
-    (d) =>
-      Number.isInteger(d.version) &&
-      d.version > 0 &&
-      Array.isArray(d.artifactPrerequisites) &&
-      isFunction(d.isAvailable) &&
-      isFunction(d.renderMeeting) &&
-      isFunction(d.renderClientSummary)
-  );
-}
-export function composeMeetingListRegistry(
-  descriptors: readonly MeetingListDescriptor[]
-) {
-  return registry(
-    'meetingListRegistry',
-    descriptors,
-    (d) => isFunction(d.isAvailable) && isFunction(d.render)
-  );
-}
-export function composeMeetingListToolRegistry(
-  descriptors: readonly MeetingListToolDescriptor[]
-) {
-  return registry(
-    'meetingListToolRegistry',
-    descriptors,
-    (d) => isFunction(d.isAvailable) && isFunction(d.render)
-  );
-}
-export function composeMeetingArtifactRegistry(
-  descriptors: readonly MeetingArtifactDescriptor[]
-) {
-  return registry(
-    'meetingArtifactRegistry',
-    descriptors,
-    (d) => isFunction(d.isAvailable) && isFunction(d.render)
-  );
-}
-export function composeNoticeEvidenceProviderRegistry(
-  descriptors: readonly NoticeEvidenceProviderDescriptor[]
-) {
-  return registry(
-    'noticeEvidenceProviderRegistry',
-    descriptors,
-    (d) => isFunction(d.isAvailable) && isFunction(d.provide)
-  );
-}
-export const meetingPanelRegistry = composeMeetingPanelRegistry([]);
-export const meetingHeaderActionRegistry = composeMeetingHeaderActionRegistry(
-  []
-);
-export const meetingInsightRegistry = composeMeetingInsightRegistry([]);
-export const meetingListRegistry = composeMeetingListRegistry([]);
-export const meetingListToolRegistry = composeMeetingListToolRegistry([]);
-export const meetingArtifactRegistry = composeMeetingArtifactRegistry([]);
-export const noticeEvidenceProviderRegistry =
-  composeNoticeEvidenceProviderRegistry([]);
-export function availableMeetingPanels(
-  context: MeetingPanelContext,
-  descriptors = meetingPanelRegistry
-) {
-  return descriptors.filter((descriptor) => descriptor.isAvailable(context));
-}
-export function availableMeetingHeaderActions(
-  context: MeetingHeaderActionContext,
-  descriptors = meetingHeaderActionRegistry
-) {
-  return descriptors.filter((descriptor) => descriptor.isAvailable(context));
-}
-export function availableMeetingInsights(
-  context: MeetingInsightContext,
-  descriptors = meetingInsightRegistry
-) {
-  return descriptors.filter((descriptor) => descriptor.isAvailable(context));
-}
-export function availableMeetingLists(
-  context: MeetingListContext,
-  descriptors = meetingListRegistry
-) {
-  return descriptors.filter((descriptor) => descriptor.isAvailable(context));
-}
-export function availableMeetingListTools(
-  context: MeetingListToolContext,
-  descriptors = meetingListToolRegistry
-) {
-  return descriptors.filter((descriptor) => descriptor.isAvailable(context));
-}
-export function availableMeetingArtifactContributions(
-  context: MeetingArtifactContext,
-  descriptors = meetingArtifactRegistry
-) {
-  return descriptors.filter((descriptor) => descriptor.isAvailable(context));
-}
-export function availableNoticeEvidenceProviders(
-  context: NoticeEvidenceProviderContext,
-  descriptors = noticeEvidenceProviderRegistry
-) {
-  return descriptors.filter((descriptor) => descriptor.isAvailable(context));
-}
-
 export function projectMeetingList(
   records: readonly MeetingProjection[],
   scope: MeetingListProjection['scope'],
@@ -955,50 +971,59 @@ export function projectMeetingList(
 }
 export function listForHousehold(
   store: MeetingStore,
-  householdRef: string
+  client: ClientBoundary
 ): readonly MeetingProjection[] {
-  return store.list.filter((meeting) => meeting.householdRef === householdRef);
+  return store.list.filter(
+    (meeting) =>
+      meeting.householdRef === client.householdRef &&
+      meeting.matterId === client.matterId
+  );
 }
 export function listPrepForHousehold(
   store: MeetingStore,
-  householdRef: string
+  client: ClientBoundary
 ): readonly MeetingProjection[] {
-  return listForHousehold(store, householdRef).filter(
+  return listForHousehold(store, client).filter(
     (meeting) => meeting.state === 'draft' || meeting.state === 'scheduled'
   );
 }
 export function createMeetingSourceAdapter(
   store: MeetingStore,
-  artifacts: ApprovedMeetingArtifactReader
+  artifacts: MeetingArtifactStore
 ): MeetingSourceAdapter {
   return {
-    listApprovedForClient: (client) =>
-      Promise.resolve().then(() =>
-        store.list
-          .filter(
-            (meeting) =>
-              meeting.householdRef === client.householdRef &&
-              meeting.matterId === client.matterId
-          )
-          .flatMap((meeting) =>
-            artifacts
-              .listApproved(meeting.id, [
-                'structured-notes',
-                'summary',
-                'transcript',
-              ])
-              .map((artifact) => ({
-                descriptorId: 'approved-meeting-artifact',
-                meetingId: meeting.id,
-                householdRef: meeting.householdRef,
-                summary:
-                  typeof artifact.payload['summary'] === 'string'
-                    ? artifact.payload['summary']
-                    : '',
-                sourceArtifactIds: [artifact.id],
-              }))
-          )
-      ),
+    listApprovedForClient: (client) => {
+      const approved = approvedMeetingArtifactsForClient(
+        store,
+        artifacts,
+        client,
+        [
+          { kind: 'structured-notes', minimumSchemaVersion: 1 },
+          { kind: 'summary', minimumSchemaVersion: 1 },
+          { kind: 'transcript', minimumSchemaVersion: 1 },
+        ]
+      );
+      return Promise.resolve().then(() =>
+        listForHousehold(store, client).flatMap((meeting) =>
+          approved
+            .listApproved(meeting.id, [
+              'structured-notes',
+              'summary',
+              'transcript',
+            ])
+            .map((artifact) => ({
+              descriptorId: 'approved-meeting-artifact',
+              meetingId: meeting.id,
+              householdRef: meeting.householdRef,
+              summary:
+                typeof artifact.payload['summary'] === 'string'
+                  ? artifact.payload['summary']
+                  : '',
+              sourceArtifactIds: [artifact.id],
+            }))
+        )
+      );
+    },
   };
 }
 
@@ -1032,10 +1057,16 @@ export function validateMeetingTemplateCatalogue(
     const id = nonEmpty(entry.id, 'Meeting template ID');
     if (ids.has(id)) throw new Error('Meeting template IDs must be unique.');
     ids.add(id);
+    const artifactKinds = strings(
+      entry.artifactKinds,
+      'Meeting template artifact kinds'
+    ) as readonly MeetingArtifactKind[];
+    if (artifactKinds.some((kind) => !MEETING_ARTIFACT_KINDS.includes(kind)))
+      throw new Error('Meeting template artifact kind is invalid.');
     return {
       id,
       label: nonEmpty(entry.label, 'Meeting template label'),
-      artifactKinds: [...entry.artifactKinds],
+      artifactKinds,
     };
   });
 }
@@ -1066,89 +1097,133 @@ export function validateMeetingDeferredDescriptor(
   };
 }
 
-function singletonRecord(
-  port: LivePort,
-  kind: string
-): LiveCrmRecord | undefined {
-  return port.records.find((record) => record.kind === kind);
-}
-async function saveSingletonRecord(
-  port: LivePort,
-  kind: string,
-  values: Readonly<Record<string, unknown>>
-): Promise<LiveCrmRecord> {
-  requireAvailable(port);
-  const current = singletonRecord(port, kind);
-  const savedAt = now();
-  return saveAndReload(port, {
-    ...(current ?? {}),
-    id: current?.id ?? recordId(kind),
-    kind,
-    matterId: current?.matterId ?? 'firm_home',
-    createdAt: current?.createdAt ?? savedAt,
-    updatedAt: savedAt,
-    ...values,
+export function validateMeetingFoundationPreferences(
+  value: MeetingFoundationPreferences
+): MeetingFoundationPreferences {
+  const ownerIds = new Set<string>();
+  const owners = value.owners.map((owner) => {
+    const id = nonEmpty(owner.id, 'Meeting owner ID');
+    if (ownerIds.has(id)) throw new Error('Meeting owner IDs must be unique.');
+    ownerIds.add(id);
+    return { id, label: nonEmpty(owner.label, 'Meeting owner label') };
   });
+  const policyIds = new Set<string>();
+  const visibilityPolicies = value.visibilityPolicies.map((policy) => {
+    const validated = validateMeetingVisibilityPolicy(policy);
+    if (policyIds.has(validated.id))
+      throw new Error('Meeting visibility policy IDs must be unique.');
+    policyIds.add(validated.id);
+    return validated;
+  });
+  const descriptorIds = new Set<string>();
+  const deferredDescriptors = value.deferredDescriptors.map((descriptor) => {
+    const validated = validateMeetingDeferredDescriptor(descriptor);
+    if (descriptorIds.has(validated.id))
+      throw new Error('Meeting deferred descriptor IDs must be unique.');
+    descriptorIds.add(validated.id);
+    return validated;
+  });
+  return { visibilityPolicies, owners, deferredDescriptors };
+}
+
+function singletonController(port: LivePort, kind: string) {
+  let current = port.records.find((record) => record.kind === kind);
+  const reload = async () => {
+    requireAvailable(port);
+    const fresh = await port.reloadRecords();
+    current = fresh?.find((record) => record.kind === kind);
+    return current;
+  };
+  const save = async (values: Readonly<Record<string, unknown>>) => {
+    requireAvailable(port);
+    const savedAt = now();
+    await port.save({
+      ...(current ?? {}),
+      id: current?.id ?? recordId(kind),
+      kind,
+      matterId: current?.matterId ?? 'firm_home',
+      createdAt: current?.createdAt ?? savedAt,
+      updatedAt: savedAt,
+      ...values,
+    });
+    const saved = await reload();
+    if (!saved)
+      throw new Error(`The saved ${kind} record was missing after reload.`);
+    return saved;
+  };
+  return { current: () => current, reload, save };
 }
 export function createMeetingTypeStore(port: LivePort): MeetingTypeStore {
-  const current = singletonRecord(port, 'meeting_type_catalogue');
-  const types =
-    current && Array.isArray(current['types'])
+  const record = singletonController(port, 'meeting_type_catalogue');
+  let types =
+    record.current() && Array.isArray(record.current()?.['types'])
       ? validateMeetingTypeCatalogue(
-          current['types'] as MeetingTypeDefinition[]
+          record.current()?.['types'] as MeetingTypeDefinition[]
         )
       : [];
   return {
-    types,
-    error: port.error,
-    get: () =>
-      Promise.resolve().then(() => {
-        requireAvailable(port);
-        return types;
-      }),
+    get types() {
+      return types;
+    },
+    get error() {
+      return port.error;
+    },
+    get: async () => {
+      const fresh = await record.reload();
+      types =
+        fresh && Array.isArray(fresh['types'])
+          ? validateMeetingTypeCatalogue(
+              fresh['types'] as MeetingTypeDefinition[]
+            )
+          : [];
+      return types;
+    },
     save: (next) =>
       Promise.resolve().then(async () => {
         const validated = validateMeetingTypeCatalogue(next);
-        const saved = await saveSingletonRecord(
-          port,
-          'meeting_type_catalogue',
-          { types: validated }
-        );
-        return validateMeetingTypeCatalogue(
+        const saved = await record.save({ types: validated });
+        types = validateMeetingTypeCatalogue(
           saved['types'] as MeetingTypeDefinition[]
         );
+        return types;
       }),
   };
 }
 export function createMeetingTemplateStore(
   port: LivePort
 ): MeetingTemplateStore {
-  const current = singletonRecord(port, 'meeting_template_catalogue');
-  const templates =
-    current && Array.isArray(current['templates'])
+  const record = singletonController(port, 'meeting_template_catalogue');
+  let templates =
+    record.current() && Array.isArray(record.current()?.['templates'])
       ? validateMeetingTemplateCatalogue(
-          current['templates'] as MeetingTemplateProjection[]
+          record.current()?.['templates'] as MeetingTemplateProjection[]
         )
       : [];
   return {
-    templates,
-    error: port.error,
-    get: () =>
-      Promise.resolve().then(() => {
-        requireAvailable(port);
-        return templates;
-      }),
+    get templates() {
+      return templates;
+    },
+    get error() {
+      return port.error;
+    },
+    get: async () => {
+      const fresh = await record.reload();
+      templates =
+        fresh && Array.isArray(fresh['templates'])
+          ? validateMeetingTemplateCatalogue(
+              fresh['templates'] as MeetingTemplateProjection[]
+            )
+          : [];
+      return templates;
+    },
     save: (next) =>
       Promise.resolve().then(async () => {
         const validated = validateMeetingTemplateCatalogue(next);
-        const saved = await saveSingletonRecord(
-          port,
-          'meeting_template_catalogue',
-          { templates: validated }
-        );
-        return validateMeetingTemplateCatalogue(
+        const saved = await record.save({ templates: validated });
+        templates = validateMeetingTemplateCatalogue(
           saved['templates'] as MeetingTemplateProjection[]
         );
+        return templates;
       }),
   };
 }
@@ -1161,42 +1236,86 @@ const defaultMeetingIntelligenceSettings: MeetingIntelligenceSettingsProjection 
 export function createMeetingIntelligenceSettingsStore(
   port: LivePort
 ): MeetingIntelligenceSettingsStore {
-  const current = singletonRecord(port, 'meeting_intelligence_settings');
-  const settings = current
-    ? validateMeetingIntelligenceSettings({
-        keywordTrackingEnabled: current['keywordTrackingEnabled'] === true,
-        clientSignalsEnabled: current['clientSignalsEnabled'] === true,
-        displayPreference:
-          current['displayPreference'] === 'compact'
-            ? 'compact'
-            : 'comfortable',
-      })
-    : defaultMeetingIntelligenceSettings;
+  const record = singletonController(port, 'meeting_intelligence_settings');
+  const projectSettings = (current: LiveCrmRecord | undefined) =>
+    current
+      ? validateMeetingIntelligenceSettings({
+          keywordTrackingEnabled: current['keywordTrackingEnabled'],
+          clientSignalsEnabled: current['clientSignalsEnabled'],
+          displayPreference: current['displayPreference'],
+        } as MeetingIntelligenceSettingsProjection)
+      : defaultMeetingIntelligenceSettings;
+  let settings = projectSettings(record.current());
   return {
-    settings,
-    error: port.error,
-    get: () =>
-      Promise.resolve().then(() => {
-        requireAvailable(port);
-        return settings;
-      }),
+    get settings() {
+      return settings;
+    },
+    get error() {
+      return port.error;
+    },
+    get: async () => {
+      settings = projectSettings(await record.reload());
+      return settings;
+    },
     save: (next) =>
       Promise.resolve().then(async () => {
         const validated = validateMeetingIntelligenceSettings(next);
-        const saved = await saveSingletonRecord(
-          port,
-          'meeting_intelligence_settings',
+        const saved = await record.save(
           validated as unknown as Readonly<Record<string, unknown>>
         );
-        return validateMeetingIntelligenceSettings({
-          keywordTrackingEnabled: saved['keywordTrackingEnabled'] === true,
-          clientSignalsEnabled: saved['clientSignalsEnabled'] === true,
-          displayPreference:
-            saved['displayPreference'] === 'compact'
-              ? 'compact'
-              : 'comfortable',
-        });
+        settings = projectSettings(saved);
+        return settings;
       }),
+  };
+}
+
+const defaultMeetingFoundationPreferences: MeetingFoundationPreferences = {
+  visibilityPolicies: [],
+  owners: [],
+  deferredDescriptors: [],
+};
+
+export function createMeetingFoundationPreferencesStore(
+  port: LivePort
+): MeetingFoundationPreferencesStore {
+  const record = singletonController(port, 'meeting_foundation_preferences');
+  const project = (current: LiveCrmRecord | undefined) =>
+    current
+      ? validateMeetingFoundationPreferences({
+          visibilityPolicies: Array.isArray(current['visibilityPolicies'])
+            ? (current['visibilityPolicies'] as MeetingVisibilityPolicy[])
+            : [],
+          owners: Array.isArray(current['owners'])
+            ? (current['owners'] as MeetingOwnerProjection[])
+            : [],
+          deferredDescriptors: Array.isArray(current['deferredDescriptors'])
+            ? (current['deferredDescriptors'] as MeetingDeferredDescriptor[])
+            : [],
+        })
+      : defaultMeetingFoundationPreferences;
+  let preferences = project(record.current());
+  return {
+    get preferences() {
+      return preferences;
+    },
+    get error() {
+      return port.error;
+    },
+    get: async () => {
+      preferences = project(await record.reload());
+      return preferences;
+    },
+    save: async (value) => {
+      const validated = validateMeetingFoundationPreferences(value);
+      preferences = project(
+        await record.save({
+          visibilityPolicies: validated.visibilityPolicies,
+          owners: validated.owners,
+          deferredDescriptors: validated.deferredDescriptors,
+        })
+      );
+      return preferences;
+    },
   };
 }
 
@@ -1208,12 +1327,54 @@ export function useMeetingFoundationStore(): MeetingStore {
     workspaceRoot: live.workspaceRoot,
     error: live.error,
     save: live.save,
+    sharedMatterId: live.sharedMatterId,
+    sharedLocalMatterId: live.sharedLocalMatterId,
     reloadRecords: () => loadLiveCrmRecords(live.workspaceRoot),
   });
 }
 export function useMeetingArtifactStore(): MeetingArtifactStore {
   const live = useLiveCrmRecords();
   return createMeetingArtifactStore({
+    records: live.records,
+    workspaceRoot: live.workspaceRoot,
+    error: live.error,
+    save: live.save,
+    reloadRecords: () => loadLiveCrmRecords(live.workspaceRoot),
+  });
+}
+export function useMeetingTypeStore(): MeetingTypeStore {
+  const live = useLiveCrmRecords();
+  return createMeetingTypeStore({
+    records: live.records,
+    workspaceRoot: live.workspaceRoot,
+    error: live.error,
+    save: live.save,
+    reloadRecords: () => loadLiveCrmRecords(live.workspaceRoot),
+  });
+}
+export function useMeetingTemplateStore(): MeetingTemplateStore {
+  const live = useLiveCrmRecords();
+  return createMeetingTemplateStore({
+    records: live.records,
+    workspaceRoot: live.workspaceRoot,
+    error: live.error,
+    save: live.save,
+    reloadRecords: () => loadLiveCrmRecords(live.workspaceRoot),
+  });
+}
+export function useMeetingIntelligenceSettingsStore(): MeetingIntelligenceSettingsStore {
+  const live = useLiveCrmRecords();
+  return createMeetingIntelligenceSettingsStore({
+    records: live.records,
+    workspaceRoot: live.workspaceRoot,
+    error: live.error,
+    save: live.save,
+    reloadRecords: () => loadLiveCrmRecords(live.workspaceRoot),
+  });
+}
+export function useMeetingFoundationPreferencesStore(): MeetingFoundationPreferencesStore {
+  const live = useLiveCrmRecords();
+  return createMeetingFoundationPreferencesStore({
     records: live.records,
     workspaceRoot: live.workspaceRoot,
     error: live.error,
