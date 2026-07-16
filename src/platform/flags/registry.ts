@@ -69,6 +69,7 @@ export const flagRegistry = [
   defineFlag('team-activity-feed', 'Keeps the team activity feed dark until acceptance and native permission enforcement are proven.', 'team-activity-feed', '2026-07-16', '2026-09-14'),
   defineFlag('schwab-prefill', 'Keeps the local Schwab prep-packet review dark until its acceptance drive is complete.', 'schwab-prefill', '2026-07-16', '2026-09-14'),
   defineFlag('crm-list-sort', 'Keeps CRM directory result sorting dark until its acceptance review is complete.', 'crm-list-sort', '2026-07-16', '2026-09-14'),
+  defineFlag('crm-tags-rail', 'Keeps the CRM directory tag quick-filter dark until its acceptance review is complete.', 'crm-tags-rail', '2026-07-16', '2026-09-14'),
 ] as const satisfies readonly FlagDescriptor[];
 
 export type FlagId = (typeof flagRegistry)[number]['id'];

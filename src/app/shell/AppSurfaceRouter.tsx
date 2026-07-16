@@ -17,10 +17,16 @@ import {
 } from '@/features/crm-home';
 import { ClientsSurface, createDirectoryComposition } from '@/features/crm-clients';
 import { advisorFiltersDirectoryContribution } from '@/features/crm-clients/extensions/advisor-filters';
+import { crmListSortDirectoryContribution } from '@/features/crm-clients/extensions/sort';
+import { crmTagsRailDirectoryContribution } from '@/features/crm-clients/extensions/tags-rail';
 
 // The one coordinator-owned composition of feature directory contributions
 // (each contribution is itself flag-gated and inert while its flag is off).
-const directoryComposition = createDirectoryComposition(advisorFiltersDirectoryContribution);
+const directoryComposition = createDirectoryComposition(
+  advisorFiltersDirectoryContribution,
+  crmListSortDirectoryContribution,
+  crmTagsRailDirectoryContribution
+);
 import type { AddToHouseholdRequest } from '@/features/crm-clients/adapters';
 import { CrmAskSurface } from '@/features/crm-ask';
 import { DocumentsHome } from '@/features/documents/DocumentsHome';

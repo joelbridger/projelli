@@ -1,0 +1,20 @@
+{
+  "tagsRail": {
+    "open_one": "Tags · {{count}}",
+    "open_other": "Tags · {{count}}",
+    "heading": "Verzeichnis nach Tags filtern",
+    "tagList": "Firmen-Tags",
+    "loading": "Firmen-Tags werden geladen…",
+    "catalogUnavailable": "Firmen-Tags sind derzeit nicht verfügbar. Ihr gespeicherter Tag-Filter wurde nicht geändert.",
+    "noTags": "Es wurden noch keine Firmen-Tags eingerichtet.",
+    "apply": "Tags anwenden",
+    "clear": "Tags löschen",
+    "applied": "Angewendete Tag-Filter",
+    "appliedCount_one": "{{count}} Tag angewendet",
+    "appliedCount_other": "{{count}} Tags angewendet",
+    "reset": "Tags zurücksetzen",
+    "retired": "Stillgelegt",
+    "unavailableSelection": "Nicht verfügbarer Tag: {{id}}",
+    "noResults": "Keine Personen oder Haushalte entsprechen diesen Tags."
+  }
+}
