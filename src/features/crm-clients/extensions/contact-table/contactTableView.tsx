@@ -13,6 +13,7 @@ import {
 
 type ContactTableDensity = 'comfortable' | 'compact';
 type ContactKind = 'all' | 'household' | 'person' | 'organization' | 'trust';
+type LegacyDirectoryScope = 'households' | 'people' | null;
 
 interface ContactTablePreference {
   density: ContactTableDensity;
@@ -62,13 +63,18 @@ function ContactTableView({ context }: { context: DirectoryContext }) {
   const [addError, setAddError] = useState<string | null>(null);
   const [submittingHousehold, setSubmittingHousehold] = useState(false);
   const [syncedLegacyTab, setSyncedLegacyTab] = useState(context.filters.tab);
+  const [legacyScope, setLegacyScope] = useState<LegacyDirectoryScope>(null);
   const query = context.query.value.trim().toLowerCase();
 
   // The legacy toggle remains in the shared toolbar. Keep it meaningful while
   // preserving the mixed directory as this view's initial presentation.
   if (syncedLegacyTab !== context.filters.tab) {
     setSyncedLegacyTab(context.filters.tab);
-    setType(context.filters.tab === 'people' ? 'person' : 'household');
+    setLegacyScope(
+      context.filters.tab === 'people' || context.filters.tab === 'households'
+        ? context.filters.tab
+        : null
+    );
   }
   const tagNames = useMemo(
     () => new Map(tagStore.catalog.tags.map((tag) => [tag.id, tag.name])),
@@ -104,8 +110,13 @@ function ContactTableView({ context }: { context: DirectoryContext }) {
       ([
         ...households.map((record) => ({ kind: 'household' as const, record })),
         ...people.map((record) => ({ kind: 'person' as const, record })),
-      ] satisfies readonly ContactRow[]).filter((row) => type === 'all' || rowKind(row) === type),
-    [households, people, type]
+      ] satisfies readonly ContactRow[]).filter((row) => {
+        if (type !== 'all') return rowKind(row) === type;
+        if (legacyScope === 'households') return row.kind === 'household';
+        if (legacyScope === 'people') return row.kind === 'person';
+        return true;
+      }),
+    [households, legacyScope, people, type]
   );
   const rowPadding = density === 'compact' ? '8px 12px' : '14px 12px';
 
@@ -121,7 +132,7 @@ function ContactTableView({ context }: { context: DirectoryContext }) {
     if (!name || submittingHousehold) return;
     setAddError(null);
     setSubmittingHousehold(true);
-    void Promise.resolve(context.repository.createHousehold(name)).then(() => {
+    void Promise.resolve().then(() => context.repository.createHousehold(name)).then(() => {
       setHouseholdName('');
       setAddingHousehold(false);
     }).catch(() => {

@@ -151,7 +151,7 @@ describe('CRM contact table directory contribution', () => {
     expect(households).toEqual(originalHouseholds);
   });
 
-  it('hands the deliberately partial WB-009 action only to createHousehold', () => {
+  it('hands the deliberately partial WB-009 action only to createHousehold', async () => {
     setDevFlagOverride('crm-contact-table', true);
     let resolveCreate = () => {};
     const createHousehold = vi.fn(
@@ -178,7 +178,9 @@ describe('CRM contact table directory contribution', () => {
     });
     fireEvent.click(screen.getByTestId('crm-contact-table-household-save'));
     fireEvent.click(screen.getByTestId('crm-contact-table-household-save'));
-    expect(createHousehold).toHaveBeenCalledWith('New household');
+    await waitFor(() => {
+      expect(createHousehold).toHaveBeenCalledWith('New household');
+    });
     expect(createHousehold).toHaveBeenCalledTimes(1);
     resolveCreate();
     // WB-009: PARTIAL — household creation only via createHousehold; WB-010 pending.
@@ -239,10 +241,37 @@ describe('CRM contact table directory contribution', () => {
     fireEvent.click(screen.getByTestId('crm-directory-tab-people'));
     expect(screen.queryByTestId('crm-contact-table-household-h-chen')).not.toBeInTheDocument();
     expect(screen.getByTestId('crm-contact-table-person-p-chen')).toBeInTheDocument();
+    expect(screen.getByTestId('crm-contact-table-person-p-lee')).toBeInTheDocument();
+    expect(screen.getByTestId('crm-contact-table-person-p-trust')).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId('crm-directory-tab-households'));
     expect(screen.getByTestId('crm-contact-table-household-h-chen')).toBeInTheDocument();
     expect(screen.queryByTestId('crm-contact-table-person-p-chen')).not.toBeInTheDocument();
+  });
+
+  it('unlocks the Add household form when a synchronous repository call fails', async () => {
+    setDevFlagOverride('crm-contact-table', true);
+    render(
+      <DirectorySurface
+        people={people}
+        households={households}
+        composition={composition}
+        onCreateHousehold={() => {
+          throw new Error('unavailable');
+        }}
+      />
+    );
+
+    fireEvent.click(screen.getByTestId('crm-contact-table-add-household'));
+    fireEvent.change(screen.getByTestId('crm-contact-table-household-name'), {
+      target: { value: 'New household' },
+    });
+    fireEvent.click(screen.getByTestId('crm-contact-table-household-save'));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Could not create the household.');
+    });
+    expect(screen.getByTestId('crm-contact-table-household-save')).not.toBeDisabled();
   });
 
   it('saves its display preference through the directory doorway and reloads it', () => {
