@@ -185,27 +185,66 @@ describe('directory composition public seam', () => {
     expect(households.map(({ id }) => id)).toEqual(['h-c', 'h-a', 'h-b']);
   });
 
-  it('gives query callbacks copies so mutation attempts cannot rewrite stored records', () => {
+  it('isolates filter and sort callback mutation attempts from source records and visible cards', () => {
     const mutableRecords = households.map((household) => ({ ...household }));
     const before = structuredClone(mutableRecords);
+    type QueryFilter = NonNullable<DirectoryQueryDescriptor['filter']>;
+    type QueryCompare = NonNullable<DirectoryQueryDescriptor['compare']>;
+    const filter = vi.fn((
+      result: Parameters<QueryFilter>[0],
+      callbackContext: Parameters<QueryFilter>[1],
+    ) => {
+      if (result.kind === 'household') {
+        // @ts-expect-error callback result records are deeply read-only.
+        result.record.name = 'Filter rewrote its result';
+        const contextRecord = callbackContext.records.households[0];
+        if (contextRecord) {
+          // @ts-expect-error callback context records are deeply read-only.
+          contextRecord.name = 'Filter rewrote its context';
+        }
+      }
+      return true;
+    });
+    const compare = vi.fn((
+      left: Parameters<QueryCompare>[0],
+      right: Parameters<QueryCompare>[1],
+      callbackContext: Parameters<QueryCompare>[2],
+    ) => {
+      if (left.kind === 'household' && right.kind === 'household') {
+        // @ts-expect-error comparator result records are deeply read-only.
+        left.record.name = 'Sort rewrote its left result';
+        // @ts-expect-error comparator result records are deeply read-only.
+        right.record.name = 'Sort rewrote its right result';
+        const contextRecord = callbackContext.records.households[1];
+        if (contextRecord) {
+          // @ts-expect-error comparator context records are deeply read-only.
+          contextRecord.name = 'Sort rewrote its context';
+        }
+      }
+      return left.record.id.localeCompare(right.record.id);
+    });
     const mutationAttempt: DirectoryQueryDescriptor<'test-mutation-attempt'> = {
       id: 'test-mutation-attempt',
       order: 10,
       isActive: () => true,
-      filter: (result) => {
-        if (result.kind === 'household') {
-          // @ts-expect-error public directory projections are deeply read-only.
-          result.record.name = 'Rewritten by feature';
-        }
-        return true;
-      },
+      filter,
+      compare,
     };
     const composition = createDirectoryComposition({ queries: [mutationAttempt] });
 
     render(<DirectorySurface people={[]} households={mutableRecords} composition={composition} />);
 
     expect(mutableRecords).toEqual(before);
-    expect(screen.getByTestId('crm-directory-household-h-c')).toHaveTextContent('Chen household');
+    expect(filter).toHaveBeenCalledTimes(3);
+    expect(compare).toHaveBeenCalled();
+    expect(screen.getAllByTestId(/^crm-directory-household-/).map((row) => ({
+      id: row.dataset['testid'],
+      text: row.textContent,
+    }))).toEqual([
+      { id: 'crm-directory-household-h-a', text: 'Alvarez householdStandardActive · Owned by Morgan · 1 people' },
+      { id: 'crm-directory-household-h-b', text: 'Bishop householdStandardActive · Owned by Avery · 2 people' },
+      { id: 'crm-directory-household-h-c', text: 'Chen householdStandardInactive · Owned by Avery · 3 people' },
+    ]);
   });
 
   it('saves and reloads a feature-owned preference from its namespaced slot', () => {

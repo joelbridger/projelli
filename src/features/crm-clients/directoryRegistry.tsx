@@ -41,7 +41,10 @@ export interface DirectoryContext {
     needsVerification: boolean;
     setNeedsVerification(value: boolean): void;
   };
-  records: { people: readonly CrmPerson[]; households: readonly HouseholdDirectoryEntry[] };
+  records: DeepReadonly<{
+    people: readonly CrmPerson[];
+    households: readonly HouseholdDirectoryEntry[];
+  }>;
   repository: {
     openHousehold(id: string): void;
     reviewRecipient(id: string): void;
@@ -188,6 +191,16 @@ export function createDirectoryComposition(
 
 export const defaultDirectoryComposition = createDirectoryComposition();
 
+function createDirectoryQueryContext(context: DirectoryContext): DirectoryContext {
+  return {
+    ...context,
+    records: {
+      people: structuredClone(context.records.people),
+      households: structuredClone(context.records.households),
+    },
+  };
+}
+
 /** Resolves exactly one view, so a selected feature view replaces rather than duplicates cards. */
 export function resolveDirectoryView(
   context: DirectoryContext,
@@ -212,7 +225,11 @@ export function projectDirectoryResults<T extends CrmPerson | HouseholdDirectory
   descriptors: readonly DirectoryQueryDescriptor<string>[] = context.composition.queries
 ): readonly T[] {
   validateDirectoryQueryDescriptors(descriptors);
-  const active = descriptors.filter((descriptor) => descriptor.isActive(context));
+  if (descriptors.length === 0) return records;
+  // The public type makes every record field read-only. Copies also isolate the
+  // caller at runtime if feature code bypasses that type contract.
+  const callbackContext = createDirectoryQueryContext(context);
+  const active = descriptors.filter((descriptor) => descriptor.isActive(callbackContext));
   if (active.length === 0) return records;
 
   const projected = records
@@ -221,7 +238,7 @@ export function projectDirectoryResults<T extends CrmPerson | HouseholdDirectory
       record,
       index,
     }))
-    .filter(({ result }) => active.every((descriptor) => descriptor.filter?.(result, context) ?? true));
+    .filter(({ result }) => active.every((descriptor) => descriptor.filter?.(result, callbackContext) ?? true));
   const hasComparator = active.some((descriptor) => typeof descriptor.compare === 'function');
   if (!hasComparator) return projected.map(({ record }) => record);
   return projected
@@ -229,7 +246,7 @@ export function projectDirectoryResults<T extends CrmPerson | HouseholdDirectory
     .sort((left, right) => {
       for (const descriptor of active) {
         if (typeof descriptor.compare !== 'function') continue;
-        const result = descriptor.compare(left.result, right.result, context);
+        const result = descriptor.compare(left.result, right.result, callbackContext);
         if (!Number.isFinite(result)) throw new Error('[directoryQueryRegistry] compare must return a finite number');
         if (result !== 0) return result;
       }
