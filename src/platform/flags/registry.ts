@@ -80,6 +80,7 @@ export const flagRegistry = [
   defineFlag('task-attachments', 'Keeps task-owned saved-document references dark until the attachment acceptance drive is complete.', 'task-attachments', '2026-07-16', '2026-09-14'),
   defineFlag('task-templates-admin', 'Keeps reusable task-template administration in Settings dark until its acceptance review is complete.', 'task-templates-admin', '2026-07-16', '2026-09-14'),
   defineFlag('workflow-filters', 'Keeps workflow library filters and rich step details dark until their acceptance review is complete.', 'workflow-filters', '2026-07-16', '2026-09-14'),
+  defineFlag('calendar-write', 'Keeps the two-way calendar write surface (Outlook/Google create+update) dark: the fail-closed renderer flow, consent gate, and egress policy are present, but the native write-consent exchange and provider-write execution are deferred, so the surface stays off until they land and are proven.', 'calendar-write', '2026-07-16', '2026-09-14'),
 ] as const satisfies readonly FlagDescriptor[];
 
 export type FlagId = (typeof flagRegistry)[number]['id'];

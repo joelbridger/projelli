@@ -154,6 +154,8 @@ mod parity_tests {
         "google-calendar-oauth | Connector | rule=exact:accounts.google.com+oauth2.googleapis.com | data=c0m1k1 | label=Google Calendar sign-in",
         "google-calendar-sync | Connector | rule=exact:www.googleapis.com | data=c1m1k1 | label=Google Calendar sync",
         "ics-calendar-sync | Connector | rule=user-host | data=c1m1k1 | label=ICS calendar sync",
+        "outlook-calendar-write | Connector | rule=exact:graph.microsoft.com | data=c1m1k1 | label=Outlook Calendar write",
+        "google-calendar-write | Connector | rule=exact:www.googleapis.com | data=c1m1k1 | label=Google Calendar write",
         // files
         "onedrive-oauth | Connector | rule=exact:login.microsoftonline.com | data=c0m1k1 | label=OneDrive sign-in",
         "onedrive-sync | Connector | rule=exact:graph.microsoft.com | data=c1m1k1 | label=OneDrive sync",

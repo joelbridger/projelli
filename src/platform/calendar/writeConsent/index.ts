@@ -20,6 +20,10 @@
  * - `verifyConsentAttempt` / `coerceFailureReason` — the runtime validation of
  *   a port response, exported for the same reason: the types below describe what
  *   a conforming port sends, and only these two check that it did.
+ * - `verifyStoredGrant` — the same discipline for a grant loaded from storage.
+ *   A persisted `capability` is a claim, so it is re-derived from the persisted
+ *   scopes and any disagreement demotes to read. Loading can lose write access;
+ *   it can never grant it.
  * - the types describing a grant, a consent attempt, and a safe receipt.
  *
  * What no consumer can get: a token, a refresh token, a consent URL, a PKCE
@@ -42,6 +46,8 @@ export { coerceFailureReason, verifyConsentAttempt } from './portBoundary';
 export type { VerifiedConsentAttempt } from './portBoundary';
 
 export { assertCalendarWriteAllowed, requestCalendarWriteConsent } from './upgrade';
+
+export { verifyStoredGrant } from './storedGrant';
 
 export type {
   CalendarConsentAttempt,

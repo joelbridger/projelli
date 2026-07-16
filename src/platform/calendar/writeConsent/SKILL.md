@@ -88,6 +88,30 @@ error string. None of these are *representable* in the exported shapes:
 If you find yourself wanting to widen one of these to "improve the error
 message", that is a policy change. Bring it to a security review.
 
+## A grant loaded from storage is checked the same way
+
+The moment a `CalendarGrant` can be persisted and loaded, its `capability` field
+is a claim by an untrusted source — a flipped byte, a partial write, or a
+rolled-back store could say `write` over read-only scopes. So a grant loaded
+from storage is never believed:
+
+```ts
+import { verifyStoredGrant } from '@/platform/calendar/writeConsent';
+
+const grant = verifyStoredGrant(await loadPersistedGrant(provider));
+// grant.capability was re-derived from grant.grantedScopes, not trusted from
+// the stored field. On any disagreement it is `read`. `null` means the record
+// cannot hold a grant at all (wrong provider, unusable version).
+assertCalendarWriteAllowed(grant); // still the gate before any write
+```
+
+The rule mirrors the port boundary exactly: **capability comes from the scopes,
+never from the stored claim, and any disagreement demotes to read.** Loading can
+lose write access; it can never grant it. A grant only becomes write-capable
+again by going back through `requestCalendarWriteConsent`, which re-verifies the
+provider afresh. Pass the result of `verifyStoredGrant` — never the raw stored
+record — to anything that gates a write.
+
 ## Nothing the port says is believed until it is checked
 
 The list above says a provider error string is not *representable*. Read that
@@ -140,8 +164,9 @@ If you add a field to the port, it gets validated here in the same commit.
 
 ## Still to build (not in this contract)
 
-This lane delivered the renderer-side contract. A follow-up lane, with a
-coordinator reservation, must build:
+The Part B write lane discharged the **stored-grant validator** obligation the
+OAuth review left open (§6): `verifyStoredGrant`, above. A follow-up lane, with a
+coordinator reservation, must still build:
 
 - **The native consent port.** Today `src-tauri/src/commands/calendar/oauth.rs`
   hard-wires read-only scopes (`MS_SCOPES`, `GOOGLE_SCOPE`) into token exchange

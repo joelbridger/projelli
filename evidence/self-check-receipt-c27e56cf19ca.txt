@@ -1,0 +1,19 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/v1-w2-calendar-write
+sha: c27e56cf19cab9ff9b57b21c1486a473658bc14a
+tree: 887f5df835d4c388df4c03e987172c28b3568b2f
+gate_base: 64723645ebeb317f609f7167cecbec57dfbadef3
+tool_blob: 7912bf11eefdacea0702600b19d3bc5b3d7f2606
+utc: 2026-07-16T21:30:24Z
+step_timeout_seconds: 1500
+loadavg: 28.65 31.38 34.58
+running_vitest_eslint_procs: 41
+step: gate:changed | status=FAIL | exit=1 | 21:30:24Z..21:46:03Z | bytes=45923 | sha256=71f71617bfc8a229d87ee74d44de15bc059ba7a510f79c2b91ef481d8e6df7b7 | tail: 3645ebeb317f609f7167cecbec57dfbadef3 ===== Rust tests (lantern) ===== bash: line 1: cargo: command not found FAILED: bash -c cd src-tauri && CI=1 cargo test -p 'lantern' --locked CHANGED GATE RED see failures above
+step: typecheck | status=PASS | exit=0 | 21:46:03Z..21:46:58Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit
+step: typecheck:tests | status=PASS | exit=0 | 21:46:58Z..21:47:52Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit
+step: handle-guard | status=PASS | exit=0 | 21:47:52Z..21:47:52Z | bytes=1360 | sha256=6ecd20d20bd215670abcfe44be300e86d08eabc7fb1f071dfccd60fa6201c35a | tail: ite-approve + calendar-write-pending-banner + calendar-write-pending-banner-review-now +335 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen).
+step: arch-dag-guard | status=PASS | exit=0 | 21:47:52Z..21:47:55Z | bytes=220 | sha256=0fcd329a84735107d680e61ec37501e9a11194eb62c40562d985a12fb1ecf79a | tail:  RUN v4.1.3 /home/jameson/v1-w2-calendar-write Test Files 1 passed (1) Tests 1 passed (1) Start at 21:47:53 Duration 2.00s (transform 419ms, setup 661ms, import 361ms, tests 4ms, environment 596ms)
+step: i18n-snapshot | status=PASS | exit=0 | 21:47:55Z..21:47:57Z | bytes=221 | sha256=26962c0820e0b24d5d5f30a519ebe9b5c57843e6e29bafd398852a5581967bc8 | tail:  RUN v4.1.3 /home/jameson/v1-w2-calendar-write Test Files 1 passed (1) Tests 5 passed (5) Start at 21:47:55 Duration 1.67s (transform 457ms, setup 684ms, import 377ms, tests 38ms, environment 408ms)
+step: focused | status=PASS | exit=0 | 21:47:57Z..21:48:02Z | bytes=228 | sha256=e6e59c83079cb058c5720078427ee5730aecbba26c14f190d0ff405e9d4975af | tail: 4.1.3 /home/jameson/v1-w2-calendar-write Test Files 12 passed (12) Tests 135 passed (135) Start at 21:47:57 Duration 4.27s (transform 1.73s, setup 4.09s, import 4.22s, tests 204ms, environment 5.81s)
+overall: RED
