@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import { createFirmTagStore, type LiveFirmTagPort } from './tagCatalog';
-import { FirmTagError } from './contract';
 
 const canonicalRecords = new Map<string, LiveCrmRecord[]>();
 
@@ -93,9 +92,9 @@ describe('firm tag live-record adapter', () => {
     });
 
     expect(store.errorCode).toBe('workspace_unavailable');
-    await expect(store.list()).rejects.toMatchObject<FirmTagError>({ code: 'workspace_unavailable' });
+    await expect(store.list()).rejects.toMatchObject({ code: 'workspace_unavailable' });
     await expect(store.create({ name: '  ', color: '#2563eb' }))
-      .rejects.toMatchObject<FirmTagError>({ code: 'workspace_unavailable' });
+      .rejects.toMatchObject({ code: 'workspace_unavailable' });
   });
 
   it('normalizes only six-digit hex colors and safely falls back from invalid legacy CSS', async () => {
@@ -110,6 +109,6 @@ describe('firm tag live-record adapter', () => {
       tags: [{ id: 'tag:legacy', color: '#475569' }],
     });
     await expect(store.setColor('tag:legacy', 'red' as `#${string}`))
-      .rejects.toMatchObject<FirmTagError>({ code: 'invalid_color' });
+      .rejects.toMatchObject({ code: 'invalid_color' });
   });
 });
