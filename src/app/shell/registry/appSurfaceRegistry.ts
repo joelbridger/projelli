@@ -18,7 +18,6 @@ import type {
   AppSurfaceId,
   AppSurfaceRegistration,
 } from '@/app/shell/registry/types';
-import { settingsV1Surface } from '@/features/settings/v1-frame';
 
 /**
  * The only shared mount list for top-level app surfaces. Existing entries are
@@ -41,7 +40,6 @@ export const appSurfaceRegistry: readonly AppSurfaceRegistration[] = [
   legacyAiAssistantSurface,
   legacyResearchSurface,
   legacyTrashSurface,
-  settingsV1Surface,
 ];
 
 function isDescriptor(

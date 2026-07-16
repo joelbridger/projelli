@@ -18,7 +18,10 @@ export interface SettingsV1SurfaceProps {
  * registry reads, profile/workspace selectors, or frame effects.
  */
 export function SettingsV1Surface({ runtime }: SettingsV1SurfaceProps) {
-  if (!useFlag('settings-shell-v1')) return null;
+  // The flag check is deliberately the first operation. While dark, this is
+  // exactly the existing Settings surface; none of the v1 frame or its panel
+  // registry/data hooks are loaded.
+  if (!useFlag('settings-shell-v1')) return runtime.legacy.settings();
 
   return (
     <Suspense fallback={null}>

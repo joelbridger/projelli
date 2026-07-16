@@ -1,8 +1,4 @@
-import type { ReactNode } from 'react';
+import type { AppSurfaceRuntime } from '@/app/shell/runtime/AppSurfaceRuntime';
 
-/** The only shell capability the v1 Settings frame needs to preserve today. */
-export interface SettingsV1Runtime {
-  legacy: {
-    settings: () => ReactNode;
-  };
-}
+/** The real Settings descriptor supplies the same runtime as every surface. */
+export type SettingsV1Runtime = AppSurfaceRuntime;

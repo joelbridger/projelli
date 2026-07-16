@@ -21,6 +21,7 @@ import type {
   AppSurfacePlacement,
 } from '@/app/shell/registry/types';
 import { LegacyMainPanelSurface } from '@/app/shell/registry/LegacyMainPanelSurface';
+import { SettingsV1Surface } from '@/features/settings/v1-frame';
 
 type LegacyDescriptorOptions = {
   id: AppSurfaceId;
@@ -105,7 +106,10 @@ export const legacySettingsSurface = legacySurface({
   order: 20,
   clientContext: 'preserve-hidden',
   errorLabel: 'Settings',
-  render: (runtime) => runtime.legacy.settings(),
+  // This is the one real Settings doorway. The flag gate keeps the legacy
+  // surface byte-for-byte intact while dark, then swaps only this descriptor's
+  // body to the v1 frame when the feature is enabled.
+  render: (runtime) => createElement(SettingsV1Surface, { runtime }),
 });
 
 export const legacyDocumentsSurface = legacySurface({
