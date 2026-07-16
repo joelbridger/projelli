@@ -89,7 +89,8 @@ export const flagRegistry = [
   },
   {
     id: 'crm-trash-recovery',
-    description: 'Keeps CRM record soft-delete and 30-day recovery dark until acceptance testing passes.',
+    description:
+      'Keeps CRM record soft-delete and 30-day recovery dark until acceptance testing passes.',
     ownerLane: 'crm-trash-recovery',
     createdAt: '2026-07-15',
     expiresAt: '2026-09-13',
@@ -145,6 +146,15 @@ export const flagRegistry = [
     description:
       'Keeps personal notification preference capture dark until its acceptance drive is complete.',
     ownerLane: 'notification-preferences',
+    createdAt: '2026-07-15',
+    expiresAt: '2026-09-13',
+    defaultEnabled: false,
+  },
+  {
+    id: 'custom-fields-advisor',
+    description:
+      'Keeps advisor editing of firm-defined custom field values dark until its record review is complete.',
+    ownerLane: 'custom-fields-advisor',
     createdAt: '2026-07-15',
     expiresAt: '2026-09-13',
     defaultEnabled: false,

@@ -37,10 +37,15 @@ describe('household record registries', () => {
       'employment',
       'investment_profile',
       'written-agreements',
+      'custom-fields-advisor',
     ]);
     expect(
       getHouseholdRecordExtensions().map((descriptor) => descriptor.dataKey)
-    ).toEqual(['legacy.record-metadata', 'compliance-dates.written-agreements']);
+    ).toEqual([
+      'legacy.record-metadata',
+      'compliance-dates.written-agreements',
+      'custom-fields.advisor',
+    ]);
   });
 
   it('rejects duplicate extension data keys clearly', () => {

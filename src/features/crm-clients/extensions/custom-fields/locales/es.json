@@ -1,0 +1,9 @@
+{
+  "customFields": {
+    "title": "Campos personalizados",
+    "helper": "Detalles que su firma eligió recopilar para este hogar",
+    "save": "Guardar campos personalizados",
+    "saveError": "No pude guardar estos campos personalizados. Inténtelo de nuevo.",
+    "loadError": "No pude cargar los campos personalizados de su firma. Inténtelo de nuevo."
+  }
+}

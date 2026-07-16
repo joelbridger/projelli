@@ -1,0 +1,9 @@
+{
+  "customFields": {
+    "title": "Benutzerdefinierte Felder",
+    "helper": "Angaben, die Ihre Firma für diesen Haushalt erfasst",
+    "save": "Benutzerdefinierte Felder speichern",
+    "saveError": "Diese benutzerdefinierten Felder konnten nicht gespeichert werden. Bitte versuchen Sie es erneut.",
+    "loadError": "Die benutzerdefinierten Felder Ihrer Firma konnten nicht geladen werden. Bitte versuchen Sie es erneut."
+  }
+}
