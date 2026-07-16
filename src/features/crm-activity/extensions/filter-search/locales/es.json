@@ -1,0 +1,19 @@
+{
+  "activity-filter-search": {
+    "search-label": "Buscar actividad",
+    "search-placeholder": "Buscar actividad",
+    "kind-label": "Filtro de actividad",
+    "kind": {
+      "all": "Toda la actividad",
+      "mentions": "Con menciones",
+      "discussions": "Con comentarios",
+      "reactions": "Con reacciones"
+    },
+    "author-label": "Filtro de persona",
+    "author": {
+      "all": "Todas las personas"
+    },
+    "reset": "Borrar filtros",
+    "no-results": "Ninguna actividad coincide con estos filtros."
+  }
+}

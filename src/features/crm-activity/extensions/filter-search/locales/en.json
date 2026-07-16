@@ -1,0 +1,19 @@
+{
+  "activity-filter-search": {
+    "search-label": "Search activity",
+    "search-placeholder": "Search activity",
+    "kind-label": "Activity filter",
+    "kind": {
+      "all": "All activity",
+      "mentions": "With mentions",
+      "discussions": "With comments",
+      "reactions": "With reactions"
+    },
+    "author-label": "Person filter",
+    "author": {
+      "all": "All people"
+    },
+    "reset": "Clear filters",
+    "no-results": "No activity matches these filters."
+  }
+}
