@@ -5,6 +5,7 @@ import type { AppSurface } from '@/platform/types/navigation';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import { AppSurfaceRouter, type AppSurfaceRouterProps } from './AppSurfaceRouter';
 import { useMatterStore } from '@/platform/matter/matterStore';
+import { setDevFlagOverride } from '@/platform/flags';
 
 const records: readonly LiveCrmRecord[] = [
   {
@@ -158,8 +159,12 @@ function Harness() {
   return <AppSurfaceRouter {...baseProps(activeTab, setActiveTab)} />;
 }
 
-describe('CRM household add actions', () => {
+describe.each([
+  ['with the CRM shell off', false],
+  ['with the CRM shell on', true],
+])('CRM household add actions %s', (_label, crmShellEnabled) => {
   beforeEach(() => {
+    setDevFlagOverride('crm-shell-v1', crmShellEnabled);
     localStorage.setItem('lantern:crm:selected-household:/workspace', 'h-1');
     useMatterStore.setState({
       matters: [{
@@ -177,6 +182,7 @@ describe('CRM household add actions', () => {
     cleanup();
     localStorage.clear();
     useMatterStore.setState({ matters: [], activeMatterId: null });
+    setDevFlagOverride('crm-shell-v1', undefined);
   });
 
   it('opens a new task form with the current household already selected', async () => {

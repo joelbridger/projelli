@@ -2,42 +2,21 @@
 import { useEffect, type ReactNode } from 'react';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import { nextRecurringDue } from '@/platform/crm/tasks';
-import {
-  createMigrationExport,
-  runWealthboxMigration,
-} from '@/platform/crm/migration';
-import {
-  completeWorkflowStep,
-  createTemplate,
-  startScheduledWorkflows,
-  startWorkflow,
-  stepValue,
-  workflowRecords,
-} from '../workflowLive';
+import { createMigrationExport, runWealthboxMigration } from '@/platform/crm/migration';
+import { completeWorkflowStep, createTemplate, startScheduledWorkflows, startWorkflow, stepValue, workflowRecords } from '../workflowLive';
 import { CrmHomeShell } from '../CrmHome';
 import type { HouseholdChoice } from '@/features/crm-workflows/Workflows';
 import { liveStepTitle } from './workflowDisplay';
 import type { CrmHomeProps } from '../routes';
-import type {
-  CrmActivity,
-  CrmApproval,
-  CrmFirmMember,
-  CrmFreshnessState,
-  CrmHomeAdapter,
-  CrmTask,
-  CrmTaskSavedView,
-  CrmWorkflowWorkItem,
-  AttachmentAccountingRecord,
-  ExportJobStatus,
-  MigrationFidelityReport,
-  MigrationNoteGap,
-  MigrationWorkflowChecklist,
-  PropagationOffer,
-} from '../types';
+import type { CrmActivity, CrmApproval, CrmFirmMember, CrmFreshnessState, CrmHomeAdapter, CrmTask, CrmTaskSavedView, CrmWorkflowWorkItem, AttachmentAccountingRecord, ExportJobStatus, MigrationFidelityReport, MigrationNoteGap, MigrationWorkflowChecklist, PropagationOffer } from '../types';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 
 /** The live CRM state that a host shell passes to a registry destination. */
-export interface LiveCrmHomeRuntime {
+export interface LiveCrmHomeRuntime
+  extends Pick<
+    CrmHomeProps,
+    'initialRoute' | 'addRequest' | 'onAddRequestConsumed'
+  > {
   adapter: CrmHomeAdapter;
   workflowData?: ReturnType<typeof workflowRecords>;
   workflowHouseholds?: readonly HouseholdChoice[];
@@ -45,9 +24,7 @@ export interface LiveCrmHomeRuntime {
   adapterProvided: boolean;
 }
 
-function workflowHouseholdsFor(
-  records: readonly LiveCrmRecord[]
-): HouseholdChoice[] {
+function workflowHouseholdsFor(records: readonly LiveCrmRecord[]): HouseholdChoice[] {
   return records
     .filter((record) => record.kind === 'household')
     .map((record) => ({
@@ -237,7 +214,6 @@ function emptyEngineAdapter(freshness: CrmFreshnessState): CrmHomeAdapter {
     actions: {},
   };
 }
-
 export function LiveCrmHome({
   adapter,
   preview = false,
@@ -919,10 +895,7 @@ export function LiveCrmHome({
     void (async () => {
       for (const template of workflowRecords(liveRecords).templates) {
         if (shouldStop()) return;
-        const scheduled = startScheduledWorkflows(
-          template,
-          workflowHouseholdsFor(liveRecords)
-        );
+        const scheduled = startScheduledWorkflows(template, workflowHouseholdsFor(liveRecords));
         if (!scheduled.instances.length) continue;
         for (const instance of scheduled.instances) {
           if (shouldStop()) return;
@@ -948,20 +921,17 @@ export function LiveCrmHome({
     adapter: activeAdapter,
     adapterProvided: Boolean(adapter || preview),
     ...liveWorkflowProps,
+    ...(initialRoute ? { initialRoute } : {}),
+    ...(addRequest ? { addRequest } : {}),
+    ...(onAddRequestConsumed ? { onAddRequestConsumed } : {}),
   };
   if (render) return <>{render(runtime)}</>;
   return (
     <CrmHomeShell
-      adapter={runtime.adapter}
+      adapter={activeAdapter}
       preview={preview}
-      adapterProvided={runtime.adapterProvided}
-      {...(runtime.workflowData ? { workflowData: runtime.workflowData } : {})}
-      {...(runtime.workflowHouseholds
-        ? { workflowHouseholds: runtime.workflowHouseholds }
-        : {})}
-      {...(runtime.saveLiveRecord
-        ? { saveLiveRecord: runtime.saveLiveRecord }
-        : {})}
+      adapterProvided={Boolean(adapter || preview)}
+      {...liveWorkflowProps}
       {...(initialRoute ? { initialRoute } : {})}
       {...(addRequest ? { addRequest } : {})}
       {...(onAddRequestConsumed ? { onAddRequestConsumed } : {})}

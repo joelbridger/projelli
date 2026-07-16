@@ -24,6 +24,7 @@ import type {
 } from '@/platform/types/workflow';
 import type { AuditIntegrityVerdict } from '@/platform/utils/tauri-commands';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
+import type { CrmHomeProps } from '@/features/crm-home';
 
 export interface AppSurfaceCapabilities {
   navigation: {
@@ -112,6 +113,10 @@ export interface AppSurfaceCapabilities {
 }
 
 export interface AppSurfaceRuntime extends AppSurfaceCapabilities {
+  crmHomeHandoff?: Pick<
+    CrmHomeProps,
+    'initialRoute' | 'addRequest' | 'onAddRequestConsumed'
+  >;
   legacy: {
     home: () => ReactNode;
     clients: () => ReactNode;

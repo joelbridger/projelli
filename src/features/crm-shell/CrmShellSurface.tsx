@@ -1,6 +1,6 @@
 import { Suspense, lazy } from 'react';
 import { useFlag } from '@/platform/flags';
-import { LiveCrmHome } from '@/features/crm-home/shared/LiveCrmHome';
+import { LiveCrmHome } from '@/features/crm-home';
 import type { CrmShellRuntime } from './runtime';
 
 const CrmShellFrameEnabled = lazy(() =>
@@ -24,6 +24,7 @@ export function CrmShellSurface({ runtime }: CrmShellSurfaceProps) {
   return (
     <Suspense fallback={null}>
       <LiveCrmHome
+        {...runtime.crmHomeHandoff}
         render={(runtime) => <CrmShellFrameEnabled {...runtime} />}
       />
     </Suspense>

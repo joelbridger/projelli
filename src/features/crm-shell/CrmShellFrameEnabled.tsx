@@ -1,11 +1,13 @@
 import { createElement, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useFlag } from '@/platform/flags';
-import type { CrmHomeRoute } from '@/features/crm-home';
-import { CrmHomeSurfaceContext } from '@/features/crm-home/surfaceContext';
+import {
+  CrmHomeSurfaceContext,
+  type CrmHomeRoute,
+  type LiveCrmHomeRuntime,
+} from '@/features/crm-home';
 import type { CrmRailDestination } from './crmHomeRegistryAdapter';
 import { getCrmShellRailDestinations } from './crmHomeRegistryAdapter';
-import type { LiveCrmHomeRuntime } from '@/features/crm-home/shared/LiveCrmHome';
 
 function useDestinationEnabled(
   destination: CrmRailDestination | undefined
@@ -92,6 +94,10 @@ function CrmShellDestination({
         undoReport: null,
         reportUndo: () => undefined,
         adapterProvided: runtime.adapterProvided,
+        ...(runtime.addRequest ? { addRequest: runtime.addRequest } : {}),
+        ...(runtime.onAddRequestConsumed
+          ? { onAddRequestConsumed: runtime.onAddRequestConsumed }
+          : {}),
       }}
     >
       {createElement(activeDestination.Component)}
@@ -105,7 +111,7 @@ export function CrmShellFrameEnabled(runtime: LiveCrmHomeRuntime) {
   const destinations = getCrmShellRailDestinations();
   const fallback = destinations.find((destination) => !destination.flagId);
   const [activeRoute, setActiveRoute] = useState<CrmHomeRoute | null>(
-    () => fallback?.route ?? null
+    () => runtime.initialRoute ?? fallback?.route ?? null
   );
   const activeDestination = destinations.find(
     (destination) => destination.route === activeRoute

@@ -520,25 +520,22 @@ export function AppSurfaceRouter(props: AppSurfaceRouterProps) {
     </LazyBoundary>
   );
 
-  const renderHome = (): ReactNode => (
-    <CrmHome
-      {...(crmAddRequest
-        ? {
-            initialRoute: (
-              {
-                task: 'tasks',
-                opportunity: 'pipeline',
-                workflow: 'workflows',
-              } satisfies Record<CrmHouseholdAddRequest['kind'], CrmHomeRoute>
-            )[crmAddRequest.kind],
-            addRequest: crmAddRequest,
-            onAddRequestConsumed: () => {
-              setCrmAddRequest(null);
-            },
-          }
-        : {})}
-    />
-  );
+  const crmHomeHandoff = crmAddRequest
+    ? {
+        initialRoute: (
+          {
+            task: 'tasks',
+            opportunity: 'pipeline',
+            workflow: 'workflows',
+          } satisfies Record<CrmHouseholdAddRequest['kind'], CrmHomeRoute>
+        )[crmAddRequest.kind],
+        addRequest: crmAddRequest,
+        onAddRequestConsumed: () => {
+          setCrmAddRequest(null);
+        },
+      }
+    : undefined;
+  const renderHome = (): ReactNode => <CrmHome {...crmHomeHandoff} />;
 
   /**
    * Resolve one safe client-owned folder before any Documents write. Existing
@@ -820,6 +817,7 @@ export function AppSurfaceRouter(props: AppSurfaceRouterProps) {
 
   const runtime: AppSurfaceRuntime = {
     ...capabilities,
+    ...(crmHomeHandoff ? { crmHomeHandoff } : {}),
     legacy: {
       home: renderHome,
       clients: renderClients,
