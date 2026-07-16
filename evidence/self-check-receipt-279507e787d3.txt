@@ -1,0 +1,16 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 2
+repo: /home/jameson/v1-w2-account-connection-card-doorway
+sha: 279507e787d3bcda8d7a9721f6e452c3da9e30a6
+tree: 645e3c9e3036f45b806385daa2b64f326a34e7d7
+gate_base: 086f78a3bd9699795a1fea417960c30a278b21ba
+tool_blob: 47e279d4399792a5cc19fc7f1ced01c5863b18af
+utc: 2026-07-16T02:29:16Z
+step: gate:changed | exit=0 | 02:29:16Z..02:43:10Z | bytes=7937 | sha256=a9dd90dc788bad0aaa2aedeb0f8d8cf0974d27dc9d5519f0d9a9227b7e4285b1 | tail: -connection-card-doorway Test Files 2 passed (2) Tests 9 passed (9) Start at 02:43:01 Duration 8.46s (transform 8.13s, setup 1.71s, import 12.16s, tests 357ms, environment 1.93s) CHANGED GATE GREEN 
+step: typecheck | exit=0 | 02:43:10Z..02:44:23Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit 
+step: typecheck:tests | exit=0 | 02:44:23Z..02:46:04Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit 
+step: handle-guard | exit=0 | 02:46:04Z..02:46:04Z | bytes=1267 | sha256=d7d39deba2f120a44481417dece3edfe7fd18522f66ca525f0b3b5f605547bb8 | tail: t-picker-cancel + client-picker-clear + client-picker-empty + client-picker-error +133 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen). 
+step: arch-dag-guard | exit=0 | 02:46:04Z..02:46:08Z | bytes=237 | sha256=e8cd2a86818e258ab537267d6ec0d69787d261cffcd3e2135a88505ecb97f03e | tail: me/jameson/v1-w2-account-connection-card-doorway Test Files 1 passed (1) Tests 1 passed (1) Start at 02:46:05 Duration 2.57s (transform 602ms, setup 934ms, import 625ms, tests 6ms, environment 789ms) 
+step: i18n-snapshot | exit=0 | 02:46:08Z..02:46:11Z | bytes=238 | sha256=ce846be4997906b7630e8584ca7c78a380b0b19b5a7feddad4858634e8a5f47f | tail: e/jameson/v1-w2-account-connection-card-doorway Test Files 1 passed (1) Tests 5 passed (5) Start at 02:46:08 Duration 2.75s (transform 691ms, setup 1.03s, import 483ms, tests 56ms, environment 911ms) 
+step: focused | exit=0 | 02:46:11Z..02:46:24Z | bytes=242 | sha256=c0f297b97d3d8734eb2aa1d94fa57db5b18aca9c9444b27e847d0a7f5177fb05 | tail: meson/v1-w2-account-connection-card-doorway Test Files 2 passed (2) Tests 9 passed (9) Start at 02:46:12 Duration 11.72s (transform 12.27s, setup 2.67s, import 17.08s, tests 422ms, environment 2.27s) 
+overall: GREEN
