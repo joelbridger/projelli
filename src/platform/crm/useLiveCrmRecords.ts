@@ -14,6 +14,7 @@ import {
 import {
   clearLiveRecordRelay,
   ensureLiveRecordRelay,
+  removeLiveRecordRelayWriter,
   publishLiveRecord,
 } from './liveRecordRelay';
 
@@ -30,9 +31,13 @@ export function useLiveCrmRecords() {
     return active?.shared && active.firmMatterId ? active.firmMatterId : null;
   });
   const [records, setRecords] = useState<readonly LiveCrmRecord[]>([]);
+  const [recordsWorkspaceRoot, setRecordsWorkspaceRoot] = useState(workspaceRoot);
   const [error, setError] = useState<string | null>(null);
+  const [errorWorkspaceRoot, setErrorWorkspaceRoot] = useState(workspaceRoot);
   const workspaceRootRef = useRef(workspaceRoot);
-  workspaceRootRef.current = workspaceRoot;
+  useEffect(() => {
+    workspaceRootRef.current = workspaceRoot;
+  }, [workspaceRoot]);
   const [freshness, setFreshness] = useState<CrmEngineFreshness>(
     getCrmEngineFreshness,
   );
@@ -40,39 +45,48 @@ export function useLiveCrmRecords() {
   const reload = useCallback(async () => {
     const rootAtStart = workspaceRoot;
     try {
-      setError(null);
       const loaded = await loadLiveCrmRecords(rootAtStart);
       if (workspaceRootRef.current !== rootAtStart) return;
+      setRecordsWorkspaceRoot(rootAtStart);
       setRecords(loaded);
+      setErrorWorkspaceRoot(rootAtStart);
+      setError(null);
     } catch (reason) {
       if (workspaceRootRef.current !== rootAtStart) return;
+      setErrorWorkspaceRoot(rootAtStart);
       setError(reason instanceof Error ? reason.message : String(reason));
     }
   }, [workspaceRoot]);
   useEffect(() => {
-    setRecords([]);
-    setError(null);
-  }, [workspaceRoot]);
-  useEffect(() => { void reload(); }, [reload]);
+    void Promise.resolve().then(reload);
+  }, [reload]);
   useEffect(() => {
     const refresh = () => { void reload(); };
     window.addEventListener(LIVE_CRM_RECORDS_CHANGED, refresh);
-    return () => window.removeEventListener(LIVE_CRM_RECORDS_CHANGED, refresh);
+    return () => { window.removeEventListener(LIVE_CRM_RECORDS_CHANGED, refresh); };
   }, [reload]);
   useEffect(() => {
     if (!sharedMatterId || !workspaceRoot) {
       clearLiveRecordRelay();
       return;
     }
-    let cancelled = false;
-    void ensureLiveRecordRelay(sharedMatterId, async (record) => {
-      if (cancelled) return;
+    const lifecycle = { mounted: true };
+    const onRemote = async (record: LiveCrmRecord) => {
+      if (!lifecycle.mounted) return;
       await saveLiveCrmRecord(workspaceRoot, record);
       // The singleton relay persists once, then the shared notification lets
       // every mounted live-record consumer reload its own current workspace.
-      if (!cancelled) window.dispatchEvent(new Event(LIVE_CRM_RECORDS_CHANGED));
+      // This signal is independent of the writer's lifecycle, so an in-flight
+      // save still reaches remaining panels after its original owner unmounts.
+      window.dispatchEvent(new Event(LIVE_CRM_RECORDS_CHANGED));
+    };
+    void ensureLiveRecordRelay(sharedMatterId, onRemote).then(() => {
+      if (!lifecycle.mounted) removeLiveRecordRelayWriter(onRemote);
     });
-    return () => { cancelled = true; };
+    return () => {
+      lifecycle.mounted = false;
+      removeLiveRecordRelayWriter(onRemote);
+    };
   }, [reload, sharedMatterId, workspaceRoot]);
   const save = useCallback(async (record: LiveCrmRecord) => {
     // Scope firm-level records to the shared client matter (multi-seat), and
@@ -84,6 +98,7 @@ export function useLiveCrmRecords() {
     const rootAtStart = workspaceRoot;
     const saved = await saveLiveCrmRecord(rootAtStart, scoped);
     if (workspaceRootRef.current !== rootAtStart) return saved;
+    setRecordsWorkspaceRoot(rootAtStart);
     setRecords((current) => {
       const exists = current.some((item) => item.id === saved.id);
       return exists ? current.map((item) => item.id === saved.id ? saved : item) : [...current, saved];
@@ -98,5 +113,13 @@ export function useLiveCrmRecords() {
   const effectiveFreshness: CrmEngineFreshness = sharedMatterId && workspaceRoot
     ? freshness
     : { kind: 'idle' };
-  return { records, save, reload, error, workspaceRoot, freshness: effectiveFreshness, sharedMatterId };
+  return {
+    records: recordsWorkspaceRoot === workspaceRoot ? records : [],
+    save,
+    reload,
+    error: errorWorkspaceRoot === workspaceRoot ? error : null,
+    workspaceRoot,
+    freshness: effectiveFreshness,
+    sharedMatterId,
+  };
 }

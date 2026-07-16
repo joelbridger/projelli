@@ -89,6 +89,13 @@ function RelayOwner() {
   return null;
 }
 
+function RelayPanels({ showOwner }: { showOwner: boolean }) {
+  return <>
+    {showOwner && <RelayOwner />}
+    <UniversalTagsSettingsMount />
+  </>;
+}
+
 describe('UniversalTagsSettingsMount peer relay integration', () => {
   beforeEach(() => {
     peer.doc = null;
@@ -140,5 +147,26 @@ describe('UniversalTagsSettingsMount peer relay integration', () => {
       id: 'tag:planning', matterId: 'firm_home', name: 'Peer planning',
     });
     unmount();
+  });
+
+  it('keeps delivering when the first relay owner unmounts before a peer update', async () => {
+    const { rerender } = render(<RelayPanels showOwner />);
+    await screen.findByTestId('firm-tags-settings');
+    await waitFor(() => {
+      expect(peer.callbacks?.onRemoteUpdate).toBeTypeOf('function');
+    });
+
+    // Remove only the callback that originally started the singleton relay.
+    // The Settings panel remains mounted and must become the one remote writer.
+    rerender(<RelayPanels showOwner={false} />);
+
+    act(() => {
+      deliverPeerRecord(tag('Peer after owner unmount'));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('firm-tag-name-tag:planning')).toHaveValue('Peer after owner unmount');
+    });
+    expect(peer.invoke.mock.calls.filter(([command]) => command === 'crm_live_upsert')).toHaveLength(1);
   });
 });
