@@ -20,6 +20,8 @@ describe('whole-app egress follow-ups', () => {
       'calendar-import-ics',
       'calendar-sync-google',
       'calendar-sync-microsoft',
+      'calendar-write-google',
+      'calendar-write-microsoft',
       'calendly-import',
       'cloud-ai',
       'crm-auth-redtail',
