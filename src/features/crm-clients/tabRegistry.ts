@@ -1,4 +1,4 @@
-import type { ComponentType, ReactNode } from 'react';
+import { createElement, type ComponentType, type ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import type { CrmEngineFreshness } from '@/platform/crm/store';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
@@ -17,6 +17,13 @@ import { meetingNotesTab } from './meetingNotesTab';
 import { reviewsTab } from './reviewsTab';
 import { memberRailTab } from '@/features/crm-clients/extensions/record-member-kebab';
 import { isEnabled } from '@/platform/flags';
+import { SchwabPrefillReview } from '@/features/accounts';
+
+function SchwabReviewsGate(props: HouseholdTabSurfaceProps) {
+  return isEnabled('schwab-prefill')
+    ? createElement(SchwabPrefillReview, { household: props.household })
+    : null;
+}
 
 /** Feature modules augment this map beside their tab descriptor. */
 export interface HouseholdTabRouteMap {}
@@ -48,7 +55,9 @@ export const householdTabRegistry: readonly HouseholdTabDescriptor[] = [
   emailTab,
   meetingNotesTab,
   meetingsTab,
-  reviewsTab,
+  isEnabled('schwab-prefill')
+    ? { ...reviewsTab, Component: SchwabReviewsGate }
+    : reviewsTab,
   activityTab,
   ...(isEnabled('record-member-kebab') ? [memberRailTab] : []),
 ];

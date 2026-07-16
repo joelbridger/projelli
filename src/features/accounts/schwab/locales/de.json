@@ -1,0 +1,53 @@
+{
+  "schwabPrefill": {
+    "title": "Schwab-Konto vorbereiten",
+    "description": "Nur prüfbereite Daten.",
+    "accountType": "Kontotyp",
+    "loading": "Lädt…",
+    "existing": "Bestehender Datensatz",
+    "application": "Schwab-Antrag",
+    "confirm": "Bestätigen",
+    "none": "Kein Wert",
+    "conflict": "Wert wählen.",
+    "chooseSource": "Quelle wählen",
+    "approve": "Paket bestätigen",
+    "saving": "Speichert…",
+    "saved": "Paket gespeichert.",
+    "loadError": "Daten konnten nicht geladen werden.",
+    "auditStalled": "Bestätigung wurde gestoppt.",
+    "types": {
+      "individual": "Einzelkonto",
+      "joint": "Gemeinschaftskonto",
+      "roth-ira": "Roth IRA",
+      "traditional-ira": "Traditionelle IRA",
+      "rollover-ira": "Rollover IRA",
+      "inherited-ira": "Geerbte IRA",
+      "living-trust": "Treuhand",
+      "custodial": "Verwahrung"
+    },
+    "fields": {
+      "ownerName": "Name",
+      "ownerDob": "Geburtsdatum",
+      "ownerSsn": "SSN",
+      "jointOwnerName": "Miteigentümer",
+      "jointOwnerDob": "Geburtsdatum",
+      "jointOwnerSsn": "SSN",
+      "address": "Adresse",
+      "email": "E-Mail",
+      "phone": "Telefon",
+      "fundingSource": "Finanzierung",
+      "beneficiaries": "Begünstigte",
+      "iraContributionYear": "IRA-Jahr",
+      "decedentName": "Verstorbene Person",
+      "decedentDob": "Geburtsdatum",
+      "trustName": "Treuhand",
+      "trustDate": "Datum",
+      "trusteeName": "Treuhänder",
+      "trusteeEmail": "E-Mail",
+      "minorName": "Minderjährige Person",
+      "minorDob": "Geburtsdatum",
+      "custodianName": "Verwahrer",
+      "custodianSsn": "SSN"
+    }
+  }
+}

@@ -195,6 +195,15 @@ export const flagRegistry = [
     expiresAt: '2026-09-14',
     defaultEnabled: false,
   },
+  {
+    id: 'schwab-prefill',
+    description:
+      'Keeps the local Schwab prep-packet review dark until its acceptance drive is complete.',
+    ownerLane: 'schwab-prefill',
+    createdAt: '2026-07-16',
+    expiresAt: '2026-09-14',
+    defaultEnabled: false,
+  },
 ] as const satisfies readonly FlagDescriptor[];
 
 export type FlagId = (typeof flagRegistry)[number]['id'];
