@@ -149,7 +149,9 @@ export function getRegisteredMeetingInsights(
   descriptors: readonly MeetingInsightDescriptor[] = meetingInsightRegistry
 ): readonly MeetingInsightDescriptor[] {
   validateMeetingInsightDescriptors(descriptors);
-  return descriptors.slice().sort((a, b) => a.order - b.order);
+  return descriptors
+    .filter((descriptor) => descriptor.isAvailable?.() ?? true)
+    .sort((a, b) => a.order - b.order);
 }
 
 /** Descriptors that visibly mount on MeetingEntry's existing summary area. */
@@ -159,4 +161,61 @@ export function getMeetingInsights(
   return getRegisteredMeetingInsights(descriptors).filter(
     (descriptor) => descriptor.mounts.meetingSummary
   );
+}
+
+export interface MeetingInsightComposition {
+  /** All available insights (any mount), ordered — base + contributions. */
+  readonly registered: readonly MeetingInsightDescriptor[];
+  /** Available insights that mount on the meeting summary area, ordered. */
+  readonly meetingSummary: readonly MeetingInsightDescriptor[];
+}
+
+/**
+ * Open-world insight composition. Contributions validate together with the base
+ * insight(s) (duplicate ids, malformed metadata, and unstable order rejected),
+ * dark entries are excluded, and both projections are ordered without mutating
+ * the shared registry.
+ */
+export function createMeetingInsightComposition(
+  ...contributions: readonly MeetingInsightDescriptor[]
+): MeetingInsightComposition {
+  const registered = getRegisteredMeetingInsights([
+    ...meetingInsightRegistry,
+    ...contributions,
+  ]);
+  return {
+    registered,
+    meetingSummary: registered.filter(
+      (descriptor) => descriptor.mounts.meetingSummary
+    ),
+  };
+}
+
+/** Base composition with no contributions (the built-in review-status insight). */
+export const defaultMeetingInsightComposition: MeetingInsightComposition =
+  createMeetingInsightComposition();
+
+// The real weave: a feature registers its insight here and the host composition
+// the Meetings page reads (`getMeetingInsightComposition`) includes it.
+const registeredMeetingInsights: MeetingInsightDescriptor[] = [];
+
+/**
+ * Register a feature-owned insight into the live host composition. Validates
+ * against base plus already-registered insights before adding, and returns an
+ * unregister function.
+ */
+export function registerMeetingInsight(
+  descriptor: MeetingInsightDescriptor
+): () => void {
+  createMeetingInsightComposition(...registeredMeetingInsights, descriptor);
+  registeredMeetingInsights.push(descriptor);
+  return () => {
+    const index = registeredMeetingInsights.indexOf(descriptor);
+    if (index >= 0) registeredMeetingInsights.splice(index, 1);
+  };
+}
+
+/** The insight composition the real Meetings host renders. */
+export function getMeetingInsightComposition(): MeetingInsightComposition {
+  return createMeetingInsightComposition(...registeredMeetingInsights);
 }

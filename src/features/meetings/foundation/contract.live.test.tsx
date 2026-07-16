@@ -24,11 +24,20 @@ vi.mock('@/platform/fs/workspaceStore', () => ({
   useWorkspaceStore: <T,>(selector: (state: { rootPath: string }) => T) =>
     selector({ rootPath: '/workspace' }),
 }));
-vi.mock('@/platform/matter/matterStore', () => ({
-  useMatterStore: <T,>(
-    selector: (state: { matters: []; activeMatterId: null }) => T
-  ) => selector({ matters: [], activeMatterId: null }),
-}));
+vi.mock('@/platform/matter/matterStore', () => {
+  // A real session has an active client (matter). The foundation stores are
+  // fail-closed on the active matter, so the round-trip runs under matter-1.
+  // getState is the LIVE source the store resolver reads at every operation.
+  const state: {
+    matters: { id: string; shared?: boolean; firmMatterId?: string }[];
+    activeMatterId: string | null;
+  } = { matters: [{ id: 'matter-1' }], activeMatterId: 'matter-1' };
+  const useMatterStore = Object.assign(
+    <T,>(selector: (s: typeof state) => T): T => selector(state),
+    { getState: () => state }
+  );
+  return { useMatterStore };
+});
 vi.mock('@/platform/crm/store', () => ({
   getCrmEngineFreshness: () => ({ kind: 'idle' }),
   subscribeCrmEngineFreshness: () => () => undefined,

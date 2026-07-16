@@ -26,6 +26,9 @@ function canonicalPort(initial: readonly LiveCrmRecord[] = []) {
     records: structuredClone(canonical),
     workspaceRoot: '/workspace',
     error: null,
+    // Client-scoped stores REQUIRE a live resolver; default the active client to
+    // matter-1. Cross-matter constructions override this per store.
+    getActiveMatterId: () => 'matter-1' as string | null,
     save(record: LiveCrmRecord) {
       commands.push('crm_live_upsert');
       const saved = structuredClone(record);
@@ -113,6 +116,9 @@ describe('meetings foundation contract', () => {
         ...live,
         sharedMatterId: 'firm-matter-1',
         sharedLocalMatterId: 'matter-1',
+        // matter-2 is the active client here, so the client check passes and the
+        // shared-matter relay check is the one that refuses the mismatch.
+        getActiveMatterId: () => 'matter-2',
       }).createDraft({ ...draft, matterId: 'matter-2' })
     ).rejects.toThrow('active shared client');
   });
@@ -237,6 +243,7 @@ describe('meetings foundation contract', () => {
     await createMeetingStore({
       ...live,
       records: live.readCanonical(),
+      getActiveMatterId: () => 'matter-2',
     }).createDraft({
       ...draft,
       matterId: 'matter-2',
@@ -260,6 +267,7 @@ describe('meetings foundation contract', () => {
     const second = await createMeetingStore({
       ...live,
       records: live.readCanonical(),
+      getActiveMatterId: () => 'matter-2',
     }).createDraft({
       ...draft,
       householdRef: 'household-2',
@@ -298,6 +306,7 @@ describe('meetings foundation contract', () => {
     artifacts = createMeetingArtifactStore({
       ...live,
       records: live.readCanonical(),
+      getActiveMatterId: () => 'matter-2',
     });
     const otherClient = await artifacts.append({
       meetingId: second.id,
@@ -458,5 +467,245 @@ describe('meetings foundation contract', () => {
     expect(
       live.readCanonical().find((record) => record.id === evidence.id)
     ).not.toHaveProperty('recorded');
+  });
+
+  it('fails closed on the SAME held store as the active client switches A -> B -> none -> A', async () => {
+    const live = canonicalPort();
+    // The active client is resolved at every operation, so ONE held store pair
+    // is scoped by flipping this variable — modelling a real client switch.
+    let active: string | null | undefined = 'matter-1';
+    const meetings = createMeetingStore({
+      ...live,
+      getActiveMatterId: () => active,
+    });
+    const artifacts = createMeetingArtifactStore({
+      ...live,
+      getActiveMatterId: () => active,
+    });
+    const readerFor = () =>
+      artifacts.readerFor(meetings, client, [
+        { kind: 'structured-notes', minimumSchemaVersion: 1 },
+      ]);
+
+    // Under A: create a meeting + produced artifact; both are visible.
+    const meetingA = await meetings.createDraft(draft);
+    const artifactA = await artifacts.append({
+      meetingId: meetingA.id,
+      kind: 'structured-notes',
+      schemaVersion: 1,
+      producedAt: '2026-07-20T10:00:00.000Z',
+      sourceRefs: [],
+      provenance: 'local-entry',
+      payload: { summary: 'A only' },
+    });
+    expect(meetings.list.map((meeting) => meeting.id)).toEqual([meetingA.id]);
+    expect(readerFor().get(artifactA.id)?.id).toBe(artifactA.id);
+
+    // Switch to B on the SAME stores: every stale-A doorway fails closed.
+    active = 'matter-2';
+    expect(meetings.list).toEqual([]);
+    await expect(meetings.get(meetingA.id)).resolves.toBeUndefined();
+    await expect(
+      meetings.update(meetingA.id, { ownerRef: 'member-9' })
+    ).rejects.toThrow('different client');
+    await expect(
+      meetings.transition(meetingA.id, {
+        from: 'draft',
+        to: 'scheduled',
+        at: '2026-07-20T11:00:00.000Z',
+      })
+    ).rejects.toThrow('different client');
+    await expect(
+      artifacts.append({
+        meetingId: meetingA.id,
+        kind: 'summary',
+        schemaVersion: 1,
+        producedAt: '2026-07-20T10:05:00.000Z',
+        sourceRefs: [],
+        provenance: 'local-entry',
+        payload: {},
+      })
+    ).rejects.toThrow('different client');
+    await expect(
+      artifacts.approve(artifactA.id, {
+        from: 'produced',
+        to: 'approved',
+        at: '2026-07-20T10:06:00.000Z',
+      })
+    ).rejects.toThrow('different client');
+    expect(readerFor().get(artifactA.id)).toBeNull();
+    expect(readerFor().listForMeeting(meetingA.id)).toEqual([]);
+
+    // Switch to none (null): still fully fail closed.
+    active = null;
+    expect(meetings.list).toEqual([]);
+    await expect(meetings.get(meetingA.id)).resolves.toBeUndefined();
+    await expect(
+      meetings.transition(meetingA.id, {
+        from: 'draft',
+        to: 'scheduled',
+        at: '2026-07-20T11:00:00.000Z',
+      })
+    ).rejects.toThrow('different client');
+    await expect(
+      artifacts.approve(artifactA.id, {
+        from: 'produced',
+        to: 'approved',
+        at: '2026-07-20T10:06:00.000Z',
+      })
+    ).rejects.toThrow('different client');
+    expect(readerFor().get(artifactA.id)).toBeNull();
+
+    // Back to A: nothing was corrupted; the same doorways work again.
+    active = 'matter-1';
+    expect(meetings.list.map((meeting) => meeting.id)).toEqual([meetingA.id]);
+    await expect(meetings.get(meetingA.id)).resolves.toMatchObject({
+      id: meetingA.id,
+    });
+    await expect(
+      artifacts.approve(artifactA.id, {
+        from: 'produced',
+        to: 'approved',
+        at: '2026-07-20T10:06:00.000Z',
+      })
+    ).resolves.toMatchObject({ state: 'approved' });
+  });
+
+  it('refuses a stale transition or approval whose stated from does not match reality', async () => {
+    const live = canonicalPort();
+    const store = createMeetingStore({
+      ...live,
+      getActiveMatterId: () => 'matter-1',
+    });
+    const meeting = await store.createDraft(draft);
+    // Legitimately advance draft -> scheduled.
+    await createMeetingStore({
+      ...live,
+      records: live.readCanonical(),
+      getActiveMatterId: () => 'matter-1',
+    }).transition(meeting.id, {
+      from: 'draft',
+      to: 'scheduled',
+      at: '2026-07-20T10:30:00.000Z',
+    });
+    // A stale caller still believes it is a draft; a legal draft->cancelled is
+    // refused because the stored state is now scheduled (no silent coercion).
+    await expect(
+      createMeetingStore({
+        ...live,
+        records: live.readCanonical(),
+        getActiveMatterId: () => 'matter-1',
+      }).transition(meeting.id, {
+        from: 'draft',
+        to: 'cancelled',
+        at: '2026-07-20T10:40:00.000Z',
+      })
+    ).rejects.toThrow('refusing a stale transition');
+
+    // Reviewer's exact probe: illegal approved->approved against a PRODUCED
+    // artifact must be refused, not coerced to produced->approved and persisted.
+    let artifacts = createMeetingArtifactStore({
+      ...live,
+      records: live.readCanonical(),
+      getActiveMatterId: () => 'matter-1',
+    });
+    const produced = await artifacts.append({
+      meetingId: meeting.id,
+      kind: 'transcript',
+      schemaVersion: 1,
+      producedAt: '2026-07-20T10:00:00.000Z',
+      sourceRefs: [],
+      provenance: 'local-entry',
+      payload: {},
+    });
+    artifacts = createMeetingArtifactStore({
+      ...live,
+      records: live.readCanonical(),
+      getActiveMatterId: () => 'matter-1',
+    });
+    await expect(
+      artifacts.approve(produced.id, {
+        from: 'approved',
+        to: 'approved',
+        at: '2026-07-20T10:05:00.000Z',
+      })
+    ).rejects.toThrow('Illegal meeting artifact transition');
+    // The artifact is still produced — the hostile call changed nothing.
+    expect(
+      live.readCanonical().find((record) => record.id === produced.id)
+    ).toMatchObject({ artifactState: 'produced' });
+    expect(
+      live
+        .readCanonical()
+        .some((record) => record.kind === 'meeting_artifact_transition')
+    ).toBe(false);
+
+    // A genuine produced->approved succeeds; a second stale produced->approved
+    // against the now-approved artifact is refused.
+    const approver = createMeetingArtifactStore({
+      ...live,
+      records: live.readCanonical(),
+      getActiveMatterId: () => 'matter-1',
+    });
+    await approver.approve(produced.id, {
+      from: 'produced',
+      to: 'approved',
+      at: '2026-07-20T10:06:00.000Z',
+    });
+    await expect(
+      createMeetingArtifactStore({
+        ...live,
+        records: live.readCanonical(),
+        getActiveMatterId: () => 'matter-1',
+      }).approve(produced.id, {
+        from: 'produced',
+        to: 'approved',
+        at: '2026-07-20T10:07:00.000Z',
+      })
+    ).rejects.toThrow('refusing a stale approval');
+  });
+
+  it('cannot construct a client-scoped store without a live resolver, and no-active-client fails closed', async () => {
+    const live = canonicalPort();
+
+    // The DOCUMENTED construction (a live getActiveMatterId resolver) is safe:
+    // this is the only shape the type system permits.
+    let active: string | null = 'matter-1';
+    const documented = createMeetingStore({
+      ...live,
+      getActiveMatterId: () => active,
+    });
+    const meeting = await documented.createDraft(draft);
+    active = 'matter-2';
+    await expect(documented.get(meeting.id)).resolves.toBeUndefined();
+    active = 'matter-1';
+
+    // The isolation-LESS construction is a COMPILE ERROR — a store with no live
+    // client resolver cannot be built (this is the pre-fix unsafe shape).
+    const { getActiveMatterId: _dropped, ...portWithoutResolver } = live;
+    void _dropped;
+    // @ts-expect-error getActiveMatterId is required: the isolation-less store cannot be built.
+    void createMeetingStore(portWithoutResolver);
+    // @ts-expect-error getActiveMatterId is required for the artifact store too.
+    void createMeetingArtifactStore(portWithoutResolver);
+
+    // A resolver that returns no active client (null or undefined) fails closed
+    // at runtime — nothing is listed, read, or mutated.
+    const noneNull = createMeetingStore({
+      ...live,
+      records: live.readCanonical(),
+      getActiveMatterId: () => null,
+    });
+    expect(noneNull.list).toEqual([]);
+    await expect(noneNull.get(meeting.id)).resolves.toBeUndefined();
+    await expect(
+      noneNull.update(meeting.id, { ownerRef: 'x' })
+    ).rejects.toThrow('different client');
+    const noneUndefined = createMeetingStore({
+      ...live,
+      records: live.readCanonical(),
+      getActiveMatterId: () => undefined,
+    });
+    expect(noneUndefined.list).toEqual([]);
   });
 });

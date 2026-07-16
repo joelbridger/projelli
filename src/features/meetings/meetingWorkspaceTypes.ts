@@ -48,6 +48,9 @@ export interface MeetingPanelDescriptor {
   id: MeetingPanelId;
   order: number;
   labelKey: string;
+  /** Flag-aware availability; omitted means always available. A dark (false)
+   *  contribution is excluded from the composition the host renders. */
+  isAvailable?: () => boolean;
   mount: (context: MeetingPanelContext) => ReactNode;
 }
 
@@ -79,6 +82,9 @@ export interface MeetingHeaderActionDescriptor {
   order: number;
   labelKey: string;
   placement: MeetingHeaderActionPlacement;
+  /** Flag-aware availability; omitted means always available. A dark (false)
+   *  contribution is excluded from the composition the host renders. */
+  isAvailable?: () => boolean;
   mount: (context: MeetingHeaderActionContext) => ReactNode;
 }
 
@@ -146,6 +152,9 @@ export interface MeetingInsightDescriptor {
   id: MeetingInsightId;
   order: number;
   version: number;
+  /** Flag-aware availability; omitted means always available. A dark (false)
+   *  contribution is excluded from the composition the host renders. */
+  isAvailable?: () => boolean;
   mounts: {
     meetingSummary: boolean;
     clientSummary: boolean;

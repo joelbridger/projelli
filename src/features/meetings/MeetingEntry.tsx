@@ -58,9 +58,12 @@ import { readTauriFile } from '@/platform/fs/tauriFsPlugin';
 import { meetingNoteOutboundGate } from './outboundNoteGate';
 import { deriveNoticeState } from './noticeLedger';
 import { useFirm } from '@/platform/hooks/useFirm';
-import { getMeetingPanels, type MeetingPanelId } from './meetingPanelRegistry';
-import { getMeetingHeaderActions } from './meetingHeaderActionRegistry';
-import { getMeetingInsights } from './meetingInsightRegistry';
+import {
+  getMeetingPanelComposition,
+  type MeetingPanelId,
+} from './meetingPanelRegistry';
+import { getMeetingHeaderActionComposition } from './meetingHeaderActionRegistry';
+import { getMeetingInsightComposition } from './meetingInsightRegistry';
 
 export interface MeetingEntryProps {
   matterId: string;
@@ -654,12 +657,17 @@ export function MeetingEntry({
     setExportNotice(error instanceof Error ? error.message : String(error));
   }, []);
 
-  const meetingPanels = getMeetingPanels();
+  // The real Meetings host renders the LIVE host composition: the base
+  // compatibility tabs/actions/insights PLUS every feature that called
+  // registerMeetingPanel / registerMeetingHeaderAction / registerMeetingInsight.
+  // A registered contribution is therefore load-bearing — it renders here, not
+  // in a private returned array.
+  const meetingPanels = getMeetingPanelComposition().panels;
   const activePanel =
     meetingPanels.find((descriptor) => descriptor.id === activeTab) ??
     meetingPanels[0];
-  const meetingHeaderActions = getMeetingHeaderActions();
-  const meetingInsights = getMeetingInsights();
+  const meetingHeaderActions = getMeetingHeaderActionComposition().actions;
+  const meetingInsights = getMeetingInsightComposition().meetingSummary;
   const panelContext = {
     t,
     matterId,

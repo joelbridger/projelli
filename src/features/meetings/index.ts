@@ -38,3 +38,50 @@ export {
 // doorway rather than the legacy capture screen or raw live-record store.
 export * from './foundation/contract';
 export * from './foundation/manifest';
+
+// Meeting composition contracts. These are the append-only registries the real
+// Meetings host (MeetingEntry) renders through its default composition, so a
+// dependent's panel / header action / insight is load-bearing in the product.
+// Contribute with `createMeeting*Composition(...descriptors)` (see SKILL.md).
+export {
+  meetingPanelRegistry,
+  validateMeetingPanelDescriptors,
+  getMeetingPanels,
+  createMeetingPanelComposition,
+  defaultMeetingPanelComposition,
+  registerMeetingPanel,
+  getMeetingPanelComposition,
+  type MeetingPanelComposition,
+  type MeetingPanelContext,
+  type MeetingPanelDescriptor,
+  type MeetingPanelId,
+} from './meetingPanelRegistry';
+export {
+  meetingHeaderActionRegistry,
+  validateMeetingHeaderActionDescriptors,
+  getMeetingHeaderActions,
+  createMeetingHeaderActionComposition,
+  defaultMeetingHeaderActionComposition,
+  registerMeetingHeaderAction,
+  getMeetingHeaderActionComposition,
+  type MeetingHeaderActionComposition,
+  type MeetingHeaderActionContext,
+  type MeetingHeaderActionDescriptor,
+  type MeetingHeaderActionId,
+  type MeetingHeaderActionPlacement,
+} from './meetingHeaderActionRegistry';
+export {
+  meetingInsightRegistry,
+  validateMeetingInsightDescriptors,
+  getRegisteredMeetingInsights,
+  getMeetingInsights,
+  createMeetingInsightComposition,
+  defaultMeetingInsightComposition,
+  registerMeetingInsight,
+  getMeetingInsightComposition,
+  type MeetingInsightComposition,
+  type MeetingInsightDescriptor,
+  type MeetingInsightId,
+  type MeetingInsightMeetingSummaryContext,
+  type MeetingInsightClientSummaryContext,
+} from './meetingInsightRegistry';

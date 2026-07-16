@@ -114,51 +114,45 @@ export const meetingFoundationDependentManifest: readonly MeetingFoundationDepen
     },
     {
       consumer: 'meeting-panel-registry',
-      fixture: null,
-      status: 'coordinator-blocked',
-      reason:
-        'COORDINATOR: the legacy MeetingEntry panel host cannot identify a canonical foundation meeting safely, so the incompatible local lookalike was removed.',
+      fixture: 'meetingComposition.import.ts',
+      status: 'ready',
     },
     {
       consumer: 'meeting-header-action-registry',
-      fixture: null,
-      status: 'coordinator-blocked',
-      reason:
-        'COORDINATOR: the legacy MeetingEntry header host cannot identify a canonical foundation meeting safely, so the incompatible local lookalike was removed.',
+      fixture: 'meetingComposition.import.ts',
+      status: 'ready',
     },
     {
       consumer: 'meeting-insight-registry',
-      fixture: null,
-      status: 'coordinator-blocked',
-      reason:
-        'COORDINATOR: the legacy MeetingEntry insight host cannot identify a canonical foundation meeting safely, so the incompatible local lookalike was removed.',
+      fixture: 'meetingComposition.import.ts',
+      status: 'ready',
     },
     {
       consumer: 'meeting-list-registry',
       fixture: null,
       status: 'coordinator-blocked',
       reason:
-        'COORDINATOR: no real Meetings list composition host exists at the approved base, so an empty registry was not invented.',
+        'COORDINATOR: the Meetings list frame (Upcoming/Past/Actions/Templates/Automations) is owned by meetings-shell-v1, which is blocked — src/app/shell/registry exports no public appSurfaceRegistry/AppSurfaceRouter doorway at base. No empty registry was invented.',
     },
     {
       consumer: 'meeting-list-tool-registry',
       fixture: null,
       status: 'coordinator-blocked',
       reason:
-        'COORDINATOR: no real Meetings list-tool composition host exists at the approved base, so an empty registry was not invented.',
+        'COORDINATOR: the My Meetings list-tool bar is owned by meetings-shell-v1, blocked on the absent public appSurfaceRegistry doorway and an authoritative current-member identity seam. No empty registry was invented.',
     },
     {
       consumer: 'meeting-artifact-registry',
       fixture: null,
       status: 'coordinator-blocked',
       reason:
-        'COORDINATOR: no real meeting artifact contribution host exists at the approved base; the writer and bounded reader remain usable directly.',
+        'COORDINATOR: the processed-meeting panel slot that would host artifact contributions is owned by meetings-shell-v1 (blocked); the artifact writer and client-bound reader remain usable directly. No empty registry was invented.',
     },
     {
       consumer: 'notice-evidence-provider-registry',
       fixture: null,
       status: 'coordinator-blocked',
       reason:
-        'COORDINATOR: no real notice-evidence provider composition host exists at the approved base, so an empty registry was not invented.',
+        'COORDINATOR: the notice-evidence provider host lives in meetings-shell-v1 (blocked on the absent public appSurfaceRegistry doorway); the appendNoticeEvidence writer and NoticeEvidenceReadModel remain usable directly. No empty registry was invented.',
     },
   ];

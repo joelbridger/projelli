@@ -1,4 +1,5 @@
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
+import { useMatterStore } from '@/platform/matter/matterStore';
 import {
   loadLiveCrmRecords,
   type LiveCrmRecord,
@@ -299,6 +300,52 @@ type LivePort = Pick<
   reloadRecords(): Promise<readonly LiveCrmRecord[] | undefined>;
 };
 
+/**
+ * The port required to build a CLIENT-SCOPED store (`createMeetingStore`,
+ * `createMeetingArtifactStore`). `getActiveMatterId` is MANDATORY — a store
+ * cannot be constructed without live client isolation, so the isolation-less
+ * shape is a compile error, not a silent leak.
+ *
+ * `getActiveMatterId` MUST resolve the LIVE active client at call time (it is
+ * re-read at every operation), e.g. `() => useMatterStore.getState().activeMatterId`.
+ * Passing a value captured once (a snapshot) reintroduces the stale-client leak.
+ * A resolver returning `null`/`undefined` (no active client) FAILS CLOSED:
+ * nothing is listed, read in full, mutated, appended, approved, or read through
+ * a client-bound artifact reader. `matterId` is the durable per-client scope key
+ * (one matter is one client engagement).
+ */
+export type ClientScopedLivePort = LivePort & {
+  readonly getActiveMatterId: () => string | null | undefined;
+};
+
+interface ClientScope {
+  /** True when a specific record's matter may be listed / read / mutated now. */
+  owns(matterId: unknown): boolean;
+  /** Throw a fail-closed error when the record is not the active client's. */
+  assertOwns(matterId: unknown, subject: string): void;
+}
+
+function clientScope(port: ClientScopedLivePort): ClientScope {
+  const scope: ClientScope = {
+    owns(matterId) {
+      // Resolve the active client at CALL time, never construction time, so the
+      // same held store fails closed the instant the active client changes.
+      const current = port.getActiveMatterId();
+      // No active client (null/undefined) → fail closed. There is no unscoped
+      // escape hatch: a store without a live client resolver cannot be built.
+      if (current === null || current === undefined) return false;
+      return typeof matterId === 'string' && matterId === current;
+    },
+    assertOwns(matterId, subject) {
+      if (!scope.owns(matterId))
+        throw new Error(
+          `${subject} belongs to a different client than the active one.`
+        );
+    },
+  };
+  return scope;
+}
+
 const now = () => new Date().toISOString();
 const recordId = (prefix: string) => `${prefix}-${crypto.randomUUID()}`;
 const nonEmpty = (value: unknown, name: string): string => {
@@ -446,12 +493,17 @@ function requireAvailable(port: LivePort) {
       'Meeting records are unavailable until CRM records reload.'
     );
 }
-export function createMeetingStore(port: LivePort): MeetingStore {
+export function createMeetingStore(port: ClientScopedLivePort): MeetingStore {
+  const scope = clientScope(port);
   let raw = port.records.filter((record) => record.kind === 'meeting');
   const currentList = () =>
-    meetingRecords(raw).sort((left, right) =>
-      left.scheduledStartUtc.localeCompare(right.scheduledStartUtc)
-    );
+    meetingRecords(raw)
+      // Fail-closed list: only the active client's meetings are visible, so a
+      // held store shows nothing from a prior client after a switch (or none).
+      .filter((meeting) => scope.owns(meeting.matterId))
+      .sort((left, right) =>
+        left.scheduledStartUtc.localeCompare(right.scheduledStartUtc)
+      );
   const getRaw = (id: string) => raw.find((record) => record.id === id);
   const persist = async (record: LiveCrmRecord) => {
     await port.save(record);
@@ -477,11 +529,15 @@ export function createMeetingStore(port: LivePort): MeetingStore {
         const fresh = await port.reloadRecords();
         raw = (fresh ?? []).filter((candidate) => candidate.kind === 'meeting');
         const record = getRaw(id);
-        return record ? projectMeetingRecord(record) : undefined;
+        // Fail-closed read: a record from another (or no) active client is not
+        // readable in full here, even with a valid id captured before a switch.
+        if (!record || !scope.owns(record.matterId)) return undefined;
+        return projectMeetingRecord(record);
       }),
     createDraft: async (input) => {
       requireAvailable(port);
       const draft = validateMeetingDraft(input);
+      scope.assertOwns(draft.matterId, 'Meeting');
       if (port.sharedMatterId && port.sharedLocalMatterId !== draft.matterId)
         throw new Error(
           'Meeting matter must match the active shared client before relay.'
@@ -515,6 +571,7 @@ export function createMeetingStore(port: LivePort): MeetingStore {
       raw = (fresh ?? []).filter((candidate) => candidate.kind === 'meeting');
       const rawRecord = getRaw(id);
       if (!rawRecord) throw new Error('That meeting no longer exists.');
+      scope.assertOwns(rawRecord.matterId, 'Meeting');
       const current = projectMeetingRecord(rawRecord);
       const draft = validateMeetingDraft({
         ...current,
@@ -561,11 +618,17 @@ export function createMeetingStore(port: LivePort): MeetingStore {
       raw = (fresh ?? []).filter((candidate) => candidate.kind === 'meeting');
       const rawRecord = getRaw(id);
       if (!rawRecord) throw new Error('That meeting no longer exists.');
+      scope.assertOwns(rawRecord.matterId, 'Meeting');
       const current = projectMeetingRecord(rawRecord);
-      const valid = validateMeetingLifecycleTransition({
-        ...transition,
-        from: current.state,
-      });
+      // Fail-closed precondition: the caller's stated `from` must match the
+      // record's real current state. A stale caller (acting on a state this
+      // meeting has since left) is refused, never silently coerced to the
+      // stored state — that coercion accepted lies like cancelled -> scheduled.
+      const valid = validateMeetingLifecycleTransition(transition);
+      if (valid.from !== current.state)
+        throw new Error(
+          `This meeting is ${current.state}, not ${valid.from}; refusing a stale transition.`
+        );
       return projectMeetingRecord(
         await persist({
           ...rawRecord,
@@ -644,8 +707,9 @@ function projectArtifact(
 }
 
 export function createMeetingArtifactStore(
-  port: LivePort
+  port: ClientScopedLivePort
 ): MeetingArtifactStore {
+  const scope = clientScope(port);
   let raw = port.records.filter(
     (record) =>
       record.kind === 'meeting_artifact' ||
@@ -685,9 +749,17 @@ export function createMeetingArtifactStore(
       ),
     get: (id) => artifacts().find((artifact) => artifact.id === id) ?? null,
   };
+  const emptyReader: MeetingArtifactReader = {
+    listForMeeting: () => [],
+    get: () => null,
+  };
   return {
     readerFor: (meetings, client, requirements) => {
       const minimumVersion = artifactMinimumVersions(requirements);
+      // Fail-closed read: the requested client must be the active one. A reader
+      // built for client A while B (or none) is active returns nothing, so a
+      // stale-A boundary cannot pull A's artifacts after a switch.
+      if (!scope.owns(client.matterId)) return emptyReader;
       const ownsMeeting = (meetingId: MeetingRef) =>
         meetings.list.some(
           (meeting) =>
@@ -745,6 +817,9 @@ export function createMeetingArtifactStore(
       );
       if (!parent)
         throw new Error('Artifacts must belong to an existing meeting.');
+      // Fail-closed write: an artifact can only be appended to a meeting owned
+      // by the active client, so B cannot append onto A's meeting after a switch.
+      scope.assertOwns(parent.matterId, 'Meeting');
       const record: LiveCrmRecord = {
         id: recordId('meeting-artifact'),
         kind: 'meeting_artifact',
@@ -783,11 +858,17 @@ export function createMeetingArtifactStore(
       );
       const current = raw.find((record) => record.id === id);
       if (!current) throw new Error('That meeting artifact no longer exists.');
+      // Fail-closed: only the active client may approve, and the caller's stated
+      // `from` must match the stored state. This is the real transition contract
+      // — an approved -> approved (or stale produced -> approved) claim against a
+      // mismatched state is refused, never coerced to the stored state.
+      scope.assertOwns(current.matterId, 'Artifact');
       const projected = projectArtifact(current, raw);
-      const valid = validateMeetingArtifactTransition({
-        ...transition,
-        from: projected.state,
-      });
+      const valid = validateMeetingArtifactTransition(transition);
+      if (valid.from !== projected.state)
+        throw new Error(
+          `This artifact is ${projected.state}, not ${valid.from}; refusing a stale approval.`
+        );
       return approveArtifact(projected, valid);
     },
   };
@@ -1322,6 +1403,13 @@ export function createMeetingFoundationPreferencesStore(
 /** Reactive adapter over the canonical encrypted live-record route. */
 export function useMeetingFoundationStore(): MeetingStore {
   const live = useLiveCrmRecords();
+  // Subscribe to the active matter so a client switch re-renders and
+  // re-projects the UI — but do NOT capture that value into the store. The
+  // resolver reads the LIVE active matter from the store's source at every
+  // operation, so a store held across an async client switch (e.g. click
+  // Approve, switch client, the await resolves) fails closed on the now-stale
+  // client instead of acting on the snapshot captured when it was grabbed.
+  useMatterStore((state) => state.activeMatterId);
   return createMeetingStore({
     records: live.records,
     workspaceRoot: live.workspaceRoot,
@@ -1329,16 +1417,19 @@ export function useMeetingFoundationStore(): MeetingStore {
     save: live.save,
     sharedMatterId: live.sharedMatterId,
     sharedLocalMatterId: live.sharedLocalMatterId,
+    getActiveMatterId: () => useMatterStore.getState().activeMatterId,
     reloadRecords: () => loadLiveCrmRecords(live.workspaceRoot),
   });
 }
 export function useMeetingArtifactStore(): MeetingArtifactStore {
   const live = useLiveCrmRecords();
+  useMatterStore((state) => state.activeMatterId);
   return createMeetingArtifactStore({
     records: live.records,
     workspaceRoot: live.workspaceRoot,
     error: live.error,
     save: live.save,
+    getActiveMatterId: () => useMatterStore.getState().activeMatterId,
     reloadRecords: () => loadLiveCrmRecords(live.workspaceRoot),
   });
 }
