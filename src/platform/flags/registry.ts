@@ -159,6 +159,15 @@ export const flagRegistry = [
     expiresAt: '2026-09-13',
     defaultEnabled: false,
   },
+  {
+    id: 'crm-shell-v1',
+    description:
+      'Keeps the CRM v1 frame and destination rail dark until its acceptance review is complete.',
+    ownerLane: 'crm-shell-v1',
+    createdAt: '2026-07-16',
+    expiresAt: '2026-09-14',
+    defaultEnabled: false,
+  },
 ] as const satisfies readonly FlagDescriptor[];
 
 export type FlagId = (typeof flagRegistry)[number]['id'];

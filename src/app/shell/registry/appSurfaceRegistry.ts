@@ -40,6 +40,7 @@ export const appSurfaceRegistry: readonly AppSurfaceRegistration[] = [
   legacyAiAssistantSurface,
   legacyResearchSurface,
   legacyTrashSurface,
+  () => import('@/features/crm-shell').then((module) => module.crmShellSurface),
 ];
 
 function isDescriptor(

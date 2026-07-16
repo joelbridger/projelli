@@ -5,6 +5,7 @@ import {
   appSurfaceRegistry,
   getAppSurfaceDescriptors,
   getOrderedAppSurfaces,
+  resolveAppSurfaceRegistry,
   validateAppSurfaceDescriptors,
 } from '@/app/shell/registry/appSurfaceRegistry';
 import type { AppSurfaceDescriptor } from '@/app/shell/registry/types';
@@ -28,7 +29,7 @@ function descriptor(
 describe('appSurfaceRegistry', () => {
   it('is the complete source for current routing and primary navigation', () => {
     const descriptors = getAppSurfaceDescriptors();
-    expect(appSurfaceRegistry).toHaveLength(13);
+    expect(appSurfaceRegistry).toHaveLength(14);
     expect(descriptors.map(({ id }) => id)).toEqual([
       'home',
       'matters',
@@ -73,5 +74,17 @@ describe('appSurfaceRegistry', () => {
     expect(() => {
       validateAppSurfaceDescriptors([descriptor({ labelKey: 'title' })]);
     }).toThrow('labelKey must include a namespace: home');
+  });
+
+  it('resolves the appended CRM shell descriptor from its feature package', async () => {
+    const descriptors = await resolveAppSurfaceRegistry();
+    const crm = descriptors.find((descriptor) => descriptor.id === 'crm');
+
+    expect(crm).toMatchObject({
+      id: 'crm',
+      labelKey: 'crm-shell.title',
+      placement: 'primary',
+    });
+    expect(crm?.render({} as never)).toBeTruthy();
   });
 });
