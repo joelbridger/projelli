@@ -63,6 +63,7 @@ function CrmShellDestination({
   onFallback: () => void;
   onNavigate: (route: CrmHomeRoute) => void;
 }) {
+  const { t } = useTranslation();
   const selectedEnabled = useDestinationEnabled(destination);
   const activeDestination = selectedEnabled ? destination : fallback;
   useEffect(() => {
@@ -70,7 +71,7 @@ function CrmShellDestination({
   }, [destination, fallback, onFallback, selectedEnabled]);
   if (!activeDestination) {
     return (
-      <p className="text-sm text-slate-600">No CRM destination is available.</p>
+      <p className="text-sm text-slate-600">{t('crm-shell.content.empty')}</p>
     );
   }
   return (
