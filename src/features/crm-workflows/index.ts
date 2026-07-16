@@ -24,6 +24,31 @@ export {
   useWorkflowTemplateStore,
   WorkflowTemplateError,
 } from './workflowTemplateStore';
+export { WorkflowAuthoringRuleMount } from './authoring/WorkflowAuthoringMount';
+export {
+  createWorkflowAuthoringLibraryComposition,
+  createWorkflowRecordStartComposition,
+  defineWorkflowAuthoringLibraryDescriptor,
+  defaultWorkflowAuthoringLibraryComposition,
+  defaultWorkflowRecordStartComposition,
+  mountWorkflowRecordStarts,
+  validateWorkflowAuthoringLibraryDescriptors,
+  validateWorkflowRecordStartDescriptors,
+  workflowAuthoringLibraryRegistry,
+  workflowRecordStartRegistry,
+} from './authoring/workflowAuthoringExtensionPoints';
+export type {
+  WorkflowAuthoringLibraryComposition,
+  WorkflowAuthoringLibraryContext,
+  WorkflowAuthoringLibraryDescriptor,
+  WorkflowAuthoringLibraryFilterContext,
+  WorkflowAuthoringLibraryState,
+  WorkflowAuthoringLibraryStateValue,
+  WorkflowRecordStartComposition,
+  WorkflowRecordStartContext,
+  WorkflowRecordStartDescriptor,
+  WorkflowRecordStartRequest,
+} from './authoring/workflowAuthoringExtensionPoints';
 export type {
   CreateWorkflowTemplateInput,
   StartWorkflowInput,

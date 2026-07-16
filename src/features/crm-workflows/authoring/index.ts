@@ -5,7 +5,7 @@
 export {
   useWorkflowTemplateStore,
   WorkflowTemplateError,
-} from '@/features/crm-workflows';
+} from '../workflowTemplateStore';
 export type {
   CreateWorkflowTemplateInput,
   StartWorkflowInput,
@@ -16,5 +16,30 @@ export type {
   WorkflowTemplateStatus,
   WorkflowTemplateStep,
   WorkflowTemplateStore,
-} from '@/features/crm-workflows';
+} from '../workflowTemplateStore';
+export { WorkflowAuthoringRuleMount } from './WorkflowAuthoringMount';
+export {
+  createWorkflowAuthoringLibraryComposition,
+  createWorkflowRecordStartComposition,
+  defineWorkflowAuthoringLibraryDescriptor,
+  defaultWorkflowAuthoringLibraryComposition,
+  defaultWorkflowRecordStartComposition,
+  mountWorkflowRecordStarts,
+  validateWorkflowAuthoringLibraryDescriptors,
+  validateWorkflowRecordStartDescriptors,
+  workflowAuthoringLibraryRegistry,
+  workflowRecordStartRegistry,
+} from './workflowAuthoringExtensionPoints';
+export type {
+  WorkflowAuthoringLibraryComposition,
+  WorkflowAuthoringLibraryContext,
+  WorkflowAuthoringLibraryDescriptor,
+  WorkflowAuthoringLibraryFilterContext,
+  WorkflowAuthoringLibraryState,
+  WorkflowAuthoringLibraryStateValue,
+  WorkflowRecordStartComposition,
+  WorkflowRecordStartContext,
+  WorkflowRecordStartDescriptor,
+  WorkflowRecordStartRequest,
+} from './workflowAuthoringExtensionPoints';
 export { workflowAuthoringRuleDescriptor } from './workflowRuleDescriptor';

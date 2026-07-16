@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from 'react';
+import { Fragment, useCallback, useContext, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CrmHomeSurfaceContext } from '@/features/crm-home';
 import { useFirmTagStore, type FirmTagStore } from '@/features/crm-tags';
@@ -7,9 +7,18 @@ import {
   type WorkflowTemplateRecord,
   type WorkflowTemplateStep,
   type WorkflowTemplateStore,
-} from '@/features/crm-workflows';
+} from '../workflowTemplateStore';
 import { isEnabled } from '@/platform/flags';
 import { validateWorkflowTemplateTags } from './tagValidation';
+import {
+  defaultWorkflowAuthoringLibraryComposition,
+  enabledWorkflowAuthoringLibraryExtensions,
+  projectWorkflowAuthoringTemplates,
+  workflowAuthoringLibraryContext,
+  type WorkflowAuthoringLibraryComposition,
+  type WorkflowAuthoringLibraryState,
+  type WorkflowAuthoringLibraryStateValue,
+} from './workflowAuthoringExtensionPoints';
 
 const panel = {
   borderTop: '1px solid var(--kp-border)',
@@ -38,10 +47,12 @@ export function WorkflowAuthoringRuleMount({
   templateId,
   createStore = useWorkflowTemplateStore,
   createTagStore = useFirmTagStore,
+  libraryComposition = defaultWorkflowAuthoringLibraryComposition,
 }: {
   templateId: string;
   createStore?: StoreFactory;
   createTagStore?: () => FirmTagStore;
+  libraryComposition?: WorkflowAuthoringLibraryComposition;
 }) {
   if (!isEnabled('workflow-authoring')) return null;
   return (
@@ -49,6 +60,7 @@ export function WorkflowAuthoringRuleMount({
       templateId={templateId}
       createStore={createStore}
       createTagStore={createTagStore}
+      libraryComposition={libraryComposition}
     />
   );
 }
@@ -57,35 +69,90 @@ function EnabledWorkflowAuthoring({
   templateId,
   createStore,
   createTagStore,
+  libraryComposition,
 }: {
   templateId: string;
   createStore: StoreFactory;
   createTagStore: () => FirmTagStore;
+  libraryComposition: WorkflowAuthoringLibraryComposition;
 }) {
   const { t } = useTranslation();
   const store = createStore();
   const tagStore = createTagStore();
   const crmHome = useContext(CrmHomeSurfaceContext);
-  const [templates, setTemplates] = useState<
-    readonly WorkflowTemplateRecord[]
-  >([]);
+  const [templates, setTemplates] = useState<readonly WorkflowTemplateRecord[]>(
+    []
+  );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [steps, setSteps] = useState<WorkflowTemplateStep[]>([]);
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [householdId, setHouseholdId] = useState('');
   const [message, setMessage] = useState<string | null>(null);
+  const [libraryState, setLibraryState] = useState<
+    ReadonlyMap<string, WorkflowAuthoringLibraryStateValue>
+  >(new Map());
 
   const selected =
     templates.find((template) => template.id === selectedId) ?? null;
-  const select = (template: WorkflowTemplateRecord) => {
-    setSelectedId(template.id);
-    setName(template.name);
-    setTagIds([...template.tagIds]);
-    setSteps(
-      template.steps.map((step) => ({ ...step, tagIds: [...step.tagIds] }))
-    );
-  };
+  const select = useCallback(
+    (template: WorkflowTemplateRecord) => {
+      setSelectedId(template.id);
+      setName(template.name);
+      setTagIds([...template.tagIds]);
+      setSteps(
+        template.steps.map((step) => ({ ...step, tagIds: [...step.tagIds] }))
+      );
+    },
+    [setName, setSelectedId, setSteps, setTagIds]
+  );
+  const clearSelection = useCallback(() => {
+    setSelectedId(null);
+    setName('');
+    setTagIds([]);
+    setSteps([]);
+  }, [setName, setSelectedId, setSteps, setTagIds]);
+  const stateFor = useCallback(
+    <Value extends WorkflowAuthoringLibraryStateValue>(
+      id: string
+    ): WorkflowAuthoringLibraryState<Value> => ({
+      get: () => libraryState.get(id) as Value | undefined,
+      set: (value) => {
+        setLibraryState((current) => {
+          if (current.get(id) === value) return current;
+          return new Map(current).set(id, value);
+        });
+      },
+    }),
+    [libraryState]
+  );
+  const libraryExtensions =
+    enabledWorkflowAuthoringLibraryExtensions(libraryComposition);
+  const visibleTemplates = projectWorkflowAuthoringTemplates(
+    templates,
+    libraryExtensions,
+    selectedId,
+    stateFor
+  );
+
+  useEffect(() => {
+    if (
+      selectedId === null ||
+      visibleTemplates.some((template) => template.id === selectedId)
+    ) {
+      return;
+    }
+    let mounted = true;
+    const next = visibleTemplates[0];
+    queueMicrotask(() => {
+      if (!mounted) return;
+      if (next) select(next);
+      else clearSelection();
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [clearSelection, select, selectedId, visibleTemplates]);
 
   useEffect(() => {
     let mounted = true;
@@ -125,10 +192,7 @@ function EnabledWorkflowAuthoring({
           if (next) {
             select(next);
           } else {
-            setSelectedId(null);
-            setName('');
-            setTagIds([]);
-            setSteps([]);
+            clearSelection();
           }
         })
         .catch((error: unknown) => {
@@ -191,11 +255,7 @@ function EnabledWorkflowAuthoring({
   const publish = async () => {
     if (!selected) return;
     try {
-      validateWorkflowTemplateTags(
-        selected,
-        tagStore.catalog,
-        selected
-      );
+      validateWorkflowTemplateTags(selected, tagStore.catalog, selected);
       const next = await store.publish(selected.id);
       await reloadTemplates(next);
       setMessage(t('workflow-authoring.published'));
@@ -262,6 +322,27 @@ function EnabledWorkflowAuthoring({
     <section data-testid="workflow-authoring-library" style={panel}>
       <h3 style={{ marginTop: 0 }}>{t('workflow-authoring.title')}</h3>
       <p>{t('workflow-authoring.description')}</p>
+      {libraryExtensions.some(
+        (descriptor) => descriptor.mountFilterControl !== undefined
+      ) ? (
+        <div data-testid="workflow-authoring-filter-controls">
+          {libraryExtensions.map((descriptor) =>
+            descriptor.mountFilterControl ? (
+              <Fragment key={descriptor.id}>
+                {descriptor.mountFilterControl(
+                  workflowAuthoringLibraryContext(
+                    descriptor,
+                    templates,
+                    visibleTemplates,
+                    selectedId,
+                    stateFor
+                  )
+                )}
+              </Fragment>
+            ) : null
+          )}
+        </div>
+      ) : null}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button
           type="button"
@@ -270,7 +351,7 @@ function EnabledWorkflowAuthoring({
         >
           {t('workflow-authoring.new')}
         </button>
-        {templates.map((template) => (
+        {visibleTemplates.map((template) => (
           <button
             key={template.id}
             type="button"
@@ -283,6 +364,27 @@ function EnabledWorkflowAuthoring({
           </button>
         ))}
       </div>
+      {libraryExtensions.some(
+        (descriptor) => descriptor.renderDetail !== undefined
+      ) ? (
+        <div data-testid="workflow-authoring-details">
+          {libraryExtensions.map((descriptor) =>
+            descriptor.renderDetail ? (
+              <Fragment key={descriptor.id}>
+                {descriptor.renderDetail(
+                  workflowAuthoringLibraryContext(
+                    descriptor,
+                    templates,
+                    visibleTemplates,
+                    selectedId,
+                    stateFor
+                  )
+                )}
+              </Fragment>
+            ) : null
+          )}
+        </div>
+      ) : null}
       <label style={{ display: 'block', marginTop: 12 }}>
         {t('workflow-authoring.template-title')}
         <input
