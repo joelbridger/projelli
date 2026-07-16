@@ -1,0 +1,16 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 2
+repo: /home/jameson/v1-w2-crm-shell-v1
+sha: 1dc10019a11fa56cb2757834c3ff655605f326eb
+tree: a1f635680af0c3ed8d7eb17719697980419e29f2
+gate_base: 086f78a3bd9699795a1fea417960c30a278b21ba
+tool_blob: 47e279d4399792a5cc19fc7f1ced01c5863b18af
+utc: 2026-07-16T02:52:36Z
+step: gate:changed | exit=1 | 02:52:36Z..03:05:57Z | bytes=57569 | sha256=792afffc75863aaca111f87b2b7f51a0260a6a6034e6b03ef0ce9301e44742eb | tail: passed | 35 skipped (8379) Start at 02:58:35 Duration 441.95s (transform 37.37s, setup 190.35s, import 584.33s, tests 288.36s, environment 533.44s) FAILED: npx vitest run CHANGED GATE RED see failures above 
+step: typecheck | exit=0 | 03:05:57Z..03:06:37Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit 
+step: typecheck:tests | exit=0 | 03:06:37Z..03:07:13Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit 
+step: handle-guard | exit=0 | 03:07:13Z..03:07:13Z | bytes=1267 | sha256=446de28d2298a4e2409dfae2a7c5dfa23483e80b5bc9565d893d4bfbd35cc012 | tail: t-picker-cancel + client-picker-clear + client-picker-empty + client-picker-error +136 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen). 
+step: arch-dag-guard | exit=0 | 03:07:13Z..03:07:15Z | bytes=218 | sha256=3fedb281c2a47b5d96d047e915a27a6e85ec430d1e62f98072b9725187f30925 | tail:  RUN v4.1.3 /home/jameson/v1-w2-crm-shell-v1 Test Files 1 passed (1) Tests 1 passed (1) Start at 03:07:14 Duration 1.28s (transform 251ms, setup 406ms, import 360ms, tests 4ms, environment 395ms) 
+step: i18n-snapshot | exit=0 | 03:07:15Z..03:07:16Z | bytes=219 | sha256=b04e94f068d47a61c393f0825a913c21dd66c3247a751a862a6b2c26d4a05904 | tail:  RUN v4.1.3 /home/jameson/v1-w2-crm-shell-v1 Test Files 1 passed (1) Tests 5 passed (5) Start at 03:07:15 Duration 1.24s (transform 243ms, setup 411ms, import 296ms, tests 20ms, environment 385ms) 
+step: focused | exit=0 | 03:07:16Z..03:07:24Z | bytes=220 | sha256=7abc87fd34f6cc09233ba950821a1242e975557a14700a762b7fa0df98492dd4 | tail:  RUN v4.1.3 /home/jameson/v1-w2-crm-shell-v1 Test Files 2 passed (2) Tests 5 passed (5) Start at 03:07:17 Duration 6.96s (transform 5.30s, setup 694ms, import 7.55s, tests 477ms, environment 823ms) 
+overall: RED
