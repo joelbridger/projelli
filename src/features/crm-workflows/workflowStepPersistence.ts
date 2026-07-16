@@ -47,7 +47,10 @@ function storedDocumentRefs(value: unknown): WorkflowStepDocumentRef[] {
   });
 }
 
-function cleanDocumentRefs(values: readonly WorkflowStepDocumentRef[]): WorkflowStepDocumentRef[] {
+function cleanDocumentRefs(
+  values: readonly WorkflowStepDocumentRef[],
+  targetMatterId: string
+): WorkflowStepDocumentRef[] {
   const paths = new Set<string>();
   return values.map((value) => {
     const candidate: unknown = value;
@@ -77,6 +80,12 @@ function cleanDocumentRefs(values: readonly WorkflowStepDocumentRef[]): Workflow
     }
     if (paths.has(path)) {
       throw new Error('Workflow step document references must not be duplicated.');
+    }
+    if (
+      typeof ref['matterId'] !== 'string' ||
+      ref['matterId'].trim() !== targetMatterId
+    ) {
+      throw new Error('Workflow step documents must belong to the same client as the workflow.');
     }
     paths.add(path);
     return {
@@ -114,7 +123,9 @@ export function patchWorkflowStepMetadata(
   step.tagIds = storedTagIds(step.tagIds);
   step.documentRefs = storedDocumentRefs(step.documentRefs);
   if (patch.tagIds !== undefined) step.tagIds = cleanTagIds(patch.tagIds);
-  if (patch.documentRefs !== undefined) step.documentRefs = cleanDocumentRefs(patch.documentRefs);
+  if (patch.documentRefs !== undefined) {
+    step.documentRefs = cleanDocumentRefs(patch.documentRefs, instance.householdId);
+  }
   return next;
 }
 

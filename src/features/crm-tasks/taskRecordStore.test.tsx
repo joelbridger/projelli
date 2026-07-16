@@ -137,6 +137,38 @@ describe('public task record store', () => {
       title: 'Unsafe document',
       contextRefs: [{ kind: 'document', id: 'C:\\outside\\secret.pdf' }],
     })).rejects.toThrow('malformed');
+    await expect(result.current.create({
+      title: 'Wrong client document',
+      householdRef: { kind: 'household', id: 'household-1', matterId: 'matter-1' },
+      contextRefs: [{ kind: 'document', id: 'Clients/Other/secret.pdf', matterId: 'matter-2' }],
+    })).rejects.toThrow('same client');
+    await expect(result.current.create({
+      title: 'Unscoped client document',
+      householdRef: { kind: 'household', id: 'household-1', matterId: 'matter-1' },
+      contextRefs: [{ kind: 'document', id: 'Clients/River/review.pdf' }],
+    })).rejects.toThrow('same client');
+    expect(canonical.save).not.toHaveBeenCalled();
+  });
+
+  it('refuses to reassign a linked task across clients without replacing its document refs', async () => {
+    canonical.records = [{
+      id: 'task-1',
+      kind: 'task',
+      matterId: 'firm_home',
+      title: 'Prepare review',
+      body: '',
+      assigneeUserId: null,
+      status: 'open',
+      priority: 'normal',
+      tagIds: [],
+      householdRef: { kind: 'household', id: 'household-1', matterId: 'matter-1' },
+      contextRefs: [{ kind: 'document', id: 'Clients/River/review.pdf', matterId: 'matter-1' }],
+    }];
+    const { result } = renderHook(() => useTaskRecordStore());
+
+    await expect(result.current.update('task-1', {
+      householdRef: { kind: 'household', id: 'household-2', matterId: 'matter-2' },
+    })).rejects.toThrow('same client');
     expect(canonical.save).not.toHaveBeenCalled();
   });
 });

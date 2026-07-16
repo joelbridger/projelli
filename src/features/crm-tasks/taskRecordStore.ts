@@ -175,7 +175,17 @@ function cleanHouseholdRef(value: TaskHouseholdRef | null): TaskHouseholdRef | n
   };
 }
 
-function cleanDocumentRefs(values: readonly TaskDocumentRef[]): TaskDocumentRef[] {
+function taskMatterId(householdRef: TaskHouseholdRef | null): string | null {
+  if (!householdRef) return null;
+  const matterId = householdRef.matterId?.trim() || householdRef.id.trim();
+  return matterId || null;
+}
+
+function cleanDocumentRefs(
+  values: readonly TaskDocumentRef[],
+  householdRef: TaskHouseholdRef | null
+): TaskDocumentRef[] {
+  const targetMatterId = taskMatterId(householdRef);
   const paths = new Set<string>();
   return values.map((value) => {
     const candidate: unknown = value;
@@ -199,6 +209,13 @@ function cleanDocumentRefs(values: readonly TaskDocumentRef[]): TaskDocumentRef[
     }
     if (paths.has(path)) {
       throw new Error('Task document references must not be duplicated.');
+    }
+    if (
+      !targetMatterId ||
+      typeof ref['matterId'] !== 'string' ||
+      ref['matterId'].trim() !== targetMatterId
+    ) {
+      throw new Error('Task documents must belong to the same client as the task.');
     }
     paths.add(path);
     return {
@@ -297,6 +314,7 @@ function canonicalTask(input: CreateTaskRecordInput): LiveCrmRecord & Task {
   const now = timestamp();
   const dueTime = input.dueTime === undefined ? undefined : cleanDueTime(input.dueTime);
   const category = input.category === undefined ? undefined : cleanOptionalText(input.category);
+  const householdRef = cleanHouseholdRef(input.householdRef ?? null);
   const canonical: Task = {
     id: taskId(),
     kind: 'task',
@@ -309,7 +327,7 @@ function canonicalTask(input: CreateTaskRecordInput): LiveCrmRecord & Task {
     deleted: false,
     externalRefs: [],
     schemaVersion: 1,
-    householdRef: cleanHouseholdRef(input.householdRef ?? null),
+    householdRef,
     title: cleanTitle(input.title),
     body: input.body ?? '',
     assigneeUserId: input.assigneeUserId ?? null,
@@ -320,7 +338,7 @@ function canonicalTask(input: CreateTaskRecordInput): LiveCrmRecord & Task {
     priority: cleanPriority(input.priority ?? 'normal'),
     ...(category ? { category } : {}),
     tagIds: cleanTagIds(input.tagIds ?? []),
-    contextRefs: cleanDocumentRefs(input.contextRefs ?? []),
+    contextRefs: cleanDocumentRefs(input.contextRefs ?? [], householdRef),
     customFields: {},
   };
   return canonical as LiveCrmRecord & Task;
@@ -352,7 +370,7 @@ function mergePatch(record: LiveCrmRecord, patch: UpdateTaskRecordPatch): LiveCr
     else delete next['category'];
   }
   if ('tagIds' in patch) next['tagIds'] = cleanTagIds(patch.tagIds);
-  if ('contextRefs' in patch) {
+  if ('contextRefs' in patch || 'householdRef' in patch) {
     const rawRefs: unknown[] = Array.isArray(record['contextRefs']) ? record['contextRefs'] : [];
     const nonDocuments = rawRefs.filter((ref): ref is EntityRef =>
       Boolean(ref) &&
@@ -361,7 +379,14 @@ function mergePatch(record: LiveCrmRecord, patch: UpdateTaskRecordPatch): LiveCr
       (ref as Partial<EntityRef>).kind !== 'document' &&
       typeof (ref as Partial<EntityRef>).id === 'string'
     );
-    next['contextRefs'] = [...nonDocuments, ...cleanDocumentRefs(patch.contextRefs)];
+    const requestedDocuments = 'contextRefs' in patch
+      ? patch.contextRefs
+      : storedDocumentRefs(record['contextRefs']);
+    const nextHouseholdRef = storedHouseholdRef(next['householdRef']);
+    next['contextRefs'] = [
+      ...nonDocuments,
+      ...cleanDocumentRefs(requestedDocuments, nextHouseholdRef),
+    ];
   }
   return next;
 }

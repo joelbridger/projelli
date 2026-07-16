@@ -97,6 +97,24 @@ describe('saved CRM workflow wiring', () => {
     expect(published.template.steps.at(-1)?.tagIds).toEqual([]);
   });
 
+  it('rejects template metadata edits that replace, add, or remove stable step ids', () => {
+    const template = createTemplate('Annual review', ['Prepare', 'Meet']);
+    const firstStep = template.steps[0];
+    if (!firstStep) throw new Error('Expected a workflow step.');
+    const renamed = template.steps.map((step, index) => index === 0
+      ? { ...step, id: 'replacement-step' }
+      : step);
+
+    expect(() => updateWorkflowTemplate(template, { steps: renamed }))
+      .toThrow('stable step IDs');
+    expect(() => updateWorkflowTemplate(template, { steps: template.steps.slice(0, 1) }))
+      .toThrow('stable step IDs');
+    expect(() => updateWorkflowTemplate(template, {
+      steps: [...template.steps, { ...firstStep, id: 'added-step' }],
+    })).toThrow('stable step IDs');
+    expect(template.steps.map((step) => step.id)).toHaveLength(2);
+  });
+
   it('normalizes pre-foundation template and instance metadata without inventing values', () => {
     const template = createTemplate('Legacy workflow', ['Prepare']);
     const instance = startWorkflow(template, { id: 'household-1', label: 'River household' });

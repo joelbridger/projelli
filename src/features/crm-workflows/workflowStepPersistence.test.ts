@@ -51,10 +51,16 @@ describe('public workflow step metadata persistence', () => {
     })).toThrow('malformed');
     expect(() => patchWorkflowStepMetadata(instance, stepId, {
       documentRefs: [
-        { kind: 'document', id: 'Clients/River/review.docx' },
-        { kind: 'document', id: 'Clients/River/review.docx' },
+        { kind: 'document', id: 'Clients/River/review.docx', matterId: 'household-1' },
+        { kind: 'document', id: 'Clients/River/review.docx', matterId: 'household-1' },
       ],
     })).toThrow('duplicated');
+    expect(() => patchWorkflowStepMetadata(instance, stepId, {
+      documentRefs: [{ kind: 'document', id: 'Clients/Other/review.docx', matterId: 'household-2' }],
+    })).toThrow('same client');
+    expect(() => patchWorkflowStepMetadata(instance, stepId, {
+      documentRefs: [{ kind: 'document', id: 'Clients/River/review.docx' }],
+    })).toThrow('same client');
     expect(instance.snapshot.steps[stepId]).toMatchObject({ tagIds: [], documentRefs: [] });
   });
 

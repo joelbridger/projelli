@@ -194,6 +194,16 @@ export function addWorkflowStepNote(instance: LiveWorkflowInstance, stepId: stri
 
 export function updateWorkflowTemplate(template: LiveWorkflowTemplate, change: { schedule?: WorkflowScheduleDraft; outcomes?: Record<string, WorkflowStepOutcomeDraft[]>; steps?: readonly WorkflowStepDraft[] }): LiveWorkflowTemplate {
   const steps = change.steps ? cleanSteps(change.steps) : template.steps;
+  if (change.steps) {
+    const currentIds = new Set(template.steps.map((step) => step.id));
+    const nextIds = new Set(steps.map((step) => step.id));
+    if (
+      currentIds.size !== nextIds.size ||
+      [...currentIds].some((id) => !nextIds.has(id))
+    ) {
+      throw new Error('Workflow metadata edits must preserve stable step IDs.');
+    }
+  }
   return {
     ...template,
     ...(change.schedule ? { schedule: change.schedule } : {}),
