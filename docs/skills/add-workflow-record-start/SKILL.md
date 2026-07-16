@@ -35,12 +35,14 @@ a second workflow store. The enabled child lists canonical templates through
 ## Register once
 
 Append the descriptor as one complete entry in `workflowRecordStartRegistry`.
-Do not reorder existing entries. The Workflows host owns the public
-`WorkflowRecordStartSlot`; it passes only the already-landed `addRequest`,
+Do not reorder existing entries. The public `WorkflowRecordStartSlot` is the
+only sanctioned host mount; it accepts only the already-landed `addRequest`,
 `onAddRequestConsumed`, household choices, and current template identity. The
 slot normalizes the request, retains the matching household's `matterId`, and
 calls `mountWorkflowRecordStarts()`. A dependent must not add its own scan,
-lookup, context construction, or rendered child to `Workflows.tsx`.
+lookup, context construction, or rendered child to `Workflows.tsx`. Wiring the
+generic slot into that shared host is a coordinator-owned composition change,
+not part of an extension lane.
 
 Put the feature-flag check in the descriptor's `isEnabled`. The host checks it
 before calling `mount`, so a dark feature cannot receive the request, create a
