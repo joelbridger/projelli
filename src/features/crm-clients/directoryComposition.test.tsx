@@ -1,5 +1,5 @@
 import '@/i18n';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import {
   DirectorySurface,
@@ -7,6 +7,7 @@ import {
   createDirectoryPreferenceStore,
   type DirectoryContribution,
   type DirectoryFeatureQueryDescriptor,
+  type DirectoryFeatureState,
   type DirectoryQueryDescriptor,
   type DirectoryFeatureToolDescriptor,
   type DirectoryViewDescriptor,
@@ -125,7 +126,8 @@ describe('directory composition public seam', () => {
       isActive: () => true,
       mount: (context) => <div data-testid="test-feature-view">{context.records.households.length} records</div>,
     };
-    const composition = createDirectoryComposition({ namespace: 'test-feature-view', views: [featureView] });
+    const contactTableContributionPattern: DirectoryContribution = { views: [featureView] };
+    const composition = createDirectoryComposition(contactTableContributionPattern);
 
     render(<DirectorySurface people={[]} households={households} composition={composition} />);
 
@@ -145,7 +147,7 @@ describe('directory composition public seam', () => {
     const { unmount } = render(<DirectorySurface people={[]} households={households} />);
     const legacyHtml = screen.getByTestId('crm-directory-surface').innerHTML;
     unmount();
-    const composition = createDirectoryComposition({ namespace: 'test-inactive-view', views: [inactiveView] });
+    const composition = createDirectoryComposition({ views: [inactiveView] });
 
     render(<DirectorySurface people={[]} households={households} composition={composition} />);
 
@@ -163,7 +165,7 @@ describe('directory composition public seam', () => {
       isActive: () => true,
       filter,
     };
-    const composition = createDirectoryComposition({ namespace: 'test-advisor-filter', queries: [advisorFilter] });
+    const composition = createDirectoryComposition({ queries: [advisorFilter] });
 
     render(<DirectorySurface people={[]} households={households} composition={composition} />);
 
@@ -186,7 +188,7 @@ describe('directory composition public seam', () => {
       isActive: () => true,
       compare,
     };
-    const composition = createDirectoryComposition({ namespace: 'test-name-sort', queries: [nameSort] });
+    const composition = createDirectoryComposition({ queries: [nameSort] });
 
     render(<DirectorySurface people={[]} households={households} composition={composition} />);
 
@@ -280,13 +282,11 @@ describe('directory composition public seam', () => {
         },
       ],
     } satisfies DirectoryContribution<'advisor-only'>;
-    const proveCrossReadIsInexpressible = (
-      port: Parameters<DirectoryFeatureToolDescriptor<'name-ascending'>['mount']>[0]['featureState'],
-    ) => {
-      // @ts-expect-error A feature port has no namespace argument, so a cross-read is inexpressible.
-      port.get('test-other-feature');
-    };
-    void proveCrossReadIsInexpressible;
+    expectTypeOf<Parameters<DirectoryFeatureState<'name-ascending'>['get']>>().toEqualTypeOf<[]>();
+    expectTypeOf<Parameters<DirectoryFeatureState<'name-ascending'>['set']>>()
+      .toEqualTypeOf<[value: 'name-ascending']>();
+    expectTypeOf<{ tools: readonly DirectoryFeatureToolDescriptor<'name-ascending'>[] }>()
+      .not.toExtend<DirectoryContribution<'name-ascending'>>();
     const composition = createDirectoryComposition(sortContribution, otherContribution);
 
     render(<DirectorySurface people={[]} households={households} composition={composition} />);
@@ -297,6 +297,8 @@ describe('directory composition public seam', () => {
     expect(otherNamespaceSort).toHaveBeenCalled();
     expect(() => createDirectoryComposition(sortContribution, { ...otherContribution, namespace: 'test-reactive-sort' }))
       .toThrow('duplicate feature namespace: test-reactive-sort');
+    expect(() => createDirectoryComposition({ ...otherContribution, namespace: 'Invalid namespace' }))
+      .toThrow('feature namespace must use lowercase letters, numbers, dots, or hyphens');
   });
 
   it('passes timestamp fields through directory projections when they are present', () => {
@@ -317,7 +319,7 @@ describe('directory composition public seam', () => {
         return true;
       },
     };
-    const composition = createDirectoryComposition({ namespace: 'test-timestamp-probe', queries: [timestampProbe] });
+    const composition = createDirectoryComposition({ queries: [timestampProbe] });
 
     render(<DirectorySurface people={[]} households={timestampedHouseholds} composition={composition} />);
 
@@ -337,12 +339,12 @@ describe('directory composition public seam', () => {
       callbackContext: Parameters<QueryFilter>[1],
     ) => {
       if (result.kind === 'household') {
-        // @ts-expect-error callback result records are deeply read-only.
-        result.record.name = 'Filter rewrote its result';
+        const mutableResult = result.record as { name: string };
+        mutableResult.name = 'Filter rewrote its result';
         const contextRecord = callbackContext.records.households[0];
         if (contextRecord) {
-          // @ts-expect-error callback context records are deeply read-only.
-          contextRecord.name = 'Filter rewrote its context';
+          const mutableContextRecord = contextRecord as { name: string };
+          mutableContextRecord.name = 'Filter rewrote its context';
         }
       }
       return true;
@@ -353,14 +355,14 @@ describe('directory composition public seam', () => {
       callbackContext: Parameters<QueryCompare>[2],
     ) => {
       if (left.kind === 'household' && right.kind === 'household') {
-        // @ts-expect-error comparator result records are deeply read-only.
-        left.record.name = 'Sort rewrote its left result';
-        // @ts-expect-error comparator result records are deeply read-only.
-        right.record.name = 'Sort rewrote its right result';
+        const mutableLeft = left.record as { name: string };
+        const mutableRight = right.record as { name: string };
+        mutableLeft.name = 'Sort rewrote its left result';
+        mutableRight.name = 'Sort rewrote its right result';
         const contextRecord = callbackContext.records.households[1];
         if (contextRecord) {
-          // @ts-expect-error comparator context records are deeply read-only.
-          contextRecord.name = 'Sort rewrote its context';
+          const mutableContextRecord = contextRecord as { name: string };
+          mutableContextRecord.name = 'Sort rewrote its context';
         }
       }
       return left.record.id.localeCompare(right.record.id);
@@ -372,7 +374,7 @@ describe('directory composition public seam', () => {
       filter,
       compare,
     };
-    const composition = createDirectoryComposition({ namespace: 'test-mutation-attempt', queries: [mutationAttempt] });
+    const composition = createDirectoryComposition({ queries: [mutationAttempt] });
 
     render(<DirectorySurface people={[]} households={mutableRecords} composition={composition} />);
 

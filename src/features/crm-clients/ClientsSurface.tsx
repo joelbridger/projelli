@@ -25,6 +25,12 @@ function list(value: unknown): readonly unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
+function optionalStringList(value: unknown): readonly string[] | undefined {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string')
+    ? value
+    : undefined;
+}
+
 function stringValue(value: unknown, fallback: string): string {
   return typeof value === 'string' && value.trim() ? value : fallback;
 }
@@ -54,6 +60,7 @@ function syncState(kind: ReturnType<typeof useLiveCrmRecords>['freshness']['kind
 }
 
 function householdFromRecord(record: LiveCrmRecord, currentSyncState: SyncState, lastSyncedAt?: string): HouseholdRecord {
+  const tagIds = optionalStringList(record['tagIds']);
   return {
     id: record.id,
     name: stringValue(record['name'], 'Untitled household'),
@@ -72,7 +79,7 @@ function householdFromRecord(record: LiveCrmRecord, currentSyncState: SyncState,
     externalParties: list(record['externalParties']) as NonNullable<HouseholdRecord['externalParties']>,
     notes: list(record['notes']) as NonNullable<HouseholdRecord['notes']>,
     customFields: list(record['customFields']) as NonNullable<HouseholdRecord['customFields']>,
-    tags: list(record['tags']).filter((tag): tag is string => typeof tag === 'string'),
+    ...(tagIds ? { tagIds } : {}),
     contextRefs: list(record['contextRefs']) as NonNullable<HouseholdRecord['contextRefs']>,
     ...(record['extensionData'] && typeof record['extensionData'] === 'object' && !Array.isArray(record['extensionData'])
       ? { extensionData: record['extensionData'] as Readonly<Record<string, unknown>> }
@@ -107,7 +114,6 @@ function householdFromMatter(matter: Matter, currentSyncState: SyncState): House
     externalParties: [],
     notes: [],
     customFields: [],
-    tags: [],
     contextRefs: [],
   };
 }
@@ -227,31 +233,37 @@ function ClientsSurfaceContent({
     if (selectionWorkspace) writeSelectedCrmHousehold(selectionWorkspace, selection);
   }, [findRecord, recordMatterId, selectionWorkspace]);
 
-  const effectiveHouseholds = households.length ? households : effectiveRecords.map((household) => ({
-    id: recordMatterId(household),
-    name: household.name,
-    ...(typeof household.createdAt === 'string' ? { createdAt: household.createdAt } : {}),
-    ...(typeof household.updatedAt === 'string' ? { updatedAt: household.updatedAt } : {}),
-    lifecycle: household.lifecycle,
-    primaryAdvisor: household.primaryAdvisor,
-    serviceTier: household.serviceTier,
-    peopleCount: household.members.length + household.externalParties.length,
-    ...(household.tags ? { tags: household.tags } : {}),
-    ...(latestActivityAt(live.records, (activity) => activity['householdId'] === household.id) ? {
-      lastActivityAt: latestActivityAt(live.records, (activity) => activity['householdId'] === household.id),
-    } : {}),
-  }));
+  const effectiveHouseholds = households.length ? households : effectiveRecords.map((household) => {
+    const lastActivityAt = latestActivityAt(
+      live.records,
+      (activity) => activity['householdId'] === household.id,
+    );
+    return {
+      id: recordMatterId(household),
+      name: household.name,
+      ...(typeof household.createdAt === 'string' ? { createdAt: household.createdAt } : {}),
+      ...(typeof household.updatedAt === 'string' ? { updatedAt: household.updatedAt } : {}),
+      lifecycle: household.lifecycle,
+      primaryAdvisor: household.primaryAdvisor,
+      serviceTier: household.serviceTier,
+      peopleCount: household.members.length + household.externalParties.length,
+      ...(household.tagIds ? { tagIds: household.tagIds } : {}),
+      ...(lastActivityAt !== undefined ? { lastActivityAt } : {}),
+    };
+  });
   const livePeople = useMemo(() => {
     const seen = new Map<string, CrmPerson>();
     for (const household of storedHouseholds) {
       for (const person of [...household.members, ...household.externalParties]) {
         const prior = seen.get(person.id);
+        const lastActivityAt = latestActivityAt(
+          live.records,
+          (activity) => activityTargetsPerson(activity, person.id),
+        );
         seen.set(person.id, {
           ...person,
           relatedHouseholds: (prior?.relatedHouseholds ?? 0) + 1,
-          ...(latestActivityAt(live.records, (activity) => activityTargetsPerson(activity, person.id)) ? {
-            lastActivityAt: latestActivityAt(live.records, (activity) => activityTargetsPerson(activity, person.id)),
-          } : {}),
+          ...(lastActivityAt !== undefined ? { lastActivityAt } : {}),
         });
       }
     }

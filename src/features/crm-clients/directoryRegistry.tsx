@@ -88,10 +88,10 @@ export type DirectoryFeatureContext<Value extends DirectoryFeatureStateValue = D
 interface DirectoryDescriptorBase<Id extends string> {
   id: Id;
   order: number;
-  mount(context: DirectoryContext): ReactNode;
+  mount: (context: DirectoryContext) => ReactNode;
 }
 
-export interface DirectoryToolDescriptor extends DirectoryDescriptorBase<DirectoryToolId> {
+export interface DirectoryToolDescriptor<Id extends string = DirectoryToolId> extends DirectoryDescriptorBase<Id> {
   /**
    * Lets a descriptor opt out before the directory shell creates its layout
    * wrapper. Use this for flag-gated tools that otherwise render `null`.
@@ -102,7 +102,7 @@ export interface DirectoryToolDescriptor extends DirectoryDescriptorBase<Directo
 export interface DirectoryFeatureToolDescriptor<Value extends DirectoryFeatureStateValue = DirectoryFeatureStateValue> {
   id: string;
   order: number;
-  mount(context: DirectoryFeatureContext<Value>): ReactNode;
+  mount: (context: DirectoryFeatureContext<Value>) => ReactNode;
   isEnabled?(): boolean;
 }
 export interface DirectoryActionDescriptor extends DirectoryDescriptorBase<DirectoryActionId> {}
@@ -110,7 +110,7 @@ export interface DirectoryRailDescriptor extends DirectoryDescriptorBase<Directo
 export interface DirectoryViewDescriptor<Id extends string = DirectoryViewId>
   extends DirectoryDescriptorBase<Id> {
   /** A view is mounted only when this resolver selects it. */
-  isActive(context: DirectoryContext): boolean;
+  isActive: (context: DirectoryContext) => boolean;
   /** Active feature views may explicitly replace active legacy or feature views. */
   replaces?: readonly string[];
   /** The one safe view used when no descriptor is active. */
@@ -120,8 +120,8 @@ export interface DirectoryViewDescriptor<Id extends string = DirectoryViewId>
 export interface DirectoryFeatureViewDescriptor<Value extends DirectoryFeatureStateValue = DirectoryFeatureStateValue> {
   id: string;
   order: number;
-  mount(context: DirectoryFeatureContext<Value>): ReactNode;
-  isActive(context: DirectoryFeatureContext<Value>): boolean;
+  mount: (context: DirectoryFeatureContext<Value>) => ReactNode;
+  isActive: (context: DirectoryFeatureContext<Value>) => boolean;
   replaces?: readonly string[];
   fallback?: boolean;
 }
@@ -133,20 +133,20 @@ export interface DirectoryFeatureViewDescriptor<Value extends DirectoryFeatureSt
 export interface DirectoryQueryDescriptor<Id extends string = DirectoryQueryId> {
   id: Id;
   order: number;
-  isActive(context: DirectoryContext): boolean;
-  filter?(result: DirectoryResult, context: DirectoryContext): boolean;
-  compare?(left: DirectoryResult, right: DirectoryResult, context: DirectoryContext): number;
+  isActive: (context: DirectoryContext) => boolean;
+  filter?: (result: DirectoryResult, context: DirectoryContext) => boolean;
+  compare?: (left: DirectoryResult, right: DirectoryResult, context: DirectoryContext) => number;
 }
 
 export interface DirectoryFeatureQueryDescriptor<Value extends DirectoryFeatureStateValue = DirectoryFeatureStateValue> {
   id: string;
   order: number;
-  isActive(context: DirectoryFeatureContext<Value>): boolean;
-  filter?(result: DirectoryResult, context: DirectoryFeatureContext<Value>): boolean;
-  compare?(left: DirectoryResult, right: DirectoryResult, context: DirectoryFeatureContext<Value>): number;
+  isActive: (context: DirectoryFeatureContext<Value>) => boolean;
+  filter?: (result: DirectoryResult, context: DirectoryFeatureContext<Value>) => boolean;
+  compare?: (left: DirectoryResult, right: DirectoryResult, context: DirectoryFeatureContext<Value>) => number;
 }
 
-export interface DirectoryContribution<Value extends DirectoryFeatureStateValue = DirectoryFeatureStateValue> {
+export interface DirectoryStatefulContribution<Value extends DirectoryFeatureStateValue = DirectoryFeatureStateValue> {
   /** Unique ownership key for this feature's local, non-persistent state slot. */
   namespace: string;
   tools?: readonly DirectoryFeatureToolDescriptor<Value>[];
@@ -154,8 +154,20 @@ export interface DirectoryContribution<Value extends DirectoryFeatureStateValue 
   queries?: readonly DirectoryFeatureQueryDescriptor<Value>[];
 }
 
+/** A contribution that does not request feature state needs no namespace. */
+export interface DirectoryStatelessContribution {
+  namespace?: never;
+  tools?: readonly DirectoryToolDescriptor<string>[];
+  views?: readonly DirectoryViewDescriptor<string>[];
+  queries?: readonly DirectoryQueryDescriptor<string>[];
+}
+
+export type DirectoryContribution<Value extends DirectoryFeatureStateValue = never> =
+  | DirectoryStatelessContribution
+  | DirectoryStatefulContribution<Value>;
+
 export interface DirectoryComposition {
-  tools: readonly DirectoryToolDescriptor[];
+  tools: readonly DirectoryToolDescriptor<string>[];
   views: readonly DirectoryViewDescriptor<string>[];
   queries: readonly DirectoryQueryDescriptor<string>[];
 }
@@ -177,7 +189,7 @@ function validateDescriptors(
 }
 
 export const validateDirectoryToolDescriptors = (
-  descriptors: readonly DirectoryToolDescriptor[]
+  descriptors: readonly DirectoryToolDescriptor<string>[]
 ) => {
   validateDescriptors('directoryToolRegistry', descriptors);
 };
@@ -283,11 +295,27 @@ export function createDirectoryContextWithFeatureStatePorts(
   return { ...context, [featureStatePortFactory]: factory } as DirectoryHostContext;
 }
 
-function bindContribution<Value extends DirectoryFeatureStateValue>(contribution: DirectoryContribution<Value>) {
+type BoundDirectoryContribution = {
+  tools: readonly DirectoryToolDescriptor<string>[];
+  views: readonly DirectoryViewDescriptor<string>[];
+  queries: readonly DirectoryQueryDescriptor<string>[];
+};
+
+function bindContribution<Value extends DirectoryFeatureStateValue>(
+  contribution: DirectoryContribution<Value>,
+): BoundDirectoryContribution {
+  if (contribution.namespace === undefined) {
+    return {
+      tools: contribution.tools ?? [],
+      views: contribution.views ?? [],
+      queries: contribution.queries ?? [],
+    };
+  }
+  const namespace = contribution.namespace;
   const scoped = (context: DirectoryContext) =>
-    withDirectoryFeatureStatePort<Value>(context, contribution.namespace);
+    withDirectoryFeatureStatePort<Value>(context, namespace);
   return {
-    tools: (contribution.tools ?? []).map((descriptor): DirectoryToolDescriptor => ({
+    tools: (contribution.tools ?? []).map((descriptor): DirectoryToolDescriptor<string> => ({
       ...descriptor,
       mount: (context) => descriptor.mount(scoped(context)),
     })),
@@ -296,12 +324,17 @@ function bindContribution<Value extends DirectoryFeatureStateValue>(contribution
       isActive: (context) => descriptor.isActive(scoped(context)),
       mount: (context) => descriptor.mount(scoped(context)),
     })),
-    queries: (contribution.queries ?? []).map((descriptor): DirectoryQueryDescriptor<string> => ({
-      ...descriptor,
-      isActive: (context) => descriptor.isActive(scoped(context)),
-      ...(descriptor.filter ? { filter: (result, context) => descriptor.filter?.(result, scoped(context)) ?? true } : {}),
-      ...(descriptor.compare ? { compare: (left, right, context) => descriptor.compare?.(left, right, scoped(context)) ?? 0 } : {}),
-    })),
+    queries: (contribution.queries ?? []).map((descriptor): DirectoryQueryDescriptor<string> => {
+      const filter = descriptor.filter;
+      const compare = descriptor.compare;
+      return {
+        id: descriptor.id,
+        order: descriptor.order,
+        isActive: (context) => descriptor.isActive(scoped(context)),
+        ...(filter ? { filter: (result, context) => filter(result, scoped(context)) } : {}),
+        ...(compare ? { compare: (left, right, context) => compare(left, right, scoped(context)) } : {}),
+      };
+    }),
   };
 }
 
@@ -309,9 +342,13 @@ function bindContribution<Value extends DirectoryFeatureStateValue>(contribution
 export function createDirectoryComposition(
   ...contributions: readonly DirectoryContribution[]
 ): DirectoryComposition {
+  const validNamespace = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
   const namespaces = new Set<string>();
   for (const contribution of contributions) {
-    if (!contribution.namespace.trim()) throw new Error('[directoryComposition] feature namespace is required');
+    if (contribution.namespace === undefined) continue;
+    if (!validNamespace.test(contribution.namespace)) {
+      throw new Error('[directoryComposition] feature namespace must use lowercase letters, numbers, dots, or hyphens');
+    }
     if (namespaces.has(contribution.namespace)) {
       throw new Error(`[directoryComposition] duplicate feature namespace: ${contribution.namespace}`);
     }

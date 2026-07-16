@@ -59,8 +59,8 @@ export interface CrmPerson {
   /** Optional canonical CRM timestamps; directory projections preserve them when present. */
   createdAt?: string;
   updatedAt?: string;
-  /** Tags are preserved when the canonical person payload supplies them. */
-  tags?: readonly string[];
+  /** Canonical tag references; display names are resolved through the tags public doorway. */
+  tagIds?: readonly string[];
   /** Most recent canonical activity directly targeting this person, when available. */
   lastActivityAt?: string;
   personType: 'person' | 'trust' | 'organization';
@@ -180,6 +180,8 @@ export interface HouseholdRecord {
   notes: readonly CrmNote[];
   customFields?: readonly CrmFieldValue[];
   tags?: readonly string[];
+  /** Canonical tag references used by directory projections. */
+  tagIds?: readonly string[];
   schedulingLinkUrl?: string;
   /** Feature-owned record extensions live under namespaced descriptor keys. */
   extensionData?: Readonly<Record<string, unknown>>;
@@ -193,8 +195,8 @@ export interface HouseholdDirectoryEntry {
   /** Optional canonical CRM timestamps; directory projections preserve them when present. */
   createdAt?: string;
   updatedAt?: string;
-  /** Tags are preserved from the canonical household record when present. */
-  tags?: readonly string[];
+  /** Canonical tag references; display names are resolved through the tags public doorway. */
+  tagIds?: readonly string[];
   /** Most recent canonical household activity, derived only from activity events. */
   lastActivityAt?: string;
   lifecycle: string;
