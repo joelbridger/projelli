@@ -1,5 +1,5 @@
 # Team activity commands. Numeric keys are append-only and unique globally.
-command 2970 crate::commands::crm::features::activity::crm_activity_list
-command 2980 crate::commands::crm::features::activity::crm_activity_create_post
-command 2990 crate::commands::crm::features::activity::crm_activity_add_comment
-command 3000 crate::commands::crm::features::activity::crm_activity_set_reaction
+command 3010 crate::commands::crm::features::activity::crm_activity_list
+command 3020 crate::commands::crm::features::activity::crm_activity_create_post
+command 3030 crate::commands::crm::features::activity::crm_activity_add_comment
+command 3040 crate::commands::crm::features::activity::crm_activity_set_reaction
