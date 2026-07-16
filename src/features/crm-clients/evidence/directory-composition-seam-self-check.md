@@ -1,6 +1,6 @@
 # Directory composition seam self-check receipt
 
-Code commit: `6b7d8f905` (`feat(crm): add directory composition seam`)
+Code-and-proof commit: `2b9c653e7` (`test(crm): strengthen directory seam proofs`)
 
 Final checked tree: the commit containing this receipt. This receipt is the
 only change after the code commit above.
@@ -18,9 +18,14 @@ $ npm run boundaries:check
 No feature-boundary regression (64 current baseline findings).
 exit status: 0
 
-$ npx vitest run src/features/crm-clients/directoryComposition.test.tsx src/features/crm-clients/directoryRegistry.test.tsx src/features/crm-clients/crmClients.test.tsx src/features/crm-clients/clientMapEntryPoints.test.tsx src/features/crm-clients/ClientsSurface.scopeUpdate.test.tsx
-Test Files  5 passed (5)
-Tests       39 passed (39)
+$ npx vitest run src/features/crm-clients/directoryComposition.test.tsx
+Test Files  1 passed (1)
+Tests       7 passed (7)
+exit status: 0
+
+$ npx vitest run src/features/crm-clients/directoryRegistry.test.tsx src/features/crm-clients/crmClients.test.tsx src/features/crm-clients/clientMapEntryPoints.test.tsx src/features/crm-clients/ClientsSurface.scopeUpdate.test.tsx
+Test Files  4 passed (4)
+Tests       34 passed (34)
 exit status: 0
 
 $ npx vitest run tests/unit/architecture-boundaries.test.ts
@@ -46,17 +51,20 @@ No ESLint regression vs baseline (31 fingerprints cleaned up vs baseline).
 exit status: 0
 ```
 
-The focused suite includes a real preference save followed by a fresh store
-instance loading the saved value. It also proves an inactive registered view
-leaves the legacy directory in place, an active view replaces legacy cards,
-sort and filter contributions compose, and the source record array stays in
-its original order.
+The focused suite checks the complete fixed base-era mount shape and record
+order in both the default Directory and Whole book states when no feature
+contributes anything. Its reversed fixtures make a missing sorter fail, and a
+separate filter test proves filtering is invoked while preserving survivor
+order. It also includes a real preference save followed by a fresh store
+instance loading the saved value, view replacement and inactive-view fallback,
+and a mutation attempt against the callback projection.
 
 ## Attestation
 
 - The seam has no feature flag; consuming features supply their own activation.
-- Sort and filter operate on a read-only projection. No stored CRM record is
-  reordered or rewritten.
+- Sort and filter callbacks receive deeply read-only copies. Their projections
+  can change visible inclusion and order, but no stored CRM record is reordered
+  or rewritten.
 - All new cross-feature-facing contracts are exported through
   `@/features/crm-clients` and the boundary check is green.
 - No matter/Matter/matter_id name was changed.
