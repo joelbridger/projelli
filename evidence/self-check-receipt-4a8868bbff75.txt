@@ -1,0 +1,19 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/v1-w4-oauth-consent
+sha: 4a8868bbff7539a3436060067cb3a0a131771550
+tree: 4cdf44b2c69c87c26694ebd343b298de8f5ec642
+gate_base: 88a92af682868063d055a50e2d8053de603169b9
+tool_blob: 7912bf11eefdacea0702600b19d3bc5b3d7f2606
+utc: 2026-07-16T18:02:10Z
+step_timeout_seconds: 1800
+loadavg: 9.56 14.42 15.02
+running_vitest_eslint_procs: 2
+step: gate:changed | status=PASS | exit=0 | 18:02:10Z..18:11:47Z | bytes=54123 | sha256=f8710dd6ce0efe83c0b8ff9093828d4a1bf853e47fcbd1a91e423ccd9468c635 | tail: ssed | 3 skipped (1072) Tests 8674 passed | 29 skipped (8703) Start at 18:05:09 Duration 397.67s (transform 28.63s, setup 209.77s, import 526.92s, tests 249.39s, environment 466.11s) CHANGED GATE GREEN
+step: typecheck | status=PASS | exit=0 | 18:11:47Z..18:12:14Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit
+step: typecheck:tests | status=PASS | exit=0 | 18:12:14Z..18:12:42Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit
+step: handle-guard | status=PASS | exit=0 | 18:12:42Z..18:12:42Z | bytes=1322 | sha256=55c44ff3883467a0fd677c1e1055db4b534c8de3ef280b4551c78a05cd904cbb | tail: ic-page-unavailable + client-bar-clear + client-bar-current + client-bar-open-${} +308 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen).
+step: arch-dag-guard | status=PASS | exit=0 | 18:12:42Z..18:12:43Z | bytes=219 | sha256=3a07bebb18af743f3b37cb55518226ebeca66e33db44fca002ef5a902cd9ec7d | tail:  RUN v4.1.3 /home/jameson/v1-w4-oauth-consent Test Files 1 passed (1) Tests 1 passed (1) Start at 18:12:42 Duration 921ms (transform 193ms, setup 304ms, import 238ms, tests 3ms, environment 286ms)
+step: i18n-snapshot | status=PASS | exit=0 | 18:12:43Z..18:12:44Z | bytes=220 | sha256=fe7d829a62de318ba648d8de76270187b55b3b2c8a4d8998d565a230ab6e4856 | tail:  RUN v4.1.3 /home/jameson/v1-w4-oauth-consent Test Files 1 passed (1) Tests 5 passed (5) Start at 18:12:44 Duration 925ms (transform 219ms, setup 316ms, import 229ms, tests 19ms, environment 276ms)
+step: focused | status=PASS | exit=0 | 18:12:44Z..18:12:46Z | bytes=222 | sha256=8a31baed7978368c63c2972adbeb98b3500084e2189078d66541e3f8f7b57cf7 | tail: RUN v4.1.3 /home/jameson/v1-w4-oauth-consent Test Files 4 passed (4) Tests 56 passed (56) Start at 18:12:45 Duration 1.07s (transform 907ms, setup 1.60s, import 970ms, tests 39ms, environment 1.29s)
+overall: GREEN
