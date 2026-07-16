@@ -4,27 +4,18 @@ export {
   askSharedClientContextAdapter,
   type AskSharedClientContext,
 } from './sharedClientContext';
+/**
+ * The public local-first foundation. New Ask consumers must use these shapes
+ * rather than the legacy send-pipeline descriptors below.
+ */
+export * from './foundation';
 export type {
-  AskAnswerActionContext,
-  AskAnswerActionDescriptor,
   AskAnswerActionId,
-  AskModeContext,
-  AskModeDescriptor,
   AskModeId,
   AskPromptFormatContract,
-  AskRetrievalPlan,
   AskSendContext,
   AskSendContextInput,
   AskSendContextProvider,
-  AskScope,
-  AskSourceDescriptor,
   AskSourceId,
-  AskSourceOpenContext,
-  AskSourceReference,
 } from './public';
-export {
-  registerAskAnswerAction,
-  registerAskMode,
-  registerAskSendContextProvider,
-  registerAskSource,
-} from './public';
+export { registerAskSendContextProvider } from './public';
