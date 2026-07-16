@@ -1,0 +1,24 @@
+{
+  "task-create-v1": {
+    "open": "Crear tarea",
+    "saved": "Se creó la tarea {{id}}.",
+    "composer-label": "Crear tarea",
+    "heading": "Nueva tarea",
+    "related-record": "Para {{name}}",
+    "title": "Nombre de la tarea",
+    "description": "Descripción",
+    "due-date": "Fecha de vencimiento",
+    "due-time": "Hora de vencimiento",
+    "priority": "Prioridad",
+    "priority-high": "Alta",
+    "priority-normal": "Normal",
+    "priority-low": "Baja",
+    "category": "Categoría",
+    "tags": "Etiquetas",
+    "retired": "Retirada",
+    "save": "Crear tarea",
+    "cancel": "Cancelar",
+    "tag-load-failed": "No se pudieron cargar las etiquetas.",
+    "save-failed": "No se pudo crear la tarea. Revise los detalles e inténtelo de nuevo."
+  }
+}

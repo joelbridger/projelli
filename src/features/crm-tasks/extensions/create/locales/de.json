@@ -1,0 +1,24 @@
+{
+  "task-create-v1": {
+    "open": "Aufgabe erstellen",
+    "saved": "Aufgabe {{id}} wurde erstellt.",
+    "composer-label": "Aufgabe erstellen",
+    "heading": "Neue Aufgabe",
+    "related-record": "Für {{name}}",
+    "title": "Aufgabenname",
+    "description": "Beschreibung",
+    "due-date": "Fälligkeitsdatum",
+    "due-time": "Fälligkeitszeit",
+    "priority": "Priorität",
+    "priority-high": "Hoch",
+    "priority-normal": "Normal",
+    "priority-low": "Niedrig",
+    "category": "Kategorie",
+    "tags": "Tags",
+    "retired": "Stillgelegt",
+    "save": "Aufgabe erstellen",
+    "cancel": "Abbrechen",
+    "tag-load-failed": "Tags konnten nicht geladen werden.",
+    "save-failed": "Die Aufgabe konnte nicht erstellt werden. Prüfen Sie die Angaben und versuchen Sie es erneut."
+  }
+}
