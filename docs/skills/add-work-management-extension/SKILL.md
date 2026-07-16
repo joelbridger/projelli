@@ -81,6 +81,34 @@ business rules in the feature that owns the descriptor. Put new user-facing
 copy in that feature's `locales/en.json`, `locales/es.json`, and
 `locales/de.json` shards; do not edit the shared locale catalogs.
 
+## Item 11: Prove a real save and reload
+
+Task-family tests import the test-only public entry point instead of
+hand-building a memory echo. `roundTripTaskRecord` creates through the public
+task store, saves through the canonical encrypted live-record route, discards
+that mounted store, opens a fresh store, and returns the reloaded snapshot.
+
+```tsx
+import { roundTripTaskRecord } from '@/features/crm-tasks/testing';
+
+const reloaded = await roundTripTaskRecord({
+  title: 'Prepare annual review',
+  due: '2026-08-03',
+  tagIds: ['tag:review'],
+});
+
+expect(reloaded).toMatchObject({
+  title: 'Prepare annual review',
+  due: '2026-08-03',
+  tagIds: ['tag:review'],
+});
+```
+
+The test still supplies its normal Tauri boundary mock. That mock must persist
+`crm_live_upsert` input and return it later from `crm_live_list`. Do not replace
+the helper with `structuredClone(created)` or assertions against the save
+response; neither proves that a fresh reader can recover the task.
+
 ## Verify
 
 Run the three focused registry tests, the affected screen tests, type checking,
