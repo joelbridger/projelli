@@ -2,7 +2,10 @@
 import { pathToFileURL } from 'node:url';
 import { readFlagRegistry } from './flag-registry.mjs';
 
-export const ACTIVE_FLAG_CAP = 15;
+// Raised 15 -> 60 for the v1 build phase (2026-07-16): during Waves 1-4 every feature ships
+// DARK (flag off) until its acceptance drive, so many flags are legitimately active at once.
+// Sprawl is still bounded by each flag's expiresAt time-bomb; revisit down as features graduate.
+export const ACTIVE_FLAG_CAP = 60;
 
 // This counts registry length and relies on the expiry time-bomb to keep it equal to the active count.
 export function checkFlagCap(flags, cap = ACTIVE_FLAG_CAP) {
