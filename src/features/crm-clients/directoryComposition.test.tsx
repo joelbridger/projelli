@@ -5,14 +5,17 @@ import {
   DirectorySurface,
   createDirectoryComposition,
   createDirectoryPreferenceStore,
+  projectDirectoryResults,
   type DirectoryContribution,
+  type DirectoryContext,
   type DirectoryFeatureQueryDescriptor,
   type DirectoryFeatureState,
   type DirectoryQueryDescriptor,
+  type DirectoryResult,
   type DirectoryFeatureToolDescriptor,
   type DirectoryViewDescriptor,
 } from '@/features/crm-clients';
-import type { HouseholdDirectoryEntry } from '@/features/crm-clients';
+import type { CrmPerson, HouseholdDirectoryEntry } from '@/features/crm-clients';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import type { Matter } from '@/platform/types/matter';
@@ -32,6 +35,45 @@ const households: readonly HouseholdDirectoryEntry[] = Object.freeze([
   Object.freeze({ id: 'h-a', name: 'Alvarez household', lifecycle: 'Active', primaryAdvisor: 'Morgan', serviceTier: 'Standard', peopleCount: 1 }),
   Object.freeze({ id: 'h-b', name: 'Bishop household', lifecycle: 'Active', primaryAdvisor: 'Avery', serviceTier: 'Standard', peopleCount: 2 }),
 ]);
+
+const people: readonly CrmPerson[] = Object.freeze([
+  Object.freeze({
+    id: 'p-a',
+    name: 'Adams person',
+    personType: 'person',
+    roles: Object.freeze(['Client']),
+    relatedHouseholds: 1,
+  }),
+  Object.freeze({
+    id: 'p-d',
+    name: 'Diaz person',
+    personType: 'person',
+    roles: Object.freeze(['Client']),
+    relatedHouseholds: 1,
+  }),
+]);
+
+const projectionContext: DirectoryContext = {
+  query: { value: '', setValue: vi.fn() },
+  selection: { person: null, setPerson: vi.fn() },
+  view: { value: 'directory', setValue: vi.fn() },
+  sort: { value: 'directory', setValue: vi.fn() },
+  filters: {
+    tab: 'households',
+    setTab: vi.fn(),
+    externalOnly: false,
+    setExternalOnly: vi.fn(),
+    needsVerification: false,
+    setNeedsVerification: vi.fn(),
+  },
+  records: { people, households },
+  repository: {
+    openHousehold: vi.fn(),
+    reviewRecipient: vi.fn(),
+    createHousehold: vi.fn(),
+  },
+  composition: createDirectoryComposition(),
+};
 
 const BASE_ERA_SURFACE_CHILDREN = ['header', 'div#crm-directory-toolbar', 'div', 'span'];
 const BASE_ERA_BOOK_SURFACE_CHILDREN = ['header', 'div#crm-directory-toolbar', 'div#book-view', 'span'];
@@ -100,6 +142,180 @@ afterEach(() => {
 });
 
 describe('directory composition public seam', () => {
+  it('preserves legacy and mixed array identity when no query is active', () => {
+    const inactive: DirectoryQueryDescriptor<'test-inactive-query'> = {
+      id: 'test-inactive-query',
+      order: 10,
+      isActive: () => false,
+      filter: () => true,
+    };
+    const mixed: readonly DirectoryResult[] = [
+      { kind: 'household', record: households[0] as HouseholdDirectoryEntry },
+      { kind: 'person', record: people[0] as CrmPerson },
+    ];
+
+    expect(projectDirectoryResults('household', households, projectionContext, [])).toBe(households);
+    expect(projectDirectoryResults('household', households, projectionContext, [inactive])).toBe(households);
+    expect(projectDirectoryResults(mixed, projectionContext, [])).toBe(mixed);
+    expect(projectDirectoryResults(mixed, projectionContext, [inactive])).toBe(mixed);
+  });
+
+  it('orders one interleaved mixed projection globally across both record kinds', () => {
+    const mixed: readonly DirectoryResult[] = [
+      { kind: 'household', record: households[2] as HouseholdDirectoryEntry },
+      { kind: 'person', record: people[0] as CrmPerson },
+      { kind: 'household', record: households[1] as HouseholdDirectoryEntry },
+      { kind: 'person', record: people[1] as CrmPerson },
+    ];
+    const byName: DirectoryQueryDescriptor<'test-mixed-name-sort'> = {
+      id: 'test-mixed-name-sort',
+      order: 10,
+      isActive: () => true,
+      compare: (left, right) => left.record.name.localeCompare(right.record.name),
+    };
+
+    const projected = projectDirectoryResults(mixed, projectionContext, [byName]);
+
+    expect(projected.map(({ kind, record }) => `${kind}:${record.id}`)).toEqual([
+      'person:p-a',
+      'household:h-a',
+      'household:h-b',
+      'person:p-d',
+    ]);
+    expect(projected[0]).toBe(mixed[1]);
+    expect(projected[1]).toBe(mixed[2]);
+    expect(projected[2]).toBe(mixed[0]);
+    expect(projected[3]).toBe(mixed[3]);
+  });
+
+  it('gives mixed callbacks isolated clones and returns the surviving source wrappers', () => {
+    const sourceHouseholdRecord: HouseholdDirectoryEntry = {
+      id: 'h-source',
+      name: 'Source household',
+      lifecycle: 'Active',
+      primaryAdvisor: 'Avery',
+      serviceTier: 'Standard',
+      peopleCount: 2,
+      tagIds: ['source-household-tag'],
+    };
+    const sourcePersonRecord: CrmPerson = {
+      id: 'p-source',
+      name: 'Source person',
+      personType: 'person',
+      roles: ['Client'],
+      relatedHouseholds: 1,
+      tagIds: ['source-person-tag'],
+    };
+    const sourceHousehold = { kind: 'household', record: sourceHouseholdRecord } as const;
+    const sourcePerson = { kind: 'person', record: sourcePersonRecord } as const;
+    const mixed: readonly DirectoryResult[] = [sourceHousehold, sourcePerson];
+    const callbackResults: DirectoryResult[] = [];
+    const comparedResults: DirectoryResult[] = [];
+    const filter: NonNullable<DirectoryQueryDescriptor['filter']> = (result, context) => {
+      callbackResults.push(result);
+      const mutableResult = result as unknown as {
+        kind: DirectoryResult['kind'];
+        record: { name: string; tagIds: string[] };
+      };
+      mutableResult.kind = result.kind === 'household' ? 'person' : 'household';
+      mutableResult.record.name = 'Mutated callback record';
+      mutableResult.record.tagIds.push('mutated-callback-tag');
+      const contextHousehold = context.records.households[0];
+      if (contextHousehold) {
+        (contextHousehold as { name: string }).name = 'Mutated callback context';
+      }
+      return true;
+    };
+    const compare: NonNullable<DirectoryQueryDescriptor['compare']> = (left, right) => {
+      comparedResults.push(left, right);
+      (left.record as { name: string }).name = 'Mutated left comparison record';
+      (right.record as { name: string }).name = 'Mutated right comparison record';
+      return left.record.id.localeCompare(right.record.id);
+    };
+    const cloneProbe: DirectoryQueryDescriptor<'test-mixed-clone-probe'> = {
+      id: 'test-mixed-clone-probe',
+      order: 10,
+      isActive: () => true,
+      filter,
+      compare,
+    };
+
+    const projected = projectDirectoryResults(mixed, projectionContext, [cloneProbe]);
+
+    expect(projected).not.toBe(mixed);
+    expect(projected[0]).toBe(sourceHousehold);
+    expect(projected[1]).toBe(sourcePerson);
+    expect(callbackResults[0]).not.toBe(sourceHousehold);
+    expect(callbackResults[0]?.record).not.toBe(sourceHouseholdRecord);
+    expect(callbackResults[1]).not.toBe(sourcePerson);
+    expect(callbackResults[1]?.record).not.toBe(sourcePersonRecord);
+    expect(comparedResults).not.toHaveLength(0);
+    expect(comparedResults).not.toContain(sourceHousehold);
+    expect(comparedResults).not.toContain(sourcePerson);
+    expect(sourceHousehold).toEqual({ kind: 'household', record: sourceHouseholdRecord });
+    expect(sourceHouseholdRecord).toEqual({
+      id: 'h-source',
+      name: 'Source household',
+      lifecycle: 'Active',
+      primaryAdvisor: 'Avery',
+      serviceTier: 'Standard',
+      peopleCount: 2,
+      tagIds: ['source-household-tag'],
+    });
+    expect(sourcePerson).toEqual({ kind: 'person', record: sourcePersonRecord });
+    expect(sourcePersonRecord.name).toBe('Source person');
+    expect(sourcePersonRecord.tagIds).toEqual(['source-person-tag']);
+    expect(projectionContext.records.households[0]?.name).toBe('Chen household');
+  });
+
+  it('keeps source order and wrappers on the active filter-only path', () => {
+    const sourceHousehold = {
+      kind: 'household',
+      record: households[0] as HouseholdDirectoryEntry,
+    } as const;
+    const sourcePerson = {
+      kind: 'person',
+      record: people[0] as CrmPerson,
+    } as const;
+    const mixed: readonly DirectoryResult[] = [sourceHousehold, sourcePerson];
+    const householdsOnly: DirectoryQueryDescriptor<'test-households-only'> = {
+      id: 'test-households-only',
+      order: 10,
+      isActive: () => true,
+      filter: (result) => result.kind === 'household',
+    };
+
+    const projected = projectDirectoryResults(mixed, projectionContext, [householdsOnly]);
+
+    expect(projected).not.toBe(mixed);
+    expect(projected).toHaveLength(1);
+    expect(projected[0]).toBe(sourceHousehold);
+  });
+
+  it('validates mixed descriptors and handles empty and all-filtered projections', () => {
+    const empty: readonly DirectoryResult[] = [];
+    const activeFilter: DirectoryQueryDescriptor<'test-filter-all'> = {
+      id: 'test-filter-all',
+      order: 10,
+      isActive: () => true,
+      filter: () => false,
+    };
+    const mixed: readonly DirectoryResult[] = [
+      { kind: 'household', record: households[0] as HouseholdDirectoryEntry },
+      { kind: 'person', record: people[0] as CrmPerson },
+    ];
+    const duplicateDescriptors: readonly DirectoryQueryDescriptor<string>[] = [
+      activeFilter,
+      { ...activeFilter },
+    ];
+
+    expect(projectDirectoryResults(empty, projectionContext, [])).toBe(empty);
+    expect(projectDirectoryResults(empty, projectionContext, [activeFilter])).toEqual([]);
+    expect(projectDirectoryResults(mixed, projectionContext, [activeFilter])).toEqual([]);
+    expect(() => projectDirectoryResults(mixed, projectionContext, duplicateDescriptors))
+      .toThrow('duplicate id: test-filter-all');
+  });
+
   it('matches the fixed base-era directory and Whole book mount shapes without a contribution', () => {
     useMatterStore.setState({ matters: [matter('m-b', 'Bishop'), matter('m-a', 'Alvarez')] });
     useClientMapStore.setState({ maps: {}, clientQuestions: {} });
