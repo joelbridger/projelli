@@ -36,6 +36,7 @@ import {
   mountWorkflowRules,
   mountWorkflowStepExtensions,
 } from './workflowExtensionRegistry';
+import { saveWorkflowStepMetadata } from './workflowStepPersistence';
 
 export function Workflows({
   freshness,
@@ -97,7 +98,7 @@ export function WorkflowsSurface() {
 }
 
 export type LiveWorkflowData = ReturnType<typeof workflowRecords>;
-export type HouseholdChoice = { id: string; label: string };
+export type HouseholdChoice = { id: string; label: string; matterId: string };
 export function LiveWorkflows({
   data,
   households,
@@ -150,6 +151,15 @@ export function LiveWorkflows({
       setError(reason instanceof Error ? reason.message : String(reason));
     }
   };
+  const saveForStepExtension = async (record: LiveCrmRecord) => {
+    try {
+      setError(null);
+      return await onSave(record);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason));
+      throw reason;
+    }
+  };
   const chooseStarter = (starter: (typeof STARTER_WORKFLOWS)[number]) => {
     setName(starter.name);
     setTitles([...starter.steps]);
@@ -164,7 +174,7 @@ export function LiveWorkflows({
     let household = households.find((item) => item.id === selectedHouseholdId);
     if (!household) {
       const id = `household-${String(Date.now())}`;
-      household = { id, label: newHousehold.trim() || 'New household' };
+      household = { id, matterId: id, label: newHousehold.trim() || 'New household' };
       await save({
         id,
         kind: 'household',
@@ -203,25 +213,27 @@ export function LiveWorkflows({
     await save(updateWorkflowTemplate(template, { schedule, outcomes }));
     setEditing(false);
   };
-  const addOutcome = (stepId: string) =>
+  const addOutcome = (stepId: string) => {
     setOutcomes((current) => ({
       ...current,
       [stepId]: [
         ...(current[stepId] ?? []),
-        { id: `outcome-${stepId}-${Date.now()}`, label: '' },
+        { id: `outcome-${stepId}-${String(Date.now())}`, label: '' },
       ],
     }));
+  };
   const editOutcome = (
     stepId: string,
     outcomeId: string,
     change: Partial<WorkflowStepOutcomeDraft>
-  ) =>
+  ) => {
     setOutcomes((current) => ({
       ...current,
       [stepId]: (current[stepId] ?? []).map((outcome) =>
         outcome.id === outcomeId ? { ...outcome, ...change } : outcome
       ),
     }));
+  };
   return (
     <Screen
       title="Workflows"
@@ -739,6 +751,7 @@ export function LiveWorkflows({
                   key={instance.id}
                   instance={instance}
                   onSave={save}
+                  onSaveStepMetadata={saveForStepExtension}
                 />
               ))
             )}
@@ -829,9 +842,11 @@ export function LiveWorkflows({
 function LiveInstanceCard({
   instance,
   onSave,
+  onSaveStepMetadata,
 }: {
   instance: LiveWorkflowInstance;
   onSave: (record: LiveCrmRecord) => Promise<unknown>;
+  onSaveStepMetadata: (record: LiveCrmRecord) => Promise<unknown>;
 }) {
   const [editingStep, setEditingStep] = useState<string | null>(null);
   const [localTitle, setLocalTitle] = useState('');
@@ -876,6 +891,7 @@ function LiveInstanceCard({
             {mountWorkflowStepExtensions({
               instance,
               stepId: step.stepId,
+              saveStepMetadata: (patch) => saveWorkflowStepMetadata(instance, step.stepId, patch, onSaveStepMetadata),
               compatibilityMount: (
                 <>
                   {step.status === 'done' ? (

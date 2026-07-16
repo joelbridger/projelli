@@ -59,12 +59,12 @@ export interface HouseholdLink { householdId: string; matterId: string; external
 export interface NoteMention { id: string; ref: EntityRef; notifyState: 'none' | 'pending' | 'sent' | 'read'; }
 export interface Note extends CrmBase { kind: 'note'; householdLinks: HouseholdLink[]; links: EntityRef[]; mentions: NoteMention[]; audience: 'internal' | 'client-facing'; body: string; pinned: boolean; title?: string; format?: 'plain' | 'meeting-note' | 'template'; templateId?: string; authoredVia?: 'manual' | 'jump-push' | 'meeting-capture' | 'ai'; tagIds: string[]; }
 export interface RecurrenceRule { freq: 'daily' | 'weekly' | 'monthly' | 'yearly'; interval: number; byWeekday?: number[]; byMonthDay?: number[]; count?: number; until?: string; regenerateOnComplete: boolean; }
-export interface Task extends CrmBase { kind: 'task'; householdRef: EntityRef | null; title: string; body: string; assigneeUserId: string | null; status: 'open' | 'in_progress' | 'blocked' | 'done' | 'cancelled'; due?: string; recurrence?: RecurrenceRule; priority: 'high' | 'normal' | 'low'; contextRefs: EntityRef[]; customFields: CustomFieldValueMap; }
+export interface Task extends CrmBase { kind: 'task'; householdRef: EntityRef | null; title: string; body: string; assigneeUserId: string | null; status: 'open' | 'in_progress' | 'blocked' | 'done' | 'cancelled'; due?: string; dueTime?: string; recurrence?: RecurrenceRule; priority: 'high' | 'normal' | 'low'; category?: string; tagIds: string[]; contextRefs: EntityRef[]; customFields: CustomFieldValueMap; }
 /** A new, editable project. Imported Wealthbox projects remain LegacyProject records. */
 export interface Project extends CrmBase { kind: 'project'; householdRef: EntityRef; name: string; description: string; status: 'open' | 'completed'; completedAt?: string; taskIds: string[]; }
 export interface WorkflowSchedule { frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'annual'; timezone: string; startsAt: string; householdSelector: ViewQuery; enabled: boolean; }
 export interface StepOutcome { id: string; label: string; nextStepId?: string; restartAtStepId?: string; condition?: string; }
-export interface StepDef { id: string; title: string; description: string; ownerRole?: string; defaultAssigneeId?: string; offsetDays?: number; required: boolean; outcomes: StepOutcome[]; addedInRevisionId: string; removedInRevisionId?: string; }
+export interface StepDef { id: string; title: string; description: string; ownerRole?: string; defaultAssigneeId?: string; offsetDays?: number; required: boolean; outcomes: StepOutcome[]; tagIds: string[]; addedInRevisionId: string; removedInRevisionId?: string; }
 /** The only template-owned cells propagation can change. Progress is never in this set. */
 export type DerivedFieldName = 'title' | 'description' | 'order' | 'required' | 'defaultAssigneeRole' | 'dueOffset';
 export interface TemplateStepChange {
@@ -120,6 +120,10 @@ export interface WorkflowStepProgress {
   detachedFromTemplate: boolean;
   hiddenByTemplateRemoval?: boolean;
   stepNotes: string;
+  /** Stable firm tag IDs copied from the template step at workflow start. */
+  tagIds: string[];
+  /** Existing workspace documents linked to this particular instance step. */
+  documentRefs: Array<EntityRef & { kind: 'document' }>;
   assignmentOperations: AssignmentOperation[];
   completionOperations: CompletionOperation[];
   outcome?: string;

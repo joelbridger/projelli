@@ -4,6 +4,8 @@
  * These are render adapters over the canonical engine contracts. They carry
  * display labels only and never become a second persistence model.
  */
+import type { EntityRef } from '@/platform/crm/types';
+
 export type CrmFreshness = 'idle' | 'live' | 'syncing' | 'last-synced' | 'offline' | 'error';
 
 export interface CrmFreshnessState {
@@ -24,10 +26,16 @@ export interface CrmTask {
   status: 'open' | 'in_progress' | 'blocked' | 'done' | 'cancelled';
   dueLabel?: string | undefined;
   dueAt?: string | undefined;
+  dueTime?: string | undefined;
   priority: 'high' | 'normal' | 'low';
+  category?: string | undefined;
+  /** Stable firm tag IDs. Display names and colours come from crm-tags. */
+  tagIds: readonly string[];
   recurrenceLabel?: string | undefined;
   recurrence?: { freq: 'daily' | 'weekly' | 'monthly' | 'yearly'; interval: number; regenerateOnComplete: boolean } | undefined;
   contextRefs?: readonly string[] | undefined;
+  /** Read-only projection of existing workspace document pointers. */
+  documentRefs?: readonly (EntityRef & { kind: 'document' })[] | undefined;
 }
 
 export interface CrmApproval {
@@ -77,6 +85,8 @@ export interface CrmWorkflowWorkItem {
   status: 'open' | 'in_progress' | 'blocked' | 'done' | 'cancelled';
   priority: 'high' | 'normal' | 'low';
   dueAt?: string | undefined;
+  /** Stable IDs only; names and colours resolve from the current firm catalog. */
+  tagIds: readonly string[];
 }
 
 /** The only fields propagation may change. Progress is intentionally absent. */

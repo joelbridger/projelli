@@ -41,6 +41,7 @@ export function instance(): WorkflowInstanceSnapshot {
         stepId: 'step', origin: 'template', status: 'todo', titleSnapshot: 'Old title',
         derived: { title: { value: 'Old title', sourceRevisionId: 'base', sourceOperationId: 'old-op' } },
         removalRequestedBy: [], detachedFromTemplate: false, stepNotes: '',
+        tagIds: [], documentRefs: [],
         assignmentOperations: [], completionOperations: [],
       },
     },

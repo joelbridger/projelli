@@ -39,6 +39,7 @@ export function createLegacyTaskDraft(
     assigneeUserId: null,
     status: 'open',
     priority: 'normal',
+    tagIds: [],
     contextRefs: household ? [household.householdId] : [],
   };
 }

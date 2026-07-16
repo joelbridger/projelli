@@ -58,16 +58,16 @@ describe('Today', () => {
         workItems={[
           {
             id: 'later', title: 'File annual note', kind: 'task', status: 'open',
-            priority: 'low', assigneeUserId: 'maya', dueAt: '2030-01-05',
+            priority: 'low', assigneeUserId: 'maya', dueAt: '2030-01-05', tagIds: [],
           },
           {
             id: 'due', title: 'Confirm transfer', kind: 'task', status: 'open',
-            priority: 'high', assigneeUserId: 'andy', dueAt: new Date().toISOString().slice(0, 10),
+            priority: 'high', assigneeUserId: 'andy', dueAt: new Date().toISOString().slice(0, 10), tagIds: [],
           },
           {
             id: 'blocked', title: 'Get signed form', kind: 'workflow_step', status: 'blocked',
             priority: 'high', assigneeUserId: 'maya', instanceId: 'annual-review',
-            stepId: 'signed-form', householdId: 'henderson', householdLabel: 'Henderson household',
+            stepId: 'signed-form', householdId: 'henderson', householdLabel: 'Henderson household', tagIds: [],
           },
         ]}
       />
@@ -88,7 +88,7 @@ describe('Today', () => {
         workItems={[
           {
             id: 'one', title: 'Call the client', kind: 'task', status: 'open',
-            priority: 'normal', assigneeUserId: null,
+            priority: 'normal', assigneeUserId: null, tagIds: [],
           },
         ]}
       />

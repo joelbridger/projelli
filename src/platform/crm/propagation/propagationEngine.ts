@@ -273,6 +273,8 @@ function newTemplateStep(stepId: string): WorkflowStepProgress {
     removalRequestedBy: [],
     detachedFromTemplate: false,
     stepNotes: '',
+    tagIds: [],
+    documentRefs: [],
     assignmentOperations: [],
     completionOperations: [],
   };
