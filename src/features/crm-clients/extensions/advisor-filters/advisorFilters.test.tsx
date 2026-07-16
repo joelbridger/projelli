@@ -59,6 +59,10 @@ function directoryContext(
     },
     records: { people: [], households },
     repository: {
+      openContact: vi.fn(),
+      resolveContact: vi.fn(),
+    },
+    legacyRepository: {
       openHousehold: vi.fn(),
       reviewRecipient: vi.fn(),
       createHousehold: vi.fn(),

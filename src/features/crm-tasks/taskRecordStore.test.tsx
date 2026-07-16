@@ -53,6 +53,12 @@ describe('public task record store', () => {
       tagIds: ['tag:review'],
       contextRefs: [
         {
+          kind: 'organization',
+          id: 'organization:legal',
+          matterId: 'matter-1',
+          label: 'Lee Legal',
+        },
+        {
           kind: 'document',
           id: 'Clients/River/review.docx',
           matterId: 'matter-1',
@@ -66,7 +72,10 @@ describe('public task record store', () => {
       category: 'Annual review',
       dueTime: '09:30',
       tagIds: ['tag:review'],
-      contextRefs: [{ kind: 'document', id: 'Clients/River/review.docx' }],
+      contextRefs: [
+        { kind: 'organization', id: 'organization:legal', matterId: 'matter-1' },
+        { kind: 'document', id: 'Clients/River/review.docx' },
+      ],
     });
     expect(canonical.save).toHaveBeenCalledWith(expect.objectContaining({
       kind: 'task',
@@ -114,7 +123,10 @@ describe('public task record store', () => {
       category: 'Annual review',
       dueTime: '09:30',
       tagIds: ['tag:review'],
-      contextRefs: [{ kind: 'document', id: 'Clients/River/review.docx' }],
+      contextRefs: [
+        { kind: 'household', id: 'household-1', matterId: 'matter-1' },
+        { kind: 'document', id: 'Clients/River/review.docx' },
+      ],
     });
     const savedCall = canonical.save.mock.calls[0]?.[0];
     expect(savedCall).toMatchObject({

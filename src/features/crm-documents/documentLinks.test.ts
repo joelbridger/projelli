@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addDocumentRef, isPlausibleClientDocument, linkedDocumentsForHousehold, removeDocumentRef } from './documentLinks';
+import { addDocumentRef, isPlausibleClientDocument, linkedDocumentsForHousehold, linkWorkspaceDocumentToContact, removeDocumentRef } from './documentLinks';
 
 const household = {
   id: 'household-1', name: 'Henderson household', lifecycle: 'Active', primaryAdvisor: 'Maya', ownership: 'mine' as const, serviceTier: 'Standard', syncState: 'live' as const,
@@ -38,17 +38,49 @@ describe('CRM document links', () => {
 
   it('reads document pointers from the household, people, notes, and linked tasks without creating a file record', () => {
     const linked = linkedDocumentsForHousehold(household, [{ id: 'task-1', kind: 'task', householdRef: { kind: 'household', id: household.id }, title: 'Send plan', contextRefs: [{ kind: 'document', id: 'Clients/Henderson/plan.pdf', label: 'Plan' }] }]);
-    expect(linked).toEqual(expect.arrayContaining([
-      expect.objectContaining({ target: 'household', ref: expect.objectContaining({ id: 'Clients/Henderson/plan.pdf' }) }),
-      expect.objectContaining({ target: 'person', targetId: 'person-1', ref: expect.objectContaining({ id: 'Clients/Henderson/tax-return.pdf' }) }),
-      expect.objectContaining({ target: 'note', ref: expect.objectContaining({ id: 'Clients/Henderson/review.docx' }) }),
-      expect.objectContaining({ target: 'task', ref: expect.objectContaining({ id: 'Clients/Henderson/plan.pdf' }) }),
-    ]));
+    expect(linked).toEqual([
+      {
+        ref: { kind: 'document', id: 'Clients/Henderson/plan.pdf', label: 'Plan' },
+        target: 'household',
+        contactRef: { kind: 'household', id: 'household-1', matterId: 'household-1', label: 'Henderson household' },
+        targetId: 'household-1',
+        targetLabel: 'Henderson household',
+      },
+      {
+        ref: { kind: 'document', id: 'Clients/Henderson/tax-return.pdf', label: 'Tax return' },
+        target: 'person',
+        contactRef: { kind: 'person', id: 'person-1', matterId: 'household-1', label: 'Dana Henderson' },
+        targetId: 'person-1',
+        targetLabel: 'Dana Henderson',
+      },
+      {
+        ref: { kind: 'document', id: 'Clients/Henderson/review.docx', label: 'Review packet' },
+        target: 'note',
+        targetId: 'note-1',
+        targetLabel: 'Review note',
+      },
+      {
+        ref: { kind: 'document', id: 'Clients/Henderson/plan.pdf', label: 'Plan' },
+        target: 'task',
+        targetId: 'task-1',
+        targetLabel: 'Send plan',
+      },
+    ]);
   });
 
   it('adds one pointer once and removes only that document pointer', () => {
     const first = addDocumentRef([], { kind: 'document', id: 'Clients/Henderson/plan.pdf', label: 'Plan' });
     expect(addDocumentRef(first, { kind: 'document', id: 'Clients/Henderson/plan.pdf', label: 'Plan' })).toHaveLength(1);
     expect(removeDocumentRef([...first, { kind: 'household', id: 'household-1' }], 'Clients/Henderson/plan.pdf')).toEqual([{ kind: 'household', id: 'household-1' }]);
+  });
+
+  it('links an existing workspace file to any durable contact kind through ContactRef', () => {
+    expect(linkWorkspaceDocumentToContact(
+      { kind: 'organization', id: 'organization:legal', matterId: 'matter-1', label: 'Lee Legal' },
+      { kind: 'document', id: 'Clients/Lee/engagement.pdf', matterId: 'matter-1', label: 'Engagement' },
+    )).toEqual({
+      contactRef: { kind: 'organization', id: 'organization:legal', matterId: 'matter-1', label: 'Lee Legal' },
+      documentRef: { kind: 'document', id: 'Clients/Lee/engagement.pdf', matterId: 'matter-1', label: 'Engagement' },
+    });
   });
 });

@@ -168,6 +168,11 @@ describe('task attachment canonical store reload proof', () => {
         tagIds: ['tag:review'],
         contextRefs: [
           {
+            kind: 'household',
+            id: 'household-river',
+            matterId: 'matter-river',
+          },
+          {
             kind: 'document',
             id: 'Clients/River/review.docx',
             matterId: 'matter-river',
@@ -212,7 +217,13 @@ describe('task attachment canonical store reload proof', () => {
         category: 'Annual review',
         dueTime: '09:30',
         tagIds: ['tag:review'],
-        contextRefs: [],
+        contextRefs: [
+          {
+            kind: 'household',
+            id: 'household-river',
+            matterId: 'matter-river',
+          },
+        ],
       });
     });
     expect(boundary.committedRecords[0]).toMatchObject({

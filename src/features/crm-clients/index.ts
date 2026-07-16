@@ -25,6 +25,8 @@ export {
   type DirectoryFeatureToolDescriptor,
   type DirectoryFeatureViewDescriptor,
   type DirectoryQueryDescriptor,
+  type DirectoryLegacyRepository,
+  type DirectoryRepository,
   type DirectoryResult,
   type DirectoryToolDescriptor,
   type DirectoryViewDescriptor,
@@ -35,3 +37,11 @@ export {
   type DirectoryPreferenceStore,
   type DirectoryPreferenceValue,
 } from './directoryPreferences';
+export type {
+  HouseholdAddActionDescriptor,
+  HouseholdHeaderActionDescriptor,
+  HouseholdRecordExtensionDescriptor,
+  HouseholdRecordShellContext,
+  HouseholdSectionDescriptor,
+} from './recordRegistry';
+export type { HouseholdTabDescriptor } from './tabRegistry';

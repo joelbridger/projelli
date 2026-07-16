@@ -1,0 +1,19 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/v1-w2-record-kinds-foundation
+sha: 2069f673de12e0fc6501b9c69116efaed14a9d0c
+tree: 727e0917c444ec72bd5b6c9255950a79f739b5c1
+gate_base: cb09c8c4f9767f1334bedd381fe0f28f0018a2f3
+tool_blob: 7912bf11eefdacea0702600b19d3bc5b3d7f2606
+utc: 2026-07-16T22:51:10Z
+step_timeout_seconds: 1500
+loadavg: 29.18 19.74 18.87
+running_vitest_eslint_procs: 1
+step: gate:changed | status=PASS | exit=0 | 22:51:10Z..22:55:40Z | bytes=30061 | sha256=97174feedb3cebaab4545d8ef8eafa2b6dfc1ea246683b01418b8a509edc7d2d | tail:  Test Files 139 passed (139) Tests 683 passed | 6 skipped (689) Start at 22:54:27 Duration 73.35s (transform 19.20s, setup 29.12s, import 137.84s, tests 46.15s, environment 60.37s) CHANGED GATE GREEN
+step: typecheck | status=PASS | exit=0 | 22:55:40Z..22:56:12Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit
+step: typecheck:tests | status=PASS | exit=0 | 22:56:12Z..22:56:49Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit
+step: handle-guard | status=PASS | exit=0 | 22:56:49Z..22:56:50Z | bytes=1322 | sha256=07f5ce4a9f71d01ce18203d19f530be8b3fd83502c1343206bdf858d1732cd7a | tail: ic-page-unavailable + client-bar-clear + client-bar-current + client-bar-open-${} +330 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen).
+step: arch-dag-guard | status=PASS | exit=0 | 22:56:50Z..22:56:51Z | bytes=229 | sha256=3838d04c530c46e20a0bfd97b46b842d07a5776d6bd82551e7814bd2baad412d | tail: .1.3 /home/jameson/v1-w2-record-kinds-foundation Test Files 1 passed (1) Tests 1 passed (1) Start at 22:56:50 Duration 1.28s (transform 306ms, setup 486ms, import 313ms, tests 3ms, environment 366ms)
+step: i18n-snapshot | status=PASS | exit=0 | 22:56:51Z..22:56:53Z | bytes=230 | sha256=686842c419858cb183dcbd00e8fc02fbf3a9bf45d00c5d708d551d59a6647894 | tail: 1.3 /home/jameson/v1-w2-record-kinds-foundation Test Files 1 passed (1) Tests 5 passed (5) Start at 22:56:51 Duration 1.26s (transform 339ms, setup 520ms, import 263ms, tests 25ms, environment 348ms)
+step: focused | status=PASS | exit=0 | 22:56:53Z..22:57:00Z | bytes=248 | sha256=8a73515c1ea874b7c0d97544fa4d2e3ba088e0f9bd20f9198906a729d32f78e4 | tail: v1-w2-record-kinds-foundation Test Files 12 passed (12) Tests 77 passed | 5 skipped (82) Start at 22:56:53 Duration 7.04s (transform 7.38s, setup 3.92s, import 14.93s, tests 2.40s, environment 5.16s)
+overall: GREEN

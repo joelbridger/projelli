@@ -7,7 +7,7 @@
 import type { CoreSectionKey, SourceRef } from '@/platform/clientMap/types';
 
 export type EntityKind =
-  | 'household' | 'person' | 'account' | 'fact' | 'note' | 'task'
+  | 'household' | 'person' | 'organization' | 'trust' | 'account' | 'fact' | 'note' | 'task'
   /** A file owned by the existing Documents workspace, never a CRM record. */
   | 'document'
   | 'workflowTemplate' | 'workflowInstance' | 'servicePolicy'

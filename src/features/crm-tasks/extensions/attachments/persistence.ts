@@ -6,7 +6,7 @@ import {
   resolveWorkspaceDocumentRef,
   type ResolveWorkspaceDocumentRefInput,
 } from '@/features/crm-documents';
-import type { TaskRecord, TaskRecordStore } from '@/features/crm-tasks';
+import type { TaskContextRef, TaskRecord, TaskRecordStore } from '@/features/crm-tasks';
 
 type AttachWorkspaceDocumentInput = Omit<
   ResolveWorkspaceDocumentRefInput,
@@ -20,6 +20,16 @@ type AttachWorkspaceDocumentInput = Omit<
 interface TaskDocumentScope {
   targetHouseholdId: string;
   targetMatterId: string;
+}
+
+function replaceDocumentRefs(
+  task: TaskRecord,
+  documentRefs: ReturnType<typeof listWorkspaceDocumentRefs>,
+): readonly TaskContextRef[] {
+  return [
+    ...task.contextRefs.filter((ref) => ref.kind !== 'document'),
+    ...documentRefs,
+  ];
 }
 
 async function currentTask(
@@ -73,9 +83,9 @@ export async function attachWorkspaceDocumentToTask(
     targetMatterId: input.targetMatterId,
     existing: task.contextRefs,
   });
-  const contextRefs = listWorkspaceDocumentRefs(
+  const contextRefs = replaceDocumentRefs(task, listWorkspaceDocumentRefs(
     addWorkspaceDocumentRef(task.contextRefs, ref)
-  );
+  ));
   return store.update(task.id, { householdRef, contextRefs });
 }
 
@@ -88,8 +98,8 @@ export async function detachWorkspaceDocumentFromTask(
 ): Promise<TaskRecord> {
   const task = await currentTask(store, taskId);
   const householdRef = validatedHouseholdRef(task, scope);
-  const contextRefs = listWorkspaceDocumentRefs(
+  const contextRefs = replaceDocumentRefs(task, listWorkspaceDocumentRefs(
     removeWorkspaceDocumentRef(task.contextRefs, documentId)
-  );
+  ));
   return store.update(task.id, { householdRef, contextRefs });
 }

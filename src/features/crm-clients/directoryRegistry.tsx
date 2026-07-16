@@ -1,5 +1,10 @@
 import type { ReactNode } from 'react';
 import type { CrmPerson, HouseholdDirectoryEntry } from './adapters';
+import type {
+  ContactDirectoryProjection,
+  ContactRef,
+  RecordScreenProjection,
+} from '@/features/crm-contacts';
 
 /** Feature modules augment these maps beside their directory descriptors. */
 export interface DirectoryToolIdMap {}
@@ -51,6 +56,19 @@ export type DirectoryResult =
   | Readonly<{ kind: 'household'; record: DeepReadonly<HouseholdDirectoryEntry> }>
   | Readonly<{ kind: 'person'; record: DeepReadonly<CrmPerson> }>;
 
+/** The four-kind repository that directory contributions use for record opening. */
+export interface DirectoryRepository {
+  openContact(ref: ContactRef): Promise<void>;
+  resolveContact(ref: ContactRef): Promise<RecordScreenProjection | null>;
+}
+
+/** Household-only helpers retained solely by the pre-WB-010 directory mounts. */
+export interface DirectoryLegacyRepository {
+  openHousehold(id: string): void;
+  reviewRecipient(id: string): void;
+  createHousehold(name: string): Promise<void> | void;
+}
+
 export interface DirectoryContext {
   query: { value: string; setValue(value: string): void };
   selection: {
@@ -73,11 +91,10 @@ export interface DirectoryContext {
     people: readonly CrmPerson[];
     households: readonly HouseholdDirectoryEntry[];
   }>;
-  repository: {
-    openHousehold(id: string): void;
-    reviewRecipient(id: string): void;
-    createHousehold(name: string): Promise<void> | void;
-  };
+  /** Present for the four-kind directory path; legacy descriptors retain their narrow adapter. */
+  contacts?: readonly ContactDirectoryProjection[];
+  repository: DirectoryRepository;
+  legacyRepository: DirectoryLegacyRepository;
   composition: DirectoryComposition;
 }
 
