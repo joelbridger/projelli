@@ -34,6 +34,13 @@ function displayText(value: unknown, fallback: string): string {
   return typeof value === 'string' ? value : fallback;
 }
 
+function importedHouseholdMatterId(record: LiveCrmRecord): string {
+  const matterId = record.matterId?.trim();
+  return matterId && matterId !== 'firm' && matterId !== 'firm_home'
+    ? matterId
+    : record.id;
+}
+
 /** A real, restart-safe view over the Rust importer.  The screen only renders
  * records from the encrypted CRM store; it never fabricates an import result. */
 function LiveMigrationWizard() {
@@ -56,7 +63,7 @@ function LiveMigrationWizard() {
   const noteGaps = live.records.filter((record) => record.kind === 'migration_note_gap');
   const households = live.records.filter((record) => record.kind === 'household').map((record) => ({
     id: record.id,
-    matterId: record.matterId?.trim() || record.id,
+    matterId: importedHouseholdMatterId(record),
     label: displayText(record['name'], displayText(record['label'], 'Imported household')),
   }));
   const selectedExport = exports.find((record) => record.exportKind === (view === 'rollback' ? 'rollback' : 'archive')) ?? latestExport;
