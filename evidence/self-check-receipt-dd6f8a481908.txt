@@ -1,0 +1,28 @@
+SELF-CHECK RECEIPT
+
+Resolved code commit: dd6f8a481908f28554513315806966bb25245dcc
+Branch: v1/w2-record-member-kebab
+Scope: household Members tab feature flag and its mount-time proof
+
+Attestation:
+- The shared household record screen was not changed after the coordinator ruling.
+- The tab descriptor is registry-gated at module mount. Flag off means no Members
+  tab exists; flag on means the descriptor is present after a fresh module load.
+- The focused test uses the real registry and proves the Member Rail component is
+  not mounted while dark, so its own member reads and hooks cannot run.
+- A live flag flip remains deliberately out of scope: flags are evaluated when
+  the registry is mounted, consistent with the app's other flag-gated surfaces.
+
+Checks run against the resolved code commit above:
+- PASS  npm run typecheck
+- PASS  npm run typecheck:tests
+- PASS  npm run boundaries:check
+- PASS  npm test -- src/features/crm-clients/extensions/record-member-kebab/memberRail.test.tsx
+        (2 tests passed)
+- PASS  node scripts/ui-system/handle-guard.mjs
+- PASS  npm run i18n:completeness
+- PASS  npx eslint src/features/crm-clients/extensions/record-member-kebab
+- KNOWN BASELINE  npm run i18n:check exits non-zero on existing whole-app
+  dynamic-key warnings. CI documents this as KNOWN-I18N-01, deferred; the
+  locale-completeness check above passes for all 31 catalogs.
+
