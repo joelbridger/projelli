@@ -1,0 +1,23 @@
+{
+  "team-activity-feed": {
+    "title": "Team-Aktivität",
+    "description": "Beiträge, Kommentare und Reaktionen für Ihre Kanzlei.",
+    "dark-note": "Dieser Bereich bleibt bis zur Abnahme ausgeschaltet. Bevor eine Berechtigungsdurchsetzung behauptet werden kann, fehlen noch native Identitätsbindung und dauerhafte Kundenzuordnungen.",
+    "identity-pending": "Beiträge, Kommentare und Reaktionen bleiben gesperrt, bis Lantern das angemeldete Teammitglied sicher erkennen kann.",
+    "untrusted-author": "(vorbereitet, nicht verifiziert)",
+    "load-error": "Team-Aktivität konnte nicht geladen werden:",
+    "post-label": "Update veröffentlichen",
+    "post-placeholder": "Teilen Sie ein Update mit Ihrem Team",
+    "mentions-label": "Teammitglieder erwähnen",
+    "post": "Update veröffentlichen",
+    "empty": "Noch keine Team-Aktivität",
+    "empty-body": "Updates erscheinen hier, sobald die vertrauenswürdige Teamidentität verbunden ist.",
+    "mentioned": "Erwähnt",
+    "comment-count": "{{count}} Kommentare",
+    "reaction-count": "{{count}} Reaktionen",
+    "like": "Gefällt mir",
+    "love": "Gefällt mir sehr",
+    "comment-label": "Kommentar hinzufügen",
+    "comment": "Kommentieren"
+  }
+}

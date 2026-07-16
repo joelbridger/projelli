@@ -88,15 +88,8 @@ export function useLiveCrmRecords() {
       removeLiveRecordRelayWriter(onRemote);
     };
   }, [reload, sharedMatterId, workspaceRoot]);
-  const save = useCallback(async (record: LiveCrmRecord) => {
-    // Scope firm-level records to the shared client matter (multi-seat), and
-    // pin the workspace we started from so a mid-save folder switch can never
-    // land one workspace's record in another's view.
-    const scoped = sharedMatterId && (!record.matterId || record.matterId === 'firm')
-      ? { ...record, matterId: sharedMatterId }
-      : record;
+  const publishSavedRecord = useCallback((saved: LiveCrmRecord) => {
     const rootAtStart = workspaceRoot;
-    const saved = await saveLiveCrmRecord(rootAtStart, scoped);
     if (workspaceRootRef.current !== rootAtStart) return saved;
     setRecordsWorkspaceRoot(rootAtStart);
     setRecords((current) => {
@@ -106,7 +99,18 @@ export function useLiveCrmRecords() {
     publishLiveRecord(saved);
     window.dispatchEvent(new Event(LIVE_CRM_RECORDS_CHANGED));
     return saved;
-  }, [sharedMatterId, workspaceRoot]);
+  }, [workspaceRoot]);
+  const save = useCallback(async (record: LiveCrmRecord) => {
+    // Scope firm-level records to the shared client matter (multi-seat), and
+    // pin the workspace we started from so a mid-save folder switch can never
+    // land one workspace's record in another's view.
+    const scoped = sharedMatterId && (!record.matterId || record.matterId === 'firm')
+      ? { ...record, matterId: sharedMatterId }
+      : record;
+    const rootAtStart = workspaceRoot;
+    const saved = await saveLiveCrmRecord(rootAtStart, scoped);
+    return publishSavedRecord(saved);
+  }, [publishSavedRecord, sharedMatterId, workspaceRoot]);
   // Derive the user-facing state from the same shared-matter check that starts
   // the relay. This also prevents a one-frame offline warning while React is
   // switching from a firm matter to a solo workspace.
@@ -116,6 +120,7 @@ export function useLiveCrmRecords() {
   return {
     records: recordsWorkspaceRoot === workspaceRoot ? records : [],
     save,
+    publishSavedRecord,
     reload,
     error: errorWorkspaceRoot === workspaceRoot ? error : null,
     workspaceRoot,

@@ -1,0 +1,23 @@
+{
+  "team-activity-feed": {
+    "title": "Team activity",
+    "description": "Posts, comments, and reactions for your firm.",
+    "dark-note": "This screen stays off until its acceptance review. Native identity binding and durable client assignment labels are still required before permission enforcement can be claimed.",
+    "identity-pending": "Posting, commenting, and reacting stay unavailable until Lantern can prove which signed-in team member is acting.",
+    "untrusted-author": "(staged, unverified author)",
+    "load-error": "Could not load team activity:",
+    "post-label": "Post an update",
+    "post-placeholder": "Share an update with your team",
+    "mentions-label": "Mention teammates",
+    "post": "Post update",
+    "empty": "No team activity yet",
+    "empty-body": "Updates will appear here after trusted team identity is connected.",
+    "mentioned": "Mentioned",
+    "comment-count": "{{count}} comments",
+    "reaction-count": "{{count}} reactions",
+    "like": "Like",
+    "love": "Love",
+    "comment-label": "Add a comment",
+    "comment": "Comment"
+  }
+}

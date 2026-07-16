@@ -66,6 +66,7 @@ export const flagRegistry = [
   defineFlag('own-clients-permissions', 'Keeps own-client permission scoping dark: the read-side policy doorway is present, but the native enforcement engine is deferred, so consumers stay off until provable no-bypass enforcement lands.', 'own-clients-permissions', '2026-07-16', '2026-09-14'),
   defineFlag('universal-tags', 'Keeps firm-wide reusable tag administration dark until its acceptance drive is complete.', 'universal-tags', '2026-07-16', '2026-09-14'),
   defineFlag('crm-merge-clients', 'Keeps advisor-reviewed duplicate household merges dark until acceptance review is complete.', 'crm-merge-clients', '2026-07-16', '2026-09-14'),
+  defineFlag('team-activity-feed', 'Keeps the team activity feed dark until acceptance and native permission enforcement are proven.', 'team-activity-feed', '2026-07-16', '2026-09-14'),
 ] as const satisfies readonly FlagDescriptor[];
 
 export type FlagId = (typeof flagRegistry)[number]['id'];

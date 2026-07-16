@@ -1,6 +1,6 @@
 import type { CrmHomeSurfaceDescriptor } from './registryTypes';
 export type { CrmHomeRoute, CrmHomeSurfaceDescriptor } from './registryTypes';
-import { activitySurface } from '@/features/crm-activity/surface';
+import { teamActivitySurface } from '@/features/crm-activity/team-feed';
 import {
   calendarSurface,
   emailSurface,
@@ -47,7 +47,9 @@ import { formActivitySurface } from '@/features/crm-form-activity/surface';
  * at the end so existing route order stays stable; never reorder old entries.
  */
 export const crmHomeSurfaceRegistry: readonly CrmHomeSurfaceDescriptor[] = [
-  activitySurface,
+  // The descriptor keeps the legacy Activity route and rail intact while its
+  // component selects the dark team-feed replacement only when enabled.
+  teamActivitySurface,
   archiveExportSurface,
   calendarSurface,
   emailBroadcastSurface,
