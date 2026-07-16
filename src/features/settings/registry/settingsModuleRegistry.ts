@@ -14,7 +14,7 @@ import {
   notificationPreferencesSettingsSection,
 } from '@/features/notifications';
 import { universalTagsSettingsPanel } from '@/features/crm-tags';
-import { taskTemplatesAdminSettingsPanel } from '@/features/crm-tasks/extensions/templates-admin';
+import { taskTemplatesAdminSettingsPanel } from '@/features/crm-tasks';
 import type {
   SettingsGroupDescriptor,
   SettingsPanelDescriptor,

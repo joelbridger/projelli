@@ -20,3 +20,4 @@ export type {
   TaskStatus,
   UpdateTaskRecordPatch,
 } from './taskRecordStore';
+export { taskTemplatesAdminSettingsPanel } from './extensions/templates-admin';

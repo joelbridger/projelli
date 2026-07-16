@@ -1,34 +1,18 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   type FirmTag,
   type FirmTagStore,
   useFirmTagStore,
 } from '@/features/crm-tags';
-import { type TaskPriority } from '@/features/crm-tasks';
 import {
   type SaveTaskTemplateInput,
   type TaskTemplate,
-  type TaskTemplateStore,
   TaskTemplateError,
   useTaskTemplateStore,
 } from '@/features/crm-tasks/extensions/templates';
 import { isEnabled } from '@/platform/flags';
 import { Badge, Button } from '@/ui/kp';
-
-type EditorDraft = Required<Pick<SaveTaskTemplateInput, 'name' | 'title'>> & {
-  body: string;
-  priority: TaskPriority;
-  category: string;
-  due: string;
-  dueTime: string;
-  relationPrompt: string;
-  tagIds: string[];
-};
-
-type TemplateStoreSource = TaskTemplateStore & {
-  readonly recordSnapshot?: readonly unknown[];
-};
 
 const card = {
   border: '1px solid var(--kp-border)',
@@ -42,7 +26,7 @@ const muted = {
   fontSize: 'var(--kp-font-sm)',
 } as const;
 
-function blankDraft(): EditorDraft {
+function blankDraft(): SaveTaskTemplateInput {
   return {
     name: '',
     title: '',
@@ -56,7 +40,7 @@ function blankDraft(): EditorDraft {
   };
 }
 
-function draftFor(template: TaskTemplate): EditorDraft {
+function draftFor(template: TaskTemplate): SaveTaskTemplateInput {
   return {
     name: template.name,
     title: template.title,
@@ -70,49 +54,47 @@ function draftFor(template: TaskTemplate): EditorDraft {
   };
 }
 
-function inputFor(draft: EditorDraft): SaveTaskTemplateInput {
-  return {
-    ...draft,
-    category: draft.category || null,
-    due: draft.due || null,
-    dueTime: draft.dueTime || null,
-    relationPrompt: draft.relationPrompt || null,
-  };
-}
-
 function messageFor(error: unknown, fallback: string): string {
   return error instanceof TaskTemplateError ? error.message : fallback;
 }
 
 /** Enabled-only child. It owns all template and tag reads after the flag guard. */
-export function EnabledTaskTemplatesAdminSettings({
+function EnabledTaskTemplatesAdminSettings({
   templateStore,
   tagStore,
 }: {
-  templateStore: TemplateStoreSource;
+  templateStore: ReturnType<typeof useTaskTemplateStore>;
   tagStore: FirmTagStore;
 }) {
   const { t } = useTranslation();
   const [templates, setTemplates] = useState<readonly TaskTemplate[]>([]);
   const [tags, setTags] = useState<readonly FirmTag[]>([]);
-  const [draft, setDraft] = useState<EditorDraft>(blankDraft);
+  const [draft, setDraft] = useState<SaveTaskTemplateInput>(blankDraft);
   const [editing, setEditing] = useState<TaskTemplate | null>(null);
   const [retiring, setRetiring] = useState<TaskTemplate | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const loadSources = useRef({ templateStore, tagStore, t });
+
+  useEffect(() => {
+    loadSources.current = { templateStore, tagStore, t };
+  }, [tagStore, t, templateStore]);
 
   useEffect(() => {
     let current = true;
+    const sources = loadSources.current;
     setLoading(true);
-    void Promise.all([templateStore.list(), tagStore.list()])
+    void Promise.all([sources.templateStore.list(), sources.tagStore.list()])
       .then(([nextTemplates, catalog]) => {
         if (!current) return;
         setTemplates(nextTemplates);
         setTags(catalog.tags);
       })
       .catch((error: unknown) => {
-        if (current) setNotice(messageFor(error, t('task-templates-admin.errors.load')));
+        if (current) {
+          setNotice(messageFor(error, sources.t('task-templates-admin.errors.load')));
+        }
       })
       .finally(() => {
         if (current) setLoading(false);
@@ -120,7 +102,7 @@ export function EnabledTaskTemplatesAdminSettings({
     return () => {
       current = false;
     };
-  }, [tagStore, t, templateStore.recordSnapshot]);
+  }, [templateStore.recordSnapshot]);
 
   const tagById = useMemo(
     () => new Map(tags.map((tag) => [tag.id, tag])),
@@ -130,6 +112,7 @@ export function EnabledTaskTemplatesAdminSettings({
     () => tags.filter((tag) => tag.status === 'active'),
     [tags],
   );
+  const selectedTagIds = draft.tagIds ?? [];
 
   const startNew = () => {
     setEditing(null);
@@ -153,10 +136,10 @@ export function EnabledTaskTemplatesAdminSettings({
   const save = async () => {
     setSaving(true);
     try {
-      await validateTags(draft.tagIds);
+      await validateTags(selectedTagIds);
       const saved = editing
-        ? await templateStore.update(editing.id, inputFor(draft))
-        : await templateStore.create(inputFor(draft));
+        ? await templateStore.update(editing.id, draft)
+        : await templateStore.create(draft);
       setTemplates((current) =>
         [...current.filter((template) => template.id !== saved.id), saved].sort(
           (left, right) => left.name.localeCompare(right.name),
@@ -214,7 +197,11 @@ export function EnabledTaskTemplatesAdminSettings({
               data-testid="task-templates-admin-confirm-retire"
               disabled={saving}
               variant="danger"
-              onClick={() => { void retire(retiring); }}
+              onClick={() => {
+                void retire(retiring).catch((error: unknown) => {
+                  setNotice(messageFor(error, t('task-templates-admin.errors.save')));
+                });
+              }}
             >
               {t('task-templates-admin.retire-confirmation.confirm')}
             </Button>
@@ -274,7 +261,9 @@ export function EnabledTaskTemplatesAdminSettings({
           style={{ ...card, display: 'grid', gap: 10 }}
           onSubmit={(event) => {
             event.preventDefault();
-            void save();
+            void save().catch((error: unknown) => {
+              setNotice(messageFor(error, t('task-templates-admin.errors.save')));
+            });
           }}
         >
           <div>
@@ -293,11 +282,11 @@ export function EnabledTaskTemplatesAdminSettings({
           </label>
           <label>
             {t('task-templates-admin.fields.body')}
-            <textarea value={draft.body} onChange={(event) => { setDraft({ ...draft, body: event.target.value }); }} />
+            <textarea value={draft.body ?? ''} onChange={(event) => { setDraft({ ...draft, body: event.target.value }); }} />
           </label>
           <label>
             {t('task-templates-admin.fields.priority')}
-            <select value={draft.priority} onChange={(event) => { setDraft({ ...draft, priority: event.target.value as TaskPriority }); }}>
+            <select value={draft.priority ?? 'normal'} onChange={(event) => { setDraft({ ...draft, priority: event.target.value as NonNullable<SaveTaskTemplateInput['priority']> }); }}>
               <option value="high">{t('task-templates-admin.priority.high')}</option>
               <option value="normal">{t('task-templates-admin.priority.normal')}</option>
               <option value="low">{t('task-templates-admin.priority.low')}</option>
@@ -305,42 +294,53 @@ export function EnabledTaskTemplatesAdminSettings({
           </label>
           <label>
             {t('task-templates-admin.fields.category')}
-            <input value={draft.category} onChange={(event) => { setDraft({ ...draft, category: event.target.value }); }} />
+            <input value={draft.category ?? ''} onChange={(event) => { setDraft({ ...draft, category: event.target.value || null }); }} />
           </label>
           <label>
             {t('task-templates-admin.fields.due')}
-            <input type="date" value={draft.due} onChange={(event) => { setDraft({ ...draft, due: event.target.value }); }} />
+            <input type="date" value={draft.due ?? ''} onChange={(event) => { setDraft({ ...draft, due: event.target.value || null }); }} />
           </label>
           <label>
             {t('task-templates-admin.fields.due-time')}
-            <input type="time" value={draft.dueTime} onChange={(event) => { setDraft({ ...draft, dueTime: event.target.value }); }} />
+            <input type="time" value={draft.dueTime ?? ''} onChange={(event) => { setDraft({ ...draft, dueTime: event.target.value || null }); }} />
           </label>
           <label>
             {t('task-templates-admin.fields.relation-prompt')}
-            <input value={draft.relationPrompt} onChange={(event) => { setDraft({ ...draft, relationPrompt: event.target.value }); }} />
+            <input value={draft.relationPrompt ?? ''} onChange={(event) => { setDraft({ ...draft, relationPrompt: event.target.value || null }); }} />
           </label>
           <fieldset>
             <legend>{t('task-templates-admin.fields.tags')}</legend>
             {activeTags.map((tag) => (
               <label key={tag.id} style={{ display: 'block' }}>
                 <input
-                  checked={draft.tagIds.includes(tag.id)}
+                  checked={selectedTagIds.includes(tag.id)}
                   type="checkbox"
                   onChange={() => {
                     setDraft({
                       ...draft,
-                      tagIds: draft.tagIds.includes(tag.id)
-                        ? draft.tagIds.filter((id) => id !== tag.id)
-                        : [...draft.tagIds, tag.id],
+                      tagIds: selectedTagIds.includes(tag.id)
+                        ? selectedTagIds.filter((id) => id !== tag.id)
+                        : [...selectedTagIds, tag.id],
                     });
                   }}
                 /> {tag.name}
               </label>
             ))}
-            {draft.tagIds.filter((id) => !activeTags.some((tag) => tag.id === id)).map((id) => (
-              <p key={id} style={muted}>
-                {tagById.get(id)?.name ?? id} — {t('task-templates-admin.retired-tag')}
-              </p>
+            {selectedTagIds.filter((id) => !activeTags.some((tag) => tag.id === id)).map((id) => (
+              <label key={id} style={{ ...muted, display: 'block' }}>
+                <input
+                  checked
+                  data-testid={`task-templates-admin-retired-tag-${id}`}
+                  type="checkbox"
+                  onChange={() => {
+                    setDraft({
+                      ...draft,
+                      tagIds: selectedTagIds.filter((tagId) => tagId !== id),
+                    });
+                  }}
+                />{' '}
+                {tagById.get(id)?.name ?? id} ({t('task-templates-admin.retired-tag')})
+              </label>
             ))}
           </fieldset>
           <Button data-testid="task-templates-admin-save" disabled={saving} type="submit">
@@ -362,20 +362,7 @@ function CanonicalTaskTemplatesAdminSettings() {
 }
 
 /** Flag-off must return before creating stores, reading data, or mounting effects. */
-export function TaskTemplatesAdminSettingsMount({
-  createTagStore,
-  createTemplateStore,
-}: {
-  createTagStore?: () => FirmTagStore;
-  createTemplateStore?: () => TemplateStoreSource;
-}) {
+export function TaskTemplatesAdminSettingsMount() {
   if (!isEnabled('task-templates-admin')) return null;
-  return createTagStore && createTemplateStore ? (
-    <EnabledTaskTemplatesAdminSettings
-      tagStore={createTagStore()}
-      templateStore={createTemplateStore()}
-    />
-  ) : (
-    <CanonicalTaskTemplatesAdminSettings />
-  );
+  return <CanonicalTaskTemplatesAdminSettings />;
 }
