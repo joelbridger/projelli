@@ -1,0 +1,19 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/v1-w2-crm-contact-table-v2
+sha: e16cb4b80e4642e68c9640bac3eb8a23e85c08aa
+tree: 691862f658137b7100601c1ddc4434858252af16
+gate_base: 09c8f9a3bde68585d010187c7c17f30257b2454b
+tool_blob: 2a8a0211c0565e6bbcb39b6891e5d0839375074a
+utc: 2026-07-16T10:14:21Z
+step_timeout_seconds: 300
+loadavg: 7.21 9.23 12.23
+running_vitest_eslint_procs: 10
+step: gate:changed | status=INCONCLUSIVE-UNDER-LOAD | exit=124 | 10:14:21Z..10:19:21Z | bytes=9851 | sha256=0a7021fbaaae253fbf7d93bade882db5326c05a0948545cc030ba4ff33b95503 | tail: anvas npm package Not implemented: HTMLMediaElement's pause() method Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package Not implemented: HTMLMediaElement's pause() method 
+step: typecheck | status=PASS | exit=0 | 10:19:21Z..10:19:51Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit 
+step: typecheck:tests | status=PASS | exit=0 | 10:19:51Z..10:20:29Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit 
+step: handle-guard | status=PASS | exit=0 | 10:20:29Z..10:20:30Z | bytes=1267 | sha256=d021ca9da81a8d762ae311a420c42eb07dee38a4c31271ef73ca4728fa83eb95 | tail: t-picker-cancel + client-picker-clear + client-picker-empty + client-picker-error +219 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen). 
+step: arch-dag-guard | status=PASS | exit=0 | 10:20:30Z..10:20:31Z | bytes=226 | sha256=74bf8a31068ce524f07f89b0482ac159c1526b38966074d54c8ce9f3e92f7734 | tail:  v4.1.3 /home/jameson/v1-w2-crm-contact-table-v2 Test Files 1 passed (1) Tests 1 passed (1) Start at 10:20:30 Duration 1.35s (transform 333ms, setup 502ms, import 333ms, tests 4ms, environment 388ms) 
+step: i18n-snapshot | status=PASS | exit=0 | 10:20:31Z..10:20:33Z | bytes=227 | sha256=2e2092b22bc25abaa088f770fa06bfc1e7e813848882ef35ec9c9a056a341938 | tail: v4.1.3 /home/jameson/v1-w2-crm-contact-table-v2 Test Files 1 passed (1) Tests 5 passed (5) Start at 10:20:31 Duration 1.25s (transform 289ms, setup 430ms, import 313ms, tests 26ms, environment 366ms) 
+step: focused | status=PASS | exit=0 | 10:20:33Z..10:20:38Z | bytes=230 | sha256=056a52fdc00482a5c7511f4c0f4d6972be95b64120a6da622c72616b08d7ed68 | tail: 1.3 /home/jameson/v1-w2-crm-contact-table-v2 Test Files 1 passed (1) Tests 10 passed (10) Start at 10:20:33 Duration 4.77s (transform 2.32s, setup 448ms, import 3.13s, tests 677ms, environment 397ms) 
+overall: INCONCLUSIVE
