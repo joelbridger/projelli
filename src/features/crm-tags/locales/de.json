@@ -1,0 +1,40 @@
+{
+  "crm-tags": {
+    "settings-label": "Organisation",
+    "heading": "Firmen-Tags",
+    "heading-copy": "Erstelle wiederverwendbare Tags für die Arbeit in deiner ganzen Firma.",
+    "catalog-title": "Tag-Katalog",
+    "catalog-copy": "Tags behalten dieselbe ID, wenn du ihren Namen oder ihre Farbe änderst. Stillgelegte Tags bleiben für frühere Arbeit verfügbar.",
+    "tag-name": "Tag-Name",
+    "tag-name-for": "Tag-Name für {{name}}",
+    "tag-id": "ID: {{id}}",
+    "tag-color": "Tag-Farbe",
+    "tag-color-for": "Tag-Farbe für {{name}}",
+    "status": {
+      "active": "Aktiv",
+      "retired": "Stillgelegt"
+    },
+    "color": {
+      "blue": "Blau",
+      "green": "Grün",
+      "amber": "Bernstein",
+      "red": "Rot",
+      "purple": "Violett",
+      "slate": "Schiefer"
+    },
+    "save-name": "Name speichern",
+    "retire": "Stilllegen",
+    "confirm-retire": "Stilllegung bestätigen",
+    "new-tag": "Name des neuen Tags",
+    "new-tag-color": "Farbe des neuen Tags",
+    "add": "Tag hinzufügen",
+    "name-saved": "Tag-Name gespeichert.",
+    "color-saved": "Tag-Farbe gespeichert.",
+    "retired": "Tag stillgelegt. Frühere Arbeit behält ihre gespeicherte Tag-ID.",
+    "added": "Tag hinzugefügt.",
+    "save-failed": "Der Tag-Katalog konnte nicht gespeichert werden.",
+    "references-title": "Frühere Arbeit bleibt verbunden",
+    "references-copy": "Das Umbenennen, Umfärben oder Stilllegen eines Tags ändert nie gespeicherte Tag-IDs in Aufgaben, Workflows, Ereignissen, Dateien oder Massenbearbeitungen.",
+    "references-protected": "Gespeicherte IDs geschützt"
+  }
+}

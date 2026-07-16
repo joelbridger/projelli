@@ -1,0 +1,40 @@
+{
+  "crm-tags": {
+    "settings-label": "Organización",
+    "heading": "Etiquetas de la empresa",
+    "heading-copy": "Crea etiquetas reutilizables para el trabajo de toda tu empresa.",
+    "catalog-title": "Catálogo de etiquetas",
+    "catalog-copy": "Las etiquetas conservan el mismo ID cuando cambias su nombre o color. Las etiquetas retiradas siguen disponibles para el trabajo anterior.",
+    "tag-name": "Nombre de la etiqueta",
+    "tag-name-for": "Nombre de etiqueta para {{name}}",
+    "tag-id": "ID: {{id}}",
+    "tag-color": "Color de la etiqueta",
+    "tag-color-for": "Color de etiqueta para {{name}}",
+    "status": {
+      "active": "Activa",
+      "retired": "Retirada"
+    },
+    "color": {
+      "blue": "Azul",
+      "green": "Verde",
+      "amber": "Ámbar",
+      "red": "Rojo",
+      "purple": "Morado",
+      "slate": "Pizarra"
+    },
+    "save-name": "Guardar nombre",
+    "retire": "Retirar",
+    "confirm-retire": "Confirmar retiro",
+    "new-tag": "Nombre de nueva etiqueta",
+    "new-tag-color": "Color de nueva etiqueta",
+    "add": "Agregar etiqueta",
+    "name-saved": "Nombre de etiqueta guardado.",
+    "color-saved": "Color de etiqueta guardado.",
+    "retired": "Etiqueta retirada. El trabajo anterior conserva su ID de etiqueta.",
+    "added": "Etiqueta agregada.",
+    "save-failed": "No se pudo guardar el catálogo de etiquetas.",
+    "references-title": "El trabajo anterior sigue conectado",
+    "references-copy": "Cambiar el nombre, color o retirar una etiqueta nunca cambia los IDs de etiqueta guardados por tareas, flujos de trabajo, eventos, archivos o trabajo masivo.",
+    "references-protected": "IDs guardados protegidos"
+  }
+}

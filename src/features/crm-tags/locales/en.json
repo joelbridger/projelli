@@ -1,0 +1,40 @@
+{
+  "crm-tags": {
+    "settings-label": "Organization",
+    "heading": "Firm tags",
+    "heading-copy": "Create reusable tags for work across your firm.",
+    "catalog-title": "Tag catalog",
+    "catalog-copy": "Tags keep the same ID when you rename or recolor them. Retired tags stay available for earlier work.",
+    "tag-name": "Tag name",
+    "tag-name-for": "Tag name for {{name}}",
+    "tag-id": "ID: {{id}}",
+    "tag-color": "Tag color",
+    "tag-color-for": "Tag color for {{name}}",
+    "status": {
+      "active": "Active",
+      "retired": "Retired"
+    },
+    "color": {
+      "blue": "Blue",
+      "green": "Green",
+      "amber": "Amber",
+      "red": "Red",
+      "purple": "Purple",
+      "slate": "Slate"
+    },
+    "save-name": "Save name",
+    "retire": "Retire",
+    "confirm-retire": "Confirm retire",
+    "new-tag": "New tag name",
+    "new-tag-color": "New tag color",
+    "add": "Add tag",
+    "name-saved": "Tag name saved.",
+    "color-saved": "Tag color saved.",
+    "retired": "Tag retired. Earlier work keeps its saved tag ID.",
+    "added": "Tag added.",
+    "save-failed": "Could not save the tag catalog.",
+    "references-title": "Earlier work stays connected",
+    "references-copy": "Renaming, recoloring, or retiring a tag never changes the tag IDs saved by tasks, workflows, events, files, or bulk work.",
+    "references-protected": "Saved IDs protected"
+  }
+}
