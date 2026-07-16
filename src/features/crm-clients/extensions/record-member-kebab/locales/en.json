@@ -1,0 +1,15 @@
+{
+  "memberRail": {
+    "title": "Household members",
+    "helper_one": "{{count}} person in this household",
+    "helper_other": "{{count}} people in this household",
+    "member": "Household member",
+    "options": "Options for {{name}}",
+    "empty": "No household members have been added yet.",
+    "actions": {
+      "review": "Review contact",
+      "email": "Start email draft",
+      "task": "Create task"
+    }
+  }
+}

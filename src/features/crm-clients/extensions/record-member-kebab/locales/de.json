@@ -1,0 +1,15 @@
+{
+  "memberRail": {
+    "title": "Haushaltsmitglieder",
+    "helper_one": "{{count}} Person in diesem Haushalt",
+    "helper_other": "{{count}} Personen in diesem Haushalt",
+    "member": "Haushaltsmitglied",
+    "options": "Optionen für {{name}}",
+    "empty": "Es wurden noch keine Haushaltsmitglieder hinzugefügt.",
+    "actions": {
+      "review": "Kontakt prüfen",
+      "email": "E-Mail-Entwurf beginnen",
+      "task": "Aufgabe erstellen"
+    }
+  }
+}
