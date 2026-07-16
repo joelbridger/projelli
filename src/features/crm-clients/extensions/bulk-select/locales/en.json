@@ -1,0 +1,12 @@
+{
+  "bulkSelect": {
+    "label": "Household selection",
+    "selectOne": "Select a household",
+    "selectedOption": "Selected: {{name}}",
+    "selectVisible": "Select visible",
+    "selectAll": "Select all directory",
+    "count_one": "{{count}} household selected",
+    "count_other": "{{count}} households selected",
+    "clear": "Clear selection"
+  }
+}

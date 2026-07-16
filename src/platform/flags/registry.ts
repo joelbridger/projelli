@@ -159,6 +159,15 @@ export const flagRegistry = [
     expiresAt: '2026-09-13',
     defaultEnabled: false,
   },
+  {
+    id: 'crm-bulk-select',
+    description:
+      'Keeps CRM directory household selection dark until its acceptance review is complete.',
+    ownerLane: 'crm-bulk-select',
+    createdAt: '2026-07-16',
+    expiresAt: '2026-09-14',
+    defaultEnabled: false,
+  },
 ] as const satisfies readonly FlagDescriptor[];
 
 export type FlagId = (typeof flagRegistry)[number]['id'];
