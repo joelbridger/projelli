@@ -26,11 +26,13 @@ function sameAttachments(
   left: readonly WorkspaceDocumentRef[],
   right: readonly WorkspaceDocumentRef[],
 ): boolean {
-  return left.length === right.length && left.every((reference, index) =>
-    reference.id === right[index].id &&
-    reference.label === right[index].label &&
-    reference.matterId === right[index].matterId,
-  );
+  return left.length === right.length && left.every((reference, index) => {
+    const candidate = right[index];
+    return Boolean(candidate) &&
+      reference.id === candidate.id &&
+      reference.label === candidate.label &&
+      reference.matterId === candidate.matterId;
+  });
 }
 
 function WorkflowStepAttachmentsEnabled({ context }: { context: WorkflowStepExtensionContext }) {
