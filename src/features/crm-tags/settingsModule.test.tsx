@@ -26,7 +26,7 @@ describe('UniversalTagsSettingsMount', () => {
 
   it('does no persistence loading while the flag is off', async () => {
     const createStore = vi.fn(() => createFirmTagStore());
-    vi.doMock('@/platform/flags', () => ({ useFlag: () => false }));
+    vi.doMock('@/platform/flags', () => ({ isEnabled: () => false }));
     const { UniversalTagsSettingsMount } = await import('./settingsModule');
 
     const { container } = render(
@@ -38,7 +38,7 @@ describe('UniversalTagsSettingsMount', () => {
   });
 
   it('lets a firm create, rename, recolor, and retire a tag when enabled', async () => {
-    vi.doMock('@/platform/flags', () => ({ useFlag: () => true }));
+    vi.doMock('@/platform/flags', () => ({ isEnabled: () => true }));
     const { UniversalTagsSettingsMount } = await import('./settingsModule');
 
     render(<UniversalTagsSettingsMount createStore={createFirmTagStore} />);

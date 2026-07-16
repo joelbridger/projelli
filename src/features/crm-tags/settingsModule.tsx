@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { useFlag } from '@/platform/flags';
+import { isEnabled } from '@/platform/flags';
 import { Badge, Button } from '@/ui/kp';
 import type { FirmTag, FirmTagColor, FirmTagStore } from './contract';
 import { createFirmTagStore } from './tagCatalog';
@@ -303,7 +303,6 @@ export function UniversalTagsSettingsMount({
 }: {
   createStore?: () => FirmTagStore;
 }) {
-  const enabled = useFlag('universal-tags');
-  if (!enabled) return null;
+  if (!isEnabled('universal-tags')) return null;
   return <UniversalTagsEnabledSettings store={createStore()} />;
 }
