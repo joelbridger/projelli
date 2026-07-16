@@ -1,0 +1,19 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/v1-w2-calendar-grid
+sha: 6ab82efc4f34759c99f66c01d8761e40289e500a
+tree: 660ef7023d06082cd8d5ef5b366631092ffd92b4
+gate_base: cb09c8c4f9767f1334bedd381fe0f28f0018a2f3
+tool_blob: 7912bf11eefdacea0702600b19d3bc5b3d7f2606
+utc: 2026-07-16T20:53:25Z
+step_timeout_seconds: 900
+loadavg: 37.16 37.22 35.59
+running_vitest_eslint_procs: 37
+step: gate:changed | status=PASS | exit=0 | 20:53:25Z..21:06:26Z | bytes=27026 | sha256=3bb551c21837c1e4e073ceb2244988811a7c949e7af04453102cfb45ef8ec2a2 | tail: 05:5) Test Files 297 passed (297) Tests 1950 passed (1950) Start at 21:01:38 Duration 287.90s (transform 39.84s, setup 151.68s, import 447.24s, tests 222.91s, environment 246.30s) CHANGED GATE GREEN
+step: typecheck | status=PASS | exit=0 | 21:06:26Z..21:08:33Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit
+step: typecheck:tests | status=PASS | exit=0 | 21:08:33Z..21:10:56Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit
+step: handle-guard | status=PASS | exit=0 | 21:10:56Z..21:10:56Z | bytes=1329 | sha256=2afc30176cbed698ed6f0f0dfcad909358fd99a6ba830e99c0354b9316f98a82 | tail: -unavailable + calendar-grid + calendar-grid-day + calendar-grid-day-all-day-lane +352 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen).
+step: arch-dag-guard | status=PASS | exit=0 | 21:10:57Z..21:11:01Z | bytes=220 | sha256=b6b55b0d51863ddc3f201c52e71d85cb4ffc2b598077ca8cb702868ce6be61f1 | tail:  RUN v4.1.3 /home/jameson/v1-w2-calendar-grid Test Files 1 passed (1) Tests 1 passed (1) Start at 21:10:57 Duration 3.84s (transform 1.31s, setup 1.93s, import 707ms, tests 10ms, environment 848ms)
+step: i18n-snapshot | status=PASS | exit=0 | 21:11:01Z..21:11:06Z | bytes=220 | sha256=fae6c1e1b42daed79a6334eb0b30e557b6926f2d27d6478ba80b494e75576b05 | tail:  RUN v4.1.3 /home/jameson/v1-w2-calendar-grid Test Files 1 passed (1) Tests 5 passed (5) Start at 21:11:02 Duration 4.02s (transform 1.22s, setup 1.72s, import 678ms, tests 51ms, environment 1.18s)
+step: focused | status=PASS | exit=0 | 21:11:06Z..21:11:17Z | bytes=225 | sha256=2bbc5bc12203a932ca493449cd1eb3eb8473a83549c2c6220a5c49cf32e3191d | tail:  v4.1.3 /home/jameson/v1-w2-calendar-grid Test Files 6 passed (6) Tests 27 passed (27) Start at 21:11:07 Duration 9.31s (transform 8.87s, setup 10.55s, import 11.71s, tests 4.81s, environment 6.13s)
+overall: GREEN
