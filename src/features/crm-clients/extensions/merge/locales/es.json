@@ -3,6 +3,21 @@
     "action": "Combinar duplicado",
     "title": "Revisar combinación duplicada",
     "approve": "Aprobar combinación",
-    "complete": "Combinación completada"
+    "complete": "Combinación completada",
+    "untitled-household": "Hogar sin título",
+    "active": "Activo",
+    "unassigned": "Sin asignar",
+    "standard": "Estándar",
+    "error": "La combinación no se completó. No se cambió nada.",
+    "receipt": "Recibo {{receiptId}}. Se conservaron {{count}} referencias con el hogar sobreviviente.",
+    "done": "Listo",
+    "description": "Elija el hogar que desea conservar. Revisará cada campo en conflicto antes de que cambie algo.",
+    "surviving-household": "Hogar sobreviviente",
+    "choose-household": "Elija un hogar",
+    "review": "Revisar antes de combinar",
+    "retained-references": "Se conservarán {{count}} referencias. El duplicado no cambia hasta que apruebe.",
+    "keep-field": "Conservar un valor para {{field}}",
+    "no-conflicts": "Ningún campo en conflicto necesita una elección.",
+    "no-accessible-household": "No hay un hogar accesible disponible para combinar con este."
   }
 }

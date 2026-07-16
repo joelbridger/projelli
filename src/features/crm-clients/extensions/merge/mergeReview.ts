@@ -20,9 +20,20 @@ const referenceFields = [
   'tags',
   'contextRefs',
 ] as const;
+const nonScalarFields = [...referenceFields, 'extensionData'] as const;
 
 function values(value: unknown): readonly unknown[] {
   return Array.isArray(value) ? value : [];
+}
+
+function hasConflict(sourceValue: unknown, targetValue: unknown): boolean {
+  if (sourceValue === undefined || sourceValue === null) return false;
+  if (targetValue === undefined || targetValue === null) return false;
+  if (Array.isArray(sourceValue) && Array.isArray(targetValue)) {
+    return sourceValue.length > 0 && targetValue.length > 0
+      && JSON.stringify(sourceValue) !== JSON.stringify(targetValue);
+  }
+  return JSON.stringify(sourceValue) !== JSON.stringify(targetValue);
 }
 
 export function assessMergeEligibility(
@@ -41,18 +52,16 @@ export function buildMergeReview(
   source: HouseholdRecord,
   target: HouseholdRecord
 ): MergeReviewInput {
-  const conflictingFields = scalarFields.filter((field) => {
-    const sourceValue = source[field];
-    const targetValue = target[field];
-    return sourceValue !== undefined && targetValue !== undefined && sourceValue !== targetValue;
-  });
+  const conflictingFields = [...scalarFields, ...nonScalarFields].filter((field) =>
+    hasConflict(source[field], target[field])
+  );
   const movedReferenceCount = referenceFields.reduce(
-    (count, field) => count + values(source[field]).filter((entry) => {
-      const sourceId = typeof entry === 'object' && 'id' in entry
+    (count, field) => count + (hasConflict(source[field], target[field]) ? [] : values(source[field])).filter((entry) => {
+      const sourceId = entry !== null && typeof entry === 'object' && 'id' in entry
         ? (entry as { id?: unknown }).id
         : undefined;
       return !values(target[field]).some((candidate) => {
-        const targetId = typeof candidate === 'object' && 'id' in candidate
+        const targetId = candidate !== null && typeof candidate === 'object' && 'id' in candidate
           ? (candidate as { id?: unknown }).id
           : undefined;
         return sourceId !== undefined ? sourceId === targetId : JSON.stringify(entry) === JSON.stringify(candidate);

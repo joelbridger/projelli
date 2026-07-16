@@ -18,15 +18,8 @@ const CHOOSABLE_FIELDS: &[&str] = &[
     "nextReview",
     "schedulingLinkUrl",
 ];
-const REFERENCE_ARRAY_FIELDS: &[&str] = &[
-    "facts",
-    "accounts",
-    "members",
-    "externalParties",
-    "notes",
-    "customFields",
-    "tags",
-    "contextRefs",
+const NON_SCALAR_FIELDS: &[&str] = &[
+    "facts", "accounts", "members", "externalParties", "notes", "customFields", "tags", "contextRefs", "extensionData",
 ];
 
 #[derive(Debug, Deserialize)]
@@ -63,6 +56,9 @@ pub struct MergeApprovalResult { pub receipt: RedactedMergeReceipt, pub idempote
 
 struct StoredHousehold { doc_key: String, matter_id: String, record: Value }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct MergeAuthority { member_id: String }
+
 fn require(value: &str, label: &str) -> Result<()> {
     if value.trim().is_empty() { bail!("CRM merge {label} is required") }
     Ok(())
@@ -79,6 +75,38 @@ fn read_household(transaction: &Transaction<'_>, id: &str, matter_id: &str) -> R
     if object.get("kind").and_then(Value::as_str) != Some("household") { bail!("CRM merge requires household records") }
     if object.get("ownership").and_then(Value::as_str) == Some("other") { bail!("CRM merge requires access to both households") }
     Ok(StoredHousehold { doc_key: row.0, matter_id: row.1, record })
+}
+
+fn role_permits_household(client_access: &str, member_id: &str, household: &Value) -> bool {
+    if client_access == "firm-read" { return true; }
+    let assigned = household.get("assignedMemberIds").and_then(Value::as_array)
+        .is_some_and(|members| members.iter().any(|member| member.as_str() == Some(member_id)));
+    match client_access {
+        "assigned" => household.get("ownerMemberId").and_then(Value::as_str) == Some(member_id) || assigned,
+        "shared" => assigned,
+        _ => false,
+    }
+}
+
+/// The caller identity is validated against the durable P0 teams-and-roles
+/// tables in the same SQLCipher transaction as both household reads. Renderer
+/// eligibility is therefore only a convenience; it cannot authorize a merge.
+fn require_merge_authority(
+    transaction: &Transaction<'_>, authority: &MergeAuthority, source: &Value, target: &Value,
+) -> Result<()> {
+    let (client_access, capabilities): (String, String) = transaction.query_row(
+        "SELECT role.client_access,role.capabilities_json FROM crm_member_roles AS member JOIN crm_roles AS role ON role.role_id=member.role_id WHERE member.member_id=?1",
+        [&authority.member_id], |row| Ok((row.get(0)?, row.get(1)?)),
+    ).optional()?.ok_or_else(|| anyhow::anyhow!("CRM merge caller has no role assignment"))?;
+    let capabilities: Vec<String> = serde_json::from_str(&capabilities).context("decode CRM merge role capabilities")?;
+    if !capabilities.iter().any(|capability| capability == "clients:write") {
+        bail!("CRM merge caller lacks client write access")
+    }
+    if !role_permits_household(&client_access, &authority.member_id, source)
+        || !role_permits_household(&client_access, &authority.member_id, target) {
+        bail!("CRM merge caller cannot access both households")
+    }
+    Ok(())
 }
 
 fn receipt_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<RedactedMergeReceipt> {
@@ -98,16 +126,41 @@ fn existing_receipt(transaction: &Transaction<'_>, idempotency_key: &str) -> Res
 
 fn same_value(left: Option<&Value>, right: Option<&Value>) -> bool { left == right }
 
+fn conflicting_non_scalar(source: Option<&Value>, target: Option<&Value>) -> bool {
+    match (source, target) {
+        (Some(Value::Null), _) | (_, Some(Value::Null)) => false,
+        (Some(Value::Array(source)), Some(Value::Array(target))) => !source.is_empty() && !target.is_empty() && source != target,
+        (Some(source), Some(target)) => source != target,
+        _ => false,
+    }
+}
+
+fn copy_non_scalar(
+    result: &mut Map<String, Value>, field: &str, source: Option<&Value>, target: Option<&Value>,
+    choices: &std::collections::BTreeMap<String, MergeFieldChoice>,
+) -> Result<()> {
+    if source.is_none() || source == Some(&Value::Null) { return Ok(()); }
+    if conflicting_non_scalar(source, target) {
+        match choices.get(field) {
+            Some(MergeFieldChoice::Source) => { result.insert(field.to_string(), source.cloned().unwrap_or(Value::Null)); }
+            Some(MergeFieldChoice::Target) => {}
+            None => bail!("CRM merge requires an explicit choice for conflicting field {field}"),
+        }
+    } else if target.is_none() || target == Some(&Value::Null) {
+        result.insert(field.to_string(), source.cloned().unwrap_or(Value::Null));
+    }
+    Ok(())
+}
+
 fn merge_household_values(source: &Value, target: &Value, choices: &std::collections::BTreeMap<String, MergeFieldChoice>) -> Result<(Value, usize, usize)> {
     let source_obj = source.as_object().ok_or_else(|| anyhow::anyhow!("invalid source household"))?;
     let target_obj = target.as_object().ok_or_else(|| anyhow::anyhow!("invalid target household"))?;
     let mut result: Map<String, Value> = target_obj.clone();
     let mut conflicts = 0usize;
-    let mut moved = 0usize;
     for field in CHOOSABLE_FIELDS {
         let source_value = source_obj.get(*field);
         let target_value = target_obj.get(*field);
-        if source_value.is_none() { continue; }
+        if source_value.is_none() || source_value == Some(&Value::Null) { continue; }
         if target_value.is_none() || target_value == Some(&Value::Null) {
             result.insert((*field).to_string(), source_value.cloned().unwrap_or(Value::Null));
             continue;
@@ -121,42 +174,11 @@ fn merge_household_values(source: &Value, target: &Value, choices: &std::collect
             }
         }
     }
-    for field in REFERENCE_ARRAY_FIELDS {
-        let mut combined = target_obj.get(*field).and_then(Value::as_array).cloned().unwrap_or_default();
-        for value in source_obj.get(*field).and_then(Value::as_array).into_iter().flatten() {
-            let exists = combined.iter().any(|current| {
-                current.get("id").zip(value.get("id")).is_some_and(|(left, right)| left == right) || current == value
-            });
-            if !exists { combined.push(value.clone()); moved += 1; }
-        }
-        if !combined.is_empty() { result.insert((*field).to_string(), Value::Array(combined)); }
+    for field in NON_SCALAR_FIELDS {
+        if conflicting_non_scalar(source_obj.get(*field), target_obj.get(*field)) { conflicts += 1; }
+        copy_non_scalar(&mut result, field, source_obj.get(*field), target_obj.get(*field), choices)?;
     }
-    // Preserve unknown feature-owned data under the surviving record. A new
-    // extension namespace is never overwritten by a duplicate merge. When
-    // both households have a different payload at the same key, retain the
-    // duplicate value as merge provenance rather than silently choosing one.
-    if let Some(source_extensions) = source_obj.get("extensionData").and_then(Value::as_object) {
-        let extensions = result.entry("extensionData".to_string()).or_insert_with(|| Value::Object(Map::new()));
-        if let Some(target_extensions) = extensions.as_object_mut() {
-            let mut conflicts = Map::new();
-            for (key, value) in source_extensions {
-                match target_extensions.get(key) {
-                    None => { target_extensions.insert(key.clone(), value.clone()); }
-                    Some(existing) if existing == value => {}
-                    Some(_) => { conflicts.insert(key.clone(), value.clone()); }
-                }
-            }
-            if !conflicts.is_empty() {
-                let provenance = target_extensions
-                    .entry("merge.provenance".to_string())
-                    .or_insert_with(|| Value::Object(Map::new()));
-                if let Some(provenance) = provenance.as_object_mut() {
-                    provenance.insert("sourceExtensionConflicts".to_string(), Value::Object(conflicts));
-                }
-            }
-        }
-    }
-    Ok((Value::Object(result), moved, conflicts))
+    Ok((Value::Object(result), 0, conflicts))
 }
 
 /// Repoints every same-matter live reference to the surviving household in the
@@ -223,6 +245,7 @@ pub fn approve_household_merge(store: &CrmCoreStore, request: MergeApprovalReque
         let source = read_household(transaction, &request.source_id, &request.matter_id)?;
         let target = read_household(transaction, &request.target_id, &request.matter_id)?;
         if source.matter_id != request.matter_id || target.matter_id != request.matter_id { bail!("CRM merge cannot cross household access boundaries") }
+        require_merge_authority(transaction, &MergeAuthority { member_id: request.actor_id.trim().to_owned() }, &source.record, &target.record)?;
         let (mut merged, embedded_reference_count, conflict_count) = merge_household_values(&source.record, &target.record, &request.field_choices)?;
         let mut entropy = [0_u8; 8];
         rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut entropy);
@@ -252,18 +275,27 @@ pub fn find_merge_receipt(store: &CrmCoreStore, receipt_id: &str) -> Result<Opti
     store.transaction(|transaction| Ok(transaction.query_row("SELECT receipt_id,source_id,target_id,matter_id,approved_by,approved_at,moved_reference_count,conflict_count FROM crm_merge_receipts WHERE receipt_id=?1", [receipt_id], receipt_from_row).optional()?))
 }
 
-async fn workspace(state: &CrmState) -> Result<std::path::PathBuf, String> { state.workspace.lock().await.clone().ok_or_else(|| "Open a workspace before using CRM data.".to_string()) }
-
 #[tauri::command]
-pub async fn crm_merge_households_approve(state: State<'_, CrmState>, request: MergeApprovalRequest) -> Result<MergeApprovalResult, String> {
-    let workspace = workspace(&state).await?;
-    tokio::task::spawn_blocking(move || approve_household_merge(&CrmCoreStore::open(&workspace)?, request, Utc::now())).await.map_err(|error| error.to_string())?.map_err(|error| error.to_string())
+pub async fn crm_merge_households_approve(state: State<'_, CrmState>, workspace_root: String, request: MergeApprovalRequest) -> Result<MergeApprovalResult, String> {
+    // Hold the native active-workspace lock through the destructive SQLCipher
+    // transaction. A later workspace switch waits, rather than redirecting a
+    // merge after its caller has reviewed a different household.
+    let workspace_guard = state.workspace.lock().await;
+    let workspace = workspace_guard.clone().ok_or_else(|| "Open a workspace before using CRM data.".to_string())?;
+    if workspace != std::path::PathBuf::from(workspace_root) { return Err("The active workspace changed. Reload the household and try again.".to_string()); }
+    let result = tokio::task::spawn_blocking(move || approve_household_merge(&CrmCoreStore::open(&workspace)?, request, Utc::now())).await.map_err(|error| error.to_string())?.map_err(|error| error.to_string());
+    drop(workspace_guard);
+    result
 }
 
 #[tauri::command]
-pub async fn crm_merge_receipt_get(state: State<'_, CrmState>, receipt_id: String) -> Result<Option<RedactedMergeReceipt>, String> {
-    let workspace = workspace(&state).await?;
-    tokio::task::spawn_blocking(move || find_merge_receipt(&CrmCoreStore::open(&workspace)?, &receipt_id)).await.map_err(|error| error.to_string())?.map_err(|error| error.to_string())
+pub async fn crm_merge_receipt_get(state: State<'_, CrmState>, workspace_root: String, receipt_id: String) -> Result<Option<RedactedMergeReceipt>, String> {
+    let workspace_guard = state.workspace.lock().await;
+    let workspace = workspace_guard.clone().ok_or_else(|| "Open a workspace before using CRM data.".to_string())?;
+    if workspace != std::path::PathBuf::from(workspace_root) { return Err("The active workspace changed. Reload the household and try again.".to_string()); }
+    let result = tokio::task::spawn_blocking(move || find_merge_receipt(&CrmCoreStore::open(&workspace)?, &receipt_id)).await.map_err(|error| error.to_string())?.map_err(|error| error.to_string());
+    drop(workspace_guard);
+    result
 }
 
 #[cfg(test)]
@@ -271,28 +303,63 @@ mod tests {
     use super::*;
     use tempfile::TempDir;
 
-    fn record(id: &str, matter_id: &str, name: &str, fact: &str) -> Value { serde_json::json!({"id": id, "kind": "household", "matterId": matter_id, "name": name, "lifecycle": "Active", "primaryAdvisor": "advisor", "ownership": "mine", "serviceTier": "Standard", "facts": [{"id": fact}], "members": []}) }
+    fn record(id: &str, matter_id: &str, name: &str, fact: &str) -> Value { serde_json::json!({"id": id, "kind": "household", "matterId": matter_id, "name": name, "lifecycle": "Active", "primaryAdvisor": "advisor", "ownerMemberId": "advisor-1", "ownership": "mine", "serviceTier": "Standard", "facts": [{"id": fact}], "members": []}) }
     fn seed(store: &CrmCoreStore, record: &Value) { store.upsert_live_record(record).unwrap(); }
-    fn request() -> MergeApprovalRequest { MergeApprovalRequest { source_id: "source".into(), target_id: "target".into(), matter_id: "matter-1".into(), actor_id: "advisor-1".into(), idempotency_key: "merge-1".into(), field_choices: [("name".into(), MergeFieldChoice::Target)].into_iter().collect() } }
+    fn authorize(store: &CrmCoreStore, member_id: &str) {
+        store.with_immediate_transaction(|transaction| {
+            transaction.execute("INSERT INTO crm_member_roles(member_id,role_id,updated_at) VALUES(?1,'advisor','now')", [member_id])?;
+            Ok(())
+        }).unwrap();
+    }
+    fn request() -> MergeApprovalRequest { MergeApprovalRequest { source_id: "source".into(), target_id: "target".into(), matter_id: "matter-1".into(), actor_id: "advisor-1".into(), idempotency_key: "merge-1".into(), field_choices: [("name".into(), MergeFieldChoice::Target), ("facts".into(), MergeFieldChoice::Source)].into_iter().collect() } }
 
     #[test]
     fn approved_merge_is_atomic_idempotent_and_survives_reopen() {
         let directory = TempDir::new().unwrap(); let key = [13; 32]; let store = CrmCoreStore::open_with_key(directory.path(), &key).unwrap();
+        authorize(&store, "advisor-1");
         seed(&store, &record("source", "matter-1", "Source", "fact-1")); seed(&store, &record("target", "matter-1", "Target", "fact-2"));
         seed(&store, &serde_json::json!({"id": "task-1", "kind": "task", "matterId": "matter-1", "householdId": "source", "contextRefs": [{"kind": "household", "id": "source"}]}));
         let result = approve_household_merge(&store, request(), Utc::now()).unwrap(); assert!(!result.idempotent); assert_eq!(result.receipt.moved_reference_count, 1);
         let retry = approve_household_merge(&store, request(), Utc::now()).unwrap(); assert!(retry.idempotent); assert_eq!(retry.receipt.receipt_id, result.receipt.receipt_id);
         drop(store); let reopened = CrmCoreStore::open_with_key(directory.path(), &key).unwrap();
-        let records = reopened.list_live_records().unwrap(); assert_eq!(records.len(), 2); assert_eq!(records.iter().find(|record| record["id"] == "target").unwrap()["facts"].as_array().unwrap().len(), 2);
+        let records = reopened.list_live_records().unwrap(); assert_eq!(records.len(), 2); assert_eq!(records.iter().find(|record| record["id"] == "target").unwrap()["facts"].as_array().unwrap().len(), 1);
         let task = records.iter().find(|record| record["id"] == "task-1").unwrap(); assert_eq!(task["householdId"], "target"); assert_eq!(task["contextRefs"][0]["id"], "target");
         assert_eq!(find_merge_receipt(&reopened, &result.receipt.receipt_id).unwrap(), Some(result.receipt));
     }
 
     #[test]
-    fn unapproved_conflict_and_cross_matter_leave_both_households_live() {
+    fn unapproved_conflict_and_cross_matter_leave_both_households_live_after_reload() {
         let directory = TempDir::new().unwrap(); let store = CrmCoreStore::open_with_key(directory.path(), &[14; 32]).unwrap();
+        authorize(&store, "advisor-1");
         seed(&store, &record("source", "matter-1", "Source", "fact-1")); seed(&store, &record("target", "matter-1", "Target", "fact-2"));
         let mut no_choice = request(); no_choice.field_choices.clear(); assert!(approve_household_merge(&store, no_choice, Utc::now()).is_err()); assert_eq!(store.list_live_records().unwrap().len(), 2);
         seed(&store, &record("target-2", "matter-2", "Target", "fact-3")); let mut cross = request(); cross.target_id = "target-2".into(); assert!(approve_household_merge(&store, cross, Utc::now()).is_err()); assert_eq!(store.list_live_records().unwrap().len(), 3);
+        drop(store);
+        let reopened = CrmCoreStore::open_with_key(directory.path(), &[14; 32]).unwrap();
+        assert_eq!(reopened.list_live_records().unwrap().len(), 3);
+    }
+
+    #[test]
+    fn unauthorized_or_cross_household_merge_is_refused_without_mutation() {
+        let directory = TempDir::new().unwrap(); let store = CrmCoreStore::open_with_key(directory.path(), &[15; 32]).unwrap();
+        authorize(&store, "advisor-1");
+        seed(&store, &record("source", "matter-1", "Source", "fact-1"));
+        let mut foreign = record("target", "matter-1", "Target", "fact-2");
+        foreign.as_object_mut().unwrap().insert("ownerMemberId".into(), Value::String("other-advisor".into()));
+        seed(&store, &foreign);
+        assert!(approve_household_merge(&store, request(), Utc::now()).unwrap_err().to_string().contains("cannot access both households"));
+        assert_eq!(store.list_live_records().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn non_scalar_conflict_requires_advisor_choice_and_rolls_back() {
+        let directory = TempDir::new().unwrap(); let key = [16; 32]; let store = CrmCoreStore::open_with_key(directory.path(), &key).unwrap();
+        authorize(&store, "advisor-1");
+        seed(&store, &record("source", "matter-1", "Source", "fact-1")); seed(&store, &record("target", "matter-1", "Target", "fact-2"));
+        let mut no_fact_choice = request(); no_fact_choice.field_choices.remove("facts");
+        assert!(approve_household_merge(&store, no_fact_choice, Utc::now()).unwrap_err().to_string().contains("facts"));
+        drop(store);
+        let reopened = CrmCoreStore::open_with_key(directory.path(), &key).unwrap();
+        assert_eq!(reopened.list_live_records().unwrap().len(), 2);
     }
 }

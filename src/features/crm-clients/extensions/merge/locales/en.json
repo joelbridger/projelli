@@ -3,6 +3,21 @@
     "action": "Merge duplicate",
     "title": "Review duplicate merge",
     "approve": "Approve merge",
-    "complete": "Merge complete"
+    "complete": "Merge complete",
+    "untitled-household": "Untitled household",
+    "active": "Active",
+    "unassigned": "Unassigned",
+    "standard": "Standard",
+    "error": "The merge did not complete. Nothing was changed.",
+    "receipt": "Receipt {{receiptId}}. {{count}} references were kept with the surviving household.",
+    "done": "Done",
+    "description": "Choose the household to keep. You will review every conflicting field before anything changes.",
+    "surviving-household": "Surviving household",
+    "choose-household": "Choose a household",
+    "review": "Review before merge",
+    "retained-references": "{{count}} references will be retained. The duplicate stays unchanged until you approve.",
+    "keep-field": "Keep a value for {{field}}",
+    "no-conflicts": "No conflicting fields need a choice.",
+    "no-accessible-household": "No accessible household is available to merge with this one."
   }
 }

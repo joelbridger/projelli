@@ -3,6 +3,21 @@
     "action": "Duplikat zusammenführen",
     "title": "Doppelte Haushalte prüfen",
     "approve": "Zusammenführung bestätigen",
-    "complete": "Zusammenführung abgeschlossen"
+    "complete": "Zusammenführung abgeschlossen",
+    "untitled-household": "Unbenannter Haushalt",
+    "active": "Aktiv",
+    "unassigned": "Nicht zugewiesen",
+    "standard": "Standard",
+    "error": "Die Zusammenführung wurde nicht abgeschlossen. Es wurde nichts geändert.",
+    "receipt": "Beleg {{receiptId}}. {{count}} Verweise wurden beim verbleibenden Haushalt behalten.",
+    "done": "Fertig",
+    "description": "Wählen Sie den Haushalt, der bleiben soll. Sie prüfen jedes widersprüchliche Feld, bevor etwas geändert wird.",
+    "surviving-household": "Verbleibender Haushalt",
+    "choose-household": "Haushalt auswählen",
+    "review": "Zusammenführung prüfen",
+    "retained-references": "{{count}} Verweise werden behalten. Das Duplikat bleibt unverändert, bis Sie zustimmen.",
+    "keep-field": "Wert für {{field}} behalten",
+    "no-conflicts": "Keine widersprüchlichen Felder benötigen eine Auswahl.",
+    "no-accessible-household": "Kein zugänglicher Haushalt ist für die Zusammenführung verfügbar."
   }
 }
