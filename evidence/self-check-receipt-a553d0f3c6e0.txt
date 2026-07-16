@@ -1,0 +1,19 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/v1-w2-calendar-foundation
+sha: a553d0f3c6e011fc35fac02396744a96e5b82a57
+tree: 380aa695398cc37e550fadf5094ae6f236fd7d43
+gate_base: 5ef25eee2dcdbfbd30dda8fe7013b82dab511028
+tool_blob: 7912bf11eefdacea0702600b19d3bc5b3d7f2606
+utc: 2026-07-16T17:45:26Z
+step_timeout_seconds: 1200
+loadavg: 12.86 14.89 15.28
+running_vitest_eslint_procs: 8
+step: gate:changed | status=PASS | exit=0 | 17:45:26Z..17:56:02Z | bytes=57737 | sha256=6dfa5b4af6ab495f87a6bc86979d7e50b501af914582ce9167a85d5a5ef32f4e | tail: ssed | 3 skipped (1076) Tests 8641 passed | 29 skipped (8670) Start at 17:48:55 Duration 427.07s (transform 32.47s, setup 221.47s, import 567.50s, tests 237.99s, environment 514.64s) CHANGED GATE GREEN
+step: typecheck | status=PASS | exit=0 | 17:56:02Z..17:56:48Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit
+step: typecheck:tests | status=PASS | exit=0 | 17:56:48Z..17:57:45Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit
+step: handle-guard | status=PASS | exit=0 | 17:57:45Z..17:57:45Z | bytes=1322 | sha256=c51e23f623d4b0241bf69f04dccb9353ed7694e4c7483062613eda3f37695e77 | tail: ic-page-unavailable + client-bar-clear + client-bar-current + client-bar-open-${} +306 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen).
+step: arch-dag-guard | status=PASS | exit=0 | 17:57:45Z..17:57:47Z | bytes=225 | sha256=2bd4fef6586e81ed6918a5b21e2836d7f6a7deca79fba2cce1129d4a3b8d626f | tail:  v4.1.3 /home/jameson/v1-w2-calendar-foundation Test Files 1 passed (1) Tests 1 passed (1) Start at 17:57:45 Duration 1.77s (transform 486ms, setup 722ms, import 438ms, tests 4ms, environment 441ms)
+step: i18n-snapshot | status=PASS | exit=0 | 17:57:47Z..17:57:49Z | bytes=226 | sha256=4e78436d7004f2e8bf54b5bfcc51ec83363657eba5237dfb959602b72128755e | tail:  v4.1.3 /home/jameson/v1-w2-calendar-foundation Test Files 1 passed (1) Tests 5 passed (5) Start at 17:57:48 Duration 1.75s (transform 526ms, setup 753ms, import 325ms, tests 33ms, environment 483ms)
+step: focused | status=PASS | exit=0 | 17:57:49Z..17:57:54Z | bytes=229 | sha256=7ced2574fc7ad8157b1ea1e45b7d9c1f5cbdd922ca0453cb342c9dcd303f97a3 | tail: .1.3 /home/jameson/v1-w2-calendar-foundation Test Files 8 passed (8) Tests 26 passed (26) Start at 17:57:50 Duration 4.24s (transform 3.08s, setup 3.93s, import 4.53s, tests 992ms, environment 4.74s)
+overall: GREEN
