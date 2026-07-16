@@ -124,6 +124,8 @@ export function Tasks({
           placeholder="Search tasks"
         />{' '}
         {mountTaskActions({
+          tasks,
+          workflowWorkItems,
           compatibilityMount: (
             <Button
               variant="secondary"

@@ -14,6 +14,7 @@ export type {
   WorkflowStepExtensionContext,
   WorkflowStepExtensionDescriptor,
 } from './workflowExtensionRegistry';
+export { workflowStepExtensionRegistry } from './workflowExtensionRegistry';
 export {
   useWorkflowTemplateStore,
   WorkflowTemplateError,

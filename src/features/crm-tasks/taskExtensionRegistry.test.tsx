@@ -1,7 +1,8 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string -- Dummy labels are test-only registry mounts. */
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { CrmTask } from '@/features/crm-home/types';
+import type { CrmTask, CrmWorkflowWorkItem } from '@/features/crm-home';
+import type { TaskActionDescriptor } from '@/features/crm-tasks';
 import {
   getTaskActions,
   getTaskFields,
@@ -12,7 +13,6 @@ import {
   validateTaskActionDescriptors,
   validateTaskFieldDescriptors,
   validateTaskTemplateDescriptors,
-  type TaskActionDescriptor,
   type TaskFieldDescriptor,
   type TaskTemplateDescriptor,
 } from './taskExtensionRegistry';
@@ -36,6 +36,19 @@ const task: CrmTask = {
   status: 'open',
   priority: 'normal',
   tagIds: [],
+};
+
+const workflowWorkItem: CrmWorkflowWorkItem = {
+  id: 'workflow-work-1',
+  instanceId: 'workflow-instance-1',
+  stepId: 'workflow-step-1',
+  title: 'Prepare workflow review',
+  householdId: 'household-1',
+  householdLabel: 'Morgan household',
+  assigneeUserId: null,
+  status: 'open',
+  priority: 'normal',
+  tagIds: ['tag:review'],
 };
 
 describe('task extension registries', () => {
@@ -77,7 +90,14 @@ describe('task extension registries', () => {
           },
           [field]
         )}
-        {mountTaskActions({ compatibilityMount: null }, [action])}
+        {mountTaskActions(
+          {
+            tasks: [task],
+            workflowWorkItems: [workflowWorkItem],
+            compatibilityMount: null,
+          },
+          [action]
+        )}
         {mountTaskTemplates({ onCreate: vi.fn() }, [template])}
       </>
     );
