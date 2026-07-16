@@ -1,6 +1,6 @@
 # Directory composition seam self-check receipt
 
-Code-and-proof commit: `2b9c653e7` (`test(crm): strengthen directory seam proofs`)
+Code-and-proof commit: `e60e78f5d` (`fix(crm): isolate directory query records`)
 
 Final checked tree: the commit containing this receipt. This receipt is the
 only change after the code commit above.
@@ -57,12 +57,16 @@ contributes anything. Its reversed fixtures make a missing sorter fail, and a
 separate filter test proves filtering is invoked while preserving survivor
 order. It also includes a real preference save followed by a fresh store
 instance loading the saved value, view replacement and inactive-view fallback,
-and a mutation attempt against the callback projection.
+and mutation attempts from both a filter predicate and sort comparator. Those
+callbacks try to rewrite both their projected results and their context record
+collections; the source array and every visible card remain unchanged.
 
 ## Attestation
 
 - The seam has no feature flag; consuming features supply their own activation.
-- Sort and filter callbacks receive deeply read-only copies. Their projections
+- Sort and filter callbacks receive deeply read-only result records and deeply
+  read-only context record collections. Runtime copies isolate the caller even
+  if feature code deliberately bypasses the type contract. Their projections
   can change visible inclusion and order, but no stored CRM record is reordered
   or rewritten.
 - All new cross-feature-facing contracts are exported through
