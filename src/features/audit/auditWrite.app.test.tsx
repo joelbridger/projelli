@@ -275,19 +275,16 @@ describe('App canonical audit-write registration', () => {
     );
   });
 
-  it('persists a must-save public write and preserves it after App recreates the service', async () => {
-    const mustPersistEntry: AuditWriteEntry = {
+  it('persists a public write and preserves it after App recreates the service', async () => {
+    const durableEntry: AuditWriteEntry = {
       ...legacyEntry,
       action: 'egress',
       description: 'Public consumer requires a saved audit row',
-      metadata: {
-        auditEventType: 'egress',
-        auditMustPersist: true,
-      },
+      metadata: { auditEventType: 'egress' },
     };
 
     const firstApp = render(<App />);
-    const firstResult = await emitAuditEntry(mustPersistEntry);
+    const firstResult = await emitAuditEntry(durableEntry);
     expect(firstResult.metadata['auditPersistenceStatus']).toBe('saved');
     expect(persistedRows()).toHaveLength(1);
     firstApp.unmount();
@@ -303,7 +300,7 @@ describe('App canonical audit-write registration', () => {
     expect(rowsAfterReload[0]).toMatchObject({
       id: firstResult.id,
       timestamp: firstResult.timestamp,
-      description: mustPersistEntry.description,
+      description: durableEntry.description,
     });
     expect(rowsAfterReload[0]?.['metadata']).toEqual(
       expect.objectContaining({ auditPersistenceStatus: 'saved' })
@@ -316,5 +313,95 @@ describe('App canonical audit-write registration', () => {
     expect(new Set(rowsAfterReload.map((row) => row['id'])).size).toBe(2);
 
     secondApp.unmount();
+  });
+
+  it('rejects the public write when the canonical append fails', async () => {
+    Reflect.set(window, '__TAURI_INTERNALS__', {});
+    tauriBridge.isTauri.mockReturnValue(true);
+    let rejectAppend: ((error: Error) => void) | undefined;
+    tauriBridge.invoke.mockImplementation((command: string) => {
+      if (command === 'audit_append') {
+        return new Promise((_resolve, reject) => {
+          rejectAppend = reject;
+        });
+      }
+      return Promise.resolve(undefined);
+    });
+
+    const app = render(<App />);
+    const publicWrite = emitAuditEntry(legacyEntry);
+    let settled = false;
+    const settlement = publicWrite.then(
+      () => {
+        settled = true;
+      },
+      () => {
+        settled = true;
+      }
+    );
+
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    const failAppend = rejectAppend;
+    if (!failAppend) throw new Error('Expected a pending canonical append');
+    failAppend(new Error('encrypted audit store unavailable'));
+
+    await expect(publicWrite).rejects.toThrow(
+      'Audit entry could not be saved durably: encrypted audit store unavailable'
+    );
+    await settlement;
+    expect(settled).toBe(true);
+    expect(
+      tauriBridge.invoke.mock.calls.filter(
+        ([command]) => command === 'audit_append'
+      )
+    ).toHaveLength(1);
+
+    app.unmount();
+  });
+
+  it('keeps simultaneous public writes in canonical append order and history', async () => {
+    const app = render(<App />);
+    const firstEntry: AuditWriteEntry = {
+      ...legacyEntry,
+      description: 'First simultaneous public write',
+    };
+    const secondEntry: AuditWriteEntry = {
+      ...legacyEntry,
+      description: 'Second simultaneous public write',
+    };
+
+    const [firstResult, secondResult] = await Promise.all([
+      emitAuditEntry(firstEntry),
+      emitAuditEntry(secondEntry),
+    ]);
+    const rows = persistedRows();
+
+    expect(rows).toHaveLength(2);
+    expect(rows.map((row) => row['id'])).toEqual([
+      firstResult.id,
+      secondResult.id,
+    ]);
+    expect(rows.map((row) => row['description'])).toEqual([
+      firstEntry.description,
+      secondEntry.description,
+    ]);
+    expect(new Set(rows.map((row) => row['id'])).size).toBe(2);
+    for (const row of rows) {
+      expect(row['metadata']).toEqual(
+        expect.objectContaining({ auditPersistenceStatus: 'saved' })
+      );
+    }
+    await waitFor(() => {
+      for (const count of screen.getAllByTestId('live-audit-count')) {
+        expect(count).toHaveTextContent('2');
+      }
+      for (const status of screen.getAllByTestId('live-audit-status')) {
+        expect(status).toHaveTextContent('saved');
+      }
+    });
+
+    app.unmount();
   });
 });
