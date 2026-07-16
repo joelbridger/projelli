@@ -3,18 +3,11 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { setDevFlagOverride } from '@/platform/flags';
 import type { HouseholdRecord } from '@/features/crm-clients';
-import { HouseholdRecordSurface } from '../../HouseholdRecordSurface';
-import {
-  householdTabRegistry,
-  validateHouseholdTabDescriptors,
-  type HouseholdTabSurfaceProps,
-} from '../../tabRegistry';
+import type { HouseholdTabSurfaceProps } from '../../tabRegistry';
 
-const { useLiveCrmRecords } = vi.hoisted(() => ({
-  useLiveCrmRecords: vi.fn(),
+const { memberRailTabMount } = vi.hoisted(() => ({
+  memberRailTabMount: vi.fn(() => null),
 }));
-
-vi.mock('@/platform/crm/useLiveCrmRecords', () => ({ useLiveCrmRecords }));
 
 // This makes the shell test measure this extension alone. The real Client Map
 // tab has its own live reader, which is not part of this presentation-only lane.
@@ -58,28 +51,36 @@ const household: HouseholdRecord = {
 
 afterEach(() => {
   cleanup();
+  vi.doUnmock('./MemberRailTab');
   setDevFlagOverride('record-member-kebab', undefined);
 });
 
 beforeEach(() => {
-  useLiveCrmRecords.mockReset();
+  memberRailTabMount.mockClear();
 });
 
 describe('household member rail extension', () => {
-  it('is absent from the real registry while dark', () => {
+  it('is absent at mount while dark, without mounting member-rail work', async () => {
+    setDevFlagOverride('record-member-kebab', false);
+    vi.resetModules();
+    // The stand-in marks the exact boundary where this extension would begin
+    // reading its member data or running hooks. The registry must prevent this
+    // component from mounting at all while the flag is dark.
+    vi.doMock('./MemberRailTab', () => ({ MemberRailTab: memberRailTabMount }));
+    const { HouseholdRecordSurface } = await import('../../HouseholdRecordSurface');
+    const { householdTabRegistry, validateHouseholdTabDescriptors } = await import(
+      '../../tabRegistry'
+    );
+    const onAdd = vi.fn();
+    const onDraftEmail = vi.fn();
+    const onReviewRecipient = vi.fn();
+
     expect(() => {
       validateHouseholdTabDescriptors(householdTabRegistry);
     }).not.toThrow();
     expect(
       householdTabRegistry.some((descriptor) => descriptor.id === 'household-members')
     ).toBe(false);
-  });
-
-  it('is inert while dark, with no member data load or action side effect', () => {
-    setDevFlagOverride('record-member-kebab', false);
-    const onAdd = vi.fn();
-    const onDraftEmail = vi.fn();
-    const onReviewRecipient = vi.fn();
 
     render(
       <HouseholdRecordSurface
@@ -91,7 +92,7 @@ describe('household member rail extension', () => {
     expect(screen.queryByRole('button', { name: 'Members' })).not.toBeInTheDocument();
     expect(screen.queryByTestId('crm-household-member-rail')).not.toBeInTheDocument();
     expect(screen.queryByTestId('crm-household-member-jordan')).not.toBeInTheDocument();
-    expect(useLiveCrmRecords).not.toHaveBeenCalled();
+    expect(memberRailTabMount).not.toHaveBeenCalled();
     expect(onAdd).not.toHaveBeenCalled();
     expect(onDraftEmail).not.toHaveBeenCalled();
     expect(onReviewRecipient).not.toHaveBeenCalled();
