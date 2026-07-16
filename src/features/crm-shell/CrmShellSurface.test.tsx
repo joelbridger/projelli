@@ -1,15 +1,25 @@
 import '@/i18n';
 import { fireEvent, render, screen } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { crmHomeSurfaceRegistry } from '@/features/crm-home';
 import { CrmShellSurface } from './CrmShellSurface';
 import { getCrmShellRailDestinations } from './crmHomeRegistryAdapter';
+import type { CrmShellRuntime } from './runtime';
 
 let crmShellEnabled = false;
 
 vi.mock('@/platform/flags', () => ({
   useFlag: () => crmShellEnabled,
 }));
+
+function runtimeWithLegacy(
+  legacyHome: () => ReactNode
+): CrmShellRuntime {
+  return {
+    legacy: { home: legacyHome },
+  };
+}
 
 describe('CrmShellSurface', () => {
   it('uses the CRM Home public registry for every rail destination and its order', () => {
@@ -25,24 +35,29 @@ describe('CrmShellSurface', () => {
     expect(getCrmShellRailDestinations()).toEqual(expected);
   });
 
-  it('is inert while its flag is off, before CRM frame content can mount', () => {
+  it('keeps the legacy CRM renderer intact while the v1 flag is off', () => {
     crmShellEnabled = false;
-    render(<CrmShellSurface />);
+    const legacyHome = vi.fn(() => <div data-testid="legacy-crm-home" />);
 
+    render(<CrmShellSurface runtime={runtimeWithLegacy(legacyHome)} />);
+
+    expect(screen.getByTestId('legacy-crm-home')).toBeInTheDocument();
     expect(screen.queryByTestId('crm-shell-frame')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('crm-shell-content')).not.toBeInTheDocument();
+    expect(legacyHome).toHaveBeenCalledOnce();
   });
 
-  it('renders registry-backed navigation and switches the frame selection', () => {
+  it('renders registry-backed navigation and resolves the selected destination', async () => {
     crmShellEnabled = true;
     const destinations = getCrmShellRailDestinations();
     const first = destinations[0];
     const next = destinations[1];
     if (!first || !next) throw new Error('Expected CRM rail destinations');
 
-    render(<CrmShellSurface />);
+    render(
+      <CrmShellSurface runtime={runtimeWithLegacy(() => <div />)} />
+    );
 
-    expect(screen.getByTestId('crm-shell-frame')).toBeInTheDocument();
+    expect(await screen.findByTestId('crm-shell-frame')).toBeInTheDocument();
     expect(
       screen
         .getByRole('navigation', { name: 'CRM navigation' })

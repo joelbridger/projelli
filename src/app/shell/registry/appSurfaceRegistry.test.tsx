@@ -29,7 +29,7 @@ function descriptor(
 describe('appSurfaceRegistry', () => {
   it('is the complete source for current routing and primary navigation', () => {
     const descriptors = getAppSurfaceDescriptors();
-    expect(appSurfaceRegistry).toHaveLength(14);
+    expect(appSurfaceRegistry).toHaveLength(13);
     expect(descriptors.map(({ id }) => id)).toEqual([
       'home',
       'matters',
@@ -76,15 +76,14 @@ describe('appSurfaceRegistry', () => {
     }).toThrow('labelKey must include a namespace: home');
   });
 
-  it('resolves the appended CRM shell descriptor from its feature package', async () => {
+  it('keeps the existing CRM doorway in the original Home descriptor', async () => {
     const descriptors = await resolveAppSurfaceRegistry();
-    const crm = descriptors.find((descriptor) => descriptor.id === 'crm');
 
-    expect(crm).toMatchObject({
-      id: 'crm',
-      labelKey: 'crm-shell.title',
-      placement: 'primary',
-    });
-    expect(crm?.render({} as never)).toBeTruthy();
+    expect(descriptors.map(({ id }) => id)).not.toContain('crm');
+    expect(getOrderedAppSurfaces('primary').map(({ id }) => id)).toEqual([
+      'home',
+      'matters',
+      'search',
+    ]);
   });
 });

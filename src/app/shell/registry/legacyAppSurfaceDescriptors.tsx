@@ -21,6 +21,7 @@ import type {
   AppSurfacePlacement,
 } from '@/app/shell/registry/types';
 import { LegacyMainPanelSurface } from '@/app/shell/registry/LegacyMainPanelSurface';
+import { CrmShellSurface } from '@/features/crm-shell';
 
 type LegacyDescriptorOptions = {
   id: AppSurfaceId;
@@ -60,7 +61,9 @@ export const legacyHomeSurface = legacySurface({
   order: 10,
   clientContext: 'firm',
   errorLabel: 'Home',
-  render: (runtime) => runtime.legacy.home(),
+  // Home is the existing CRM doorway. Keep its identifier, placement, and
+  // legacy rendering intact while dark; the v1 frame only swaps this body.
+  render: (runtime) => createElement(CrmShellSurface, { runtime }),
 });
 
 export const legacyClientsSurface = legacySurface({
