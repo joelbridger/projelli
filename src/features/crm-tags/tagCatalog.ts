@@ -47,7 +47,7 @@ function nameKey(value: string): string {
 }
 
 function isCanonicalTag(record: LiveCrmRecord): record is CanonicalTagRecord {
-  return record.kind === 'tag' && typeof record.name === 'string';
+  return record.kind === 'tag' && typeof record['name'] === 'string';
 }
 
 function toFirmTag(record: CanonicalTagRecord): FirmTag {
