@@ -53,10 +53,11 @@ const published: WorkflowTemplateRecord = {
 };
 
 function tagStore(): FirmTagStore {
+  const catalog: FirmTagStore['catalog'] = { version: 1, tags: [] };
   return {
-    catalog: { version: 1, tags: [] },
+    catalog,
     errorCode: null,
-    list: vi.fn(() => Promise.resolve({ version: 1, tags: [] })),
+    list: vi.fn(() => Promise.resolve(catalog)),
     create: vi.fn(),
     rename: vi.fn(),
     setColor: vi.fn(),
@@ -104,6 +105,9 @@ describe('workflow filters authoring contribution', () => {
       />
     );
     await screen.findByText(draft.name, { selector: 'button' });
+    await waitFor(() => {
+      expect(dark.list).toHaveBeenCalledTimes(2);
+    });
     const darkHtml = darkView.container.innerHTML;
     const darkListCalls = dark.list.mock.calls.length;
     expect(
@@ -128,6 +132,9 @@ describe('workflow filters authoring contribution', () => {
       />
     );
     await screen.findByText(draft.name, { selector: 'button' });
+    await waitFor(() => {
+      expect(baseline.list).toHaveBeenCalledTimes(2);
+    });
 
     expect(baselineView.container.innerHTML).toBe(darkHtml);
     expect(baseline.list).toHaveBeenCalledTimes(darkListCalls);
