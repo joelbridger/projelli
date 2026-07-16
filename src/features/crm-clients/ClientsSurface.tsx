@@ -29,6 +29,24 @@ function stringValue(value: unknown, fallback: string): string {
   return typeof value === 'string' && value.trim() ? value : fallback;
 }
 
+function latestActivityAt(records: readonly LiveCrmRecord[], matches: (record: LiveCrmRecord) => boolean): string | undefined {
+  let latest: string | undefined;
+  for (const record of records) {
+    if (record.kind !== 'activityEvent' || typeof record['at'] !== 'string' || !matches(record)) continue;
+    if (!latest || record['at'] > latest) latest = record['at'];
+  }
+  return latest;
+}
+
+function activityTargetsPerson(record: LiveCrmRecord, personId: string): boolean {
+  const target = record['targetRef'];
+  return Boolean(target
+    && typeof target === 'object'
+    && !Array.isArray(target)
+    && (target as Record<string, unknown>)['kind'] === 'person'
+    && (target as Record<string, unknown>)['id'] === personId);
+}
+
 function syncState(kind: ReturnType<typeof useLiveCrmRecords>['freshness']['kind']): SyncState {
   if (kind === 'idle') return 'live';
   if (kind === 'live' || kind === 'syncing' || kind === 'offline') return kind;
@@ -218,6 +236,10 @@ function ClientsSurfaceContent({
     primaryAdvisor: household.primaryAdvisor,
     serviceTier: household.serviceTier,
     peopleCount: household.members.length + household.externalParties.length,
+    ...(household.tags ? { tags: household.tags } : {}),
+    ...(latestActivityAt(live.records, (activity) => activity['householdId'] === household.id) ? {
+      lastActivityAt: latestActivityAt(live.records, (activity) => activity['householdId'] === household.id),
+    } : {}),
   }));
   const livePeople = useMemo(() => {
     const seen = new Map<string, CrmPerson>();
@@ -227,11 +249,14 @@ function ClientsSurfaceContent({
         seen.set(person.id, {
           ...person,
           relatedHouseholds: (prior?.relatedHouseholds ?? 0) + 1,
+          ...(latestActivityAt(live.records, (activity) => activityTargetsPerson(activity, person.id)) ? {
+            lastActivityAt: latestActivityAt(live.records, (activity) => activityTargetsPerson(activity, person.id)),
+          } : {}),
         });
       }
     }
     return [...seen.values()];
-  }, [storedHouseholds]);
+  }, [live.records, storedHouseholds]);
   const effectivePeople = people.length ? people : livePeople;
   const selected = selectedId ? findRecord(selectedId) : undefined;
 

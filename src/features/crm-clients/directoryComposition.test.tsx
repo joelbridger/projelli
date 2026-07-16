@@ -5,8 +5,10 @@ import {
   DirectorySurface,
   createDirectoryComposition,
   createDirectoryPreferenceStore,
+  type DirectoryContribution,
+  type DirectoryFeatureQueryDescriptor,
   type DirectoryQueryDescriptor,
-  type DirectoryToolDescriptor,
+  type DirectoryFeatureToolDescriptor,
   type DirectoryViewDescriptor,
 } from '@/features/crm-clients';
 import type { HouseholdDirectoryEntry } from '@/features/crm-clients';
@@ -21,6 +23,7 @@ declare module './directoryRegistry' {
 }
 
 const REACTIVE_SORT_TOOL_LABEL = 'Sort by name';
+const OTHER_FEATURE_TOOL_LABEL = 'Filter by advisor';
 
 const households: readonly HouseholdDirectoryEntry[] = Object.freeze([
   Object.freeze({ id: 'h-c', name: 'Chen household', lifecycle: 'Inactive', primaryAdvisor: 'Avery', serviceTier: 'Standard', peopleCount: 3 }),
@@ -28,7 +31,8 @@ const households: readonly HouseholdDirectoryEntry[] = Object.freeze([
   Object.freeze({ id: 'h-b', name: 'Bishop household', lifecycle: 'Active', primaryAdvisor: 'Avery', serviceTier: 'Standard', peopleCount: 2 }),
 ]);
 
-const BASE_ERA_SURFACE_CHILDREN = ['header', 'div#crm-directory-toolbar', 'span', 'span', 'span'];
+const BASE_ERA_SURFACE_CHILDREN = ['header', 'div#crm-directory-toolbar', 'div', 'span'];
+const BASE_ERA_BOOK_SURFACE_CHILDREN = ['header', 'div#crm-directory-toolbar', 'div#book-view', 'span'];
 const BASE_ERA_DEFAULT_TOOL_MOUNTS = [
   ['crm-directory-view-directory', 'crm-directory-view-book'],
   ['crm-directory-tab-households', 'crm-directory-tab-people'],
@@ -40,7 +44,6 @@ const BASE_ERA_DEFAULT_TOOL_MOUNTS = [
 const BASE_ERA_DEFAULT_VIEW_MOUNTS = [
   ['crm-directory-household-h-c', 'crm-directory-household-h-a', 'crm-directory-household-h-b'],
   [],
-  [],
 ];
 const BASE_ERA_BOOK_TOOL_MOUNTS = [
   ['crm-directory-view-directory', 'crm-directory-view-book'],
@@ -51,8 +54,7 @@ const BASE_ERA_BOOK_TOOL_MOUNTS = [
   [],
 ];
 const BASE_ERA_BOOK_VIEW_MOUNTS = [
-  [],
-  ['book-view', 'book-row-m-a', 'book-row-m-b'],
+  ['book-row-m-a', 'book-row-m-b'],
   [],
 ];
 
@@ -109,7 +111,7 @@ describe('directory composition public seam', () => {
     fireEvent.click(screen.getByTestId('crm-directory-view-book'));
 
     expect(legacyMountShape(surface)).toEqual({
-      surfaceChildren: BASE_ERA_SURFACE_CHILDREN,
+      surfaceChildren: BASE_ERA_BOOK_SURFACE_CHILDREN,
       toolMounts: BASE_ERA_BOOK_TOOL_MOUNTS,
       viewAndRailMounts: BASE_ERA_BOOK_VIEW_MOUNTS,
     });
@@ -123,7 +125,7 @@ describe('directory composition public seam', () => {
       isActive: () => true,
       mount: (context) => <div data-testid="test-feature-view">{context.records.households.length} records</div>,
     };
-    const composition = createDirectoryComposition({ views: [featureView] });
+    const composition = createDirectoryComposition({ namespace: 'test-feature-view', views: [featureView] });
 
     render(<DirectorySurface people={[]} households={households} composition={composition} />);
 
@@ -132,7 +134,7 @@ describe('directory composition public seam', () => {
     expect(screen.getAllByTestId('test-feature-view')).toHaveLength(1);
   });
 
-  it('keeps the legacy view when a registered feature view is inactive', () => {
+  it('leaves the legacy DOM byte-identical when a registered feature view is inactive', () => {
     const inactiveView: DirectoryViewDescriptor<'test-inactive-view'> = {
       id: 'test-inactive-view',
       order: 100,
@@ -140,12 +142,16 @@ describe('directory composition public seam', () => {
       isActive: () => false,
       mount: () => <div data-testid="test-inactive-view" />,
     };
-    const composition = createDirectoryComposition({ views: [inactiveView] });
+    const { unmount } = render(<DirectorySurface people={[]} households={households} />);
+    const legacyHtml = screen.getByTestId('crm-directory-surface').innerHTML;
+    unmount();
+    const composition = createDirectoryComposition({ namespace: 'test-inactive-view', views: [inactiveView] });
 
     render(<DirectorySurface people={[]} households={households} composition={composition} />);
 
     expect(screen.queryByTestId('test-inactive-view')).not.toBeInTheDocument();
     expect(screen.getByTestId('crm-directory-household-h-b')).toBeInTheDocument();
+    expect(screen.getByTestId('crm-directory-surface').innerHTML).toBe(legacyHtml);
   });
 
   it('filters the projection and preserves the reversed surviving source order', () => {
@@ -157,7 +163,7 @@ describe('directory composition public seam', () => {
       isActive: () => true,
       filter,
     };
-    const composition = createDirectoryComposition({ queries: [advisorFilter] });
+    const composition = createDirectoryComposition({ namespace: 'test-advisor-filter', queries: [advisorFilter] });
 
     render(<DirectorySurface people={[]} households={households} composition={composition} />);
 
@@ -180,7 +186,7 @@ describe('directory composition public seam', () => {
       isActive: () => true,
       compare,
     };
-    const composition = createDirectoryComposition({ queries: [nameSort] });
+    const composition = createDirectoryComposition({ namespace: 'test-name-sort', queries: [nameSort] });
 
     render(<DirectorySurface people={[]} households={households} composition={composition} />);
 
@@ -195,20 +201,21 @@ describe('directory composition public seam', () => {
   });
 
   it('re-projects through the public seam when a mounted feature tool changes its state', () => {
-    const sortTool: DirectoryToolDescriptor = {
+    const sortTool: DirectoryFeatureToolDescriptor<'name-ascending'> = {
       id: 'test-reactive-sort-tool',
       order: 100,
       mount: (context) => <button data-testid="test-reactive-sort" onClick={() => {
-        context.featureState.set('test-reactive-sort', 'name-ascending');
+        context.featureState.set('name-ascending');
       }}>{REACTIVE_SORT_TOOL_LABEL}</button>,
     };
-    const nameSort: DirectoryQueryDescriptor<'test-reactive-sort'> = {
+    const nameSort: DirectoryFeatureQueryDescriptor<'name-ascending'> = {
       id: 'test-reactive-sort',
       order: 10,
-      isActive: (context) => context.featureState.get('test-reactive-sort') === 'name-ascending',
+      isActive: (context) => context.featureState.get() === 'name-ascending',
       compare: (left, right) => left.record.name.localeCompare(right.record.name),
     };
     const composition = createDirectoryComposition({
+      namespace: 'test-reactive-sort',
       tools: [sortTool],
       queries: [nameSort],
     });
@@ -228,49 +235,76 @@ describe('directory composition public seam', () => {
     ]);
   });
 
-  it('keeps feature state namespaces isolated', () => {
-    const sortTool: DirectoryToolDescriptor = {
+  it('gives each contributed feature an independent state port', () => {
+    const sortTool: DirectoryFeatureToolDescriptor<'name-ascending'> = {
       id: 'test-reactive-sort-tool',
       order: 100,
       mount: (context) => <button data-testid="test-reactive-sort" onClick={() => {
-        context.featureState.set('test-reactive-sort', 'name-ascending');
+        context.featureState.set('name-ascending');
       }}>{REACTIVE_SORT_TOOL_LABEL}</button>,
     };
-    type QueryCompare = NonNullable<DirectoryQueryDescriptor['compare']>;
+    const otherTool: DirectoryFeatureToolDescriptor<'advisor-only'> = {
+      id: 'test-other-feature-tool',
+      order: 101,
+      mount: (context) => <button data-testid="test-other-feature" onClick={() => {
+        context.featureState.set('advisor-only');
+      }}>{OTHER_FEATURE_TOOL_LABEL}</button>,
+    };
+    type QueryCompare = NonNullable<DirectoryFeatureQueryDescriptor<'name-ascending'>['compare']>;
     const ownNamespaceSort = vi.fn((
-      left: Parameters<QueryCompare>[0],
-      right: Parameters<QueryCompare>[1],
-    ) => left.record.name.localeCompare(right.record.name));
+      _left: Parameters<QueryCompare>[0],
+      _right: Parameters<QueryCompare>[1],
+    ) => 0);
     const otherNamespaceSort = vi.fn(() => 0);
-    const composition = createDirectoryComposition({
+    const sortContribution = {
+      namespace: 'test-reactive-sort',
       tools: [sortTool],
       queries: [
         {
           id: 'test-reactive-sort',
           order: 10,
-          isActive: (context) => context.featureState.get('test-reactive-sort') === 'name-ascending',
+          isActive: (context) => context.featureState.get() === 'name-ascending',
           compare: ownNamespaceSort,
         },
+      ],
+    } satisfies DirectoryContribution<'name-ascending'>;
+    const otherContribution = {
+      namespace: 'test-other-feature',
+      tools: [otherTool],
+      queries: [
         {
           id: 'test-other-feature',
           order: 20,
-          isActive: (context) => context.featureState.get('test-other-feature') === 'name-ascending',
+          isActive: (context) => context.featureState.get() === 'advisor-only',
           compare: otherNamespaceSort,
         },
       ],
-    });
+    } satisfies DirectoryContribution<'advisor-only'>;
+    const proveCrossReadIsInexpressible = (
+      port: Parameters<DirectoryFeatureToolDescriptor<'name-ascending'>['mount']>[0]['featureState'],
+    ) => {
+      // @ts-expect-error A feature port has no namespace argument, so a cross-read is inexpressible.
+      port.get('test-other-feature');
+    };
+    void proveCrossReadIsInexpressible;
+    const composition = createDirectoryComposition(sortContribution, otherContribution);
 
     render(<DirectorySurface people={[]} households={households} composition={composition} />);
     fireEvent.click(screen.getByTestId('test-reactive-sort'));
+    fireEvent.click(screen.getByTestId('test-other-feature'));
 
     expect(ownNamespaceSort).toHaveBeenCalled();
-    expect(otherNamespaceSort).not.toHaveBeenCalled();
+    expect(otherNamespaceSort).toHaveBeenCalled();
+    expect(() => createDirectoryComposition(sortContribution, { ...otherContribution, namespace: 'test-reactive-sort' }))
+      .toThrow('duplicate feature namespace: test-reactive-sort');
   });
 
   it('passes timestamp fields through directory projections when they are present', () => {
     const timestamps = vi.fn();
+    const firstHousehold = households[0];
+    if (!firstHousehold) throw new Error('Expected timestamp fixture household');
     const timestampedHouseholds: readonly HouseholdDirectoryEntry[] = [{
-      ...households[0],
+      ...firstHousehold,
       createdAt: '2026-07-10T00:00:00.000Z',
       updatedAt: '2026-07-11T00:00:00.000Z',
     }];
@@ -283,7 +317,7 @@ describe('directory composition public seam', () => {
         return true;
       },
     };
-    const composition = createDirectoryComposition({ queries: [timestampProbe] });
+    const composition = createDirectoryComposition({ namespace: 'test-timestamp-probe', queries: [timestampProbe] });
 
     render(<DirectorySurface people={[]} households={timestampedHouseholds} composition={composition} />);
 
@@ -338,7 +372,7 @@ describe('directory composition public seam', () => {
       filter,
       compare,
     };
-    const composition = createDirectoryComposition({ queries: [mutationAttempt] });
+    const composition = createDirectoryComposition({ namespace: 'test-mutation-attempt', queries: [mutationAttempt] });
 
     render(<DirectorySurface people={[]} households={mutableRecords} composition={composition} />);
 

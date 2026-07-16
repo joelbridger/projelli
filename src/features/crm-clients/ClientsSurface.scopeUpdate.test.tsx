@@ -93,7 +93,7 @@ describe('ClientsSurface during a CRM search update', () => {
     expect(screen.getByText('Abernathy Household')).toBeInTheDocument();
   });
 
-  it('maps canonical live-record timestamps into household and person directory projections', () => {
+  it('maps canonical live-record projection fields into household and person directory projections', () => {
     liveCrm.records = [{
       id: 'household-timestamps-1',
       kind: 'household',
@@ -101,6 +101,7 @@ describe('ClientsSurface during a CRM search update', () => {
       name: 'Abernathy Household',
       createdAt: '2026-07-10T00:00:00.000Z',
       updatedAt: '2026-07-11T00:00:00.000Z',
+      tags: ['priority'],
       members: [{
         id: 'person-timestamps-1',
         name: 'Avery Abernathy',
@@ -109,7 +110,18 @@ describe('ClientsSurface during a CRM search update', () => {
         relatedHouseholds: 1,
         createdAt: '2026-07-08T00:00:00.000Z',
         updatedAt: '2026-07-09T00:00:00.000Z',
+        tags: ['trusted-contact'],
       }],
+    }, {
+      id: 'activity-household-timestamps-1',
+      kind: 'activityEvent',
+      householdId: 'household-timestamps-1',
+      at: '2026-07-12T00:00:00.000Z',
+    }, {
+      id: 'activity-person-timestamps-1',
+      kind: 'activityEvent',
+      at: '2026-07-13T00:00:00.000Z',
+      targetRef: { kind: 'person', id: 'person-timestamps-1' },
     }];
     useMatterStore.setState({ activeMatterId: null, clientMapHubId: null });
     const observed = vi.fn();
@@ -118,22 +130,26 @@ describe('ClientsSurface during a CRM search update', () => {
       order: 10,
       isActive: () => true,
       filter: (result) => {
-        observed(result.kind, result.record.createdAt, result.record.updatedAt);
+        observed(result.kind, result.record.createdAt, result.record.updatedAt, result.record.tags, result.record.lastActivityAt);
         return true;
       },
     };
 
-    render(<ClientsSurface directoryComposition={createDirectoryComposition({ queries: [timestampProbe] })} />);
+    render(<ClientsSurface directoryComposition={createDirectoryComposition({ namespace: 'test-timestamp-probe', queries: [timestampProbe] })} />);
 
     expect(observed).toHaveBeenCalledWith(
       'household',
       '2026-07-10T00:00:00.000Z',
       '2026-07-11T00:00:00.000Z',
+      ['priority'],
+      '2026-07-12T00:00:00.000Z',
     );
     expect(observed).toHaveBeenCalledWith(
       'person',
       '2026-07-08T00:00:00.000Z',
       '2026-07-09T00:00:00.000Z',
+      ['trusted-contact'],
+      '2026-07-13T00:00:00.000Z',
     );
   });
 

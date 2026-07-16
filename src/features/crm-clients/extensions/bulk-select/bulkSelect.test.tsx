@@ -68,7 +68,6 @@ function directoryContext(
       reviewRecipient: vi.fn(),
       createHousehold: vi.fn(),
     },
-    featureState: { get: vi.fn(), set: vi.fn() },
     ...overrides,
   };
 }

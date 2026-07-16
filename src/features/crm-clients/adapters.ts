@@ -59,6 +59,10 @@ export interface CrmPerson {
   /** Optional canonical CRM timestamps; directory projections preserve them when present. */
   createdAt?: string;
   updatedAt?: string;
+  /** Tags are preserved when the canonical person payload supplies them. */
+  tags?: readonly string[];
+  /** Most recent canonical activity directly targeting this person, when available. */
+  lastActivityAt?: string;
   personType: 'person' | 'trust' | 'organization';
   roles: readonly string[];
   householdRole?: string;
@@ -189,6 +193,10 @@ export interface HouseholdDirectoryEntry {
   /** Optional canonical CRM timestamps; directory projections preserve them when present. */
   createdAt?: string;
   updatedAt?: string;
+  /** Tags are preserved from the canonical household record when present. */
+  tags?: readonly string[];
+  /** Most recent canonical household activity, derived only from activity events. */
+  lastActivityAt?: string;
   lifecycle: string;
   primaryAdvisor: string;
   serviceTier: string;

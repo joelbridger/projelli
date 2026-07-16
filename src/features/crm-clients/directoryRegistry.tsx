@@ -34,9 +34,9 @@ export type DirectoryFeatureStateValue =
  * `compare` callbacks receive the current value. Namespaces never collide,
  * and this channel is deliberately not a global store or event bus.
  */
-export interface DirectoryFeatureState {
-  get(namespace: string): DirectoryFeatureStateValue | undefined;
-  set(namespace: string, value: DirectoryFeatureStateValue): void;
+export interface DirectoryFeatureState<Value extends DirectoryFeatureStateValue = DirectoryFeatureStateValue> {
+  get(): Value | undefined;
+  set(value: Value): void;
 }
 
 type DeepReadonly<T> = T extends (...args: never[]) => unknown
@@ -78,10 +78,12 @@ export interface DirectoryContext {
     reviewRecipient(id: string): void;
     createHousehold(name: string): Promise<void> | void;
   };
-  /** Required transient state channel for feature-owned directory projections. */
-  featureState: DirectoryFeatureState;
   composition: DirectoryComposition;
 }
+
+/** A feature callback receives only its own already-scoped state port. */
+export type DirectoryFeatureContext<Value extends DirectoryFeatureStateValue = DirectoryFeatureStateValue> =
+  DirectoryContext & { featureState: DirectoryFeatureState<Value> };
 
 interface DirectoryDescriptorBase<Id extends string> {
   id: Id;
@@ -96,6 +98,13 @@ export interface DirectoryToolDescriptor extends DirectoryDescriptorBase<Directo
    */
   isEnabled?(): boolean;
 }
+
+export interface DirectoryFeatureToolDescriptor<Value extends DirectoryFeatureStateValue = DirectoryFeatureStateValue> {
+  id: string;
+  order: number;
+  mount(context: DirectoryFeatureContext<Value>): ReactNode;
+  isEnabled?(): boolean;
+}
 export interface DirectoryActionDescriptor extends DirectoryDescriptorBase<DirectoryActionId> {}
 export interface DirectoryRailDescriptor extends DirectoryDescriptorBase<DirectoryRailId> {}
 export interface DirectoryViewDescriptor<Id extends string = DirectoryViewId>
@@ -105,6 +114,15 @@ export interface DirectoryViewDescriptor<Id extends string = DirectoryViewId>
   /** Active feature views may explicitly replace active legacy or feature views. */
   replaces?: readonly string[];
   /** The one safe view used when no descriptor is active. */
+  fallback?: boolean;
+}
+
+export interface DirectoryFeatureViewDescriptor<Value extends DirectoryFeatureStateValue = DirectoryFeatureStateValue> {
+  id: string;
+  order: number;
+  mount(context: DirectoryFeatureContext<Value>): ReactNode;
+  isActive(context: DirectoryFeatureContext<Value>): boolean;
+  replaces?: readonly string[];
   fallback?: boolean;
 }
 
@@ -120,10 +138,20 @@ export interface DirectoryQueryDescriptor<Id extends string = DirectoryQueryId> 
   compare?(left: DirectoryResult, right: DirectoryResult, context: DirectoryContext): number;
 }
 
-export interface DirectoryContribution {
-  tools?: readonly DirectoryToolDescriptor[];
-  views?: readonly DirectoryViewDescriptor<string>[];
-  queries?: readonly DirectoryQueryDescriptor<string>[];
+export interface DirectoryFeatureQueryDescriptor<Value extends DirectoryFeatureStateValue = DirectoryFeatureStateValue> {
+  id: string;
+  order: number;
+  isActive(context: DirectoryFeatureContext<Value>): boolean;
+  filter?(result: DirectoryResult, context: DirectoryFeatureContext<Value>): boolean;
+  compare?(left: DirectoryResult, right: DirectoryResult, context: DirectoryFeatureContext<Value>): number;
+}
+
+export interface DirectoryContribution<Value extends DirectoryFeatureStateValue = DirectoryFeatureStateValue> {
+  /** Unique ownership key for this feature's local, non-persistent state slot. */
+  namespace: string;
+  tools?: readonly DirectoryFeatureToolDescriptor<Value>[];
+  views?: readonly DirectoryFeatureViewDescriptor<Value>[];
+  queries?: readonly DirectoryFeatureQueryDescriptor<Value>[];
 }
 
 export interface DirectoryComposition {
@@ -234,21 +262,73 @@ export const getDirectoryRails = () =>
 export const getDirectoryViews = () =>
   sorted(directoryViewRegistry, validateDirectoryViewDescriptors);
 
+const featureStatePortFactory = Symbol('directory feature state port factory');
+type DirectoryHostContext = DirectoryContext & {
+  readonly [featureStatePortFactory]?: <Value extends DirectoryFeatureStateValue>(namespace: string) => DirectoryFeatureState<Value>;
+};
+
+export function withDirectoryFeatureStatePort<Value extends DirectoryFeatureStateValue>(
+  context: DirectoryContext,
+  namespace: string,
+): DirectoryFeatureContext<Value> {
+  const factory = (context as DirectoryHostContext)[featureStatePortFactory];
+  if (!factory) throw new Error('[directoryComposition] feature state port is unavailable outside DirectorySurface');
+  return { ...context, featureState: factory<Value>(namespace) };
+}
+
+export function createDirectoryContextWithFeatureStatePorts(
+  context: DirectoryContext,
+  factory: NonNullable<DirectoryHostContext[typeof featureStatePortFactory]>,
+): DirectoryContext {
+  return { ...context, [featureStatePortFactory]: factory } as DirectoryHostContext;
+}
+
+function bindContribution<Value extends DirectoryFeatureStateValue>(contribution: DirectoryContribution<Value>) {
+  const scoped = (context: DirectoryContext) =>
+    withDirectoryFeatureStatePort<Value>(context, contribution.namespace);
+  return {
+    tools: (contribution.tools ?? []).map((descriptor): DirectoryToolDescriptor => ({
+      ...descriptor,
+      mount: (context) => descriptor.mount(scoped(context)),
+    })),
+    views: (contribution.views ?? []).map((descriptor): DirectoryViewDescriptor<string> => ({
+      ...descriptor,
+      isActive: (context) => descriptor.isActive(scoped(context)),
+      mount: (context) => descriptor.mount(scoped(context)),
+    })),
+    queries: (contribution.queries ?? []).map((descriptor): DirectoryQueryDescriptor<string> => ({
+      ...descriptor,
+      isActive: (context) => descriptor.isActive(scoped(context)),
+      ...(descriptor.filter ? { filter: (result, context) => descriptor.filter?.(result, scoped(context)) ?? true } : {}),
+      ...(descriptor.compare ? { compare: (left, right, context) => descriptor.compare?.(left, right, scoped(context)) ?? 0 } : {}),
+    })),
+  };
+}
+
 /** Builds a complete directory configuration without mutating the shared registries. */
 export function createDirectoryComposition(
   ...contributions: readonly DirectoryContribution[]
 ): DirectoryComposition {
+  const namespaces = new Set<string>();
+  for (const contribution of contributions) {
+    if (!contribution.namespace.trim()) throw new Error('[directoryComposition] feature namespace is required');
+    if (namespaces.has(contribution.namespace)) {
+      throw new Error(`[directoryComposition] duplicate feature namespace: ${contribution.namespace}`);
+    }
+    namespaces.add(contribution.namespace);
+  }
+  const bound = contributions.map((contribution) => bindContribution(contribution));
   const tools = [
     ...directoryToolRegistry,
-    ...contributions.flatMap((contribution) => contribution.tools ?? []),
+    ...bound.flatMap((contribution) => contribution.tools),
   ];
   const views = [
     ...directoryViewRegistry,
-    ...contributions.flatMap((contribution) => contribution.views ?? []),
+    ...bound.flatMap((contribution) => contribution.views),
   ];
   const queries = [
     ...directoryQueryRegistry,
-    ...contributions.flatMap((contribution) => contribution.queries ?? []),
+    ...bound.flatMap((contribution) => contribution.queries),
   ];
   validateDirectoryToolDescriptors(tools);
   validateDirectoryViewDescriptors(views);
