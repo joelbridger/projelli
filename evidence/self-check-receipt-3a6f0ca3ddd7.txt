@@ -1,0 +1,19 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/v1-w2-schwab-prefill
+sha: 3a6f0ca3ddd7d7d71fddbf997dcf22ffe449f5d8
+tree: 963b058ba901001920433682696235d92ce2777e
+gate_base: 19d016a6c80bd6a7125e3ab9a352de3122766900
+tool_blob: 2a8a0211c0565e6bbcb39b6891e5d0839375074a
+utc: 2026-07-16T08:10:49Z
+step_timeout_seconds: 300
+loadavg: 5.19 9.93 12.81
+running_vitest_eslint_procs: 1
+step: gate:changed | status=INCONCLUSIVE-UNDER-LOAD | exit=124 | 08:10:49Z..08:15:49Z | bytes=10065 | sha256=8aa3984c81446358174e1bb0db310ae328f271af9c09ec39e62748ec65c89f73 | tail: anvas npm package Not implemented: HTMLMediaElement's pause() method Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package Not implemented: HTMLMediaElement's pause() method 
+step: typecheck | status=PASS | exit=0 | 08:15:49Z..08:16:48Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit 
+step: typecheck:tests | status=PASS | exit=0 | 08:16:48Z..08:17:59Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit 
+step: handle-guard | status=PASS | exit=0 | 08:17:59Z..08:17:59Z | bytes=1267 | sha256=9eaab854c17cfdd8ec5b7d801a6b5a6f93e71502438bfe42d9a26e4fa26e7b33 | tail: t-picker-cancel + client-picker-clear + client-picker-empty + client-picker-error +162 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen). 
+step: arch-dag-guard | status=PASS | exit=0 | 08:17:59Z..08:18:02Z | bytes=220 | sha256=12c975ef14d418109a7deed5e35c30ce860845377de2e4f229a8c1b737ff4a87 | tail:  RUN v4.1.3 /home/jameson/v1-w2-schwab-prefill Test Files 1 passed (1) Tests 1 passed (1) Start at 08:18:00 Duration 2.10s (transform 597ms, setup 863ms, import 542ms, tests 5ms, environment 518ms) 
+step: i18n-snapshot | status=PASS | exit=0 | 08:18:02Z..08:18:05Z | bytes=221 | sha256=8d3b8706a183d8d258702df46ad33f8d5028e162789093a4dc9f688d0e1d7f5d | tail:  RUN v4.1.3 /home/jameson/v1-w2-schwab-prefill Test Files 1 passed (1) Tests 5 passed (5) Start at 08:18:03 Duration 2.43s (transform 707ms, setup 955ms, import 518ms, tests 56ms, environment 660ms) 
+step: focused | status=PASS | exit=0 | 08:18:05Z..08:18:13Z | bytes=224 | sha256=d363e452c1442d2b91cfb27a462c8d7615e3a69da8ee27a5236746078ad848c4 | tail: N v4.1.3 /home/jameson/v1-w2-schwab-prefill Test Files 5 passed (5) Tests 14 passed (14) Start at 08:18:06 Duration 7.57s (transform 7.47s, setup 4.64s, import 3.90s, tests 6.45s, environment 3.71s) 
+overall: INCONCLUSIVE
