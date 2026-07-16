@@ -1,9 +1,10 @@
 import { createDirectoryPreferenceStore } from '@/features/crm-clients';
 
 export interface AdvisorFilterPreference {
-  primaryAdvisor: string | null;
-  serviceTier: string | null;
-  lifecycle: string | null;
+  readonly [key: string]: string | null;
+  readonly primaryAdvisor: string | null;
+  readonly serviceTier: string | null;
+  readonly lifecycle: string | null;
 }
 
 export const EMPTY_ADVISOR_FILTERS: AdvisorFilterPreference = Object.freeze({

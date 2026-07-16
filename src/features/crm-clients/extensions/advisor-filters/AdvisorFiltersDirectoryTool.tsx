@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   projectDirectoryResults,
@@ -13,7 +13,7 @@ import {
   advisorFilterPreferences,
 } from './filterState';
 
-type FilterKey = keyof AdvisorFilterPreference;
+type FilterKey = 'primaryAdvisor' | 'serviceTier' | 'lifecycle';
 
 function uniqueValues(values: readonly string[]): readonly string[] {
   return [...new Set(values.filter(Boolean))].sort((left, right) =>
@@ -42,7 +42,7 @@ function AdvisorFiltersDirectoryToolEnabled({
     context,
   );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (initializedStatePort.current) return;
     initializedStatePort.current = true;
     context.featureState.set(filters);

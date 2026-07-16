@@ -150,6 +150,11 @@ describe('CRM advisor-field directory filters', () => {
 
     firstSession.unmount();
     render(<DirectorySurface people={[]} households={households} composition={composition} />);
+
+    expect(screen.getAllByTestId(/^crm-directory-household-/).map((row) => row.dataset['testid'])).toEqual([
+      'crm-directory-household-avery-private',
+      'crm-directory-household-avery-standard',
+    ]);
     fireEvent.click(screen.getByTestId('crm-directory-advisor-filters-toggle'));
 
     expect(
