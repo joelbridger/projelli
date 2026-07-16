@@ -153,7 +153,13 @@ describe('CRM contact table directory contribution', () => {
 
   it('hands the deliberately partial WB-009 action only to createHousehold', () => {
     setDevFlagOverride('crm-contact-table', true);
-    const createHousehold = vi.fn();
+    let resolveCreate = () => {};
+    const createHousehold = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveCreate = resolve;
+        })
+    );
     render(
       <DirectorySurface
         people={people}
@@ -171,7 +177,10 @@ describe('CRM contact table directory contribution', () => {
       target: { value: 'New household' },
     });
     fireEvent.click(screen.getByTestId('crm-contact-table-household-save'));
+    fireEvent.click(screen.getByTestId('crm-contact-table-household-save'));
     expect(createHousehold).toHaveBeenCalledWith('New household');
+    expect(createHousehold).toHaveBeenCalledTimes(1);
+    resolveCreate();
     // WB-009: PARTIAL — household creation only via createHousehold; WB-010 pending.
   });
 
@@ -221,6 +230,19 @@ describe('CRM contact table directory contribution', () => {
     fireEvent.click(screen.getByTestId('crm-directory-external'));
     expect(screen.queryByTestId('crm-contact-table-person-p-chen')).not.toBeInTheDocument();
     expect(screen.getByTestId('crm-contact-table-person-p-lee')).toBeInTheDocument();
+  });
+
+  it('honors the existing Households and People toolbar toggle', () => {
+    setDevFlagOverride('crm-contact-table', true);
+    render(<DirectorySurface people={people} households={households} composition={composition} />);
+
+    fireEvent.click(screen.getByTestId('crm-directory-tab-people'));
+    expect(screen.queryByTestId('crm-contact-table-household-h-chen')).not.toBeInTheDocument();
+    expect(screen.getByTestId('crm-contact-table-person-p-chen')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('crm-directory-tab-households'));
+    expect(screen.getByTestId('crm-contact-table-household-h-chen')).toBeInTheDocument();
+    expect(screen.queryByTestId('crm-contact-table-person-p-chen')).not.toBeInTheDocument();
   });
 
   it('saves its display preference through the directory doorway and reloads it', () => {

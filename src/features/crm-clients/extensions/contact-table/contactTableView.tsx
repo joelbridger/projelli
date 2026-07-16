@@ -60,7 +60,16 @@ function ContactTableView({ context }: { context: DirectoryContext }) {
   const [addingHousehold, setAddingHousehold] = useState(false);
   const [householdName, setHouseholdName] = useState('');
   const [addError, setAddError] = useState<string | null>(null);
+  const [submittingHousehold, setSubmittingHousehold] = useState(false);
+  const [syncedLegacyTab, setSyncedLegacyTab] = useState(context.filters.tab);
   const query = context.query.value.trim().toLowerCase();
+
+  // The legacy toggle remains in the shared toolbar. Keep it meaningful while
+  // preserving the mixed directory as this view's initial presentation.
+  if (syncedLegacyTab !== context.filters.tab) {
+    setSyncedLegacyTab(context.filters.tab);
+    setType(context.filters.tab === 'people' ? 'person' : 'household');
+  }
   const tagNames = useMemo(
     () => new Map(tagStore.catalog.tags.map((tag) => [tag.id, tag.name])),
     [tagStore.catalog.tags]
@@ -109,13 +118,16 @@ function ContactTableView({ context }: { context: DirectoryContext }) {
 
   const addHousehold = () => {
     const name = householdName.trim();
-    if (!name) return;
+    if (!name || submittingHousehold) return;
     setAddError(null);
+    setSubmittingHousehold(true);
     void Promise.resolve(context.repository.createHousehold(name)).then(() => {
       setHouseholdName('');
       setAddingHousehold(false);
     }).catch(() => {
       setAddError(t('contactTable.createFailed'));
+    }).finally(() => {
+      setSubmittingHousehold(false);
     });
   };
 
@@ -183,7 +195,11 @@ function ContactTableView({ context }: { context: DirectoryContext }) {
             placeholder={t('contactTable.householdName')}
             value={householdName}
           />
-          <Button data-testid="crm-contact-table-household-save" type="submit">
+          <Button
+            data-testid="crm-contact-table-household-save"
+            disabled={submittingHousehold}
+            type="submit"
+          >
             {t('contactTable.createHousehold')}
           </Button>
           <Button
