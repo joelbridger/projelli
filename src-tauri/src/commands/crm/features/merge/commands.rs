@@ -752,22 +752,38 @@ mod tests {
         let first = std::path::PathBuf::from("/workspace/first");
         let second = std::path::PathBuf::from("/workspace/second");
         let active = tokio::sync::Mutex::new(Some(first.clone()));
-        let (started_tx, started_rx) = tokio::sync::oneshot::channel();
-        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let rendezvous = std::sync::Arc::new((
+            std::sync::Mutex::new((false, false)),
+            std::sync::Condvar::new(),
+        ));
+        let operation_rendezvous = std::sync::Arc::clone(&rendezvous);
         let operation = run_in_pinned_workspace(&active, first, move |_| {
-            let _ = started_tx.send(());
-            release_rx.recv().unwrap();
+            let (state_mutex, changed) = &*operation_rendezvous;
+            let mut state = state_mutex.lock().unwrap();
+            state.0 = true;
+            changed.notify_all();
+            while !state.1 {
+                state = changed.wait(state).unwrap();
+            }
             Ok(())
         });
         let switch = async {
-            started_rx.await.unwrap();
+            let (state_mutex, changed) = &*rendezvous;
+            let mut state = state_mutex.lock().unwrap();
+            while !state.0 {
+                state = changed.wait(state).unwrap();
+            }
+            drop(state);
             let mut lock = Box::pin(active.lock());
             assert!(
                 tokio::time::timeout(std::time::Duration::from_millis(25), &mut lock)
                     .await
                     .is_err()
             );
-            release_tx.send(()).unwrap();
+            let mut state = state_mutex.lock().unwrap();
+            state.1 = true;
+            changed.notify_all();
+            drop(state);
             *lock.await = Some(second.clone());
         };
         let (operation_result, ()) = tokio::join!(operation, switch);
