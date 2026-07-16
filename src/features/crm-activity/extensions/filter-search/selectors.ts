@@ -3,16 +3,20 @@ import type { TeamActivityItem } from '@/features/crm-activity/team-feed';
 export type ActivityFilterKind = 'all' | 'mentions' | 'discussions' | 'reactions';
 
 export interface ActivityFilterSearchState {
-  readonly [key: string]: string;
+  readonly [key: string]: string | readonly string[];
   readonly query: string;
   readonly kind: ActivityFilterKind;
   readonly authorId: string;
+  readonly permissionStatus: 'pending' | 'ready';
+  readonly permissionVisibleItemIds: readonly string[];
 }
 
 export const defaultActivityFilterSearchState: ActivityFilterSearchState = {
   query: '',
   kind: 'all',
   authorId: '',
+  permissionStatus: 'pending',
+  permissionVisibleItemIds: [],
 };
 
 const filterKinds = new Set<ActivityFilterKind>([
@@ -30,7 +34,30 @@ export function activityFilterSearchState(
     query: value.query,
     kind: filterKinds.has(value.kind) ? value.kind : 'all',
     authorId: value.authorId,
+    permissionStatus: value.permissionStatus === 'ready' ? 'ready' : 'pending',
+    permissionVisibleItemIds: Array.isArray(value.permissionVisibleItemIds)
+      ? value.permissionVisibleItemIds.filter((id): id is string => typeof id === 'string')
+      : [],
   };
+}
+
+export function resetActivityFilterSearchFilters(
+  value: ActivityFilterSearchState | undefined,
+): ActivityFilterSearchState {
+  const current = activityFilterSearchState(value);
+  return {
+    ...defaultActivityFilterSearchState,
+    permissionStatus: current.permissionStatus,
+    permissionVisibleItemIds: current.permissionVisibleItemIds,
+  };
+}
+
+export function permissionAllowsActivityItem(
+  item: TeamActivityItem,
+  state: ActivityFilterSearchState,
+): boolean {
+  return state.permissionStatus === 'ready'
+    && state.permissionVisibleItemIds.includes(item.id);
 }
 
 function searchableText(item: TeamActivityItem): string {

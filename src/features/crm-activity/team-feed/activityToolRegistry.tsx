@@ -50,7 +50,9 @@ export interface ActivityToolComposition {
 }
 
 /** Append feature-owned feed tools here without changing the team-feed surface. */
-export const activityToolRegistry: readonly ActivityToolDescriptor[] = [activityFilterSearchTool as ActivityToolDescriptor];
+export const activityToolRegistry: readonly ActivityToolDescriptor[] = [
+  activityFilterSearchTool,
+];
 
 export function validateActivityToolDescriptors(
   descriptors: readonly ActivityToolDescriptor[],

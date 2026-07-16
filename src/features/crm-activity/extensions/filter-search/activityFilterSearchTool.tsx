@@ -7,13 +7,14 @@ import type {
 import { ActivityFilterSearch, ActivityFilterSearchEmpty } from './ActivityFilterSearch';
 import {
   activityFilterSearchState,
-  defaultActivityFilterSearchState,
   matchesActivityFilterSearch,
+  permissionAllowsActivityItem,
+  resetActivityFilterSearchFilters,
   type ActivityFilterSearchState,
 } from './selectors';
 
 function reset(context: ActivityToolContext<ActivityFilterSearchState>): void {
-  context.state.set(defaultActivityFilterSearchState);
+  context.state.set(resetActivityFilterSearchFilters(context.state.get()));
 }
 
 function hasFilters(context: ActivityToolContext<ActivityFilterSearchState>): boolean {
@@ -27,8 +28,11 @@ export const activityFilterSearchTool = {
   order: 100,
   isEnabled: () => isEnabled('activity-filter-search'),
   mount: (context) => <ActivityFilterSearch context={context} />,
-  filter: (item: TeamActivityItem, context) =>
-    matchesActivityFilterSearch(item, activityFilterSearchState(context.state.get())),
+  filter: (item: TeamActivityItem, context) => {
+    const state = activityFilterSearchState(context.state.get());
+    return permissionAllowsActivityItem(item, state)
+      && matchesActivityFilterSearch(item, state);
+  },
   renderEmptyResult: (context) => <ActivityFilterSearchEmpty
     isFiltered={hasFilters(context)}
     onReset={() => { reset(context); }}

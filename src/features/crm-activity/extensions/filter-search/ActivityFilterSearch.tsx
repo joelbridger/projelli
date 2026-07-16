@@ -1,12 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SearchField } from '@/ui/kp';
 import { ownClientsEnforcementActive } from '@/features/crm-permissions';
 import type { ActivityToolContext } from '@/features/crm-activity/team-feed';
+import { permissionVisibleActivityItemIds } from './activityPermissionMirror';
 import {
   activityAuthors,
   activityFilterSearchState,
-  defaultActivityFilterSearchState,
+  resetActivityFilterSearchFilters,
   type ActivityFilterSearchState,
 } from './selectors';
 
@@ -23,6 +24,8 @@ function setState(
     query: change.query ?? current.query,
     kind: change.kind ?? current.kind,
     authorId: change.authorId ?? current.authorId,
+    permissionStatus: current.permissionStatus,
+    permissionVisibleItemIds: current.permissionVisibleItemIds,
   });
 }
 
@@ -34,19 +37,51 @@ export function ActivityFilterSearch({
 }) {
   const { t } = useTranslation();
   const state = activityFilterSearchState(context.state.get());
-  const [nativeVisibilityActive, setNativeVisibilityActive] = useState(false);
+  const contextRef = useRef(context);
+  const sourceKey = context.sourceItems.map((item) => item.id).join('\u0000');
+
+  useEffect(() => {
+    contextRef.current = context;
+  });
 
   useEffect(() => {
     let current = true;
+    const pendingContext = contextRef.current;
+    const pendingState = activityFilterSearchState(pendingContext.state.get());
+    pendingContext.state.set({
+      ...pendingState,
+      permissionStatus: 'pending',
+      permissionVisibleItemIds: [],
+    });
     void ownClientsEnforcementActive().then((active) => {
-      if (current) setNativeVisibilityActive(active);
+      if (!current) return;
+      const latestContext = contextRef.current;
+      const latestState = activityFilterSearchState(latestContext.state.get());
+      latestContext.state.set({
+        ...latestState,
+        permissionStatus: 'ready',
+        permissionVisibleItemIds: permissionVisibleActivityItemIds(
+          latestContext.sourceItems,
+          active,
+        ),
+      });
     }).catch(() => {
-      if (current) setNativeVisibilityActive(false);
+      if (!current) return;
+      const latestContext = contextRef.current;
+      const latestState = activityFilterSearchState(latestContext.state.get());
+      latestContext.state.set({
+        ...latestState,
+        permissionStatus: 'ready',
+        permissionVisibleItemIds: [],
+      });
     });
     return () => { current = false; };
-  }, []);
+  }, [sourceKey]);
 
-  const authors = activityAuthors(context.sourceItems);
+  const permittedIds = new Set(state.permissionVisibleItemIds);
+  const authors = activityAuthors(
+    context.sourceItems.filter((item) => permittedIds.has(item.id)),
+  );
   return <div data-testid="activity-filter-search" style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--kp-space-sm)', alignItems: 'center' }}>
     <SearchField
       data-testid="activity-filter-search-input"
@@ -83,9 +118,8 @@ export function ActivityFilterSearch({
       type="button"
       className="kp-button kp-button--ghost kp-button--sm"
       data-testid="activity-filter-search-reset"
-      onClick={() => { context.state.set(defaultActivityFilterSearchState); }}
+      onClick={() => { context.state.set(resetActivityFilterSearchFilters(context.state.get())); }}
     >{t('activity-filter-search.reset')}</button> : null}
-    {nativeVisibilityActive ? <span data-testid="activity-filter-search-native-visibility" hidden /> : null}
   </div>;
 }
 
