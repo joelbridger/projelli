@@ -1,0 +1,14 @@
+{
+  "calendar-grid": {
+    "title": "Kalender",
+    "description": "Ihre lokalen Kalendertermine",
+    "view-label": "Kalenderansicht",
+    "views": { "month": "Monat", "week": "Woche", "day": "Tag" },
+    "empty": "Keine Termine in diesem Zeitraum.",
+    "rail-label": "Ausgewählter Kalendertermin",
+    "rail-title": "Termindetails",
+    "rail-empty": "Wählen Sie einen Termin aus, um Details zu sehen.",
+    "calendar": "Kalender: {{calendarId}}",
+    "status": { "scheduled": "Geplant", "cancelled": "Abgesagt" }
+  }
+}

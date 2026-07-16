@@ -1,0 +1,14 @@
+{
+  "calendar-grid": {
+    "title": "Calendario",
+    "description": "Tus eventos del calendario local",
+    "view-label": "Vista de calendario",
+    "views": { "month": "Mes", "week": "Semana", "day": "Día" },
+    "empty": "No hay eventos en este intervalo.",
+    "rail-label": "Evento de calendario seleccionado",
+    "rail-title": "Detalles del evento",
+    "rail-empty": "Selecciona un evento para ver sus detalles.",
+    "calendar": "Calendario: {{calendarId}}",
+    "status": { "scheduled": "Programado", "cancelled": "Cancelado" }
+  }
+}

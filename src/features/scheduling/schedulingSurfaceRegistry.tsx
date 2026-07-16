@@ -1,5 +1,6 @@
 import { createElement, type ReactNode } from 'react';
 import type { SchedulingSurfaceDescriptor, SchedulingSurfaceRuntime } from '@/platform/calendar';
+import { calendarGridSchedulingSurface } from '@/features/calendar-grid';
 import { legacySchedulingSurface } from './schedulingSurfaceCompatibility';
 
 /**
@@ -8,6 +9,7 @@ import { legacySchedulingSurface } from './schedulingSurfaceCompatibility';
  */
 export const schedulingSurfaceRegistry: readonly SchedulingSurfaceDescriptor[] = [
   legacySchedulingSurface,
+  calendarGridSchedulingSurface,
 ];
 
 export function validateSchedulingSurfaceDescriptors(
