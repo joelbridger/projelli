@@ -167,6 +167,26 @@ describe('WorkflowAuthoringRuleMount', () => {
     expect(
       await screen.findByText('Annual review', { selector: 'button' })
     ).toBeInTheDocument();
+    fireEvent.change(screen.getByTestId('workflow-authoring-title'), {
+      target: { value: 'Unsaved local name' },
+    });
+    view.rerender(
+      <CrmHomeSurfaceContext.Provider
+        value={context('Annual review', '2026-07-16T10:30:00Z')}
+      >
+        <WorkflowAuthoringRuleMount
+          templateId="template:one"
+          createStore={createStore}
+          createTagStore={tags}
+        />
+      </CrmHomeSurfaceContext.Provider>
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId('workflow-authoring-title')).toHaveValue(
+        'Unsaved local name'
+      );
+    });
+
     listed = [template('Updated annual review')];
     view.rerender(
       <CrmHomeSurfaceContext.Provider

@@ -1,4 +1,4 @@
-import { useContext, useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CrmHomeSurfaceContext } from '@/features/crm-home';
 import { useFirmTagStore, type FirmTagStore } from '@/features/crm-tags';
@@ -18,6 +18,20 @@ const panel = {
 } as const;
 
 type StoreFactory = () => WorkflowTemplateStore;
+
+function templateListKey(
+  templates: readonly WorkflowTemplateRecord[]
+): string {
+  return JSON.stringify(
+    templates.map((template) => ({
+      id: template.id,
+      name: template.name,
+      status: template.status,
+      tagIds: template.tagIds,
+      steps: template.steps,
+    }))
+  );
+}
 
 /** Registered outer gate: do not create a data hook or adapter while dark. */
 export function WorkflowAuthoringRuleMount({
@@ -52,22 +66,6 @@ function EnabledWorkflowAuthoring({
   const store = createStore();
   const tagStore = createTagStore();
   const crmHome = useContext(CrmHomeSurfaceContext);
-  const workflowSnapshotKey = crmHome?.workflowData?.templates
-    .map(
-      (template) =>
-        `${template.id}:${template.updatedAt ?? ''}:${template.status ?? ''}:${template.name}:${template.steps
-          .map(
-            (step) =>
-              `${step.id}:${step.title}:${step.tagIds.join(',')}`
-          )
-          .join(';')}`
-    )
-    .join('|') ?? '';
-  const refreshKey = `${templateId}:${workflowSnapshotKey}:${tagStore.catalog.tags
-    .map((tag) => `${tag.id}:${tag.status}:${tag.name}`)
-    .join('|')}`;
-  const lastLoadedKey = useRef<string | null>(null);
-  const lastWorkflowSnapshot = useRef(crmHome?.workflowData);
   const [templates, setTemplates] = useState<
     readonly WorkflowTemplateRecord[]
   >([]);
@@ -90,23 +88,19 @@ function EnabledWorkflowAuthoring({
   };
 
   useEffect(() => {
-    if (
-      lastLoadedKey.current === refreshKey &&
-      lastWorkflowSnapshot.current === crmHome?.workflowData
-    ) {
-      return;
-    }
-    lastLoadedKey.current = refreshKey;
-    lastWorkflowSnapshot.current = crmHome?.workflowData;
     let mounted = true;
     queueMicrotask(() => {
       void store
         .list()
         .then((nextTemplates) => {
           if (!mounted) return;
+          if (templateListKey(nextTemplates) === templateListKey(templates)) {
+            return;
+          }
           setTemplates(nextTemplates);
           const next =
             nextTemplates.find((template) => template.id === selectedId) ??
+            nextTemplates.find((template) => template.id === templateId) ??
             nextTemplates[0] ??
             null;
           if (next) {
