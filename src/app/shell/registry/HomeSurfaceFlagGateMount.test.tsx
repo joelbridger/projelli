@@ -5,16 +5,24 @@ import {
   getAppSurfaceDescriptor,
 } from '@/app/shell/registry/appSurfaceRegistry';
 import type { AppSurfaceRuntime } from '@/app/shell/runtime/AppSurfaceRuntime';
+import type { PlatformFlagsMockState } from '@/testing/platform-flags';
+
+const { mockPlatformFlags, resetPlatformFlagsOverrides, setPlatformFlagsOverrides } =
+  await vi.hoisted(async () => import('@/testing/platform-flags'));
 
 // Coordinator-authorized shared-shell integration proof: it exercises the
 // existing descriptor swap without reaching into Home implementation files.
-const { useFlagMock } = vi.hoisted(() => ({
-  useFlagMock: vi.fn<() => boolean>(),
-}));
+const { flagsMock, useFlagMock } = vi.hoisted(() => {
+  const useFlagMock = vi.fn<() => boolean>();
+  return {
+    flagsMock: { overrides: { useFlag: useFlagMock } } as PlatformFlagsMockState,
+    useFlagMock,
+  };
+});
 
-vi.mock('@/platform/flags', () => ({
-  useFlag: useFlagMock,
-}));
+vi.mock('@/platform/flags', async (importOriginal) =>
+  mockPlatformFlags(importOriginal, flagsMock)
+);
 
 function runtimeWithLegacy(
   legacyHome: () => ReactNode
@@ -36,6 +44,8 @@ function homeDescriptor() {
 describe('existing Home surface descriptor', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetPlatformFlagsOverrides(flagsMock);
+    setPlatformFlagsOverrides(flagsMock, { useFlag: useFlagMock });
   });
 
   it('keeps the unchanged legacy Home reachable when home-surface-v1 is off', () => {

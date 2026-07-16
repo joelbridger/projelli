@@ -9,6 +9,7 @@ const require = createRequire(import.meta.url);
 const lanternI18n = require('./packages/eslint-plugin-lantern-i18n/src/index.js');
 const lanternAsync = require('./packages/eslint-plugin-lantern-async/src/index.js');
 const lanternEgress = require('./packages/eslint-plugin-lantern-egress/src/index.js');
+const lanternTestHygiene = require('./packages/eslint-plugin-lantern-test-hygiene/src/index.js');
 
 // Env-gated severity: warn locally so devs see the signal without blocking
 // every save, but error in CI so a hardcoded string can't sneak into main.
@@ -130,6 +131,17 @@ export default tseslint.config(
         project: ['./tsconfig.test.json'],
         tsconfigRootDir: import.meta.dirname,
       },
+    },
+  },
+  // Test mocks must preserve unknown future public exports. This applies to
+  // both source-adjacent tests and top-level test files.
+  {
+    files: ['src/**/*.{test,spec}.{ts,tsx}', 'tests/**/*.{test,spec}.{ts,tsx}'],
+    plugins: {
+      'lantern-test-hygiene': lanternTestHygiene,
+    },
+    rules: {
+      'lantern-test-hygiene/require-open-world-platform-flags-mock': 'error',
     },
   }
 );

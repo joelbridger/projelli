@@ -1,0 +1,17 @@
+{
+  "name": "eslint-plugin-lantern-test-hygiene",
+  "version": "0.1.0",
+  "description": "Custom ESLint rules that keep Lantern test mocks safe as public modules grow.",
+  "license": "MIT",
+  "private": true,
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "src"
+  ],
+  "peerDependencies": {
+    "eslint": ">=8.0.0"
+  }
+}

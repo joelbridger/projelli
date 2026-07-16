@@ -4,14 +4,23 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CrmHouseholdAddRequest } from '@/features/crm-home/routes';
 import type { CrmTask } from '@/features/crm-home/types';
 import { Tasks } from './Tasks';
+import type { PlatformFlagsMockState } from '@/testing/platform-flags';
+
+const { mockPlatformFlags, resetPlatformFlagsOverrides, setPlatformFlagsOverrides } =
+  await vi.hoisted(async () => import('@/testing/platform-flags'));
 
 let templatesEnabled = false;
+const flagsMock = vi.hoisted(() => ({
+  overrides: { useFlag: undefined } as PlatformFlagsMockState['overrides'],
+}));
 const taskCreate = vi.fn();
 const templateList = vi.fn();
 const templateApply = vi.fn();
 const recordSnapshot: readonly unknown[] = [];
 
-vi.mock('@/platform/flags', () => ({ useFlag: () => templatesEnabled }));
+vi.mock('@/platform/flags', async (importOriginal) =>
+  mockPlatformFlags(importOriginal, flagsMock)
+);
 vi.mock('@/features/crm-tags', () => ({
   useFirmTagStore: () => ({
     list: vi.fn().mockResolvedValue({ version: 1, tags: [] }),
@@ -83,6 +92,8 @@ function HandoffHarness({ onConsumed, onUpdateTask, tasks = [] }: { onConsumed: 
 
 describe('Tasks template household handoff', () => {
   beforeEach(() => {
+    resetPlatformFlagsOverrides(flagsMock);
+    setPlatformFlagsOverrides(flagsMock, { useFlag: () => templatesEnabled });
     templatesEnabled = false;
     vi.clearAllMocks();
     templateList.mockResolvedValue([template]);

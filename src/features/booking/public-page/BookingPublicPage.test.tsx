@@ -1,17 +1,27 @@
 import '@/i18n';
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { PlatformFlagsMockState } from '@/testing/platform-flags';
+
+const { mockPlatformFlags, resetPlatformFlagsOverrides, setPlatformFlagsOverrides } =
+  await vi.hoisted(async () => import('@/testing/platform-flags'));
 import { BookingPageSettings } from './BookingPageSettings';
 import { BookingPublicPage, FlaggedBookingPublicPage } from './BookingPublicPage';
 import { createBookingPageAvailabilityStub } from './availability';
 import { createHostedBookingLink } from './hostedLink';
 import { createLocalBookingImageSource, defaultBookingPageBranding, type BookingPageBranding } from './types';
 
-const useFlagMock = vi.hoisted(() => vi.fn<() => boolean>());
+const { flagsMock, useFlagMock } = vi.hoisted(() => {
+  const useFlagMock = vi.fn<() => boolean>();
+  return {
+    flagsMock: { overrides: { useFlag: useFlagMock } } as PlatformFlagsMockState,
+    useFlagMock,
+  };
+});
 
-vi.mock('@/platform/flags', () => ({
-  useFlag: useFlagMock,
-}));
+vi.mock('@/platform/flags', async (importOriginal) =>
+  mockPlatformFlags(importOriginal, flagsMock)
+);
 
 const available = createBookingPageAvailabilityStub({
   state: 'available',
@@ -29,6 +39,15 @@ const available = createBookingPageAvailabilityStub({
 });
 
 describe('BookingPublicPage', () => {
+  beforeEach(() => {
+    resetPlatformFlagsOverrides(flagsMock);
+    setPlatformFlagsOverrides(flagsMock, { useFlag: useFlagMock });
+  });
+
+  afterEach(() => {
+    resetPlatformFlagsOverrides(flagsMock);
+  });
+
   it('renders supplied dates and slots, then only information fields after slot selection', () => {
     render(<BookingPublicPage availability={available} branding={defaultBookingPageBranding} />);
 
@@ -91,6 +110,15 @@ describe('BookingPublicPage', () => {
 });
 
 describe('FlaggedBookingPublicPage', () => {
+  beforeEach(() => {
+    resetPlatformFlagsOverrides(flagsMock);
+    setPlatformFlagsOverrides(flagsMock, { useFlag: useFlagMock });
+  });
+
+  afterEach(() => {
+    resetPlatformFlagsOverrides(flagsMock);
+  });
+
   it('renders nothing while booking-public-page is OFF', () => {
     useFlagMock.mockReturnValue(false);
     render(<FlaggedBookingPublicPage availability={available} branding={defaultBookingPageBranding} />);

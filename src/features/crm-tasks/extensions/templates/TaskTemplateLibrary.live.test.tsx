@@ -2,12 +2,21 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import { TaskTemplateLibrary } from './TaskTemplateLibrary';
+import type { PlatformFlagsMockState } from '@/testing/platform-flags';
+
+const { mockPlatformFlags, resetPlatformFlagsOverrides, setPlatformFlagsOverrides } =
+  await vi.hoisted(async () => import('@/testing/platform-flags'));
 
 const state = vi.hoisted(() => ({
   records: [] as readonly LiveCrmRecord[],
 }));
+const flagsMock = vi.hoisted(() => ({
+  overrides: { useFlag: undefined } as PlatformFlagsMockState['overrides'],
+}));
 
-vi.mock('@/platform/flags', () => ({ useFlag: () => true }));
+vi.mock('@/platform/flags', async (importOriginal) =>
+  mockPlatformFlags(importOriginal, flagsMock)
+);
 vi.mock('@/features/crm-tags', () => ({
   useFirmTagStore: () => ({ list: vi.fn().mockResolvedValue({ version: 1, tags: [] }) }),
 }));
@@ -45,6 +54,8 @@ function canonicalTemplate(): LiveCrmRecord {
 
 describe('TaskTemplateLibrary live-record loading', () => {
   beforeEach(() => {
+    resetPlatformFlagsOverrides(flagsMock);
+    setPlatformFlagsOverrides(flagsMock, { useFlag: () => true });
     state.records = [];
   });
 

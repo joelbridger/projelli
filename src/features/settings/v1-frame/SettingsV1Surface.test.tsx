@@ -1,13 +1,23 @@
 import { render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SettingsV1Runtime } from './runtime';
+import type { PlatformFlagsMockState } from '@/testing/platform-flags';
 
-const { useFlag, enabledFrame } = vi.hoisted(() => ({
-  useFlag: vi.fn((_id: string) => false),
-  enabledFrame: vi.fn(() => <div data-testid="settings-v1-enabled-frame" />),
-}));
+const { mockPlatformFlags, resetPlatformFlagsOverrides, setPlatformFlagsOverrides } =
+  await vi.hoisted(async () => import('@/testing/platform-flags'));
 
-vi.mock('@/platform/flags', () => ({ useFlag }));
+const { flagsMock, useFlag, enabledFrame } = vi.hoisted(() => {
+  const useFlag = vi.fn((_id: string) => false);
+  return {
+    flagsMock: { overrides: { useFlag } } as PlatformFlagsMockState,
+    useFlag,
+    enabledFrame: vi.fn(() => <div data-testid="settings-v1-enabled-frame" />),
+  };
+});
+
+vi.mock('@/platform/flags', async (importOriginal) =>
+  mockPlatformFlags(importOriginal, flagsMock)
+);
 vi.mock('./SettingsV1FrameEnabled', () => ({
   SettingsV1FrameEnabled: enabledFrame,
 }));
@@ -19,7 +29,13 @@ const runtime = {
 } as unknown as SettingsV1Runtime;
 
 describe('SettingsV1Surface', () => {
+  beforeEach(() => {
+    resetPlatformFlagsOverrides(flagsMock);
+    setPlatformFlagsOverrides(flagsMock, { useFlag });
+  });
+
   afterEach(() => {
+    resetPlatformFlagsOverrides(flagsMock);
     useFlag.mockReset().mockReturnValue(false);
     enabledFrame.mockClear();
   });
