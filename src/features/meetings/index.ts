@@ -18,3 +18,7 @@ export {
   meetingsSharedClientContextAdapter,
   type MeetingsSharedClientContext,
 } from './sharedClientContext';
+
+// The local-first CRM meetings seam. New CRM meeting consumers import this
+// doorway rather than the legacy capture screen or raw live-record store.
+export * from './foundation/contract';
