@@ -119,12 +119,15 @@ function actor() {
   return { userId: 'local-user', display: 'You', kind: 'user' as const };
 }
 
-function newCanonicalTag(name: string, color: FirmTagColor): Tag {
+function newCanonicalTag(
+  name: string,
+  color: FirmTagColor
+): LiveCrmRecord & Tag {
   const now = timestamp();
   // Keep this value typed as the canonical CRM entity. Omitting any CrmBase
   // field here is therefore a compile-time failure, not a hidden index-signature
   // escape hatch on LiveCrmRecord.
-  return {
+  const canonical: Tag = {
     id: newTagId(),
     kind: 'tag',
     matterId: 'firm_home',
@@ -139,6 +142,9 @@ function newCanonicalTag(name: string, color: FirmTagColor): Tag {
     externalRefs: [],
     schemaVersion: 1,
   };
+  // `Tag` proves all frozen CRM metadata is present. The intersection adds
+  // the permissive transport index signature only at the live-record edge.
+  return canonical as LiveCrmRecord & Tag;
 }
 
 function availabilityError(port: LiveFirmTagPort):
