@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BookmarkPlus } from 'lucide-react';
 import { useFirmTagStore, type FirmTag } from '@/features/crm-tags';
-import { useTaskRecordStore, type TaskPriority, type TaskRecord } from '@/features/crm-tasks';
+import { useTaskRecordStore, type TaskPriority } from '@/features/crm-tasks';
 import { useFlag } from '@/platform/flags';
 import { Button, Card } from '@/ui/kp';
-import type { CrmTask } from '@/features/crm-home/types';
 import type { TaskTemplateContext } from '@/features/crm-tasks/taskExtensionRegistry';
 import {
   type SaveTaskTemplateInput,
@@ -18,12 +17,14 @@ type EditorDraft = Required<Pick<SaveTaskTemplateInput, 'name' | 'title'>> & {
   body: string;
   priority: TaskPriority;
   category: string;
+  due: string;
+  dueTime: string;
   relationPrompt: string;
   tagIds: string[];
 };
 
 const blankDraft = (): EditorDraft => ({
-  name: '', title: '', body: '', priority: 'normal', category: '', relationPrompt: '', tagIds: [],
+  name: '', title: '', body: '', priority: 'normal', category: '', due: '', dueTime: '', relationPrompt: '', tagIds: [],
 });
 
 function draftFor(template: TaskTemplate): EditorDraft {
@@ -33,6 +34,8 @@ function draftFor(template: TaskTemplate): EditorDraft {
     body: template.body,
     priority: template.priority,
     category: template.category ?? '',
+    due: template.due ?? '',
+    dueTime: template.dueTime ?? '',
     relationPrompt: template.relationPrompt ?? '',
     tagIds: [...template.tagIds],
   };
@@ -42,23 +45,9 @@ function editorInput(draft: EditorDraft): SaveTaskTemplateInput {
   return {
     ...draft,
     category: draft.category || null,
+    due: draft.due || null,
+    dueTime: draft.dueTime || null,
     relationPrompt: draft.relationPrompt || null,
-  };
-}
-
-function crmTask(record: TaskRecord): CrmTask {
-  return {
-    id: record.id,
-    title: record.title,
-    body: record.body,
-    assigneeUserId: record.assigneeUserId,
-    status: record.status,
-    priority: record.priority,
-    ...(record.due ? { dueAt: record.due, dueLabel: record.due } : {}),
-    ...(record.dueTime ? { dueTime: record.dueTime } : {}),
-    ...(record.category ? { category: record.category } : {}),
-    tagIds: [...record.tagIds],
-    contextRefs: record.householdRef ? [record.householdRef.id] : [],
   };
 }
 
@@ -69,7 +58,7 @@ export function TaskTemplateLibrary(props: TaskTemplateContext) {
   return <EnabledTaskTemplateLibrary {...props} />;
 }
 
-function EnabledTaskTemplateLibrary({ addRequest, onCreate }: TaskTemplateContext) {
+function EnabledTaskTemplateLibrary({ addRequest, onAddRequestConsumed }: TaskTemplateContext) {
   const { t } = useTranslation();
   const templates = useTaskTemplateStore();
   const taskStore = useTaskRecordStore();
@@ -83,30 +72,34 @@ function EnabledTaskTemplateLibrary({ addRequest, onCreate }: TaskTemplateContex
   const [draft, setDraft] = useState<EditorDraft>(blankDraft);
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const loadSources = useRef({ templates, tagStore, t });
 
   const activeTags = useMemo(() => tags.filter((tag) => tag.status === 'active'), [tags]);
   const tagById = useMemo(() => new Map(tags.map((tag) => [tag.id, tag])), [tags]);
 
-  const load = async () => {
-    try {
-      const [nextTemplates, catalog] = await Promise.all([templates.list(), tagStore.list()]);
-      setItems(nextTemplates);
-      setTags(catalog.tags);
-      setMessage(null);
-    } catch (cause: unknown) {
-      setMessage(cause instanceof Error ? cause.message : t('task-templates.errors.load'));
-    }
-  };
+  useEffect(() => {
+    loadSources.current = { templates, tagStore, t };
+  }, [tagStore, t, templates]);
 
   useEffect(() => {
-    if (open) {
-      void load().catch((cause: unknown) => {
-        setMessage(cause instanceof Error ? cause.message : t('task-templates.errors.load'));
+    if (!open) return undefined;
+    let current = true;
+    const sources = loadSources.current;
+    void Promise.all([sources.templates.list(), sources.tagStore.list()])
+      .then(([nextTemplates, catalog]) => {
+        if (!current) return;
+        setItems(nextTemplates);
+        setTags(catalog.tags);
+        setMessage(null);
+      })
+      .catch((cause: unknown) => {
+        if (current) {
+          setMessage(cause instanceof Error ? cause.message : sources.t('task-templates.errors.load'));
+        }
       });
-    }
-  // The stores are fresh adapters by design; reload an open modal when its
-  // canonical record snapshot changes so an initial async load is visible.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      current = false;
+    };
   }, [open, templates.recordSnapshot]);
 
   const openNew = () => {
@@ -149,11 +142,11 @@ function EnabledTaskTemplateLibrary({ addRequest, onCreate }: TaskTemplateContex
       const householdRef = addRequest?.kind === 'task'
         ? { kind: 'household' as const, id: addRequest.householdId, matterId: addRequest.householdId, label: addRequest.householdLabel }
         : undefined;
-      const created = await taskStore.create({
+      await taskStore.create({
         ...prepared.taskInput,
         ...(householdRef ? { householdRef } : {}),
       });
-      onCreate(crmTask(created));
+      if (addRequest?.kind === 'task') onAddRequestConsumed?.();
       setOpen(false);
       setMessage(null);
     } catch (cause: unknown) {
@@ -260,6 +253,8 @@ function EnabledTaskTemplateLibrary({ addRequest, onCreate }: TaskTemplateContex
                 <label>{t('task-templates.fields.body')}<textarea value={draft.body} onChange={(event) => { setDraft({ ...draft, body: event.target.value }); }} /></label>
                 <label>{t('task-templates.fields.priority')}<select value={draft.priority} onChange={(event) => { setDraft({ ...draft, priority: event.target.value as TaskPriority }); }}><option value="high">{t('task-templates.priority.high')}</option><option value="normal">{t('task-templates.priority.normal')}</option><option value="low">{t('task-templates.priority.low')}</option></select></label>
                 <label>{t('task-templates.fields.category')}<input value={draft.category} onChange={(event) => { setDraft({ ...draft, category: event.target.value }); }} /></label>
+                <label>{t('task-templates.fields.due')}<input type="date" data-testid="crm-task-template-due" value={draft.due} onChange={(event) => { setDraft({ ...draft, due: event.target.value }); }} /></label>
+                <label>{t('task-templates.fields.due-time')}<input type="time" data-testid="crm-task-template-due-time" value={draft.dueTime} onChange={(event) => { setDraft({ ...draft, dueTime: event.target.value }); }} /></label>
                 <label>{t('task-templates.fields.relation-prompt')}<input value={draft.relationPrompt} onChange={(event) => { setDraft({ ...draft, relationPrompt: event.target.value }); }} /></label>
                 <fieldset><legend>{t('task-templates.fields.tags')}</legend>{activeTags.map((tag) => <label key={tag.id} style={{ display: 'block' }}><input type="checkbox" checked={draft.tagIds.includes(tag.id)} onChange={() => { setDraft({ ...draft, tagIds: draft.tagIds.includes(tag.id) ? draft.tagIds.filter((id) => id !== tag.id) : [...draft.tagIds, tag.id] }); }} /> {tag.name}</label>)}{draft.tagIds.filter((id) => !activeTags.some((tag) => tag.id === id)).map((id) => <div key={id} style={{ display: 'flex', gap: 6, alignItems: 'center' }}><small>{tagById.get(id)?.name ?? id} — {t('task-templates.retired')}</small><Button size="sm" variant="secondary" onClick={() => { setDraft({ ...draft, tagIds: draft.tagIds.filter((tagId) => tagId !== id) }); }}>{t('task-templates.remove-tag', { name: tagById.get(id)?.name ?? id })}</Button></div>)}</fieldset>
                 <Button data-testid="crm-task-template-save" disabled={saving} onClick={() => {

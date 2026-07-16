@@ -7,6 +7,8 @@ export interface TaskTemplate {
   readonly body: string;
   readonly priority: TaskPriority;
   readonly category: string | null;
+  readonly due: string | null;
+  readonly dueTime: string | null;
   /** A human prompt shown before the normal task editor opens. */
   readonly relationPrompt: string | null;
   /** Stable firm tag IDs only; display details stay in the tag catalog. */
@@ -20,6 +22,8 @@ export interface SaveTaskTemplateInput {
   body?: string;
   priority?: TaskPriority;
   category?: string | null;
+  due?: string | null;
+  dueTime?: string | null;
   relationPrompt?: string | null;
   tagIds?: readonly string[];
 }
@@ -31,6 +35,8 @@ export interface AppliedTaskTemplate {
     readonly body: string;
     readonly priority: TaskPriority;
     readonly category?: string;
+    readonly due?: string;
+    readonly dueTime?: string;
     readonly tagIds: readonly string[];
   };
 }

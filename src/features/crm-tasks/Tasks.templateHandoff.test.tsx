@@ -54,6 +54,8 @@ const template = {
   body: '',
   priority: 'normal' as const,
   category: null,
+  due: null,
+  dueTime: null,
   relationPrompt: null,
   tagIds: [],
   retired: false,
@@ -90,7 +92,8 @@ describe('Tasks template household handoff', () => {
 
   it('passes the household request through the templates mount to the canonical task doorway', async () => {
     templatesEnabled = true;
-    render(<HandoffHarness onConsumed={vi.fn()} />);
+    const consumed = vi.fn();
+    render(<HandoffHarness onConsumed={consumed} />);
 
     fireEvent.click(screen.getByTestId('crm-task-template-library-open'));
     await screen.findByTestId('crm-task-template-task-template:review');
@@ -110,6 +113,7 @@ describe('Tasks template household handoff', () => {
         },
       });
     });
+    expect(consumed).toHaveBeenCalledTimes(1);
   });
 
   it('clears the request after saving, so a later new task does not inherit it', async () => {

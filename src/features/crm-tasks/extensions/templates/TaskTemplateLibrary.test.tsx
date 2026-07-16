@@ -34,7 +34,7 @@ const createdTask: TaskRecord = {
 };
 const template: TaskTemplate = {
   id: 'task-template:review', name: 'Review', title: 'Prepare review', body: '', priority: 'normal',
-  category: null, relationPrompt: null, tagIds: ['tag:active'], retired: false,
+  category: null, due: '2026-08-03', dueTime: '09:30', relationPrompt: null, tagIds: ['tag:active'], retired: false,
 };
 
 describe('TaskTemplateLibrary', () => {
@@ -43,7 +43,7 @@ describe('TaskTemplateLibrary', () => {
     vi.clearAllMocks();
     tagList.mockResolvedValue({ version: 1, tags: [activeTag] });
     templateList.mockResolvedValue([template]);
-    templateApply.mockResolvedValue({ template, taskInput: { title: template.title, body: '', priority: 'normal', tagIds: ['tag:active'] } });
+    templateApply.mockResolvedValue({ template, taskInput: { title: template.title, body: '', priority: 'normal', due: '2026-08-03', dueTime: '09:30', tagIds: ['tag:active'] } });
     taskCreate.mockResolvedValue(createdTask);
   });
 
@@ -65,9 +65,9 @@ describe('TaskTemplateLibrary', () => {
     fireEvent.click(screen.getByText('Use template'));
 
     await waitFor(() => { expect(taskCreate).toHaveBeenCalledWith({
-      title: 'Prepare review', body: '', priority: 'normal', tagIds: ['tag:active'],
+      title: 'Prepare review', body: '', priority: 'normal', due: '2026-08-03', dueTime: '09:30', tagIds: ['tag:active'],
     }); });
-    expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ id: 'task:created', tagIds: ['tag:active'] }));
+    expect(onCreate).not.toHaveBeenCalled();
   });
 
   it('refuses an applied template whose tag has been retired', async () => {
@@ -86,7 +86,7 @@ describe('TaskTemplateLibrary', () => {
     enabled = true;
     const prompted = { ...template, relationPrompt: 'Choose the review household.' };
     templateList.mockResolvedValue([prompted]);
-    templateApply.mockResolvedValue({ template: prompted, taskInput: { title: prompted.title, body: '', priority: 'normal', tagIds: ['tag:active'] } });
+    templateApply.mockResolvedValue({ template: prompted, taskInput: { title: prompted.title, body: '', priority: 'normal', due: '2026-08-03', dueTime: '09:30', tagIds: ['tag:active'] } });
     render(<TaskTemplateLibrary onCreate={vi.fn()} />);
     fireEvent.click(screen.getByTestId('crm-task-template-library-open'));
     await screen.findByTestId('crm-task-template-task-template:review');
@@ -114,8 +114,9 @@ describe('TaskTemplateLibrary', () => {
 
   it('keeps an optional household context and confirms before retiring', async () => {
     enabled = true;
+    const onConsumed = vi.fn();
     templateRetire.mockResolvedValue({ ...template, retired: true });
-    render(<TaskTemplateLibrary addRequest={{ kind: 'task', householdId: 'household:review', householdLabel: 'Review household' }} onCreate={vi.fn()} />);
+    render(<TaskTemplateLibrary addRequest={{ kind: 'task', householdId: 'household:review', householdLabel: 'Review household' }} onAddRequestConsumed={onConsumed} onCreate={vi.fn()} />);
     fireEvent.click(screen.getByTestId('crm-task-template-library-open'));
     await screen.findByTestId('crm-task-template-task-template:review');
     fireEvent.click(screen.getByText('Use template'));
@@ -123,6 +124,8 @@ describe('TaskTemplateLibrary', () => {
       title: 'Prepare review',
       body: '',
       priority: 'normal',
+      due: '2026-08-03',
+      dueTime: '09:30',
       tagIds: ['tag:active'],
       householdRef: {
         kind: 'household',
@@ -131,6 +134,7 @@ describe('TaskTemplateLibrary', () => {
         label: 'Review household',
       },
     }); });
+    expect(onConsumed).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByTestId('crm-task-template-library-open'));
     await screen.findByTestId('crm-task-template-task-template:review');
     fireEvent.click(screen.getByText('Retire'));

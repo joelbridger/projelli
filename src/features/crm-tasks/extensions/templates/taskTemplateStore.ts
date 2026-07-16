@@ -21,6 +21,8 @@ type CanonicalTaskTemplate = LiveCrmRecord & {
   body?: string;
   priority?: TaskPriority;
   category?: string;
+  due?: string;
+  dueTime?: string;
   relationPrompt?: string;
   tagIds?: readonly string[];
 };
@@ -35,11 +37,14 @@ interface NormalizedTemplateInput {
   body: string;
   priority: TaskPriority;
   category?: string;
+  due?: string;
+  dueTime?: string;
   relationPrompt?: string;
   tagIds: string[];
 }
 
 const priorities: readonly TaskPriority[] = ['high', 'normal', 'low'];
+const dueTimePattern = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 
 function error(code: ConstructorParameters<typeof TaskTemplateError>[0], message: string) {
   return new TaskTemplateError(code, message);
@@ -95,6 +100,10 @@ function toTemplate(record: CanonicalTaskTemplate): TaskTemplate {
       ? record.priority as TaskPriority
       : 'normal',
     category: cleanText(record.category) ?? null,
+    due: cleanText(record.due) ?? null,
+    dueTime: typeof record.dueTime === 'string' && dueTimePattern.test(record.dueTime)
+      ? record.dueTime
+      : null,
     relationPrompt: cleanText(record.relationPrompt) ?? null,
     tagIds: storedTags(record.tagIds),
     retired: Boolean(record['deleted']),
@@ -113,9 +122,14 @@ function requireAvailable(port: LiveTaskTemplatePort): void {
 function cleanInput(input: SaveTaskTemplateInput): NormalizedTemplateInput {
   const priority = input.priority ?? 'normal';
   const category = cleanText(input.category);
+  const due = cleanText(input.due);
+  const dueTime = cleanText(input.dueTime);
   const relationPrompt = cleanText(input.relationPrompt);
   if (!priorities.includes(priority)) {
     throw error('invalid_template', 'Template priority is invalid.');
+  }
+  if (dueTime && !dueTimePattern.test(dueTime)) {
+    throw error('invalid_template', 'Template due time must use 24-hour HH:mm format.');
   }
   return {
     name: cleanRequired(input.name, 'name'),
@@ -123,6 +137,8 @@ function cleanInput(input: SaveTaskTemplateInput): NormalizedTemplateInput {
     body: cleanText(input.body) ?? '',
     priority,
     ...(category ? { category } : {}),
+    ...(due ? { due } : {}),
+    ...(dueTime ? { dueTime } : {}),
     ...(relationPrompt ? { relationPrompt } : {}),
     tagIds: cleanTags(input.tagIds ?? []),
   };
@@ -146,10 +162,21 @@ function templateRecord(input: NormalizedTemplateInput): CanonicalTaskTemplate {
   };
 }
 
+function updateTemplateRecord(
+  current: CanonicalTaskTemplate,
+  input: NormalizedTemplateInput
+): CanonicalTaskTemplate {
+  const updated: CanonicalTaskTemplate = { ...current, ...input, updatedAt: timestamp() };
+  if (!input.category) delete updated.category;
+  if (!input.due) delete updated.due;
+  if (!input.dueTime) delete updated.dueTime;
+  if (!input.relationPrompt) delete updated.relationPrompt;
+  return updated;
+}
+
 /** Feature-private persistence adapter over canonical encrypted live records. */
 export function createTaskTemplateStore(port: LiveTaskTemplatePort): TaskTemplateStore {
-  let records = [...port.records];
-  const templates = () => records.filter(isTemplate);
+  const templates = () => port.records.filter(isTemplate);
   const find = (id: string): CanonicalTaskTemplate => {
     const template = templates().find((candidate) => candidate.id === id);
     if (!template) throw error('template_not_found', 'That task template no longer exists.');
@@ -158,9 +185,6 @@ export function createTaskTemplateStore(port: LiveTaskTemplatePort): TaskTemplat
   const saveAndReload = async (record: CanonicalTaskTemplate): Promise<CanonicalTaskTemplate> => {
     try {
       const saved = await port.save(record) as CanonicalTaskTemplate;
-      records = records.some((candidate) => candidate.id === saved.id)
-        ? records.map((candidate) => candidate.id === saved.id ? saved : candidate)
-        : [...records, saved];
       await port.reload();
       return saved;
     } catch (cause: unknown) {
@@ -183,7 +207,7 @@ export function createTaskTemplateStore(port: LiveTaskTemplatePort): TaskTemplat
       const current = find(id);
       if (current['deleted']) throw error('template_retired', 'Retired task templates cannot be edited.');
       const next = cleanInput(input);
-      return toTemplate(await saveAndReload({ ...current, ...next, updatedAt: timestamp() }));
+      return toTemplate(await saveAndReload(updateTemplateRecord(current, next)));
     },
     retire: async (id) => {
       requireAvailable(port);
@@ -202,6 +226,8 @@ export function createTaskTemplateStore(port: LiveTaskTemplatePort): TaskTemplat
           body: template.body,
           priority: template.priority,
           ...(template.category ? { category: template.category } : {}),
+          ...(template.due ? { due: template.due } : {}),
+          ...(template.dueTime ? { dueTime: template.dueTime } : {}),
           tagIds: template.tagIds,
         },
       };
