@@ -4,8 +4,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FirmTagStore } from '@/features/crm-tags';
 import type { CrmHomeAdapter } from '@/features/crm-home';
 import type {
+  WorkflowAuthoringLibraryDescriptor,
   WorkflowTemplateRecord,
   WorkflowTemplateStore,
+} from '@/features/crm-workflows';
+import {
+  createWorkflowAuthoringLibraryComposition,
+  defineWorkflowAuthoringLibraryDescriptor,
 } from '@/features/crm-workflows';
 
 function tags(): FirmTagStore {
@@ -78,10 +83,7 @@ function workflowData(name: string, updatedAt: string) {
   };
 }
 
-function template(
-  name: string,
-  id = 'template:one'
-): WorkflowTemplateRecord {
+function template(name: string, id = 'template:one'): WorkflowTemplateRecord {
   return {
     id,
     name,
@@ -243,5 +245,167 @@ describe('WorkflowAuthoringRuleMount', () => {
         matterId: 'matter:river',
       });
     });
+    expect(
+      screen.queryByTestId('workflow-authoring-filter-controls')
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId('workflow-authoring-details')
+    ).not.toBeInTheDocument();
+  });
+
+  it('composes an outside filter and detail renderer into the canonical library', async () => {
+    vi.doMock('@/platform/flags', () => ({ isEnabled: () => true }));
+    const { WorkflowAuthoringRuleMount } =
+      await import('./WorkflowAuthoringMount');
+    const draft: WorkflowTemplateRecord = {
+      id: 'template:draft',
+      name: 'Draft onboarding',
+      status: 'draft',
+      tagIds: [],
+      steps: [{ id: 'step:draft', title: 'Prepare', position: 0, tagIds: [] }],
+    };
+    const published: WorkflowTemplateRecord = {
+      id: 'template:published',
+      name: 'Published annual review',
+      status: 'published',
+      tagIds: [],
+      steps: [
+        { id: 'step:one', title: 'Prepare', position: 0, tagIds: [] },
+        { id: 'step:two', title: 'Meet', position: 1, tagIds: [] },
+      ],
+    };
+    const create = vi.fn<WorkflowTemplateStore['create']>();
+    const update = vi.fn<WorkflowTemplateStore['update']>();
+    const publish = vi.fn<WorkflowTemplateStore['publish']>();
+    const start = vi.fn<WorkflowTemplateStore['start']>();
+    const store: WorkflowTemplateStore = {
+      list: vi.fn(() => Promise.resolve([draft, published])),
+      get: vi.fn(),
+      getInstance: vi.fn(),
+      create,
+      update,
+      publish,
+      start,
+    };
+    const extension = defineWorkflowAuthoringLibraryDescriptor<'published'>({
+      id: 'outside.status-and-details',
+      order: 10,
+      mountFilterControl: (context) => (
+        <button
+          type="button"
+          onClick={() => {
+            context.state.set('published');
+          }}
+        >
+          Published only ({String(context.visibleTemplates.length)}/
+          {String(context.canonicalTemplates.length)})
+        </button>
+      ),
+      filter: (candidate, context) =>
+        context.state.get() !== 'published' || candidate.status === 'published',
+      renderDetail: (context) => {
+        const selected = context.canonicalTemplates.find(
+          (candidate) => candidate.id === context.selectedTemplateId
+        );
+        return selected ? (
+          <p>
+            Selected: {selected.name} · {String(selected.steps.length)} steps
+          </p>
+        ) : (
+          <p data-testid="outside-no-selected-template" />
+        );
+      },
+    });
+
+    render(
+      <WorkflowAuthoringRuleMount
+        templateId={draft.id}
+        createStore={() => store}
+        createTagStore={tags}
+        libraryComposition={createWorkflowAuthoringLibraryComposition(
+          extension
+        )}
+      />
+    );
+
+    expect(
+      await screen.findByText('Draft onboarding', { selector: 'button' })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Published annual review', { selector: 'button' })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Selected: Draft onboarding · 1 steps')
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Published only (2/2)' })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.queryByText('Draft onboarding', { selector: 'button' })
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: 'Published only (1/2)' })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText('Selected: Published annual review · 2 steps')
+      ).toBeInTheDocument();
+    });
+    expect(create).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
+    expect(publish).not.toHaveBeenCalled();
+    expect(start).not.toHaveBeenCalled();
+  });
+
+  it('does not give canonical library data to a disabled extension', async () => {
+    vi.doMock('@/platform/flags', () => ({ isEnabled: () => true }));
+    const { WorkflowAuthoringRuleMount } =
+      await import('./WorkflowAuthoringMount');
+    const mountFilterControl = vi.fn(() => null);
+    const filter = vi.fn(() => true);
+    const renderDetail = vi.fn(() => null);
+    const extension: WorkflowAuthoringLibraryDescriptor = {
+      id: 'outside.dark-library-extension',
+      order: 10,
+      isEnabled: () => false,
+      mountFilterControl,
+      filter,
+      renderDetail,
+    };
+    const store: WorkflowTemplateStore = {
+      list: vi.fn(() => Promise.resolve([template('Annual review')])),
+      get: vi.fn(),
+      getInstance: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      publish: vi.fn(),
+      start: vi.fn(),
+    };
+
+    render(
+      <WorkflowAuthoringRuleMount
+        templateId="template:one"
+        createStore={() => store}
+        createTagStore={tags}
+        libraryComposition={createWorkflowAuthoringLibraryComposition(
+          extension
+        )}
+      />
+    );
+
+    expect(
+      await screen.findByText('Annual review', { selector: 'button' })
+    ).toBeInTheDocument();
+    expect(mountFilterControl).not.toHaveBeenCalled();
+    expect(filter).not.toHaveBeenCalled();
+    expect(renderDetail).not.toHaveBeenCalled();
+    expect(
+      screen.queryByTestId('workflow-authoring-filter-controls')
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId('workflow-authoring-details')
+    ).not.toBeInTheDocument();
   });
 });
