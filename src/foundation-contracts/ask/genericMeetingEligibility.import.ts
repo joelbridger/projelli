@@ -6,6 +6,7 @@ import {
 } from '@/features/ask';
 import {
   fixtureClient,
+  fixtureAccess,
   fixtureMeeting,
   fixtureOwners,
   type FixtureClientRef,
@@ -25,4 +26,4 @@ declare const artifact: AskMeetingArtifactSource<
   FixtureClientRef,
   FixtureMeetingRef
 >;
-void buildAskCitation('claim-1', scope, artifact, fixtureOwners);
+void buildAskCitation('claim-1', scope, artifact, fixtureAccess);

@@ -10,7 +10,10 @@ consumer.
 Client-bound scopes store the owner contact reference, matter, and shared-
 client revision. Pass the current client plus an `AskOwnerIdentityAdapter` to
 `resolveAskScope`. Chosen sources, single/selected meetings, and meeting ranges
-all fail closed when the current client changes or clears.
+all fail closed when the current client changes or clears. Before using any
+resolved scope, provide `AskClientUseAccess { readCurrentClient, owners }`.
+`readCurrentClient` must read the shared-client owner when it is called; do not
+capture an earlier client value.
 
 `useAskConversation({ currentClient, owners })` reads and writes conversation
 metadata, review drafts, and saved source selections through encrypted live
@@ -60,7 +63,13 @@ registerAskAnswerAction(action);
 The compiling copy is outside this package at
 `src/foundation-contracts/ask/pavedPath.import.ts`. Registry reads use
 `collectAskSourceCandidates`, `listAskModes`, and `listAskAnswerActions`; those
-paths exclude dark entries and re-check client scope.
+paths exclude dark entries and re-check the live client. Pass the same live
+access to source/citation helpers, and put it on `AskAnswerActionContext` as
+`clientAccess`. Actions registered through the public append path are wrapped:
+availability and execution both read the client again, so a previously listed
+action expires after a switch. Citation openers must be obtained through
+`resolveAskCitationOpenPath(scope, citation, clientAccess)`; the saved citation
+does not expose actionable opener metadata directly.
 
 ## Availability boundary
 

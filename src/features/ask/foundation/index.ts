@@ -1,7 +1,9 @@
 export * from './contracts';
 export {
   askScopeBuilder,
+  askScopeIsCurrent,
   askScopeSnapshotsMatch,
+  assertAskScopeCurrent,
   askSourceBelongsToScope,
   AskScopeError,
   resolveAskScope,
@@ -27,6 +29,7 @@ export {
   buildAskCitation,
   buildAskRetrievalPlan,
   noLocalAnswer,
+  resolveAskCitationOpenPath,
 } from './retrieval';
 export {
   askConversationLiveRecord,

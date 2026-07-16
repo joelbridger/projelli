@@ -38,6 +38,16 @@ export interface AskOwnerIdentityAdapter<ClientReference, MeetingReference> {
   ) => boolean;
 }
 
+/**
+ * Live client access used by every doorway that can reveal or act on scoped
+ * Ask state. The reader must consult the shared-client owner when it is
+ * called; retaining an earlier snapshot here would defeat the use-time guard.
+ */
+export interface AskClientUseAccess<ClientReference, MeetingReference> {
+  readonly readCurrentClient: () => AskClientSnapshot<ClientReference> | null;
+  readonly owners: AskOwnerIdentityAdapter<ClientReference, MeetingReference>;
+}
+
 export type AskScope<
   ClientReference = never,
   MeetingReference = never,
@@ -145,10 +155,12 @@ export interface AskSourceAdapter<
   readonly order: number;
   readonly sourceKinds: readonly AskSourceKind[];
   readonly isEnabled?: (
-    scope: ResolvedAskScope<ClientReference, MeetingReference>
+    scope: ResolvedAskScope<ClientReference, MeetingReference>,
+    access: AskClientUseAccess<ClientReference, MeetingReference>
   ) => boolean;
   readonly listCandidates: (
-    scope: ResolvedAskScope<ClientReference, MeetingReference>
+    scope: ResolvedAskScope<ClientReference, MeetingReference>,
+    access: AskClientUseAccess<ClientReference, MeetingReference>
   ) => readonly AskSourceDescriptor<ClientReference, MeetingReference>[];
 }
 
@@ -189,7 +201,6 @@ export interface AskCitation<
   readonly sourceKind: AskSourceKind;
   readonly client: AskClientSnapshot<ClientReference>;
   readonly scope: AskScope<ClientReference, MeetingReference>;
-  readonly opener: AskCitationOpenPath;
   readonly label: string;
   readonly meeting?: MeetingReference;
   readonly occurredOn?: string;
@@ -255,7 +266,8 @@ export interface AskModeDescriptor<
   readonly order: number;
   readonly responseFormat: 'normal' | 'meeting-report';
   readonly isEnabled?: (
-    scope: ResolvedAskScope<ClientReference, MeetingReference>
+    scope: ResolvedAskScope<ClientReference, MeetingReference>,
+    access: AskClientUseAccess<ClientReference, MeetingReference>
   ) => boolean;
   readonly buildScope: AskScopeBuilder;
 }
@@ -273,6 +285,11 @@ export interface AskAnswerActionContext<
   readonly answer: AskAnswerProjection<ClientReference, MeetingReference>;
   readonly citations: readonly AskCitation<ClientReference, MeetingReference>[];
   readonly scope: ResolvedAskScope<ClientReference, MeetingReference>;
+  /** Read again when an action is listed, checked, or executed. */
+  readonly clientAccess: AskClientUseAccess<
+    ClientReference,
+    MeetingReference
+  >;
   readonly authority: Authority;
   readonly audit: Audit;
 }

@@ -5,9 +5,9 @@ import {
   noLocalAnswer,
   resolveAskScope,
 } from '@/features/ask';
-import { fixtureOwners } from './ownerFixture';
+import { fixtureAccess } from './ownerFixture';
 
 const scope = resolveAskScope(askScopeBuilder.wholeFirm('fixture-workspace'));
-void listAskModes(scope);
-void buildAskRetrievalPlan(scope, [], [], fixtureOwners);
+void listAskModes(scope, fixtureAccess);
+void buildAskRetrievalPlan(scope, [], [], fixtureAccess);
 void noLocalAnswer();

@@ -7,6 +7,7 @@ import {
 } from '@/features/ask';
 import {
   fixtureClient,
+  fixtureAccess,
   fixtureOwners,
   type FixtureClientRef,
   type FixtureMeetingRef,
@@ -20,5 +21,5 @@ const scope = resolveAskScope(
   fixtureOwners
 );
 declare const source: AskSourceDescriptor<FixtureClientRef, FixtureMeetingRef>;
-void collectAskSourceCandidates(scope, fixtureOwners);
-void askSourceBelongsToScope(scope, source, fixtureOwners);
+void collectAskSourceCandidates(scope, fixtureAccess);
+void askSourceBelongsToScope(scope, source, fixtureAccess);

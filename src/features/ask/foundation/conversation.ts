@@ -6,6 +6,7 @@ import {
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import type {
   AskClientSnapshot,
+  AskClientUseAccess,
   AskConversationMetadata,
   AskOwnerIdentityAdapter,
   AskReviewDraft,
@@ -142,13 +143,17 @@ function sourceValue<ClientReference, MeetingReference>(
       options.currentClient,
       options.owners
     );
+    const access: AskClientUseAccess<ClientReference, MeetingReference> = {
+      readCurrentClient: () => options.currentClient,
+      owners: options.owners,
+    };
     return askSourceBelongsToScope(
       resolved,
       value as unknown as AskSourceDescriptor<
         ClientReference,
         MeetingReference
       >,
-      options.owners
+      access
     );
   } catch {
     return false;

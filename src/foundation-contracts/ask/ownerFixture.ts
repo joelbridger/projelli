@@ -1,4 +1,7 @@
-import type { AskOwnerIdentityAdapter } from '@/features/ask';
+import type {
+  AskClientUseAccess,
+  AskOwnerIdentityAdapter,
+} from '@/features/ask';
 
 export interface FixtureClientRef {
   readonly owner: 'fixture-client-owner';
@@ -49,4 +52,12 @@ export const fixtureOwners: AskOwnerIdentityAdapter<
   meetingMatterId: (reference) => reference.matterId,
   sameMeeting: (left, right) =>
     left.id === right.id && left.matterId === right.matterId,
+};
+
+export const fixtureAccess: AskClientUseAccess<
+  FixtureClientRef,
+  FixtureMeetingRef
+> = {
+  readCurrentClient: () => fixtureClient,
+  owners: fixtureOwners,
 };

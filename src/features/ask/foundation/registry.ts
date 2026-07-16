@@ -1,14 +1,20 @@
 import type {
   AskAnswerActionContext,
   AskAnswerActionDescriptor,
+  AskClientUseAccess,
   AskModeDescriptor,
-  AskOwnerIdentityAdapter,
   AskSourceAdapter,
   AskSourceDescriptor,
   AskSourceKind,
   ResolvedAskScope,
 } from './contracts';
-import { askSourceBelongsToScope } from './scope';
+import { askCitationBelongsToScope } from './retrieval';
+import {
+  assertAskScopeCurrent,
+  askScopeIsCurrent,
+  askSourceBelongsToScope,
+  AskScopeError,
+} from './scope';
 
 type OrderedDescriptor = {
   readonly id: string;
@@ -145,7 +151,24 @@ function append(
 export function registerAskSource<ClientReference, MeetingReference>(
   adapter: AskSourceAdapter<ClientReference, MeetingReference>
 ): void {
-  append(sourceAdapters, adapter as OrderedDescriptor, (entries) => {
+  validateAskSourceRegistry([adapter]);
+  const guarded: AskSourceAdapter<ClientReference, MeetingReference> = {
+    ...adapter,
+    ...(adapter.isEnabled
+      ? {
+          isEnabled: (scope, access) =>
+            askScopeIsCurrent(scope, access) &&
+            adapter.isEnabled?.(scope, access) !== false,
+        }
+      : {}),
+    listCandidates: (scope, access) => {
+      assertAskScopeCurrent(scope, access);
+      return adapter
+        .listCandidates(scope, access)
+        .filter((source) => askSourceBelongsToScope(scope, source, access));
+    },
+  };
+  append(sourceAdapters, guarded as OrderedDescriptor, (entries) => {
     validateAskSourceRegistry(
       entries as readonly AskSourceAdapter<ClientReference, MeetingReference>[]
     );
@@ -175,7 +198,51 @@ export function registerAskAnswerAction<
     Audit
   >
 ): void {
-  append(actions, action as OrderedDescriptor, (entries) => {
+  validateAskAnswerActionRegistry([action]);
+  const contextIsCurrent = (
+    context: AskAnswerActionContext<
+      ClientReference,
+      MeetingReference,
+      Authority,
+      Audit
+    >
+  ): boolean => {
+    if (!askScopeIsCurrent(context.scope, context.clientAccess)) return false;
+    const citations = [...context.citations, ...context.answer.citations];
+    return citations.every((citation) =>
+      askCitationBelongsToScope(
+        context.scope,
+        citation,
+        context.clientAccess
+      )
+    );
+  };
+  const guarded: AskAnswerActionDescriptor<
+    ClientReference,
+    MeetingReference,
+    Authority,
+    Audit
+  > = {
+    ...action,
+    ...(action.isEnabled
+      ? {
+          isEnabled: (context) =>
+            contextIsCurrent(context) &&
+            action.isEnabled?.(context) !== false,
+        }
+      : {}),
+    isAvailable: (context) =>
+      contextIsCurrent(context) && action.isAvailable(context),
+    execute: (context) => {
+      if (!contextIsCurrent(context)) {
+        throw new AskScopeError(
+          'Ask refused a stale answer action at use time.'
+        );
+      }
+      return action.execute(context);
+    },
+  };
+  append(actions, guarded as OrderedDescriptor, (entries) => {
     validateAskAnswerActionRegistry(
       entries as readonly AskAnswerActionDescriptor<
         ClientReference,
@@ -188,34 +255,38 @@ export function registerAskAnswerAction<
 }
 
 export function listAskSourceAdapters<ClientReference, MeetingReference>(
-  scope: ResolvedAskScope<ClientReference, MeetingReference>
+  scope: ResolvedAskScope<ClientReference, MeetingReference>,
+  access: AskClientUseAccess<ClientReference, MeetingReference>
 ): readonly AskSourceAdapter<ClientReference, MeetingReference>[] {
+  assertAskScopeCurrent(scope, access);
   return (
     sourceAdapters as unknown as readonly AskSourceAdapter<
       ClientReference,
       MeetingReference
     >[]
-  ).filter((descriptor) => descriptor.isEnabled?.(scope) !== false);
+  ).filter((descriptor) => descriptor.isEnabled?.(scope, access) !== false);
 }
 
 export function collectAskSourceCandidates<ClientReference, MeetingReference>(
   scope: ResolvedAskScope<ClientReference, MeetingReference>,
-  owners: AskOwnerIdentityAdapter<ClientReference, MeetingReference>
+  access: AskClientUseAccess<ClientReference, MeetingReference>
 ): readonly AskSourceDescriptor<ClientReference, MeetingReference>[] {
-  return listAskSourceAdapters(scope)
-    .flatMap((adapter) => adapter.listCandidates(scope))
-    .filter((source) => askSourceBelongsToScope(scope, source, owners));
+  return listAskSourceAdapters(scope, access)
+    .flatMap((adapter) => adapter.listCandidates(scope, access))
+    .filter((source) => askSourceBelongsToScope(scope, source, access));
 }
 
 export function listAskModes<ClientReference, MeetingReference>(
-  scope: ResolvedAskScope<ClientReference, MeetingReference>
+  scope: ResolvedAskScope<ClientReference, MeetingReference>,
+  access: AskClientUseAccess<ClientReference, MeetingReference>
 ): readonly AskModeDescriptor<ClientReference, MeetingReference>[] {
+  assertAskScopeCurrent(scope, access);
   return (
     modes as unknown as readonly AskModeDescriptor<
       ClientReference,
       MeetingReference
     >[]
-  ).filter((descriptor) => descriptor.isEnabled?.(scope) !== false);
+  ).filter((descriptor) => descriptor.isEnabled?.(scope, access) !== false);
 }
 
 export function listAskAnswerActions<
@@ -236,6 +307,7 @@ export function listAskAnswerActions<
   Authority,
   Audit
 >[] {
+  if (!askScopeIsCurrent(context.scope, context.clientAccess)) return [];
   return (
     actions as unknown as readonly AskAnswerActionDescriptor<
       ClientReference,

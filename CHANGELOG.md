@@ -34,8 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **Ask foundation saved state and meeting eligibility now fail closed.**
   Every client-bound scope retains the owner reference, matter, and revision;
-  stale state is rejected after a client switch or clear. Meeting artifacts
-  prove their meeting, date, and type before retrieval. Persistence now
+  stale state is rejected after a client switch or clear. Source reads,
+  citation opens, and answer actions re-read the active client when used, so
+  retaining an earlier resolved value cannot bypass the switch. Meeting
+  artifacts prove their meeting, date, and type before retrieval. Persistence now
   validates payloads and proves save-to-fresh-reload for conversations, review
   drafts, and source selections. Missing owner contracts remain explicitly
   unavailable instead of being replaced by local lookalikes. Files:

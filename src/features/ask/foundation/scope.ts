@@ -1,5 +1,6 @@
 import type {
   AskClientSnapshot,
+  AskClientUseAccess,
   AskOwnerIdentityAdapter,
   AskScope,
   AskScopeBuilder,
@@ -137,6 +138,40 @@ export function resolveAskScope<ClientReference, MeetingReference>(
   return { ...scope, resolved: true };
 }
 
+/** Re-read and validate the active shared client immediately before use. */
+export function assertAskScopeCurrent<ClientReference, MeetingReference>(
+  scope: ResolvedAskScope<ClientReference, MeetingReference>,
+  access: AskClientUseAccess<ClientReference, MeetingReference>
+): void {
+  if (typeof access.readCurrentClient !== 'function') {
+    throw new AskScopeError(
+      'Ask use-time client access is unavailable.'
+    );
+  }
+  let currentClient: AskClientSnapshot<ClientReference> | null;
+  try {
+    currentClient = access.readCurrentClient();
+  } catch {
+    throw new AskScopeError(
+      'Ask could not read the current shared client at use time.'
+    );
+  }
+  resolveAskScope(scope, currentClient, access.owners);
+}
+
+/** Boolean form for filtering doorways that must fail closed without data. */
+export function askScopeIsCurrent<ClientReference, MeetingReference>(
+  scope: ResolvedAskScope<ClientReference, MeetingReference>,
+  access: AskClientUseAccess<ClientReference, MeetingReference>
+): boolean {
+  try {
+    assertAskScopeCurrent(scope, access);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function sameScopeSnapshot<ClientReference, MeetingReference>(
   left: AskScope<ClientReference, MeetingReference>,
   right: AskScope<ClientReference, MeetingReference>,
@@ -184,8 +219,10 @@ function sameScopeSnapshot<ClientReference, MeetingReference>(
 export function askSourceBelongsToScope<ClientReference, MeetingReference>(
   scope: ResolvedAskScope<ClientReference, MeetingReference>,
   source: AskSourceDescriptor<ClientReference, MeetingReference>,
-  owners: AskOwnerIdentityAdapter<ClientReference, MeetingReference>
+  access: AskClientUseAccess<ClientReference, MeetingReference>
 ): boolean {
+  if (!askScopeIsCurrent(scope, access)) return false;
+  const owners = access.owners;
   if (
     source.workspaceId !== scope.workspaceId ||
     !owners.isClientReference(source.client.contactRef) ||
