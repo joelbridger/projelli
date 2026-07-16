@@ -18,6 +18,13 @@ export interface WorkflowRecordStartContext {
   household: Readonly<StartWorkflowInput>;
   /** Success and explicit cancel consume the request; failures leave it usable. */
   onRequestConsumed: () => void;
+  /**
+   * Opens the landed canonical template library and consumes this one-shot
+   * request. The public WorkflowRecordStartSlot always supplies this action;
+   * it stays optional only so already-landed direct composition consumers do
+   * not have to change.
+   */
+  openTemplateLibrary?: () => void;
 }
 
 export interface WorkflowRecordStartDescriptor {
@@ -75,6 +82,22 @@ export function mountWorkflowRecordStarts(
     .map((descriptor) => (
       <Fragment key={descriptor.id}>{descriptor.mount(context)}</Fragment>
     ));
+}
+
+/**
+ * Public navigation action for the honest no-published-template path.
+ * Record-start features should call this instead of guessing a CRM route or
+ * mounting another template library.
+ */
+export function openWorkflowTemplateLibrary(
+  context: WorkflowRecordStartContext
+): void {
+  if (!context.openTemplateLibrary) {
+    throw new Error(
+      '[workflowRecordStartRegistry] mount through WorkflowRecordStartSlot before opening the template library'
+    );
+  }
+  context.openTemplateLibrary();
 }
 
 export type WorkflowAuthoringLibraryStateValue =

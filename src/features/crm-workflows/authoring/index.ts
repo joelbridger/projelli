@@ -19,12 +19,17 @@ export type {
 } from '../workflowTemplateStore';
 export { WorkflowAuthoringRuleMount } from './WorkflowAuthoringMount';
 export {
+  WorkflowRecordStartSlot,
+  type WorkflowRecordStartSlotProps,
+} from './WorkflowRecordStartSlot';
+export {
   createWorkflowAuthoringLibraryComposition,
   createWorkflowRecordStartComposition,
   defineWorkflowAuthoringLibraryDescriptor,
   defaultWorkflowAuthoringLibraryComposition,
   defaultWorkflowRecordStartComposition,
   mountWorkflowRecordStarts,
+  openWorkflowTemplateLibrary,
   validateWorkflowAuthoringLibraryDescriptors,
   validateWorkflowRecordStartDescriptors,
   workflowAuthoringLibraryRegistry,

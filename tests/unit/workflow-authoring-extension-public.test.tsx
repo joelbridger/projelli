@@ -6,6 +6,7 @@ import {
   createWorkflowRecordStartComposition,
   defineWorkflowAuthoringLibraryDescriptor,
   mountWorkflowRecordStarts,
+  WorkflowRecordStartSlot,
   validateWorkflowAuthoringLibraryDescriptors,
   validateWorkflowRecordStartDescriptors,
   type WorkflowAuthoringLibraryDescriptor,
@@ -148,5 +149,43 @@ describe('workflow authoring public extension points', () => {
         },
       ])
     ).toThrow('order must be finite: outside.bad-record-start');
+  });
+
+  it('lets an outside consumer compile against the sanctioned host slot', () => {
+    const received = vi.fn();
+    const appended: WorkflowRecordStartDescriptor = {
+      id: 'outside.quick-add-consumer',
+      order: 20,
+      mount: (context) => {
+        received(context);
+        return null;
+      },
+    };
+
+    const { container } = render(
+      <WorkflowRecordStartSlot
+        addRequest={{
+          kind: 'workflow',
+          householdId: 'household:river',
+          householdLabel: 'River household',
+        }}
+        households={[
+          {
+            id: 'household:river',
+            label: 'River household',
+            matterId: 'matter:river',
+          },
+        ]}
+        onAddRequestConsumed={vi.fn()}
+        composition={createWorkflowRecordStartComposition(appended)}
+      />
+    );
+
+    expect(container).toBeEmptyDOMElement();
+    expect(received).toHaveBeenCalledTimes(1);
+    expect(received.mock.calls[0]?.[0]).toMatchObject({
+      household: { matterId: 'matter:river' },
+      openTemplateLibrary: expect.any(Function),
+    });
   });
 });

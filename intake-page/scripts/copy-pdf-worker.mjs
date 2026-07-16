@@ -4,7 +4,12 @@ import { copyFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const workerSource = fileURLToPath(new URL('../node_modules/pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url));
+// Resolve the package through Node instead of assuming this standalone app has
+// its own node_modules directory. npm may hoist pdfjs-dist to the repository
+// root, while an independent intake-page install keeps it local.
+const workerSource = fileURLToPath(
+  import.meta.resolve('pdfjs-dist/build/pdf.worker.min.mjs')
+);
 const workerDestination = fileURLToPath(new URL('../public/pdf.worker.min.mjs', import.meta.url));
 
 mkdirSync(dirname(workerDestination), { recursive: true });
