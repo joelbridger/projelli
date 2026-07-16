@@ -195,6 +195,15 @@ export const flagRegistry = [
     expiresAt: '2026-09-14',
     defaultEnabled: false,
   },
+  {
+    id: 'settings-shell-v1',
+    description:
+      'Keeps the v1 Settings frame dark until its acceptance drive is complete.',
+    ownerLane: 'settings-shell-v1',
+    createdAt: '2026-07-16',
+    expiresAt: '2026-09-14',
+    defaultEnabled: false,
+  },
 ] as const satisfies readonly FlagDescriptor[];
 
 export type FlagId = (typeof flagRegistry)[number]['id'];

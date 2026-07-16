@@ -1,0 +1,25 @@
+SELF-CHECK RECEIPT
+format_version: 3
+repo: /home/jameson/v1-w2-settings-shell-v1
+code_sha: c9685b9c8eb92bab74679247a462c799a23a2325
+code_tree: 8a385af6653a87557b5db1647efe641b77107df4
+code_parent: 957b8660c0e300a7903038230d21099c45247e09
+utc: 2026-07-16T05:44:02Z
+
+scope:
+- Made the v1 Settings frame select the same strongest scored search result as legacy Settings.
+- Added a multi-section relevance proof for "plug" and a real Privacy Center report proof for the active Northstar review matter.
+
+checks:
+- npm run typecheck — PASS
+- npm run typecheck:tests -- --pretty false — PASS
+- npm run boundaries:check — PASS (64 existing baseline findings; no regression)
+- focused Vitest: V1ShellFrame, SettingsV1FrameEnabled, settings content registry — PASS (3 files, 14 tests)
+- SettingsSurfaceFlagGate integration proof — PASS (1 file, 2 tests)
+- scoped ESLint — PASS
+- git diff --check — PASS
+
+not_run:
+- Cargo/Rust checks — NOT RUN (explicitly excluded by task)
+
+overall: GREEN

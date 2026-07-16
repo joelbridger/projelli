@@ -109,6 +109,14 @@ export interface AppSurfaceCapabilities {
     action: (actionId: string) => void;
     restartOnboarding: () => void;
     pageFocus?: { category?: SettingCategory; key: number };
+    /** Live Settings inputs supplied by the shell, not loaded by a feature frame. */
+    loadTemplates: () => WorkflowTemplate[];
+    extraSections: Array<{
+      id: string;
+      label: string;
+      testid: string;
+      content: ReactNode;
+    }>;
   };
 }
 
@@ -305,6 +313,8 @@ export function legacyRouterPropsToCapabilities(
       open: props.openSettings,
       action: props.handleSettingsAction,
       restartOnboarding: props.handleSettingsRestartOnboarding,
+      loadTemplates: () => [],
+      extraSections: [],
       ...(props.settingsPageFocus
         ? { pageFocus: props.settingsPageFocus }
         : {}),

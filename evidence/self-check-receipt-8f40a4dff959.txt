@@ -1,0 +1,26 @@
+SELF-CHECK RECEIPT
+format_version: 3
+repo: /home/jameson/v1-w2-settings-shell-v1
+code_sha: 8f40a4dff9591c50705eedbb70566c76fea94175
+code_tree: c72c75c7db32942e33387e9eeedeebb52dea0b28
+code_parent: 5f3e802b520017b95f01cf8f98dad71c02ef513a
+utc: 2026-07-16T05:25:32Z
+
+scope:
+- Shared the complete Settings search contract between legacy SettingsContent and the v1 frame.
+- Added the global FirmCard workspace menu with Workspace Settings and Organization Settings routes.
+- Strengthened the router integration proof with alias search, active-matter privacy reporting, audit seal repair, settings export payload/download, and confirmed store reset.
+
+checks:
+- npm run typecheck — PASS
+- npm run typecheck:tests -- --pretty false — PASS
+- npm run boundaries:check — PASS (64 existing baseline findings; no regression)
+- focused Vitest: V1ShellFrame, SettingsV1FrameEnabled, settings content registry — PASS (3 files, 13 tests)
+- SettingsSurfaceFlagGate integration proof — PASS (1 file, 2 tests)
+- scoped ESLint — PASS
+- git diff --check — PASS
+
+not_run:
+- Cargo/Rust checks — NOT RUN (explicitly excluded by task)
+
+overall: GREEN

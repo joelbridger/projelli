@@ -119,6 +119,8 @@ function createCapabilities(): AppSurfaceCapabilities {
       open: nothing,
       action: nothing,
       restartOnboarding: nothing,
+      loadTemplates: () => [],
+      extraSections: [],
     },
   };
 }

@@ -6,7 +6,15 @@ import { getOrderedAppSurfaces } from '@/app/shell/registry/appSurfaceRegistry';
 import { SharedClientBar } from '@/app/shell/SharedClientBar';
 import { useAppSurfaceRegistry } from '@/app/shell/runtime/useAppSurfaceRegistry';
 import { BRAND } from '@/config/brand';
-import { EV_OPEN_ACCOUNT } from '@/config/identity';
+import { EV_OPEN_ACCOUNT, EV_OPEN_SETTINGS } from '@/config/identity';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/ui/dropdown-menu';
 import { useFlag } from '@/platform/flags';
 import { useProfileStore } from '@/platform/profile/profileStore';
 import { useFirmStore } from '@/platform/firm/firmStore';
@@ -97,52 +105,98 @@ function RegistryNavItems({
   );
 }
 
-function FirmCard() {
+function FirmCard({ onOpenSettings }: { onOpenSettings: (category: 'workspace' | 'organization') => void }) {
   const { t } = useTranslation();
   const firmName = useProfileStore((state) => state.firmName);
   const firm = useFirmStore((state) => state.session);
 
+  const workspaceName =
+    firmName.trim() || firm?.org?.name || t('shell-frame.firm-card.default-name');
+
   return (
-    <section
-      className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 shadow-sm"
-      data-testid="v1-shell-firm-card"
-    >
-      <strong className="block truncate text-sm font-semibold text-slate-950">
-        {firmName.trim() ||
-          firm?.org?.name ||
-          t('shell-frame.firm-card.default-name')}
-      </strong>
-      {firm ? (
-        <span className="mt-1 block text-xs text-slate-500">
-          {t('shell-frame.firm-card.summary', { count: firm.seats })}
-        </span>
-      ) : null}
-    </section>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          aria-label={`Open ${workspaceName} workspace menu`}
+          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-left shadow-sm transition-colors hover:bg-white"
+          data-testid="v1-shell-firm-card"
+          type="button"
+        >
+          <strong className="block truncate text-sm font-semibold text-slate-950">
+            {workspaceName}
+          </strong>
+          {firm ? (
+            <span className="mt-1 block text-xs text-slate-500">
+              {t('shell-frame.firm-card.summary', { count: firm.seats })}
+            </span>
+          ) : null}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-56">
+        <DropdownMenuLabel>{workspaceName}</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          data-testid="v1-shell-workspace-settings"
+          onSelect={() => {
+            onOpenSettings('workspace');
+          }}
+        >
+          {t('settings-v1.workspace.settings-menu')}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          data-testid="v1-shell-workspace-organization"
+          onSelect={() => {
+            onOpenSettings('organization');
+          }}
+        >
+          {t('settings-v1.workspace.organization-menu')}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
-function UserAvatar() {
+function UserAvatar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const { t } = useTranslation();
   const soloName = useProfileStore((state) => state.soloName);
   const soloAvatar = useProfileStore((state) => state.soloAvatar);
   const label = soloName.trim() || t('shell-frame.avatar.fallback-name');
 
   return (
-    <button
-      aria-label={t('shell-frame.avatar.label', { name: label })}
-      className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-900 text-xs font-bold text-white transition-opacity hover:opacity-85 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
-      data-testid="v1-shell-account-identity"
-      onClick={() => {
-        window.dispatchEvent(new CustomEvent(EV_OPEN_ACCOUNT));
-      }}
-      type="button"
-    >
-      {soloAvatar ? (
-        <img alt="" className="size-full object-cover" src={soloAvatar} />
-      ) : (
-        initials(label) || 'A'
-      )}
-    </button>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          aria-label={t('shell-frame.avatar.label', { name: label })}
+          className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-900 text-xs font-bold text-white transition-opacity hover:opacity-85 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
+          data-testid="v1-shell-account-identity"
+          type="button"
+        >
+          {soloAvatar ? (
+            <img alt="" className="size-full object-cover" src={soloAvatar} />
+          ) : (
+            initials(label) || 'A'
+          )}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuLabel>{label}</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          data-testid="v1-shell-avatar-account"
+          onSelect={() => {
+            window.dispatchEvent(new CustomEvent(EV_OPEN_ACCOUNT));
+          }}
+        >
+          {t('settings-v1.personal.account-menu')}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          data-testid="v1-shell-avatar-personal-settings"
+          onSelect={onOpenSettings}
+        >
+          {t('settings-v1.personal.settings-menu')}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -229,7 +283,16 @@ export function V1ShellFrame({
             placement="utility"
             descriptors={descriptors}
           />
-          {sidebarCollapsed ? null : <FirmCard />}
+          {sidebarCollapsed ? null : (
+            <FirmCard
+              onOpenSettings={(category) => {
+                window.dispatchEvent(
+                  new CustomEvent(EV_OPEN_SETTINGS, { detail: { category } }),
+                );
+                onSurfaceChange('settings');
+              }}
+            />
+          )}
         </div>
       </aside>
 
@@ -272,7 +335,11 @@ export function V1ShellFrame({
             </kbd>
           </button>
           <NotificationBellSlot slot={notificationBellSlot} />
-          <UserAvatar />
+          <UserAvatar
+            onOpenSettings={() => {
+              onSurfaceChange('settings');
+            }}
+          />
         </header>
 
         {postTopbar}

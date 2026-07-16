@@ -1,0 +1,28 @@
+{
+  "settings-v1": {
+    "surface": {
+      "title": "Configuración"
+    },
+    "frame": {
+      "navigation-label": "Navegación de configuración"
+    },
+    "personal": {
+      "eyebrow": "Personal",
+      "default-name": "Tu perfil",
+      "profile-entry": "Perfil y cuenta",
+      "account-menu": "Cuenta y perfil",
+      "settings-menu": "Configuración personal"
+    },
+    "workspace": {
+      "eyebrow": "Espacio de trabajo",
+      "default-name": "Tu espacio de trabajo",
+      "entry": "Configuración del espacio de trabajo",
+      "sections-heading": "Configuración del espacio de trabajo",
+      "settings-menu": "Configuración del espacio de trabajo",
+      "organization-menu": "Configuración de la organización"
+    },
+    "organization": {
+      "eyebrow": "Organización"
+    }
+  }
+}

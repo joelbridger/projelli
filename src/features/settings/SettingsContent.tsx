@@ -92,17 +92,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu';
+import { settingTestid, groupKeywordMatch } from './settingsContentHelpers';
 import {
-  settingTestid,
-  getSettingsGroupSearch,
-  SETTING_SEARCH_ALIASES,
-  groupKeywordMatch,
-} from './settingsContentHelpers';
-import {
-  getSettingsSearchSectionDescriptors,
-  getSettingsSectionSearchTerms,
-  getVisibleSettingsSectionDescriptors,
-} from './registry/settingsModuleRegistry';
+  getSettingsSearchActiveSection,
+  getSettingsSearchResults,
+} from './settingsSearch';
+import { getVisibleSettingsSectionDescriptors } from './registry/settingsModuleRegistry';
 import {
   registerSettingsSectionRenderer,
   renderRegisteredSettingsPanels,
@@ -116,8 +111,6 @@ import {
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
 
-const HIDDEN_SETTING_KEYS = new Set(['tabOverflow']);
-
 const INLINE_DESCRIPTION_KEYS = new Set([
   'autoSaveInterval',
   'letterheadTemplatePath',
@@ -126,10 +119,6 @@ const INLINE_DESCRIPTION_KEYS = new Set([
 
 const SETTINGS_MARKETPLACE_LIVE =
   import.meta.env['VITE_SETTINGS_MARKETPLACE_LIVE'] === '1';
-
-function isVisibleSettingKey(key: string): boolean {
-  return !HIDDEN_SETTING_KEYS.has(key);
-}
 
 function numberUnitForSetting(key: string): string | undefined {
   if (key === 'autoSaveInterval') return 'seconds';
@@ -619,17 +608,6 @@ function renderRows(
     });
 }
 
-function settingMatchesQuery(def: SettingDefinition, lowerQ: string): boolean {
-  if (!lowerQ) return true;
-  if (def.label.toLowerCase().includes(lowerQ)) return true;
-  if (def.description.toLowerCase().includes(lowerQ)) return true;
-  if (def.key.toLowerCase().includes(lowerQ)) return true;
-  if (def.options?.some((opt) => opt.label.toLowerCase().includes(lowerQ))) return true;
-  return (SETTING_SEARCH_ALIASES[def.key] ?? []).some(
-    (term) => term.includes(lowerQ) || lowerQ.includes(term)
-  );
-}
-
 export function WorkspaceSection(props: SettingsContentSectionProps) {
   const generalKeys = ['startupBehavior', 'showWhatsNew'];
   const editorKeys  = ['fontSize', 'autoSave', 'autoSaveInterval', 'wordWrap', 'lineNumbers'];
@@ -1087,9 +1065,6 @@ export function SettingsContent({
   // The registry is the rail's single source of truth. Empty feature sections
   // remain hidden, preserving today's screen until their first flag is on.
   const registeredSections = getVisibleSettingsSectionDescriptors();
-  // The flag registry can change while this screen is open. Rebuild panel
-  // search keywords in the same render as the flag-aware rail descriptors.
-  const settingsGroupSearch = getSettingsGroupSearch();
 
   // A nested "extra" section is being viewed only when one is selected AND no
   // search is active (typing a query always shows the schema-driven settings
@@ -1099,97 +1074,19 @@ export function SettingsContent({
     ? (extraSections ?? []).find((s) => s.id === activeExtraId)
     : undefined;
 
-  // Keys that match the current search query
-  const filteredKeys = useMemo<Set<string>>(() => {
-    const lowerQ = searchQuery.toLowerCase().trim();
-    if (!lowerQ) {
-      return new Set(
-        SETTINGS_SCHEMA
-          .filter((def) => isVisibleSettingKey(def.key))
-          .map((d) => d.key)
-      );
-    }
-    return new Set(
-      SETTINGS_SCHEMA
-        .filter((def) => isVisibleSettingKey(def.key) && settingMatchesQuery(def, lowerQ))
-        .map((d) => d.key)
-    );
-  }, [searchQuery]);
-
-  // Relevance score per top-level section. Strong matches (a field label/key, or
-  // a group's keyword/label) outrank a description-only hit, so "plug" lands on
-  // Extensions (keyword) rather than an AI field that merely mentions "plugins"
-  // in its description, and "language" lands on General rather than Voice.
-  const sectionScores = useMemo<Record<SectionCategory, number>>(() => {
-    const scores = Object.fromEntries(
-      getSettingsSearchSectionDescriptors().map((section) => [section.id, 0]),
-    ) as Record<SectionCategory, number>;
-    const lowerQ = searchQuery.toLowerCase().trim();
-    if (!lowerQ) return scores;
-    const bump = (sec: SectionCategory, v: number) => {
-      if (sec in scores && v > scores[sec]) scores[sec] = v;
-    };
-    for (const def of SETTINGS_SCHEMA) {
-      if (!isVisibleSettingKey(def.key)) continue;
-      const sec = resolveSection(def.category);
-      const aliasHit = (SETTING_SEARCH_ALIASES[def.key] ?? []).some(
-        (term) => term.includes(lowerQ) || lowerQ.includes(term)
-      );
-      const optionHit = def.options?.some((opt) => opt.label.toLowerCase().includes(lowerQ)) ?? false;
-      if (def.label.toLowerCase().includes(lowerQ) || aliasHit) bump(sec, 3);
-      else if (optionHit) bump(sec, 3);
-      else if (def.key.toLowerCase().includes(lowerQ)) bump(sec, 2);
-      else if (def.description.toLowerCase().includes(lowerQ)) bump(sec, 1);
-    }
-    for (const [subId, entry] of Object.entries(settingsGroupSearch)) {
-      if (groupKeywordMatch(subId, '', lowerQ, settingsGroupSearch)) {
-        bump(entry.section, 3);
-      }
-    }
-    for (const section of registeredSections) {
-      if (getSettingsSectionSearchTerms(section.id).some(
-        (term) => term.includes(lowerQ) || lowerQ.includes(term),
-      )) {
-        bump(section.id, 3);
-      }
-    }
-    // Keyboard-shortcut labels live outside the schema; a hit shows Help.
-    const shortcutHit = SHORTCUTS.some(
-      (s) =>
-        s.label.toLowerCase().includes(lowerQ) ||
-        (s.description ?? '').toLowerCase().includes(lowerQ) ||
-        s.keys.some((k) => k.toLowerCase().includes(lowerQ))
-    );
-    if (shortcutHit) bump('help', 2);
-    return scores;
-  }, [searchQuery, registeredSections, settingsGroupSearch]);
-
-  // Which sections have any match (score > 0).
-  const visibleSections = useMemo<Set<SectionCategory>>(() => {
-    if (!searchQuery.trim()) {
-      return new Set<SectionCategory>(registeredSections.map((section) => section.id));
-    }
-    const sections = new Set<SectionCategory>();
-    (Object.keys(sectionScores) as SectionCategory[]).forEach((sec) => {
-      if (sectionScores[sec] > 0) sections.add(sec);
-    });
-    return sections;
-  }, [sectionScores, searchQuery, registeredSections]);
+  const { filteredKeys, sectionScores, visibleSectionIds: visibleSections } = useMemo(
+    () => getSettingsSearchResults(searchQuery, registeredSections),
+    [searchQuery, registeredSections],
+  );
 
   // While searching, jump to the strongest-matching section, but stay put if the
   // current section is already a top match (so typing doesn't yank you around).
-  const effectiveSection: SectionCategory = (() => {
-    const fallbackSection = registeredSections[0]?.id ?? 'workspace';
-    if (!registeredSections.some((section) => section.id === activeSection)) {
-      return fallbackSection;
-    }
-    if (!searchActive) return activeSection;
-    const order = registeredSections.map((section) => section.id);
-    const maxScore = Math.max(...order.map((s) => sectionScores[s]));
-    if (maxScore <= 0) return activeSection;
-    if (sectionScores[activeSection] === maxScore) return activeSection;
-    return order.find((s) => sectionScores[s] === maxScore) ?? activeSection;
-  })();
+  const effectiveSection = getSettingsSearchActiveSection(
+    activeSection,
+    searchActive,
+    registeredSections,
+    sectionScores,
+  );
 
   if (effectiveSection !== activeSection) {
     queueMicrotask(() => { setActiveSection(effectiveSection); });

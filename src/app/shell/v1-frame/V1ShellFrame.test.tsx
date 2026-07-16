@@ -209,8 +209,38 @@ describe('V1ShellFrame', () => {
     );
   });
 
-  it('keeps the account window reachable from the avatar', () => {
+  it('opens the global workspace menu and routes its existing Settings destinations', async () => {
+    const onSurfaceChange = vi.fn();
+    const onOpenSettings = vi.fn();
+    window.addEventListener('lantern:open-settings', onOpenSettings);
+    render(
+      <V1ShellFrame
+        activeSurface="home"
+        onOpenCommandPalette={vi.fn()}
+        onSurfaceChange={onSurfaceChange}
+      >
+        <div />
+      </V1ShellFrame>
+    );
+
+    fireEvent.pointerDown(screen.getByTestId('v1-shell-firm-card'), {
+      button: 0,
+      ctrlKey: false,
+    });
+    expect(await screen.findByTestId('v1-shell-workspace-settings')).toBeVisible();
+    expect(screen.getByTestId('v1-shell-workspace-organization')).toBeVisible();
+
+    fireEvent.click(screen.getByTestId('v1-shell-workspace-organization'));
+    expect(onSurfaceChange).toHaveBeenCalledWith('settings');
+    expect(onOpenSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ detail: { category: 'organization' } }),
+    );
+    window.removeEventListener('lantern:open-settings', onOpenSettings);
+  });
+
+  it('keeps the account window and personal settings reachable from the avatar menu', async () => {
     const onOpenAccount = vi.fn();
+    const onSurfaceChange = vi.fn();
     window.addEventListener('lantern:open-account', onOpenAccount, {
       once: true,
     });
@@ -218,14 +248,27 @@ describe('V1ShellFrame', () => {
       <V1ShellFrame
         activeSurface="home"
         onOpenCommandPalette={vi.fn()}
-        onSurfaceChange={vi.fn()}
+        onSurfaceChange={onSurfaceChange}
       >
         <div />
       </V1ShellFrame>
     );
 
-    fireEvent.click(screen.getByTestId('v1-shell-account-identity'));
+    fireEvent.pointerDown(screen.getByTestId('v1-shell-account-identity'), {
+      button: 0,
+      ctrlKey: false,
+    });
+    fireEvent.click(await screen.findByTestId('v1-shell-avatar-account'));
     expect(onOpenAccount).toHaveBeenCalledOnce();
+
+    fireEvent.pointerDown(screen.getByTestId('v1-shell-account-identity'), {
+      button: 0,
+      ctrlKey: false,
+    });
+    fireEvent.click(
+      await screen.findByTestId('v1-shell-avatar-personal-settings')
+    );
+    expect(onSurfaceChange).toHaveBeenCalledWith('settings');
   });
 
   it('shows the shared-client slot only for a shared surface', () => {
