@@ -26,19 +26,23 @@ vi.mock('@/features/crm-tags', async (importOriginal) => ({
 }));
 
 function makeStore(): FirmTagStore {
+  const catalog = {
+    version: 1 as const,
+    tags: [{ id: 'tag-prep', name: 'Preparation', color: '#2563eb' as const, status: 'retired' as const }],
+  };
   return {
-    catalog: { version: 1, tags: [{ id: 'tag-prep', name: 'Preparation', color: '#2563eb', status: 'retired' }] },
+    catalog,
     errorCode: null,
-    list: vi.fn().mockResolvedValue({ version: 1, tags: [] }),
+    list: vi.fn().mockResolvedValue(catalog),
     create: vi.fn(), rename: vi.fn(), setColor: vi.fn(), retire: vi.fn(),
   };
 }
 
-function makeContext(): { context: WorkflowStepExtensionContext; saves: LiveWorkflowInstance[] } {
+function makeContext(tagIds: readonly string[] = ['tag-prep']): { context: WorkflowStepExtensionContext; saves: LiveWorkflowInstance[] } {
   const template = createTemplate('Annual review', ['Prepare']);
   const initialStep = template.steps[0];
   if (!initialStep) throw new Error('Expected template step');
-  initialStep.tagIds = ['tag-prep'];
+  initialStep.tagIds = [...tagIds];
   let saved = startWorkflow(template, { id: 'matter-river', label: 'River household', matterId: 'matter-river' });
   const saves: LiveWorkflowInstance[] = [];
   const stepId = Object.keys(saved.snapshot.steps)[0];
@@ -92,6 +96,24 @@ describe('workflow-step attachments', () => {
     expect(container).toBeEmptyDOMElement();
     expect(useFirmTagStore).not.toHaveBeenCalled();
     expect(test.saves).toEqual([]);
+  });
+
+  it('awaits the public tag catalog and shows its current name, color, lifecycle, and missing IDs', async () => {
+    const test = makeContext(['tag-prep', 'tag-missing']);
+    const store = makeStore();
+    useFirmTagStore.mockReturnValue(store);
+    setDevFlagOverride('workflow-step-attachments', true);
+
+    render(<WorkflowStepAttachments context={test.context} />);
+
+    expect(await screen.findByTestId('workflow-step-attachment-tag-tag-prep'))
+      .toHaveTextContent('Preparation · Retired');
+    expect(screen.getByTestId('workflow-step-attachment-tag-color-tag-prep'))
+      .toHaveStyle({ backgroundColor: 'var(--kp-tag-blue)' });
+    expect(screen.getByTestId('workflow-step-attachment-tag-tag-missing'))
+      .toHaveTextContent('Unavailable tag: tag-missing');
+    expect(test.context.instance.snapshot.steps[test.context.stepId]?.tagIds)
+      .toEqual(['tag-prep', 'tag-missing']);
   });
 
   it('validates, saves, reloads, lists, and removes one stable-step document reference', async () => {

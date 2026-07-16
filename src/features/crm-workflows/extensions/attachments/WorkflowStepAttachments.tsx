@@ -5,7 +5,7 @@ import {
   resolveWorkspaceDocumentRef,
   type WorkspaceDocumentRef,
 } from '@/features/crm-documents';
-import { useFirmTagStore } from '@/features/crm-tags';
+import { firmTagPaint, useFirmTagStore } from '@/features/crm-tags';
 import type { WorkflowStepExtensionContext } from '@/features/crm-workflows';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useFlag } from '@/platform/flags';
@@ -121,7 +121,25 @@ function WorkflowStepAttachmentsEnabled({ context }: { context: WorkflowStepExte
       {catalogReady && tags.length > 0 ? (
         <div aria-label={t('workflowStepAttachments.tags')} data-testid="workflow-step-attachment-tags" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
           {tags.map(({ id, tag }) => (
-            <Badge key={id} variant={tag?.status === 'retired' ? 'warning' : 'neutral'}>
+            <Badge
+              data-testid={`workflow-step-attachment-tag-${id}`}
+              key={id}
+              variant={tag?.status === 'retired' ? 'warning' : 'neutral'}
+            >
+              {tag ? (
+                <span
+                  aria-hidden="true"
+                  data-testid={`workflow-step-attachment-tag-color-${id}`}
+                  style={{
+                    backgroundColor: firmTagPaint(tag.color),
+                    borderRadius: '50%',
+                    display: 'inline-block',
+                    height: 8,
+                    marginRight: 5,
+                    width: 8,
+                  }}
+                />
+              ) : null}
               {tag ? `${tag.name}${tag.status === 'retired' ? ` · ${t('workflowStepAttachments.retired')}` : ''}` : t('workflowStepAttachments.unavailableTag', { id })}
             </Badge>
           ))}
