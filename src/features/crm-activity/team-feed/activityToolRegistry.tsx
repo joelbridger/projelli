@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import type { TeamActivityItem } from './contracts';
+import { activityFilterSearchTool } from '../extensions/filter-search';
 
 export type ActivityToolStateValue =
   | null
@@ -49,7 +50,7 @@ export interface ActivityToolComposition {
 }
 
 /** Append feature-owned feed tools here without changing the team-feed surface. */
-export const activityToolRegistry: readonly ActivityToolDescriptor[] = [];
+export const activityToolRegistry: readonly ActivityToolDescriptor[] = [activityFilterSearchTool as ActivityToolDescriptor];
 
 export function validateActivityToolDescriptors(
   descriptors: readonly ActivityToolDescriptor[],

@@ -1,0 +1,19 @@
+{
+  "activity-filter-search": {
+    "search-label": "Aktivität durchsuchen",
+    "search-placeholder": "Aktivität durchsuchen",
+    "kind-label": "Aktivitätsfilter",
+    "kind": {
+      "all": "Alle Aktivitäten",
+      "mentions": "Mit Erwähnungen",
+      "discussions": "Mit Kommentaren",
+      "reactions": "Mit Reaktionen"
+    },
+    "author-label": "Personenfilter",
+    "author": {
+      "all": "Alle Personen"
+    },
+    "reset": "Filter löschen",
+    "no-results": "Keine Aktivität passt zu diesen Filtern."
+  }
+}
