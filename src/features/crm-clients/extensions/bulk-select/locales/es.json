@@ -1,0 +1,12 @@
+{
+  "bulkSelect": {
+    "label": "Selección de hogares",
+    "selectOne": "Seleccionar un hogar",
+    "selectedOption": "Seleccionado: {{name}}",
+    "selectVisible": "Seleccionar los visibles",
+    "selectAll": "Seleccionar todo el directorio",
+    "count_one": "{{count}} hogar seleccionado",
+    "count_other": "{{count}} hogares seleccionados",
+    "clear": "Borrar selección"
+  }
+}

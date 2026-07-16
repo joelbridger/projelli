@@ -1,0 +1,12 @@
+{
+  "bulkSelect": {
+    "label": "Haushaltsauswahl",
+    "selectOne": "Haushalt auswählen",
+    "selectedOption": "Ausgewählt: {{name}}",
+    "selectVisible": "Sichtbare auswählen",
+    "selectAll": "Gesamtes Verzeichnis auswählen",
+    "count_one": "{{count}} Haushalt ausgewählt",
+    "count_other": "{{count}} Haushalte ausgewählt",
+    "clear": "Auswahl aufheben"
+  }
+}
