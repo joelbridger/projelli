@@ -112,151 +112,29 @@ function resolveSpecifier(specifier, containingFile, compilerOptions) {
 export function staticImports(file) {
   const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, false);
   const imports = new Set();
-  const fileDependencies = new Set();
-  const nodeFilesystemBindings = new Map();
-  const nodeFilesystemNamespaces = new Set();
-  const nodeFilesystemPromiseNamespaces = new Set();
-  const nodeChildProcessBindings = new Map();
-  const nodeChildProcessNamespaces = new Set();
   let hasUnknownDynamicImport = false;
 
-  const filesystemMethods = new Set(['readFileSync', 'readFile', 'existsSync', 'statSync', 'lstatSync', 'readdirSync', 'globSync']);
-  const childProcessMethods = new Set(['exec', 'execSync', 'execFile', 'execFileSync', 'spawn', 'spawnSync']);
+  // Filesystem access is a capability, not a particular call spelling. A test
+  // whose graph can import one of these modules may inspect any local source at
+  // runtime, so it is always run. This deliberately covers aliases, namespace
+  // imports, CommonJS, dynamic imports, and local re-exports without trying to
+  // recognize readFile/readFileSync call sites.
+  const filesystemModules = new Set(['node:fs', 'node:fs/promises', 'fs', 'fs/promises', 'fs-extra']);
+  let filesystemCapability = false;
 
-  function bindNodeApi(name, sourceModule, importedName = name, namespace = false) {
-    if (sourceModule === 'node:fs' || sourceModule === 'node:fs/promises' || sourceModule === 'fs' || sourceModule === 'fs/promises' || sourceModule === 'fs-extra') {
-      if (namespace) nodeFilesystemNamespaces.add(name);
-      else if (importedName === 'promises') nodeFilesystemPromiseNamespaces.add(name);
-      else if (filesystemMethods.has(importedName)) nodeFilesystemBindings.set(name, importedName);
-    }
-    if (sourceModule === 'node:child_process' || sourceModule === 'child_process') {
-      if (namespace) nodeChildProcessNamespaces.add(name);
-      else if (childProcessMethods.has(importedName)) nodeChildProcessBindings.set(name, importedName);
-    }
-  }
-
-  function collectNodeApiBindings(node) {
-    if (ts.isImportDeclaration(node) && node.importClause && ts.isStringLiteral(node.moduleSpecifier)) {
-      const sourceModule = node.moduleSpecifier.text;
-      if (node.importClause.name) bindNodeApi(node.importClause.name.text, sourceModule, undefined, true);
-      const bindings = node.importClause.namedBindings;
-      if (bindings && ts.isNamespaceImport(bindings)) bindNodeApi(bindings.name.text, sourceModule, undefined, true);
-      if (bindings && ts.isNamedImports(bindings)) {
-        for (const element of bindings.elements) bindNodeApi(element.name.text, sourceModule, element.propertyName?.text ?? element.name.text);
-      }
-    }
-    if (ts.isVariableDeclaration(node) && node.initializer && ts.isCallExpression(node.initializer)
-      && ts.isIdentifier(node.initializer.expression) && node.initializer.expression.text === 'require'
-      && node.initializer.arguments[0] && ts.isStringLiteralLike(node.initializer.arguments[0])) {
-      const sourceModule = node.initializer.arguments[0].text;
-      if (ts.isIdentifier(node.name)) bindNodeApi(node.name.text, sourceModule, undefined, true);
-      if (ts.isObjectBindingPattern(node.name)) {
-        for (const element of node.name.elements) {
-          if (ts.isIdentifier(element.name)) bindNodeApi(element.name.text, sourceModule, element.propertyName?.getText(source) ?? element.name.text);
-        }
-      }
-    }
-    // Dynamic Node imports are valid bindings too. If a form is not recognized
-    // below, the source-path boundary in visit() still marks it opaque rather
-    // than treating an invisible dependency as safe to skip.
-    if (ts.isVariableDeclaration(node) && node.initializer) {
-      let initializer = node.initializer;
-      while (ts.isAwaitExpression(initializer) || ts.isParenthesizedExpression(initializer)) initializer = initializer.expression;
-      const importCall = ts.isCallExpression(initializer) ? initializer : undefined;
-      if (importCall && importCall.expression.kind === ts.SyntaxKind.ImportKeyword
-        && importCall.arguments[0] && ts.isStringLiteralLike(importCall.arguments[0])) {
-        const sourceModule = importCall.arguments[0].text;
-        if (ts.isIdentifier(node.name)) bindNodeApi(node.name.text, sourceModule, undefined, true);
-        if (ts.isObjectBindingPattern(node.name)) {
-          for (const element of node.name.elements) {
-            if (ts.isIdentifier(element.name)) bindNodeApi(element.name.text, sourceModule, element.propertyName?.getText(source) ?? element.name.text);
-          }
-        }
-      }
-    }
-    ts.forEachChild(node, collectNodeApiBindings);
-  }
-
-  function nodeApiMethod(node) {
-    if (!ts.isCallExpression(node)) return undefined;
-    if (ts.isIdentifier(node.expression)) {
-      const name = node.expression.text;
-      if (nodeFilesystemBindings.has(name)) return { kind: 'filesystem', method: nodeFilesystemBindings.get(name) };
-      if (nodeChildProcessBindings.has(name)) return { kind: 'child-process', method: nodeChildProcessBindings.get(name) };
-      return undefined;
-    }
-    if (ts.isPropertyAccessExpression(node.expression)) {
-      const method = node.expression.name.text;
-      const namespaceExpression = ts.isPropertyAccessExpression(node.expression.expression)
-        && node.expression.expression.name.text === 'promises'
-        ? node.expression.expression.expression
-        : node.expression.expression;
-      if (!ts.isIdentifier(namespaceExpression)) return undefined;
-      const namespace = namespaceExpression.text;
-      if (nodeFilesystemNamespaces.has(namespace) && filesystemMethods.has(method)) return { kind: 'filesystem', method };
-      if (nodeFilesystemPromiseNamespaces.has(namespace) && filesystemMethods.has(method)) return { kind: 'filesystem', method };
-      if (nodeChildProcessNamespaces.has(namespace) && childProcessMethods.has(method)) return { kind: 'child-process', method };
-    }
-    return undefined;
-  }
-
-  // Source-inspection tests often read a production file rather than import it.
-  // Follow paths assembled from string literals, process.cwd(), import.meta.dirname,
-  // and node:path resolve/join. Anything less definite opens the selector to the
-  // complete suite instead of guessing.
-  const constants = new Map();
-  function constantPath(node) {
-    if (ts.isStringLiteralLike(node) || ts.isNoSubstitutionTemplateLiteral(node)) return node.text;
-    if (ts.isIdentifier(node)) return constants.get(node.text);
-    if (ts.isCallExpression(node)
-      && ts.isPropertyAccessExpression(node.expression)
-      && ts.isIdentifier(node.expression.expression)
-      && node.expression.expression.text === 'process'
-      && node.expression.name.text === 'cwd'
-      && node.arguments.length === 0) return root;
-    if (ts.isPropertyAccessExpression(node)
-      && ts.isMetaProperty(node.expression)
-      && node.expression.keywordToken.kind === ts.SyntaxKind.ImportKeyword
-      && node.name.text === 'dirname') return path.dirname(file);
-    if (ts.isCallExpression(node)) {
-      const callee = ts.isIdentifier(node.expression) ? node.expression.text
-        : ts.isPropertyAccessExpression(node.expression) ? node.expression.name.text : undefined;
-      if (callee === 'resolve' || callee === 'join') {
-        const parts = node.arguments.map(constantPath);
-        if (parts.some((part) => part === undefined)) return undefined;
-        return callee === 'resolve' ? path.resolve(...parts) : path.join(...parts);
-      }
-    }
-    return undefined;
-  }
-
-  function pathMayReachSource(node) {
-    const target = constantPath(node);
-    if (target !== undefined) return path.resolve(root, target).startsWith(`${path.join(root, 'src')}${path.sep}`);
-    let reachesSource = false;
-    function inspect(part) {
-      if (ts.isStringLiteralLike(part) || ts.isNoSubstitutionTemplateLiteral(part)) {
-        const normalized = part.text.replace(/\\\\/g, '/');
-        if (normalized === 'src' || normalized.startsWith('src/') || normalized.includes('/src/')) reachesSource = true;
-      }
-      ts.forEachChild(part, inspect);
-    }
-    inspect(node);
-    return reachesSource;
+  function recordImport(specifier) {
+    imports.add(specifier);
+    if (filesystemModules.has(specifier)) filesystemCapability = true;
   }
 
   function visit(node) {
-    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
-      const value = constantPath(node.initializer);
-      if (value !== undefined) constants.set(node.name.text, value);
-    }
     if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
-      imports.add(node.moduleSpecifier.text);
+      recordImport(node.moduleSpecifier.text);
     }
     if (ts.isCallExpression(node)) {
       const [first] = node.arguments;
       if ((node.expression.kind === ts.SyntaxKind.ImportKeyword || (ts.isIdentifier(node.expression) && node.expression.text === 'require')) && first) {
-        if (ts.isStringLiteralLike(first)) imports.add(first.text);
+        if (ts.isStringLiteralLike(first)) recordImport(first.text);
         else hasUnknownDynamicImport = true;
       }
     }
@@ -269,35 +147,10 @@ export function staticImports(file) {
       // not guessed. The caller opens the selector to the full suite instead.
       hasUnknownDynamicImport = true;
     }
-    const first = ts.isCallExpression(node) ? node.arguments[0] : undefined;
-    const api = nodeApiMethod(node);
-    const methodName = ts.isCallExpression(node) && ts.isIdentifier(node.expression) ? node.expression.text
-      : ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) ? node.expression.name.text : undefined;
-    const sourcePathAccess = ts.isCallExpression(node) && Boolean(first) && pathMayReachSource(first)
-      && (api?.kind === 'filesystem' || filesystemMethods.has(methodName));
-    if (sourcePathAccess) {
-      // A test that inspects production source via the filesystem has a
-      // dependency boundary the static import graph cannot prove complete.
-      // Keep a precise edge when available, but always run the test as well.
-      const target = constantPath(first);
-      if (target !== undefined && path.resolve(root, target).startsWith(`${root}${path.sep}`)) fileDependencies.add(path.resolve(root, target));
-      hasUnknownDynamicImport = true;
-    } else if (api) {
-      const target = node.arguments[0] ? constantPath(node.arguments[0]) : undefined;
-      if (!target || !path.resolve(target).startsWith(`${root}${path.sep}`)
-        || api.kind === 'child-process' || ['readdirSync', 'globSync'].includes(api.method)) {
-        // Directory/glob scans, spawned checks, and runtime-computed paths
-        // cannot be faithfully represented as a single graph edge.
-        hasUnknownDynamicImport = true;
-      } else {
-        fileDependencies.add(path.resolve(target));
-      }
-    }
     ts.forEachChild(node, visit);
   }
-  collectNodeApiBindings(source);
   visit(source);
-  return { imports: [...imports], fileDependencies: [...fileDependencies], opaque: hasUnknownDynamicImport };
+  return { imports: [...imports], filesystemCapability, opaque: filesystemCapability, unresolved: hasUnknownDynamicImport };
 }
 
 function compilerOptions() {
@@ -312,13 +165,15 @@ function buildReverseDependencyGraph(testFiles, options) {
   const pending = testFiles.map(absolute);
   const visited = new Set();
   const reverse = new Map();
-  const opaqueModules = new Set();
+  const filesystemCapabilityModules = new Set();
+  const runtimeDiscoveryModules = new Set();
   while (pending.length > 0) {
     const current = pending.pop();
     if (!current || visited.has(current)) continue;
     visited.add(current);
     const parsed = staticImports(current);
-    if (parsed.opaque) opaqueModules.add(current);
+    if (parsed.filesystemCapability) filesystemCapabilityModules.add(current);
+    if (parsed.unresolved) runtimeDiscoveryModules.add(current);
     for (const specifier of parsed.imports) {
       const resolved = resolveSpecifier(specifier, current, options);
       if (!resolved) continue;
@@ -329,13 +184,8 @@ function buildReverseDependencyGraph(testFiles, options) {
       reverse.set(local, parents);
       pending.push(local);
     }
-    for (const dependency of parsed.fileDependencies) {
-      const parents = reverse.get(dependency) ?? new Set();
-      parents.add(current);
-      reverse.set(dependency, parents);
-    }
   }
-  return { reverse, opaqueModules };
+  return { reverse, filesystemCapabilityModules, runtimeDiscoveryModules };
 }
 
 function testsAffectedBy(changedFiles, testFiles, reverse) {
@@ -355,9 +205,13 @@ function testsAffectedBy(changedFiles, testFiles, reverse) {
 
 export function selectTestsForChanges({ testFiles, changedFiles }) {
   const graph = buildReverseDependencyGraph(testFiles, compilerOptions());
+  const filesystemCapabilityTestFiles = testsAffectedBy([...graph.filesystemCapabilityModules].map(relative), testFiles, graph.reverse);
+  const selected = testsAffectedBy(changedFiles, testFiles, graph.reverse);
+  for (const testFile of filesystemCapabilityTestFiles) selected.add(testFile);
   return {
-    testFiles: [...testsAffectedBy(changedFiles, testFiles, graph.reverse)].sort(),
-    opaque: graph.opaqueModules.size > 0,
+    testFiles: [...selected].sort(),
+    opaque: filesystemCapabilityTestFiles.size > 0 || graph.runtimeDiscoveryModules.size > 0,
+    filesystemCapabilityTestFiles: [...filesystemCapabilityTestFiles].sort(),
   };
 }
 
@@ -395,10 +249,15 @@ export function selectImpact({ range }) {
     for (const testFile of tests) if (changed.has(testFile)) selected.add(testFile);
     const options = compilerOptions();
     const graph = buildReverseDependencyGraph(tests, options);
-    const opaqueSafetyTests = testsAffectedBy([...graph.opaqueModules].map(relative), tests, graph.reverse);
-    if (graph.opaqueModules.size > 0 && opaqueSafetyTests.size === 0) {
+    const filesystemCapabilityTests = testsAffectedBy([...graph.filesystemCapabilityModules].map(relative), tests, graph.reverse);
+    if (graph.filesystemCapabilityModules.size > 0 && filesystemCapabilityTests.size === 0) {
+      return fullResult(tests, parsedRange.range, 'Filesystem-capable modules have no reachable test coverage; full suite required.', manifest);
+    }
+    const opaqueSafetyTests = testsAffectedBy([...graph.runtimeDiscoveryModules].map(relative), tests, graph.reverse);
+    if (graph.runtimeDiscoveryModules.size > 0 && opaqueSafetyTests.size === 0) {
       return fullResult(tests, parsedRange.range, 'Runtime-discovered dependencies have no reachable test coverage; full suite required.', manifest);
     }
+    for (const testFile of filesystemCapabilityTests) selected.add(testFile);
     for (const testFile of opaqueSafetyTests) selected.add(testFile);
     for (const testFile of testsAffectedBy(changes.map(({ file }) => file), tests, graph.reverse)) selected.add(testFile);
     for (const testFile of selected) {
@@ -411,7 +270,7 @@ export function selectImpact({ range }) {
       testFiles: [...selected].sort(),
       selectedCount: selected.size,
       fullCount: tests.length,
-      reasons: ['Static import graph reached one or more changed local modules (or the always-run safety net).', 'Always-run manifest and tests that cover runtime-discovered dependencies included.'],
+      reasons: ['Static import graph reached one or more changed local modules (or the always-run safety net).', 'Always-run manifest, filesystem-capable test graphs, and runtime-discovery coverage included.'],
       externalGateSteps: manifest.externalGateSteps,
     };
   } catch (error) {
