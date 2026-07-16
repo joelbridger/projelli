@@ -14,11 +14,7 @@ import { EV_OPEN_ACCOUNT } from '@/config/identity';
 import { useFirmStore } from '@/platform/firm/firmStore';
 import { useProfileStore } from '@/platform/profile/profileStore';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
-import {
-  SETTINGS_SCHEMA,
-  resolveSection,
-  type SectionCategory,
-} from '@/platform/settings/schema';
+import { resolveSection, type SectionCategory } from '@/platform/settings/schema';
 import { useFlagRegistryVersion } from '@/platform/flags';
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
@@ -31,11 +27,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu';
-import {
-  getSettingsSectionSearchTerms,
-  getVisibleSettingsSectionDescriptors,
-} from '@/features/settings/registry/settingsModuleRegistry';
+import { getVisibleSettingsSectionDescriptors } from '@/features/settings/registry/settingsModuleRegistry';
 import { renderRegisteredSettingsPanels } from '@/features/settings/registry/sectionRendererBindings';
+import { getSettingsSearchResults } from '@/features/settings/settingsSearch';
 import type {
   SettingsSectionDescriptor,
   SettingsSectionRenderProps,
@@ -157,39 +151,12 @@ export function SettingsV1FrameEnabled({
     }
   }
 
-  const lowerSearch = searchQuery.trim().toLowerCase();
-  const searchActive = lowerSearch.length > 0;
-  const filteredKeys = useMemo(
-    () =>
-      new Set(
-        SETTINGS_SCHEMA.filter(
-          (definition) =>
-            definition.key !== 'tabOverflow' &&
-            (!lowerSearch ||
-              definition.label.toLowerCase().includes(lowerSearch) ||
-              definition.description.toLowerCase().includes(lowerSearch) ||
-              definition.key.toLowerCase().includes(lowerSearch))
-        ).map((definition) => definition.key)
-      ),
-    [lowerSearch]
+  const searchActive = searchQuery.trim().length > 0;
+  const { filteredKeys, visibleSectionIds } = useMemo(
+    () => getSettingsSearchResults(searchQuery, sections),
+    [searchQuery, sections],
   );
-  const visibleSections = useMemo(
-    () =>
-      sections.filter((section) => {
-        if (!searchActive) return true;
-        return (
-          SETTINGS_SCHEMA.some(
-            (definition) =>
-              resolveSection(definition.category) === section.id &&
-              filteredKeys.has(definition.key)
-          ) ||
-          getSettingsSectionSearchTerms(section.id).some((term) =>
-            term.toLowerCase().includes(lowerSearch)
-          )
-        );
-      }),
-    [filteredKeys, lowerSearch, searchActive, sections]
-  );
+  const visibleSections = sections.filter((section) => visibleSectionIds.has(section.id));
   const effectiveSection = visibleSections.some(
     (section) => section.id === activeSection
   )

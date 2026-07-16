@@ -6,7 +6,7 @@ import { getOrderedAppSurfaces } from '@/app/shell/registry/appSurfaceRegistry';
 import { SharedClientBar } from '@/app/shell/SharedClientBar';
 import { useAppSurfaceRegistry } from '@/app/shell/runtime/useAppSurfaceRegistry';
 import { BRAND } from '@/config/brand';
-import { EV_OPEN_ACCOUNT } from '@/config/identity';
+import { EV_OPEN_ACCOUNT, EV_OPEN_SETTINGS } from '@/config/identity';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -100,27 +100,54 @@ function RegistryNavItems({
   );
 }
 
-function FirmCard() {
+function FirmCard({ onOpenSettings }: { onOpenSettings: (category: 'workspace' | 'organization') => void }) {
   const { t } = useTranslation();
   const firmName = useProfileStore((state) => state.firmName);
   const firm = useFirmStore((state) => state.session);
 
+  const workspaceName =
+    firmName.trim() || firm?.org?.name || t('shell-frame.firm-card.default-name');
+
   return (
-    <section
-      className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 shadow-sm"
-      data-testid="v1-shell-firm-card"
-    >
-      <strong className="block truncate text-sm font-semibold text-slate-950">
-        {firmName.trim() ||
-          firm?.org?.name ||
-          t('shell-frame.firm-card.default-name')}
-      </strong>
-      {firm ? (
-        <span className="mt-1 block text-xs text-slate-500">
-          {t('shell-frame.firm-card.summary', { count: firm.seats })}
-        </span>
-      ) : null}
-    </section>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          aria-label={`Open ${workspaceName} workspace menu`}
+          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-left shadow-sm transition-colors hover:bg-white"
+          data-testid="v1-shell-firm-card"
+          type="button"
+        >
+          <strong className="block truncate text-sm font-semibold text-slate-950">
+            {workspaceName}
+          </strong>
+          {firm ? (
+            <span className="mt-1 block text-xs text-slate-500">
+              {t('shell-frame.firm-card.summary', { count: firm.seats })}
+            </span>
+          ) : null}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-56">
+        <DropdownMenuLabel>{workspaceName}</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          data-testid="v1-shell-workspace-settings"
+          onSelect={() => {
+            onOpenSettings('workspace');
+          }}
+        >
+          {t('settings-v1.workspace.settings-menu')}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          data-testid="v1-shell-workspace-organization"
+          onSelect={() => {
+            onOpenSettings('organization');
+          }}
+        >
+          {t('settings-v1.workspace.organization-menu')}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -250,7 +277,16 @@ export function V1ShellFrame({
             placement="utility"
             descriptors={descriptors}
           />
-          {sidebarCollapsed ? null : <FirmCard />}
+          {sidebarCollapsed ? null : (
+            <FirmCard
+              onOpenSettings={(category) => {
+                window.dispatchEvent(
+                  new CustomEvent(EV_OPEN_SETTINGS, { detail: { category } }),
+                );
+                onSurfaceChange('settings');
+              }}
+            />
+          )}
         </div>
       </aside>
 

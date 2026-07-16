@@ -106,6 +106,35 @@ describe('V1ShellFrame', () => {
     );
   });
 
+  it('opens the global workspace menu and routes its existing Settings destinations', async () => {
+    const onSurfaceChange = vi.fn();
+    const onOpenSettings = vi.fn();
+    window.addEventListener('lantern:open-settings', onOpenSettings);
+    render(
+      <V1ShellFrame
+        activeSurface="home"
+        onOpenCommandPalette={vi.fn()}
+        onSurfaceChange={onSurfaceChange}
+      >
+        <div />
+      </V1ShellFrame>
+    );
+
+    fireEvent.pointerDown(screen.getByTestId('v1-shell-firm-card'), {
+      button: 0,
+      ctrlKey: false,
+    });
+    expect(await screen.findByTestId('v1-shell-workspace-settings')).toBeVisible();
+    expect(screen.getByTestId('v1-shell-workspace-organization')).toBeVisible();
+
+    fireEvent.click(screen.getByTestId('v1-shell-workspace-organization'));
+    expect(onSurfaceChange).toHaveBeenCalledWith('settings');
+    expect(onOpenSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ detail: { category: 'organization' } }),
+    );
+    window.removeEventListener('lantern:open-settings', onOpenSettings);
+  });
+
   it('keeps the account window and personal settings reachable from the avatar menu', async () => {
     const onOpenAccount = vi.fn();
     const onSurfaceChange = vi.fn();
