@@ -111,10 +111,11 @@ function ContactTableView({ context }: { context: DirectoryContext }) {
         ...households.map((record) => ({ kind: 'household' as const, record })),
         ...people.map((record) => ({ kind: 'person' as const, record })),
       ] satisfies readonly ContactRow[]).filter((row) => {
-        if (type !== 'all') return rowKind(row) === type;
-        if (legacyScope === 'households') return row.kind === 'household';
-        if (legacyScope === 'people') return row.kind === 'person';
-        return true;
+        const matchesLegacyScope =
+          legacyScope === null ||
+          (legacyScope === 'households' && row.kind === 'household') ||
+          (legacyScope === 'people' && row.kind === 'person');
+        return matchesLegacyScope && (type === 'all' || rowKind(row) === type);
       }),
     [households, legacyScope, people, type]
   );

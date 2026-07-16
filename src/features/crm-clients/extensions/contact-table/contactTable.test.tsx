@@ -247,6 +247,15 @@ describe('CRM contact table directory contribution', () => {
     fireEvent.click(screen.getByTestId('crm-directory-tab-households'));
     expect(screen.getByTestId('crm-contact-table-household-h-chen')).toBeInTheDocument();
     expect(screen.queryByTestId('crm-contact-table-person-p-chen')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId('crm-contact-table-type'), {
+      target: { value: 'organization' },
+    });
+    fireEvent.click(screen.getByTestId('crm-directory-tab-people'));
+    expect(screen.getByTestId('crm-contact-table-person-p-lee')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('crm-directory-tab-households'));
+    expect(screen.queryByTestId('crm-contact-table-person-p-lee')).not.toBeInTheDocument();
+    expect(screen.getByTestId('crm-contact-table-empty')).toBeInTheDocument();
   });
 
   it('unlocks the Add household form when a synchronous repository call fails', async () => {
