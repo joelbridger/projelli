@@ -32,6 +32,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Test-impact selection is now fail-open at the final runner boundary.**
+  The runner starts with the full Vitest command and can narrow it only after a
+  successful, non-empty selector result. It now falls back to the full suite for
+  early and mid-selector errors, nonzero exits, empty output, and timeouts.
+  Source-inspection tests using static `readFileSync`/`existsSync` paths built
+  with `node:path` now contribute dependency edges, while runtime file scans,
+  dynamic imports, and spawned checks deliberately retain the full suite.
+  Files: `scripts/test-impact.mjs`, `scripts/test-impact-run.mjs`,
+  `scripts/__tests__/test-impact.test.mjs`.
 - **OneDrive exact-name client-folder import is now locked against BUG-11.**
   Added the exact Windows-bench regression case: a top-level OneDrive folder
   named `Webb, Marcus & Tanya` with one `Risk Assessment.pdf` must download into

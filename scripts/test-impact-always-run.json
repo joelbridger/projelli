@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "description": "Tests that run for every affected-only Vitest selection. Keep this small, cross-cutting, and reviewed: it is a safety net, not a convenience list.",
+  "testFiles": [
+    "tests/unit/architecture-boundaries.test.ts",
+    "tests/unit/brand-i18n.test.ts",
+    "tests/unit/client-boundary.test.ts",
+    "tests/unit/client-boundary.windows.test.ts",
+    "tests/unit/i18n-completeness-check.test.ts",
+    "tests/unit/i18n/en-json-snapshot.test.ts",
+    "tests/unit/i18n/i18n-config.test.ts",
+    "tests/unit/i18n/locale-coverage.test.ts",
+    "tests/unit/i18n/locale-detect.test.ts",
+    "tests/unit/i18n/locale-smoke.test.ts",
+    "tests/unit/ui-system/handle-eval.test.ts",
+    "src/app/shell/v1-frame/NotificationBellSlot.flag-gate.test.tsx",
+    "tests/unit/ask/consent-gate-wiring.contract.test.ts",
+    "tests/unit/crm/crm-egress-boundary.guard.test.ts"
+  ],
+  "externalGateSteps": [
+    "node scripts/ui-system/handle-guard.mjs",
+    "bash -c 'cd src-tauri && cargo build --locked && ../scripts/golden-loop-launch-app.sh --record-provenance .. target/debug/lantern && ../scripts/golden-loop.sh .. target/debug/lantern'"
+  ],
+  "fullSuiteTriggers": [
+    "package.json",
+    "package-lock.json",
+    "vitest.config.ts",
+    "tsconfig.json",
+    "tsconfig.test.json",
+    "tests/setup.ts",
+    "scripts/test-impact.mjs",
+    "scripts/test-impact-run.mjs",
+    "scripts/test-impact-always-run.json",
+    "scripts/test-impact-manifest.json"
+  ]
+}
