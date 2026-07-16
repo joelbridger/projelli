@@ -222,6 +222,15 @@ export const flagRegistry = [
     expiresAt: '2026-09-14',
     defaultEnabled: false,
   },
+  {
+    id: 'universal-tags',
+    description:
+      'Keeps firm-wide reusable tag administration dark until its acceptance drive is complete.',
+    ownerLane: 'universal-tags',
+    createdAt: '2026-07-16',
+    expiresAt: '2026-09-14',
+    defaultEnabled: false,
+  },
 ] as const satisfies readonly FlagDescriptor[];
 
 export type FlagId = (typeof flagRegistry)[number]['id'];

@@ -16,6 +16,7 @@ import { setCrmEngineFreshness, type CrmEngineFreshness } from '@/platform/crm/s
 import type { LiveCrmRecord } from './liveRecords';
 
 const CRM_LIVE_RECORDS_DOC_ID = 'crm:live-records';
+const FIRM_HOME_MATTER_ID = 'firm_home';
 
 /**
  * This relay is the only thing that actually delivers CRM records live, so it
@@ -46,13 +47,15 @@ interface LiveRecordSession {
   readonly doc: Y.Doc;
   readonly records: Y.Map<Y.Map<string>>;
   readonly sync: MatterDocSyncClient;
-  readonly onRemote: RemoteWriter;
+  readonly remoteWriters: Set<RemoteWriter>;
   readonly lastRecords: Map<string, LiveCrmRecord>;
   applyingRemote: boolean;
 }
 
 let session: LiveRecordSession | null = null;
 let pending: Promise<LiveRecordSession | null> | null = null;
+let pendingFirmMatterId: string | null = null;
+let pendingRemoteWriters: Set<RemoteWriter> | null = null;
 
 function decodeRecord(value: Y.Map<string>): LiveCrmRecord | null {
   try {
@@ -76,6 +79,14 @@ function relayEpoch(
     .catch(() => 1);
 }
 
+// The encrypted stream belongs to the real firm delivery matter, while CRM
+// records that apply across the firm retain the canonical `firm_home` scope.
+// Both scopes are therefore carried by that stream; this applies to every
+// whole-firm CRM record, not one feature's record kind.
+function belongsToFirmRelay(record: LiveCrmRecord, firmMatterId: string): boolean {
+  return record.matterId === firmMatterId || record.matterId === FIRM_HOME_MATTER_ID;
+}
+
 /**
  * Start one document stream for the shared client currently open in this app.
  * A missing key is a deliberate fail-closed result (wall, no membership, or
@@ -85,17 +96,38 @@ export function ensureLiveRecordRelay(
   firmMatterId: string,
   onRemote: RemoteWriter,
 ): Promise<LiveRecordSession | null> {
-  if (session?.firmMatterId === firmMatterId) return Promise.resolve(session);
-  if (pending) return pending;
+  if (session?.firmMatterId === firmMatterId) {
+    session.remoteWriters.add(onRemote);
+    return Promise.resolve(session);
+  }
+  if (pending) {
+    if (pendingFirmMatterId === firmMatterId) pendingRemoteWriters?.add(onRemote);
+    return pending;
+  }
   // Reaching this function means the workspace really has firm delivery
   // configured. Until the transport reports live, disconnected is the honest
   // state (including missing-seat or missing-key failures during bootstrap).
   setCrmEngineFreshness({ kind: 'offline' });
-  pending = build(firmMatterId, onRemote).finally(() => { pending = null; });
+  pendingFirmMatterId = firmMatterId;
+  pendingRemoteWriters = new Set([onRemote]);
+  pending = build(firmMatterId, pendingRemoteWriters).finally(() => {
+    pending = null;
+    pendingFirmMatterId = null;
+    pendingRemoteWriters = null;
+  });
   return pending;
 }
 
-async function build(firmMatterId: string, onRemote: RemoteWriter): Promise<LiveRecordSession | null> {
+/** Stop using one mounted CRM surface as the remote record writer. */
+export function removeLiveRecordRelayWriter(onRemote: RemoteWriter): void {
+  session?.remoteWriters.delete(onRemote);
+  pendingRemoteWriters?.delete(onRemote);
+}
+
+async function build(
+  firmMatterId: string,
+  remoteWriters: Set<RemoteWriter>,
+): Promise<LiveRecordSession | null> {
   stopLiveRecordRelay();
   const firm = useFirmStore.getState();
   if (!firm.seatToken) return null;
@@ -110,7 +142,7 @@ async function build(firmMatterId: string, onRemote: RemoteWriter): Promise<Live
     doc,
     records,
     sync: null as unknown as MatterDocSyncClient,
-    onRemote,
+    remoteWriters,
     lastRecords: new Map(),
     applyingRemote: false,
   };
@@ -140,9 +172,13 @@ async function applyRemote(live: LiveRecordSession): Promise<void> {
   try {
     for (const value of live.records.values()) {
       const record = decodeRecord(value);
-      if (record && record.matterId === live.firmMatterId) {
+      if (record && belongsToFirmRelay(record, live.firmMatterId)) {
         live.lastRecords.set(record.id, record);
-        await live.onRemote(record);
+        // Every mounted surface registers a writer, but a peer record needs
+        // exactly one SQLCipher save. If the original surface unmounts, its
+        // cleanup removes that writer and the next mounted surface takes over.
+        const writer = live.remoteWriters.values().next().value;
+        if (writer) await writer(record);
       }
     }
   } finally {
@@ -153,7 +189,7 @@ async function applyRemote(live: LiveRecordSession): Promise<void> {
 /** Put one local SQLCipher record into the encrypted shared-client stream. */
 export function publishLiveRecord(record: LiveCrmRecord): void {
   const activeSession = session;
-  if (!activeSession || activeSession.applyingRemote || record.matterId !== activeSession.firmMatterId) return;
+  if (!activeSession || activeSession.applyingRemote || !belongsToFirmRelay(record, activeSession.firmMatterId)) return;
   const baseline: Record<string, unknown> = activeSession.lastRecords.get(record.id) ?? {};
   activeSession.doc.transact(() => {
     let target = activeSession.records.get(record.id);

@@ -1,0 +1,49 @@
+{
+  "crm-tags": {
+    "settings-label": "Organización",
+    "heading": "Etiquetas de la empresa",
+    "heading-copy": "Crea etiquetas reutilizables para el trabajo de toda tu empresa.",
+    "catalog-title": "Catálogo de etiquetas",
+    "catalog-copy": "Las etiquetas conservan el mismo ID cuando cambias su nombre o color. Las etiquetas retiradas siguen disponibles para el trabajo anterior.",
+    "tag-name": "Nombre de la etiqueta",
+    "tag-name-for": "Nombre de etiqueta para {{name}}",
+    "tag-id": "ID: {{id}}",
+    "tag-color": "Color de la etiqueta",
+    "tag-color-for": "Color de etiqueta para {{name}}",
+    "status": {
+      "active": "Activa",
+      "retired": "Retirada"
+    },
+    "color": {
+      "blue": "Azul",
+      "green": "Verde",
+      "amber": "Ámbar",
+      "red": "Rojo",
+      "purple": "Morado",
+      "slate": "Pizarra"
+    },
+    "save-name": "Guardar nombre",
+    "retire": "Retirar",
+    "confirm-retire": "Confirmar retiro",
+    "new-tag": "Nombre de nueva etiqueta",
+    "new-tag-color": "Color de nueva etiqueta",
+    "add": "Agregar etiqueta",
+    "name-saved": "Nombre de etiqueta guardado.",
+    "color-saved": "Color de etiqueta guardado.",
+    "retired": "Etiqueta retirada. El trabajo anterior conserva su ID de etiqueta.",
+    "added": "Etiqueta agregada.",
+    "save-failed": "No se pudo guardar el catálogo de etiquetas.",
+    "error": {
+      "workspace_unavailable": "Abre un espacio de trabajo antes de administrar las etiquetas de la empresa.",
+      "invalid_name": "Dale a la etiqueta un nombre de 80 caracteres o menos.",
+      "invalid_color": "Elige uno de los colores de etiqueta aprobados.",
+      "duplicate_name": "Ese nombre de etiqueta ya está en uso.",
+      "not_found": "Esa etiqueta ya no existe.",
+      "retired": "No se puede cambiar una etiqueta retirada.",
+      "persistence_failed": "No se pudo guardar el catálogo de etiquetas."
+    },
+    "references-title": "El trabajo anterior sigue conectado",
+    "references-copy": "Cambiar el nombre, color o retirar una etiqueta nunca cambia los IDs de etiqueta guardados por tareas, flujos de trabajo, eventos, archivos o trabajo masivo.",
+    "references-protected": "IDs guardados protegidos"
+  }
+}

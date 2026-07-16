@@ -13,6 +13,7 @@ import {
   notificationPreferencesSettingsPanel,
   notificationPreferencesSettingsSection,
 } from '@/features/notifications';
+import { universalTagsSettingsPanel } from '@/features/crm-tags';
 import type {
   SettingsGroupDescriptor,
   SettingsPanelDescriptor,
@@ -46,6 +47,7 @@ export const settingsPanelRegistry: readonly SettingsPanelDescriptor[] = [
   customFieldsSettingsModule,
   contactSourcesSettingsPanel,
   notificationPreferencesSettingsPanel,
+  universalTagsSettingsPanel,
 ];
 
 function definitionsFor(

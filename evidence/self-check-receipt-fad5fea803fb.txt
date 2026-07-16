@@ -1,0 +1,16 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 2
+repo: /home/jameson/v1-w2-universal-tags
+sha: fad5fea803fb8c2cf73a8940cd892b19713f522f
+tree: c31c4ca97f0b190d16dab4d337ac2c1a155b1d87
+gate_base: 086f78a3bd9699795a1fea417960c30a278b21ba
+tool_blob: 47e279d4399792a5cc19fc7f1ced01c5863b18af
+utc: 2026-07-16T02:30:08Z
+step: gate:changed | exit=0 | 02:30:08Z..02:54:40Z | bytes=54532 | sha256=a63d86eeb20f9d76a614f96c840df911c16db570225a82764024672c7b4a770d | tail: assed | 3 skipped (999) Tests 8349 passed | 29 skipped (8378) Start at 02:43:03 Duration 696.62s (transform 68.62s, setup 402.04s, import 875.77s, tests 440.96s, environment 809.50s) CHANGED GATE GREEN 
+step: typecheck | exit=0 | 02:54:40Z..02:55:13Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit 
+step: typecheck:tests | exit=0 | 02:55:13Z..02:56:08Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit 
+step: handle-guard | exit=0 | 02:56:08Z..02:56:08Z | bytes=1267 | sha256=60979813778f5b0656c791759f96530ef06c396cad7e7c10be9b0520228edb78 | tail: t-picker-cancel + client-picker-clear + client-picker-empty + client-picker-error +144 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen). 
+step: arch-dag-guard | exit=0 | 02:56:08Z..02:56:10Z | bytes=220 | sha256=f7bdf765236ed9154fb85117e66f1a46711190e95c412823660240202591167d | tail:  RUN v4.1.3 /home/jameson/v1-w2-universal-tags Test Files 1 passed (1) Tests 1 passed (1) Start at 02:56:09 Duration 1.46s (transform 332ms, setup 507ms, import 381ms, tests 4ms, environment 409ms) 
+step: i18n-snapshot | exit=0 | 02:56:10Z..02:56:12Z | bytes=221 | sha256=0bd9052271b303eedcd8ee174f7ea048a3e0cdd13fd032a6be2485ef7c5f1628 | tail:  RUN v4.1.3 /home/jameson/v1-w2-universal-tags Test Files 1 passed (1) Tests 5 passed (5) Start at 02:56:10 Duration 1.30s (transform 284ms, setup 453ms, import 275ms, tests 18ms, environment 424ms) 
+step: focused | exit=0 | 02:56:12Z..02:56:14Z | bytes=222 | sha256=75980bc85e2026cfef0cb908bf013ac478bc517bd99aa01f098b1ffb4713a325 | tail: RUN v4.1.3 /home/jameson/v1-w2-universal-tags Test Files 3 passed (3) Tests 6 passed (6) Start at 02:56:12 Duration 2.23s (transform 1.85s, setup 1.24s, import 3.23s, tests 256ms, environment 1.26s) 
+overall: GREEN
