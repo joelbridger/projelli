@@ -1,0 +1,19 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/v1-w2-team-activity-feed
+sha: e6a0d38880556ad39c8113f2e6856cbc3c744227
+tree: 8e6d75f16b55be9d3f7035e640155cd0a3e2f7e9
+gate_base: fc3267418a906e03d473806cce7971f03459e5b9
+tool_blob: 2a8a0211c0565e6bbcb39b6891e5d0839375074a
+utc: 2026-07-16T07:50:02Z
+step_timeout_seconds: 900
+loadavg: 5.82 7.79 9.68
+running_vitest_eslint_procs: 1
+step: gate:changed | status=FAIL | exit=1 | 07:50:02Z..07:58:08Z | bytes=134394 | sha256=b679b60732d7b4d0d074787e660ea510ceaa8aae9fa333710e5565b1b1663441 | tail: 67418a906e03d473806cce7971f03459e5b9 ===== Rust tests (lantern) ===== bash: line 1: cargo: command not found FAILED: bash -c cd src-tauri && CI=1 cargo test -p 'lantern' --locked CHANGED GATE RED see failures above 
+step: typecheck | status=PASS | exit=0 | 07:58:08Z..07:58:39Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit 
+step: typecheck:tests | status=PASS | exit=0 | 07:58:39Z..07:59:14Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit 
+step: handle-guard | status=PASS | exit=0 | 07:59:14Z..07:59:14Z | bytes=1267 | sha256=41d73747904b14556643f5dfd21717cbbaf74a8a56b5dec69f9392b8632cf4fb | tail: t-picker-cancel + client-picker-clear + client-picker-empty + client-picker-error +199 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen). 
+step: arch-dag-guard | status=PASS | exit=0 | 07:59:14Z..07:59:15Z | bytes=224 | sha256=1559ab1001847835bcfd4caa124782a87d2060fb5ca45bbb2c9e77869cdae756 | tail: N v4.1.3 /home/jameson/v1-w2-team-activity-feed Test Files 1 passed (1) Tests 1 passed (1) Start at 07:59:14 Duration 1.15s (transform 236ms, setup 363ms, import 283ms, tests 3ms, environment 389ms) 
+step: i18n-snapshot | status=PASS | exit=0 | 07:59:15Z..07:59:17Z | bytes=225 | sha256=d4b175d6a67d42e2c89529746455fddad4942c9e50788454482588eae4335050 | tail:  v4.1.3 /home/jameson/v1-w2-team-activity-feed Test Files 1 passed (1) Tests 5 passed (5) Start at 07:59:16 Duration 1.13s (transform 268ms, setup 407ms, import 266ms, tests 25ms, environment 329ms) 
+step: focused | status=PASS | exit=0 | 07:59:17Z..07:59:21Z | bytes=228 | sha256=fdf59d76a2b016db0cddcca2cffa603095bb6a8123794b8a48ead767c90ed974 | tail: 4.1.3 /home/jameson/v1-w2-team-activity-feed Test Files 5 passed (5) Tests 29 passed (29) Start at 07:59:17 Duration 4.36s (transform 2.32s, setup 2.00s, import 3.67s, tests 1.52s, environment 2.35s) 
+overall: RED
