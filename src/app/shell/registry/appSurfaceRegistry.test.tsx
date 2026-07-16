@@ -28,7 +28,7 @@ function descriptor(
 describe('appSurfaceRegistry', () => {
   it('is the complete source for current routing and primary navigation', () => {
     const descriptors = getAppSurfaceDescriptors();
-    expect(appSurfaceRegistry).toHaveLength(13);
+    expect(appSurfaceRegistry).toHaveLength(14);
     expect(descriptors.map(({ id }) => id)).toEqual([
       'home',
       'matters',
@@ -43,6 +43,7 @@ describe('appSurfaceRegistry', () => {
       'ai-assistant',
       'research',
       'trash',
+      'settings-v1',
     ]);
     expect(getOrderedAppSurfaces('primary').map(({ id }) => id)).toEqual([
       'home',

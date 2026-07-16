@@ -1,0 +1,24 @@
+{
+  "settings-v1": {
+    "surface": {
+      "title": "Settings"
+    },
+    "frame": {
+      "navigation-label": "Settings navigation"
+    },
+    "personal": {
+      "eyebrow": "Personal",
+      "default-name": "Your profile",
+      "profile-entry": "Profile and account"
+    },
+    "workspace": {
+      "eyebrow": "Workspace",
+      "default-name": "Your workspace",
+      "entry": "Workspace settings",
+      "sections-heading": "Workspace settings"
+    },
+    "organization": {
+      "eyebrow": "Organization"
+    }
+  }
+}
