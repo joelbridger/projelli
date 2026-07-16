@@ -65,6 +65,7 @@ export const flagRegistry = [
   defineFlag('settings-shell-v1', 'Keeps the v1 Settings frame dark until its acceptance drive is complete.', 'settings-shell-v1', '2026-07-16', '2026-09-14'),
   defineFlag('own-clients-permissions', 'Keeps own-client permission scoping dark: the read-side policy doorway is present, but the native enforcement engine is deferred, so consumers stay off until provable no-bypass enforcement lands.', 'own-clients-permissions', '2026-07-16', '2026-09-14'),
   defineFlag('universal-tags', 'Keeps firm-wide reusable tag administration dark until its acceptance drive is complete.', 'universal-tags', '2026-07-16', '2026-09-14'),
+  defineFlag('crm-tags-rail', 'Keeps the CRM directory tag quick-filter dark until its acceptance review is complete.', 'crm-tags-rail', '2026-07-16', '2026-09-14'),
 ] as const satisfies readonly FlagDescriptor[];
 
 export type FlagId = (typeof flagRegistry)[number]['id'];

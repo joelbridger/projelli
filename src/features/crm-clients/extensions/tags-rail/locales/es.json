@@ -1,0 +1,20 @@
+{
+  "tagsRail": {
+    "open_one": "Etiquetas · {{count}}",
+    "open_other": "Etiquetas · {{count}}",
+    "heading": "Filtrar directorio por etiquetas",
+    "tagList": "Etiquetas de la firma",
+    "loading": "Cargando etiquetas de la firma…",
+    "catalogUnavailable": "Las etiquetas de la firma no están disponibles ahora. El filtro de etiquetas guardado no ha cambiado.",
+    "noTags": "Todavía no se han configurado etiquetas de la firma.",
+    "apply": "Aplicar etiquetas",
+    "clear": "Borrar etiquetas",
+    "applied": "Filtros de etiquetas aplicados",
+    "appliedCount_one": "{{count}} etiqueta aplicada",
+    "appliedCount_other": "{{count}} etiquetas aplicadas",
+    "reset": "Restablecer etiquetas",
+    "retired": "Retirada",
+    "unavailableSelection": "Etiqueta no disponible: {{id}}",
+    "noResults": "Ninguna persona u hogar coincide con estas etiquetas."
+  }
+}

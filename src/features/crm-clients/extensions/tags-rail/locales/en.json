@@ -1,0 +1,20 @@
+{
+  "tagsRail": {
+    "open_one": "Tags · {{count}}",
+    "open_other": "Tags · {{count}}",
+    "heading": "Filter directory by tags",
+    "tagList": "Firm tags",
+    "loading": "Loading firm tags…",
+    "catalogUnavailable": "Firm tags are unavailable right now. Your saved tag filter has not been changed.",
+    "noTags": "No firm tags have been configured yet.",
+    "apply": "Apply tags",
+    "clear": "Clear tags",
+    "applied": "Applied tag filters",
+    "appliedCount_one": "{{count}} tag applied",
+    "appliedCount_other": "{{count}} tags applied",
+    "reset": "Reset tags",
+    "retired": "Retired",
+    "unavailableSelection": "Unavailable tag: {{id}}",
+    "noResults": "No people or households match these tags."
+  }
+}
