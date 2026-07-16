@@ -8,7 +8,10 @@ const { useFlag } = vi.hoisted(() => ({
   useFlag: vi.fn((_id: string) => false),
 }));
 
-vi.mock('@/platform/flags', () => ({ useFlag }));
+vi.mock('@/platform/flags', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/platform/flags')>()),
+  useFlag,
+}));
 
 const migration: CrmHomeAdapter['migration'] = {
   workflowChecklists: [
