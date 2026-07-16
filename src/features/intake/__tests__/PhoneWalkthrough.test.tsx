@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PhoneWalkthrough } from '../PhoneWalkthrough';
 import { useIntakeStore } from '@/platform/intake/intakeStore';
@@ -37,6 +37,16 @@ describe('PhoneWalkthrough', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useIntakeStore.getState().resetForTests();
+  });
+
+  afterEach(async () => {
+    // A historical full-suite failure came from a Radix focus callback after
+    // jsdom had already been dismantled. Finish that callback while the DOM
+    // still exists instead of leaving a timer for the next worker teardown.
+    cleanup();
+    await act(async () => {
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    });
   });
 
   it('shows one item at a time and supports next, back, skip, and phone fact writes', async () => {

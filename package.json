@@ -31,6 +31,8 @@
     "tauri:build": "tauri build",
     "tauri:dev": "tauri dev",
     "test": "/home/jameson/lantern/coordination/box-test-slot.sh vitest run",
+    "test:impact": "node scripts/test-impact.mjs",
+    "test:impact:run": "node scripts/test-impact-run.mjs",
     "test:coverage": "vitest run --coverage",
     "test:docusign-sandbox-roundtrip": "vitest run tests/live/docusignSandboxRoundtrip.test.ts tests/live/docusignSandboxCreds.test.ts",
     "test:contracts": "bash scripts/test-contracts.sh",
