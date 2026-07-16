@@ -1,113 +1,119 @@
-# `merge=union` registry safety review
+# `merge=union` flag-registry safety
 
-## Decision
+## Decision and non-negotiable checks
 
-Enable Git's built-in `union` merge driver for **only**
-`src/platform/flags/registry.ts`.
+Git's built-in `union` driver is enabled for exactly one file:
+`src/platform/flags/registry.ts`. Each descriptor is one physical
+`defineFlag(...)` line, so two independent additions cannot have their fields
+woven together.
 
-The flag inventory is a real append-only set: each entry is a complete flag
-record, the router selects by `id`, and no flag is selected by array position
-or consumes another flag's `id`. The registry guard enforces those assumptions.
-It also enforces the one-line `defineFlag(...)` convention that makes Git's
-line-based union result safe.
-
-Lane self-check, before handing off a change that appends a flag:
+This is not a best-effort convention. The normal blocking gate runs both:
 
 ```bash
 node scripts/check-union-registry-preconditions.mjs
+node scripts/check-union-registry-merge-history.mjs
 ```
 
-This is documentation only. It deliberately does not change `merge-gate.sh`,
-its launcher, or any coordinator brief; adoption belongs to the coordinator
-governance process.
+The first check rejects malformed or multi-line descriptors, duplicate ids,
+sibling-id dependencies, removal of the Prettier exclusion, and positional
+access (`flagRegistry[index]` or `.at(...)`) in every tracked TypeScript or
+JavaScript consumer under `src/`. The second check is merge-parent-aware: for
+a two-parent merge it compares the merge base, both parents, and the final
+registry. If either parent deleted a base flag and the merged result contains
+it, the gate fails. A delete therefore cannot be silently undone by an append.
 
-## FUSION TRAP: empirical result and fix
+`scripts/flag-registry.mjs` is the canonical reader used by the flag-cap and
+inventory commands. It reads the atomic `defineFlag(...)` form into the same
+six `FlagDescriptor` fields as before. It also understands the old object
+form only for merge-history inspection of pre-adoption parents; the automatic
+precondition gate rejects that old form in the live registry.
 
-The original registry used one multi-line object literal per descriptor. A real
-two-branch, both-at-end merge with `merge=union` active did **not** retain two
-objects. Git coalesced the common field lines and produced one malformed object
-with duplicate `id` and `description` keys:
-
-```ts
-{
-  id: 'union-sim-raw-ours',
-  description: 'Complete descriptor union-sim-raw-ours.',
-  id: 'union-sim-raw-theirs',
-  description: 'Complete descriptor union-sim-raw-theirs.',
-  ownerLane: 'merge-union-simulation',
-  // … shared fields …
-}
-```
-
-`tsc --noEmit` rejected that merge with `TS1117: An object literal cannot have
-multiple properties with the same name` for both duplicate keys. Therefore a
-plain attribute on the old shape would be unsafe.
-
-The registry now uses one physical `defineFlag(...)` call per descriptor. The
-helper preserves the same descriptor object and literal `FlagId` union. The
-file is excluded from Prettier because the deliberately atomic call lines are
-part of its merge-safety contract. Two concurrent additions are now two
-distinct full lines, which Git's union driver cannot weave into one object.
-
-## MERGE-SIMULATION EVIDENCE
-
-All simulations used temporary local clones based on the current
-`origin/merge/combined` tip. Each simulation first committed the active
-`.gitattributes` rule, then created two branches from that same base, appended
-one complete descriptor per branch, and performed an ordinary `git merge`.
-No working feature branch was changed by the simulations.
-
-| Case | Shape and positions | Result |
-| --- | --- | --- |
-| Original control | Two multi-line objects, both at the end | Unsafe fusion shown above; merge reported only two inserted lines; `tsc` failed with `TS1117`. |
-| Refactored conflict case | Two one-line `defineFlag(...)` calls, both at the end | Merge retained exactly one complete `union-sim-at-end-ours` call and one complete `union-sim-at-end-theirs` call; `tsc --noEmit` passed. |
-| Refactored separated control | One one-line call inserted between existing entries and one appended at the end | Merge retained exactly one complete descriptor from each branch; `tsc --noEmit` passed. |
-
-Representative command sequence:
+Useful local commands:
 
 ```bash
-git clone --no-local /home/jameson/v1-speedup-union /tmp/union-registry-sim/repo
-git -C /tmp/union-registry-sim/repo checkout origin/merge/combined
-# Commit the attribute and the tested registry shape to a temporary simulation base.
-git -C /tmp/union-registry-sim/repo checkout -b sim-ours sim-base
-# Append a complete union-sim-…-ours descriptor and commit it.
-git -C /tmp/union-registry-sim/repo checkout -b sim-theirs sim-base
-# Append a complete union-sim-…-theirs descriptor and commit it.
-git -C /tmp/union-registry-sim/repo checkout sim-ours
-git -C /tmp/union-registry-sim/repo merge --no-edit sim-theirs
-tsc --noEmit -p /tmp/union-registry-sim/repo/tsconfig.json
+npm run flags:union:check
+npm run flags:union:simulate
+node scripts/check-flag-cap.mjs
+node scripts/flag-inventory.mjs
 ```
+
+## One-time transition rule for existing lanes
+
+Do not ordinarily merge an old-style flag-registry lane after this attribute is
+active. A normal Git merge can retain both the new one-line registry and the
+old multi-line registry without showing a conflict marker.
+
+For every lane already based on the old object form, use this mechanical
+sequence:
+
+1. Start from the adopted one-line registry, not from the merged registry file.
+2. Compare the lane's registry to its old base and extract only its newly added
+   descriptors.
+3. Convert each extracted descriptor to one complete one-line `defineFlag(...)`
+   call and append it to the adopted registry.
+4. Run `npm run flags:union:check`, the flag-cap command, focused flag tests,
+   the merge simulations, and TypeScript before accepting the lane.
+
+The checked-in old-style simulation proves why this freeze exists. It creates a
+lane from an old object registry, adopts the one-line registry on the other
+side, and performs an ordinary merge. Git may finish cleanly, but the automatic
+precondition gate rejects the duplicated ids and old-form entries, so the bad
+result cannot pass the build.
+
+## Checked-in merge simulations
+
+`npm run flags:union:simulate` uses fresh temporary Git repositories and real
+ordinary merges. It never changes the working branch. Every case must be either
+clean and correct or rejected by an automatic gate:
+
+| Case | Required result |
+| --- | --- |
+| Two end appends | Both complete calls appear exactly once; structural and merge-history checks pass. |
+| Insert plus append | Both complete calls appear exactly once; structural and merge-history checks pass. |
+| Delete versus append | Git can merge, but the merge-parent check fails for the resurrected id. |
+| Exact same full line | One line remains; both checks pass. |
+| Same id, different metadata | The duplicate-id check fails. |
+| Old-style in-flight append versus adopted file | The malformed/duplicate registry fails the automatic structural check. |
+
+The focused unit test also parses the real registry through the canonical
+reader, and the expiry behavior test proves that the set of expired ids is the
+same after a permutation. The production router already creates a `Map` keyed
+by id, so lookup does not depend on descriptor order.
 
 ## Registry survey
 
-Only the flag registry meets the narrow precondition today. The following
-nearby registry/contribution files were surveyed and intentionally excluded.
+Only the flag inventory meets the narrow independent-set contract today. These
+plausible registry-like files were reviewed and deliberately excluded:
 
 | Candidate | Why it is excluded from `merge=union` |
 | --- | --- |
-| `src/app/shell/registry/appSurfaceRegistry.ts` | Surface rendering uses `order`; equal values fall back to registry order, so order is still meaningful. |
-| `src/features/settings/registry/settingsModuleRegistry.ts` | A panel names its parent section and groups/definitions must be globally unique: entries can directly depend on sibling entries. |
-| `src/features/crm-clients/directoryRegistry.tsx` | Query comparators deliberately compose in descriptor order; the file also contains several different contribution lists. |
-| `src/features/crm-clients/recordRegistry.tsx`, `tabRegistry.ts` | Sections name tabs and all visible contributions use `order`; these are not independent sets. |
-| `src/features/crm-home/registry.ts` | Its own contract preserves route order, and feature surfaces carry ordered placement behavior. |
-| `src/app/commands/registry/{commandRegistry,navigationTargetRegistry}.ts` | Commands can collide on shortcuts; navigation targets name app-surface ids, creating a cross-registry dependency. |
-| `src/features/account/{accountSectionRegistry,connectionCardRegistry}.ts` | Sections/cards are rendered by placement and numeric order, with static import changes in the same files. |
-| `src/app/shell/client-context/clientContextAdapterRegistry.ts` | The consumer can choose among adapters; no proof exists that the list is a commutative set. |
-| `src/features/{meetings,crm-tasks,crm-workflows,crm-pipeline,scheduling}/…Registry.*` | These mount UI fragments in explicit numeric order; order is product behavior. |
-| `src/platform/privacy/egressModules/registry.ts` | It intentionally flattens operations in registry order and is privacy/security-sensitive. |
-| `src/features/booking/public-page/registry/bookingPageRegistry.ts`, `src/features/audit/auditActionRegistry.ts` | They are not demonstrated lane-append hot spots with an enforced independence contract; their current multi-line descriptor shapes would reintroduce the fusion risk. |
+| `src/app/shell/registry/appSurfaceRegistry.ts` | Surface rendering uses `order`; equal values fall back to source order. |
+| `src/features/settings/registry/settingsModuleRegistry.ts` | Panels name parent sections and definitions must be globally unique. |
+| `src/features/crm-clients/{directoryRegistry,recordRegistry,tabRegistry}.*` | Comparators, tabs, and sections deliberately compose in descriptor order. |
+| `src/features/crm-home/registry.ts`, `src/features/home/homeWidgetHostRegistry.ts` | Product placement and source-order tie-breaking are observable behavior. |
+| `src/app/commands/registry/{commandRegistry,navigationTargetRegistry}.ts` | Shortcut collisions and cross-registry ids create sibling dependencies. |
+| `src/features/account/{accountSectionRegistry,connectionCardRegistry}.ts` | Placement order and static imports change behavior together. |
+| `src/app/shell/client-context/clientContextAdapterRegistry.ts` | Consumers choose among adapters; it is not proven to be a commutative set. |
+| `src/features/{meetings,crm-tasks,crm-workflows,crm-pipeline,scheduling}/…Registry.*` | UI fragments have explicit numeric placement. |
+| `src/platform/privacy/{egressModules/registry.ts,egressRegistry.ts}` | Operation flattening is ordered and privacy-sensitive. |
+| `src/platform/fs/docxSaveRegistry.ts` | This is a mutable runtime store, not a lane-append source inventory. |
+| `src/features/booking/public-page/registry/bookingPageRegistry.ts`, `src/features/audit/auditActionRegistry.ts` | They are not proven independent lane-append hot spots and their descriptor shape is not atomic. |
 
-## Guard and limits
+Any future candidate needs its own independence proof, blocking guard, and real
+merge simulation before receiving the attribute.
 
-`scripts/check-union-registry-preconditions.mjs` parses the TypeScript source
-and requires every flag entry to be a single-line call with five literal string
-arguments. It rejects duplicate ids, a descriptor mentioning a sibling id, and
-numeric `flagRegistry[index]` access, and removal of the Prettier exclusion.
-This makes the flag registry a stable, order-independent set rather than an
-ordered program.
+## Evidence run — 2026-07-16
 
-The rule is intentionally narrow. `merge=union` does not validate meaning: it
-can still preserve duplicate lines or duplicate ids if two lanes choose the same
-new id. The existing registry/type checks and normal independent review remain
-required. Any additional file needs its own independence proof, guard, and real
-merge simulation before gaining this attribute.
+The repaired branch was checked with these results:
+
+| Check | Result |
+| --- | --- |
+| `npm run typecheck` | Passed. |
+| Focused router, expiry, and flag-script tests | 3 files, 10 tests passed. |
+| `npm run flags:union:check` | Passed on the normal branch; merge-history check correctly reports that the current tip is not a two-parent merge. |
+| `node scripts/check-flag-cap.mjs` | Passed: 19/300 active flags. |
+| `node scripts/flag-inventory.mjs` | Passed and printed the full 19-flag inventory. |
+| `npm run flags:union:simulate` | All six real temporary-repository merge cases passed their required clean-or-fail outcome. |
+| `git diff --check` | Passed. |
+
+No Cargo command was run for this change.

@@ -61,6 +61,8 @@
     "boundaries:test": "node --test scripts/__tests__/check-boundaries.test.mjs",
     "crm:active-boundary": "node scripts/check-active-crm-legacy-guard.mjs",
     "crm:active-boundary:test": "node --test scripts/__tests__/check-active-crm-legacy-guard.test.mjs",
+    "flags:union:check": "node scripts/check-union-registry-preconditions.mjs && node scripts/check-union-registry-merge-history.mjs",
+    "flags:union:simulate": "node scripts/test-union-registry-merges.mjs",
     "version:bump": "node scripts/bump-version.mjs",
     "prepare": "bash scripts/install-git-hooks.sh || true",
     "i18n:check": "node ./node_modules/.bin/i18next --config i18next-parser.check.config.js --fail-on-warnings",

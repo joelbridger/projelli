@@ -50,11 +50,34 @@ function falseProperty(node) {
   return false;
 }
 
+function callDescriptor(node) {
+  if (
+    !ts.isCallExpression(node) ||
+    !ts.isIdentifier(node.expression) ||
+    node.expression.text !== 'defineFlag' ||
+    node.arguments.length !== 5 ||
+    !node.arguments.every(ts.isStringLiteral)
+  ) {
+    throw new Error(
+      'Every flag registry entry must be an object literal or defineFlag(id, description, ownerLane, createdAt, expiresAt) with literal strings.'
+    );
+  }
+  const [id, description, ownerLane, createdAt, expiresAt] = node.arguments;
+  return {
+    id: id.text,
+    description: description.text,
+    ownerLane: ownerLane.text,
+    createdAt: createdAt.text,
+    expiresAt: expiresAt.text,
+    defaultEnabled: false,
+  };
+}
+
 /** Reads the TypeScript registry without maintaining a second inventory. */
-export function readFlagRegistry(filePath = registryPath) {
+export function readFlagRegistrySource(sourceText, filePath = registryPath) {
   const source = ts.createSourceFile(
     filePath,
-    fs.readFileSync(filePath, 'utf8'),
+    sourceText,
     ts.ScriptTarget.Latest,
     true
   );
@@ -72,8 +95,9 @@ export function readFlagRegistry(filePath = registryPath) {
     throw new Error(`Could not find the flagRegistry array in ${filePath}.`);
   }
   return initializer.elements.map((element) => {
+    if (ts.isCallExpression(element)) return callDescriptor(element);
     if (!ts.isObjectLiteralExpression(element))
-      throw new Error('Every flag registry entry must be an object literal.');
+      throw new Error('Every flag registry entry must be an object literal or defineFlag(...) call.');
     return {
       id: stringProperty(element, 'id'),
       description: stringProperty(element, 'description'),
@@ -83,4 +107,8 @@ export function readFlagRegistry(filePath = registryPath) {
       defaultEnabled: falseProperty(element),
     };
   });
+}
+
+export function readFlagRegistry(filePath = registryPath) {
+  return readFlagRegistrySource(fs.readFileSync(filePath, 'utf8'), filePath);
 }

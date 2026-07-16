@@ -33,4 +33,39 @@ describe('feature-flag expiry', () => {
     const expired = getExpiredFlags(flagRegistry);
     expect(expired, expiredFlagMessage(expired)).toEqual([]);
   });
+
+  it('finds the same expired flag ids after the registry is permuted', () => {
+    const now = new Date('2026-01-03T12:00:00.000Z');
+    const flags: readonly FlagDescriptor[] = [
+      {
+        id: 'expired-one',
+        description: 'test',
+        ownerLane: 'P0-T',
+        createdAt: '2026-01-01',
+        expiresAt: '2026-01-01',
+        defaultEnabled: false,
+      },
+      {
+        id: 'current',
+        description: 'test',
+        ownerLane: 'P0-T',
+        createdAt: '2026-01-01',
+        expiresAt: '2026-01-03',
+        defaultEnabled: false,
+      },
+      {
+        id: 'expired-two',
+        description: 'test',
+        ownerLane: 'P0-T',
+        createdAt: '2026-01-01',
+        expiresAt: '2026-01-02',
+        defaultEnabled: false,
+      },
+    ];
+    const ids = (registry: readonly FlagDescriptor[]) =>
+      getExpiredFlags(registry, now)
+        .map((flag) => flag.id)
+        .sort();
+    expect(ids(flags)).toEqual(ids([...flags].reverse()));
+  });
 });

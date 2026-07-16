@@ -4,6 +4,8 @@ import {
   ageInDays,
   formatInventory,
 } from '../../../scripts/flag-inventory.mjs';
+import { readFlagRegistry } from '../../../scripts/flag-registry.mjs';
+import { flagRegistry } from '../../../src/platform/flags/registry';
 
 describe('feature flag scripts', () => {
   it('allows at most ACTIVE_FLAG_CAP active registry entries', () => {
@@ -34,5 +36,9 @@ describe('feature flag scripts', () => {
     expect(
       formatInventory(flags, new Date('2026-07-14T12:00:00.000Z'))
     ).toContain('dark-feature  P0-T   13d');
+  });
+
+  it('parses the real atomic registry into the canonical flag descriptors', () => {
+    expect(readFlagRegistry()).toEqual(flagRegistry);
   });
 });
