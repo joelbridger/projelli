@@ -74,6 +74,7 @@ export const flagRegistry = [
   defineFlag('workflow-authoring', 'Keeps reusable workflow template authoring dark until its acceptance drive is complete.', 'workflow-authoring', '2026-07-16', '2026-09-14'),
   defineFlag('activity-filter-search', 'Keeps team activity search and filters dark until their acceptance review is complete.', 'activity-filter-search', '2026-07-16', '2026-09-14'),
   defineFlag('task-create-v1', 'Keeps the v1 task composer dark until its task creation acceptance review is complete.', 'task-create-v1', '2026-07-16', '2026-09-14'),
+  defineFlag('workflow-step-attachments', 'Keeps workflow-step document links dark until their acceptance review is complete.', 'workflow-step-attachments', '2026-07-16', '2026-09-14'),
 ] as const satisfies readonly FlagDescriptor[];
 
 export type FlagId = (typeof flagRegistry)[number]['id'];

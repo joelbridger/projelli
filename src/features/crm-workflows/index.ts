@@ -16,6 +16,11 @@ export type {
 } from './workflowExtensionRegistry';
 export { workflowStepExtensionRegistry } from './workflowExtensionRegistry';
 export {
+  addWorkflowStepAttachmentRef,
+  listWorkflowStepAttachmentRefs,
+  removeWorkflowStepAttachmentRef,
+} from './extensions/attachments';
+export {
   useWorkflowTemplateStore,
   WorkflowTemplateError,
 } from './workflowTemplateStore';
