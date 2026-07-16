@@ -1,0 +1,16 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 2
+repo: /home/jameson/v1-w2-schwab-prefill
+sha: 2a42758caea74cb2dbfae698e38e5629b4067843
+tree: 5c5c8c69e3c99a491a1bd8f4eda8bdb572a2a942
+gate_base: 19d016a6c80bd6a7125e3ab9a352de3122766900
+tool_blob: 47e279d4399792a5cc19fc7f1ced01c5863b18af
+utc: 2026-07-16T06:09:09Z
+step: gate:changed | exit=1 | 06:09:09Z..06:25:35Z | bytes=72248 | sha256=7421c834b0738eb39bff664eee66219ef3fbe4dfe23122b2bbd41e9044c20148 | tail: passed | 31 skipped (8332) Start at 06:15:37 Duration 598.25s (transform 67.44s, setup 318.77s, import 764.60s, tests 383.23s, environment 700.90s) FAILED: npx vitest run CHANGED GATE RED see failures above 
+step: typecheck | exit=2 | 06:25:35Z..06:26:11Z | bytes=1115 | sha256=cae8987b1720589be83d4fa9d45e22586eec274c999646e53146769dd40bdf89 | tail: ): error TS7006: Parameter 'page' implicitly has an 'any' type. src/platform/docusignSigning/signatureWorkflowCoordinates.test.ts(2,29): error TS2307: Cannot find module 'pdf-lib' or its corresponding type declarations. 
+step: typecheck:tests | exit=2 | 06:26:11Z..06:26:48Z | bytes=2482 | sha256=56978b3bd70df1aba6cd258051fbcf3bd3f5a2435888fb911f4910adf7bab98a | tail: rgence.test.ts(25,31): error TS7006: Parameter 'index' implicitly has an 'any' type. tests/live/docusignSandboxRoundtrip.test.ts(18,49): error TS2307: Cannot find module 'pdf-lib' or its corresponding type declarations. 
+step: handle-guard | exit=0 | 06:26:48Z..06:26:48Z | bytes=1267 | sha256=2d349eb1e6ab4e9a17874aa0f682b5dc28fbcd2d9c95480742fd48dd54b80a8b | tail: t-picker-cancel + client-picker-clear + client-picker-empty + client-picker-error +161 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen). 
+step: arch-dag-guard | exit=0 | 06:26:48Z..06:26:50Z | bytes=220 | sha256=42c81896b9e3fbaef4fae23487b70b4aef959a289b7ed8356ed483e087ee86a3 | tail:  RUN v4.1.3 /home/jameson/v1-w2-schwab-prefill Test Files 1 passed (1) Tests 1 passed (1) Start at 06:26:48 Duration 1.31s (transform 290ms, setup 464ms, import 364ms, tests 7ms, environment 360ms) 
+step: i18n-snapshot | exit=0 | 06:26:50Z..06:26:51Z | bytes=221 | sha256=fd90fa9c04259c381a473529419a7b3e49cd7ece4b61c6e78cc7b4d71faf9129 | tail:  RUN v4.1.3 /home/jameson/v1-w2-schwab-prefill Test Files 1 passed (1) Tests 5 passed (5) Start at 06:26:50 Duration 1.46s (transform 314ms, setup 460ms, import 297ms, tests 24ms, environment 408ms) 
+step: focused | exit=0 | 06:26:51Z..06:26:56Z | bytes=222 | sha256=2069c65ef8f8eec2dac106085a572e4bafb20a15bb23a595210d80cb274aa88e | tail: RUN v4.1.3 /home/jameson/v1-w2-schwab-prefill Test Files 4 passed (4) Tests 8 passed (8) Start at 06:26:52 Duration 3.77s (transform 2.67s, setup 1.64s, import 1.65s, tests 2.82s, environment 2.02s) 
+overall: RED
