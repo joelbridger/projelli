@@ -16,6 +16,7 @@ import { emailTab, meetingsTab } from '@/features/crm-connectors/tabSurface';
 import { meetingNotesTab } from './meetingNotesTab';
 import { reviewsTab } from './reviewsTab';
 import { memberRailTab } from '@/features/crm-clients/extensions/record-member-kebab';
+import { isEnabled } from '@/platform/flags';
 
 /** Feature modules augment this map beside their tab descriptor. */
 export interface HouseholdTabRouteMap {}
@@ -49,7 +50,7 @@ export const householdTabRegistry: readonly HouseholdTabDescriptor[] = [
   meetingsTab,
   reviewsTab,
   activityTab,
-  memberRailTab,
+  ...(isEnabled('record-member-kebab') ? [memberRailTab] : []),
 ];
 
 export function validateHouseholdTabDescriptors(

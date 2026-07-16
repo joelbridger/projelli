@@ -9,7 +9,6 @@ import {
   validateHouseholdTabDescriptors,
   type HouseholdTabSurfaceProps,
 } from '../../tabRegistry';
-import { memberRailTab } from '.';
 
 const { useLiveCrmRecords } = vi.hoisted(() => ({
   useLiveCrmRecords: vi.fn(),
@@ -67,12 +66,13 @@ beforeEach(() => {
 });
 
 describe('household member rail extension', () => {
-  it('is the one validated household-tab descriptor', () => {
-    expect(householdTabRegistry).toContain(memberRailTab);
-    expect(memberRailTab.route).toBe('members');
+  it('is absent from the real registry while dark', () => {
     expect(() => {
       validateHouseholdTabDescriptors(householdTabRegistry);
     }).not.toThrow();
+    expect(
+      householdTabRegistry.some((descriptor) => descriptor.id === 'household-members')
+    ).toBe(false);
   });
 
   it('is inert while dark, with no member data load or action side effect', () => {
@@ -88,8 +88,7 @@ describe('household member rail extension', () => {
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Members' }));
-
+    expect(screen.queryByRole('button', { name: 'Members' })).not.toBeInTheDocument();
     expect(screen.queryByTestId('crm-household-member-rail')).not.toBeInTheDocument();
     expect(screen.queryByTestId('crm-household-member-jordan')).not.toBeInTheDocument();
     expect(useLiveCrmRecords).not.toHaveBeenCalled();
@@ -98,21 +97,30 @@ describe('household member rail extension', () => {
     expect(onReviewRecipient).not.toHaveBeenCalled();
   });
 
-  it('renders through the real registry and limits each kebab action to existing public record contracts', () => {
+  it('renders through the real registry and limits each kebab action to existing public record contracts', async () => {
     setDevFlagOverride('record-member-kebab', true);
+    vi.resetModules();
+    const { HouseholdRecordSurface: EnabledHouseholdRecordSurface } =
+      await import('../../HouseholdRecordSurface');
+    const { householdTabRegistry: enabledRegistry } = await import(
+      '../../tabRegistry'
+    );
     const onAdd = vi.fn();
     const onDraftEmail = vi.fn();
     const onReviewRecipient = vi.fn();
     const onSaveHousehold = vi.fn();
 
     render(
-      <HouseholdRecordSurface
+      <EnabledHouseholdRecordSurface
         household={household}
         actions={{ onAdd, onDraftEmail, onReviewRecipient }}
         onSaveHousehold={onSaveHousehold}
       />
     );
 
+    expect(
+      enabledRegistry.some((descriptor) => descriptor.id === 'household-members')
+    ).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: 'Members' }));
     expect(screen.getByTestId('crm-household-member-rail')).toBeInTheDocument();
     expect(screen.getByTestId('crm-household-member-member-jordan')).toHaveTextContent(
