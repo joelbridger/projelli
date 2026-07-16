@@ -56,10 +56,14 @@ afterEach(() => {
   localStorage.clear();
   audit.emitAuditEntry.mockReset();
 });
-function completeRequiredFields(): void {
+async function completeRequiredFields(): Promise<void> {
   for (const input of screen.getAllByRole('textbox')) {
-    if (!(input as HTMLInputElement).value)
+    if (!(input as HTMLInputElement).value) {
       fireEvent.change(input, { target: { value: 'ready' } });
+      await waitFor(() => {
+        expect(input).toHaveValue('ready');
+      });
+    }
   }
   for (const checkbox of screen.getAllByRole('checkbox')) {
     const input = checkbox as HTMLInputElement;
@@ -71,7 +75,7 @@ describe('Schwab review approval', () => {
     audit.emitAuditEntry.mockRejectedValue(new Error('writer unavailable'));
     render(<SchwabPrefillReview household={household} />);
     await screen.findByLabelText('Owner name');
-    completeRequiredFields();
+    await completeRequiredFields();
     fireEvent.click(
       screen.getByRole('button', { name: 'Approve local prep packet' })
     );
@@ -88,7 +92,7 @@ describe('Schwab review approval', () => {
     audit.emitAuditEntry.mockResolvedValue({ id: 'audit-1' });
     render(<SchwabPrefillReview household={household} />);
     await screen.findByLabelText('Owner name');
-    completeRequiredFields();
+    await completeRequiredFields();
     fireEvent.click(
       screen.getByRole('button', { name: 'Approve local prep packet' })
     );

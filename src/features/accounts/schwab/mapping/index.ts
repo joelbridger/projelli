@@ -236,13 +236,15 @@ function factMatches(key: SchwabFieldKey, fact: MaskedClientFact): boolean {
   const subject = fact.subject.toLowerCase();
   const expected = key.startsWith('joint')
     ? ['joint', 'joint owner']
-    : key.startsWith('minor')
-      ? ['minor', 'child']
-      : key.startsWith('custodian')
-        ? ['custodian']
-        : key.startsWith('trust') || key.startsWith('trustee')
-          ? ['trust', 'trustee']
-          : ['primary', 'primary owner', 'owner'];
+    : key.startsWith('decedent')
+      ? ['decedent']
+      : key.startsWith('minor')
+        ? ['minor', 'child']
+        : key.startsWith('custodian')
+          ? ['custodian']
+          : key.startsWith('trust') || key.startsWith('trustee')
+            ? ['trust', 'trustee']
+            : ['primary', 'primary owner', 'owner'];
   if (!expected.includes(subject)) return false;
   if (key.endsWith('Ssn')) return fact.kind === 'ssn';
   if (key.endsWith('Dob')) return fact.kind === 'dob';

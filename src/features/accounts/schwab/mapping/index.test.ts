@@ -110,4 +110,45 @@ describe('Schwab mappings', () => {
       value: '',
     });
   });
+  it('uses a decedent fact only for an inherited-IRA decedent field', () => {
+    const fields = buildSchwabProposal('inherited-ira', {
+      household,
+      facts: [
+        {
+          fact_id: 'primary-dob',
+          matter_id: household.id,
+          subject: 'primary',
+          kind: 'dob',
+          sensitivity: 'confidential',
+          display_value: '1980-01-01',
+          provenance: {
+            channel: 'manual',
+            entered_by: 'advisor',
+            at: '2026-07-16',
+          },
+          verification: 'advisor_confirmed',
+          status: 'active',
+        },
+        {
+          fact_id: 'decedent-dob',
+          matter_id: household.id,
+          subject: 'decedent',
+          kind: 'dob',
+          sensitivity: 'confidential',
+          display_value: '1940-01-01',
+          provenance: {
+            channel: 'manual',
+            entered_by: 'advisor',
+            at: '2026-07-16',
+          },
+          verification: 'advisor_confirmed',
+          status: 'active',
+        },
+      ],
+    });
+    expect(fields.find((field) => field.key === 'decedentDob')).toMatchObject({
+      value: '1940-01-01',
+      conflict: false,
+    });
+  });
 });
