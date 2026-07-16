@@ -5,7 +5,12 @@ import {
   projectDirectoryResults,
   type DirectoryFeatureContext,
 } from '@/features/crm-clients';
-import { useFirmTagStore, type FirmTag, type FirmTagColor } from '@/features/crm-tags';
+import {
+  firmTagPaint,
+  useFirmTagStore,
+  type FirmTag,
+  type FirmTagColor,
+} from '@/features/crm-tags';
 import { useFlag } from '@/platform/flags/router';
 import { Badge, Button, Chip } from '@/ui/kp';
 import {
@@ -21,7 +26,7 @@ function TagDot({ color }: { color: FirmTagColor }) {
       aria-hidden="true"
       data-tag-color={color}
       style={{
-        background: color,
+        background: firmTagPaint(color),
         borderRadius: '50%',
         display: 'inline-block',
         height: 10,

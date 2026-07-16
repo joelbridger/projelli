@@ -23,3 +23,4 @@ export {
   FirmTagError,
 } from './contract';
 export { universalTagsSettingsPanel } from './settingsModuleDescriptor';
+export { firmTagPaint } from './tagPalette';

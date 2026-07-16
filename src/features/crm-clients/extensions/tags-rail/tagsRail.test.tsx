@@ -17,7 +17,10 @@ const { useFirmTagStore } = vi.hoisted(() => ({
   useFirmTagStore: vi.fn(),
 }));
 
-vi.mock('@/features/crm-tags', () => ({ useFirmTagStore }));
+vi.mock('@/features/crm-tags', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/features/crm-tags')>()),
+  useFirmTagStore,
+}));
 
 const catalog: FirmTagCatalog = {
   version: 1,
@@ -131,8 +134,10 @@ describe('CRM directory tags rail', () => {
 
     expect(screen.getByTestId('crm-directory-tags-rail-applied')).toHaveTextContent('2 tags applied');
     expect(screen.getByTestId('crm-directory-tags-rail-applied')).toHaveTextContent('Estate Retired');
-    expect(screen.getByTestId('crm-directory-tags-rail-tag-tag-client').querySelector('[data-tag-color]'))
-      .toHaveAttribute('data-tag-color', '#2563eb');
+    const visibleTagDot = screen
+      .getByTestId('crm-directory-tags-rail-tag-tag-client')
+      .querySelector('[data-tag-color]');
+    expect(visibleTagDot).toHaveStyle({ background: 'var(--kp-tag-blue)' });
     expect(screen.getAllByTestId(/^crm-directory-household-/).map((row) => row.dataset['testid'])).toEqual([
       'crm-directory-household-h-client-active',
       'crm-directory-household-h-estate-active',
@@ -156,12 +161,10 @@ describe('CRM directory tags rail', () => {
     firstSession.unmount();
     renderDirectory();
 
-    await waitFor(() => {
-      expect(screen.getAllByTestId(/^crm-directory-household-/).map((row) => row.dataset['testid'])).toEqual([
-        'crm-directory-household-h-client-active',
-        'crm-directory-household-h-client-inactive',
-      ]);
-    });
+    expect(screen.getAllByTestId(/^crm-directory-household-/).map((row) => row.dataset['testid'])).toEqual([
+      'crm-directory-household-h-client-active',
+      'crm-directory-household-h-client-inactive',
+    ]);
     expect(screen.getByTestId('crm-directory-tags-rail-applied')).toHaveTextContent('1 tag applied');
   });
 
