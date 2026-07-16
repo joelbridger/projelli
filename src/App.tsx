@@ -113,6 +113,10 @@ import type { TrashedItem } from '@/platform/history/TrashService';
 
 import type { AuditEntry } from '@/platform/types/audit';
 import { AuditService } from '@/platform/audit/AuditService';
+import {
+  setAuditWriteEmitter,
+  type AuditWriteEntry,
+} from '@/features/audit';
 import { setEmailAuditEmitter } from '@/features/email/EmailViewer';
 import { setIntakeNudgeAuditEmitter } from '@/platform/intake/nudgeAudit';
 import { setIntakeEmailReplyAuditEmitter } from '@/platform/intake/emailReplyAudit';
@@ -1615,7 +1619,7 @@ function AppShell() {
   // persisted row and the on-screen row describe the same event. Append-only on
   // both sides: we only ever prepend a new entry.
   const addAuditEntry = useCallback(
-    async (entry: Omit<AuditEntry, 'id' | 'timestamp'>): Promise<AuditEntry> => {
+    async (entry: AuditWriteEntry): Promise<AuditEntry> => {
       const options = {
         ...(entry.model !== undefined ? { model: entry.model } : {}),
         inputs: entry.inputs,
@@ -1673,6 +1677,14 @@ function AppShell() {
     },
     []
   );
+
+  useEffect(() => {
+    setAuditWriteEmitter(addAuditEntry);
+    return () => {
+      setAuditWriteEmitter(null);
+    };
+  }, [addAuditEntry]);
+
   const emitAuditEntry = useCallback(
     (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => {
       void addAuditEntry(entry);
