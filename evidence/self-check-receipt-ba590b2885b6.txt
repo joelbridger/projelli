@@ -1,0 +1,19 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/v1-w2-workflow-step-attachments
+sha: ba590b2885b6681ef54b764bc437066c0de4add7
+tree: 8f4318c7634788c3eb2370a3956bf8868d0d47de
+gate_base: b8f7964b33b81c8bf3248d1ba0ae4032e4a74844
+tool_blob: 2a8a0211c0565e6bbcb39b6891e5d0839375074a
+utc: 2026-07-16T12:24:22Z
+step_timeout_seconds: 300
+loadavg: 30.49 19.26 15.79
+running_vitest_eslint_procs: 15
+step: gate:changed | status=INCONCLUSIVE-UNDER-LOAD | exit=124 | 12:24:22Z..12:29:22Z | bytes=9317 | sha256=b73a755551a5e116cec32bdfb72898a5c030990a8de71891b853c427b92689e2 | tail: .3.5 lint:gate > node scripts/eslint-gate.mjs No ESLint regression vs baseline. (45 fingerprint(s) cleaned up vs baseline) ===== Unit tests (changed) ===== RUN v4.1.3 /home/jameson/v1-w2-workflow-step-attachments 
+step: typecheck | status=FAIL | exit=2 | 12:29:22Z..12:29:52Z | bytes=17577 | sha256=baeb81f4e77395352190731a76e04dc4b57ef4e2853c1ac9d18e07313f05a81b | tail: ------------------------------------------------------------------------\n\n /** Clear the availability cache. For use in tests only. */\n _resetCache(): void {\n _cachedAvailable = null;\n },\n} as const;\n' } 
+step: typecheck:tests | status=FAIL | exit=2 | 12:29:52Z..12:30:35Z | bytes=495 | sha256=3a22d44c3eda22ed0fa7d8a4c360acce2f1f9602ac740dad8fe9f1d8a62dfb66 | tail: owStepAttachments.tsx(33,27): error TS18048: 'candidate' is possibly 'undefined'. src/features/crm-workflows/extensions/attachments/WorkflowStepAttachments.tsx(34,30): error TS18048: 'candidate' is possibly 'undefined'. 
+step: handle-guard | status=PASS | exit=0 | 12:30:35Z..12:30:35Z | bytes=1267 | sha256=92ecd200e1e2cbdea18f2094517eb44fa31201e53997ce5adcc2841e57581a89 | tail: t-picker-cancel + client-picker-clear + client-picker-empty + client-picker-error +243 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen). 
+step: arch-dag-guard | status=PASS | exit=0 | 12:30:35Z..12:30:37Z | bytes=231 | sha256=9d38a323716a219b0ef452fa8714c0050ac6438de698816ede15d371c8e9e5eb | tail: .3 /home/jameson/v1-w2-workflow-step-attachments Test Files 1 passed (1) Tests 1 passed (1) Start at 12:30:36 Duration 1.40s (transform 323ms, setup 518ms, import 360ms, tests 4ms, environment 401ms) 
+step: i18n-snapshot | status=PASS | exit=0 | 12:30:37Z..12:30:39Z | bytes=232 | sha256=72bb5d6d78b107b7ec6f97bf5578ff9d3f0f686b853c6adc9f8bfc30457752bd | tail: 3 /home/jameson/v1-w2-workflow-step-attachments Test Files 1 passed (1) Tests 5 passed (5) Start at 12:30:37 Duration 1.43s (transform 354ms, setup 522ms, import 338ms, tests 26ms, environment 390ms) 
+step: focused | status=PASS | exit=0 | 12:30:39Z..12:30:42Z | bytes=233 | sha256=958b919420dda116b8704154348c7718adaacef7664610d3c92133f764a5fb96 | tail:  /home/jameson/v1-w2-workflow-step-attachments Test Files 1 passed (1) Tests 6 passed (6) Start at 12:30:39 Duration 2.60s (transform 1.06s, setup 518ms, import 1.44s, tests 147ms, environment 369ms) 
+overall: INCONCLUSIVE
