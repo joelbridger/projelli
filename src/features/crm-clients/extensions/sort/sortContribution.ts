@@ -69,7 +69,8 @@ export const crmListSortDirectoryContribution = {
     {
       id: 'crm-list-sort',
       order: 54,
-      isActive: (context) => isDirectorySortChoice(context.featureState.get()),
+      isActive: (context) =>
+        isFlagEnabled('crm-list-sort') && isDirectorySortChoice(context.featureState.get()),
       compare: (left, right, context) => {
         const choice = context.featureState.get();
         return choice ? compareDirectoryResults(choice, left, right) : 0;

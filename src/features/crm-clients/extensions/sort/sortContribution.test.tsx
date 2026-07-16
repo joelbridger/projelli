@@ -1,7 +1,7 @@
 import '@/i18n';
 import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { setDevFlagOverride } from '@/platform/flags/router';
 import {
   DirectorySurface,
@@ -112,7 +112,9 @@ describe('CRM directory list sort contribution', () => {
   });
 
   it('is fully inert while dark, with no data read or toolbar wrapper', () => {
-    setDevFlagOverride('crm-list-sort', false);
+    act(() => {
+      setDevFlagOverride('crm-list-sort', false);
+    });
     const readRecords = vi.fn();
     const tool = crmListSortDirectoryContribution.tools[0];
     if (!tool) throw new Error('Expected the CRM list-sort tool.');
@@ -161,6 +163,17 @@ describe('CRM directory list sort contribution', () => {
     });
     expect(householdOrder()).toEqual(['alpha', 'bravo', 'cedar', 'delta']);
     expect(households.map(({ id }) => id)).toEqual(['cedar', 'alpha', 'bravo', 'delta']);
+
+    act(() => {
+      setDevFlagOverride('crm-list-sort', false);
+    });
+    fireEvent.change(screen.getByTestId('crm-directory-search'), {
+      target: { value: 'household' },
+    });
+    await waitFor(() => {
+      expect(screen.queryByTestId('crm-directory-sort')).not.toBeInTheDocument();
+      expect(householdOrder()).toEqual(['cedar', 'alpha', 'bravo', 'delta']);
+    });
   });
 
   it('saves an enabled selection and restores it in a fresh directory surface', async () => {
