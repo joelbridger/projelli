@@ -114,6 +114,7 @@ describe('Tasks template household handoff', () => {
       });
     });
     expect(consumed).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId('crm-task-detail')).not.toBeInTheDocument();
   });
 
   it('clears the request after saving, so a later new task does not inherit it', async () => {

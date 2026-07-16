@@ -34,6 +34,7 @@ export interface TaskActionContext {
 export interface TaskTemplateContext {
   addRequest?: CrmHouseholdAddRequest;
   onAddRequestConsumed?: () => void;
+  onApplied?: (taskId: string) => void;
   onCreate: (task: CrmTask) => void;
 }
 
@@ -52,7 +53,7 @@ export interface TaskActionDescriptor {
 export interface TaskTemplateDescriptor {
   id: TaskTemplateId;
   order: number;
-  create: (addRequest?: CrmHouseholdAddRequest) => CrmTask;
+  create?: (addRequest?: CrmHouseholdAddRequest) => CrmTask;
   mount: (context: TaskTemplateContext) => ReactNode;
 }
 
@@ -63,8 +64,7 @@ function validateDescriptors(
     order: number;
     mount: unknown;
     create?: unknown;
-  }[],
-  requireCreate = false
+  }[]
 ): void {
   const ids = new Set<string>();
   for (const descriptor of descriptors) {
@@ -84,7 +84,7 @@ function validateDescriptors(
         `[${registryName}] mount must be a function: ${descriptor.id}`
       );
     }
-    if (requireCreate && typeof descriptor.create !== 'function') {
+    if (descriptor.create !== undefined && typeof descriptor.create !== 'function') {
       throw new Error(
         `[${registryName}] create must be a function: ${descriptor.id}`
       );
@@ -108,7 +108,7 @@ export function validateTaskActionDescriptors(
 export function validateTaskTemplateDescriptors(
   descriptors: readonly TaskTemplateDescriptor[]
 ): void {
-  validateDescriptors('taskTemplateRegistry', descriptors, true);
+  validateDescriptors('taskTemplateRegistry', descriptors);
 }
 
 /** Append-only mount lists. Existing entries keep their order. */

@@ -59,7 +59,8 @@ describe('TaskTemplateLibrary', () => {
   it('uses only active stable tag IDs when applying a template through the task doorway', async () => {
     enabled = true;
     const onCreate = vi.fn();
-    render(<TaskTemplateLibrary onCreate={onCreate} />);
+    const onApplied = vi.fn();
+    render(<TaskTemplateLibrary onCreate={onCreate} onApplied={onApplied} />);
     fireEvent.click(screen.getByTestId('crm-task-template-library-open'));
     await screen.findByTestId('crm-task-template-task-template:review');
     fireEvent.click(screen.getByText('Use template'));
@@ -67,6 +68,7 @@ describe('TaskTemplateLibrary', () => {
     await waitFor(() => { expect(taskCreate).toHaveBeenCalledWith({
       title: 'Prepare review', body: '', priority: 'normal', due: '2026-08-03', dueTime: '09:30', tagIds: ['tag:active'],
     }); });
+    expect(onApplied).toHaveBeenCalledWith(createdTask.id);
     expect(onCreate).not.toHaveBeenCalled();
   });
 

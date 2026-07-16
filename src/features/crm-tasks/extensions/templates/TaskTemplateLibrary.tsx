@@ -58,7 +58,7 @@ export function TaskTemplateLibrary(props: TaskTemplateContext) {
   return <EnabledTaskTemplateLibrary {...props} />;
 }
 
-function EnabledTaskTemplateLibrary({ addRequest, onAddRequestConsumed }: TaskTemplateContext) {
+function EnabledTaskTemplateLibrary({ addRequest, onAddRequestConsumed, onApplied }: TaskTemplateContext) {
   const { t } = useTranslation();
   const templates = useTaskTemplateStore();
   const taskStore = useTaskRecordStore();
@@ -142,10 +142,11 @@ function EnabledTaskTemplateLibrary({ addRequest, onAddRequestConsumed }: TaskTe
       const householdRef = addRequest?.kind === 'task'
         ? { kind: 'household' as const, id: addRequest.householdId, matterId: addRequest.householdId, label: addRequest.householdLabel }
         : undefined;
-      await taskStore.create({
+      const created = await taskStore.create({
         ...prepared.taskInput,
         ...(householdRef ? { householdRef } : {}),
       });
+      onApplied?.(created.id);
       if (addRequest?.kind === 'task') onAddRequestConsumed?.();
       setOpen(false);
       setMessage(null);

@@ -62,7 +62,6 @@ describe('task extension registries', () => {
     const template: TaskTemplateDescriptor = {
       id: 'test.dummy-template',
       order: 20,
-      create: () => task,
       mount: () => <span>Dummy task template</span>,
     };
 

@@ -58,7 +58,7 @@ export function Tasks({
   const [filter, setFilter] = useState('');
   const [editing, setEditing] = useState<CrmTask | null>(() =>
     addRequest?.kind === 'task'
-      ? (getTaskTemplates()[0]?.create(addRequest) ?? null)
+      ? (getTaskTemplates().find((descriptor) => descriptor.create)?.create?.(addRequest) ?? null)
       : null
   );
   const [savingView, setSavingView] = useState(false);
@@ -88,6 +88,7 @@ export function Tasks({
       action={mountTaskTemplates({
         ...(addRequest ? { addRequest } : {}),
         ...(onAddRequestConsumed ? { onAddRequestConsumed } : {}),
+        onApplied: () => { setEditing(null); },
         onCreate: setEditing,
       })}
     >
