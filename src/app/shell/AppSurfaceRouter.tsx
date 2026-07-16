@@ -738,9 +738,9 @@ export function AppSurfaceRouter(props: AppSurfaceRouterProps) {
     open: openSettings,
     action: handleSettingsAction,
     restartOnboarding: handleSettingsRestartOnboarding,
-    pageFocus: settingsPageFocus,
     loadTemplates: loadAllTemplates,
     extraSections: settingsNestedSections,
+    ...(settingsPageFocus ? { pageFocus: settingsPageFocus } : {}),
   };
 
   const renderSettings = (): ReactNode => (

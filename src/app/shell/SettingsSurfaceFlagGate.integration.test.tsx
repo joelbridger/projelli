@@ -186,12 +186,12 @@ describe('real Settings surface flag-gated swap', () => {
     fireEvent.click(screen.getByTestId('settings-category-activity-log'));
     expect(await screen.findByTestId('audit-home-search')).toBeInTheDocument();
 
-    fireEvent.pointerDown(screen.getByTestId('settings-actions-menu'), {
+    fireEvent.pointerDown(screen.getByTestId('settings-v1-actions-menu'), {
       button: 0,
       ctrlKey: false,
     });
-    expect(screen.getByTestId('settings-export')).toBeInTheDocument();
-    expect(screen.getByTestId('settings-import')).toBeInTheDocument();
-    expect(screen.getByTestId('settings-reset')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-v1-export')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-v1-import')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-v1-reset')).toBeInTheDocument();
   });
 });

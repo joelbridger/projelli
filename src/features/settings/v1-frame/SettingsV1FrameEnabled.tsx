@@ -95,21 +95,21 @@ function SettingsActionsMenu({
           label="More settings actions"
           variant="secondary"
           size="md"
-          data-testid="settings-actions-menu"
+          data-testid="settings-v1-actions-menu"
         />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-52">
-        <DropdownMenuItem data-testid="settings-export" onSelect={onExport}>
+        <DropdownMenuItem data-testid="settings-v1-export" onSelect={onExport}>
           <Download className="mr-2 size-4" aria-hidden />
           Export settings
         </DropdownMenuItem>
-        <DropdownMenuItem data-testid="settings-import" onSelect={onImport}>
+        <DropdownMenuItem data-testid="settings-v1-import" onSelect={onImport}>
           <Upload className="mr-2 size-4" aria-hidden />
           Import settings
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
-          data-testid="settings-reset"
+          data-testid="settings-v1-reset"
           className="text-destructive focus:text-destructive"
           onSelect={onReset}
         >
@@ -284,7 +284,7 @@ export function SettingsV1FrameEnabled({
               <Search aria-hidden className="pointer-events-none absolute left-3 top-2.5 size-4 text-slate-400" />
               <input
                 className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-sm"
-                data-testid="settings-search"
+                data-testid="settings-v1-search"
                 id="settings-v1-search"
                 onChange={(event) => {
                   setSearchQuery(event.target.value);
