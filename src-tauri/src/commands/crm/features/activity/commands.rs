@@ -335,13 +335,12 @@ fn require_parent_post(conn: &Connection, matter_id: &str, post_id: &str) -> Res
     Ok(())
 }
 
-/// Projects in the same transaction as the canonical CRM document. Parent
-/// checks cannot race or leave an orphan behind.
-pub(crate) fn project_activity_record(value: &Value, conn: &Connection) -> Result<()> {
-    let record = TeamActivityRecordDto::from_value(value.clone())?;
-    validate_typed_record(&record)?;
-    let (actor_id, parent_post_id, kind, created_at) = staged_actor(&record);
-    let (matter_id, record_id) = match &record {
+fn validate_projection_preconditions(
+    conn: &Connection,
+    record: &TeamActivityRecordDto,
+) -> Result<bool> {
+    let (actor_id, parent_post_id, kind, _) = staged_actor(record);
+    let (matter_id, record_id) = match record {
         TeamActivityRecordDto::Post(post) => (&post.matter_id, &post.id),
         TeamActivityRecordDto::Comment(comment) => (&comment.matter_id, &comment.id),
         TeamActivityRecordDto::Reaction(reaction) => (&reaction.matter_id, &reaction.id),
@@ -374,8 +373,26 @@ pub(crate) fn project_activity_record(value: &Value, conn: &Connection) -> Resul
         {
             bail!("team activity reaction identity fields cannot change")
         }
+        return Ok(true);
+    }
+
+    Ok(false)
+}
+
+/// Projects in the same transaction as the canonical CRM document. Parent
+/// checks cannot race or leave an orphan behind.
+pub(crate) fn project_activity_record(value: &Value, conn: &Connection) -> Result<()> {
+    let record = TeamActivityRecordDto::from_value(value.clone())?;
+    validate_typed_record(&record)?;
+    if validate_projection_preconditions(conn, &record)? {
         return Ok(());
     }
+    let (actor_id, parent_post_id, kind, created_at) = staged_actor(&record);
+    let (matter_id, record_id) = match &record {
+        TeamActivityRecordDto::Post(post) => (&post.matter_id, &post.id),
+        TeamActivityRecordDto::Comment(comment) => (&comment.matter_id, &comment.id),
+        TeamActivityRecordDto::Reaction(reaction) => (&reaction.matter_id, &reaction.id),
+    };
 
     conn.execute(
         "INSERT INTO crm_team_activity_projection(
@@ -400,6 +417,9 @@ fn now() -> String {
 
 fn persist(store: &CrmCoreStore, record: TeamActivityRecordDto) -> Result<TeamActivityRecordDto> {
     validate_typed_record(&record)?;
+    store.transaction(|transaction| {
+        validate_projection_preconditions(transaction, &record).map(|_| ())
+    })?;
     store.upsert_live_record(&record.as_value()?)?;
     Ok(record)
 }
