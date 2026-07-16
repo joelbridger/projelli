@@ -413,25 +413,60 @@ export function projectDirectoryResults<T extends CrmPerson | HouseholdDirectory
   kind: DirectoryResult['kind'],
   records: readonly T[],
   context: DirectoryContext,
+  descriptors?: readonly DirectoryQueryDescriptor<string>[]
+): readonly T[];
+/** Applies feature filters and ordering once across a mixed directory projection. */
+export function projectDirectoryResults(
+  records: readonly DirectoryResult[],
+  context: DirectoryContext,
+  descriptors?: readonly DirectoryQueryDescriptor<string>[]
+): readonly DirectoryResult[];
+export function projectDirectoryResults<T extends CrmPerson | HouseholdDirectoryEntry>(
+  kindOrRecords: DirectoryResult['kind'] | readonly DirectoryResult[],
+  recordsOrContext: readonly T[] | DirectoryContext,
+  contextOrDescriptors?: DirectoryContext | readonly DirectoryQueryDescriptor<string>[],
+  descriptors?: readonly DirectoryQueryDescriptor<string>[]
+): readonly T[] | readonly DirectoryResult[] {
+  if (typeof kindOrRecords !== 'string') {
+    return projectDirectoryResultSources(
+      kindOrRecords,
+      (result) => result,
+      recordsOrContext as DirectoryContext,
+      contextOrDescriptors as readonly DirectoryQueryDescriptor<string>[] | undefined,
+    );
+  }
+  const kind = kindOrRecords;
+  return projectDirectoryResultSources(
+    recordsOrContext as readonly T[],
+    (record) => ({ kind, record }) as DirectoryResult,
+    contextOrDescriptors as DirectoryContext,
+    descriptors,
+  );
+}
+
+function projectDirectoryResultSources<Source>(
+  sources: readonly Source[],
+  toDirectoryResult: (source: Source) => DirectoryResult,
+  context: DirectoryContext,
   descriptors: readonly DirectoryQueryDescriptor<string>[] = context.composition.queries
-): readonly T[] {
+): readonly Source[] {
   validateDirectoryQueryDescriptors(descriptors);
-  if (descriptors.length === 0) return records;
+  if (descriptors.length === 0) return sources;
   // The public type makes every record field read-only. Copies also isolate the
   // caller at runtime if feature code bypasses that type contract.
   const callbackContext = createDirectoryQueryContext(context);
   const active = descriptors.filter((descriptor) => descriptor.isActive(callbackContext));
-  if (active.length === 0) return records;
+  if (active.length === 0) return sources;
 
-  const projected = records
-    .map((record, index) => ({
-      result: { kind, record: structuredClone(record) } as DirectoryResult,
-      record,
+  const projected = sources
+    .map((source, index) => ({
+      result: structuredClone(toDirectoryResult(source)),
+      source,
       index,
     }))
     .filter(({ result }) => active.every((descriptor) => descriptor.filter?.(result, callbackContext) ?? true));
   const hasComparator = active.some((descriptor) => typeof descriptor.compare === 'function');
-  if (!hasComparator) return projected.map(({ record }) => record);
+  if (!hasComparator) return projected.map(({ source }) => source);
   return projected
     .slice()
     .sort((left, right) => {
@@ -443,5 +478,5 @@ export function projectDirectoryResults<T extends CrmPerson | HouseholdDirectory
       }
       return left.index - right.index;
     })
-    .map(({ record }) => record);
+    .map(({ source }) => source);
 }
