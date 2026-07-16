@@ -11,6 +11,12 @@
  *    routinely echo the consent URL (which carries client_id, state, and the
  *    code challenge), so the reason is mapped to a fixed code at the port
  *    boundary and the original string is dropped.
+ *
+ * Rule 2 is a claim about a value, not about a shape, and every type in this
+ * file is erased before that value arrives. What makes it true is
+ * `portBoundary.ts`, which validates each field of a port response at runtime.
+ * A type here describes what a CONFORMING port sends; it does not constrain a
+ * non-conforming one. Do not read a promise in this file as a check.
  */
 import type { CalendarProviderId } from '../types';
 
@@ -35,7 +41,10 @@ export interface CalendarGrant {
   readonly grantVersion: number;
 }
 
-/** Closed set. Provider error text never reaches a receipt or a log. */
+/**
+ * Closed set. Provider error text never reaches a receipt or a log — enforced at
+ * runtime by `coerceFailureReason`, which is what closes this set in practice.
+ */
 export type CalendarConsentFailureReason =
   | 'network_unavailable'
   | 'provider_rejected'
@@ -46,6 +55,11 @@ export type CalendarConsentFailureReason =
 /** Opaque handle to a grant the native layer has staged but not committed. */
 export type StagedGrantRef = string & { readonly __brand: 'StagedGrantRef' };
 
+/**
+ * What a conforming port sends back. Untrusted: pass it through
+ * `verifyConsentAttempt` before reading any field. Nothing may consume this
+ * shape directly.
+ */
 export type CalendarConsentAttempt =
   | {
       readonly outcome: 'granted';

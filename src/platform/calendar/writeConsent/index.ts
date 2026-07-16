@@ -14,22 +14,32 @@
  * - `assertCalendarWriteAllowed` — the gate a provider writer calls before it
  *   touches a calendar.
  * - `writeConsentScopeRequest` / `normalizeGrantedScopes` /
- *   `evaluateGrantedCapability` — the pure scope rules, exported so the native
- *   port and its tests agree with this contract rather than restating it.
+ *   `evaluateGrantedCapability` / `capabilityOfRecognizedScopes` — the pure
+ *   scope rules, exported so the native port and its tests agree with this
+ *   contract rather than restating it.
+ * - `verifyConsentAttempt` / `coerceFailureReason` — the runtime validation of
+ *   a port response, exported for the same reason: the types below describe what
+ *   a conforming port sends, and only these two check that it did.
  * - the types describing a grant, a consent attempt, and a safe receipt.
  *
  * What no consumer can get: a token, a refresh token, a consent URL, a PKCE
  * verifier, or a provider error string. None of those are representable in the
- * exported shapes. See `types.ts` for why that is structural rather than a rule
- * someone has to remember.
+ * exported shapes, and none can arrive through the port either — every response
+ * is validated at the boundary, because a type is erased by the time a value
+ * shows up. See `types.ts` and `portBoundary.ts` for why that is structural
+ * rather than a rule someone has to remember.
  *
  * Paved path for extending this: `./SKILL.md`.
  */
 export {
+  capabilityOfRecognizedScopes,
   evaluateGrantedCapability,
   normalizeGrantedScopes,
   writeConsentScopeRequest,
 } from './scopeEvaluation';
+
+export { coerceFailureReason, verifyConsentAttempt } from './portBoundary';
+export type { VerifiedConsentAttempt } from './portBoundary';
 
 export { assertCalendarWriteAllowed, requestCalendarWriteConsent } from './upgrade';
 

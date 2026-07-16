@@ -7,11 +7,8 @@
  * exactly as it was. A person who declines, unticks the write box, or loses
  * their network still has the calendar connection they had before.
  */
-import {
-  evaluateGrantedCapability,
-  normalizeGrantedScopes,
-  writeConsentScopeRequest,
-} from './scopeEvaluation';
+import { verifyConsentAttempt, type VerifiedConsentAttempt } from './portBoundary';
+import { writeConsentScopeRequest } from './scopeEvaluation';
 import type {
   CalendarGrant,
   CalendarGrantCapability,
@@ -53,9 +50,12 @@ export async function requestCalendarWriteConsent(
     return settle(currentGrant, provider, 'already_write');
   }
 
-  let attempt;
+  let attempt: VerifiedConsentAttempt;
   try {
-    attempt = await port.requestWriteConsent(provider, writeConsentScopeRequest(provider));
+    const response = await port.requestWriteConsent(provider, writeConsentScopeRequest(provider));
+    // Validated here and never re-read: past this line nothing in this function
+    // touches the port's response, so no field of it can shift underneath us.
+    attempt = verifyConsentAttempt(provider, response);
   } catch {
     // The thrown value is dropped, never inspected or forwarded: provider and
     // transport errors routinely embed the consent URL, which carries the
@@ -67,18 +67,23 @@ export async function requestCalendarWriteConsent(
     return settle(currentGrant, provider, 'denied');
   }
   if (attempt.outcome === 'failed') {
+    // Already coerced to a code the contract defined; provider text cannot ride
+    // in on this field.
     return settle(currentGrant, provider, 'failed', attempt.reason);
   }
 
-  const recognizedScopes = normalizeGrantedScopes(provider, attempt.grantedScopes);
-  const capability = evaluateGrantedCapability(provider, attempt.grantedScopes);
-
-  if (capability !== 'write') {
+  if (attempt.capability !== 'write') {
     // Sign-in completed but write was not actually granted. Drop it: replacing
     // a proven read grant with an unproven one would risk trading a working
     // connection for a narrower one.
     await discardQuietly(port, attempt.stagedRef);
-    return settle(currentGrant, provider, 'insufficient_scope', undefined, recognizedScopes);
+    return settle(
+      currentGrant,
+      provider,
+      'insufficient_scope',
+      undefined,
+      attempt.recognizedScopes,
+    );
   }
 
   try {
@@ -92,10 +97,12 @@ export async function requestCalendarWriteConsent(
   const upgraded: CalendarGrant = {
     provider,
     capability: 'write',
-    grantedScopes: recognizedScopes,
+    // The same array the capability was derived from, so the grant's scopes
+    // always justify the grant's capability.
+    grantedScopes: attempt.recognizedScopes,
     grantVersion: currentGrant.grantVersion + 1,
   };
-  return settle(upgraded, provider, 'upgraded', undefined, recognizedScopes);
+  return settle(upgraded, provider, 'upgraded', undefined, attempt.recognizedScopes);
 }
 
 /**

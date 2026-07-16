@@ -129,6 +129,23 @@ function canonicalize(
 }
 
 /**
+ * The capability a set of ALREADY-normalized scopes confers.
+ *
+ * This exists separately from `evaluateGrantedCapability` so a caller holding a
+ * normalized array can derive the capability from that exact array. A caller
+ * that instead normalizes once for the scopes it carries and evaluates again for
+ * the capability has read its input twice, and an untrusted input read twice can
+ * answer differently each time — minting a write grant whose own scopes do not
+ * justify it. Derive both from one array and the two cannot disagree.
+ */
+export function capabilityOfRecognizedScopes(
+  provider: CalendarWriteProviderId,
+  recognizedScopes: readonly string[],
+): CalendarGrantCapability {
+  return recognizedScopes.includes(WRITE_SCOPE[provider]) ? 'write' : 'read';
+}
+
+/**
  * The capability a set of granted scopes actually confers. Normalizes first, so
  * this is fail-safe even if handed a raw provider response.
  */
@@ -136,6 +153,5 @@ export function evaluateGrantedCapability(
   provider: CalendarWriteProviderId,
   grantedScopes: readonly string[],
 ): CalendarGrantCapability {
-  const recognized = normalizeGrantedScopes(provider, grantedScopes);
-  return recognized.includes(WRITE_SCOPE[provider]) ? 'write' : 'read';
+  return capabilityOfRecognizedScopes(provider, normalizeGrantedScopes(provider, grantedScopes));
 }

@@ -88,6 +88,37 @@ error string. None of these are *representable* in the exported shapes:
 If you find yourself wanting to widen one of these to "improve the error
 message", that is a policy change. Bring it to a security review.
 
+## Nothing the port says is believed until it is checked
+
+The list above says a provider error string is not *representable*. Read that
+precisely: it is not representable in a **conforming** port's response. Types are
+erased at runtime, so a port that returns `err.to_string()` as its `reason`
+compiles and runs, and that string would land on a receipt this contract calls
+safe to persist and show.
+
+So every field of a port response is validated at runtime, in one place:
+
+```ts
+import { verifyConsentAttempt } from '@/platform/calendar/writeConsent';
+
+const verified = verifyConsentAttempt(provider, await port.requestWriteConsent(/* … */));
+// verified.reason is a code this contract defined, whatever the port sent.
+// verified.capability and verified.recognizedScopes came from ONE read.
+```
+
+Two rules, both load-bearing:
+
+- **Validate, don't trust the type.** `coerceFailureReason` replaces anything
+  outside the closed enum with `'internal'`. An unrecognized outcome, an
+  unusable staged handle, or a non-string scope token fails closed too.
+- **Read each field exactly once.** An untrusted response is not a stable value.
+  Reading `grantedScopes` twice — once for the scopes to carry, once to evaluate
+  capability — lets the two come from different evidence and mints a write grant
+  whose own scopes are read-only. Derive both from one normalized array
+  (`capabilityOfRecognizedScopes`).
+
+If you add a field to the port, it gets validated here in the same commit.
+
 ## Adding a provider that can write
 
 1. Add it to `CalendarWriteProviderId` (i.e. remove it from the `Exclude`) in
@@ -119,6 +150,11 @@ coordinator reservation, must build:
   committed grant storage, and persisted capability facts, and it must reuse the
   exported scope rules rather than restating them. New native commands and any
   migration need a coordinator-reserved order — do not invent one.
+  - **A staged grant is inert and must expire.** Only `commitStagedGrant` may
+    ever promote one; the native layer must never auto-promote or resurrect a
+    staged grant. The renderer discards on a best effort precisely because a
+    staged grant that outlives the call can do nothing — that is an obligation on
+    the port, not an observation about it.
 - **The write egress operations.** A provider write is a new off-device call and
   needs its own declared operation on both layers before it can run. Follow
   `src/platform/privacy/egressModules/SKILL.md`; the calendar slices carry a
@@ -142,3 +178,5 @@ npm run typecheck && npm run typecheck:tests
 - [ ] No new free-text field on the receipt, the failure reason, or the port.
 - [ ] ICS is still unable to hold a write grant.
 - [ ] No secret is representable in any exported shape.
+- [ ] Every value the port hands back is validated at runtime, not only typed.
+- [ ] No field of a port response is read twice.

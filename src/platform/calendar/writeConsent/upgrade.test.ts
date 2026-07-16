@@ -237,6 +237,79 @@ describe('the receipt is safe to persist', () => {
   });
 });
 
+/**
+ * The port is a promise made in TypeScript, and TypeScript is erased at runtime.
+ * The native port does not exist yet, so these are the cases a non-conforming
+ * one produces on the day it is written. Each must fail closed here rather than
+ * rely on the port having behaved.
+ */
+describe('requestCalendarWriteConsent — a non-conforming port cannot break the contract', () => {
+  it('drops provider error text handed back in place of a fixed failure code', async () => {
+    // The single most natural mistake for the native lane: passing
+    // `err.to_string()` through as the reason. Provider errors embed the consent
+    // URL, which carries the client id and the PKCE challenge.
+    const { port } = fakePort({
+      outcome: 'failed',
+      reason:
+        'https://login.microsoftonline.com/authorize?client_id=abc&code_challenge=zzz' as never,
+    });
+    const { grant, receipt } = await requestCalendarWriteConsent({
+      provider: 'outlook',
+      currentGrant: readGrant,
+      port,
+    });
+
+    expect(receipt.reason).toBe('internal');
+    expect(JSON.stringify(receipt)).not.toMatch(
+      /login\.microsoftonline|client_id|code_challenge/,
+    );
+    expect(grant).toEqual(readGrant);
+  });
+
+  it('refuses to mint a write grant when the granted scopes shift between reads', async () => {
+    // A field read twice can answer differently each time, which would let the
+    // capability and the scopes that justify it come from different evidence.
+    let reads = 0;
+    const shifting: CalendarConsentAttempt = {
+      outcome: 'granted',
+      get grantedScopes() {
+        reads += 1;
+        return reads === 1 ? ['Calendars.Read'] : ['Calendars.ReadWrite'];
+      },
+      stagedRef: STAGED,
+    };
+    const { port, calls } = fakePort(shifting);
+    const { grant, receipt } = await requestCalendarWriteConsent({
+      provider: 'outlook',
+      currentGrant: readGrant,
+      port,
+    });
+
+    expect(receipt.outcome).toBe('insufficient_scope');
+    expect(grant).toEqual(readGrant);
+    expect(calls).not.toContain(`commit:${STAGED}`);
+  });
+
+  it('fails closed on an outcome it does not recognize rather than reading on', async () => {
+    const { port, calls } = fakePort({
+      outcome: 'partially_granted',
+      grantedScopes: ['Calendars.ReadWrite'],
+      stagedRef: STAGED,
+    } as unknown as CalendarConsentAttempt);
+    const { grant, receipt } = await requestCalendarWriteConsent({
+      provider: 'outlook',
+      currentGrant: readGrant,
+      port,
+    });
+
+    expect(receipt.outcome).toBe('failed');
+    expect(receipt.reason).toBe('internal');
+    expect(receipt.capabilityAfter).toBe('read');
+    expect(grant).toEqual(readGrant);
+    expect(calls).not.toContain(`commit:${STAGED}`);
+  });
+});
+
 describe('assertCalendarWriteAllowed', () => {
   it('lets a verified write grant through', () => {
     expect(() => {
