@@ -6,6 +6,10 @@ import {
   type WorkflowStatusFilter,
 } from './contract';
 
+function isWorkflowStatusFilter(value: string): value is WorkflowStatusFilter {
+  return value === 'all' || value === 'draft' || value === 'published';
+}
+
 export function WorkflowFilterControl({
   context,
 }: {
@@ -38,9 +42,11 @@ export function WorkflowFilterControl({
             data-testid="workflow-filters-status"
             value={filters.status}
             onChange={(event) => {
+              const status = event.currentTarget.value;
+              if (!isWorkflowStatusFilter(status)) return;
               setFilters({
                 ...filters,
-                status: event.target.value as WorkflowStatusFilter,
+                status,
               });
             }}
           >

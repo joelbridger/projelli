@@ -184,6 +184,16 @@ describe('workflow filters authoring contribution', () => {
     });
 
     fireEvent.change(screen.getByTestId('workflow-filters-status'), {
+      target: { value: 'unknown-status' },
+    });
+    expect(
+      screen.queryByText(draft.name, { selector: 'button' })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(published.name, { selector: 'button' })
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId('workflow-filters-status'), {
       target: { value: 'all' },
     });
     fireEvent.change(screen.getByTestId('workflow-filters-search'), {
