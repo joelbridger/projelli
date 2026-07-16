@@ -10,6 +10,7 @@ import {
 } from '@testing-library/react';
 import { setDevFlagOverride } from '@/platform/flags/router';
 import {
+  defaultDirectoryComposition,
   directoryToolRegistry,
   getDirectoryTools,
   validateDirectoryToolDescriptors,
@@ -50,6 +51,8 @@ function directoryContext(
   return {
     query: { value: '', setValue: vi.fn() },
     selection: { person: null, setPerson: vi.fn() },
+    view: { value: null, setValue: vi.fn() },
+    composition: defaultDirectoryComposition,
     sort: { value: 'directory', setValue: vi.fn() },
     filters: {
       tab: 'households',
