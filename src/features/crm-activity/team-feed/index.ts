@@ -1,10 +1,9 @@
 /**
- * Public activity-feed contract for consumers such as activity-filter-search.
- * It exposes only display items, async query/subscription, and approved writes;
- * storage, mention parsing, permission internals, and audit payloads are private.
+ * Public activity-feed contract. Native storage, runtime guards, staged audit,
+ * and the private adapter stay inside this feature.
  */
-export { createTeamActivityFeed, filterTeamActivityRecords } from './feed';
 export { teamActivitySurface } from './surface';
+export { useTeamActivityFeed } from './useTeamActivityFeed';
 export type {
   AddTeamActivityComment,
   CreateTeamActivityPost,
@@ -14,6 +13,5 @@ export type {
   TeamActivityItem,
   TeamActivityMutationAuthor,
   TeamActivityPost,
-  TeamActivityQuery,
   TeamActivityReaction,
 } from './contracts';

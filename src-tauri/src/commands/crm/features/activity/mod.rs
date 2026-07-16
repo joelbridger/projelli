@@ -1,9 +1,9 @@
-//! Native ownership marker for the team activity feed.
-//!
-//! Activity records use the canonical transactional CRM live-record boundary.
-//! This module intentionally exposes no alternate renderer command or store.
+//! Native, matter-scoped team-activity validation and persistence.
 
 use super::super::CrmFeatureDescriptor;
+
+pub mod commands;
+pub use commands::*;
 
 pub const FEATURE_DESCRIPTOR: CrmFeatureDescriptor = CrmFeatureDescriptor {
     id: "team-activity-feed",

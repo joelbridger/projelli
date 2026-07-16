@@ -21,8 +21,25 @@ pub use registry::{
     RecordValidator,
 };
 
-/// Append feature-owned descriptors in lexical `kind` order. The empty
-/// baseline is intentional: existing live records need no special branches.
+/// Activity descriptors protect both renderer commands and canonical peer
+/// relay ingestion. The same validators and parent projector run no matter
+/// which sanctioned path delivered the record.
+const TEAM_ACTIVITY_COMMENT_DESCRIPTOR: RecordDescriptor = RecordDescriptor {
+    kind: "teamActivityComment",
+    validate: Some(crate::commands::crm::features::activity::commands::validate_activity_record),
+    project: Some(crate::commands::crm::features::activity::commands::project_activity_record),
+};
+const TEAM_ACTIVITY_POST_DESCRIPTOR: RecordDescriptor = RecordDescriptor {
+    kind: "teamActivityPost",
+    validate: Some(crate::commands::crm::features::activity::commands::validate_activity_record),
+    project: Some(crate::commands::crm::features::activity::commands::project_activity_record),
+};
+const TEAM_ACTIVITY_REACTION_DESCRIPTOR: RecordDescriptor = RecordDescriptor {
+    kind: "teamActivityReaction",
+    validate: Some(crate::commands::crm::features::activity::commands::validate_activity_record),
+    project: Some(crate::commands::crm::features::activity::commands::project_activity_record),
+};
+
 const TEAMS_ROLES_STATE_DESCRIPTOR: RecordDescriptor = RecordDescriptor {
     kind: "teams-roles-state",
     validate: Some(
@@ -34,7 +51,12 @@ const TEAMS_ROLES_STATE_DESCRIPTOR: RecordDescriptor = RecordDescriptor {
 /// Protected feature kinds are validated here before every generic live-record
 /// write. Teams & Roles uses its own native commands and normalized tables;
 /// accepting an aggregate document here would bypass immutable system roles.
-pub const CRM_RECORD_DESCRIPTORS: &[RecordDescriptor] = &[TEAMS_ROLES_STATE_DESCRIPTOR];
+pub const CRM_RECORD_DESCRIPTORS: &[RecordDescriptor] = &[
+    TEAM_ACTIVITY_COMMENT_DESCRIPTOR,
+    TEAM_ACTIVITY_POST_DESCRIPTOR,
+    TEAM_ACTIVITY_REACTION_DESCRIPTOR,
+    TEAMS_ROLES_STATE_DESCRIPTOR,
+];
 
 #[cfg(test)]
 mod tests {

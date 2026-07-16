@@ -1,56 +1,69 @@
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
-import type { MemberAssignment } from '@/features/crm-firm/teams-roles';
-import type { OwnClientsContext, PermissionOperation } from '@/features/crm-permissions';
 
-/** Safe display data consumed by the activity screen and its later filter tool. */
+export const TEAM_ACTIVITY_FIRM_SCOPE = 'firm_home' as const;
+export const TEAM_ACTIVITY_STAGED_TRUST = 'renderer-staged-untrusted' as const;
+
+export interface TeamActivityDeferredAuthority {
+  identityTrust: typeof TEAM_ACTIVITY_STAGED_TRUST;
+  roleBinding: 'deferred';
+  operationBinding: 'deferred';
+}
+
+/** Display-only authorship. It is never a signed-in-member identity claim. */
+export interface TeamActivityMutationAuthor {
+  memberId: string;
+  displayName: string;
+  trust: typeof TEAM_ACTIVITY_STAGED_TRUST;
+}
+
 export interface TeamActivityPost extends LiveCrmRecord {
   kind: 'teamActivityPost';
+  matterId: typeof TEAM_ACTIVITY_FIRM_SCOPE;
   body: string;
-  author: { memberId: string; displayName: string };
+  author: TeamActivityMutationAuthor;
   mentionedMemberIds: readonly string[];
+  authority: TeamActivityDeferredAuthority;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface TeamActivityComment extends LiveCrmRecord {
   kind: 'teamActivityComment';
+  matterId: typeof TEAM_ACTIVITY_FIRM_SCOPE;
   postId: string;
   body: string;
-  author: { memberId: string; displayName: string };
+  author: TeamActivityMutationAuthor;
+  authority: TeamActivityDeferredAuthority;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface TeamActivityReaction extends LiveCrmRecord {
   kind: 'teamActivityReaction';
+  matterId: typeof TEAM_ACTIVITY_FIRM_SCOPE;
   postId: string;
-  emoji: string;
+  emoji: '👍' | '❤️';
   memberId: string;
+  authorshipTrust: typeof TEAM_ACTIVITY_STAGED_TRUST;
+  authority: TeamActivityDeferredAuthority;
   createdAt: string;
+  updatedAt: string;
   active: boolean;
 }
+
+export type TeamActivityRecord =
+  | TeamActivityPost
+  | TeamActivityComment
+  | TeamActivityReaction;
 
 export interface TeamActivityItem {
   id: string;
   body: string;
-  author: { memberId: string; displayName: string };
+  author: TeamActivityMutationAuthor;
   mentionedMemberIds: readonly string[];
   createdAt: string;
   comments: readonly TeamActivityComment[];
   reactions: readonly TeamActivityReaction[];
-}
-
-/**
- * Renderer-supplied display context. It is deliberately not an identity proof:
- * the future native enforcement layer must bind member, role, and operation.
- */
-export interface TeamActivityQuery {
-  memberId: string;
-  operation: PermissionOperation;
-  memberships: readonly MemberAssignment[];
-}
-
-export interface TeamActivityMutationAuthor {
-  memberId: string;
-  displayName: string;
 }
 
 export interface CreateTeamActivityPost {
@@ -67,17 +80,17 @@ export interface AddTeamActivityComment {
 
 export interface SetTeamActivityReaction {
   postId: string;
-  emoji: string;
+  emoji: '👍' | '❤️';
   memberId: string;
+  authorshipTrust: typeof TEAM_ACTIVITY_STAGED_TRUST;
   active: boolean;
 }
 
+/** Consumer-shaped feed already bound to one canonical firm scope. */
 export interface TeamActivityFeed {
-  query(query: TeamActivityQuery): Promise<readonly TeamActivityItem[]>;
+  query(): Promise<readonly TeamActivityItem[]>;
   subscribe(listener: () => void): () => void;
   createPost(input: CreateTeamActivityPost): Promise<TeamActivityPost>;
   addComment(input: AddTeamActivityComment): Promise<TeamActivityComment>;
   setReaction(input: SetTeamActivityReaction): Promise<TeamActivityReaction>;
 }
-
-export type TeamActivityPermissionContext = OwnClientsContext;

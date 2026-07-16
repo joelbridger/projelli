@@ -8,7 +8,10 @@ const { useFlag, useLiveCrmRecords } = vi.hoisted(() => ({
 }));
 
 vi.mock('@/platform/flags', () => ({ useFlag }));
-vi.mock('@/platform/crm/useLiveCrmRecords', () => ({ useLiveCrmRecords }));
+vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
+  LIVE_CRM_RECORDS_CHANGED: 'lantern:crm-live-records-changed',
+  useLiveCrmRecords,
+}));
 // Cross-feature mock uses the public doorway, never a deep implementation path.
 vi.mock('@/features/crm-activity', () => ({ CrmActivitySurface: () => <div data-testid="legacy-activity-surface" /> }));
 
@@ -24,9 +27,14 @@ describe('TeamActivitySurface flag gate', () => {
 
   it('starts the enabled feed only when the flag is on', () => {
     useFlag.mockReturnValue(true);
-    useLiveCrmRecords.mockReturnValue({ records: [], save: vi.fn(), reload: vi.fn(), error: null, workspaceRoot: '/tmp/test', sharedMatterId: 'firm_home' });
+    useLiveCrmRecords.mockReturnValue({
+      records: [], save: vi.fn(), publishSavedRecord: vi.fn(), reload: vi.fn(),
+      error: null, workspaceRoot: '/tmp/test', sharedMatterId: 'firm_home',
+    });
     render(<TeamActivitySurface />);
     expect(screen.getByTestId('team-activity-feed')).toBeInTheDocument();
+    expect(screen.getByTestId('team-activity-read-only')).toBeInTheDocument();
+    expect(screen.queryByTestId('team-activity-post-save')).not.toBeInTheDocument();
     expect(useLiveCrmRecords).toHaveBeenCalledTimes(1);
   });
 });
