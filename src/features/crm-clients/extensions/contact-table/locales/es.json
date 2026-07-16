@@ -1,0 +1,17 @@
+{
+  "contactTable": {
+    "title": "Contactos",
+    "description": "Hogares y personas en su directorio",
+    "compact": "Filas compactas",
+    "comfortable": "Filas cómodas",
+    "addHousehold": "Añadir hogar",
+    "householdName": "Nombre del hogar",
+    "createHousehold": "Crear hogar",
+    "createFailed": "No se pudo crear el hogar.",
+    "cancel": "Cancelar",
+    "type": "Tipo",
+    "empty": "Ningún contacto coincide con estos filtros.",
+    "columns": { "name": "Nombre", "type": "Tipo", "status": "Estado", "tags": "Etiquetas", "owner": "Responsable", "lastActivity": "Última actividad" },
+    "types": { "all": "Todos los tipos", "household": "Hogar", "person": "Persona", "organization": "Organización", "trust": "Fideicomiso" }
+  }
+}

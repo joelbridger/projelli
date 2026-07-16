@@ -1,0 +1,17 @@
+{
+  "contactTable": {
+    "title": "Kontakte",
+    "description": "Haushalte und Personen in Ihrem Verzeichnis",
+    "compact": "Kompakte Zeilen",
+    "comfortable": "Komfortable Zeilen",
+    "addHousehold": "Haushalt hinzufügen",
+    "householdName": "Haushaltsname",
+    "createHousehold": "Haushalt erstellen",
+    "createFailed": "Der Haushalt konnte nicht erstellt werden.",
+    "cancel": "Abbrechen",
+    "type": "Typ",
+    "empty": "Keine Kontakte entsprechen diesen Filtern.",
+    "columns": { "name": "Name", "type": "Typ", "status": "Status", "tags": "Tags", "owner": "Zuständig", "lastActivity": "Letzte Aktivität" },
+    "types": { "all": "Alle Typen", "household": "Haushalt", "person": "Person", "organization": "Organisation", "trust": "Trust" }
+  }
+}

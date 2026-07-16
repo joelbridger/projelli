@@ -68,6 +68,222 @@ export const flagRegistry = [
   defineFlag('crm-merge-clients', 'Keeps advisor-reviewed duplicate household merges dark until acceptance review is complete.', 'crm-merge-clients', '2026-07-16', '2026-09-14'),
   defineFlag('team-activity-feed', 'Keeps the team activity feed dark until acceptance and native permission enforcement are proven.', 'team-activity-feed', '2026-07-16', '2026-09-14'),
   defineFlag('schwab-prefill', 'Keeps the local Schwab prep-packet review dark until its acceptance drive is complete.', 'schwab-prefill', '2026-07-16', '2026-09-14'),
+  {
+    id: 'shared-client-bar',
+    description:
+      'Keeps the shared client-context bar dark until the v1 shell is ready.',
+    ownerLane: 'p0c',
+    createdAt: '2026-07-15',
+    expiresAt: '2026-09-13',
+    defaultEnabled: false,
+  },
+  {
+    id: 'record-compliance-dates',
+    description:
+      'Keeps written-agreement compliance dates dark until the record-depth review is complete.',
+    ownerLane: 'record-compliance-dates',
+    createdAt: '2026-07-15',
+    expiresAt: '2026-09-13',
+    defaultEnabled: false,
+  },
+  {
+    id: 'record-employment',
+    description:
+      'Keeps the Employment household details section dark until its acceptance drive is complete.',
+    ownerLane: 'record-employment',
+    createdAt: '2026-07-15',
+    expiresAt: '2026-09-13',
+    defaultEnabled: false,
+  },
+  {
+    id: 'record-investment-profile',
+    description:
+      'Keeps the editable investment profile dark until its record-depth acceptance drive is complete.',
+    ownerLane: 'record-investment-profile',
+    createdAt: '2026-07-15',
+    expiresAt: '2026-09-13',
+    defaultEnabled: false,
+  },
+  {
+    id: 'record-professional-contacts',
+    description:
+      'Keeps professional and trusted-contact details dark until their record drive passes.',
+    ownerLane: 'record-professional-contacts',
+    createdAt: '2026-07-15',
+    expiresAt: '2026-09-13',
+    defaultEnabled: false,
+  },
+  {
+    id: 'booking-public-page',
+    description:
+      'Keeps the branded public booking-page presentation dark until its hosted route is mounted.',
+    ownerLane: 'booking-public-page',
+    createdAt: '2026-07-15',
+    expiresAt: '2026-09-13',
+    defaultEnabled: false,
+  },
+  {
+    id: 'teams-roles',
+    description:
+      'Keeps Organization people, teams, and roles dark until their acceptance drive passes.',
+    ownerLane: 'teams-roles',
+    createdAt: '2026-07-15',
+    expiresAt: '2026-09-13',
+    defaultEnabled: false,
+  },
+  {
+    id: 'crm-trash-recovery',
+    description:
+      'Keeps CRM record soft-delete and 30-day recovery dark until acceptance testing passes.',
+    ownerLane: 'crm-trash-recovery',
+    createdAt: '2026-07-15',
+    expiresAt: '2026-09-13',
+    defaultEnabled: false,
+  },
+  {
+    id: 'v1-shell-frame',
+    description:
+      'Keeps the permanent v1 navigation and top bar dark until its acceptance drive passes.',
+    ownerLane: 'v1-shell-frame',
+    createdAt: '2026-07-15',
+    expiresAt: '2026-09-13',
+    defaultEnabled: false,
+  },
+  {
+    id: 'internal-projects',
+    description:
+      'Keeps internal firm project tracking dark until its CRM acceptance drive is complete.',
+    ownerLane: 'internal-projects',
+    createdAt: '2026-07-15',
+    expiresAt: '2026-09-13',
+    defaultEnabled: false,
+  },
+  {
+    id: 'form-activity',
+    description:
+      'Keeps firm-wide form submission activity dark until its acceptance drive is complete.',
+    ownerLane: 'form-activity',
+    createdAt: '2026-07-15',
+    expiresAt: '2026-09-13',
+    defaultEnabled: false,
+  },
+  {
+    id: 'custom-fields-firm',
+    description:
+      'Keeps firm-defined CRM custom fields dark until the settings panel has passed acceptance review.',
+    ownerLane: 'custom-fields-firm',
+    createdAt: '2026-07-15',
+    expiresAt: '2026-09-13',
+    defaultEnabled: false,
+  },
+  {
+    id: 'contact-sources',
+    description:
+      'Keeps firm contact-source management dark until its acceptance drive is complete.',
+    ownerLane: 'contact-sources',
+    createdAt: '2026-07-15',
+    expiresAt: '2026-09-13',
+    defaultEnabled: false,
+  },
+  {
+    id: 'notification-preferences',
+    description:
+      'Keeps personal notification preference capture dark until its acceptance drive is complete.',
+    ownerLane: 'notification-preferences',
+    createdAt: '2026-07-15',
+    expiresAt: '2026-09-13',
+    defaultEnabled: false,
+  },
+  {
+    id: 'custom-fields-advisor',
+    description:
+      'Keeps advisor editing of firm-defined custom field values dark until its record review is complete.',
+    ownerLane: 'custom-fields-advisor',
+    createdAt: '2026-07-15',
+    expiresAt: '2026-09-13',
+    defaultEnabled: false,
+  },
+  {
+    id: 'crm-bulk-select',
+    description:
+      'Keeps CRM directory household selection dark until its acceptance review is complete.',
+    ownerLane: 'crm-bulk-select',
+    createdAt: '2026-07-16',
+    expiresAt: '2026-09-14',
+    defaultEnabled: false,
+  },
+  {
+    id: 'home-surface-v1',
+    description:
+      'Keeps the v1 Home orientation surface dark until its acceptance drive passes.',
+    ownerLane: 'home-surface-v1',
+    createdAt: '2026-07-16',
+    expiresAt: '2026-09-14',
+    defaultEnabled: false,
+  },
+  {
+    id: 'record-member-kebab',
+    description:
+      'Keeps the household-member rail and its scoped record actions dark until review is complete.',
+    ownerLane: 'record-member-kebab',
+    createdAt: '2026-07-16',
+    expiresAt: '2026-09-14',
+    defaultEnabled: false,
+  },
+  {
+    id: 'crm-advisor-filters',
+    description:
+      'Keeps advanced advisor-field directory filters dark until their acceptance review is complete.',
+    ownerLane: 'crm-advisor-filters',
+    createdAt: '2026-07-16',
+    expiresAt: '2026-09-14',
+    defaultEnabled: false,
+  },
+  {
+    id: 'crm-shell-v1',
+    description:
+      'Keeps the CRM v1 frame and destination rail dark until its acceptance review is complete.',
+    ownerLane: 'crm-shell-v1',
+    createdAt: '2026-07-16',
+    expiresAt: '2026-09-14',
+    defaultEnabled: false,
+  },
+  {
+    id: 'settings-shell-v1',
+    description:
+      'Keeps the v1 Settings frame dark until its acceptance drive is complete.',
+    ownerLane: 'settings-shell-v1',
+    createdAt: '2026-07-16',
+    expiresAt: '2026-09-14',
+    defaultEnabled: false,
+  },
+  {
+    id: 'own-clients-permissions',
+    description:
+      'Keeps own-client permission scoping dark: the read-side policy doorway is present, but the native enforcement engine is deferred, so consumers stay off until provable no-bypass enforcement lands.',
+    ownerLane: 'own-clients-permissions',
+    createdAt: '2026-07-16',
+    expiresAt: '2026-09-14',
+    defaultEnabled: false,
+  },
+  {
+    id: 'universal-tags',
+    description:
+      'Keeps firm-wide reusable tag administration dark until its acceptance drive is complete.',
+    ownerLane: 'universal-tags',
+    createdAt: '2026-07-16',
+    expiresAt: '2026-09-14',
+    defaultEnabled: false,
+  },
+  {
+    id: 'crm-contact-table',
+    description:
+      'Keeps the CRM contact table dark until its directory acceptance review is complete.',
+    ownerLane: 'crm-contact-table',
+    createdAt: '2026-07-16',
+    expiresAt: '2026-09-14',
+    defaultEnabled: false,
+  },
 ] as const satisfies readonly FlagDescriptor[];
 
 export type FlagId = (typeof flagRegistry)[number]['id'];

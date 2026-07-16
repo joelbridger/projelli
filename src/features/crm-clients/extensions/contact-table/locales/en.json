@@ -1,0 +1,30 @@
+{
+  "contactTable": {
+    "title": "Contacts",
+    "description": "Households and people in your directory",
+    "compact": "Compact rows",
+    "comfortable": "Comfortable rows",
+    "addHousehold": "Add household",
+    "householdName": "Household name",
+    "createHousehold": "Create household",
+    "createFailed": "Could not create the household.",
+    "cancel": "Cancel",
+    "type": "Type",
+    "empty": "No contacts match these filters.",
+    "columns": {
+      "name": "Name",
+      "type": "Type",
+      "status": "Status",
+      "tags": "Tags",
+      "owner": "Owner",
+      "lastActivity": "Last activity"
+    },
+    "types": {
+      "all": "All types",
+      "household": "Household",
+      "person": "Person",
+      "organization": "Organization",
+      "trust": "Trust"
+    }
+  }
+}
