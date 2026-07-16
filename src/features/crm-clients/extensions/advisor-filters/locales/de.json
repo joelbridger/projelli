@@ -1,0 +1,18 @@
+{
+  "advisorFilters": {
+    "open": "Filter",
+    "heading": "Verzeichnis filtern",
+    "applied": "Angewendete Filter",
+    "primaryAdvisor": "Hauptberater",
+    "allPrimaryAdvisors": "Alle Hauptberater",
+    "serviceTier": "Servicestufe",
+    "allServiceTiers": "Alle Servicestufen",
+    "lifecycle": "Kundenstatus",
+    "allLifecycles": "Alle Kundenstatus",
+    "chip": "{{field}}: {{value}}",
+    "remove": "Entfernen",
+    "removeLabel": "Filter {{label}} entfernen",
+    "reset": "Filter zurücksetzen",
+    "empty": "Keine Haushalte entsprechen diesen Filtern."
+  }
+}

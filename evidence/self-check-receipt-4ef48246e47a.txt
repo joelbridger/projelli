@@ -1,0 +1,16 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 2
+repo: /home/jameson/v1-w2-crm-advisor-filters-v2
+sha: 4ef48246e47a9187ca0fbed515ee9c767597d637
+tree: 3202ec6309871ad76e6ad5332078d0538f2e7371
+gate_base: 19d016a6c80bd6a7125e3ab9a352de3122766900
+tool_blob: 47e279d4399792a5cc19fc7f1ced01c5863b18af
+utc: 2026-07-16T05:43:58Z
+step: gate:changed | exit=0 | 05:43:58Z..05:49:25Z | bytes=26733 | sha256=5ec8958fa507d9e21d6d21ac88c24e80af7b016df37b70f3a69e93c958f121b9 | tail: 505:5) Test Files 223 passed (223) Tests 1562 passed (1562) Start at 05:47:20 Duration 124.95s (transform 17.60s, setup 43.03s, import 198.35s, tests 117.28s, environment 106.06s) CHANGED GATE GREEN 
+step: typecheck | exit=0 | 05:49:25Z..05:49:52Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit 
+step: typecheck:tests | exit=0 | 05:49:52Z..05:50:22Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit 
+step: handle-guard | exit=0 | 05:50:22Z..05:50:22Z | bytes=1267 | sha256=baf273eb16d99c870ea7139ff029ebe06c6713a94b13510629fdf8b191fabf53 | tail: t-picker-cancel + client-picker-clear + client-picker-empty + client-picker-error +165 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen). 
+step: arch-dag-guard | exit=0 | 05:50:22Z..05:50:25Z | bytes=228 | sha256=2a4ad80bbd44f5e6cdf4f58f827cbd1e3ce557b7b2f8041c7ab71da0f8140d97 | tail: 4.1.3 /home/jameson/v1-w2-crm-advisor-filters-v2 Test Files 1 passed (1) Tests 1 passed (1) Start at 05:50:23 Duration 1.75s (transform 385ms, setup 608ms, import 422ms, tests 7ms, environment 558ms) 
+step: i18n-snapshot | exit=0 | 05:50:25Z..05:50:27Z | bytes=229 | sha256=bdf9e781ad710ff447095c29438925df16f6f8fc80f4ba68e3e64de0310ef5a6 | tail: .1.3 /home/jameson/v1-w2-crm-advisor-filters-v2 Test Files 1 passed (1) Tests 5 passed (5) Start at 05:50:25 Duration 1.63s (transform 335ms, setup 493ms, import 344ms, tests 36ms, environment 594ms) 
+step: focused | exit=0 | 05:50:27Z..05:50:32Z | bytes=230 | sha256=beea50720513d54f8ee523d9b00db11eccdd973887150301777499c0fc4e2489 | tail: 1.3 /home/jameson/v1-w2-crm-advisor-filters-v2 Test Files 1 passed (1) Tests 6 passed (6) Start at 05:50:27 Duration 5.23s (transform 2.83s, setup 525ms, import 3.88s, tests 174ms, environment 489ms) 
+overall: GREEN
