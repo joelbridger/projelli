@@ -1,0 +1,23 @@
+{
+  "workflow-authoring": {
+    "title": "Biblioteca de flujos de trabajo",
+    "description": "Crea una plantilla reutilizable y publícala antes de iniciarla para un hogar.",
+    "new": "Nueva plantilla",
+    "template-title": "Nombre de la plantilla",
+    "template-tags": "Etiquetas de plantilla",
+    "step": "Paso {{number}}",
+    "step-title": "Nombre del paso {{number}}",
+    "move-up": "Mover hacia arriba",
+    "move-down": "Mover hacia abajo",
+    "add-step": "Agregar paso",
+    "save": "Guardar borrador",
+    "publish": "Publicar plantilla",
+    "household": "Hogar",
+    "choose-household": "Elige un hogar",
+    "start": "Iniciar flujo de trabajo",
+    "saved": "Borrador guardado.",
+    "published": "Plantilla publicada.",
+    "started": "Flujo de trabajo iniciado.",
+    "error": "No se pudo guardar la plantilla del flujo de trabajo."
+  }
+}

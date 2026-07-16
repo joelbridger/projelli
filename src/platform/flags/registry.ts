@@ -71,6 +71,7 @@ export const flagRegistry = [
   defineFlag('crm-list-sort', 'Keeps CRM directory result sorting dark until its acceptance review is complete.', 'crm-list-sort', '2026-07-16', '2026-09-14'),
   defineFlag('crm-tags-rail', 'Keeps the CRM directory tag quick-filter dark until its acceptance review is complete.', 'crm-tags-rail', '2026-07-16', '2026-09-14'),
   defineFlag('crm-contact-table', 'Keeps the CRM contact table dark until its directory acceptance review is complete.', 'crm-contact-table', '2026-07-16', '2026-09-14'),
+  defineFlag('workflow-authoring', 'Keeps reusable workflow template authoring dark until its acceptance drive is complete.', 'workflow-authoring', '2026-07-16', '2026-09-14'),
 ] as const satisfies readonly FlagDescriptor[];
 
 export type FlagId = (typeof flagRegistry)[number]['id'];
