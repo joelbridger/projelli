@@ -1,0 +1,8 @@
+{
+  "crmMerge": {
+    "action": "Combinar duplicado",
+    "title": "Revisar combinación duplicada",
+    "approve": "Aprobar combinación",
+    "complete": "Combinación completada"
+  }
+}

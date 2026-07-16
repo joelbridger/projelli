@@ -1,0 +1,8 @@
+{
+  "crmMerge": {
+    "action": "Merge duplicate",
+    "title": "Review duplicate merge",
+    "approve": "Approve merge",
+    "complete": "Merge complete"
+  }
+}

@@ -151,9 +151,10 @@ import {
   customFieldsAdvisorRecordExtension,
   customFieldsAdvisorSection,
 } from './extensions/custom-fields';
+import { householdMergeHeaderAction } from '@/features/crm-clients/extensions/merge';
 
 export const householdHeaderActionRegistry: readonly HouseholdHeaderActionDescriptor[] =
-  legacyHouseholdHeaderActions;
+  [...legacyHouseholdHeaderActions, householdMergeHeaderAction];
 export const householdAddActionRegistry: readonly HouseholdAddActionDescriptor[] =
   legacyHouseholdAddActions;
 export const householdSectionRegistry: readonly HouseholdSectionDescriptor[] = [

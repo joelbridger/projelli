@@ -18,7 +18,7 @@ describe('household record registries', () => {
   it('keeps compatibility mounts in their existing stable order', () => {
     expect(
       getHouseholdHeaderActions().map((descriptor) => descriptor.id)
-    ).toEqual(['ask', 'metadata', 'edit', 'schedule']);
+    ).toEqual(['ask', 'metadata', 'edit', 'schedule', 'merge_duplicate']);
     expect(getHouseholdAddActions().map((descriptor) => descriptor.id)).toEqual(
       [
         'fact',

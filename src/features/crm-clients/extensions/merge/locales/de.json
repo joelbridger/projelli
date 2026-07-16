@@ -1,0 +1,8 @@
+{
+  "crmMerge": {
+    "action": "Duplikat zusammenführen",
+    "title": "Doppelte Haushalte prüfen",
+    "approve": "Zusammenführung bestätigen",
+    "complete": "Zusammenführung abgeschlossen"
+  }
+}
