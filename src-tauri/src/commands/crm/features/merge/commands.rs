@@ -324,11 +324,12 @@ fn reparent_household_references(
             "SELECT doc_key,yjs_state FROM crm_docs
              WHERE matter_id=?1 AND doc_id LIKE 'live:%' AND deleted=0",
         )?;
-        statement
+        let rows = statement
             .query_map([matter_id], |row| {
                 Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?))
             })?
-            .collect::<rusqlite::Result<Vec<_>>>()?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        rows
     };
     let mut changed = 0usize;
     for (doc_key, bytes) in rows {
