@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { CrmHomeSurfaceContext } from '@/features/crm-home';
 import { useFirmTagStore, type FirmTagStore } from '@/features/crm-tags';
 import {
   useWorkflowTemplateStore,
@@ -50,10 +51,23 @@ function EnabledWorkflowAuthoring({
   const { t } = useTranslation();
   const store = createStore();
   const tagStore = createTagStore();
-  const refreshKey = `${templateId}:${tagStore.catalog.tags
+  const crmHome = useContext(CrmHomeSurfaceContext);
+  const workflowSnapshotKey = crmHome?.workflowData?.templates
+    .map(
+      (template) =>
+        `${template.id}:${template.updatedAt ?? ''}:${template.status ?? ''}:${template.name}:${template.steps
+          .map(
+            (step) =>
+              `${step.id}:${step.title}:${step.tagIds.join(',')}`
+          )
+          .join(';')}`
+    )
+    .join('|') ?? '';
+  const refreshKey = `${templateId}:${workflowSnapshotKey}:${tagStore.catalog.tags
     .map((tag) => `${tag.id}:${tag.status}:${tag.name}`)
     .join('|')}`;
   const lastLoadedKey = useRef<string | null>(null);
+  const lastWorkflowSnapshot = useRef(crmHome?.workflowData);
   const [templates, setTemplates] = useState<
     readonly WorkflowTemplateRecord[]
   >([]);
@@ -76,8 +90,14 @@ function EnabledWorkflowAuthoring({
   };
 
   useEffect(() => {
-    if (lastLoadedKey.current === refreshKey) return;
+    if (
+      lastLoadedKey.current === refreshKey &&
+      lastWorkflowSnapshot.current === crmHome?.workflowData
+    ) {
+      return;
+    }
     lastLoadedKey.current = refreshKey;
+    lastWorkflowSnapshot.current = crmHome?.workflowData;
     let mounted = true;
     queueMicrotask(() => {
       void store
@@ -89,7 +109,14 @@ function EnabledWorkflowAuthoring({
             nextTemplates.find((template) => template.id === selectedId) ??
             nextTemplates[0] ??
             null;
-          if (next) select(next);
+          if (next) {
+            select(next);
+          } else {
+            setSelectedId(null);
+            setName('');
+            setTagIds([]);
+            setSteps([]);
+          }
         })
         .catch((error: unknown) => {
           if (mounted) {
@@ -168,10 +195,14 @@ function EnabledWorkflowAuthoring({
   const start = async () => {
     if (!selected) return;
     try {
-      await store.start(selected.id, {
-        id: householdId,
-        label: householdId,
-      });
+      const household = crmHome?.workflowHouseholds?.find(
+        (candidate) => candidate.id === householdId
+      );
+      if (!household) {
+        setMessage(t('workflow-authoring.choose-household'));
+        return;
+      }
+      await store.start(selected.id, household);
       setMessage(t('workflow-authoring.started'));
     } catch (error) {
       setMessage(
@@ -382,18 +413,27 @@ function EnabledWorkflowAuthoring({
           </button>
           <label>
             {t('workflow-authoring.household')}
-            <input
+            <select
               data-testid="workflow-authoring-household"
               value={householdId}
               onChange={(event) => {
                 setHouseholdId(event.target.value);
               }}
-            />
+            >
+              <option value="">
+                {t('workflow-authoring.choose-household')}
+              </option>
+              {(crmHome?.workflowHouseholds ?? []).map((household) => (
+                <option key={household.id} value={household.id}>
+                  {household.label}
+                </option>
+              ))}
+            </select>
           </label>
           <button
             type="button"
             data-testid="workflow-authoring-start"
-            disabled={selected.status !== 'published'}
+            disabled={selected.status !== 'published' || !householdId}
             onClick={() => {
               run(start);
             }}
