@@ -25,8 +25,32 @@ function list(value: unknown): readonly unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
+function optionalStringList(value: unknown): readonly string[] | undefined {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string')
+    ? value
+    : undefined;
+}
+
 function stringValue(value: unknown, fallback: string): string {
   return typeof value === 'string' && value.trim() ? value : fallback;
+}
+
+function latestActivityAt(records: readonly LiveCrmRecord[], matches: (record: LiveCrmRecord) => boolean): string | undefined {
+  let latest: string | undefined;
+  for (const record of records) {
+    if (record.kind !== 'activityEvent' || typeof record['at'] !== 'string' || !matches(record)) continue;
+    if (!latest || record['at'] > latest) latest = record['at'];
+  }
+  return latest;
+}
+
+function activityTargetsPerson(record: LiveCrmRecord, personId: string): boolean {
+  const target = record['targetRef'];
+  return Boolean(target
+    && typeof target === 'object'
+    && !Array.isArray(target)
+    && (target as Record<string, unknown>)['kind'] === 'person'
+    && (target as Record<string, unknown>)['id'] === personId);
 }
 
 function syncState(kind: ReturnType<typeof useLiveCrmRecords>['freshness']['kind']): SyncState {
@@ -36,9 +60,12 @@ function syncState(kind: ReturnType<typeof useLiveCrmRecords>['freshness']['kind
 }
 
 function householdFromRecord(record: LiveCrmRecord, currentSyncState: SyncState, lastSyncedAt?: string): HouseholdRecord {
+  const tagIds = optionalStringList(record['tagIds']);
   return {
     id: record.id,
     name: stringValue(record['name'], 'Untitled household'),
+    ...(typeof record.createdAt === 'string' ? { createdAt: record.createdAt } : {}),
+    ...(typeof record.updatedAt === 'string' ? { updatedAt: record.updatedAt } : {}),
     lifecycle: stringValue(record['lifecycle'], 'Active'),
     primaryAdvisor: stringValue(record['primaryAdvisor'], 'Unassigned'),
     ownership: record['ownership'] === 'shared' || record['ownership'] === 'other' ? record['ownership'] : 'mine',
@@ -52,7 +79,7 @@ function householdFromRecord(record: LiveCrmRecord, currentSyncState: SyncState,
     externalParties: list(record['externalParties']) as NonNullable<HouseholdRecord['externalParties']>,
     notes: list(record['notes']) as NonNullable<HouseholdRecord['notes']>,
     customFields: list(record['customFields']) as NonNullable<HouseholdRecord['customFields']>,
-    tags: list(record['tags']).filter((tag): tag is string => typeof tag === 'string'),
+    ...(tagIds ? { tagIds } : {}),
     contextRefs: list(record['contextRefs']) as NonNullable<HouseholdRecord['contextRefs']>,
     ...(record['extensionData'] && typeof record['extensionData'] === 'object' && !Array.isArray(record['extensionData'])
       ? { extensionData: record['extensionData'] as Readonly<Record<string, unknown>> }
@@ -75,6 +102,7 @@ function householdFromMatter(matter: Matter, currentSyncState: SyncState): House
   return {
     id: matter.id,
     name: matter.client.trim() || matter.name,
+    ...(typeof matter.createdAt === 'string' ? { createdAt: matter.createdAt } : {}),
     lifecycle: 'Active',
     primaryAdvisor: 'Unassigned',
     ownership: 'mine',
@@ -86,7 +114,6 @@ function householdFromMatter(matter: Matter, currentSyncState: SyncState): House
     externalParties: [],
     notes: [],
     customFields: [],
-    tags: [],
     contextRefs: [],
   };
 }
@@ -206,27 +233,42 @@ function ClientsSurfaceContent({
     if (selectionWorkspace) writeSelectedCrmHousehold(selectionWorkspace, selection);
   }, [findRecord, recordMatterId, selectionWorkspace]);
 
-  const effectiveHouseholds = households.length ? households : effectiveRecords.map((household) => ({
-    id: recordMatterId(household),
-    name: household.name,
-    lifecycle: household.lifecycle,
-    primaryAdvisor: household.primaryAdvisor,
-    serviceTier: household.serviceTier,
-    peopleCount: household.members.length + household.externalParties.length,
-  }));
+  const effectiveHouseholds = households.length ? households : effectiveRecords.map((household) => {
+    const lastActivityAt = latestActivityAt(
+      live.records,
+      (activity) => activity['householdId'] === household.id,
+    );
+    return {
+      id: recordMatterId(household),
+      name: household.name,
+      ...(typeof household.createdAt === 'string' ? { createdAt: household.createdAt } : {}),
+      ...(typeof household.updatedAt === 'string' ? { updatedAt: household.updatedAt } : {}),
+      lifecycle: household.lifecycle,
+      primaryAdvisor: household.primaryAdvisor,
+      serviceTier: household.serviceTier,
+      peopleCount: household.members.length + household.externalParties.length,
+      ...(household.tagIds ? { tagIds: household.tagIds } : {}),
+      ...(lastActivityAt !== undefined ? { lastActivityAt } : {}),
+    };
+  });
   const livePeople = useMemo(() => {
     const seen = new Map<string, CrmPerson>();
     for (const household of storedHouseholds) {
       for (const person of [...household.members, ...household.externalParties]) {
         const prior = seen.get(person.id);
+        const lastActivityAt = latestActivityAt(
+          live.records,
+          (activity) => activityTargetsPerson(activity, person.id),
+        );
         seen.set(person.id, {
           ...person,
           relatedHouseholds: (prior?.relatedHouseholds ?? 0) + 1,
+          ...(lastActivityAt !== undefined ? { lastActivityAt } : {}),
         });
       }
     }
     return [...seen.values()];
-  }, [storedHouseholds]);
+  }, [live.records, storedHouseholds]);
   const effectivePeople = people.length ? people : livePeople;
   const selected = selectedId ? findRecord(selectedId) : undefined;
 

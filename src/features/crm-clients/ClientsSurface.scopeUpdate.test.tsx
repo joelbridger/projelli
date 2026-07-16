@@ -13,10 +13,15 @@ import { useMatterStore } from '@/platform/matter/matterStore';
 import { useScopeUpdateStore } from '@/platform/rag/scopeUpdateStore';
 import { setDevFlagOverride } from '@/platform/flags';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
+import type { Household, Person } from '@/platform/crm/types';
 import {
   householdRecordExtensionRegistry,
   type HouseholdRecordExtensionDescriptor,
 } from './recordRegistry';
+import {
+  createDirectoryComposition,
+  type DirectoryQueryDescriptor,
+} from './directoryRegistry';
 
 const liveCrm = vi.hoisted(() => ({
   records: [] as Array<Record<string, unknown>>,
@@ -87,6 +92,102 @@ describe('ClientsSurface during a CRM search update', () => {
     fireEvent.click(screen.getByTestId('crm-directory-household-matter-wealthbox-1'));
     expect(screen.getByTestId('crm-household-record')).toBeInTheDocument();
     expect(screen.getByText('Abernathy Household')).toBeInTheDocument();
+  });
+
+  it('maps canonical live-record projection fields into household and person directory projections', () => {
+    const canonicalHouseholdTags = {
+      kind: 'household',
+      tagIds: ['tag:priority'],
+    } satisfies Pick<Household, 'kind' | 'tagIds'>;
+    const canonicalPersonTags = {
+      kind: 'person',
+      tagIds: ['tag:trusted-contact'],
+    } satisfies Pick<Person, 'kind' | 'tagIds'>;
+    liveCrm.records = [{
+      id: 'household-timestamps-1',
+      ...canonicalHouseholdTags,
+      matterId: 'matter-wealthbox-1',
+      name: 'Abernathy Household',
+      createdAt: '2026-07-10T00:00:00.000Z',
+      updatedAt: '2026-07-11T00:00:00.000Z',
+      members: [{
+        id: 'person-timestamps-1',
+        ...canonicalPersonTags,
+        name: 'Avery Abernathy',
+        personType: 'person',
+        roles: [],
+        relatedHouseholds: 1,
+        createdAt: '2026-07-08T00:00:00.000Z',
+        updatedAt: '2026-07-09T00:00:00.000Z',
+      }],
+    }, {
+      id: 'household-without-tags',
+      kind: 'household',
+      name: 'Household without tags',
+      members: [{
+        id: 'person-without-tags',
+        name: 'Person without tags',
+        personType: 'person',
+        roles: [],
+        relatedHouseholds: 1,
+      }],
+    }, {
+      id: 'activity-household-timestamps-1',
+      kind: 'activityEvent',
+      householdId: 'household-timestamps-1',
+      at: '2026-07-12T00:00:00.000Z',
+    }, {
+      id: 'activity-person-timestamps-1',
+      kind: 'activityEvent',
+      at: '2026-07-13T00:00:00.000Z',
+      targetRef: { kind: 'person', id: 'person-timestamps-1' },
+    }];
+    useMatterStore.setState({ activeMatterId: null, clientMapHubId: null });
+    const observed = vi.fn();
+    const timestampProbe: DirectoryQueryDescriptor<'test-timestamp-probe'> = {
+      id: 'test-timestamp-probe',
+      order: 10,
+      isActive: () => true,
+      filter: (result) => {
+        observed(result.kind, result.record.id, result.record.createdAt, result.record.updatedAt, result.record.tagIds, result.record.lastActivityAt);
+        return true;
+      },
+    };
+
+    render(<ClientsSurface directoryComposition={createDirectoryComposition({ queries: [timestampProbe] })} />);
+
+    expect(observed).toHaveBeenCalledWith(
+      'household',
+      'matter-wealthbox-1',
+      '2026-07-10T00:00:00.000Z',
+      '2026-07-11T00:00:00.000Z',
+      ['tag:priority'],
+      '2026-07-12T00:00:00.000Z',
+    );
+    expect(observed).toHaveBeenCalledWith(
+      'person',
+      'person-timestamps-1',
+      '2026-07-08T00:00:00.000Z',
+      '2026-07-09T00:00:00.000Z',
+      ['tag:trusted-contact'],
+      '2026-07-13T00:00:00.000Z',
+    );
+    expect(observed).toHaveBeenCalledWith(
+      'household',
+      'household-without-tags',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    );
+    expect(observed).toHaveBeenCalledWith(
+      'person',
+      'person-without-tags',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    );
   });
 
   it('never locks the imported household if its search update fails', () => {

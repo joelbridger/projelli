@@ -1,9 +1,11 @@
-# Directory composition seam self-check receipt
+# Directory composition seam extension fix 3 receipt
 
-Code-and-proof commit: `e60e78f5d` (`fix(crm): isolate directory query records`)
+Code-and-proof commit: `aa8d035bda80582678b6f620feff71de6a304f86`
+(`fix(crm): finalize directory seam contracts`)
 
-Final checked tree: the commit containing this receipt. This receipt is the
-only change after the code commit above.
+The commands below were run against that exact code commit before this receipt
+was written. The two TypeScript commands were run directly and unpiped; their
+actual process exit codes are recorded below.
 
 ## Required checks
 
@@ -15,67 +17,50 @@ $ npm run typecheck:tests
 exit status: 0
 
 $ npm run boundaries:check
-No feature-boundary regression (64 current baseline findings).
+No feature-boundary regression (64 current baseline finding(s)).
 exit status: 0
 
-$ npx vitest run src/features/crm-clients/directoryComposition.test.tsx
-Test Files  1 passed (1)
-Tests       7 passed (7)
+$ npx vitest run [every src/features/crm-clients/**/*.test.ts(x) file]
+Test Files  13 passed (13)
+Tests       91 passed (91)
 exit status: 0
 
-$ npx vitest run src/features/crm-clients/directoryRegistry.test.tsx src/features/crm-clients/crmClients.test.tsx src/features/crm-clients/clientMapEntryPoints.test.tsx src/features/crm-clients/ClientsSurface.scopeUpdate.test.tsx
-Test Files  4 passed (4)
-Tests       34 passed (34)
+$ npx eslint [all 6 TypeScript/TSX files changed by fix 3] --max-warnings 0
 exit status: 0
 
-$ npx vitest run tests/unit/architecture-boundaries.test.ts
-Test Files  1 passed (1)
-Tests       1 passed (1)
+$ git diff --check
 exit status: 0
 
-$ node scripts/ui-system/handle-guard.mjs
-No permanent handle vanished and no new ambiguous handle was added (64 frozen).
-exit status: 0
-
-$ npx vitest run tests/unit/i18n/en-json-snapshot.test.ts
-Test Files  1 passed (1)
-Tests       5 passed (5)
-exit status: 0
-
-$ npm run i18n:completeness
-30 catalogs and 3050 keys complete.
-exit status: 0
-
-$ node scripts/eslint-gate.mjs
-No ESLint regression vs baseline (31 fingerprints cleaned up vs baseline).
-exit status: 0
+$ rg "@ts-(expect-error|ignore)|ts-ignore" src/features/crm-clients
+no matches
+exit status: 1 (the expected ripgrep result when no suppression exists)
 ```
 
-The focused suite checks the complete fixed base-era mount shape and record
-order in both the default Directory and Whole book states when no feature
-contributes anything. Its reversed fixtures make a missing sorter fail, and a
-separate filter test proves filtering is invoked while preserving survivor
-order. It also includes a real preference save followed by a fresh store
-instance loading the saved value, view replacement and inactive-view fallback,
-and mutation attempts from both a filter predicate and sort comparator. Those
-callbacks try to rewrite both their projected results and their context record
-collections; the source array and every visible card remain unchanged.
+## Final contract notes
 
-## Attestation
+- `CrmPerson` and `HouseholdDirectoryEntry` expose optional canonical `tagIds`.
+  Household projections copy `tagIds` only when the live canonical record has
+  that field. Person projections preserve the embedded canonical `tagIds`.
+  Missing sources omit the field; the adapter does not create `tags: []` and
+  does not join or duplicate tag display names. Features needing names resolve
+  them from canonical `Tag` records through the tags public doorway.
+- `lastActivityAt` still comes only from real `ActivityEvent` fields:
+  `at` plus household `householdId` or person `targetRef`. The optional value is
+  computed once and omitted when no matching event exists.
+- A stateless `DirectoryContribution` uses the ordinary directory context and
+  needs no namespace. The test includes the existing contact-table pattern:
+  a typed contribution containing only `views` and no namespace.
+- A contribution requesting `featureState` must use the stateful descriptor
+  surface and declare a namespace. Namespaces accept only lowercase letters,
+  numbers, dots, or hyphens; duplicate ownership throws during composition.
+- Scoped ports still expose only `get()` and `set(value)`. Type-surface checks
+  prove there is no namespace argument and that a stateful tool without a
+  namespace is not a valid contribution. Two-feature runtime tests still prove
+  independent values and duplicate rejection.
+- Only the resolved active view mounts. The inactive-view test still compares
+  the full rendered `innerHTML` with strict byte-for-byte equality.
+- No TypeScript suppression remains anywhere under `src/features/crm-clients`.
+  Runtime ownership tests retain their hostile mutation attempts through
+  explicit mutable test aliases and still prove source records stay unchanged.
 
-- The seam has no feature flag; consuming features supply their own activation.
-- Sort and filter callbacks receive deeply read-only result records and deeply
-  read-only context record collections. Runtime copies isolate the caller even
-  if feature code deliberately bypasses the type contract. Their projections
-  can change visible inclusion and order, but no stored CRM record is reordered
-  or rewritten.
-- All new cross-feature-facing contracts are exported through
-  `@/features/crm-clients` and the boundary check is green.
-- No matter/Matter/matter_id name was changed.
-- No Cargo command, full gate, push, merge, deploy, or real-client-data action
-  was run.
-
-During development, the repository-wide parser command `npm run i18n:check`
-reported its existing dynamic-key warnings. The project gate marks that parser
-scan report-only under `KNOWN-I18N-01`; the blocking English snapshot and locale
-completeness checks above both pass.
+No Cargo command, push, merge, deploy, or full gate was run.

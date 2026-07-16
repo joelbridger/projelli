@@ -1,10 +1,11 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import type {
   DirectoryActionDescriptor,
   DirectoryContext,
   DirectoryRailDescriptor,
   DirectoryToolDescriptor,
+  DirectoryToolId,
   DirectoryViewDescriptor,
 } from './directoryRegistry';
 import {
@@ -166,12 +167,7 @@ describe('client directory registries', () => {
   });
 
   it('keeps descriptor IDs closed to registered feature augmentations', () => {
-    const typo: DirectoryToolDescriptor = {
-      // @ts-expect-error an unregistered directory tool id must not typecheck.
-      id: 'test-toool',
-      order: 1,
-      mount: () => null,
-    };
-    expect(typo).toBeTruthy();
+    expectTypeOf<'test-tool'>().toExtend<DirectoryToolId>();
+    expectTypeOf<'test-toool'>().not.toExtend<DirectoryToolId>();
   });
 });
