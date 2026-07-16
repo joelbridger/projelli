@@ -1,0 +1,16 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 2
+repo: /home/jameson/v1-w2-permission-doorway
+sha: 601793a6ec35df8c2a70733fa59ad07ba638d93d
+tree: 5a653bfa613ea278fdbb7a3a136185fd259f2ca4
+gate_base: 76066dc69cddc7358706a8332a2339a46c8f98a6
+tool_blob: 47e279d4399792a5cc19fc7f1ced01c5863b18af
+utc: 2026-07-16T05:40:11Z
+step: gate:changed | exit=0 | 05:40:11Z..05:45:27Z | bytes=26077 | sha256=04d8fa2cab95d933e97e66b74f4b86f4b5471e665875fe68ccd4ca3aca2ebeb7 | tail: nt.js:26505:5) Test Files 79 passed (79) Tests 446 passed (446) Start at 05:44:45 Duration 41.67s (transform 12.32s, setup 13.44s, import 78.77s, tests 30.19s, environment 32.11s) CHANGED GATE GREEN 
+step: typecheck | exit=0 | 05:45:27Z..05:45:50Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit 
+step: typecheck:tests | exit=0 | 05:45:50Z..05:46:22Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit 
+step: handle-guard | exit=0 | 05:46:22Z..05:46:22Z | bytes=1267 | sha256=9ac80c9aa1b92ddb09cd04173f1604f47f19005c95b73c9931a9708e70b820e7 | tail: t-picker-cancel + client-picker-clear + client-picker-empty + client-picker-error +159 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen). 
+step: arch-dag-guard | exit=0 | 05:46:22Z..05:46:24Z | bytes=224 | sha256=5ec7f88860bf556c85daa871246041fbf5d6dcbe37e5916c45245e4c36158c26 | tail: N v4.1.3 /home/jameson/v1-w2-permission-doorway Test Files 1 passed (1) Tests 1 passed (1) Start at 05:46:23 Duration 1.29s (transform 301ms, setup 520ms, import 299ms, tests 3ms, environment 365ms) 
+step: i18n-snapshot | exit=0 | 05:46:24Z..05:46:25Z | bytes=225 | sha256=3884ed9c0c0746a83657b38961b19c42740a65875aa6a25701c65b9c7959042c | tail:  v4.1.3 /home/jameson/v1-w2-permission-doorway Test Files 1 passed (1) Tests 5 passed (5) Start at 05:46:24 Duration 1.09s (transform 232ms, setup 353ms, import 248ms, tests 18ms, environment 353ms) 
+step: focused | exit=0 | 05:46:25Z..05:46:28Z | bytes=227 | sha256=618cb93562d41aae07d6afd1f8a57ed28d70e99ae4e3780821fc5e247897df7e | tail: v4.1.3 /home/jameson/v1-w2-permission-doorway Test Files 4 passed (4) Tests 17 passed (17) Start at 05:46:26 Duration 2.07s (transform 1.49s, setup 1.55s, import 2.10s, tests 28ms, environment 1.57s) 
+overall: GREEN
