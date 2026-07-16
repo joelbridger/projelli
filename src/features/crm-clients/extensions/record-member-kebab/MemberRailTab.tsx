@@ -9,15 +9,11 @@ import type { HouseholdTabSurfaceProps } from '@/features/crm-clients/tabRegistr
 type MemberRailProps = Pick<HouseholdTabSurfaceProps, 'household' | 'actions'>;
 
 function householdRef(household: MemberRailProps['household']) {
-  return { kind: 'household' as const, id: household.id, label: household.name };
+  return { kind: 'household', id: household.id, label: household.name };
 }
 
 function memberRef(member: CrmPerson) {
   return { kind: 'person', id: member.id, label: member.name };
-}
-
-function memberContactRef(member: CrmPerson, matterId: string) {
-  return { kind: member.personType, id: member.id, matterId, label: member.name };
 }
 
 function primaryEmail(member: CrmPerson) {
@@ -124,15 +120,14 @@ function EnabledMemberRail({ household, actions }: MemberRailProps) {
                             data-testid={`crm-household-member-email-${member.id}`}
                             onClick={() => {
                               const householdContext = householdRef(household);
-                              const contactRef = memberContactRef(member, household.matterId ?? household.id);
                               actions?.onDraftEmail?.({
                                 kind: 'open_mail_surface',
-                                contactRef,
+                                householdRef: householdContext,
                                 contextRefs: [
                                   householdContext,
-                                  contactRef,
+                                  memberRef(member),
                                 ],
-                                source: 'crm_contact',
+                                source: 'crm_household',
                               });
                               setOpenMemberId(null);
                             }}

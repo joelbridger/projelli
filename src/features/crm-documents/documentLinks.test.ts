@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { addDocumentRef, isPlausibleClientDocument, linkedDocumentsForHousehold, linkWorkspaceDocumentToContact, removeDocumentRef } from './documentLinks';
 
 const household = {
-  id: 'household-1', matterId: 'matter-1', name: 'Henderson household', lifecycle: 'Active', primaryAdvisor: 'Maya', ownership: 'mine' as const, serviceTier: 'Standard', syncState: 'live' as const,
+  id: 'household-1', name: 'Henderson household', lifecycle: 'Active', primaryAdvisor: 'Maya', ownership: 'mine' as const, serviceTier: 'Standard', syncState: 'live' as const,
   facts: [], accounts: [], members: [{ id: 'person-1', name: 'Dana Henderson', personType: 'person' as const, roles: [], relatedHouseholds: 1, contextRefs: [{ kind: 'document' as const, id: 'Clients/Henderson/tax-return.pdf', label: 'Tax return' }] }], externalParties: [], customFields: [], tags: [],
   notes: [{ id: 'note-1', body: 'Review note', audience: 'internal' as const, links: [{ kind: 'document' as const, id: 'Clients/Henderson/review.docx', label: 'Review packet' }] }],
   contextRefs: [{ kind: 'document' as const, id: 'Clients/Henderson/plan.pdf', label: 'Plan' }],
@@ -38,10 +38,34 @@ describe('CRM document links', () => {
 
   it('reads document pointers from the household, people, notes, and linked tasks without creating a file record', () => {
     const linked = linkedDocumentsForHousehold(household, [{ id: 'task-1', kind: 'task', householdRef: { kind: 'household', id: household.id }, title: 'Send plan', contextRefs: [{ kind: 'document', id: 'Clients/Henderson/plan.pdf', label: 'Plan' }] }]);
-    expect(linked.some((entry) => entry.target === 'household' && entry.ref.id === 'Clients/Henderson/plan.pdf')).toBe(true);
-    expect(linked.some((entry) => entry.target === 'person' && entry.targetId === 'person-1' && entry.ref.id === 'Clients/Henderson/tax-return.pdf')).toBe(true);
-    expect(linked.some((entry) => entry.target === 'note' && entry.ref.id === 'Clients/Henderson/review.docx')).toBe(true);
-    expect(linked.some((entry) => entry.target === 'task' && entry.ref.id === 'Clients/Henderson/plan.pdf')).toBe(true);
+    expect(linked).toEqual([
+      {
+        ref: { kind: 'document', id: 'Clients/Henderson/plan.pdf', label: 'Plan' },
+        target: 'household',
+        contactRef: { kind: 'household', id: 'household-1', matterId: 'household-1', label: 'Henderson household' },
+        targetId: 'household-1',
+        targetLabel: 'Henderson household',
+      },
+      {
+        ref: { kind: 'document', id: 'Clients/Henderson/tax-return.pdf', label: 'Tax return' },
+        target: 'person',
+        contactRef: { kind: 'person', id: 'person-1', matterId: 'household-1', label: 'Dana Henderson' },
+        targetId: 'person-1',
+        targetLabel: 'Dana Henderson',
+      },
+      {
+        ref: { kind: 'document', id: 'Clients/Henderson/review.docx', label: 'Review packet' },
+        target: 'note',
+        targetId: 'note-1',
+        targetLabel: 'Review note',
+      },
+      {
+        ref: { kind: 'document', id: 'Clients/Henderson/plan.pdf', label: 'Plan' },
+        target: 'task',
+        targetId: 'task-1',
+        targetLabel: 'Send plan',
+      },
+    ]);
   });
 
   it('adds one pointer once and removes only that document pointer', () => {

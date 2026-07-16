@@ -3,7 +3,7 @@ import type { CrmEntity, EntityKind, ExternalRef, Task } from '@/platform/crm/ty
 
 /** This mapped catalog makes a newly added union member a TypeScript test failure. */
 const ENTITY_KIND_CATALOG: Record<EntityKind, true> = {
-  household: true, person: true, organization: true, trust: true, account: true, fact: true, note: true, task: true, document: true,
+  household: true, person: true, account: true, fact: true, note: true, task: true, document: true,
   workflowTemplate: true, workflowInstance: true, servicePolicy: true, activityEvent: true,
   activityComment: true, activityReaction: true, firmDoc: true, tag: true, customFieldDef: true,
   opportunity: true, savedView: true, savedReport: true, reportRun: true,
@@ -23,8 +23,8 @@ describe('CRM data model invariants', () => {
       'account', 'activityComment', 'activityEvent', 'activityReaction', 'customFieldDef', 'document', 'fact',
       'firmDirectoryEntry', 'firmDoc', 'firmSeatSummary', 'firmWorkspaceSummary',
       'household', 'householdDirectoryShell', 'importArchiveManifest', 'intakeLink', 'intakeSubmission',
-      'legacyProject', 'note', 'opportunity', 'organization', 'person', 'pipelineDef', 'project', 'proposalRecord', 'reportRun',
-      'savedReport', 'savedView', 'servicePolicy', 'stageDef', 'tag', 'task', 'trust', 'workflowInstance', 'workflowTemplate',
+      'legacyProject', 'note', 'opportunity', 'person', 'pipelineDef', 'project', 'proposalRecord', 'reportRun',
+      'savedReport', 'savedView', 'servicePolicy', 'stageDef', 'tag', 'task', 'workflowInstance', 'workflowTemplate',
     ]);
   });
 

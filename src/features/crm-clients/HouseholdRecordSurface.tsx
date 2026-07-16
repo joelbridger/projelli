@@ -1267,10 +1267,9 @@ function ExistingSurface({
             onClick={() =>
               actions?.onDraftEmail?.({
                 kind: 'open_mail_surface',
-                contactRef: {
+                householdRef: {
                   kind: 'household',
                   id: household.id,
-                  matterId: household.matterId ?? household.id,
                   label: household.name,
                 },
                 contextRefs: [
@@ -1280,7 +1279,7 @@ function ExistingSurface({
                     label: household.name,
                   },
                 ],
-                source: 'crm_contact',
+                source: 'crm_household',
               })
             }
           >

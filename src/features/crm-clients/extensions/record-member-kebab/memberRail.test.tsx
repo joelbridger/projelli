@@ -121,11 +121,10 @@ describe('household member rail extension', () => {
     fireEvent.click(screen.getByTestId('crm-household-member-email-member-jordan'));
     expect(onDraftEmail).toHaveBeenCalledWith({
       kind: 'open_mail_surface',
-      contactRef: {
-        kind: 'person',
-        id: 'member-jordan',
-        matterId: 'household-member-rail',
-        label: 'Jordan Henderson',
+      householdRef: {
+        kind: 'household',
+        id: 'household-member-rail',
+        label: 'Henderson household',
       },
       contextRefs: [
         {
@@ -133,9 +132,9 @@ describe('household member rail extension', () => {
           id: 'household-member-rail',
           label: 'Henderson household',
         },
-        { kind: 'person', id: 'member-jordan', matterId: 'household-member-rail', label: 'Jordan Henderson' },
+        { kind: 'person', id: 'member-jordan', label: 'Jordan Henderson' },
       ],
-      source: 'crm_contact',
+      source: 'crm_household',
     });
 
     fireEvent.click(screen.getByTestId('crm-household-member-kebab-member-jordan'));

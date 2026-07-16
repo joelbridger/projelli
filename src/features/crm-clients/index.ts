@@ -10,7 +10,6 @@ export {
   type CrmClientsSharedContext,
 } from './sharedClientContext';
 export type * from './adapters';
-export type { OpenMailSurfaceRequest } from '@/features/crm-connectors';
 export {
   createDirectoryComposition,
   defaultDirectoryComposition,

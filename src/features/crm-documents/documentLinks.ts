@@ -249,7 +249,7 @@ function hasHousehold(record: LiveCrmRecord, householdId: string): boolean {
 /** The document itself stays in Documents. These are only pointers saved on CRM records. */
 export function linkedDocumentsForHousehold(household: HouseholdRecord, records: readonly LiveCrmRecord[]): LinkedDocument[] {
   const entries: LinkedDocument[] = [];
-  const matterId = household.matterId ?? household.id;
+  const matterId = household.id;
   refs(household.contextRefs).forEach((ref) => entries.push({ ref, target: 'household', contactRef: { kind: 'household', id: household.id, matterId, label: household.name }, targetId: household.id, targetLabel: household.name }));
   [...household.members, ...household.externalParties].forEach((person) => {
     refs(person.contextRefs).forEach((ref) => entries.push({ ref, target: person.personType, contactRef: { kind: person.personType, id: person.id, matterId, label: person.name }, targetId: person.id, targetLabel: person.name }));

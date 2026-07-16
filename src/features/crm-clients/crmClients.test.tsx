@@ -329,9 +329,9 @@ describe('crm clients surfaces', () => {
     fireEvent.click(screen.getByTestId('crm-open-mail-surface'));
     expect(onDraftEmail).toHaveBeenCalledWith({
       kind: 'open_mail_surface',
-      contactRef: { kind: 'household', id: 'h-1', matterId: 'h-1', label: 'Henderson household' },
-      contextRefs: [{ kind: 'household', id: 'h-1', matterId: 'h-1', label: 'Henderson household' }],
-      source: 'crm_contact',
+      householdRef: { kind: 'household', id: 'h-1', label: 'Henderson household' },
+      contextRefs: [{ kind: 'household', id: 'h-1', label: 'Henderson household' }],
+      source: 'crm_household',
     });
   });
 
@@ -386,10 +386,21 @@ describe('crm clients surfaces', () => {
     fireEvent.change(screen.getByLabelText('Email 1'), { target: { value: 'trust@example.test' } });
     fireEvent.click(screen.getByTestId('crm-person-save'));
     const saved = onSaveHousehold.mock.calls[0]?.[0];
-    expect(saved?.members.some((member) => member.personType === 'trust'
-      && member.householdRole === 'Trust'
-      && member.roles.includes('Beneficiary contact')
-      && member.emails?.some((email) => email.address === 'trust@example.test' && email.primary))).toBe(true);
+    const member = saved?.members[1];
+    const email = member?.emails?.[0];
+    expect(member?.id).toMatch(/^person:/);
+    expect(email?.id).toBeTruthy();
+    expect(member).toEqual({
+      id: member?.id,
+      name: 'Henderson Family Trust',
+      personType: 'trust',
+      roles: ['Beneficiary contact'],
+      householdRole: 'Trust',
+      relatedHouseholds: 1,
+      addresses: [],
+      emails: [{ id: email?.id, address: 'trust@example.test', kind: 'Personal', primary: true }],
+      phones: [],
+    });
   });
 
   it('saves a dated fact with recorded provenance and lets it be removed', () => {
@@ -404,11 +415,21 @@ describe('crm clients surfaces', () => {
     fireEvent.change(screen.getByTestId('crm-fact-source-ref'), { target: { value: 'mail:review-1' } });
     fireEvent.click(screen.getByTestId('crm-fact-save'));
     const saved = onSaveHousehold.mock.calls[0]?.[0];
-    expect(saved?.facts.some((fact) => fact.label === 'Preferred review month'
-      && fact.asOf === '2026-07-12'
-      && fact.sources.some((source) => source.label === 'Annual review meeting' && source.ref === 'mail:review-1'))).toBe(true);
+    const fact = saved?.facts[1];
+    const source = fact?.sources[0];
+    expect(fact?.id).toMatch(/^fact:/);
+    expect(source?.id).toMatch(/^source:/);
+    expect(fact).toEqual({
+      id: fact?.id,
+      label: 'Preferred review month',
+      value: 'October',
+      status: 'Current',
+      asOf: '2026-07-12',
+      learned: new Date().toISOString().slice(0, 10),
+      sources: [{ id: source?.id, label: 'Annual review meeting', ref: 'mail:review-1' }],
+    });
     fireEvent.click(screen.getByTestId('crm-fact-remove-f-1'));
-    expect(onSaveHousehold).toHaveBeenLastCalledWith(expect.objectContaining({ facts: [] }));
+    expect(onSaveHousehold.mock.calls.at(-1)?.[0].facts).toEqual([]);
   });
 
   it('explains that a source is required instead of silently dropping a fact', () => {

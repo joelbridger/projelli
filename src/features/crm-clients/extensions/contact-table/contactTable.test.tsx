@@ -9,7 +9,6 @@ import {
   createDirectoryComposition,
   type DirectoryQueryDescriptor,
 } from '@/features/crm-clients';
-import type { ContactDirectoryProjection } from '@/features/crm-contacts';
 import { contactTableDirectoryContribution } from '@/features/crm-clients/extensions/contact-table';
 
 vi.mock('@/features/crm-tags', () => ({
@@ -79,13 +78,6 @@ const people = [
 ] as const;
 
 const composition = createDirectoryComposition(contactTableDirectoryContribution);
-
-const contactRecords: readonly ContactDirectoryProjection[] = [
-  { id: 'household:chen', kind: 'household', matterId: 'matter-1', displayName: 'Chen household', lifecycle: 'Active', status: 'Active', ownerDisplay: 'Avery', tagIds: ['tag-priority'], contextRefs: [], ref: { id: 'household:chen', kind: 'household', matterId: 'matter-1', label: 'Chen household' } },
-  { id: 'person:maya', kind: 'person', matterId: 'matter-1', displayName: 'Maya Chen', lifecycle: 'Active', status: 'Active', tagIds: [], contextRefs: [], ref: { id: 'person:maya', kind: 'person', matterId: 'matter-1', label: 'Maya Chen' } },
-  { id: 'organization:lee', kind: 'organization', matterId: 'matter-1', displayName: 'Lee Legal', lifecycle: 'Prospect', status: 'Prospect', ownerDisplay: 'Morgan', tagIds: [], contextRefs: [], ref: { id: 'organization:lee', kind: 'organization', matterId: 'matter-1', label: 'Lee Legal' } },
-  { id: 'trust:chen', kind: 'trust', matterId: 'matter-1', displayName: 'Chen Family Trust', lifecycle: 'Active', status: 'Active', tagIds: [], contextRefs: [], ref: { id: 'trust:chen', kind: 'trust', matterId: 'matter-1', label: 'Chen Family Trust' } },
-];
 
 afterEach(async () => {
   cleanup();
@@ -157,45 +149,6 @@ describe('CRM contact table directory contribution', () => {
     expect(screen.getByTestId('crm-contact-table-person-p-lee')).toBeInTheDocument();
     expect(people).toEqual(originalPeople);
     expect(households).toEqual(originalHouseholds);
-  });
-
-  it('searches and globally sorts all four canonical kinds, preserves sources, and opens the exact contact ref', () => {
-    setDevFlagOverride('crm-contact-table', true);
-    const original = structuredClone(contactRecords);
-    const openContact = vi.fn(() => Promise.resolve());
-    const resolveContact = vi.fn(() => Promise.resolve(null));
-    const compare = vi.fn(
-      (left: Parameters<NonNullable<DirectoryQueryDescriptor['compare']>>[0], right: Parameters<NonNullable<DirectoryQueryDescriptor['compare']>>[0]) =>
-        left.record.name.localeCompare(right.record.name)
-    );
-    const queryComposition = createDirectoryComposition(
-      { queries: [{ id: 'four-kind-sort', order: 1, isActive: () => true, compare }] },
-      contactTableDirectoryContribution,
-    );
-
-    render(
-      <DirectorySurface
-        people={[]}
-        households={[]}
-        contacts={contactRecords}
-        directoryRepository={{ openContact, resolveContact }}
-        composition={queryComposition}
-      />
-    );
-
-    expect(screen.getAllByRole('row').slice(1).map((row) => row.querySelector('button')?.textContent)).toEqual([
-      'Chen Family Trust', 'Chen household', 'Lee Legal', 'Maya Chen',
-    ]);
-    expect(compare.mock.calls.some(([left, right]) => left.record.id.startsWith('household:') !== right.record.id.startsWith('household:'))).toBe(true);
-    expect(screen.getByTestId('crm-contact-table-person-organization:lee')).toHaveTextContent('Prospect');
-    expect(screen.getByTestId('crm-contact-table-person-organization:lee')).toHaveTextContent('Morgan');
-    fireEvent.click(screen.getByTestId('crm-contact-table-open-person-organization:lee'));
-    expect(openContact).toHaveBeenCalledWith(contactRecords[2]?.ref);
-
-    fireEvent.change(screen.getByTestId('crm-directory-search'), { target: { value: 'trust' } });
-    expect(screen.getByTestId('crm-contact-table-person-trust:chen')).toBeInTheDocument();
-    expect(screen.queryByTestId('crm-contact-table-person-organization:lee')).not.toBeInTheDocument();
-    expect(contactRecords).toEqual(original);
   });
 
   it('hands the deliberately partial WB-009 action only to createHousehold', async () => {
