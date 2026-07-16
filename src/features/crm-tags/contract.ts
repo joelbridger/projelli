@@ -8,14 +8,12 @@
  */
 export type FirmTagStatus = 'active' | 'retired';
 
-/** The approved firm-tag colors. A tag's color is presentation data, not its ID. */
-export type FirmTagColor =
-  | 'blue'
-  | 'green'
-  | 'amber'
-  | 'red'
-  | 'purple'
-  | 'slate';
+/**
+ * A CSS display color stored by the canonical CRM tag record. It is
+ * presentation data, not identity; existing CRM tags may use any valid
+ * existing color value.
+ */
+export type FirmTagColor = string;
 
 /** The reusable tag value read by tasks, workflows, events, files, and bulk tools. */
 export interface FirmTag {
@@ -49,9 +47,9 @@ export interface CreateFirmTagInput {
  * a rename or retirement.
  */
 export interface FirmTagStore {
-  list(): FirmTagCatalog;
-  create(input: CreateFirmTagInput): FirmTagCatalog;
-  rename(id: string, name: string): FirmTagCatalog;
-  setColor(id: string, color: FirmTagColor): FirmTagCatalog;
-  retire(id: string): FirmTagCatalog;
+  list(): Promise<FirmTagCatalog>;
+  create(input: CreateFirmTagInput): Promise<FirmTagCatalog>;
+  rename(id: string, name: string): Promise<FirmTagCatalog>;
+  setColor(id: string, color: FirmTagColor): Promise<FirmTagCatalog>;
+  retire(id: string): Promise<FirmTagCatalog>;
 }

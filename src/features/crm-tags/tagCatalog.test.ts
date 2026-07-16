@@ -1,48 +1,135 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
+
+const canonicalRecords = vi.hoisted(() => new Map<string, LiveCrmRecord[]>());
+const loadLiveCrmRecords = vi.hoisted(() => vi.fn());
+const saveLiveCrmRecord = vi.hoisted(() => vi.fn());
+
+vi.mock('@/platform/crm/liveRecords', () => ({
+  loadLiveCrmRecords,
+  saveLiveCrmRecord,
+}));
+
 import { createFirmTagStore } from './index';
 
-describe('firm tag catalog persistence', () => {
+function recordsFor(workspaceRoot: string): LiveCrmRecord[] {
+  return canonicalRecords.get(workspaceRoot) ?? [];
+}
+
+describe('firm tags use canonical CRM records', () => {
   beforeEach(() => {
-    localStorage.clear();
+    canonicalRecords.clear();
+    loadLiveCrmRecords.mockReset();
+    saveLiveCrmRecord.mockReset();
+    loadLiveCrmRecords.mockImplementation((workspaceRoot: string) =>
+      Promise.resolve(structuredClone(recordsFor(workspaceRoot)))
+    );
+    saveLiveCrmRecord.mockImplementation(
+      (workspaceRoot: string, record: LiveCrmRecord) => {
+        const current = recordsFor(workspaceRoot);
+        const next = current.some((item) => item.id === record.id)
+          ? current.map((item) =>
+              item.id === record.id ? structuredClone(record) : item
+            )
+          : [...current, structuredClone(record)];
+        canonicalRecords.set(workspaceRoot, next);
+        return Promise.resolve(structuredClone(record));
+      }
+    );
   });
 
-  it('saves and reloads created, renamed, recolored, and retired tags without changing their IDs', () => {
-    const firstAppSession = createFirmTagStore();
-    const created = firstAppSession.create({ name: 'Planning', color: 'blue' });
-    const tagId = created.tags[0]?.id;
-    if (!tagId) throw new Error('Expected a newly created tag.');
+  it('reads, changes, retires, and reloads the existing CRM tag without changing saved IDs', async () => {
+    const workspace = '/firm-a';
+    canonicalRecords.set(workspace, [
+      {
+        id: 'tag:existing',
+        kind: 'tag',
+        matterId: 'firm_home',
+        name: 'Planning',
+        color: '#2563eb',
+        deleted: false,
+      },
+      {
+        id: 'household:smith',
+        kind: 'household',
+        matterId: 'matter:smith',
+        name: 'Smith household',
+        tagIds: ['tag:existing'],
+      },
+    ]);
 
-    firstAppSession.rename(tagId, 'Financial planning');
-    firstAppSession.setColor(tagId, 'purple');
-    firstAppSession.retire(tagId);
-
-    // A new store models a fresh app session reading browser-profile storage.
-    const reloadedAppSession = createFirmTagStore();
-    expect(reloadedAppSession.list()).toEqual({
+    const firstAppSession = createFirmTagStore(workspace);
+    await expect(firstAppSession.list()).resolves.toEqual({
       version: 1,
       tags: [
         {
-          id: tagId,
+          id: 'tag:existing',
+          name: 'Planning',
+          color: '#2563eb',
+          status: 'active',
+        },
+      ],
+    });
+
+    await firstAppSession.rename('tag:existing', 'Financial planning');
+    await firstAppSession.setColor('tag:existing', '#7e22ce');
+    await firstAppSession.retire('tag:existing');
+
+    const reloadedAppSession = createFirmTagStore(workspace);
+    await expect(reloadedAppSession.list()).resolves.toEqual({
+      version: 1,
+      tags: [
+        {
+          id: 'tag:existing',
           name: 'Financial planning',
-          color: 'purple',
+          color: '#7e22ce',
           status: 'retired',
         },
       ],
     });
-    expect(tagId).toBe('planning');
+    expect(recordsFor(workspace)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'tag:existing',
+          kind: 'tag',
+          name: 'Financial planning',
+          color: '#7e22ce',
+          deleted: true,
+        }),
+        expect.objectContaining({
+          id: 'household:smith',
+          tagIds: ['tag:existing'],
+        }),
+      ])
+    );
+    expect(loadLiveCrmRecords).toHaveBeenCalledWith(workspace);
+    expect(saveLiveCrmRecord).toHaveBeenCalledWith(
+      workspace,
+      expect.objectContaining({ id: 'tag:existing', kind: 'tag' })
+    );
   });
 
-  it('keeps the public contract consumer-shaped and rejects duplicate names', () => {
-    const store = createFirmTagStore();
-    store.create({ name: 'Compliance', color: 'red' });
-    expect(() => store.create({ name: ' compliance ', color: 'blue' })).toThrow(
-      'already in use'
-    );
-    expect(store.list().tags[0]).toEqual({
-      id: 'compliance',
-      name: 'Compliance',
-      color: 'red',
+  it('creates a canonical CRM tag record instead of browser-profile data', async () => {
+    const workspace = '/firm-b';
+    const store = createFirmTagStore(workspace);
+
+    const catalog = await store.create({ name: 'Priority', color: '#dc2626' });
+
+    const created = catalog.tags[0];
+    expect(created?.id).toMatch(/^tag:/);
+    expect(created).toMatchObject({
+      name: 'Priority',
+      color: '#dc2626',
       status: 'active',
+    });
+    const saved = recordsFor(workspace).find((record) => record.kind === 'tag');
+    expect(saved?.id).toMatch(/^tag:/);
+    expect(saved).toMatchObject({
+      kind: 'tag',
+      matterId: 'firm_home',
+      name: 'Priority',
+      color: '#dc2626',
+      deleted: false,
     });
   });
 });

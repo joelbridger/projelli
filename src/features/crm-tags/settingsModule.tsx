@@ -1,28 +1,25 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { isEnabled } from '@/platform/flags';
+import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import { Badge, Button } from '@/ui/kp';
-import type { FirmTag, FirmTagColor, FirmTagStore } from './contract';
+import type {
+  FirmTag,
+  FirmTagCatalog,
+  FirmTagColor,
+  FirmTagStore,
+} from './contract';
 import { createFirmTagStore } from './tagCatalog';
 
-const COLORS: readonly FirmTagColor[] = [
-  'blue',
-  'green',
-  'amber',
-  'red',
-  'purple',
-  'slate',
-];
-
-const COLOR_HEX: Record<FirmTagColor, string> = {
-  blue: '#2563eb',
-  green: '#15803d',
-  amber: '#b45309',
-  red: '#dc2626',
-  purple: '#7e22ce',
-  slate: '#475569',
-};
+const COLORS = [
+  { value: '#2563eb', label: 'blue' },
+  { value: '#15803d', label: 'green' },
+  { value: '#b45309', label: 'amber' },
+  { value: '#dc2626', label: 'red' },
+  { value: '#7e22ce', label: 'purple' },
+  { value: '#475569', label: 'slate' },
+] as const;
 
 const card = {
   border: '1px solid var(--kp-border)',
@@ -45,7 +42,7 @@ function TagDot({ color }: { color: FirmTagColor }) {
         height: 10,
         display: 'inline-block',
         borderRadius: '50%',
-        background: COLOR_HEX[color],
+        background: color,
       }}
     />
   );
@@ -120,12 +117,15 @@ function TagRow({
             disabled={retired}
             value={tag.color}
             onChange={(event) => {
-              onColor(event.target.value as FirmTagColor);
+              onColor(event.target.value);
             }}
           >
+            {!COLORS.some((color) => color.value === tag.color) && (
+              <option value={tag.color}>{tag.color}</option>
+            )}
             {COLORS.map((color) => (
-              <option key={color} value={color}>
-                {t(`crm-tags.color.${color}`)}
+              <option key={color.value} value={color.value}>
+                {t(`crm-tags.color.${color.label}`)}
               </option>
             ))}
           </select>
@@ -171,22 +171,44 @@ function TagRow({
 
 /** Enabled-only child. All catalog reads begin here, after the flag guard. */
 export function UniversalTagsEnabledSettings({
-  store = createFirmTagStore(),
+  store,
 }: {
-  store?: FirmTagStore;
+  store: FirmTagStore;
 }) {
   const { t } = useTranslation();
-  const [catalog, setCatalog] = useState(() => store.list());
+  const [catalog, setCatalog] = useState<FirmTagCatalog>({
+    version: 1,
+    tags: [],
+  });
   const [newName, setNewName] = useState('');
-  const [newColor, setNewColor] = useState<FirmTagColor>('blue');
+  const [newColor, setNewColor] = useState<FirmTagColor>('#2563eb');
   const [notice, setNotice] = useState<string | null>(null);
 
-  const update = (
-    operation: () => ReturnType<FirmTagStore['list']>,
+  useEffect(() => {
+    let cancelled = false;
+    void store
+      .list()
+      .then((loaded) => {
+        if (!cancelled) setCatalog(loaded);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setNotice(
+            error instanceof Error ? error.message : t('crm-tags.save-failed')
+          );
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [store, t]);
+
+  const update = async (
+    operation: () => Promise<FirmTagCatalog>,
     success: string
-  ) => {
+  ): Promise<boolean> => {
     try {
-      setCatalog(operation());
+      setCatalog(await operation());
       setNotice(success);
       return true;
     } catch (error: unknown) {
@@ -195,6 +217,17 @@ export function UniversalTagsEnabledSettings({
       );
       return false;
     }
+  };
+
+  const fireUpdate = (
+    operation: () => Promise<FirmTagCatalog>,
+    success: string
+  ) => {
+    void update(operation, success).catch((error: unknown) => {
+      setNotice(
+        error instanceof Error ? error.message : t('crm-tags.save-failed')
+      );
+    });
   };
 
   return (
@@ -222,19 +255,19 @@ export function UniversalTagsEnabledSettings({
               key={tag.id}
               tag={tag}
               onRename={(name) => {
-                update(
+                fireUpdate(
                   () => store.rename(tag.id, name),
                   t('crm-tags.name-saved')
                 );
               }}
               onColor={(color) => {
-                update(
+                fireUpdate(
                   () => store.setColor(tag.id, color),
                   t('crm-tags.color-saved')
                 );
               }}
               onRetire={() => {
-                update(() => store.retire(tag.id), t('crm-tags.retired'));
+                fireUpdate(() => store.retire(tag.id), t('crm-tags.retired'));
               }}
             />
           ))}
@@ -242,13 +275,20 @@ export function UniversalTagsEnabledSettings({
         <form
           onSubmit={(event) => {
             event.preventDefault();
-            if (
-              update(
-                () => store.create({ name: newName, color: newColor }),
-                t('crm-tags.added')
-              )
+            void update(
+              () => store.create({ name: newName, color: newColor }),
+              t('crm-tags.added')
             )
-              setNewName('');
+              .then((saved) => {
+                if (saved) setNewName('');
+              })
+              .catch((error: unknown) => {
+                setNotice(
+                  error instanceof Error
+                    ? error.message
+                    : t('crm-tags.save-failed')
+                );
+              });
           }}
           style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}
         >
@@ -266,12 +306,12 @@ export function UniversalTagsEnabledSettings({
             data-testid="firm-tag-new-color"
             value={newColor}
             onChange={(event) => {
-              setNewColor(event.target.value as FirmTagColor);
+              setNewColor(event.target.value);
             }}
           >
             {COLORS.map((color) => (
-              <option key={color} value={color}>
-                {t(`crm-tags.color.${color}`)}
+              <option key={color.value} value={color.value}>
+                {t(`crm-tags.color.${color.label}`)}
               </option>
             ))}
           </select>
@@ -298,11 +338,24 @@ export function UniversalTagsEnabledSettings({
  * Flag-off is deliberately inert: this guard returns before it creates a
  * store, reads persistence, subscribes, selects state, or starts an effect.
  */
+function UniversalTagsCanonicalSettings() {
+  const { workspaceRoot } = useLiveCrmRecords();
+  const store = useMemo(
+    () => createFirmTagStore(workspaceRoot),
+    [workspaceRoot]
+  );
+  return <UniversalTagsEnabledSettings store={store} />;
+}
+
 export function UniversalTagsSettingsMount({
-  createStore = createFirmTagStore,
+  createStore,
 }: {
   createStore?: () => FirmTagStore;
 }) {
   if (!isEnabled('universal-tags')) return null;
-  return <UniversalTagsEnabledSettings store={createStore()} />;
+  return createStore ? (
+    <UniversalTagsEnabledSettings store={createStore()} />
+  ) : (
+    <UniversalTagsCanonicalSettings />
+  );
 }

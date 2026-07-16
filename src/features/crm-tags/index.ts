@@ -3,8 +3,10 @@
  *
  * Other feature lanes must import only from `@/features/crm-tags`. The public
  * contract intentionally contains just tag identity, current display data,
- * lifecycle state, and the catalog administration operations. Storage keys,
- * timestamps, parsing, and UI details are private implementation choices.
+ * lifecycle state, and catalog administration operations. Every `FirmTagStore`
+ * method is async because tags use the canonical encrypted CRM record store.
+ * Consumers must save only tag IDs and await reads or updates; storage details,
+ * timestamps, parsing, and UI details remain private implementation choices.
  * Contract changes require a COORDINATOR decision before dependents adopt them.
  */
 export { createFirmTagStore } from './tagCatalog';
