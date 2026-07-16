@@ -1,5 +1,5 @@
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
-import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
+import { loadLiveCrmRecords, type LiveCrmRecord } from '@/platform/crm/liveRecords';
 import {
   CALENDAR_WEEKDAYS,
   type BookingAvailabilityDraft,
@@ -13,6 +13,7 @@ import {
   type CalendarWorkingHours,
 } from './types';
 import { validateLocalTime, validateTimeZone } from './time';
+import { CalendarFoundationError } from './errors';
 
 const ADVISOR_ID = 'local-user';
 const LOCAL_CALENDAR_ID = 'calendar:local';
@@ -21,8 +22,10 @@ const AVAILABILITY_RECORD_ID = `booking-availability:${ADVISOR_ID}`;
 
 type CalendarSettingsPort = Pick<
   ReturnType<typeof useLiveCrmRecords>,
-  'records' | 'workspaceRoot' | 'error' | 'save' | 'reload'
->;
+  'records' | 'workspaceRoot' | 'error' | 'save'
+> & {
+  reloadRecords(): Promise<readonly LiveCrmRecord[] | undefined>;
+};
 
 function actor() {
   return { userId: ADVISOR_ID, display: 'You', kind: 'user' as const };
@@ -144,9 +147,18 @@ export function createCalendarCapabilityStore(port: CalendarSettingsPort): Calen
   const state = calendarCapabilityFromRecords(port.records);
   const save = async (draft: CalendarCapabilityDraft): Promise<CalendarCapabilityState> => {
     requireAvailable(port);
-    const saved = await port.save(capabilityRecord(draft, record));
-    await port.reload();
-    return storedCapability(saved);
+    await port.save(capabilityRecord(draft, record));
+    const reloaded = await port.reloadRecords();
+    const canonical = reloaded?.find(
+      (candidate) => candidate.id === CAPABILITY_RECORD_ID && candidate.kind === 'calendar_capability',
+    );
+    if (!canonical) {
+      throw new CalendarFoundationError(
+        'canonical_reload_missing',
+        'The saved calendar capability was not present after the canonical reload.',
+      );
+    }
+    return storedCapability(canonical);
   };
   return {
     state,
@@ -165,7 +177,14 @@ export function createCalendarCapabilityStore(port: CalendarSettingsPort): Calen
 }
 
 export function useCalendarCapabilityStore(): CalendarCapabilityStore {
-  return createCalendarCapabilityStore(useLiveCrmRecords());
+  const live = useLiveCrmRecords();
+  return createCalendarCapabilityStore({
+    records: live.records,
+    workspaceRoot: live.workspaceRoot,
+    error: live.error,
+    save: live.save,
+    reloadRecords: () => loadLiveCrmRecords(live.workspaceRoot),
+  });
 }
 
 function emptyWorkingHours(): CalendarWorkingHours {
@@ -298,13 +317,29 @@ export function createBookingAvailabilityStore(port: CalendarSettingsPort): Book
     }),
     save: async (draft) => {
       requireAvailable(port);
-      const saved = await port.save(availabilityRecord(draft, record));
-      await port.reload();
-      return storedAvailability(saved);
+      await port.save(availabilityRecord(draft, record));
+      const reloaded = await port.reloadRecords();
+      const canonical = reloaded?.find(
+        (candidate) => candidate.id === AVAILABILITY_RECORD_ID && candidate.kind === 'booking_availability',
+      );
+      if (!canonical) {
+        throw new CalendarFoundationError(
+          'canonical_reload_missing',
+          'The saved booking availability was not present after the canonical reload.',
+        );
+      }
+      return storedAvailability(canonical);
     },
   };
 }
 
 export function useBookingAvailabilityStore(): BookingAvailabilityStore {
-  return createBookingAvailabilityStore(useLiveCrmRecords());
+  const live = useLiveCrmRecords();
+  return createBookingAvailabilityStore({
+    records: live.records,
+    workspaceRoot: live.workspaceRoot,
+    error: live.error,
+    save: live.save,
+    reloadRecords: () => loadLiveCrmRecords(live.workspaceRoot),
+  });
 }

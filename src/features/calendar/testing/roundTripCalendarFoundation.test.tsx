@@ -155,6 +155,33 @@ describe('roundTripCalendarFoundation', () => {
     expect(result.availability?.meetingTypes[0]?.name).toBe('Loaded meeting type');
   });
 
+  it('exposes each settings writer return so a pre-reload save echo fails the round trip', async () => {
+    const result = await roundTripCalendarFoundation({
+      capability: {
+        calendars: [
+          { id: 'calendar:local', label: 'My calendar', ownership: 'local', canBlockBusyTime: true },
+          { id: 'calendar:second', label: 'Save echo label', ownership: 'local', canBlockBusyTime: true },
+        ],
+        homeCalendarId: 'calendar:second',
+        busyCalendarIds: ['calendar:local', 'calendar:second'],
+      },
+      availability: {
+        advisorTimezone: 'America/Chicago',
+        workingHours: {
+          monday: [{ startLocal: '09:00', endLocal: '17:00' }],
+          tuesday: [], wednesday: [], thursday: [], friday: [], saturday: [], sunday: [],
+        },
+        meetingTypes: [{ id: 'intro', name: 'Save echo', durationMinutes: 30, bufferBeforeMinutes: 0, bufferAfterMinutes: 0 }],
+        minimumNoticeMinutes: 120,
+        maximumHorizonDays: 45,
+      },
+    });
+
+    expect(result.capability?.calendars.find((calendar) => calendar.id === 'calendar:second')?.label)
+      .toBe('Loaded home calendar');
+    expect(result.availability?.meetingTypes[0]?.name).toBe('Loaded meeting type');
+  });
+
   it('keeps context and additive fields through a thin update and another fresh reload', async () => {
     const created = await roundTripCalendarEvent({
       ...baseEvent,

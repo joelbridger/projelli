@@ -26,14 +26,17 @@ export interface CalendarFoundationRoundTripResult {
 /**
  * Public test paved path for canonical calendar persistence.
  *
- * Each writer is discarded. A fresh hook then waits for `crm_live_list` and
- * returns that projection, never the upsert response or a memory clone.
+ * Each writer must return its reloaded `crm_live_list` projection. A fresh
+ * hook then independently checks that returned value before this helper
+ * exposes it, so an upsert response or memory clone cannot hide here.
  */
 export async function roundTripCalendarFoundation(
   input: CalendarFoundationRoundTripInput,
 ): Promise<CalendarFoundationRoundTripResult> {
   let eventId: string | undefined;
   let writtenEvent: CalendarEventRecord | undefined;
+  let writtenCapability: CalendarCapabilityState | undefined;
+  let writtenAvailability: BookingAvailabilityRecord | undefined;
   if (input.event) {
     const writer = renderHook(() => useCalendarEventStore());
     try {
@@ -52,7 +55,7 @@ export async function roundTripCalendarFoundation(
   if (input.capability) {
     const writer = renderHook(() => useCalendarCapabilityStore());
     try {
-      await writer.result.current.save(input.capability);
+      writtenCapability = await writer.result.current.save(input.capability);
     } finally {
       writer.unmount();
     }
@@ -60,7 +63,7 @@ export async function roundTripCalendarFoundation(
   if (input.availability) {
     const writer = renderHook(() => useBookingAvailabilityStore());
     try {
-      await writer.result.current.save(input.availability);
+      writtenAvailability = await writer.result.current.save(input.availability);
     } finally {
       writer.unmount();
     }
@@ -88,11 +91,17 @@ export async function roundTripCalendarFoundation(
         if (capability.homeCalendarId !== input.capability.homeCalendarId) {
           throw new Error('The saved calendar capability has not reloaded yet.');
         }
+        if (JSON.stringify(capability) !== JSON.stringify(writtenCapability)) {
+          throw new Error('The calendar capability write did not return the fresh canonical projection.');
+        }
       }
       if (input.availability) {
         availability = await reader.result.current.bookingAvailability.get();
         if (availability.advisorTimezone !== input.availability.advisorTimezone) {
           throw new Error('The saved booking availability has not reloaded yet.');
+        }
+        if (JSON.stringify(availability) !== JSON.stringify(writtenAvailability)) {
+          throw new Error('The booking availability write did not return the fresh canonical projection.');
         }
       }
     });
@@ -101,8 +110,8 @@ export async function roundTripCalendarFoundation(
   }
   return {
     ...(writtenEvent ? { event: writtenEvent } : {}),
-    ...(capability ? { capability } : {}),
-    ...(availability ? { availability } : {}),
+    ...(writtenCapability ? { capability: writtenCapability } : {}),
+    ...(writtenAvailability ? { availability: writtenAvailability } : {}),
   };
 }
 
