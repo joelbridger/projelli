@@ -61,6 +61,7 @@ describe('task extension registries', () => {
     expect(getTaskTemplates().map(({ id }) => id)).toEqual([
       'legacy.blank-task',
       'task-create-v1.composer',
+      'templates.library',
     ]);
   });
 
@@ -78,7 +79,6 @@ describe('task extension registries', () => {
     const template: TaskTemplateDescriptor = {
       id: 'test.dummy-template',
       order: 20,
-      create: () => task,
       mount: () => <span>Dummy task template</span>,
     };
 

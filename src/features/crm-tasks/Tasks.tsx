@@ -56,11 +56,12 @@ export function Tasks({
 }) {
   const [view, setView] = useState<'list' | 'board'>('list');
   const [filter, setFilter] = useState('');
-  const [editing, setEditing] = useState<CrmTask | null>(() =>
+  const [addRequestDraft] = useState<CrmTask | null>(() =>
     addRequest?.kind === 'task'
-      ? (getTaskTemplates()[0]?.create(addRequest) ?? null)
+      ? (getTaskTemplates().find((descriptor) => descriptor.create)?.create?.(addRequest) ?? null)
       : null
   );
+  const [editing, setEditing] = useState<CrmTask | null>(addRequestDraft);
   const [savingView, setSavingView] = useState(false);
   const [viewName, setViewName] = useState('');
   const filtered = tasks.filter((task) =>
@@ -86,9 +87,12 @@ export function Tasks({
       description="One work list for tasks and workflow steps"
       Icon={ListChecks}
       action={mountTaskTemplates({
-        onCreate: setEditing,
         ...(addRequest ? { addRequest } : {}),
         ...(onAddRequestConsumed ? { onAddRequestConsumed } : {}),
+        onApplied: () => {
+          setEditing((current) => current?.id === addRequestDraft?.id ? null : current);
+        },
+        onCreate: setEditing,
       })}
     >
       <div

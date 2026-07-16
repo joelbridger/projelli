@@ -8,8 +8,8 @@ declare module '../../taskExtensionRegistry' {
 }
 
 function createTaskCreateV1Draft(
-  addRequest?: Parameters<TaskTemplateDescriptor['create']>[0]
-): ReturnType<TaskTemplateDescriptor['create']> {
+  addRequest?: Parameters<NonNullable<TaskTemplateDescriptor['create']>>[0]
+): ReturnType<NonNullable<TaskTemplateDescriptor['create']>> {
   const related = addRequest?.kind === 'task' ? addRequest : undefined;
   return {
     id: `new-task-${crypto.randomUUID()}`,

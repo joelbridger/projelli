@@ -76,6 +76,7 @@ export const flagRegistry = [
   defineFlag('task-create-v1', 'Keeps the v1 task composer dark until its task creation acceptance review is complete.', 'task-create-v1', '2026-07-16', '2026-09-14'),
   defineFlag('workflow-step-attachments', 'Keeps workflow-step document links dark until their acceptance review is complete.', 'workflow-step-attachments', '2026-07-16', '2026-09-14'),
   defineFlag('task-capacity-triage', 'Keeps task capacity triage dark until its task-work acceptance review is complete.', 'task-capacity-triage', '2026-07-16', '2026-09-14'),
+  defineFlag('task-templates', 'Keeps reusable one-off task templates dark until their acceptance review is complete.', 'task-templates', '2026-07-16', '2026-09-14'),
 ] as const satisfies readonly FlagDescriptor[];
 
 export type FlagId = (typeof flagRegistry)[number]['id'];
