@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button, Card } from '@/ui/kp';
+import { HomeWidgetHost } from './HomeWidgetHost';
 import type { HomeSurfaceRuntime } from './types';
 
 export interface HomeOrientationSurfaceProps {
@@ -35,7 +36,9 @@ export function HomeOrientationSurface({
       >
         <Card variant="raised" style={panelStyle}>
           <h1 style={{ margin: 0 }}>{t('home.orientation.loading-title')}</h1>
-          <p style={{ color: 'var(--color-muted-foreground)', marginBottom: 0 }}>
+          <p
+            style={{ color: 'var(--color-muted-foreground)', marginBottom: 0 }}
+          >
             {t('home.orientation.loading-description')}
           </p>
         </Card>
@@ -45,7 +48,10 @@ export function HomeOrientationSurface({
 
   if (rootPath === null) {
     return (
-      <main data-testid="home-v1-empty" style={{ padding: 'var(--kp-space-xl)' }}>
+      <main
+        data-testid="home-v1-empty"
+        style={{ padding: 'var(--kp-space-xl)' }}
+      >
         <Card variant="raised" style={panelStyle}>
           <h1 style={{ margin: 0 }}>{t('home.orientation.empty-title')}</h1>
           <p style={{ color: 'var(--color-muted-foreground)' }}>
@@ -111,14 +117,28 @@ export function HomeOrientationSurface({
             gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
           }}
         >
-          <Card data-testid="home-v1-current-client" variant="raised" style={panelStyle}>
-            <p style={{ color: 'var(--color-muted-foreground)', margin: '0 0 6px' }}>
+          <Card
+            data-testid="home-v1-current-client"
+            variant="raised"
+            style={panelStyle}
+          >
+            <p
+              style={{
+                color: 'var(--color-muted-foreground)',
+                margin: '0 0 6px',
+              }}
+            >
               {t('home.orientation.current-client-label')}
             </p>
             <strong style={{ color: 'var(--kp-navy)', fontSize: 18 }}>
               {activeMatter?.name ?? t('home.orientation.no-current-client')}
             </strong>
-            <p style={{ color: 'var(--color-muted-foreground)', marginBottom: 0 }}>
+            <p
+              style={{
+                color: 'var(--color-muted-foreground)',
+                marginBottom: 0,
+              }}
+            >
               {activeMatter
                 ? t('home.orientation.current-client-ready')
                 : t('home.orientation.current-client-empty')}
@@ -126,29 +146,52 @@ export function HomeOrientationSurface({
           </Card>
 
           <Card variant="raised" style={panelStyle}>
-            <p style={{ color: 'var(--color-muted-foreground)', margin: '0 0 6px' }}>
+            <p
+              style={{
+                color: 'var(--color-muted-foreground)',
+                margin: '0 0 6px',
+              }}
+            >
               {t('home.orientation.focus-label')}
             </p>
             <strong style={{ color: 'var(--kp-navy)', fontSize: 18 }}>
               {t('home.orientation.focus-title')}
             </strong>
-            <p style={{ color: 'var(--color-muted-foreground)', marginBottom: 0 }}>
+            <p
+              style={{
+                color: 'var(--color-muted-foreground)',
+                marginBottom: 0,
+              }}
+            >
               {t('home.orientation.focus-description')}
             </p>
           </Card>
 
           <Card variant="raised" style={panelStyle}>
-            <p style={{ color: 'var(--color-muted-foreground)', margin: '0 0 6px' }}>
+            <p
+              style={{
+                color: 'var(--color-muted-foreground)',
+                margin: '0 0 6px',
+              }}
+            >
               {t('home.orientation.day-label')}
             </p>
             <strong style={{ color: 'var(--kp-navy)', fontSize: 18 }}>
               {t('home.orientation.day-title')}
             </strong>
-            <p style={{ color: 'var(--color-muted-foreground)', marginBottom: 0 }}>
+            <p
+              style={{
+                color: 'var(--color-muted-foreground)',
+                marginBottom: 0,
+              }}
+            >
               {t('home.orientation.day-description')}
             </p>
           </Card>
         </div>
+
+        {/* Empty by default; feature-owned Home hosts render here without a wrapper. */}
+        <HomeWidgetHost runtime={runtime} />
 
         <Card
           data-testid="home-v1-starting-points"

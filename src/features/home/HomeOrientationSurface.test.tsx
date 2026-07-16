@@ -1,8 +1,10 @@
 import '@/i18n';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { HomeOrientationSurface } from './HomeOrientationSurface';
-import type { HomeSurfaceRuntime } from './types';
+import {
+  HomeOrientationSurface,
+  type HomeSurfaceRuntime,
+} from '@/features/home';
 
 function runtimeFor(
   rootPath: string | null | undefined,
@@ -55,5 +57,18 @@ describe('HomeOrientationSurface', () => {
     expect(setSurface).toHaveBeenNthCalledWith(1, 'matters');
     expect(setSurface).toHaveBeenNthCalledWith(2, 'search');
     expect(setSurface).toHaveBeenNthCalledWith(3, 'scheduling');
+  });
+
+  it('keeps the ready Home structure unchanged while the default host is empty', () => {
+    const { runtime } = runtimeFor('/workspace');
+    render(<HomeOrientationSurface runtime={runtime} />);
+
+    const content = screen.getByTestId('home-v1-surface').firstElementChild;
+    expect(content?.children).toHaveLength(3);
+    expect(content?.children[0]?.tagName).toBe('HEADER');
+    expect(content?.children[1]?.tagName).toBe('DIV');
+    expect(content?.children[2]?.getAttribute('data-testid')).toBe(
+      'home-v1-starting-points'
+    );
   });
 });
