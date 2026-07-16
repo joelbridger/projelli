@@ -78,9 +78,12 @@ function workflowData(name: string, updatedAt: string) {
   };
 }
 
-function template(name: string): WorkflowTemplateRecord {
+function template(
+  name: string,
+  id = 'template:one'
+): WorkflowTemplateRecord {
   return {
-    id: 'template:one',
+    id,
     name,
     status: 'published',
     tagIds: [],
@@ -186,8 +189,34 @@ describe('WorkflowAuthoringRuleMount', () => {
         'Unsaved local name'
       );
     });
+    listed = [
+      template('Annual review'),
+      template('New employee onboarding', 'template:two'),
+    ];
+    view.rerender(
+      <CrmHomeSurfaceContext.Provider
+        value={context('Annual review', '2026-07-16T10:45:00Z')}
+      >
+        <WorkflowAuthoringRuleMount
+          templateId="template:one"
+          createStore={createStore}
+          createTagStore={tags}
+        />
+      </CrmHomeSurfaceContext.Provider>
+    );
+    await waitFor(() => {
+      expect(
+        screen.getByText('New employee onboarding', { selector: 'button' })
+      ).toBeInTheDocument();
+      expect(screen.getByTestId('workflow-authoring-title')).toHaveValue(
+        'Unsaved local name'
+      );
+    });
 
-    listed = [template('Updated annual review')];
+    listed = [
+      template('Updated annual review'),
+      template('New employee onboarding', 'template:two'),
+    ];
     view.rerender(
       <CrmHomeSurfaceContext.Provider
         value={context('Updated annual review', '2026-07-16T11:00:00Z')}

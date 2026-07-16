@@ -19,18 +19,18 @@ const panel = {
 
 type StoreFactory = () => WorkflowTemplateStore;
 
-function templateListKey(
-  templates: readonly WorkflowTemplateRecord[]
-): string {
-  return JSON.stringify(
-    templates.map((template) => ({
-      id: template.id,
-      name: template.name,
-      status: template.status,
-      tagIds: template.tagIds,
-      steps: template.steps,
-    }))
-  );
+function templateKey(template: WorkflowTemplateRecord): string {
+  return JSON.stringify({
+    id: template.id,
+    name: template.name,
+    status: template.status,
+    tagIds: template.tagIds,
+    steps: template.steps,
+  });
+}
+
+function templateListKey(templates: readonly WorkflowTemplateRecord[]): string {
+  return JSON.stringify(templates.map(templateKey));
 }
 
 /** Registered outer gate: do not create a data hook or adapter while dark. */
@@ -98,8 +98,27 @@ function EnabledWorkflowAuthoring({
             return;
           }
           setTemplates(nextTemplates);
+          const currentSelected = templates.find(
+            (template) => template.id === selectedId
+          );
+          const nextSelected = nextTemplates.find(
+            (template) => template.id === selectedId
+          );
+          if (
+            currentSelected &&
+            nextSelected &&
+            templateKey(currentSelected) === templateKey(nextSelected)
+          ) {
+            return;
+          }
+          if (
+            selectedId === null &&
+            (Boolean(name) || tagIds.length > 0 || steps.length > 0)
+          ) {
+            return;
+          }
           const next =
-            nextTemplates.find((template) => template.id === selectedId) ??
+            nextSelected ??
             nextTemplates.find((template) => template.id === templateId) ??
             nextTemplates[0] ??
             null;
