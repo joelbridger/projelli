@@ -238,7 +238,9 @@ function EnabledWorkflowAuthoring({
                 toggle(tag.id, tagIds, setTagIds);
               }}
             />
-            <span data-tag-color={tag.color}>{tag.name}</span>
+            <span data-tag-color={tag.color}>
+              {tag.name} · {tag.color}
+            </span>
           </label>
         ))}
       </fieldset>
@@ -290,7 +292,7 @@ function EnabledWorkflowAuthoring({
                     });
                   }}
                 />
-                {tag.name}
+                {tag.name} · {tag.color}
               </label>
             ))}
           </fieldset>

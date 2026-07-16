@@ -10,8 +10,4 @@ export {
   type WorkflowAuthoringStore,
   type WorkflowAuthoringTemplate,
 } from './contract';
-export {
-  createWorkflowAuthoringStore,
-  type LiveWorkflowAuthoringPort,
-} from './templateStore';
 export { workflowAuthoringRuleDescriptor } from './workflowRuleDescriptor';
