@@ -10,6 +10,9 @@ const registryPath = path.resolve(process.cwd(), 'src/platform/flags/registry.ts
 test('the CRM shell flag keeps its owning lane', async () => {
   const registry = await fs.readFile(registryPath, 'utf8');
 
-  expect(registry).toContain("id: 'crm-shell-v1'");
-  expect(registry).toContain("ownerLane: 'crm-shell-v1'");
+  // The registry converted to one-line defineFlag(id, description, ownerLane, ...) form
+  // (merge-union adoption 2026-07-16); the proof stays: flag id present with its owning
+  // lane as the third argument of the same descriptor line.
+  expect(registry).toContain("defineFlag('crm-shell-v1'");
+  expect(registry).toMatch(/defineFlag\('crm-shell-v1',[^)]*'crm-shell-v1',/);
 });
