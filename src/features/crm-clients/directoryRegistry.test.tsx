@@ -12,6 +12,7 @@ import {
   directoryRailRegistry,
   directoryToolRegistry,
   directoryViewRegistry,
+  defaultDirectoryComposition,
   validateDirectoryActionDescriptors,
   validateDirectoryRailDescriptors,
   validateDirectoryToolDescriptors,
@@ -36,6 +37,7 @@ declare module './directoryRegistry' {
 const context: DirectoryContext = {
   query: { value: '', setValue: vi.fn() },
   selection: { person: null, setPerson: vi.fn() },
+  view: { value: 'directory', setValue: vi.fn() },
   sort: { value: 'directory', setValue: vi.fn() },
   filters: {
     tab: 'households',
@@ -51,6 +53,7 @@ const context: DirectoryContext = {
     reviewRecipient: vi.fn(),
     createHousehold: vi.fn(),
   },
+  composition: defaultDirectoryComposition,
 };
 
 describe('client directory registries', () => {
@@ -116,6 +119,7 @@ describe('client directory registries', () => {
     const view: DirectoryViewDescriptor = {
       id: 'test-view',
       order: 1,
+      isActive: () => true,
       mount: () => <div data-testid="dummy-view" />,
     };
     render(

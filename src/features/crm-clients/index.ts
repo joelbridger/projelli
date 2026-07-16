@@ -10,3 +10,21 @@ export {
   type CrmClientsSharedContext,
 } from './sharedClientContext';
 export type * from './adapters';
+export {
+  createDirectoryComposition,
+  defaultDirectoryComposition,
+  projectDirectoryResults,
+  resolveDirectoryView,
+  type DirectoryComposition,
+  type DirectoryContext,
+  type DirectoryContribution,
+  type DirectoryQueryDescriptor,
+  type DirectoryResult,
+  type DirectoryViewDescriptor,
+} from './directoryRegistry';
+export {
+  createDirectoryPreferenceStore,
+  type DirectoryPreferenceStorage,
+  type DirectoryPreferenceStore,
+  type DirectoryPreferenceValue,
+} from './directoryPreferences';

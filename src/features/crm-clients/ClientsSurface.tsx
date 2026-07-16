@@ -5,6 +5,7 @@ import { readSelectedCrmHousehold, writeSelectedCrmHousehold } from '@/platform/
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import type { Matter } from '@/platform/types/matter';
 import { DirectorySurface } from './DirectorySurface';
+import type { DirectoryComposition } from './directoryRegistry';
 import { HouseholdRecordSurface } from './HouseholdRecordSurface';
 import type { TimelineRecord } from '@/features/crm-timeline';
 import type {
@@ -96,13 +97,14 @@ function householdFromMatter(matter: Matter, currentSyncState: SyncState): House
  * SQLCipher-backed household record and is reloaded after a desktop restart.
  */
 export function ClientsSurface({
-  households = [], people = [], records = [], proposals = [], actions,
+  households = [], people = [], records = [], proposals = [], actions, directoryComposition,
 }: {
   households?: readonly HouseholdDirectoryEntry[];
   people?: readonly CrmPerson[];
   records?: readonly HouseholdRecord[];
   proposals?: readonly CrmProposal[];
   actions?: CrmClientsActions;
+  directoryComposition?: DirectoryComposition;
 }) {
   const live = useLiveCrmRecords();
   return (
@@ -114,12 +116,13 @@ export function ClientsSurface({
       records={records}
       proposals={proposals}
       {...(actions ? { actions } : {})}
+      {...(directoryComposition ? { directoryComposition } : {})}
     />
   );
 }
 
 function ClientsSurfaceContent({
-  live, households = [], people = [], records = [], proposals = [], actions,
+  live, households = [], people = [], records = [], proposals = [], actions, directoryComposition,
 }: {
   live: ReturnType<typeof useLiveCrmRecords>;
   households?: readonly HouseholdDirectoryEntry[];
@@ -127,6 +130,7 @@ function ClientsSurfaceContent({
   records?: readonly HouseholdRecord[];
   proposals?: readonly CrmProposal[];
   actions?: CrmClientsActions;
+  directoryComposition?: DirectoryComposition;
 }) {
   const matters = useActiveMatters();
   const clientMapHubId = useMatterStore((state) => state.clientMapHubId);
@@ -299,6 +303,7 @@ function ClientsSurfaceContent({
         selectHousehold(id);
       }}
       error={live.error}
+      {...(directoryComposition ? { composition: directoryComposition } : {})}
     />
   );
 }
