@@ -87,6 +87,11 @@ describe('Account registries', () => {
       'redtail',
       'ollama',
     ]);
+    expect(
+      getConnectionCardDescriptors('developer-tools').map(
+        (descriptor) => descriptor.id
+      )
+    ).toEqual(['mcp']);
     const dummy = getConnectionCardDescriptors('connections', [
       ...cards,
       card(),
