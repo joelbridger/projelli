@@ -39,6 +39,14 @@ vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
         sourceTemplateLabel: 'Imported review',
         availableSteps: ['Collect', 'Review'],
       },
+      {
+        id: 'checklist-3',
+        kind: 'migration_workflow_checklist',
+        matterId: 'firm',
+        clientLabel: 'Unknown client',
+        sourceTemplateLabel: 'Unlinked review',
+        availableSteps: ['Collect', 'Review'],
+      },
     ],
     save,
     reload,
@@ -105,5 +113,26 @@ describe('migration workflow matter ownership', () => {
         matterId: 'household-2',
       }));
     });
+  });
+
+  it('does not attach an unlinked imported workflow to the first household', async () => {
+    render(<MigrationWizard />);
+
+    fireEvent.click(screen.getByTestId('crm-migration-fidelity'));
+    fireEvent.click(screen.getByTestId('crm-migration-workflow-fallback'));
+    fireEvent.change(screen.getByTestId('crm-workflow-step-checklist-3'), {
+      target: { value: 'Collect' },
+    });
+    fireEvent.change(screen.getByTestId('crm-workflow-instance-checklist-3'), {
+      target: { value: 'Unlinked review' },
+    });
+    fireEvent.click(screen.getByTestId('crm-workflow-record-checklist-3'));
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'The imported workflow needs a client before it can be recreated.'
+    );
+    expect(save).not.toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'crm_workflow_instance',
+    }));
   });
 });

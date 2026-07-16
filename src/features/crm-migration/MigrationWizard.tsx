@@ -96,7 +96,7 @@ function LiveMigrationWizard() {
       return;
     }
     if (!name || !chosen) { setStatus('Choose a source step and name the resulting workflow first.'); return; }
-    const household = households.find((candidate) => candidate.id === item['householdId']) ?? households[0];
+    const household = households.find((candidate) => candidate.id === item['householdId']);
     if (!household) { setStatus('The imported workflow needs a client before it can be recreated.'); return; }
     const template = createTemplate(name, [chosen]);
     const instance = startWorkflow(template, household);
