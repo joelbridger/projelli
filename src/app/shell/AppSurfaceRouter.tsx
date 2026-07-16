@@ -10,10 +10,13 @@
  */
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { CrmHome } from '@/features/crm-home';
+import {
+  CrmHome,
+  type CrmHomeRoute,
+  type CrmHouseholdAddRequest,
+} from '@/features/crm-home';
 import { ClientsSurface } from '@/features/crm-clients';
 import type { AddToHouseholdRequest } from '@/features/crm-clients/adapters';
-import type { CrmHouseholdAddRequest, CrmHomeRoute } from '@/features/crm-home/routes';
 import { CrmAskSurface } from '@/features/crm-ask';
 import { DocumentsHome } from '@/features/documents/DocumentsHome';
 import { AssociateHome } from '@/features/workflows/AssociateHome';

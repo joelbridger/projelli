@@ -159,12 +159,8 @@ function Harness() {
   return <AppSurfaceRouter {...baseProps(activeTab, setActiveTab)} />;
 }
 
-describe.each([
-  ['with the CRM shell off', false],
-  ['with the CRM shell on', true],
-])('CRM household add actions %s', (_label, crmShellEnabled) => {
+describe('CRM household add actions', () => {
   beforeEach(() => {
-    setDevFlagOverride('crm-shell-v1', crmShellEnabled);
     localStorage.setItem('lantern:crm:selected-household:/workspace', 'h-1');
     useMatterStore.setState({
       matters: [{
@@ -182,37 +178,49 @@ describe.each([
     cleanup();
     localStorage.clear();
     useMatterStore.setState({ matters: [], activeMatterId: null });
-    setDevFlagOverride('crm-shell-v1', undefined);
   });
 
-  it('opens a new task form with the current household already selected', async () => {
-    render(<Harness />);
+  describe.each([
+    ['with the CRM shell off', false],
+    ['with the CRM shell on', true],
+  ])('%s', (_label, crmShellEnabled) => {
+    beforeEach(() => {
+      setDevFlagOverride('crm-shell-v1', crmShellEnabled);
+    });
 
-    fireEvent.click(await screen.findByTestId('crm-household-add'));
-    fireEvent.click(screen.getByTestId('crm-household-add-task'));
+    afterEach(() => {
+      setDevFlagOverride('crm-shell-v1', undefined);
+    });
 
-    expect(await screen.findByTestId('crm-task-detail')).toBeInTheDocument();
-    expect(screen.getByTestId('crm-task-household')).toHaveValue('h-1');
-  });
+    it('opens a new task form with the current household already selected', async () => {
+      render(<Harness />);
 
-  it('opens a new opportunity form with the current household already selected', async () => {
-    render(<Harness />);
+      fireEvent.click(await screen.findByTestId('crm-household-add'));
+      fireEvent.click(screen.getByTestId('crm-household-add-task'));
 
-    fireEvent.click(await screen.findByTestId('crm-household-add'));
-    fireEvent.click(screen.getByTestId('crm-household-add-opportunity'));
+      expect(await screen.findByTestId('crm-task-detail')).toBeInTheDocument();
+      expect(screen.getByTestId('crm-task-household')).toHaveValue('h-1');
+    });
 
-    expect(await screen.findByTestId('crm-opportunity-editor')).toBeInTheDocument();
-    expect(screen.getByTestId('crm-opportunity-household')).toHaveValue('h-1');
-  });
+    it('opens a new opportunity form with the current household already selected', async () => {
+      render(<Harness />);
 
-  it('opens the workflow form with the current household already selected', async () => {
-    render(<Harness />);
+      fireEvent.click(await screen.findByTestId('crm-household-add'));
+      fireEvent.click(screen.getByTestId('crm-household-add-opportunity'));
 
-    fireEvent.click(await screen.findByTestId('crm-household-add'));
-    fireEvent.click(screen.getByTestId('crm-household-add-workflow'));
+      expect(await screen.findByTestId('crm-opportunity-editor')).toBeInTheDocument();
+      expect(screen.getByTestId('crm-opportunity-household')).toHaveValue('h-1');
+    });
 
-    expect(await screen.findByTestId('crm-live-workflow-household')).toHaveValue('h-1');
-    expect(screen.getByTestId('crm-live-workflow-start')).toBeInTheDocument();
+    it('opens the workflow form with the current household already selected', async () => {
+      render(<Harness />);
+
+      fireEvent.click(await screen.findByTestId('crm-household-add'));
+      fireEvent.click(screen.getByTestId('crm-household-add-workflow'));
+
+      expect(await screen.findByTestId('crm-live-workflow-household')).toHaveValue('h-1');
+      expect(screen.getByTestId('crm-live-workflow-start')).toBeInTheDocument();
+    });
   });
 
   it('creates a document from the household tab inside that household folder', async () => {

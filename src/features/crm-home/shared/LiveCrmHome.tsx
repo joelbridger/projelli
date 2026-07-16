@@ -214,6 +214,7 @@ function emptyEngineAdapter(freshness: CrmFreshnessState): CrmHomeAdapter {
     actions: {},
   };
 }
+
 export function LiveCrmHome({
   adapter,
   preview = false,
