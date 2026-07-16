@@ -16,6 +16,7 @@ import { setCrmEngineFreshness, type CrmEngineFreshness } from '@/platform/crm/s
 import type { LiveCrmRecord } from './liveRecords';
 
 const CRM_LIVE_RECORDS_DOC_ID = 'crm:live-records';
+const FIRM_HOME_MATTER_ID = 'firm_home';
 
 /**
  * This relay is the only thing that actually delivers CRM records live, so it
@@ -74,6 +75,14 @@ function relayEpoch(
   return useFirmStore.getState().client().matterMine(seatToken)
     .then(({ matters }) => matters.find((matter) => matter.matter_id === matterId)?.key_epoch ?? 1)
     .catch(() => 1);
+}
+
+// The encrypted stream belongs to the real firm delivery matter, while CRM
+// records that apply across the firm retain the canonical `firm_home` scope.
+// Both scopes are therefore carried by that stream; this applies to every
+// whole-firm CRM record, not one feature's record kind.
+function belongsToFirmRelay(record: LiveCrmRecord, firmMatterId: string): boolean {
+  return record.matterId === firmMatterId || record.matterId === FIRM_HOME_MATTER_ID;
 }
 
 /**
@@ -140,7 +149,7 @@ async function applyRemote(live: LiveRecordSession): Promise<void> {
   try {
     for (const value of live.records.values()) {
       const record = decodeRecord(value);
-      if (record && record.matterId === live.firmMatterId) {
+      if (record && belongsToFirmRelay(record, live.firmMatterId)) {
         live.lastRecords.set(record.id, record);
         await live.onRemote(record);
       }
@@ -153,7 +162,7 @@ async function applyRemote(live: LiveRecordSession): Promise<void> {
 /** Put one local SQLCipher record into the encrypted shared-client stream. */
 export function publishLiveRecord(record: LiveCrmRecord): void {
   const activeSession = session;
-  if (!activeSession || activeSession.applyingRemote || record.matterId !== activeSession.firmMatterId) return;
+  if (!activeSession || activeSession.applyingRemote || !belongsToFirmRelay(record, activeSession.firmMatterId)) return;
   const baseline: Record<string, unknown> = activeSession.lastRecords.get(record.id) ?? {};
   activeSession.doc.transact(() => {
     let target = activeSession.records.get(record.id);

@@ -68,7 +68,9 @@ export function useLiveCrmRecords() {
     void ensureLiveRecordRelay(sharedMatterId, async (record) => {
       if (cancelled) return;
       await saveLiveCrmRecord(workspaceRoot, record);
-      if (!cancelled) await reload();
+      // The singleton relay persists once, then the shared notification lets
+      // every mounted live-record consumer reload its own current workspace.
+      if (!cancelled) window.dispatchEvent(new Event(LIVE_CRM_RECORDS_CHANGED));
     });
     return () => { cancelled = true; };
   }, [reload, sharedMatterId, workspaceRoot]);
