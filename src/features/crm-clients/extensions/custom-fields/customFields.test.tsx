@@ -11,10 +11,8 @@ import { useState } from 'react';
 import { renameField, type FieldCatalog } from '@/features/crm-firm';
 import { setDevFlagOverride } from '@/platform/flags';
 import type { HouseholdRecord } from '../../adapters';
-import {
-  getHouseholdSections,
-  type HouseholdRecordShellContext,
-} from '../../recordRegistry';
+import { householdRecordExtensionRegistry } from '../../recordRegistry';
+import { HouseholdRecordSurface } from '../../HouseholdRecordSurface';
 import {
   CUSTOM_FIELD_VALUES_DATA_KEY,
   readCustomFieldValues,
@@ -22,12 +20,24 @@ import {
 } from './customFieldValues';
 import { CustomFieldsSectionContent } from './CustomFieldsSection';
 
-const { live } = vi.hoisted(() => ({
+const { live, catalogPersistence } = vi.hoisted(() => ({
   live: {
     records: [] as unknown[],
     save: vi.fn(),
   },
+  catalogPersistence: {
+    load: vi.fn(),
+    save: vi.fn(),
+  },
 }));
+
+vi.mock('@/features/crm-firm', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/features/crm-firm')>();
+  return {
+    ...actual,
+    createLiveFieldCatalogPersistence: vi.fn(() => catalogPersistence),
+  };
+});
 
 vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
   useLiveCrmRecords: () => live,
@@ -118,24 +128,6 @@ const catalog: FieldCatalog = {
   ],
 };
 
-function context(
-  current: HouseholdRecord,
-  onSaveHousehold: NonNullable<
-    HouseholdRecordShellContext['onSaveHousehold']
-  > = vi.fn()
-): HouseholdRecordShellContext {
-  return {
-    household: current,
-    onSaveHousehold,
-    openPanel: vi.fn(),
-    setNoteAudience: vi.fn(),
-    setAdding: vi.fn(),
-    setEditingPerson: vi.fn(),
-    deleteFact: vi.fn(),
-    renderLegacyClientMap: vi.fn(),
-  };
-}
-
 afterEach(() => {
   cleanup();
   setDevFlagOverride('custom-fields-advisor', undefined);
@@ -167,26 +159,43 @@ beforeEach(() => {
     })),
   ];
   live.save.mockReset();
+  catalogPersistence.load.mockReset();
+  catalogPersistence.load.mockResolvedValue(catalog);
+  catalogPersistence.save.mockReset();
 });
 
 describe('advisor custom fields extension', () => {
-  it('keeps the real registry mount absent with the flag off and renders it with the flag on', async () => {
-    const descriptor = getHouseholdSections().find(
-      (section) => section.id === 'custom-fields-advisor'
+  it('uses the real household registries without catalog work while dark, then renders when enabled', async () => {
+    const extension = householdRecordExtensionRegistry.find(
+      (descriptor) => descriptor.id === 'custom-fields-advisor-values'
     );
-    if (!descriptor)
-      throw new Error('Expected the custom fields registry mount.');
+    if (!extension)
+      throw new Error('Expected the custom fields record extension.');
+    const validate = vi.spyOn(extension, 'validate');
 
-    const { rerender } = render(descriptor.mount(context(household)));
+    render(
+      <HouseholdRecordSurface
+        household={{
+          ...household,
+          extensionData: { [CUSTOM_FIELD_VALUES_DATA_KEY]: {} },
+        }}
+      />
+    );
+
+    expect(extension.dataKey).toBe(CUSTOM_FIELD_VALUES_DATA_KEY);
+    expect(validate).toHaveBeenCalledWith({});
     expect(
       screen.queryByTestId('custom-fields-advisor-section')
     ).not.toBeInTheDocument();
+    expect(catalogPersistence.load).not.toHaveBeenCalled();
+    expect(catalogPersistence.save).not.toHaveBeenCalled();
+    expect(live.save).not.toHaveBeenCalled();
 
     setDevFlagOverride('custom-fields-advisor', true);
-    rerender(descriptor.mount(context(household)));
     expect(
       await screen.findByTestId('custom-fields-advisor-section')
     ).toBeInTheDocument();
+    expect(catalogPersistence.load).toHaveBeenCalledTimes(1);
     expect(screen.getByLabelText('Planning note')).toBeInTheDocument();
     expect(screen.queryByLabelText('Person only')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Retired field')).not.toBeInTheDocument();

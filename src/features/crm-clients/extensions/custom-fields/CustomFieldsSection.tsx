@@ -31,6 +31,16 @@ function visibleHouseholdFields(
 
 /** Uses the firm-owned catalog adapter, but never writes firm definitions. */
 export function CustomFieldsSection(props: SectionProps) {
+  const enabled = useFlag('custom-fields-advisor');
+  return enabled ? <EnabledCustomFieldsSection {...props} /> : null;
+}
+
+/**
+ * This child only mounts after the feature gate has opened. Keeping the live
+ * catalog reader here means a dark feature neither reads nor writes the firm
+ * catalog when the record shell mounts every registered section.
+ */
+function EnabledCustomFieldsSection(props: SectionProps) {
   const { records, save } = useLiveCrmRecords();
   const [catalog, setCatalog] = useState<FieldCatalog | null>(null);
   const [catalogError, setCatalogError] = useState(false);
@@ -63,9 +73,7 @@ export function CustomFieldsSection(props: SectionProps) {
 
 function CustomFieldsLoadError() {
   const { t } = useTranslation();
-  return useFlag('custom-fields-advisor') ? (
-    <p role="alert">{t('customFields.loadError')}</p>
-  ) : null;
+  return <p role="alert">{t('customFields.loadError')}</p>;
 }
 
 /** Exported for focused rendering tests; production mounts use the live catalog above. */
