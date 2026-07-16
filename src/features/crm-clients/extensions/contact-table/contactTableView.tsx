@@ -9,6 +9,7 @@ import {
   type DirectoryContext,
   type DirectoryResult,
 } from '@/features/crm-clients';
+import type { ContactDirectoryProjection } from '@/features/crm-contacts';
 
 type ContactTableDensity = 'comfortable' | 'compact';
 type ContactKind = 'all' | 'household' | 'person' | 'organization' | 'trust';
@@ -38,6 +39,36 @@ function personKind(person: Extract<ContactRow, { kind: 'person' }>['record']): 
 
 function rowKind(row: ContactRow): ContactKind {
   return row.kind === 'household' ? 'household' : personKind(row.record);
+}
+
+/** The four-kind contact projector feeds the existing mixed table once. */
+function rowsFromContacts(contacts: readonly ContactDirectoryProjection[]): readonly ContactRow[] {
+  return contacts.map((contact) => contact.kind === 'household'
+    ? {
+      kind: 'household' as const,
+      record: {
+        id: contact.id,
+        name: contact.displayName,
+        lifecycle: contact.lifecycle,
+        primaryAdvisor: contact.primaryAdvisor ?? 'Unassigned',
+        serviceTier: '—',
+        peopleCount: 0,
+        tagIds: contact.tagIds,
+        ...(contact.lastActivityAt ? { lastActivityAt: contact.lastActivityAt } : {}),
+      },
+    }
+    : {
+      kind: 'person' as const,
+      record: {
+        id: contact.id,
+        name: contact.displayName,
+        personType: contact.kind,
+        roles: [],
+        relatedHouseholds: 0,
+        tagIds: contact.tagIds,
+        ...(contact.lastActivityAt ? { lastActivityAt: contact.lastActivityAt } : {}),
+      },
+    });
 }
 
 function ContactTableView({ context }: { context: DirectoryContext }) {
@@ -77,9 +108,13 @@ function ContactTableView({ context }: { context: DirectoryContext }) {
     () => new Map(tagStore.catalog.tags.map((tag) => [tag.id, tag.name])),
     [tagStore.catalog.tags]
   );
+  const contactRefs = useMemo(
+    () => new Map((context.contacts ?? []).map((contact) => [contact.id, contact.ref])),
+    [context.contacts],
+  );
   const rows = useMemo(
     () =>
-      projectDirectoryResults([
+      projectDirectoryResults(context.contacts ? rowsFromContacts(context.contacts) : [
         ...context.records.households
           .filter((household) => household.name.toLowerCase().includes(query))
           .map((record) => ({ kind: 'household' as const, record })),
@@ -274,7 +309,10 @@ function ContactTableView({ context }: { context: DirectoryContext }) {
                       type="button"
                       data-testid={`crm-contact-table-open-${row.kind}-${record.id}`}
                       onClick={() => {
-                        if (row.kind === 'household') {
+                        const ref = contactRefs.get(row.record.id);
+                        if (ref && context.repository.openContact) {
+                          void context.repository.openContact(ref);
+                        } else if (row.kind === 'household') {
                           context.repository.openHousehold(row.record.id);
                         } else {
                           context.selection.setPerson(row.record);

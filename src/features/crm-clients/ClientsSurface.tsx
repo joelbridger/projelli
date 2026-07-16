@@ -8,6 +8,11 @@ import { DirectorySurface } from './DirectorySurface';
 import type { DirectoryComposition } from './directoryRegistry';
 import { HouseholdRecordSurface } from './HouseholdRecordSurface';
 import type { TimelineRecord } from '@/features/crm-timeline';
+import {
+  createContactRecordStore,
+  type ContactRef,
+} from '@/features/crm-contacts';
+import type { DirectoryRepository } from './directoryRegistry';
 import type {
   CrmClientsActions,
   CrmFieldValue,
@@ -159,6 +164,7 @@ function ClientsSurfaceContent({
   actions?: CrmClientsActions;
   directoryComposition?: DirectoryComposition;
 }) {
+  const contactStore = useMemo(() => createContactRecordStore(live), [live]);
   const matters = useActiveMatters();
   const clientMapHubId = useMatterStore((state) => state.clientMapHubId);
   const selectionWorkspace = live.workspaceRoot ?? null;
@@ -271,6 +277,16 @@ function ClientsSurfaceContent({
   }, [live.records, storedHouseholds]);
   const effectivePeople = people.length ? people : livePeople;
   const selected = selectedId ? findRecord(selectedId) : undefined;
+  const contactDirectory = contactStore.listDirectory();
+  const directoryRepository: DirectoryRepository = {
+    openContact: async (ref: ContactRef) => {
+      const resolved = await contactStore.resolve(ref);
+      // WB-010 deliberately has no person/org/trust record surface yet. Never
+      // send one through the household screen; WB-012 mounts its matching view.
+      if (resolved?.contact.kind === 'household') selectHousehold(resolved.contact.id);
+    },
+    resolveContact: (ref: ContactRef) => contactStore.resolve(ref),
+  };
 
   const saveHousehold = async (household: HouseholdRecord) => {
     const previous = live.records.find((record) => record.id === household.id);
@@ -322,6 +338,8 @@ function ClientsSurfaceContent({
     <DirectorySurface
       households={effectiveHouseholds}
       people={effectivePeople}
+      contacts={contactDirectory}
+      directoryRepository={directoryRepository}
       actions={{ ...actions, onOpenHousehold: selectHousehold }}
       onCreateHousehold={async (name) => {
         const id = `household:${crypto.randomUUID()}`;
