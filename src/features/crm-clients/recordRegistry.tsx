@@ -151,9 +151,11 @@ import {
   customFieldsAdvisorRecordExtension,
   customFieldsAdvisorSection,
 } from './extensions/custom-fields';
+import { householdMergeHeaderAction } from '@/features/crm-clients/extensions/merge';
+import { isEnabled } from '@/platform/flags';
 
 export const householdHeaderActionRegistry: readonly HouseholdHeaderActionDescriptor[] =
-  legacyHouseholdHeaderActions;
+  [...legacyHouseholdHeaderActions, householdMergeHeaderAction];
 export const householdAddActionRegistry: readonly HouseholdAddActionDescriptor[] =
   legacyHouseholdAddActions;
 export const householdSectionRegistry: readonly HouseholdSectionDescriptor[] = [
@@ -174,6 +176,10 @@ export const householdRecordExtensionRegistry: readonly HouseholdRecordExtension
 export function getHouseholdHeaderActions() {
   validateHouseholdHeaderActionDescriptors(householdHeaderActionRegistry);
   return householdHeaderActionRegistry
+    // A dark action is absent from the registry consumer, not merely a child
+    // that happens to render null. That keeps the mounted toolbar byte-for-byte
+    // identical and leaves no wrapper slot behind.
+    .filter((action) => action.id !== 'merge_duplicate' || isEnabled('crm-merge-clients'))
     .slice()
     .sort((a, b) => a.order - b.order);
 }

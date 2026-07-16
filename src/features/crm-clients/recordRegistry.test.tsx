@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { setDevFlagOverride } from '@/platform/flags';
 import {
   getHouseholdAddActions,
   getHouseholdHeaderActions,
@@ -15,6 +16,8 @@ import {
 } from './tabRegistry';
 
 describe('household record registries', () => {
+  afterEach(() => { setDevFlagOverride('crm-merge-clients', undefined); });
+
   it('keeps compatibility mounts in their existing stable order', () => {
     expect(
       getHouseholdHeaderActions().map((descriptor) => descriptor.id)
@@ -45,6 +48,17 @@ describe('household record registries', () => {
       'legacy.record-metadata',
       'compliance-dates.written-agreements',
       'custom-fields.advisor',
+    ]);
+  });
+
+  it('adds the merge action only when its dark flag is enabled', () => {
+    setDevFlagOverride('crm-merge-clients', true);
+    expect(getHouseholdHeaderActions().map((descriptor) => descriptor.id)).toEqual([
+      'ask',
+      'metadata',
+      'edit',
+      'schedule',
+      'merge_duplicate',
     ]);
   });
 

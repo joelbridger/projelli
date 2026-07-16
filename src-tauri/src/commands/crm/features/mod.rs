@@ -5,6 +5,7 @@
 //! `crm::commands` compatibility facade.
 
 pub mod connector;
+pub mod merge;
 pub mod teams_roles;
 pub mod trash;
 
@@ -21,6 +22,7 @@ pub const CRM_FEATURE_REGISTRY: &[CrmFeatureDescriptor] = &[
     connector::FEATURE_DESCRIPTOR,
     teams_roles::FEATURE_DESCRIPTOR,
     trash::FEATURE_DESCRIPTOR,
+    merge::FEATURE_DESCRIPTOR,
 ];
 
 #[cfg(test)]

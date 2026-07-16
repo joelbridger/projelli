@@ -1,0 +1,3 @@
+# Review-first duplicate household merge commands.  Keys are append-only.
+command 2970 crate::commands::crm::features::merge::commands::crm_merge_households_approve
+command 2980 crate::commands::crm::features::merge::commands::crm_merge_receipt_get
