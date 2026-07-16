@@ -9,6 +9,7 @@ import { useRecordQuickAddPublicContract } from './calendar-record-quick-add';
 import { bookingPublicPageContract } from './calendar-booking-public-page';
 import { fixtureVersionedRead } from './calendar-versioned-read';
 import { calendarRoundTripPublicContract } from './calendar-testing-harness';
+import { calendarAddEventSurfacePublicContract } from './calendar-add-event-surface';
 
 describe('calendar foundation public imports', () => {
   it('compiles every Part A dependent through public indexes only', () => {
@@ -22,5 +23,6 @@ describe('calendar foundation public imports', () => {
     expect(bookingPublicPageContract).toBeTypeOf('function');
     expect(fixtureVersionedRead.source).toBe('external-read-only');
     expect(calendarRoundTripPublicContract).toBeTypeOf('function');
+    expect(calendarAddEventSurfacePublicContract.id).toBe('calendar-add-event');
   });
 });

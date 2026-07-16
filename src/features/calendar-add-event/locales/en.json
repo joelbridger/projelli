@@ -1,0 +1,19 @@
+{
+  "calendar-add-event": {
+    "title": "Add event",
+    "edit-title": "Edit event",
+    "description": "Create, update, or cancel an event on your local calendar.",
+    "new": "New event",
+    "no-local-calendar": "A writable local calendar is needed before you can save an event.",
+    "fields": { "title": "Title", "notes": "Notes", "start-utc": "Start (UTC)", "end-utc": "End (UTC)", "timezone": "Display timezone", "calendar": "Calendar", "all-day": "All day" },
+    "recurrence": { "title": "Repeats", "frequency": "How often", "none": "Does not repeat", "daily": "Daily", "weekly": "Weekly", "monthly": "Monthly", "yearly": "Yearly", "interval": "Every", "count": "Number of times", "month-days": "Days of month", "month-days-placeholder": "For example: 1, 15" },
+    "weekdays": { "monday": "Mon", "tuesday": "Tue", "wednesday": "Wed", "thursday": "Thu", "friday": "Fri", "saturday": "Sat", "sunday": "Sun" },
+    "create": "Create event",
+    "update": "Save changes",
+    "cancel": "Cancel event",
+    "saved": "Saved event {{id}}.",
+    "existing-title": "Local events",
+    "empty": "No local events yet.",
+    "edit": "Edit"
+  }
+}
