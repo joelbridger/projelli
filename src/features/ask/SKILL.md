@@ -10,10 +10,21 @@ consumer.
 Client-bound scopes store the owner contact reference, matter, and shared-
 client revision. Pass the current client plus an `AskOwnerIdentityAdapter` to
 `resolveAskScope`. Chosen sources, single/selected meetings, and meeting ranges
-all fail closed when the current client changes or clears. Before using any
-resolved scope, provide `AskClientUseAccess { readCurrentClient, owners }`.
-`readCurrentClient` must read the shared-client owner when it is called; do not
-capture an earlier client value.
+all fail closed when the current client changes or clears.
+
+**Use-time client isolation is fail-closed and non-freezable.** The shared-
+client owner binds ONE live access once, with
+`bindAskSharedClient({ readCurrentClient, owners })`. Every use-time doorway —
+`askSourceBelongsToScope`, `collectAskSourceCandidates`, `listAskSourceAdapters`,
+`listAskModes`, `buildAskRetrievalPlan`, `buildAskCitation`,
+`askCitationBelongsToScope`, `resolveAskCitationOpenPath`, `listAskAnswerActions`,
+and every registered action's `isAvailable`/`execute` — reads the current client
+from that single binding, NOT from a value the caller passes. There is no per-
+call `access` argument to capture or freeze: a scope, source, citation, or action
+resolved under client A is refused the instant the owner switches to B or clears
+the client, even for a handler that resolved earlier and held on to it. When
+nothing is bound (the current base — the owner doorway is absent), every client-
+scoped doorway fails closed.
 
 `useAskConversation({ currentClient, owners })` reads and writes conversation
 metadata, review drafts, and saved source selections through encrypted live
@@ -63,13 +74,17 @@ registerAskAnswerAction(action);
 The compiling copy is outside this package at
 `src/foundation-contracts/ask/pavedPath.import.ts`. Registry reads use
 `collectAskSourceCandidates`, `listAskModes`, and `listAskAnswerActions`; those
-paths exclude dark entries and re-check the live client. Pass the same live
-access to source/citation helpers, and put it on `AskAnswerActionContext` as
-`clientAccess`. Actions registered through the public append path are wrapped:
-availability and execution both read the client again, so a previously listed
-action expires after a switch. Citation openers must be obtained through
-`resolveAskCitationOpenPath(scope, citation, clientAccess)`; the saved citation
-does not expose actionable opener metadata directly.
+paths exclude dark entries and re-check the live client from the single binding.
+`AskAnswerActionContext` carries no client access field: actions registered
+through the public append path are wrapped so availability and execution both
+re-read the bound client, and a previously listed action expires after a switch.
+Citation openers must be obtained through
+`resolveAskCitationOpenPath(scope, citation)`; the saved citation does not expose
+its actionable opener token directly (it is held in a private table and released
+only after the use-time client check passes). A retained source descriptor still
+carries its own owner-supplied `citationOpenPath` as plain data — that is the
+caller's copy of owner data, not a foundation-minted capability; the guarded
+doorways will not re-produce client-A sources once the live client is B.
 
 ## Availability boundary
 

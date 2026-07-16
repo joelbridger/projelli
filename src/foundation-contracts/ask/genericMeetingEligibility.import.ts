@@ -2,6 +2,7 @@ import {
   askScopeBuilder,
   buildAskCitation,
   type AskMeetingArtifactSource,
+  bindAskSharedClient,
   resolveAskScope,
 } from '@/features/ask';
 import {
@@ -12,6 +13,8 @@ import {
   type FixtureClientRef,
   type FixtureMeetingRef,
 } from './ownerFixture';
+
+bindAskSharedClient(fixtureAccess);
 
 const scope = resolveAskScope(
   askScopeBuilder.singleMeeting(
@@ -26,4 +29,4 @@ declare const artifact: AskMeetingArtifactSource<
   FixtureClientRef,
   FixtureMeetingRef
 >;
-void buildAskCitation('claim-1', scope, artifact, fixtureAccess);
+void buildAskCitation('claim-1', scope, artifact);

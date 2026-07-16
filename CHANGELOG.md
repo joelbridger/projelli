@@ -32,17 +32,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
-- **Ask foundation saved state and meeting eligibility now fail closed.**
-  Every client-bound scope retains the owner reference, matter, and revision;
-  stale state is rejected after a client switch or clear. Source reads,
-  citation opens, and answer actions re-read the active client when used, so
-  retaining an earlier resolved value cannot bypass the switch. Meeting
-  artifacts prove their meeting, date, and type before retrieval. Persistence now
-  validates payloads and proves save-to-fresh-reload for conversations, review
-  drafts, and source selections. Missing owner contracts remain explicitly
-  unavailable instead of being replaced by local lookalikes. Files:
-  `src/features/ask/foundation/`, `src/features/ask/FOUNDATION_STATUS.md`,
-  `src/features/ask/SKILL.md`, `src/foundation-contracts/ask/`.
+- **Ask foundation client isolation is now fail-closed and non-freezable.**
+  The shared-client owner binds ONE live access (`bindAskSharedClient`); every
+  use-time doorway — source reads, citation opens, opener-token resolution, and
+  answer actions — reads the current client from that single binding instead of
+  a value the caller passes. There is no per-call access argument to capture, so
+  a scope, source, citation, or action resolved under client A is refused the
+  instant the owner switches to B, clears the client, or unbinds — even for a
+  handler that resolved earlier and retained it. When nothing is bound, every
+  client-scoped doorway fails closed. Every client-bound scope still retains the
+  owner reference, matter, and revision; meeting artifacts prove their meeting,
+  date, and type before retrieval; persistence validates payloads and proves
+  save-to-fresh-reload for conversations, review drafts, and source selections.
+  Missing owner contracts remain explicitly unavailable instead of being
+  replaced by local lookalikes. Files: `src/features/ask/foundation/`,
+  `src/features/ask/FOUNDATION_STATUS.md`, `src/features/ask/SKILL.md`,
+  `src/foundation-contracts/ask/`.
 - **Test-impact selection is now fail-open at the final runner boundary.**
   The runner starts with the full Vitest command and can narrow it only after a
   successful, non-empty selector result. It now falls back to the full suite for

@@ -3,9 +3,11 @@ export {
   askScopeBuilder,
   askScopeIsCurrent,
   askScopeSnapshotsMatch,
+  askSharedClientIsBound,
   assertAskScopeCurrent,
   askSourceBelongsToScope,
   AskScopeError,
+  bindAskSharedClient,
   resolveAskScope,
 } from './scope';
 export {

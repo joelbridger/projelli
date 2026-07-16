@@ -1,7 +1,8 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   AskAnswerActionContext,
   AskAnswerActionDescriptor,
+  AskClientSnapshot,
   AskMeetingArtifactSource,
   AskModeDescriptor,
   AskOwnerIdentityAdapter,
@@ -13,6 +14,7 @@ import {
   askScopeBuilder,
   AskScopeError,
   askSourceBelongsToScope,
+  bindAskSharedClient,
   resolveAskScope,
 } from './scope';
 import {
@@ -84,8 +86,19 @@ const clientB = {
   matterId: 'matter-b',
   revision: 'b:1',
 } as const;
-const accessA = { readCurrentClient: () => clientA, owners } as const;
-const accessB = { readCurrentClient: () => clientB, owners } as const;
+// The shared-client owner binds ONE live access; the current client is the
+// single source of truth for every use-time doorway. Tests flip `currentClient`
+// to model a real client switch (A -> B -> none) that a caller cannot evade by
+// retaining a frozen access — there is no per-call access to freeze.
+let currentClient: AskClientSnapshot<FixtureClientRef> | null = clientA;
+const boundAccess = {
+  readCurrentClient: () => currentClient,
+  owners,
+};
+beforeEach(() => {
+  currentClient = clientA;
+  bindAskSharedClient(boundAccess);
+});
 const meetingA = {
   owner: 'fixture-meeting-owner',
   id: 'meeting-a',
@@ -134,6 +147,28 @@ function meetingArtifact(
 }
 
 describe('Ask client and meeting foundation behavior', () => {
+  it('whole-firm scopes work without a bound client, while client scopes fail closed when unbound', () => {
+    // Unbind the owner entirely (models the current base: no shared-client owner).
+    const unbind = bindAskSharedClient(boundAccess);
+    unbind();
+    const wholeFirm = resolveAskScope(
+      askScopeBuilder.wholeFirm('workspace-a')
+    );
+    // A whole-firm read needs no shared client and must still succeed.
+    expect(() => listAskModes(wholeFirm)).not.toThrow();
+    expect(buildAskRetrievalPlan(wholeFirm, ['document'], []).references).toEqual(
+      []
+    );
+    // A client-scoped read fails closed with no owner bound.
+    const clientScope = resolveAskScope(
+      askScopeBuilder.currentClient('workspace-a', clientA),
+      clientA,
+      owners
+    );
+    expect(() => listAskModes(clientScope)).toThrow('is not bound');
+    expect(askSourceBelongsToScope(clientScope, sourceA)).toBe(false);
+  });
+
   it('fails closed for every saved client scope, source, and citation after A changes to B or none', () => {
     const chosenScope = askScopeBuilder.chosenSources('workspace-a', clientA, [
       'source-a',
@@ -162,8 +197,16 @@ describe('Ask client and meeting foundation behavior', () => {
     }
 
     const chosen = resolveAskScope(chosenScope, clientA, owners);
-    const citation = buildAskCitation('claim', chosen, sourceA, accessA);
-    expect(askCitationBelongsToScope(chosen, citation, accessA)).toBe(true);
+    const citation = buildAskCitation('claim', chosen, sourceA);
+    expect(askCitationBelongsToScope(chosen, citation)).toBe(true);
+    // The already-held resolved scope and citation expire at use time once the
+    // single live client switches — the caller cannot keep reading client A.
+    currentClient = clientB;
+    expect(askCitationBelongsToScope(chosen, citation)).toBe(false);
+    expect(askSourceBelongsToScope(chosen, sourceA)).toBe(false);
+    currentClient = null;
+    expect(askCitationBelongsToScope(chosen, citation)).toBe(false);
+    expect(askSourceBelongsToScope(chosen, sourceA)).toBe(false);
     expect(() => resolveAskScope(citation.scope, clientB, owners)).toThrow(
       'stale or unavailable'
     );
@@ -179,7 +222,7 @@ describe('Ask client and meeting foundation behavior', () => {
       clientA,
       owners
     );
-    expect(askSourceBelongsToScope(single, artifact, accessA)).toBe(true);
+    expect(askSourceBelongsToScope(single, artifact)).toBe(true);
 
     const selected = resolveAskScope(
       askScopeBuilder.selectedMeetings('workspace-a', clientA, [
@@ -189,9 +232,9 @@ describe('Ask client and meeting foundation behavior', () => {
       clientA,
       owners
     );
-    expect(askSourceBelongsToScope(selected, artifact, accessA)).toBe(true);
+    expect(askSourceBelongsToScope(selected, artifact)).toBe(true);
     expect(
-      askSourceBelongsToScope(selected, meetingArtifact(meetingB), accessA)
+      askSourceBelongsToScope(selected, meetingArtifact(meetingB))
     ).toBe(false);
     expect(() =>
       resolveAskScope(
@@ -215,33 +258,29 @@ describe('Ask client and meeting foundation behavior', () => {
       clientA,
       owners
     );
-    expect(askSourceBelongsToScope(range, artifact, accessA)).toBe(true);
+    expect(askSourceBelongsToScope(range, artifact)).toBe(true);
     expect(
       askSourceBelongsToScope(
         range,
-        meetingArtifact(meetingA, { occurredOn: '' }),
-        accessA
+        meetingArtifact(meetingA, { occurredOn: '' })
       )
     ).toBe(false);
     expect(
       askSourceBelongsToScope(
         range,
-        meetingArtifact(meetingA, { meetingType: '' }),
-        accessA
+        meetingArtifact(meetingA, { meetingType: '' })
       )
     ).toBe(false);
     expect(
       askSourceBelongsToScope(
         range,
-        meetingArtifact(meetingA, { occurredOn: '2026-08-01' }),
-        accessA
+        meetingArtifact(meetingA, { occurredOn: '2026-08-01' })
       )
     ).toBe(false);
     expect(
       askSourceBelongsToScope(
         range,
-        meetingArtifact(meetingA, { meetingType: 'prospect' }),
-        accessA
+        meetingArtifact(meetingA, { meetingType: 'prospect' })
       )
     ).toBe(false);
   });
@@ -255,8 +294,7 @@ describe('Ask client and meeting foundation behavior', () => {
     const plan = buildAskRetrievalPlan(
       scope,
       ['document'],
-      [sourceA, { ...sourceA, sourceId: 'source-b', client: clientB }],
-      accessA
+      [sourceA, { ...sourceA, sourceId: 'source-b', client: clientB }]
     );
     expect(plan.references).toEqual([
       {
@@ -268,8 +306,7 @@ describe('Ask client and meeting foundation behavior', () => {
       buildAskCitation(
         'claim',
         scope,
-        { ...sourceA, sourceId: 'source-b' },
-        accessA
+        { ...sourceA, sourceId: 'source-b' }
       )
     ).toThrow('outside the resolved scope');
     expect(noLocalAnswer()).toEqual({
@@ -328,8 +365,8 @@ describe('Ask appendable registries stay open-world', () => {
       listCandidates: darkLoad,
     });
 
-    const candidates = collectAskSourceCandidates(scopeA, accessA);
-    const ownOrder = listAskSourceAdapters(scopeA, accessA)
+    const candidates = collectAskSourceCandidates(scopeA);
+    const ownOrder = listAskSourceAdapters(scopeA)
       .filter((descriptor) =>
         descriptor.id.startsWith('foundation-test-source-')
       )
@@ -387,17 +424,21 @@ describe('Ask appendable registries stay open-world', () => {
     registerAskMode(mode('foundation-test-mode-dark', 9204, () => false));
 
     expect(
-      listAskModes(scopeA, accessA).some(
+      listAskModes(scopeA).some(
         (descriptor) => descriptor.id === 'foundation-test-mode-third'
       )
     ).toBe(true);
+    // Switch the live client to B: currency passes for scope B, and the third
+    // mode's own dark gate (matter-a only) excludes it — proving the gate.
+    currentClient = clientB;
     expect(
-      listAskModes(scopeB, accessB).some(
+      listAskModes(scopeB).some(
         (descriptor) => descriptor.id === 'foundation-test-mode-third'
       )
     ).toBe(false);
+    currentClient = clientA;
     expect(
-      listAskModes(scopeA, accessA)
+      listAskModes(scopeA)
         .filter((descriptor) =>
           descriptor.id.startsWith('foundation-test-mode-')
         )
@@ -408,7 +449,7 @@ describe('Ask appendable registries stay open-world', () => {
       'foundation-test-mode-third',
     ]);
     expect(
-      listAskModes(scopeA, accessA).some(
+      listAskModes(scopeA).some(
         (descriptor) => descriptor.id === 'foundation-test-mode-dark'
       )
     ).toBe(false);
@@ -465,7 +506,6 @@ describe('Ask appendable registries stay open-world', () => {
       scope: ResolvedAskScope<FixtureClientRef, FixtureMeetingRef>
     ): Context => ({
       scope,
-      clientAccess: scope === scopeB ? accessB : accessA,
       answer: noLocalAnswer(),
       citations: [],
       authority: { allowedMatterId: 'matter-a' },
@@ -476,7 +516,11 @@ describe('Ask appendable registries stay open-world', () => {
         (descriptor) => descriptor.id === 'foundation-test-action-third'
       )
     ).toBe(true);
+    // Under the live client B, currency passes for scope B but the actions'
+    // own authority gate (matter-a) excludes them all.
+    currentClient = clientB;
     expect(listAskAnswerActions(context(scopeB))).toEqual([]);
+    currentClient = clientA;
     expect(
       listAskAnswerActions(context(scopeA)).some(
         (descriptor) => descriptor.id === 'foundation-test-action-dark'

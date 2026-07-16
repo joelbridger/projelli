@@ -1,6 +1,7 @@
 import {
   askScopeBuilder,
   askSourceBelongsToScope,
+  bindAskSharedClient,
   collectAskSourceCandidates,
   resolveAskScope,
   type AskSourceDescriptor,
@@ -13,6 +14,10 @@ import {
   type FixtureMeetingRef,
 } from './ownerFixture';
 
+// The shared-client owner binds one live access; every use-time doorway reads
+// the current client from that binding, never from a caller-supplied value.
+bindAskSharedClient(fixtureAccess);
+
 const scope = resolveAskScope(
   askScopeBuilder.chosenSources('fixture-workspace', fixtureClient, [
     'source-1',
@@ -21,5 +26,5 @@ const scope = resolveAskScope(
   fixtureOwners
 );
 declare const source: AskSourceDescriptor<FixtureClientRef, FixtureMeetingRef>;
-void collectAskSourceCandidates(scope, fixtureAccess);
-void askSourceBelongsToScope(scope, source, fixtureAccess);
+void collectAskSourceCandidates(scope);
+void askSourceBelongsToScope(scope, source);

@@ -2,7 +2,6 @@ import type {
   AskAnswerProjection,
   AskCitation,
   AskCitationOpenPath,
-  AskClientUseAccess,
   AskRetrievalPlan,
   AskSourceDescriptor,
   AskSourceKind,
@@ -13,6 +12,7 @@ import {
   askScopeIsCurrent,
   askScopeSnapshotsMatch,
   askSourceBelongsToScope,
+  readBoundAskOwners,
 } from './scope';
 
 const citationOpenPaths = new WeakMap<object, AskCitationOpenPath>();
@@ -20,15 +20,14 @@ const citationOpenPaths = new WeakMap<object, AskCitationOpenPath>();
 export function buildAskRetrievalPlan<ClientReference, MeetingReference>(
   scope: ResolvedAskScope<ClientReference, MeetingReference>,
   requestedSourceKinds: readonly AskSourceKind[],
-  candidates: readonly AskSourceDescriptor<ClientReference, MeetingReference>[],
-  access: AskClientUseAccess<ClientReference, MeetingReference>
+  candidates: readonly AskSourceDescriptor<ClientReference, MeetingReference>[]
 ): AskRetrievalPlan<ClientReference, MeetingReference> {
-  assertAskScopeCurrent(scope, access);
+  assertAskScopeCurrent(scope);
   const kinds = [...new Set(requestedSourceKinds)];
   const references = candidates
     .filter((source) => source.availability === 'available')
     .filter((source) => kinds.includes(source.kind))
-    .filter((source) => askSourceBelongsToScope(scope, source, access))
+    .filter((source) => askSourceBelongsToScope(scope, source))
     .map((source) => ({
       sourceId: source.sourceId,
       reason: `Eligible ${source.kind} in resolved ${scope.kind} scope.`,
@@ -39,10 +38,9 @@ export function buildAskRetrievalPlan<ClientReference, MeetingReference>(
 export function buildAskCitation<ClientReference, MeetingReference>(
   claimId: string,
   scope: ResolvedAskScope<ClientReference, MeetingReference>,
-  source: AskSourceDescriptor<ClientReference, MeetingReference>,
-  access: AskClientUseAccess<ClientReference, MeetingReference>
+  source: AskSourceDescriptor<ClientReference, MeetingReference>
 ): AskCitation<ClientReference, MeetingReference> {
-  if (!claimId.trim() || !askSourceBelongsToScope(scope, source, access)) {
+  if (!claimId.trim() || !askSourceBelongsToScope(scope, source)) {
     throw new Error('Ask citation source is outside the resolved scope.');
   }
   const citation: AskCitation<ClientReference, MeetingReference> = {
@@ -67,11 +65,11 @@ export function buildAskCitation<ClientReference, MeetingReference>(
 /** Re-check this just before an opener or answer action uses a saved citation. */
 export function askCitationBelongsToScope<ClientReference, MeetingReference>(
   scope: ResolvedAskScope<ClientReference, MeetingReference>,
-  citation: AskCitation<ClientReference, MeetingReference>,
-  access: AskClientUseAccess<ClientReference, MeetingReference>
+  citation: AskCitation<ClientReference, MeetingReference>
 ): boolean {
-  const owners = access.owners;
-  if (!askScopeIsCurrent(scope, access)) return false;
+  if (!askScopeIsCurrent(scope)) return false;
+  const owners = readBoundAskOwners<ClientReference, MeetingReference>();
+  if (!owners) return false;
   if (!askScopeSnapshotsMatch(scope, citation.scope, owners)) return false;
   const openPath = citationOpenPaths.get(citation);
   if (!openPath) return false;
@@ -99,7 +97,7 @@ export function askCitationBelongsToScope<ClientReference, MeetingReference>(
         : citation.sourceKind === 'crm-contact'
           ? { ...base, kind: 'crm-contact' }
           : { ...base, kind: 'document' };
-  return source ? askSourceBelongsToScope(scope, source, access) : false;
+  return source ? askSourceBelongsToScope(scope, source) : false;
 }
 
 /** The only public path from a saved citation to actionable opener metadata. */
@@ -108,10 +106,9 @@ export function resolveAskCitationOpenPath<
   MeetingReference,
 >(
   scope: ResolvedAskScope<ClientReference, MeetingReference>,
-  citation: AskCitation<ClientReference, MeetingReference>,
-  access: AskClientUseAccess<ClientReference, MeetingReference>
+  citation: AskCitation<ClientReference, MeetingReference>
 ): AskCitationOpenPath {
-  if (!askCitationBelongsToScope(scope, citation, access)) {
+  if (!askCitationBelongsToScope(scope, citation)) {
     throw new Error('Ask citation is stale or outside the current client.');
   }
   const openPath = citationOpenPaths.get(citation);

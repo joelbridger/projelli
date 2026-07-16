@@ -13,12 +13,53 @@ instead of inventing substitutes.
 | Acceptance | Shipped now | Still unavailable; coordinator prerequisite |
 | --- | --- | --- |
 | A1 | Whole-firm conversation/scope projection. | `@/app/shell/registry` has no public index, and the real surface ID is `search` while the brief says `ask`. The shell owner must decide and land the public swap before `ask-shell-v1` launches. |
-| A2 | Generic client snapshots fail closed for current-client and chosen-source state after A → B or A → none. Source selection persistence is real, and every public source read re-reads the live client at use time. | No `useSharedClientContext` / `SharedClientContext`, CRM contact, document, or email descriptor owner doorway exists at this base. No concrete source contributor is registered. |
+| A2 | Use-time client isolation is fail-closed and non-freezable. The shared-client owner binds ONE live access (`bindAskSharedClient`); every use-time doorway reads the current client from that single binding, not from a caller-passed value, so state resolved under client A is refused the instant the owner switches to B, clears the client, or unbinds — even for a handler that resolved earlier and retained it. There is no per-call access argument to freeze. Source selection persistence is real. | No `useSharedClientContext` / `SharedClientContext`, CRM contact, document, or email descriptor owner doorway exists at this base. `bindAskSharedClient` is the empty socket; the owner that would call it is absent, and no concrete source contributor is registered. |
 | A3 | Single/selected meeting eligibility uses the artifact's owner meeting reference. Range eligibility requires and checks date plus type. Mixed-client selected meetings fail closed. | `@/features/meetings` does not export `MeetingRef`, `MeetingSourceAdapter`, or `readApprovedMeetingArtifacts`. The meeting source and mode remain unregistered until those exact exports land. |
 | A4 | Stable local citations, use-time stale-open rejection, and honest `no-local-answer` projection ship. | No concrete owner artifact can be claimed until A2/A3 prerequisites land. |
 | A5 | The generic action registry accepts owner-supplied authority/audit types and wraps availability/execution with a live-client check, including actions retained before a switch. | `requireActionCapability`, `writeAuditAction`, and all five destination doorways are absent. No built-in action is registered, and the exact destination import fixtures cannot honestly compile yet. |
 | A6 | Source, mode, and action public append paths have open-world third-contributor, order, malformed/duplicate, dark, and client-isolation tests. A compiling paved-path example ships outside Ask. | Concrete contributors remain governed by A2/A3/A5. |
 | A7 | Generic consumer-shaped fixtures compile outside Ask, including the paved path. Dark paths are exercised through the public registry reads. | Exact shared-client, real-shell, four producer, five destination, permission, and audit fixtures are unavailable because their owner exports do not exist. Adding fake fixtures would repeat the reviewed defect. |
+
+## Absent owner contracts (for coordinator adjudication)
+
+The client-isolation guard is now genuinely fail-closed (A2). What remains
+absent is not a fix-harder issue — it is a missing upstream foundation. These
+exact owner doorways/contributors do NOT exist at base
+`cb09c8c4f`, and Ask deliberately does not invent lookalikes for them:
+
+- **Shared-client owner (partial upstream — read carefully):** A live shared-
+  client store DOES exist at base: `@/platform/client-context`
+  (`useClientContextStore`, `readSharedClientContext`) holds one
+  `SharedClientIdentity { householdId, displayName }` for CRM, Ask, Meetings, and
+  the shell bar, and can switch/clear it (it is intentionally not persisted). Ask
+  already registers an `id: 'ask'` scope adapter against it. What is ABSENT is the
+  brief's richer identity contract: `@/features/client-bar` exports no
+  `useSharedClientContext` / `SharedClientContext`, and nothing supplies the
+  `AskClientSnapshot { contactRef, matterId, revision }` (exact owner `ContactRef`
+  + matter + revision) or the `AskOwnerIdentityAdapter` (client/meeting identity
+  operations) that `bindAskSharedClient` needs. Ask ships that socket
+  (`bindAskSharedClient` + the `AskClientUseAccess` shape); the small owner adapter
+  that maps the platform `SharedClientIdentity` into an `AskClientUseAccess` — and
+  the CRM/Meetings owner reference contracts it depends on — is what must land. Un-
+  til it binds, every client-scoped Ask doorway fails closed by design.
+- **Shell registry:** there is no public `@/app/shell/registry` index. The real
+  base surface descriptor is `id: 'search'`
+  (`src/app/shell/registry/legacyAppSurfaceDescriptors.tsx`); the brief's
+  `id: 'ask'` does not exist. The shell owner must decide the ID and publish the
+  swap before `ask-shell-v1`.
+- **Source producers:** no CRM-contact, document, meeting-artifact, or
+  email-descriptor source owner/adapter exports. `askSourceRegistry` therefore
+  has no registered contributor.
+- **Meetings owner:** `@/features/meetings` exports no `MeetingRef`,
+  `MeetingSourceAdapter`, or `readApprovedMeetingArtifacts`.
+- **Answer-action owners:** `requireActionCapability`, `writeAuditAction`, and
+  all five answer-action destination doorways are absent;
+  `askAnswerActionRegistry` has no built-in action.
+
+Recommended framing: this is the WB-031 / WB-014 honest-partial precedent —
+**isolation-complete, owner-pending**. Part A can land as a bounded honest
+partial (dependents stay grounded, nothing pretends the absent owners exist), or
+wait for the upstream owners; the isolation gate itself is no longer red.
 
 Part A touches no Rust, native command, migration, provider, credential,
 connector retrieval, egress, send, or committed-write path. Part B stays

@@ -1,7 +1,6 @@
 import type {
   AskAnswerActionContext,
   AskAnswerActionDescriptor,
-  AskClientUseAccess,
   AskModeDescriptor,
   AskSourceAdapter,
   AskSourceDescriptor,
@@ -156,16 +155,15 @@ export function registerAskSource<ClientReference, MeetingReference>(
     ...adapter,
     ...(adapter.isEnabled
       ? {
-          isEnabled: (scope, access) =>
-            askScopeIsCurrent(scope, access) &&
-            adapter.isEnabled?.(scope, access) !== false,
+          isEnabled: (scope) =>
+            askScopeIsCurrent(scope) && adapter.isEnabled?.(scope) !== false,
         }
       : {}),
-    listCandidates: (scope, access) => {
-      assertAskScopeCurrent(scope, access);
+    listCandidates: (scope) => {
+      assertAskScopeCurrent(scope);
       return adapter
-        .listCandidates(scope, access)
-        .filter((source) => askSourceBelongsToScope(scope, source, access));
+        .listCandidates(scope)
+        .filter((source) => askSourceBelongsToScope(scope, source));
     },
   };
   append(sourceAdapters, guarded as OrderedDescriptor, (entries) => {
@@ -207,14 +205,10 @@ export function registerAskAnswerAction<
       Audit
     >
   ): boolean => {
-    if (!askScopeIsCurrent(context.scope, context.clientAccess)) return false;
+    if (!askScopeIsCurrent(context.scope)) return false;
     const citations = [...context.citations, ...context.answer.citations];
     return citations.every((citation) =>
-      askCitationBelongsToScope(
-        context.scope,
-        citation,
-        context.clientAccess
-      )
+      askCitationBelongsToScope(context.scope, citation)
     );
   };
   const guarded: AskAnswerActionDescriptor<
@@ -255,38 +249,35 @@ export function registerAskAnswerAction<
 }
 
 export function listAskSourceAdapters<ClientReference, MeetingReference>(
-  scope: ResolvedAskScope<ClientReference, MeetingReference>,
-  access: AskClientUseAccess<ClientReference, MeetingReference>
+  scope: ResolvedAskScope<ClientReference, MeetingReference>
 ): readonly AskSourceAdapter<ClientReference, MeetingReference>[] {
-  assertAskScopeCurrent(scope, access);
+  assertAskScopeCurrent(scope);
   return (
     sourceAdapters as unknown as readonly AskSourceAdapter<
       ClientReference,
       MeetingReference
     >[]
-  ).filter((descriptor) => descriptor.isEnabled?.(scope, access) !== false);
+  ).filter((descriptor) => descriptor.isEnabled?.(scope) !== false);
 }
 
 export function collectAskSourceCandidates<ClientReference, MeetingReference>(
-  scope: ResolvedAskScope<ClientReference, MeetingReference>,
-  access: AskClientUseAccess<ClientReference, MeetingReference>
+  scope: ResolvedAskScope<ClientReference, MeetingReference>
 ): readonly AskSourceDescriptor<ClientReference, MeetingReference>[] {
-  return listAskSourceAdapters(scope, access)
-    .flatMap((adapter) => adapter.listCandidates(scope, access))
-    .filter((source) => askSourceBelongsToScope(scope, source, access));
+  return listAskSourceAdapters(scope)
+    .flatMap((adapter) => adapter.listCandidates(scope))
+    .filter((source) => askSourceBelongsToScope(scope, source));
 }
 
 export function listAskModes<ClientReference, MeetingReference>(
-  scope: ResolvedAskScope<ClientReference, MeetingReference>,
-  access: AskClientUseAccess<ClientReference, MeetingReference>
+  scope: ResolvedAskScope<ClientReference, MeetingReference>
 ): readonly AskModeDescriptor<ClientReference, MeetingReference>[] {
-  assertAskScopeCurrent(scope, access);
+  assertAskScopeCurrent(scope);
   return (
     modes as unknown as readonly AskModeDescriptor<
       ClientReference,
       MeetingReference
     >[]
-  ).filter((descriptor) => descriptor.isEnabled?.(scope, access) !== false);
+  ).filter((descriptor) => descriptor.isEnabled?.(scope) !== false);
 }
 
 export function listAskAnswerActions<
@@ -307,7 +298,7 @@ export function listAskAnswerActions<
   Authority,
   Audit
 >[] {
-  if (!askScopeIsCurrent(context.scope, context.clientAccess)) return [];
+  if (!askScopeIsCurrent(context.scope)) return [];
   return (
     actions as unknown as readonly AskAnswerActionDescriptor<
       ClientReference,

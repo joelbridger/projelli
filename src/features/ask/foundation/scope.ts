@@ -138,14 +138,88 @@ export function resolveAskScope<ClientReference, MeetingReference>(
   return { ...scope, resolved: true };
 }
 
-/** Re-read and validate the active shared client immediately before use. */
-export function assertAskScopeCurrent<ClientReference, MeetingReference>(
-  scope: ResolvedAskScope<ClientReference, MeetingReference>,
+/**
+ * The single live shared-client binding.
+ *
+ * The shared-client owner (the client bar) binds exactly one live access here.
+ * Every use-time doorway reads the current client from THIS binding, never from
+ * a caller-supplied value, so a scope, source, citation, or action resolved
+ * under client A cannot be read or acted on once the owner switches to B or
+ * clears the client — a caller cannot retain a frozen "current client". When
+ * nothing is bound (the current base, where the owner doorway is absent), every
+ * client-scoped doorway fails closed.
+ */
+let boundClientAccess: AskClientUseAccess<unknown, unknown> | null = null;
+
+/**
+ * Bind the one live shared-client access. Intended to be called once by the
+ * shared-client owner wiring. Returns an unbind function; rebinding replaces the
+ * previous binding (e.g. the owner remounting).
+ */
+export function bindAskSharedClient<ClientReference, MeetingReference>(
   access: AskClientUseAccess<ClientReference, MeetingReference>
+): () => void {
+  const entry = access as unknown as AskClientUseAccess<unknown, unknown>;
+  boundClientAccess = entry;
+  return () => {
+    if (boundClientAccess === entry) boundClientAccess = null;
+  };
+}
+
+/** True only when the shared-client owner has bound a live access. */
+export function askSharedClientIsBound(): boolean {
+  return boundClientAccess !== null;
+}
+
+/** The bound live access, or null when the owner is not wired. Internal. */
+function liveAskAccess<ClientReference, MeetingReference>():
+  | AskClientUseAccess<ClientReference, MeetingReference>
+  | null {
+  return boundClientAccess as unknown as AskClientUseAccess<
+    ClientReference,
+    MeetingReference
+  > | null;
+}
+
+/** The current shared client read live from the single binding, or null. */
+export function readBoundAskClient<ClientReference>():
+  | AskClientSnapshot<ClientReference>
+  | null {
+  const access = boundClientAccess;
+  if (!access || typeof access.readCurrentClient !== 'function') return null;
+  try {
+    return access.readCurrentClient() as AskClientSnapshot<ClientReference> | null;
+  } catch {
+    return null;
+  }
+}
+
+/** The owner identity adapter from the single binding, or null when unbound. */
+export function readBoundAskOwners<ClientReference, MeetingReference>():
+  | AskOwnerIdentityAdapter<ClientReference, MeetingReference>
+  | null {
+  return (
+    liveAskAccess<ClientReference, MeetingReference>()?.owners ?? null
+  );
+}
+
+/**
+ * Re-read and validate the active shared client immediately before use, from
+ * the single live binding. Fails closed when nothing is bound.
+ */
+export function assertAskScopeCurrent<ClientReference, MeetingReference>(
+  scope: ResolvedAskScope<ClientReference, MeetingReference>
 ): void {
-  if (typeof access.readCurrentClient !== 'function') {
+  if (scope.kind === 'whole-firm') {
+    // A whole-firm scope is not client-scoped, so it needs no bound client;
+    // just re-validate its workspace boundary.
+    resolveAskScope(scope);
+    return;
+  }
+  const access = liveAskAccess<ClientReference, MeetingReference>();
+  if (!access || typeof access.readCurrentClient !== 'function') {
     throw new AskScopeError(
-      'Ask use-time client access is unavailable.'
+      'Ask shared-client owner is not bound; client-scoped state is unavailable.'
     );
   }
   let currentClient: AskClientSnapshot<ClientReference> | null;
@@ -161,11 +235,10 @@ export function assertAskScopeCurrent<ClientReference, MeetingReference>(
 
 /** Boolean form for filtering doorways that must fail closed without data. */
 export function askScopeIsCurrent<ClientReference, MeetingReference>(
-  scope: ResolvedAskScope<ClientReference, MeetingReference>,
-  access: AskClientUseAccess<ClientReference, MeetingReference>
+  scope: ResolvedAskScope<ClientReference, MeetingReference>
 ): boolean {
   try {
-    assertAskScopeCurrent(scope, access);
+    assertAskScopeCurrent(scope);
     return true;
   } catch {
     return false;
@@ -215,14 +288,18 @@ function sameScopeSnapshot<ClientReference, MeetingReference>(
   return false;
 }
 
-/** A reference must remain in the resolved scope at use time. */
-export function askSourceBelongsToScope<ClientReference, MeetingReference>(
+/**
+ * Pure membership: does the source sit inside this scope for these owners?
+ *
+ * This makes no currency decision. The reactive persistence store uses it with
+ * its own reactive client/owners; the imperative doorway wraps it with the live
+ * use-time client guard below.
+ */
+export function askSourceMembership<ClientReference, MeetingReference>(
   scope: ResolvedAskScope<ClientReference, MeetingReference>,
   source: AskSourceDescriptor<ClientReference, MeetingReference>,
-  access: AskClientUseAccess<ClientReference, MeetingReference>
+  owners: AskOwnerIdentityAdapter<ClientReference, MeetingReference>
 ): boolean {
-  if (!askScopeIsCurrent(scope, access)) return false;
-  const owners = access.owners;
   if (
     source.workspaceId !== scope.workspaceId ||
     !owners.isClientReference(source.client.contactRef) ||
@@ -258,6 +335,17 @@ export function askSourceBelongsToScope<ClientReference, MeetingReference>(
     (!scope.meetingTypes?.length ||
       scope.meetingTypes.includes(source.meetingType))
   );
+}
+
+/** A reference must remain in the resolved scope at the current live client. */
+export function askSourceBelongsToScope<ClientReference, MeetingReference>(
+  scope: ResolvedAskScope<ClientReference, MeetingReference>,
+  source: AskSourceDescriptor<ClientReference, MeetingReference>
+): boolean {
+  if (!askScopeIsCurrent(scope)) return false;
+  const owners = liveAskAccess<ClientReference, MeetingReference>()?.owners;
+  if (!owners) return false;
+  return askSourceMembership(scope, source, owners);
 }
 
 export { sameScopeSnapshot as askScopeSnapshotsMatch };
