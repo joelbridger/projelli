@@ -21,7 +21,12 @@ import { SchwabPrefillReview } from '@/features/accounts';
 
 function SchwabReviewsGate(props: HouseholdTabSurfaceProps) {
   return isEnabled('schwab-prefill')
-    ? createElement(SchwabPrefillReview, { household: props.household })
+    ? createElement(
+        'div',
+        undefined,
+        createElement(reviewsTab.Component, props),
+        createElement(SchwabPrefillReview, { household: props.household })
+      )
     : null;
 }
 

@@ -58,18 +58,33 @@ export interface SchwabHousehold {
   name: string;
   facts: readonly { label: string; value: string }[];
   members: readonly {
+    id?: string;
     name: string;
     personType: 'person' | 'trust' | 'organization';
+    roles?: readonly string[];
+    relatedHouseholds?: number;
     householdRole?: string;
     addresses?: readonly {
+      id?: string;
       address: string;
       city: string;
       state: string;
       zip: string;
+      kind?: string;
       primary: boolean;
     }[];
-    emails?: readonly { address: string; primary: boolean }[];
-    phones?: readonly { address: string; primary: boolean }[];
+    emails?: readonly {
+      id?: string;
+      address: string;
+      kind?: string;
+      primary: boolean;
+    }[];
+    phones?: readonly {
+      id?: string;
+      address: string;
+      kind?: string;
+      primary: boolean;
+    }[];
   }[];
 }
 export interface SchwabReviewInput {
@@ -218,6 +233,17 @@ function crmValue(key: SchwabFieldKey, household: SchwabHousehold): string {
   return fact?.value ?? '';
 }
 function factMatches(key: SchwabFieldKey, fact: MaskedClientFact): boolean {
+  const subject = fact.subject.toLowerCase();
+  const expected = key.startsWith('joint')
+    ? ['joint', 'joint owner']
+    : key.startsWith('minor')
+      ? ['minor', 'child']
+      : key.startsWith('custodian')
+        ? ['custodian']
+        : key.startsWith('trust') || key.startsWith('trustee')
+          ? ['trust', 'trustee']
+          : ['primary', 'primary owner', 'owner'];
+  if (!expected.includes(subject)) return false;
   if (key.endsWith('Ssn')) return fact.kind === 'ssn';
   if (key.endsWith('Dob')) return fact.kind === 'dob';
   if (key === 'address') return fact.kind === 'address';

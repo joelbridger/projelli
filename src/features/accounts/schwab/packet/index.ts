@@ -39,11 +39,10 @@ function read(): SchwabPrepPacket[] {
 function write(packets: readonly SchwabPrepPacket[]): void {
   localStorage.setItem(packetKey, JSON.stringify(packets));
 }
-export function saveApprovedSchwabPacket(input: {
+export function buildApprovedSchwabPacket(input: {
   householdId: string;
   accountType: SchwabAccountType;
   values: Readonly<Record<SchwabFieldKey, string>>;
-  auditEntryId: string;
   now?: string;
 }): SchwabPrepPacket {
   const values = Object.fromEntries(
@@ -69,16 +68,30 @@ export function saveApprovedSchwabPacket(input: {
       approvedAt,
       fieldCount: Object.keys(values).length,
       outputHash,
-      auditEntryId: input.auditEntryId,
+      auditEntryId: '',
       label: 'Schwab prep packet',
     },
   };
-  write([...read(), packet]);
   return packet;
 }
+export function saveApprovedSchwabPacket(
+  packet: SchwabPrepPacket,
+  auditEntryId: string
+): SchwabPrepPacket {
+  const saved: SchwabPrepPacket = {
+    ...packet,
+    receipt: { ...packet.receipt, auditEntryId },
+  };
+  write([...read(), saved]);
+  return saved;
+}
 export function findSchwabPacketReceipt(
-  householdId: string
+  householdId: string,
+  accountType: SchwabAccountType
 ): SchwabPacketReceipt | undefined {
-  return read().find((packet) => packet.receipt.householdId === householdId)
-    ?.receipt;
+  return read().find(
+    (packet) =>
+      packet.receipt.householdId === householdId &&
+      packet.receipt.accountType === accountType
+  )?.receipt;
 }

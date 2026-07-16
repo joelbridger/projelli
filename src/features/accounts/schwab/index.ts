@@ -8,4 +8,8 @@ export {
   type SchwabHousehold,
   type SchwabReviewInput,
 } from './mapping';
-export { findSchwabPacketReceipt, type SchwabPacketReceipt } from './packet';
+export {
+  buildApprovedSchwabPacket,
+  findSchwabPacketReceipt,
+  type SchwabPacketReceipt,
+} from './packet';

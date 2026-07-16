@@ -12,6 +12,7 @@ import {
 } from '../mapping';
 import { schwabPrivateFacts } from '../private-facts';
 import {
+  buildApprovedSchwabPacket,
   findSchwabPacketReceipt,
   saveApprovedSchwabPacket,
   type SchwabPacketReceipt,
@@ -23,7 +24,8 @@ function withState(fields: readonly SchwabProposedField[]): EditableField[] {
 }
 function auditEntry(
   householdId: string,
-  packet: SchwabPacketReceipt
+  packet: SchwabPacketReceipt,
+  fields: readonly EditableField[]
 ): AuditWriteEntry {
   return {
     action: 'user_action',
@@ -33,8 +35,20 @@ function auditEntry(
       householdId,
       accountType: packet.accountType,
       fieldCount: packet.fieldCount,
+      fields: fields.map((field) => ({
+        key: field.key,
+        source: field.source,
+        confirmed: field.confirmed,
+        sourceRefs: field.candidates
+          .map((candidate) => candidate.sourceRef)
+          .filter((sourceRef): sourceRef is string => Boolean(sourceRef)),
+      })),
     },
-    outputs: { packetId: packet.id, outputHash: packet.outputHash },
+    outputs: {
+      packetId: packet.id,
+      outputHash: packet.outputHash,
+      path: `local:schwab-prep-packets/${packet.id}`,
+    },
     userDecision: 'approved',
     metadata: { feature: 'schwab-prefill', packetLabel: packet.label },
   };
@@ -82,8 +96,8 @@ export function SchwabPrefillReview({
   );
   useEffect(() => {
     setFields(withState(proposed));
-    setReceipt(findSchwabPacketReceipt(household.id));
-  }, [household.id, proposed]);
+    setReceipt(findSchwabPacketReceipt(household.id, accountType));
+  }, [accountType, household.id, proposed]);
   const ready =
     fields.length > 0 &&
     fields.every(
@@ -134,25 +148,15 @@ export function SchwabPrefillReview({
       const values = Object.fromEntries(
         fields.map((field) => [field.key, field.value])
       ) as Record<SchwabFieldKey, string>;
-      const pendingReceipt = {
-        id: 'pending',
-        householdId: household.id,
-        accountType,
-        approvedAt: '',
-        fieldCount: fields.length,
-        outputHash: 'pending',
-        auditEntryId: '',
-        label: 'Schwab prep packet' as const,
-      };
-      const audit = await emitAuditEntry(
-        auditEntry(household.id, pendingReceipt)
-      );
-      const packet = saveApprovedSchwabPacket({
+      const prepared = buildApprovedSchwabPacket({
         householdId: household.id,
         accountType,
         values,
-        auditEntryId: audit.id,
       });
+      const audit = await emitAuditEntry(
+        auditEntry(household.id, prepared.receipt, fields)
+      );
+      const packet = saveApprovedSchwabPacket(prepared, audit.id);
       setReceipt(packet.receipt);
     } catch {
       setError(t('schwabPrefill.auditStalled'));
