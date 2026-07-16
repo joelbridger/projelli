@@ -1,23 +1,16 @@
+import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
+import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import { DEFAULT_CAPACITY_TRIAGE_PREFERENCE } from './triage';
 import type {
   CapacityTriageAssignee,
   CapacityTriageDuePressure,
   CapacityTriagePreference,
+  CapacityTriagePreferenceOperation,
   CapacityTriagePriority,
 } from './contract';
 
-export type CapacityTriagePreferenceStorage = Pick<
-  Storage,
-  'getItem' | 'setItem' | 'removeItem'
->;
-
-export interface CapacityTriagePreferenceStore {
-  load(): CapacityTriagePreference;
-  save(value: CapacityTriagePreference): void;
-  clear(): void;
-}
-
-const STORAGE_KEY = 'lantern:crm:tasks:capacity-triage:preferences:v1';
+const RECORD_ID = 'task-capacity-triage:preference:v1';
+const RECORD_KIND = 'task_capacity_triage_preference';
 
 function isAssignee(value: unknown): value is CapacityTriageAssignee {
   return (
@@ -65,42 +58,46 @@ function clonePreference(
   return { ...value, tagIds: [...value.tagIds] };
 }
 
-/** One versioned browser-preference slot, owned solely by this feature. */
-export function createCapacityTriagePreferenceStore(
-  storage: CapacityTriagePreferenceStorage | undefined = typeof localStorage ===
-  'undefined'
-    ? undefined
-    : localStorage
-): CapacityTriagePreferenceStore {
-  return {
-    load: () => {
-      try {
-        const raw = storage?.getItem(STORAGE_KEY);
-        if (!raw) return clonePreference(DEFAULT_CAPACITY_TRIAGE_PREFERENCE);
-        const parsed: unknown = JSON.parse(raw);
-        if (!parsed || typeof parsed !== 'object') {
-          return clonePreference(DEFAULT_CAPACITY_TRIAGE_PREFERENCE);
-        }
-        const envelope = parsed as { version?: unknown; value?: unknown };
-        return envelope.version === 1 && isPreference(envelope.value)
-          ? clonePreference(envelope.value)
-          : clonePreference(DEFAULT_CAPACITY_TRIAGE_PREFERENCE);
-      } catch {
-        return clonePreference(DEFAULT_CAPACITY_TRIAGE_PREFERENCE);
-      }
-    },
-    save: (value) => {
-      if (!isPreference(value)) {
-        throw new Error(
-          '[capacity-triage] preference failed feature validation'
-        );
-      }
-      storage?.setItem(STORAGE_KEY, JSON.stringify({ version: 1, value }));
-    },
-    clear: () => {
-      storage?.removeItem(STORAGE_KEY);
-    },
-  };
+function readPreference(
+  records: readonly LiveCrmRecord[]
+): CapacityTriagePreference {
+  const record = records.find(
+    (candidate) => candidate.id === RECORD_ID && candidate.kind === RECORD_KIND
+  );
+  return record?.['version'] === 1 && isPreference(record['preference'])
+    ? clonePreference(record['preference'])
+    : clonePreference(DEFAULT_CAPACITY_TRIAGE_PREFERENCE);
 }
 
-export const capacityTriagePreferences = createCapacityTriagePreferenceStore();
+/** Reads and writes the one feature-owned preference via encrypted CRM data. */
+export function useCapacityTriagePreference(): CapacityTriagePreferenceOperation {
+  const live = useLiveCrmRecords();
+  const preference = readPreference(live.records);
+  const save = async (value: CapacityTriagePreference): Promise<void> => {
+    if (!isPreference(value)) {
+      throw new Error('[capacity-triage] preference failed feature validation');
+    }
+    const previous = live.records.find(
+      (record) => record.id === RECORD_ID && record.kind === RECORD_KIND
+    );
+    const now = new Date().toISOString();
+    await live.save({
+      id: RECORD_ID,
+      kind: RECORD_KIND,
+      matterId: live.sharedMatterId ?? 'firm_home',
+      createdAt:
+        typeof previous?.createdAt === 'string' ? previous.createdAt : now,
+      updatedAt: now,
+      version: 1,
+      preference: clonePreference(value),
+    });
+    await live.reload();
+  };
+
+  return {
+    preference,
+    error: live.error,
+    save,
+    reload: live.reload,
+  };
+}

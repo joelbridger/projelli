@@ -1,12 +1,6 @@
 /** Public doorway for deterministic task capacity triage. */
-export { CapacityTriageAction } from './CapacityTriageAction';
 export { capacityTriageTaskAction } from './descriptor';
-export {
-  capacityTriagePreferences,
-  createCapacityTriagePreferenceStore,
-  type CapacityTriagePreferenceStorage,
-  type CapacityTriagePreferenceStore,
-} from './preferences';
+export { useCapacityTriagePreference } from './preferences';
 export {
   buildCapacityTriage,
   DEFAULT_CAPACITY_TRIAGE_PREFERENCE,
@@ -15,8 +9,8 @@ export type {
   CapacityTriageAssignee,
   CapacityTriageDuePressure,
   CapacityTriageInput,
-  CapacityTriageItem,
   CapacityTriagePreference,
+  CapacityTriagePreferenceOperation,
   CapacityTriagePriority,
   CapacityTriageResult,
 } from './contract';

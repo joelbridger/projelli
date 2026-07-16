@@ -2,11 +2,8 @@ import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { setDevFlagOverride } from '@/platform/flags';
-import {
-  createCapacityTriagePreferenceStore,
-  buildCapacityTriage,
-  CapacityTriageAction,
-} from './index';
+import { buildCapacityTriage } from './index';
+import { CapacityTriageAction } from './CapacityTriageAction';
 import {
   mountTaskActions,
   taskActionRegistry,
@@ -78,19 +75,6 @@ const workflowWorkItems = [
   },
 ];
 
-function memoryStorage() {
-  const values = new Map<string, string>();
-  return {
-    getItem: (key: string) => values.get(key) ?? null,
-    setItem: (key: string, value: string) => {
-      values.set(key, value);
-    },
-    removeItem: (key: string) => {
-      values.delete(key);
-    },
-  };
-}
-
 afterEach(() => {
   setDevFlagOverride('task-capacity-triage', undefined);
   tagStore.list.mockReset();
@@ -111,10 +95,12 @@ describe('capacity triage', () => {
       today: '2030-01-01',
     });
 
-    expect(result.ranked.map((item) => `${item.source}:${item.id}`)).toEqual([
-      'task:task-urgent',
-      'workflow_step:workflow-prepare',
+    expect(result.ranked.map((item) => item.id)).toEqual([
+      'task-urgent',
+      'workflow-prepare',
     ]);
+    expect(result.ranked[0]).toBe(tasks[0]);
+    expect(result.ranked[1]).toBe(workflowWorkItems[0]);
     expect(result).toMatchObject({
       openCount: 3,
       shownCount: 2,
@@ -150,24 +136,6 @@ describe('capacity triage', () => {
       ranked: [expect.objectContaining({ id: 'task-unscheduled' })],
     });
     expect('capacity' in result).toBe(false);
-  });
-
-  it('saves and reloads its feature-owned plan preference', () => {
-    const storage = memoryStorage();
-    const firstSession = createCapacityTriagePreferenceStore(storage);
-    firstSession.save({
-      assignee: 'user:advisor-1',
-      duePressure: 'due_now',
-      priority: 'high',
-      tagIds: ['tag:review'],
-    });
-
-    expect(createCapacityTriagePreferenceStore(storage).load()).toEqual({
-      assignee: 'user:advisor-1',
-      duePressure: 'due_now',
-      priority: 'high',
-      tagIds: ['tag:review'],
-    });
   });
 
   it('does not read tags or leave a toolbar gap while the flag is off', () => {

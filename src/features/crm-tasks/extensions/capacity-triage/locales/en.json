@@ -20,6 +20,7 @@
     "tagList": "Firm tags",
     "loading": "Loading firm tags…",
     "catalogUnavailable": "Firm tags are unavailable right now. Your saved plan has not changed.",
+    "preferenceUnavailable": "This triage plan could not be saved. Try again after CRM data reloads.",
     "noTags": "No firm tags are available yet.",
     "retired": "Retired",
     "noMatchingWork": "No open work matches this plan.",

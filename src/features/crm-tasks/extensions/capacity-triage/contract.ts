@@ -28,25 +28,23 @@ export interface CapacityTriageInput {
   readonly today?: string;
 }
 
-export interface CapacityTriageItem {
-  readonly id: string;
-  readonly source: 'task' | 'workflow_step';
-  readonly title: string;
-  readonly status: CrmTask['status'];
-  readonly priority: CrmTask['priority'];
-  readonly assigneeUserId: string | null;
-  readonly dueAt?: string;
-  readonly tagIds: readonly string[];
-}
-
 /**
  * Counts describe only fields missing from the supplied records. This result
  * deliberately contains no hours, workload limit, or inferred team capacity.
+ * Ranked entries are the exact foundation records supplied by the caller.
  */
 export interface CapacityTriageResult {
   readonly openCount: number;
   readonly shownCount: number;
   readonly unscheduledCount: number;
   readonly unassignedCount: number;
-  readonly ranked: readonly CapacityTriageItem[];
+  readonly ranked: readonly (CrmTask | CrmWorkflowWorkItem)[];
+}
+
+/** Saved-preference operations backed by the encrypted live-record route. */
+export interface CapacityTriagePreferenceOperation {
+  readonly preference: CapacityTriagePreference;
+  readonly error: string | null;
+  save(value: CapacityTriagePreference): Promise<void>;
+  reload(): Promise<void>;
 }

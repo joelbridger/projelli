@@ -20,6 +20,7 @@
     "tagList": "Etiquetas de la firma",
     "loading": "Cargando etiquetas de la firma…",
     "catalogUnavailable": "Las etiquetas de la firma no están disponibles ahora. El plan guardado no ha cambiado.",
+    "preferenceUnavailable": "No se pudo guardar este plan de triaje. Inténtelo de nuevo después de recargar los datos de CRM.",
     "noTags": "Todavía no hay etiquetas de la firma disponibles.",
     "retired": "Retirada",
     "noMatchingWork": "Ningún trabajo abierto coincide con este plan.",

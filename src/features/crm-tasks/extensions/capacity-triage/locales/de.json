@@ -20,6 +20,7 @@
     "tagList": "Firmen-Tags",
     "loading": "Firmen-Tags werden geladen…",
     "catalogUnavailable": "Firmen-Tags sind derzeit nicht verfügbar. Ihr gespeicherter Plan wurde nicht geändert.",
+    "preferenceUnavailable": "Dieser Triage-Plan konnte nicht gespeichert werden. Versuchen Sie es nach dem Neuladen der CRM-Daten erneut.",
     "noTags": "Es sind noch keine Firmen-Tags verfügbar.",
     "retired": "Stillgelegt",
     "noMatchingWork": "Keine offene Arbeit entspricht diesem Plan.",

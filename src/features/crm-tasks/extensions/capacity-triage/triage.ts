@@ -1,6 +1,6 @@
+import type { CrmTask, CrmWorkflowWorkItem } from '@/features/crm-home';
 import type {
   CapacityTriageInput,
-  CapacityTriageItem,
   CapacityTriagePreference,
   CapacityTriageResult,
 } from './contract';
@@ -19,11 +19,11 @@ function calendarDay(value: string | undefined): string | undefined {
   return value?.slice(0, 10);
 }
 
-function isOpen(status: CapacityTriageItem['status']): boolean {
+function isOpen(status: CrmTask['status']): boolean {
   return status !== 'done' && status !== 'cancelled';
 }
 
-function dueRank(item: CapacityTriageItem, today: string): number {
+function dueRank(item: CrmTask | CrmWorkflowWorkItem, today: string): number {
   const due = calendarDay(item.dueAt);
   if (!due) return 3;
   if (due < today) return 0;
@@ -32,7 +32,7 @@ function dueRank(item: CapacityTriageItem, today: string): number {
 }
 
 function matchesPreference(
-  item: CapacityTriageItem,
+  item: CrmTask | CrmWorkflowWorkItem,
   preference: CapacityTriagePreference,
   today: string
 ): boolean {
@@ -58,31 +58,6 @@ function matchesPreference(
   return preference.tagIds.every((tagId) => item.tagIds.includes(tagId));
 }
 
-function toItems(input: CapacityTriageInput): CapacityTriageItem[] {
-  return [
-    ...input.tasks.map((task) => ({
-      id: task.id,
-      source: 'task' as const,
-      title: task.title,
-      status: task.status,
-      priority: task.priority,
-      assigneeUserId: task.assigneeUserId,
-      ...(task.dueAt ? { dueAt: task.dueAt } : {}),
-      tagIds: task.tagIds,
-    })),
-    ...input.workflowWorkItems.map((item) => ({
-      id: item.id,
-      source: 'workflow_step' as const,
-      title: item.title,
-      status: item.status,
-      priority: item.priority,
-      assigneeUserId: item.assigneeUserId,
-      ...(item.dueAt ? { dueAt: item.dueAt } : {}),
-      tagIds: item.tagIds,
-    })),
-  ];
-}
-
 /**
  * Applies saved filters and a deterministic urgency order to current work.
  * Selected tags use AND semantics: every selected stable tag ID must be on an
@@ -92,7 +67,10 @@ export function buildCapacityTriage(
   input: CapacityTriageInput
 ): CapacityTriageResult {
   const today = input.today ?? new Date().toISOString().slice(0, 10);
-  const open = toItems(input).filter((item) => isOpen(item.status));
+  const open: (CrmTask | CrmWorkflowWorkItem)[] = [
+    ...input.tasks,
+    ...input.workflowWorkItems,
+  ].filter((item) => isOpen(item.status));
   const ranked = open
     .filter((item) => matchesPreference(item, input.preference, today))
     .sort((left, right) => {

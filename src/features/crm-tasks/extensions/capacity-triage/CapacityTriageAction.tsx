@@ -9,7 +9,7 @@ import {
 import { useFlag } from '@/platform/flags';
 import { Button, Chip } from '@/ui/kp';
 import type { TaskActionDescriptor } from '@/features/crm-tasks';
-import { capacityTriagePreferences } from './preferences';
+import { useCapacityTriagePreference } from './preferences';
 import { buildCapacityTriage } from './triage';
 import type { CapacityTriagePreference } from './contract';
 
@@ -28,18 +28,28 @@ function selectedAssignee(value: string): CapacityTriagePreference['assignee'] {
   return userId ? `user:${userId}` : 'all';
 }
 
+function isWorkflowWorkItem(
+  item:
+    | Parameters<TaskActionDescriptor['mount']>[0]['tasks'][number]
+    | Parameters<TaskActionDescriptor['mount']>[0]['workflowWorkItems'][number]
+): item is Parameters<
+  TaskActionDescriptor['mount']
+>[0]['workflowWorkItems'][number] {
+  return 'instanceId' in item;
+}
+
 function CapacityTriageEnabled({
   tasks,
   workflowWorkItems,
 }: Parameters<TaskActionDescriptor['mount']>[0]) {
   const { t } = useTranslation();
   const store = useFirmTagStore();
-  const [preference, setPreference] = useState<CapacityTriagePreference>(() =>
-    capacityTriagePreferences.load()
-  );
+  const savedPreference = useCapacityTriagePreference();
+  const preference = savedPreference.preference;
   const [open, setOpen] = useState(false);
   const [catalogLoaded, setCatalogLoaded] = useState(false);
   const [catalogUnavailable, setCatalogUnavailable] = useState(false);
+  const [preferenceUnavailable, setPreferenceUnavailable] = useState(false);
   const initialStore = useRef(store);
 
   useEffect(() => {
@@ -58,8 +68,10 @@ function CapacityTriageEnabled({
   }, []);
 
   const updatePreference = (next: CapacityTriagePreference) => {
-    capacityTriagePreferences.save(next);
-    setPreference(next);
+    setPreferenceUnavailable(false);
+    void savedPreference.save(next).catch(() => {
+      setPreferenceUnavailable(true);
+    });
   };
   const catalog: FirmTagCatalog = store.catalog;
   const unavailable = catalogUnavailable || store.errorCode !== null;
@@ -113,6 +125,9 @@ function CapacityTriageEnabled({
               unscheduled: result.unscheduledCount,
             })}
           </p>
+          {preferenceUnavailable || savedPreference.error ? (
+            <p role="alert">{t('capacityTriage.preferenceUnavailable')}</p>
+          ) : null}
           <label>
             {t('capacityTriage.assignee')}
             <select
@@ -214,8 +229,13 @@ function CapacityTriageEnabled({
           ) : (
             <ol data-testid="crm-task-capacity-triage-ranked">
               {result.ranked.map((item) => (
-                <li key={`${item.source}:${item.id}`}>
-                  {item.title} · {t(`capacityTriage.kind.${item.source}`)}
+                <li
+                  key={`${isWorkflowWorkItem(item) ? 'workflow_step' : 'task'}:${item.id}`}
+                >
+                  {item.title} ·{' '}
+                  {t(
+                    `capacityTriage.kind.${isWorkflowWorkItem(item) ? 'workflow_step' : 'task'}`
+                  )}
                 </li>
               ))}
             </ol>
