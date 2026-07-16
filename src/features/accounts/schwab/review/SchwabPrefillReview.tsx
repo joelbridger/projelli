@@ -77,7 +77,14 @@ export function SchwabPrefillReview({ household }: SchwabReviewInput) {
   const activeRevealScope = `${household.id}:${accountType}`;
   const revealScope = useRef(activeRevealScope);
   const activeRevealScopeRef = useRef(activeRevealScope);
+  const revealSessionActiveRef = useRef(true);
   activeRevealScopeRef.current = activeRevealScope;
+  useEffect(() => {
+    revealSessionActiveRef.current = true;
+    return () => {
+      revealSessionActiveRef.current = false;
+    };
+  }, []);
   useEffect(() => {
     const sessionReveals = revealedFacts.current;
     sessionReveals.clear();
@@ -168,10 +175,19 @@ export function SchwabPrefillReview({ household }: SchwabReviewInput) {
     const scope = activeRevealScope;
     try {
       const value = await schwabPrivateFacts.reveal(household.id, factId);
-      if (activeRevealScopeRef.current !== scope) return;
+      if (
+        !revealSessionActiveRef.current ||
+        activeRevealScopeRef.current !== scope
+      )
+        return;
       revealedFacts.current.set(factId, value);
       setRevealedFactIds((current) => new Set(current).add(factId));
     } catch {
+      if (
+        !revealSessionActiveRef.current ||
+        activeRevealScopeRef.current !== scope
+      )
+        return;
       setError(t('schwabPrefill.revealError'));
     }
   }

@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest';
+import { StrictMode } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
@@ -49,6 +50,7 @@ const household: SchwabHousehold = {
 };
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   localStorage.clear();
   audit.emitAuditEntry.mockReset();
   privateFacts.listMasked.mockReset();
@@ -95,6 +97,18 @@ const privateSsnFact = {
   verification: 'advisor_confirmed' as const,
   status: 'active' as const,
 };
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return {
+    promise,
+    resolve: (value: T) => {
+      resolve(value);
+    },
+  };
+}
 describe('Schwab review approval', () => {
   it('reports an audit stall and does not create a receipt', async () => {
     audit.emitAuditEntry.mockRejectedValue(new Error('writer unavailable'));
@@ -142,11 +156,13 @@ describe('Schwab review approval', () => {
     privateFacts.listMasked.mockResolvedValue([privateSsnFact]);
     privateFacts.reveal.mockResolvedValue('111-22-3333');
     const { rerender, unmount } = render(
-      <SchwabPrefillReview household={household} />
+      <StrictMode>
+        <SchwabPrefillReview household={household} />
+      </StrictMode>
     );
     await screen.findByLabelText('Owner name');
     expect(screen.queryByText('111-22-3333')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Reveal' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Reveal' }));
     await expect(
       screen.findByTestId('schwab-prefill-revealed-ownerSsn')
     ).resolves.toHaveTextContent('111-22-3333');
@@ -161,10 +177,12 @@ describe('Schwab review approval', () => {
       ).not.toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Reveal' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Reveal' }));
     await screen.findByTestId('schwab-prefill-revealed-ownerSsn');
     rerender(
-      <SchwabPrefillReview household={{ ...household, id: 'h-other' }} />
+      <StrictMode>
+        <SchwabPrefillReview household={{ ...household, id: 'h-other' }} />
+      </StrictMode>
     );
     expect(
       screen.queryByTestId('schwab-prefill-revealed-ownerSsn')
@@ -176,6 +194,29 @@ describe('Schwab review approval', () => {
     expect(
       screen.queryByTestId('schwab-prefill-revealed-ownerSsn')
     ).not.toBeInTheDocument();
+  });
+  it('invalidates an in-flight private reveal when the review screen closes', async () => {
+    privateFacts.listMasked.mockResolvedValue([privateSsnFact]);
+    const reveal = deferred<string>();
+    privateFacts.reveal.mockReturnValue(reveal.promise);
+    const mapSet = vi.spyOn(Map.prototype, 'set');
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { unmount } = render(<SchwabPrefillReview household={household} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Reveal' }));
+    expect(privateFacts.reveal).toHaveBeenCalledWith(household.id, 'owner-ssn');
+
+    unmount();
+    reveal.resolve('111-22-3333');
+    await Promise.resolve();
+
+    expect(mapSet).not.toHaveBeenCalledWith('owner-ssn', '111-22-3333');
+    expect(
+      localStorage.getItem('lantern:schwab-prep-packets') ?? ''
+    ).not.toContain('111-22-3333');
+    expect(consoleError).not.toHaveBeenCalled();
+    render(<SchwabPrefillReview household={household} />);
+    await screen.findByLabelText('Owner name');
+    expect(screen.queryByText('111-22-3333')).not.toBeInTheDocument();
   });
   it('keeps a revealed value out of durable approval data and audit metadata', async () => {
     audit.emitAuditEntry.mockResolvedValue({ id: 'audit-private' });
