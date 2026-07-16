@@ -31,6 +31,10 @@ Dockerfile text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf
 
+# This list is deliberately one physical descriptor per line. Git's union
+# driver can therefore retain concurrent appends without weaving object fields.
+src/platform/flags/registry.ts merge=union
+
 # Windows-specific files keep CRLF
 *.bat text eol=crlf
 *.cmd text eol=crlf
