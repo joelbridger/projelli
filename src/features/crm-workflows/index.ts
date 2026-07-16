@@ -14,3 +14,18 @@ export type {
   WorkflowStepExtensionContext,
   WorkflowStepExtensionDescriptor,
 } from './workflowExtensionRegistry';
+export {
+  useWorkflowTemplateStore,
+  WorkflowTemplateError,
+} from './workflowTemplateStore';
+export type {
+  CreateWorkflowTemplateInput,
+  StartWorkflowInput,
+  UpdateWorkflowTemplateInput,
+  WorkflowInstanceRecord,
+  WorkflowTemplateErrorCode,
+  WorkflowTemplateRecord,
+  WorkflowTemplateStatus,
+  WorkflowTemplateStep,
+  WorkflowTemplateStore,
+} from './workflowTemplateStore';

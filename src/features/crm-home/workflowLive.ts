@@ -6,7 +6,7 @@ import {
   setOfferDecision,
   undoApply,
 } from '@/platform/crm/propagation';
-import { UNTOUCHED, type EntityRef, type PropagationEngineOffer, type PropagationTransactionPayload, type WorkflowInstanceSnapshot, type WorkflowTemplateSnapshot } from '@/platform/crm/types';
+import { UNTOUCHED, type EntityRef, type PropagationEngineOffer, type PropagationTransactionPayload, type TemplateStepChange, type WorkflowInstanceSnapshot, type WorkflowTemplateSnapshot } from '@/platform/crm/types';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 
 export type WorkflowStepOutcomeDraft = { id: string; label: string; nextStepId?: string | undefined; restartAtStepId?: string | undefined };
@@ -20,6 +20,7 @@ export type WorkflowScheduleDraft = {
 };
 export type LiveWorkflowTemplate = LiveCrmRecord & {
   kind: 'crm_workflow_template'; name: string; snapshot: WorkflowTemplateSnapshot; steps: WorkflowStepDraft[];
+  status?: 'draft' | 'published'; tagIds?: string[];
   schedule?: WorkflowScheduleDraft; scheduledRunKeys?: string[];
 };
 export type LiveWorkflowInstance = LiveCrmRecord & {
@@ -65,6 +66,7 @@ const cleanSteps = (steps: readonly WorkflowStepDraft[]): WorkflowStepDraft[] =>
 };
 const fieldsFor = (step: WorkflowStepDraft, changeKind: 'add' | 'modify' = 'add') => [
   { stepId: step.id, field: 'title' as const, value: step.title, changeKind },
+  { stepId: step.id, field: 'order' as const, value: step.dueOffset, changeKind },
   { stepId: step.id, field: 'defaultAssigneeRole' as const, value: step.role, changeKind },
   { stepId: step.id, field: 'dueOffset' as const, value: step.dueOffset, changeKind },
   { stepId: step.id, field: 'required' as const, value: step.required, changeKind },
@@ -214,6 +216,70 @@ export function updateWorkflowTemplate(template: LiveWorkflowTemplate, change: {
     steps: change.outcomes
       ? steps.map((step) => ({ ...step, outcomes: change.outcomes?.[step.id] ?? step.outcomes }))
       : steps,
+  };
+}
+
+/** Builds a canonical draft revision while retaining every supplied stable step ID. */
+export function reviseWorkflowTemplateDraft(
+  template: LiveWorkflowTemplate,
+  change: { name: string; tagIds: readonly string[]; steps: readonly WorkflowStepDraft[] }
+): LiveWorkflowTemplate {
+  const steps = cleanSteps(change.steps);
+  if (!steps.length) throw new Error('A workflow needs at least one step.');
+  const previousById = new Map(template.steps.map((step) => [step.id, step]));
+  const nextIds = new Set(steps.map((step) => step.id));
+  const stepChanges: TemplateStepChange[] = template.steps
+    .filter((step) => !nextIds.has(step.id))
+    .map((step) => ({
+      stepId: step.id,
+      field: '__step_removal__' as const,
+      value: true,
+      changeKind: 'remove' as const,
+    }));
+
+  steps.forEach((step, position) => {
+    const previous = previousById.get(step.id);
+    if (!previous) {
+      stepChanges.push(...fieldsFor(step));
+      return;
+    }
+    const fields = [
+      ['title', step.title, previous.title],
+      ['order', position, template.steps.findIndex((candidate) => candidate.id === step.id)],
+      ['defaultAssigneeRole', step.role, previous.role],
+      ['dueOffset', step.dueOffset, previous.dueOffset],
+      ['required', step.required, previous.required],
+    ] as const;
+    for (const [field, value, prior] of fields) {
+      if (value !== prior) {
+        stepChanges.push({ stepId: step.id, field, value, changeKind: 'modify' });
+      }
+    }
+  });
+
+  const snapshot = stepChanges.length
+    ? publishRevision(template.snapshot, {
+        revisionId: unique(`${template.id}-draft`),
+        templateId: template.id,
+        parentRevisionIds: [...template.snapshot.headRevisionIds],
+        issuedHlc: {
+          wallMillis: Date.now(),
+          logicalCounter: 0,
+          actorId: 'local-advisor',
+          operationId: unique('draft'),
+        },
+        label: 'Workflow draft updated',
+        stepChanges,
+      })
+    : template.snapshot;
+
+  return {
+    ...template,
+    name: change.name,
+    status: 'draft',
+    tagIds: cleanTagIds(change.tagIds),
+    steps,
+    snapshot,
   };
 }
 
