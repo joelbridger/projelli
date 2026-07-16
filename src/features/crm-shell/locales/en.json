@@ -1,0 +1,14 @@
+{
+  "crm-shell": {
+    "title": "CRM",
+    "rail": {
+      "label": "CRM navigation",
+      "eyebrow": "Practice workspace"
+    },
+    "content": {
+      "eyebrow": "CRM",
+      "frame-copy": "This CRM destination will appear inside the new practice workspace frame.",
+      "empty": "No CRM destinations are available yet."
+    }
+  }
+}

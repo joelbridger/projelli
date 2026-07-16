@@ -1,0 +1,16 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 2
+repo: /home/jameson/v1-w2-crm-shell-v1
+sha: 0b7b0193bc0f3b96f14f9734340ed10cdaa32c04
+tree: dc846d5f88d092d39340a8876318b06be2bdb0e2
+gate_base: 086f78a3bd9699795a1fea417960c30a278b21ba
+tool_blob: 47e279d4399792a5cc19fc7f1ced01c5863b18af
+utc: 2026-07-16T01:03:53Z
+step: gate:changed | exit=1 | 01:03:53Z..01:15:33Z | bytes=29981 | sha256=0e5101f35a20ea5e80f2fc7ac21a1e5958fa2da9142f9a3ff3d82d91a46b4852 | tail:  Duration 169.39s (transform 42.35s, setup 55.13s, import 258.25s, tests 186.53s, environment 131.54s) FAILED: npx vitest run --changed 086f78a3bd9699795a1fea417960c30a278b21ba CHANGED GATE RED see failures above 
+step: typecheck | exit=0 | 01:15:33Z..01:16:04Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit 
+step: typecheck:tests | exit=0 | 01:16:04Z..01:16:43Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit 
+step: handle-guard | exit=0 | 01:16:43Z..01:16:43Z | bytes=1267 | sha256=446de28d2298a4e2409dfae2a7c5dfa23483e80b5bc9565d893d4bfbd35cc012 | tail: t-picker-cancel + client-picker-clear + client-picker-empty + client-picker-error +136 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen). 
+step: arch-dag-guard | exit=0 | 01:16:43Z..01:16:45Z | bytes=218 | sha256=edefc2f8b64e9a5f0d5f843ce5567a20a8f2269b66f84bf96b862d24766c73e6 | tail:  RUN v4.1.3 /home/jameson/v1-w2-crm-shell-v1 Test Files 1 passed (1) Tests 1 passed (1) Start at 01:16:43 Duration 1.16s (transform 226ms, setup 367ms, import 310ms, tests 3ms, environment 364ms) 
+step: i18n-snapshot | exit=0 | 01:16:45Z..01:16:46Z | bytes=219 | sha256=2f9513810e445bb63799e39df4a2801e95f223c7bce309d1052dce9a9dcd2b33 | tail:  RUN v4.1.3 /home/jameson/v1-w2-crm-shell-v1 Test Files 1 passed (1) Tests 5 passed (5) Start at 01:16:45 Duration 1.26s (transform 278ms, setup 441ms, import 273ms, tests 21ms, environment 389ms) 
+step: focused | exit=0 | 01:16:46Z..01:16:50Z | bytes=220 | sha256=184cf8e162934cd86a52ab474bfa21061ba35776425d1f455b76757410452c6a | tail:  RUN v4.1.3 /home/jameson/v1-w2-crm-shell-v1 Test Files 2 passed (2) Tests 8 passed (8) Start at 01:16:47 Duration 3.08s (transform 2.67s, setup 813ms, import 2.41s, tests 1.70s, environment 791ms) 
+overall: RED

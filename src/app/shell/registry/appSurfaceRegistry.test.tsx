@@ -5,6 +5,7 @@ import {
   appSurfaceRegistry,
   getAppSurfaceDescriptors,
   getOrderedAppSurfaces,
+  resolveAppSurfaceRegistry,
   validateAppSurfaceDescriptors,
 } from '@/app/shell/registry/appSurfaceRegistry';
 import type { AppSurfaceDescriptor } from '@/app/shell/registry/types';
@@ -73,5 +74,16 @@ describe('appSurfaceRegistry', () => {
     expect(() => {
       validateAppSurfaceDescriptors([descriptor({ labelKey: 'title' })]);
     }).toThrow('labelKey must include a namespace: home');
+  });
+
+  it('keeps the existing CRM doorway in the original Home descriptor', async () => {
+    const descriptors = await resolveAppSurfaceRegistry();
+
+    expect(descriptors.map(({ id }) => id)).not.toContain('crm');
+    expect(getOrderedAppSurfaces('primary').map(({ id }) => id)).toEqual([
+      'home',
+      'matters',
+      'search',
+    ]);
   });
 });

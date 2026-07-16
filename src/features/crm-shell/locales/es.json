@@ -1,0 +1,14 @@
+{
+  "crm-shell": {
+    "title": "CRM",
+    "rail": {
+      "label": "Navegación de CRM",
+      "eyebrow": "Espacio de trabajo de la firma"
+    },
+    "content": {
+      "eyebrow": "CRM",
+      "frame-copy": "Este destino de CRM aparecerá dentro del nuevo marco de espacio de trabajo de la firma.",
+      "empty": "Aún no hay destinos de CRM disponibles."
+    }
+  }
+}

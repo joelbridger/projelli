@@ -22,6 +22,7 @@ import type {
 } from '@/app/shell/registry/types';
 import { LegacyMainPanelSurface } from '@/app/shell/registry/LegacyMainPanelSurface';
 import { HomeSurfaceFlagGate } from '@/features/home';
+import { CrmShellSurface } from '@/features/crm-shell';
 
 type LegacyDescriptorOptions = {
   id: AppSurfaceId;
@@ -61,10 +62,15 @@ export const legacyHomeSurface = legacySurface({
   order: 10,
   clientContext: 'firm',
   errorLabel: 'Home',
+  // Two dark features swap this one legacy doorway. Precedence when both are
+  // enabled: the Home orientation surface owns `home` (per the frozen
+  // prototype); the CRM v1 frame holds this slot only while home-surface-v1
+  // is dark, and itself falls back to the exact legacy home when its own
+  // flag is off.
   render: (runtime) =>
     createElement(HomeSurfaceFlagGate, {
       runtime,
-      renderLegacy: runtime.legacy.home,
+      renderLegacy: () => createElement(CrmShellSurface, { runtime }),
     }),
 });
 

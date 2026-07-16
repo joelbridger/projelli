@@ -10,10 +10,13 @@
  */
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { CrmHome } from '@/features/crm-home';
+import {
+  CrmHome,
+  type CrmHomeRoute,
+  type CrmHouseholdAddRequest,
+} from '@/features/crm-home';
 import { ClientsSurface } from '@/features/crm-clients';
 import type { AddToHouseholdRequest } from '@/features/crm-clients/adapters';
-import type { CrmHouseholdAddRequest, CrmHomeRoute } from '@/features/crm-home/routes';
 import { CrmAskSurface } from '@/features/crm-ask';
 import { DocumentsHome } from '@/features/documents/DocumentsHome';
 import { AssociateHome } from '@/features/workflows/AssociateHome';
@@ -520,25 +523,22 @@ export function AppSurfaceRouter(props: AppSurfaceRouterProps) {
     </LazyBoundary>
   );
 
-  const renderHome = (): ReactNode => (
-    <CrmHome
-      {...(crmAddRequest
-        ? {
-            initialRoute: (
-              {
-                task: 'tasks',
-                opportunity: 'pipeline',
-                workflow: 'workflows',
-              } satisfies Record<CrmHouseholdAddRequest['kind'], CrmHomeRoute>
-            )[crmAddRequest.kind],
-            addRequest: crmAddRequest,
-            onAddRequestConsumed: () => {
-              setCrmAddRequest(null);
-            },
-          }
-        : {})}
-    />
-  );
+  const crmHomeHandoff = crmAddRequest
+    ? {
+        initialRoute: (
+          {
+            task: 'tasks',
+            opportunity: 'pipeline',
+            workflow: 'workflows',
+          } satisfies Record<CrmHouseholdAddRequest['kind'], CrmHomeRoute>
+        )[crmAddRequest.kind],
+        addRequest: crmAddRequest,
+        onAddRequestConsumed: () => {
+          setCrmAddRequest(null);
+        },
+      }
+    : undefined;
+  const renderHome = (): ReactNode => <CrmHome {...crmHomeHandoff} />;
 
   /**
    * Resolve one safe client-owned folder before any Documents write. Existing
@@ -820,6 +820,7 @@ export function AppSurfaceRouter(props: AppSurfaceRouterProps) {
 
   const runtime: AppSurfaceRuntime = {
     ...capabilities,
+    ...(crmHomeHandoff ? { crmHomeHandoff } : {}),
     legacy: {
       home: renderHome,
       clients: renderClients,

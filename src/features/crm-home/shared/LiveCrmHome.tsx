@@ -1,5 +1,5 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string -- Frozen CRM screen copy needs its translation catalog in a separate product change. */
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import { nextRecurringDue } from '@/platform/crm/tasks';
 import { createMigrationExport, runWealthboxMigration } from '@/platform/crm/migration';
@@ -10,6 +10,19 @@ import { liveStepTitle } from './workflowDisplay';
 import type { CrmHomeProps } from '../routes';
 import type { CrmActivity, CrmApproval, CrmFirmMember, CrmFreshnessState, CrmHomeAdapter, CrmTask, CrmTaskSavedView, CrmWorkflowWorkItem, AttachmentAccountingRecord, ExportJobStatus, MigrationFidelityReport, MigrationNoteGap, MigrationWorkflowChecklist, PropagationOffer } from '../types';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
+
+/** The live CRM state that a host shell passes to a registry destination. */
+export interface LiveCrmHomeRuntime
+  extends Pick<
+    CrmHomeProps,
+    'initialRoute' | 'addRequest' | 'onAddRequestConsumed'
+  > {
+  adapter: CrmHomeAdapter;
+  workflowData?: ReturnType<typeof workflowRecords>;
+  workflowHouseholds?: readonly HouseholdChoice[];
+  saveLiveRecord?: (record: LiveCrmRecord) => Promise<unknown>;
+  adapterProvided: boolean;
+}
 
 function workflowHouseholdsFor(records: readonly LiveCrmRecord[]): HouseholdChoice[] {
   return records
@@ -202,14 +215,17 @@ function emptyEngineAdapter(freshness: CrmFreshnessState): CrmHomeAdapter {
   };
 }
 
-
 export function LiveCrmHome({
   adapter,
   preview = false,
   initialRoute,
   addRequest,
   onAddRequestConsumed,
-}: CrmHomeProps) {
+  render,
+}: CrmHomeProps & {
+  /** Lets another shell host the same live adapter and registry destinations. */
+  render?: (runtime: LiveCrmHomeRuntime) => ReactNode;
+}) {
   const live = useLiveCrmRecords();
   const freshness: CrmFreshnessState = live.freshness;
   const households = live.records
@@ -902,6 +918,15 @@ export function LiveCrmHome({
           workflowHouseholds,
           saveLiveRecord: live.save,
         };
+  const runtime: LiveCrmHomeRuntime = {
+    adapter: activeAdapter,
+    adapterProvided: Boolean(adapter || preview),
+    ...liveWorkflowProps,
+    ...(initialRoute ? { initialRoute } : {}),
+    ...(addRequest ? { addRequest } : {}),
+    ...(onAddRequestConsumed ? { onAddRequestConsumed } : {}),
+  };
+  if (render) return <>{render(runtime)}</>;
   return (
     <CrmHomeShell
       adapter={activeAdapter}

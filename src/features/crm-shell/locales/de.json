@@ -1,0 +1,14 @@
+{
+  "crm-shell": {
+    "title": "CRM",
+    "rail": {
+      "label": "CRM-Navigation",
+      "eyebrow": "Kanzlei-Arbeitsbereich"
+    },
+    "content": {
+      "eyebrow": "CRM",
+      "frame-copy": "Dieses CRM-Ziel wird im neuen Rahmen für den Kanzlei-Arbeitsbereich angezeigt.",
+      "empty": "Noch sind keine CRM-Ziele verfügbar."
+    }
+  }
+}
