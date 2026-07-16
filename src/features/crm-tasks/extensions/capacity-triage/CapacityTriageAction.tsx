@@ -108,7 +108,7 @@ function CapacityTriageEnabled({
             background: 'var(--kp-surface)',
             border: '1px solid var(--kp-border)',
             borderRadius: 10,
-            boxShadow: '0 8px 24px rgb(15 23 42 / 12%)',
+            boxShadow: 'var(--kp-shadow-2)',
             marginTop: 8,
             maxWidth: 540,
             padding: 16,
