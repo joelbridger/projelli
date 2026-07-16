@@ -4,6 +4,7 @@
 //! `command-manifest.txt`.  They must not add implementations to the legacy
 //! `crm::commands` compatibility facade.
 
+pub mod activity;
 pub mod connector;
 pub mod teams_roles;
 pub mod trash;
@@ -18,6 +19,7 @@ pub struct CrmFeatureDescriptor {
 
 /// Append-only registry of CRM native feature modules.
 pub const CRM_FEATURE_REGISTRY: &[CrmFeatureDescriptor] = &[
+    activity::FEATURE_DESCRIPTOR,
     connector::FEATURE_DESCRIPTOR,
     teams_roles::FEATURE_DESCRIPTOR,
     trash::FEATURE_DESCRIPTOR,

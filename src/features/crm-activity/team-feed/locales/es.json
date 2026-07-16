@@ -1,0 +1,21 @@
+{
+  "team-activity-feed": {
+    "title": "Actividad del equipo",
+    "description": "Publicaciones, comentarios y reacciones para su empresa.",
+    "dark-note": "Esta pantalla permanece apagada hasta su revisión de aceptación. Aún se necesitan la identidad nativa y etiquetas duraderas de asignación de clientes antes de afirmar que se aplica el permiso.",
+    "save-error": "No se pudo guardar la actividad del equipo:",
+    "post-label": "Publicar una actualización",
+    "post-placeholder": "Comparta una actualización con su equipo",
+    "mentions-label": "Mencionar compañeros",
+    "post": "Publicar actualización",
+    "empty": "Aún no hay actividad del equipo",
+    "empty-body": "Publique una actualización para iniciar la conversación.",
+    "mentioned": "Mencionados",
+    "comment-count": "{{count}} comentarios",
+    "reaction-count": "{{count}} reacciones",
+    "like": "Me gusta",
+    "love": "Me encanta",
+    "comment-label": "Agregar un comentario",
+    "comment": "Comentar"
+  }
+}

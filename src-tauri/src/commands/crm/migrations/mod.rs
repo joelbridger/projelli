@@ -7,6 +7,7 @@
 mod v0001_core_baseline;
 mod v0002_trash;
 mod v0003_teams_roles;
+mod v0004_team_activity;
 
 #[cfg(test)]
 mod v0002_test_dummy;
@@ -28,6 +29,7 @@ pub const CRM_MIGRATIONS: &[Migration] = &[
     v0001_core_baseline::MIGRATION,
     v0002_trash::MIGRATION,
     v0003_teams_roles::MIGRATION,
+    v0004_team_activity::MIGRATION,
 ];
 
 const CREATE_MIGRATIONS_TABLE: &str = r#"

@@ -78,6 +78,20 @@ describe('CrmHome', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('keeps the legacy Activity route intact while off, then swaps only its content when the team feed is on', () => {
+    const { rerender } = render(<CrmHome initialRoute="activity" />);
+    expect(screen.getByTestId('crm-home-nav-activity')).toBeInTheDocument();
+    expect(screen.getByTestId('crm-activity-surface')).toBeInTheDocument();
+    expect(screen.queryByTestId('team-activity-feed')).not.toBeInTheDocument();
+
+    useFlag.mockImplementation((id: string) => id === 'team-activity-feed');
+    rerender(<CrmHome initialRoute="activity" />);
+    expect(screen.getByTestId('crm-home-nav-activity')).toBeInTheDocument();
+    expect(screen.getByTestId('team-activity-feed')).toBeInTheDocument();
+    expect(screen.queryByTestId('crm-activity-surface')).not.toBeInTheDocument();
+    useFlag.mockImplementation(() => false);
+  });
+
   it('hides a flag-gated rail destination until its flag is enabled', () => {
     const { rerender } = render(<CrmHome />);
     expect(screen.queryByTestId('crm-home-nav-trash')).not.toBeInTheDocument();
