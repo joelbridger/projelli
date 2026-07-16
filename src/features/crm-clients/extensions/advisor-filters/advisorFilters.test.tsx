@@ -97,13 +97,6 @@ describe('CRM advisor-field directory filters', () => {
   it('is entirely inert while its flag is off, without reading directory records', () => {
     setDevFlagOverride('crm-advisor-filters', false);
     const loadHouseholds = vi.fn(() => households);
-    const records = {
-      people: [],
-      get households() {
-        return loadHouseholds();
-      },
-    };
-
     const context = directoryContext();
     Object.defineProperty(context.records, 'households', { get: () => loadHouseholds() });
     renderMountedTool(context);

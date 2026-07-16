@@ -27,12 +27,7 @@ function AdvisorFiltersDirectoryToolEnabled({
   context: DirectoryFeatureContext<AdvisorFilterPreference>;
 }) {
   const { t } = useTranslation();
-  const savedFilters = useRef<AdvisorFilterPreference>();
-  const [filters, setFilters] = useState<AdvisorFilterPreference>(() => {
-    const saved = readAdvisorFilters();
-    savedFilters.current = saved;
-    return saved;
-  });
+  const [filters, setFilters] = useState<AdvisorFilterPreference>(readAdvisorFilters);
   const initializedStatePort = useRef(false);
   const [isOpen, setIsOpen] = useState(false);
   const active = hasAdvisorFilters(filters);
@@ -50,8 +45,8 @@ function AdvisorFiltersDirectoryToolEnabled({
   useEffect(() => {
     if (initializedStatePort.current) return;
     initializedStatePort.current = true;
-    context.featureState.set(savedFilters.current ?? EMPTY_ADVISOR_FILTERS);
-  }, [context.featureState]);
+    context.featureState.set(filters);
+  }, [context.featureState, filters]);
 
   const save = (next: AdvisorFilterPreference) => {
     advisorFilterPreferences.save(next);
