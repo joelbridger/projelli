@@ -11,8 +11,8 @@ type AskStoredRecord = LiveCrmRecord & {
 function isAskStoredRecord(record: LiveCrmRecord): record is AskStoredRecord {
   return (
     (record.kind === 'askConversation' || record.kind === 'askReviewDraft') &&
-    typeof record.payload === 'object' &&
-    record.payload !== null
+    typeof record['payload'] === 'object' &&
+    record['payload'] !== null
   );
 }
 
