@@ -34,6 +34,7 @@ import {
 import { Input } from '@/ui/input';
 import { Label } from '@/ui/label';
 import { openExternal } from '@/platform/utils/openExternal';
+import { useFlagRegistryVersion } from '@/platform/flags';
 import { useProfileStore } from '@/platform/profile/profileStore';
 import { cn } from '@/lib/utils';
 import { computeOpenSlots } from './availability';
@@ -319,6 +320,7 @@ export function LegacySchedulingSurface() {
 
 /** Generic scheduling shell. New calendar and booking surfaces register mounts. */
 export function SchedulingHome() {
+  useFlagRegistryVersion();
   const state = useSchedulingStore();
   return <>{renderSchedulingSurfaceRegistry({ state })}</>;
 }

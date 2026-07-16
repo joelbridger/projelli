@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import { loadLiveCrmRecords, type LiveCrmRecord } from '@/platform/crm/liveRecords';
 import { CalendarFoundationError } from './errors';
@@ -231,13 +232,13 @@ export function createCalendarEventStore(port: CalendarLivePort): CalendarEventS
 /** Reactive adapter over the current canonical encrypted live-record snapshot. */
 export function useCalendarEventStore(): CalendarEventStore {
   const live = useLiveCrmRecords();
-  return createCalendarEventStore({
+  return useMemo(() => createCalendarEventStore({
     records: live.records,
     workspaceRoot: live.workspaceRoot,
     error: live.error,
     save: live.save,
     reloadRecords: () => loadLiveCrmRecords(live.workspaceRoot),
-  });
+  }), [live.error, live.records, live.save, live.workspaceRoot]);
 }
 
 export interface CalendarRecordDraftDefaults {

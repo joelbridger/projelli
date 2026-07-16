@@ -20,6 +20,9 @@ export function validateSchedulingSurfaceDescriptors(
     if (!descriptor.id.trim()) throw new Error('[schedulingSurfaceRegistry] descriptor id is required');
     if (ids.has(descriptor.id)) throw new Error(`[schedulingSurfaceRegistry] duplicate surface id: ${descriptor.id}`);
     if (!Number.isFinite(descriptor.order)) throw new Error(`[schedulingSurfaceRegistry] invalid order: ${descriptor.id}`);
+    if (descriptor.isEnabled !== undefined && typeof descriptor.isEnabled !== 'function') {
+      throw new Error(`[schedulingSurfaceRegistry] isEnabled must be a function: ${descriptor.id}`);
+    }
     if (typeof descriptor.mount !== 'function') throw new Error(`[schedulingSurfaceRegistry] mount is required: ${descriptor.id}`);
     ids.add(descriptor.id);
   }
@@ -33,5 +36,6 @@ export function renderSchedulingSurfaceRegistry(
   return descriptors
     .slice()
     .sort((a, b) => a.order - b.order)
+    .filter((descriptor) => descriptor.isEnabled?.() ?? true)
     .map((descriptor) => createElement('div', { key: descriptor.id, 'data-scheduling-surface-id': descriptor.id }, descriptor.mount(runtime)));
 }

@@ -1,7 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import type { SchedulingSurfaceDescriptor, SchedulingSurfaceRuntime } from '@/platform/calendar';
-import { renderSchedulingSurfaceRegistry, validateSchedulingSurfaceDescriptors } from './schedulingSurfaceRegistry';
+import {
+  renderSchedulingSurfaceRegistry,
+  schedulingSurfaceRegistry,
+  validateSchedulingSurfaceDescriptors,
+} from './schedulingSurfaceRegistry';
 
 declare module '@/platform/calendar' {
   interface SchedulingSurfaceMap {
@@ -35,6 +39,22 @@ describe('schedulingSurfaceRegistry', () => {
   it('mounts a feature contribution through its descriptor without a shell switch', () => {
     render(<>{renderSchedulingSurfaceRegistry(runtime, [dummyContribution])}</>);
     expect(screen.getByTestId('dummy-scheduling-contribution')).toBeTruthy();
+  });
+
+  it('leaves no calendar-grid registry element while the real feature flag is off', () => {
+    const { container } = render(<>{renderSchedulingSurfaceRegistry(runtime, schedulingSurfaceRegistry)}</>);
+
+    expect(container.querySelector('[data-scheduling-surface-id="calendar-grid"]')).toBeNull();
+    expect(container.querySelector('[data-scheduling-surface-id="legacy-scheduling"]')).not.toBeNull();
+  });
+
+  it('does not call a disabled descriptor mount or create its wrapper', () => {
+    const mount = vi.fn(() => <div data-testid="should-not-mount" />);
+    const disabled = { ...dummyContribution, isEnabled: () => false, mount };
+    const { container } = render(<>{renderSchedulingSurfaceRegistry(runtime, [disabled])}</>);
+
+    expect(mount).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-scheduling-surface-id="test-scheduling-contribution"]')).toBeNull();
   });
 
   it('keeps descriptor order stable and rejects duplicate ids or invalid contracts', () => {

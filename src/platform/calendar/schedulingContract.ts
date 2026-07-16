@@ -40,5 +40,7 @@ export interface SchedulingSurfaceDescriptor {
   id: SchedulingSurfaceId;
   slot: SchedulingSurfaceSlot;
   order: number;
+  /** Checked by the host before any wrapper or feature component is created. */
+  isEnabled?: () => boolean;
   mount(runtime: SchedulingSurfaceRuntime): ReactNode;
 }

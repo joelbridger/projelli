@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   useCalendarEventStore,
@@ -6,6 +6,12 @@ import {
 } from '@/features/calendar';
 import { useFlag } from '@/platform/flags';
 import { calendarGridRange, type CalendarGridView } from './calendarGridRange';
+import {
+  defaultCalendarGridViewComposition,
+  getEnabledCalendarGridViews,
+  type CalendarGridViewComposition,
+  type CalendarGridViewId,
+} from './calendarGridViewRegistry';
 
 function chronological(occurrences: readonly CalendarOccurrence[]): readonly CalendarOccurrence[] {
   return [...occurrences].sort((left, right) =>
@@ -22,34 +28,43 @@ function localTime(occurrence: CalendarOccurrence): string {
   }).format(new Date(occurrence.startUtc));
 }
 
+export interface CalendarGridSurfaceProps {
+  /** Public composition seam used by independently owned calendar presentations. */
+  readonly viewComposition?: CalendarGridViewComposition;
+  /** Stable anchor override for deterministic consumers and tests. */
+  readonly now?: Date;
+}
+
 /**
  * The flag boundary deliberately owns no calendar read. The enabled child is
  * the only place that calls the public calendar hook or starts a query.
  */
-export function CalendarGridSurface() {
+export function CalendarGridSurface(props: CalendarGridSurfaceProps) {
   const enabled = useFlag('calendar-grid');
   if (!enabled) return null;
-  return <CalendarGridSurfaceEnabled />;
+  return <CalendarGridSurfaceEnabled {...props} />;
 }
 
-function CalendarGridSurfaceEnabled() {
+function CalendarGridSurfaceEnabled({
+  viewComposition = defaultCalendarGridViewComposition,
+  now,
+}: CalendarGridSurfaceProps) {
   const { t } = useTranslation();
-  const events = useCalendarEventStore();
-  const eventsRef = useRef(events);
-  const eventVersion = events.events.map((event) => `${event.id}:${event.status}`).join('\u0000');
-  const [view, setView] = useState<CalendarGridView>('month');
+  const calendar = useCalendarEventStore();
+  const [anchor] = useState(() => now ?? new Date());
+  const [rangeView, setRangeView] = useState<CalendarGridView>('month');
+  const [activeViewId, setActiveViewId] = useState<CalendarGridViewId>('month');
   const [occurrences, setOccurrences] = useState<readonly CalendarOccurrence[]>([]);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const range = useMemo(() => calendarGridRange(view), [view]);
-
-  useEffect(() => {
-    eventsRef.current = events;
-  }, [events]);
+  const range = useMemo(() => calendarGridRange(rangeView, anchor), [anchor, rangeView]);
+  const enabledViews = getEnabledCalendarGridViews(viewComposition);
+  const activeView = enabledViews.find((descriptor) => descriptor.id === activeViewId)
+    ?? enabledViews[0];
 
   useEffect(() => {
     let current = true;
-    void eventsRef.current.listOccurrences(range).then((next) => {
+    void calendar.listOccurrences(range).then((next) => {
       if (!current) return;
       const sorted = chronological(next);
       setError(null);
@@ -64,9 +79,15 @@ function CalendarGridSurfaceEnabled() {
       setError(reason instanceof Error ? reason.message : String(reason));
     });
     return () => { current = false; };
-  }, [eventVersion, range]);
+  }, [calendar, range]);
 
   const selected = occurrences.find((occurrence) => occurrence.occurrenceKey === selectedKey) ?? null;
+  const viewContext = {
+    range,
+    occurrences,
+    selectedOccurrenceKey: selectedKey,
+    onSelectOccurrence: setSelectedKey,
+  } as const;
 
   return <section data-testid="calendar-grid" className="grid gap-4 p-[var(--kp-card-pad)] xl:grid-cols-[minmax(0,1fr)_18rem]">
     <div className="min-w-0 rounded-lg border border-[var(--kp-divider)] bg-[var(--kp-surface)] p-4">
@@ -75,15 +96,18 @@ function CalendarGridSurfaceEnabled() {
           <h2 className="m-0 text-[length:var(--kp-font-lg)] font-semibold text-[var(--kp-navy)]">{t('calendar-grid.title')}</h2>
           <p className="m-0 mt-1 text-[length:var(--kp-font-sm)] text-[var(--kp-text-faint)]">{t('calendar-grid.description')}</p>
         </div>
-        <div role="group" aria-label={t('calendar-grid.view-label')} className="flex gap-2">
-          {(['month', 'week', 'day'] as const).map((choice) => <button
-            key={choice}
+        <div role="group" aria-label={t('calendar-grid.view-label')} className="flex flex-wrap gap-2">
+          {enabledViews.map((descriptor) => <button
+            key={descriptor.id}
             type="button"
-            data-testid={`calendar-grid-view-${choice}`}
+            data-testid={`calendar-grid-view-${descriptor.id}`}
             className="kp-button kp-button--secondary kp-button--sm"
-            aria-pressed={view === choice}
-            onClick={() => { setView(choice); }}
-          >{t(`calendar-grid.views.${choice}`)}</button>)}
+            aria-pressed={activeView?.id === descriptor.id}
+            onClick={() => {
+              setActiveViewId(descriptor.id);
+              if (descriptor.rangeView) setRangeView(descriptor.rangeView);
+            }}
+          >{t(descriptor.labelKey)}</button>)}
         </div>
       </header>
       <p data-testid="calendar-grid-range" className="mt-4 text-[length:var(--kp-font-xs)] text-[var(--kp-text-faint)]">
@@ -91,20 +115,9 @@ function CalendarGridSurfaceEnabled() {
       </p>
       {error ? <p role="alert" data-testid="calendar-grid-error" className="text-[var(--kp-danger)]">{error}</p> : null}
       {occurrences.length === 0 && !error ? <p data-testid="calendar-grid-empty" className="text-[var(--kp-text-faint)]">{t('calendar-grid.empty')}</p> : null}
-      <ol data-testid="calendar-grid-occurrences" className="m-0 grid list-none gap-2 p-0">
-        {occurrences.map((occurrence) => <li key={occurrence.occurrenceKey}>
-          <button
-            type="button"
-            data-testid={`calendar-occurrence-${occurrence.occurrenceKey}`}
-            className="w-full rounded-md border border-[var(--kp-divider)] bg-[var(--kp-bg-soft)] p-3 text-left text-[var(--kp-navy)]"
-            aria-pressed={selected?.occurrenceKey === occurrence.occurrenceKey}
-            onClick={() => { setSelectedKey(occurrence.occurrenceKey); }}
-          >
-            <strong>{occurrence.title}</strong>
-            <span className="ml-2 text-[length:var(--kp-font-sm)] text-[var(--kp-text-faint)]">{localTime(occurrence)}</span>
-          </button>
-        </li>)}
-      </ol>
+      <div data-testid="calendar-grid-view-outlet">
+        {activeView?.mount(viewContext) ?? null}
+      </div>
     </div>
     <aside data-testid="calendar-grid-rail" aria-label={t('calendar-grid.rail-label')} className="rounded-lg border border-[var(--kp-divider)] bg-[var(--kp-surface)] p-4">
       <h3 className="m-0 text-[length:var(--kp-font-md)] font-semibold text-[var(--kp-navy)]">{t('calendar-grid.rail-title')}</h3>

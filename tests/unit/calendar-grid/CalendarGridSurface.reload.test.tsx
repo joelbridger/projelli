@@ -1,6 +1,6 @@
 import '@/i18n';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 
 const canonical = vi.hoisted(() => ({
@@ -32,7 +32,31 @@ vi.mock('@/platform/crm/liveRecordRelay', () => ({
 }));
 
 import { roundTripCalendarFoundation } from '@/features/calendar/testing';
+import { useCalendarEventStore } from '@/features/calendar';
 import { CalendarGridSurface } from '@/features/calendar-grid';
+
+function CalendarEditProbe({
+  eventId,
+  startUtc,
+  endUtc,
+}: {
+  eventId: string;
+  startUtc: string;
+  endUtc: string;
+}) {
+  const events = useCalendarEventStore();
+  return <button
+    type="button"
+    data-testid="calendar-edit-probe"
+    onClick={() => {
+      void events.update(eventId, {
+        title: 'Freshly updated planning',
+        startUtc,
+        endUtc,
+      });
+    }}
+  >Edit</button>;
+}
 
 describe('CalendarGridSurface fresh-reader proof', () => {
   beforeEach(() => {
@@ -76,5 +100,46 @@ describe('CalendarGridSurface fresh-reader proof', () => {
 
     await waitFor(() => expect(screen.getAllByText('Fresh reader planning')).toHaveLength(2));
     expect(screen.getByTestId('calendar-grid-selection').textContent).toContain('Fresh reader planning');
+  });
+
+  it('reacts to a real public title and timing edit in both the grid and rail', async () => {
+    const now = new Date();
+    const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 5, 9, 0, 0));
+    const end = new Date(start.getTime() + 30 * 60 * 1000);
+    const updatedStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 6, 13, 30, 0));
+    const updatedEnd = new Date(updatedStart.getTime() + 30 * 60 * 1000);
+    const roundTrip = await roundTripCalendarFoundation({
+      event: {
+        title: 'Original planning',
+        startUtc: start.toISOString(),
+        endUtc: end.toISOString(),
+        displayTimezone: 'UTC',
+        allDay: false,
+        calendarId: 'calendar:local',
+      },
+    });
+    const eventId = roundTrip.event?.id;
+    if (!eventId) throw new Error('Expected the canonical event id.');
+
+    render(<>
+      <CalendarEditProbe
+        eventId={eventId}
+        startUtc={updatedStart.toISOString()}
+        endUtc={updatedEnd.toISOString()}
+      />
+      <CalendarGridSurface now={now} />
+    </>);
+    await waitFor(() => expect(screen.getAllByText('Original planning')).toHaveLength(2));
+
+    fireEvent.click(screen.getByTestId('calendar-edit-probe'));
+
+    await waitFor(() => expect(screen.getAllByText('Freshly updated planning')).toHaveLength(2));
+    expect(screen.queryByText('Original planning')).toBeNull();
+    expect(screen.getByTestId('calendar-grid-selection').textContent).toContain('1:30');
+    expect(canonical.records.find((record) => record.id === eventId)).toMatchObject({
+      title: 'Freshly updated planning',
+      startUtc: updatedStart.toISOString(),
+      status: 'scheduled',
+    });
   });
 });
