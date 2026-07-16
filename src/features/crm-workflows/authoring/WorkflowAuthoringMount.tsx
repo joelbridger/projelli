@@ -1,17 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useFirmTagStore, type FirmTagStore } from '@/features/crm-tags';
-import { isEnabled } from '@/platform/flags';
-import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
-import type { WorkflowRuleContext } from '@/features/crm-workflows/workflowExtensionRegistry';
-import type {
-  WorkflowAuthoringStep,
-  WorkflowAuthoringTemplate,
-} from './contract';
 import {
-  createWorkflowAuthoringStore,
-  type LiveWorkflowAuthoringPort,
-} from './templateStore';
+  useWorkflowTemplateStore,
+  type WorkflowTemplateRecord,
+  type WorkflowTemplateStep,
+  type WorkflowTemplateStore,
+} from '@/features/crm-workflows';
+import { isEnabled } from '@/platform/flags';
+import { validateWorkflowTemplateTags } from './tagValidation';
 
 const panel = {
   borderTop: '1px solid var(--kp-border)',
@@ -19,25 +16,22 @@ const panel = {
   paddingTop: 16,
 } as const;
 
-type StoreFactory = (
-  port: LiveWorkflowAuthoringPort,
-  catalog: FirmTagStore['catalog']
-) => ReturnType<typeof createWorkflowAuthoringStore>;
+type StoreFactory = () => WorkflowTemplateStore;
 
 /** Registered outer gate: do not create a data hook or adapter while dark. */
 export function WorkflowAuthoringRuleMount({
-  context,
-  createStore = createWorkflowAuthoringStore,
+  templateId,
+  createStore = useWorkflowTemplateStore,
   createTagStore = useFirmTagStore,
 }: {
-  context: WorkflowRuleContext;
+  templateId: string;
   createStore?: StoreFactory;
   createTagStore?: () => FirmTagStore;
 }) {
   if (!isEnabled('workflow-authoring')) return null;
   return (
     <EnabledWorkflowAuthoring
-      context={context}
+      templateId={templateId}
       createStore={createStore}
       createTagStore={createTagStore}
     />
@@ -45,40 +39,42 @@ export function WorkflowAuthoringRuleMount({
 }
 
 function EnabledWorkflowAuthoring({
-  context,
+  templateId,
   createStore,
   createTagStore,
 }: {
-  context: WorkflowRuleContext;
+  templateId: string;
   createStore: StoreFactory;
   createTagStore: () => FirmTagStore;
 }) {
   const { t } = useTranslation();
-  const port = useLiveCrmRecords();
+  const store = createStore();
   const tagStore = createTagStore();
-  const store = createStore(port, tagStore.catalog);
-  const refreshKey = `${port.workspaceRoot ?? ''}:${port.error ?? ''}:${port.records.map((record) => record.id).join('|')}:${tagStore.catalog.tags.map((tag) => `${tag.id}:${tag.status}:${tag.name}`).join('|')}`;
+  const refreshKey = `${templateId}:${tagStore.catalog.tags
+    .map((tag) => `${tag.id}:${tag.status}:${tag.name}`)
+    .join('|')}`;
   const lastLoadedKey = useRef<string | null>(null);
   const [templates, setTemplates] = useState<
-    readonly WorkflowAuthoringTemplate[]
+    readonly WorkflowTemplateRecord[]
   >([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [title, setTitle] = useState('');
-  const [steps, setSteps] = useState<WorkflowAuthoringStep[]>([]);
+  const [name, setName] = useState('');
+  const [steps, setSteps] = useState<WorkflowTemplateStep[]>([]);
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [householdId, setHouseholdId] = useState('');
   const [message, setMessage] = useState<string | null>(null);
 
   const selected =
     templates.find((template) => template.id === selectedId) ?? null;
-  const select = (template: WorkflowAuthoringTemplate) => {
+  const select = (template: WorkflowTemplateRecord) => {
     setSelectedId(template.id);
-    setTitle(template.title);
+    setName(template.name);
     setTagIds([...template.tagIds]);
     setSteps(
       template.steps.map((step) => ({ ...step, tagIds: [...step.tagIds] }))
     );
   };
+
   useEffect(() => {
     if (lastLoadedKey.current === refreshKey) return;
     lastLoadedKey.current = refreshKey;
@@ -96,12 +92,13 @@ function EnabledWorkflowAuthoring({
           if (next) select(next);
         })
         .catch((error: unknown) => {
-          if (mounted)
+          if (mounted) {
             setMessage(
               error instanceof Error
                 ? error.message
                 : t('workflow-authoring.error')
             );
+          }
         });
     });
     return () => {
@@ -120,22 +117,30 @@ function EnabledWorkflowAuthoring({
         : [...current, id]
     );
   };
+  const reloadTemplates = async (next: WorkflowTemplateRecord) => {
+    await tagStore.list();
+    setTemplates(await store.list());
+    select(next);
+  };
   const save = async () => {
     try {
       setMessage(null);
+      validateWorkflowTemplateTags(
+        { tagIds, steps },
+        tagStore.catalog,
+        selected ?? undefined
+      );
       const next = selected
-        ? await store.update({ id: selected.id, title, tagIds, steps })
+        ? await store.update(selected.id, { name, tagIds, steps })
         : await store.create({
-            title,
+            name,
             tagIds,
             steps: steps.map((step) => ({
               title: step.title,
               tagIds: step.tagIds,
             })),
           });
-      await tagStore.list();
-      setTemplates(await store.list());
-      select(next);
+      await reloadTemplates(next);
       setMessage(t('workflow-authoring.saved'));
     } catch (error) {
       setMessage(
@@ -146,9 +151,13 @@ function EnabledWorkflowAuthoring({
   const publish = async () => {
     if (!selected) return;
     try {
+      validateWorkflowTemplateTags(
+        selected,
+        tagStore.catalog,
+        selected
+      );
       const next = await store.publish(selected.id);
-      setTemplates(await store.list());
-      select(next);
+      await reloadTemplates(next);
       setMessage(t('workflow-authoring.published'));
     } catch (error) {
       setMessage(
@@ -159,7 +168,10 @@ function EnabledWorkflowAuthoring({
   const start = async () => {
     if (!selected) return;
     try {
-      await store.start(selected.id, householdId);
+      await store.start(selected.id, {
+        id: householdId,
+        label: householdId,
+      });
       setMessage(t('workflow-authoring.started'));
     } catch (error) {
       setMessage(
@@ -176,16 +188,30 @@ function EnabledWorkflowAuthoring({
   };
   const newTemplate = () => {
     setSelectedId(null);
-    setTitle('');
+    setName('');
     setTagIds([]);
     setSteps([
       {
-        id: `new-step-${String(Date.now())}`,
+        id: `draft-step:${crypto.randomUUID()}`,
         title: '',
         position: 0,
         tagIds: [],
       },
     ]);
+  };
+  const moveStep = (index: number, offset: -1 | 1) => {
+    setSteps((current) => {
+      const destination = index + offset;
+      if (destination < 0 || destination >= current.length) return current;
+      const reordered = [...current];
+      const [step] = reordered.splice(index, 1);
+      if (!step) return current;
+      reordered.splice(destination, 0, step);
+      return reordered.map((candidate, position) => ({
+        ...candidate,
+        position,
+      }));
+    });
   };
 
   return (
@@ -209,7 +235,7 @@ function EnabledWorkflowAuthoring({
               select(template);
             }}
           >
-            {template.title}
+            {template.name}
           </button>
         ))}
       </div>
@@ -217,9 +243,9 @@ function EnabledWorkflowAuthoring({
         {t('workflow-authoring.template-title')}
         <input
           data-testid="workflow-authoring-title"
-          value={title}
+          value={name}
           onChange={(event) => {
-            setTitle(event.target.value);
+            setName(event.target.value);
           }}
         />
       </label>
@@ -269,6 +295,24 @@ function EnabledWorkflowAuthoring({
                 );
               }}
             />
+            <button
+              type="button"
+              disabled={index === 0}
+              onClick={() => {
+                moveStep(index, -1);
+              }}
+            >
+              {t('workflow-authoring.move-up')}
+            </button>
+            <button
+              type="button"
+              disabled={index === steps.length - 1}
+              onClick={() => {
+                moveStep(index, 1);
+              }}
+            >
+              {t('workflow-authoring.move-down')}
+            </button>
             {tagStore.catalog.tags.map((tag) => (
               <label
                 key={tag.id}
@@ -305,7 +349,7 @@ function EnabledWorkflowAuthoring({
           setSteps((current) => [
             ...current,
             {
-              id: `new-step-${String(Date.now())}`,
+              id: `draft-step:${crypto.randomUUID()}`,
               title: '',
               position: current.length,
               tagIds: [],
@@ -359,7 +403,6 @@ function EnabledWorkflowAuthoring({
         </>
       )}
       {message && <p data-testid="workflow-authoring-message">{message}</p>}
-      <span hidden data-context-template={context.template.id} />
     </section>
   );
 }

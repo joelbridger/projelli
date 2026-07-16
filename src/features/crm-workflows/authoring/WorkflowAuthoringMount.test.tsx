@@ -2,18 +2,6 @@ import { render } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FirmTagStore } from '@/features/crm-tags';
-import type { WorkflowRuleContext } from '@/features/crm-workflows/workflowExtensionRegistry';
-
-const context: WorkflowRuleContext = {
-  template: {
-    id: 'legacy-template',
-    kind: 'crm_workflow_template',
-    name: 'Legacy',
-    snapshot: { id: 'legacy-template', headRevisionIds: [], revisions: {} },
-    steps: [],
-  },
-  compatibilityMount: null,
-};
 
 function tags(): FirmTagStore {
   return {
@@ -60,7 +48,7 @@ describe('WorkflowAuthoringRuleMount', () => {
 
     const { container } = render(
       <WorkflowAuthoringRuleMount
-        context={context}
+        templateId="legacy-template"
         createStore={createStore}
         createTagStore={createTagStore}
       />

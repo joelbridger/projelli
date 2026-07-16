@@ -7,6 +7,8 @@
     "template-tags": "Etiquetas de plantilla",
     "step": "Paso {{number}}",
     "step-title": "Nombre del paso {{number}}",
+    "move-up": "Mover hacia arriba",
+    "move-down": "Mover hacia abajo",
     "add-step": "Agregar paso",
     "save": "Guardar borrador",
     "publish": "Publicar plantilla",

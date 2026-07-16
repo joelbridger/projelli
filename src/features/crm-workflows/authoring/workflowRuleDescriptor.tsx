@@ -1,4 +1,3 @@
-import type { WorkflowRuleDescriptor } from '@/features/crm-workflows/workflowExtensionRegistry';
 import { WorkflowAuthoringRuleMount } from './WorkflowAuthoringMount';
 
 declare module '@/features/crm-workflows/workflowExtensionRegistry' {
@@ -8,8 +7,10 @@ declare module '@/features/crm-workflows/workflowExtensionRegistry' {
 }
 
 /** Mount metadata only; all authoring behavior stays inside this package. */
-export const workflowAuthoringRuleDescriptor: WorkflowRuleDescriptor = {
+export const workflowAuthoringRuleDescriptor = {
   id: 'workflow-authoring.library',
   order: 20,
-  mount: (context) => <WorkflowAuthoringRuleMount context={context} />,
-};
+  mount: (context: { template: { id: string } }) => (
+    <WorkflowAuthoringRuleMount templateId={context.template.id} />
+  ),
+} as const;

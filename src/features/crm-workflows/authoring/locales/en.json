@@ -7,6 +7,8 @@
     "template-tags": "Template tags",
     "step": "Step {{number}}",
     "step-title": "Step {{number}} name",
+    "move-up": "Move up",
+    "move-down": "Move down",
     "add-step": "Add step",
     "save": "Save draft",
     "publish": "Publish template",

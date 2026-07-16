@@ -1,13 +1,20 @@
-/** Public doorway for workflow template authoring and later workflow rules. */
+/**
+ * Public authoring doorway. Operations are the landed canonical workflow
+ * doorway, not a second authoring store.
+ */
 export {
-  WorkflowAuthoringError,
-  type CreateWorkflowAuthoringTemplateInput,
-  type UpdateWorkflowAuthoringTemplateInput,
-  type WorkflowAuthoringErrorCode,
-  type WorkflowAuthoringStart,
-  type WorkflowAuthoringStatus,
-  type WorkflowAuthoringStep,
-  type WorkflowAuthoringStore,
-  type WorkflowAuthoringTemplate,
-} from './contract';
+  useWorkflowTemplateStore,
+  WorkflowTemplateError,
+} from '@/features/crm-workflows';
+export type {
+  CreateWorkflowTemplateInput,
+  StartWorkflowInput,
+  UpdateWorkflowTemplateInput,
+  WorkflowInstanceRecord,
+  WorkflowTemplateErrorCode,
+  WorkflowTemplateRecord,
+  WorkflowTemplateStatus,
+  WorkflowTemplateStep,
+  WorkflowTemplateStore,
+} from '@/features/crm-workflows';
 export { workflowAuthoringRuleDescriptor } from './workflowRuleDescriptor';

@@ -7,6 +7,8 @@
     "template-tags": "Vorlagen-Tags",
     "step": "Schritt {{number}}",
     "step-title": "Name für Schritt {{number}}",
+    "move-up": "Nach oben",
+    "move-down": "Nach unten",
     "add-step": "Schritt hinzufügen",
     "save": "Entwurf speichern",
     "publish": "Vorlage veröffentlichen",
