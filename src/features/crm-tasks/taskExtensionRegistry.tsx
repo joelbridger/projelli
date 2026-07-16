@@ -1,6 +1,7 @@
 import { Fragment, type ReactNode } from 'react';
 import type { CrmHouseholdAddRequest } from '@/features/crm-home/routes';
 import type { CrmFirmMember, CrmTask } from '@/features/crm-home/types';
+import { taskTemplatesLibrary } from './extensions/templates';
 import {
   legacyTaskActions,
   legacyTaskFields,
@@ -115,7 +116,7 @@ export const taskFieldRegistry: readonly TaskFieldDescriptor[] =
 export const taskActionRegistry: readonly TaskActionDescriptor[] =
   legacyTaskActions;
 export const taskTemplateRegistry: readonly TaskTemplateDescriptor[] =
-  legacyTaskTemplates;
+  [...legacyTaskTemplates, taskTemplatesLibrary];
 
 function ordered<T extends { order: number }>(descriptors: readonly T[]): T[] {
   return descriptors.slice().sort((left, right) => left.order - right.order);

@@ -1,0 +1,24 @@
+{
+  "task-templates": {
+    "open": "Task templates",
+    "title": "Task template library",
+    "description": "Save repeatable task defaults, then start a normal editable task from one.",
+    "close": "Close",
+    "new": "New template",
+    "new-title": "New task template",
+    "edit": "Edit",
+    "edit-title": "Edit task template",
+    "apply": "Use template",
+    "retire": "Retire",
+    "retired": "Retired",
+    "remove-tag": "Remove {{name}}",
+    "relation-prompt": { "title": "Before you continue", "cancel": "Cancel", "continue": "Continue to task" },
+    "retire-confirmation": { "title": "Retire {{name}}?", "description": "This template will no longer be available to edit or use.", "cancel": "Keep template", "confirm": "Retire template" },
+    "empty": "No task templates yet.",
+    "save": "Save template",
+    "messages": { "saved": "Template saved." },
+    "fields": { "name": "Template name", "title": "Task title", "body": "Notes", "priority": "Priority", "category": "Category", "relation-prompt": "Client prompt", "tags": "Tags" },
+    "priority": { "high": "High", "normal": "Normal", "low": "Low" },
+    "errors": { "load": "Task templates could not be loaded.", "save": "Task template could not be saved.", "apply": "The task could not be created.", "retired-tag": "A retired tag cannot be used on a new task template." }
+  }
+}

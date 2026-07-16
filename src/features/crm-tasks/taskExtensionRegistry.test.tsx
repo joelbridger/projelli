@@ -44,6 +44,7 @@ describe('task extension registries', () => {
     expect(getTaskActions().map(({ id }) => id)).toEqual(['legacy.save-view']);
     expect(getTaskTemplates().map(({ id }) => id)).toEqual([
       'legacy.blank-task',
+      'templates.library',
     ]);
   });
 
