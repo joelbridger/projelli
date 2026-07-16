@@ -30,6 +30,7 @@
     "tests/setup.ts",
     "scripts/test-impact.mjs",
     "scripts/test-impact-run.mjs",
-    "scripts/test-impact-always-run.json"
+    "scripts/test-impact-always-run.json",
+    "scripts/test-impact-manifest.json"
   ]
 }

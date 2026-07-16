@@ -86,6 +86,14 @@ function config() {
   return JSON.parse(readFileSync(path.join(root, 'scripts/test-impact-always-run.json'), 'utf8'));
 }
 
+// Declared-dependency manifest (the lever-b fallback). A test whose reverse
+// import graph reaches a capability-granting API is opaque and always-run
+// UNLESS it has a reviewed entry here. See scripts/test-impact-manifest.json
+// for the exact contract; entries are validated in applyDeclaredManifest.
+function declaredManifestConfig() {
+  return JSON.parse(readFileSync(path.join(root, 'scripts/test-impact-manifest.json'), 'utf8'));
+}
+
 function resolveSpecifier(specifier, containingFile, compilerOptions) {
   const cleaned = specifier.replace(/[?#].*$/, '');
   const resolved = ts.resolveModuleName(cleaned, containingFile, compilerOptions, ts.sys).resolvedModule?.resolvedFileName;
@@ -109,10 +117,76 @@ function resolveSpecifier(specifier, containingFile, compilerOptions) {
   throw new Error(`Cannot resolve local import ${specifier} from ${relative(containingFile)}`);
 }
 
+// Collects local names that resolve to Node's createRequire / Worker exports
+// (direct import, aliased import, or namespace-qualified access), in a
+// dedicated pass so usage sites can be recognized regardless of source order.
+function collectCapabilityBindings(source) {
+  const createRequireNames = new Set();
+  const moduleNamespaceNames = new Set();
+  const workerConstructorNames = new Set();
+  const workerNamespaceNames = new Set();
+
+  function fromModule(node, specifiers) {
+    return node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier) && specifiers.has(node.moduleSpecifier.text);
+  }
+
+  function visitImports(node) {
+    if (ts.isImportDeclaration(node) && node.importClause) {
+      const isModuleSource = fromModule(node, new Set(['node:module', 'module']));
+      const isWorkerSource = fromModule(node, new Set(['node:worker_threads', 'worker_threads']));
+      const bindings = node.importClause.namedBindings;
+      if (bindings && ts.isNamedImports(bindings)) {
+        for (const element of bindings.elements) {
+          const importedName = (element.propertyName ?? element.name).text;
+          if (isModuleSource && importedName === 'createRequire') createRequireNames.add(element.name.text);
+          if (isWorkerSource && importedName === 'Worker') workerConstructorNames.add(element.name.text);
+        }
+      }
+      if (bindings && ts.isNamespaceImport(bindings)) {
+        if (isModuleSource) moduleNamespaceNames.add(bindings.name.text);
+        if (isWorkerSource) workerNamespaceNames.add(bindings.name.text);
+      }
+    }
+    ts.forEachChild(node, visitImports);
+  }
+  visitImports(source);
+
+  function isCreateRequireCallee(expression) {
+    if (ts.isIdentifier(expression) && createRequireNames.has(expression.text)) return true;
+    if (ts.isPropertyAccessExpression(expression) && ts.isIdentifier(expression.expression)
+      && moduleNamespaceNames.has(expression.expression.text) && expression.name.text === 'createRequire') return true;
+    return false;
+  }
+
+  // A second pass, using the bindings collected above: `const req =
+  // createRequire(...)` makes `req` require-like too, so a caller cannot
+  // escape recognition just by not naming the variable `require` (the round-4
+  // "rename erases meaning" pattern applied to createRequire).
+  const requireLikeNames = new Set(['require']);
+  function visitAssignments(node) {
+    if (ts.isVariableDeclaration(node) && node.initializer && ts.isIdentifier(node.name)
+      && ts.isCallExpression(node.initializer) && isCreateRequireCallee(node.initializer.expression)) {
+      requireLikeNames.add(node.name.text);
+    }
+    ts.forEachChild(node, visitAssignments);
+  }
+  visitAssignments(source);
+
+  function isWorkerConstructor(expression) {
+    if (ts.isIdentifier(expression) && workerConstructorNames.has(expression.text)) return true;
+    if (ts.isPropertyAccessExpression(expression) && ts.isIdentifier(expression.expression)
+      && workerNamespaceNames.has(expression.expression.text) && expression.name.text === 'Worker') return true;
+    return false;
+  }
+
+  return { requireLikeNames, isCreateRequireCallee, isWorkerConstructor };
+}
+
 export function staticImports(file) {
   const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, false);
   const imports = new Set();
   let hasUnknownDynamicImport = false;
+  const { requireLikeNames, isCreateRequireCallee, isWorkerConstructor } = collectCapabilityBindings(source);
 
   // Filesystem access is a capability, not a particular call spelling. A test
   // whose graph can import one of these modules may inspect any local source at
@@ -122,9 +196,41 @@ export function staticImports(file) {
   const filesystemModules = new Set(['node:fs', 'node:fs/promises', 'fs', 'fs/promises', 'fs-extra']);
   let filesystemCapability = false;
 
+  // Reproduced (REVIEW-speedup-b-REDESIGN-VERDICT.md): a test can read a
+  // production source file's raw text without ever importing an fs module.
+  // child_process (`execFileSync('cat', [path])`) and process.getBuiltinModule
+  // are genuine, unbounded OS/global-level capabilities that cannot be reduced
+  // to a resolvable specifier -- they stay a blanket capability signal, same
+  // spirit as the fs set above (a denylist, but there is no more precise
+  // structural alternative; the declared-dependency manifest is how a
+  // reviewed, non-reading use of either gets un-suspected). createRequire and
+  // `new Worker(...)`, by contrast, both ultimately name a *module specifier*
+  // (the required id; the worker's script path) -- so instead of blanket-
+  // flagging every node:module/worker_threads import (which would falsely
+  // suspect the common `createRequire(import.meta.url)` ESM/CJS interop
+  // pattern used elsewhere in this suite), those specifiers are resolved and
+  // added as real graph edges below, and capability propagates through them
+  // exactly like an ordinary import.
+  const escapeVectorModules = new Set(['node:child_process', 'child_process']);
+  let escapeVectorCapability = false;
+
   function recordImport(specifier) {
     imports.add(specifier);
     if (filesystemModules.has(specifier)) filesystemCapability = true;
+    if (escapeVectorModules.has(specifier)) escapeVectorCapability = true;
+  }
+
+  // `new URL('./worker.js', import.meta.url)` is the standard way to point a
+  // Worker at a script relative to the current module. Unwrap it to the
+  // literal path so the Worker-script edge below resolves the same as a
+  // plain string argument would.
+  function literalModuleArgument(expression) {
+    if (ts.isStringLiteralLike(expression)) return expression.text;
+    if (ts.isNewExpression(expression) && ts.isIdentifier(expression.expression) && expression.expression.text === 'URL') {
+      const [first] = expression.arguments ?? [];
+      if (first && ts.isStringLiteralLike(first)) return first.text;
+    }
+    return undefined;
   }
 
   function visit(node) {
@@ -133,10 +239,28 @@ export function staticImports(file) {
     }
     if (ts.isCallExpression(node)) {
       const [first] = node.arguments;
-      if ((node.expression.kind === ts.SyntaxKind.ImportKeyword || (ts.isIdentifier(node.expression) && node.expression.text === 'require')) && first) {
+      const isDynamicImport = node.expression.kind === ts.SyntaxKind.ImportKeyword;
+      const isRequireLike = ts.isIdentifier(node.expression) && requireLikeNames.has(node.expression.text);
+      // An immediately-invoked createRequire(...)('specifier') call, never
+      // bound to a name at all.
+      const isInlineCreateRequireCall = ts.isCallExpression(node.expression) && isCreateRequireCallee(node.expression.expression);
+      if ((isDynamicImport || isRequireLike || isInlineCreateRequireCall) && first) {
         if (ts.isStringLiteralLike(first)) recordImport(first.text);
         else hasUnknownDynamicImport = true;
       }
+      // process.getBuiltinModule(...) needs no import (process is ambient), so
+      // it cannot be caught by recordImport. Match on the property name alone
+      // (not the receiver) so `const p = process; p.getBuiltinModule(...)`
+      // still trips it -- the round-4 rename escape applies to receivers too.
+      if (ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === 'getBuiltinModule') {
+        escapeVectorCapability = true;
+      }
+    }
+    if (ts.isNewExpression(node) && isWorkerConstructor(node.expression)) {
+      const [first] = node.arguments ?? [];
+      const literal = first ? literalModuleArgument(first) : undefined;
+      if (literal !== undefined) recordImport(literal);
+      else hasUnknownDynamicImport = true;
     }
     if (ts.isCallExpression(node)
       && ts.isPropertyAccessExpression(node.expression)
@@ -150,7 +274,15 @@ export function staticImports(file) {
     ts.forEachChild(node, visit);
   }
   visit(source);
-  return { imports: [...imports], filesystemCapability, opaque: filesystemCapability, unresolved: hasUnknownDynamicImport };
+  const capabilitySuspect = filesystemCapability || escapeVectorCapability;
+  return {
+    imports: [...imports],
+    filesystemCapability,
+    escapeVectorCapability,
+    capabilitySuspect,
+    opaque: capabilitySuspect,
+    unresolved: hasUnknownDynamicImport,
+  };
 }
 
 function compilerOptions() {
@@ -166,6 +298,7 @@ function buildReverseDependencyGraph(testFiles, options) {
   const visited = new Set();
   const reverse = new Map();
   const filesystemCapabilityModules = new Set();
+  const escapeVectorCapabilityModules = new Set();
   const runtimeDiscoveryModules = new Set();
   while (pending.length > 0) {
     const current = pending.pop();
@@ -173,6 +306,7 @@ function buildReverseDependencyGraph(testFiles, options) {
     visited.add(current);
     const parsed = staticImports(current);
     if (parsed.filesystemCapability) filesystemCapabilityModules.add(current);
+    if (parsed.escapeVectorCapability) escapeVectorCapabilityModules.add(current);
     if (parsed.unresolved) runtimeDiscoveryModules.add(current);
     for (const specifier of parsed.imports) {
       const resolved = resolveSpecifier(specifier, current, options);
@@ -185,7 +319,62 @@ function buildReverseDependencyGraph(testFiles, options) {
       pending.push(local);
     }
   }
-  return { reverse, filesystemCapabilityModules, runtimeDiscoveryModules };
+  return { reverse, filesystemCapabilityModules, escapeVectorCapabilityModules, runtimeDiscoveryModules };
+}
+
+// Clone a reverse-dependency graph's Sets so edges added for one call (e.g.
+// declared-manifest waivers) never leak into a graph object a caller might
+// reuse or inspect afterward.
+function cloneReverseGraph(reverse) {
+  const clone = new Map();
+  for (const [key, parents] of reverse) clone.set(key, new Set(parents));
+  return clone;
+}
+
+// The lever-b fallback: a capability-suspect test stays opaque/always-run
+// UNLESS it has a reviewed entry in scripts/test-impact-manifest.json naming
+// its true out-of-import-graph dependencies (possibly none, for a capability
+// import reviewed as unrelated to reading arbitrary source). Declared
+// dependencies become direct edges into the reverse graph, so the test then
+// narrows exactly like an ordinary import -- selected only when a declared
+// file (or its own import graph) changes.
+//
+// Entries for a test file outside `testFiles` are silently ignored: callers
+// may legitimately ask about a narrow subset of the suite (e.g. a single
+// fixture in the selector's own tests), and a manifest entry for a file that
+// subset doesn't include is not this call's concern. When `testFiles` is the
+// real, complete git-tracked test list (the only case that governs an actual
+// selection), every entry is checked for real: an unknown path is a typo, and
+// an entry for a test that is not currently capability-suspect is stale and
+// must be removed rather than silently ignored.
+export function applyDeclaredManifest(capabilitySuspectTests, declaredManifest, testFiles, reverse) {
+  const entries = declaredManifest.entries ?? {};
+  const waived = new Set();
+  const augmented = cloneReverseGraph(reverse);
+  for (const [testFile, entry] of Object.entries(entries)) {
+    if (!testFiles.includes(testFile)) continue;
+    if (!capabilitySuspectTests.has(testFile)) {
+      throw new Error(`Declared-dependency manifest entry for ${testFile} is stale: it is not capability-suspect. Remove the entry.`);
+    }
+    if (typeof entry.reason !== 'string' || entry.reason.trim().length === 0) {
+      throw new Error(`Declared-dependency manifest entry for ${testFile} is missing a reason.`);
+    }
+    if (!Array.isArray(entry.dependencies) || entry.dependencies.some((dependency) => typeof dependency !== 'string')) {
+      throw new Error(`Declared-dependency manifest entry for ${testFile} must have a dependencies array of file paths.`);
+    }
+    waived.add(testFile);
+    for (const dependency of entry.dependencies) {
+      const dependencyAbsolute = absolute(dependency);
+      if (!existsSync(dependencyAbsolute)) {
+        throw new Error(`Declared-dependency manifest entry for ${testFile} names a file that does not exist: ${dependency}`);
+      }
+      const parents = augmented.get(dependencyAbsolute) ?? new Set();
+      parents.add(absolute(testFile));
+      augmented.set(dependencyAbsolute, parents);
+    }
+  }
+  const opaqueTests = new Set([...capabilitySuspectTests].filter((testFile) => !waived.has(testFile)));
+  return { opaqueTests, reverse: augmented };
 }
 
 function testsAffectedBy(changedFiles, testFiles, reverse) {
@@ -206,12 +395,17 @@ function testsAffectedBy(changedFiles, testFiles, reverse) {
 export function selectTestsForChanges({ testFiles, changedFiles }) {
   const graph = buildReverseDependencyGraph(testFiles, compilerOptions());
   const filesystemCapabilityTestFiles = testsAffectedBy([...graph.filesystemCapabilityModules].map(relative), testFiles, graph.reverse);
-  const selected = testsAffectedBy(changedFiles, testFiles, graph.reverse);
-  for (const testFile of filesystemCapabilityTestFiles) selected.add(testFile);
+  const escapeVectorCapabilityTestFiles = testsAffectedBy([...graph.escapeVectorCapabilityModules].map(relative), testFiles, graph.reverse);
+  const capabilitySuspectTestFiles = new Set([...filesystemCapabilityTestFiles, ...escapeVectorCapabilityTestFiles]);
+  const { opaqueTests, reverse } = applyDeclaredManifest(capabilitySuspectTestFiles, declaredManifestConfig(), testFiles, graph.reverse);
+  const selected = testsAffectedBy(changedFiles, testFiles, reverse);
+  for (const testFile of opaqueTests) selected.add(testFile);
   return {
     testFiles: [...selected].sort(),
-    opaque: filesystemCapabilityTestFiles.size > 0 || graph.runtimeDiscoveryModules.size > 0,
+    opaque: opaqueTests.size > 0 || graph.runtimeDiscoveryModules.size > 0,
     filesystemCapabilityTestFiles: [...filesystemCapabilityTestFiles].sort(),
+    escapeVectorCapabilityTestFiles: [...escapeVectorCapabilityTestFiles].sort(),
+    opaqueTestFiles: [...opaqueTests].sort(),
   };
 }
 
@@ -250,16 +444,32 @@ export function selectImpact({ range }) {
     const options = compilerOptions();
     const graph = buildReverseDependencyGraph(tests, options);
     const filesystemCapabilityTests = testsAffectedBy([...graph.filesystemCapabilityModules].map(relative), tests, graph.reverse);
-    if (graph.filesystemCapabilityModules.size > 0 && filesystemCapabilityTests.size === 0) {
-      return fullResult(tests, parsedRange.range, 'Filesystem-capable modules have no reachable test coverage; full suite required.', manifest);
+    const escapeVectorCapabilityTests = testsAffectedBy([...graph.escapeVectorCapabilityModules].map(relative), tests, graph.reverse);
+    const capabilitySuspectTests = new Set([...filesystemCapabilityTests, ...escapeVectorCapabilityTests]);
+    if ((graph.filesystemCapabilityModules.size > 0 || graph.escapeVectorCapabilityModules.size > 0) && capabilitySuspectTests.size === 0) {
+      return fullResult(tests, parsedRange.range, 'Capability-granting modules have no reachable test coverage; full suite required.', manifest);
     }
     const opaqueSafetyTests = testsAffectedBy([...graph.runtimeDiscoveryModules].map(relative), tests, graph.reverse);
     if (graph.runtimeDiscoveryModules.size > 0 && opaqueSafetyTests.size === 0) {
       return fullResult(tests, parsedRange.range, 'Runtime-discovered dependencies have no reachable test coverage; full suite required.', manifest);
     }
-    for (const testFile of filesystemCapabilityTests) selected.add(testFile);
+    const declaredManifest = declaredManifestConfig();
+    // `tests` is the complete, real, git-tracked test universe here (unlike a
+    // caller of selectTestsForChanges/applyDeclaredManifest that may
+    // deliberately pass a narrower subset). Any manifest key absent from it is
+    // unambiguously a typo or a stale reference to a renamed/deleted test --
+    // never a legitimate out-of-scope entry -- so it must be a loud error
+    // here, not the silent skip applyDeclaredManifest uses for narrower
+    // callers.
+    for (const testFile of Object.keys(declaredManifest.entries ?? {})) {
+      if (!tests.includes(testFile)) {
+        throw new Error(`Declared-dependency manifest entry references a file that is not a currently tracked test: ${testFile}`);
+      }
+    }
+    const { opaqueTests, reverse } = applyDeclaredManifest(capabilitySuspectTests, declaredManifest, tests, graph.reverse);
+    for (const testFile of opaqueTests) selected.add(testFile);
     for (const testFile of opaqueSafetyTests) selected.add(testFile);
-    for (const testFile of testsAffectedBy(changes.map(({ file }) => file), tests, graph.reverse)) selected.add(testFile);
+    for (const testFile of testsAffectedBy(changes.map(({ file }) => file), tests, reverse)) selected.add(testFile);
     for (const testFile of selected) {
       if (!tests.includes(testFile)) throw new Error(`Always-run test is missing or excluded: ${testFile}`);
     }
@@ -270,7 +480,7 @@ export function selectImpact({ range }) {
       testFiles: [...selected].sort(),
       selectedCount: selected.size,
       fullCount: tests.length,
-      reasons: ['Static import graph reached one or more changed local modules (or the always-run safety net).', 'Always-run manifest, filesystem-capable test graphs, and runtime-discovery coverage included.'],
+      reasons: ['Static import graph reached one or more changed local modules (or the always-run safety net).', 'Always-run manifest, capability-suspect test graphs (fs modules and the child_process/worker_threads/node:module/getBuiltinModule escape vectors), declared-dependency manifest waivers, and runtime-discovery coverage included.'],
       externalGateSteps: manifest.externalGateSteps,
     };
   } catch (error) {

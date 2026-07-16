@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "description": "Per-test declared dependency manifest (the lever-b fallback; see REVIEW-speedup-b-REDESIGN-VERDICT.md). A test whose reverse import graph reaches a capability-granting API -- an fs module, or an escape vector: child_process, worker_threads, node:module (createRequire), process.getBuiltinModule -- is opaque and always-run UNLESS it has a reviewed entry here. An entry is a claim, checked like code at review time, that the test's TRUE out-of-import-graph dependencies are exactly the files named -- not 'whatever the capability could theoretically reach'. `dependencies: []` is valid: it says the capability import was reviewed and does not read arbitrary source (e.g. a subprocess spawned for an unrelated reason). A non-empty list adds each named file as a direct edge into the selection graph, same as an ordinary import: the test is then selected only when a declared file (or its normal import graph) changes. Getting an entry wrong -- naming too few files -- reintroduces exactly the miss this manifest exists to close. Keep entries small, named, and justified; delete an entry the moment the test stops needing it (a stale entry that is no longer capability-suspect fails the selector loudly rather than being silently ignored).",
+  "entries": {
+    "src/platform/flags/registry.source-read.test.ts": {
+      "reason": "Reads src/platform/flags/registry.ts as raw text via node:fs (fs.promises alias) to assert the CRM shell flag's owning lane, deliberately bypassing an import edge so it also serves as the permanent fs-capability selector regression. No other file is inspected.",
+      "dependencies": ["src/platform/flags/registry.ts"]
+    },
+    "src/features/home/HomeSurfaceBoundaries.test.ts": {
+      "reason": "Reads src/app/shell/registry/legacyAppSurfaceDescriptors.tsx as raw text via node:fs (readFileSync) to check for the sanctioned Home package import doorway. The file's second assertion (existsSync on a directory) is a non-reading existence check, not a text dependency. No other file is inspected.",
+      "dependencies": ["src/app/shell/registry/legacyAppSurfaceDescriptors.tsx"]
+    }
+  }
+}
