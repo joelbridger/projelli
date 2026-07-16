@@ -168,6 +168,15 @@ export const flagRegistry = [
     expiresAt: '2026-09-14',
     defaultEnabled: false,
   },
+  {
+    id: 'home-surface-v1',
+    description:
+      'Keeps the v1 Home orientation surface dark until its acceptance drive passes.',
+    ownerLane: 'home-surface-v1',
+    createdAt: '2026-07-16',
+    expiresAt: '2026-09-14',
+    defaultEnabled: false,
+  },
 ] as const satisfies readonly FlagDescriptor[];
 
 export type FlagId = (typeof flagRegistry)[number]['id'];

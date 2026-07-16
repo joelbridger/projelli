@@ -1,0 +1,16 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 2
+repo: /home/jameson/v1-w2-home-surface-v1
+sha: 1187a0f31be4010bc066c45ea9ac884f8d053852
+tree: f2a889a5dee6b5196991243c198039b0efa2e2ad
+gate_base: 086f78a3bd9699795a1fea417960c30a278b21ba
+tool_blob: 47e279d4399792a5cc19fc7f1ced01c5863b18af
+utc: 2026-07-16T01:30:44Z
+step: gate:changed | exit=1 | 01:30:44Z..01:43:42Z | bytes=56644 | sha256=23f14ae262a2e209ac99b3b9eb877ca4617d2ada7566aaec73ec4d8b0189d4c8 | tail: passed | 35 skipped (8382) Start at 01:34:36 Duration 545.22s (transform 51.33s, setup 278.86s, import 695.05s, tests 378.14s, environment 636.19s) FAILED: npx vitest run CHANGED GATE RED see failures above 
+step: typecheck | exit=0 | 01:43:42Z..01:44:19Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit 
+step: typecheck:tests | exit=0 | 01:44:19Z..01:45:19Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit 
+step: handle-guard | exit=0 | 01:45:19Z..01:45:19Z | bytes=1267 | sha256=da296758cbdcfcca79b81ccf0782601f15ba418094ac02cee4cd9865e96cea1c | tail: t-picker-cancel + client-picker-clear + client-picker-empty + client-picker-error +142 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen). 
+step: arch-dag-guard | exit=0 | 01:45:19Z..01:45:21Z | bytes=221 | sha256=2481359318114e40903ad02f0bf9bec0f3883864ea6fb8243f8b723640dc788e | tail:  RUN v4.1.3 /home/jameson/v1-w2-home-surface-v1 Test Files 1 passed (1) Tests 1 passed (1) Start at 01:45:20 Duration 1.79s (transform 450ms, setup 665ms, import 434ms, tests 4ms, environment 522ms) 
+step: i18n-snapshot | exit=0 | 01:45:21Z..01:45:24Z | bytes=222 | sha256=b3656d5a1a4da0980adabfad382aef40f6dd1e93c1e183506e4eff12a94bea8d | tail: RUN v4.1.3 /home/jameson/v1-w2-home-surface-v1 Test Files 1 passed (1) Tests 5 passed (5) Start at 01:45:22 Duration 1.85s (transform 495ms, setup 708ms, import 395ms, tests 46ms, environment 516ms) 
+step: focused | exit=0 | 01:45:24Z..01:45:27Z | bytes=223 | sha256=835590e474d56048fbcc1bd82d12020cee9ce2cf7a00b8f29000c0bfabba976a | tail: UN v4.1.3 /home/jameson/v1-w2-home-surface-v1 Test Files 4 passed (4) Tests 9 passed (9) Start at 01:45:24 Duration 3.27s (transform 3.01s, setup 4.36s, import 3.50s, tests 270ms, environment 2.55s) 
+overall: RED

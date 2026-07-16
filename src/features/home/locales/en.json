@@ -1,0 +1,29 @@
+{
+  "home": {
+    "orientation": {
+      "eyebrow": "Home",
+      "title": "Your day, in view",
+      "description": "Start with the client work and tools that matter most right now.",
+      "loading-title": "Getting your workspace ready",
+      "loading-description": "Your Home view will appear as soon as the workspace is ready.",
+      "empty-title": "Choose a workspace to begin",
+      "empty-description": "Home will be ready to orient your day after you choose where your work lives.",
+      "open-workspace-settings": "Open workspace settings",
+      "current-client-label": "Current client",
+      "no-current-client": "No client selected",
+      "current-client-ready": "This client context is ready across your work.",
+      "current-client-empty": "Choose a client when you need focused context.",
+      "focus-label": "Focus",
+      "focus-title": "Start with what needs you",
+      "focus-description": "Open the part of your practice where you can make progress now.",
+      "day-label": "Today",
+      "day-title": "A calm starting point",
+      "day-description": "Home keeps the next useful step close without creating another task list.",
+      "starting-points-title": "Choose where to begin",
+      "starting-points-description": "These familiar tools stay connected to the same client context.",
+      "open-clients": "Open clients",
+      "open-ask": "Ask a question",
+      "open-scheduling": "View schedule"
+    }
+  }
+}

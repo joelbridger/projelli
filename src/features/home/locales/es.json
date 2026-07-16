@@ -1,0 +1,29 @@
+{
+  "home": {
+    "orientation": {
+      "eyebrow": "Inicio",
+      "title": "Tu día, de un vistazo",
+      "description": "Comienza con el trabajo de clientes y las herramientas que más importan ahora.",
+      "loading-title": "Preparando tu espacio de trabajo",
+      "loading-description": "La vista Inicio aparecerá cuando el espacio de trabajo esté listo.",
+      "empty-title": "Elige un espacio de trabajo para comenzar",
+      "empty-description": "Inicio estará listo para orientar tu día después de elegir dónde vive tu trabajo.",
+      "open-workspace-settings": "Abrir ajustes del espacio de trabajo",
+      "current-client-label": "Cliente actual",
+      "no-current-client": "No hay cliente seleccionado",
+      "current-client-ready": "Este contexto de cliente está listo en todo tu trabajo.",
+      "current-client-empty": "Elige un cliente cuando necesites un contexto enfocado.",
+      "focus-label": "Enfoque",
+      "focus-title": "Comienza con lo que te necesita",
+      "focus-description": "Abre la parte de tu práctica donde puedas avanzar ahora.",
+      "day-label": "Hoy",
+      "day-title": "Un punto de partida tranquilo",
+      "day-description": "Inicio mantiene el siguiente paso útil cerca sin crear otra lista de tareas.",
+      "starting-points-title": "Elige dónde comenzar",
+      "starting-points-description": "Estas herramientas conocidas permanecen conectadas al mismo contexto de cliente.",
+      "open-clients": "Abrir clientes",
+      "open-ask": "Hacer una pregunta",
+      "open-scheduling": "Ver agenda"
+    }
+  }
+}
