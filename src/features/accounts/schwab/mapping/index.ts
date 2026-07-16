@@ -90,7 +90,7 @@ export interface SchwabHousehold {
 export interface SchwabReviewInput {
   household: SchwabHousehold;
   facts: readonly MaskedClientFact[];
-  meetingSuggestions?: Readonly<Record<SchwabFieldKey, string>>;
+  meetingSuggestions?: Readonly<Partial<Record<SchwabFieldKey, string>>>;
 }
 
 const common: readonly SchwabFieldDefinition[] = [

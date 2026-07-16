@@ -66,6 +66,8 @@ async function completeRequiredFields(): Promise<void> {
     'Funding source',
   ]) {
     const input = screen.getByLabelText(name);
+    if (!(input instanceof HTMLInputElement))
+      throw new Error('Required field did not render as a text input.');
     if (!input.value) {
       fireEvent.change(input, { target: { value: 'ready' } });
       await waitFor(() => {

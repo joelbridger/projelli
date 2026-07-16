@@ -133,7 +133,7 @@ describe('Schwab mappings', () => {
           sensitivity: 'confidential',
           display_value: agreedValue,
           provenance: {
-            channel: 'client',
+            channel: 'manual',
             entered_by: 'client',
             at: '2026-07-16',
           },
