@@ -3,7 +3,7 @@
     "title": "Team-Aktivität",
     "description": "Beiträge, Kommentare und Reaktionen für Ihre Kanzlei.",
     "dark-note": "Dieser Bereich bleibt bis zur Abnahme ausgeschaltet. Bevor eine Berechtigungsdurchsetzung behauptet werden kann, fehlen noch native Identitätsbindung und dauerhafte Kundenzuordnungen.",
-    "identity-pending": "Beiträge, Kommentare und Reaktionen bleiben gesperrt, bis Lantern das angemeldete Teammitglied sicher erkennen kann.",
+    "identity-pending": "Beiträge, Kommentare und Reaktionen bleiben gesperrt, bis {{productName}} das angemeldete Teammitglied sicher erkennen kann.",
     "untrusted-author": "(vorbereitet, nicht verifiziert)",
     "load-error": "Team-Aktivität konnte nicht geladen werden:",
     "post-label": "Update veröffentlichen",

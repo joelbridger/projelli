@@ -3,7 +3,7 @@
     "title": "Team activity",
     "description": "Posts, comments, and reactions for your firm.",
     "dark-note": "This screen stays off until its acceptance review. Native identity binding and durable client assignment labels are still required before permission enforcement can be claimed.",
-    "identity-pending": "Posting, commenting, and reacting stay unavailable until Lantern can prove which signed-in team member is acting.",
+    "identity-pending": "Posting, commenting, and reacting stay unavailable until {{productName}} can prove which signed-in team member is acting.",
     "untrusted-author": "(staged, unverified author)",
     "load-error": "Could not load team activity:",
     "post-label": "Post an update",

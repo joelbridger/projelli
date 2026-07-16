@@ -3,7 +3,7 @@
     "title": "Actividad del equipo",
     "description": "Publicaciones, comentarios y reacciones para su empresa.",
     "dark-note": "Esta pantalla permanece apagada hasta su revisión de aceptación. Aún se necesitan la identidad nativa y etiquetas duraderas de asignación de clientes antes de afirmar que se aplica el permiso.",
-    "identity-pending": "Publicar, comentar y reaccionar seguirá bloqueado hasta que Lantern pueda comprobar qué miembro inició sesión.",
+    "identity-pending": "Publicar, comentar y reaccionar seguirá bloqueado hasta que {{productName}} pueda comprobar qué miembro inició sesión.",
     "untrusted-author": "(autor provisional, no verificado)",
     "load-error": "No se pudo cargar la actividad del equipo:",
     "post-label": "Publicar una actualización",
