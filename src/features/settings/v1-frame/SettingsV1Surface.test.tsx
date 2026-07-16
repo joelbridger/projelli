@@ -16,7 +16,7 @@ import { SettingsV1Surface } from './SettingsV1Surface';
 
 const runtime = {
   legacy: { settings: () => <div data-testid="legacy-settings-body" /> },
-} as SettingsV1Runtime;
+} as unknown as SettingsV1Runtime;
 
 describe('SettingsV1Surface', () => {
   afterEach(() => {
