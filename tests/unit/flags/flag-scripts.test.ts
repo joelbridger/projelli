@@ -1,18 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { checkFlagCap } from '../../../scripts/check-flag-cap.mjs';
+import { checkFlagCap, ACTIVE_FLAG_CAP } from '../../../scripts/check-flag-cap.mjs';
 import {
   ageInDays,
   formatInventory,
 } from '../../../scripts/flag-inventory.mjs';
 
 describe('feature flag scripts', () => {
-  it('allows at most fifteen active registry entries', () => {
-    expect(checkFlagCap(Array.from({ length: 15 }))).toMatchObject({
+  it('allows at most ACTIVE_FLAG_CAP active registry entries', () => {
+    expect(checkFlagCap(Array.from({ length: ACTIVE_FLAG_CAP }))).toMatchObject({
       ok: true,
     });
-    expect(checkFlagCap(Array.from({ length: 16 }))).toMatchObject({
+    expect(checkFlagCap(Array.from({ length: ACTIVE_FLAG_CAP + 1 }))).toMatchObject({
       ok: false,
-      message: expect.stringContaining('16/15'),
+      message: expect.stringContaining(`${ACTIVE_FLAG_CAP + 1}/${ACTIVE_FLAG_CAP}`),
     });
   });
 
