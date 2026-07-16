@@ -1,0 +1,16 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 2
+repo: /home/jameson/v1-w2-settings-shell-v1
+sha: 1ce3ac4f010d5a0c7b75ae468e8dfa09f3d4de76
+tree: 0c7210c764c3c54e92cd505e533ebab5e1d1fbfb
+gate_base: 086f78a3bd9699795a1fea417960c30a278b21ba
+tool_blob: 47e279d4399792a5cc19fc7f1ced01c5863b18af
+utc: 2026-07-16T02:21:33Z
+step: gate:changed | exit=1 | 02:21:33Z..02:49:25Z | bytes=60111 | sha256=54c56f14b6ecb8f49c87e2cda8fc8f8e3e5660c304be197603e70cbba6c8711c | tail: ed | 35 skipped (8379) Start at 02:32:01 Duration 1042.50s (transform 122.95s, setup 657.62s, import 1262.05s, tests 640.27s, environment 1178.91s) FAILED: npx vitest run CHANGED GATE RED see failures above 
+step: typecheck | exit=0 | 02:49:25Z..02:50:44Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit 
+step: typecheck:tests | exit=0 | 02:50:44Z..02:52:26Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit 
+step: handle-guard | exit=0 | 02:52:26Z..02:52:26Z | bytes=1267 | sha256=5dafdd73edc24f9f49a29478af80e90af33821a1fac774ceb19aa6df2b012fa1 | tail: t-picker-cancel + client-picker-clear + client-picker-empty + client-picker-error +139 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen). 
+step: arch-dag-guard | exit=0 | 02:52:26Z..02:52:30Z | bytes=223 | sha256=5b6d796e7d21a55e545ce9cb3838a3bb995cd06813eff86b3983b6d1ae184f83 | tail: UN v4.1.3 /home/jameson/v1-w2-settings-shell-v1 Test Files 1 passed (1) Tests 1 passed (1) Start at 02:52:27 Duration 3.02s (transform 926ms, setup 1.28s, import 515ms, tests 6ms, environment 932ms) 
+step: i18n-snapshot | exit=0 | 02:52:30Z..02:52:33Z | bytes=224 | sha256=154a30117fe3e5f545077a156b6d05a85d4a4cdf1a2f51b8caa382d04781e171 | tail: N v4.1.3 /home/jameson/v1-w2-settings-shell-v1 Test Files 1 passed (1) Tests 5 passed (5) Start at 02:52:30 Duration 2.48s (transform 702ms, setup 1.02s, import 432ms, tests 46ms, environment 772ms) 
+step: focused | exit=0 | 02:52:33Z..02:52:54Z | bytes=230 | sha256=01e360809ecc7dba448108db3eb5c02226e3e673744eaba125d5b66c6f28e0b7 | tail: 1.3 /home/jameson/v1-w2-settings-shell-v1 Test Files 4 passed (4) Tests 10 passed (10) Start at 02:52:34 Duration 19.83s (transform 20.21s, setup 7.25s, import 24.51s, tests 1.19s, environment 3.47s) 
+overall: RED
