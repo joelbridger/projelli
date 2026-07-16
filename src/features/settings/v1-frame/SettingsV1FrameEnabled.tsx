@@ -1,5 +1,14 @@
-import { useState } from 'react';
-import { Building2, ChevronRight, UserRound } from 'lucide-react';
+import { useCallback, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import {
+  Building2,
+  ChevronRight,
+  Download,
+  MoreVertical,
+  RotateCcw,
+  Search,
+  Upload,
+  UserRound,
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { EV_OPEN_ACCOUNT } from '@/config/identity';
 import { useFirmStore } from '@/platform/firm/firmStore';
@@ -11,7 +20,19 @@ import {
   type SectionCategory,
 } from '@/platform/settings/schema';
 import { useFlagRegistryVersion } from '@/platform/flags';
+import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
+import { ConfirmDialog } from '@/ui/ConfirmDialog';
+import { IconButton } from '@/ui/kp';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/ui/dropdown-menu';
+import {
+  getSettingsSectionSearchTerms,
   getVisibleSettingsSectionDescriptors,
 } from '@/features/settings/registry/settingsModuleRegistry';
 import { renderRegisteredSettingsPanels } from '@/features/settings/registry/sectionRendererBindings';
@@ -57,9 +78,53 @@ function SectionDoorway({
   );
 }
 
+function SettingsActionsMenu({
+  onExport,
+  onImport,
+  onReset,
+}: {
+  onExport: () => void;
+  onImport: () => void;
+  onReset: () => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <IconButton
+          icon={MoreVertical}
+          label="More settings actions"
+          variant="secondary"
+          size="md"
+          data-testid="settings-actions-menu"
+        />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuItem data-testid="settings-export" onSelect={onExport}>
+          <Download className="mr-2 size-4" aria-hidden />
+          Export settings
+        </DropdownMenuItem>
+        <DropdownMenuItem data-testid="settings-import" onSelect={onImport}>
+          <Upload className="mr-2 size-4" aria-hidden />
+          Import settings
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          data-testid="settings-reset"
+          className="text-destructive focus:text-destructive"
+          onSelect={onReset}
+        >
+          <RotateCcw className="mr-2 size-4" aria-hidden />
+          Reset settings...
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 /**
- * Enabled-only Settings frame. It renders the shared registered panels inside
- * one rail, rather than nesting the legacy Settings page inside a second rail.
+ * Enabled-only Settings frame. Its shell owns one rail while the real Settings
+ * host capabilities (live templates, nested destinations, search, and backup
+ * actions) stay available to the registered legacy and feature panels.
  */
 export function SettingsV1FrameEnabled({
   runtime,
@@ -68,7 +133,12 @@ export function SettingsV1FrameEnabled({
   const soloName = useProfileStore((state) => state.soloName);
   const profileFirmName = useProfileStore((state) => state.firmName);
   const firm = useFirmStore((state) => state.session);
-  const { getSetting, setSetting } = useSettingsStore();
+  const { getSetting, setSetting, exportSettings, importSettings, resetAll } =
+    useSettingsStore();
+  const { confirm, dialogProps: confirmDialogProps } = useConfirmDialog();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeExtraId, setActiveExtraId] = useState<string | null>(null);
   useFlagRegistryVersion();
   const sections = getVisibleSettingsSectionDescriptors();
   const requestedSection = runtime.settings.pageFocus?.category
@@ -81,17 +151,57 @@ export function SettingsV1FrameEnabled({
     useState(requestedSection);
   if (requestedSection !== previousRequestedSection) {
     setPreviousRequestedSection(requestedSection);
-    if (requestedSection) setActiveSection(requestedSection);
+    if (requestedSection) {
+      setActiveExtraId(null);
+      setActiveSection(requestedSection);
+    }
   }
-  const effectiveSection = sections.some(
+
+  const lowerSearch = searchQuery.trim().toLowerCase();
+  const searchActive = lowerSearch.length > 0;
+  const filteredKeys = useMemo(
+    () =>
+      new Set(
+        SETTINGS_SCHEMA.filter(
+          (definition) =>
+            definition.key !== 'tabOverflow' &&
+            (!lowerSearch ||
+              definition.label.toLowerCase().includes(lowerSearch) ||
+              definition.description.toLowerCase().includes(lowerSearch) ||
+              definition.key.toLowerCase().includes(lowerSearch))
+        ).map((definition) => definition.key)
+      ),
+    [lowerSearch]
+  );
+  const visibleSections = useMemo(
+    () =>
+      sections.filter((section) => {
+        if (!searchActive) return true;
+        return (
+          SETTINGS_SCHEMA.some(
+            (definition) =>
+              resolveSection(definition.category) === section.id &&
+              filteredKeys.has(definition.key)
+          ) ||
+          getSettingsSectionSearchTerms(section.id).some((term) =>
+            term.toLowerCase().includes(lowerSearch)
+          )
+        );
+      }),
+    [filteredKeys, lowerSearch, searchActive, sections]
+  );
+  const effectiveSection = visibleSections.some(
     (section) => section.id === activeSection
   )
     ? activeSection
-    : (sections[0]?.id ?? 'workspace');
-  const workspaceSections = sections.filter(
+    : (visibleSections[0]?.id ?? sections[0]?.id ?? 'workspace');
+  const activeExtra = !searchActive
+    ? runtime.settings.extraSections.find((section) => section.id === activeExtraId)
+    : undefined;
+  const workspaceSections = visibleSections.filter(
     (section) => section.id !== 'organization'
   );
-  const organizationSections = sections.filter(
+  const organizationSections = visibleSections.filter(
     (section) => section.id === 'organization'
   );
   const profileName = soloName.trim() || t('settings-v1.personal.default-name');
@@ -99,132 +209,283 @@ export function SettingsV1FrameEnabled({
     profileFirmName.trim() ||
     firm?.org?.name ||
     t('settings-v1.workspace.default-name');
+  const selectSection = useCallback((section: SectionCategory) => {
+    setSearchQuery('');
+    setActiveExtraId(null);
+    setActiveSection(section);
+  }, []);
   const sectionProps: SettingsSectionRenderProps = {
     getSetting,
     setSetting,
     onAction: runtime.settings.action,
-    filteredKeys: new Set(SETTINGS_SCHEMA.map((definition) => definition.key)),
-    searchQuery: '',
-    searchActive: false,
+    filteredKeys,
+    searchQuery,
+    searchActive,
     auditEntries: runtime.audit.entries,
+    templates: runtime.settings.loadTemplates(),
     onRestartOnboarding: runtime.settings.restartOnboarding,
-    onNavigate: setActiveSection,
+    onNavigate: selectSection,
     hasWorkspaceOpen: Boolean(runtime.workspace.rootPath),
   };
+  const handleExport = useCallback(() => {
+    const blob = new Blob([exportSettings()], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'lantern-settings.json';
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [exportSettings]);
+  const handleImportFile = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const imported = reader.result;
+        if (typeof imported !== 'string' || !importSettings(imported)) {
+          alert('Failed to import settings. The file may be invalid.');
+        }
+      };
+      reader.readAsText(file);
+      event.target.value = '';
+    },
+    [importSettings]
+  );
+  const handleReset = useCallback(() => {
+    void confirm('Reset all settings to their defaults? This cannot be undone.', {
+      title: 'Reset settings',
+      confirmLabel: 'Reset',
+      variant: 'destructive',
+    })
+      .then((confirmed) => {
+        if (confirmed) resetAll();
+      })
+      .catch((error: unknown) => {
+        console.error('Could not reset Settings.', error);
+      });
+  }, [confirm, resetAll]);
 
   return (
-    <div
-      className="flex min-h-0 flex-1 overflow-hidden bg-slate-50 text-slate-950"
-      data-testid="settings-v1-frame"
-    >
-      <aside
-        aria-label={t('settings-v1.frame.navigation-label')}
-        className="w-72 shrink-0 overflow-y-auto border-r border-slate-200 bg-white p-4"
+    <>
+      <div
+        className="flex min-h-0 flex-1 overflow-hidden bg-slate-50 text-slate-950"
+        data-testid="settings-v1-frame"
       >
-        <div className="mb-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
-            {t('settings-v1.personal.eyebrow')}
-          </p>
-          <button
-            className="mt-2 flex w-full items-center gap-3 rounded-xl border border-slate-200 px-3 py-3 text-left transition-colors hover:bg-slate-50"
-            data-testid="settings-v1-profile-entry"
-            onClick={() => {
-              window.dispatchEvent(new CustomEvent(EV_OPEN_ACCOUNT));
-            }}
-            type="button"
-          >
-            <span className="flex size-9 items-center justify-center rounded-full bg-slate-900 text-white">
-              <UserRound aria-hidden="true" className="size-4" />
-            </span>
-            <span className="min-w-0">
-              <span className="block truncate text-sm font-semibold">
-                {profileName}
-              </span>
-              <span className="block text-xs text-slate-500">
-                {t('settings-v1.personal.profile-entry')}
-              </span>
-            </span>
-          </button>
-        </div>
-
-        <div className="mb-6">
-          <p className="px-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
-            {t('settings-v1.workspace.eyebrow')}
-          </p>
-          <button
-            className="mt-2 flex w-full items-center gap-3 rounded-xl border border-slate-200 px-3 py-3 text-left transition-colors hover:bg-slate-50"
-            data-testid="settings-v1-workspace-entry"
-            onClick={() => {
-              setActiveSection('workspace');
-            }}
-            type="button"
-          >
-            <span className="flex size-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
-              <Building2 aria-hidden="true" className="size-4" />
-            </span>
-            <span className="min-w-0">
-              <span className="block truncate text-sm font-semibold">
-                {workspaceName}
-              </span>
-              <span className="block text-xs text-slate-500">
-                {t('settings-v1.workspace.entry')}
-              </span>
-            </span>
-          </button>
-        </div>
-
-        <nav className="space-y-5">
-          <section aria-labelledby="settings-v1-workspace-heading">
-            <h2
-              className="px-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400"
-              id="settings-v1-workspace-heading"
-            >
-              {t('settings-v1.workspace.sections-heading')}
-            </h2>
-            <div className="mt-2 space-y-1">
-              {workspaceSections.map((section) => (
-                <SectionDoorway
-                  active={effectiveSection === section.id}
-                  key={section.id}
-                  onSelect={setActiveSection}
-                  section={section}
-                />
-              ))}
+        <aside
+          aria-label={t('settings-v1.frame.navigation-label')}
+          className="w-72 shrink-0 overflow-y-auto border-r border-slate-200 bg-white p-4"
+        >
+          <div className="mb-5 flex items-center gap-2">
+            <label className="sr-only" htmlFor="settings-v1-search">
+              {t('settings.modal.search-placeholder')}
+            </label>
+            <div className="relative min-w-0 flex-1">
+              <Search aria-hidden className="pointer-events-none absolute left-3 top-2.5 size-4 text-slate-400" />
+              <input
+                className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-sm"
+                data-testid="settings-search"
+                id="settings-v1-search"
+                onChange={(event) => {
+                  setSearchQuery(event.target.value);
+                }}
+                placeholder={t('settings.modal.search-placeholder')}
+                value={searchQuery}
+              />
             </div>
-          </section>
+            <SettingsActionsMenu
+              onExport={handleExport}
+              onImport={() => {
+                fileInputRef.current?.click();
+              }}
+              onReset={handleReset}
+            />
+          </div>
 
-          {organizationSections.length > 0 ? (
-            <section aria-labelledby="settings-v1-organization-heading">
+          <div className="mb-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
+              {t('settings-v1.personal.eyebrow')}
+            </p>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="mt-2 flex w-full items-center gap-3 rounded-xl border border-slate-200 px-3 py-3 text-left transition-colors hover:bg-slate-50"
+                  data-testid="settings-v1-profile-entry"
+                  type="button"
+                >
+                  <span className="flex size-9 items-center justify-center rounded-full bg-slate-900 text-white">
+                    <UserRound aria-hidden="true" className="size-4" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold">
+                      {profileName}
+                    </span>
+                    <span className="block text-xs text-slate-500">
+                      {t('settings-v1.personal.profile-entry')}
+                    </span>
+                  </span>
+                  <ChevronRight aria-hidden className="size-4 text-slate-400" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-56">
+                <DropdownMenuLabel>{profileName}</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  data-testid="settings-v1-profile-account"
+                  onSelect={() => {
+                    window.dispatchEvent(new CustomEvent(EV_OPEN_ACCOUNT));
+                  }}
+                >
+                  {t('settings-v1.personal.account-menu')}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  data-testid="settings-v1-profile-personal-settings"
+                  onSelect={() => {
+                    selectSection('personal');
+                  }}
+                >
+                  {t('settings-v1.personal.settings-menu')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          <div className="mb-6">
+            <p className="px-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
+              {t('settings-v1.workspace.eyebrow')}
+            </p>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="mt-2 flex w-full items-center gap-3 rounded-xl border border-slate-200 px-3 py-3 text-left transition-colors hover:bg-slate-50"
+                  data-testid="settings-v1-workspace-entry"
+                  type="button"
+                >
+                  <span className="flex size-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+                    <Building2 aria-hidden="true" className="size-4" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold">
+                      {workspaceName}
+                    </span>
+                    <span className="block text-xs text-slate-500">
+                      {t('settings-v1.workspace.entry')}
+                    </span>
+                  </span>
+                  <ChevronRight aria-hidden className="size-4 text-slate-400" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-56">
+                <DropdownMenuLabel>{workspaceName}</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  data-testid="settings-v1-workspace-settings"
+                  onSelect={() => {
+                    selectSection('workspace');
+                  }}
+                >
+                  {t('settings-v1.workspace.settings-menu')}
+                </DropdownMenuItem>
+                {sections.some((section) => section.id === 'organization') ? (
+                  <DropdownMenuItem
+                    data-testid="settings-v1-workspace-organization"
+                    onSelect={() => {
+                      selectSection('organization');
+                    }}
+                  >
+                    {t('settings-v1.workspace.organization-menu')}
+                  </DropdownMenuItem>
+                ) : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          <nav className="space-y-5">
+            <section aria-labelledby="settings-v1-workspace-heading">
               <h2
                 className="px-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400"
-                id="settings-v1-organization-heading"
+                id="settings-v1-workspace-heading"
               >
-                {t('settings-v1.organization.eyebrow')}
+                {t('settings-v1.workspace.sections-heading')}
               </h2>
-              <div
-                className="mt-2 space-y-1"
-                data-testid="settings-v1-organization"
-              >
-                {organizationSections.map((section) => (
+              <div className="mt-2 space-y-1">
+                {workspaceSections.map((section) => (
                   <SectionDoorway
-                    active={effectiveSection === section.id}
+                    active={!activeExtra && effectiveSection === section.id}
                     key={section.id}
-                    onSelect={setActiveSection}
+                    onSelect={selectSection}
                     section={section}
                   />
                 ))}
               </div>
             </section>
-          ) : null}
-        </nav>
-      </aside>
 
-      <main
-        className="min-w-0 flex-1 overflow-auto"
-        data-testid="settings-v1-content"
-      >
-        {renderRegisteredSettingsPanels(effectiveSection, sectionProps)}
-      </main>
-    </div>
+            {organizationSections.length > 0 ? (
+              <section aria-labelledby="settings-v1-organization-heading">
+                <h2
+                  className="px-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400"
+                  id="settings-v1-organization-heading"
+                >
+                  {t('settings-v1.organization.eyebrow')}
+                </h2>
+                <div
+                  className="mt-2 space-y-1"
+                  data-testid="settings-v1-organization"
+                >
+                  {organizationSections.map((section) => (
+                    <SectionDoorway
+                      active={!activeExtra && effectiveSection === section.id}
+                      key={section.id}
+                      onSelect={selectSection}
+                      section={section}
+                    />
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            {runtime.settings.extraSections.length > 0 ? (
+              <section aria-label="More settings destinations">
+                <div className="space-y-1">
+                  {runtime.settings.extraSections.map((section) => (
+                    <button
+                      aria-current={activeExtra?.id === section.id ? 'page' : undefined}
+                      className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-950"
+                      data-testid={section.testid}
+                      key={section.id}
+                      onClick={() => {
+                        setSearchQuery('');
+                        setActiveExtraId(section.id);
+                      }}
+                      type="button"
+                    >
+                      <span>{section.label}</span>
+                      <ChevronRight aria-hidden className="size-4 text-slate-400" />
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+          </nav>
+        </aside>
+
+        <main
+          className="min-w-0 flex-1 overflow-auto"
+          data-testid="settings-v1-content"
+        >
+          {activeExtra
+            ? activeExtra.content
+            : renderRegisteredSettingsPanels(effectiveSection, sectionProps)}
+        </main>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".json"
+          className="hidden"
+          onChange={handleImportFile}
+        />
+      </div>
+      <ConfirmDialog {...confirmDialogProps} />
+    </>
   );
 }

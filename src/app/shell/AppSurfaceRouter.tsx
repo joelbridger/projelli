@@ -734,6 +734,15 @@ export function AppSurfaceRouter(props: AppSurfaceRouterProps) {
     </LazyBoundary>
   );
 
+  const hostedSettings = {
+    open: openSettings,
+    action: handleSettingsAction,
+    restartOnboarding: handleSettingsRestartOnboarding,
+    pageFocus: settingsPageFocus,
+    loadTemplates: loadAllTemplates,
+    extraSections: settingsNestedSections,
+  };
+
   const renderSettings = (): ReactNode => (
     <div
       className="flex-1 min-w-0 min-h-0 flex flex-col"
@@ -749,14 +758,14 @@ export function AppSurfaceRouter(props: AppSurfaceRouterProps) {
             key={settingsPageFocus?.key ?? 0}
             variant="page"
             auditEntries={auditEntries}
-            templates={loadAllTemplates()}
+            templates={hostedSettings.loadTemplates()}
             hasWorkspaceOpen={Boolean(rootPath)}
             onAction={handleSettingsAction}
             onRestartOnboarding={handleSettingsRestartOnboarding}
             {...(settingsPageFocus?.category
               ? { initialCategory: settingsPageFocus.category }
               : {})}
-            extraSections={settingsNestedSections}
+            extraSections={hostedSettings.extraSections}
           />
         )}
       </LazyBoundary>
@@ -820,6 +829,7 @@ export function AppSurfaceRouter(props: AppSurfaceRouterProps) {
 
   const runtime: AppSurfaceRuntime = {
     ...capabilities,
+    settings: hostedSettings,
     legacy: {
       home: renderHome,
       clients: renderClients,

@@ -9,13 +9,17 @@
     "personal": {
       "eyebrow": "Persönlich",
       "default-name": "Dein Profil",
-      "profile-entry": "Profil und Konto"
+      "profile-entry": "Profil und Konto",
+      "account-menu": "Konto und Profil",
+      "settings-menu": "Persönliche Einstellungen"
     },
     "workspace": {
       "eyebrow": "Arbeitsbereich",
       "default-name": "Dein Arbeitsbereich",
       "entry": "Arbeitsbereich-Einstellungen",
-      "sections-heading": "Arbeitsbereich-Einstellungen"
+      "sections-heading": "Arbeitsbereich-Einstellungen",
+      "settings-menu": "Arbeitsbereich-Einstellungen",
+      "organization-menu": "Organisationseinstellungen"
     },
     "organization": {
       "eyebrow": "Organisation"

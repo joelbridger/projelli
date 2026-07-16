@@ -7,12 +7,17 @@ import { useProfileStore } from '@/platform/profile/profileStore';
 import { SettingsV1FrameEnabled } from './SettingsV1FrameEnabled';
 import type { SettingsV1Runtime } from './runtime';
 
-const runtime = {
+const runtime: SettingsV1Runtime = {
   legacy: { settings: () => <div data-testid="legacy-settings-body" /> },
-  settings: { action: vi.fn(), restartOnboarding: vi.fn() },
+  settings: {
+    action: vi.fn(),
+    restartOnboarding: vi.fn(),
+    loadTemplates: () => [],
+    extraSections: [],
+  },
   audit: { entries: [] },
   workspace: { rootPath: null },
-} as unknown as SettingsV1Runtime;
+};
 
 describe('SettingsV1FrameEnabled', () => {
   afterEach(() => {
@@ -39,7 +44,7 @@ describe('SettingsV1FrameEnabled', () => {
     expect(screen.queryByTestId('legacy-settings-body')).not.toBeInTheDocument();
   });
 
-  it('keeps the existing profile and workspace entry points reachable', () => {
+  it('keeps the existing profile and workspace destinations reachable through menus', async () => {
     useProfileStore.setState({
       soloName: 'Maya Patel',
       firmName: 'Northstar Wealth',
@@ -48,11 +53,49 @@ describe('SettingsV1FrameEnabled', () => {
     window.addEventListener('lantern:open-account', onAccount, { once: true });
     render(<SettingsV1FrameEnabled runtime={runtime} />);
 
-    fireEvent.click(screen.getByTestId('settings-v1-profile-entry'));
-    fireEvent.click(screen.getByTestId('settings-v1-workspace-entry'));
+    fireEvent.pointerDown(screen.getByTestId('settings-v1-profile-entry'), {
+      button: 0,
+      ctrlKey: false,
+    });
+    fireEvent.click(await screen.findByTestId('settings-v1-profile-account'));
+    fireEvent.pointerDown(screen.getByTestId('settings-v1-workspace-entry'), {
+      button: 0,
+      ctrlKey: false,
+    });
+    fireEvent.click(await screen.findByTestId('settings-v1-workspace-settings'));
 
     expect(onAccount).toHaveBeenCalledOnce();
     expect(screen.getByTestId('settings-v1-section-workspace')).toHaveAttribute(
+      'aria-current',
+      'page'
+    );
+  });
+
+  it('keeps the Personal and Organization destinations in their menus', async () => {
+    setDevFlagOverride('teams-roles', true);
+    setDevFlagOverride('notification-preferences', true);
+    render(<SettingsV1FrameEnabled runtime={runtime} />);
+
+    fireEvent.pointerDown(screen.getByTestId('settings-v1-profile-entry'), {
+      button: 0,
+      ctrlKey: false,
+    });
+    fireEvent.click(
+      await screen.findByTestId('settings-v1-profile-personal-settings')
+    );
+    expect(screen.getByTestId('settings-v1-section-personal')).toHaveAttribute(
+      'aria-current',
+      'page'
+    );
+
+    fireEvent.pointerDown(screen.getByTestId('settings-v1-workspace-entry'), {
+      button: 0,
+      ctrlKey: false,
+    });
+    fireEvent.click(
+      await screen.findByTestId('settings-v1-workspace-organization')
+    );
+    expect(screen.getByTestId('settings-v1-section-organization')).toHaveAttribute(
       'aria-current',
       'page'
     );

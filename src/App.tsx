@@ -145,6 +145,7 @@ import {
   type MarketplaceService,
 } from '@/features/workflows/marketplace/svc';
 import { isWorkflowFilePath } from '@/features/workflows/engine/workflowFile';
+import { loadAllTemplates } from '@/features/workflows/engine/userTemplates';
 import {
   FileSystemWatcher,
   createFileTreeSnapshot,
@@ -2133,6 +2134,8 @@ function AppShell() {
       open: openSettings,
       action: handleSettingsAction,
       restartOnboarding: handleSettingsRestartOnboarding,
+      loadTemplates: loadAllTemplates,
+      extraSections: [],
       pageFocus: settingsPageFocus,
     },
   };

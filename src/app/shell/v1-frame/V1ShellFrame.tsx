@@ -7,6 +7,14 @@ import { SharedClientBar } from '@/app/shell/SharedClientBar';
 import { useAppSurfaceRegistry } from '@/app/shell/runtime/useAppSurfaceRegistry';
 import { BRAND } from '@/config/brand';
 import { EV_OPEN_ACCOUNT } from '@/config/identity';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/ui/dropdown-menu';
 import { useFlag } from '@/platform/flags';
 import { useProfileStore } from '@/platform/profile/profileStore';
 import { useFirmStore } from '@/platform/firm/firmStore';
@@ -116,28 +124,47 @@ function FirmCard() {
   );
 }
 
-function UserAvatar() {
+function UserAvatar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const { t } = useTranslation();
   const soloName = useProfileStore((state) => state.soloName);
   const soloAvatar = useProfileStore((state) => state.soloAvatar);
   const label = soloName.trim() || t('shell-frame.avatar.fallback-name');
 
   return (
-    <button
-      aria-label={t('shell-frame.avatar.label', { name: label })}
-      className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-900 text-xs font-bold text-white transition-opacity hover:opacity-85 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
-      data-testid="v1-shell-account-identity"
-      onClick={() => {
-        window.dispatchEvent(new CustomEvent(EV_OPEN_ACCOUNT));
-      }}
-      type="button"
-    >
-      {soloAvatar ? (
-        <img alt="" className="size-full object-cover" src={soloAvatar} />
-      ) : (
-        initials(label) || 'A'
-      )}
-    </button>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          aria-label={t('shell-frame.avatar.label', { name: label })}
+          className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-900 text-xs font-bold text-white transition-opacity hover:opacity-85 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
+          data-testid="v1-shell-account-identity"
+          type="button"
+        >
+          {soloAvatar ? (
+            <img alt="" className="size-full object-cover" src={soloAvatar} />
+          ) : (
+            initials(label) || 'A'
+          )}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuLabel>{label}</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          data-testid="v1-shell-avatar-account"
+          onSelect={() => {
+            window.dispatchEvent(new CustomEvent(EV_OPEN_ACCOUNT));
+          }}
+        >
+          {t('settings-v1.personal.account-menu')}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          data-testid="v1-shell-avatar-personal-settings"
+          onSelect={onOpenSettings}
+        >
+          {t('settings-v1.personal.settings-menu')}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -273,7 +300,11 @@ export function V1ShellFrame({
           >
             <Bell aria-hidden="true" className="size-4" />
           </span>
-          <UserAvatar />
+          <UserAvatar
+            onOpenSettings={() => {
+              onSurfaceChange('settings');
+            }}
+          />
         </header>
 
         {postTopbar}

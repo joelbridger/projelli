@@ -6,8 +6,16 @@ import { AppSurfaceRouter, type AppSurfaceRouterProps } from '@/app/shell/AppSur
 import { setDevFlagOverride } from '@/platform/flags';
 import type { AppSurface } from '@/platform/types/navigation';
 
-const { useLiveCrmRecords } = vi.hoisted(() => ({
+const { useLiveCrmRecords, invoke } = vi.hoisted(() => ({
   useLiveCrmRecords: vi.fn(),
+  invoke: vi.fn(() =>
+    Promise.resolve({
+      roles: [],
+      teams: [],
+      memberships: [],
+      updatedAt: '2026-07-16T00:00:00.000Z',
+    })
+  ),
 }));
 
 const liveCrmRecords = {
@@ -30,19 +38,7 @@ vi.mock('@/platform/intake/useEmailReplyIngestion', () => ({
 vi.mock('@/platform/intake/useDocumentExtractionIngestion', () => ({
   useDocumentExtractionIngestion: vi.fn(),
 }));
-vi.mock('@/features/crm-firm/teams-roles/teamsRolesClient', () => ({
-  teamsRolesClient: {
-    get: vi.fn(() =>
-      Promise.resolve({
-        roles: [],
-        teams: [],
-        memberships: [],
-        updatedAt: '2026-07-16T00:00:00.000Z',
-      })
-    ),
-    put: vi.fn(() => Promise.resolve()),
-  },
-}));
+vi.mock('@tauri-apps/api/core', () => ({ invoke, isTauri: () => true }));
 
 function baseProps(
   sidebarActiveTab: AppSurface,
@@ -134,6 +130,7 @@ describe('real Settings surface flag-gated swap', () => {
   beforeEach(() => {
     useLiveCrmRecords.mockReturnValue(liveCrmRecords);
     useLiveCrmRecords.mockClear();
+    invoke.mockClear();
   });
 
   afterEach(() => {
@@ -157,7 +154,7 @@ describe('real Settings surface flag-gated swap', () => {
     expect(useLiveCrmRecords).not.toHaveBeenCalled();
   });
 
-  it('uses the real registry/router Settings route to mount every registered v1 panel', async () => {
+  it('uses the real registry/router Settings route to keep live Settings inputs and nested destinations', async () => {
     setSettingsShell(true);
     setRegisteredPanels(true);
 
@@ -176,5 +173,25 @@ describe('real Settings surface flag-gated swap', () => {
     expect(
       await screen.findByTestId('notification-preferences-panel')
     ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('settings-v1-section-advanced'));
+    expect(await screen.findByTestId('template-model-settings')).toBeInTheDocument();
+    expect(screen.getByTestId('template-model-add').querySelectorAll('option').length).toBeGreaterThan(1);
+
+    fireEvent.click(screen.getByTestId('settings-category-privacy-center'));
+    expect(
+      await screen.findByTestId('privacy-center-scroll')
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('settings-category-activity-log'));
+    expect(await screen.findByTestId('audit-home-search')).toBeInTheDocument();
+
+    fireEvent.pointerDown(screen.getByTestId('settings-actions-menu'), {
+      button: 0,
+      ctrlKey: false,
+    });
+    expect(screen.getByTestId('settings-export')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-import')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-reset')).toBeInTheDocument();
   });
 });
