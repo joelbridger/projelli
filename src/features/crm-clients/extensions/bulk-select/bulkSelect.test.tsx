@@ -15,6 +15,11 @@ import {
   validateDirectoryToolDescriptors,
   type DirectoryContext,
 } from '../../directoryRegistry';
+import { DirectorySurface } from '../../DirectorySurface';
+import {
+  legacyDirectoryActions,
+  legacyDirectoryTools,
+} from '../../directoryRegistryCompatibility';
 import {
   type BulkSelectionContract,
   useBulkSelection,
@@ -106,6 +111,48 @@ describe('CRM directory bulk selection', () => {
       screen.queryByTestId('crm-directory-bulk-select')
     ).not.toBeInTheDocument();
     expect(loadHouseholds).not.toHaveBeenCalled();
+  });
+
+  it('keeps the flag-off directory toolbar layout identical to the legacy base', () => {
+    setDevFlagOverride('crm-bulk-select', false);
+
+    render(<DirectorySurface people={[]} households={households} />);
+
+    const toolbar = screen.getByTestId('crm-directory-toolbar');
+    expect(toolbar.children).toHaveLength(
+      legacyDirectoryTools.length + legacyDirectoryActions.length
+    );
+    expect(
+      Array.from(toolbar.children).every(
+        (child) => child.tagName === 'SPAN' && child.childElementCount > 0
+      )
+    ).toBe(true);
+    expect(
+      Array.from(toolbar.children).map((child) =>
+        child.querySelector('[data-testid]')?.getAttribute('data-testid')
+      )
+    ).toEqual([
+      'crm-directory-view-directory',
+      'crm-directory-tab-households',
+      'crm-directory-search',
+      'crm-directory-external',
+      'crm-directory-needs-verification',
+      'crm-directory-add',
+    ]);
+    expect(
+      screen.queryByTestId('crm-directory-bulk-select')
+    ).not.toBeInTheDocument();
+  });
+
+  it('adds the enabled tool to the existing directory toolbar layout', () => {
+    setDevFlagOverride('crm-bulk-select', true);
+
+    render(<DirectorySurface people={[]} households={households} />);
+
+    expect(screen.getByTestId('crm-directory-toolbar').children).toHaveLength(
+      legacyDirectoryTools.length + legacyDirectoryActions.length + 1
+    );
+    expect(screen.getByTestId('crm-directory-bulk-select')).toBeInTheDocument();
   });
 
   it('registers one valid descriptor and mounts it through the real directory registry', () => {

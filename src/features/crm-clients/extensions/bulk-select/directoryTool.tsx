@@ -1,4 +1,5 @@
 import type { DirectoryToolDescriptor } from '../../directoryRegistry';
+import { isEnabled as isFlagEnabled } from '@/platform/flags/router';
 import { BulkSelectDirectoryTool } from './BulkSelectDirectoryTool';
 
 declare module '../../directoryRegistry' {
@@ -11,5 +12,6 @@ declare module '../../directoryRegistry' {
 export const bulkSelectDirectoryTool: DirectoryToolDescriptor = {
   id: 'bulk-select',
   order: 55,
+  isEnabled: () => isFlagEnabled('crm-bulk-select'),
   mount: (context) => <BulkSelectDirectoryTool context={context} />,
 };

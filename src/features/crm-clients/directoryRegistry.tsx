@@ -44,7 +44,13 @@ interface DirectoryDescriptorBase<Id extends string> {
   mount(context: DirectoryContext): ReactNode;
 }
 
-export interface DirectoryToolDescriptor extends DirectoryDescriptorBase<DirectoryToolId> {}
+export interface DirectoryToolDescriptor extends DirectoryDescriptorBase<DirectoryToolId> {
+  /**
+   * Lets a descriptor opt out before the directory shell creates its layout
+   * wrapper. Use this for flag-gated tools that otherwise render `null`.
+   */
+  isEnabled?(): boolean;
+}
 export interface DirectoryActionDescriptor extends DirectoryDescriptorBase<DirectoryActionId> {}
 export interface DirectoryRailDescriptor extends DirectoryDescriptorBase<DirectoryRailId> {}
 export interface DirectoryViewDescriptor extends DirectoryDescriptorBase<DirectoryViewId> {}
