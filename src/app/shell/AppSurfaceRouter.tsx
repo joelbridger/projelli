@@ -15,7 +15,12 @@ import {
   type CrmHomeRoute,
   type CrmHouseholdAddRequest,
 } from '@/features/crm-home';
-import { ClientsSurface } from '@/features/crm-clients';
+import { ClientsSurface, createDirectoryComposition } from '@/features/crm-clients';
+import { advisorFiltersDirectoryContribution } from '@/features/crm-clients/extensions/advisor-filters';
+
+// The one coordinator-owned composition of feature directory contributions
+// (each contribution is itself flag-gated and inert while its flag is off).
+const directoryComposition = createDirectoryComposition(advisorFiltersDirectoryContribution);
 import type { AddToHouseholdRequest } from '@/features/crm-clients/adapters';
 import { CrmAskSurface } from '@/features/crm-ask';
 import { DocumentsHome } from '@/features/documents/DocumentsHome';
@@ -572,6 +577,7 @@ export function AppSurfaceRouter(props: AppSurfaceRouterProps) {
 
   const renderClients = (): ReactNode => (
     <ClientsSurface
+      directoryComposition={directoryComposition}
       actions={{
         onAdd: (request: AddToHouseholdRequest) => {
           if (
