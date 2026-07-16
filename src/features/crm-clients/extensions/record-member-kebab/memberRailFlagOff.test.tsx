@@ -42,6 +42,19 @@ vi.mock('../../meetingNotesTab', () => ({
 vi.mock('../../reviewsTab', () => ({
   reviewsTab: { id: 'reviews', label: 'Reviews', route: 'reviews', Component: EmptyTab },
 }));
+// This keeps the real household shell and real tab registry in place while
+// leaving unrelated header, add-menu, and Client Map extensions out of the
+// flag-reset reload path.
+vi.mock('../../recordRegistry', () => ({
+  getHouseholdAddActions: () => [],
+  getHouseholdHeaderActions: () => [],
+  getHouseholdRecordExtensions: () => [],
+  getHouseholdSections: () => [],
+}));
+vi.mock('../../NoteEditor', () => ({ NoteEditor: EmptyTab }));
+vi.mock('../../ProposalCard', () => ({ ProposalCard: EmptyTab }));
+vi.mock('../../RecordMetadataEditor', () => ({ RecordMetadataEditor: EmptyTab }));
+vi.mock('../../ContactEditor', () => ({ ContactEditor: EmptyTab }));
 afterEach(() => {
   cleanup();
   vi.doUnmock('./MemberRailTab');

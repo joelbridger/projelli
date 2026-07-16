@@ -33,6 +33,23 @@ vi.mock('../../meetingNotesTab', () => ({
 vi.mock('../../reviewsTab', () => ({
   reviewsTab: { id: 'reviews', label: 'Reviews', route: 'reviews', Component: EmptyTab },
 }));
+// The real household shell is the subject under test. Its separate header,
+// add-menu, and Client Map extensions are not: none can affect the real tab
+// registry or the enabled member rail, so avoid rebuilding their full trees
+// after the flag-driven module reset.
+vi.mock('../../recordRegistry', () => ({
+  getHouseholdAddActions: () => [],
+  getHouseholdHeaderActions: () => [],
+  getHouseholdRecordExtensions: () => [],
+  getHouseholdSections: () => [],
+}));
+// These closed panels and proposal cards are imported by the household shell
+// but never opened by this member-rail path. Keeping them empty preserves the
+// real shell render while avoiding unrelated editor module work.
+vi.mock('../../NoteEditor', () => ({ NoteEditor: EmptyTab }));
+vi.mock('../../ProposalCard', () => ({ ProposalCard: EmptyTab }));
+vi.mock('../../RecordMetadataEditor', () => ({ RecordMetadataEditor: EmptyTab }));
+vi.mock('../../ContactEditor', () => ({ ContactEditor: EmptyTab }));
 
 const household: HouseholdRecord = {
   id: 'household-member-rail',
