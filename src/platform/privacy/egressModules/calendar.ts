@@ -43,4 +43,32 @@ export const calendarOperations = [
     requiresFinalApproval: true,
     destination: { userSelectedHost: true, rejectPrivateNetwork: true },
   }),
+  // Wave-2 Part B calendar WRITE. Create/update a one-time event on the
+  // advisor's own home calendar. Final approval required on every write; exact
+  // provider host only; never a wildcard. Never weakens the read operations
+  // above — a write is its own operation.
+  connectorOperation({
+    id: 'calendar-write-microsoft',
+    category: 'connector-write',
+    title: 'Write to Outlook Calendar',
+    approvalText:
+      'This creates or updates one event on your own Outlook calendar.',
+    dataSummary: 'The event title, time, location, and notes you are booking.',
+    dataClasses: ['content', 'metadata', 'credential'],
+    recipient: 'Microsoft Outlook Calendar',
+    requiresFinalApproval: true,
+    destination: { allowedOrigins: ['graph.microsoft.com'] },
+  }),
+  connectorOperation({
+    id: 'calendar-write-google',
+    category: 'connector-write',
+    title: 'Write to Google Calendar',
+    approvalText:
+      'This creates or updates one event on your own Google calendar.',
+    dataSummary: 'The event title, time, location, and notes you are booking.',
+    dataClasses: ['content', 'metadata', 'credential'],
+    recipient: 'Google Calendar',
+    requiresFinalApproval: true,
+    destination: { allowedOrigins: ['www.googleapis.com'] },
+  }),
 ] satisfies readonly EgressOperation[];

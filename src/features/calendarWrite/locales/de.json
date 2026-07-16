@@ -1,0 +1,18 @@
+{
+  "calendar-write": {
+    "review": {
+      "title": "Zu prüfende Kalenderänderungen",
+      "approve": "Genehmigen",
+      "status": {
+        "prepared": "Bereit zur Genehmigung",
+        "verify-pending": "Wird mit dem Kalender abgeglichen…",
+        "verified": "Zum Kalender hinzugefügt",
+        "failed": "Konnte nicht hinzugefügt werden",
+        "refused": "Nicht zulässig"
+      }
+    },
+    "pending-banner_one": "{{count}} Kalenderänderung zu prüfen",
+    "pending-banner_other": "{{count}} Kalenderänderungen zu prüfen",
+    "review-now": "Jetzt prüfen"
+  }
+}

@@ -548,6 +548,52 @@ exports[`egress module registry — byte-identical policy parity > freezes every
     "title": "Import an ICS calendar link",
   },
   {
+    "approvalText": "This creates or updates one event on your own Outlook calendar.",
+    "category": "connector-write",
+    "dataClasses": [
+      "content",
+      "metadata",
+      "credential",
+    ],
+    "dataSummary": "The event title, time, location, and notes you are booking.",
+    "destination": {
+      "allowedOrigins": [
+        "graph.microsoft.com",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+    },
+    "id": "calendar-write-microsoft",
+    "recipient": "Microsoft Outlook Calendar",
+    "requiresFinalApproval": true,
+    "title": "Write to Outlook Calendar",
+  },
+  {
+    "approvalText": "This creates or updates one event on your own Google calendar.",
+    "category": "connector-write",
+    "dataClasses": [
+      "content",
+      "metadata",
+      "credential",
+    ],
+    "dataSummary": "The event title, time, location, and notes you are booking.",
+    "destination": {
+      "allowedOrigins": [
+        "www.googleapis.com",
+      ],
+      "allowedSchemes": [
+        "https",
+      ],
+      "redirects": "deny",
+    },
+    "id": "calendar-write-google",
+    "recipient": "Google Calendar",
+    "requiresFinalApproval": true,
+    "title": "Write to Google Calendar",
+  },
+  {
     "approvalText": "This contacts Wealthbox to check the API token you entered.",
     "category": "connector-authentication",
     "dataClasses": [

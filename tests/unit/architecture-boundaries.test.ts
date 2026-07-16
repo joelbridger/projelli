@@ -38,6 +38,7 @@ const ALLOWED_FEATURE_EDGES = new Set<string>([
   'accounts->audit',      // Schwab prep packets await the public durable audit-write promise before local persistence
   'ask->matters',         // Ask is matter-scoped (active matter context)
   'ask->crm',             // Ask adds client-scoped CRM records to the same consent/audit/citation pipeline
+  'calendarWrite->calendar', // Part B write consumes Part A's public doorway (busy blocks, home-calendar capability, event store) for the pre-approval availability refresh; it never reaches into calendar/core internals.
   'crm->ask',             // CRM Ask reuses the primary Ask safety rails and citation contracts
   'crm->acats',           // CRM Reviews makes the ACATS transfer-review workflow reachable from the relevant client record
   'crm->accounts',        // CRM Reviews swaps its one documented descriptor to the flag-gated Schwab prep packet

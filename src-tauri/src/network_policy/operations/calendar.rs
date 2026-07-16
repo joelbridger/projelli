@@ -64,6 +64,33 @@ pub const ICS_CALENDAR_SYNC: EgressOperation = EgressOperation {
     },
     receipt_label: "ICS calendar sync",
 };
+// Wave-2 Part B calendar WRITE mirror. Create/update one event on the advisor's
+// own home calendar. Same exact hosts and data classes as the renderer's
+// `calendar-write-*` operations (renderer ids differ by naming convention; the
+// host allowlist and data classes are what must agree across the two layers).
+// There is deliberately no ICS write: SC-022 keeps the ICS feed read-only.
+pub const OUTLOOK_CALENDAR_WRITE: EgressOperation = EgressOperation {
+    id: "outlook-calendar-write",
+    category: EgressCategory::Connector,
+    destination_rule: DestinationRule::ExactHosts(&["graph.microsoft.com"]),
+    data_classes: EgressDataClasses {
+        content: true,
+        metadata: true,
+        credential: true,
+    },
+    receipt_label: "Outlook Calendar write",
+};
+pub const GOOGLE_CALENDAR_WRITE: EgressOperation = EgressOperation {
+    id: "google-calendar-write",
+    category: EgressCategory::Connector,
+    destination_rule: DestinationRule::ExactHosts(&["www.googleapis.com"]),
+    data_classes: EgressDataClasses {
+        content: true,
+        metadata: true,
+        credential: true,
+    },
+    receipt_label: "Google Calendar write",
+};
 
 /// This domain's egress slice. Registered once in `operations::EGRESS_MODULES`.
 pub const CALENDAR_OPERATIONS: &[EgressOperation] = &[
@@ -72,4 +99,6 @@ pub const CALENDAR_OPERATIONS: &[EgressOperation] = &[
     GOOGLE_CALENDAR_OAUTH,
     GOOGLE_CALENDAR_SYNC,
     ICS_CALENDAR_SYNC,
+    OUTLOOK_CALENDAR_WRITE,
+    GOOGLE_CALENDAR_WRITE,
 ];
