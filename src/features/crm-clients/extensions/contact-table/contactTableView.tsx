@@ -6,9 +6,8 @@ import { useFirmTagStore } from '@/features/crm-tags';
 import {
   createDirectoryPreferenceStore,
   projectDirectoryResults,
-  type CrmPerson,
   type DirectoryContext,
-  type HouseholdDirectoryEntry,
+  type DirectoryResult,
 } from '@/features/crm-clients';
 
 type ContactTableDensity = 'comfortable' | 'compact';
@@ -19,9 +18,7 @@ interface ContactTablePreference {
   density: ContactTableDensity;
 }
 
-type ContactRow =
-  | { kind: 'household'; record: HouseholdDirectoryEntry }
-  | { kind: 'person'; record: CrmPerson };
+type ContactRow = DirectoryResult;
 
 function isContactTablePreference(
   value: unknown
@@ -35,7 +32,7 @@ function isContactTablePreference(
   );
 }
 
-function personKind(person: CrmPerson): Exclude<ContactKind, 'all' | 'household'> {
+function personKind(person: Extract<ContactRow, { kind: 'person' }>['record']): Exclude<ContactKind, 'all' | 'household'> {
   return person.personType;
 }
 
@@ -80,44 +77,28 @@ function ContactTableView({ context }: { context: DirectoryContext }) {
     () => new Map(tagStore.catalog.tags.map((tag) => [tag.id, tag.name])),
     [tagStore.catalog.tags]
   );
-  const households = useMemo(
-    () =>
-      projectDirectoryResults(
-        'household',
-        context.records.households.filter((household) =>
-          household.name.toLowerCase().includes(query)
-        ),
-        context
-      ),
-    [context, query]
-  );
-  const people = useMemo(
-    () =>
-      projectDirectoryResults(
-        'person',
-        context.records.people.filter(
-          (person) =>
-            (!context.filters.externalOnly || person.external) &&
-            (!context.filters.needsVerification || !person.verifiedAt) &&
-            person.name.toLowerCase().includes(query)
-        ),
-        context
-      ),
-    [context, query]
-  );
   const rows = useMemo(
     () =>
-      ([
-        ...households.map((record) => ({ kind: 'household' as const, record })),
-        ...people.map((record) => ({ kind: 'person' as const, record })),
-      ] satisfies readonly ContactRow[]).filter((row) => {
+      projectDirectoryResults([
+        ...context.records.households
+          .filter((household) => household.name.toLowerCase().includes(query))
+          .map((record) => ({ kind: 'household' as const, record })),
+        ...context.records.people
+          .filter(
+            (person) =>
+              (!context.filters.externalOnly || person.external) &&
+              (!context.filters.needsVerification || !person.verifiedAt) &&
+              person.name.toLowerCase().includes(query)
+          )
+          .map((record) => ({ kind: 'person' as const, record })),
+      ] satisfies readonly ContactRow[], context).filter((row) => {
         const matchesLegacyScope =
           legacyScope === null ||
           (legacyScope === 'households' && row.kind === 'household') ||
           (legacyScope === 'people' && row.kind === 'person');
         return matchesLegacyScope && (type === 'all' || rowKind(row) === type);
       }),
-    [households, legacyScope, people, type]
+    [context, legacyScope, query, type]
   );
   const rowPadding = density === 'compact' ? '8px 12px' : '14px 12px';
 

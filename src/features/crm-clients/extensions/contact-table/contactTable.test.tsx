@@ -186,8 +186,16 @@ describe('CRM contact table directory contribution', () => {
     // WB-009: PARTIAL — household creation only via createHousehold; WB-010 pending.
   });
 
-  it('uses the composed public query filters and comparator on copied projections', () => {
+  it('uses the composed public query filters and globally orders copied mixed projections', () => {
     setDevFlagOverride('crm-contact-table', true);
+    const interleavedHouseholds = [
+      { ...households[1], name: 'Bishop household' },
+      { ...households[0], name: 'Cedar household' },
+    ];
+    const interleavedPeople = [
+      { ...people[0], id: 'p-aaron', name: 'Aaron Person' },
+      { ...people[2], id: 'p-zeta', name: 'Zeta Trust' },
+    ];
     const compare = vi.fn(
       (left: Parameters<NonNullable<DirectoryQueryDescriptor['compare']>>[0], right: Parameters<NonNullable<DirectoryQueryDescriptor['compare']>>[0]) =>
         left.record.name.localeCompare(right.record.name)
@@ -196,27 +204,28 @@ describe('CRM contact table directory contribution', () => {
       id: 'contact-table-query-proof',
       order: 1,
       isActive: () => true,
-      filter: (result) => result.record.id !== 'p-lee',
+      filter: (result) => result.record.id !== 'p-zeta',
       compare,
     };
     const queryComposition = createDirectoryComposition(
       { queries: [query] },
       contactTableDirectoryContribution
     );
-    const originalPeople = structuredClone(people);
-    const originalHouseholds = structuredClone(households);
+    const originalPeople = structuredClone(interleavedPeople);
+    const originalHouseholds = structuredClone(interleavedHouseholds);
 
     render(
-      <DirectorySurface people={people} households={households} composition={queryComposition} />
+      <DirectorySurface people={interleavedPeople} households={interleavedHouseholds} composition={queryComposition} />
     );
 
-    expect(screen.queryByTestId('crm-contact-table-person-p-lee')).not.toBeInTheDocument();
-    expect(
-      screen.getAllByRole('row').slice(1).map((row) => row.textContent?.split(/Household|Person|Organization|Trust/)[0]?.trim())
-    ).toEqual(['Bishop household', 'Chen household', 'Maya Chen', 'Zeta']);
+    expect(screen.queryByTestId('crm-contact-table-person-p-zeta')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('row').slice(1).map((row) => row.querySelector('button')?.textContent)).toEqual(
+      ['Aaron Person', 'Bishop household', 'Cedar household']
+    );
     expect(compare).toHaveBeenCalled();
-    expect(people).toEqual(originalPeople);
-    expect(households).toEqual(originalHouseholds);
+    expect(compare.mock.calls.some(([left, right]) => left.kind !== right.kind)).toBe(true);
+    expect(interleavedPeople).toEqual(originalPeople);
+    expect(interleavedHouseholds).toEqual(originalHouseholds);
   });
 
   it('applies search and existing external filters to its mixed rows', () => {
