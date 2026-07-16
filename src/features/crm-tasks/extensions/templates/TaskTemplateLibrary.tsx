@@ -104,9 +104,10 @@ function EnabledTaskTemplateLibrary({ addRequest, onCreate }: TaskTemplateContex
         setMessage(cause instanceof Error ? cause.message : t('task-templates.errors.load'));
       });
     }
-  // The stores are fresh adapters by design; the modal only loads when opened.
+  // The stores are fresh adapters by design; reload an open modal when its
+  // canonical record snapshot changes so an initial async load is visible.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, templates.recordSnapshot]);
 
   const openNew = () => {
     setEditing(null);

@@ -25,6 +25,10 @@ type CanonicalTaskTemplate = LiveCrmRecord & {
   tagIds?: readonly string[];
 };
 
+type ReactiveTaskTemplateStore = TaskTemplateStore & {
+  readonly recordSnapshot: readonly LiveCrmRecord[];
+};
+
 interface NormalizedTemplateInput {
   name: string;
   title: string;
@@ -205,6 +209,10 @@ export function createTaskTemplateStore(port: LiveTaskTemplatePort): TaskTemplat
   };
 }
 
-export function useTaskTemplateStore(): TaskTemplateStore {
-  return createTaskTemplateStore(useLiveCrmRecords());
+export function useTaskTemplateStore(): ReactiveTaskTemplateStore {
+  const live = useLiveCrmRecords();
+  return Object.assign(createTaskTemplateStore(live), {
+    /** Lets the library refresh when the canonical record snapshot arrives. */
+    recordSnapshot: live.records,
+  });
 }
