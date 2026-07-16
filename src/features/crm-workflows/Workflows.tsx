@@ -37,6 +37,7 @@ import {
   mountWorkflowStepExtensions,
 } from './workflowExtensionRegistry';
 import { saveWorkflowStepMetadata } from './workflowStepPersistence';
+import { WorkflowRecordStartSlot } from './authoring/WorkflowRecordStartSlot';
 
 export function Workflows({
   freshness,
@@ -259,6 +260,7 @@ export function LiveWorkflows({
           {error}
         </div>
       )}
+      <WorkflowRecordStartSlot {...(addRequest ? { addRequest } : {})} households={households} {...(onAddRequestConsumed ? { onAddRequestConsumed } : {})} {...(template ? { templateId: template.id } : {})} />
       {!template && !creating && (
         <>
           <section style={panelStyle}>
