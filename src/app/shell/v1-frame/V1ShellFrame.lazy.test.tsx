@@ -23,7 +23,7 @@ vi.mock('@/app/shell/registry/legacyAppSurfaceDescriptors', async () => {
   };
 });
 
-import { V1ShellFrame } from './V1ShellFrame';
+import { V1ShellFrame } from '@/app/shell/v1-frame';
 
 describe('V1ShellFrame lazy registry integration', () => {
   it('adds navigation after the real registry hook resolves a lazy descriptor', async () => {
