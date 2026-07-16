@@ -1,56 +1,82 @@
 /**
- * Local-first public contract for new Ask consumers.
+ * Local-first public contracts for Ask.
  *
- * This contract deliberately carries references and opening metadata only. It
- * never exposes a connector, credential, file bytes, or provider callback.
+ * Cross-feature references stay generic on purpose. Ask must consume the real
+ * ContactRef and MeetingRef from their owning public packages when those
+ * contracts land; it must never publish lookalike replacements.
  */
-export interface ContactRef {
-  readonly kind: string;
-  readonly id: string;
-  readonly matterId: string;
-}
-
-export interface MeetingRef {
-  readonly id: string;
-  readonly matterId: string;
-}
-
 export interface AskWorkspaceBoundary {
   readonly workspaceId: string;
 }
 
-export interface AskClientContext {
-  readonly contactRef: ContactRef;
+/** The exact owner reference plus the shared-client revision saved at use time. */
+export interface AskClientSnapshot<ClientReference> {
+  readonly contactRef: ClientReference;
   readonly matterId: string;
   readonly revision: string;
 }
 
-export type AskScope = AskWorkspaceBoundary &
+/**
+ * Ask's adapter for owner-supplied identity contracts.
+ *
+ * This does not define either owner reference. The client/meetings packages
+ * must provide the real reference values and these pure operations.
+ */
+export interface AskOwnerIdentityAdapter<ClientReference, MeetingReference> {
+  readonly isClientReference: (value: unknown) => value is ClientReference;
+  readonly clientMatterId: (reference: ClientReference) => string;
+  readonly sameClient: (
+    left: ClientReference,
+    right: ClientReference
+  ) => boolean;
+  readonly isMeetingReference: (value: unknown) => value is MeetingReference;
+  readonly meetingId: (reference: MeetingReference) => string;
+  readonly meetingMatterId: (reference: MeetingReference) => string;
+  readonly sameMeeting: (
+    left: MeetingReference,
+    right: MeetingReference
+  ) => boolean;
+}
+
+export type AskScope<
+  ClientReference = never,
+  MeetingReference = never,
+> = AskWorkspaceBoundary &
   (
     | { readonly kind: 'whole-firm' }
-    | ({ readonly kind: 'current-client' } & AskClientContext)
+    | {
+        readonly kind: 'current-client';
+        readonly client: AskClientSnapshot<ClientReference>;
+      }
     | {
         readonly kind: 'chosen-sources';
-        readonly matterId: string;
-        readonly contactRef?: ContactRef;
+        readonly client: AskClientSnapshot<ClientReference>;
         readonly sourceIds: readonly string[];
       }
-    | { readonly kind: 'single-meeting'; readonly meeting: MeetingRef }
+    | {
+        readonly kind: 'single-meeting';
+        readonly client: AskClientSnapshot<ClientReference>;
+        readonly meeting: MeetingReference;
+      }
     | {
         readonly kind: 'selected-meetings';
-        readonly meetings: readonly MeetingRef[];
+        readonly client: AskClientSnapshot<ClientReference>;
+        readonly meetings: readonly MeetingReference[];
       }
     | {
         readonly kind: 'meeting-range';
-        readonly matterId: string;
+        readonly client: AskClientSnapshot<ClientReference>;
         readonly startsOn: string;
         readonly endsOn: string;
         readonly meetingTypes?: readonly string[];
       }
   );
 
-/** A resolved scope has passed the fail-closed local boundary checks. */
-export type ResolvedAskScope = AskScope & {
+/** A resolved scope has passed the current shared-client and owner checks. */
+export type ResolvedAskScope<
+  ClientReference = never,
+  MeetingReference = never,
+> = AskScope<ClientReference, MeetingReference> & {
   readonly resolved: true;
 };
 
@@ -65,40 +91,65 @@ export interface AskCitationOpenPath {
   readonly token: string;
 }
 
-/** A stable, client-bounded record that may be selected for local retrieval. */
-export interface AskSourceDescriptor {
+interface AskSourceBase<ClientReference> {
   readonly sourceId: string;
-  readonly kind: AskSourceKind;
   readonly workspaceId: string;
-  readonly matterId: string;
-  readonly contactRef?: ContactRef;
+  readonly client: AskClientSnapshot<ClientReference>;
   readonly label: string;
   readonly availability: 'available' | 'unavailable';
   readonly citationOpenPath: AskCitationOpenPath;
 }
 
-export type AskCrmSource = AskSourceDescriptor & {
-  readonly kind: 'crm-contact';
-};
-export type AskDocumentSource = AskSourceDescriptor & {
-  readonly kind: 'document';
-};
-export type AskMeetingArtifactSource = AskSourceDescriptor & {
+export type AskCrmSource<ClientReference = never> =
+  AskSourceBase<ClientReference> & {
+    readonly kind: 'crm-contact';
+  };
+
+export type AskDocumentSource<ClientReference = never> =
+  AskSourceBase<ClientReference> & {
+    readonly kind: 'document';
+  };
+
+/** Safe facts supplied by the Meetings owner for eligibility checks. */
+export type AskMeetingArtifactSource<
+  ClientReference = never,
+  MeetingReference = never,
+> = AskSourceBase<ClientReference> & {
   readonly kind: 'meeting-artifact';
-  readonly meeting: MeetingRef;
-};
-export type AskEmailDescriptor = AskSourceDescriptor & {
-  readonly kind: 'email-descriptor';
-  readonly date: string;
+  readonly meeting: MeetingReference;
+  /** Calendar date in YYYY-MM-DD form, supplied by the approved artifact. */
+  readonly occurredOn: string;
+  readonly meetingType: string;
 };
 
-export interface AskSourceAdapter {
+export type AskEmailDescriptor<ClientReference = never> =
+  AskSourceBase<ClientReference> & {
+    readonly kind: 'email-descriptor';
+    readonly date: string;
+  };
+
+export type AskSourceDescriptor<
+  ClientReference = never,
+  MeetingReference = never,
+> =
+  | AskCrmSource<ClientReference>
+  | AskDocumentSource<ClientReference>
+  | AskMeetingArtifactSource<ClientReference, MeetingReference>
+  | AskEmailDescriptor<ClientReference>;
+
+export interface AskSourceAdapter<
+  ClientReference = never,
+  MeetingReference = never,
+> {
   readonly id: string;
   readonly order: number;
   readonly sourceKinds: readonly AskSourceKind[];
+  readonly isEnabled?: (
+    scope: ResolvedAskScope<ClientReference, MeetingReference>
+  ) => boolean;
   readonly listCandidates: (
-    scope: ResolvedAskScope
-  ) => readonly AskSourceDescriptor[];
+    scope: ResolvedAskScope<ClientReference, MeetingReference>
+  ) => readonly AskSourceDescriptor<ClientReference, MeetingReference>[];
 }
 
 export interface AskSourceReference {
@@ -106,117 +157,178 @@ export interface AskSourceReference {
   readonly reason: string;
 }
 
-/** A saved source choice retains the full scope snapshot, including revision. */
-export interface AskSelectedSource {
-  readonly source: AskSourceDescriptor;
-  readonly scope: AskScope;
+export interface AskSavedSourceSelection<
+  ClientReference = never,
+  MeetingReference = never,
+> {
+  readonly id: string;
+  readonly scope: AskScope<ClientReference, MeetingReference>;
+  readonly sources: readonly AskSourceDescriptor<
+    ClientReference,
+    MeetingReference
+  >[];
+  readonly createdAt: string;
+  readonly updatedAt: string;
 }
 
-export interface AskRetrievalPlan {
-  readonly scope: ResolvedAskScope;
+export interface AskRetrievalPlan<
+  ClientReference = never,
+  MeetingReference = never,
+> {
+  readonly scope: ResolvedAskScope<ClientReference, MeetingReference>;
   readonly requestedSourceKinds: readonly AskSourceKind[];
   readonly references: readonly AskSourceReference[];
 }
 
-export interface AskCitation {
+export interface AskCitation<
+  ClientReference = never,
+  MeetingReference = never,
+> {
   readonly claimId: string;
   readonly sourceId: string;
   readonly sourceKind: AskSourceKind;
-  readonly matterId: string;
-  readonly contactRef?: ContactRef;
-  /** The full client-safe snapshot is retained for stale-open rejection. */
-  readonly scope: AskScope;
+  readonly client: AskClientSnapshot<ClientReference>;
+  readonly scope: AskScope<ClientReference, MeetingReference>;
   readonly opener: AskCitationOpenPath;
   readonly label: string;
+  readonly meeting?: MeetingReference;
+  readonly occurredOn?: string;
+  readonly meetingType?: string;
 }
 
-export type AskAnswerProjection =
+export type AskAnswerProjection<
+  ClientReference = never,
+  MeetingReference = never,
+> =
   | {
       readonly kind: 'local-answer';
       readonly text: string;
-      readonly citations: readonly AskCitation[];
+      readonly citations: readonly AskCitation<
+        ClientReference,
+        MeetingReference
+      >[];
     }
   | {
       readonly kind: 'no-local-answer';
       readonly message: string;
-      readonly citations: readonly AskCitation[];
+      readonly citations: readonly AskCitation<
+        ClientReference,
+        MeetingReference
+      >[];
     };
-
-export interface AskModeDescriptor {
-  readonly id: string;
-  readonly order: number;
-  readonly responseFormat: 'normal' | 'meeting-report';
-  readonly buildScope: AskScopeBuilder;
-}
 
 export interface AskScopeBuilder {
   readonly wholeFirm: (workspaceId: string) => AskScope;
-  readonly currentClient: (
+  readonly currentClient: <ClientReference>(
     workspaceId: string,
-    context: AskClientContext | null
-  ) => AskScope;
-  readonly chosenSources: (
+    client: AskClientSnapshot<ClientReference> | null
+  ) => AskScope<ClientReference>;
+  readonly chosenSources: <ClientReference>(
     workspaceId: string,
-    matterId: string,
-    sourceIds: readonly string[],
-    contactRef?: ContactRef
-  ) => AskScope;
-  readonly singleMeeting: (
+    client: AskClientSnapshot<ClientReference>,
+    sourceIds: readonly string[]
+  ) => AskScope<ClientReference>;
+  readonly singleMeeting: <ClientReference, MeetingReference>(
     workspaceId: string,
-    meeting: MeetingRef
-  ) => AskScope;
-  readonly selectedMeetings: (
+    client: AskClientSnapshot<ClientReference>,
+    meeting: MeetingReference
+  ) => AskScope<ClientReference, MeetingReference>;
+  readonly selectedMeetings: <ClientReference, MeetingReference>(
     workspaceId: string,
-    meetings: readonly MeetingRef[]
-  ) => AskScope;
-  readonly meetingRange: (
+    client: AskClientSnapshot<ClientReference>,
+    meetings: readonly MeetingReference[]
+  ) => AskScope<ClientReference, MeetingReference>;
+  readonly meetingRange: <ClientReference>(
     workspaceId: string,
-    matterId: string,
+    client: AskClientSnapshot<ClientReference>,
     startsOn: string,
     endsOn: string,
     meetingTypes?: readonly string[]
-  ) => AskScope;
+  ) => AskScope<ClientReference>;
 }
 
-export interface AskActionAuthority {
-  readonly require: (operation: string, matterId: string) => boolean;
-}
-
-export interface AskActionAuditContext {
-  readonly write: (
-    action: string,
-    matterId: string,
-    sourceIds: readonly string[]
-  ) => Promise<void>;
-}
-
-export interface AskAnswerActionContext {
-  readonly answer: AskAnswerProjection;
-  readonly citations: readonly AskCitation[];
-  readonly scope: ResolvedAskScope;
-  readonly authority: AskActionAuthority;
-  readonly audit: AskActionAuditContext;
-}
-
-export interface AskAnswerActionDescriptor {
+export interface AskModeDescriptor<
+  ClientReference = never,
+  MeetingReference = never,
+> {
   readonly id: string;
   readonly order: number;
-  readonly isAvailable: (context: AskAnswerActionContext) => boolean;
-  /** Must only open a record or create a review draft. */
-  readonly execute: (context: AskAnswerActionContext) => void | Promise<void>;
+  readonly responseFormat: 'normal' | 'meeting-report';
+  readonly isEnabled?: (
+    scope: ResolvedAskScope<ClientReference, MeetingReference>
+  ) => boolean;
+  readonly buildScope: AskScopeBuilder;
 }
 
-export interface AskConversationMetadata {
+/**
+ * Authority and audit values are generic until their real owner exports land.
+ * Ask intentionally publishes no local authority/audit lookalike.
+ */
+export interface AskAnswerActionContext<
+  ClientReference,
+  MeetingReference,
+  Authority,
+  Audit,
+> {
+  readonly answer: AskAnswerProjection<ClientReference, MeetingReference>;
+  readonly citations: readonly AskCitation<ClientReference, MeetingReference>[];
+  readonly scope: ResolvedAskScope<ClientReference, MeetingReference>;
+  readonly authority: Authority;
+  readonly audit: Audit;
+}
+
+export interface AskAnswerActionDescriptor<
+  ClientReference = never,
+  MeetingReference = never,
+  Authority = never,
+  Audit = never,
+> {
   readonly id: string;
-  readonly scope: AskScope;
+  readonly order: number;
+  readonly isEnabled?: (
+    context: AskAnswerActionContext<
+      ClientReference,
+      MeetingReference,
+      Authority,
+      Audit
+    >
+  ) => boolean;
+  readonly isAvailable: (
+    context: AskAnswerActionContext<
+      ClientReference,
+      MeetingReference,
+      Authority,
+      Audit
+    >
+  ) => boolean;
+  /** Must only open a record or create a review draft. */
+  readonly execute: (
+    context: AskAnswerActionContext<
+      ClientReference,
+      MeetingReference,
+      Authority,
+      Audit
+    >
+  ) => void | Promise<void>;
+}
+
+export interface AskConversationMetadata<
+  ClientReference = never,
+  MeetingReference = never,
+> {
+  readonly id: string;
+  readonly scope: AskScope<ClientReference, MeetingReference>;
   readonly title: string;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
 
-export interface AskReviewDraft {
+export interface AskReviewDraft<
+  ClientReference = never,
+  MeetingReference = never,
+> {
   readonly id: string;
-  readonly scope: AskScope;
+  readonly scope: AskScope<ClientReference, MeetingReference>;
   readonly destination: 'task' | 'crm-note' | 'follow-up';
   readonly body: string;
   readonly citationIds: readonly string[];

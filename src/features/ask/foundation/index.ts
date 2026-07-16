@@ -1,6 +1,7 @@
 export * from './contracts';
 export {
   askScopeBuilder,
+  askScopeSnapshotsMatch,
   askSourceBelongsToScope,
   AskScopeError,
   resolveAskScope,
@@ -10,6 +11,10 @@ export {
   askAnswerActionRegistry,
   askModeRegistry,
   askSourceRegistry,
+  collectAskSourceCandidates,
+  listAskAnswerActions,
+  listAskModes,
+  listAskSourceAdapters,
   registerAskAnswerAction,
   registerAskMode,
   registerAskSource,
@@ -23,4 +28,10 @@ export {
   buildAskRetrievalPlan,
   noLocalAnswer,
 } from './retrieval';
-export { askConversationLiveRecord, useAskConversation } from './conversation';
+export {
+  askConversationLiveRecord,
+  createAskConversationStore,
+  useAskConversation,
+  type AskConversationPort,
+  type AskConversationStoreOptions,
+} from './conversation';

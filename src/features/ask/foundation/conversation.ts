@@ -1,33 +1,252 @@
 import { useMemo } from 'react';
+import {
+  loadLiveCrmRecords,
+  type LiveCrmRecord,
+} from '@/platform/crm/liveRecords';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
-import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
-import type { AskConversationMetadata, AskReviewDraft } from './contracts';
+import type {
+  AskClientSnapshot,
+  AskConversationMetadata,
+  AskOwnerIdentityAdapter,
+  AskReviewDraft,
+  AskSavedSourceSelection,
+  AskScope,
+  AskSourceDescriptor,
+} from './contracts';
+import { askSourceBelongsToScope, resolveAskScope } from './scope';
 
-type AskStoredRecord = LiveCrmRecord & {
-  readonly kind: 'askConversation' | 'askReviewDraft';
-  readonly payload: AskConversationMetadata | AskReviewDraft;
+type AskStoredKind =
+  | 'askConversation'
+  | 'askReviewDraft'
+  | 'askSourceSelection';
+
+type AskPayload<ClientReference, MeetingReference> =
+  | AskConversationMetadata<ClientReference, MeetingReference>
+  | AskReviewDraft<ClientReference, MeetingReference>
+  | AskSavedSourceSelection<ClientReference, MeetingReference>;
+
+type AskStoredRecord<ClientReference, MeetingReference> = LiveCrmRecord & {
+  readonly kind: AskStoredKind;
+  readonly payload: AskPayload<ClientReference, MeetingReference>;
 };
 
-function isAskStoredRecord(record: LiveCrmRecord): record is AskStoredRecord {
+export interface AskConversationStoreOptions<
+  ClientReference,
+  MeetingReference,
+> {
+  readonly currentClient: AskClientSnapshot<ClientReference> | null;
+  readonly owners: AskOwnerIdentityAdapter<ClientReference, MeetingReference>;
+}
+
+export interface AskConversationPort {
+  readonly records: readonly LiveCrmRecord[];
+  readonly workspaceRoot: string | null | undefined;
+  readonly save: (record: LiveCrmRecord) => Promise<LiveCrmRecord>;
+  readonly reloadRecords: () => Promise<readonly LiveCrmRecord[] | undefined>;
+}
+
+function object(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function nonBlank(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function timestamp(value: unknown): value is string {
+  return nonBlank(value) && !Number.isNaN(Date.parse(value));
+}
+
+function stringList(value: unknown): value is readonly string[] {
+  return Array.isArray(value) && value.every(nonBlank);
+}
+
+function clientSnapshot<ClientReference, MeetingReference>(
+  value: unknown,
+  owners: AskOwnerIdentityAdapter<ClientReference, MeetingReference>
+): value is AskClientSnapshot<ClientReference> {
   return (
-    (record.kind === 'askConversation' || record.kind === 'askReviewDraft') &&
-    typeof record['payload'] === 'object' &&
-    record['payload'] !== null
+    object(value) &&
+    owners.isClientReference(value['contactRef']) &&
+    nonBlank(value['matterId']) &&
+    nonBlank(value['revision']) &&
+    owners.clientMatterId(value['contactRef']) === value['matterId']
   );
 }
 
-function recordFor(
-  payload: AskConversationMetadata | AskReviewDraft
-): AskStoredRecord {
-  const kind = 'destination' in payload ? 'askReviewDraft' : 'askConversation';
-  const matterId =
-    payload.scope.kind === 'whole-firm'
-      ? undefined
-      : payload.scope.kind === 'single-meeting'
-        ? payload.scope.meeting.matterId
-        : payload.scope.kind === 'selected-meetings'
-          ? payload.scope.meetings[0]?.matterId
-          : payload.scope.matterId;
+function scopeValue<ClientReference, MeetingReference>(
+  value: unknown,
+  options: AskConversationStoreOptions<ClientReference, MeetingReference>
+): value is AskScope<ClientReference, MeetingReference> {
+  if (
+    !object(value) ||
+    !nonBlank(value['workspaceId']) ||
+    !nonBlank(value['kind'])
+  ) {
+    return false;
+  }
+  if (value['kind'] === 'whole-firm') return true;
+  if (!clientSnapshot(value['client'], options.owners)) return false;
+  const scope = value as unknown as AskScope<ClientReference, MeetingReference>;
+  try {
+    resolveAskScope(scope, options.currentClient, options.owners);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function sourceValue<ClientReference, MeetingReference>(
+  value: unknown,
+  scope: AskScope<ClientReference, MeetingReference>,
+  options: AskConversationStoreOptions<ClientReference, MeetingReference>
+): value is AskSourceDescriptor<ClientReference, MeetingReference> {
+  if (
+    !object(value) ||
+    !nonBlank(value['sourceId']) ||
+    !nonBlank(value['kind']) ||
+    !nonBlank(value['workspaceId']) ||
+    !clientSnapshot(value['client'], options.owners) ||
+    !nonBlank(value['label']) ||
+    !['available', 'unavailable'].includes(String(value['availability'])) ||
+    !object(value['citationOpenPath']) ||
+    !nonBlank(value['citationOpenPath']['kind']) ||
+    !nonBlank(value['citationOpenPath']['token'])
+  ) {
+    return false;
+  }
+  if (
+    ![
+      'crm-contact',
+      'document',
+      'meeting-artifact',
+      'email-descriptor',
+    ].includes(value['kind'])
+  ) {
+    return false;
+  }
+  if (
+    value['kind'] === 'meeting-artifact' &&
+    (!options.owners.isMeetingReference(value['meeting']) ||
+      !nonBlank(value['occurredOn']) ||
+      !nonBlank(value['meetingType']))
+  ) {
+    return false;
+  }
+  if (value['kind'] === 'email-descriptor' && !timestamp(value['date'])) {
+    return false;
+  }
+  try {
+    const resolved = resolveAskScope(
+      scope,
+      options.currentClient,
+      options.owners
+    );
+    return askSourceBelongsToScope(
+      resolved,
+      value as unknown as AskSourceDescriptor<
+        ClientReference,
+        MeetingReference
+      >,
+      options.owners
+    );
+  } catch {
+    return false;
+  }
+}
+
+function conversationValue<ClientReference, MeetingReference>(
+  value: unknown,
+  options: AskConversationStoreOptions<ClientReference, MeetingReference>
+): value is AskConversationMetadata<ClientReference, MeetingReference> {
+  return (
+    object(value) &&
+    nonBlank(value['id']) &&
+    scopeValue(value['scope'], options) &&
+    nonBlank(value['title']) &&
+    timestamp(value['createdAt']) &&
+    timestamp(value['updatedAt'])
+  );
+}
+
+function draftValue<ClientReference, MeetingReference>(
+  value: unknown,
+  options: AskConversationStoreOptions<ClientReference, MeetingReference>
+): value is AskReviewDraft<ClientReference, MeetingReference> {
+  return (
+    object(value) &&
+    nonBlank(value['id']) &&
+    scopeValue(value['scope'], options) &&
+    ['task', 'crm-note', 'follow-up'].includes(String(value['destination'])) &&
+    nonBlank(value['body']) &&
+    stringList(value['citationIds']) &&
+    timestamp(value['createdAt']) &&
+    timestamp(value['updatedAt'])
+  );
+}
+
+function selectionValue<ClientReference, MeetingReference>(
+  value: unknown,
+  options: AskConversationStoreOptions<ClientReference, MeetingReference>
+): value is AskSavedSourceSelection<ClientReference, MeetingReference> {
+  if (!object(value)) return false;
+  const scope = value['scope'];
+  const sources = value['sources'];
+  if (
+    !nonBlank(value['id']) ||
+    !scopeValue(scope, options) ||
+    !Array.isArray(sources) ||
+    !sources.length ||
+    !timestamp(value['createdAt']) ||
+    !timestamp(value['updatedAt'])
+  ) {
+    return false;
+  }
+  return sources.every((source) => sourceValue(source, scope, options));
+}
+
+function payloadForKind<ClientReference, MeetingReference>(
+  kind: AskStoredKind,
+  payload: unknown,
+  options: AskConversationStoreOptions<ClientReference, MeetingReference>
+): payload is AskPayload<ClientReference, MeetingReference> {
+  if (kind === 'askConversation') return conversationValue(payload, options);
+  if (kind === 'askReviewDraft') return draftValue(payload, options);
+  return selectionValue(payload, options);
+}
+
+function projectStoredRecord<ClientReference, MeetingReference>(
+  record: LiveCrmRecord,
+  options: AskConversationStoreOptions<ClientReference, MeetingReference>
+): AskStoredRecord<ClientReference, MeetingReference> | undefined {
+  if (
+    !['askConversation', 'askReviewDraft', 'askSourceSelection'].includes(
+      record.kind
+    )
+  ) {
+    return undefined;
+  }
+  const kind = record.kind as AskStoredKind;
+  return payloadForKind(kind, record['payload'], options)
+    ? (record as AskStoredRecord<ClientReference, MeetingReference>)
+    : undefined;
+}
+
+function matterForScope<ClientReference, MeetingReference>(
+  scope: AskScope<ClientReference, MeetingReference>
+): string | undefined {
+  return scope.kind === 'whole-firm' ? undefined : scope.client.matterId;
+}
+
+function recordFor<ClientReference, MeetingReference>(
+  kind: AskStoredKind,
+  payload: AskPayload<ClientReference, MeetingReference>,
+  options: AskConversationStoreOptions<ClientReference, MeetingReference>
+): AskStoredRecord<ClientReference, MeetingReference> {
+  if (!payloadForKind(kind, payload, options)) {
+    throw new Error(`Ask refused malformed or stale ${kind} state.`);
+  }
+  const matterId = matterForScope(payload.scope);
   return {
     id: `ask:${kind}:${payload.id}`,
     kind,
@@ -36,38 +255,85 @@ function recordFor(
   };
 }
 
-/**
- * Reactive persisted Ask metadata/draft doorway. It uses only the encrypted
- * live-record route and keeps typing/streaming state out of persistence.
- */
-export function useAskConversation() {
-  const live = useLiveCrmRecords();
-  const stored = useMemo(
-    () => live.records.filter(isAskStoredRecord),
-    [live.records]
-  );
-  const conversations = useMemo(
-    () =>
-      stored
-        .filter((record) => record.kind === 'askConversation')
-        .map((record) => record.payload as AskConversationMetadata),
-    [stored]
-  );
-  const reviewDrafts = useMemo(
-    () =>
-      stored
-        .filter((record) => record.kind === 'askReviewDraft')
-        .map((record) => record.payload as AskReviewDraft),
-    [stored]
-  );
-  return {
-    conversations,
-    reviewDrafts,
-    saveConversation: async (metadata: AskConversationMetadata) =>
-      live.save(recordFor(metadata)),
-    saveReviewDraft: async (draft: AskReviewDraft) =>
-      live.save(recordFor(draft)),
+export function createAskConversationStore<ClientReference, MeetingReference>(
+  port: AskConversationPort,
+  options: AskConversationStoreOptions<ClientReference, MeetingReference>
+) {
+  const stored = port.records.flatMap((record) => {
+    const projected = projectStoredRecord(record, options);
+    return projected ? [projected] : [];
+  });
+  const persist = async (
+    kind: AskStoredKind,
+    payload: AskPayload<ClientReference, MeetingReference>
+  ): Promise<void> => {
+    const record = recordFor(kind, payload, options);
+    await port.save(record);
+    const reloaded = await port.reloadRecords();
+    const canonical = reloaded
+      ?.map((candidate) => projectStoredRecord(candidate, options))
+      .find((candidate) => candidate?.id === record.id);
+    if (!canonical) {
+      throw new Error(
+        'Saved Ask state was absent from the fresh canonical reload.'
+      );
+    }
   };
+  return {
+    conversations: stored
+      .filter((record) => record.kind === 'askConversation')
+      .map(
+        (record) =>
+          record.payload as AskConversationMetadata<
+            ClientReference,
+            MeetingReference
+          >
+      ),
+    reviewDrafts: stored
+      .filter((record) => record.kind === 'askReviewDraft')
+      .map(
+        (record) =>
+          record.payload as AskReviewDraft<ClientReference, MeetingReference>
+      ),
+    sourceSelections: stored
+      .filter((record) => record.kind === 'askSourceSelection')
+      .map(
+        (record) =>
+          record.payload as AskSavedSourceSelection<
+            ClientReference,
+            MeetingReference
+          >
+      ),
+    saveConversation: (
+      metadata: AskConversationMetadata<ClientReference, MeetingReference>
+    ) => persist('askConversation', metadata),
+    saveReviewDraft: (
+      draft: AskReviewDraft<ClientReference, MeetingReference>
+    ) => persist('askReviewDraft', draft),
+    saveSourceSelection: (
+      selection: AskSavedSourceSelection<ClientReference, MeetingReference>
+    ) => persist('askSourceSelection', selection),
+  };
+}
+
+/** Reactive doorway over the encrypted live-record route. */
+export function useAskConversation<ClientReference, MeetingReference>(
+  options: AskConversationStoreOptions<ClientReference, MeetingReference>
+) {
+  const live = useLiveCrmRecords();
+  return useMemo(
+    () =>
+      createAskConversationStore(
+        {
+          records: live.records,
+          workspaceRoot: live.workspaceRoot,
+          save: live.save,
+          reloadRecords: () => loadLiveCrmRecords(live.workspaceRoot),
+        },
+        options
+      ),
+    [live.records, live.workspaceRoot, live.save, options]
+  );
 }
 
 export { recordFor as askConversationLiveRecord };

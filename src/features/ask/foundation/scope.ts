@@ -1,10 +1,9 @@
 import type {
-  AskClientContext,
+  AskClientSnapshot,
+  AskOwnerIdentityAdapter,
   AskScope,
   AskScopeBuilder,
   AskSourceDescriptor,
-  ContactRef,
-  MeetingRef,
   ResolvedAskScope,
 } from './contracts';
 
@@ -15,161 +14,249 @@ function required(value: string, label: string): string {
   return value;
 }
 
-function sameContact(left: ContactRef, right: ContactRef): boolean {
+function validDay(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
   return (
-    left.kind === right.kind &&
-    left.id === right.id &&
-    left.matterId === right.matterId
+    !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(value)
   );
 }
 
-function validateContact(contact: ContactRef, matterId: string): void {
-  required(contact.kind, 'a contact kind');
-  required(contact.id, 'a contact id');
-  if (contact.matterId !== matterId) {
+function sameClientSnapshot<ClientReference, MeetingReference>(
+  left: AskClientSnapshot<ClientReference>,
+  right: AskClientSnapshot<ClientReference>,
+  owners: AskOwnerIdentityAdapter<ClientReference, MeetingReference>
+): boolean {
+  return (
+    left.matterId === right.matterId &&
+    left.revision === right.revision &&
+    owners.sameClient(left.contactRef, right.contactRef)
+  );
+}
+
+function validateClient<ClientReference, MeetingReference>(
+  client: AskClientSnapshot<ClientReference>,
+  owners: AskOwnerIdentityAdapter<ClientReference, MeetingReference>
+): void {
+  required(client.matterId, 'a client matter');
+  required(client.revision, 'a client revision');
+  if (!owners.isClientReference(client.contactRef)) {
+    throw new AskScopeError(
+      'Ask scope has an invalid owner contact reference.'
+    );
+  }
+  if (owners.clientMatterId(client.contactRef) !== client.matterId) {
     throw new AskScopeError(
       'Ask contact context must belong to the selected matter.'
     );
   }
 }
 
-function validateMeeting(meeting: MeetingRef): void {
-  required(meeting.id, 'a meeting id');
-  required(meeting.matterId, 'a meeting matter');
-}
-
-function validateScope(scope: AskScope): void {
+function validateScope<ClientReference, MeetingReference>(
+  scope: AskScope<ClientReference, MeetingReference>,
+  owners?: AskOwnerIdentityAdapter<ClientReference, MeetingReference>
+): void {
   required(scope.workspaceId, 'a workspace boundary');
+  if (scope.kind === 'whole-firm') return;
+  if (!owners) {
+    throw new AskScopeError(
+      'Ask client scopes are unavailable until owner identity contracts are supplied.'
+    );
+  }
+  validateClient(scope.client, owners);
   switch (scope.kind) {
-    case 'whole-firm':
-      return;
     case 'current-client':
-      required(scope.revision, 'a client revision');
-      required(scope.matterId, 'a client matter');
-      validateContact(scope.contactRef, scope.matterId);
       return;
     case 'chosen-sources':
-      required(scope.matterId, 'a source matter');
       if (!scope.sourceIds.length || scope.sourceIds.some((id) => !id.trim())) {
         throw new AskScopeError(
           'Ask chosen-source scope requires stable source ids.'
         );
       }
-      if (scope.contactRef) validateContact(scope.contactRef, scope.matterId);
       return;
     case 'single-meeting':
-      validateMeeting(scope.meeting);
+      if (
+        !owners.isMeetingReference(scope.meeting) ||
+        !required(owners.meetingId(scope.meeting), 'a meeting id') ||
+        owners.meetingMatterId(scope.meeting) !== scope.client.matterId
+      ) {
+        throw new AskScopeError(
+          'Ask meeting scope must stay inside the selected client.'
+        );
+      }
       return;
     case 'selected-meetings':
-      if (!scope.meetings.length)
+      if (!scope.meetings.length) {
         throw new AskScopeError('Ask selected-meetings scope cannot be empty.');
-      scope.meetings.forEach(validateMeeting);
+      }
+      if (
+        scope.meetings.some(
+          (meeting) =>
+            !owners.isMeetingReference(meeting) ||
+            !owners.meetingId(meeting).trim() ||
+            owners.meetingMatterId(meeting) !== scope.client.matterId
+        )
+      ) {
+        throw new AskScopeError(
+          'Ask selected meetings must share one client boundary.'
+        );
+      }
       return;
     case 'meeting-range':
-      required(scope.matterId, 'a meeting matter');
-      required(scope.startsOn, 'a range start');
-      required(scope.endsOn, 'a range end');
-      if (scope.startsOn > scope.endsOn)
+      if (!validDay(scope.startsOn) || !validDay(scope.endsOn)) {
+        throw new AskScopeError(
+          'Ask meeting range requires real calendar dates.'
+        );
+      }
+      if (scope.startsOn > scope.endsOn) {
         throw new AskScopeError('Ask meeting range ends before it starts.');
-      return;
+      }
+      if (scope.meetingTypes?.some((meetingType) => !meetingType.trim())) {
+        throw new AskScopeError('Ask meeting types cannot be blank.');
+      }
   }
 }
 
-/** Resolve only structurally valid local scopes. Missing client context fails closed. */
-export function resolveAskScope(
-  scope: AskScope,
-  currentClient: AskClientContext | null = null
-): ResolvedAskScope {
-  validateScope(scope);
-  if (scope.kind === 'current-client') {
+/** Resolve only structurally valid scopes bound to the current shared client. */
+export function resolveAskScope<ClientReference, MeetingReference>(
+  scope: AskScope<ClientReference, MeetingReference>,
+  currentClient: AskClientSnapshot<ClientReference> | null = null,
+  owners?: AskOwnerIdentityAdapter<ClientReference, MeetingReference>
+): ResolvedAskScope<ClientReference, MeetingReference> {
+  validateScope(scope, owners);
+  if (scope.kind !== 'whole-firm') {
+    if (currentClient && owners) validateClient(currentClient, owners);
     if (
+      !owners ||
       !currentClient ||
-      currentClient.revision !== scope.revision ||
-      currentClient.matterId !== scope.matterId ||
-      !sameContact(currentClient.contactRef, scope.contactRef)
+      !sameClientSnapshot(scope.client, currentClient, owners)
     ) {
-      throw new AskScopeError(
-        'Ask current-client scope is stale or unavailable.'
-      );
+      throw new AskScopeError('Ask client scope is stale or unavailable.');
     }
   }
   return { ...scope, resolved: true };
 }
 
-/** A reference must remain in the resolved scope at use time, not just selection time. */
-export function askSourceBelongsToScope(
-  scope: ResolvedAskScope,
-  source: AskSourceDescriptor
+function sameScopeSnapshot<ClientReference, MeetingReference>(
+  left: AskScope<ClientReference, MeetingReference>,
+  right: AskScope<ClientReference, MeetingReference>,
+  owners: AskOwnerIdentityAdapter<ClientReference, MeetingReference>
 ): boolean {
-  if (source.workspaceId !== scope.workspaceId) return false;
-  if (scope.kind === 'whole-firm') return true;
-  if (scope.kind === 'current-client') {
+  if (left.workspaceId !== right.workspaceId || left.kind !== right.kind) {
+    return false;
+  }
+  if (left.kind === 'whole-firm' || right.kind === 'whole-firm') return true;
+  if (!sameClientSnapshot(left.client, right.client, owners)) return false;
+  if (left.kind === 'current-client' && right.kind === 'current-client') {
+    return true;
+  }
+  if (left.kind === 'chosen-sources' && right.kind === 'chosen-sources') {
     return (
-      source.matterId === scope.matterId &&
-      !!source.contactRef &&
-      sameContact(source.contactRef, scope.contactRef)
+      left.sourceIds.length === right.sourceIds.length &&
+      left.sourceIds.every((id, index) => id === right.sourceIds[index])
     );
   }
-  if (scope.kind === 'chosen-sources') {
-    return (
-      source.matterId === scope.matterId &&
-      scope.sourceIds.includes(source.sourceId) &&
-      (!scope.contactRef ||
-        (!!source.contactRef &&
-          sameContact(source.contactRef, scope.contactRef)))
-    );
+  if (left.kind === 'single-meeting' && right.kind === 'single-meeting') {
+    return owners.sameMeeting(left.meeting, right.meeting);
   }
-  if (scope.kind === 'single-meeting') {
+  if (left.kind === 'selected-meetings' && right.kind === 'selected-meetings') {
     return (
-      source.kind === 'meeting-artifact' &&
-      source.matterId === scope.meeting.matterId &&
-      source.sourceId === scope.meeting.id
-    );
-  }
-  if (scope.kind === 'selected-meetings') {
-    return (
-      source.kind === 'meeting-artifact' &&
-      scope.meetings.some(
-        (meeting) =>
-          meeting.matterId === source.matterId && meeting.id === source.sourceId
+      left.meetings.length === right.meetings.length &&
+      left.meetings.every((meeting, index) =>
+        owners.sameMeeting(meeting, right.meetings[index] as MeetingReference)
       )
     );
   }
+  if (left.kind === 'meeting-range' && right.kind === 'meeting-range') {
+    const leftTypes = left.meetingTypes ?? [];
+    const rightTypes = right.meetingTypes ?? [];
+    return (
+      left.startsOn === right.startsOn &&
+      left.endsOn === right.endsOn &&
+      leftTypes.length === rightTypes.length &&
+      leftTypes.every((meetingType, index) => meetingType === rightTypes[index])
+    );
+  }
+  return false;
+}
+
+/** A reference must remain in the resolved scope at use time. */
+export function askSourceBelongsToScope<ClientReference, MeetingReference>(
+  scope: ResolvedAskScope<ClientReference, MeetingReference>,
+  source: AskSourceDescriptor<ClientReference, MeetingReference>,
+  owners: AskOwnerIdentityAdapter<ClientReference, MeetingReference>
+): boolean {
+  if (
+    source.workspaceId !== scope.workspaceId ||
+    !owners.isClientReference(source.client.contactRef) ||
+    source.client.matterId !== owners.clientMatterId(source.client.contactRef)
+  ) {
+    return false;
+  }
+  if (scope.kind === 'whole-firm') return true;
+  if (!sameClientSnapshot(scope.client, source.client, owners)) return false;
+  if (scope.kind === 'current-client') return true;
+  if (scope.kind === 'chosen-sources') {
+    return scope.sourceIds.includes(source.sourceId);
+  }
+  if (source.kind !== 'meeting-artifact') return false;
+  if (
+    !owners.isMeetingReference(source.meeting) ||
+    owners.meetingMatterId(source.meeting) !== scope.client.matterId
+  ) {
+    return false;
+  }
+  if (scope.kind === 'single-meeting') {
+    return owners.sameMeeting(source.meeting, scope.meeting);
+  }
+  if (scope.kind === 'selected-meetings') {
+    return scope.meetings.some((meeting) =>
+      owners.sameMeeting(source.meeting, meeting)
+    );
+  }
+  if (!validDay(source.occurredOn) || !source.meetingType.trim()) return false;
   return (
-    source.kind === 'meeting-artifact' && source.matterId === scope.matterId
+    source.occurredOn >= scope.startsOn &&
+    source.occurredOn <= scope.endsOn &&
+    (!scope.meetingTypes?.length ||
+      scope.meetingTypes.includes(source.meetingType))
   );
 }
 
+export { sameScopeSnapshot as askScopeSnapshotsMatch };
+
 export const askScopeBuilder: AskScopeBuilder = {
   wholeFirm: (workspaceId) => ({ workspaceId, kind: 'whole-firm' }),
-  currentClient: (workspaceId, context) => {
-    if (!context)
+  currentClient: (workspaceId, client) => {
+    if (!client) {
       throw new AskScopeError(
         'Ask current-client scope is unavailable without the shared client.'
       );
-    return { workspaceId, kind: 'current-client', ...context };
+    }
+    return { workspaceId, kind: 'current-client', client };
   },
-  chosenSources: (workspaceId, matterId, sourceIds, contactRef) => ({
+  chosenSources: (workspaceId, client, sourceIds) => ({
     workspaceId,
     kind: 'chosen-sources',
-    matterId,
+    client,
     sourceIds,
-    ...(contactRef ? { contactRef } : {}),
   }),
-  singleMeeting: (workspaceId, meeting) => ({
+  singleMeeting: (workspaceId, client, meeting) => ({
     workspaceId,
     kind: 'single-meeting',
+    client,
     meeting,
   }),
-  selectedMeetings: (workspaceId, meetings) => ({
+  selectedMeetings: (workspaceId, client, meetings) => ({
     workspaceId,
     kind: 'selected-meetings',
+    client,
     meetings,
   }),
-  meetingRange: (workspaceId, matterId, startsOn, endsOn, meetingTypes) => ({
+  meetingRange: (workspaceId, client, startsOn, endsOn, meetingTypes) => ({
     workspaceId,
     kind: 'meeting-range',
-    matterId,
+    client,
     startsOn,
     endsOn,
     ...(meetingTypes ? { meetingTypes } : {}),

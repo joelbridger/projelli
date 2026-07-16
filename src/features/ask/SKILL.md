@@ -1,23 +1,76 @@
 # Ask local-first foundation
 
-Use `@/features/ask` as the only public doorway for new Ask work.
+Use `@/features/ask` as the only public doorway for new Ask work. The current
+base ships the generic local foundation, not the missing owner integrations.
+Read [`FOUNDATION_STATUS.md`](./FOUNDATION_STATUS.md) before launching a
+consumer.
 
-1. Build a scope with `askScopeBuilder`, then call `resolveAskScope` before
-   listing a source, preparing retrieval, opening a citation, or offering an
-   action. Current-client scope is unavailable without the shared client and
-   its matching revision.
-2. Append one ordered source adapter, mode, or answer action with
-   `registerAskSource`, `registerAskMode`, or `registerAskAnswerAction`.
-   Registry entries must have stable IDs/orders and reject duplicates.
-3. Make a retrieval plan with `buildAskRetrievalPlan`; make every answer
-   citation with `buildAskCitation`. Both re-check the resolved scope.
-4. Add a small public import fixture outside Ask for each consumer. Source and
-   destination modules remain unavailable until their exact public doorway is
-   landed; do not use a deep import or a temporary substitute.
-5. Persist only conversation metadata, saved scopes, source selections, and
-   review drafts through `useAskConversation`. Streaming and typing state stays
-   private to the UI.
+## Scope and saved state
 
-Outside model providers, connectors, credentials, retrieval over external
-sources, sending, and committed writes are Part B. They are not Ask foundation
-extensions and need a coordinator/Jameson decision.
+Client-bound scopes store the owner contact reference, matter, and shared-
+client revision. Pass the current client plus an `AskOwnerIdentityAdapter` to
+`resolveAskScope`. Chosen sources, single/selected meetings, and meeting ranges
+all fail closed when the current client changes or clears.
+
+`useAskConversation({ currentClient, owners })` reads and writes conversation
+metadata, review drafts, and saved source selections through encrypted live
+records. It validates every loaded payload, saves, then requires the record to
+exist in a fresh canonical reload. It returns `conversations`, `reviewDrafts`,
+`sourceSelections`, `saveConversation`, `saveReviewDraft`, and
+`saveSourceSelection`.
+
+## Appendable registries
+
+The shipped append API is exactly:
+
+```ts
+import {
+  askScopeBuilder,
+  registerAskAnswerAction,
+  registerAskMode,
+  registerAskSource,
+  type AskAnswerActionDescriptor,
+  type AskModeDescriptor,
+  type AskSourceAdapter,
+} from '@/features/ask';
+
+const source = {
+  id: 'my-local-source', order: 100, sourceKinds: ['document'],
+  listCandidates: () => [],
+} satisfies AskSourceAdapter<MyContactRef, MyMeetingRef>;
+
+const mode = {
+  id: 'my-mode', order: 100, responseFormat: 'normal',
+  buildScope: askScopeBuilder,
+} satisfies AskModeDescriptor<MyContactRef, MyMeetingRef>;
+
+const action = {
+  id: 'my-review-action', order: 100,
+  isAvailable: (context) => context.authority.allowed,
+  execute: () => undefined,
+} satisfies AskAnswerActionDescriptor<
+  MyContactRef, MyMeetingRef, MyAuthority, MyAudit
+>;
+
+registerAskSource(source);
+registerAskMode(mode);
+registerAskAnswerAction(action);
+```
+
+The compiling copy is outside this package at
+`src/foundation-contracts/ask/pavedPath.import.ts`. Registry reads use
+`collectAskSourceCandidates`, `listAskModes`, and `listAskAnswerActions`; those
+paths exclude dark entries and re-check client scope.
+
+## Availability boundary
+
+The base has no exact public client-bar, source-producer, meeting-artifact,
+authority, audit, destination, or shell doorway required by the original
+manifest. Their registries therefore have no built-in contributor. Do not add
+a deep import, local `ContactRef`/`MeetingRef`, permission/audit lookalike, or
+temporary destination. The coordinator must land and reconcile those owners
+first, including the shell's real `search` ID versus the brief's stale `ask`
+ID.
+
+Outside model providers, credentials, connector retrieval, sending, and
+committed writes remain Part B and are not reserved.
