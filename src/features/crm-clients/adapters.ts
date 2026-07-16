@@ -56,6 +56,9 @@ export interface CrmAccount {
 export interface CrmPerson {
   id: string;
   name: string;
+  /** Optional canonical CRM timestamps; directory projections preserve them when present. */
+  createdAt?: string;
+  updatedAt?: string;
   personType: 'person' | 'trust' | 'organization';
   roles: readonly string[];
   householdRole?: string;
@@ -156,6 +159,9 @@ export interface CrmFieldValue {
 export interface HouseholdRecord {
   id: string;
   name: string;
+  /** Optional canonical CRM timestamps; directory projections preserve them when present. */
+  createdAt?: string;
+  updatedAt?: string;
   lifecycle: string;
   primaryAdvisor: string;
   ownership: 'mine' | 'shared' | 'other';
@@ -180,6 +186,9 @@ export interface HouseholdRecord {
 export interface HouseholdDirectoryEntry {
   id: string;
   name: string;
+  /** Optional canonical CRM timestamps; directory projections preserve them when present. */
+  createdAt?: string;
+  updatedAt?: string;
   lifecycle: string;
   primaryAdvisor: string;
   serviceTier: string;

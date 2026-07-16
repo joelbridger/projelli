@@ -14,6 +14,31 @@ export type DirectoryRailId = Extract<keyof DirectoryRailIdMap, string>;
 export type DirectoryViewId = Extract<keyof DirectoryViewIdMap, string>;
 export type DirectoryQueryId = Extract<keyof DirectoryQueryIdMap, string>;
 
+/**
+ * Short-lived, feature-owned state that affects one directory projection.
+ * This is intentionally separate from preferences: it is local to the mounted
+ * directory surface and is never persisted or shared with another surface.
+ */
+export type DirectoryFeatureStateValue =
+  | null
+  | boolean
+  | number
+  | string
+  | readonly DirectoryFeatureStateValue[]
+  | { readonly [key: string]: DirectoryFeatureStateValue };
+
+/**
+ * Directory features use a stable, feature-owned namespace (for example,
+ * `crm-list-sort`) to read and set their transient projection state. Calling
+ * `set` re-renders this directory surface, so query `isActive`, `filter`, and
+ * `compare` callbacks receive the current value. Namespaces never collide,
+ * and this channel is deliberately not a global store or event bus.
+ */
+export interface DirectoryFeatureState {
+  get(namespace: string): DirectoryFeatureStateValue | undefined;
+  set(namespace: string, value: DirectoryFeatureStateValue): void;
+}
+
 type DeepReadonly<T> = T extends (...args: never[]) => unknown
   ? T
   : T extends readonly (infer Item)[]
@@ -53,6 +78,8 @@ export interface DirectoryContext {
     reviewRecipient(id: string): void;
     createHousehold(name: string): Promise<void> | void;
   };
+  /** Required transient state channel for feature-owned directory projections. */
+  featureState: DirectoryFeatureState;
   composition: DirectoryComposition;
 }
 
@@ -94,11 +121,13 @@ export interface DirectoryQueryDescriptor<Id extends string = DirectoryQueryId> 
 }
 
 export interface DirectoryContribution {
+  tools?: readonly DirectoryToolDescriptor[];
   views?: readonly DirectoryViewDescriptor<string>[];
   queries?: readonly DirectoryQueryDescriptor<string>[];
 }
 
 export interface DirectoryComposition {
+  tools: readonly DirectoryToolDescriptor[];
   views: readonly DirectoryViewDescriptor<string>[];
   queries: readonly DirectoryQueryDescriptor<string>[];
 }
@@ -209,6 +238,10 @@ export const getDirectoryViews = () =>
 export function createDirectoryComposition(
   ...contributions: readonly DirectoryContribution[]
 ): DirectoryComposition {
+  const tools = [
+    ...directoryToolRegistry,
+    ...contributions.flatMap((contribution) => contribution.tools ?? []),
+  ];
   const views = [
     ...directoryViewRegistry,
     ...contributions.flatMap((contribution) => contribution.views ?? []),
@@ -217,9 +250,11 @@ export function createDirectoryComposition(
     ...directoryQueryRegistry,
     ...contributions.flatMap((contribution) => contribution.queries ?? []),
   ];
+  validateDirectoryToolDescriptors(tools);
   validateDirectoryViewDescriptors(views);
   validateDirectoryQueryDescriptors(queries);
   return {
+    tools: tools.slice().sort((left, right) => left.order - right.order),
     views: views.slice().sort((left, right) => left.order - right.order),
     queries: queries.slice().sort((left, right) => left.order - right.order),
   };

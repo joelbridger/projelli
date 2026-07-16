@@ -53,6 +53,7 @@ const context: DirectoryContext = {
     reviewRecipient: vi.fn(),
     createHousehold: vi.fn(),
   },
+  featureState: { get: vi.fn(), set: vi.fn() },
   composition: defaultDirectoryComposition,
 };
 

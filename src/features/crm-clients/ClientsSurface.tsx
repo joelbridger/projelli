@@ -39,6 +39,8 @@ function householdFromRecord(record: LiveCrmRecord, currentSyncState: SyncState,
   return {
     id: record.id,
     name: stringValue(record['name'], 'Untitled household'),
+    ...(typeof record.createdAt === 'string' ? { createdAt: record.createdAt } : {}),
+    ...(typeof record.updatedAt === 'string' ? { updatedAt: record.updatedAt } : {}),
     lifecycle: stringValue(record['lifecycle'], 'Active'),
     primaryAdvisor: stringValue(record['primaryAdvisor'], 'Unassigned'),
     ownership: record['ownership'] === 'shared' || record['ownership'] === 'other' ? record['ownership'] : 'mine',
@@ -75,6 +77,7 @@ function householdFromMatter(matter: Matter, currentSyncState: SyncState): House
   return {
     id: matter.id,
     name: matter.client.trim() || matter.name,
+    ...(typeof matter.createdAt === 'string' ? { createdAt: matter.createdAt } : {}),
     lifecycle: 'Active',
     primaryAdvisor: 'Unassigned',
     ownership: 'mine',
@@ -209,6 +212,8 @@ function ClientsSurfaceContent({
   const effectiveHouseholds = households.length ? households : effectiveRecords.map((household) => ({
     id: recordMatterId(household),
     name: household.name,
+    ...(typeof household.createdAt === 'string' ? { createdAt: household.createdAt } : {}),
+    ...(typeof household.updatedAt === 'string' ? { updatedAt: household.updatedAt } : {}),
     lifecycle: household.lifecycle,
     primaryAdvisor: household.primaryAdvisor,
     serviceTier: household.serviceTier,

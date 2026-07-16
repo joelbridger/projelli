@@ -18,8 +18,11 @@ export {
   type DirectoryComposition,
   type DirectoryContext,
   type DirectoryContribution,
+  type DirectoryFeatureState,
+  type DirectoryFeatureStateValue,
   type DirectoryQueryDescriptor,
   type DirectoryResult,
+  type DirectoryToolDescriptor,
   type DirectoryViewDescriptor,
 } from './directoryRegistry';
 export {

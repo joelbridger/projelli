@@ -6,12 +6,21 @@ import {
   createDirectoryComposition,
   createDirectoryPreferenceStore,
   type DirectoryQueryDescriptor,
+  type DirectoryToolDescriptor,
   type DirectoryViewDescriptor,
 } from '@/features/crm-clients';
 import type { HouseholdDirectoryEntry } from '@/features/crm-clients';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import type { Matter } from '@/platform/types/matter';
+
+declare module './directoryRegistry' {
+  interface DirectoryToolIdMap {
+    'test-reactive-sort-tool': true;
+  }
+}
+
+const REACTIVE_SORT_TOOL_LABEL = 'Sort by name';
 
 const households: readonly HouseholdDirectoryEntry[] = Object.freeze([
   Object.freeze({ id: 'h-c', name: 'Chen household', lifecycle: 'Inactive', primaryAdvisor: 'Avery', serviceTier: 'Standard', peopleCount: 3 }),
@@ -183,6 +192,105 @@ describe('directory composition public seam', () => {
     ]);
     expect(compare).toHaveBeenCalled();
     expect(households.map(({ id }) => id)).toEqual(['h-c', 'h-a', 'h-b']);
+  });
+
+  it('re-projects through the public seam when a mounted feature tool changes its state', () => {
+    const sortTool: DirectoryToolDescriptor = {
+      id: 'test-reactive-sort-tool',
+      order: 100,
+      mount: (context) => <button data-testid="test-reactive-sort" onClick={() => {
+        context.featureState.set('test-reactive-sort', 'name-ascending');
+      }}>{REACTIVE_SORT_TOOL_LABEL}</button>,
+    };
+    const nameSort: DirectoryQueryDescriptor<'test-reactive-sort'> = {
+      id: 'test-reactive-sort',
+      order: 10,
+      isActive: (context) => context.featureState.get('test-reactive-sort') === 'name-ascending',
+      compare: (left, right) => left.record.name.localeCompare(right.record.name),
+    };
+    const composition = createDirectoryComposition({
+      tools: [sortTool],
+      queries: [nameSort],
+    });
+
+    render(<DirectorySurface people={[]} households={households} composition={composition} />);
+
+    expect(screen.getAllByTestId(/^crm-directory-household-/).map((row) => row.dataset['testid'])).toEqual([
+      'crm-directory-household-h-c',
+      'crm-directory-household-h-a',
+      'crm-directory-household-h-b',
+    ]);
+    fireEvent.click(screen.getByTestId('test-reactive-sort'));
+    expect(screen.getAllByTestId(/^crm-directory-household-/).map((row) => row.dataset['testid'])).toEqual([
+      'crm-directory-household-h-a',
+      'crm-directory-household-h-b',
+      'crm-directory-household-h-c',
+    ]);
+  });
+
+  it('keeps feature state namespaces isolated', () => {
+    const sortTool: DirectoryToolDescriptor = {
+      id: 'test-reactive-sort-tool',
+      order: 100,
+      mount: (context) => <button data-testid="test-reactive-sort" onClick={() => {
+        context.featureState.set('test-reactive-sort', 'name-ascending');
+      }}>{REACTIVE_SORT_TOOL_LABEL}</button>,
+    };
+    type QueryCompare = NonNullable<DirectoryQueryDescriptor['compare']>;
+    const ownNamespaceSort = vi.fn((
+      left: Parameters<QueryCompare>[0],
+      right: Parameters<QueryCompare>[1],
+    ) => left.record.name.localeCompare(right.record.name));
+    const otherNamespaceSort = vi.fn(() => 0);
+    const composition = createDirectoryComposition({
+      tools: [sortTool],
+      queries: [
+        {
+          id: 'test-reactive-sort',
+          order: 10,
+          isActive: (context) => context.featureState.get('test-reactive-sort') === 'name-ascending',
+          compare: ownNamespaceSort,
+        },
+        {
+          id: 'test-other-feature',
+          order: 20,
+          isActive: (context) => context.featureState.get('test-other-feature') === 'name-ascending',
+          compare: otherNamespaceSort,
+        },
+      ],
+    });
+
+    render(<DirectorySurface people={[]} households={households} composition={composition} />);
+    fireEvent.click(screen.getByTestId('test-reactive-sort'));
+
+    expect(ownNamespaceSort).toHaveBeenCalled();
+    expect(otherNamespaceSort).not.toHaveBeenCalled();
+  });
+
+  it('passes timestamp fields through directory projections when they are present', () => {
+    const timestamps = vi.fn();
+    const timestampedHouseholds: readonly HouseholdDirectoryEntry[] = [{
+      ...households[0],
+      createdAt: '2026-07-10T00:00:00.000Z',
+      updatedAt: '2026-07-11T00:00:00.000Z',
+    }];
+    const timestampProbe: DirectoryQueryDescriptor<'test-timestamp-probe'> = {
+      id: 'test-timestamp-probe',
+      order: 10,
+      isActive: () => true,
+      filter: (result) => {
+        timestamps(result.record.createdAt, result.record.updatedAt);
+        return true;
+      },
+    };
+    const composition = createDirectoryComposition({ queries: [timestampProbe] });
+
+    render(<DirectorySurface people={[]} households={timestampedHouseholds} composition={composition} />);
+
+    expect(timestamps).toHaveBeenCalledWith(
+      '2026-07-10T00:00:00.000Z',
+      '2026-07-11T00:00:00.000Z',
+    );
   });
 
   it('isolates filter and sort callback mutation attempts from source records and visible cards', () => {
