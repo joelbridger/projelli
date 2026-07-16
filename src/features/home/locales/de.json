@@ -1,0 +1,29 @@
+{
+  "home": {
+    "orientation": {
+      "eyebrow": "Startseite",
+      "title": "Ihr Tag im Blick",
+      "description": "Beginnen Sie mit der Kundenarbeit und den Werkzeugen, die jetzt am wichtigsten sind.",
+      "loading-title": "Ihr Arbeitsbereich wird vorbereitet",
+      "loading-description": "Die Startansicht erscheint, sobald der Arbeitsbereich bereit ist.",
+      "empty-title": "Wählen Sie einen Arbeitsbereich zum Starten",
+      "empty-description": "Die Startseite hilft Ihnen bei der Orientierung, nachdem Sie den Ort Ihrer Arbeit gewählt haben.",
+      "open-workspace-settings": "Arbeitsbereichseinstellungen öffnen",
+      "current-client-label": "Aktueller Kunde",
+      "no-current-client": "Kein Kunde ausgewählt",
+      "current-client-ready": "Dieser Kundenkontext ist in Ihrer Arbeit verfügbar.",
+      "current-client-empty": "Wählen Sie einen Kunden, wenn Sie einen gezielten Kontext brauchen.",
+      "focus-label": "Fokus",
+      "focus-title": "Beginnen Sie mit dem, was Sie braucht",
+      "focus-description": "Öffnen Sie den Bereich Ihrer Praxis, in dem Sie jetzt vorankommen können.",
+      "day-label": "Heute",
+      "day-title": "Ein ruhiger Ausgangspunkt",
+      "day-description": "Die Startseite hält den nächsten hilfreichen Schritt nahe, ohne eine weitere Aufgabenliste zu erstellen.",
+      "starting-points-title": "Wählen Sie Ihren Startpunkt",
+      "starting-points-description": "Diese vertrauten Werkzeuge bleiben mit demselben Kundenkontext verbunden.",
+      "open-clients": "Kunden öffnen",
+      "open-ask": "Eine Frage stellen",
+      "open-scheduling": "Zeitplan ansehen"
+    }
+  }
+}

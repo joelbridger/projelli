@@ -21,6 +21,7 @@ import type {
   AppSurfacePlacement,
 } from '@/app/shell/registry/types';
 import { LegacyMainPanelSurface } from '@/app/shell/registry/LegacyMainPanelSurface';
+import { HomeSurfaceFlagGate } from '@/features/home';
 
 type LegacyDescriptorOptions = {
   id: AppSurfaceId;
@@ -60,7 +61,11 @@ export const legacyHomeSurface = legacySurface({
   order: 10,
   clientContext: 'firm',
   errorLabel: 'Home',
-  render: (runtime) => runtime.legacy.home(),
+  render: (runtime) =>
+    createElement(HomeSurfaceFlagGate, {
+      runtime,
+      renderLegacy: runtime.legacy.home,
+    }),
 });
 
 export const legacyClientsSurface = legacySurface({
