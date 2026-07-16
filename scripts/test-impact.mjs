@@ -78,6 +78,10 @@ function changedPaths(range) {
   return changes;
 }
 
+function isMergeCommit(revision) {
+  return git(['rev-list', '--parents', '-n', '1', revision]).trim().split(/\s+/).length > 2;
+}
+
 function config() {
   return JSON.parse(readFileSync(path.join(root, 'scripts/test-impact-always-run.json'), 'utf8'));
 }
@@ -109,7 +113,71 @@ export function staticImports(file) {
   const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, false);
   const imports = new Set();
   const fileDependencies = new Set();
+  const nodeFilesystemBindings = new Map();
+  const nodeFilesystemNamespaces = new Set();
+  const nodeChildProcessBindings = new Map();
+  const nodeChildProcessNamespaces = new Set();
   let hasUnknownDynamicImport = false;
+
+  const filesystemMethods = new Set(['readFileSync', 'readFile', 'existsSync', 'statSync', 'lstatSync', 'readdirSync', 'globSync']);
+  const childProcessMethods = new Set(['exec', 'execSync', 'execFile', 'execFileSync', 'spawn', 'spawnSync']);
+
+  function bindNodeApi(name, sourceModule, importedName = name, namespace = false) {
+    if (sourceModule === 'node:fs' || sourceModule === 'node:fs/promises' || sourceModule === 'fs' || sourceModule === 'fs/promises') {
+      if (namespace) nodeFilesystemNamespaces.add(name);
+      else if (filesystemMethods.has(importedName)) nodeFilesystemBindings.set(name, importedName);
+    }
+    if (sourceModule === 'node:child_process' || sourceModule === 'child_process') {
+      if (namespace) nodeChildProcessNamespaces.add(name);
+      else if (childProcessMethods.has(importedName)) nodeChildProcessBindings.set(name, importedName);
+    }
+  }
+
+  function collectNodeApiBindings(node) {
+    if (ts.isImportDeclaration(node) && node.importClause && ts.isStringLiteral(node.moduleSpecifier)) {
+      const sourceModule = node.moduleSpecifier.text;
+      if (node.importClause.name) bindNodeApi(node.importClause.name.text, sourceModule, undefined, true);
+      const bindings = node.importClause.namedBindings;
+      if (bindings && ts.isNamespaceImport(bindings)) bindNodeApi(bindings.name.text, sourceModule, undefined, true);
+      if (bindings && ts.isNamedImports(bindings)) {
+        for (const element of bindings.elements) bindNodeApi(element.name.text, sourceModule, element.propertyName?.text ?? element.name.text);
+      }
+    }
+    if (ts.isVariableDeclaration(node) && node.initializer && ts.isCallExpression(node.initializer)
+      && ts.isIdentifier(node.initializer.expression) && node.initializer.expression.text === 'require'
+      && node.initializer.arguments[0] && ts.isStringLiteralLike(node.initializer.arguments[0])) {
+      const sourceModule = node.initializer.arguments[0].text;
+      if (ts.isIdentifier(node.name)) bindNodeApi(node.name.text, sourceModule, undefined, true);
+      if (ts.isObjectBindingPattern(node.name)) {
+        for (const element of node.name.elements) {
+          if (ts.isIdentifier(element.name)) bindNodeApi(element.name.text, sourceModule, element.propertyName?.getText(source) ?? element.name.text);
+        }
+      }
+    }
+    ts.forEachChild(node, collectNodeApiBindings);
+  }
+
+  function nodeApiMethod(node) {
+    if (!ts.isCallExpression(node)) return undefined;
+    if (ts.isIdentifier(node.expression)) {
+      const name = node.expression.text;
+      if (nodeFilesystemBindings.has(name)) return { kind: 'filesystem', method: nodeFilesystemBindings.get(name) };
+      if (nodeChildProcessBindings.has(name)) return { kind: 'child-process', method: nodeChildProcessBindings.get(name) };
+      return undefined;
+    }
+    if (ts.isPropertyAccessExpression(node.expression)) {
+      const method = node.expression.name.text;
+      const namespaceExpression = ts.isPropertyAccessExpression(node.expression.expression)
+        && node.expression.expression.name.text === 'promises'
+        ? node.expression.expression.expression
+        : node.expression.expression;
+      if (!ts.isIdentifier(namespaceExpression)) return undefined;
+      const namespace = namespaceExpression.text;
+      if (nodeFilesystemNamespaces.has(namespace) && filesystemMethods.has(method)) return { kind: 'filesystem', method };
+      if (nodeChildProcessNamespaces.has(namespace) && childProcessMethods.has(method)) return { kind: 'child-process', method };
+    }
+    return undefined;
+  }
 
   // Source-inspection tests often read a production file rather than import it.
   // Follow paths assembled from string literals, process.cwd(), import.meta.dirname,
@@ -141,13 +209,6 @@ export function staticImports(file) {
     return undefined;
   }
 
-  function isFilesystemAccess(node) {
-    if (!ts.isCallExpression(node)) return false;
-    const callee = ts.isIdentifier(node.expression) ? node.expression.text
-      : ts.isPropertyAccessExpression(node.expression) ? node.expression.name.text : undefined;
-    return ['readFileSync', 'readFile', 'existsSync', 'statSync', 'lstatSync', 'readdirSync', 'globSync', 'exec', 'execSync', 'execFile', 'execFileSync', 'spawn', 'spawnSync'].includes(callee);
-  }
-
   function visit(node) {
     if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
       const value = constantPath(node.initializer);
@@ -172,12 +233,11 @@ export function staticImports(file) {
       // not guessed. The caller opens the selector to the full suite instead.
       hasUnknownDynamicImport = true;
     }
-    if (isFilesystemAccess(node)) {
+    const api = nodeApiMethod(node);
+    if (api) {
       const target = node.arguments[0] ? constantPath(node.arguments[0]) : undefined;
-      const callee = ts.isIdentifier(node.expression) ? node.expression.text
-        : ts.isPropertyAccessExpression(node.expression) ? node.expression.name.text : undefined;
       if (!target || !path.resolve(target).startsWith(`${root}${path.sep}`)
-        || ['readdirSync', 'globSync', 'exec', 'execSync', 'execFile', 'execFileSync', 'spawn', 'spawnSync'].includes(callee)) {
+        || api.kind === 'child-process' || ['readdirSync', 'globSync'].includes(api.method)) {
         // Directory/glob scans, spawned checks, and runtime-computed paths
         // cannot be faithfully represented as a single graph edge.
         hasUnknownDynamicImport = true;
@@ -187,6 +247,7 @@ export function staticImports(file) {
     }
     ts.forEachChild(node, visit);
   }
+  collectNodeApiBindings(source);
   visit(source);
   return { imports: [...imports], fileDependencies: [...fileDependencies], opaque: hasUnknownDynamicImport };
 }
@@ -276,6 +337,9 @@ export function selectImpact({ range }) {
     const parsedRange = parseRange(range);
     const changes = changedPaths(parsedRange.range);
     const changed = new Set(changes.map(({ file }) => file));
+    if (isMergeCommit(parsedRange.head)) {
+      return fullResult(tests, parsedRange.range, 'Merge commit range requires the full suite.', manifest);
+    }
     if (changes.some(({ file }) => manifest.fullSuiteTriggers.includes(file))) {
       return fullResult(tests, parsedRange.range, 'A full-suite trigger changed.', manifest);
     }
@@ -283,9 +347,11 @@ export function selectImpact({ range }) {
     for (const testFile of tests) if (changed.has(testFile)) selected.add(testFile);
     const options = compilerOptions();
     const graph = buildReverseDependencyGraph(tests, options);
-    if (graph.opaqueModules.size > 0) {
-      return fullResult(tests, parsedRange.range, 'A runtime-discovered import or filesystem dependency requires the full suite.', manifest);
+    const opaqueSafetyTests = testsAffectedBy([...graph.opaqueModules].map(relative), tests, graph.reverse);
+    if (graph.opaqueModules.size > 0 && opaqueSafetyTests.size === 0) {
+      return fullResult(tests, parsedRange.range, 'Runtime-discovered dependencies have no reachable test coverage; full suite required.', manifest);
     }
+    for (const testFile of opaqueSafetyTests) selected.add(testFile);
     for (const testFile of testsAffectedBy(changes.map(({ file }) => file), tests, graph.reverse)) selected.add(testFile);
     for (const testFile of selected) {
       if (!tests.includes(testFile)) throw new Error(`Always-run test is missing or excluded: ${testFile}`);
@@ -297,7 +363,7 @@ export function selectImpact({ range }) {
       testFiles: [...selected].sort(),
       selectedCount: selected.size,
       fullCount: tests.length,
-      reasons: ['Static import graph reached one or more changed local modules (or the always-run safety net).', 'Always-run manifest included.'],
+      reasons: ['Static import graph reached one or more changed local modules (or the always-run safety net).', 'Always-run manifest and tests that cover runtime-discovered dependencies included.'],
       externalGateSteps: manifest.externalGateSteps,
     };
   } catch (error) {

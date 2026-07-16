@@ -21,14 +21,38 @@ test('models a source file read through a path assembled at runtime', () => {
   assert.ok(parsed.fileDependencies.includes(descriptor));
 });
 
-test('fails open for a real lane merge when the repository has runtime-discovered dependencies', () => {
+test('models a Node filesystem namespace read while ignoring lookalike app methods', () => {
+  const registry = fileURLToPath(new URL('../../src/platform/flags/registry.ts', import.meta.url));
+  const fixture = fileURLToPath(new URL('./fixtures/NodeFilesystemNamespaceAdversarial.test.ts', import.meta.url));
+  const parsed = staticImports(fixture);
+  assert.equal(parsed.opaque, false);
+  assert.ok(parsed.fileDependencies.includes(registry));
+});
+
+test('does not mistake an application data read for a source dependency read', () => {
+  const parsed = staticImports(fileURLToPath(new URL('../../src/App.tsx', import.meta.url)));
+  assert.equal(parsed.opaque, false);
+});
+
+test('keeps a merge-commit range on the full suite', () => {
   const parent = execFileSync('git', ['rev-parse', '19d016a6c^'], { encoding: 'utf8' }).trim();
   const result = selectImpact({ range: `${parent}..19d016a6c` });
   assert.equal(result.mode, 'full');
   assert.equal(result.selectedCount, result.fullCount);
   assert.equal(result.fullCount, 1014);
+  assert.match(result.reasons[0], /merge commit/i);
   assert.ok(result.testFiles.includes('tests/unit/architecture-boundaries.test.ts'));
   assert.ok(result.testFiles.includes('tests/unit/i18n/en-json-snapshot.test.ts'));
+});
+
+test('selects a narrow lane while always running runtime-discovery coverage', () => {
+  const parent = execFileSync('git', ['rev-parse', '37f29f741^'], { encoding: 'utf8' }).trim();
+  const result = selectImpact({ range: `${parent}..37f29f741` });
+  assert.equal(result.mode, 'affected');
+  assert.equal(result.selectedCount, 40);
+  assert.ok(result.testFiles.includes('src/features/crm-clients/extensions/record-member-kebab/memberRail.test.tsx'));
+  assert.ok(result.testFiles.includes('tests/unit/architecture-boundaries.test.ts'));
+  assert.ok(result.testFiles.includes('tests/unit/website-content-lint.test.ts'));
 });
 
 test('fails open to the full suite when it cannot read the requested diff', () => {
