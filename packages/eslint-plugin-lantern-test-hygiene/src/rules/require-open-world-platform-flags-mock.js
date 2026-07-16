@@ -25,6 +25,14 @@ function isImportOriginalCall(node, parameter) {
   );
 }
 
+function isOriginalSpread(property, parameter) {
+  return (
+    property.type === 'SpreadElement' &&
+    property.argument.type === 'AwaitExpression' &&
+    isImportOriginalCall(property.argument.argument, parameter)
+  );
+}
+
 function isCanonicalHelperFactory(factory, helperLocalNames) {
   if (
     (factory.type !== 'ArrowFunctionExpression' && factory.type !== 'FunctionExpression') ||
@@ -95,15 +103,19 @@ function hasOriginalSpread(factory) {
         ? body.body.find((statement) => statement.type === 'ReturnStatement')?.argument
         : undefined;
 
-  return (
-    object?.type === 'ObjectExpression' &&
-    object.properties.some(
-      (property) =>
-        property.type === 'SpreadElement' &&
-        property.argument.type === 'AwaitExpression' &&
-        isImportOriginalCall(property.argument.argument, parameter)
-    )
-  );
+  if (object?.type !== 'ObjectExpression') return false;
+
+  let hasOriginal = false;
+  let hasOverride = false;
+  for (const property of object.properties) {
+    if (isOriginalSpread(property, parameter)) {
+      if (hasOverride) return false;
+      hasOriginal = true;
+    } else {
+      hasOverride = true;
+    }
+  }
+  return hasOriginal;
 }
 
 module.exports = {

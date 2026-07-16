@@ -39,5 +39,16 @@ ruleTester.run('require-open-world-platform-flags-mock', rule, {
       code: "vi.mock('@/platform/flags', async (importOriginal) => ({ ...overrides }));",
       errors: [{ messageId: 'unsafePlatformFlagsMock' }],
     },
+    {
+      code: "vi.mock('@/platform/flags', async (importOriginal) => ({ useFlag: () => true, ...(await importOriginal()) }));",
+      errors: [{ messageId: 'unsafePlatformFlagsMock' }],
+    },
+    {
+      code: `vi.mock('@/platform/flags', async (importOriginal) => ({
+  ...overrides,
+  ...(await importOriginal()),
+}));`,
+      errors: [{ messageId: 'unsafePlatformFlagsMock' }],
+    },
   ],
 });
