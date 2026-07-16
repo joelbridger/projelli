@@ -98,7 +98,7 @@ export function WorkflowsSurface() {
 }
 
 export type LiveWorkflowData = ReturnType<typeof workflowRecords>;
-export type HouseholdChoice = { id: string; label: string };
+export type HouseholdChoice = { id: string; label: string; matterId: string };
 export function LiveWorkflows({
   data,
   households,
@@ -174,7 +174,7 @@ export function LiveWorkflows({
     let household = households.find((item) => item.id === selectedHouseholdId);
     if (!household) {
       const id = `household-${String(Date.now())}`;
-      household = { id, label: newHousehold.trim() || 'New household' };
+      household = { id, matterId: id, label: newHousehold.trim() || 'New household' };
       await save({
         id,
         kind: 'household',

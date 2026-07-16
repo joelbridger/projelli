@@ -30,6 +30,7 @@ function workflowHouseholdsFor(records: readonly LiveCrmRecord[]): HouseholdChoi
     .filter((record) => record.kind === 'household')
     .map((record) => ({
       id: record.id,
+      matterId: record.matterId?.trim() || record.id,
       label:
         typeof record['name'] === 'string'
           ? record['name']
@@ -234,7 +235,11 @@ export function LiveCrmHome({
       (record) =>
         record.kind === 'household' && typeof record['name'] === 'string'
     )
-    .map((record) => ({ id: record.id, name: record['name'] as string }));
+    .map((record) => ({
+      id: record.id,
+      matterId: record.matterId?.trim() || record.id,
+      name: record['name'] as string,
+    }));
   const firmMembers: readonly CrmFirmMember[] = live.records
     .filter(
       (record) =>
@@ -636,6 +641,7 @@ export function LiveCrmHome({
         }
         let instance = startWorkflow(template, {
           id: household.id,
+          matterId: household.matterId,
           label: household.name,
         });
         const currentStepIndex = template.steps.findIndex(
@@ -732,7 +738,7 @@ export function LiveCrmHome({
           appliedEntityRef = {
             kind: 'workflowInstance',
             id: instance.id,
-            matterId: household.id,
+            matterId: household.matterId,
           };
         }
         await live.save({

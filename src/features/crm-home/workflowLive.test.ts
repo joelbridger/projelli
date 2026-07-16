@@ -62,6 +62,18 @@ describe('saved CRM workflow wiring', () => {
     expect(repeat.instances).toHaveLength(0);
   });
 
+  it('carries a mapped household client matter into the started instance', () => {
+    const template = createTemplate('Annual review', ['Prepare review']);
+    const instance = startWorkflow(template, {
+      id: 'household-1',
+      matterId: 'matter-1',
+      label: 'River household',
+    });
+
+    expect(instance.householdId).toBe('household-1');
+    expect(instance.matterId).toBe('matter-1');
+  });
+
   it('makes a meeting-based launch a reviewable proposal instead of starting work', () => {
     const template = createTemplate('Trade request', ['Review request']);
     const proposal = createMeetingWorkflowProposal({ id: 'meeting-1', kind: 'activityEvent', matterId: 'h-1', summary: 'Discussed an account transfer' }, template, { id: 'h-1', label: 'River household' });

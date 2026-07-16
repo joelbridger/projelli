@@ -124,7 +124,8 @@ export function patchWorkflowStepMetadata(
   step.documentRefs = storedDocumentRefs(step.documentRefs);
   if (patch.tagIds !== undefined) step.tagIds = cleanTagIds(patch.tagIds);
   if (patch.documentRefs !== undefined) {
-    step.documentRefs = cleanDocumentRefs(patch.documentRefs, instance.householdId);
+    const targetMatterId = instance.matterId?.trim() || instance.householdId;
+    step.documentRefs = cleanDocumentRefs(patch.documentRefs, targetMatterId);
   }
   return next;
 }

@@ -79,4 +79,32 @@ describe('public workflow step metadata persistence', () => {
       documentRefs: [],
     });
   });
+
+  it('uses the household client matter rather than its CRM record id', () => {
+    const template = createTemplate('Annual review', ['Prepare']);
+    const instance = startWorkflow(template, {
+      id: 'household-1',
+      matterId: 'matter-1',
+      label: 'River household',
+    });
+    const stepId = firstStepId(instance);
+
+    const patched = patchWorkflowStepMetadata(instance, stepId, {
+      documentRefs: [{
+        kind: 'document',
+        id: 'Clients/River/review.docx',
+        matterId: 'matter-1',
+      }],
+    });
+
+    expect(instance.matterId).toBe('matter-1');
+    expect(patched.snapshot.steps[stepId]?.documentRefs).toHaveLength(1);
+    expect(() => patchWorkflowStepMetadata(instance, stepId, {
+      documentRefs: [{
+        kind: 'document',
+        id: 'Clients/River/review.docx',
+        matterId: 'household-1',
+      }],
+    })).toThrow('same client');
+  });
 });

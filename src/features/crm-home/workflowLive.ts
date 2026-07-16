@@ -135,7 +135,11 @@ function captureTransaction() {
   return { transaction: { transact(next: PropagationTransactionPayload) { payload = next; } }, payload: () => payload };
 }
 
-export function startWorkflow(template: LiveWorkflowTemplate, household: { id: string; label: string }, options?: { id?: string; scheduleRunKey?: string }): LiveWorkflowInstance {
+export function startWorkflow(
+  template: LiveWorkflowTemplate,
+  household: { id: string; label: string; matterId?: string },
+  options?: { id?: string; scheduleRunKey?: string }
+): LiveWorkflowInstance {
   const instanceId = options?.id ?? unique('workflow-instance');
   const base: WorkflowInstanceSnapshot = { id: instanceId, acceptedRevisionIds: [], displayedRevisionSet: { revisionIds: [] }, steps: {}, decisionLedger: [], propagationEvents: [] };
   const offer = createOffer(template.snapshot, base, unique('workflow-start'));
@@ -151,7 +155,7 @@ export function startWorkflow(template: LiveWorkflowTemplate, household: { id: s
   return {
     id: instanceId,
     kind: 'crm_workflow_instance',
-    matterId: household.id,
+    matterId: household.matterId?.trim() || household.id,
     templateId: template.id,
     householdId: household.id,
     householdLabel: household.label,
@@ -227,7 +231,7 @@ function scheduledRunKey(schedule: WorkflowScheduleDraft, at: Date): string | nu
 
 /** Client-side scheduler: each device can safely make the same deterministic
  * instance record; the live record bridge upserts it rather than duplicating it. */
-export function startScheduledWorkflows(template: LiveWorkflowTemplate, households: readonly { id: string; label: string }[], at = new Date()) {
+export function startScheduledWorkflows(template: LiveWorkflowTemplate, households: readonly { id: string; label: string; matterId?: string }[], at = new Date()) {
   const schedule = template.schedule;
   if (!schedule?.enabled) return { template, instances: [] as LiveWorkflowInstance[] };
   const runKey = scheduledRunKey(schedule, at);
