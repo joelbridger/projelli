@@ -1,0 +1,19 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/v1-w2-task-templates-admin
+sha: 7c9d64fbeb2985c91c7fb9043aadfb1b2a9508e6
+tree: 4f9a5cebe193559997a7f9936f259883d87802de
+gate_base: 5ef25eee2dcdbfbd30dda8fe7013b82dab511028
+tool_blob: 7912bf11eefdacea0702600b19d3bc5b3d7f2606
+utc: 2026-07-16T15:42:43Z
+step_timeout_seconds: 600
+loadavg: 9.93 13.15 12.06
+running_vitest_eslint_procs: 1
+step: gate:changed | status=PASS | exit=0 | 15:42:43Z..15:50:48Z | bytes=26828 | sha256=3d05195c61f89df76ebe4758e872c3121b1e8b3806a84e53936e8f5a069bfc16 | tail: 505:5) Test Files 267 passed (267) Tests 1717 passed (1717) Start at 15:47:23 Duration 205.13s (transform 44.22s, setup 84.86s, import 330.81s, tests 187.14s, environment 164.81s) CHANGED GATE GREEN
+step: typecheck | status=PASS | exit=0 | 15:50:48Z..15:51:24Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit
+step: typecheck:tests | status=PASS | exit=0 | 15:51:24Z..15:52:02Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit
+step: handle-guard | status=PASS | exit=0 | 15:52:02Z..15:52:02Z | bytes=1322 | sha256=6ef2694dbea33049cb85591ce5e5cbe757bb37826e4542ddb9b4fa18fa8a180f | tail: ic-page-unavailable + client-bar-clear + client-bar-current + client-bar-open-${} +318 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen).
+step: arch-dag-guard | status=PASS | exit=0 | 15:52:02Z..15:52:04Z | bytes=226 | sha256=d93a0860dea8f0fd167719a57acb64f1ef142dd48928a7ee4b5a7c4e372c1dfa | tail:  v4.1.3 /home/jameson/v1-w2-task-templates-admin Test Files 1 passed (1) Tests 1 passed (1) Start at 15:52:02 Duration 1.53s (transform 388ms, setup 600ms, import 482ms, tests 9ms, environment 329ms)
+step: i18n-snapshot | status=PASS | exit=0 | 15:52:04Z..15:52:06Z | bytes=227 | sha256=d7bf181e6d5e641809b7e3b6860ef7aac579993ef59265273709f8b9fd08ce5a | tail: v4.1.3 /home/jameson/v1-w2-task-templates-admin Test Files 1 passed (1) Tests 5 passed (5) Start at 15:52:04 Duration 1.84s (transform 537ms, setup 798ms, import 370ms, tests 24ms, environment 481ms)
+step: focused | status=PASS | exit=0 | 15:52:06Z..15:52:13Z | bytes=230 | sha256=d36b44252eddb4978240cf8ed832af111ebf5f8277895213c0b8146f73211e3d | tail: 1.3 /home/jameson/v1-w2-task-templates-admin Test Files 3 passed (3) Tests 15 passed (15) Start at 15:52:07 Duration 6.04s (transform 5.34s, setup 2.64s, import 6.97s, tests 1.31s, environment 1.85s)
+overall: GREEN
