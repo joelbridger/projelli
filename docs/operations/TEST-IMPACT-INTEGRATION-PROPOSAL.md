@@ -12,7 +12,7 @@ node scripts/test-impact-run.mjs --range "$MERGE_BASE..HEAD"
 
 `$MERGE_BASE` must be the exact pre-merge integration commit already recorded by the receipt-lock gate. The tool returns a list of tests whose static local import graph reaches a changed local module or imported artifact, plus the named always-run set in `scripts/test-impact-always-run.json`.
 
-It deliberately fails open: an unreadable diff, a deleted/renamed local module, an unresolved local import, a runtime-discovered import, or a malformed manifest runs the complete Vitest suite. Configuration and test-impact-tool edits are also hard-coded full-suite triggers.
+It deliberately fails open: the wrapper begins with the complete Vitest suite and narrows it only after a successful, non-empty selector result. Any selector exception, nonzero exit, timeout, empty output, unreadable diff, deleted/renamed local module, unresolved local import, runtime-discovered import, runtime filesystem scan, or malformed manifest runs the complete Vitest suite. Static `readFileSync`/`existsSync` paths assembled from literals and `node:path` are included as dependency-graph edges. Configuration and test-impact-tool edits are also hard-coded full-suite triggers.
 
 The surrounding merge-gate steps remain unchanged. In particular, the architecture, i18n, client-boundary, consent, egress, flag, and handle-adjacent Vitest tests are in the always-run manifest; the existing permanent-handle command and Golden Loop command still run as their existing separate steps.
 

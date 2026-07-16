@@ -40,6 +40,12 @@ function listTestFiles() {
     .sort();
 }
 
+function injectedFailure(stage) {
+  if (process.env.TEST_IMPACT_TEST_INJECT === stage) {
+    throw new Error(`Injected ${stage} failure`);
+  }
+}
+
 function parseRange(range) {
   if (!range || !range.includes('..')) throw new Error('Pass --range <base>..<head>.');
   const divider = range.includes('...') ? '...' : '..';
@@ -102,8 +108,51 @@ function resolveSpecifier(specifier, containingFile, compilerOptions) {
 export function staticImports(file) {
   const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, false);
   const imports = new Set();
+  const fileDependencies = new Set();
   let hasUnknownDynamicImport = false;
+
+  // Source-inspection tests often read a production file rather than import it.
+  // Follow paths assembled from string literals, process.cwd(), import.meta.dirname,
+  // and node:path resolve/join. Anything less definite opens the selector to the
+  // complete suite instead of guessing.
+  const constants = new Map();
+  function constantPath(node) {
+    if (ts.isStringLiteralLike(node) || ts.isNoSubstitutionTemplateLiteral(node)) return node.text;
+    if (ts.isIdentifier(node)) return constants.get(node.text);
+    if (ts.isCallExpression(node)
+      && ts.isPropertyAccessExpression(node.expression)
+      && ts.isIdentifier(node.expression.expression)
+      && node.expression.expression.text === 'process'
+      && node.expression.name.text === 'cwd'
+      && node.arguments.length === 0) return root;
+    if (ts.isPropertyAccessExpression(node)
+      && ts.isMetaProperty(node.expression)
+      && node.expression.keywordToken.kind === ts.SyntaxKind.ImportKeyword
+      && node.name.text === 'dirname') return path.dirname(file);
+    if (ts.isCallExpression(node)) {
+      const callee = ts.isIdentifier(node.expression) ? node.expression.text
+        : ts.isPropertyAccessExpression(node.expression) ? node.expression.name.text : undefined;
+      if (callee === 'resolve' || callee === 'join') {
+        const parts = node.arguments.map(constantPath);
+        if (parts.some((part) => part === undefined)) return undefined;
+        return callee === 'resolve' ? path.resolve(...parts) : path.join(...parts);
+      }
+    }
+    return undefined;
+  }
+
+  function isFilesystemAccess(node) {
+    if (!ts.isCallExpression(node)) return false;
+    const callee = ts.isIdentifier(node.expression) ? node.expression.text
+      : ts.isPropertyAccessExpression(node.expression) ? node.expression.name.text : undefined;
+    return ['readFileSync', 'readFile', 'existsSync', 'statSync', 'lstatSync', 'readdirSync', 'globSync', 'exec', 'execSync', 'execFile', 'execFileSync', 'spawn', 'spawnSync'].includes(callee);
+  }
+
   function visit(node) {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
+      const value = constantPath(node.initializer);
+      if (value !== undefined) constants.set(node.name.text, value);
+    }
     if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
       imports.add(node.moduleSpecifier.text);
     }
@@ -123,10 +172,23 @@ export function staticImports(file) {
       // not guessed. The caller opens the selector to the full suite instead.
       hasUnknownDynamicImport = true;
     }
+    if (isFilesystemAccess(node)) {
+      const target = node.arguments[0] ? constantPath(node.arguments[0]) : undefined;
+      const callee = ts.isIdentifier(node.expression) ? node.expression.text
+        : ts.isPropertyAccessExpression(node.expression) ? node.expression.name.text : undefined;
+      if (!target || !path.resolve(target).startsWith(`${root}${path.sep}`)
+        || ['readdirSync', 'globSync', 'exec', 'execSync', 'execFile', 'execFileSync', 'spawn', 'spawnSync'].includes(callee)) {
+        // Directory/glob scans, spawned checks, and runtime-computed paths
+        // cannot be faithfully represented as a single graph edge.
+        hasUnknownDynamicImport = true;
+      } else {
+        fileDependencies.add(path.resolve(target));
+      }
+    }
     ts.forEachChild(node, visit);
   }
   visit(source);
-  return { imports: [...imports], opaque: hasUnknownDynamicImport };
+  return { imports: [...imports], fileDependencies: [...fileDependencies], opaque: hasUnknownDynamicImport };
 }
 
 function compilerOptions() {
@@ -158,6 +220,11 @@ function buildReverseDependencyGraph(testFiles, options) {
       reverse.set(local, parents);
       pending.push(local);
     }
+    for (const dependency of parsed.fileDependencies) {
+      const parents = reverse.get(dependency) ?? new Set();
+      parents.add(current);
+      reverse.set(dependency, parents);
+    }
   }
   return { reverse, opaqueModules };
 }
@@ -177,19 +244,12 @@ function testsAffectedBy(changedFiles, testFiles, reverse) {
   return affected;
 }
 
-function testsDependingOnOpaqueImports(testFiles, reverse, opaqueModules) {
-  const tests = new Set(testFiles.map(absolute));
-  const pending = [...opaqueModules];
-  const visited = new Set();
-  const affected = new Set();
-  while (pending.length > 0) {
-    const current = pending.pop();
-    if (!current || visited.has(current)) continue;
-    visited.add(current);
-    if (tests.has(current)) affected.add(relative(current));
-    for (const parent of reverse.get(current) ?? []) pending.push(parent);
-  }
-  return affected;
+export function selectTestsForChanges({ testFiles, changedFiles }) {
+  const graph = buildReverseDependencyGraph(testFiles, compilerOptions());
+  return {
+    testFiles: [...testsAffectedBy(changedFiles, testFiles, graph.reverse)].sort(),
+    opaque: graph.opaqueModules.size > 0,
+  };
 }
 
 function fullResult(testFiles, range, reason, manifest) {
@@ -206,10 +266,13 @@ function fullResult(testFiles, range, reason, manifest) {
 }
 
 export function selectImpact({ range }) {
-  const tests = listTestFiles();
+  let tests = [];
   let manifest;
   try {
+    injectedFailure('early-selector-error');
+    tests = listTestFiles();
     manifest = config();
+    injectedFailure('mid-selector-error');
     const parsedRange = parseRange(range);
     const changes = changedPaths(parsedRange.range);
     const changed = new Set(changes.map(({ file }) => file));
@@ -220,11 +283,10 @@ export function selectImpact({ range }) {
     for (const testFile of tests) if (changed.has(testFile)) selected.add(testFile);
     const options = compilerOptions();
     const graph = buildReverseDependencyGraph(tests, options);
+    if (graph.opaqueModules.size > 0) {
+      return fullResult(tests, parsedRange.range, 'A runtime-discovered import or filesystem dependency requires the full suite.', manifest);
+    }
     for (const testFile of testsAffectedBy(changes.map(({ file }) => file), tests, graph.reverse)) selected.add(testFile);
-    // A computed import path cannot be mapped to a particular source file.
-    // Keep every test that reaches one in every affected run, rather than
-    // pretending that an incomplete graph can select it precisely.
-    for (const testFile of testsDependingOnOpaqueImports(tests, graph.reverse, graph.opaqueModules)) selected.add(testFile);
     for (const testFile of selected) {
       if (!tests.includes(testFile)) throw new Error(`Always-run test is missing or excluded: ${testFile}`);
     }
@@ -244,6 +306,10 @@ export function selectImpact({ range }) {
 }
 
 function main() {
+  if (process.env.TEST_IMPACT_TEST_INJECT === 'empty-selector-output') return;
+  if (process.env.TEST_IMPACT_TEST_INJECT === 'selector-timeout') {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
+  }
   const args = process.argv.slice(2);
   const rangeIndex = args.indexOf('--range');
   const range = rangeIndex >= 0 ? args[rangeIndex + 1] : 'HEAD~1..HEAD';
