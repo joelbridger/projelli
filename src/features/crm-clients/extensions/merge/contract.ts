@@ -23,8 +23,6 @@ export interface MergeApprovalRequest {
   sourceId: string;
   targetId: string;
   matterId: string;
-  /** The native command validates this identity against the durable role grant. */
-  actorId: string;
   idempotencyKey: string;
   fieldChoices: Readonly<Record<string, MergeChoice>>;
 }

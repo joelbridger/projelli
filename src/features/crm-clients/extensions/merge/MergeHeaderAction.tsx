@@ -1,14 +1,30 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlertTriangle, ArrowRightLeft } from 'lucide-react';
 import { Button, Card, SlidePanel } from '@/ui/kp';
 import { useFlag } from '@/platform/flags';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
+import {
+  ownClientsEnforcementActive,
+  permitsOwnClientRecord,
+  type OwnClientsContext,
+} from '@/features/crm-permissions';
 import type { HouseholdRecordShellContext } from '../../recordRegistry';
 import type { HouseholdRecord } from '../../adapters';
 import { approveHouseholdMerge } from './mergeClient';
 import { assessMergeEligibility, buildMergeReview } from './mergeReview';
 import type { MergeChoice, RedactedMergeReceipt } from './contract';
+
+// The landed doorway intentionally has no current-member provider yet. This
+// empty context is a fail-closed read mirror if native enforcement ever turns
+// on before that provider lands; it is never sent to or trusted by native code.
+// TODO(native identity enforcement): replace this only with the native-bound
+// current member, resolved role, and durable household assignment labels.
+const stagedPermissionContext: OwnClientsContext = {
+  memberId: '',
+  role: undefined,
+  operation: 'write',
+};
 
 function householdFromLive(record: Record<string, unknown>, fallbacks: Readonly<Record<'untitled' | 'active' | 'unassigned' | 'standard', string>>): HouseholdRecord | null {
   if (record['kind'] !== 'household' || typeof record['id'] !== 'string') return null;
@@ -46,6 +62,16 @@ function EnabledMergeHeaderAction({ household }: HouseholdRecordShellContext) {
   const [choices, setChoices] = useState<Readonly<Record<string, MergeChoice>>>({});
   const [receipt, setReceipt] = useState<RedactedMergeReceipt | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [enforcementActive, setEnforcementActive] = useState<boolean | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void ownClientsEnforcementActive().then((active) => {
+      if (!cancelled) setEnforcementActive(active);
+    }).catch((reason: unknown) => {
+      if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason));
+    });
+    return () => { cancelled = true; };
+  }, []);
   const fallbacks = {
     untitled: t('crmMerge.untitled-household'),
     active: t('crmMerge.active'),
@@ -53,11 +79,12 @@ function EnabledMergeHeaderAction({ household }: HouseholdRecordShellContext) {
     standard: t('crmMerge.standard'),
   };
   const sourceMatterId = live.records.find((record) => record.id === household.id)?.matterId;
-  const candidates = useMemo(() => live.records
+  const candidates = (enforcementActive === null ? [] : live.records)
     .filter((record) => typeof sourceMatterId === 'string' && record.matterId === sourceMatterId)
+    .filter((record) => permitsOwnClientRecord(record, stagedPermissionContext, enforcementActive ?? true))
     .map((record) => householdFromLive(record, fallbacks))
     .filter((record): record is HouseholdRecord => record !== null)
-    .filter((record) => assessMergeEligibility(household, record).eligible), [household, live.records, sourceMatterId]);
+    .filter((record) => assessMergeEligibility(household, record).eligible);
   const target = candidates.find((candidate) => candidate.id === targetId);
   const review = target ? buildMergeReview(household, target) : null;
   const approve = async () => {
@@ -65,7 +92,7 @@ function EnabledMergeHeaderAction({ household }: HouseholdRecordShellContext) {
     setError(null);
     try {
       const result = await approveHouseholdMerge(live.workspaceRoot, {
-        sourceId: household.id, targetId: target.id, matterId: sourceMatterId, actorId: 'local-advisor',
+        sourceId: household.id, targetId: target.id, matterId: sourceMatterId,
         idempotencyKey: `household-merge:${sourceMatterId}:${household.id}:${target.id}`,
         fieldChoices: choices,
       });

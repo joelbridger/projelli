@@ -16,7 +16,7 @@ import {
 } from './tabRegistry';
 
 describe('household record registries', () => {
-  afterEach(() => setDevFlagOverride('crm-merge-clients', undefined));
+  afterEach(() => { setDevFlagOverride('crm-merge-clients', undefined); });
 
   it('keeps compatibility mounts in their existing stable order', () => {
     expect(
