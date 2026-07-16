@@ -33,6 +33,7 @@ export interface TaskActionContext {
 
 export interface TaskTemplateContext {
   addRequest?: CrmHouseholdAddRequest;
+  onAddRequestConsumed?: () => void;
   onCreate: (task: CrmTask) => void;
 }
 

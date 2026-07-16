@@ -67,6 +67,11 @@ function EnabledTaskCreateTemplate({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createdId, setCreatedId] = useState<string | null>(null);
+  const consumeAddRequest = () => {
+    if (context.addRequest?.kind === 'task') {
+      context.onAddRequestConsumed?.();
+    }
+  };
 
   useEffect(() => {
     let current = true;
@@ -105,6 +110,7 @@ function EnabledTaskCreateTemplate({
         ...(relatedRecord ? { relatedRecord } : {}),
         tagIds,
       });
+      consumeAddRequest();
       setCreatedId(created.id);
       setOpen(false);
       setTitle('');
@@ -258,6 +264,7 @@ function EnabledTaskCreateTemplate({
               disabled={saving}
               onClick={() => {
                 setOpen(false);
+                consumeAddRequest();
               }}
             >
               {t('task-create-v1.cancel')}
