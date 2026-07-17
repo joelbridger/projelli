@@ -302,6 +302,115 @@ describe('advisor custom fields extension', () => {
     });
   });
 
+  it('resets same-workspace household state in both the direct editor and production registry', async () => {
+    setDevFlagOverride('custom-fields-advisor', true);
+    const original = withCustomFieldValues(household, {
+      'planning-note': 'Saved note',
+    });
+    const direct = render(
+      <CustomFieldsSectionContent
+        household={original}
+        catalog={catalog}
+        onSaveHousehold={vi.fn()}
+      />
+    );
+    fireEvent.change(screen.getByLabelText('Planning note'), {
+      target: { value: 'Advisor typed note' },
+    });
+    direct.rerender(
+      <CustomFieldsSectionContent
+        household={withCustomFieldValues(
+          { ...original, name: 'Fresh object' },
+          { 'planning-note': 'Late saved note' }
+        )}
+        catalog={catalog}
+        onSaveHousehold={vi.fn()}
+      />
+    );
+    await waitFor(() => {
+      expect(screen.getByLabelText('Planning note')).toHaveValue(
+        'Advisor typed note'
+      );
+    });
+    direct.rerender(
+      <CustomFieldsSectionContent
+        household={withCustomFieldValues(
+          { ...household, id: 'other-household' },
+          { 'planning-note': 'Other household' }
+        )}
+        catalog={catalog}
+        onSaveHousehold={vi.fn()}
+      />
+    );
+    await waitFor(() => {
+      expect(screen.getByLabelText('Planning note')).toHaveValue(
+        'Other household'
+      );
+    });
+    direct.unmount();
+
+    const saveHousehold = vi.fn();
+    const registryOriginal = withCustomFieldValues(household, {
+      'planning-note': 'Saved A note',
+      managed: true,
+    });
+    const registry = render(
+      <HouseholdRecordSurface
+        household={registryOriginal}
+        onSaveHousehold={saveHousehold}
+      />
+    );
+    fireEvent.change(await screen.findByLabelText('Planning note'), {
+      target: { value: 'A private typed note' },
+    });
+    fireEvent.change(screen.getByLabelText('Reserve'), {
+      target: { value: '9876' },
+    });
+    registry.rerender(
+      <HouseholdRecordSurface
+        household={withCustomFieldValues(
+          { ...registryOriginal, name: 'Same A, newly published object' },
+          { 'planning-note': 'Late server A note', managed: false }
+        )}
+        onSaveHousehold={saveHousehold}
+      />
+    );
+    await waitFor(() => {
+      expect(screen.getByLabelText('Planning note')).toHaveValue(
+        'A private typed note'
+      );
+      expect(screen.getByLabelText('Reserve')).toHaveValue(9876);
+    });
+
+    registry.rerender(
+      <HouseholdRecordSurface
+        household={withCustomFieldValues(
+          { ...household, id: 'household-b', name: 'Household B' },
+          {}
+        )}
+        onSaveHousehold={saveHousehold}
+      />
+    );
+    await waitFor(() => {
+      expect(screen.getByLabelText('Planning note')).toHaveValue('');
+      expect(screen.getByLabelText('Reserve')).toHaveValue(null);
+      expect(screen.getByLabelText('Managed')).not.toBeChecked();
+    });
+    expect(
+      screen.queryByDisplayValue('A private typed note')
+    ).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue('9876')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('custom-fields-advisor-save'));
+    await waitFor(() => {
+      const savedB = saveHousehold.mock.calls.at(-1)?.[0] as
+        | HouseholdRecord
+        | undefined;
+      expect(savedB?.id).toBe('household-b');
+      expect(readCustomFieldValues(savedB as HouseholdRecord)).toEqual({});
+    });
+  });
+
   it('round-trips a save through a fresh render and preserves sibling bags', async () => {
     setDevFlagOverride('custom-fields-advisor', true);
     const initial: HouseholdRecord = {

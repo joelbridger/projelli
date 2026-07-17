@@ -217,6 +217,59 @@ describe('NudgeReviewModal AI rewrite - prepared-send wiring', () => {
     });
   });
 
+  it('resets a draft when a different intake uses the same matter', async () => {
+    const original = intake();
+    const view = render(
+      <NudgeReviewModal
+        open
+        row={deriveOnboardingRow(original, now, DEFAULT_ONBOARDING_CONFIG)}
+        intake={original}
+        now={now}
+        onOpenChange={vi.fn()}
+      />
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId('nudge-review-body')).not.toBeDisabled();
+    });
+    fireEvent.change(screen.getByTestId('nudge-review-body'), {
+      target: { value: "Advisor's careful wording" },
+    });
+    const refreshed = { ...original, firmName: 'North Star refresh' };
+    view.rerender(
+      <NudgeReviewModal
+        open
+        row={deriveOnboardingRow(refreshed, now, DEFAULT_ONBOARDING_CONFIG)}
+        intake={refreshed}
+        now={now}
+        onOpenChange={vi.fn()}
+      />
+    );
+    await waitFor(() => {
+      expect(textAreaValue('nudge-review-body')).toBe("Advisor's careful wording");
+    });
+
+    const anotherIntake = intake({
+      intakeId: 'intake-2',
+      clientFirstName: 'Priya',
+      link: 'https://example.test/i/def#another-link-secret',
+    });
+    view.rerender(
+      <NudgeReviewModal
+        open
+        row={deriveOnboardingRow(anotherIntake, now, DEFAULT_ONBOARDING_CONFIG)}
+        intake={anotherIntake}
+        now={now}
+        onOpenChange={vi.fn()}
+      />
+    );
+    await waitFor(() => {
+      expect(textAreaValue('nudge-review-body')).not.toContain(
+        "Advisor's careful wording"
+      );
+      expect(textAreaValue('nudge-review-body')).toContain('Priya');
+    });
+  });
+
   it('discards a late regenerate from intake A after a successful switch to intake B', async () => {
     const lateLink = deferred<string>();
     reconstructAdvisorIntakeLinkMock.mockReturnValueOnce(lateLink.promise);
