@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   createLiveFieldCatalogPersistence,
@@ -41,7 +41,30 @@ export function CustomFieldsSection(props: SectionProps) {
  * catalog when the record shell mounts every registered section.
  */
 function EnabledCustomFieldsSection(props: SectionProps) {
-  const { records, save } = useLiveCrmRecords();
+  const { records, save, workspaceRoot } = useLiveCrmRecords();
+
+  // The catalog and field drafts both belong to one workspace. Remount the
+  // complete state-owning tree when that workspace changes so a failed load
+  // in the new workspace can never leave the previous workspace's catalog or
+  // record values on screen.
+  return (
+    <WorkspaceCustomFieldsSection
+      key={workspaceRoot}
+      {...props}
+      records={records}
+      save={save}
+    />
+  );
+}
+
+function WorkspaceCustomFieldsSection({
+  records,
+  save,
+  ...props
+}: SectionProps & {
+  records: ReturnType<typeof useLiveCrmRecords>['records'];
+  save: ReturnType<typeof useLiveCrmRecords>['save'];
+}) {
   const [catalog, setCatalog] = useState<FieldCatalog | null>(null);
   const [catalogError, setCatalogError] = useState(false);
   const persistence = useMemo(
@@ -68,7 +91,15 @@ function EnabledCustomFieldsSection(props: SectionProps) {
 
   if (catalogError) return <CustomFieldsLoadError />;
   if (!catalog) return null;
-  return <CustomFieldsSectionContent {...props} catalog={catalog} />;
+  // Values are record-owned. A genuine record switch gets a new editor, while
+  // updates to the same record keep the editor alive for dirty-value merging.
+  return (
+    <CustomFieldsSectionContent
+      key={props.household.id}
+      {...props}
+      catalog={catalog}
+    />
+  );
 }
 
 function CustomFieldsLoadError() {
@@ -92,17 +123,34 @@ export function CustomFieldsSectionContent({
   const [values, setValues] = useState<CustomFieldValues>(persistedValues);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(false);
+  const dirtyKeysRef = useRef<Set<string>>(new Set());
+  const seedContextRef = useRef<string | null>(null);
 
   useEffect(() => {
-    setValues(persistedValues);
-    setSaveError(false);
-  }, [persistedSignature, persistedValues]);
+    const contextChanged = seedContextRef.current !== household.id;
+    seedContextRef.current = household.id;
+    if (contextChanged) {
+      dirtyKeysRef.current = new Set();
+      setSaveError(false);
+    }
+    setValues((current) => {
+      if (contextChanged || dirtyKeysRef.current.size === 0)
+        return persistedValues;
+      const next = { ...persistedValues };
+      for (const key of dirtyKeysRef.current) {
+        const edited = current[key];
+        if (edited !== undefined) next[key] = edited;
+      }
+      return next;
+    });
+  }, [household.id, persistedSignature, persistedValues]);
 
   if (!enabled) return null;
   const fields = visibleHouseholdFields(catalog);
   if (fields.length === 0) return null;
 
   const setValue = (id: string, value: CustomFieldValue) => {
+    dirtyKeysRef.current.add(id);
     setValues((current) => ({ ...current, [id]: value }));
   };
 

@@ -1,8 +1,9 @@
 /// <reference types="@testing-library/jest-dom" />
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { IntakeRecord } from '@/platform/intake/intakeStore';
+import { useIntakeStore } from '@/platform/intake/intakeStore';
 import { DEFAULT_ONBOARDING_CONFIG } from '@/platform/intake/nudgeTypes';
 import { deriveOnboardingRow } from '@/platform/intake/onboardingModel';
 import { setPromptDecisionBroker } from '@/platform/privacy/promptPreparation';
@@ -18,8 +19,13 @@ function textAreaValue(testId: string): string {
 }
 
 const resolveEmailProviderMock = vi.fn<() => Promise<ResolvedEmailProvider>>();
+const reconstructAdvisorIntakeLinkMock = vi.fn<(input: { intakeId: string; publicKeyRawB64: string }) => Promise<string>>();
 vi.mock('@/features/email/resolveEmailProvider', () => ({
   resolveEmailProvider: (): Promise<ResolvedEmailProvider> => resolveEmailProviderMock(),
+}));
+vi.mock('@/platform/intake/advisorIntakeLink', () => ({
+  reconstructAdvisorIntakeLink: (input: { intakeId: string; publicKeyRawB64: string }): Promise<string> =>
+    reconstructAdvisorIntakeLinkMock(input),
 }));
 
 vi.mock('@/platform/utils/mail-commands', async (importOriginal) => {
@@ -31,6 +37,20 @@ vi.mock('@/platform/utils/mail-commands', async (importOriginal) => {
 });
 
 const now = new Date('2026-07-10T12:00:00.000Z');
+
+function deferred<T>(): {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+  reject: (reason: unknown) => void;
+} {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
 
 function intake(overrides: Partial<IntakeRecord> = {}): IntakeRecord {
   return {
@@ -68,6 +88,8 @@ function providerWithBody(body: string, structuredOutput = vi.fn().mockResolvedV
 describe('NudgeReviewModal AI rewrite - prepared-send wiring', () => {
   afterEach(() => {
     setPromptDecisionBroker(undefined);
+    useIntakeStore.getState().resetForTests();
+    reconstructAdvisorIntakeLinkMock.mockReset();
     vi.clearAllMocks();
   });
 
@@ -146,5 +168,184 @@ describe('NudgeReviewModal AI rewrite - prepared-send wiring', () => {
 
     await waitFor(() => { expect(screen.getByRole('alert')).toBeInTheDocument(); });
     expect(structuredOutput).not.toHaveBeenCalled();
+  });
+
+  it('preserves an advisor body through a same-intake re-seed, but resets for another intake', async () => {
+    const original = intake();
+    const view = render(<NudgeReviewModal open row={deriveOnboardingRow(original, now, DEFAULT_ONBOARDING_CONFIG)} intake={original} now={now} onOpenChange={vi.fn()} />);
+    await waitFor(() => { expect(screen.getByTestId('nudge-review-body')).not.toBeDisabled(); });
+    fireEvent.change(screen.getByTestId('nudge-review-body'), {
+      target: { value: "Advisor's careful wording" },
+    });
+    const refreshed = { ...original, firmName: 'North Star refresh' };
+    view.rerender(<NudgeReviewModal open row={deriveOnboardingRow(refreshed, now, DEFAULT_ONBOARDING_CONFIG)} intake={refreshed} now={now} onOpenChange={vi.fn()} />);
+    await waitFor(() => {
+      expect(textAreaValue('nudge-review-body')).toBe("Advisor's careful wording");
+    });
+    const anotherIntake = intake({ intakeId: 'intake-2', clientFirstName: 'Priya', link: 'https://example.test/i/def#another-link-secret' });
+    view.rerender(<NudgeReviewModal open row={deriveOnboardingRow(anotherIntake, now, DEFAULT_ONBOARDING_CONFIG)} intake={anotherIntake} now={now} onOpenChange={vi.fn()} />);
+    await waitFor(() => {
+      expect(textAreaValue('nudge-review-body')).not.toContain("Advisor's careful wording");
+      expect(textAreaValue('nudge-review-body')).toContain('Priya');
+    });
+  });
+
+  it('discards a late regenerate from intake A after a successful switch to intake B', async () => {
+    const lateLink = deferred<string>();
+    reconstructAdvisorIntakeLinkMock.mockReturnValueOnce(lateLink.promise);
+    const original = intake({
+      clientEmail: 'sarah@example.test',
+      firmName: 'Firm A',
+    });
+    const view = render(
+      <NudgeReviewModal
+        open
+        row={deriveOnboardingRow(original, now, DEFAULT_ONBOARDING_CONFIG)}
+        intake={original}
+        now={now}
+        onOpenChange={vi.fn()}
+      />
+    );
+    await waitFor(() => { expect(screen.getByTestId('nudge-review-body')).not.toBeDisabled(); });
+    fireEvent.change(screen.getByTestId('nudge-review-body'), {
+      target: { value: 'PRIVATE WORDING TYPED FOR CLIENT A' },
+    });
+
+    const refreshedA = intake({
+      clientEmail: 'sarah@example.test',
+      firmName: 'Firm A',
+      publicKeyRawB64: 'public-key-a',
+      items: [
+        { itemId: 'ssn', label: 'Social Security number', state: 'received' },
+        { itemId: 'income', label: 'Income', state: 'received' },
+      ],
+    });
+    delete refreshedA.link;
+    useIntakeStore.getState().upsertIntake(refreshedA);
+    await waitFor(() => { expect(screen.getByTestId('nudge-regenerate')).toBeInTheDocument(); });
+    fireEvent.click(screen.getByTestId('nudge-regenerate'));
+    await waitFor(() => { expect(reconstructAdvisorIntakeLinkMock).toHaveBeenCalledTimes(1); });
+
+    const intakeB = intake({
+      intakeId: 'intake-2',
+      matterId: 'matter-2',
+      clientFirstName: 'Priya',
+      clientEmail: 'priya@example.test',
+      firmName: 'Firm B',
+      link: 'https://example.test/i/client-b#client-b-secret',
+      items: [{ itemId: 'tax-return', label: 'Tax return', state: 'not_started' }],
+    });
+    view.rerender(
+      <NudgeReviewModal
+        open
+        row={deriveOnboardingRow(intakeB, now, DEFAULT_ONBOARDING_CONFIG)}
+        intake={intakeB}
+        now={now}
+        onOpenChange={vi.fn()}
+      />
+    );
+    // The reset must happen in the switch render itself, before any effect or
+    // B load can run. This catches a fields-only/passive-effect reset.
+    expect(textAreaValue('nudge-review-body')).not.toContain('PRIVATE WORDING TYPED FOR CLIENT A');
+    expect(screen.getByTestId('nudge-review-to')).toHaveValue('priya@example.test');
+    expect(screen.getByTestId('nudge-review-subject')).toHaveValue('A few onboarding items for Firm B');
+    expect(screen.getByTestId('nudge-missing-items')).toHaveTextContent('Tax return');
+    await waitFor(() => {
+      expect(textAreaValue('nudge-review-body')).toContain('Priya');
+      expect(screen.getByTestId('nudge-review-to')).toHaveValue('priya@example.test');
+      expect(screen.getByTestId('nudge-review-subject')).toHaveValue('A few onboarding items for Firm B');
+      expect(screen.getByTestId('nudge-missing-items')).toHaveTextContent('Tax return');
+    });
+
+    await act(async () => {
+      lateLink.resolve('https://example.test/i/client-a#late-client-a-secret');
+      await lateLink.promise;
+    });
+    await waitFor(() => {
+      expect(textAreaValue('nudge-review-body')).toContain('Priya');
+      expect(textAreaValue('nudge-review-body')).not.toContain('PRIVATE WORDING TYPED FOR CLIENT A');
+      expect(textAreaValue('nudge-review-body')).not.toContain('Sarah');
+      expect(textAreaValue('nudge-review-body')).not.toContain('late-client-a-secret');
+      expect(screen.getByTestId('nudge-review-to')).toHaveValue('priya@example.test');
+      expect(screen.getByTestId('nudge-missing-items')).toHaveTextContent('Tax return');
+    });
+  });
+
+  it('keeps failed intake B empty when intake A\'s AI rewrite resolves late', async () => {
+    const lateRewrite = deferred<{ body: string }>();
+    const structuredOutput = vi.fn().mockReturnValue(lateRewrite.promise);
+    resolveEmailProviderMock.mockResolvedValue({
+      provider: providerWithBody('unused', structuredOutput),
+      providerId: 'test-provider',
+      assuredAvailable: true,
+    });
+    const original = intake({
+      clientEmail: 'sarah@example.test',
+      firmName: 'Firm A',
+    });
+    const view = render(
+      <NudgeReviewModal
+        open
+        row={deriveOnboardingRow(original, now, DEFAULT_ONBOARDING_CONFIG)}
+        intake={original}
+        now={now}
+        onOpenChange={vi.fn()}
+      />
+    );
+    await waitFor(() => { expect(screen.getByTestId('nudge-review-body')).not.toBeDisabled(); });
+    fireEvent.change(screen.getByTestId('nudge-review-body'), {
+      target: { value: 'PRIVATE WORDING TYPED FOR CLIENT A' },
+    });
+    fireEvent.click(screen.getByTestId('nudge-draft-in-my-voice'));
+    await waitFor(() => { expect(structuredOutput).toHaveBeenCalledTimes(1); });
+
+    reconstructAdvisorIntakeLinkMock.mockRejectedValueOnce(new Error('Client B link load failed'));
+    const failedB = intake({
+      // Deliberately reuse the record ID: matter ID alone is a genuine client
+      // boundary and must still replace the entire state-owning session.
+      matterId: 'matter-2',
+      clientFirstName: 'Priya',
+      clientEmail: 'priya@example.test',
+      firmName: 'Firm B',
+      publicKeyRawB64: 'public-key-b',
+      items: [{ itemId: 'tax-return', label: 'Tax return', state: 'not_started' }],
+    });
+    delete failedB.link;
+    view.rerender(
+      <NudgeReviewModal
+        open
+        row={deriveOnboardingRow(failedB, now, DEFAULT_ONBOARDING_CONFIG)}
+        intake={failedB}
+        now={now}
+        onOpenChange={vi.fn()}
+      />
+    );
+    // Failed B starts fail-closed in the switch render. It must not wait for
+    // the rejecting promise before hiding A's fields and underlying draft.
+    expect(textAreaValue('nudge-review-body')).toBe('');
+    expect(screen.getByTestId('nudge-review-to')).toHaveValue('');
+    expect(screen.getByTestId('nudge-review-subject')).toHaveValue('');
+    expect(screen.getByTestId('nudge-missing-items')).toBeEmptyDOMElement();
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Regenerate the onboarding link');
+      expect(screen.getByTestId('nudge-review-body')).toBeDisabled();
+      expect(textAreaValue('nudge-review-body')).toBe('');
+      expect(screen.getByTestId('nudge-review-to')).toHaveValue('');
+      expect(screen.getByTestId('nudge-review-subject')).toHaveValue('');
+      expect(screen.getByTestId('nudge-missing-items')).toBeEmptyDOMElement();
+    });
+
+    await act(async () => {
+      lateRewrite.resolve({ body: 'LATE AI BODY FOR CLIENT A' });
+      await lateRewrite.promise;
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Regenerate the onboarding link');
+      expect(textAreaValue('nudge-review-body')).toBe('');
+      expect(textAreaValue('nudge-review-body')).not.toContain('CLIENT A');
+      expect(screen.getByTestId('nudge-review-to')).toHaveValue('');
+      expect(screen.getByTestId('nudge-review-subject')).toHaveValue('');
+      expect(screen.getByTestId('nudge-missing-items')).toBeEmptyDOMElement();
+    });
   });
 });

@@ -26,6 +26,7 @@ const { live, catalogPersistence, useLiveCrmRecords } = vi.hoisted(() => ({
   live: {
     records: [] as unknown[],
     save: vi.fn(),
+    workspaceRoot: '/workspace-a',
   },
   catalogPersistence: {
     load: vi.fn(),
@@ -151,6 +152,7 @@ afterEach(() => {
 });
 
 beforeEach(() => {
+  live.workspaceRoot = '/workspace-a';
   live.records = [
     ...catalog.fields.map((field, order) => ({
       id: field.id,
@@ -274,6 +276,156 @@ describe('advisor custom fields extension', () => {
         services: ['Tax', 'Estate'],
       });
     });
+  });
+
+  it('preserves an advisor edit through a same-household re-seed, but starts clean for another household', async () => {
+    setDevFlagOverride('custom-fields-advisor', true);
+    const original = withCustomFieldValues(household, {
+      'planning-note': 'Saved note',
+    });
+    const view = render(
+      <CustomFieldsSectionContent
+        household={original}
+        catalog={catalog}
+        onSaveHousehold={vi.fn()}
+      />
+    );
+    fireEvent.change(screen.getByLabelText('Planning note'), {
+      target: { value: 'Advisor typed note' },
+    });
+    view.rerender(
+      <CustomFieldsSectionContent
+        household={withCustomFieldValues(
+          { ...original, name: 'Fresh object' },
+          { 'planning-note': 'Late saved note' }
+        )}
+        catalog={catalog}
+        onSaveHousehold={vi.fn()}
+      />
+    );
+    await waitFor(() => {
+      expect(screen.getByLabelText('Planning note')).toHaveValue(
+        'Advisor typed note'
+      );
+    });
+    view.rerender(
+      <CustomFieldsSectionContent
+        household={withCustomFieldValues(
+          { ...household, id: 'other-household' },
+          { 'planning-note': 'Other household' }
+        )}
+        catalog={catalog}
+        onSaveHousehold={vi.fn()}
+      />
+    );
+    await waitFor(() => {
+      expect(screen.getByLabelText('Planning note')).toHaveValue(
+        'Other household'
+      );
+    });
+  });
+
+  it('uses the production registry to preserve same-record edits and fully isolate a different record', async () => {
+    setDevFlagOverride('custom-fields-advisor', true);
+    const saveHousehold = vi.fn();
+    const original = withCustomFieldValues(household, {
+      'planning-note': 'Saved A note',
+      managed: true,
+    });
+    const view = render(
+      <HouseholdRecordSurface
+        household={original}
+        onSaveHousehold={saveHousehold}
+      />
+    );
+
+    fireEvent.change(await screen.findByLabelText('Planning note'), {
+      target: { value: 'A private typed note' },
+    });
+    fireEvent.change(screen.getByLabelText('Reserve'), {
+      target: { value: '9876' },
+    });
+
+    view.rerender(
+      <HouseholdRecordSurface
+        household={withCustomFieldValues(
+          { ...original, name: 'Same A, newly published object' },
+          { 'planning-note': 'Late server A note', managed: false }
+        )}
+        onSaveHousehold={saveHousehold}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Planning note')).toHaveValue(
+        'A private typed note'
+      );
+      expect(screen.getByLabelText('Reserve')).toHaveValue(9876);
+    });
+
+    const householdB = withCustomFieldValues(
+      { ...household, id: 'household-b', name: 'Household B' },
+      {}
+    );
+    view.rerender(
+      <HouseholdRecordSurface
+        household={householdB}
+        onSaveHousehold={saveHousehold}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Planning note')).toHaveValue('');
+      expect(screen.getByLabelText('Reserve')).toHaveValue(null);
+      expect(screen.getByLabelText('Managed')).not.toBeChecked();
+    });
+    expect(
+      screen.queryByDisplayValue('A private typed note')
+    ).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue('9876')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('custom-fields-advisor-save'));
+    await waitFor(() => {
+      const savedB = saveHousehold.mock.calls.at(-1)?.[0] as
+        | HouseholdRecord
+        | undefined;
+      expect(savedB?.id).toBe('household-b');
+      expect(readCustomFieldValues(savedB as HouseholdRecord)).toEqual({});
+    });
+  });
+
+  it('fails closed through the production registry when a different workspace catalog load fails', async () => {
+    setDevFlagOverride('custom-fields-advisor', true);
+    const original = withCustomFieldValues(household, {
+      'planning-note': 'A private typed note',
+      reserve: 7654,
+    });
+    const view = render(<HouseholdRecordSurface household={original} />);
+
+    fireEvent.change(await screen.findByLabelText('Planning note'), {
+      target: { value: 'A newly typed private note' },
+    });
+    fireEvent.change(screen.getByLabelText('Reserve'), {
+      target: { value: '8765' },
+    });
+
+    live.workspaceRoot = '/workspace-b';
+    catalogPersistence.load.mockRejectedValueOnce(
+      new Error('Workspace B catalog could not load')
+    );
+    view.rerender(
+      <HouseholdRecordSurface
+        household={{ ...household, name: 'Workspace B reused record id' }}
+      />
+    );
+
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Planning note')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Reserve')).not.toBeInTheDocument();
+    expect(
+      screen.queryByDisplayValue('A newly typed private note')
+    ).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue('8765')).not.toBeInTheDocument();
   });
 
   it('round-trips a save through a fresh render and preserves sibling bags', async () => {

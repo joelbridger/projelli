@@ -1,0 +1,19 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/lantern/app/integration/.worktrees/v1/w2-dataloss-crosspoll
+sha: e479ccfc3f94caf471af6f666a4140c7b75c146c
+tree: ee1486681235e30cc267570a8787565f293dc1c0
+gate_base: b28dc9e1dd7bbd7a9e23bfc7e392eb4898c4c7fd
+tool_blob: 7912bf11eefdacea0702600b19d3bc5b3d7f2606
+utc: 2026-07-17T08:17:06Z
+step_timeout_seconds: 600
+loadavg: 3.41 6.47 9.70
+running_vitest_eslint_procs: 7
+step: gate:changed | status=PASS | exit=0 | 08:17:06Z..08:25:42Z | bytes=56873 | sha256=326c6ffb03177c043ccfc8d44547360484cdb346f45287e939845dda0c08f3ec | tail: ssed | 3 skipped (1117) Tests 8894 passed | 29 skipped (8923) Start at 08:20:10 Duration 331.71s (transform 26.82s, setup 156.54s, import 458.94s, tests 224.78s, environment 368.27s) CHANGED GATE GREEN
+step: typecheck | status=PASS | exit=0 | 08:25:42Z..08:26:04Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit
+step: typecheck:tests | status=PASS | exit=0 | 08:26:04Z..08:26:30Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit
+step: handle-guard | status=PASS | exit=0 | 08:26:30Z..08:26:30Z | bytes=1360 | sha256=725bf79cafd644ebb74927168522eb4e6d9a331df7ea908fe79031f456c1ffe9 | tail: ite-approve + calendar-write-pending-banner + calendar-write-pending-banner-review-now +343 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen).
+step: arch-dag-guard | status=PASS | exit=0 | 08:26:30Z..08:26:31Z | bytes=259 | sha256=fab0bc8a4c78c0d6ed4acaa880ab160c566e0709be8b8c4b83084df9aa60b697 | tail: /integration/.worktrees/v1/w2-dataloss-crosspoll Test Files 1 passed (1) Tests 1 passed (1) Start at 08:26:30 Duration 934ms (transform 213ms, setup 333ms, import 250ms, tests 3ms, environment 262ms)
+step: i18n-snapshot | status=PASS | exit=0 | 08:26:31Z..08:26:32Z | bytes=260 | sha256=a6904dd8d19e43273317877f75cc208c6837daaf695d93cc88489ec720c84580 | tail: integration/.worktrees/v1/w2-dataloss-crosspoll Test Files 1 passed (1) Tests 5 passed (5) Start at 08:26:31 Duration 932ms (transform 230ms, setup 337ms, import 221ms, tests 16ms, environment 264ms)
+step: focused | status=PASS | exit=0 | 08:26:32Z..08:26:36Z | bytes=263 | sha256=56d430b7f0df0bf6d3fe1b76bf7ad2fcb26cc8f594c272b49b429b247d632d94 | tail: egration/.worktrees/v1/w2-dataloss-crosspoll Test Files 4 passed (4) Tests 27 passed (27) Start at 08:26:32 Duration 3.82s (transform 3.37s, setup 1.33s, import 4.86s, tests 1.25s, environment 1.21s)
+overall: GREEN
