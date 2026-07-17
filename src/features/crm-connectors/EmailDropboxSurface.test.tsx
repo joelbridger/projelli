@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest';
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -140,8 +141,22 @@ describe('EmailDropboxSurface', () => {
       assertBSuccessLoaded: () => { expect(screen.getByTestId('crm-email-dropbox-account')).toHaveValue('b@example.test'); expect(screen.getByTestId('crm-email-dropbox-email-email-b')).toBeInTheDocument(); },
       assertBFailureIsFailClosed: () => { expect(screen.getByTestId('crm-email-dropbox-account')).toHaveValue(''); expect(screen.getByTestId('crm-email-dropbox-folder')).toHaveValue('Lantern Dropbox'); },
       assertNoAContentInFields: ({ typedA, loadedA }) => { expect(screen.queryByDisplayValue(typedA)).not.toBeInTheDocument(); for (const marker of loadedA) expect(document.body.textContent).not.toContain(marker); },
-      assertNoAContentInUnderlyingState: async () => { save.mockClear(); fireEvent.click(screen.getByTestId('crm-email-dropbox-save')); await waitFor(() => expect(save).toHaveBeenCalled()); expect(save.mock.calls.at(-1)?.[0]).not.toMatchObject({ account: 'advisor-typed-a@example.test' }); },
-      resolveLateAWrite: async () => { lateA.resolve({ items: [aEmail] }); await Promise.resolve(); },
+      assertNoAContentInUnderlyingState: async (_, phase) => {
+        save.mockClear();
+        fireEvent.click(screen.getByTestId('crm-email-dropbox-save'));
+        await waitFor(() => expect(save).toHaveBeenCalled());
+        expect(save.mock.calls.at(-1)?.[0]).not.toMatchObject({ account: 'advisor-typed-a@example.test' });
+        const bMapping = phase === 'B loaded' ? screen.queryByTestId('crm-email-dropbox-household-email-b') : null;
+        if (bMapping) {
+          fireEvent.change(bMapping, { target: { value: 'household-b' } });
+          fireEvent.click(screen.getByTestId('crm-email-dropbox-file-email-b'));
+          await waitFor(() => expect(save.mock.calls.some(([record]) => record?.id === 'email-dropbox:email-b:household-b')).toBe(true));
+          const savedMapping = save.mock.calls.find(([record]) => record?.id === 'email-dropbox:email-b:household-b')?.[0];
+          expect(savedMapping).toMatchObject({ matterId: 'household-b', householdId: 'household-b' });
+          expect(savedMapping).not.toMatchObject({ matterId: 'household-a', householdId: 'household-a' });
+        }
+      },
+      resolveLateAWrite: async () => { await act(async () => { lateA.resolve({ items: [aEmail] }); await lateA.promise; }); },
     });
   });
 

@@ -30,7 +30,7 @@ describe('assertCrossContextIsolation', () => {
     for (const [key, callback] of Object.entries(input)) {
       if (typeof callback === 'function') {
         (input as unknown as Record<string, unknown>)[key] = (...args: unknown[]) => {
-          steps.push(key);
+          steps.push(key === 'switchContext' ? `${key}:${String(args[0])}` : key);
           return Reflect.apply(callback, undefined, args);
         };
       }
@@ -38,15 +38,28 @@ describe('assertCrossContextIsolation', () => {
     await assertCrossContextIsolation(input);
     expect(steps).toEqual([
       'renderSurface', 'typeIntoField', 'assertATypedValueVisible', 'reseedSameContext', 'assertWithinContextEditPreserved',
-      'renderSurface', 'typeIntoField', 'assertATypedValueVisible', 'switchContext', 'assertNoAContentInFields', 'assertNoAContentInUnderlyingState', 'waitForBSuccess', 'assertBSuccessLoaded', 'assertNoAContentInFields', 'assertNoAContentInUnderlyingState',
-      'renderSurface', 'typeIntoField', 'assertATypedValueVisible', 'switchContext', 'assertNoAContentInFields', 'assertNoAContentInUnderlyingState', 'waitForBFailure', 'assertBFailureIsFailClosed', 'assertNoAContentInFields', 'assertNoAContentInUnderlyingState',
+      'renderSurface', 'typeIntoField', 'assertATypedValueVisible', 'switchContext:success', 'assertNoAContentInFields', 'assertNoAContentInUnderlyingState', 'waitForBSuccess', 'assertBSuccessLoaded', 'assertNoAContentInFields', 'assertNoAContentInUnderlyingState',
+      'renderSurface', 'typeIntoField', 'assertATypedValueVisible', 'switchContext:failure', 'assertNoAContentInFields', 'assertNoAContentInUnderlyingState', 'waitForBFailure', 'assertBFailureIsFailClosed', 'assertNoAContentInFields', 'assertNoAContentInUnderlyingState',
     ]);
   });
 
-  it('rejects invalid same-ID adversaries before rendering', async () => {
+  it('rejects each invalid adversarial identity before rendering', async () => {
     const renderSurface = vi.fn();
-    await expect(assertCrossContextIsolation(fixture({ identity: { contextA: 'A', contextB: 'A', sameRecordId: '', sameFieldId: '' }, renderSurface }))).rejects.toThrow(/different non-empty contexts/i);
+    await expect(assertCrossContextIsolation(fixture({ identity: { contextA: 'A', contextB: 'A', sameRecordId: 'same-record', sameFieldId: 'same-field' }, renderSurface }))).rejects.toThrow(/different non-empty contexts/i);
+    await expect(assertCrossContextIsolation(fixture({ identity: { contextA: 'A', contextB: 'B', sameRecordId: '', sameFieldId: 'same-field' }, renderSurface }))).rejects.toThrow(/reused record and field IDs/i);
+    await expect(assertCrossContextIsolation(fixture({ identity: { contextA: 'A', contextB: 'B', sameRecordId: 'same-record', sameFieldId: '' }, renderSurface }))).rejects.toThrow(/reused record and field IDs/i);
     expect(renderSurface).not.toHaveBeenCalled();
+  });
+
+  it('fails when A survives only in a live textarea value', async () => {
+    const leaked = document.createElement('textarea');
+    leaked.value = 'A typed marker';
+    document.body.append(leaked);
+    try {
+      await expect(assertCrossContextIsolation(fixture())).rejects.toThrow(/B pending: A marker survived in live textarea value/i);
+    } finally {
+      leaked.remove();
+    }
   });
 
   it('fails if successful B is empty rather than loaded', async () => {

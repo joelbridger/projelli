@@ -295,10 +295,10 @@ describe('advisor custom fields extension', () => {
       waitForBFailure: async () => { await screen.findByRole('alert'); },
       assertATypedValueVisible: () => expect(screen.getByLabelText('Planning note')).toHaveValue('A newly typed private note'),
       assertWithinContextEditPreserved: () => { expect(screen.getByLabelText('Planning note')).toHaveValue('A newly typed private note'); expect(screen.getByLabelText('Reserve')).toHaveValue(8765); },
-      assertBSuccessLoaded: () => { expect(screen.getByLabelText('Planning note')).toHaveValue('B loaded note'); expect(screen.getByLabelText('Reserve')).toHaveValue(42); },
+      assertBSuccessLoaded: () => { expect(screen.getByLabelText('Planning note')).toHaveValue('B loaded note'); expect(screen.getByLabelText('Reserve')).toHaveValue(42); expect(screen.getByLabelText('Managed')).not.toBeChecked(); },
       assertBFailureIsFailClosed: () => { expect(screen.getByRole('alert')).toBeInTheDocument(); expect(screen.queryByLabelText('Planning note')).not.toBeInTheDocument(); },
       assertNoAContentInFields: ({ typedA, loadedA }) => { expect(screen.queryByDisplayValue(typedA)).not.toBeInTheDocument(); for (const marker of loadedA) expect(screen.queryByDisplayValue(marker)).not.toBeInTheDocument(); },
-      assertNoAContentInUnderlyingState: async () => { if (screen.queryByTestId('custom-fields-advisor-save')) { fireEvent.click(screen.getByTestId('custom-fields-advisor-save')); await waitFor(() => { const saved = saveHousehold.mock.calls.at(-1)?.[0] as HouseholdRecord | undefined; expect(readCustomFieldValues(saved as HouseholdRecord)).not.toMatchObject({ 'planning-note': 'A newly typed private note', reserve: 8765 }); }); } else { expect(screen.queryByTestId('custom-fields-advisor-section')).not.toBeInTheDocument(); } },
+      assertNoAContentInUnderlyingState: async () => { if (screen.queryByTestId('custom-fields-advisor-save')) { fireEvent.click(screen.getByTestId('custom-fields-advisor-save')); await waitFor(() => { const saved = saveHousehold.mock.calls.at(-1)?.[0] as HouseholdRecord | undefined; expect(readCustomFieldValues(saved as HouseholdRecord)).toEqual({ 'planning-note': 'B loaded note', reserve: 42 }); expect(readCustomFieldValues(saved as HouseholdRecord)).not.toMatchObject({ managed: true, 'planning-note': 'A newly typed private note', reserve: 8765 }); }); } else { expect(screen.queryByTestId('custom-fields-advisor-section')).not.toBeInTheDocument(); } },
     });
   });
 

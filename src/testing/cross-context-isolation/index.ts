@@ -1,4 +1,5 @@
 export type CrossContextLoad = 'success' | 'failure';
+export type CrossContextProbePhase = 'B pending' | 'B loaded' | 'B failed' | 'late A writer';
 
 export interface CrossContextIdentity {
   readonly contextA: string;
@@ -25,8 +26,18 @@ export interface CrossContextIsolationInput {
   readonly assertWithinContextEditPreserved: (a: CrossContextProbeValues) => void | Promise<void>;
   readonly assertBSuccessLoaded: (a: CrossContextProbeValues) => void | Promise<void>;
   readonly assertBFailureIsFailClosed: (a: CrossContextProbeValues) => void | Promise<void>;
-  readonly assertNoAContentInFields: (a: CrossContextProbeValues) => void | Promise<void>;
-  readonly assertNoAContentInUnderlyingState: (a: CrossContextProbeValues) => void | Promise<void>;
+  /**
+   * Surface-specific visible assertions, in addition to the helper's own
+   * input/textarea value scan. Use this for rendered text, selects, and other
+   * controls whose privacy boundary matters to the surface.
+   */
+  readonly assertNoAContentInFields: (a: CrossContextProbeValues, phase: CrossContextProbePhase) => void | Promise<void>;
+  /**
+   * Required private-state boundary. Inspect a state-owning store or exercise
+   * a save boundary so an invisible A draft, mapping, or prefill cannot pass
+   * merely because the rendered B screen is clear.
+   */
+  readonly assertNoAContentInUnderlyingState: (a: CrossContextProbeValues, phase: CrossContextProbePhase) => void | Promise<void>;
   readonly resolveLateAWrite?: () => void | Promise<void>;
 }
 
@@ -48,9 +59,26 @@ async function at<T>(name: string, phase: string, callback: () => T | Promise<T>
   }
 }
 
-async function assertNoA(input: CrossContextIsolationInput, values: CrossContextProbeValues, phase: string): Promise<void> {
-  await at(input.name, phase, () => input.assertNoAContentInFields(values));
-  await at(input.name, phase, () => input.assertNoAContentInUnderlyingState(values));
+async function assertNoA(input: CrossContextIsolationInput, values: CrossContextProbeValues, phase: CrossContextProbePhase): Promise<void> {
+  await at(input.name, phase, () => assertNoAInLiveInputValues(values));
+  await at(input.name, phase, () => input.assertNoAContentInFields(values, phase));
+  await at(input.name, phase, () => input.assertNoAContentInUnderlyingState(values, phase));
+}
+
+/**
+ * textContent intentionally omits the live value of inputs and textareas.
+ * Check those values here so every adopter gets this part of the proof,
+ * including an immediate B render before its async data arrives.
+ */
+function assertNoAInLiveInputValues({ typedA, loadedA }: CrossContextProbeValues): void {
+  const forbidden = [typedA, ...loadedA].filter((value) => value.trim());
+  for (const field of document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea')) {
+    for (const marker of forbidden) {
+      if (field.value.includes(marker)) {
+        throw new Error(`A marker survived in live ${field instanceof HTMLTextAreaElement ? 'textarea' : 'input'} value: ${marker}`);
+      }
+    }
+  }
 }
 
 async function freshA(input: CrossContextIsolationInput, phase: string): Promise<CrossContextProbeValues> {
