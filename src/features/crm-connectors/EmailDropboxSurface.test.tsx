@@ -165,6 +165,28 @@ describe('EmailDropboxSurface', () => {
     });
   });
 
+  it('does not carry a typed A mailbox field into a successful direct workspace-B load with the same config record ID', async () => {
+    mailMocks.checkFolder.mockResolvedValue({ items: [] });
+    records = [configRecord('A saved folder', 'a@example.test')];
+    const view = render(<EmailDropboxSurface />);
+    await waitFor(() => {
+      expect(screen.getByTestId('crm-email-dropbox-account')).toHaveValue('a@example.test');
+    });
+    fireEvent.change(screen.getByTestId('crm-email-dropbox-account'), {
+      target: { value: 'advisor-typed-a@example.test' },
+    });
+
+    workspaceRoot = '/workspace-b';
+    records = [configRecord('B saved folder', 'b@example.test')];
+    view.rerender(<EmailDropboxSurface />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('crm-email-dropbox-account')).toHaveValue('b@example.test');
+      expect(screen.getByTestId('crm-email-dropbox-folder')).toHaveValue('B saved folder');
+    });
+    expect(screen.queryByDisplayValue('advisor-typed-a@example.test')).not.toBeInTheDocument();
+  });
+
   it('fails closed with empty B state when B records fail to load and discards late A mail', async () => {
     const aEmail = email('email-a-private', 'Client A private subject', 'a@example.test');
     const lateA = deferred<{ items: MailListItem[] }>();

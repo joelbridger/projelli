@@ -154,4 +154,28 @@ describe('FirmSetupSurface', () => {
       }));
     });
   });
+
+  it('does not carry an unsaved A draft into a successful direct workspace-B load with the same record ID', async () => {
+    records = [
+      { id: 'field-1', kind: 'customFieldDef', matterId: 'firm_home', key: 'region', label: 'Region', fieldType: 'text', appliesTo: ['household'], required: false, order: 1, archived: false, deleted: false },
+      { id: 'household-1', kind: 'household', matterId: 'matter-a', name: 'Client A secret name', updatedAt: '2026-07-17T00:00:00.000Z', tagIds: [], customFields: { region: { value: 'A saved secret' } } },
+    ];
+    const view = render(<FirmSetup initialTab="values" />);
+    fireEvent.change(screen.getByTestId('crm-record-values-select'), { target: { value: 'household-1' } });
+    await waitFor(() => { expect(screen.getByTestId('crm-record-value-region')).toHaveValue('A saved secret'); });
+    fireEvent.change(screen.getByTestId('crm-record-value-region'), { target: { value: 'A unsaved secret' } });
+
+    workspaceRoot = 'workspace-b';
+    records = [
+      { id: 'field-1', kind: 'customFieldDef', matterId: 'firm_home', key: 'region', label: 'Region', fieldType: 'text', appliesTo: ['household'], required: false, order: 1, archived: false, deleted: false },
+      { id: 'household-1', kind: 'household', matterId: 'matter-b', name: 'Client B', updatedAt: '2026-07-17T00:01:00.000Z', tagIds: [], customFields: { region: { value: 'B saved value' } } },
+    ];
+    view.rerender(<FirmSetup initialTab="values" />);
+
+    fireEvent.change(await screen.findByTestId('crm-record-values-select'), { target: { value: 'household-1' } });
+    await waitFor(() => { expect(screen.getByTestId('crm-record-value-region')).toHaveValue('B saved value'); });
+    expect(screen.queryByDisplayValue('A unsaved secret')).not.toBeInTheDocument();
+    expect(screen.queryByText('Client A secret name')).not.toBeInTheDocument();
+    expect(screen.getByTestId('crm-record-values-select')).toHaveValue('household-1');
+  });
 });
