@@ -21,7 +21,10 @@ export interface CalendarGridViewContext {
   readonly range: CalendarRange;
   readonly occurrences: readonly CalendarOccurrence[];
   readonly selectedOccurrenceKey: string | null;
+  readonly selectedDayKey: string | null;
+  readonly todayDayKey: string;
   readonly onSelectOccurrence: (occurrenceKey: string) => void;
+  readonly onSelectDay: (dayKey: string) => void;
 }
 
 export interface CalendarGridViewDescriptor<

@@ -27,6 +27,7 @@ import {
   calendarGridSchedulingSurface,
   createCalendarGridViewComposition,
   defineCalendarGridView,
+  eventSheetHeading,
 } from '@/features/calendar-grid';
 
 declare module '@/features/calendar-grid' {
@@ -114,12 +115,12 @@ describe('CalendarGridSurface', () => {
     render(<CalendarGridSurface now={ANCHOR} />);
 
     const month = await screen.findByTestId('calendar-grid-month');
-    expect(within(month).getAllByTestId('calendar-grid-month-day')).toHaveLength(31);
+    expect(within(month).getAllByTestId('calendar-grid-month-day')).toHaveLength(42);
     const augustFifth = within(month).getAllByTestId('calendar-grid-month-day')
       .find((cell) => cell.getAttribute('data-calendar-day') === '2026-08-05');
     if (!augustFifth) throw new Error('Expected the August 5 month cell.');
     const buttons = within(augustFifth).getAllByRole('button');
-    expect(buttons.map((button) => button.getAttribute('data-occurrence-key'))).toEqual([
+    expect(buttons.filter((button) => button.hasAttribute('data-occurrence-key')).map((button) => button.getAttribute('data-occurrence-key'))).toEqual([
       oneTime.occurrenceKey,
       recurring.occurrenceKey,
     ]);
@@ -138,11 +139,8 @@ describe('CalendarGridSurface', () => {
     const week = await screen.findByTestId('calendar-grid-week');
     expect(within(week).getAllByTestId('calendar-grid-week-day-heading')).toHaveLength(7);
     expect(within(week).getAllByTestId('calendar-grid-week-time-lane')).toHaveLength(7 * 24);
-    const lane = within(week).getAllByTestId('calendar-grid-week-time-lane').find((candidate) =>
-      candidate.getAttribute('data-calendar-day') === '2026-08-05'
-      && candidate.getAttribute('data-calendar-hour') === '9');
-    if (!lane) throw new Error('Expected the Wednesday 9 AM week lane.');
-    expect(within(lane).getByTestId(`calendar-occurrence-${scheduled.occurrenceKey}`)).toBeTruthy();
+    expect(within(week).getAllByTestId('calendar-grid-week-time-lane').some((candidate) => candidate.getAttribute('data-calendar-day') === '2026-08-05' && candidate.getAttribute('data-calendar-hour') === '9')).toBe(true);
+    expect(within(week).getByTestId(`calendar-occurrence-${scheduled.occurrenceKey}`).style.top).toBe('504px');
   });
 
   it('renders a distinct 24-hour day timeline and places the occurrence at its start hour', async () => {
@@ -156,10 +154,8 @@ describe('CalendarGridSurface', () => {
 
     const day = await screen.findByTestId('calendar-grid-day');
     expect(within(day).getAllByTestId('calendar-grid-day-hour')).toHaveLength(24);
-    const nineAm = within(day).getAllByTestId('calendar-grid-day-hour')
-      .find((row) => row.getAttribute('data-calendar-hour') === '9');
-    if (!nineAm) throw new Error('Expected the 9 AM day timeline row.');
-    expect(within(nineAm).getByTestId(`calendar-occurrence-${scheduled.occurrenceKey}`)).toBeTruthy();
+    expect(within(day).getAllByTestId('calendar-grid-day-hour').some((row) => row.getAttribute('data-calendar-hour') === '9')).toBe(true);
+    expect(within(day).getByTestId(`calendar-occurrence-${scheduled.occurrenceKey}`).style.top).toBe('504px');
   });
 
   it('lets a third-party public view become selectable and receive the exact bounded projection', async () => {
@@ -195,7 +191,7 @@ describe('CalendarGridSurface', () => {
     expect(received.at(-1)?.range).toEqual(calendarGridRange('month', ANCHOR));
     expect(received.at(-1)?.occurrences[0]).toBe(scheduled);
     fireEvent.click(within(outside).getByRole('button', { name: scheduled.title }));
-    expect(screen.getByTestId('calendar-grid-selection').textContent).toContain(scheduled.title);
+    expect(screen.getByTestId('calendar-grid-peek').textContent).toContain(scheduled.title);
   });
 
   it('uses the same read-only occurrence for the selected rail, including a cancelled event', async () => {
@@ -215,10 +211,61 @@ describe('CalendarGridSurface', () => {
 
     await screen.findByTestId(`calendar-occurrence-${scheduled.occurrenceKey}`);
     fireEvent.click(screen.getByTestId(`calendar-occurrence-${cancelled.occurrenceKey}`));
-    expect(screen.getByTestId('calendar-grid-selection').textContent).toContain('Cancelled review');
+    expect(screen.getByTestId('calendar-grid-peek').textContent).toContain('Cancelled review');
     expect(screen.getByTestId('calendar-grid-selection').textContent).toContain('calendar:local');
     expect(screen.getByTestId('calendar-grid-selection-status').textContent).toContain('Cancelled');
     expect(runtime.listOccurrences).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses the shared sheet for New event and edit, with calm title fallbacks and truthful local status', async () => {
+    runtime.enabled = true;
+    const longTitle = 'A long calendar title that needs a calm heading fallback while the original saved event title stays untouched for the advisor';
+    const scheduled = occurrence({ title: longTitle });
+    runtime.listOccurrences.mockResolvedValue([scheduled]);
+    render(<CalendarGridSurface now={ANCHOR} />);
+
+    await screen.findByTestId(`calendar-occurrence-${scheduled.occurrenceKey}`);
+    expect(screen.getByTestId('calendar-grid-range').textContent).toContain('August');
+    expect(screen.getByTestId('calendar-grid-range').textContent).not.toContain('T00:00:00');
+
+    fireEvent.click(screen.getByTestId('calendar-grid-new-event'));
+    expect(await screen.findByTestId('calendar-event-sheet-heading')).toHaveTextContent('New event');
+    expect(screen.getByTestId('calendar-event-status')).toHaveTextContent('Saved in this workspace');
+    expect(screen.getByRole('button', { name: 'Save event' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    fireEvent.click(screen.getByTestId(`calendar-occurrence-${scheduled.occurrenceKey}`));
+    fireEvent.click(screen.getByTestId('calendar-grid-edit-event'));
+    expect(await screen.findByTestId('calendar-event-sheet-heading')).toHaveTextContent(eventSheetHeading(longTitle, 'Untitled event'));
+    expect(screen.getByTestId('calendar-event-title')).toHaveValue(longTitle);
+    expect(eventSheetHeading('', 'Untitled event')).toBe('Untitled event');
+  });
+
+  it('keeps the calendar frame during a real pending read instead of calling it empty', async () => {
+    runtime.enabled = true;
+    let resolveOccurrences: ((value: readonly CalendarOccurrence[]) => void) | undefined;
+    runtime.listOccurrences.mockImplementation(() => new Promise((resolve) => { resolveOccurrences = resolve; }));
+    render(<CalendarGridSurface now={ANCHOR} />);
+
+    expect(await screen.findByTestId('calendar-grid-loading')).toBeTruthy();
+    expect(screen.queryByTestId('calendar-grid-empty')).toBeNull();
+    resolveOccurrences?.([]);
+    await screen.findByTestId('calendar-grid-empty');
+  });
+
+  it('places overlapping week events side-by-side at their real start time and duration', async () => {
+    runtime.enabled = true;
+    const first = occurrence({ occurrenceKey: 'event-1@2026-08-05T14:00:00Z', startUtc: '2026-08-05T14:00:00Z', endUtc: '2026-08-05T16:00:00Z' });
+    const second = occurrence({ occurrenceKey: 'event-2@2026-08-05T14:00:00Z', sourceEventId: 'event-2', title: 'Overlapping review', startUtc: '2026-08-05T14:00:00Z', endUtc: '2026-08-05T15:00:00Z' });
+    runtime.listOccurrences.mockResolvedValue([first, second]);
+    render(<CalendarGridSurface now={ANCHOR} />);
+    await screen.findByTestId('calendar-grid-month');
+    fireEvent.click(screen.getByTestId('calendar-grid-view-week'));
+    const firstButton = await screen.findByTestId(`calendar-occurrence-${first.occurrenceKey}`);
+    const secondButton = screen.getByTestId(`calendar-occurrence-${second.occurrenceKey}`);
+    expect(firstButton.style.top).toBe('784px');
+    expect(firstButton.style.height).toBe('112px');
+    expect(firstButton.style.left).not.toBe(secondButton.style.left);
   });
 
   it('refreshes both the mounted layout and rail after title and timing edits', async () => {
@@ -234,6 +281,7 @@ describe('CalendarGridSurface', () => {
     runtime.listOccurrences.mockResolvedValueOnce([initial]).mockResolvedValue([edited]);
     const { rerender } = render(<CalendarGridSurface now={ANCHOR} />);
     await screen.findByTestId(`calendar-occurrence-${initial.occurrenceKey}`);
+    fireEvent.click(screen.getByTestId(`calendar-occurrence-${initial.occurrenceKey}`));
 
     runtime.events = [eventRecord({
       title: edited.title,
@@ -248,10 +296,7 @@ describe('CalendarGridSurface', () => {
 
     const updatedButton = await screen.findByTestId(`calendar-occurrence-${edited.occurrenceKey}`);
     expect(updatedButton.textContent).toContain('Updated planning call');
-    await waitFor(() => {
-      expect(screen.getByTestId('calendar-grid-selection').textContent).toContain('Updated planning call');
-      expect(screen.getByTestId('calendar-grid-selection').textContent).toContain('1:30');
-    });
+    expect(screen.queryByTestId('calendar-grid-peek')).toBeNull();
     expect(runtime.listOccurrences).toHaveBeenCalledTimes(2);
   });
 

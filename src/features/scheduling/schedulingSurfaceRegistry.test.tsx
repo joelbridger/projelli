@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import type { SchedulingSurfaceDescriptor, SchedulingSurfaceRuntime } from '@/platform/calendar';
+import { setDevFlagOverride } from '@/platform/flags';
 import {
   renderSchedulingSurfaceRegistry,
   schedulingSurfaceRegistry,
@@ -46,6 +47,20 @@ describe('schedulingSurfaceRegistry', () => {
 
     expect(container.querySelector('[data-scheduling-surface-id="calendar-grid"]')).toBeNull();
     expect(container.querySelector('[data-scheduling-surface-id="legacy-scheduling"]')).not.toBeNull();
+  });
+
+  it('uses Calendar as the full existing work area when the calendar flag is on', () => {
+    setDevFlagOverride('calendar-grid', true);
+    try {
+      const descriptors = schedulingSurfaceRegistry.map((descriptor) => descriptor.id === 'calendar-grid'
+        ? { ...descriptor, mount: () => <div data-testid="calendar-workspace-stub" /> }
+        : descriptor);
+      const { container } = render(<>{renderSchedulingSurfaceRegistry(runtime, descriptors)}</>);
+      expect(container.querySelector('[data-scheduling-surface-id="calendar-grid"]')).not.toBeNull();
+      expect(container.querySelector('[data-scheduling-surface-id="legacy-scheduling"]')).toBeNull();
+    } finally {
+      setDevFlagOverride('calendar-grid', undefined);
+    }
   });
 
   it('does not call a disabled descriptor mount or create its wrapper', () => {

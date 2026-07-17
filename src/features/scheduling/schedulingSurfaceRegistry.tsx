@@ -33,9 +33,14 @@ export function renderSchedulingSurfaceRegistry(
   descriptors = schedulingSurfaceRegistry,
 ): ReactNode {
   validateSchedulingSurfaceDescriptors(descriptors);
-  return descriptors
+  const enabled = descriptors
     .slice()
     .sort((a, b) => a.order - b.order)
-    .filter((descriptor) => descriptor.isEnabled?.() ?? true)
+    .filter((descriptor) => descriptor.isEnabled?.() ?? true);
+  // Calendar temporarily takes over this existing work area until Meetings is
+  // mounted. It must never become a narrow dashboard card beside booking setup.
+  const calendarWorkspaceIsActive = enabled.some((descriptor) => descriptor.id === 'calendar-grid');
+  return enabled
+    .filter((descriptor) => !calendarWorkspaceIsActive || descriptor.id !== 'legacy-scheduling')
     .map((descriptor) => createElement('div', { key: descriptor.id, 'data-scheduling-surface-id': descriptor.id }, descriptor.mount(runtime)));
 }

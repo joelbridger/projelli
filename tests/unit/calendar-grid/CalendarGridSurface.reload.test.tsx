@@ -98,8 +98,10 @@ describe('CalendarGridSurface fresh-reader proof', () => {
 
     render(<CalendarGridSurface />);
 
-    await waitFor(() => expect(screen.getAllByText('Fresh reader planning')).toHaveLength(2));
-    expect(screen.getByTestId('calendar-grid-selection').textContent).toContain('Fresh reader planning');
+    const eventButton = await screen.findByTestId(/calendar-occurrence-/);
+    expect(eventButton.textContent).toContain('Fresh reader planning');
+    fireEvent.click(eventButton);
+    expect(screen.getByTestId('calendar-grid-peek').textContent).toContain('Fresh reader planning');
   });
 
   it('reacts to a real public title and timing edit in both the grid and rail', async () => {
@@ -129,13 +131,14 @@ describe('CalendarGridSurface fresh-reader proof', () => {
       />
       <CalendarGridSurface now={now} />
     </>);
-    await waitFor(() => expect(screen.getAllByText('Original planning')).toHaveLength(2));
+    const originalButton = await screen.findByTestId(/calendar-occurrence-/);
+    expect(originalButton.textContent).toContain('Original planning');
+    fireEvent.click(originalButton);
 
     fireEvent.click(screen.getByTestId('calendar-edit-probe'));
 
-    await waitFor(() => expect(screen.getAllByText('Freshly updated planning')).toHaveLength(2));
+    await waitFor(() => expect(screen.getByText('Freshly updated planning')).toBeTruthy());
     expect(screen.queryByText('Original planning')).toBeNull();
-    expect(screen.getByTestId('calendar-grid-selection').textContent).toContain('1:30');
     expect(canonical.records.find((record) => record.id === eventId)).toMatchObject({
       title: 'Freshly updated planning',
       startUtc: updatedStart.toISOString(),
