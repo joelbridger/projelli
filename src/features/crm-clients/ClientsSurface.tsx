@@ -18,7 +18,6 @@ import type {
   HouseholdRecord,
   SyncState,
 } from './adapters';
-import type { HouseholdRecordIdentity } from './clientBoundary';
 
 type StoredHousehold = LiveCrmRecord & Omit<HouseholdRecord, 'id' | 'syncState'>;
 
@@ -220,7 +219,7 @@ function ClientsSurfaceContent({
   const findRecord = useCallback((id: string): HouseholdRecord | undefined =>
     effectiveRecords.find((record) => record.id === id || recordMatterId(record) === id),
   [effectiveRecords, recordMatterId]);
-  const householdIdentityFor = useCallback((household: HouseholdRecord): HouseholdRecordIdentity | undefined => {
+  const householdIdentityFor = useCallback((household: HouseholdRecord) => {
     const liveHousehold = live.records.find(
       (record) => record.id === household.id && record.kind === 'household'
     );
@@ -228,7 +227,7 @@ function ClientsSurfaceContent({
     if (!matterId || !matters.some((matter) => matter.id === matterId)) return undefined;
     return {
       householdRef: {
-        kind: 'household',
+        kind: 'household' as const,
         id: household.id,
         matterId,
         label: household.name,

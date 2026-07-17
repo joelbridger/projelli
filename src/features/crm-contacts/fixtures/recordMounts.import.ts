@@ -1,7 +1,7 @@
 import type { ContactRef, RecordScreenProjection, RelatedContactProjection } from '@/features/crm-contacts';
 import type {
   HouseholdRecordExtensionDescriptor,
-  HouseholdRecordShellContext,
+  HouseholdSectionContext,
 } from '@/features/crm-clients';
 
 export type RecordMountPublicImports = {
@@ -9,5 +9,5 @@ export type RecordMountPublicImports = {
   screen: RecordScreenProjection;
   related: RelatedContactProjection;
   extension: HouseholdRecordExtensionDescriptor;
-  shell: HouseholdRecordShellContext;
+  section: HouseholdSectionContext;
 };

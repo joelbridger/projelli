@@ -40,21 +40,23 @@ export {
 export {
   householdSectionRegistry,
   getHouseholdSections,
+  registerHouseholdSection,
   validateHouseholdSectionDescriptors,
 } from './recordRegistry';
 export {
   householdTabRegistry,
+  registerHouseholdTab,
   validateHouseholdTabDescriptors,
 } from './tabRegistry';
 export {
-  householdSectionContextFromRecordIdentity,
+  resolveHouseholdMatterId,
+  toHouseholdSectionContext,
   toMeetingClientBoundary,
 } from './clientBoundary';
 export type {
   HouseholdAddActionDescriptor,
   HouseholdHeaderActionDescriptor,
   HouseholdRecordExtensionDescriptor,
-  HouseholdRecordShellContext,
   HouseholdSectionContext,
   HouseholdSectionDescriptor,
 } from './recordRegistry';
@@ -63,4 +65,3 @@ export type {
   HouseholdTabDescriptor,
   HouseholdTabSurfaceProps,
 } from './tabRegistry';
-export type { HouseholdRecordIdentity } from './clientBoundary';

@@ -1,83 +1,107 @@
-import { createElement } from 'react';
-import { describe, expect, it } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
 import {
-  getHouseholdSections,
+  HouseholdRecordSurface,
   householdSectionRegistry,
   householdTabRegistry,
+  resolveHouseholdMatterId,
   toMeetingClientBoundary,
   validateHouseholdSectionDescriptors,
   validateHouseholdTabDescriptors,
-  type HouseholdTabSurfaceProps,
 } from '@/features/crm-clients';
+import { useMatterStore } from '@/platform/matter/matterStore';
 import {
-  thirdContributorClientBoundary,
-  thirdContributorSectionContext,
+  registerThirdContributor,
+  thirdContributorSection,
   thirdContributorTab,
 } from './pavedPath.import';
 
-const tabProps: HouseholdTabSurfaceProps = {
-  household: {
-    id: 'household-northcrest',
-    name: 'Northcrest household',
-    lifecycle: 'Active',
-    primaryAdvisor: 'Maya',
-    ownership: 'mine',
-    serviceTier: 'Standard',
-    syncState: 'live',
-    facts: [],
-    accounts: [],
-    members: [],
-    externalParties: [],
-    notes: [],
-  },
-  proposals: [],
-  timelineRecords: [],
-  renderLegacySurface: (route) => (
-    <div data-testid="third-contributor-tab-mount">{route}</div>
-  ),
+const household = {
+  id: 'household-northcrest',
+  name: 'Northcrest household',
+  lifecycle: 'Active',
+  primaryAdvisor: 'Maya',
+  ownership: 'mine' as const,
+  serviceTier: 'Standard',
+  syncState: 'live' as const,
+  facts: [],
+  accounts: [],
+  members: [],
+  externalParties: [],
+  notes: [],
 };
 
+const matter = {
+  id: 'local-matter-northcrest',
+  firmMatterId: 'firm-matter-northcrest',
+  name: 'Northcrest household',
+  client: 'Northcrest household',
+  folderPaths: [],
+  crmHouseholdKeys: [household.id],
+  createdAt: '2026-07-17T00:00:00.000Z',
+};
+
+afterEach(() => {
+  useMatterStore.setState({ matters: [], activeMatterId: null });
+});
+
 describe('crm-clients public doorways', () => {
-  it('lets a third contributor inspect and validate the household-section registry', () => {
-    validateHouseholdSectionDescriptors(householdSectionRegistry);
-    expect(getHouseholdSections().map((section) => section.id)).toEqual(
-      householdSectionRegistry.slice().sort((left, right) => left.order - right.order).map((section) => section.id)
-    );
-    expect(thirdContributorSectionContext).toEqual({
-      householdRef: {
-        kind: 'household',
-        id: 'household-northcrest',
-        matterId: 'matter-northcrest',
-        label: 'Northcrest household',
-      },
-      matterId: 'matter-northcrest',
-    });
+  it('mounts genuine outside section and tab contributions through the real record surface', () => {
+    useMatterStore.setState({ matters: [matter] });
+    const cleanup = registerThirdContributor();
+    try {
+      render(<HouseholdRecordSurface household={household} />);
+      expect(screen.getByTestId('third-contributor-section-mount').textContent).toBe(
+        'household-northcrest:local-matter-northcrest'
+      );
+
+      fireEvent.click(screen.getByTestId('crm-household-tab-third_contributor'));
+      expect(screen.getByTestId('third-contributor-tab-mount').textContent).toBe(
+        'household-northcrest:local-matter-northcrest'
+      );
+    } finally {
+      cleanup();
+    }
   });
 
-  it('mounts a registered tab through the public registry contract', () => {
-    validateHouseholdTabDescriptors(householdTabRegistry);
-    expect(thirdContributorTab).toBeDefined();
-    if (!thirdContributorTab) throw new Error('Expected the public activity tab.');
-    render(createElement(thirdContributorTab.Component, tabProps));
-    expect(screen.getByTestId('third-contributor-tab-mount')).toHaveTextContent('activity');
-    expect(thirdContributorClientBoundary).toEqual({
-      householdRef: 'household-northcrest',
-      matterId: 'matter-northcrest',
-      displayName: 'Northcrest household',
+  it('uses Matter.crmHouseholdKeys and local Matter.id as the only boundary proof', () => {
+    expect(resolveHouseholdMatterId(household, [matter])).toBe('local-matter-northcrest');
+    expect(toMeetingClientBoundary(household, [matter])).toMatchObject({
+      householdRef: household.id,
+      matterId: 'local-matter-northcrest',
     });
+    expect(toMeetingClientBoundary(household, [])).toBeUndefined();
+    expect(toMeetingClientBoundary(household, [matter, { ...matter, id: 'other-local' }])).toBeUndefined();
   });
 
-  it('rejects a crossed-client boundary instead of inferring a matter link', () => {
-    expect(() =>
-      toMeetingClientBoundary({
-        householdRef: {
-          kind: 'household',
-          id: 'household-northcrest',
-          matterId: 'matter-northcrest',
-        },
-        matterId: 'matter-other',
-      })
-    ).toThrow('matterId must match householdRef.matterId');
+  it('rejects outside duplicate ids, duplicate routes, and invalid section order with the live validators', () => {
+    expect(() => {
+      validateHouseholdSectionDescriptors([
+        ...householdSectionRegistry,
+        { ...thirdContributorSection, order: Number.NaN },
+      ]);
+    }
+    ).toThrow('order must be finite: third-contributor-section');
+    expect(() => {
+      validateHouseholdSectionDescriptors([
+        ...householdSectionRegistry,
+        { ...thirdContributorSection, id: householdSectionRegistry[0]?.id ?? 'client-map' },
+      ]);
+    }
+    ).toThrow('duplicate id: client_map');
+    expect(() => {
+      validateHouseholdTabDescriptors([
+        ...householdTabRegistry,
+        { ...thirdContributorTab, id: householdTabRegistry[0]?.id ?? 'client-map' },
+      ]);
+    }
+    ).toThrow('duplicate tab id: client-map');
+    expect(() => {
+      validateHouseholdTabDescriptors([
+        ...householdTabRegistry,
+        { ...thirdContributorTab, route: householdTabRegistry[0]?.route ?? 'client_map' },
+      ]);
+    }
+    ).toThrow('duplicate tab route: client_map');
   });
 });

@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import type {
   HouseholdRecordExtensionDescriptor,
-  HouseholdSectionDescriptor,
+  HouseholdRecordShellSectionDescriptor,
 } from '../../recordRegistry';
 import { CustomFieldsSection } from './CustomFieldsSection';
 import {
@@ -28,7 +28,7 @@ export const customFieldsAdvisorRecordExtension: HouseholdRecordExtensionDescrip
   };
 
 /** Advisor values appear in the existing client-map record surface. */
-export const customFieldsAdvisorSection: HouseholdSectionDescriptor = {
+export const customFieldsAdvisorSection: HouseholdRecordShellSectionDescriptor = {
   id: 'custom-fields-advisor',
   order: 50,
   tab: 'client_map',

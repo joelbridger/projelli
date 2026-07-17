@@ -25,17 +25,18 @@ import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import { ContactEditor } from './ContactEditor';
 import { householdTabRegistry, type HouseholdTab } from './tabRegistry';
 import {
-  householdSectionContextFromRecordIdentity,
+  toHouseholdSectionContext,
   toMeetingClientBoundary,
-  type HouseholdRecordIdentity,
 } from './clientBoundary';
 import {
   getHouseholdAddActions,
   getHouseholdHeaderActions,
   getHouseholdRecordExtensions,
   getHouseholdSections,
+  mountHouseholdSection,
   type HouseholdRecordShellContext,
 } from './recordRegistry';
+import type { ContactRef } from '@/features/crm-contacts';
 import { useMatterStore } from '@/platform/matter/matterStore';
 
 const syncCopy: Record<HouseholdRecord['syncState'], string> = {
@@ -90,7 +91,7 @@ export function HouseholdRecordSurface({
   timelineRecords = [],
   timelineFreshness,
   onSaveActivityRecord,
-  householdIdentity,
+  householdIdentity: _householdIdentity,
 }: {
   household: HouseholdRecord;
   proposals?: readonly CrmProposal[];
@@ -100,8 +101,12 @@ export function HouseholdRecordSurface({
   timelineRecords?: readonly TimelineRecord[];
   timelineFreshness?: CrmEngineFreshness;
   onSaveActivityRecord?: (record: LiveCrmRecord) => unknown;
-  /** A live-record identity only; callers must not manufacture this linkage. */
-  householdIdentity?: HouseholdRecordIdentity;
+  /** Legacy caller data is intentionally ignored; Matter.crmHouseholdKeys is authoritative. */
+  householdIdentity?: {
+    householdRef: ContactRef;
+    matterId: string;
+    displayName?: string;
+  };
 }) {
   const { t } = useTranslation();
   const [tab, setTab] = useState<HouseholdTab>('client_map');
@@ -118,12 +123,9 @@ export function HouseholdRecordSurface({
     import('./adapters').CrmPerson | null
   >(null);
   const sourceProposals = tab === 'client_map' ? [] : proposals;
-  const sectionContext = householdIdentity
-    ? householdSectionContextFromRecordIdentity(householdIdentity)
-    : undefined;
-  const clientBoundary = householdIdentity
-    ? toMeetingClientBoundary(householdIdentity)
-    : undefined;
+  const matters = useMatterStore((state) => state.matters);
+  const sectionContext = toHouseholdSectionContext(household, matters);
+  const clientBoundary = toMeetingClientBoundary(household, matters);
   const recordContext: HouseholdRecordShellContext = {
     household,
     ...(sectionContext ? { sectionContext } : {}),
@@ -341,7 +343,9 @@ export function HouseholdRecordSurface({
               ? sections
                   .filter((section) => section.tab === id)
                   .map((section) => (
-                    <span key={section.id}>{section.mount(recordContext)}</span>
+                    <span key={section.id}>
+                      {mountHouseholdSection(section, recordContext)}
+                    </span>
                   ))
               : legacyTabs[id as keyof typeof legacyTabs],
         });

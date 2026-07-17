@@ -1,4 +1,4 @@
-import type { HouseholdSectionDescriptor } from '../../recordRegistry';
+import type { HouseholdRecordShellSectionDescriptor } from '../../recordRegistry';
 import { ProfessionalContactsSection } from './ProfessionalContactsSection';
 
 declare module '../../recordRegistry' {
@@ -8,7 +8,7 @@ declare module '../../recordRegistry' {
 }
 
 /** Appended after the legacy client-map section; the feature stays dark by default. */
-export const professionalContactsSection: HouseholdSectionDescriptor = {
+export const professionalContactsSection: HouseholdRecordShellSectionDescriptor = {
   id: 'professional-contacts',
   order: 20,
   tab: 'client_map',

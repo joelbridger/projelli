@@ -17,7 +17,7 @@ export type HouseholdAddActionId = Extract<
   keyof HouseholdAddActionIdMap,
   string
 >;
-export type HouseholdSectionId = Extract<keyof HouseholdSectionIdMap, string>;
+export type HouseholdSectionId = string;
 export type HouseholdRecordExtensionKey = Extract<
   keyof HouseholdRecordExtensionKeyMap,
   string
@@ -79,6 +79,15 @@ export interface HouseholdSectionDescriptor {
   id: HouseholdSectionId;
   order: number;
   tab: HouseholdTab;
+  /** The only context available to a public section contributor. */
+  mount: (context: HouseholdSectionContext) => ReactNode;
+}
+
+/** Private bridge for sections that predate the public doorway. */
+export interface HouseholdRecordShellSectionDescriptor {
+  id: HouseholdSectionId;
+  order: number;
+  tab: HouseholdTab;
   mount: (context: HouseholdRecordShellContext) => ReactNode;
 }
 
@@ -115,6 +124,26 @@ export function validateHouseholdSectionDescriptors(
   descriptors: readonly HouseholdSectionDescriptor[]
 ): void {
   validateDescriptors('householdSectionRegistry', descriptors);
+}
+
+const legacySectionMounts = new WeakMap<
+  HouseholdSectionDescriptor,
+  HouseholdRecordShellSectionDescriptor
+>();
+
+function adaptLegacySection(
+  descriptor: HouseholdRecordShellSectionDescriptor
+): HouseholdSectionDescriptor {
+  const publicDescriptor: HouseholdSectionDescriptor = {
+    id: descriptor.id,
+    order: descriptor.order,
+    tab: descriptor.tab,
+    // The real mount happens only inside the record shell, where its private
+    // controls are available. Public contributors never receive that shell.
+    mount: () => null,
+  };
+  legacySectionMounts.set(publicDescriptor, descriptor);
+  return publicDescriptor;
 }
 
 export function validateHouseholdRecordExtensionDescriptors(
@@ -170,14 +199,16 @@ export const householdHeaderActionRegistry: readonly HouseholdHeaderActionDescri
   [...legacyHouseholdHeaderActions, householdMergeHeaderAction];
 export const householdAddActionRegistry: readonly HouseholdAddActionDescriptor[] =
   legacyHouseholdAddActions;
-export const householdSectionRegistry: readonly HouseholdSectionDescriptor[] = [
+const registeredHouseholdSections: HouseholdSectionDescriptor[] = [
   ...legacyHouseholdSections,
   professionalContactsSection,
   employmentHouseholdSection,
   investmentProfileSection,
   writtenAgreementsSection,
   customFieldsAdvisorSection,
-];
+].map(adaptLegacySection);
+export const householdSectionRegistry: readonly HouseholdSectionDescriptor[] =
+  registeredHouseholdSections;
 export const householdRecordExtensionRegistry: readonly HouseholdRecordExtensionDescriptor[] =
   [
     ...legacyHouseholdRecordExtensions,
@@ -202,6 +233,31 @@ export function getHouseholdAddActions() {
 export function getHouseholdSections() {
   validateHouseholdSectionDescriptors(householdSectionRegistry);
   return householdSectionRegistry.slice().sort((a, b) => a.order - b.order);
+}
+
+/** Add a public section to the live registry and return its cleanup function. */
+export function registerHouseholdSection(
+  descriptor: HouseholdSectionDescriptor
+): () => void {
+  validateHouseholdSectionDescriptors([...householdSectionRegistry, descriptor]);
+  registeredHouseholdSections.push(descriptor);
+  return () => {
+    const index = registeredHouseholdSections.indexOf(descriptor);
+    if (index >= 0) registeredHouseholdSections.splice(index, 1);
+  };
+}
+
+/** The record shell is the sole place legacy/private section mounts may run. */
+export function mountHouseholdSection(
+  descriptor: HouseholdSectionDescriptor,
+  shell: HouseholdRecordShellContext
+): ReactNode {
+  const legacy = legacySectionMounts.get(descriptor);
+  return legacy
+    ? legacy.mount(shell)
+    : shell.sectionContext
+      ? descriptor.mount(shell.sectionContext)
+      : null;
 }
 export function getHouseholdRecordExtensions() {
   validateHouseholdRecordExtensionDescriptors(householdRecordExtensionRegistry);
