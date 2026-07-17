@@ -20,13 +20,48 @@ vi.mock('@/platform/crm/liveRecordRelay', () => ({
   clearLiveRecordRelay: vi.fn(), ensureLiveRecordRelay: vi.fn(() => Promise.resolve(null)), removeLiveRecordRelayWriter: vi.fn(), publishLiveRecord: vi.fn(),
 }));
 
-import { useCalendarEventStore } from '@/features/calendar';
-import { roundTripCalendarFoundation } from '@/features/calendar/testing';
+import {
+  useCalendarEventStore,
+  type CalendarEventDraft,
+  type CalendarEventRecord,
+} from '@/features/calendar';
 
 const baseEvent = {
   title: 'Recurring local review', startUtc: '2026-08-03T14:00:00Z', endUtc: '2026-08-03T14:30:00Z',
   displayTimezone: 'America/New_York', allDay: false, calendarId: 'calendar:local',
 } as const;
+
+async function createAndReloadCalendarEvent(draft: CalendarEventDraft): Promise<CalendarEventRecord> {
+  const writer = renderHook(() => useCalendarEventStore());
+  let created: CalendarEventRecord | undefined;
+  try {
+    const beforeInitialReload = writer.result.current;
+    await waitFor(() => {
+      if (writer.result.current === beforeInitialReload) {
+        throw new Error('The calendar event store has not loaded its canonical records yet.');
+      }
+    });
+    await act(async () => {
+      created = await writer.result.current.create(draft);
+    });
+  } finally {
+    writer.unmount();
+  }
+
+  if (!created) throw new Error('The calendar event was not created.');
+  const reader = renderHook(() => useCalendarEventStore());
+  try {
+    await waitFor(async () => {
+      const reloaded = await reader.result.current.get(created!.id);
+      if (!reloaded || JSON.stringify(reloaded) !== JSON.stringify(created)) {
+        throw new Error('The saved calendar event has not reloaded yet.');
+      }
+    });
+    return created;
+  } finally {
+    reader.unmount();
+  }
+}
 
 beforeEach(() => {
   canonical.records = [];
@@ -52,13 +87,13 @@ describe('calendar-add-event public store flow', () => {
       { frequency: 'monthly' as const, interval: 1, byMonthDay: [15] as const },
       { frequency: 'yearly' as const, interval: 1, byMonthDay: [3] as const },
     ];
-    const created = [] as Awaited<ReturnType<typeof roundTripCalendarFoundation>>[];
+    const created = [] as CalendarEventRecord[];
     for (const recurrence of drafts) {
-      created.push(await roundTripCalendarFoundation({ event: { ...baseEvent, recurrence } }));
+      created.push(await createAndReloadCalendarEvent({ ...baseEvent, recurrence }));
     }
-    expect(created.map((result) => result.event?.recurrence?.frequency)).toEqual(['daily', 'weekly', 'monthly', 'yearly']);
+    expect(created.map((event) => event.recurrence?.frequency)).toEqual(['daily', 'weekly', 'monthly', 'yearly']);
 
-    const id = created[1]?.event?.id;
+    const id = created[1]?.id;
     expect(id).toBeTruthy();
     const editor = renderHook(() => useCalendarEventStore());
     await waitFor(async () => {
