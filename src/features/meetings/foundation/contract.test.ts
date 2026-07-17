@@ -1,23 +1,85 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
+import type { Matter } from '@/platform/types/matter';
+import { useMatterStore } from '@/platform/matter/matterStore';
+import { setActiveWorkspaceService } from '@/platform/fs/activeWorkspaceService';
+import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import {
   appendNoticeEvidence,
   approvedMeetingArtifactsForClient,
   createMeetingArtifactStore,
   createMeetingFoundationPreferencesStore,
+  createMeetingPopulationService,
   createMeetingIntelligenceSettingsStore,
+  createFirmMeetingDirectoryReader,
   createMeetingSourceAdapter,
   createMeetingStore,
   createMeetingTemplateStore,
   createMeetingTypeStore,
   createNoticeEvidenceReadModel,
+  grantFirmMeetingDirectoryAccess,
   listForHousehold,
   listPrepForHousehold,
   meetingArtifactsForClient,
   validateMeetingArtifactTransition,
+  verifyMeetingOpenTarget,
   type ClientBoundary,
   type MeetingArtifactRequirement,
+  type MeetingOpenTarget,
 } from './contract';
+
+/**
+ * Seed the TRUSTED authority the contract derives from — the platform matter
+ * store and the active workspace filesystem. Tests drive the REAL derivation
+ * path; nothing identity-bearing is handed to the public functions. Returns a
+ * mutable fake workspace whose behaviour (symlinks, existence, metadata) each
+ * probe can shape.
+ */
+interface FakeWorkspaceOptions {
+  root?: string;
+  exists?: boolean;
+  metadataMatterId?: string;
+  symlinks?: Record<string, string>;
+  resolveSymlink?: boolean;
+}
+function seedTrustedAuthority(opts?: {
+  matters?: readonly Matter[];
+  households?: readonly string[];
+  folder?: string;
+  workspace?: FakeWorkspaceOptions;
+}): void {
+  const root = opts?.workspace?.root ?? '/workspace';
+  const folder = opts?.folder ?? '/workspace/Clients/Household One';
+  const matters: readonly Matter[] = opts?.matters ?? [
+    {
+      id: 'matter-1',
+      name: 'Household One',
+      client: 'Household One',
+      folderPaths: [folder],
+      crmHouseholdKeys: [...(opts?.households ?? ['household-1'])],
+      createdAt: '2026-07-01T00:00:00.000Z',
+    } as Matter,
+  ];
+  useMatterStore.setState({ matters: matters as Matter[] });
+  const wsOpts = opts?.workspace;
+  const symlinks = wsOpts?.symlinks ?? {};
+  const workspace = {
+    getRootPath: () => root,
+    exists: () => Promise.resolve(wsOpts?.exists ?? true),
+    readFile: () =>
+      Promise.resolve(
+        JSON.stringify({ matterId: wsOpts?.metadataMatterId ?? 'matter-1' })
+      ),
+    isSymlink: (path: string) => Promise.resolve(path in symlinks),
+    ...(wsOpts?.resolveSymlink === false
+      ? {}
+      : {
+          resolveSymlink: (path: string) =>
+            Promise.resolve(symlinks[path] ?? path),
+        }),
+  };
+  setActiveWorkspaceService(workspace as unknown as WorkspaceService);
+}
 
 function canonicalPort(initial: readonly LiveCrmRecord[] = []) {
   let canonical = structuredClone(initial) as LiveCrmRecord[];
@@ -65,6 +127,13 @@ const client: ClientBoundary = {
   householdRef: 'household-1',
   matterId: 'matter-1',
 };
+
+const LEGACY_DIR = 'Clients/Household One/Meetings/2026-07-20';
+
+afterEach(() => {
+  setActiveWorkspaceService(null);
+  useMatterStore.setState({ matters: [] });
+});
 
 const requirements: readonly MeetingArtifactRequirement[] = [
   { kind: 'structured-notes', minimumSchemaVersion: 2 },
@@ -708,4 +777,408 @@ describe('meetings foundation contract', () => {
     });
     expect(noneUndefined.list).toEqual([]);
   });
+
+  it('creates, durably links, and opens only an exactly-one-matter legacy meeting', async () => {
+    seedTrustedAuthority();
+    const live = canonicalPort();
+    const service = createMeetingPopulationService(live);
+    const linked = await service.createAndLink(draft, {
+      meetingDir: LEGACY_DIR,
+    });
+    expect(linked.legacyLink?.meetingDir).toBe(LEGACY_DIR);
+
+    // A fresh reader receives the real saved canonical record, not a held
+    // object from the creator. The same link is idempotent and cannot replace
+    // itself with another folder.
+    const fresh = createMeetingPopulationService({
+      ...live,
+      records: live.readCanonical(),
+    });
+    await expect(
+      fresh.linkLegacy(linked.id, { meetingDir: LEGACY_DIR })
+    ).resolves.toMatchObject({ id: linked.id });
+    await expect(
+      fresh.linkLegacy(linked.id, {
+        meetingDir: 'Clients/Household One/Meetings/replacement',
+      })
+    ).rejects.toThrow('cannot replace');
+
+    const target = await fresh.openTarget(linked.id);
+    expect(target).toMatchObject({
+      kind: 'linked-legacy-meeting',
+      meeting: { id: linked.id, matterId: 'matter-1' },
+      client: { householdRef: 'household-1', matterId: 'matter-1' },
+      meetingDir: '/workspace/Clients/Household One/Meetings/2026-07-20',
+    });
+    // The open target is un-forgeable: only the trusted resolver mints one.
+    expect(verifyMeetingOpenTarget(target)).toBe(true);
+  });
+
+  it('fails closed for false legacy identity and cross-device availability', async () => {
+    const live = canonicalPort();
+    const created = await createMeetingStore(live).createDraft(draft);
+    const input = { meetingDir: LEGACY_DIR };
+    const svc = () =>
+      createMeetingPopulationService({ ...live, records: live.readCanonical() });
+
+    // Legacy meeting.json claims a different matter → refused.
+    seedTrustedAuthority({ workspace: { metadataMatterId: 'matter-2' } });
+    await expect(svc().linkLegacy(created.id, input)).rejects.toThrow(
+      'different matter'
+    );
+    // The household maps to two matters (ambiguous) → no exactly-one anchor.
+    seedTrustedAuthority({
+      matters: [
+        {
+          id: 'matter-1',
+          name: 'One',
+          client: 'One',
+          folderPaths: ['/workspace/Clients/Household One'],
+          crmHouseholdKeys: ['household-1'],
+          createdAt: '2026-07-01T00:00:00.000Z',
+        } as Matter,
+        {
+          id: 'matter-2',
+          name: 'Two',
+          client: 'Two',
+          folderPaths: ['/workspace/Clients/Household Two'],
+          crmHouseholdKeys: ['household-1'],
+          createdAt: '2026-07-01T00:00:00.000Z',
+        } as Matter,
+      ],
+    });
+    await expect(svc().linkLegacy(created.id, input)).rejects.toThrow(
+      'exactly one'
+    );
+    // Traversal path → refused before any authority is consulted.
+    seedTrustedAuthority();
+    await expect(
+      svc().linkLegacy(created.id, { meetingDir: '../other-client' })
+    ).rejects.toThrow('normalized and traversal-free');
+
+    const linked = await svc().linkLegacy(created.id, input);
+    // Relayed to a device where the folder is gone → honest failure at open.
+    seedTrustedAuthority({ workspace: { exists: false } });
+    await expect(svc().openTarget(linked.id)).rejects.toThrow(
+      'unavailable on this device'
+    );
+  });
+
+  it('reads a firm directory only through an owner-issued sealed grant', async () => {
+    seedTrustedAuthority();
+    const live = canonicalPort();
+    await createMeetingStore(live).createDraft(draft);
+    const reader = createMeetingStoreReaderLive(live);
+
+    // A genuine grant, minted from the trusted matter store, lists the meeting.
+    const grant = grantFirmMeetingDirectoryAccess(['matter-1']);
+    if (!grant) throw new Error('expected a genuine grant');
+    await expect(
+      createFirmMeetingDirectoryReader(reader, grant).list()
+    ).resolves.toHaveLength(1);
+
+    // A grant that names a matter outside owner truth is refused (fail closed):
+    // matter-1 is the only owner-truth matter, so asking for matter-2 is null.
+    expect(grantFirmMeetingDirectoryAccess(['matter-2'])).toBeNull();
+
+    // A hand-constructed "always allowed" object is NOT in the seal → refused.
+    const forgedGrant = {
+      allowedMatterIds: ['matter-1'],
+    } as unknown as Parameters<typeof createFirmMeetingDirectoryReader>[1];
+    await expect(
+      createFirmMeetingDirectoryReader(reader, forgedGrant).list()
+    ).resolves.toEqual([]);
+    await expect(
+      createFirmMeetingDirectoryReader(reader, forgedGrant).get('anything')
+    ).resolves.toBeUndefined();
+  });
+
+  // ── Boundary probes: reach ACROSS the authority boundary and FAIL if the
+  // contract trusts a caller-supplied structural object as identity. ───────────
+  describe('authority-boundary probes', () => {
+    it('probe: a forged MeetingOpenTarget is rejected by the seal', async () => {
+      seedTrustedAuthority();
+      const live = canonicalPort();
+      const service = createMeetingPopulationService(live);
+      const linked = await service.createAndLink(draft, {
+        meetingDir: LEGACY_DIR,
+      });
+      const genuine = await service.openTarget(linked.id);
+      expect(verifyMeetingOpenTarget(genuine)).toBe(true);
+
+      // A consumer hand-builds an identical-looking target for ANOTHER client.
+      const forged = {
+        kind: 'linked-legacy-meeting',
+        meeting: { ...genuine.meeting, matterId: 'matter-evil' },
+        client: { householdRef: 'household-evil', matterId: 'matter-evil' },
+        legacyLink: genuine.legacyLink,
+        meetingDir: genuine.meetingDir,
+      } as unknown as MeetingOpenTarget;
+      // The seal is the only proof of authority: the forgery is not believed.
+      expect(verifyMeetingOpenTarget(forged)).toBe(false);
+      // Even a shallow-copied genuine target loses its seal (identity, not shape).
+      expect(verifyMeetingOpenTarget({ ...genuine })).toBe(false);
+    });
+
+    it('probe: multi-matter ambiguity for one household fails closed at open', async () => {
+      seedTrustedAuthority();
+      const live = canonicalPort();
+      const service = createMeetingPopulationService(live);
+      const linked = await service.createAndLink(draft, {
+        meetingDir: LEGACY_DIR,
+      });
+      // A second matter now also claims household-1: the exactly-one anchor is
+      // gone, so opening must refuse rather than first-match matter-1.
+      seedTrustedAuthority({
+        matters: [
+          {
+            id: 'matter-1',
+            name: 'One',
+            client: 'One',
+            folderPaths: ['/workspace/Clients/Household One'],
+            crmHouseholdKeys: ['household-1'],
+            createdAt: '2026-07-01T00:00:00.000Z',
+          } as Matter,
+          {
+            id: 'matter-9',
+            name: 'Nine',
+            client: 'Nine',
+            folderPaths: ['/workspace/Clients/Household Nine'],
+            crmHouseholdKeys: ['household-1'],
+            createdAt: '2026-07-01T00:00:00.000Z',
+          } as Matter,
+        ],
+      });
+      await expect(
+        createMeetingPopulationService({
+          ...live,
+          records: live.readCanonical(),
+        }).openTarget(linked.id)
+      ).rejects.toThrow('exactly one');
+    });
+
+    it('probe: an ancestor symlink escaping the workspace is refused', async () => {
+      const live = canonicalPort();
+      const created = await createMeetingStore(live).createDraft(draft);
+      // The ANCESTOR "Clients" folder is a symlink pointing OUTSIDE the
+      // workspace; the final meeting folder itself is not a symlink. A check
+      // that inspects only the leaf would miss this escape.
+      seedTrustedAuthority({
+        workspace: {
+          symlinks: { Clients: '/etc/evil' },
+        },
+      });
+      await expect(
+        createMeetingPopulationService({
+          ...live,
+          records: live.readCanonical(),
+        }).linkLegacy(created.id, { meetingDir: LEGACY_DIR })
+      ).rejects.toThrow('outside the open workspace');
+    });
+
+    it('probe: a symlink with no resolver support fails closed', async () => {
+      const live = canonicalPort();
+      const created = await createMeetingStore(live).createDraft(draft);
+      seedTrustedAuthority({
+        workspace: {
+          symlinks: { Clients: '/whatever' },
+          resolveSymlink: false,
+        },
+      });
+      await expect(
+        createMeetingPopulationService({
+          ...live,
+          records: live.readCanonical(),
+        }).linkLegacy(created.id, { meetingDir: LEGACY_DIR })
+      ).rejects.toThrow('cannot resolve its folder safely');
+    });
+
+    it('probe: a concurrent first link cannot be silently overwritten', async () => {
+      seedTrustedAuthority();
+      const live = canonicalPort();
+      const created = await createMeetingStore(live).createDraft(draft);
+
+      // Model a race: AFTER this linker's no-link read but BEFORE it observes
+      // its own save, a competing writer commits a DIFFERENT legacy link. The
+      // post-write re-read must catch that the durable link is not ours.
+      let injected = false;
+      const racingPort = {
+        ...live,
+        records: live.readCanonical(),
+        reloadRecords: () => {
+          const current = live.readCanonical();
+          if (!injected) {
+            injected = true; // first (pre-write) read: no link yet.
+            return Promise.resolve(current);
+          }
+          // Subsequent reads: a competitor already linked a different folder.
+          return Promise.resolve(
+            current.map((record) =>
+              record.id === created.id
+                ? {
+                    ...record,
+                    legacyMeetingLink: {
+                      meetingDir: 'Clients/Household One/Meetings/competitor',
+                      linkedAt: '2026-07-20T09:30:00.000Z',
+                    },
+                  }
+                : record
+            )
+          );
+        },
+      };
+      await expect(
+        createMeetingPopulationService(racingPort).linkLegacy(created.id, {
+          meetingDir: LEGACY_DIR,
+        })
+      ).rejects.toThrow(/concurrent legacy link|cannot replace/);
+    });
+
+    it('probe: two REAL concurrent first links — exactly one wins, the other is refused', async () => {
+      seedTrustedAuthority();
+      const live = canonicalPort();
+      const created = await createMeetingStore(live).createDraft(draft);
+
+      // Reproduce the exact window the post-write re-read guard alone MISSES:
+      // linker A commits AND re-reads its own link (durable == A at that instant,
+      // so A returns success), and only THEN does linker B commit a different
+      // folder (durable becomes B). Without serialization BOTH callers report
+      // success while the second silently overwrites the first. We force that
+      // ordering by parking B's save until A has fully returned.
+      let releaseB: () => void = () => {};
+      const bMaySave = new Promise<void>((resolve) => {
+        releaseB = resolve;
+      });
+      const gatedPort = {
+        ...live,
+        records: live.readCanonical(),
+        reloadRecords: () => Promise.resolve(live.readCanonical()),
+        save: async (record: LiveCrmRecord) => {
+          const link = record['legacyMeetingLink'] as
+            | { meetingDir?: string }
+            | undefined;
+          // Hold B (the 2026-07-21 folder) at its save until A has finished.
+          if (link?.meetingDir?.includes('2026-07-21')) await bMaySave;
+          return live.save(record);
+        },
+      };
+      const service = createMeetingPopulationService(gatedPort);
+      const dirA = 'Clients/Household One/Meetings/2026-07-20';
+      const dirB = 'Clients/Household One/Meetings/2026-07-21';
+
+      const aPromise = service.linkLegacy(created.id, { meetingDir: dirA });
+      const bPromise = service.linkLegacy(created.id, { meetingDir: dirB });
+      // A is not gated: it runs to completion (serialization or not).
+      const aOutcome = await Promise.allSettled([aPromise]);
+      // Now let B proceed. With the mutex, B never reached its save — it is
+      // queued behind A and, on running, sees A's committed link and refuses.
+      // Without the mutex, B was parked mid-flight and now overwrites A.
+      releaseB();
+      const bOutcome = await Promise.allSettled([bPromise]);
+
+      const results = [...aOutcome, ...bOutcome];
+      const fulfilled = results.filter(
+        (
+          r
+        ): r is PromiseFulfilledResult<
+          Awaited<ReturnType<typeof service.linkLegacy>>
+        > => r.status === 'fulfilled'
+      );
+      // Exactly one linker wins; the other is refused. (Load-bearing: with the
+      // mutex removed, B also fulfils and this length is 2.)
+      expect(fulfilled).toHaveLength(1);
+      expect(results.filter((r) => r.status === 'rejected')).toHaveLength(1);
+
+      // The durable link is exactly the single winner's — nothing overwrote it.
+      const durable = live
+        .readCanonical()
+        .find((r) => r.id === created.id)?.['legacyMeetingLink'] as
+        | { meetingDir: string }
+        | undefined;
+      const winnerDir = fulfilled[0]?.value.legacyLink?.meetingDir;
+      expect(winnerDir).toBeTruthy();
+      expect(durable?.meetingDir).toBe(winnerDir);
+    });
+
+    it('probe: a genuine firm grant is frozen — it cannot be widened after mint', async () => {
+      seedTrustedAuthority({
+        matters: [
+          {
+            id: 'matter-1',
+            name: 'One',
+            client: 'One',
+            folderPaths: ['/workspace/Clients/Household One'],
+            crmHouseholdKeys: ['household-1'],
+            createdAt: '2026-07-01T00:00:00.000Z',
+          } as Matter,
+          {
+            id: 'matter-victim',
+            name: 'Victim',
+            client: 'Victim',
+            folderPaths: ['/workspace/Clients/Victim'],
+            crmHouseholdKeys: ['household-victim'],
+            createdAt: '2026-07-01T00:00:00.000Z',
+          } as Matter,
+        ],
+      });
+      const live = canonicalPort();
+      // One meeting per matter: a widened grant would leak the victim's meeting.
+      await createMeetingStore(live).createDraft(draft);
+      await createMeetingStore({
+        ...live,
+        getActiveMatterId: () => 'matter-victim',
+      }).createDraft({
+        ...draft,
+        matterId: 'matter-victim',
+        householdRef: 'household-victim',
+      });
+      const reader = createMeetingStoreReaderLive(live);
+
+      const grant = grantFirmMeetingDirectoryAccess(['matter-1']);
+      if (!grant) throw new Error('expected a genuine grant');
+      // Sealed AND frozen: provenance proves it was minted by the trusted path,
+      // the freeze proves it has not been widened since.
+      expect(Object.isFrozen(grant)).toBe(true);
+      expect(Object.isFrozen(grant.allowedMatterIds)).toBe(true);
+
+      // A holder tries to push the victim matter into the sealed grant. In a
+      // strict-mode module the write to the frozen array throws; either way the
+      // widening must not take effect.
+      expect(() => {
+        (grant.allowedMatterIds as string[]).push('matter-victim');
+      }).toThrow();
+      expect([...grant.allowedMatterIds]).toEqual(['matter-1']);
+
+      // The reader honours exactly matter-1 — the victim meeting never leaks.
+      const listed = await createFirmMeetingDirectoryReader(reader, grant).list();
+      expect(listed).toHaveLength(1);
+      expect(listed.every((meeting) => meeting.matterId === 'matter-1')).toBe(
+        true
+      );
+    });
+
+    it('probe: with no open workspace, linking and opening fail closed', async () => {
+      useMatterStore.setState({ matters: [] });
+      setActiveWorkspaceService(null);
+      const live = canonicalPort();
+      const created = await createMeetingStore(live).createDraft(draft);
+      await expect(
+        createMeetingPopulationService({
+          ...live,
+          records: live.readCanonical(),
+        }).linkLegacy(created.id, { meetingDir: LEGACY_DIR })
+      ).rejects.toThrow('requires an open workspace');
+    });
+  });
 });
+
+/**
+ * The firm reader takes a plain LivePort (no active-client resolver required):
+ * strip the client-scope resolver from a test port so its cross-client nature
+ * is explicit.
+ */
+function createMeetingStoreReaderLive(
+  live: ReturnType<typeof canonicalPort>
+): ReturnType<typeof canonicalPort> {
+  return { ...live, records: live.readCanonical() };
+}

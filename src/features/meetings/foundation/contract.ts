@@ -1,9 +1,11 @@
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
-import { useMatterStore } from '@/platform/matter/matterStore';
+import { useMatterStore, getMatters } from '@/platform/matter/matterStore';
+import { getActiveWorkspaceService } from '@/platform/fs/activeWorkspaceService';
 import {
   loadLiveCrmRecords,
   type LiveCrmRecord,
 } from '@/platform/crm/liveRecords';
+import type { Matter } from '@/platform/types/matter';
 
 export type MeetingRef = string;
 export type MeetingArtifactRef = string;
@@ -50,6 +52,21 @@ export interface ClientBoundary {
   readonly displayName?: string;
 }
 
+/**
+ * A durable, explicit bridge to a folder-created meeting.  `meetingDir` is
+ * always a normalized path relative to the open workspace.  It is never an
+ * identity or an authorization grant: the canonical matter and household are
+ * still the only authority for every reader.
+ */
+export interface LegacyMeetingLink {
+  readonly meetingDir: string;
+  readonly linkedAt: string;
+}
+
+export interface LegacyMeetingLinkInput {
+  readonly meetingDir: string;
+}
+
 export interface MeetingProjection {
   readonly id: MeetingRef;
   readonly workspaceId: string;
@@ -63,6 +80,7 @@ export interface MeetingProjection {
   readonly state: MeetingState;
   readonly references: readonly string[];
   readonly visibilityPolicyId?: string;
+  readonly legacyLink?: LegacyMeetingLink;
 }
 
 export interface MeetingRecord extends MeetingProjection {
@@ -111,6 +129,170 @@ export interface MeetingStore {
     id: MeetingRef,
     transition: MeetingLifecycleTransition
   ): Promise<MeetingRecord>;
+}
+
+/** Internal extension so existing MeetingStore test doubles stay source-compatible. */
+interface LinkableMeetingStore extends MeetingStore {
+  /**
+   * One-time bridge to a legacy folder, after the complete anchor check. The
+   * matter set and workspace filesystem are DERIVED from trusted platform
+   * sources inside the store, never supplied by the caller.
+   */
+  linkLegacy(
+    id: MeetingRef,
+    input: LegacyMeetingLinkInput
+  ): Promise<MeetingRecord>;
+}
+
+/**
+ * The minimal filesystem surface needed to prove a legacy folder is local.
+ * This is NEVER accepted from a feature consumer: it is derived, at call time,
+ * from the trusted active `WorkspaceService` (which satisfies this shape). The
+ * interface exists only so the derivation is typed.
+ */
+export interface LegacyMeetingWorkspace {
+  getRootPath(): string | null;
+  exists(path: string): Promise<boolean>;
+  readFile(path: string): Promise<string>;
+  isSymlink?(path: string): Promise<boolean>;
+  resolveSymlink?(path: string): Promise<string>;
+}
+
+/**
+ * The trusted authority a link/open decision is resolved against. It is DERIVED
+ * inside this module from the platform matter store and the active workspace
+ * service — never handed in by a caller. A feature consumer therefore cannot
+ * present its own matter set, its own filesystem, or its own workspace identity
+ * to vouch for a link. `matters` and `workspace` are owner-controlled truth.
+ */
+interface MeetingLinkAuthority {
+  readonly workspaceRoot: string;
+  readonly workspace: LegacyMeetingWorkspace;
+  readonly matters: readonly Matter[];
+}
+
+/**
+ * Derive the trusted authority for a link/open decision. Fails closed (throws)
+ * when no workspace is open, because containment cannot be proven without the
+ * real workspace root and filesystem.
+ */
+function deriveMeetingLinkAuthority(): MeetingLinkAuthority {
+  const workspace = getActiveWorkspaceService();
+  if (!workspace)
+    throw new Error(
+      'A legacy meeting link requires an open workspace on this device.'
+    );
+  const workspaceRoot = workspace.getRootPath();
+  if (!workspaceRoot)
+    throw new Error(
+      'A legacy meeting link requires an open workspace on this device.'
+    );
+  return {
+    workspaceRoot: normalizedAbsolutePath(workspaceRoot, 'Open workspace root'),
+    workspace,
+    matters: getMatters(),
+  };
+}
+
+/**
+ * A resolved target for the legacy detail host. It is UN-FORGEABLE: the brand
+ * key cannot be produced by a consumer, and every genuine target is registered
+ * in a module-private seal (see `resolveMeetingOpenTarget` /
+ * `verifyMeetingOpenTarget`). A host that receives one of these has proof the
+ * canonical projection + client boundary were resolved by the trusted path, so
+ * it must NOT reconstruct identity from a folder path.
+ */
+/** Un-forgeable brand key: a consumer cannot produce this unique symbol. */
+declare const meetingOpenTargetBrand: unique symbol;
+/** Only the trusted resolution path adds a target here; forgeries are absent. */
+const sealedOpenTargets = new WeakSet();
+
+export interface MeetingOpenTarget {
+  readonly kind: 'linked-legacy-meeting';
+  readonly meeting: MeetingProjection;
+  readonly client: ClientBoundary;
+  readonly legacyLink: LegacyMeetingLink;
+  /** Absolute local folder path, checked immediately before opening. */
+  readonly meetingDir: string;
+  /** Un-forgeable brand: only the trusted resolver can set this. */
+  readonly [meetingOpenTargetBrand]: true;
+}
+
+/**
+ * Recursively freeze an authority object and every object it reaches, so a
+ * caller who legitimately holds it CANNOT tamper it after the trusted resolver
+ * produced it. Provenance (the module-private seal) proves the object was minted
+ * by the trusted path; the deep freeze proves it has not been mutated since.
+ * Together they make a sealed authority object both UN-FORGEABLE and
+ * UN-TAMPERABLE. (Modules run in strict mode, so a write to a frozen field
+ * throws at the point of tampering rather than being silently dropped.)
+ */
+function deepFreezeAuthority<T>(value: T): T {
+  if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const key of Object.getOwnPropertyNames(value)) {
+      deepFreezeAuthority((value as Record<string, unknown>)[key]);
+    }
+  }
+  return value;
+}
+
+function sealMeetingOpenTarget(
+  target: Omit<MeetingOpenTarget, typeof meetingOpenTargetBrand>
+): MeetingOpenTarget {
+  // Freeze BEFORE registering the seal: a target is un-tamperable from the first
+  // instant it is provable-genuine, so there is no window where a held target is
+  // both sealed and mutable.
+  const sealed = deepFreezeAuthority(target) as MeetingOpenTarget;
+  sealedOpenTargets.add(sealed);
+  return sealed;
+}
+
+/**
+ * The ONLY trusted proof a `MeetingOpenTarget` is genuine. A hand-constructed
+ * structural object (even one cast to the branded type) is not in the seal, so
+ * this returns false and the host must refuse to treat it as authority.
+ */
+export function verifyMeetingOpenTarget(
+  target: MeetingOpenTarget | null | undefined
+): boolean {
+  return !!target && sealedOpenTargets.has(target);
+}
+
+export interface MeetingPopulationService {
+  createNew(draft: CreateMeetingDraft): Promise<MeetingRecord>;
+  createAndLink(
+    draft: CreateMeetingDraft,
+    legacy: LegacyMeetingLinkInput
+  ): Promise<MeetingRecord>;
+  linkLegacy(
+    meetingId: MeetingRef,
+    legacy: LegacyMeetingLinkInput
+  ): Promise<MeetingRecord>;
+  openTarget(meetingId: MeetingRef): Promise<MeetingOpenTarget>;
+}
+
+/**
+ * An owner-issued, un-forgeable capability to enumerate the firm meeting
+ * directory. Its allowed-matter set is DERIVED from the trusted matter store by
+ * `grantFirmMeetingDirectoryAccess`; a consumer cannot hand-construct an
+ * always-true authorization. The brand key is un-producible and every genuine
+ * grant is registered in a module-private seal.
+ */
+/** Un-forgeable brand key for a firm directory grant. */
+declare const firmGrantBrand: unique symbol;
+const sealedFirmGrants = new WeakSet();
+
+export interface FirmMeetingDirectoryGrant {
+  /** The exact canonical matters this grant permits, derived from owner truth. */
+  readonly allowedMatterIds: readonly string[];
+  /** Un-forgeable brand: only the trusted mint can set this. */
+  readonly [firmGrantBrand]: true;
+}
+
+export interface FirmMeetingDirectoryReader {
+  list(): Promise<readonly MeetingProjection[]>;
+  get(id: MeetingRef): Promise<MeetingProjection | undefined>;
 }
 
 export interface MeetingArtifactInput {
@@ -395,6 +577,204 @@ const strings = (value: unknown, name: string): readonly string[] => {
   return [...new Set(clean)];
 };
 
+function normalizedPath(value: string, name: string): string {
+  const raw = nonEmpty(value, name).replace(/\\/g, '/');
+  if (raw.startsWith('/') || /^[A-Za-z]:\//.test(raw))
+    throw new Error(`${name} must be workspace-relative.`);
+  const parts = raw.split('/');
+  if (
+    parts.some((part) => !part || part === '.' || part === '..') ||
+    raw !== parts.join('/')
+  )
+    throw new Error(`${name} must be normalized and traversal-free.`);
+  return raw;
+}
+
+function normalizedAbsolutePath(value: string, name: string): string {
+  const raw = nonEmpty(value, name).replace(/\\/g, '/').replace(/\/+$/, '');
+  if (!raw.startsWith('/') && !/^[A-Za-z]:\//.test(raw))
+    throw new Error(`${name} must be absolute.`);
+  if (raw.split('/').some((part) => part === '.' || part === '..'))
+    throw new Error(`${name} must be normalized.`);
+  return raw;
+}
+
+function isInsidePath(child: string, parent: string): boolean {
+  return child === parent || child.startsWith(`${parent}/`);
+}
+
+function projectLegacyLink(value: unknown): LegacyMeetingLink | undefined {
+  if (value === undefined) return undefined;
+  if (!value || typeof value !== 'object')
+    throw new Error('Legacy meeting link is invalid.');
+  const raw = value as Record<string, unknown>;
+  if (typeof raw['meetingDir'] !== 'string')
+    throw new Error('Legacy meeting link folder is invalid.');
+  return {
+    meetingDir: normalizedPath(raw['meetingDir'], 'Legacy meeting folder'),
+    linkedAt: timestamp(raw['linkedAt'], 'Legacy meeting link timestamp'),
+  };
+}
+
+/**
+ * Resolve the EXACTLY-ONE local matter that owns a household, from the trusted
+ * matter store. This is the same authority `clientBoundary.ts` uses: only the
+ * saved `Matter.crmHouseholdKeys` link is accepted, and a missing OR ambiguous
+ * mapping (zero or 2+ matters carry the key) fails closed by returning null. A
+ * caller cannot narrow this — the candidate set is the whole trusted store.
+ */
+function resolveExactlyOneMatterForHousehold(
+  householdRef: string,
+  matters: readonly Matter[]
+): Matter | null {
+  const candidates = matters.filter((candidate) =>
+    (candidate.crmHouseholdKeys ?? []).includes(householdRef)
+  );
+  return candidates.length === 1 ? (candidates[0] ?? null) : null;
+}
+
+/**
+ * Walk EVERY path segment from the workspace root down to the target, resolving
+ * a symlink at any ancestor to its real path, and prove the real resolved path
+ * never escapes the open workspace. Returns the fully-resolved absolute path.
+ * A single un-resolvable symlink (no resolver support) fails closed.
+ */
+async function resolveContainedRealPath(
+  workspace: LegacyMeetingWorkspace,
+  workspaceRoot: string,
+  relativeDir: string
+): Promise<string> {
+  const segments = relativeDir.split('/');
+  let realAbsolute = workspaceRoot;
+  let relativeSoFar = '';
+  for (const segment of segments) {
+    relativeSoFar = relativeSoFar ? `${relativeSoFar}/${segment}` : segment;
+    realAbsolute = `${realAbsolute}/${segment}`;
+    // An ancestor (or the final segment) that is a symlink is resolved to its
+    // real target; a workspace that cannot report/resolve symlinks cannot prove
+    // containment, so we fail closed rather than trust the raw join.
+    if (workspace.isSymlink && (await workspace.isSymlink(relativeSoFar))) {
+      if (!workspace.resolveSymlink)
+        throw new Error('Legacy meeting link cannot resolve its folder safely.');
+      realAbsolute = normalizedAbsolutePath(
+        await workspace.resolveSymlink(relativeSoFar),
+        'Resolved legacy meeting folder'
+      );
+    }
+    if (!isInsidePath(realAbsolute, workspaceRoot))
+      throw new Error(
+        'Legacy meeting folder resolves outside the open workspace.'
+      );
+  }
+  return realAbsolute;
+}
+
+/**
+ * Validates the only supported legacy-to-canonical anchor against the DERIVED
+ * trusted authority (matter store + active workspace filesystem). This
+ * deliberately has no title, date, calendar-event, or caller-supplied
+ * household/matter/workspace fallback: the matter is resolved exactly-one from
+ * the household, the workspace root and filesystem come from the open
+ * workspace, and the record is the trusted canonical projection.
+ */
+async function validateLegacyMeetingLinkWithin(
+  meeting: MeetingProjection,
+  input: LegacyMeetingLinkInput,
+  authority: MeetingLinkAuthority
+): Promise<{ readonly link: LegacyMeetingLink; readonly resolvedDir: string }> {
+  const { workspaceRoot, workspace, matters } = authority;
+  // Anchor: the household resolves to EXACTLY ONE matter in the trusted store,
+  // and that matter must be the record's own matter. Zero/multiple → fail.
+  const matter = resolveExactlyOneMatterForHousehold(
+    meeting.householdRef,
+    matters
+  );
+  if (!matter)
+    throw new Error(
+      'Legacy meeting link requires exactly one matching household matter.'
+    );
+  if (matter.id !== meeting.matterId)
+    throw new Error(
+      'Legacy meeting link resolves to a different matter than the record.'
+    );
+
+  const meetingDir = normalizedPath(input.meetingDir, 'Legacy meeting folder');
+  const resolvedDir = await resolveContainedRealPath(
+    workspace,
+    workspaceRoot,
+    meetingDir
+  );
+
+  const mappedRoots = matter.folderPaths.map((folder) =>
+    normalizedAbsolutePath(folder, 'Matter folder root')
+  );
+  if (!mappedRoots.some((root) => isInsidePath(resolvedDir, root)))
+    throw new Error(
+      'Legacy meeting folder is outside its mapped matter folder.'
+    );
+  if (!(await workspace.exists(meetingDir)))
+    throw new Error('Legacy meeting folder is unavailable on this device.');
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(
+      await workspace.readFile(`${meetingDir}/meeting.json`)
+    );
+  } catch {
+    throw new Error('Legacy meeting metadata is unavailable.');
+  }
+  if (
+    !parsed ||
+    typeof parsed !== 'object' ||
+    (parsed as Record<string, unknown>)['matterId'] !== meeting.matterId
+  )
+    throw new Error('Legacy meeting metadata belongs to a different matter.');
+  return { link: { meetingDir, linkedAt: now() }, resolvedDir };
+}
+
+/**
+ * Public link validation. The authority is DERIVED from the trusted platform
+ * matter store and the open workspace — a consumer cannot present its own.
+ */
+export async function validateLegacyMeetingLink(
+  meeting: MeetingProjection,
+  input: LegacyMeetingLinkInput
+): Promise<LegacyMeetingLink> {
+  const authority = deriveMeetingLinkAuthority();
+  return (await validateLegacyMeetingLinkWithin(meeting, input, authority)).link;
+}
+
+/**
+ * Resolve an un-forgeable open target for a canonical meeting, BY ID, from the
+ * trusted store. The canonical record, its matter, and the workspace are all
+ * derived from owner-controlled sources: nothing identity-bearing is accepted
+ * from the caller. A relayed canonical record can outlive its local folder, so
+ * the link is re-validated here (existence + containment) at open time.
+ */
+export async function resolveMeetingOpenTarget(
+  store: MeetingStore,
+  meetingId: MeetingRef
+): Promise<MeetingOpenTarget> {
+  const meeting = await store.get(nonEmpty(meetingId, 'Meeting ID'));
+  if (!meeting)
+    throw new Error('That meeting is unavailable to the active client.');
+  if (!meeting.legacyLink)
+    throw new Error('This canonical meeting has no linked legacy detail.');
+  const authority = deriveMeetingLinkAuthority();
+  const { resolvedDir } = await validateLegacyMeetingLinkWithin(
+    meeting,
+    { meetingDir: meeting.legacyLink.meetingDir },
+    authority
+  );
+  return sealMeetingOpenTarget({
+    kind: 'linked-legacy-meeting',
+    meeting,
+    client: { householdRef: meeting.householdRef, matterId: meeting.matterId },
+    legacyLink: meeting.legacyLink,
+    meetingDir: resolvedDir,
+  });
+}
+
 export function validateMeetingDraft(
   input: CreateMeetingDraft
 ): CreateMeetingDraft & { readonly references: readonly string[] } {
@@ -464,6 +844,7 @@ export function projectMeetingRecord(record: LiveCrmRecord): MeetingRecord {
     )
   )
     throw new Error('Meeting state is invalid.');
+  const legacyLink = projectLegacyLink(record['legacyMeetingLink']);
   return {
     id: nonEmpty(record.id, 'Meeting ID'),
     kind: 'meeting',
@@ -471,6 +852,7 @@ export function projectMeetingRecord(record: LiveCrmRecord): MeetingRecord {
     state: state as MeetingState,
     createdAt: nonEmpty(record.createdAt, 'Created timestamp'),
     updatedAt: nonEmpty(record.updatedAt, 'Updated timestamp'),
+    ...(legacyLink ? { legacyLink } : {}),
   };
 }
 
@@ -492,6 +874,34 @@ function requireAvailable(port: LivePort) {
     throw new Error(
       'Meeting records are unavailable until CRM records reload.'
     );
+}
+
+/**
+ * Serialize legacy-link critical sections so a first-link's read → validate →
+ * save → verify runs atomically with respect to every OTHER linker in this
+ * process. The CRM core is one local SQLCipher database owned by a single app
+ * process, and `crm_live_upsert` is an unconditional last-writer-wins write, so
+ * the ONLY way two links interleave is cooperative async scheduling within this
+ * one event loop. Draining the critical section through this module-level chain
+ * closes that TOCTOU: a competing link cannot slip between the no-link read and
+ * the save — the second linker observes the first's committed link and takes the
+ * idempotent/refuse branch instead of silently overwriting it.
+ *
+ * (A cross-PROCESS race — two app instances on the same workspace — would need a
+ * conditional/compare-and-swap write the store does not expose; that is not the
+ * realistic single-writer model here and is tracked separately as hardening. The
+ * post-write re-read guard below still runs as defense-in-depth for it.)
+ */
+let linkSerialization: Promise<unknown> = Promise.resolve();
+function serializeLink<T>(critical: () => Promise<T>): Promise<T> {
+  const run = linkSerialization.then(critical, critical);
+  // Keep the chain alive regardless of this link's outcome, so one failed link
+  // never poisons or blocks the next.
+  linkSerialization = run.then(
+    () => undefined,
+    () => undefined
+  );
+  return run;
 }
 export function createMeetingStore(port: ClientScopedLivePort): MeetingStore {
   const scope = clientScope(port);
@@ -516,7 +926,7 @@ export function createMeetingStore(port: ClientScopedLivePort): MeetingStore {
       );
     return saved;
   };
-  const store: MeetingStore = {
+  const store: LinkableMeetingStore = {
     get list() {
       return currentList();
     },
@@ -637,8 +1047,165 @@ export function createMeetingStore(port: ClientScopedLivePort): MeetingStore {
         })
       );
     },
+    linkLegacy: (id, input) =>
+      // The whole read → validate → save → verify runs inside the process-wide
+      // link mutex, so a competing linker cannot interleave between the no-link
+      // read and the save. This is what makes first-linking atomic against the
+      // last-writer-wins port (see `serializeLink`).
+      serializeLink(async () => {
+        requireAvailable(port);
+        const fresh = await port.reloadRecords();
+        raw = (fresh ?? []).filter((candidate) => candidate.kind === 'meeting');
+        const rawRecord = getRaw(id);
+        if (!rawRecord) throw new Error('That meeting no longer exists.');
+        scope.assertOwns(rawRecord.matterId, 'Meeting');
+        const current = projectMeetingRecord(rawRecord);
+        const existing = current.legacyLink;
+        const requestedDir = normalizedPath(
+          input.meetingDir,
+          'Legacy meeting folder'
+        );
+        if (existing) {
+          if (existing.meetingDir !== requestedDir)
+            throw new Error(
+              'A canonical meeting cannot replace its legacy link.'
+            );
+          // Idempotency is still a real check: a moved/deleted or cross-device
+          // folder must not be reported as linked merely because an old record
+          // happened to contain the same string.
+          await validateLegacyMeetingLink(current, input);
+          return current;
+        }
+        const link = await validateLegacyMeetingLink(current, input);
+        const saved = await persist({
+          ...rawRecord,
+          updatedAt: now(),
+          legacyMeetingLink: link,
+        });
+        // Concurrent-first-link guard (defense-in-depth beyond the mutex): the
+        // port is last-writer-wins, so re-read the just-persisted record and
+        // refuse if the durable link is not the one we wrote — a competing link
+        // must fail rather than be silently overwritten.
+        const persistedLink = projectMeetingRecord(saved).legacyLink;
+        if (!persistedLink || persistedLink.meetingDir !== requestedDir)
+          throw new Error(
+            'A concurrent legacy link won; refusing to overwrite it.'
+          );
+        return projectMeetingRecord(saved);
+      }),
   };
   return store;
+}
+
+/**
+ * The forward population path.  New meetings are canonical first; attaching a
+ * legacy folder is optional and always goes through the anchor validation.
+ */
+export function createMeetingPopulationService(
+  port: ClientScopedLivePort
+): MeetingPopulationService {
+  const store = createMeetingStore(port) as LinkableMeetingStore;
+  return {
+    createNew: (draft) => store.createDraft(draft),
+    createAndLink: async (draft, legacy) => {
+      const created = await store.createDraft(draft);
+      return store.linkLegacy(created.id, legacy);
+    },
+    linkLegacy: (meetingId, legacy) => store.linkLegacy(meetingId, legacy),
+    openTarget: (meetingId) => resolveMeetingOpenTarget(store, meetingId),
+  };
+}
+
+/**
+ * Mint an owner-issued grant to read the firm meeting directory. The allowed
+ * matter set is DERIVED from the trusted matter store — it is NOT asserted by
+ * the caller — and optionally narrowed to a requested subset that must still be
+ * a subset of the owner-truth matters. A consumer cannot forge an always-true
+ * authorization: `createFirmMeetingDirectoryReader` only honours a grant minted
+ * here (see the module-private seal). Returns null (fail closed) when nothing is
+ * authorized (e.g. no matters, or the requested subset is not owner truth).
+ */
+export function grantFirmMeetingDirectoryAccess(
+  requestedMatterIds?: readonly string[]
+): FirmMeetingDirectoryGrant | null {
+  const ownerMatterIds = new Set(
+    getMatters()
+      .map((matter) => matter.id)
+      .filter((id): id is string => typeof id === 'string' && !!id.trim())
+  );
+  if (ownerMatterIds.size === 0) return null;
+  let allowed: string[];
+  if (requestedMatterIds === undefined) {
+    allowed = [...ownerMatterIds];
+  } else {
+    // A requested narrowing is honoured only where it is a genuine subset of
+    // owner truth; any id outside the trusted matter store is dropped, never
+    // trusted, so a caller cannot widen access by naming matters it invented.
+    allowed = [...new Set(requestedMatterIds)].filter((id) =>
+      ownerMatterIds.has(id)
+    );
+    if (allowed.length === 0) return null;
+  }
+  // Freeze the grant AND its allowed-matter array at mint, so a holder cannot
+  // widen it after issue (e.g. push a victim matter into `allowedMatterIds`).
+  // Seal (provenance) + freeze (immutability) together mean the reader honours
+  // exactly the matters owner-truth permitted, unchangeable after minting.
+  const grant = deepFreezeAuthority({
+    allowedMatterIds: allowed,
+  }) as unknown as FirmMeetingDirectoryGrant;
+  sealedFirmGrants.add(grant);
+  return grant;
+}
+
+/**
+ * An explicit cross-client reader. It reads ONLY through an owner-issued,
+ * un-forgeable {@link FirmMeetingDirectoryGrant} (minted by
+ * `grantFirmMeetingDirectoryAccess`). A hand-constructed grant object is not in
+ * the seal, so it is refused and the reader returns nothing.
+ */
+export function createFirmMeetingDirectoryReader(
+  port: LivePort,
+  grant: FirmMeetingDirectoryGrant
+): FirmMeetingDirectoryReader {
+  const permitted = () => {
+    // Un-forgeable check: only a grant minted by the trusted path is honoured.
+    // `.has` safely returns false for a forged, null, or non-object value.
+    if (!sealedFirmGrants.has(grant)) return null;
+    const ids = grant.allowedMatterIds;
+    if (
+      !Array.isArray(ids) ||
+      ids.some((id) => typeof id !== 'string' || !id.trim())
+    )
+      return null;
+    return new Set(ids);
+  };
+  const read = async () => {
+    if (!port.workspaceRoot || port.error)
+      return [] as readonly MeetingProjection[];
+    const allowed = permitted();
+    if (!allowed || allowed.size === 0)
+      return [] as readonly MeetingProjection[];
+    let records: readonly LiveCrmRecord[];
+    try {
+      records = (await port.reloadRecords()) ?? [];
+    } catch {
+      return [] as readonly MeetingProjection[];
+    }
+    // Check authorization after the asynchronous reload as well. A permission
+    // revoke while the read is in flight must not leak the loaded result.
+    const stillAllowed = permitted();
+    if (!stillAllowed || stillAllowed.size === 0)
+      return [] as readonly MeetingProjection[];
+    return meetingRecords(records)
+      .filter((meeting) => stillAllowed.has(meeting.matterId))
+      .sort((left, right) =>
+        left.scheduledStartUtc.localeCompare(right.scheduledStartUtc)
+      );
+  };
+  return {
+    list: read,
+    get: async (id) => (await read()).find((meeting) => meeting.id === id),
+  };
 }
 
 function projectArtifact(

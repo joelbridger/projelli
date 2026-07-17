@@ -1,0 +1,18 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/lantern/app/integration/.worktrees/v1/w2-meetings-population-contract
+sha: beb617e0bfc915304e3298faf5ae7142ce81bd7e
+tree: bd1d49ecb70a7aaa871d29ad7d5a4869a8e61866
+gate_base: c1f1259c7852fe03bf618245020f5c501711e309
+tool_blob: 7912bf11eefdacea0702600b19d3bc5b3d7f2606
+utc: 2026-07-17T08:28:28Z
+step_timeout_seconds: 600
+loadavg: 3.25 5.78 8.04
+running_vitest_eslint_procs: 2
+step: gate:changed | status=PASS | exit=0 | 08:28:28Z..08:37:21Z | bytes=59816 | sha256=6d1f3f982a3c15c011d7c405578576cef87e6df7691786f8c6b4bcee061a4d94 | tail: ssed | 3 skipped (1120) Tests 8900 passed | 29 skipped (8929) Start at 08:31:20 Duration 360.84s (transform 30.67s, setup 167.70s, import 495.47s, tests 261.41s, environment 393.04s) CHANGED GATE GREEN
+step: typecheck | status=PASS | exit=0 | 08:37:21Z..08:37:43Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit
+step: typecheck:tests | status=PASS | exit=0 | 08:37:43Z..08:38:10Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit
+step: handle-guard | status=PASS | exit=0 | 08:38:10Z..08:38:10Z | bytes=1360 | sha256=725bf79cafd644ebb74927168522eb4e6d9a331df7ea908fe79031f456c1ffe9 | tail: ite-approve + calendar-write-pending-banner + calendar-write-pending-banner-review-now +343 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen).
+step: arch-dag-guard | status=PASS | exit=0 | 08:38:10Z..08:38:11Z | bytes=269 | sha256=fb549fd3b8b7d99df10e8dede430c4da7b1228af8af82a302744d175f0372e86 | tail: on/.worktrees/v1/w2-meetings-population-contract Test Files 1 passed (1) Tests 1 passed (1) Start at 08:38:10 Duration 976ms (transform 226ms, setup 351ms, import 253ms, tests 3ms, environment 276ms)
+step: i18n-snapshot | status=PASS | exit=0 | 08:38:11Z..08:38:12Z | bytes=270 | sha256=62bb99dd29d64895c4ed164bed975e6cebe6c85ffc927783613f8fc9c33221da | tail: n/.worktrees/v1/w2-meetings-population-contract Test Files 1 passed (1) Tests 5 passed (5) Start at 08:38:11 Duration 910ms (transform 227ms, setup 329ms, import 214ms, tests 16ms, environment 265ms)
+overall: GREEN

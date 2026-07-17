@@ -64,6 +64,8 @@ import {
 } from './meetingPanelRegistry';
 import { getMeetingHeaderActionComposition } from './meetingHeaderActionRegistry';
 import { getMeetingInsightComposition } from './meetingInsightRegistry';
+import type { MeetingOpenTarget } from './foundation/contract';
+import { resolveMeetingEntryHostIdentity } from './meetingEntryHostIdentity';
 
 export interface MeetingEntryProps {
   matterId: string;
@@ -71,6 +73,12 @@ export interface MeetingEntryProps {
   folderName: string;
   clientName: string;
   workspaceRoot: string;
+  /**
+   * Supplied only by the canonical opener after it has resolved the real
+   * meeting projection and client boundary. This host never reconstructs
+   * canonical identity from its legacy folder path.
+   */
+  openTarget?: MeetingOpenTarget;
   onBack: () => void;
   /** Set when opened via a `meeting:<dir>#<ms>` Client Map source link
    *  (Task 11) — seeks the transcript/audio to this moment on open. */
@@ -140,17 +148,30 @@ function transcriptToText(transcript: TranscriptFile | null): string {
 }
 
 export function MeetingEntry({
-  matterId,
-  meetingDir,
+  matterId: legacyMatterId,
+  meetingDir: legacyMeetingDir,
   folderName,
   clientName,
   workspaceRoot,
+  openTarget,
   onBack,
   initialSeekMs,
   workspaceService,
   onChanged,
   showBackButton = true,
 }: MeetingEntryProps) {
+  // A canonical opener owns identity — but ONLY a target the trusted resolver
+  // actually minted is believed (see resolveMeetingEntryHostIdentity). A forged
+  // target confers no identity and this host falls back to its legacy props.
+  const hostIdentity = resolveMeetingEntryHostIdentity(
+    openTarget,
+    legacyMatterId,
+    legacyMeetingDir
+  );
+  const { matterId, meetingDir } = hostIdentity;
+  const canonicalTarget = hostIdentity.canonicalMeeting
+    ? { meeting: hostIdentity.canonicalMeeting, client: hostIdentity.clientBoundary }
+    : null;
   const { t } = useTranslation();
   const firm = useFirm();
   const [meta, setMeta] = useState<MeetingMeta | null>(null);
@@ -671,6 +692,8 @@ export function MeetingEntry({
   const panelContext = {
     t,
     matterId,
+    canonicalMeeting: canonicalTarget?.meeting ?? null,
+    clientBoundary: canonicalTarget?.client ?? null,
     meetingDir,
     clientName,
     workspaceRoot,
@@ -709,6 +732,8 @@ export function MeetingEntry({
   };
   const headerActionContext = {
     t,
+    canonicalMeeting: canonicalTarget?.meeting ?? null,
+    clientBoundary: canonicalTarget?.client ?? null,
     meta,
     transcript,
     summaryText,
@@ -1111,6 +1136,8 @@ export function MeetingEntry({
                 <div key={descriptor.id} data-meeting-insight={descriptor.id}>
                   {descriptor.renderMeetingSummary({
                     matterId,
+                    canonicalMeeting: canonicalTarget?.meeting ?? null,
+                    clientBoundary: canonicalTarget?.client ?? null,
                     meetingDir,
                     clientName,
                     workspaceService,

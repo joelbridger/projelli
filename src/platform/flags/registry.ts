@@ -83,6 +83,8 @@ export const flagRegistry = [
   defineFlag('calendar-write', 'Keeps the two-way calendar write surface (Outlook/Google create+update) dark: the fail-closed renderer flow, consent gate, and egress policy are present, but the native write-consent exchange and provider-write execution are deferred, so the surface stays off until they land and are proven.', 'calendar-write', '2026-07-16', '2026-09-14'),
   defineFlag('workflow-record-quickadd', 'Keeps household-bound workflow quick-add dark until its acceptance drive is complete.', 'workflow-record-quickadd', '2026-07-16', '2026-09-14'),
   defineFlag('booking-public-calendar', 'Show local calendar availability on the public booking page', 'booking-public-calendar', '2026-07-16', '2026-10-14'),
+  defineFlag('booking-public-calendar', 'Show local calendar availability on the public booking page', 'booking-public-calendar', '2026-07-16', '2026-10-14'),
+  defineFlag('workflow-record-quickadd', 'Keeps household-bound workflow quick-add dark until its acceptance drive is complete.', 'workflow-record-quickadd', '2026-07-16', '2026-09-14'),
 ] as const satisfies readonly FlagDescriptor[];
 
 export type FlagId = (typeof flagRegistry)[number]['id'];
