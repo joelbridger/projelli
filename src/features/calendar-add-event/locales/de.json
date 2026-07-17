@@ -1,9 +1,9 @@
 {
   "calendar-add-event": {
-    "title": "Ereignis hinzufügen", "edit-title": "Ereignis bearbeiten", "description": "Erstellen, ändern oder stornieren Sie ein Ereignis in Ihrem lokalen Kalender.", "new": "Neues Ereignis", "no-local-calendar": "Zum Speichern eines Ereignisses wird ein beschreibbarer lokaler Kalender benötigt.",
-    "fields": { "title": "Titel", "notes": "Notizen", "start-utc": "Beginn (UTC)", "end-utc": "Ende (UTC)", "timezone": "Anzeigezeitzone", "calendar": "Kalender", "all-day": "Ganztägig" },
-    "recurrence": { "title": "Wiederholung", "frequency": "Häufigkeit", "none": "Keine Wiederholung", "daily": "Täglich", "weekly": "Wöchentlich", "monthly": "Monatlich", "yearly": "Jährlich", "interval": "Alle", "count": "Anzahl", "month-days": "Monatstage", "month-days-placeholder": "Zum Beispiel: 1, 15" },
-    "weekdays": { "monday": "Mo", "tuesday": "Di", "wednesday": "Mi", "thursday": "Do", "friday": "Fr", "saturday": "Sa", "sunday": "So" },
-    "create": "Ereignis erstellen", "update": "Änderungen speichern", "cancel": "Ereignis stornieren", "saved": "Ereignis {{id}} gespeichert.", "existing-title": "Lokale Ereignisse", "empty": "Noch keine lokalen Ereignisse.", "edit": "Bearbeiten"
+    "new-event": "Neues Ereignis", "untitled-event": "Unbenanntes Ereignis", "source-title": "Kalender", "source-description": "Wählen Sie ein Ereignis zum Bearbeiten oder fügen Sie ein neues hinzu.", "source-empty": "Keine Ereignisse in diesem Zeitraum.", "no-local-calendar": "Zum Speichern eines Ereignisses wird ein beschreibbarer lokaler Kalender benötigt.", "unlinked-record": "Mit keinem Datensatz verknüpft",
+    "fields": { "title": "Titel", "title-placeholder": "Ereignistitel", "notes": "Notizen", "start": "Beginn", "end": "Ende", "timezone": "Zeitzone", "calendar": "Kalender", "linked-record": "Verknüpfter Datensatz", "all-day": "Ganztägig" },
+    "options": { "title": "Weitere Optionen" }, "status": { "local-save": "Lokal gespeichert" }, "errors": { "end-before-start": "Die Endzeit muss nach der Startzeit liegen." },
+    "recurrence": { "frequency": "Wiederholung", "none": "Keine Wiederholung", "daily": "Täglich", "weekly": "Wöchentlich", "monthly": "Monatlich", "yearly": "Jährlich", "interval": "Alle", "count": "Anzahl", "month-days": "Monatstage", "month-days-placeholder": "Zum Beispiel: 1, 15" },
+    "weekdays": { "monday": "Mo", "tuesday": "Di", "wednesday": "Mi", "thursday": "Do", "friday": "Fr", "saturday": "Sa", "sunday": "So" }, "save": "Ereignis speichern", "saving": "Ereignis wird gespeichert…", "cancel": "Abbrechen", "saved": "Ereignis gespeichert.", "edit": "Bearbeiten"
   }
 }

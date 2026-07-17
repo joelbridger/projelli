@@ -48,31 +48,13 @@ function event(overrides: Partial<CalendarEventRecord> = {}): CalendarEventRecor
   };
 }
 
-function applyPatch(
-  record: CalendarEventRecord,
-  patch: CalendarEventPatch,
-): CalendarEventRecord {
+function applyPatch(record: CalendarEventRecord, patch: CalendarEventPatch): CalendarEventRecord {
   const notes = patch.notes === null ? undefined : patch.notes ?? record.notes;
-  const contextRef = patch.contextRef === null
-    ? undefined
-    : patch.contextRef ?? record.contextRef;
-  const recurrence = patch.recurrence === null
-    ? undefined
-    : patch.recurrence ?? record.recurrence;
-
+  const recurrence = patch.recurrence === null ? undefined : patch.recurrence ?? record.recurrence;
   return {
-    id: record.id,
-    kind: record.kind,
-    title: patch.title ?? record.title,
-    startUtc: patch.startUtc ?? record.startUtc,
-    endUtc: patch.endUtc ?? record.endUtc,
-    displayTimezone: patch.displayTimezone ?? record.displayTimezone,
-    allDay: patch.allDay ?? record.allDay,
-    calendarId: record.calendarId,
-    status: record.status,
-    ...(notes === undefined ? {} : { notes }),
-    ...(contextRef === undefined ? {} : { contextRef }),
-    ...(record.seriesId === undefined ? {} : { seriesId: record.seriesId }),
+    ...record, title: patch.title ?? record.title, startUtc: patch.startUtc ?? record.startUtc,
+    endUtc: patch.endUtc ?? record.endUtc, displayTimezone: patch.displayTimezone ?? record.displayTimezone,
+    allDay: patch.allDay ?? record.allDay, ...(notes === undefined ? {} : { notes }),
     ...(recurrence === undefined ? {} : { recurrence }),
   };
 }
@@ -83,7 +65,7 @@ function stores(events: readonly CalendarEventRecord[] = []) {
     const existing = events.find((candidate) => candidate.id === id) ?? event({ id });
     return Promise.resolve(applyPatch(existing, patch));
   });
-  const cancel = vi.fn((id: string) => Promise.resolve(event({ id, status: 'cancelled' })));
+  const cancel = vi.fn();
   mocks.eventStore = { events, error: null, create, update, cancel, get: vi.fn(), listOccurrences: vi.fn() };
   mocks.capabilityStore = {
     state: {
@@ -109,7 +91,19 @@ beforeEach(() => {
 afterEach(() => { mocks.enabled = false; });
 
 describe('CalendarAddEventMount', () => {
-  it('creates supported recurring events through the public event store', async () => {
+  it('renders the new-event sheet over an inactive source, with canonical first-view actions', () => {
+    mocks.enabled = true;
+    render(<CalendarAddEventMount />);
+
+    expect(screen.getByRole('dialog', { name: 'New event' })).toBeInTheDocument();
+    expect(screen.getByTestId('calendar-add-event-source')).toHaveAttribute('aria-hidden', 'true');
+    expect(screen.getByTestId('calendar-add-event-title')).toHaveAttribute('placeholder', 'Event title');
+    expect(screen.getByTestId('calendar-add-event-status')).toHaveTextContent('Saved locally');
+    expect(screen.getByTestId('calendar-add-event-cancel')).toHaveTextContent('Cancel');
+    expect(screen.getByTestId('calendar-add-event-save')).toHaveTextContent('Save event');
+  });
+
+  it('creates supported recurring events, closes only after save, and gives a concrete confirmation', async () => {
     mocks.enabled = true;
     const { create } = stores();
     render(<CalendarAddEventMount />);
@@ -123,35 +117,55 @@ describe('CalendarAddEventMount', () => {
     expect(create).toHaveBeenCalledWith(expect.objectContaining({
       title: 'Weekly review', calendarId: 'calendar:local', recurrence: { frequency: 'weekly', interval: 1, byWeekday: ['monday'] },
     }));
-    expect(screen.getByTestId('calendar-add-event-saved')).toHaveTextContent('created-event');
+    await waitFor(() => { expect(screen.queryByTestId('calendar-add-event-sheet')).not.toBeInTheDocument(); });
+    expect(screen.getByTestId('calendar-add-event-saved')).toHaveTextContent('Event saved.');
   });
 
-  it('uses thin public updates and a status cancel for an existing event', async () => {
+  it('uses the event title and linked record in edit mode, preserving the thin public patch', async () => {
     mocks.enabled = true;
-    const { update, cancel } = stores([event()]);
+    const selected = event({ contextRef: { kind: 'household', id: 'household-1', label: 'Morgan Family' } });
+    const { update } = stores([selected]);
     render(<CalendarAddEventMount />);
 
+    fireEvent.click(screen.getByTestId('calendar-add-event-cancel'));
     fireEvent.click(screen.getByTestId('calendar-add-event-edit-event-1'));
+    expect(screen.getByRole('dialog', { name: 'Annual review' })).toBeInTheDocument();
+    expect(screen.getByTestId('calendar-add-event-linked-record')).toHaveTextContent('Morgan Family');
     fireEvent.change(screen.getByTestId('calendar-add-event-title'), { target: { value: 'Updated review' } });
     fireEvent.click(screen.getByTestId('calendar-add-event-save'));
+
     await waitFor(() => { expect(update).toHaveBeenCalledOnce(); });
     expect(update).toHaveBeenCalledWith('event-1', expect.objectContaining({ title: 'Updated review' }));
     expect(update.mock.calls[0]?.[1]).not.toHaveProperty('calendarId');
-
-    fireEvent.click(screen.getByTestId('calendar-add-event-cancel'));
-    await waitFor(() => { expect(cancel).toHaveBeenCalledWith('event-1'); });
   });
 
-  it('shows an honest refusal and does not write an invalid recurrence', async () => {
+  it('uses a calm direct End error, preserves values, and returns focus to End', async () => {
     mocks.enabled = true;
     const { create } = stores();
     render(<CalendarAddEventMount />);
 
-    fireEvent.change(screen.getByTestId('calendar-add-event-title'), { target: { value: 'Bad weekly review' } });
-    fireEvent.change(screen.getByTestId('calendar-add-event-frequency'), { target: { value: 'weekly' } });
+    fireEvent.change(screen.getByTestId('calendar-add-event-title'), { target: { value: 'Time check' } });
+    fireEvent.change(screen.getByTestId('calendar-add-event-start'), { target: { value: '2026-08-03T15:00' } });
+    fireEvent.change(screen.getByTestId('calendar-add-event-end'), { target: { value: '2026-08-03T14:00' } });
     fireEvent.click(screen.getByTestId('calendar-add-event-save'));
 
-    await waitFor(() => { expect(screen.getByTestId('calendar-add-event-error')).toHaveTextContent('Weekday selectors are supported only for weekly recurrence.'); });
+    await waitFor(() => { expect(screen.getByTestId('calendar-add-event-end-error')).toHaveTextContent('End time needs to be after start time.'); });
+    expect(screen.getByTestId('calendar-add-event-end')).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByTestId('calendar-add-event-end')).toHaveFocus();
     expect(create).not.toHaveBeenCalled();
+  });
+
+  it('keeps the stable sheet and entered values open when saving fails', async () => {
+    mocks.enabled = true;
+    const { create } = stores();
+    create.mockRejectedValueOnce(new Error('Calendar is unavailable. Try again.'));
+    render(<CalendarAddEventMount />);
+
+    fireEvent.change(screen.getByTestId('calendar-add-event-title'), { target: { value: 'Retry review' } });
+    fireEvent.click(screen.getByTestId('calendar-add-event-save'));
+
+    await waitFor(() => { expect(screen.getByTestId('calendar-add-event-error')).toHaveTextContent('Calendar is unavailable. Try again.'); });
+    expect(screen.getByTestId('calendar-add-event-sheet')).toBeInTheDocument();
+    expect(screen.getByTestId('calendar-add-event-title')).toHaveValue('Retry review');
   });
 });
