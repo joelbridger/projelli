@@ -16,7 +16,8 @@ const { createStore, list, start, openTemplateLibrary } = vi.hoisted(() => ({
   openTemplateLibrary: vi.fn(),
 }));
 
-vi.mock('@/platform/flags', () => ({
+vi.mock('@/platform/flags', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/platform/flags')>()),
   isEnabled: () => enabled,
 }));
 
