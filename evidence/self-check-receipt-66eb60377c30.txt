@@ -1,0 +1,19 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/lantern/app/integration/.worktrees/v1/w2-nav-handoff
+sha: 66eb60377c30540291e91bb3751a9f28067e05f2
+tree: bd2177fb2f9fa54b999e0a7eba2ce58098d821b4
+gate_base: 75d6ced8db76e44c7566a2a5d88ca8a31126cd83
+tool_blob: 7912bf11eefdacea0702600b19d3bc5b3d7f2606
+utc: 2026-07-17T16:18:55Z
+step_timeout_seconds: 300
+loadavg: 5.00 4.28 4.57
+running_vitest_eslint_procs: 8
+step: gate:changed | status=PASS | exit=0 | 16:18:56Z..16:21:54Z | bytes=26136 | sha256=497750545136714f0efdf66b101c345b5061813d029e037dac95fc2dbcbff02a | tail: opment.js:26505:5) Test Files 15 passed (15) Tests 46 passed (46) Start at 16:21:40 Duration 14.53s (transform 15.89s, setup 2.62s, import 35.87s, tests 12.54s, environment 4.24s) CHANGED GATE GREEN
+step: typecheck | status=PASS | exit=0 | 16:21:54Z..16:22:17Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit
+step: typecheck:tests | status=PASS | exit=0 | 16:22:17Z..16:22:43Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit
+step: handle-guard | status=PASS | exit=0 | 16:22:43Z..16:22:43Z | bytes=1329 | sha256=377c098568becd16e514ecf9b07c05d464e08e6b1d773c2ddae8d7737fdd34a8 | tail: -unavailable + calendar-event-context + calendar-event-end + calendar-event-notes +403 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen).
+step: arch-dag-guard | status=PASS | exit=0 | 16:22:43Z..16:22:45Z | bytes=252 | sha256=3c5fb2d186c0b46093656ee3bcd445bd73119be4c2da3d9c6c83e637caab4978 | tail: ern/app/integration/.worktrees/v1/w2-nav-handoff Test Files 1 passed (1) Tests 1 passed (1) Start at 16:22:44 Duration 1.05s (transform 199ms, setup 317ms, import 258ms, tests 3ms, environment 264ms)
+step: i18n-snapshot | status=PASS | exit=0 | 16:22:45Z..16:22:46Z | bytes=253 | sha256=adc96852d57e952e2c8c3e6d1c7e6743117a709d07a50cb8de744a16ad37ae6c | tail: rn/app/integration/.worktrees/v1/w2-nav-handoff Test Files 1 passed (1) Tests 5 passed (5) Start at 16:22:45 Duration 918ms (transform 223ms, setup 325ms, import 224ms, tests 17ms, environment 262ms)
+step: focused | status=PASS | exit=0 | 16:22:46Z..16:22:53Z | bytes=258 | sha256=9fdb43224dcda177ada918ef35e794817b5085ded3d74526a6ff1089b5624c1b | tail: p/integration/.worktrees/v1/w2-nav-handoff Test Files 3 passed (3) Tests 12 passed (12) Start at 16:22:46 Duration 7.04s (transform 10.29s, setup 1.03s, import 13.84s, tests 372ms, environment 836ms)
+overall: GREEN

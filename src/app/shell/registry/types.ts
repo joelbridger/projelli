@@ -51,7 +51,7 @@ export interface AppSurfaceDescriptor {
   resolveNavigation?: (
     target: NavigationTarget,
     runtime: AppSurfaceRuntime
-  ) => void;
+  ) => void | Promise<void>;
   commands?: readonly AppSurfaceCommandDescriptor[];
   availabilityFlag?: FlagId;
 }

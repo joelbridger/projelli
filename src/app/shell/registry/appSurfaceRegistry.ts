@@ -103,6 +103,15 @@ export function getAvailableAppSurfaceDescriptors(
   return descriptors.filter(isAvailable);
 }
 
+/**
+ * The complete resolved table, including registered surfaces whose feature
+ * flag is currently off. Cross-registry validation uses this so an alias to a
+ * known-but-unavailable surface remains distinct from an unknown surface.
+ */
+export function getKnownAppSurfaceDescriptors(): readonly AppSurfaceDescriptor[] {
+  return resolvedDescriptors;
+}
+
 export function getAppSurfaceDescriptors(): readonly AppSurfaceDescriptor[] {
   return getAvailableAppSurfaceDescriptors();
 }
