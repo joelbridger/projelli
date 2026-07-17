@@ -57,6 +57,7 @@ import {
   useMeetingFoundationPreferencesStore,
   useMeetingFoundationStore,
   useMeetingIntelligenceSettingsStore,
+  useMeetingKeywordCatalogueStore,
   useMeetingTemplateStore,
   useMeetingTypeStore,
 } from './contract';
@@ -177,6 +178,15 @@ describe('meetings canonical live-record round trip', () => {
     const freshTemplates = renderHook(() => useMeetingTemplateStore());
     await expect(freshTemplates.result.current.get()).resolves.toMatchObject([
       { id: 'notes' },
+    ]);
+
+    const keywords = renderHook(() => useMeetingKeywordCatalogueStore());
+    await keywords.result.current.save(['  Retirement  ', 'Tax planning']);
+    keywords.unmount();
+    const freshKeywords = renderHook(() => useMeetingKeywordCatalogueStore());
+    await expect(freshKeywords.result.current.get()).resolves.toEqual([
+      'Retirement',
+      'Tax planning',
     ]);
 
     const settings = renderHook(() => useMeetingIntelligenceSettingsStore());

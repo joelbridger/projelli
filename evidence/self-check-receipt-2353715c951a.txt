@@ -1,0 +1,18 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/lantern/app/integration/.worktrees/v1/w2-keyword-catalogue-seam
+sha: 2353715c951aac2fb6166d64fe98ca79b3069a8d
+tree: df757d5139cb6dfa8df874dfc8851d8fab5efabe
+gate_base: f9d534ec8e2fa632cba8b7663b8b5f5f4ff1a7c2
+tool_blob: 7912bf11eefdacea0702600b19d3bc5b3d7f2606
+utc: 2026-07-17T11:47:02Z
+step_timeout_seconds: 300
+loadavg: 7.92 8.63 7.40
+running_vitest_eslint_procs: 2
+step: gate:changed | status=PASS | exit=0 | 11:47:02Z..11:50:30Z | bytes=26828 | sha256=c639fead401e6fc8f0a950907e7f6e2e836ff63d823dc975517016212a58d963 | tail: ent.js:26505:5) Test Files 52 passed (52) Tests 312 passed (312) Start at 11:49:57 Duration 32.77s (transform 14.57s, setup 8.82s, import 67.15s, tests 28.06s, environment 18.47s) CHANGED GATE GREEN
+step: typecheck | status=PASS | exit=0 | 11:50:30Z..11:50:58Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit
+step: typecheck:tests | status=PASS | exit=0 | 11:50:58Z..11:51:36Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit
+step: handle-guard | status=PASS | exit=0 | 11:51:36Z..11:51:37Z | bytes=1360 | sha256=725bf79cafd644ebb74927168522eb4e6d9a331df7ea908fe79031f456c1ffe9 | tail: ite-approve + calendar-write-pending-banner + calendar-write-pending-banner-review-now +343 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen).
+step: arch-dag-guard | status=PASS | exit=0 | 11:51:37Z..11:51:38Z | bytes=263 | sha256=b21124dced308b9a50a1557e5d605f97e29d0ac5a9113a4deb3066c487df53cf | tail: egration/.worktrees/v1/w2-keyword-catalogue-seam Test Files 1 passed (1) Tests 1 passed (1) Start at 11:51:37 Duration 1.32s (transform 308ms, setup 500ms, import 289ms, tests 3ms, environment 387ms)
+step: i18n-snapshot | status=PASS | exit=0 | 11:51:38Z..11:51:40Z | bytes=264 | sha256=bdb884e8beea632382e870f9db45081b5463646d98c2f2b1ace4b8bc3b61bbfa | tail: gration/.worktrees/v1/w2-keyword-catalogue-seam Test Files 1 passed (1) Tests 5 passed (5) Start at 11:51:39 Duration 1.26s (transform 328ms, setup 477ms, import 295ms, tests 21ms, environment 349ms)
+overall: GREEN

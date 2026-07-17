@@ -9,6 +9,7 @@ import {
   approvedMeetingArtifactsForClient,
   createMeetingArtifactStore,
   createMeetingFoundationPreferencesStore,
+  createMeetingKeywordCatalogueStore,
   createMeetingPopulationService,
   createMeetingIntelligenceSettingsStore,
   createFirmMeetingDirectoryReader,
@@ -23,6 +24,7 @@ import {
   meetingArtifactsForClient,
   validateMeetingArtifactTransition,
   verifyMeetingOpenTarget,
+  validateMeetingKeywordCatalogue,
   type ClientBoundary,
   type MeetingArtifactRequirement,
   type MeetingOpenTarget,
@@ -302,6 +304,58 @@ describe('meetings foundation contract', () => {
     );
     await expect(settings.get()).rejects.toThrow(
       'Meeting intelligence settings are invalid'
+    );
+  });
+
+  it('durably round-trips a validated keyword catalogue and fails closed on invalid terms', async () => {
+    const live = canonicalPort();
+    const keywords = createMeetingKeywordCatalogueStore(live);
+
+    await expect(
+      keywords.save(['  Retirement  ', 'Tax planning'])
+    ).resolves.toEqual(['Retirement', 'Tax planning']);
+    expect(keywords.terms).toEqual(['Retirement', 'Tax planning']);
+    expect(
+      live
+        .readCanonical()
+        .find((record) => record.kind === 'meeting_keyword_catalogue')
+    ).toMatchObject({
+      matterId: 'firm_home',
+      terms: ['Retirement', 'Tax planning'],
+    });
+    await expect(
+      createMeetingKeywordCatalogueStore({
+        ...live,
+        records: live.readCanonical(),
+      }).get()
+    ).resolves.toEqual(['Retirement', 'Tax planning']);
+
+    await expect(keywords.save(['Retirement', 'retirement'])).rejects.toThrow(
+      'Meeting keyword terms must be unique'
+    );
+    expect(() => validateMeetingKeywordCatalogue(['  '])).toThrow(
+      'Meeting keyword term must not be empty'
+    );
+    expect(() =>
+      validateMeetingKeywordCatalogue(
+        Array.from({ length: 201 }, (_, i) => `term-${String(i)}`)
+      )
+    ).toThrow('at most 200 terms');
+    expect(() => validateMeetingKeywordCatalogue(['x'.repeat(81)])).toThrow(
+      'at most 80 characters'
+    );
+
+    live.replaceCanonical(
+      live
+        .readCanonical()
+        .map((record) =>
+          record.kind === 'meeting_keyword_catalogue'
+            ? { ...record, terms: ['valid', 'VALID'] }
+            : record
+        )
+    );
+    await expect(keywords.get()).rejects.toThrow(
+      'Meeting keyword terms must be unique'
     );
   });
 
