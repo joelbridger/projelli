@@ -17,7 +17,9 @@ import type {
   AppSurfaceDescriptor,
   AppSurfaceId,
   AppSurfaceRegistration,
+  AppSurfaceResolution,
 } from '@/app/shell/registry/types';
+import { isEnabled } from '@/platform/flags';
 
 /**
  * The only shared mount list for top-level app surfaces. Existing entries are
@@ -79,6 +81,9 @@ export function validateAppSurfaceDescriptors(
   }
 }
 
+// Keep the complete known table separate from the available projection. The
+// distinction is what lets navigation tell a disabled known surface apart
+// from an unknown id.
 let resolvedDescriptors = appSurfaceRegistry.filter(isDescriptor);
 validateAppSurfaceDescriptors(resolvedDescriptors);
 
@@ -88,21 +93,48 @@ export function hasLazyAppSurfaceRegistrations(): boolean {
   return resolvedDescriptors.length !== appSurfaceRegistry.length;
 }
 
+function isAvailable(descriptor: AppSurfaceDescriptor): boolean {
+  return !descriptor.availabilityFlag || isEnabled(descriptor.availabilityFlag);
+}
+
+export function getAvailableAppSurfaceDescriptors(
+  descriptors: readonly AppSurfaceDescriptor[] = resolvedDescriptors
+): readonly AppSurfaceDescriptor[] {
+  return descriptors.filter(isAvailable);
+}
+
 export function getAppSurfaceDescriptors(): readonly AppSurfaceDescriptor[] {
-  return resolvedDescriptors;
+  return getAvailableAppSurfaceDescriptors();
 }
 
 export function getAppSurfaceDescriptor(
   id: AppSurfaceId
 ): AppSurfaceDescriptor | undefined {
-  return resolvedDescriptors.find((descriptor) => descriptor.id === id);
+  return getAppSurfaceDescriptors().find((descriptor) => descriptor.id === id);
+}
+
+/**
+ * Resolve one surface without collapsing disabled registered descriptors into
+ * the same result as unregistered ids. Callers that can navigate must branch
+ * on all three statuses instead of treating this as a truthy lookup.
+ */
+export function resolveAppSurfaceDescriptor(
+  id: string,
+  descriptors: readonly AppSurfaceDescriptor[] = resolvedDescriptors
+): AppSurfaceResolution {
+  const descriptor = descriptors.find((candidate) => candidate.id === id);
+  if (!descriptor) return { status: 'unknown' };
+  if (!isAvailable(descriptor)) {
+    return { status: 'known-but-unavailable', descriptor };
+  }
+  return { status: 'resolved', descriptor };
 }
 
 export function resolveAppSurfaceRegistry(): Promise<
   readonly AppSurfaceDescriptor[]
 > {
   if (!hasLazyAppSurfaceRegistrations()) {
-    return Promise.resolve(resolvedDescriptors);
+    return Promise.resolve(getAppSurfaceDescriptors());
   }
   resolution ??= Promise.all(
     appSurfaceRegistry.map(async (registration) =>
@@ -111,14 +143,14 @@ export function resolveAppSurfaceRegistry(): Promise<
   ).then((descriptors) => {
     validateAppSurfaceDescriptors(descriptors);
     resolvedDescriptors = descriptors;
-    return resolvedDescriptors;
+    return getAppSurfaceDescriptors();
   });
   return resolution;
 }
 
 export function getOrderedAppSurfaces(
   placement: AppSurfaceDescriptor['placement'],
-  descriptors: readonly AppSurfaceDescriptor[] = resolvedDescriptors
+  descriptors: readonly AppSurfaceDescriptor[] = getAppSurfaceDescriptors()
 ): readonly AppSurfaceDescriptor[] {
   return descriptors
     .filter((descriptor) => descriptor.placement === placement)
