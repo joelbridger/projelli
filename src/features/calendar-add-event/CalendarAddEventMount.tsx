@@ -241,7 +241,11 @@ function EnabledCalendarAddEventMount() {
             <span data-testid="calendar-add-event-status" style={{ border: '1px solid var(--kp-divider)', borderRadius: '999px', color: 'var(--kp-text-faint)', fontSize: 'var(--kp-font-xs)', padding: '2px 8px', whiteSpace: 'nowrap' }}>{t('calendar-add-event.status.local-save')}</span>
           </div>
           {localCalendars.length === 0 ? <p role="alert" data-testid="calendar-add-event-no-local-calendar">{t('calendar-add-event.no-local-calendar')}</p> : null}
-          <form onSubmit={(event) => { void submit(event).catch((caught: unknown) => setError(errorMessage(caught))); }} style={{ display: 'grid', gap: 'var(--kp-space-sm)', marginTop: 'var(--kp-space-md)' }}>
+          <form onSubmit={(event) => {
+            void submit(event).catch((caught: unknown) => {
+              setError(errorMessage(caught));
+            });
+          }} style={{ display: 'grid', gap: 'var(--kp-space-sm)', marginTop: 'var(--kp-space-md)' }}>
             <label>
               <Label htmlFor="calendar-add-event-title">{t('calendar-add-event.fields.title')}</Label>
               <Input id="calendar-add-event-title" data-testid="calendar-add-event-title" placeholder={t('calendar-add-event.fields.title-placeholder')} value={form.title} onChange={(event) => { update({ title: event.target.value }); }} />

@@ -8,6 +8,10 @@ import type {
   CalendarEventRecord,
   CalendarEventStore,
 } from '@/features/calendar';
+import type { PlatformFlagsMockState } from '@/testing/platform-flags';
+
+const { mockPlatformFlags, resetPlatformFlagsOverrides, setPlatformFlagsOverrides } =
+  await vi.hoisted(async () => import('@/testing/platform-flags'));
 
 const mocks = vi.hoisted(() => ({
   enabled: false,
@@ -16,11 +20,13 @@ const mocks = vi.hoisted(() => ({
   useCalendarEventStore: vi.fn<() => CalendarEventStore>(),
   useCalendarCapabilityStore: vi.fn<() => CalendarCapabilityStore>(),
 }));
-
-vi.mock('@/platform/flags', () => ({
-  isEnabled: () => mocks.enabled,
-  useFlag: () => mocks.enabled,
+const flagsMock = vi.hoisted(() => ({
+  overrides: { useFlag: undefined } as PlatformFlagsMockState['overrides'],
 }));
+
+vi.mock('@/platform/flags', async (importOriginal) =>
+  mockPlatformFlags(importOriginal, flagsMock)
+);
 vi.mock('@/features/calendar', () => ({
   CalendarFoundationError: class CalendarFoundationError extends Error {
     code: string;
@@ -84,11 +90,16 @@ function stores(events: readonly CalendarEventRecord[] = []) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  resetPlatformFlagsOverrides(flagsMock);
+  setPlatformFlagsOverrides(flagsMock, { useFlag: () => mocks.enabled });
   mocks.enabled = false;
   stores();
 });
 
-afterEach(() => { mocks.enabled = false; });
+afterEach(() => {
+  resetPlatformFlagsOverrides(flagsMock);
+  mocks.enabled = false;
+});
 
 describe('CalendarAddEventMount', () => {
   it('renders the new-event sheet over an inactive source, with canonical first-view actions', () => {
