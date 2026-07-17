@@ -1,5 +1,10 @@
 export { HouseholdDocumentsTab } from './HouseholdDocumentsTab';
 export { documentsTab } from './surface';
+export {
+  openDocumentCitation,
+  readAskDocumentSources,
+  type AskDocumentSourcesBoundary,
+} from './askSources';
 export { addDocumentRef, linkedDocumentsForHousehold, removeDocumentRef } from './documentLinks';
 /** Public existing-document pointer contract; no file or raw-native API crosses this doorway. */
 export {
