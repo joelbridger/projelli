@@ -1,0 +1,19 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/lantern/app/integration
+sha: 9019663bdf3939a5a23c4d4245d917c3f91f4fde
+tree: c7588044de53203a8d8b586fad70a444314848dd
+gate_base: 5fe5a22e6c42f45b552b44b3eddd035605bcf1cc
+tool_blob: 7912bf11eefdacea0702600b19d3bc5b3d7f2606
+utc: 2026-07-17T01:28:12Z
+step_timeout_seconds: 300
+loadavg: 6.09 5.16 4.79
+running_vitest_eslint_procs: 1
+step: gate:changed | status=INCONCLUSIVE-UNDER-LOAD | exit=124 | 01:28:12Z..01:33:12Z | bytes=8280 | sha256=bd7d32cc2116b90c56bac3c8e079ec30b9980d9fc792c40c32ad2b1767b937a4 | tail: anvas npm package Not implemented: HTMLMediaElement's pause() method Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package Not implemented: HTMLMediaElement's pause() method
+step: typecheck | status=PASS | exit=0 | 01:33:12Z..01:33:37Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit
+step: typecheck:tests | status=PASS | exit=0 | 01:33:37Z..01:34:08Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit
+step: handle-guard | status=PASS | exit=0 | 01:34:08Z..01:34:08Z | bytes=1360 | sha256=6ecd20d20bd215670abcfe44be300e86d08eabc7fb1f071dfccd60fa6201c35a | tail: ite-approve + calendar-write-pending-banner + calendar-write-pending-banner-review-now +335 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen).
+step: arch-dag-guard | status=PASS | exit=0 | 01:34:08Z..01:34:09Z | bytes=223 | sha256=6ca18e25648d3f5401e0d3e11679f94bfd60353fc58afa0c22b660596a30f4cc | tail: UN v4.1.3 /home/jameson/lantern/app/integration Test Files 1 passed (1) Tests 1 passed (1) Start at 01:34:08 Duration 1.08s (transform 242ms, setup 378ms, import 260ms, tests 3ms, environment 327ms)
+step: i18n-snapshot | status=PASS | exit=0 | 01:34:09Z..01:34:11Z | bytes=224 | sha256=2f7e8521edd7a04902641759d5478f92c7379c571a58f2269afe87923264fe82 | tail: N v4.1.3 /home/jameson/lantern/app/integration Test Files 1 passed (1) Tests 5 passed (5) Start at 01:34:10 Duration 1.15s (transform 319ms, setup 477ms, import 252ms, tests 18ms, environment 303ms)
+step: focused | status=FAIL | exit=1 | 01:34:11Z..01:34:11Z | bytes=262 | sha256=3916917f17391364ec7fb2a5291acaee9cee610120543297413db9cfb8624850 | tail: tegration No test files found, exiting with code 1 filter: scripts/__tests__/check-boundaries.test.mjs include: tests/**/*.{test,spec}.{ts,tsx}, src/**/*.{test,spec}.{ts,tsx} exclude: tests/e2e/**, tests/campaign/**
+overall: INCONCLUSIVE
