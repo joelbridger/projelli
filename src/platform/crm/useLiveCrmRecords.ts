@@ -27,11 +27,20 @@ export const LIVE_CRM_RECORDS_CHANGED = 'lantern:crm-live-records-changed';
 export function useLiveCrmRecords() {
   const workspaceRoot = useWorkspaceStore((state) => state.rootPath);
   const sharedMatterId = useMatterStore((state) => {
-    const active = state.matters.find((matter) => matter.id === state.activeMatterId);
+    const active = state.matters.find(
+      (matter) => matter.id === state.activeMatterId
+    );
     return active?.shared && active.firmMatterId ? active.firmMatterId : null;
   });
+  const sharedLocalMatterId = useMatterStore((state) => {
+    const active = state.matters.find(
+      (matter) => matter.id === state.activeMatterId
+    );
+    return active?.shared && active.firmMatterId ? active.id : null;
+  });
   const [records, setRecords] = useState<readonly LiveCrmRecord[]>([]);
-  const [recordsWorkspaceRoot, setRecordsWorkspaceRoot] = useState(workspaceRoot);
+  const [recordsWorkspaceRoot, setRecordsWorkspaceRoot] =
+    useState(workspaceRoot);
   const [error, setError] = useState<string | null>(null);
   const [errorWorkspaceRoot, setErrorWorkspaceRoot] = useState(workspaceRoot);
   const workspaceRootRef = useRef(workspaceRoot);
@@ -39,7 +48,7 @@ export function useLiveCrmRecords() {
     workspaceRootRef.current = workspaceRoot;
   }, [workspaceRoot]);
   const [freshness, setFreshness] = useState<CrmEngineFreshness>(
-    getCrmEngineFreshness,
+    getCrmEngineFreshness
   );
   useEffect(() => subscribeCrmEngineFreshness(setFreshness), []);
   const reloadRecords = useCallback(async () => {
@@ -66,9 +75,13 @@ export function useLiveCrmRecords() {
     void Promise.resolve().then(reload);
   }, [reload]);
   useEffect(() => {
-    const refresh = () => { void reload(); };
+    const refresh = () => {
+      void reload();
+    };
     window.addEventListener(LIVE_CRM_RECORDS_CHANGED, refresh);
-    return () => { window.removeEventListener(LIVE_CRM_RECORDS_CHANGED, refresh); };
+    return () => {
+      window.removeEventListener(LIVE_CRM_RECORDS_CHANGED, refresh);
+    };
   }, [reload]);
   useEffect(() => {
     if (!sharedMatterId || !workspaceRoot) {
@@ -93,35 +106,43 @@ export function useLiveCrmRecords() {
       removeLiveRecordRelayWriter(onRemote);
     };
   }, [reload, sharedMatterId, workspaceRoot]);
-  const publishSavedRecord = useCallback((saved: LiveCrmRecord) => {
-    const rootAtStart = workspaceRoot;
-    if (workspaceRootRef.current !== rootAtStart) return saved;
-    setRecordsWorkspaceRoot(rootAtStart);
-    setRecords((current) => {
-      const exists = current.some((item) => item.id === saved.id);
-      return exists ? current.map((item) => item.id === saved.id ? saved : item) : [...current, saved];
-    });
-    publishLiveRecord(saved);
-    window.dispatchEvent(new Event(LIVE_CRM_RECORDS_CHANGED));
-    return saved;
-  }, [workspaceRoot]);
-  const save = useCallback(async (record: LiveCrmRecord) => {
-    // Scope firm-level records to the shared client matter (multi-seat), and
-    // pin the workspace we started from so a mid-save folder switch can never
-    // land one workspace's record in another's view.
-    const scoped = sharedMatterId && (!record.matterId || record.matterId === 'firm')
-      ? { ...record, matterId: sharedMatterId }
-      : record;
-    const rootAtStart = workspaceRoot;
-    const saved = await saveLiveCrmRecord(rootAtStart, scoped);
-    return publishSavedRecord(saved);
-  }, [publishSavedRecord, sharedMatterId, workspaceRoot]);
+  const publishSavedRecord = useCallback(
+    (saved: LiveCrmRecord) => {
+      const rootAtStart = workspaceRoot;
+      if (workspaceRootRef.current !== rootAtStart) return saved;
+      setRecordsWorkspaceRoot(rootAtStart);
+      setRecords((current) => {
+        const exists = current.some((item) => item.id === saved.id);
+        return exists
+          ? current.map((item) => (item.id === saved.id ? saved : item))
+          : [...current, saved];
+      });
+      publishLiveRecord(saved);
+      window.dispatchEvent(new Event(LIVE_CRM_RECORDS_CHANGED));
+      return saved;
+    },
+    [workspaceRoot]
+  );
+  const save = useCallback(
+    async (record: LiveCrmRecord) => {
+      // Scope firm-level records to the shared client matter (multi-seat), and
+      // pin the workspace we started from so a mid-save folder switch can never
+      // land one workspace's record in another's view.
+      const scoped =
+        sharedMatterId && (!record.matterId || record.matterId === 'firm')
+          ? { ...record, matterId: sharedMatterId }
+          : record;
+      const rootAtStart = workspaceRoot;
+      const saved = await saveLiveCrmRecord(rootAtStart, scoped);
+      return publishSavedRecord(saved);
+    },
+    [publishSavedRecord, sharedMatterId, workspaceRoot]
+  );
   // Derive the user-facing state from the same shared-matter check that starts
   // the relay. This also prevents a one-frame offline warning while React is
   // switching from a firm matter to a solo workspace.
-  const effectiveFreshness: CrmEngineFreshness = sharedMatterId && workspaceRoot
-    ? freshness
-    : { kind: 'idle' };
+  const effectiveFreshness: CrmEngineFreshness =
+    sharedMatterId && workspaceRoot ? freshness : { kind: 'idle' };
   return {
     records: recordsWorkspaceRoot === workspaceRoot ? records : [],
     save,
@@ -132,5 +153,6 @@ export function useLiveCrmRecords() {
     workspaceRoot,
     freshness: effectiveFreshness,
     sharedMatterId,
+    sharedLocalMatterId,
   };
 }

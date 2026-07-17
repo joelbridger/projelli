@@ -31,6 +31,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Meetings foundation seam** - Added the local-first public Meetings contract
+  for canonical meeting records, append-only artifacts, legal lifecycle
+  transitions, notice-evidence projections, client-bounded approved-artifact
+  inputs, and reactive catalogue/settings records. It includes narrowed public-
+  import fixtures, an honest blocked-consumer manifest, and a paved path. The
+  approved base lacks compatible shell, Meetings composition, Settings, and CRM
+  client owner seams, so no local registry lookalikes ship and those consumers
+  remain coordinator-blocked. Recording, provider calls, delivery, external
+  export, and retention enforcement remain parked.
+  Files: `src/features/meetings/foundation/contract.ts`,
+  `src/features/meetings/SKILL.md`, `src/features/meetings/fixtures/`.
+
 ### Fixed
 - **Test-impact selection is now fail-open at the final runner boundary.**
   The runner starts with the full Vitest command and can narrow it only after a

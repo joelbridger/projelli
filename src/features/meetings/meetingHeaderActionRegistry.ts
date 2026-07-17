@@ -49,5 +49,64 @@ export function getMeetingHeaderActions(
   descriptors: readonly MeetingHeaderActionDescriptor[] = meetingHeaderActionRegistry
 ): readonly MeetingHeaderActionDescriptor[] {
   validateMeetingHeaderActionDescriptors(descriptors);
-  return descriptors.slice().sort((a, b) => a.order - b.order);
+  return descriptors
+    .filter((descriptor) => descriptor.isAvailable?.() ?? true)
+    .sort((a, b) => a.order - b.order);
+}
+
+export interface MeetingHeaderActionComposition {
+  /** Ordered, available header actions the host renders — base + contributions. */
+  readonly actions: readonly MeetingHeaderActionDescriptor[];
+}
+
+/**
+ * Open-world header-action composition. Contributions validate together with
+ * the base actions (duplicate ids, malformed contracts, unstable order, and
+ * bad placement are rejected), dark entries are excluded, and the result is
+ * ordered without mutating the shared registry.
+ */
+export function createMeetingHeaderActionComposition(
+  ...contributions: readonly MeetingHeaderActionDescriptor[]
+): MeetingHeaderActionComposition {
+  return {
+    actions: getMeetingHeaderActions([
+      ...meetingHeaderActionRegistry,
+      ...contributions,
+    ]),
+  };
+}
+
+/** Base composition with no contributions (Send / Mark reviewed / utilities). */
+export const defaultMeetingHeaderActionComposition: MeetingHeaderActionComposition =
+  createMeetingHeaderActionComposition();
+
+// The real weave: a feature registers its header action here and the host
+// composition the Meetings page reads (`getMeetingHeaderActionComposition`)
+// includes it.
+const registeredMeetingHeaderActions: MeetingHeaderActionDescriptor[] = [];
+
+/**
+ * Register a feature-owned header action into the live host composition.
+ * Validates against base plus already-registered actions before adding, and
+ * returns an unregister function.
+ */
+export function registerMeetingHeaderAction(
+  descriptor: MeetingHeaderActionDescriptor
+): () => void {
+  createMeetingHeaderActionComposition(
+    ...registeredMeetingHeaderActions,
+    descriptor
+  );
+  registeredMeetingHeaderActions.push(descriptor);
+  return () => {
+    const index = registeredMeetingHeaderActions.indexOf(descriptor);
+    if (index >= 0) registeredMeetingHeaderActions.splice(index, 1);
+  };
+}
+
+/** The header-action composition the real Meetings host renders. */
+export function getMeetingHeaderActionComposition(): MeetingHeaderActionComposition {
+  return createMeetingHeaderActionComposition(
+    ...registeredMeetingHeaderActions
+  );
 }

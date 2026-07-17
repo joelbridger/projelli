@@ -41,6 +41,11 @@ vi.mock('@/platform/fs/tauriFsPlugin', () => ({
 
 import { MeetingEntry } from '@/features/meetings/MeetingEntry';
 import { setMeetingsWorkspaceService } from '@/features/meetings/meetingStore';
+import {
+  registerMeetingPanel,
+  getMeetingPanelComposition,
+  type MeetingPanelId,
+} from '@/features/meetings';
 
 /** The utility actions (copy/export/download/delete audio) now live behind the
  *  header `...` menu (meetings audit items 7, 13). Open it the radix way. */
@@ -132,6 +137,48 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
     expect(await screen.findByTestId('notes-review-panel')).toBeInTheDocument();
     expect(screen.getAllByText('Start the rollover paperwork.')).toHaveLength(2);
     expect(screen.queryByText('The next review is in fall.')).not.toBeInTheDocument();
+  });
+
+  it('renders a registered panel contribution in the real host composition', async () => {
+    // A dependent registers a panel through the public weave path.
+    const unregister = registerMeetingPanel({
+      id: 'woven-signals' as MeetingPanelId,
+      order: 25,
+      labelKey: 'meetings.woven.tab',
+      mount: () => (
+        <div data-testid="woven-signals-body">woven contribution</div>
+      ),
+    });
+    try {
+      // The outside host getter now includes the contribution...
+      expect(
+        getMeetingPanelComposition().panels.map((panel) => panel.id)
+      ).toContain('woven-signals');
+
+      const ws = makeWorkspace();
+      setMeetingsWorkspaceService(ws as never);
+      render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
+
+      // ...and the real host actually renders that woven tab.
+      expect(
+        await screen.findByTestId('meeting-subtab-woven-signals')
+      ).toBeInTheDocument();
+      // The host-rendered tab order equals the outside composition order.
+      const hostTabs = screen
+        .getAllByRole('tab')
+        .map((tab) => tab.getAttribute('data-testid'));
+      expect(hostTabs).toEqual(
+        getMeetingPanelComposition().panels.map(
+          (panel) => `meeting-subtab-${panel.id}`
+        )
+      );
+    } finally {
+      unregister();
+    }
+    // After unregister the host is back to the base tabs.
+    expect(
+      getMeetingPanelComposition().panels.map((panel) => panel.id)
+    ).not.toContain('woven-signals');
   });
 
   it('mounts speaker naming and firm templates together in the transcript tab', async () => {
