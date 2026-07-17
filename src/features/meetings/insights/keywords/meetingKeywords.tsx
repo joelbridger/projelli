@@ -26,6 +26,7 @@ declare module '../../meetingWorkspaceTypes' {
   }
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- This is the public local insight contract consumed outside React.
 export const MEETING_KEYWORD_ARTIFACT_REQUIREMENTS: readonly MeetingArtifactRequirement[] =
   [
     { kind: 'structured-notes', minimumSchemaVersion: 1 },
@@ -71,6 +72,7 @@ function payloadText(
  * artifacts. The reader supplies the live client boundary; this function adds
  * no cache, copied client identity, synthetic artifact, or provider call.
  */
+// eslint-disable-next-line react-refresh/only-export-components -- This local detector is the public non-React insight contract.
 export function detectMeetingKeywordMatches(
   reader: ApprovedMeetingArtifactReader,
   meetingId: string,
@@ -102,6 +104,7 @@ export function detectMeetingKeywordMatches(
   });
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- This local detector is the public non-React insight contract.
 export function detectCitedMeetingKeywordInsights(
   reader: ApprovedMeetingArtifactReader,
   meetingId: string,
@@ -251,6 +254,7 @@ const cardStyle = {
   boxShadow: 'var(--kp-shadow-1)',
 } as const;
 
+// eslint-disable-next-line react-refresh/only-export-components -- The registered descriptor intentionally composes this React surface.
 export const meetingKeywordsInsight: MeetingInsightDescriptor = {
   id: MEETING_KEYWORDS_INSIGHT_ID,
   order: 30,
@@ -336,8 +340,12 @@ function MeetingKeywordSettingsPanelEnabled({
   const add = () => {
     const term = draft.trim();
     if (!term || !terms) return;
-    void save([...terms, term]).catch(() => {
-      // save displays its own failure state
+    void save([...terms, term]).catch((reason: unknown) => {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : t('meeting-keywords.errors.save')
+      );
     });
     setDraft('');
   };
@@ -381,8 +389,12 @@ function MeetingKeywordSettingsPanelEnabled({
                     disabled={saving}
                     onClick={() => {
                       void save(terms.filter((item) => item !== term)).catch(
-                        () => {
-                          // save displays its own failure state
+                        (reason: unknown) => {
+                          setError(
+                            reason instanceof Error
+                              ? reason.message
+                              : t('meeting-keywords.errors.save')
+                          );
                         }
                       );
                     }}
