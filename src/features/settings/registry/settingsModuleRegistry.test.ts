@@ -336,7 +336,14 @@ describe('settingsModuleRegistry', () => {
       isEnabled: (id: string) => id === 'teams-roles' && flagOn,
     }));
     vi.doMock('./legacySettingsSections', () => ({
-      legacySettingsSections: [],
+      legacySettingsSections: [
+        {
+          id: 'scheduling',
+          order: 40,
+          labelKey: 'settings.sections.scheduling',
+          legacyLabel: 'Scheduling',
+        },
+      ],
       legacySettingsPanels: [alwaysVisible, gated],
     }));
     vi.doMock('@/features/crm-firm', () => ({
