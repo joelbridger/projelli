@@ -109,6 +109,20 @@ function deferred<T>() {
     },
   };
 }
+function expectNoClientAContent(
+  container: HTMLElement,
+  values: readonly string[]
+): void {
+  const rendered = [
+    container.textContent ?? '',
+    ...Array.from(container.querySelectorAll('input, textarea, select')).map(
+      (element) =>
+        (element as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement)
+          .value
+    ),
+  ].join('\n');
+  for (const value of values) expect(rendered).not.toContain(value);
+}
 describe('Schwab review approval', () => {
   it('reports an audit stall and does not create a receipt', async () => {
     audit.emitAuditEntry.mockRejectedValue(new Error('writer unavailable'));
@@ -200,7 +214,9 @@ describe('Schwab review approval', () => {
     const reveal = deferred<string>();
     privateFacts.reveal.mockReturnValue(reveal.promise);
     const mapSet = vi.spyOn(Map.prototype, 'set');
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
     const { unmount } = render(<SchwabPrefillReview household={household} />);
     fireEvent.click(await screen.findByRole('button', { name: 'Reveal' }));
     expect(privateFacts.reveal).toHaveBeenCalledWith(household.id, 'owner-ssn');
@@ -259,7 +275,12 @@ describe('Schwab review approval', () => {
             },
           ],
           emails: [
-            { id: 'e', address: 'pat@example.test', kind: 'home', primary: true },
+            {
+              id: 'e',
+              address: 'pat@example.test',
+              kind: 'home',
+              primary: true,
+            },
           ],
           phones: [{ id: 'p', address: '555', kind: 'mobile', primary: true }],
         },
@@ -283,12 +304,169 @@ describe('Schwab review approval', () => {
     expect(ownerName).toHaveValue('Advisor Typed');
     for (let i = 0; i < 5; i += 1) {
       rerender(
-        <SchwabPrefillReview household={{ ...household, name: `pass-${String(i)}` }} />
+        <SchwabPrefillReview
+          household={{ ...household, name: `pass-${String(i)}` }}
+        />
       );
       await waitFor(() => {
-        expect(screen.getByLabelText('Owner name')).toHaveValue('Advisor Typed');
+        expect(screen.getByLabelText('Owner name')).toHaveValue(
+          'Advisor Typed'
+        );
       });
     }
+  });
+  it('fully isolates client B from client A fields and facts on a real household switch', async () => {
+    const primaryMember = household.members[0];
+    if (!primaryMember)
+      throw new Error('Test household needs a primary member.');
+    const clientA: SchwabHousehold = { ...household, id: 'client-a' };
+    const clientB: SchwabHousehold = {
+      ...household,
+      id: 'client-b',
+      name: 'Client B household',
+      members: [
+        {
+          ...primaryMember,
+          name: 'Client B Clean',
+          addresses: [
+            {
+              id: 'client-b-address',
+              address: '22 Client B Way',
+              city: 'Boston',
+              state: 'MA',
+              zip: '02108',
+              kind: 'home',
+              primary: true,
+            },
+          ],
+        },
+      ],
+    };
+    const clientAFact = {
+      ...privateSsnFact,
+      fact_id: 'client-a-dob',
+      matter_id: clientA.id,
+      kind: 'dob' as const,
+      display_value: 'CLIENT-A-FACT-DOB',
+    };
+    const clientBFact = {
+      ...privateSsnFact,
+      fact_id: 'client-b-dob',
+      matter_id: clientB.id,
+      kind: 'dob' as const,
+      display_value: 'CLIENT-B-FACT-DOB',
+    };
+    const clientBLoad = deferred<(typeof clientBFact)[]>();
+    privateFacts.listMasked.mockImplementation((householdId: string) => {
+      if (householdId === clientA.id) return Promise.resolve([clientAFact]);
+      if (householdId === clientB.id) return clientBLoad.promise;
+      return Promise.resolve([]);
+    });
+
+    const { container, rerender } = render(
+      <SchwabPrefillReview household={clientA} />
+    );
+    await waitFor(() => {
+      expect(screen.getByLabelText('Date of birth')).toHaveValue(
+        'CLIENT-A-FACT-DOB'
+      );
+    });
+    fireEvent.change(screen.getByLabelText('Owner name'), {
+      target: { value: 'CLIENT-A-TYPED-NAME' },
+    });
+    fireEvent.change(screen.getByLabelText('Beneficiaries'), {
+      target: { value: 'CLIENT-A-TYPED-BENEFICIARY' },
+    });
+
+    rerender(<SchwabPrefillReview household={clientB} />);
+    expectNoClientAContent(container, [
+      'CLIENT-A-TYPED-NAME',
+      'CLIENT-A-TYPED-BENEFICIARY',
+      'CLIENT-A-FACT-DOB',
+    ]);
+    expect(screen.getByText('Loading private facts…')).toBeInTheDocument();
+
+    clientBLoad.resolve([clientBFact]);
+    await waitFor(() => {
+      expect(screen.getByLabelText('Owner name')).toHaveValue('Client B Clean');
+      expect(screen.getByLabelText('Date of birth')).toHaveValue(
+        'CLIENT-B-FACT-DOB'
+      );
+    });
+    expectNoClientAContent(container, [
+      'CLIENT-A-TYPED-NAME',
+      'CLIENT-A-TYPED-BENEFICIARY',
+      'CLIENT-A-FACT-DOB',
+    ]);
+  });
+  it('fails closed on client B when its fact load fails after a real A to B switch', async () => {
+    const primaryMember = household.members[0];
+    if (!primaryMember)
+      throw new Error('Test household needs a primary member.');
+    const clientA: SchwabHousehold = { ...household, id: 'client-a-failure' };
+    const clientB: SchwabHousehold = {
+      ...household,
+      id: 'client-b-failure',
+      members: [{ ...primaryMember, name: 'Client B After Failure' }],
+    };
+    const clientAFact = {
+      ...privateSsnFact,
+      fact_id: 'client-a-failure-dob',
+      matter_id: clientA.id,
+      kind: 'dob' as const,
+      display_value: 'CLIENT-A-FAILED-SWITCH-FACT',
+    };
+    privateFacts.listMasked.mockImplementation((householdId: string) => {
+      if (householdId === clientA.id) return Promise.resolve([clientAFact]);
+      if (householdId === clientB.id)
+        return Promise.reject(new Error('client B facts unavailable'));
+      return Promise.resolve([]);
+    });
+
+    const { container, rerender } = render(
+      <SchwabPrefillReview household={clientA} />
+    );
+    await waitFor(() => {
+      expect(screen.getByLabelText('Date of birth')).toHaveValue(
+        'CLIENT-A-FAILED-SWITCH-FACT'
+      );
+    });
+    fireEvent.change(screen.getByLabelText('Owner name'), {
+      target: { value: 'CLIENT-A-FAILED-SWITCH-TYPED' },
+    });
+
+    rerender(<SchwabPrefillReview household={clientB} />);
+    await expect(
+      screen.findByText('Private facts could not be loaded.')
+    ).resolves.toBeInTheDocument();
+    expect(screen.getByLabelText('Owner name')).toHaveValue(
+      'Client B After Failure'
+    );
+    expect(screen.getByLabelText('Date of birth')).toHaveValue('');
+    expectNoClientAContent(container, [
+      'CLIENT-A-FAILED-SWITCH-TYPED',
+      'CLIENT-A-FAILED-SWITCH-FACT',
+    ]);
+  });
+  it('fully resets the form when the account type context changes', async () => {
+    privateFacts.listMasked.mockResolvedValue([]);
+    render(<SchwabPrefillReview household={household} />);
+    const ownerName = await screen.findByLabelText('Owner name');
+    fireEvent.change(ownerName, {
+      target: { value: 'INDIVIDUAL-CONTEXT-TYPED' },
+    });
+    expect(ownerName).toHaveValue('INDIVIDUAL-CONTEXT-TYPED');
+
+    fireEvent.change(screen.getByLabelText('Account type'), {
+      target: { value: 'roth-ira' },
+    });
+    await waitFor(() => {
+      expect(screen.getByLabelText('Owner name')).toHaveValue('Pat Taylor');
+    });
+    expect(
+      screen.queryByDisplayValue('INDIVIDUAL-CONTEXT-TYPED')
+    ).not.toBeInTheDocument();
+    expect(privateFacts.listMasked).toHaveBeenCalledTimes(2);
   });
   it('keeps a revealed value out of durable approval data and audit metadata', async () => {
     audit.emitAuditEntry.mockResolvedValue({ id: 'audit-private' });
