@@ -11,7 +11,7 @@
  * type-only, re-export, and dynamic imports, and is also usable as a
  * standalone release-gate command.
  */
-import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
@@ -22,6 +22,7 @@ const repoRoot = path.resolve(scriptDir, '..');
 const SOURCE_EXTENSIONS = ['.ts', '.tsx'];
 
 function walkSourceFiles(dir, files = []) {
+  if (!existsSync(dir)) return files;
   for (const entry of readdirSync(dir)) {
     const absolute = path.join(dir, entry);
     if (statSync(absolute).isDirectory()) walkSourceFiles(absolute, files);
@@ -89,20 +90,28 @@ export function findBoundaryViolations(options = {}) {
   const sourceRoot = path.resolve(root, config.sourceRoot);
   const violations = [];
 
-  for (const filename of walkSourceFiles(sourceRoot)) {
+  // A feature's public index is its only public doorway no matter where the
+  // importer lives. Scanning only src/features made app code and test fixtures
+  // an accidental bypass around private, capability-bearing feature internals.
+  const importerRoots = config.importerRoots ?? [config.sourceRoot];
+  const filenames = new Set(importerRoots.flatMap((importerRoot) => walkSourceFiles(path.resolve(root, importerRoot))));
+
+  for (const filename of filenames) {
     const owner = featureName(sourceRoot, filename);
-    if (!owner) continue;
     const source = ts.createSourceFile(filename, readFileSync(filename, 'utf8'), ts.ScriptTarget.Latest, true);
     for (const specifier of moduleSpecifiers(source)) {
       const target = importedFeatureName(sourceRoot, filename, specifier);
-      const ownerTag = config.compositeFeatureTag(owner);
+      const ownerTag = owner && config.compositeFeatureTag(owner);
       const targetTag = target && config.compositeFeatureTag(target);
-      if (target && targetTag !== ownerTag && !isPublicFeatureImport(sourceRoot, filename, specifier, config.publicEntrypoints)) {
+      const crossesFeatureBoundary = target && (!owner || targetTag !== ownerTag);
+      if (crossesFeatureBoundary && !isPublicFeatureImport(sourceRoot, filename, specifier, config.publicEntrypoints)) {
         const relativeFile = path.relative(root, filename).replaceAll(path.sep, '/');
         violations.push({
           file: relativeFile,
           specifier,
-          message: `${config.featureTag(ownerTag)} must import ${config.featureTag(targetTag)} only through its public index module.`,
+          message: owner
+            ? `${config.featureTag(ownerTag)} must import ${config.featureTag(targetTag)} only through its public index module.`
+            : `Non-feature code must import ${config.featureTag(targetTag)} only through its public index module.`,
         });
       }
     }

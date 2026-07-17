@@ -37,6 +37,26 @@ describe('feature-boundary checker', () => {
     ]);
   });
 
+  it('catches private feature imports from the app shell, fixtures, and sibling features', () => {
+    const root = fixture({
+      'src/app/AppShell.ts': "import { secret } from '@/features/beta/private'; export { secret };",
+      'src/app/fixtures/AppShellFixture.ts': "import { secret } from '@/features/beta/private'; export { secret };",
+      'tests/fixtures/PrivateFeatureFixture.ts': "import { secret } from '@/features/beta/private'; export { secret };",
+      'foundation-contracts/privateFeatureContract.ts': "import { secret } from '@/features/beta/private'; export { secret };",
+      'src/features/alpha/Screen.ts': "import { secret } from '@/features/beta/private'; export { secret };",
+      'src/features/beta/index.ts': 'export const publicApi = true;',
+      'src/features/beta/private.ts': 'export const secret = true;',
+    });
+
+    assert.deepEqual(findBoundaryViolations({ repoRoot: root, config }).map(({ file, specifier }) => ({ file, specifier })), [
+      { file: 'foundation-contracts/privateFeatureContract.ts', specifier: '@/features/beta/private' },
+      { file: 'src/app/AppShell.ts', specifier: '@/features/beta/private' },
+      { file: 'src/app/fixtures/AppShellFixture.ts', specifier: '@/features/beta/private' },
+      { file: 'src/features/alpha/Screen.ts', specifier: '@/features/beta/private' },
+      { file: 'tests/fixtures/PrivateFeatureFixture.ts', specifier: '@/features/beta/private' },
+    ]);
+  });
+
   it('allows a public index import and ratchets a known violation', () => {
     const root = fixture({
       'src/features/alpha/Screen.ts': "import { publicApi } from '@/features/beta'; export { publicApi };",

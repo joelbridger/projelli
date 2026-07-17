@@ -9,6 +9,12 @@
  */
 export const featureBoundaryConfig = {
   sourceRoot: 'src',
+  // The public-index rule applies to every TypeScript importer that can reach a
+  // feature, not just sibling features. This includes the application shell,
+  // source fixtures, ordinary tests, and foundation-contract tests. Keeping the
+  // roots explicit makes additions reviewable and avoids accidentally walking
+  // generated output or dependencies.
+  importerRoots: ['src', 'tests', 'foundation-contracts'],
   // The checker assigns each direct child of src/features a distinct tag, such
   // as feature:ask or feature:meetings. Keeping this here makes the ownership
   // model explicit instead of burying it in path-matching code.
