@@ -35,13 +35,12 @@ owner's reader to restore a stale client. The real owner is absent at the
 current base, so the binding is unset and every client-scoped doorway fails
 closed by default.
 
-> **Pending (cross-lane):** the general rule that *no* code outside this feature
+> **Enforced (landed):** the general rule that *no* code outside this feature
 > may deep-import `foundation/owner` is enforced by the shared feature-boundary
-> guard, which currently only inspects importers under `src/features/*`.
-> Extending it to `src/app/` and the fixtures tree is a separate
-> coordinator-owned tooling lane. `ownerImportBoundary.test.ts` asserts that
-> requirement and auto-greens when that guard fix lands. The runtime
-> establish-once defense above already blocks the data leak from every importer.
+> guard, which inspects importers under `src/features/*`, `src/app/`, and the
+> fixtures tree. `ownerImportBoundary.test.ts` asserts that requirement and is
+> green against the landed guard. The runtime establish-once defense above
+> independently blocks the data leak from every importer.
 
 `useAskConversation({ currentClient, owners })` reads and writes conversation
 metadata, review drafts, and saved source selections through encrypted live
