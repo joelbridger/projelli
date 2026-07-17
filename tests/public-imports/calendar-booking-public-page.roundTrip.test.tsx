@@ -34,8 +34,13 @@ import {
   useBookingAvailabilityStore,
   useCalendarCapabilityStore,
   useCalendarEventStore,
+  type BookingAvailabilityDraft,
+  type BookingAvailabilityRecord,
+  type CalendarCapabilityDraft,
+  type CalendarCapabilityState,
+  type CalendarEventDraft,
+  type CalendarEventRecord,
 } from '@/features/calendar';
-import { roundTripCalendarFoundation } from '@/features/calendar/testing';
 import { toCalendarBookingPageAvailabilityConsumer } from '@/features/booking';
 
 const range = { startUtc: '2026-07-20T00:00:00Z', endUtc: '2026-07-21T00:00:00Z' };
@@ -64,32 +69,63 @@ afterEach(() => {
 
 describe('CalendarBookingPublicPage fresh calendar read', () => {
   it('adapts fresh canonical settings and events through the public consumer after reload', async () => {
-    await roundTripCalendarFoundation({
-      capability: {
-        calendars: [{ id: 'calendar:local', label: 'My calendar', ownership: 'local', canBlockBusyTime: true }],
-        homeCalendarId: 'calendar:local',
-        busyCalendarIds: ['calendar:local'],
+    const capability: CalendarCapabilityDraft = {
+      calendars: [{ id: 'calendar:local', label: 'My calendar', ownership: 'local', canBlockBusyTime: true }],
+      homeCalendarId: 'calendar:local',
+      busyCalendarIds: ['calendar:local'],
+    };
+    const availability: BookingAvailabilityDraft = {
+      advisorTimezone: 'UTC',
+      workingHours: {
+        monday: [{ startLocal: '09:00', endLocal: '11:00' }],
+        tuesday: [], wednesday: [], thursday: [], friday: [], saturday: [], sunday: [],
       },
-      availability: {
-        advisorTimezone: 'UTC',
-        workingHours: {
-          monday: [{ startLocal: '09:00', endLocal: '11:00' }],
-          tuesday: [], wednesday: [], thursday: [], friday: [], saturday: [], sunday: [],
-        },
-        meetingTypes: [{ id: 'Private meeting name', name: 'Private meeting name', durationMinutes: 30, bufferBeforeMinutes: 0, bufferAfterMinutes: 0 }],
-        minimumNoticeMinutes: 0,
-        maximumHorizonDays: 14,
-      },
-      event: {
-        title: 'Private client review',
-        notes: 'Never public',
-        startUtc: '2026-07-20T09:00:00Z',
-        endUtc: '2026-07-20T09:30:00Z',
-        displayTimezone: 'UTC',
-        allDay: false,
-        calendarId: 'calendar:local',
-      },
-    });
+      meetingTypes: [{ id: 'Private meeting name', name: 'Private meeting name', durationMinutes: 30, bufferBeforeMinutes: 0, bufferAfterMinutes: 0 }],
+      minimumNoticeMinutes: 0,
+      maximumHorizonDays: 14,
+    };
+    const event: CalendarEventDraft = {
+      title: 'Private client review',
+      notes: 'Never public',
+      startUtc: '2026-07-20T09:00:00Z',
+      endUtc: '2026-07-20T09:30:00Z',
+      displayTimezone: 'UTC',
+      allDay: false,
+      calendarId: 'calendar:local',
+    };
+
+    const eventWriter = renderHook(() => useCalendarEventStore());
+    let savedEvent: CalendarEventRecord | undefined;
+    try {
+      const beforeInitialReload = eventWriter.result.current;
+      await waitFor(() => {
+        if (eventWriter.result.current === beforeInitialReload) {
+          throw new Error('The calendar event store has not loaded its canonical records yet.');
+        }
+      });
+      savedEvent = await eventWriter.result.current.create(event);
+    } finally {
+      eventWriter.unmount();
+    }
+
+    const capabilityWriter = renderHook(() => useCalendarCapabilityStore());
+    let savedCapability: CalendarCapabilityState | undefined;
+    try {
+      savedCapability = await capabilityWriter.result.current.save(capability);
+    } finally {
+      capabilityWriter.unmount();
+    }
+
+    const availabilityWriter = renderHook(() => useBookingAvailabilityStore());
+    let savedAvailability: BookingAvailabilityRecord | undefined;
+    try {
+      savedAvailability = await availabilityWriter.result.current.save(availability);
+    } finally {
+      availabilityWriter.unmount();
+    }
+    if (!savedEvent || !savedCapability || !savedAvailability) {
+      throw new Error('Calendar writes did not return their canonical projections.');
+    }
 
     const reader = renderHook(() => ({
       availability: useBookingAvailabilityStore(),
@@ -99,9 +135,21 @@ describe('CalendarBookingPublicPage fresh calendar read', () => {
     try {
       let consumer: ReturnType<typeof toCalendarBookingPageAvailabilityConsumer> | undefined;
       await waitFor(async () => {
+        const reloadedAvailability = await reader.result.current.availability.get();
+        const reloadedCapability = await reader.result.current.capabilities.get();
+        const reloadedEvent = await reader.result.current.events.get(savedEvent.id);
+        if (!reloadedEvent || JSON.stringify(reloadedEvent) !== JSON.stringify(savedEvent)) {
+          throw new Error('The saved calendar event has not reloaded with its fresh canonical projection.');
+        }
+        if (JSON.stringify(reloadedCapability) !== JSON.stringify(savedCapability)) {
+          throw new Error('The saved calendar capability has not reloaded with its fresh canonical projection.');
+        }
+        if (JSON.stringify(reloadedAvailability) !== JSON.stringify(savedAvailability)) {
+          throw new Error('The saved booking availability has not reloaded with its fresh canonical projection.');
+        }
         consumer = toCalendarBookingPageAvailabilityConsumer({
-          availability: await reader.result.current.availability.get(),
-          capability: await reader.result.current.capabilities.get(),
+          availability: reloadedAvailability,
+          capability: reloadedCapability,
           occurrences: await reader.result.current.events.listOccurrences(range),
           nowUtc: '2026-07-19T00:00:00Z',
           range,
