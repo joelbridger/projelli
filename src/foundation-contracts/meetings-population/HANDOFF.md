@@ -11,6 +11,14 @@ for an explicit validated link; §7 uses the Meetings-workspace empty meaning;
 meeting opens while an unlinked legacy meeting remains in its client screen;
 and §13 must not promise every historical meeting or “any meeting anywhere.”
 
+Legacy-row consumers can also ask the public Meetings doorway for one sealed,
+read-only status: a visible folder is either linked to exactly one canonical
+meeting reference or is truthfully folder-only. The answer comes from one fresh
+canonical-link-key snapshot for the active client; it does not open, project,
+or load a canonical meeting, and it refuses malformed, duplicate, cross-client,
+or stale-client answers rather than guessing. The reference is routing-only:
+the existing resolver still owns later client selection and opening.
+
 ## Authority model (post-review hardening)
 
 Identity is DERIVED, never caller-supplied. The population service takes only the
