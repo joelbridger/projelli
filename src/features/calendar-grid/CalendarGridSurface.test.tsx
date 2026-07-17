@@ -265,6 +265,25 @@ describe('CalendarGridSurface', () => {
     expect(screen.getByTestId('calendar-grid')).toBeTruthy();
   });
 
+  it('returns focus and the validation description to the end time when it is not after start', async () => {
+    runtime.enabled = true;
+    render(<CalendarGridSurface now={ANCHOR} />);
+    await screen.findByTestId('calendar-grid-month');
+
+    fireEvent.click(screen.getByTestId('calendar-grid-new-event'));
+    fireEvent.change(await screen.findByTestId('calendar-event-title'), { target: { value: 'Quarterly review' } });
+    fireEvent.change(screen.getByTestId('calendar-event-end'), { target: { value: '2026-08-05T09:00' } });
+    fireEvent.click(screen.getByTestId('calendar-event-save'));
+
+    const end = screen.getByTestId('calendar-event-end');
+    expect(end).toHaveFocus();
+    expect(end).toHaveAttribute('aria-invalid', 'true');
+    expect(end).toHaveAttribute('aria-describedby', 'calendar-event-validation');
+    expect(screen.getByTestId('calendar-event-start')).not.toHaveAttribute('aria-invalid');
+    expect(screen.getByTestId('calendar-event-title')).not.toHaveAttribute('aria-describedby');
+    expect(screen.getByTestId('calendar-event-validation')).toHaveTextContent('End time needs to be after start time.');
+  });
+
   it('wires the real scheduling contribution recovery action to the workspace picker', async () => {
     runtime.enabled = true;
     runtime.listOccurrences.mockRejectedValue(new Error('Open a workspace before using the calendar.'));

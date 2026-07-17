@@ -66,6 +66,8 @@ export function CalendarEventSheet({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
+  const endRef = useRef<HTMLInputElement>(null);
+  const [invalidTimeFields, setInvalidTimeFields] = useState<readonly ('start' | 'end')[]>([]);
   const isEdit = occurrence !== undefined;
 
   useEffect(() => {
@@ -75,6 +77,7 @@ export function CalendarEventSheet({
   const update = (next: Partial<EventDraftState>) => {
     setDraft((current) => ({ ...current, ...next }));
     setValidationError(null);
+    setInvalidTimeFields([]);
     setSaveError(null);
   };
 
@@ -82,6 +85,7 @@ export function CalendarEventSheet({
     event.preventDefault();
     if (!draft.title.trim()) {
       setValidationError(t('calendar-grid.editor.title-required'));
+      setInvalidTimeFields([]);
       titleRef.current?.focus();
       return;
     }
@@ -89,6 +93,11 @@ export function CalendarEventSheet({
     const endMs = Date.parse(`${draft.end}:00.000Z`);
     if (!draft.start || !draft.end || !Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
       setValidationError(t('calendar-grid.editor.end-after-start'));
+      setInvalidTimeFields([
+        ...(!draft.start || !Number.isFinite(startMs) ? ['start' as const] : []),
+        ...(!draft.end || !Number.isFinite(endMs) || endMs <= startMs ? ['end' as const] : []),
+      ]);
+      endRef.current?.focus();
       return;
     }
 
@@ -142,18 +151,19 @@ export function CalendarEventSheet({
             className="h-8 rounded-lg border border-[var(--kp-divider)] bg-[var(--kp-surface)] px-[11px] py-2 text-[length:var(--kp-font-sm)] font-normal text-[var(--kp-navy)]"
             value={draft.title}
             placeholder={t('calendar-grid.editor.title-placeholder')}
-            aria-describedby={validationError ? 'calendar-event-validation' : undefined}
+            aria-invalid={validationError !== null && invalidTimeFields.length === 0 ? true : undefined}
+            aria-describedby={validationError !== null && invalidTimeFields.length === 0 ? 'calendar-event-validation' : undefined}
             onChange={(item) => { update({ title: item.target.value }); }}
           />
         </label>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="grid gap-1 text-[length:var(--kp-font-xs)] font-semibold text-[var(--kp-navy)]" htmlFor="calendar-event-start">
             {t('calendar-grid.editor.start-label')}
-            <input id="calendar-event-start" data-testid="calendar-event-start" type="datetime-local" className="h-8 rounded-lg border border-[var(--kp-divider)] bg-[var(--kp-surface)] px-[11px] py-2 text-[length:var(--kp-font-sm)] font-normal text-[var(--kp-navy)]" value={draft.start} onChange={(item) => { update({ start: item.target.value }); }} />
+            <input id="calendar-event-start" data-testid="calendar-event-start" type="datetime-local" className="h-8 rounded-lg border border-[var(--kp-divider)] bg-[var(--kp-surface)] px-[11px] py-2 text-[length:var(--kp-font-sm)] font-normal text-[var(--kp-navy)]" value={draft.start} aria-invalid={invalidTimeFields.includes('start') ? true : undefined} aria-describedby={invalidTimeFields.includes('start') ? 'calendar-event-validation' : undefined} onChange={(item) => { update({ start: item.target.value }); }} />
           </label>
           <label className="grid gap-1 text-[length:var(--kp-font-xs)] font-semibold text-[var(--kp-navy)]" htmlFor="calendar-event-end">
             {t('calendar-grid.editor.end-label')}
-            <input id="calendar-event-end" data-testid="calendar-event-end" type="datetime-local" className="h-8 rounded-lg border border-[var(--kp-divider)] bg-[var(--kp-surface)] px-[11px] py-2 text-[length:var(--kp-font-sm)] font-normal text-[var(--kp-navy)]" value={draft.end} onChange={(item) => { update({ end: item.target.value }); }} />
+            <input ref={endRef} id="calendar-event-end" data-testid="calendar-event-end" type="datetime-local" className="h-8 rounded-lg border border-[var(--kp-divider)] bg-[var(--kp-surface)] px-[11px] py-2 text-[length:var(--kp-font-sm)] font-normal text-[var(--kp-navy)]" value={draft.end} aria-invalid={invalidTimeFields.includes('end') ? true : undefined} aria-describedby={invalidTimeFields.includes('end') ? 'calendar-event-validation' : undefined} onChange={(item) => { update({ end: item.target.value }); }} />
           </label>
         </div>
         {validationError ? <p id="calendar-event-validation" role="alert" data-testid="calendar-event-validation" className="m-0 flex gap-2 rounded-md border border-[var(--kp-danger)] bg-[var(--kp-danger-bg)] px-3 py-2 text-[length:var(--kp-font-xs)] text-[var(--kp-navy)]">
