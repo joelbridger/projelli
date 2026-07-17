@@ -3,6 +3,11 @@
 Built 2026-07-03. This is the first cloud Windows test PC for the Lantern-Plus program, living in
 its own Azure account (separate from the Legion, which stays the main-line Windows bench).
 
+> 🤖 **Before adding ANY new VM to the `lantern-bench` resource group:** the automation's power-robot
+> can start/stop every VM in that group and read its userData — so a new VM there MUST be stop-safe
+> (safe to power-cycle, no secrets in userData/customData). Non-stop-safe machines go in a different
+> resource group. Rule: coordination repo → `prep/AZURE-ROBOT-IDENTITY-SETUP.md` → Section E.
+
 ---
 
 ## Part 1 — Plain-language summary (read this first)
