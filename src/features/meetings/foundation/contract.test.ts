@@ -786,31 +786,28 @@ describe('meetings foundation contract', () => {
     const created = await createMeetingStore(live).createDraft(draft);
     const input = { meetingDir: 'Clients/Household One/Meetings/2026-07-20' };
     await expect(
-      createMeetingStore({ ...live, records: live.readCanonical() }).linkLegacy(
-        created.id,
-        input,
+      createMeetingPopulationService(
+        { ...live, records: live.readCanonical() },
         legacyContext({ metadataMatterId: 'matter-2' })
-      )
+      ).linkLegacy(created.id, input)
     ).rejects.toThrow('different matter');
     await expect(
-      createMeetingStore({ ...live, records: live.readCanonical() }).linkLegacy(
-        created.id,
-        input,
+      createMeetingPopulationService(
+        { ...live, records: live.readCanonical() },
         legacyContext({ households: ['household-1', 'household-2'] })
-      )
+      ).linkLegacy(created.id, input)
     ).rejects.toThrow('exactly one');
     await expect(
-      createMeetingStore({ ...live, records: live.readCanonical() }).linkLegacy(
-        created.id,
-        { meetingDir: '../other-client' },
+      createMeetingPopulationService(
+        { ...live, records: live.readCanonical() },
         legacyContext()
-      )
+      ).linkLegacy(created.id, { meetingDir: '../other-client' })
     ).rejects.toThrow('normalized and traversal-free');
 
-    const linked = await createMeetingStore({
-      ...live,
-      records: live.readCanonical(),
-    }).linkLegacy(created.id, input, legacyContext());
+    const linked = await createMeetingPopulationService(
+      { ...live, records: live.readCanonical() },
+      legacyContext()
+    ).linkLegacy(created.id, input);
     await expect(
       createMeetingPopulationService(
         { ...live, records: live.readCanonical() },
