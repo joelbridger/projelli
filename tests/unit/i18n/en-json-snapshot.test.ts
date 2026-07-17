@@ -47,6 +47,7 @@ describe('feature locale shard inventory', () => {
   it('discovers the same feature shard inventory for English, Spanish, and German', () => {
     const english = shardInventory('en');
     expect(english.length).toBeGreaterThan(0);
+    expect(english).toContain('/src/features/meetings/insights/keywords/locales');
     expect(shardInventory('es')).toEqual(english);
     expect(shardInventory('de')).toEqual(english);
   });

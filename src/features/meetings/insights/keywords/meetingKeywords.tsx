@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { isEnabled, useFlag } from '@/platform/flags';
 import {
   approvedMeetingArtifactsForClient,
@@ -120,7 +121,7 @@ export function detectCitedMeetingKeywordInsights(
       meetingId,
       householdRef,
       summary: `Tracked topics: ${matches
-        .map((match) => `${match.term} (${match.count})`)
+        .map((match) => `${match.term} (${String(match.count)})`)
         .join(', ')}`,
       sourceArtifactIds: [
         ...new Set(matches.flatMap((match) => match.sourceArtifactIds)),
@@ -144,6 +145,7 @@ function MeetingKeywordsInsightCardEnabled({
 }: {
   context: MeetingInsightMeetingSummaryContext;
 }) {
+  const { t } = useTranslation();
   const meetings = useMeetingFoundationStore();
   const artifacts = useMeetingArtifactStore();
   const catalogue = useMeetingKeywordCatalogueStore();
@@ -157,8 +159,10 @@ function MeetingKeywordsInsightCardEnabled({
     void catalogue
       .get()
       .then(setTerms)
-      .catch(() => setError('Could not load tracked topics.'));
-  }, [catalogue]);
+      .catch(() => {
+        setError(t('meeting-keywords.errors.load'));
+      });
+  }, [catalogue, t]);
 
   const insight = useMemo(() => {
     if (!context.canonicalMeeting || !context.clientBoundary || !terms)
@@ -196,20 +200,20 @@ function MeetingKeywordsInsightCardEnabled({
   if (!terms)
     return (
       <div data-testid="meeting-keywords-loading" style={cardStyle}>
-        Loading tracked topics…
+        {t('meeting-keywords.loading')}
       </div>
     );
   if (terms.length === 0) {
     return (
       <div data-testid="meeting-keywords-empty" style={cardStyle}>
-        No tracked topics yet. Add them in Settings to see them here.
+        {t('meeting-keywords.insight-empty')}
       </div>
     );
   }
   if (!insight)
     return (
       <div data-testid="meeting-keywords-none" style={cardStyle}>
-        No tracked topics were found in approved meeting artifacts.
+        {t('meeting-keywords.insight-none')}
       </div>
     );
 
@@ -217,9 +221,9 @@ function MeetingKeywordsInsightCardEnabled({
     <section
       data-testid="meeting-keywords-insight"
       style={cardStyle}
-      aria-label="Tracked topics"
+      aria-label={t('meeting-keywords.title')}
     >
-      <strong>Tracked topics</strong>
+      <strong>{t('meeting-keywords.title')}</strong>
       <div style={{ marginTop: 6 }}>
         {insight.summary.replace('Tracked topics: ', '')}
       </div>
@@ -230,7 +234,9 @@ function MeetingKeywordsInsightCardEnabled({
           color: 'var(--color-muted-foreground)',
         }}
       >
-        Approved sources: {insight.sourceArtifactIds.join(', ')}
+        {t('meeting-keywords.approved-sources', {
+          sources: insight.sourceArtifactIds.join(', '),
+        })}
       </div>
     </section>
   );
@@ -259,17 +265,17 @@ export const meetingKeywordsInsight: MeetingInsightDescriptor = {
   artifactStore: {
     artifactId: 'meeting-keywords-local-projection',
     version: MEETING_KEYWORDS_INSIGHT_VERSION,
-    read: async () => null,
-    write: async () => null,
+    read: () => Promise.resolve(null),
+    write: () => Promise.resolve(null),
   },
   artifactProducer: {
     artifactId: 'meeting-keywords-local-projection',
-    produce: async () => null,
+    produce: () => Promise.resolve(null),
   },
   selectors: { detectMeetingKeywordMatches, detectCitedMeetingKeywordInsights },
   settings: {
     id: 'meeting-keywords-settings',
-    labelKey: 'meetings.entry.breadcrumb-meetings',
+    labelKey: 'meeting-keywords.title',
     mount: () => null,
   },
   renderMeetingSummary: (context) => (
@@ -295,6 +301,7 @@ function MeetingKeywordSettingsPanelEnabled({
 }: {
   useCatalogue: () => MeetingKeywordCatalogueStore;
 }) {
+  const { t } = useTranslation();
   const catalogue = useCatalogue();
   const [terms, setTerms] = useState<readonly string[] | null>(null);
   const [draft, setDraft] = useState('');
@@ -308,8 +315,10 @@ function MeetingKeywordSettingsPanelEnabled({
     void catalogue
       .get()
       .then(setTerms)
-      .catch(() => setError('Could not load tracked topics.'));
-  }, [catalogue]);
+      .catch(() => {
+        setError(t('meeting-keywords.errors.load'));
+      });
+  }, [catalogue, t]);
 
   const save = async (next: readonly string[]) => {
     setSaving(true);
@@ -320,7 +329,7 @@ function MeetingKeywordSettingsPanelEnabled({
       setError(
         reason instanceof Error
           ? reason.message
-          : 'Could not save tracked topics.'
+          : t('meeting-keywords.errors.save')
       );
     } finally {
       setSaving(false);
@@ -329,7 +338,9 @@ function MeetingKeywordSettingsPanelEnabled({
   const add = () => {
     const term = draft.trim();
     if (!term || !terms) return;
-    void save([...terms, term]);
+    void save([...terms, term]).catch(() => {
+      // save displays its own failure state
+    });
     setDraft('');
   };
 
@@ -337,9 +348,9 @@ function MeetingKeywordSettingsPanelEnabled({
     <section
       data-testid="meeting-keywords-settings"
       style={cardStyle}
-      aria-label="Tracked meeting topics"
+      aria-label={t('meeting-keywords.settings-title')}
     >
-      <strong>Tracked meeting topics</strong>
+      <strong>{t('meeting-keywords.settings-title')}</strong>
       <p
         style={{
           margin: '6px 0 12px',
@@ -347,18 +358,17 @@ function MeetingKeywordSettingsPanelEnabled({
           color: 'var(--color-muted-foreground)',
         }}
       >
-        These terms are matched locally in approved meeting notes, summaries,
-        and transcripts.
+        {t('meeting-keywords.settings-description')}
       </p>
       {terms === null ? (
         <div data-testid="meeting-keywords-settings-loading">
-          Loading tracked topics…
+          {t('meeting-keywords.loading')}
         </div>
       ) : (
         <>
           {terms.length === 0 ? (
             <div data-testid="meeting-keywords-settings-empty">
-              No topics are being tracked yet.
+              {t('meeting-keywords.settings-empty')}
             </div>
           ) : (
             <ul
@@ -371,23 +381,29 @@ function MeetingKeywordSettingsPanelEnabled({
                   <button
                     type="button"
                     disabled={saving}
-                    onClick={() =>
-                      void save(terms.filter((item) => item !== term))
-                    }
+                    onClick={() => {
+                      void save(terms.filter((item) => item !== term)).catch(
+                        () => {
+                          // save displays its own failure state
+                        }
+                      );
+                    }}
                   >
-                    Remove
+                    {t('meeting-keywords.remove')}
                   </button>
                 </li>
               ))}
             </ul>
           )}
           <label style={{ display: 'flex', gap: 8 }}>
-            <span className="sr-only">Tracked topic</span>
+            <span className="sr-only">{t('meeting-keywords.input-label')}</span>
             <input
               data-testid="meeting-keywords-settings-input"
               value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              placeholder="Add a topic"
+              onChange={(event) => {
+                setDraft(event.target.value);
+              }}
+              placeholder={t('meeting-keywords.input-placeholder')}
               disabled={saving}
             />
             <button
@@ -396,7 +412,7 @@ function MeetingKeywordSettingsPanelEnabled({
               onClick={add}
               disabled={!draft.trim() || saving}
             >
-              Add
+              {t('meeting-keywords.add')}
             </button>
           </label>
         </>

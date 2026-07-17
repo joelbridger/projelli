@@ -1,0 +1,20 @@
+{
+  "meeting-keywords": {
+    "title": "Tracked topics",
+    "settings-title": "Tracked meeting topics",
+    "settings-description": "These terms are matched locally in approved meeting notes, summaries, and transcripts.",
+    "loading": "Loading tracked topics…",
+    "insight-empty": "No tracked topics yet. Add them in Settings to see them here.",
+    "insight-none": "No tracked topics were found in approved meeting artifacts.",
+    "approved-sources": "Approved sources: {{sources}}",
+    "settings-empty": "No topics are being tracked yet.",
+    "input-label": "Tracked topic",
+    "input-placeholder": "Add a topic",
+    "add": "Add",
+    "remove": "Remove",
+    "errors": {
+      "load": "Could not load tracked topics.",
+      "save": "Could not save tracked topics."
+    }
+  }
+}
