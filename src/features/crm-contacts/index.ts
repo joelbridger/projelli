@@ -15,6 +15,11 @@ export {
 } from './model';
 export { adaptLegacyHouseholdRecord } from './legacy';
 export {
+  openContactRef,
+  readAskContactSources,
+  type AskContactSourcesBoundary,
+} from './askSources';
+export {
   createContactRecordStore,
   projectContactPrint,
   projectDirectoryContacts,

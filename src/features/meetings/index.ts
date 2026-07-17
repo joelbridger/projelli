@@ -4,6 +4,7 @@ export {
   resolveWorkspaceRoot,
 } from './meetingStore';
 export type { MeetingMeta, StartOpts } from './meetingStore';
+export { readApprovedMeetingArtifacts } from './askArtifacts';
 export { RecordPill } from './RecordPill';
 export { ClientMeetingsTab, listClientMeetings } from './ClientMeetingsTab';
 export type { MeetingSummary } from './ClientMeetingsTab';
