@@ -15,6 +15,7 @@ import {
 } from '@/features/notifications';
 import { universalTagsSettingsPanel } from '@/features/crm-tags';
 import { taskTemplatesAdminSettingsPanel } from '@/features/crm-tasks';
+import { meetingIntelligenceSettingsPanel } from '@/features/meetings';
 import type {
   SettingsGroupDescriptor,
   SettingsPanelDescriptor,
@@ -58,6 +59,7 @@ const mutableSettingsPanelRegistry: SettingsModuleDescriptor[] = [
   notificationPreferencesSettingsPanel,
   universalTagsSettingsPanel,
   taskTemplatesAdminSettingsPanel,
+  meetingIntelligenceSettingsPanel,
 ];
 
 /**

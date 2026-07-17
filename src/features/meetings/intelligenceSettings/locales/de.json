@@ -6,10 +6,57 @@
     "loading": "Besprechungseinstellungen werden geladen…",
     "saving": "Wird gespeichert…",
     "retry": "Erneut versuchen",
-    "errors": { "load": "Die Einstellungen konnten nicht geladen werden. Bitte erneut versuchen.", "save": "Die Änderung konnte nicht gespeichert werden. Bitte erneut versuchen.", "catalog-save": "Der Katalog konnte nicht gespeichert werden. Bitte erneut versuchen." },
-    "preferences": { "title": "Was verfolgen", "description": "Diese Auswahl ändert nur, was die App in der Besprechungsarbeit hervorhebt.", "keywords": { "label": "Schlüsselwörter verfolgen", "description": "Hebe die Wörter hervor, die Ihre Firma beobachten möchte." }, "signals": { "label": "Kundensignale anzeigen", "description": "Zeige hilfreiche Kundenmuster aus freigegebener Besprechungsarbeit." }, "display": { "label": "Besprechungsansicht", "description": "Lege fest, wie viel Platz jeder Eintrag nutzt.", "comfortable": "Bequem", "compact": "Kompakt" } },
-    "types": { "title": "Besprechungstypen", "description": "Verwende klare Namen, damit das Team den Besprechungstyp erkennt.", "empty": "Noch keine Besprechungstypen vorhanden.", "new-label": "Neuer Besprechungstyp", "add": "Typ hinzufügen" },
-    "templates": { "title": "Besprechungsvorlagen", "description": "Lege die freigegebene Arbeit fest, die jede Vorlage enthalten kann.", "empty": "Noch keine Besprechungsvorlagen vorhanden.", "new-label": "Neue Besprechungsvorlage", "add": "Vorlage hinzufügen" },
-    "artifacts": { "agenda": "Agenda", "pre-meeting-brief": "Vorbesprechungsbriefing", "structured-notes": "Strukturierte Notizen", "summary": "Zusammenfassung", "transcript": "Transkript" }
+    "errors": {
+      "load": "Die Einstellungen konnten nicht geladen werden. Bitte erneut versuchen.",
+      "save": "Die Änderung konnte nicht gespeichert werden. Bitte erneut versuchen.",
+      "catalog-save": "Der Katalog konnte nicht gespeichert werden. Bitte erneut versuchen."
+    },
+    "preferences": {
+      "title": "Was verfolgen",
+      "description": "Wenn die Besprechungsintelligenz verfügbar ist, werden diese Auswahlmöglichkeiten festlegen, was sie hervorhebt.",
+      "keywords": {
+        "label": "Schlüsselwörter verfolgen",
+        "description": "Wenn verfügbar, wird dies helfen, die Wörter zu erkennen, die Ihre Firma beobachten möchte."
+      },
+      "signals": {
+        "label": "Kundensignale anzeigen",
+        "description": "Wenn verfügbar, wird dies helfen, nützliche kundenbezogene Muster in freigegebener Besprechungsarbeit zu erkennen."
+      },
+      "display": {
+        "label": "Besprechungsansicht",
+        "description": "Lege fest, wie viel Platz jeder Eintrag nutzt.",
+        "comfortable": "Bequem",
+        "compact": "Kompakt"
+      }
+    },
+    "types": {
+      "title": "Besprechungstypen",
+      "description": "Verwende klare Namen, damit das Team den Besprechungstyp erkennt.",
+      "empty": "Noch keine Besprechungstypen vorhanden.",
+      "new-label": "Neuer Besprechungstyp",
+      "add": "Typ hinzufügen"
+    },
+    "templates": {
+      "title": "Besprechungsvorlagen",
+      "description": "Lege die freigegebene Arbeit fest, die jede Vorlage enthalten kann.",
+      "empty": "Noch keine Besprechungsvorlagen vorhanden.",
+      "new-label": "Neue Besprechungsvorlage",
+      "add": "Vorlage hinzufügen"
+    },
+    "artifacts": {
+      "legend": "In diese Vorlage aufnehmen",
+      "agenda": "Agenda",
+      "action-update-proposal": "Vorgeschlagene Aktionsänderung",
+      "client-signal": "Kundensignal",
+      "diarization": "Sprecherkennzeichnungen",
+      "follow-up-draft": "Entwurf für Nachbereitung",
+      "keyword-match": "Schlüsselworttreffer",
+      "notice-evidence": "Aufzeichnungsnachweis",
+      "pre-meeting-brief": "Vorbesprechungsbriefing",
+      "structured-notes": "Strukturierte Notizen",
+      "summary": "Zusammenfassung",
+      "talk-time-result": "Sprechzeit-Zusammenfassung",
+      "transcript": "Transkript"
+    }
   }
 }

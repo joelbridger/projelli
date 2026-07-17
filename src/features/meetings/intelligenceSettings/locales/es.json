@@ -6,10 +6,57 @@
     "loading": "Cargando ajustes de reuniones…",
     "saving": "Guardando…",
     "retry": "Intentar de nuevo",
-    "errors": { "load": "No se pudieron cargar los ajustes. Inténtalo de nuevo.", "save": "No se pudo guardar el cambio. Inténtalo de nuevo.", "catalog-save": "No se pudo guardar el catálogo. Inténtalo de nuevo." },
-    "preferences": { "title": "Qué seguir", "description": "Estas opciones solo cambian lo que la aplicación destaca en las reuniones.", "keywords": { "label": "Seguir palabras clave", "description": "Destaca las palabras que tu firma desea seguir." }, "signals": { "label": "Mostrar señales del cliente", "description": "Muestra patrones útiles de clientes en trabajo de reuniones aprobado." }, "display": { "label": "Vista de reuniones", "description": "Elige cuánto espacio usa cada reunión.", "comfortable": "Cómoda", "compact": "Compacta" } },
-    "types": { "title": "Tipos de reunión", "description": "Usa nombres claros para reconocer cada tipo de reunión.", "empty": "Aún no hay tipos de reunión.", "new-label": "Nuevo tipo de reunión", "add": "Añadir tipo" },
-    "templates": { "title": "Plantillas de reunión", "description": "Define el trabajo aprobado que puede incluir cada plantilla.", "empty": "Aún no hay plantillas de reunión.", "new-label": "Nueva plantilla de reunión", "add": "Añadir plantilla" },
-    "artifacts": { "agenda": "Agenda", "pre-meeting-brief": "Resumen previo", "structured-notes": "Notas estructuradas", "summary": "Resumen", "transcript": "Transcripción" }
+    "errors": {
+      "load": "No se pudieron cargar los ajustes. Inténtalo de nuevo.",
+      "save": "No se pudo guardar el cambio. Inténtalo de nuevo.",
+      "catalog-save": "No se pudo guardar el catálogo. Inténtalo de nuevo."
+    },
+    "preferences": {
+      "title": "Qué seguir",
+      "description": "Cuando la inteligencia de reuniones esté disponible, estas opciones guiarán lo que podrá destacar.",
+      "keywords": {
+        "label": "Seguir palabras clave",
+        "description": "Cuando esté disponible, esto ayudará a identificar las palabras que tu firma desea seguir."
+      },
+      "signals": {
+        "label": "Mostrar señales del cliente",
+        "description": "Cuando esté disponible, esto ayudará a identificar patrones útiles relacionados con clientes en trabajo de reuniones aprobado."
+      },
+      "display": {
+        "label": "Vista de reuniones",
+        "description": "Elige cuánto espacio usa cada reunión.",
+        "comfortable": "Cómoda",
+        "compact": "Compacta"
+      }
+    },
+    "types": {
+      "title": "Tipos de reunión",
+      "description": "Usa nombres claros para reconocer cada tipo de reunión.",
+      "empty": "Aún no hay tipos de reunión.",
+      "new-label": "Nuevo tipo de reunión",
+      "add": "Añadir tipo"
+    },
+    "templates": {
+      "title": "Plantillas de reunión",
+      "description": "Define el trabajo aprobado que puede incluir cada plantilla.",
+      "empty": "Aún no hay plantillas de reunión.",
+      "new-label": "Nueva plantilla de reunión",
+      "add": "Añadir plantilla"
+    },
+    "artifacts": {
+      "legend": "Incluir en esta plantilla",
+      "agenda": "Agenda",
+      "action-update-proposal": "Actualización de acción propuesta",
+      "client-signal": "Señal del cliente",
+      "diarization": "Etiquetas de hablante",
+      "follow-up-draft": "Borrador de seguimiento",
+      "keyword-match": "Coincidencia de palabra clave",
+      "notice-evidence": "Aviso de grabación",
+      "pre-meeting-brief": "Resumen previo",
+      "structured-notes": "Notas estructuradas",
+      "summary": "Resumen",
+      "talk-time-result": "Resumen de tiempo de conversación",
+      "transcript": "Transcripción"
+    }
   }
 }

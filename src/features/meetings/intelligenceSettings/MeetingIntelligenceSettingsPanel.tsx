@@ -15,9 +15,16 @@ import { Button } from '@/ui/kp';
 
 const ARTIFACT_KINDS = [
   'agenda',
+  'action-update-proposal',
+  'client-signal',
+  'diarization',
+  'follow-up-draft',
+  'keyword-match',
+  'notice-evidence',
   'pre-meeting-brief',
   'structured-notes',
   'summary',
+  'talk-time-result',
   'transcript',
 ] as const;
 
@@ -34,12 +41,28 @@ function artifactLabel(
   switch (kind) {
     case 'agenda':
       return t('meeting-intelligence-settings.artifacts.agenda');
+    case 'action-update-proposal':
+      return t(
+        'meeting-intelligence-settings.artifacts.action-update-proposal'
+      );
+    case 'client-signal':
+      return t('meeting-intelligence-settings.artifacts.client-signal');
+    case 'diarization':
+      return t('meeting-intelligence-settings.artifacts.diarization');
+    case 'follow-up-draft':
+      return t('meeting-intelligence-settings.artifacts.follow-up-draft');
+    case 'keyword-match':
+      return t('meeting-intelligence-settings.artifacts.keyword-match');
+    case 'notice-evidence':
+      return t('meeting-intelligence-settings.artifacts.notice-evidence');
     case 'pre-meeting-brief':
       return t('meeting-intelligence-settings.artifacts.pre-meeting-brief');
     case 'structured-notes':
       return t('meeting-intelligence-settings.artifacts.structured-notes');
     case 'summary':
       return t('meeting-intelligence-settings.artifacts.summary');
+    case 'talk-time-result':
+      return t('meeting-intelligence-settings.artifacts.talk-time-result');
     case 'transcript':
       return t('meeting-intelligence-settings.artifacts.transcript');
   }
@@ -61,9 +84,8 @@ function MeetingIntelligenceSettingsContent({
   const { t } = useTranslation();
   const storesRef = useRef(stores);
   storesRef.current = stores;
-  const [settings, setSettings] = useState<MeetingIntelligenceSettingsProjection>(
-    stores.settings.settings
-  );
+  const [settings, setSettings] =
+    useState<MeetingIntelligenceSettingsProjection>(stores.settings.settings);
   const [types, setTypes] = useState<readonly MeetingTypeDefinition[]>(
     stores.types.types
   );
@@ -76,7 +98,9 @@ function MeetingIntelligenceSettingsContent({
   const [reloadKey, setReloadKey] = useState(0);
   const [typeLabel, setTypeLabel] = useState('');
   const [templateLabel, setTemplateLabel] = useState('');
-  const [templateKinds, setTemplateKinds] = useState<readonly (typeof ARTIFACT_KINDS)[number][]>([]);
+  const [templateKinds, setTemplateKinds] = useState<
+    readonly (typeof ARTIFACT_KINDS)[number][]
+  >([]);
 
   useEffect(() => {
     let active = true;
@@ -128,7 +152,10 @@ function MeetingIntelligenceSettingsContent({
     setSaving(true);
     setError(null);
     try {
-      const saved = await storesRef.current.types.save([...types, { id, label }]);
+      const saved = await storesRef.current.types.save([
+        ...types,
+        { id, label },
+      ]);
       setTypes(saved);
       setTypeLabel('');
     } catch {
@@ -177,7 +204,10 @@ function MeetingIntelligenceSettingsContent({
         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
           {t('meeting-intelligence-settings.eyebrow')}
         </p>
-        <h2 className="mt-1 text-lg font-bold text-foreground" id="meeting-intelligence-settings-heading">
+        <h2
+          className="mt-1 text-lg font-bold text-foreground"
+          id="meeting-intelligence-settings-heading"
+        >
           {t('meeting-intelligence-settings.title')}
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -210,7 +240,7 @@ function MeetingIntelligenceSettingsContent({
         </div>
       ) : null}
 
-      <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
+      <section className="rounded-lg border border-border bg-card p-5">
         <h3 className="text-sm font-semibold">
           {t('meeting-intelligence-settings.preferences.title')}
         </h3>
@@ -218,23 +248,34 @@ function MeetingIntelligenceSettingsContent({
           {t('meeting-intelligence-settings.preferences.description')}
         </p>
         <div className="mt-4 divide-y divide-border">
-          {([
-            {
-              key: 'keywordTrackingEnabled',
-              label: t('meeting-intelligence-settings.preferences.keywords.label'),
-              description: t('meeting-intelligence-settings.preferences.keywords.description'),
-            },
-            {
-              key: 'clientSignalsEnabled',
-              label: t('meeting-intelligence-settings.preferences.signals.label'),
-              description: t('meeting-intelligence-settings.preferences.signals.description'),
-            },
-          ] as const).map(({ key, label, description }) => (
-            <label className="flex items-center justify-between gap-4 py-3" key={key}>
+          {(
+            [
+              {
+                key: 'keywordTrackingEnabled',
+                label: t(
+                  'meeting-intelligence-settings.preferences.keywords.label'
+                ),
+                description: t(
+                  'meeting-intelligence-settings.preferences.keywords.description'
+                ),
+              },
+              {
+                key: 'clientSignalsEnabled',
+                label: t(
+                  'meeting-intelligence-settings.preferences.signals.label'
+                ),
+                description: t(
+                  'meeting-intelligence-settings.preferences.signals.description'
+                ),
+              },
+            ] as const
+          ).map(({ key, label, description }) => (
+            <label
+              className="flex items-center justify-between gap-4 py-3"
+              key={key}
+            >
               <span>
-                <span className="block text-sm font-semibold">
-                  {label}
-                </span>
+                <span className="block text-sm font-semibold">{label}</span>
                 <span className="block text-sm text-muted-foreground">
                   {description}
                 </span>
@@ -244,11 +285,12 @@ function MeetingIntelligenceSettingsContent({
                 data-testid={`meeting-intelligence-settings-${key}`}
                 disabled={loading || saving}
                 onChange={(event) => {
-                  void saveSettings({ ...settings, [key]: event.target.checked }).catch(
-                    () => {
-                      setError(t('meeting-intelligence-settings.errors.save'));
-                    }
-                  );
+                  void saveSettings({
+                    ...settings,
+                    [key]: event.target.checked,
+                  }).catch(() => {
+                    setError(t('meeting-intelligence-settings.errors.save'));
+                  });
                 }}
                 type="checkbox"
               />
@@ -271,25 +313,30 @@ function MeetingIntelligenceSettingsContent({
                   disabled={loading || saving}
                   name="meeting-intelligence-display"
                   onChange={() => {
-                    void saveSettings({ ...settings, displayPreference: value }).catch(
-                      () => {
-                        setError(t('meeting-intelligence-settings.errors.save'));
-                      }
-                    );
+                    void saveSettings({
+                      ...settings,
+                      displayPreference: value,
+                    }).catch(() => {
+                      setError(t('meeting-intelligence-settings.errors.save'));
+                    });
                   }}
                   type="radio"
                   value={value}
                 />
                 {value === 'comfortable'
-                  ? t('meeting-intelligence-settings.preferences.display.comfortable')
-                  : t('meeting-intelligence-settings.preferences.display.compact')}
+                  ? t(
+                      'meeting-intelligence-settings.preferences.display.comfortable'
+                    )
+                  : t(
+                      'meeting-intelligence-settings.preferences.display.compact'
+                    )}
               </label>
             ))}
           </div>
         </fieldset>
       </section>
 
-      <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
+      <section className="rounded-lg border border-border bg-card p-6">
         <h3 className="text-sm font-semibold">
           {t('meeting-intelligence-settings.types.title')}
         </h3>
@@ -297,13 +344,18 @@ function MeetingIntelligenceSettingsContent({
           {t('meeting-intelligence-settings.types.description')}
         </p>
         {types.length === 0 && !loading ? (
-          <p className="mt-3 rounded-lg border border-dashed border-border bg-muted/40 p-4 text-sm text-muted-foreground">
+          <p className="mt-3 rounded-lg border border-dashed border-border bg-muted/40 p-6 text-center text-sm text-muted-foreground">
             {t('meeting-intelligence-settings.types.empty')}
           </p>
         ) : (
-          <ul className="mt-3 divide-y divide-border" data-testid="meeting-intelligence-settings-types">
+          <ul
+            className="mt-3 divide-y divide-border"
+            data-testid="meeting-intelligence-settings-types"
+          >
             {types.map((type) => (
-              <li className="py-2 text-sm" key={type.id}>{type.label}</li>
+              <li className="py-2 text-sm" key={type.id}>
+                {type.label}
+              </li>
             ))}
           </ul>
         )}
@@ -320,10 +372,13 @@ function MeetingIntelligenceSettingsContent({
           />
           <Button
             data-testid="meeting-intelligence-settings-add-type"
-            disabled={saving || !identifierFor(typeLabel)}
+            disabled={!identifierFor(typeLabel)}
+            loading={saving}
             onClick={() => {
               void addType().catch(() => {
-                setError(t('meeting-intelligence-settings.errors.catalog-save'));
+                setError(
+                  t('meeting-intelligence-settings.errors.catalog-save')
+                );
               });
             }}
             size="sm"
@@ -334,7 +389,7 @@ function MeetingIntelligenceSettingsContent({
         </div>
       </section>
 
-      <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
+      <section className="rounded-lg border border-border bg-card p-6">
         <h3 className="text-sm font-semibold">
           {t('meeting-intelligence-settings.templates.title')}
         </h3>
@@ -342,16 +397,21 @@ function MeetingIntelligenceSettingsContent({
           {t('meeting-intelligence-settings.templates.description')}
         </p>
         {templates.length === 0 && !loading ? (
-          <p className="mt-3 rounded-lg border border-dashed border-border bg-muted/40 p-4 text-sm text-muted-foreground">
+          <p className="mt-3 rounded-lg border border-dashed border-border bg-muted/40 p-6 text-center text-sm text-muted-foreground">
             {t('meeting-intelligence-settings.templates.empty')}
           </p>
         ) : (
-          <ul className="mt-3 divide-y divide-border" data-testid="meeting-intelligence-settings-templates">
+          <ul
+            className="mt-3 divide-y divide-border"
+            data-testid="meeting-intelligence-settings-templates"
+          >
             {templates.map((template) => (
               <li className="py-2 text-sm" key={template.id}>
                 <span className="font-semibold">{template.label}</span>
                 <span className="ml-2 text-muted-foreground">
-                  {template.artifactKinds.join(', ')}
+                  {template.artifactKinds
+                    .map((kind) => artifactLabel(t, kind))
+                    .join(', ')}
                 </span>
               </li>
             ))}
@@ -368,11 +428,15 @@ function MeetingIntelligenceSettingsContent({
             }}
             value={templateLabel}
           />
-          <div className="flex flex-wrap gap-x-4 gap-y-2">
+          <fieldset className="flex flex-wrap gap-x-4 gap-y-2">
+            <legend className="mb-2 text-sm font-semibold">
+              {t('meeting-intelligence-settings.artifacts.legend')}
+            </legend>
             {ARTIFACT_KINDS.map((kind) => (
               <label className="flex items-center gap-2 text-sm" key={kind}>
                 <input
                   checked={templateKinds.includes(kind)}
+                  data-testid={`meeting-intelligence-settings-artifact-${kind}`}
                   disabled={saving}
                   onChange={() => {
                     updateTemplateKind(kind);
@@ -382,22 +446,25 @@ function MeetingIntelligenceSettingsContent({
                 {artifactLabel(t, kind)}
               </label>
             ))}
-          </div>
+          </fieldset>
           <div>
             <Button
               data-testid="meeting-intelligence-settings-add-template"
-              disabled={saving || !identifierFor(templateLabel) || templateKinds.length === 0}
+              disabled={
+                !identifierFor(templateLabel) || templateKinds.length === 0
+              }
+              loading={saving}
               onClick={() => {
                 void addTemplate().catch(() => {
-                  setError(t('meeting-intelligence-settings.errors.catalog-save'));
+                  setError(
+                    t('meeting-intelligence-settings.errors.catalog-save')
+                  );
                 });
               }}
               size="sm"
               variant="secondary"
             >
-              {saving
-                ? t('meeting-intelligence-settings.saving')
-                : t('meeting-intelligence-settings.templates.add')}
+              {t('meeting-intelligence-settings.templates.add')}
             </Button>
           </div>
         </div>
@@ -411,7 +478,11 @@ export function MeetingIntelligenceSettingsPanel() {
   const settings = useMeetingIntelligenceSettingsStore();
   const types = useMeetingTypeStore();
   const templates = useMeetingTemplateStore();
-  return <MeetingIntelligenceSettingsContent stores={{ settings, types, templates }} />;
+  return (
+    <MeetingIntelligenceSettingsContent
+      stores={{ settings, types, templates }}
+    />
+  );
 }
 
 export { MeetingIntelligenceSettingsContent };
