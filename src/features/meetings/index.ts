@@ -1,4 +1,11 @@
 export {
+  MeetingIntelligenceSettingsContent,
+  MeetingIntelligenceSettingsPanel,
+  meetingIntelligenceSettingsPanel,
+  type IntelligenceStores,
+} from './intelligenceSettings';
+
+export {
   useMeetingStore,
   resolveMatterFolder,
   resolveWorkspaceRoot,

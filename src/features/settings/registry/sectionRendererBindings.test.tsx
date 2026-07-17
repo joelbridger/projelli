@@ -49,7 +49,14 @@ describe('renderRegisteredSettingsPanels', () => {
       isEnabled: () => flagOn,
     }));
     vi.doMock('./legacySettingsSections', () => ({
-      legacySettingsSections: [],
+      legacySettingsSections: [
+        {
+          id: 'scheduling',
+          order: 40,
+          labelKey: 'settings.sections.scheduling',
+          legacyLabel: 'Scheduling',
+        },
+      ],
       legacySettingsPanels: panels,
     }));
     const { renderRegisteredSettingsPanels } =
