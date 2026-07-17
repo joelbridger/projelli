@@ -2,16 +2,28 @@
   "meeting-keywords": {
     "title": "Temas seguidos",
     "settings-title": "Temas de reuniones seguidos",
-    "settings-description": "Estos términos se comparan localmente en notas, resúmenes y transcripciones de reuniones aprobadas.",
+    "settings-description": "{{productName}} revisa estos temas usando solo notas, resúmenes y transcripciones aprobadas de reuniones. Esta revisión no utiliza un servicio de IA.",
     "loading": "Cargando temas seguidos…",
     "insight-empty": "Aún no hay temas seguidos. Agrégalos en Ajustes para verlos aquí.",
-    "insight-none": "No se encontraron temas seguidos en los elementos de reuniones aprobados.",
-    "approved-sources": "Fuentes aprobadas: {{sources}}",
+    "insight-none": "No se encontraron temas seguidos en los registros de reuniones aprobados.",
+    "approved-sources": "Fuentes aprobadas:",
+    "source-preview-pending": "Las vistas previas de las fuentes no están disponibles aquí.",
+    "source-preview-unavailable": "La vista previa de {{source}} aparecerá aquí cuando esté disponible.",
+    "sources": {
+      "notes": "Notas",
+      "summary": "Resumen",
+      "transcript": "Transcripción",
+      "meeting-record": "Registro de reunión"
+    },
     "settings-empty": "Aún no se sigue ningún tema.",
     "input-label": "Tema seguido",
     "input-placeholder": "Agregar un tema",
     "add": "Agregar",
     "remove": "Quitar",
+    "remove-topic": "Quitar {{topic}}",
+    "mentions_one": "{{count}} mención",
+    "mentions_other": "{{count}} menciones",
+    "retry": "Intentar de nuevo",
     "errors": {
       "load": "No se pudieron cargar los temas seguidos.",
       "save": "No se pudieron guardar los temas seguidos."

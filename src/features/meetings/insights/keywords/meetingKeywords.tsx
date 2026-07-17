@@ -9,6 +9,7 @@ import {
   type ApprovedMeetingArtifactReader,
   type CitedMeetingInsight,
   type MeetingArtifactRequirement,
+  type MeetingArtifactKind,
   type MeetingKeywordCatalogueStore,
 } from '../../foundation/contract';
 import {
@@ -19,6 +20,9 @@ import type {
   MeetingInsightClientSummaryContext,
   MeetingInsightMeetingSummaryContext,
 } from '../../meetingWorkspaceTypes';
+import { Button } from '@/ui/kp';
+import { Input } from '@/ui/input';
+import { LIVE_CRM_RECORDS_CHANGED } from '@/platform/crm/useLiveCrmRecords';
 
 declare module '../../meetingWorkspaceTypes' {
   interface MeetingInsightIdMap {
@@ -36,6 +40,15 @@ export const MEETING_KEYWORD_ARTIFACT_REQUIREMENTS: readonly MeetingArtifactRequ
 
 const MEETING_KEYWORDS_INSIGHT_ID = 'meeting_keywords' as const;
 const MEETING_KEYWORDS_INSIGHT_VERSION = 1;
+
+/**
+ * The catalogue's visible error comes from the live CRM-record hook. Its
+ * normal refresh path clears that error after a successful reload, so retries
+ * must enter through that path as well as restarting this panel's local load.
+ */
+function reloadLiveCatalogue() {
+  window.dispatchEvent(new Event(LIVE_CRM_RECORDS_CHANGED));
+}
 
 export interface MeetingKeywordMatch {
   readonly term: string;
@@ -153,20 +166,36 @@ function MeetingKeywordsInsightCardEnabled({
   const catalogue = useMeetingKeywordCatalogueStore();
   const [terms, setTerms] = useState<readonly string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const loaded = useRef(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const catalogueRef = useRef(catalogue);
 
   useEffect(() => {
-    if (loaded.current) return;
-    loaded.current = true;
-    void catalogue
-      .get()
-      .then(setTerms)
-      .catch(() => {
-        setError(t('meeting-keywords.errors.load'));
-      });
-  }, [catalogue, t]);
+    catalogueRef.current = catalogue;
+  }, [catalogue]);
 
-  const insight = useMemo(() => {
+  useEffect(() => {
+    let active = true;
+    void catalogueRef.current
+      .get()
+      .then((next) => {
+        if (active) setTerms(next);
+      })
+      .catch(() => {
+        if (active) setError(t('meeting-keywords.errors.load'));
+      });
+    return () => {
+      active = false;
+    };
+  }, [reloadKey, t]);
+
+  const retryLoad = () => {
+    reloadLiveCatalogue();
+    setError(null);
+    setTerms(null);
+    setReloadKey((value) => value + 1);
+  };
+
+  const matchResults = useMemo(() => {
     if (!context.canonicalMeeting || !context.clientBoundary || !terms)
       return null;
     const reader = approvedMeetingArtifactsForClient(
@@ -175,14 +204,25 @@ function MeetingKeywordsInsightCardEnabled({
       context.clientBoundary,
       MEETING_KEYWORD_ARTIFACT_REQUIREMENTS
     );
-    return (
-      detectCitedMeetingKeywordInsights(
-        reader,
-        context.canonicalMeeting.id,
-        context.clientBoundary.householdRef,
-        terms
-      )[0] ?? null
+    const matches = detectMeetingKeywordMatches(
+      reader,
+      context.canonicalMeeting.id,
+      context.clientBoundary.householdRef,
+      terms
     );
+    return {
+      matches,
+      sourceKinds: [
+        ...new Set(
+          matches.flatMap((match) =>
+            match.sourceArtifactIds.flatMap((id) => {
+              const artifact = reader.get(id);
+              return artifact ? [artifact.kind] : [];
+            })
+          )
+        ),
+      ],
+    };
   }, [
     artifacts,
     context.canonicalMeeting,
@@ -193,52 +233,100 @@ function MeetingKeywordsInsightCardEnabled({
 
   if (error || catalogue.error) {
     return (
-      <div data-testid="meeting-keywords-error" style={cardStyle}>
-        {error ?? catalogue.error}
+      <div
+        data-testid="meeting-keywords-error"
+        role="alert"
+        style={quietStateStyle}
+      >
+        <span>{error ?? catalogue.error}</span>
+        <Button
+          data-testid="meeting-keywords-retry"
+          onClick={() => {
+            retryLoad();
+          }}
+          size="sm"
+          variant="secondary"
+        >
+          {t('meeting-keywords.retry')}
+        </Button>
       </div>
     );
   }
   if (!context.canonicalMeeting || !context.clientBoundary) return null;
   if (!terms)
     return (
-      <div data-testid="meeting-keywords-loading" style={cardStyle}>
+      <div
+        data-testid="meeting-keywords-loading"
+        role="status"
+        style={quietStateStyle}
+      >
         {t('meeting-keywords.loading')}
       </div>
     );
   if (terms.length === 0) {
     return (
-      <div data-testid="meeting-keywords-empty" style={cardStyle}>
+      <div
+        data-testid="meeting-keywords-empty"
+        role="status"
+        style={quietStateStyle}
+      >
         {t('meeting-keywords.insight-empty')}
       </div>
     );
   }
-  if (!insight)
+  if (!matchResults || matchResults.matches.length === 0)
     return (
-      <div data-testid="meeting-keywords-none" style={cardStyle}>
+      <div
+        data-testid="meeting-keywords-none"
+        role="status"
+        style={quietStateStyle}
+      >
         {t('meeting-keywords.insight-none')}
       </div>
     );
 
+  const headingId = 'meeting-keywords-insight-heading';
   return (
     <section
       data-testid="meeting-keywords-insight"
       style={cardStyle}
-      aria-label={t('meeting-keywords.title')}
+      aria-labelledby={headingId}
     >
-      <strong>{t('meeting-keywords.title')}</strong>
+      <h3 id={headingId} style={headingStyle}>
+        {t('meeting-keywords.title')}
+      </h3>
       <div style={{ marginTop: 6 }}>
-        {insight.summary.replace('Tracked topics: ', '')}
+        {matchResults.matches.map((match) => (
+          <div key={match.term}>
+            {match.term} ·{' '}
+            {t('meeting-keywords.mentions', { count: match.count })}
+          </div>
+        ))}
       </div>
       <div
         style={{
           marginTop: 8,
           fontSize: 12,
-          color: 'var(--color-muted-foreground)',
+          color: 'var(--kp-text-dim)',
         }}
       >
-        {t('meeting-keywords.approved-sources', {
-          sources: insight.sourceArtifactIds.join(', '),
-        })}
+        <span>{t('meeting-keywords.approved-sources')}</span>
+        <span
+          aria-label={t('meeting-keywords.approved-sources')}
+          role="list"
+          style={sourceListStyle}
+        >
+          {matchResults.sourceKinds.map((kind) => (
+            <span key={kind} role="listitem">
+              <span className="kp-badge kp-badge--sm kp-badge--neutral">
+                {sourceLabel(t, kind)}
+              </span>
+            </span>
+          ))}
+        </span>
+        <div style={{ marginTop: 6 }}>
+          {t('meeting-keywords.source-preview-pending')}
+        </div>
       </div>
     </section>
   );
@@ -250,9 +338,46 @@ const cardStyle = {
   border: '1px solid var(--kp-divider-strong)',
   borderRadius: 8,
   background: 'var(--color-card)',
-  color: 'var(--color-card-foreground)',
+  color: 'var(--kp-navy)',
   boxShadow: 'var(--kp-shadow-1)',
 } as const;
+
+const quietStateStyle = {
+  ...cardStyle,
+  alignItems: 'center',
+  background: 'var(--kp-bg-soft)',
+  borderStyle: 'dashed',
+  color: 'var(--kp-text-dim)',
+  display: 'flex',
+  flexDirection: 'column',
+  fontSize: 13,
+  gap: 12,
+  boxShadow: 'none',
+  padding: 26,
+  textAlign: 'center',
+} as const;
+
+const headingStyle = { margin: 0, fontSize: 14 } as const;
+
+const sourceListStyle = {
+  display: 'inline-flex',
+  flexWrap: 'wrap',
+  gap: 6,
+  marginLeft: 6,
+} as const;
+
+function sourceLabel(t: (key: string) => string, kind: MeetingArtifactKind) {
+  switch (kind) {
+    case 'structured-notes':
+      return t('meeting-keywords.sources.notes');
+    case 'summary':
+      return t('meeting-keywords.sources.summary');
+    case 'transcript':
+      return t('meeting-keywords.sources.transcript');
+    default:
+      return t('meeting-keywords.sources.meeting-record');
+  }
+}
 
 // eslint-disable-next-line react-refresh/only-export-components -- The registered descriptor intentionally composes this React surface.
 export const meetingKeywordsInsight: MeetingInsightDescriptor = {
@@ -309,24 +434,43 @@ function MeetingKeywordSettingsPanelEnabled({
   const [draft, setDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const loaded = useRef(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [retryTerms, setRetryTerms] = useState<readonly string[] | null>(null);
+  const catalogueRef = useRef(catalogue);
 
   useEffect(() => {
-    if (loaded.current) return;
-    loaded.current = true;
-    void catalogue
+    catalogueRef.current = catalogue;
+  }, [catalogue]);
+
+  useEffect(() => {
+    let active = true;
+    void catalogueRef.current
       .get()
-      .then(setTerms)
+      .then((next) => {
+        if (active) setTerms(next);
+      })
       .catch(() => {
-        setError(t('meeting-keywords.errors.load'));
+        if (active) setError(t('meeting-keywords.errors.load'));
       });
-  }, [catalogue, t]);
+    return () => {
+      active = false;
+    };
+  }, [reloadKey, t]);
+
+  const retryLoad = () => {
+    setError(null);
+    setTerms(null);
+    setRetryTerms(null);
+    setReloadKey((value) => value + 1);
+  };
 
   const save = async (next: readonly string[]) => {
     setSaving(true);
     setError(null);
+    setRetryTerms(next);
     try {
       setTerms(await catalogue.save(next));
+      setRetryTerms(null);
     } catch (reason) {
       setError(
         reason instanceof Error
@@ -340,40 +484,77 @@ function MeetingKeywordSettingsPanelEnabled({
   const add = () => {
     const term = draft.trim();
     if (!term || !terms) return;
-    void save([...terms, term]).catch((reason: unknown) => {
-      setError(
-        reason instanceof Error
-          ? reason.message
-          : t('meeting-keywords.errors.save')
-      );
-    });
+    startSave([...terms, term]);
     setDraft('');
   };
+  const startSave = (next: readonly string[]) => {
+    void save(next).catch(() => {
+      setError(t('meeting-keywords.errors.save'));
+    });
+  };
+
+  const currentError = error ?? catalogue.error;
+  const headingId = 'meeting-keywords-settings-heading';
 
   return (
     <section
       data-testid="meeting-keywords-settings"
       style={cardStyle}
-      aria-label={t('meeting-keywords.settings-title')}
+      aria-busy={saving || undefined}
+      aria-labelledby={headingId}
     >
-      <strong>{t('meeting-keywords.settings-title')}</strong>
+      <h2 id={headingId} style={headingStyle}>
+        {t('meeting-keywords.settings-title')}
+      </h2>
       <p
         style={{
           margin: '6px 0 12px',
           fontSize: 13,
-          color: 'var(--color-muted-foreground)',
+          color: 'var(--kp-text-dim)',
         }}
       >
         {t('meeting-keywords.settings-description')}
       </p>
-      {terms === null ? (
-        <div data-testid="meeting-keywords-settings-loading">
+      {currentError ? (
+        <div
+          data-testid="meeting-keywords-settings-error"
+          role="alert"
+          style={quietStateStyle}
+        >
+          <span>{currentError}</span>
+          <Button
+            data-testid="meeting-keywords-settings-retry"
+            disabled={saving}
+            onClick={() => {
+              reloadLiveCatalogue();
+              if (retryTerms) {
+                startSave(retryTerms);
+                return;
+              }
+              retryLoad();
+            }}
+            size="sm"
+            variant="secondary"
+          >
+            {t('meeting-keywords.retry')}
+          </Button>
+        </div>
+      ) : terms === null ? (
+        <div
+          data-testid="meeting-keywords-settings-loading"
+          role="status"
+          style={quietStateStyle}
+        >
           {t('meeting-keywords.loading')}
         </div>
       ) : (
         <>
           {terms.length === 0 ? (
-            <div data-testid="meeting-keywords-settings-empty">
+            <div
+              data-testid="meeting-keywords-settings-empty"
+              role="status"
+              style={quietStateStyle}
+            >
               {t('meeting-keywords.settings-empty')}
             </div>
           ) : (
@@ -384,56 +565,55 @@ function MeetingKeywordSettingsPanelEnabled({
               {terms.map((term) => (
                 <li key={term}>
                   {term}{' '}
-                  <button
-                    type="button"
+                  <Button
+                    aria-label={t('meeting-keywords.remove-topic', {
+                      topic: term,
+                    })}
                     disabled={saving}
                     onClick={() => {
-                      void save(terms.filter((item) => item !== term)).catch(
-                        (reason: unknown) => {
-                          setError(
-                            reason instanceof Error
-                              ? reason.message
-                              : t('meeting-keywords.errors.save')
-                          );
-                        }
-                      );
+                      startSave(terms.filter((item) => item !== term));
                     }}
+                    size="sm"
+                    variant="ghost"
                   >
                     {t('meeting-keywords.remove')}
-                  </button>
+                  </Button>
                 </li>
               ))}
             </ul>
           )}
-          <label style={{ display: 'flex', gap: 8 }}>
-            <span className="sr-only">{t('meeting-keywords.input-label')}</span>
-            <input
-              data-testid="meeting-keywords-settings-input"
-              value={draft}
-              onChange={(event) => {
-                setDraft(event.target.value);
-              }}
-              placeholder={t('meeting-keywords.input-placeholder')}
-              disabled={saving}
-            />
-            <button
-              data-testid="meeting-keywords-settings-add"
-              type="button"
-              onClick={add}
-              disabled={!draft.trim() || saving}
-            >
-              {t('meeting-keywords.add')}
-            </button>
-          </label>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              add();
+            }}
+            style={{ display: 'flex', flexDirection: 'column', gap: 6 }}
+          >
+            <label htmlFor="meeting-keywords-settings-input">
+              {t('meeting-keywords.input-label')}
+            </label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Input
+                data-testid="meeting-keywords-settings-input"
+                disabled={saving}
+                id="meeting-keywords-settings-input"
+                onChange={(event) => {
+                  setDraft(event.target.value);
+                }}
+                placeholder={t('meeting-keywords.input-placeholder')}
+                value={draft}
+              />
+              <Button
+                data-testid="meeting-keywords-settings-add"
+                disabled={!draft.trim() || saving}
+                size="sm"
+                type="submit"
+              >
+                {t('meeting-keywords.add')}
+              </Button>
+            </div>
+          </form>
         </>
-      )}
-      {(error ?? catalogue.error) && (
-        <div
-          data-testid="meeting-keywords-settings-error"
-          style={{ marginTop: 8, color: 'var(--color-destructive)' }}
-        >
-          {error ?? catalogue.error}
-        </div>
       )}
     </section>
   );
