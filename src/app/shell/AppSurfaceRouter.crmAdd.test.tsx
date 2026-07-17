@@ -156,7 +156,27 @@ function baseProps(
 
 function Harness() {
   const [activeTab, setActiveTab] = useState<AppSurface>('matters');
-  return <AppSurfaceRouter {...baseProps(activeTab, setActiveTab)} />;
+  return (
+    <>
+      <button
+        data-testid="router-show-record"
+        onClick={() => {
+          setActiveTab('matters');
+        }}
+      >
+        Show record
+      </button>
+      <button
+        data-testid="router-revisit-home"
+        onClick={() => {
+          setActiveTab('home');
+        }}
+      >
+        Revisit home
+      </button>
+      <AppSurfaceRouter {...baseProps(activeTab, setActiveTab)} />
+    </>
+  );
 }
 
 describe('CRM household add actions', () => {
@@ -177,7 +197,56 @@ describe('CRM household add actions', () => {
   afterEach(() => {
     cleanup();
     localStorage.clear();
+    setDevFlagOverride('workflow-record-quickadd', undefined);
+    setDevFlagOverride('crm-shell-v1', undefined);
     useMatterStore.setState({ matters: [], activeMatterId: null });
+  });
+
+  it('starts once from the public household workflow action and does not replay on revisit', async () => {
+    setDevFlagOverride('crm-shell-v1', false);
+    setDevFlagOverride('workflow-record-quickadd', true);
+    save.mockClear();
+    render(<Harness />);
+
+    fireEvent.click(await screen.findByTestId('crm-household-add'));
+    fireEvent.click(screen.getByTestId('crm-household-add-workflow'));
+
+    expect(
+      await screen.findByTestId('workflow-record-quickadd')
+    ).toHaveTextContent('Henderson household');
+    expect(
+      screen.getByTestId('workflow-record-quickadd-template-workflow-1')
+    ).toBeVisible();
+    fireEvent.click(screen.getByTestId('workflow-record-quickadd-start'));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId('workflow-record-quickadd')
+      ).not.toBeInTheDocument();
+    });
+    const instanceWrites = save.mock.calls.filter(
+      ([record]) => record.kind === 'crm_workflow_instance'
+    );
+    expect(instanceWrites).toHaveLength(1);
+    expect(instanceWrites[0]?.[0]).toMatchObject({
+      householdId: 'h-1',
+      householdLabel: 'Henderson household',
+      matterId: 'h-1',
+      templateId: 'workflow-1',
+    });
+
+    fireEvent.click(screen.getByTestId('router-show-record'));
+    await screen.findByTestId('crm-household-add');
+    fireEvent.click(screen.getByTestId('router-revisit-home'));
+    await screen.findByTestId('crm-home');
+    expect(
+      screen.queryByTestId('workflow-record-quickadd')
+    ).not.toBeInTheDocument();
+    expect(
+      save.mock.calls.filter(
+        ([record]) => record.kind === 'crm_workflow_instance'
+      )
+    ).toHaveLength(1);
   });
 
   describe.each([

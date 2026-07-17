@@ -5,6 +5,7 @@ import type {
   WorkflowTemplateRecord,
 } from '../workflowTemplateStore';
 import { workflowFiltersAuthoringExtension } from '../filters';
+import { workflowRecordQuickAddDescriptor } from '../record-quickadd';
 
 export type WorkflowRecordStartRequest = Readonly<
   CrmHouseholdAddRequest & { kind: 'workflow' }
@@ -41,7 +42,7 @@ export interface WorkflowRecordStartComposition {
 
 /** Append feature-owned record-start mounts here without changing their context. */
 export const workflowRecordStartRegistry: readonly WorkflowRecordStartDescriptor[] =
-  [];
+  [workflowRecordQuickAddDescriptor];
 
 export function validateWorkflowRecordStartDescriptors(
   descriptors: readonly WorkflowRecordStartDescriptor[]

@@ -1,0 +1,19 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/v1-w2-workflow-record-quickadd-r2
+sha: 519219be6c3ed2580aef7c45e597229fc763beab
+tree: ca6d3f25ef4ab1bd84b6f1e6bde3ae949f3f6c11
+gate_base: cb09c8c4f9767f1334bedd381fe0f28f0018a2f3
+tool_blob: 7912bf11eefdacea0702600b19d3bc5b3d7f2606
+utc: 2026-07-16T19:40:25Z
+step_timeout_seconds: 300
+loadavg: 36.96 30.33 17.48
+running_vitest_eslint_procs: 17
+step: gate:changed | status=INCONCLUSIVE-UNDER-LOAD | exit=124 | 19:40:25Z..19:45:25Z | bytes=10967 | sha256=f63894439060c72f5a09de9d2784bb1fd92ef306904810b9493538b944c759e5 | tail: ray inline identity strings in call sites pass no stray inline keepance: literals in src/ TS files identity:check PASSED ===== ESLint gate ===== > advisor-prep-hero@3.3.5 lint:gate > node scripts/eslint-gate.mjs
+step: typecheck | status=FAIL | exit=2 | 19:45:25Z..19:47:49Z | bytes=741 | sha256=cb39fbda7a512cc067c8105600c608858b28d465bd79562f23d5581164319e17 | tail: ): error TS7006: Parameter 'page' implicitly has an 'any' type. src/platform/docusignSigning/signatureWorkflowCoordinates.test.ts(2,29): error TS2307: Cannot find module 'pdf-lib' or its corresponding type declarations.
+step: typecheck:tests | status=FAIL | exit=2 | 19:47:49Z..19:50:23Z | bytes=2108 | sha256=4d7ddf0bae3814908250f9c75e598436fdefe397ceb6f5bd8bb612a3ad3674d6 | tail: rgence.test.ts(25,31): error TS7006: Parameter 'index' implicitly has an 'any' type. tests/live/docusignSandboxRoundtrip.test.ts(18,49): error TS2307: Cannot find module 'pdf-lib' or its corresponding type declarations.
+step: handle-guard | status=PASS | exit=0 | 19:50:23Z..19:50:24Z | bytes=1322 | sha256=67e7c374b5573de4b20091841cd812a9964aba0e67385752974cceaebe12372a | tail: ic-page-unavailable + client-bar-clear + client-bar-current + client-bar-open-${} +336 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen).
+step: arch-dag-guard | status=PASS | exit=0 | 19:50:24Z..19:50:31Z | bytes=234 | sha256=245c30049d4c53c8b6e36c2057b0afe3bb76244d6a3157654eff670d61025c93 | tail: /home/jameson/v1-w2-workflow-record-quickadd-r2 Test Files 1 passed (1) Tests 1 passed (1) Start at 19:50:25 Duration 5.74s (transform 1.31s, setup 1.78s, import 782ms, tests 10ms, environment 2.22s)
+step: i18n-snapshot | status=PASS | exit=0 | 19:50:31Z..19:50:34Z | bytes=234 | sha256=919a31526db080840f6b135ffe4d7078669d08b1b0dcbb6f19a85ab1bff5df8f | tail: /home/jameson/v1-w2-workflow-record-quickadd-r2 Test Files 1 passed (1) Tests 5 passed (5) Start at 19:50:31 Duration 2.91s (transform 1.10s, setup 1.46s, import 506ms, tests 58ms, environment 659ms)
+step: focused | status=FAIL | exit=1 | 19:50:34Z..19:50:44Z | bytes=1342 | sha256=a37b4e2fc20d2479a8db603581c04d331be0f87307b6804f888f9a781ccedb26 | tail: cordQuickAdd.test.tsx:31:34 [1/1] Test Files 1 failed | 2 passed (3) Tests 3 passed (3) Start at 19:50:35 Duration 8.36s (transform 9.48s, setup 5.10s, import 10.11s, tests 559ms, environment 2.40s)
+overall: INCONCLUSIVE
