@@ -19,8 +19,299 @@ import { seedSampleClientMap } from '@/platform/matter/samples/sampleClientMap';
 import { useProfessionStore } from '@/platform/profile/professionStore';
 import { buildOpenFilesPromptBlock } from '@/features/ask/AIChatViewer';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
-import type { FileNode } from '@/platform/types/workspace';
+import type { FSBackend, FileStat, WorkspaceInitOptions } from '@/platform/fs/types';
+import type { FileNode, RecentWorkspace, Workspace } from '@/platform/types/workspace';
 import type React from 'react';
+
+const TEST_WORKSPACE_ROOT = '/test-workspace';
+
+/**
+ * The public WorkspaceService surface test mode must implement. `keyof` keeps
+ * this coupled to the real service, so adding a production method makes this
+ * mock fail type-checking until it supplies an honest test-mode behaviour.
+ */
+export type TestModeWorkspaceService = Pick<
+  WorkspaceService,
+  keyof WorkspaceService
+>;
+
+export interface TestModeWorkspaceMock {
+  service: TestModeWorkspaceService;
+  listFiles(): string[];
+  hasFile(path: string): boolean;
+  seedFile(path: string, bytes: ArrayBuffer): void;
+}
+/** Build the browser/E2E in-memory equivalent of an open workspace. */
+export function createTestModeWorkspaceMock(): TestModeWorkspaceMock {
+  const files = new Map<string, ArrayBuffer>();
+  const directories = new Set<string>([TEST_WORKSPACE_ROOT]);
+  const textEncoder = new TextEncoder();
+  const now = () => new Date();
+  const normalizeDirectory = (path: string) =>
+    path === '/' ? path : path.replace(/\/+$/, '');
+  const parentPath = (path: string) =>
+    path.slice(0, path.lastIndexOf('/')) || TEST_WORKSPACE_ROOT;
+  const copyBuffer = (buffer: ArrayBuffer) => {
+    const copy = new ArrayBuffer(buffer.byteLength);
+    new Uint8Array(copy).set(new Uint8Array(buffer));
+    return copy;
+  };
+  const ensureParents = (path: string) => {
+    let parent = parentPath(path);
+    while (parent.startsWith(TEST_WORKSPACE_ROOT)) {
+      directories.add(parent);
+      if (parent === TEST_WORKSPACE_ROOT) break;
+      parent = parentPath(parent);
+    }
+  };
+  const folderHasChildren = (folderPath: string) => {
+    const normalized = normalizeDirectory(folderPath);
+    const prefix = normalized.endsWith('/') ? normalized : `${normalized}/`;
+    return (
+      Array.from(files.keys()).some((path) => path.startsWith(prefix)) ||
+      Array.from(directories).some(
+        (path) => path !== normalized && path.startsWith(prefix)
+      )
+    );
+  };
+  const moveDirectories = (from: string, to: string) => {
+    const fromPrefix = `${from}/`;
+    for (const directory of [...directories]) {
+      if (directory === from || directory.startsWith(fromPrefix)) {
+        directories.delete(directory);
+        directories.add(
+          directory === from
+            ? to
+            : `${to}/${directory.slice(fromPrefix.length)}`
+        );
+      }
+    }
+  };
+  const moveFiles = (from: string, to: string, removeSource: boolean) => {
+    const directFile = files.get(from);
+    if (directFile) {
+      files.set(to, copyBuffer(directFile));
+      if (removeSource) files.delete(from);
+      ensureParents(to);
+      return;
+    }
+    const fromPrefix = `${from}/`;
+    for (const [path, bytes] of [...files.entries()]) {
+      if (!path.startsWith(fromPrefix)) continue;
+      const target = `${to}/${path.slice(fromPrefix.length)}`;
+      files.set(target, copyBuffer(bytes));
+      if (removeSource) files.delete(path);
+      ensureParents(target);
+    }
+  };
+  let workspace: Workspace | null = {
+    rootPath: TEST_WORKSPACE_ROOT,
+    name: 'test-workspace',
+    createdAt: now(),
+    lastOpenedAt: now(),
+  };
+
+  const service = {
+    async initialize(
+      _backend: FSBackend,
+      rootPath: string,
+      _options?: WorkspaceInitOptions
+    ): Promise<Workspace> {
+      await Promise.resolve();
+      directories.add(normalizeDirectory(rootPath));
+      workspace = {
+        rootPath,
+        name: rootPath.split('/').filter(Boolean).pop() ?? rootPath,
+        createdAt: now(),
+        lastOpenedAt: now(),
+      };
+      return workspace;
+    },
+    getWorkspace(): Workspace | null {
+      return workspace;
+    },
+    getRootPath(): string | null {
+      return workspace?.rootPath ?? null;
+    },
+    isInitialized(): boolean {
+      return workspace !== null;
+    },
+    getBackend(): FSBackend | null {
+      return null;
+    },
+    close(): void {
+      workspace = null;
+    },
+    async readFile(path: string): Promise<string> {
+      await Promise.resolve();
+      const bytes = files.get(path);
+      if (!bytes) throw new Error(`Not found: ${path}`);
+      return new TextDecoder().decode(bytes);
+    },
+    async readFileBinary(path: string): Promise<ArrayBuffer> {
+      await Promise.resolve();
+      const bytes = files.get(path);
+      if (!bytes) throw new Error(`Not found: ${path}`);
+      return copyBuffer(bytes);
+    },
+    async writeFile(path: string, content: string): Promise<void> {
+      await Promise.resolve();
+      files.set(path, copyBuffer(textEncoder.encode(content).buffer));
+      ensureParents(path);
+    },
+    async writeFileBinary(path: string, content: ArrayBuffer): Promise<void> {
+      await Promise.resolve();
+      files.set(path, copyBuffer(content));
+      ensureParents(path);
+    },
+    async exists(path: string): Promise<boolean> {
+      await Promise.resolve();
+      return (
+        files.has(path) ||
+        directories.has(normalizeDirectory(path)) ||
+        folderHasChildren(path)
+      );
+    },
+    async delete(path: string): Promise<void> {
+      await Promise.resolve();
+      files.delete(path);
+      const prefix = `${normalizeDirectory(path)}/`;
+      for (const filePath of [...files.keys()]) {
+        if (filePath.startsWith(prefix)) files.delete(filePath);
+      }
+      for (const directory of [...directories]) {
+        if (
+          directory === normalizeDirectory(path) ||
+          directory.startsWith(prefix)
+        )
+          directories.delete(directory);
+      }
+    },
+    async move(from: string, to: string): Promise<void> {
+      await Promise.resolve();
+      moveFiles(from, to, true);
+      moveDirectories(normalizeDirectory(from), normalizeDirectory(to));
+    },
+    async copy(from: string, to: string): Promise<void> {
+      await Promise.resolve();
+      moveFiles(from, to, false);
+      const fromDirectory = normalizeDirectory(from);
+      const toDirectory = normalizeDirectory(to);
+      const fromPrefix = `${fromDirectory}/`;
+      for (const directory of [...directories]) {
+        if (directory === fromDirectory || directory.startsWith(fromPrefix)) {
+          directories.add(
+            directory === fromDirectory
+              ? toDirectory
+              : `${toDirectory}/${directory.slice(fromPrefix.length)}`
+          );
+        }
+      }
+    },
+    async rename(path: string, newName: string): Promise<void> {
+      await service.move(path, `${parentPath(path)}/${newName}`);
+    },
+    async mkdir(path: string): Promise<void> {
+      await Promise.resolve();
+      directories.add(normalizeDirectory(path));
+      ensureParents(path);
+    },
+    async list(path: string): Promise<FileNode[]> {
+      await Promise.resolve();
+      const normalized = normalizeDirectory(path);
+      const prefix = normalized.endsWith('/') ? normalized : `${normalized}/`;
+      const entries = new Map<string, 'file' | 'folder'>();
+      for (const filePath of files.keys()) {
+        if (!filePath.startsWith(prefix)) continue;
+        const rest = filePath.slice(prefix.length);
+        const slash = rest.indexOf('/');
+        entries.set(
+          slash === -1 ? rest : rest.slice(0, slash),
+          slash === -1 ? 'file' : 'folder'
+        );
+      }
+      for (const directory of directories) {
+        if (!directory.startsWith(prefix) || directory === normalized) continue;
+        const rest = directory.slice(prefix.length);
+        const slash = rest.indexOf('/');
+        entries.set(slash === -1 ? rest : rest.slice(0, slash), 'folder');
+      }
+      return [...entries].map(([name, type]) => ({
+        name,
+        path: `${prefix}${name}`,
+        id: `${prefix}${name}`,
+        type,
+      }));
+    },
+    async stat(path: string): Promise<FileStat> {
+      await Promise.resolve();
+      const bytes = files.get(path);
+      if (bytes)
+        return {
+          path,
+          name: path.split('/').pop() ?? path,
+          type: 'file',
+          size: bytes.byteLength,
+          modifiedAt: now(),
+          createdAt: now(),
+          isSymlink: false,
+        };
+      if (
+        directories.has(normalizeDirectory(path)) ||
+        folderHasChildren(path)
+      ) {
+        return {
+          path,
+          name: path.split('/').filter(Boolean).pop() ?? path,
+          type: 'folder',
+          size: 0,
+          modifiedAt: now(),
+          createdAt: now(),
+          isSymlink: false,
+        };
+      }
+      throw new Error(`Not found: ${path}`);
+    },
+    async isSymlink(): Promise<boolean> {
+      await Promise.resolve();
+      return false;
+    },
+    async resolveSymlink(path: string): Promise<string> {
+      await Promise.resolve();
+      throw new Error(`Test-mode workspace has no symlinks: ${path}`);
+    },
+    async getFileTree(): Promise<FileNode[]> {
+      const buildTree = async (path: string): Promise<FileNode[]> => {
+        const entries = await service.list(path);
+        return Promise.all(
+          entries.map(async (entry) =>
+            entry.type === 'folder'
+              ? { ...entry, children: await buildTree(entry.path) }
+              : entry.name.lastIndexOf('.') > 0
+                ? { ...entry, extension: entry.name.slice(entry.name.lastIndexOf('.') + 1) }
+                : entry
+          )
+        );
+      };
+      return buildTree(workspace?.rootPath ?? TEST_WORKSPACE_ROOT);
+    },
+    toRecentWorkspace(): RecentWorkspace | null {
+      return workspace
+        ? { path: workspace.rootPath, name: workspace.name, lastOpened: now() }
+        : null;
+    },
+  } satisfies TestModeWorkspaceService;
+
+  return {
+    service,
+    listFiles: () => [...files.keys()],
+    hasFile: (path) => files.has(path),
+    seedFile: (path, bytes) => {
+      files.set(path, copyBuffer(bytes));
+      ensureParents(path);
+    },
+  };
+}
 
 export interface UseTestModeWorkspaceOptions {
   isTestMode: boolean;
@@ -157,199 +448,18 @@ export function useTestModeWorkspace(options: UseTestModeWorkspaceOptions): void
       // MainPanel. The mock is an in-memory key/value map with a small set of
       // pre-seeded files (populated on first use by tests via __mockWrite).
       if (!workspaceServiceRef.current) {
-        const mockFs = new Map<string, ArrayBuffer>();
-        const mockDirs = new Set<string>();
-        const textEncoder = new TextEncoder();
-        // Helpers that synthesize folder semantics over a flat key map so
-        // the AI chat persistence flow (mkdir + list + readFile) and any
-        // other code that recurses into folders keeps working in test mode.
-        const folderHasChildren = (folderPath: string) => {
-          const prefix = folderPath.endsWith('/') ? folderPath : `${folderPath}/`;
-          for (const key of mockFs.keys()) {
-            if (key.startsWith(prefix)) return true;
-          }
-          return false;
-        };
-        const mockService = {
-          async exists(path: string): Promise<boolean> {
-            return mockFs.has(path) || folderHasChildren(path);
-          },
-          async readFile(path: string): Promise<string> {
-            const buf = mockFs.get(path);
-            if (!buf) throw new Error(`Not found: ${path}`);
-            return new TextDecoder().decode(buf);
-          },
-          async readFileBinary(path: string): Promise<ArrayBuffer> {
-            const buf = mockFs.get(path);
-            if (!buf) throw new Error(`Not found: ${path}`);
-            return buf;
-          },
-          async writeFile(path: string, content: string): Promise<void> {
-            const bytes = textEncoder.encode(content);
-            // Copy into a detached ArrayBuffer so callers can't mutate the
-            // map's stored buffer.
-            const copy = new ArrayBuffer(bytes.byteLength);
-            new Uint8Array(copy).set(bytes);
-            mockFs.set(path, copy);
-          },
-          async writeFileBinary(path: string, content: ArrayBuffer): Promise<void> {
-            const copy = new ArrayBuffer(content.byteLength);
-            new Uint8Array(copy).set(new Uint8Array(content));
-            mockFs.set(path, copy);
-          },
-          async mkdir(path: string): Promise<void> {
-            // Track explicit (possibly empty) folders so getFileTree + list show
-            // them even before they contain a file. Real backends persist the dir.
-            mockDirs.add(path.replace(/\/+$/, ''));
-          },
-          async list(path: string): Promise<Array<{ name: string; path: string; type: 'file' | 'folder' }>> {
-            const prefix = path.endsWith('/') ? path : `${path}/`;
-            const directChildren = new Map<string, 'file' | 'folder'>();
-            for (const key of mockFs.keys()) {
-              if (!key.startsWith(prefix)) continue;
-              const rest = key.slice(prefix.length);
-              const slashIdx = rest.indexOf('/');
-              if (slashIdx === -1) {
-                directChildren.set(rest, 'file');
-              } else {
-                directChildren.set(rest.slice(0, slashIdx), 'folder');
-              }
-            }
-            return Array.from(directChildren.entries()).map(([name, type]) => ({
-              name,
-              path: `${prefix}${name}`,
-              type,
-            }));
-          },
-          async getFileTree() {
-            // Build a nested file/folder tree from the flat mock fs + the
-            // explicit dir set, so the Documents grid reflects real files AND
-            // folders the user creates (the no-op version returned nothing, so
-            // created folders never appeared in test mode).
-            type N = { id: string; path: string; name: string; type: 'file' | 'folder'; extension?: string; children: N[] };
-            const TEST_ROOT = '/test-workspace';
-            const entries = new Map<string, 'file' | 'folder'>();
-            const addAncestors = (p: string): void => {
-              let parent = p.slice(0, p.lastIndexOf('/'));
-              while (parent.length > TEST_ROOT.length) {
-                if (!entries.has(parent)) entries.set(parent, 'folder');
-                parent = parent.slice(0, parent.lastIndexOf('/'));
-              }
-            };
-            for (const key of mockFs.keys()) {
-              if (!key.startsWith(`${TEST_ROOT}/`)) continue;
-              entries.set(key, 'file');
-              addAncestors(key);
-            }
-            for (const dir of mockDirs) {
-              if (!dir.startsWith(`${TEST_ROOT}/`)) continue;
-              if (!entries.has(dir)) entries.set(dir, 'folder');
-              addAncestors(dir);
-            }
-            const nodeMap = new Map<string, N>();
-            const tops: N[] = [];
-            const sorted = [...entries.entries()].sort(
-              (a, b) => a[0].split('/').length - b[0].split('/').length,
-            );
-            for (const [path, type] of sorted) {
-              const name = path.slice(path.lastIndexOf('/') + 1);
-              const dotIdx = name.lastIndexOf('.');
-              const node: N = {
-                id: path,
-                path,
-                name,
-                type,
-                children: [],
-                ...(type === 'file' && dotIdx > 0 ? { extension: name.slice(dotIdx + 1) } : {}),
-              };
-              nodeMap.set(path, node);
-              const parent = path.slice(0, path.lastIndexOf('/'));
-              const pn = nodeMap.get(parent);
-              if (parent === TEST_ROOT || !pn) tops.push(node);
-              else pn.children.push(node);
-            }
-            return tops;
-          },
-          async stat(path: string) {
-            if (mockFs.has(path)) {
-              return { type: 'file' as const, size: mockFs.get(path)?.byteLength ?? 0 };
-            }
-            if (folderHasChildren(path)) {
-              return { type: 'folder' as const, size: 0 };
-            }
-            throw new Error(`Not found: ${path}`);
-          },
-          async delete(path: string) {
-            mockFs.delete(path);
-          },
-          async rename(oldPath: string, newName: string) {
-            // Real WorkspaceService.rename takes (oldPath, newName) where
-            // newName is just the basename; it derives the new path from
-            // oldPath's parent dir. Mirror that so dev-mode mirrors prod.
-            const slashIdx = oldPath.lastIndexOf('/');
-            const parent = slashIdx === -1 ? '' : oldPath.slice(0, slashIdx);
-            const newPath = parent ? `${parent}/${newName}` : newName;
-            const buf = mockFs.get(oldPath);
-            if (buf) {
-              const copy = new ArrayBuffer(buf.byteLength);
-              new Uint8Array(copy).set(new Uint8Array(buf));
-              mockFs.set(newPath, copy);
-              mockFs.delete(oldPath);
-            }
-          },
-          async move(from: string, to: string) {
-            // Real WorkspaceService.move takes (from, to) as FULL paths (App's
-            // handleMove computes `to = targetFolder + '/' + basename`). Relocate
-            // the file — or every descendant when `from` is a folder — so the
-            // Documents grid + tree drag-and-drop work in dev/test mode just like
-            // production (where TauriFSBackend.move does the real rename).
-            const fromBuf = mockFs.get(from);
-            if (fromBuf) {
-              const copy = new ArrayBuffer(fromBuf.byteLength);
-              new Uint8Array(copy).set(new Uint8Array(fromBuf));
-              mockFs.set(to, copy);
-              mockFs.delete(from);
-            } else {
-              // Folder move: re-key every file under `from/` to `to/`.
-              const fromPrefix = `${from}/`;
-              const movedKeys: Array<[string, ArrayBuffer]> = [];
-              for (const [key, buf] of mockFs.entries()) {
-                if (key.startsWith(fromPrefix)) {
-                  const rest = key.slice(fromPrefix.length);
-                  const copy = new ArrayBuffer(buf.byteLength);
-                  new Uint8Array(copy).set(new Uint8Array(buf));
-                  movedKeys.push([`${to}/${rest}`, copy]);
-                  mockFs.delete(key);
-                }
-              }
-              for (const [key, buf] of movedKeys) mockFs.set(key, buf);
-            }
-            // Keep the explicit-dir set in sync for empty folders.
-            if (mockDirs.has(from)) {
-              mockDirs.delete(from);
-              mockDirs.add(to);
-            }
-            const fromDirPrefix = `${from}/`;
-            for (const dir of [...mockDirs]) {
-              if (dir.startsWith(fromDirPrefix)) {
-                mockDirs.delete(dir);
-                mockDirs.add(`${to}/${dir.slice(fromDirPrefix.length)}`);
-              }
-            }
-          },
-        };
-        workspaceServiceRef.current = mockService as unknown as WorkspaceService;
+        const testWorkspace = createTestModeWorkspaceMock();
+        // TestModeWorkspaceService is checked against every public
+        // WorkspaceService member above. This one assertion only bridges the
+        // class's private implementation state; it cannot hide a missing method.
+        workspaceServiceRef.current = testWorkspace.service as WorkspaceService;
         setActiveWorkspaceService(workspaceServiceRef.current); // BUG-046: flush accessor
         setMeetingsWorkspaceService(workspaceServiceRef.current); // Wave 3c: meetings feature accessor
         // Seed the two demo tabs into the mock filesystem too so that any
         // workspace op which goes through the real fs path (rename, exists,
-        // readFile during reopen-after-rename) finds them. Without this seed
-        // the editor store has tabs but mockFs has nothing.
+        // readFile during reopen-after-rename) finds them.
         const seedText = (path: string, content: string) => {
-          const bytes = textEncoder.encode(content);
-          const copy = new ArrayBuffer(bytes.byteLength);
-          new Uint8Array(copy).set(bytes);
-          mockFs.set(path, copy);
+          testWorkspace.seedFile(path, new TextEncoder().encode(content).buffer);
         };
         seedText('/test-workspace/docs/test1.md', '# Test Document 1\n\nThis is a test markdown document.');
         seedText('/test-workspace/docs/test2.txt', 'This is a plain text document for testing the formatting toolbar.');
@@ -360,12 +470,10 @@ export function useTestModeWorkspace(options: UseTestModeWorkspaceOptions): void
             seed: (p: string, bytes: ArrayBuffer) => void;
           };
         }).__mockWorkspaceFs = {
-          list: () => Array.from(mockFs.keys()),
-          has: (p: string) => mockFs.has(p),
-          seed: (p: string, bytes: ArrayBuffer) => {
-            const copy = new ArrayBuffer(bytes.byteLength);
-            new Uint8Array(copy).set(new Uint8Array(bytes));
-            mockFs.set(p, copy);
+          list: () => testWorkspace.listFiles(),
+          has: (path) => testWorkspace.hasFile(path),
+          seed: (path, bytes) => {
+            testWorkspace.seedFile(path, bytes);
           },
         };
       }
@@ -422,9 +530,8 @@ export function useTestModeWorkspace(options: UseTestModeWorkspaceOptions): void
           { path: `${DIR}/Financial Plan Summary.md`, name: 'Financial Plan Summary.md', content: '# Financial Plan Summary: Webb Household\n\n- Retire at 60, fund both kids\' college, pay off the house early.\n- Marcus 401(k) $412k; old 401(k) $96k (rollover pending); Tanya 403(b) $188k.\n- Roth IRAs $61k / $54k; 529s $48k / $29k; cash reserve $55k.\n\nPlan: roll the old 401(k) in, keep the 529 auto-contributions, revisit a Roth conversion in a low-income year, hold the moderate-growth allocation.\n' },
           { path: `${DIR}/Client Intake Summary.md`, name: 'Client Intake Summary.md', content: '# Client Intake Summary\n\n**Household:** Marcus & Tanya Webb\n**Engagement:** Comprehensive planning + investment management.\n\nFlag: confirm the beneficiary on the old 401(k) and the rollover paperwork.\n' },
         ];
-        const svc = workspaceServiceRef.current;
-        if (svc) {
-          void Promise.all(matterFiles.map((f) => svc.writeFile(f.path, f.content))).then(() => {
+        const service = workspaceServiceRef.current;
+        void Promise.all(matterFiles.map((f) => service.writeFile(f.path, f.content))).then(() => {
             setFileTree([
               {
                 id: DIR, name: 'Webb Household', path: DIR, type: 'folder',
@@ -435,10 +542,10 @@ export function useTestModeWorkspace(options: UseTestModeWorkspaceOptions): void
               },
             ] as Parameters<typeof setFileTree>[0]);
             expandAllFolders();
-            const firstFile = matterFiles[0]!;
+            const firstFile = matterFiles[0];
+            if (!firstFile) return;
             openFile(firstFile.path, firstFile.name, firstFile.content);
           });
-        }
       }
     }
   }, [isTestMode, rootPath, setRootPath, openFile]);
