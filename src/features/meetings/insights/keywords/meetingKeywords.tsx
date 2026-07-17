@@ -21,6 +21,8 @@ import type {
   MeetingInsightMeetingSummaryContext,
 } from '../../meetingWorkspaceTypes';
 import { Button } from '@/ui/kp';
+import { Input } from '@/ui/input';
+import { LIVE_CRM_RECORDS_CHANGED } from '@/platform/crm/useLiveCrmRecords';
 
 declare module '../../meetingWorkspaceTypes' {
   interface MeetingInsightIdMap {
@@ -38,6 +40,15 @@ export const MEETING_KEYWORD_ARTIFACT_REQUIREMENTS: readonly MeetingArtifactRequ
 
 const MEETING_KEYWORDS_INSIGHT_ID = 'meeting_keywords' as const;
 const MEETING_KEYWORDS_INSIGHT_VERSION = 1;
+
+/**
+ * The catalogue's visible error comes from the live CRM-record hook. Its
+ * normal refresh path clears that error after a successful reload, so retries
+ * must enter through that path as well as restarting this panel's local load.
+ */
+function reloadLiveCatalogue() {
+  window.dispatchEvent(new Event(LIVE_CRM_RECORDS_CHANGED));
+}
 
 export interface MeetingKeywordMatch {
   readonly term: string;
@@ -178,6 +189,7 @@ function MeetingKeywordsInsightCardEnabled({
   }, [reloadKey, t]);
 
   const retryLoad = () => {
+    reloadLiveCatalogue();
     setError(null);
     setTerms(null);
     setReloadKey((value) => value + 1);
@@ -306,16 +318,9 @@ function MeetingKeywordsInsightCardEnabled({
         >
           {matchResults.sourceKinds.map((kind) => (
             <span key={kind} role="listitem">
-              <button
-                aria-label={t('meeting-keywords.source-preview-unavailable', {
-                  source: sourceLabel(t, kind),
-                })}
-                className="kp-chip kp-chip--sm"
-                disabled
-                type="button"
-              >
+              <span className="kp-chip kp-chip--sm">
                 {sourceLabel(t, kind)}
-              </button>
+              </span>
             </span>
           ))}
         </span>
@@ -340,7 +345,7 @@ const cardStyle = {
 const quietStateStyle = {
   ...cardStyle,
   alignItems: 'center',
-  background: 'var(--color-muted)',
+  background: 'var(--kp-bg-soft)',
   borderStyle: 'dashed',
   color: 'var(--color-muted-foreground)',
   display: 'flex',
@@ -521,6 +526,7 @@ function MeetingKeywordSettingsPanelEnabled({
             data-testid="meeting-keywords-settings-retry"
             disabled={saving}
             onClick={() => {
+              reloadLiveCatalogue();
               if (retryTerms) {
                 startSave(retryTerms);
                 return;
@@ -559,18 +565,19 @@ function MeetingKeywordSettingsPanelEnabled({
               {terms.map((term) => (
                 <li key={term}>
                   {term}{' '}
-                  <button
+                  <Button
                     aria-label={t('meeting-keywords.remove-topic', {
                       topic: term,
                     })}
-                    type="button"
                     disabled={saving}
                     onClick={() => {
                       startSave(terms.filter((item) => item !== term));
                     }}
+                    size="sm"
+                    variant="ghost"
                   >
                     {t('meeting-keywords.remove')}
-                  </button>
+                  </Button>
                 </li>
               ))}
             </ul>
@@ -586,7 +593,7 @@ function MeetingKeywordSettingsPanelEnabled({
               {t('meeting-keywords.input-label')}
             </label>
             <div style={{ display: 'flex', gap: 8 }}>
-              <input
+              <Input
                 data-testid="meeting-keywords-settings-input"
                 disabled={saving}
                 id="meeting-keywords-settings-input"
@@ -596,13 +603,14 @@ function MeetingKeywordSettingsPanelEnabled({
                 placeholder={t('meeting-keywords.input-placeholder')}
                 value={draft}
               />
-              <button
+              <Button
                 data-testid="meeting-keywords-settings-add"
                 disabled={!draft.trim() || saving}
+                size="sm"
                 type="submit"
               >
                 {t('meeting-keywords.add')}
-              </button>
+              </Button>
             </div>
           </form>
         </>

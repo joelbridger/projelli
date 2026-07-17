@@ -1,11 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
+import { setDevFlagOverride } from '@/platform/flags';
+import { LIVE_CRM_RECORDS_CHANGED } from '@/platform/crm/useLiveCrmRecords';
 import {
   approvedMeetingArtifactsForClient,
   createMeetingArtifactStore,
   createMeetingStore,
   type ClientBoundary,
+  type MeetingKeywordCatalogueStore,
 } from '../../foundation/contract';
 import { getMeetingInsightComposition } from '../../meetingInsightRegistry';
 import {
@@ -45,6 +48,7 @@ const clientA: ClientBoundary = {
 describe('meeting keywords', () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    setDevFlagOverride('meeting-keywords', undefined);
   });
 
   it('detects only approved allowed artifacts, cites their real ids, and fails closed across A → B → none', async () => {
@@ -146,5 +150,89 @@ describe('meeting keywords', () => {
         (descriptor) => descriptor.id
       )
     ).not.toContain('meeting_keywords');
+  });
+
+  it('renders the loading, empty, and populated topic states with shared controls', async () => {
+    setDevFlagOverride('meeting-keywords', true);
+    let resolveTerms: ((terms: readonly string[]) => void) | undefined;
+    const get = vi.fn(
+      () =>
+        new Promise<readonly string[]>((resolve) => {
+          resolveTerms = resolve;
+        })
+    );
+    const catalogue: MeetingKeywordCatalogueStore = {
+      terms: [],
+      error: null,
+      get,
+      save: vi.fn(),
+    };
+
+    const firstRender = render(
+      <MeetingKeywordSettingsPanel useCatalogue={() => catalogue} />
+    );
+    expect(
+      screen.getByTestId('meeting-keywords-settings-loading')
+    ).toBeVisible();
+
+    resolveTerms?.([]);
+    expect(
+      await screen.findByTestId('meeting-keywords-settings-empty')
+    ).toBeVisible();
+
+    firstRender.unmount();
+    get.mockResolvedValueOnce(['Retirement']);
+    render(<MeetingKeywordSettingsPanel useCatalogue={() => catalogue} />);
+    const list = await screen.findByTestId('meeting-keywords-settings-list');
+    expect(list).toHaveTextContent('Retirement');
+    expect(screen.getByTestId('meeting-keywords-settings-input')).toHaveClass(
+      'border-input'
+    );
+    expect(
+      screen.getByRole('button', { name: /remove retirement/i })
+    ).toHaveClass('kp-btn');
+    expect(screen.getByTestId('meeting-keywords-settings-add')).toHaveClass(
+      'kp-btn'
+    );
+  });
+
+  it('clears a live catalogue error through its reload path before retrying', async () => {
+    setDevFlagOverride('meeting-keywords', true);
+    let liveError: string | null = 'The live records could not load.';
+    const get = vi.fn().mockResolvedValue(['Retirement']);
+    const catalogue = {
+      get,
+      save: vi.fn(),
+      get terms() {
+        return [];
+      },
+      get error() {
+        return liveError;
+      },
+    } satisfies MeetingKeywordCatalogueStore;
+    const clearLiveError = () => {
+      liveError = null;
+    };
+    window.addEventListener(LIVE_CRM_RECORDS_CHANGED, clearLiveError);
+
+    try {
+      render(<MeetingKeywordSettingsPanel useCatalogue={() => catalogue} />);
+      expect(
+        await screen.findByTestId('meeting-keywords-settings-error')
+      ).toBeVisible();
+
+      fireEvent.click(screen.getByTestId('meeting-keywords-settings-retry'));
+      await waitFor(() => {
+        expect(
+          screen.queryByTestId('meeting-keywords-settings-error')
+        ).not.toBeInTheDocument();
+      });
+      expect(
+        await screen.findByTestId('meeting-keywords-settings-list')
+      ).toHaveTextContent('Retirement');
+      expect(get).toHaveBeenCalledTimes(2);
+    } finally {
+      window.removeEventListener(LIVE_CRM_RECORDS_CHANGED, clearLiveError);
+    }
   });
 });
