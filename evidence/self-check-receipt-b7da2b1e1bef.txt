@@ -1,0 +1,19 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/v1-w2-ask-foundation
+sha: b7da2b1e1bef1f23102a7d56d07575acbe0fd9f5
+tree: 33302c0df1d833c0dd2c8b71fadf4fadb603a18f
+gate_base: cb09c8c4f9767f1334bedd381fe0f28f0018a2f3
+tool_blob: 7912bf11eefdacea0702600b19d3bc5b3d7f2606
+utc: 2026-07-16T23:01:48Z
+step_timeout_seconds: 1200
+loadavg: 4.36 8.64 13.45
+running_vitest_eslint_procs: 1
+step: gate:changed | status=PASS | exit=0 | 23:01:48Z..23:11:36Z | bytes=55188 | sha256=9ac1dc864ab802cfabf77770720d9781a5009b7908fd3153a8cd15ca9dea4a1c | tail: ssed | 3 skipped (1085) Tests 8666 passed | 29 skipped (8695) Start at 23:04:27 Duration 429.21s (transform 30.51s, setup 228.82s, import 579.10s, tests 258.36s, environment 502.01s) CHANGED GATE GREEN
+step: typecheck | status=PASS | exit=0 | 23:11:36Z..23:11:59Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit
+step: typecheck:tests | status=PASS | exit=0 | 23:11:59Z..23:12:27Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit
+step: handle-guard | status=PASS | exit=0 | 23:12:27Z..23:12:27Z | bytes=1322 | sha256=07f5ce4a9f71d01ce18203d19f530be8b3fd83502c1343206bdf858d1732cd7a | tail: ic-page-unavailable + client-bar-clear + client-bar-current + client-bar-open-${} +330 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen).
+step: arch-dag-guard | status=PASS | exit=0 | 23:12:27Z..23:12:29Z | bytes=220 | sha256=26c8f1793a9eb10615c87a01f6d81090e6c1c1b0cf6368ced109b98b1c8f4e56 | tail:  RUN v4.1.3 /home/jameson/v1-w2-ask-foundation Test Files 1 passed (1) Tests 1 passed (1) Start at 23:12:28 Duration 953ms (transform 205ms, setup 319ms, import 263ms, tests 3ms, environment 272ms)
+step: i18n-snapshot | status=PASS | exit=0 | 23:12:29Z..23:12:30Z | bytes=221 | sha256=7071fb022a99b6e087b243e5eda5f7903d95fffc416c2ba34b84f15e5a58eb70 | tail:  RUN v4.1.3 /home/jameson/v1-w2-ask-foundation Test Files 1 passed (1) Tests 5 passed (5) Start at 23:12:29 Duration 930ms (transform 232ms, setup 337ms, import 227ms, tests 19ms, environment 267ms)
+step: focused | status=PASS | exit=0 | 23:12:30Z..23:12:33Z | bytes=221 | sha256=8001c0d4a84c1c3f744c5cd4f910be3f2125f1524d06a4e4863b1a8f239ea27f | tail:  RUN v4.1.3 /home/jameson/v1-w2-ask-foundation Test Files 3 passed (3) Tests 9 passed (9) Start at 23:12:30 Duration 2.60s (transform 2.88s, setup 1.08s, import 3.94s, tests 34ms, environment 879ms)
+overall: GREEN

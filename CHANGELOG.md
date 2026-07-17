@@ -45,6 +45,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `src/features/meetings/SKILL.md`, `src/features/meetings/fixtures/`.
 
 ### Fixed
+- **Ask foundation client isolation is now fail-closed, non-freezable, and
+  owner-only.** Every use-time doorway — source reads, citation opens,
+  opener-token resolution, and answer actions — reads the current client from
+  ONE foundation-owned binding instead of a value the caller passes, so a scope,
+  source, citation, or action resolved under client A is refused the instant the
+  owner switches to B, clears, or releases — even for a retained handler. The
+  capability that sets the binding (`createAskSharedClientOwner`) is off the
+  public `@/features/ask` surface and there is no free `bind(access)`, so an
+  ordinary consumer cannot set, replace, or freeze the reader or restore client
+  A; establish-once refuses a second binder at runtime (so a caller reaching the
+  capability through an import-boundary blind spot still cannot overwrite the
+  active owner); when nothing is bound, every client-scoped doorway fails closed.
+  The persistence WRITE path also re-resolves the active client live at write
+  time, so a save handle held across a client switch fails closed instead of
+  writing stale client-A data. Opener
+  tokens are sealed — a source carries only an opaque `sealAskOpenPath`
+  reference, and the raw token is released solely by the guarded
+  `resolveAskCitationOpenPath`; it is never a plain field or persisted. Every client-bound scope still retains the
+  owner reference, matter, and revision; meeting artifacts prove their meeting,
+  date, and type before retrieval; persistence validates payloads and proves
+  save-to-fresh-reload for conversations, review drafts, and source selections.
+  Missing owner contracts remain explicitly unavailable instead of being
+  replaced by local lookalikes. Files: `src/features/ask/foundation/`,
+  `src/features/ask/FOUNDATION_STATUS.md`, `src/features/ask/SKILL.md`,
+  `src/foundation-contracts/ask/`.
 - **Test-impact selection is now fail-open at the final runner boundary.**
   The runner starts with the full Vitest command and can narrow it only after a
   successful, non-empty selector result. It now falls back to the full suite for
