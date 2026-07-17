@@ -1,0 +1,18 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/lantern/app/integration/.worktrees/v1/w2-meeting-intel-settings
+sha: ad0447d71bb91abff7aeae50faeb443a38a8432f
+tree: 6f7d95019d6fa173cf93dcff2ac3165d0de4f780
+gate_base: 8bb165082a85f50b6a9782ed9619351a40930513
+tool_blob: 7912bf11eefdacea0702600b19d3bc5b3d7f2606
+utc: 2026-07-17T04:55:01Z
+step_timeout_seconds: 600
+loadavg: 8.11 8.85 7.74
+running_vitest_eslint_procs: 10
+step: gate:changed | status=PASS | exit=0 | 04:55:01Z..05:00:05Z | bytes=27540 | sha256=e9524da3f8f60d56527e89168fb97aaffbdf8a4e50d1f6127add5f3e58ceac7e | tail: 26505:5) Test Files 264 passed (264) Tests 1736 passed (1736) Start at 04:58:17 Duration 107.77s (transform 18.93s, setup 36.62s, import 184.52s, tests 95.98s, environment 85.01s) CHANGED GATE GREEN
+step: typecheck | status=PASS | exit=0 | 05:00:05Z..05:00:27Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit
+step: typecheck:tests | status=PASS | exit=0 | 05:00:27Z..05:00:54Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit
+step: handle-guard | status=PASS | exit=0 | 05:00:54Z..05:00:54Z | bytes=1360 | sha256=baad83da10dd800d788b85343229bccd8123ae249a118dc0a0e77a86a318b5c5 | tail: ite-approve + calendar-write-pending-banner + calendar-write-pending-banner-review-now +346 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen).
+step: arch-dag-guard | status=PASS | exit=0 | 05:00:54Z..05:00:55Z | bytes=263 | sha256=6abde6f4a9df549ab16a0b9d1b7ce62d495213126a39873398981aeb65ef0f03 | tail: egration/.worktrees/v1/w2-meeting-intel-settings Test Files 1 passed (1) Tests 1 passed (1) Start at 05:00:54 Duration 948ms (transform 225ms, setup 351ms, import 239ms, tests 3ms, environment 267ms)
+step: i18n-snapshot | status=PASS | exit=0 | 05:00:55Z..05:00:56Z | bytes=264 | sha256=c383a3375b49af319b85d9cd6ad787c6b61ed1b824058fd5b156d55656bac942 | tail: gration/.worktrees/v1/w2-meeting-intel-settings Test Files 1 passed (1) Tests 5 passed (5) Start at 05:00:55 Duration 1.01s (transform 230ms, setup 335ms, import 205ms, tests 16ms, environment 264ms)
+overall: GREEN
