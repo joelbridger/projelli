@@ -70,7 +70,7 @@ export interface LegacyMeetingLinkInput {
 /** Un-forgeable brand key: a feature cannot manufacture status truth. */
 declare const legacyMeetingLinkStatusBrand: unique symbol;
 /** Only this reader mints values that may be trusted as link status. */
-const sealedLegacyMeetingLinkStatuses = new WeakSet<object>();
+const sealedLegacyMeetingLinkStatuses = new WeakSet();
 
 /**
  * The small, read-only answer for one visible legacy meeting row. `meetingRef`
@@ -999,7 +999,10 @@ export function createLegacyMeetingLinkStatusReader(
         let meetingDir: string;
         try {
           meetingDir = normalizedPath(rawDir, 'Legacy meeting folder');
-        } catch {
+        } catch (error) {
+          // A malformed non-active record is not a competing exact locator and
+          // must not expose any part of the other client's data.
+          void error;
           continue;
         }
         if (!requested.has(meetingDir)) continue;
