@@ -46,7 +46,7 @@ describe('renderRegisteredSettingsPanels', () => {
       panel('gated', 30, 'teams-roles'),
     ];
     vi.doMock('@/platform/flags/router', () => ({
-      isEnabled: () => flagOn,
+      isEnabled: (id: string) => id === 'teams-roles' && flagOn,
     }));
     vi.doMock('./legacySettingsSections', () => ({
       legacySettingsSections: [

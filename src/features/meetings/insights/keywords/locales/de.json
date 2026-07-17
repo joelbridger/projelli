@@ -1,0 +1,20 @@
+{
+  "meeting-keywords": {
+    "title": "Verfolgte Themen",
+    "settings-title": "Verfolgte Besprechungsthemen",
+    "settings-description": "Diese Begriffe werden lokal in freigegebenen Besprechungsnotizen, Zusammenfassungen und Transkripten abgeglichen.",
+    "loading": "Verfolgte Themen werden geladen…",
+    "insight-empty": "Noch keine Themen werden verfolgt. Füge sie in den Einstellungen hinzu, damit sie hier erscheinen.",
+    "insight-none": "In freigegebenen Besprechungsartefakten wurden keine verfolgten Themen gefunden.",
+    "approved-sources": "Freigegebene Quellen: {{sources}}",
+    "settings-empty": "Es werden noch keine Themen verfolgt.",
+    "input-label": "Verfolgtes Thema",
+    "input-placeholder": "Thema hinzufügen",
+    "add": "Hinzufügen",
+    "remove": "Entfernen",
+    "errors": {
+      "load": "Die verfolgten Themen konnten nicht geladen werden.",
+      "save": "Die verfolgten Themen konnten nicht gespeichert werden."
+    }
+  }
+}

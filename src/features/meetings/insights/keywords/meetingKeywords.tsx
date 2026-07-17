@@ -1,0 +1,440 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { isEnabled } from '@/platform/flags';
+import {
+  approvedMeetingArtifactsForClient,
+  useMeetingArtifactStore,
+  useMeetingFoundationStore,
+  useMeetingKeywordCatalogueStore,
+  type ApprovedMeetingArtifactReader,
+  type CitedMeetingInsight,
+  type MeetingArtifactRequirement,
+  type MeetingKeywordCatalogueStore,
+} from '../../foundation/contract';
+import {
+  registerMeetingInsight,
+  type MeetingInsightDescriptor,
+} from '../../meetingInsightRegistry';
+import type {
+  MeetingInsightClientSummaryContext,
+  MeetingInsightMeetingSummaryContext,
+} from '../../meetingWorkspaceTypes';
+
+declare module '../../meetingWorkspaceTypes' {
+  interface MeetingInsightIdMap {
+    meeting_keywords: true;
+  }
+}
+
+// eslint-disable-next-line react-refresh/only-export-components -- This is the public local insight contract consumed outside React.
+export const MEETING_KEYWORD_ARTIFACT_REQUIREMENTS: readonly MeetingArtifactRequirement[] =
+  [
+    { kind: 'structured-notes', minimumSchemaVersion: 1 },
+    { kind: 'summary', minimumSchemaVersion: 1 },
+    { kind: 'transcript', minimumSchemaVersion: 1 },
+  ];
+
+const MEETING_KEYWORDS_INSIGHT_ID = 'meeting_keywords' as const;
+const MEETING_KEYWORDS_INSIGHT_VERSION = 1;
+
+export interface MeetingKeywordMatch {
+  readonly term: string;
+  readonly count: number;
+  readonly sourceArtifactIds: readonly string[];
+}
+
+/** Literal, case-insensitive matching. Terms are never sent anywhere. */
+function occurrences(text: string, term: string): number {
+  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const startsWord = /^\w/.test(term);
+  const endsWord = /\w$/.test(term);
+  const pattern = new RegExp(
+    `${startsWord ? '\\b' : ''}${escaped}${endsWord ? '\\b' : ''}`,
+    'giu'
+  );
+  return Array.from(text.matchAll(pattern)).length;
+}
+
+function payloadText(
+  value: unknown,
+  seen = new Set<object>()
+): readonly string[] {
+  if (typeof value === 'string') return [value];
+  if (!value || typeof value !== 'object' || seen.has(value)) return [];
+  seen.add(value);
+  if (Array.isArray(value))
+    return value.flatMap((item) => payloadText(item, seen));
+  return Object.values(value).flatMap((item) => payloadText(item, seen));
+}
+
+/**
+ * Detect configured terms only in the caller's approved, explicitly allowed
+ * artifacts. The reader supplies the live client boundary; this function adds
+ * no cache, copied client identity, synthetic artifact, or provider call.
+ */
+// eslint-disable-next-line react-refresh/only-export-components -- This local detector is the public non-React insight contract.
+export function detectMeetingKeywordMatches(
+  reader: ApprovedMeetingArtifactReader,
+  meetingId: string,
+  householdRef: string,
+  terms: readonly string[]
+): readonly MeetingKeywordMatch[] {
+  if (reader.client.householdRef !== householdRef) return [];
+  const artifacts = reader.listApproved(
+    meetingId,
+    MEETING_KEYWORD_ARTIFACT_REQUIREMENTS.map((item) => item.kind)
+  );
+
+  return terms.flatMap((rawTerm) => {
+    const term = rawTerm.trim();
+    if (!term) return [];
+    let count = 0;
+    const sourceArtifactIds: string[] = [];
+    for (const artifact of artifacts) {
+      const matches = payloadText(artifact.payload).reduce(
+        (total, text) => total + occurrences(text, term),
+        0
+      );
+      if (matches > 0) {
+        count += matches;
+        sourceArtifactIds.push(artifact.id);
+      }
+    }
+    return count > 0 ? [{ term, count, sourceArtifactIds }] : [];
+  });
+}
+
+// eslint-disable-next-line react-refresh/only-export-components -- This local detector is the public non-React insight contract.
+export function detectCitedMeetingKeywordInsights(
+  reader: ApprovedMeetingArtifactReader,
+  meetingId: string,
+  householdRef: string,
+  terms: readonly string[]
+): readonly CitedMeetingInsight[] {
+  const matches = detectMeetingKeywordMatches(
+    reader,
+    meetingId,
+    householdRef,
+    terms
+  );
+  if (matches.length === 0) return [];
+  return [
+    {
+      descriptorId: MEETING_KEYWORDS_INSIGHT_ID,
+      meetingId,
+      householdRef,
+      summary: `Tracked topics: ${matches
+        .map((match) => `${match.term} (${String(match.count)})`)
+        .join(', ')}`,
+      sourceArtifactIds: [
+        ...new Set(matches.flatMap((match) => match.sourceArtifactIds)),
+      ],
+    },
+  ];
+}
+
+function MeetingKeywordsInsightCard({
+  context,
+}: {
+  context: MeetingInsightMeetingSummaryContext;
+}) {
+  if (!isEnabled('meeting-keywords')) return null;
+  return <MeetingKeywordsInsightCardEnabled context={context} />;
+}
+
+function MeetingKeywordsInsightCardEnabled({
+  context,
+}: {
+  context: MeetingInsightMeetingSummaryContext;
+}) {
+  const { t } = useTranslation();
+  const meetings = useMeetingFoundationStore();
+  const artifacts = useMeetingArtifactStore();
+  const catalogue = useMeetingKeywordCatalogueStore();
+  const [terms, setTerms] = useState<readonly string[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const loaded = useRef(false);
+
+  useEffect(() => {
+    if (loaded.current) return;
+    loaded.current = true;
+    void catalogue
+      .get()
+      .then(setTerms)
+      .catch(() => {
+        setError(t('meeting-keywords.errors.load'));
+      });
+  }, [catalogue, t]);
+
+  const insight = useMemo(() => {
+    if (!context.canonicalMeeting || !context.clientBoundary || !terms)
+      return null;
+    const reader = approvedMeetingArtifactsForClient(
+      meetings,
+      artifacts,
+      context.clientBoundary,
+      MEETING_KEYWORD_ARTIFACT_REQUIREMENTS
+    );
+    return (
+      detectCitedMeetingKeywordInsights(
+        reader,
+        context.canonicalMeeting.id,
+        context.clientBoundary.householdRef,
+        terms
+      )[0] ?? null
+    );
+  }, [
+    artifacts,
+    context.canonicalMeeting,
+    context.clientBoundary,
+    meetings,
+    terms,
+  ]);
+
+  if (error || catalogue.error) {
+    return (
+      <div data-testid="meeting-keywords-error" style={cardStyle}>
+        {error ?? catalogue.error}
+      </div>
+    );
+  }
+  if (!context.canonicalMeeting || !context.clientBoundary) return null;
+  if (!terms)
+    return (
+      <div data-testid="meeting-keywords-loading" style={cardStyle}>
+        {t('meeting-keywords.loading')}
+      </div>
+    );
+  if (terms.length === 0) {
+    return (
+      <div data-testid="meeting-keywords-empty" style={cardStyle}>
+        {t('meeting-keywords.insight-empty')}
+      </div>
+    );
+  }
+  if (!insight)
+    return (
+      <div data-testid="meeting-keywords-none" style={cardStyle}>
+        {t('meeting-keywords.insight-none')}
+      </div>
+    );
+
+  return (
+    <section
+      data-testid="meeting-keywords-insight"
+      style={cardStyle}
+      aria-label={t('meeting-keywords.title')}
+    >
+      <strong>{t('meeting-keywords.title')}</strong>
+      <div style={{ marginTop: 6 }}>
+        {insight.summary.replace('Tracked topics: ', '')}
+      </div>
+      <div
+        style={{
+          marginTop: 8,
+          fontSize: 12,
+          color: 'var(--color-muted-foreground)',
+        }}
+      >
+        {t('meeting-keywords.approved-sources', {
+          sources: insight.sourceArtifactIds.join(', '),
+        })}
+      </div>
+    </section>
+  );
+}
+
+const cardStyle = {
+  marginTop: 12,
+  padding: 16,
+  border: '1px solid var(--kp-divider-strong)',
+  borderRadius: 8,
+  background: 'var(--color-card)',
+  color: 'var(--color-card-foreground)',
+  boxShadow: 'var(--kp-shadow-1)',
+} as const;
+
+// eslint-disable-next-line react-refresh/only-export-components -- The registered descriptor intentionally composes this React surface.
+export const meetingKeywordsInsight: MeetingInsightDescriptor = {
+  id: MEETING_KEYWORDS_INSIGHT_ID,
+  order: 30,
+  version: MEETING_KEYWORDS_INSIGHT_VERSION,
+  isAvailable: () => isEnabled('meeting-keywords'),
+  mounts: { meetingSummary: true, clientSummary: false },
+  prerequisites: MEETING_KEYWORD_ARTIFACT_REQUIREMENTS.map((requirement) => ({
+    artifactId: requirement.kind,
+    minimumVersion: requirement.minimumSchemaVersion,
+  })),
+  artifactStore: {
+    artifactId: 'meeting-keywords-local-projection',
+    version: MEETING_KEYWORDS_INSIGHT_VERSION,
+    read: () => Promise.resolve(null),
+    write: () => Promise.resolve(null),
+  },
+  artifactProducer: {
+    artifactId: 'meeting-keywords-local-projection',
+    produce: () => Promise.resolve(null),
+  },
+  selectors: { detectMeetingKeywordMatches, detectCitedMeetingKeywordInsights },
+  settings: {
+    id: 'meeting-keywords-settings',
+    labelKey: 'meeting-keywords.title',
+    mount: () => null,
+  },
+  renderMeetingSummary: (context) => (
+    <MeetingKeywordsInsightCard context={context} />
+  ),
+  renderClientSummary: (_context: MeetingInsightClientSummaryContext) => null,
+};
+
+registerMeetingInsight(meetingKeywordsInsight);
+
+export function MeetingKeywordSettingsPanel({
+  useCatalogue = useMeetingKeywordCatalogueStore,
+}: {
+  useCatalogue?: () => MeetingKeywordCatalogueStore;
+}) {
+  if (!isEnabled('meeting-keywords')) return null;
+  return <MeetingKeywordSettingsPanelEnabled useCatalogue={useCatalogue} />;
+}
+
+function MeetingKeywordSettingsPanelEnabled({
+  useCatalogue,
+}: {
+  useCatalogue: () => MeetingKeywordCatalogueStore;
+}) {
+  const { t } = useTranslation();
+  const catalogue = useCatalogue();
+  const [terms, setTerms] = useState<readonly string[] | null>(null);
+  const [draft, setDraft] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const loaded = useRef(false);
+
+  useEffect(() => {
+    if (loaded.current) return;
+    loaded.current = true;
+    void catalogue
+      .get()
+      .then(setTerms)
+      .catch(() => {
+        setError(t('meeting-keywords.errors.load'));
+      });
+  }, [catalogue, t]);
+
+  const save = async (next: readonly string[]) => {
+    setSaving(true);
+    setError(null);
+    try {
+      setTerms(await catalogue.save(next));
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : t('meeting-keywords.errors.save')
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+  const add = () => {
+    const term = draft.trim();
+    if (!term || !terms) return;
+    void save([...terms, term]).catch((reason: unknown) => {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : t('meeting-keywords.errors.save')
+      );
+    });
+    setDraft('');
+  };
+
+  return (
+    <section
+      data-testid="meeting-keywords-settings"
+      style={cardStyle}
+      aria-label={t('meeting-keywords.settings-title')}
+    >
+      <strong>{t('meeting-keywords.settings-title')}</strong>
+      <p
+        style={{
+          margin: '6px 0 12px',
+          fontSize: 13,
+          color: 'var(--color-muted-foreground)',
+        }}
+      >
+        {t('meeting-keywords.settings-description')}
+      </p>
+      {terms === null ? (
+        <div data-testid="meeting-keywords-settings-loading">
+          {t('meeting-keywords.loading')}
+        </div>
+      ) : (
+        <>
+          {terms.length === 0 ? (
+            <div data-testid="meeting-keywords-settings-empty">
+              {t('meeting-keywords.settings-empty')}
+            </div>
+          ) : (
+            <ul
+              data-testid="meeting-keywords-settings-list"
+              style={{ paddingLeft: 20, margin: '0 0 12px' }}
+            >
+              {terms.map((term) => (
+                <li key={term}>
+                  {term}{' '}
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => {
+                      void save(terms.filter((item) => item !== term)).catch(
+                        (reason: unknown) => {
+                          setError(
+                            reason instanceof Error
+                              ? reason.message
+                              : t('meeting-keywords.errors.save')
+                          );
+                        }
+                      );
+                    }}
+                  >
+                    {t('meeting-keywords.remove')}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <label style={{ display: 'flex', gap: 8 }}>
+            <span className="sr-only">{t('meeting-keywords.input-label')}</span>
+            <input
+              data-testid="meeting-keywords-settings-input"
+              value={draft}
+              onChange={(event) => {
+                setDraft(event.target.value);
+              }}
+              placeholder={t('meeting-keywords.input-placeholder')}
+              disabled={saving}
+            />
+            <button
+              data-testid="meeting-keywords-settings-add"
+              type="button"
+              onClick={add}
+              disabled={!draft.trim() || saving}
+            >
+              {t('meeting-keywords.add')}
+            </button>
+          </label>
+        </>
+      )}
+      {(error ?? catalogue.error) && (
+        <div
+          data-testid="meeting-keywords-settings-error"
+          style={{ marginTop: 8, color: 'var(--color-destructive)' }}
+        >
+          {error ?? catalogue.error}
+        </div>
+      )}
+    </section>
+  );
+}

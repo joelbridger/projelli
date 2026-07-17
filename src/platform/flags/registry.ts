@@ -84,6 +84,7 @@ export const flagRegistry = [
   defineFlag('workflow-record-quickadd', 'Keeps household-bound workflow quick-add dark until its acceptance drive is complete.', 'workflow-record-quickadd', '2026-07-16', '2026-09-14'),
   defineFlag('booking-public-calendar', 'Show local calendar availability on the public booking page', 'booking-public-calendar', '2026-07-16', '2026-10-14'),
   defineFlag('calendar-grid', 'Show local calendar month, week, and day views', 'calendar-grid', '2026-07-16', '2026-10-14'),
+  defineFlag('meeting-keywords', 'Keeps local approved-artifact meeting keyword tracking dark until its acceptance review is complete.', 'meeting-keywords', '2026-07-17', '2026-09-15'),
 ] as const satisfies readonly FlagDescriptor[];
 
 export type FlagId = (typeof flagRegistry)[number]['id'];

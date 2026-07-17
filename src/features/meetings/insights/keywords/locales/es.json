@@ -1,0 +1,20 @@
+{
+  "meeting-keywords": {
+    "title": "Temas seguidos",
+    "settings-title": "Temas de reuniones seguidos",
+    "settings-description": "Estos términos se comparan localmente en notas, resúmenes y transcripciones de reuniones aprobadas.",
+    "loading": "Cargando temas seguidos…",
+    "insight-empty": "Aún no hay temas seguidos. Agrégalos en Ajustes para verlos aquí.",
+    "insight-none": "No se encontraron temas seguidos en los elementos de reuniones aprobados.",
+    "approved-sources": "Fuentes aprobadas: {{sources}}",
+    "settings-empty": "Aún no se sigue ningún tema.",
+    "input-label": "Tema seguido",
+    "input-placeholder": "Agregar un tema",
+    "add": "Agregar",
+    "remove": "Quitar",
+    "errors": {
+      "load": "No se pudieron cargar los temas seguidos.",
+      "save": "No se pudieron guardar los temas seguidos."
+    }
+  }
+}
