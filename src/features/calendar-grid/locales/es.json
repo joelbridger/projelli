@@ -23,7 +23,7 @@
     "linked-record": "Registro vinculado: {{record}}",
     "status": { "scheduled": "Programado", "cancelled": "Cancelado" },
     "editor": {
-      "new-title": "Nuevo evento", "untitled": "Evento sin título", "title-label": "Título", "title-placeholder": "Título del evento", "start-label": "Inicio (UTC)", "end-label": "Fin (UTC)", "context-label": "Registro vinculado", "not-linked": "No vinculado a un registro", "more-options": "Más opciones", "notes-label": "Notas", "local-status": "Guardado en este espacio de trabajo", "cancel": "Cancelar", "save": "Guardar evento", "saving": "Guardando evento…", "title-required": "Agrega un título al evento antes de guardarlo.", "end-after-start": "La hora de fin debe ser posterior a la de inicio.", "save-error": "No se pudo guardar el evento. Inténtalo de nuevo."
+      "new-title": "Nuevo evento", "untitled": "Evento sin título", "title-label": "Título", "title-placeholder": "Título del evento", "start-label": "Inicio (UTC)", "end-label": "Fin (UTC)", "context-label": "Registro vinculado", "not-linked": "No vinculado a un registro", "more-options": "Más opciones", "notes-label": "Notas", "local-status": "Guardado en este espacio de trabajo", "cancel": "Cancelar", "save": "Guardar evento", "saving": "Guardando evento…", "saved-confirmation": "Evento guardado.", "title-required": "Agrega un título al evento antes de guardarlo.", "end-after-start": "La hora de fin debe ser posterior a la de inicio.", "save-error": "No se pudo guardar el evento. Inténtalo de nuevo."
     }
   }
 }

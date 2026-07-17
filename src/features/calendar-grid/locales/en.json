@@ -37,6 +37,7 @@
       "cancel": "Cancel",
       "save": "Save event",
       "saving": "Saving event…",
+      "saved-confirmation": "Event saved.",
       "title-required": "Add an event title before saving.",
       "end-after-start": "End time needs to be after start time.",
       "save-error": "The event could not be saved. Try again."

@@ -13,8 +13,9 @@ const runtime = vi.hoisted(() => ({
   enabled: false,
   events: [] as readonly CalendarEventRecord[],
   listOccurrences: vi.fn<(range: CalendarRange) => Promise<readonly CalendarOccurrence[]>>(),
+  create: vi.fn(),
   useCalendarEventStore: vi.fn(),
-  calendarStore: null as unknown as Pick<CalendarEventStore, 'events' | 'error' | 'listOccurrences'>,
+  calendarStore: null as unknown as CalendarEventStore,
 }));
 
 vi.mock('@/platform/flags', () => ({ useFlag: () => runtime.enabled }));
@@ -80,11 +81,17 @@ describe('CalendarGridSurface', () => {
     runtime.events = [];
     runtime.listOccurrences.mockReset();
     runtime.listOccurrences.mockResolvedValue([]);
+    runtime.create.mockReset();
+    runtime.create.mockResolvedValue(eventRecord());
     runtime.useCalendarEventStore.mockReset();
     runtime.calendarStore = {
       events: runtime.events,
       error: null,
       listOccurrences: runtime.listOccurrences,
+      create: runtime.create,
+      update: vi.fn(),
+      cancel: vi.fn(),
+      get: vi.fn(),
     };
     runtime.useCalendarEventStore.mockImplementation(() => runtime.calendarStore);
   });
@@ -239,6 +246,34 @@ describe('CalendarGridSurface', () => {
     expect(await screen.findByTestId('calendar-event-sheet-heading')).toHaveTextContent(eventSheetHeading(longTitle, 'Untitled event'));
     expect(screen.getByTestId('calendar-event-title')).toHaveValue(longTitle);
     expect(eventSheetHeading('', 'Untitled event')).toBe('Untitled event');
+  });
+
+  it('shows one past-tense save toast and restores the calendar workspace after saving', async () => {
+    runtime.enabled = true;
+    render(<CalendarGridSurface now={ANCHOR} />);
+    await screen.findByTestId('calendar-grid-month');
+
+    fireEvent.click(screen.getByTestId('calendar-grid-new-event'));
+    fireEvent.change(await screen.findByTestId('calendar-event-title'), { target: { value: 'Quarterly review' } });
+    fireEvent.click(screen.getByTestId('calendar-event-save'));
+
+    await waitFor(() => {
+      expect(runtime.create).toHaveBeenCalledWith(expect.objectContaining({ title: 'Quarterly review' }));
+      expect(screen.queryByTestId('calendar-event-sheet')).toBeNull();
+    });
+    expect(screen.getByTestId('calendar-grid-save-toast')).toHaveTextContent('Event saved.');
+    expect(screen.getByTestId('calendar-grid')).toBeTruthy();
+  });
+
+  it('wires the real scheduling contribution recovery action to the workspace picker', async () => {
+    runtime.enabled = true;
+    runtime.listOccurrences.mockRejectedValue(new Error('Open a workspace before using the calendar.'));
+    const onOpenWorkspace = vi.fn();
+
+    render(<>{calendarGridSchedulingSurface.mount({ ...schedulingRuntime, onOpenWorkspace })}</>);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Open workspace' }));
+    expect(onOpenWorkspace).toHaveBeenCalledTimes(1);
   });
 
   it('keeps the calendar frame during a real pending read instead of calling it empty', async () => {

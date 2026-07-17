@@ -16,6 +16,7 @@ export function validateSchedulingSurfaceDescriptors(
   descriptors: readonly SchedulingSurfaceDescriptor[],
 ): void {
   const ids = new Set<string>();
+  let calendarSurfaceCount = 0;
   for (const descriptor of descriptors) {
     if (!descriptor.id.trim()) throw new Error('[schedulingSurfaceRegistry] descriptor id is required');
     if (ids.has(descriptor.id)) throw new Error(`[schedulingSurfaceRegistry] duplicate surface id: ${descriptor.id}`);
@@ -24,7 +25,11 @@ export function validateSchedulingSurfaceDescriptors(
       throw new Error(`[schedulingSurfaceRegistry] isEnabled must be a function: ${descriptor.id}`);
     }
     if (typeof descriptor.mount !== 'function') throw new Error(`[schedulingSurfaceRegistry] mount is required: ${descriptor.id}`);
+    if (descriptor.slot === 'calendar-grid') calendarSurfaceCount += 1;
     ids.add(descriptor.id);
+  }
+  if (calendarSurfaceCount > 1) {
+    throw new Error('[schedulingSurfaceRegistry] only one calendar surface may be registered');
   }
 }
 

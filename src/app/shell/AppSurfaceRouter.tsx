@@ -140,6 +140,7 @@ export function AppSurfaceRouter(props: AppSurfaceRouterProps) {
       setFileTree,
       refreshFileTree,
       requestApiKeySetup: handleRequestApiKeySetup,
+      openSelector: onOpenWorkspace,
     },
     documents: {
       view: documentsView,
@@ -854,7 +855,7 @@ export function AppSurfaceRouter(props: AppSurfaceRouterProps) {
       workflows: renderWorkflows,
       audit: () => buildActivity({}),
       privacy: renderPrivacy,
-      scheduling: () => <SchedulingHome />,
+      scheduling: () => <SchedulingHome {...(onOpenWorkspace ? { onOpenWorkspace } : {})} />,
       settings: renderSettings,
       mainPanel: renderMainPanel,
     },

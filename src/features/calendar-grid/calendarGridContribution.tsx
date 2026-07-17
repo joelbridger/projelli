@@ -22,7 +22,10 @@ export function createCalendarGridSchedulingSurface(
     slot: 'calendar-grid',
     order: 20,
     isEnabled: () => isFlagEnabled('calendar-grid'),
-    mount: () => createElement(CalendarGridSurface, { viewComposition }),
+    mount: (runtime) => createElement(CalendarGridSurface, {
+      viewComposition,
+      ...(runtime.onOpenWorkspace ? { onOpenWorkspace: runtime.onOpenWorkspace } : {}),
+    }),
   };
 }
 

@@ -93,6 +93,7 @@ function CalendarGridSurfaceEnabled({
   const [editor, setEditor] = useState<'new' | 'edit' | null>(null);
   const [loadedRangeKey, setLoadedRangeKey] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [saveNotice, setSaveNotice] = useState<string | null>(null);
   const range = useMemo(() => calendarGridRange(rangeView, anchor), [anchor, rangeView]);
   const rangeKey = `${range.startUtc}:${range.endUtc}`;
   const loading = loadedRangeKey !== rangeKey;
@@ -122,6 +123,12 @@ function CalendarGridSurfaceEnabled({
     return () => { current = false; };
   }, [calendar, range, rangeKey]);
 
+  useEffect(() => {
+    if (!saveNotice) return undefined;
+    const timeout = window.setTimeout(() => { setSaveNotice(null); }, 5000);
+    return () => { window.clearTimeout(timeout); };
+  }, [saveNotice]);
+
   const selected = occurrences.find((occurrence) => occurrence.occurrenceKey === selectedKey) ?? null;
   const defaultTimes = selectedDateDefaults(selectedDayKey);
   const selectOccurrence = (occurrenceKey: string) => {
@@ -143,6 +150,12 @@ function CalendarGridSurfaceEnabled({
   const nativeViews = enabledViews.filter((descriptor) => descriptor.rangeView !== undefined);
   const presentationViews = enabledViews.filter((descriptor) => descriptor.rangeView === undefined);
   const hasNoWorkspace = error?.includes('Open a workspace') ?? false;
+  const handleSaved = () => {
+    setEditor(null);
+    setPeekOpen(false);
+    setAnchor((current) => new Date(current));
+    setSaveNotice(t('calendar-grid.editor.saved-confirmation'));
+  };
 
   return <section data-testid="calendar-grid" className="min-w-0 p-[var(--kp-card-pad)]">
     <div className="min-w-0 rounded-lg border border-[var(--kp-divider)] bg-[var(--kp-surface)] p-4">
@@ -172,12 +185,15 @@ function CalendarGridSurfaceEnabled({
         {!loading && !error && occurrences.length === 0 ? <div data-testid="calendar-grid-empty" className="absolute inset-x-4 top-4 grid min-h-28 place-items-center rounded-lg border border-dashed border-[var(--kp-divider)] bg-[var(--kp-bg-soft)] px-4 text-center text-[length:var(--kp-font-sm)] text-[var(--kp-text-faint)]">{t('calendar-grid.empty')}</div> : null}
       </div>
     </div>
+    {saveNotice ? <div role="status" data-testid="calendar-grid-save-toast" className="fixed bottom-5 right-5 z-[var(--kp-z-toast)] rounded-lg border border-[var(--kp-divider)] bg-[var(--kp-surface)] px-4 py-3 text-[length:var(--kp-font-sm)] font-semibold text-[var(--kp-navy)] shadow-[var(--kp-shadow-3)]">
+      {saveNotice}
+    </div> : null}
     {peekOpen && selected ? <aside data-testid="calendar-grid-peek" aria-label={t('calendar-grid.rail-label')} className="fixed bottom-0 right-0 top-0 z-[var(--kp-z-modal)] flex w-[min(480px,100vw)] flex-col border-l border-[var(--kp-divider)] bg-[var(--kp-surface)] p-5 shadow-[var(--kp-shadow-3)]">
       <div className="flex items-start justify-between gap-3"><div><h3 className="m-0 text-[length:var(--kp-font-md)] font-semibold text-[var(--kp-navy)]">{eventSheetHeading(selected.title, t('calendar-grid.editor.untitled'))}</h3><p className="m-0 mt-1 text-[length:var(--kp-font-sm)] text-[var(--kp-text-faint)]">{localTime(selected)}</p></div><button type="button" className="kp-icon-btn kp-icon-btn--secondary kp-icon-btn--sm" aria-label={t('calendar-grid.close-peek')} onClick={() => { setPeekOpen(false); }}>×</button></div>
       <div data-testid="calendar-grid-selection" className="mt-5 grid gap-2 text-[length:var(--kp-font-sm)] text-[var(--kp-text-dim)]"><span>{t('calendar-grid.calendar', { calendarId: selected.calendarId })}</span><span data-testid="calendar-grid-selection-status">{t(`calendar-grid.status.${selected.status}`)}</span>{selected.contextRef?.label ? <span>{t('calendar-grid.linked-record', { record: selected.contextRef.label })}</span> : null}</div>
       <div className="mt-auto flex justify-end gap-2 border-t border-[var(--kp-divider)] pt-4"><button type="button" className="kp-btn kp-btn--secondary kp-btn--sm" onClick={() => { setPeekOpen(false); }}>{t('calendar-grid.close')}</button><button type="button" data-testid="calendar-grid-edit-event" className="kp-btn kp-btn--primary kp-btn--sm" onClick={() => { setPeekOpen(false); setEditor('edit'); }}>{t('calendar-grid.edit-event')}</button></div>
     </aside> : null}
-    {editor === 'edit' && selected ? <CalendarEventSheet calendar={calendar} occurrence={selected} defaultStartUtc={defaultTimes.startUtc} defaultEndUtc={defaultTimes.endUtc} onClose={() => { setEditor(null); }} onSaved={() => { setEditor(null); setAnchor((current) => new Date(current)); }} /> : null}
-    {editor === 'new' ? <CalendarEventSheet calendar={calendar} defaultStartUtc={defaultTimes.startUtc} defaultEndUtc={defaultTimes.endUtc} onClose={() => { setEditor(null); }} onSaved={() => { setEditor(null); setAnchor((current) => new Date(current)); }} /> : null}
+    {editor === 'edit' && selected ? <CalendarEventSheet calendar={calendar} occurrence={selected} defaultStartUtc={defaultTimes.startUtc} defaultEndUtc={defaultTimes.endUtc} onClose={() => { setEditor(null); }} onSaved={handleSaved} /> : null}
+    {editor === 'new' ? <CalendarEventSheet calendar={calendar} defaultStartUtc={defaultTimes.startUtc} defaultEndUtc={defaultTimes.endUtc} onClose={() => { setEditor(null); }} onSaved={handleSaved} /> : null}
   </section>;
 }

@@ -23,7 +23,7 @@
     "linked-record": "Verknüpfter Datensatz: {{record}}",
     "status": { "scheduled": "Geplant", "cancelled": "Abgesagt" },
     "editor": {
-      "new-title": "Neuer Termin", "untitled": "Unbenannter Termin", "title-label": "Titel", "title-placeholder": "Termintitel", "start-label": "Beginn (UTC)", "end-label": "Ende (UTC)", "context-label": "Verknüpfter Datensatz", "not-linked": "Mit keinem Datensatz verknüpft", "more-options": "Weitere Optionen", "notes-label": "Notizen", "local-status": "In diesem Arbeitsbereich gespeichert", "cancel": "Abbrechen", "save": "Termin speichern", "saving": "Termin wird gespeichert…", "title-required": "Fügen Sie vor dem Speichern einen Termintitel hinzu.", "end-after-start": "Die Endzeit muss nach der Startzeit liegen.", "save-error": "Der Termin konnte nicht gespeichert werden. Versuchen Sie es erneut."
+      "new-title": "Neuer Termin", "untitled": "Unbenannter Termin", "title-label": "Titel", "title-placeholder": "Termintitel", "start-label": "Beginn (UTC)", "end-label": "Ende (UTC)", "context-label": "Verknüpfter Datensatz", "not-linked": "Mit keinem Datensatz verknüpft", "more-options": "Weitere Optionen", "notes-label": "Notizen", "local-status": "In diesem Arbeitsbereich gespeichert", "cancel": "Abbrechen", "save": "Termin speichern", "saving": "Termin wird gespeichert…", "saved-confirmation": "Termin gespeichert.", "title-required": "Fügen Sie vor dem Speichern einen Termintitel hinzu.", "end-after-start": "Die Endzeit muss nach der Startzeit liegen.", "save-error": "Der Termin konnte nicht gespeichert werden. Versuchen Sie es erneut."
     }
   }
 }

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import type { SchedulingSurfaceDescriptor, SchedulingSurfaceRuntime } from '@/platform/calendar';
 import { setDevFlagOverride } from '@/platform/flags';
+import { calendarGridSchedulingSurface } from '@/features/calendar-grid';
 import {
   renderSchedulingSurfaceRegistry,
   schedulingSurfaceRegistry,
@@ -73,9 +74,21 @@ describe('schedulingSurfaceRegistry', () => {
   });
 
   it('keeps descriptor order stable and rejects duplicate ids or invalid contracts', () => {
-    const later = { ...dummyContribution, id: 'later-scheduling-contribution' as const, order: 30 };
+    const later = { ...dummyContribution, id: 'later-scheduling-contribution' as const, slot: 'availability' as const, order: 30 };
     expect(renderSchedulingSurfaceRegistry(runtime, [later, dummyContribution])).toHaveLength(2);
     expect(() => { validateSchedulingSurfaceDescriptors([dummyContribution, dummyContribution]); }).toThrow('duplicate surface id');
     expect(() => { validateSchedulingSurfaceDescriptors([{ ...dummyContribution, order: Number.NaN }]); }).toThrow('invalid order');
+  });
+
+  it('excludes a second calendar surface before two calendar workspaces can mount together', () => {
+    const secondCalendarSurface = {
+      ...dummyContribution,
+      id: 'later-scheduling-contribution' as const,
+      slot: 'calendar-grid' as const,
+    };
+
+    expect(() => {
+      renderSchedulingSurfaceRegistry(runtime, [calendarGridSchedulingSurface, secondCalendarSurface]);
+    }).toThrow('only one calendar surface may be registered');
   });
 });

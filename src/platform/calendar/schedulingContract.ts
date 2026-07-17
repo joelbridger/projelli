@@ -35,7 +35,11 @@ export interface SchedulingStateContract {
   setMaxHorizonDays: (days: number) => void;
 }
 
-export interface SchedulingSurfaceRuntime { state: SchedulingStateContract; }
+export interface SchedulingSurfaceRuntime {
+  state: SchedulingStateContract;
+  /** Opens the app's real workspace picker when a scheduling surface needs it. */
+  onOpenWorkspace?: () => void;
+}
 export interface SchedulingSurfaceDescriptor {
   id: SchedulingSurfaceId;
   slot: SchedulingSurfaceSlot;
