@@ -5,5 +5,4 @@ export {
 } from './MeetingIntelligenceSettingsPanel';
 export {
   meetingIntelligenceSettingsPanel,
-  registerMeetingIntelligenceSettingsPanel,
 } from './settingsModule';

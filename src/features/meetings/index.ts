@@ -1,14 +1,7 @@
-import { registerMeetingIntelligenceSettingsPanel } from './intelligenceSettings';
-
-// The feature contributes through Settings' public registration doorway.
-// The descriptor's outer flag gate prevents its panel (and record loads) while dark.
-registerMeetingIntelligenceSettingsPanel();
-
 export {
   MeetingIntelligenceSettingsContent,
   MeetingIntelligenceSettingsPanel,
   meetingIntelligenceSettingsPanel,
-  registerMeetingIntelligenceSettingsPanel,
   type IntelligenceStores,
 } from './intelligenceSettings';
 

@@ -1,11 +1,12 @@
-import {
-  settingsModuleRegistry,
-  type SettingsModuleDescriptor,
-} from '@/features/settings';
 import { MeetingIntelligenceSettingsPanel } from './MeetingIntelligenceSettingsPanel';
 
-/** A dark, feature-owned panel in the existing Scheduling Settings section. */
-export const meetingIntelligenceSettingsPanel: SettingsModuleDescriptor = {
+/**
+ * Feature-owned descriptor for the existing Scheduling Settings section.
+ * Settings owns the one production registration line; its public doorway
+ * validates this shape from an outside consumer without a Meetings→Settings
+ * feature dependency.
+ */
+export const meetingIntelligenceSettingsPanel = {
   id: 'meeting-intelligence-settings',
   section: 'scheduling',
   order: 20,
@@ -19,21 +20,4 @@ export const meetingIntelligenceSettingsPanel: SettingsModuleDescriptor = {
     'meeting template',
   ],
   render: MeetingIntelligenceSettingsPanel,
-};
-
-let registered = false;
-
-/**
- * Uses the public Settings doorway rather than mutating the owner registry.
- * It is idempotent because the Meetings public index is imported by more than
- * one product surface.
- */
-export function registerMeetingIntelligenceSettingsPanel(): () => void {
-  if (registered) return () => undefined;
-  const unregister = settingsModuleRegistry.register(meetingIntelligenceSettingsPanel);
-  registered = true;
-  return () => {
-    unregister();
-    registered = false;
-  };
-}
+} as const;

@@ -41,12 +41,16 @@ function canonicalPort() {
 }
 
 describe('meeting intelligence Settings public contribution', () => {
+  let unregister: (() => void) | undefined;
+
   afterEach(() => {
+    unregister?.();
+    unregister = undefined;
     setDevFlagOverride('settings-shell-v1', undefined);
   });
 
   it('registers through the real Settings doorway and renders from the real Settings panel path', async () => {
-    compileMeetingIntelligenceSettingsImport();
+    unregister = compileMeetingIntelligenceSettingsImport();
     setDevFlagOverride('settings-shell-v1', true);
 
     expect(
@@ -62,6 +66,7 @@ describe('meeting intelligence Settings public contribution', () => {
   });
 
   it('is fully omitted before the panel can mount while the outer Settings flag is off', () => {
+    unregister = compileMeetingIntelligenceSettingsImport();
     setDevFlagOverride('settings-shell-v1', undefined);
     render(<>{renderRegisteredSettingsPanels('scheduling', props)}</>);
 
