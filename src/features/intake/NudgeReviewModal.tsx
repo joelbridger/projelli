@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Copy, Loader2, Save, Sparkles, X } from 'lucide-react';
 
@@ -138,21 +138,27 @@ export function NudgeReviewModal({
   const [body, setBody] = useState(() => modalDraftIfStoredLink(row, intake, now)?.bodyText ?? '');
   const [status, setStatus] = useState<Status>('loading');
   const [error, setError] = useState<string | null>(null);
+  const bodyDirtyRef = useRef(false);
+  const seedContextRef = useRef<string | null>(null);
 
   useEffect(() => {
+    const seedContext = `${open ? 'open' : 'closed'}:${intake.intakeId}`;
+    const contextChanged = seedContextRef.current !== seedContext;
+    seedContextRef.current = seedContext;
     if (!open) return;
+    if (contextChanged) bodyDirtyRef.current = false;
     let cancelled = false;
     void Promise.resolve()
       .then(async () => {
         setStatus('loading');
         setError(null);
         setDraft(null);
-        setBody('');
+        if (contextChanged) setBody('');
         const nextDraft = await modalDraft(row, intake, now);
         const connected = await mailConnectedAccounts();
         if (cancelled) return;
         setDraft(nextDraft);
-        setBody(nextDraft.bodyText);
+        setBody((current) => contextChanged || !bodyDirtyRef.current ? nextDraft.bodyText : current);
         setAccounts(connected);
         setAccountIdx(draftCapableAccount(connected));
         setStatus('ready');
@@ -186,6 +192,7 @@ export function NudgeReviewModal({
     const liveRow = deriveOnboardingRow(liveIntake, now ?? new Date(), DEFAULT_ONBOARDING_CONFIG);
     setStatus('loading');
     setError(null);
+    bodyDirtyRef.current = false;
     void modalDraft(liveRow, liveIntake, now)
       .then((nextDraft) => {
         setDraft(nextDraft);
@@ -218,6 +225,7 @@ export function NudgeReviewModal({
           options: draftStructuredOutputOptions,
         });
         const rewritten = responseBody(response);
+        bodyDirtyRef.current = true;
         setBody(enforceNudgeBodyInvariants(rewritten || body, activeDraft));
         setStatus('ready');
       })
@@ -465,6 +473,7 @@ export function NudgeReviewModal({
               rows={12}
               value={body}
               onChange={(event) => {
+                bodyDirtyRef.current = true;
                 setBody(event.target.value);
               }}
               disabled={!draft}

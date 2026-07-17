@@ -276,6 +276,39 @@ describe('advisor custom fields extension', () => {
     });
   });
 
+  it('preserves an advisor edit through a same-household re-seed, but starts clean for another household', async () => {
+    setDevFlagOverride('custom-fields-advisor', true);
+    const original = withCustomFieldValues(household, {
+      'planning-note': 'Saved note',
+    });
+    const view = render(
+      <CustomFieldsSectionContent household={original} catalog={catalog} onSaveHousehold={vi.fn()} />
+    );
+    fireEvent.change(screen.getByLabelText('Planning note'), {
+      target: { value: 'Advisor typed note' },
+    });
+    view.rerender(
+      <CustomFieldsSectionContent
+        household={withCustomFieldValues({ ...original, name: 'Fresh object' }, { 'planning-note': 'Late saved note' })}
+        catalog={catalog}
+        onSaveHousehold={vi.fn()}
+      />
+    );
+    await waitFor(() => {
+      expect(screen.getByLabelText('Planning note')).toHaveValue('Advisor typed note');
+    });
+    view.rerender(
+      <CustomFieldsSectionContent
+        household={withCustomFieldValues({ ...household, id: 'other-household' }, { 'planning-note': 'Other household' })}
+        catalog={catalog}
+        onSaveHousehold={vi.fn()}
+      />
+    );
+    await waitFor(() => {
+      expect(screen.getByLabelText('Planning note')).toHaveValue('Other household');
+    });
+  });
+
   it('round-trips a save through a fresh render and preserves sibling bags', async () => {
     setDevFlagOverride('custom-fields-advisor', true);
     const initial: HouseholdRecord = {

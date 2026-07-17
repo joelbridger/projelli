@@ -1,5 +1,5 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string -- Frozen CRM copy needs its translation catalog in a separate product change. */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Inbox, MailCheck, RefreshCw, Save, ShieldCheck } from 'lucide-react';
 import { Button, Card } from '@/ui/kp';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
@@ -66,6 +66,7 @@ export function EmailDropboxSurface() {
   const households = useMemo(() => householdChoices(live.records), [live.records]);
   const savedConfig = live.records.find((record): record is EmailDropboxConfigRecord => record.id === CONFIG_ID && isEmailDropboxConfigRecord(record));
   const [config, setConfig] = useState<DropboxConfig>(defaultConfig);
+  const dirtyKeysRef = useRef<Set<keyof DropboxConfig>>(new Set());
   const [emails, setEmails] = useState<readonly MailListItem[]>([]);
   const [selectedHouseholds, setSelectedHouseholds] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -74,12 +75,23 @@ export function EmailDropboxSurface() {
 
   useEffect(() => {
     if (!savedConfig) return;
-    setConfig({
+    const seed: DropboxConfig = {
       folderId: typeof savedConfig.folderId === 'string' ? savedConfig.folderId : defaultConfig.folderId,
       provider: typeof savedConfig.provider === 'string' ? savedConfig.provider : '',
       account: typeof savedConfig.account === 'string' ? savedConfig.account : '',
+    };
+    setConfig((current) => {
+      if (dirtyKeysRef.current.size === 0) return seed;
+      const next = { ...seed };
+      for (const key of dirtyKeysRef.current) next[key] = current[key];
+      return next;
     });
   }, [savedConfig]);
+
+  const updateConfig = (key: keyof DropboxConfig, value: string) => {
+    dirtyKeysRef.current.add(key);
+    setConfig((current) => ({ ...current, [key]: value }));
+  };
 
   const checkFolder = useCallback(async () => {
     const folderId = config.folderId.trim();
@@ -193,9 +205,9 @@ export function EmailDropboxSurface() {
       <SurfaceHeader Icon={Inbox} title="Email dropbox" description="File forwarded or BCC’d email from your connected inbox, without sending it through a CRM server." />
       <Card variant="raised" style={cardStyle}>
         <div><h2 style={{ margin: 0 }}>Set up your private dropbox</h2><p>Make a folder or label in your connected mailbox, such as “Lantern Dropbox.” Forward email to your own inbox or BCC yourself, then add that label. Lantern reads it only on this computer.</p></div>
-        <label>Mailbox folder or label<input data-testid="crm-email-dropbox-folder" value={config.folderId} onChange={(event) => setConfig((current) => ({ ...current, folderId: event.target.value }))} /></label>
-        <label>Mail provider (optional)<select data-testid="crm-email-dropbox-provider" value={config.provider} onChange={(event) => setConfig((current) => ({ ...current, provider: event.target.value }))}><option value="">Any connected provider</option><option value="m365">Outlook</option><option value="gmail">Gmail</option><option value="imap">Other mail account</option></select></label>
-        <label>Mailbox account (optional)<input data-testid="crm-email-dropbox-account" value={config.account} onChange={(event) => setConfig((current) => ({ ...current, account: event.target.value }))} placeholder="Leave blank to check every connected account" /></label>
+        <label>Mailbox folder or label<input data-testid="crm-email-dropbox-folder" value={config.folderId} onChange={(event) => updateConfig('folderId', event.target.value)} /></label>
+        <label>Mail provider (optional)<select data-testid="crm-email-dropbox-provider" value={config.provider} onChange={(event) => updateConfig('provider', event.target.value)}><option value="">Any connected provider</option><option value="m365">Outlook</option><option value="gmail">Gmail</option><option value="imap">Other mail account</option></select></label>
+        <label>Mailbox account (optional)<input data-testid="crm-email-dropbox-account" value={config.account} onChange={(event) => updateConfig('account', event.target.value)} placeholder="Leave blank to check every connected account" /></label>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><Button data-testid="crm-email-dropbox-save" iconLeft={Save} onClick={() => { void saveConfig(); }}>Save dropbox</Button><Button data-testid="crm-email-dropbox-check" variant="secondary" iconLeft={RefreshCw} onClick={() => { void checkFolder(); }} disabled={loading}>{loading ? 'Checking…' : 'Check folder'}</Button></div>
         <p data-testid="crm-email-dropbox-private-note" style={{ marginBottom: 0, display: 'flex', alignItems: 'center', gap: 6 }}><ShieldCheck size={16} /> Email never passes through a Lantern server. The connected mailbox and this encrypted computer keep the content.</p>
       </Card>

@@ -1,10 +1,11 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { describe, expect, it, vi } from 'vitest';
+import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import { FirmSetup } from './FirmSetup';
 
 const save = vi.fn().mockResolvedValue(undefined);
-let records: Record<string, unknown>[] = [];
+let records: LiveCrmRecord[] = [];
 
 vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
   useLiveCrmRecords: () => ({ records, save, error: null }),
@@ -72,5 +73,24 @@ describe('FirmSetupSurface', () => {
     expect(save).toHaveBeenCalledWith(expect.objectContaining({
       id: 'household-1', tagIds: ['tag-1'], tags: ['New client'], customFields: expect.objectContaining({ region: expect.objectContaining({ value: 'North', updatedAt: expect.any(String) }) }),
     }));
+  });
+
+  it('keeps unsaved details through a same-record live refresh, but resets for another record', async () => {
+    records = [
+      { id: 'field-1', kind: 'customFieldDef', matterId: 'firm_home', key: 'region', label: 'Region', fieldType: 'text', appliesTo: ['household'], required: false, order: 1, archived: false, deleted: false },
+      { id: 'household-1', kind: 'household', matterId: 'matter-1', name: 'Smith household', updatedAt: '2026-07-17T00:00:00.000Z', customFields: { region: { value: 'Saved North' } } },
+      { id: 'household-2', kind: 'household', matterId: 'matter-2', name: 'Jones household', updatedAt: '2026-07-17T00:00:00.000Z', customFields: { region: { value: 'Saved South' } } },
+    ];
+    const view = render(<FirmSetup initialTab="values" />);
+    fireEvent.change(screen.getByTestId('crm-record-values-select'), { target: { value: 'household-1' } });
+    await waitFor(() => { expect(screen.getByTestId('crm-record-value-region')).toHaveValue('Saved North'); });
+    fireEvent.change(screen.getByTestId('crm-record-value-region'), { target: { value: 'Advisor typed' } });
+    records = records.map((record) => record.id === 'household-1'
+      ? { ...record, updatedAt: '2026-07-17T00:01:00.000Z', customFields: { region: { value: 'Late refresh' } } }
+      : record);
+    view.rerender(<FirmSetup initialTab="values" />);
+    await waitFor(() => { expect(screen.getByTestId('crm-record-value-region')).toHaveValue('Advisor typed'); });
+    fireEvent.change(screen.getByTestId('crm-record-values-select'), { target: { value: 'household-2' } });
+    await waitFor(() => { expect(screen.getByTestId('crm-record-value-region')).toHaveValue('Saved South'); });
   });
 });
