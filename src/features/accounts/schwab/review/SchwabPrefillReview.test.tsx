@@ -218,6 +218,78 @@ describe('Schwab review approval', () => {
     await screen.findByLabelText('Owner name');
     expect(screen.queryByText('111-22-3333')).not.toBeInTheDocument();
   });
+  it('preserves an advisor-edited field when an async household re-seed lands mid-edit', async () => {
+    // Simulates the data-loss race: the advisor types into a controlled field,
+    // then an async prefill/household resolution hands the component a fresh
+    // `household` reference, re-firing the seed effect. The edit must survive;
+    // an UNTOUCHED field must still pick up the new prefill (merge, not freeze).
+    privateFacts.listMasked.mockResolvedValue([]);
+    const { rerender } = render(<SchwabPrefillReview household={household} />);
+    const ownerName = await screen.findByLabelText('Owner name');
+    const address = screen.getByLabelText('Address');
+    // Prefilled from the household member.
+    expect(ownerName).toHaveValue('Pat Taylor');
+    expect(address).toHaveValue('1 Main, Austin, TX, 78701');
+
+    // Advisor edits the owner name mid-session.
+    fireEvent.change(ownerName, { target: { value: 'Jamie Advisor' } });
+    expect(ownerName).toHaveValue('Jamie Advisor');
+
+    // Async household data resolves: a NEW object reference, same id, different
+    // underlying values. Without the dirty-preserving merge this clobbers the
+    // advisor's typed value.
+    const resolvedHousehold: SchwabHousehold = {
+      ...household,
+      members: [
+        {
+          id: 'p',
+          name: 'Robin Newname',
+          personType: 'person',
+          roles: [],
+          relatedHouseholds: 1,
+          addresses: [
+            {
+              id: 'a2',
+              address: '9 Oak',
+              city: 'Dallas',
+              state: 'TX',
+              zip: '75201',
+              kind: 'home',
+              primary: true,
+            },
+          ],
+          emails: [
+            { id: 'e', address: 'pat@example.test', kind: 'home', primary: true },
+          ],
+          phones: [{ id: 'p', address: '555', kind: 'mobile', primary: true }],
+        },
+      ],
+    };
+    rerender(<SchwabPrefillReview household={resolvedHousehold} />);
+
+    // Edited field is preserved; untouched field refreshes from the new prefill.
+    await waitFor(() => {
+      expect(screen.getByLabelText('Owner name')).toHaveValue('Jamie Advisor');
+    });
+    expect(screen.getByLabelText('Address')).toHaveValue(
+      '9 Oak, Dallas, TX, 75201'
+    );
+  });
+  it('keeps advisor edits through repeated async re-seeds', async () => {
+    privateFacts.listMasked.mockResolvedValue([]);
+    const { rerender } = render(<SchwabPrefillReview household={household} />);
+    const ownerName = await screen.findByLabelText('Owner name');
+    fireEvent.change(ownerName, { target: { value: 'Advisor Typed' } });
+    expect(ownerName).toHaveValue('Advisor Typed');
+    for (let i = 0; i < 5; i += 1) {
+      rerender(
+        <SchwabPrefillReview household={{ ...household, name: `pass-${String(i)}` }} />
+      );
+      await waitFor(() => {
+        expect(screen.getByLabelText('Owner name')).toHaveValue('Advisor Typed');
+      });
+    }
+  });
   it('keeps a revealed value out of durable approval data and audit metadata', async () => {
     audit.emitAuditEntry.mockResolvedValue({ id: 'audit-private' });
     privateFacts.listMasked.mockResolvedValue([privateSsnFact]);

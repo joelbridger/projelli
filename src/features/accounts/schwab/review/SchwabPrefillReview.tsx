@@ -70,6 +70,17 @@ export function SchwabPrefillReview({ household }: SchwabReviewInput) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<SchwabPacketReceipt | undefined>();
+  // Fields the advisor has personally touched. Once a key is dirty, no async
+  // re-seed (prefill/household/facts resolving, or a parent re-render handing
+  // us a fresh `household`/`proposed` reference) may overwrite what they typed.
+  // Reset only when the seed CONTEXT itself changes (household or account type).
+  const dirtyKeysRef = useRef<Set<SchwabFieldKey>>(new Set());
+  const seedContextRef = useRef<string | null>(null);
+  const tRef = useRef(t);
+  tRef.current = t;
+  function markDirty(key: SchwabFieldKey): void {
+    dirtyKeysRef.current.add(key);
+  }
   const revealedFacts = useRef(new Map<string, string>());
   const [revealedFactIds, setRevealedFactIds] = useState<ReadonlySet<string>>(
     new Set()
@@ -105,7 +116,7 @@ export function SchwabPrefillReview({ household }: SchwabReviewInput) {
         if (live) setFacts(next);
       })
       .catch(() => {
-        if (live) setError(t('schwabPrefill.loadError'));
+        if (live) setError(tRef.current('schwabPrefill.loadError'));
       })
       .finally(() => {
         if (live) setLoading(false);
@@ -113,13 +124,40 @@ export function SchwabPrefillReview({ household }: SchwabReviewInput) {
     return () => {
       live = false;
     };
-  }, [household.id, t]);
+  }, [household.id]);
   const proposed = useMemo(
     () => buildSchwabProposal(accountType, { household, facts }),
     [accountType, facts, household]
   );
   useEffect(() => {
-    setFields(withState(proposed));
+    const seedContext = `${household.id}:${accountType}`;
+    const contextChanged = seedContextRef.current !== seedContext;
+    seedContextRef.current = seedContext;
+    if (contextChanged) {
+      // New household or account type: a genuinely different form. Start clean.
+      dirtyKeysRef.current = new Set();
+    }
+    const seeds = withState(proposed);
+    setFields((current) => {
+      const dirty = dirtyKeysRef.current;
+      if (contextChanged || dirty.size === 0) return seeds;
+      // Same form, but an async source re-seeded. Preserve every field the
+      // advisor already edited; only refresh untouched fields from the proposal.
+      const byKey = new Map(current.map((field) => [field.key, field]));
+      return seeds.map((seed) => {
+        const edited = byKey.get(seed.key);
+        if (edited && dirty.has(seed.key)) {
+          return {
+            ...seed,
+            value: edited.value,
+            source: edited.source,
+            conflict: edited.conflict,
+            confirmed: edited.confirmed,
+          };
+        }
+        return seed;
+      });
+    });
     setReceipt(findSchwabPacketReceipt(household.id, accountType));
   }, [accountType, household.id, proposed]);
   const proposalStatus: SchwabRedactedProposalStatus = {
@@ -138,6 +176,7 @@ export function SchwabPrefillReview({ household }: SchwabReviewInput) {
   };
   const ready = proposalStatus.ready;
   function update(key: SchwabFieldKey, value: string) {
+    markDirty(key);
     setFields((current) =>
       current.map((field) =>
         field.key === key
@@ -157,6 +196,7 @@ export function SchwabPrefillReview({ household }: SchwabReviewInput) {
       .find((field) => field.key === key)
       ?.candidates.find((item) => item.value === value);
     if (!candidate) return;
+    markDirty(key);
     setFields((current) =>
       current.map((field) =>
         field.key === key
@@ -341,6 +381,7 @@ export function SchwabPrefillReview({ household }: SchwabReviewInput) {
                       checked={field.confirmed}
                       disabled={field.conflict || !field.value.trim()}
                       onChange={(event) => {
+                        markDirty(field.key);
                         setFields((current) =>
                           current.map((item) =>
                             item.key === field.key
