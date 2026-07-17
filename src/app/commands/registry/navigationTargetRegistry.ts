@@ -1,12 +1,9 @@
 import {
-  getAppSurfaceDescriptors,
+  getKnownAppSurfaceDescriptors,
   hasLazyAppSurfaceRegistrations,
   resolveAppSurfaceRegistry,
 } from '@/app/shell/registry/appSurfaceRegistry';
-import type {
-  AppSurfaceDescriptor,
-  AppSurfaceId,
-} from '@/app/shell/registry/types';
+import type { AppSurfaceId } from '@/app/shell/registry/types';
 import type { MattersSurfaceMode } from '@/platform/state/appNavigationStore';
 import type { AppSurface } from '@/platform/types/navigation';
 import { legacyNavigationTargetDescriptors } from '@/app/commands/registry/legacyNavigationTargetDescriptors';
@@ -82,18 +79,16 @@ function isDescriptorResult(
 }
 
 export function validateNavigationTargetDescriptors(
-  descriptors: readonly NavigationTargetDescriptor[],
-  surfaces?: readonly AppSurfaceDescriptor[]
+  descriptors: readonly NavigationTargetDescriptor[]
 ): void {
   const ids = new Set<string>();
   // A static alias may legitimately point at a lazy app-surface registration.
   // Its id is not knowable until that registration resolves, so defer only the
   // cross-registry check; duplicates still fail immediately below.
   const surfaceIds = new Set(
-    (surfaces ?? getAppSurfaceDescriptors()).map((surface) => surface.id)
+    getKnownAppSurfaceDescriptors().map((surface) => surface.id)
   );
-  const canValidateSurfaceIds =
-    surfaces !== undefined || !hasLazyAppSurfaceRegistrations();
+  const canValidateSurfaceIds = !hasLazyAppSurfaceRegistrations();
   for (const descriptor of descriptors) {
     if (ids.has(descriptor.id)) {
       throw new Error(
@@ -142,9 +137,9 @@ export function resolveNavigationTargetRegistry(): Promise<
         return isDescriptorResult(result) ? [result] : result;
       })
     ),
-  ]).then(([surfaces, groups]) => {
+  ]).then(([, groups]) => {
     const descriptors = groups.flat();
-    validateNavigationTargetDescriptors(descriptors, surfaces);
+    validateNavigationTargetDescriptors(descriptors);
     resolvedDescriptors = descriptors;
     registryResolved = true;
     return resolvedDescriptors;

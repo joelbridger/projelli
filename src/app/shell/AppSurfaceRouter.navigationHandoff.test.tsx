@@ -211,6 +211,29 @@ afterEach(() => {
 });
 
 describe('AppSurfaceRouter navigation handoff', () => {
+  it('takes a real Spine click through the event bus to Home for a known flag-off surface from a cold registry without its resolver', async () => {
+    const onNavigate = vi.fn();
+    registryProbe.lazySurfaceLoader.mockResolvedValue(disposableNotesSurface());
+    useMatterStore
+      .getState()
+      .createMatter({ id: 'm1', name: 'M1', client: 'M1' });
+    registryProbe.flags.set('home-surface-v1', false);
+    render(
+      <>
+        <NavigationHarness onNavigate={onNavigate} />
+        <Spine />
+      </>
+    );
+
+    fireEvent.click(await screen.findByTestId('spine-client-row-m1'));
+
+    await waitFor(() => {
+      expect(onNavigate).toHaveBeenCalledExactlyOnceWith('home');
+    });
+    expect(registryProbe.lazySurfaceLoader).toHaveBeenCalledTimes(1);
+    expect(registryProbe.staleFlagOffResolver).not.toHaveBeenCalled();
+  });
+
   it('uses the real registries: waits once for a lazy surface and gives its resolver the raw intent', async () => {
     const onNavigate = vi.fn();
     registryProbe.lazySurfaceLoader.mockResolvedValue(disposableNotesSurface());
@@ -251,27 +274,6 @@ describe('AppSurfaceRouter navigation handoff', () => {
     await waitFor(() => {
       expect(onNavigate).toHaveBeenCalledExactlyOnceWith('home');
     });
-  });
-
-  it('takes a real Spine click through the event bus to Home for a known flag-off surface without its resolver', async () => {
-    const onNavigate = vi.fn();
-    useMatterStore
-      .getState()
-      .createMatter({ id: 'm1', name: 'M1', client: 'M1' });
-    registryProbe.flags.set('home-surface-v1', false);
-    render(
-      <>
-        <NavigationHarness onNavigate={onNavigate} />
-        <Spine />
-      </>
-    );
-
-    fireEvent.click(await screen.findByTestId('spine-client-row-m1'));
-
-    await waitFor(() => {
-      expect(onNavigate).toHaveBeenCalledExactlyOnceWith('home');
-    });
-    expect(registryProbe.staleFlagOffResolver).not.toHaveBeenCalled();
   });
 
   it('refuses an unknown alias without navigating or falling back', async () => {
