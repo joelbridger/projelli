@@ -1,0 +1,18 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/lantern/app/integration/.worktrees/v1/w2-seam-crmclients-doorways
+sha: b9085dfb4839572f7b2308068900f8183ca528b7
+tree: a1733d996068be59e79f4ba381081490b63f40d1
+gate_base: 1612006ac28d19aab0b6ebcfe1b0863a652c8c54
+tool_blob: 7912bf11eefdacea0702600b19d3bc5b3d7f2606
+utc: 2026-07-17T04:02:58Z
+step_timeout_seconds: 1200
+loadavg: 11.52 11.76 11.57
+running_vitest_eslint_procs: 10
+step: gate:changed | status=PASS | exit=0 | 04:02:58Z..04:14:06Z | bytes=57741 | sha256=b9cb44d15ef29a45c3bbc320618c33a37f2774f280fcec3c4a507d07b2e64755 | tail: ssed | 3 skipped (1111) Tests 8864 passed | 29 skipped (8893) Start at 04:07:22 Duration 403.84s (transform 38.62s, setup 203.26s, import 573.68s, tests 239.85s, environment 452.99s) CHANGED GATE GREEN
+step: typecheck | status=PASS | exit=0 | 04:14:06Z..04:14:30Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit
+step: typecheck:tests | status=PASS | exit=0 | 04:14:30Z..04:14:56Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit
+step: handle-guard | status=PASS | exit=0 | 04:14:56Z..04:14:56Z | bytes=1360 | sha256=161fbdd265547d42afd339477694482d5b87ad9b8f367ca1e743693756575ef5 | tail: ite-approve + calendar-write-pending-banner + calendar-write-pending-banner-review-now +337 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen).
+step: arch-dag-guard | status=PASS | exit=0 | 04:14:56Z..04:14:58Z | bytes=265 | sha256=a20029a5f69af15f58b4317c5c9c0092d79ee07337ba4e62bf8471bb47096ea3 | tail: ration/.worktrees/v1/w2-seam-crmclients-doorways Test Files 1 passed (1) Tests 1 passed (1) Start at 04:14:57 Duration 932ms (transform 212ms, setup 321ms, import 250ms, tests 3ms, environment 269ms)
+step: i18n-snapshot | status=PASS | exit=0 | 04:14:58Z..04:14:59Z | bytes=266 | sha256=64ae62ee63c30cf08ba9162f160bca3d7de4e16b0e05ed6ac5aa4cd43fd89373 | tail: ation/.worktrees/v1/w2-seam-crmclients-doorways Test Files 1 passed (1) Tests 5 passed (5) Start at 04:14:58 Duration 984ms (transform 244ms, setup 358ms, import 228ms, tests 16ms, environment 284ms)
+overall: GREEN
