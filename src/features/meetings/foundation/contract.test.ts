@@ -1034,6 +1034,129 @@ describe('meetings foundation contract', () => {
       ).rejects.toThrow(/concurrent legacy link|cannot replace/);
     });
 
+    it('probe: two REAL concurrent first links — exactly one wins, the other is refused', async () => {
+      seedTrustedAuthority();
+      const live = canonicalPort();
+      const created = await createMeetingStore(live).createDraft(draft);
+
+      // Reproduce the exact window the post-write re-read guard alone MISSES:
+      // linker A commits AND re-reads its own link (durable == A at that instant,
+      // so A returns success), and only THEN does linker B commit a different
+      // folder (durable becomes B). Without serialization BOTH callers report
+      // success while the second silently overwrites the first. We force that
+      // ordering by parking B's save until A has fully returned.
+      let releaseB: () => void = () => {};
+      const bMaySave = new Promise<void>((resolve) => {
+        releaseB = resolve;
+      });
+      const gatedPort = {
+        ...live,
+        records: live.readCanonical(),
+        reloadRecords: () => Promise.resolve(live.readCanonical()),
+        save: async (record: LiveCrmRecord) => {
+          const link = record['legacyMeetingLink'] as
+            | { meetingDir?: string }
+            | undefined;
+          // Hold B (the 2026-07-21 folder) at its save until A has finished.
+          if (link?.meetingDir?.includes('2026-07-21')) await bMaySave;
+          return live.save(record);
+        },
+      };
+      const service = createMeetingPopulationService(gatedPort);
+      const dirA = 'Clients/Household One/Meetings/2026-07-20';
+      const dirB = 'Clients/Household One/Meetings/2026-07-21';
+
+      const aPromise = service.linkLegacy(created.id, { meetingDir: dirA });
+      const bPromise = service.linkLegacy(created.id, { meetingDir: dirB });
+      // A is not gated: it runs to completion (serialization or not).
+      const aOutcome = await Promise.allSettled([aPromise]);
+      // Now let B proceed. With the mutex, B never reached its save — it is
+      // queued behind A and, on running, sees A's committed link and refuses.
+      // Without the mutex, B was parked mid-flight and now overwrites A.
+      releaseB();
+      const bOutcome = await Promise.allSettled([bPromise]);
+
+      const results = [...aOutcome, ...bOutcome];
+      const fulfilled = results.filter(
+        (
+          r
+        ): r is PromiseFulfilledResult<
+          Awaited<ReturnType<typeof service.linkLegacy>>
+        > => r.status === 'fulfilled'
+      );
+      // Exactly one linker wins; the other is refused. (Load-bearing: with the
+      // mutex removed, B also fulfils and this length is 2.)
+      expect(fulfilled).toHaveLength(1);
+      expect(results.filter((r) => r.status === 'rejected')).toHaveLength(1);
+
+      // The durable link is exactly the single winner's — nothing overwrote it.
+      const durable = live
+        .readCanonical()
+        .find((r) => r.id === created.id)?.['legacyMeetingLink'] as
+        | { meetingDir: string }
+        | undefined;
+      const winnerDir = fulfilled[0]?.value.legacyLink?.meetingDir;
+      expect(winnerDir).toBeTruthy();
+      expect(durable?.meetingDir).toBe(winnerDir);
+    });
+
+    it('probe: a genuine firm grant is frozen — it cannot be widened after mint', async () => {
+      seedTrustedAuthority({
+        matters: [
+          {
+            id: 'matter-1',
+            name: 'One',
+            client: 'One',
+            folderPaths: ['/workspace/Clients/Household One'],
+            crmHouseholdKeys: ['household-1'],
+            createdAt: '2026-07-01T00:00:00.000Z',
+          } as Matter,
+          {
+            id: 'matter-victim',
+            name: 'Victim',
+            client: 'Victim',
+            folderPaths: ['/workspace/Clients/Victim'],
+            crmHouseholdKeys: ['household-victim'],
+            createdAt: '2026-07-01T00:00:00.000Z',
+          } as Matter,
+        ],
+      });
+      const live = canonicalPort();
+      // One meeting per matter: a widened grant would leak the victim's meeting.
+      await createMeetingStore(live).createDraft(draft);
+      await createMeetingStore({
+        ...live,
+        getActiveMatterId: () => 'matter-victim',
+      }).createDraft({
+        ...draft,
+        matterId: 'matter-victim',
+        householdRef: 'household-victim',
+      });
+      const reader = createMeetingStoreReaderLive(live);
+
+      const grant = grantFirmMeetingDirectoryAccess(['matter-1']);
+      if (!grant) throw new Error('expected a genuine grant');
+      // Sealed AND frozen: provenance proves it was minted by the trusted path,
+      // the freeze proves it has not been widened since.
+      expect(Object.isFrozen(grant)).toBe(true);
+      expect(Object.isFrozen(grant.allowedMatterIds)).toBe(true);
+
+      // A holder tries to push the victim matter into the sealed grant. In a
+      // strict-mode module the write to the frozen array throws; either way the
+      // widening must not take effect.
+      expect(() => {
+        (grant.allowedMatterIds as string[]).push('matter-victim');
+      }).toThrow();
+      expect([...grant.allowedMatterIds]).toEqual(['matter-1']);
+
+      // The reader honours exactly matter-1 — the victim meeting never leaks.
+      const listed = await createFirmMeetingDirectoryReader(reader, grant).list();
+      expect(listed).toHaveLength(1);
+      expect(listed.every((meeting) => meeting.matterId === 'matter-1')).toBe(
+        true
+      );
+    });
+
     it('probe: with no open workspace, linking and opening fail closed', async () => {
       useMatterStore.setState({ matters: [] });
       setActiveWorkspaceService(null);

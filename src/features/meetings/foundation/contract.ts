@@ -218,10 +218,32 @@ export interface MeetingOpenTarget {
   readonly [meetingOpenTargetBrand]: true;
 }
 
+/**
+ * Recursively freeze an authority object and every object it reaches, so a
+ * caller who legitimately holds it CANNOT tamper it after the trusted resolver
+ * produced it. Provenance (the module-private seal) proves the object was minted
+ * by the trusted path; the deep freeze proves it has not been mutated since.
+ * Together they make a sealed authority object both UN-FORGEABLE and
+ * UN-TAMPERABLE. (Modules run in strict mode, so a write to a frozen field
+ * throws at the point of tampering rather than being silently dropped.)
+ */
+function deepFreezeAuthority<T>(value: T): T {
+  if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const key of Object.getOwnPropertyNames(value)) {
+      deepFreezeAuthority((value as Record<string, unknown>)[key]);
+    }
+  }
+  return value;
+}
+
 function sealMeetingOpenTarget(
   target: Omit<MeetingOpenTarget, typeof meetingOpenTargetBrand>
 ): MeetingOpenTarget {
-  const sealed = target as MeetingOpenTarget;
+  // Freeze BEFORE registering the seal: a target is un-tamperable from the first
+  // instant it is provable-genuine, so there is no window where a held target is
+  // both sealed and mutable.
+  const sealed = deepFreezeAuthority(target) as MeetingOpenTarget;
   sealedOpenTargets.add(sealed);
   return sealed;
 }
@@ -853,6 +875,34 @@ function requireAvailable(port: LivePort) {
       'Meeting records are unavailable until CRM records reload.'
     );
 }
+
+/**
+ * Serialize legacy-link critical sections so a first-link's read → validate →
+ * save → verify runs atomically with respect to every OTHER linker in this
+ * process. The CRM core is one local SQLCipher database owned by a single app
+ * process, and `crm_live_upsert` is an unconditional last-writer-wins write, so
+ * the ONLY way two links interleave is cooperative async scheduling within this
+ * one event loop. Draining the critical section through this module-level chain
+ * closes that TOCTOU: a competing link cannot slip between the no-link read and
+ * the save — the second linker observes the first's committed link and takes the
+ * idempotent/refuse branch instead of silently overwriting it.
+ *
+ * (A cross-PROCESS race — two app instances on the same workspace — would need a
+ * conditional/compare-and-swap write the store does not expose; that is not the
+ * realistic single-writer model here and is tracked separately as hardening. The
+ * post-write re-read guard below still runs as defense-in-depth for it.)
+ */
+let linkSerialization: Promise<unknown> = Promise.resolve();
+function serializeLink<T>(critical: () => Promise<T>): Promise<T> {
+  const run = linkSerialization.then(critical, critical);
+  // Keep the chain alive regardless of this link's outcome, so one failed link
+  // never poisons or blocks the next.
+  linkSerialization = run.then(
+    () => undefined,
+    () => undefined
+  );
+  return run;
+}
 export function createMeetingStore(port: ClientScopedLivePort): MeetingStore {
   const scope = clientScope(port);
   let raw = port.records.filter((record) => record.kind === 'meeting');
@@ -997,48 +1047,52 @@ export function createMeetingStore(port: ClientScopedLivePort): MeetingStore {
         })
       );
     },
-    linkLegacy: async (id, input) => {
-      requireAvailable(port);
-      const fresh = await port.reloadRecords();
-      raw = (fresh ?? []).filter((candidate) => candidate.kind === 'meeting');
-      const rawRecord = getRaw(id);
-      if (!rawRecord) throw new Error('That meeting no longer exists.');
-      scope.assertOwns(rawRecord.matterId, 'Meeting');
-      const current = projectMeetingRecord(rawRecord);
-      const existing = current.legacyLink;
-      const requestedDir = normalizedPath(
-        input.meetingDir,
-        'Legacy meeting folder'
-      );
-      if (existing) {
-        if (existing.meetingDir !== requestedDir)
-          throw new Error(
-            'A canonical meeting cannot replace its legacy link.'
-          );
-        // Idempotency is still a real check: a moved/deleted or cross-device
-        // folder must not be reported as linked merely because an old record
-        // happened to contain the same string.
-        await validateLegacyMeetingLink(current, input);
-        return current;
-      }
-      const link = await validateLegacyMeetingLink(current, input);
-      const saved = await persist({
-        ...rawRecord,
-        updatedAt: now(),
-        legacyMeetingLink: link,
-      });
-      // Concurrent-first-link guard: the port is last-writer-wins, so a second
-      // link racing this one could have committed a DIFFERENT folder between our
-      // no-link read and this save. Re-read the just-persisted record and refuse
-      // if the durable link is not the one we wrote — a competing link must fail
-      // rather than be silently overwritten.
-      const persistedLink = projectMeetingRecord(saved).legacyLink;
-      if (!persistedLink || persistedLink.meetingDir !== requestedDir)
-        throw new Error(
-          'A concurrent legacy link won; refusing to overwrite it.'
+    linkLegacy: (id, input) =>
+      // The whole read → validate → save → verify runs inside the process-wide
+      // link mutex, so a competing linker cannot interleave between the no-link
+      // read and the save. This is what makes first-linking atomic against the
+      // last-writer-wins port (see `serializeLink`).
+      serializeLink(async () => {
+        requireAvailable(port);
+        const fresh = await port.reloadRecords();
+        raw = (fresh ?? []).filter((candidate) => candidate.kind === 'meeting');
+        const rawRecord = getRaw(id);
+        if (!rawRecord) throw new Error('That meeting no longer exists.');
+        scope.assertOwns(rawRecord.matterId, 'Meeting');
+        const current = projectMeetingRecord(rawRecord);
+        const existing = current.legacyLink;
+        const requestedDir = normalizedPath(
+          input.meetingDir,
+          'Legacy meeting folder'
         );
-      return projectMeetingRecord(saved);
-    },
+        if (existing) {
+          if (existing.meetingDir !== requestedDir)
+            throw new Error(
+              'A canonical meeting cannot replace its legacy link.'
+            );
+          // Idempotency is still a real check: a moved/deleted or cross-device
+          // folder must not be reported as linked merely because an old record
+          // happened to contain the same string.
+          await validateLegacyMeetingLink(current, input);
+          return current;
+        }
+        const link = await validateLegacyMeetingLink(current, input);
+        const saved = await persist({
+          ...rawRecord,
+          updatedAt: now(),
+          legacyMeetingLink: link,
+        });
+        // Concurrent-first-link guard (defense-in-depth beyond the mutex): the
+        // port is last-writer-wins, so re-read the just-persisted record and
+        // refuse if the durable link is not the one we wrote — a competing link
+        // must fail rather than be silently overwritten.
+        const persistedLink = projectMeetingRecord(saved).legacyLink;
+        if (!persistedLink || persistedLink.meetingDir !== requestedDir)
+          throw new Error(
+            'A concurrent legacy link won; refusing to overwrite it.'
+          );
+        return projectMeetingRecord(saved);
+      }),
   };
   return store;
 }
@@ -1092,9 +1146,13 @@ export function grantFirmMeetingDirectoryAccess(
     );
     if (allowed.length === 0) return null;
   }
-  const grant = {
+  // Freeze the grant AND its allowed-matter array at mint, so a holder cannot
+  // widen it after issue (e.g. push a victim matter into `allowedMatterIds`).
+  // Seal (provenance) + freeze (immutability) together mean the reader honours
+  // exactly the matters owner-truth permitted, unchangeable after minting.
+  const grant = deepFreezeAuthority({
     allowedMatterIds: allowed,
-  } as unknown as FirmMeetingDirectoryGrant;
+  }) as unknown as FirmMeetingDirectoryGrant;
   sealedFirmGrants.add(grant);
   return grant;
 }

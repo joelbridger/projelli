@@ -131,6 +131,56 @@ describe('MeetingEntry host identity binding', () => {
     expect(identity.clientBoundary).toBeNull();
   });
 
+  it('a MUTATED genuine target cannot redirect the host — it is deep-frozen', async () => {
+    seedTrustedAuthority();
+    const service = createMeetingPopulationService(canonicalPort());
+    const linked = await service.createAndLink(draft, {
+      meetingDir: 'Clients/Household One/Meetings/2026-07-20',
+    });
+    const genuine = await service.openTarget(linked.id);
+
+    // The sealed target AND every object it reaches are frozen at mint, so a
+    // holder cannot tamper it after it becomes provable-genuine.
+    expect(Object.isFrozen(genuine)).toBe(true);
+    expect(Object.isFrozen(genuine.client)).toBe(true);
+    expect(Object.isFrozen(genuine.meeting)).toBe(true);
+    expect(Object.isFrozen(genuine.legacyLink)).toBe(true);
+
+    // The forge-by-cast + MUTATE attack: keep the genuine (still-sealed) target
+    // — so verifyMeetingOpenTarget stays true — but tamper its identity fields
+    // toward a victim client. In a strict-mode module the writes throw; either
+    // way they must NOT take effect.
+    const tamper = genuine as unknown as {
+      client: { matterId: string };
+      meetingDir: string;
+    };
+    expect(() => {
+      tamper.client.matterId = 'matter-victim';
+    }).toThrow();
+    expect(() => {
+      tamper.meetingDir = '/workspace/Clients/Victim/Meetings/secret';
+    }).toThrow();
+    expect(genuine.client.matterId).toBe('matter-1');
+
+    // The REAL host-open binding (MeetingEntry runs resolveMeetingEntryHostIdentity
+    // verbatim) still resolves to the trusted matter and folder, never the
+    // injected victim.
+    const identity = resolveMeetingEntryHostIdentity(
+      genuine,
+      'matter-legacy',
+      'Clients/Legacy/folder'
+    );
+    expect(identity.matterId).toBe('matter-1');
+    expect(identity.meetingDir).toBe(
+      '/workspace/Clients/Household One/Meetings/2026-07-20'
+    );
+    expect(identity.clientBoundary).toMatchObject({
+      householdRef: 'household-1',
+      matterId: 'matter-1',
+    });
+    expect(identity.canonicalMeeting?.id).toBe(linked.id);
+  });
+
   it('no target at all leaves the host on its legacy props', () => {
     const identity = resolveMeetingEntryHostIdentity(
       undefined,
