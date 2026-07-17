@@ -1,0 +1,22 @@
+{
+  "workflow-record-quickadd": {
+    "title": "Workflow hinzufügen",
+    "bound-household": "Wählen Sie eine veröffentlichte Vorlage für {{household}}. Dieser Haushalt ist bereits ausgewählt.",
+    "loading": "Workflow-Vorlagen werden geladen…",
+    "choose": "Workflow-Vorlage",
+    "published": "Veröffentlicht",
+    "draft": "Entwurf — vor dem Start veröffentlichen",
+    "start": "Workflow starten",
+    "starting": "Workflow wird gestartet…",
+    "cancel": "Abbrechen",
+    "empty": {
+      "title": "Noch keine veröffentlichten Vorlagen",
+      "description": "Erstellen und veröffentlichen Sie eine Vorlage in der Workflow-Bibliothek. Kehren Sie dann zu diesem Haushalt zurück, um sie zu starten.",
+      "action": "Zur Workflow-Bibliothek"
+    },
+    "errors": {
+      "load": "Die Workflow-Vorlagen konnten nicht geladen werden.",
+      "start": "Der Workflow konnte nicht gestartet werden. Versuchen Sie es erneut."
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "workflow-record-quickadd": {
+    "title": "Añadir flujo de trabajo",
+    "bound-household": "Elige una plantilla publicada para {{household}}. Este hogar ya está seleccionado.",
+    "loading": "Cargando plantillas de flujo de trabajo…",
+    "choose": "Plantilla de flujo de trabajo",
+    "published": "Publicada",
+    "draft": "Borrador — publícalo antes de iniciar",
+    "start": "Iniciar flujo de trabajo",
+    "starting": "Iniciando flujo de trabajo…",
+    "cancel": "Cancelar",
+    "empty": {
+      "title": "Aún no hay plantillas publicadas",
+      "description": "Crea y publica una plantilla en la biblioteca de flujos de trabajo y luego vuelve a este hogar para iniciarla.",
+      "action": "Ir a la biblioteca de flujos de trabajo"
+    },
+    "errors": {
+      "load": "No se pudieron cargar las plantillas de flujo de trabajo.",
+      "start": "No se pudo iniciar el flujo de trabajo. Inténtalo de nuevo."
+    }
+  }
+}
