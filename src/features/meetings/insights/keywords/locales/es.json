@@ -2,7 +2,7 @@
   "meeting-keywords": {
     "title": "Temas seguidos",
     "settings-title": "Temas de reuniones seguidos",
-    "settings-description": "Lantern revisa estos temas usando solo notas, resúmenes y transcripciones aprobadas de reuniones. Esta revisión no utiliza un servicio de IA.",
+    "settings-description": "{{productName}} revisa estos temas usando solo notas, resúmenes y transcripciones aprobadas de reuniones. Esta revisión no utiliza un servicio de IA.",
     "loading": "Cargando temas seguidos…",
     "insight-empty": "Aún no hay temas seguidos. Agrégalos en Ajustes para verlos aquí.",
     "insight-none": "No se encontraron temas seguidos en los registros de reuniones aprobados.",

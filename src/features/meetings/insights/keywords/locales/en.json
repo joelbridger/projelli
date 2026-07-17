@@ -2,7 +2,7 @@
   "meeting-keywords": {
     "title": "Tracked topics",
     "settings-title": "Tracked meeting topics",
-    "settings-description": "Lantern checks these topics using only approved meeting notes, summaries, and transcripts. This check does not use an AI service.",
+    "settings-description": "{{productName}} checks these topics using only approved meeting notes, summaries, and transcripts. This check does not use an AI service.",
     "loading": "Loading tracked topics…",
     "insight-empty": "No tracked topics yet. Add them in Settings to see them here.",
     "insight-none": "No tracked topics were found in approved meeting records.",
