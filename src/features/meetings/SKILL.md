@@ -88,29 +88,46 @@ artifact. Only the legal `produced -> approved` transition is accepted.
 
 ## Populate and open canonical meetings honestly
 
-New Meetings workspace rows use `createMeetingPopulationService`. It creates a
-real canonical record first. A legacy folder is optional and can be attached
-only through a one-time, idempotent `linkLegacy` step. The link requires all of
-these facts at once: a normalized workspace-relative folder, the current open
-workspace, the legacy `meeting.json.matterId`, a mapped Matter folder, and
-exactly one matching `crmHouseholdKeys` household. It never matches a title,
-date, path name, or calendar id.
+New Meetings workspace rows use `createMeetingPopulationService(port)`. It
+creates a real canonical record first. A legacy folder is optional and can be
+attached only through a one-time, idempotent `linkLegacy` step.
 
-`openTarget()` rechecks that local folder every time. A link relayed from
-another device may be valid canonical data but unavailable locally; opening it
-then fails honestly rather than sending a host a made-up client identity.
-`MeetingEntry` accepts this resolved `MeetingOpenTarget` as `openTarget` and
-passes its canonical meeting and client boundary through to panel, header, and
-insight hosts. Those hosts must never infer canonical identity from
-`meetingDir`.
+Authority is DERIVED, never handed in. The service takes only the live-record
+port; it does NOT accept a caller-supplied matter set, workspace object, or
+workspace id. At link/open time it derives the Matter set from the trusted
+matter store (`getMatters()`) and the filesystem from the active
+`WorkspaceService`, then resolves the EXACTLY-ONE Matter whose
+`crmHouseholdKeys` contains the record's household (zero or two-plus matches
+fail closed — the same authority `clientBoundary.ts` uses). That resolved Matter
+must equal the record's own `matterId`. The folder must be normalized and
+workspace-relative, every path segment (not just the leaf) is walked with
+symlinks resolved so an ancestor cannot escape the workspace or its mapped
+Matter folder, and the legacy `meeting.json.matterId` must match. It never
+matches a title, date, path name, or calendar id. A first link that races a
+competing one fails rather than silently overwriting it.
 
-For an authorized cross-client directory, use
-`createFirmMeetingDirectoryReader(port, authorization)`. Its authorization
-callback and exact allowed-matter list are checked for every read and again
-after reload; missing, empty, revoked, or failing permission returns no rows.
+`openTarget(meetingId)` fetches the canonical record from the trusted store by
+id, rechecks that local folder every time, and mints an UN-FORGEABLE
+`MeetingOpenTarget`: only the trusted resolver can produce one, and
+`verifyMeetingOpenTarget(target)` is the sole proof of authenticity. A link
+relayed from another device may be valid canonical data but unavailable locally;
+opening it then fails honestly rather than sending a host a made-up client
+identity. `MeetingEntry` binds identity through
+`resolveMeetingEntryHostIdentity`, which believes `openTarget` ONLY when the
+seal verifies — a hand-constructed structural object confers no identity and the
+host stays on its legacy folder props, so a forged target can never redirect
+panel/header/insight identity to another client.
 
-The external compile proof is
-`src/foundation-contracts/meetings-population/meetingsPopulation.import.ts`.
+For an authorized cross-client directory, mint an owner-issued grant with
+`grantFirmMeetingDirectoryAccess(...)` — whose allowed-matter set is derived
+from the trusted matter store, not asserted by the caller — and pass it to
+`createFirmMeetingDirectoryReader(port, grant)`. Only a sealed grant is honoured;
+a hand-constructed authorization object returns no rows. The allowed-matter set
+is re-checked after reload.
+
+The external paved-path proof is
+`src/foundation-contracts/meetings-population/meetingsPopulation.import.ts`
+(`proveMeetingsPopulationPavedPath`), executed by its `.paved.test.ts`.
 
 ## Contribute a panel, header action, or insight to the real Meetings host
 

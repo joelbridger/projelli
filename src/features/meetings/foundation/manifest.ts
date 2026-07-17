@@ -30,9 +30,10 @@ export const meetingFoundationDependentManifest: readonly MeetingFoundationDepen
     },
     {
       consumer: 'meetings-shell-v1',
-      fixture:
-        '../../../foundation-contracts/meetings-population/meetingsPopulation.import.ts',
-      status: 'ready',
+      fixture: null,
+      status: 'coordinator-blocked',
+      reason:
+        'COORDINATOR: the shell is HELD (bridge-probe ruling D-then-A) pending an honest relaunch. This lane delivers the population/open-target CONTRACT that unblocks it (see meetingsPopulation.import.ts paved-path proof and its boundary probes), but the shell UI relaunch and the advisor-driven bulk legacy-link UI remain the named follow-on; the shell seam itself is not yet importable-and-ready.',
     },
     {
       consumer: 'meeting-spoken-notice',
