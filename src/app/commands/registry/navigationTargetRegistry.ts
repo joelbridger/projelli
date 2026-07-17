@@ -1,5 +1,6 @@
 import {
   getAppSurfaceDescriptors,
+  hasLazyAppSurfaceRegistrations,
   resolveAppSurfaceRegistry,
 } from '@/app/shell/registry/appSurfaceRegistry';
 import type {
@@ -8,9 +9,7 @@ import type {
 } from '@/app/shell/registry/types';
 import type { MattersSurfaceMode } from '@/platform/state/appNavigationStore';
 import type { AppSurface } from '@/platform/types/navigation';
-import {
-  legacyNavigationTargetDescriptors,
-} from '@/app/commands/registry/legacyNavigationTargetDescriptors';
+import { legacyNavigationTargetDescriptors } from '@/app/commands/registry/legacyNavigationTargetDescriptors';
 
 export interface NavigationTargetSource {
   kind?: string;
@@ -84,10 +83,17 @@ function isDescriptorResult(
 
 export function validateNavigationTargetDescriptors(
   descriptors: readonly NavigationTargetDescriptor[],
-  surfaces: readonly AppSurfaceDescriptor[] = getAppSurfaceDescriptors()
+  surfaces?: readonly AppSurfaceDescriptor[]
 ): void {
   const ids = new Set<string>();
-  const surfaceIds = new Set(surfaces.map((surface) => surface.id));
+  // A static alias may legitimately point at a lazy app-surface registration.
+  // Its id is not knowable until that registration resolves, so defer only the
+  // cross-registry check; duplicates still fail immediately below.
+  const surfaceIds = new Set(
+    (surfaces ?? getAppSurfaceDescriptors()).map((surface) => surface.id)
+  );
+  const canValidateSurfaceIds =
+    surfaces !== undefined || !hasLazyAppSurfaceRegistrations();
   for (const descriptor of descriptors) {
     if (ids.has(descriptor.id)) {
       throw new Error(
@@ -95,7 +101,7 @@ export function validateNavigationTargetDescriptors(
       );
     }
     ids.add(descriptor.id);
-    if (!surfaceIds.has(descriptor.appSurfaceId)) {
+    if (canValidateSurfaceIds && !surfaceIds.has(descriptor.appSurfaceId)) {
       throw new Error(
         `[navigationTargetRegistry] unknown app surface: ${descriptor.appSurfaceId}`
       );
@@ -120,7 +126,10 @@ export function getNavigationTargetDescriptors(): readonly NavigationTargetDescr
 export function resolveNavigationTargetRegistry(): Promise<
   readonly NavigationTargetDescriptor[]
 > {
-  if (!hasLazyNavigationTargetRegistrations()) {
+  if (
+    !hasLazyNavigationTargetRegistrations() &&
+    !hasLazyAppSurfaceRegistrations()
+  ) {
     return Promise.resolve(resolvedDescriptors);
   }
   resolution ??= Promise.all([
@@ -157,10 +166,22 @@ function findNavigationTargetDescriptor(
  */
 export function resolveNavigationTargetDescriptor(
   target: MatterNavigationTarget
-): NavigationTargetDescriptor | undefined | Promise<NavigationTargetDescriptor | undefined> {
-  const descriptor = findNavigationTargetDescriptor(target, resolvedDescriptors);
-  if (descriptor) return descriptor;
-  if (!hasLazyNavigationTargetRegistrations()) {
+):
+  | NavigationTargetDescriptor
+  | undefined
+  | Promise<NavigationTargetDescriptor | undefined> {
+  const descriptor = findNavigationTargetDescriptor(
+    target,
+    resolvedDescriptors
+  );
+  // An eager alias can still point at a lazy app surface. Wait for that
+  // registry too, so routing does not mistake a still-loading known surface
+  // for an unavailable one.
+  if (descriptor && !hasLazyAppSurfaceRegistrations()) return descriptor;
+  if (
+    !hasLazyNavigationTargetRegistrations() &&
+    !hasLazyAppSurfaceRegistrations()
+  ) {
     return undefined;
   }
   return resolveNavigationTargetRegistry().then((descriptors) =>

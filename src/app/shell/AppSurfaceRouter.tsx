@@ -79,6 +79,7 @@ import {
 import {
   SAFE_APP_SURFACE_ID,
   getAppSurfaceDescriptor,
+  resolveAppSurfaceDescriptor,
 } from '@/app/shell/registry/appSurfaceRegistry';
 import { useAppSurfaceRegistry } from '@/app/shell/runtime/useAppSurfaceRegistry';
 import { sendDiagnosticEvent } from '@/platform/utils/diagnostics';
@@ -890,10 +891,10 @@ export function AppSurfaceRouter(props: AppSurfaceRouterProps) {
             return;
           }
 
-          const surfaceDescriptor = getAppSurfaceDescriptor(
+          const surfaceResolution = resolveAppSurfaceDescriptor(
             targetDescriptor.appSurfaceId
           );
-          if (!surfaceDescriptor) {
+          if (surfaceResolution.status === 'known-but-unavailable') {
             console.error(
               `[AppSurfaceRouter] Navigation target "${targetDescriptor.id}" points to unavailable surface "${targetDescriptor.appSurfaceId}"; falling back to "${SAFE_APP_SURFACE_ID}".`
             );
@@ -906,16 +907,25 @@ export function AppSurfaceRouter(props: AppSurfaceRouterProps) {
             return;
           }
 
+          if (surfaceResolution.status === 'unknown') {
+            console.warn(
+              `[AppSurfaceRouter] Refused navigation target "${targetDescriptor.id}" with unknown surface "${targetDescriptor.appSurfaceId}".`
+            );
+            return;
+          }
+
+          const surfaceDescriptor = surfaceResolution.descriptor;
+
           if (surfaceDescriptor.resolveNavigation) {
             const resolvedTarget: NavigationTarget = {
               ...target,
               surface: targetDescriptor.appSurfaceId,
             };
-            surfaceDescriptor.resolveNavigation(
+            const navigationResult = surfaceDescriptor.resolveNavigation(
               resolvedTarget,
               navigationRuntimeRef.current
             );
-            return;
+            return Promise.resolve(navigationResult);
           }
 
           return targetDescriptor.resolve(target as MatterNavigationTarget, {
@@ -927,11 +937,17 @@ export function AppSurfaceRouter(props: AppSurfaceRouterProps) {
           });
         })
         .catch((error: unknown) => {
-          console.error('[AppSurfaceRouter] Navigation target resolution failed', error);
+          console.error(
+            '[AppSurfaceRouter] Navigation target resolution failed',
+            error
+          );
         });
     };
 
-    window.addEventListener(NAVIGATION_TARGET_DISPATCH_EVENT, onNavigationTarget);
+    window.addEventListener(
+      NAVIGATION_TARGET_DISPATCH_EVENT,
+      onNavigationTarget
+    );
     return () => {
       window.removeEventListener(
         NAVIGATION_TARGET_DISPATCH_EVENT,

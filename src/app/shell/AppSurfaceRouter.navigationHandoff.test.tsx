@@ -1,51 +1,108 @@
-import { cleanup, render, waitFor } from '@testing-library/react';
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
+import { Home } from 'lucide-react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useState } from 'react';
 import type { AppSurface, NavigationTarget } from '@/platform/types/navigation';
 import type { AppSurfaceDescriptor } from '@/app/shell/registry/types';
-import type {
-  MatterNavigationTarget,
-  NavigationTargetDescriptor,
-} from '@/app/commands/registry/navigationTargetRegistry';
 import type { AppSurfaceRuntime } from '@/app/shell/runtime/AppSurfaceRuntime';
 import { useGlobalEventBus } from '@/app/lifecycle/useGlobalEventBus';
 import { EV_MATTER_LAUNCH } from '@/config/identity';
 import { useMatterStore } from '@/platform/matter/matterStore';
 
-const handoff = vi.hoisted(() => ({
-  descriptors: null as readonly NavigationTargetDescriptor[] | null,
-  surfaces: new Map<string, AppSurfaceDescriptor | undefined>(),
+declare module '@/platform/types/navigation' {
+  interface AppSurfaceMap {
+    'disposable-notes': true;
+  }
+}
+
+const registryProbe = vi.hoisted(() => ({
+  flags: new Map<string, boolean>(),
+  lazySurfaceLoader: vi.fn<() => Promise<AppSurfaceDescriptor>>(),
+  lazySurfaceResolver: vi.fn(),
+  staleFlagOffResolver: vi.fn(),
 }));
 
-vi.mock('@/app/commands/registry/navigationTargetRegistry', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/app/commands/registry/navigationTargetRegistry')>();
+vi.mock('@/platform/flags', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/platform/flags')>()),
+  isEnabled: (id: string) => registryProbe.flags.get(id) ?? true,
+}));
+
+vi.mock('@/app/shell/registry/legacyAppSurfaceDescriptors', async () => {
+  const actual = await vi.importActual<
+    typeof import('@/app/shell/registry/legacyAppSurfaceDescriptors')
+  >('@/app/shell/registry/legacyAppSurfaceDescriptors');
+
   return {
     ...actual,
-    resolveNavigationTargetDescriptor: (target: MatterNavigationTarget) =>
-      handoff.descriptors === null
-        ? actual.resolveNavigationTargetDescriptor(target)
-        : handoff.descriptors.find((descriptor) => descriptor.id === target.surface),
+    // This is a real, registered descriptor. The test turns its real registry
+    // flag off after registration, so the router receives the tri-state result.
+    legacyClientsSurface: {
+      ...actual.legacyClientsSurface,
+      availabilityFlag: 'home-surface-v1',
+      resolveNavigation: registryProbe.staleFlagOffResolver,
+    },
+    // A lazy surface lets the real target registry prove it waits for the real
+    // app-surface registry before navigating an otherwise eager alias.
+    legacyTrashSurface: () => registryProbe.lazySurfaceLoader(),
   };
 });
 
-vi.mock('@/app/shell/registry/appSurfaceRegistry', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/app/shell/registry/appSurfaceRegistry')>();
-  return {
-    ...actual,
-    getAppSurfaceDescriptor: (id: AppSurface) =>
-      handoff.surfaces.has(id)
-        ? handoff.surfaces.get(id)
-        : actual.getAppSurfaceDescriptor(id),
-  };
-});
+vi.mock(
+  '@/app/commands/registry/legacyNavigationTargetDescriptors',
+  async () => {
+    const actual = await vi.importActual<
+      typeof import('@/app/commands/registry/legacyNavigationTargetDescriptors')
+    >('@/app/commands/registry/legacyNavigationTargetDescriptors');
 
-vi.mock('@/app/lifecycle/useIntakeInboxSync', () => ({ useIntakeInboxSync: vi.fn() }));
-vi.mock('@/platform/intake/useEmailReplyIngestion', () => ({ useEmailReplyIngestion: vi.fn() }));
+    return {
+      ...actual,
+      legacyNavigationTargetDescriptors: [
+        ...actual.legacyNavigationTargetDescriptors,
+        {
+          id: 'disposable-notes',
+          appSurfaceId: 'disposable-notes',
+          resolve: vi.fn(),
+        },
+      ],
+    };
+  }
+);
+
+vi.mock('@/app/lifecycle/useIntakeInboxSync', () => ({
+  useIntakeInboxSync: vi.fn(),
+}));
+vi.mock('@/platform/intake/useEmailReplyIngestion', () => ({
+  useEmailReplyIngestion: vi.fn(),
+}));
 vi.mock('@/platform/intake/useDocumentExtractionIngestion', () => ({
   useDocumentExtractionIngestion: vi.fn(),
 }));
 
-import { AppSurfaceRouter, type AppSurfaceRouterProps } from './AppSurfaceRouter';
+import {
+  AppSurfaceRouter,
+  type AppSurfaceRouterProps,
+} from './AppSurfaceRouter';
+import { Spine } from './layout/Spine';
+
+function disposableNotesSurface(): AppSurfaceDescriptor {
+  return {
+    id: 'disposable-notes',
+    labelKey: 'disposable.notes',
+    icon: Home,
+    placement: 'hidden',
+    order: 99,
+    clientContext: 'firm',
+    errorLabel: 'Disposable notes',
+    render: () => null,
+    resolveNavigation: registryProbe.lazySurfaceResolver,
+  };
+}
 
 function baseProps(
   sidebarActiveTab: AppSurface,
@@ -117,7 +174,11 @@ function baseProps(
   };
 }
 
-function NavigationHarness({ onNavigate }: { onNavigate: (surface: AppSurface) => void }) {
+function NavigationHarness({
+  onNavigate,
+}: {
+  onNavigate: (surface: AppSurface) => void;
+}) {
   const [surface, setSurface] = useState<AppSurface>('home');
   const navigate = (next: AppSurface) => {
     onNavigate(next);
@@ -142,81 +203,106 @@ function launch(detail: Record<string, unknown>) {
 
 afterEach(() => {
   cleanup();
-  handoff.descriptors = null;
-  handoff.surfaces.clear();
+  registryProbe.flags.clear();
+  registryProbe.lazySurfaceResolver.mockClear();
+  registryProbe.staleFlagOffResolver.mockClear();
   useMatterStore.setState({ matters: [], activeMatterId: null });
   vi.restoreAllMocks();
 });
 
 describe('AppSurfaceRouter navigation handoff', () => {
-  it('preserves the declared legacy route when its registered surface has no resolver', async () => {
+  it('uses the real registries: waits once for a lazy surface and gives its resolver the raw intent', async () => {
     const onNavigate = vi.fn();
-    useMatterStore.getState().createMatter({ id: 'm1', name: 'M1', client: 'M1' });
-    render(<NavigationHarness onNavigate={onNavigate} />);
-
-    launch({ matterId: 'm1', surface: 'files' });
-
-    await waitFor(() => {
-      expect(onNavigate).toHaveBeenCalledExactlyOnceWith('matters');
-    });
-  });
-
-  it('uses a disposable non-Meetings surface resolver once through the real event-bus route', async () => {
-    const onNavigate = vi.fn();
-    const resolveNavigation = vi.fn((target: NavigationTarget, runtime: AppSurfaceRuntime) => {
-      runtime.navigation.setSurface(target.surface);
-    });
-    handoff.descriptors = [
-      { id: 'disposable-notes', appSurfaceId: 'search', resolve: vi.fn() },
-    ];
-    const realSearch = await import('@/app/shell/registry/appSurfaceRegistry').then(
-      ({ getAppSurfaceDescriptors }) =>
-        getAppSurfaceDescriptors().find((descriptor) => descriptor.id === 'search')
+    registryProbe.lazySurfaceLoader.mockResolvedValue(disposableNotesSurface());
+    registryProbe.lazySurfaceResolver.mockImplementation(
+      (target: NavigationTarget, runtime: AppSurfaceRuntime) => {
+        runtime.navigation.setSurface(target.surface);
+      }
     );
-    if (!realSearch) throw new Error('Expected the registered Ask surface');
-    handoff.surfaces.set('search', {
-      ...realSearch,
-      resolveNavigation,
-    });
     render(<NavigationHarness onNavigate={onNavigate} />);
 
     const source = { kind: 'note', ref: 'record-42' };
     launch({ matterId: 'm1', surface: 'disposable-notes', source });
 
     await waitFor(() => {
-      expect(resolveNavigation).toHaveBeenCalledTimes(1);
+      expect(registryProbe.lazySurfaceLoader).toHaveBeenCalledTimes(1);
+      expect(registryProbe.lazySurfaceResolver).toHaveBeenCalledTimes(1);
     });
-    expect(resolveNavigation).toHaveBeenCalledWith(
-      expect.objectContaining({ matterId: 'm1', surface: 'search', source }),
+    expect(registryProbe.lazySurfaceResolver).toHaveBeenCalledWith(
+      expect.objectContaining({
+        matterId: 'm1',
+        surface: 'disposable-notes',
+        source,
+      }),
       expect.any(Object)
     );
-    expect(onNavigate).toHaveBeenCalledExactlyOnceWith('search');
+    expect(onNavigate).toHaveBeenCalledExactlyOnceWith('disposable-notes');
   });
 
-  it('sends a known but unavailable surface safely Home without calling a stale resolver', async () => {
+  it('preserves the declared legacy route when its registered surface has no resolver', async () => {
     const onNavigate = vi.fn();
-    handoff.descriptors = [{ id: 'flag-off', appSurfaceId: 'search', resolve: vi.fn() }];
-    handoff.surfaces.set('search', undefined);
+    useMatterStore
+      .getState()
+      .createMatter({ id: 'm1', name: 'M1', client: 'M1' });
     render(<NavigationHarness onNavigate={onNavigate} />);
 
-    launch({ matterId: 'm1', surface: 'flag-off', source: { ref: 'record-42' } });
+    launch({ matterId: 'm1', surface: 'home' });
 
     await waitFor(() => {
       expect(onNavigate).toHaveBeenCalledExactlyOnceWith('home');
     });
-    expect(handoff.descriptors[0]?.resolve).not.toHaveBeenCalled();
+  });
+
+  it('takes a real Spine click through the event bus to Home for a known flag-off surface without its resolver', async () => {
+    const onNavigate = vi.fn();
+    useMatterStore
+      .getState()
+      .createMatter({ id: 'm1', name: 'M1', client: 'M1' });
+    registryProbe.flags.set('home-surface-v1', false);
+    render(
+      <>
+        <NavigationHarness onNavigate={onNavigate} />
+        <Spine />
+      </>
+    );
+
+    fireEvent.click(await screen.findByTestId('spine-client-row-m1'));
+
+    await waitFor(() => {
+      expect(onNavigate).toHaveBeenCalledExactlyOnceWith('home');
+    });
+    expect(registryProbe.staleFlagOffResolver).not.toHaveBeenCalled();
   });
 
   it('refuses an unknown alias without navigating or falling back', async () => {
     const onNavigate = vi.fn();
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    handoff.descriptors = [];
     render(<NavigationHarness onNavigate={onNavigate} />);
 
     launch({ matterId: 'm1', surface: 'unknown-alias' });
 
     await waitFor(() => {
       expect(warn).toHaveBeenCalledOnce();
+    });
+    expect(onNavigate).not.toHaveBeenCalled();
+  });
+
+  it('catches a rejected async surface resolver', async () => {
+    const onNavigate = vi.fn();
+    const error = new Error('resolver failed');
+    const caught = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    registryProbe.lazySurfaceResolver.mockRejectedValueOnce(error);
+    render(<NavigationHarness onNavigate={onNavigate} />);
+
+    launch({ matterId: 'm1', surface: 'disposable-notes' });
+
+    await waitFor(() => {
+      expect(caught).toHaveBeenCalledWith(
+        '[AppSurfaceRouter] Navigation target resolution failed',
+        error
+      );
     });
     expect(onNavigate).not.toHaveBeenCalled();
   });
