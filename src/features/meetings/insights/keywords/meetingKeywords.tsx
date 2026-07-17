@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { isEnabled, useFlag } from '@/platform/flags';
+import { isEnabled } from '@/platform/flags';
 import {
   approvedMeetingArtifactsForClient,
   useMeetingArtifactStore,
@@ -135,8 +135,7 @@ function MeetingKeywordsInsightCard({
 }: {
   context: MeetingInsightMeetingSummaryContext;
 }) {
-  const enabled = useFlag('meeting-keywords');
-  if (!enabled) return null;
+  if (!isEnabled('meeting-keywords')) return null;
   return <MeetingKeywordsInsightCardEnabled context={context} />;
 }
 
@@ -291,8 +290,7 @@ export function MeetingKeywordSettingsPanel({
 }: {
   useCatalogue?: () => MeetingKeywordCatalogueStore;
 }) {
-  const enabled = useFlag('meeting-keywords');
-  if (!enabled) return null;
+  if (!isEnabled('meeting-keywords')) return null;
   return <MeetingKeywordSettingsPanelEnabled useCatalogue={useCatalogue} />;
 }
 
