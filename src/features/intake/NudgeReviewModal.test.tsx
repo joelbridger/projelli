@@ -6,9 +6,11 @@ import type { IntakeRecord } from '@/platform/intake/intakeStore';
 import { useIntakeStore } from '@/platform/intake/intakeStore';
 import { DEFAULT_ONBOARDING_CONFIG } from '@/platform/intake/nudgeTypes';
 import { deriveOnboardingRow } from '@/platform/intake/onboardingModel';
+import type { SaveNudgeDraftInput } from '@/platform/intake/nudgeSave';
 import { setPromptDecisionBroker } from '@/platform/privacy/promptPreparation';
 import type { ResolvedEmailProvider } from '@/features/email/resolveEmailProvider';
 import type { Provider } from '@/platform/providers/Provider';
+import { assertCrossContextIsolation } from '@/testing/cross-context-isolation';
 
 import { NudgeReviewModal } from './NudgeReviewModal';
 
@@ -20,12 +22,20 @@ function textAreaValue(testId: string): string {
 
 const resolveEmailProviderMock = vi.fn<() => Promise<ResolvedEmailProvider>>();
 const reconstructAdvisorIntakeLinkMock = vi.fn<(input: { intakeId: string; publicKeyRawB64: string }) => Promise<string>>();
+const saveNudgeDraftMock = vi.hoisted(() => vi.fn<(input: SaveNudgeDraftInput) => Promise<{
+  auditPairId: string;
+  draftId: string;
+}>>());
 vi.mock('@/features/email/resolveEmailProvider', () => ({
   resolveEmailProvider: (): Promise<ResolvedEmailProvider> => resolveEmailProviderMock(),
 }));
 vi.mock('@/platform/intake/advisorIntakeLink', () => ({
   reconstructAdvisorIntakeLink: (input: { intakeId: string; publicKeyRawB64: string }): Promise<string> =>
     reconstructAdvisorIntakeLinkMock(input),
+}));
+vi.mock('@/platform/intake/nudgeSave', () => ({
+  saveNudgeDraftToMailbox: saveNudgeDraftMock,
+  recordNudgeCopiedToClipboard: vi.fn(),
 }));
 
 vi.mock('@/platform/utils/mail-commands', async (importOriginal) => {
@@ -170,22 +180,92 @@ describe('NudgeReviewModal AI rewrite - prepared-send wiring', () => {
     expect(structuredOutput).not.toHaveBeenCalled();
   });
 
-  it('preserves an advisor body through a same-intake re-seed, but resets for another intake', async () => {
+  it('uses the shared complete cross-context isolation probe', async () => {
+    let view: ReturnType<typeof render> | undefined;
+    const a = intake({ clientEmail: 'sarah@example.test', firmName: 'Firm A' });
+    const b = intake({ matterId: 'matter-2', clientFirstName: 'Priya', clientEmail: 'priya@example.test', firmName: 'Firm B', link: 'https://example.test/i/b#b-secret', items: [{ itemId: 'tax-return', label: 'Tax return', state: 'not_started' }] });
+    const show = (record: IntakeRecord) => view?.rerender(<NudgeReviewModal open row={deriveOnboardingRow(record, now, DEFAULT_ONBOARDING_CONFIG)} intake={record} now={now} onOpenChange={vi.fn()} />);
+    await assertCrossContextIsolation({
+      name: 'Nudge review matter switch',
+      identity: { contextA: 'matter-1', contextB: 'matter-2', sameRecordId: 'intake-1', sameFieldId: 'nudge-review-body' },
+      renderSurface: async () => { reconstructAdvisorIntakeLinkMock.mockReset(); saveNudgeDraftMock.mockReset(); saveNudgeDraftMock.mockResolvedValue({ auditPairId: 'test-audit', draftId: 'test-draft' }); view?.unmount(); view = render(<NudgeReviewModal open row={deriveOnboardingRow(a, now, DEFAULT_ONBOARDING_CONFIG)} intake={a} now={now} onOpenChange={vi.fn()} />); await waitFor(() => { expect(screen.getByTestId('nudge-review-body')).not.toBeDisabled(); }); },
+      typeIntoField: () => { fireEvent.change(screen.getByTestId('nudge-review-body'), { target: { value: 'PRIVATE WORDING TYPED FOR CLIENT A' } }); return { typedA: 'PRIVATE WORDING TYPED FOR CLIENT A', loadedA: ['Sarah', 'sarah@example.test', 'Firm A', 'Social Security number'] }; },
+      reseedSameContext: () => show({ ...a, firmName: 'Firm A refresh' }),
+      switchContext: (load) => { if (load === 'failure') { const failed = { ...b }; delete failed.link; reconstructAdvisorIntakeLinkMock.mockRejectedValueOnce(new Error('B link load failed')); show(failed); } else show(b); },
+      waitForBSuccess: async () => { await waitFor(() => { expect(textAreaValue('nudge-review-body')).toContain('Priya'); }); },
+      waitForBFailure: async () => { await waitFor(() => { expect(screen.getByRole('alert')).toBeInTheDocument(); }); },
+      assertATypedValueVisible: () => { expect(textAreaValue('nudge-review-body')).toContain('PRIVATE WORDING TYPED FOR CLIENT A'); },
+      assertWithinContextEditPreserved: () => { expect(textAreaValue('nudge-review-body')).toContain('PRIVATE WORDING TYPED FOR CLIENT A'); },
+      assertBSuccessLoaded: () => { expect(textAreaValue('nudge-review-body')).toContain('Priya'); expect(screen.getByTestId('nudge-review-to')).toHaveValue('priya@example.test'); expect(screen.getByTestId('nudge-missing-items')).toHaveTextContent('Tax return'); },
+      assertBFailureIsFailClosed: () => { expect(textAreaValue('nudge-review-body')).toBe(''); expect(screen.getByTestId('nudge-review-to')).toHaveValue(''); expect(screen.getByTestId('nudge-review-body')).toBeDisabled(); },
+      assertNoAContentInFields: ({ loadedA }) => { for (const marker of loadedA) expect(document.body.textContent).not.toContain(marker); expect(screen.getByTestId('nudge-review-to')).not.toHaveValue('sarah@example.test'); },
+      assertNoAContentInUnderlyingState: async ({ typedA }, phase) => {
+        expect(screen.getByTestId('nudge-review-subject')).not.toHaveValue('A few onboarding items for Firm A');
+        expect(screen.getByTestId('nudge-missing-items')).not.toHaveTextContent('Social Security number');
+        const saveDraft = screen.queryByTestId('nudge-save-draft');
+        if (phase === 'B loaded' && saveDraft && !saveDraft.hasAttribute('disabled')) {
+          saveNudgeDraftMock.mockClear();
+          fireEvent.click(saveDraft);
+          await waitFor(() => { expect(saveNudgeDraftMock).toHaveBeenCalledTimes(1); });
+          const saved = saveNudgeDraftMock.mock.calls[0]?.[0];
+          if (!saved) throw new Error('Expected the saved B nudge draft input.');
+          expect(saved.bodyText).not.toContain(typedA);
+          expect(saved.intake.matterId).toBe('matter-2');
+          expect(saved.draft.to).not.toContain('sarah@example.test');
+        }
+      },
+    });
+  });
+
+  it('resets a draft when a different intake uses the same matter', async () => {
     const original = intake();
-    const view = render(<NudgeReviewModal open row={deriveOnboardingRow(original, now, DEFAULT_ONBOARDING_CONFIG)} intake={original} now={now} onOpenChange={vi.fn()} />);
-    await waitFor(() => { expect(screen.getByTestId('nudge-review-body')).not.toBeDisabled(); });
+    const view = render(
+      <NudgeReviewModal
+        open
+        row={deriveOnboardingRow(original, now, DEFAULT_ONBOARDING_CONFIG)}
+        intake={original}
+        now={now}
+        onOpenChange={vi.fn()}
+      />
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId('nudge-review-body')).not.toBeDisabled();
+    });
     fireEvent.change(screen.getByTestId('nudge-review-body'), {
       target: { value: "Advisor's careful wording" },
     });
     const refreshed = { ...original, firmName: 'North Star refresh' };
-    view.rerender(<NudgeReviewModal open row={deriveOnboardingRow(refreshed, now, DEFAULT_ONBOARDING_CONFIG)} intake={refreshed} now={now} onOpenChange={vi.fn()} />);
+    view.rerender(
+      <NudgeReviewModal
+        open
+        row={deriveOnboardingRow(refreshed, now, DEFAULT_ONBOARDING_CONFIG)}
+        intake={refreshed}
+        now={now}
+        onOpenChange={vi.fn()}
+      />
+    );
     await waitFor(() => {
       expect(textAreaValue('nudge-review-body')).toBe("Advisor's careful wording");
     });
-    const anotherIntake = intake({ intakeId: 'intake-2', clientFirstName: 'Priya', link: 'https://example.test/i/def#another-link-secret' });
-    view.rerender(<NudgeReviewModal open row={deriveOnboardingRow(anotherIntake, now, DEFAULT_ONBOARDING_CONFIG)} intake={anotherIntake} now={now} onOpenChange={vi.fn()} />);
+
+    const anotherIntake = intake({
+      intakeId: 'intake-2',
+      clientFirstName: 'Priya',
+      link: 'https://example.test/i/def#another-link-secret',
+    });
+    view.rerender(
+      <NudgeReviewModal
+        open
+        row={deriveOnboardingRow(anotherIntake, now, DEFAULT_ONBOARDING_CONFIG)}
+        intake={anotherIntake}
+        now={now}
+        onOpenChange={vi.fn()}
+      />
+    );
     await waitFor(() => {
-      expect(textAreaValue('nudge-review-body')).not.toContain("Advisor's careful wording");
+      expect(textAreaValue('nudge-review-body')).not.toContain(
+        "Advisor's careful wording"
+      );
       expect(textAreaValue('nudge-review-body')).toContain('Priya');
     });
   });
