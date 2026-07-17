@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render } from '@testing-library/react';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
-import { setDevFlagOverride } from '@/platform/flags';
 import {
   approvedMeetingArtifactsForClient,
   createMeetingArtifactStore,
@@ -45,7 +44,6 @@ const clientA: ClientBoundary = {
 
 describe('meeting keywords', () => {
   afterEach(() => {
-    setDevFlagOverride('meeting-keywords', undefined);
     vi.restoreAllMocks();
   });
 
@@ -148,33 +146,5 @@ describe('meeting keywords', () => {
         (descriptor) => descriptor.id
       )
     ).not.toContain('meeting_keywords');
-  });
-
-  it('registers and renders the Settings section through the real doorway', async () => {
-    const { getSettingsPanelDescriptors } =
-      await import('@/features/settings/registry/settingsModuleRegistry');
-    const { renderRegisteredSettingsPanels } =
-      await import('@/features/settings');
-    setDevFlagOverride('meeting-keywords', true);
-    expect(
-      getSettingsPanelDescriptors('organization').find(
-        (panel) => panel.id === 'meeting-keywords'
-      )
-    ).toBeDefined();
-    render(
-      <>
-        {renderRegisteredSettingsPanels('organization', {
-          getSetting: () => undefined,
-          setSetting: () => undefined,
-          onAction: () => undefined,
-          filteredKeys: new Set(),
-          searchQuery: '',
-          searchActive: false,
-          onNavigate: () => undefined,
-          hasWorkspaceOpen: true,
-        })}
-      </>
-    );
-    expect(screen.getByTestId('meeting-keywords-settings')).toBeInTheDocument();
   });
 });

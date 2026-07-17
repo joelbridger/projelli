@@ -8,14 +8,22 @@ import {
   type ApprovedMeetingArtifactReader,
   type CitedMeetingInsight,
   type MeetingArtifactRequirement,
-  type MeetingInsightDescriptor,
   type MeetingKeywordCatalogueStore,
 } from '../../foundation/contract';
-import { registerMeetingInsight } from '../../meetingInsightRegistry';
+import {
+  registerMeetingInsight,
+  type MeetingInsightDescriptor,
+} from '../../meetingInsightRegistry';
 import type {
   MeetingInsightClientSummaryContext,
   MeetingInsightMeetingSummaryContext,
 } from '../../meetingWorkspaceTypes';
+
+declare module '../../meetingWorkspaceTypes' {
+  interface MeetingInsightIdMap {
+    meeting_keywords: true;
+  }
+}
 
 export const MEETING_KEYWORD_ARTIFACT_REQUIREMENTS: readonly MeetingArtifactRequirement[] =
   [
