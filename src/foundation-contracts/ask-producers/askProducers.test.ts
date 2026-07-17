@@ -1,14 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import {
-  openContactRef,
-  readAskContactSources,
-} from '@/features/crm-contacts';
+import { openContactRef, readAskContactSources } from '@/features/crm-contacts';
 import {
   openDocumentCitation,
   readAskDocumentSources,
 } from '@/features/crm-documents';
 import { readApprovedMeetingArtifacts } from '@/features/meetings';
 import { readAskEmailDescriptors } from '@/features/crm-connectors';
+import type { AskClientSnapshot } from '@/features/ask';
+import { mintAskClientSnapshotForTest } from '@/features/ask/testing';
 import type { ContactRecord, ContactRef } from '@/features/crm-contacts';
 import type {
   ClientBoundary,
@@ -29,11 +28,18 @@ const clientRef: ContactRef = {
   label: 'Avery Client',
 };
 
-const client = {
+const client = mintAskClientSnapshotForTest<ContactRef>({
   contactRef: clientRef,
   matterId: 'matter-1',
   revision: 'client-1:1',
-};
+});
+
+// These intentionally lose the private provenance seal. They are negative
+// inputs, not alternate valid ways to construct Ask client authority.
+const wrongMatterForgedClient = {
+  ...client,
+  matterId: 'wrong-matter',
+} as unknown as AskClientSnapshot<ContactRef>;
 
 const contact: ContactRecord = {
   id: 'client-1',
@@ -93,7 +99,9 @@ function meetingReaderFixture(): {
   };
   const artifacts: MeetingArtifactStore = {
     readerFor: (_meetings, receivedBoundary, requirements) => {
-      const allowed = new Set(requirements.map((requirement) => requirement.kind));
+      const allowed = new Set(
+        requirements.map((requirement) => requirement.kind)
+      );
       const exactClient =
         receivedBoundary.householdRef === boundary.householdRef &&
         receivedBoundary.matterId === boundary.matterId;
@@ -149,7 +157,7 @@ describe('Ask source producer doorways', () => {
     expect(
       readAskContactSources({
         workspaceId: 'workspace-1',
-        client: { ...client, matterId: 'wrong-matter' },
+        client: wrongMatterForgedClient,
         contacts: [contact],
       })
     ).toEqual([]);
@@ -163,7 +171,11 @@ describe('Ask source producer doorways', () => {
       contact,
     });
     expect(sources).toHaveLength(1);
-    expect(sources[0]).toMatchObject({ kind: 'document', label: 'Plan', client });
+    expect(sources[0]).toMatchObject({
+      kind: 'document',
+      label: 'Plan',
+      client,
+    });
     expect(sources[0]?.citationOpenPath).not.toHaveProperty('token');
     expect(
       openDocumentCitation({
@@ -176,7 +188,7 @@ describe('Ask source producer doorways', () => {
     expect(
       readAskDocumentSources({
         workspaceId: 'workspace-1',
-        client: { ...client, matterId: 'wrong-matter' },
+        client: wrongMatterForgedClient,
         contact,
       })
     ).toEqual([]);
@@ -224,7 +236,8 @@ describe('Ask source producer doorways', () => {
   });
 
   it('forwards through the existing approved-only, allowed-kinds meeting reader', () => {
-    const { meetings, artifacts, boundary, requirements } = meetingReaderFixture();
+    const { meetings, artifacts, boundary, requirements } =
+      meetingReaderFixture();
     const reader = readApprovedMeetingArtifacts(
       meetings,
       artifacts,
@@ -243,6 +256,8 @@ describe('Ask source producer doorways', () => {
         requirements
       )?.listApproved('meeting-1')
     ).toEqual([]);
-    expect(readApprovedMeetingArtifacts(meetings, artifacts, null, requirements)).toBeNull();
+    expect(
+      readApprovedMeetingArtifacts(meetings, artifacts, null, requirements)
+    ).toBeNull();
   });
 });

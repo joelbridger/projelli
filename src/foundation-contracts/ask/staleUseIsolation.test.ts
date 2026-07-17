@@ -8,7 +8,6 @@ import {
   type AskSourceDescriptor,
 } from '@/features/ask';
 import {
-  fixtureClient,
   fixtureOwners,
   type FixtureClientRef,
   type FixtureMeetingRef,
@@ -17,7 +16,17 @@ import {
 const RAW_TOKEN = 'client-a-secret-open-token';
 // This is the hostile cast the public intake must reject. It can satisfy TypeScript
 // only by erasing the private brand, and it has no runtime provenance seal.
-const forgedClient = fixtureClient as unknown as AskClientSnapshot<FixtureClientRef>;
+const rawForgedClient = {
+  contactRef: {
+    owner: 'fixture-client-owner',
+    id: 'client-1',
+    matterId: 'matter-1',
+  },
+  matterId: 'matter-1',
+  revision: 'client-1:1',
+} as const;
+const forgedClient =
+  rawForgedClient as unknown as AskClientSnapshot<FixtureClientRef>;
 const sourceA: AskSourceDescriptor<FixtureClientRef, FixtureMeetingRef> = {
   sourceId: 'consumer-source-a',
   kind: 'document',
@@ -48,6 +57,8 @@ describe('Ask public surface: an ordinary consumer cannot own the shared client'
     expect(surface['askSharedClientIsBound']).toBeUndefined();
     expect(surface['createAskSharedClientOwner']).toBeUndefined();
     expect(surface['readOwnerBoundAccess']).toBeUndefined();
+    expect(surface['mintAskClientSnapshot']).toBeUndefined();
+    expect(surface['mintAskClientSnapshotForTest']).toBeUndefined();
     // Nothing on the public surface installs a bare access as the current client.
     const bindLike = Object.keys(surface).filter((n) => /bind|owner/i.test(n));
     expect(bindLike).toEqual([]);

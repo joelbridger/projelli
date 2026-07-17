@@ -27,7 +27,7 @@ import {
   type AskOwnerIdentityAdapter,
 } from '@/features/ask';
 import { createAskSharedClientOwner } from './owner';
-import { mintAskClientSnapshot } from './clientSnapshotAuthority';
+import { mintAskClientSnapshotForTest } from '@/features/ask/testing';
 
 interface FixtureClientRef {
   readonly owner: 'fixture-client-owner';
@@ -61,7 +61,7 @@ const owners: AskOwnerIdentityAdapter<FixtureClientRef, FixtureMeetingRef> = {
     left.id === right.id && left.matterId === right.matterId,
 };
 
-const clientA = mintAskClientSnapshot({
+const clientA = mintAskClientSnapshotForTest<FixtureClientRef>({
   contactRef: {
     owner: 'fixture-client-owner',
     id: 'client-a',
@@ -71,7 +71,7 @@ const clientA = mintAskClientSnapshot({
   revision: 'client-a:1',
 });
 
-const clientB = mintAskClientSnapshot({
+const clientB = mintAskClientSnapshotForTest<FixtureClientRef>({
   contactRef: {
     owner: 'fixture-client-owner',
     id: 'client-b',
@@ -87,10 +87,7 @@ const now = '2026-07-16T20:00:00.000Z';
 // The write path re-resolves the active client LIVE from the owner binding, so
 // this suite plays the owner (feature-internal). `activeClient` is the live
 // source; flipping it models a real client switch mid-flight.
-let activeClient:
-  | typeof clientA
-  | typeof clientB
-  | null = clientA;
+let activeClient: typeof clientA | typeof clientB | null = clientA;
 let owner: ReturnType<
   typeof createAskSharedClientOwner<FixtureClientRef, FixtureMeetingRef>
 > | null = null;
@@ -127,7 +124,10 @@ describe('useAskConversation canonical persistence', () => {
       client: clientA,
       label: 'Plan A',
       availability: 'available' as const,
-      citationOpenPath: sealAskOpenPath({ kind: 'document', token: 'document-a' }),
+      citationOpenPath: sealAskOpenPath({
+        kind: 'document',
+        token: 'document-a',
+      }),
     };
     const first = renderHook(() => useAskConversation(optionsA));
 
