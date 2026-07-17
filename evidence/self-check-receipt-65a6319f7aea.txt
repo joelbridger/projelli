@@ -1,0 +1,19 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/lantern/app/integration/.worktrees/v1/w2-calendar-add-event-fix
+sha: 65a6319f7aea6deb95886d3cf1d310ab341fc47d
+tree: 54772461c281b311c746e853b58501c53eda991f
+gate_base: e7020de744cee2c7d97051c1d0efacc17a17d8f6
+tool_blob: 7912bf11eefdacea0702600b19d3bc5b3d7f2606
+utc: 2026-07-17T19:26:58Z
+step_timeout_seconds: 1200
+loadavg: 6.15 12.28 12.76
+running_vitest_eslint_procs: 8
+step: gate:changed | status=PASS | exit=0 | 19:26:58Z..19:38:15Z | bytes=57355 | sha256=b53b3c5393e45af4ef9d870bed987607011f3765da121aae571516ee05fbcabb | tail: ssed | 3 skipped (1132) Tests 8974 passed | 29 skipped (9003) Start at 19:30:37 Duration 458.10s (transform 39.86s, setup 234.26s, import 634.92s, tests 287.92s, environment 511.64s) CHANGED GATE GREEN
+step: typecheck | status=PASS | exit=0 | 19:38:15Z..19:38:41Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit
+step: typecheck:tests | status=PASS | exit=0 | 19:38:41Z..19:39:11Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit
+step: handle-guard | status=PASS | exit=0 | 19:39:11Z..19:39:11Z | bytes=1347 | sha256=d6a57f2a399f144af925769fb598c88141a26268cc0b848aa405ac735c65433d | tail: + calendar-add-event-all-day + calendar-add-event-calendar + calendar-add-event-cancel +430 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen).
+step: arch-dag-guard | status=PASS | exit=0 | 19:39:11Z..19:39:12Z | bytes=263 | sha256=9e875b670fe8571661ad12f799f07c9abb9c55bca28b342f276292c277f5d436 | tail: egration/.worktrees/v1/w2-calendar-add-event-fix Test Files 1 passed (1) Tests 1 passed (1) Start at 19:39:11 Duration 998ms (transform 226ms, setup 350ms, import 271ms, tests 3ms, environment 285ms)
+step: i18n-snapshot | status=PASS | exit=0 | 19:39:12Z..19:39:13Z | bytes=264 | sha256=4efa7fd6c3e61a135f42483c5eca0a843436ba0f3a8c061e47ca47edcb5016ac | tail: gration/.worktrees/v1/w2-calendar-add-event-fix Test Files 1 passed (1) Tests 5 passed (5) Start at 19:39:12 Duration 1.01s (transform 266ms, setup 390ms, import 231ms, tests 19ms, environment 280ms)
+step: focused | status=PASS | exit=0 | 19:39:13Z..19:39:15Z | bytes=265 | sha256=d4043e59198b9c0d5a3eb34e1221830560e65873173e02b44aed83a1108213b6 | tail: ration/.worktrees/v1/w2-calendar-add-event-fix Test Files 2 passed (2) Tests 2 passed (2) Start at 19:39:13 Duration 1.68s (transform 604ms, setup 696ms, import 568ms, tests 893ms, environment 583ms)
+overall: GREEN
