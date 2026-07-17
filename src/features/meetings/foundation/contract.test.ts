@@ -8,6 +8,7 @@ import {
   appendNoticeEvidence,
   approvedMeetingArtifactsForClient,
   createMeetingArtifactStore,
+  createLegacyMeetingLinkStatusReader,
   createMeetingFoundationPreferencesStore,
   createMeetingKeywordCatalogueStore,
   createMeetingPopulationService,
@@ -24,10 +25,12 @@ import {
   meetingArtifactsForClient,
   validateMeetingArtifactTransition,
   verifyMeetingOpenTarget,
+  verifyLegacyMeetingLinkStatus,
   validateMeetingKeywordCatalogue,
   type ClientBoundary,
   type MeetingArtifactRequirement,
   type MeetingOpenTarget,
+  type LegacyMeetingLinkStatus,
 } from './contract';
 
 /**
@@ -873,7 +876,10 @@ describe('meetings foundation contract', () => {
     const created = await createMeetingStore(live).createDraft(draft);
     const input = { meetingDir: LEGACY_DIR };
     const svc = () =>
-      createMeetingPopulationService({ ...live, records: live.readCanonical() });
+      createMeetingPopulationService({
+        ...live,
+        records: live.readCanonical(),
+      });
 
     // Legacy meeting.json claims a different matter → refused.
     seedTrustedAuthority({ workspace: { metadataMatterId: 'matter-2' } });
@@ -1144,11 +1150,9 @@ describe('meetings foundation contract', () => {
       expect(results.filter((r) => r.status === 'rejected')).toHaveLength(1);
 
       // The durable link is exactly the single winner's — nothing overwrote it.
-      const durable = live
-        .readCanonical()
-        .find((r) => r.id === created.id)?.['legacyMeetingLink'] as
-        | { meetingDir: string }
-        | undefined;
+      const durable = live.readCanonical().find((r) => r.id === created.id)?.[
+        'legacyMeetingLink'
+      ] as { meetingDir: string } | undefined;
       const winnerDir = fulfilled[0]?.value.legacyLink?.meetingDir;
       expect(winnerDir).toBeTruthy();
       expect(durable?.meetingDir).toBe(winnerDir);
@@ -1204,7 +1208,10 @@ describe('meetings foundation contract', () => {
       expect([...grant.allowedMatterIds]).toEqual(['matter-1']);
 
       // The reader honours exactly matter-1 — the victim meeting never leaks.
-      const listed = await createFirmMeetingDirectoryReader(reader, grant).list();
+      const listed = await createFirmMeetingDirectoryReader(
+        reader,
+        grant
+      ).list();
       expect(listed).toHaveLength(1);
       expect(listed.every((meeting) => meeting.matterId === 'matter-1')).toBe(
         true
@@ -1236,3 +1243,166 @@ function createMeetingStoreReaderLive(
 ): ReturnType<typeof canonicalPort> {
   return { ...live, records: live.readCanonical() };
 }
+
+function linkedStatusRecord(
+  overrides: Partial<LiveCrmRecord> = {}
+): LiveCrmRecord {
+  return {
+    id: 'meeting-linked',
+    kind: 'meeting',
+    matterId: 'matter-1',
+    legacyMeetingLink: {
+      meetingDir: LEGACY_DIR,
+      linkedAt: '2026-07-01T00:00:00.000Z',
+    },
+    ...overrides,
+  };
+}
+
+describe('legacy meeting link-status doorway', () => {
+  it('derives sealed linked and folder-only results from one bounded snapshot', async () => {
+    seedTrustedAuthority();
+    const live = canonicalPort([
+      linkedStatusRecord(),
+      // Similar names and dates are deliberately irrelevant without the exact
+      // durable link key.
+      linkedStatusRecord({
+        id: 'meeting-similar',
+        title: '2026-07-21 review',
+        scheduledStartUtc: '2026-07-21T09:00:00.000Z',
+        legacyMeetingLink: {
+          meetingDir: 'Clients/Household One/Meetings/2026-07-21',
+          linkedAt: '2026-07-01T00:00:00.000Z',
+        },
+      }),
+    ]);
+    const reader = createLegacyMeetingLinkStatusReader(live);
+    const statuses = await reader.readMany([
+      {
+        meetingDir: LEGACY_DIR,
+        // Extra caller claims have no contract role and are ignored at runtime.
+        matterId: 'matter-victim',
+        status: 'folder-only',
+      } as unknown as { readonly meetingDir: string },
+      { meetingDir: 'Clients/Household One/Meetings/2026-07-22' },
+      { meetingDir: LEGACY_DIR },
+    ]);
+
+    expect(live.commands).toEqual(['crm_live_list']);
+    expect([...statuses.keys()]).toEqual([
+      LEGACY_DIR,
+      'Clients/Household One/Meetings/2026-07-22',
+    ]);
+    const linked = statuses.get(LEGACY_DIR);
+    const folderOnly = statuses.get(
+      'Clients/Household One/Meetings/2026-07-22'
+    );
+    expect(linked).toMatchObject({
+      kind: 'linked',
+      meetingRef: 'meeting-linked',
+    });
+    expect(folderOnly).toMatchObject({ kind: 'folder-only' });
+    expect(verifyLegacyMeetingLinkStatus(linked)).toBe(true);
+    expect(verifyLegacyMeetingLinkStatus(folderOnly)).toBe(true);
+    expect(Object.isFrozen(linked)).toBe(true);
+    expect(Object.isFrozen(folderOnly)).toBe(true);
+    expect(live.commands).not.toContain('crm_live_upsert');
+  });
+
+  it('rejects forged or tampered status objects', async () => {
+    seedTrustedAuthority();
+    const status = await createLegacyMeetingLinkStatusReader(
+      canonicalPort([linkedStatusRecord()])
+    ).read({ meetingDir: LEGACY_DIR });
+    const forged = {
+      kind: 'linked',
+      meetingRef: 'meeting-linked',
+    } as unknown as LegacyMeetingLinkStatus;
+
+    expect(verifyLegacyMeetingLinkStatus(forged)).toBe(false);
+    expect(verifyLegacyMeetingLinkStatus({ ...status })).toBe(false);
+    expect(() => Object.assign(status, { kind: 'folder-only' })).toThrow();
+    expect(status).toMatchObject({
+      kind: 'linked',
+      meetingRef: 'meeting-linked',
+    });
+  });
+
+  it('fails closed instead of inventing folder-only when status truth is uncertain', async () => {
+    seedTrustedAuthority();
+    const unavailable = () =>
+      createLegacyMeetingLinkStatusReader(
+        canonicalPort([linkedStatusRecord()])
+      );
+
+    await expect(
+      createLegacyMeetingLinkStatusReader({
+        ...canonicalPort(),
+        getActiveMatterId: () => null,
+      }).read({ meetingDir: LEGACY_DIR })
+    ).rejects.toThrow('Active client');
+    await expect(
+      createLegacyMeetingLinkStatusReader({
+        ...canonicalPort(),
+        error: 'CRM unavailable',
+      }).read({ meetingDir: LEGACY_DIR })
+    ).rejects.toThrow('unavailable');
+    await expect(
+      createLegacyMeetingLinkStatusReader({
+        ...canonicalPort(),
+        reloadRecords: () => Promise.resolve(undefined),
+      }).read({ meetingDir: LEGACY_DIR })
+    ).rejects.toThrow('status is unavailable');
+    setActiveWorkspaceService(null);
+    await expect(
+      unavailable().read({ meetingDir: LEGACY_DIR })
+    ).rejects.toThrow('requires an open workspace');
+    seedTrustedAuthority();
+    await expect(
+      unavailable().read({ meetingDir: '../escape' })
+    ).rejects.toThrow('traversal-free');
+    await expect(
+      unavailable().read({ meetingDir: '/absolute' })
+    ).rejects.toThrow('workspace-relative');
+    await expect(
+      createLegacyMeetingLinkStatusReader(
+        canonicalPort([
+          linkedStatusRecord({
+            legacyMeetingLink: { meetingDir: LEGACY_DIR, linkedAt: 'bad' },
+          }),
+        ])
+      ).read({ meetingDir: LEGACY_DIR })
+    ).rejects.toThrow('timestamp');
+    await expect(
+      createLegacyMeetingLinkStatusReader(
+        canonicalPort([
+          linkedStatusRecord(),
+          linkedStatusRecord({ id: 'meeting-duplicate' }),
+        ])
+      ).read({ meetingDir: LEGACY_DIR })
+    ).rejects.toThrow('More than one');
+    await expect(
+      createLegacyMeetingLinkStatusReader(
+        canonicalPort([linkedStatusRecord({ matterId: 'matter-victim' })])
+      ).read({ meetingDir: LEGACY_DIR })
+    ).rejects.toThrow('different client');
+  });
+
+  it('rejects a live client switch after its one authoritative reload', async () => {
+    seedTrustedAuthority();
+    let active = 'matter-1';
+    const live = canonicalPort([linkedStatusRecord()]);
+    const reader = createLegacyMeetingLinkStatusReader({
+      ...live,
+      getActiveMatterId: () => active,
+      reloadRecords: async () => {
+        active = 'matter-2';
+        return live.reloadRecords();
+      },
+    });
+    await expect(reader.read({ meetingDir: LEGACY_DIR })).rejects.toThrow(
+      'Active client changed'
+    );
+    expect(live.commands).toEqual(['crm_live_list']);
+  });
+});

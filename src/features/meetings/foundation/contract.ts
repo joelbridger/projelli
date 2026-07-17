@@ -67,6 +67,36 @@ export interface LegacyMeetingLinkInput {
   readonly meetingDir: string;
 }
 
+/** Un-forgeable brand key: a feature cannot manufacture status truth. */
+declare const legacyMeetingLinkStatusBrand: unique symbol;
+/** Only this reader mints values that may be trusted as link status. */
+const sealedLegacyMeetingLinkStatuses = new WeakSet();
+
+/**
+ * The small, read-only answer for one visible legacy meeting row. `meetingRef`
+ * is a routing reference only; it is not a meeting record, open target, or
+ * permission grant.
+ */
+export type LegacyMeetingLinkStatus =
+  | ({
+      readonly kind: 'linked';
+      readonly meetingRef: MeetingRef;
+    } & {
+      readonly [legacyMeetingLinkStatusBrand]: true;
+    })
+  | ({ readonly kind: 'folder-only' } & {
+      readonly [legacyMeetingLinkStatusBrand]: true;
+    });
+
+export interface LegacyMeetingLinkStatusReader {
+  /** Read one status from authoritative canonical link keys. */
+  read(legacy: LegacyMeetingLinkInput): Promise<LegacyMeetingLinkStatus>;
+  /** Read one authoritative snapshot for a visible list, never one reload per row. */
+  readMany(
+    legacy: readonly LegacyMeetingLinkInput[]
+  ): Promise<ReadonlyMap<string, LegacyMeetingLinkStatus>>;
+}
+
 export interface MeetingProjection {
   readonly id: MeetingRef;
   readonly workspaceId: string;
@@ -171,12 +201,11 @@ interface MeetingLinkAuthority {
   readonly matters: readonly Matter[];
 }
 
-/**
- * Derive the trusted authority for a link/open decision. Fails closed (throws)
- * when no workspace is open, because containment cannot be proven without the
- * real workspace root and filesystem.
- */
-function deriveMeetingLinkAuthority(): MeetingLinkAuthority {
+/** Trusted active workspace derivation shared by link and status reads. */
+function deriveActiveMeetingWorkspace(): Pick<
+  MeetingLinkAuthority,
+  'workspaceRoot' | 'workspace'
+> {
   const workspace = getActiveWorkspaceService();
   if (!workspace)
     throw new Error(
@@ -189,6 +218,19 @@ function deriveMeetingLinkAuthority(): MeetingLinkAuthority {
     );
   return {
     workspaceRoot: normalizedAbsolutePath(workspaceRoot, 'Open workspace root'),
+    workspace,
+  };
+}
+
+/**
+ * Derive the trusted authority for a link/open decision. Fails closed (throws)
+ * when no workspace is open, because containment cannot be proven without the
+ * real workspace root and filesystem.
+ */
+function deriveMeetingLinkAuthority(): MeetingLinkAuthority {
+  const { workspace, workspaceRoot } = deriveActiveMeetingWorkspace();
+  return {
+    workspaceRoot,
     workspace,
     matters: getMatters(),
   };
@@ -661,7 +703,9 @@ async function resolveContainedRealPath(
     // containment, so we fail closed rather than trust the raw join.
     if (workspace.isSymlink && (await workspace.isSymlink(relativeSoFar))) {
       if (!workspace.resolveSymlink)
-        throw new Error('Legacy meeting link cannot resolve its folder safely.');
+        throw new Error(
+          'Legacy meeting link cannot resolve its folder safely.'
+        );
       realAbsolute = normalizedAbsolutePath(
         await workspace.resolveSymlink(relativeSoFar),
         'Resolved legacy meeting folder'
@@ -723,9 +767,7 @@ async function validateLegacyMeetingLinkWithin(
 
   let parsed: unknown;
   try {
-    parsed = JSON.parse(
-      await workspace.readFile(`${meetingDir}/meeting.json`)
-    );
+    parsed = JSON.parse(await workspace.readFile(`${meetingDir}/meeting.json`));
   } catch {
     throw new Error('Legacy meeting metadata is unavailable.');
   }
@@ -747,7 +789,8 @@ export async function validateLegacyMeetingLink(
   input: LegacyMeetingLinkInput
 ): Promise<LegacyMeetingLink> {
   const authority = deriveMeetingLinkAuthority();
-  return (await validateLegacyMeetingLinkWithin(meeting, input, authority)).link;
+  return (await validateLegacyMeetingLinkWithin(meeting, input, authority))
+    .link;
 }
 
 /**
@@ -873,6 +916,151 @@ function meetingRecords(records: readonly LiveCrmRecord[]) {
       }
     });
 }
+
+function sealLegacyMeetingLinkStatus(
+  status:
+    | { readonly kind: 'linked'; readonly meetingRef: MeetingRef }
+    | { readonly kind: 'folder-only' }
+): LegacyMeetingLinkStatus {
+  // As with MeetingOpenTarget, freeze before sealing so a value is never both
+  // trusted and mutable. The WeakSet is the provenance proof; the unique symbol
+  // is only the compile-time shape that prevents accidental structural use.
+  const sealed = deepFreezeAuthority(status) as LegacyMeetingLinkStatus;
+  sealedLegacyMeetingLinkStatuses.add(sealed);
+  return sealed;
+}
+
+/**
+ * The only proof that a legacy-row status was minted from the authoritative
+ * live-record snapshot. Structural objects and casts are deliberately useless.
+ */
+export function verifyLegacyMeetingLinkStatus(
+  value: LegacyMeetingLinkStatus | null | undefined
+): boolean {
+  return !!value && sealedLegacyMeetingLinkStatuses.has(value);
+}
+
+function activeMatterIdForLegacyLinkStatus(port: ClientScopedLivePort): string {
+  return nonEmpty(port.getActiveMatterId(), 'Active client');
+}
+
+/**
+ * Read a bounded legacy-link status projection. This does not create a meeting
+ * store or project a canonical meeting: it inspects only durable canonical-link
+ * keys in one fresh live-record snapshot, then rechecks the live client before
+ * returning a sealed routing result.
+ */
+export function createLegacyMeetingLinkStatusReader(
+  port: ClientScopedLivePort
+): LegacyMeetingLinkStatusReader {
+  const readMany = async (
+    legacyRows: readonly LegacyMeetingLinkInput[]
+  ): Promise<ReadonlyMap<string, LegacyMeetingLinkStatus>> => {
+    // Validate every visible-row locator before doing I/O. A row locator is
+    // only a workspace-relative locator; it never supplies identity or status.
+    const requested = new Set(
+      legacyRows.map((legacy) =>
+        normalizedPath(legacy.meetingDir, 'Legacy meeting folder')
+      )
+    );
+    const activeMatterId = activeMatterIdForLegacyLinkStatus(port);
+    requireAvailable(port);
+    // This is intentionally the trusted workspace derivation, not port data or
+    // a caller-provided root. Status needs no folder contents, only proof that
+    // there is a real normalized active workspace for the relative locator.
+    deriveActiveMeetingWorkspace();
+
+    const fresh = await port.reloadRecords();
+    if (!fresh)
+      throw new Error(
+        'Meeting link status is unavailable until CRM records reload.'
+      );
+    requireAvailable(port);
+    if (activeMatterIdForLegacyLinkStatus(port) !== activeMatterId)
+      throw new Error(
+        'Active client changed while meeting link status reloaded.'
+      );
+
+    const matches = new Map<string, MeetingRef[]>();
+    for (const record of fresh) {
+      if (record.kind !== 'meeting') continue;
+      const rawLink = record['legacyMeetingLink'];
+      if (rawLink === undefined) continue;
+
+      if (record.matterId !== activeMatterId) {
+        // Do not inspect another client's canonical data wholesale. We only
+        // look for a raw exact-path collision, then reject it rather than
+        // presenting a possibly-dangerous folder-only action.
+        const rawDir =
+          rawLink && typeof rawLink === 'object'
+            ? (rawLink as Record<string, unknown>)['meetingDir']
+            : undefined;
+        if (typeof rawDir !== 'string') continue;
+        let meetingDir: string;
+        try {
+          meetingDir = normalizedPath(rawDir, 'Legacy meeting folder');
+        } catch (error) {
+          // A malformed non-active record is not a competing exact locator and
+          // must not expose any part of the other client's data.
+          void error;
+          continue;
+        }
+        if (!requested.has(meetingDir)) continue;
+        // Once it competes for this visible locator, malformed durable data is
+        // unavailable truth too — never a reason to expose a link action.
+        projectLegacyLink(rawLink);
+        throw new Error(
+          'A matching canonical meeting belongs to a different client.'
+        );
+      }
+
+      // Active-client link keys are the entire bounded projection. A malformed
+      // persisted link makes this authoritative snapshot unavailable.
+      const link = projectLegacyLink(rawLink);
+      if (!link) continue;
+      if (!requested.has(link.meetingDir)) continue;
+
+      const meetingRef = nonEmpty(record.id, 'Meeting ID');
+      const existing = matches.get(link.meetingDir) ?? [];
+      existing.push(meetingRef);
+      matches.set(link.meetingDir, existing);
+    }
+
+    const statuses = new Map<string, LegacyMeetingLinkStatus>();
+    for (const meetingDir of requested) {
+      const matchingRefs = matches.get(meetingDir) ?? [];
+      if (matchingRefs.length > 1)
+        throw new Error(
+          'More than one canonical meeting has this legacy link.'
+        );
+      statuses.set(
+        meetingDir,
+        matchingRefs.length === 1
+          ? sealLegacyMeetingLinkStatus({
+              kind: 'linked',
+              meetingRef: matchingRefs[0] as MeetingRef,
+            })
+          : sealLegacyMeetingLinkStatus({ kind: 'folder-only' })
+      );
+    }
+    return statuses;
+  };
+
+  return {
+    read: async (legacy) => {
+      const meetingDir = normalizedPath(
+        legacy.meetingDir,
+        'Legacy meeting folder'
+      );
+      const statuses = await readMany([legacy]);
+      const status = statuses.get(meetingDir);
+      if (!status) throw new Error('Meeting link status was unavailable.');
+      return status;
+    },
+    readMany,
+  };
+}
+
 function requireAvailable(port: LivePort) {
   if (!port.workspaceRoot)
     throw new Error('Open a workspace before using meetings.');
