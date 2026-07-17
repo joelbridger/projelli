@@ -95,6 +95,12 @@ describe('SchedulingHome', () => {
     );
   });
 
+  it('creates no calendar-grid host element while its real flag is off', () => {
+    const { container } = render(<SchedulingHome />);
+
+    expect(container.querySelector('[data-scheduling-surface-id="calendar-grid"]')).toBeNull();
+  });
+
   it('shows pending requests and confirms them inline', () => {
     useSchedulingStore.setState({
       bookingRequests: [pendingRequest()],

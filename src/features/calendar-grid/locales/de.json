@@ -1,0 +1,29 @@
+{
+  "calendar-grid": {
+    "title": "Kalender",
+    "description": "Ihre lokalen Kalendertermine",
+    "view-label": "Kalenderansicht",
+    "presentation-label": "Kalenderdarstellung",
+    "views": { "month": "Monat", "week": "Woche", "day": "Tag" },
+    "empty": "Keine Termine in diesem Zeitraum.",
+    "all-day": "Ganztägig",
+    "loading": "Kalendertermine werden geladen…",
+    "previous": "Vorheriger Zeitraum",
+    "next": "Nächster Zeitraum",
+    "new-event": "Neuer Termin",
+    "edit-event": "Termin bearbeiten",
+    "close": "Schließen",
+    "close-peek": "Termindetails schließen",
+    "retry": "Erneut versuchen",
+    "open-workspace": "Arbeitsbereich öffnen",
+    "rail-label": "Ausgewählter Kalendertermin",
+    "rail-title": "Termindetails",
+    "rail-empty": "Wählen Sie einen Termin aus, um Details zu sehen.",
+    "calendar": "Kalender: {{calendarId}}",
+    "linked-record": "Verknüpfter Datensatz: {{record}}",
+    "status": { "scheduled": "Geplant", "cancelled": "Abgesagt" },
+    "editor": {
+      "new-title": "Neuer Termin", "untitled": "Unbenannter Termin", "title-label": "Titel", "title-placeholder": "Termintitel", "start-label": "Beginn (UTC)", "end-label": "Ende (UTC)", "context-label": "Verknüpfter Datensatz", "not-linked": "Mit keinem Datensatz verknüpft", "more-options": "Weitere Optionen", "notes-label": "Notizen", "local-status": "In diesem Arbeitsbereich gespeichert", "cancel": "Abbrechen", "save": "Termin speichern", "saving": "Termin wird gespeichert…", "saved-confirmation": "Termin gespeichert.", "title-required": "Fügen Sie vor dem Speichern einen Termintitel hinzu.", "end-after-start": "Die Endzeit muss nach der Startzeit liegen.", "save-error": "Der Termin konnte nicht gespeichert werden. Versuchen Sie es erneut."
+    }
+  }
+}

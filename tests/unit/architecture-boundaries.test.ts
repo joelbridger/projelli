@@ -40,6 +40,7 @@ const ALLOWED_FEATURE_EDGES = new Set<string>([
   'ask->crm',             // Ask adds client-scoped CRM records to the same consent/audit/citation pipeline
   'booking->calendar',    // The flag-gated public booking page uses Calendar's public read-only availability adapter and receives only display-ready slots.
   'calendarWrite->calendar', // Part B write consumes Part A's public doorway (busy blocks, home-calendar capability, event store) for the pre-approval availability refresh; it never reaches into calendar/core internals.
+  'calendar-grid->calendar', // Calendar Grid reads the calendar feature's bounded public occurrence projection.
   'crm->ask',             // CRM Ask reuses the primary Ask safety rails and citation contracts
   'crm->acats',           // CRM Reviews makes the ACATS transfer-review workflow reachable from the relevant client record
   'crm->accounts',        // CRM Reviews swaps its one documented descriptor to the flag-gated Schwab prep packet
@@ -79,6 +80,7 @@ const ALLOWED_FEATURE_EDGES = new Set<string>([
   'settings->crm', // Settings mounts the feature-owned Organization descriptor through its public CRM doorway.
   'settings->notifications', // Settings mounts the personal notification-preferences descriptor through Notifications' public doorway.
   'settings->workflows', // settings hosts the templates marketplace tab
+  'scheduling->calendar-grid', // scheduling composes the feature-owned calendar grid descriptor.
 ]);
 
 function walk(dir: string, acc: string[] = []): string[] {

@@ -40,6 +40,8 @@ export interface AppSurfaceCapabilities {
     setFileTree: (tree: FileNode[]) => void;
     refreshFileTree: () => void;
     requestApiKeySetup: () => void;
+    /** Opens the app's workspace picker from a mounted surface. */
+    openSelector?: () => void;
   };
   documents: {
     view: 'browser' | 'editor';

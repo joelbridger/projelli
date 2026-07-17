@@ -2091,6 +2091,9 @@ function AppShell() {
         void refreshFileTree();
       },
       requestApiKeySetup: handleRequestApiKeySetup,
+      openSelector: () => {
+        setShowWorkspaceSelector(true);
+      },
     },
     documents: {
       view: documentsView,

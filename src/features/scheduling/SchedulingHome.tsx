@@ -34,6 +34,7 @@ import {
 import { Input } from '@/ui/input';
 import { Label } from '@/ui/label';
 import { openExternal } from '@/platform/utils/openExternal';
+import { useFlagRegistryVersion } from '@/platform/flags';
 import { useProfileStore } from '@/platform/profile/profileStore';
 import { cn } from '@/lib/utils';
 import { computeOpenSlots } from './availability';
@@ -318,9 +319,15 @@ export function LegacySchedulingSurface() {
 }
 
 /** Generic scheduling shell. New calendar and booking surfaces register mounts. */
-export function SchedulingHome() {
+export interface SchedulingHomeProps {
+  /** The app-shell workspace picker, supplied to the mounted calendar surface. */
+  readonly onOpenWorkspace?: () => void;
+}
+
+export function SchedulingHome({ onOpenWorkspace }: SchedulingHomeProps) {
+  useFlagRegistryVersion();
   const state = useSchedulingStore();
-  return <>{renderSchedulingSurfaceRegistry({ state })}</>;
+  return <>{renderSchedulingSurfaceRegistry({ state, ...(onOpenWorkspace ? { onOpenWorkspace } : {}) })}</>;
 }
 
 function UpcomingPanel({

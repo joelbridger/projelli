@@ -1,7 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import type { SchedulingSurfaceDescriptor, SchedulingSurfaceRuntime } from '@/platform/calendar';
-import { renderSchedulingSurfaceRegistry, validateSchedulingSurfaceDescriptors } from './schedulingSurfaceRegistry';
+import { setDevFlagOverride } from '@/platform/flags';
+import { calendarGridSchedulingSurface } from '@/features/calendar-grid';
+import {
+  renderSchedulingSurfaceRegistry,
+  schedulingSurfaceRegistry,
+  validateSchedulingSurfaceDescriptors,
+} from './schedulingSurfaceRegistry';
 
 declare module '@/platform/calendar' {
   interface SchedulingSurfaceMap {
@@ -37,10 +43,52 @@ describe('schedulingSurfaceRegistry', () => {
     expect(screen.getByTestId('dummy-scheduling-contribution')).toBeTruthy();
   });
 
+  it('leaves no calendar-grid registry element while the real feature flag is off', () => {
+    const { container } = render(<>{renderSchedulingSurfaceRegistry(runtime, schedulingSurfaceRegistry)}</>);
+
+    expect(container.querySelector('[data-scheduling-surface-id="calendar-grid"]')).toBeNull();
+    expect(container.querySelector('[data-scheduling-surface-id="legacy-scheduling"]')).not.toBeNull();
+  });
+
+  it('uses Calendar as the full existing work area when the calendar flag is on', () => {
+    setDevFlagOverride('calendar-grid', true);
+    try {
+      const descriptors = schedulingSurfaceRegistry.map((descriptor) => descriptor.id === 'calendar-grid'
+        ? { ...descriptor, mount: () => <div data-testid="calendar-workspace-stub" /> }
+        : descriptor);
+      const { container } = render(<>{renderSchedulingSurfaceRegistry(runtime, descriptors)}</>);
+      expect(container.querySelector('[data-scheduling-surface-id="calendar-grid"]')).not.toBeNull();
+      expect(container.querySelector('[data-scheduling-surface-id="legacy-scheduling"]')).toBeNull();
+    } finally {
+      setDevFlagOverride('calendar-grid', undefined);
+    }
+  });
+
+  it('does not call a disabled descriptor mount or create its wrapper', () => {
+    const mount = vi.fn(() => <div data-testid="should-not-mount" />);
+    const disabled = { ...dummyContribution, isEnabled: () => false, mount };
+    const { container } = render(<>{renderSchedulingSurfaceRegistry(runtime, [disabled])}</>);
+
+    expect(mount).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-scheduling-surface-id="test-scheduling-contribution"]')).toBeNull();
+  });
+
   it('keeps descriptor order stable and rejects duplicate ids or invalid contracts', () => {
-    const later = { ...dummyContribution, id: 'later-scheduling-contribution' as const, order: 30 };
+    const later = { ...dummyContribution, id: 'later-scheduling-contribution' as const, slot: 'availability' as const, order: 30 };
     expect(renderSchedulingSurfaceRegistry(runtime, [later, dummyContribution])).toHaveLength(2);
     expect(() => { validateSchedulingSurfaceDescriptors([dummyContribution, dummyContribution]); }).toThrow('duplicate surface id');
     expect(() => { validateSchedulingSurfaceDescriptors([{ ...dummyContribution, order: Number.NaN }]); }).toThrow('invalid order');
+  });
+
+  it('excludes a second calendar surface before two calendar workspaces can mount together', () => {
+    const secondCalendarSurface = {
+      ...dummyContribution,
+      id: 'later-scheduling-contribution' as const,
+      slot: 'calendar-grid' as const,
+    };
+
+    expect(() => {
+      renderSchedulingSurfaceRegistry(runtime, [calendarGridSchedulingSurface, secondCalendarSurface]);
+    }).toThrow('only one calendar surface may be registered');
   });
 });
