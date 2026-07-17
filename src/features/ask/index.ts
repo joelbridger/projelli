@@ -5,6 +5,18 @@ export {
   type AskSharedClientContext,
 } from './sharedClientContext';
 /**
+ * The REAL shared-client owner wiring. Publicizes ONLY the safe zero-argument
+ * establish doorway plus the pure identity adapter and snapshot mapper. The
+ * owner socket itself (`createAskSharedClientOwner`) stays off this surface, and
+ * nothing here lets a consumer inject an arbitrary client reader.
+ */
+export {
+  establishAskSharedClientContext,
+  readAskSharedClientSnapshot,
+  toAskClientSnapshot,
+  askClientIdentityAdapter,
+} from './sharedClientContextOwner';
+/**
  * The public local-first foundation. New Ask consumers must use these shapes
  * rather than the legacy send-pipeline descriptors below.
  */

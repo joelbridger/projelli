@@ -6,3 +6,8 @@ export {
 } from './quickActions';
 export { type ClientPickerHousehold } from './clientPickerHouseholds';
 export { fetchClientPickerHouseholds } from './fetchClientPickerHouseholds';
+export {
+  useSharedClientContext,
+  readSharedClientContext,
+  type SharedClientContext,
+} from './sharedClientContext';
