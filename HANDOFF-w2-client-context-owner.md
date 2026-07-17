@@ -23,6 +23,11 @@
      (zero-arg → disposer), `readAskSharedClientSnapshot`, `toAskClientSnapshot`,
      `askClientIdentityAdapter`. NONE of these can inject an arbitrary client
      reader; the raw owner socket stays off the public surface.
+   - The module binds against the PLATFORM shared-client store
+     (`@/platform/client-context`) directly — NOT the client-bar feature — so the
+     Ask feature depends only on the platform layer (allowed by the architecture
+     DAG). It is the same store the client bar reads/writes, so both observe the
+     identical live selection.
 
 ## Key design decisions (for the reviewer)
 
@@ -33,10 +38,19 @@
   is protected by establish-once, so it is NOT a "set/replace the binding"
   capability. Public export names deliberately avoid `/bind|owner/i` so the
   existing `staleUseIsolation.test.ts` surface check stays green.
-- **ClientReference = `SharedClientContext`** (the client-bar published type).
+- **ClientReference = platform `SharedClientIdentity`** (the true shared-client
+  type; client-bar's published `SharedClientContext` is a structurally identical
+  view of the same store). Binding against the platform type keeps the Ask
+  feature off any cross-feature edge (see arch-dag note below).
   **MeetingReference = `never`**: this owner owns the CLIENT only. The Meetings
   owner is still absent, so `isMeetingReference` is always false and
   meeting-scoped doorways stay fail-closed (consistent with FOUNDATION_STATUS A3).
+- **Architecture DAG (arch-dag-guard):** the owner module imports ONLY the
+  platform layer + intra-Ask files — no `ask -> client-bar` (or any other
+  undeclared) cross-feature edge. An earlier revision imported client-bar's
+  `SharedClientContext` type and tripped `tests/unit/architecture-boundaries.test.ts`;
+  the guard flags type-only imports too. Fixed by depending on the platform store
+  directly. The allowlist/DAG rules were NOT modified.
 - **matterId := householdId, revision := hash of identity content.** Until a
   dedicated matters owner lands, one household is its own matter scope. This is
   the honest minimal mapping of the only real client data, not a lookalike

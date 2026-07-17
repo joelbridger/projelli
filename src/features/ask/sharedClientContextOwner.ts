@@ -9,12 +9,17 @@
  *
  * This module is that owner. It is co-located inside the Ask feature (the only
  * place allowed to reach the socket), and it binds the socket to the ONE true
- * shared client selection published by the client bar
- * (`@/platform/client-context`, the same store `@/features/client-bar`'s
- * `useSharedClientContext` reads). Because the bound reader consults the live
- * store on every call, a client switch or clear propagates to every use-time
- * Ask guard immediately, and no state resolved under a prior client survives
- * the switch.
+ * shared client selection: the shared client store in the PLATFORM layer
+ * (`@/platform/client-context`). That is the same store `@/features/client-bar`
+ * reads and writes, and that its `useSharedClientContext` publishes — so the
+ * client bar and this binding observe the exact same live selection, never a
+ * parallel copy. Depending on the platform store (not on the client-bar
+ * feature) also keeps the layer DAG intact: a feature may import platform, but
+ * not another feature outside the documented allowlist.
+ *
+ * Because the bound reader consults the live store on every call, a client
+ * switch or clear propagates to every use-time Ask guard immediately, and no
+ * state resolved under a prior client survives the switch.
  *
  * It exposes only a zero-argument establish doorway (which binds the real store
  * and nothing else) and the pure identity adapter / snapshot mapper. It exposes
@@ -27,13 +32,21 @@ import {
   useClientContextStore,
   type SharedClientIdentity,
 } from '@/platform/client-context';
-import type { SharedClientContext } from '@/features/client-bar';
 import type {
   AskClientSnapshot,
   AskClientUseAccess,
   AskOwnerIdentityAdapter,
 } from './foundation/contracts';
 import { createAskSharedClientOwner } from './foundation/owner';
+
+/**
+ * The Ask binding's client reference is the platform shared-client identity —
+ * the true source of the active client. `@/features/client-bar` publishes this
+ * same identity to consumers as `SharedClientContext` (a structurally identical
+ * view of the same store); this wiring binds against the platform type directly
+ * so the Ask feature depends only on the platform layer, not on another feature.
+ */
+type AskClientReference = SharedClientIdentity;
 
 /**
  * This owner owns the CLIENT identity only. There is no meetings owner at this
@@ -45,31 +58,15 @@ import { createAskSharedClientOwner } from './foundation/owner';
  */
 type NoMeetingReference = never;
 
-function contextFromIdentity(
-  client: SharedClientIdentity | null
-): SharedClientContext | null {
-  if (!client) return null;
-  return client.primaryPeople
-    ? {
-        householdId: client.householdId,
-        displayName: client.displayName,
-        primaryPeople: client.primaryPeople,
-      }
-    : {
-        householdId: client.householdId,
-        displayName: client.displayName,
-      };
-}
-
 /**
  * The shared-client revision for a selection. It bumps whenever the identity
  * content changes, so a scope resolved under one client is refused after the
  * shared selection moves to a different client (or the same household with
  * changed identity). Whole-firm (`null`) has no revision.
  */
-function revisionOf(context: SharedClientContext): string {
-  const people = context.primaryPeople ? [...context.primaryPeople].join('|') : '';
-  return `${context.householdId}::${context.displayName}::${people}`;
+function revisionOf(client: AskClientReference): string {
+  const people = client.primaryPeople ? [...client.primaryPeople].join('|') : '';
+  return `${client.householdId}::${client.displayName}::${people}`;
 }
 
 /**
@@ -81,21 +78,19 @@ function revisionOf(context: SharedClientContext): string {
  * contract, only the required snapshot fields filled from the shared selection.
  */
 export function toAskClientSnapshot(
-  context: SharedClientContext | null
-): AskClientSnapshot<SharedClientContext> | null {
-  if (!context) return null;
+  client: AskClientReference | null
+): AskClientSnapshot<AskClientReference> | null {
+  if (!client) return null;
   return {
-    contactRef: context,
-    matterId: context.householdId,
-    revision: revisionOf(context),
+    contactRef: client,
+    matterId: client.householdId,
+    revision: revisionOf(client),
   };
 }
 
 /** The live snapshot of the current shared client, or `null` for whole-firm. */
-export function readAskSharedClientSnapshot(): AskClientSnapshot<SharedClientContext> | null {
-  return toAskClientSnapshot(
-    contextFromIdentity(useClientContextStore.getState().client)
-  );
+export function readAskSharedClientSnapshot(): AskClientSnapshot<AskClientReference> | null {
+  return toAskClientSnapshot(useClientContextStore.getState().client);
 }
 
 /**
@@ -103,10 +98,10 @@ export function readAskSharedClientSnapshot(): AskClientSnapshot<SharedClientCon
  * compare clients. Pure; carries no binding capability.
  */
 export const askClientIdentityAdapter: AskOwnerIdentityAdapter<
-  SharedClientContext,
+  AskClientReference,
   NoMeetingReference
 > = {
-  isClientReference: (value): value is SharedClientContext =>
+  isClientReference: (value): value is AskClientReference =>
     !!value &&
     typeof value === 'object' &&
     'householdId' in value &&
@@ -129,7 +124,7 @@ export const askClientIdentityAdapter: AskOwnerIdentityAdapter<
  * at EVERY call (never a captured snapshot), so use-time guards always see the
  * live selection.
  */
-const liveAccess: AskClientUseAccess<SharedClientContext, NoMeetingReference> = {
+const liveAccess: AskClientUseAccess<AskClientReference, NoMeetingReference> = {
   readCurrentClient: () => readAskSharedClientSnapshot(),
   owners: askClientIdentityAdapter,
 };
@@ -147,7 +142,7 @@ let activeRelease: (() => void) | null = null;
  */
 export function establishAskSharedClientContext(): () => void {
   const owner = createAskSharedClientOwner<
-    SharedClientContext,
+    AskClientReference,
     NoMeetingReference
   >();
   // Throws 'already established' if another owner already holds the binding.
