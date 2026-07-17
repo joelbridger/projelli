@@ -2,6 +2,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import {
   createTestModeWorkspaceMock,
+  TEST_MODE_WORKSPACE_SERVICE_METHOD_NAMES,
   type TestModeWorkspaceService,
 } from './useTestModeWorkspace';
 
@@ -17,6 +18,11 @@ describe('test-mode workspace mock', () => {
 
     const { service } = createTestModeWorkspaceMock();
     expectTypeOf(service).toExtend<TestModeWorkspaceService>();
+    for (const methodName of TEST_MODE_WORKSPACE_SERVICE_METHOD_NAMES) {
+      expect(typeof service[methodName], `${methodName} is callable at runtime`).toBe(
+        'function'
+      );
+    }
     expect(service.getRootPath()).toBe('/test-workspace');
     expect(service.isInitialized()).toBe(true);
 

@@ -35,6 +35,36 @@ export type TestModeWorkspaceService = Pick<
   keyof WorkspaceService
 >;
 
+/**
+ * Runtime contract for the browser workspace mock. Keep this list aligned with
+ * WorkspaceService's public methods: the unit test checks that each name is a
+ * function on the factory result, not merely present in TypeScript's types.
+ */
+export const TEST_MODE_WORKSPACE_SERVICE_METHOD_NAMES = [
+  'initialize',
+  'getWorkspace',
+  'getRootPath',
+  'isInitialized',
+  'getBackend',
+  'close',
+  'readFile',
+  'readFileBinary',
+  'writeFile',
+  'writeFileBinary',
+  'exists',
+  'delete',
+  'move',
+  'copy',
+  'rename',
+  'mkdir',
+  'list',
+  'stat',
+  'isSymlink',
+  'resolveSymlink',
+  'getFileTree',
+  'toRecentWorkspace',
+] as const satisfies readonly (keyof WorkspaceService)[];
+
 export interface TestModeWorkspaceMock {
   service: TestModeWorkspaceService;
   listFiles(): string[];
