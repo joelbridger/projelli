@@ -162,6 +162,23 @@ export function readBoundAskOwners<ClientReference, MeetingReference>():
 }
 
 /**
+ * The current shared client, read LIVE from the owner binding. Used by the
+ * persistence write path to re-resolve the active client at write time (so a
+ * save handle held across a client switch fails closed). Null when unbound.
+ */
+export function readBoundAskClient<ClientReference>():
+  | AskClientSnapshot<ClientReference>
+  | null {
+  const access = liveAskAccess<ClientReference, never>();
+  if (!access || typeof access.readCurrentClient !== 'function') return null;
+  try {
+    return access.readCurrentClient();
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Re-read and validate the active shared client immediately before use, from
  * the single live binding. Fails closed when nothing is bound.
  */

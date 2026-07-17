@@ -13,7 +13,11 @@ import type {
   AskScope,
   AskSourceDescriptor,
 } from './contracts';
-import { askSourceMembership, resolveAskScope } from './scope';
+import {
+  askSourceMembership,
+  readBoundAskClient,
+  resolveAskScope,
+} from './scope';
 
 type AskStoredKind =
   | 'askConversation'
@@ -269,11 +273,24 @@ export function createAskConversationStore<ClientReference, MeetingReference>(
     kind: AskStoredKind,
     payload: AskPayload<ClientReference, MeetingReference>
   ): Promise<void> => {
-    const record = recordFor(kind, payload, options);
+    // GAP-2 fix: re-resolve the ACTIVE client LIVE at write time from the owner
+    // binding (the same source the read guards use), not from the frozen
+    // `options.currentClient` captured when this store was created. A save handle
+    // held across a client switch therefore fails closed: `recordFor` rejects a
+    // payload whose scope no longer resolves under the current live client (or
+    // when no owner is bound). Whole-firm payloads carry no client and still pass.
+    const writeOptions: AskConversationStoreOptions<
+      ClientReference,
+      MeetingReference
+    > = {
+      owners: options.owners,
+      currentClient: readBoundAskClient<ClientReference>(),
+    };
+    const record = recordFor(kind, payload, writeOptions);
     await port.save(record);
     const reloaded = await port.reloadRecords();
     const canonical = reloaded
-      ?.map((candidate) => projectStoredRecord(candidate, options))
+      ?.map((candidate) => projectStoredRecord(candidate, writeOptions))
       .find((candidate) => candidate?.id === record.id);
     if (!canonical) {
       throw new Error(

@@ -41,7 +41,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   capability that sets the binding (`createAskSharedClientOwner`) is off the
   public `@/features/ask` surface and there is no free `bind(access)`, so an
   ordinary consumer cannot set, replace, or freeze the reader or restore client
-  A; when nothing is bound, every client-scoped doorway fails closed. Opener
+  A; establish-once refuses a second binder at runtime (so a caller reaching the
+  capability through an import-boundary blind spot still cannot overwrite the
+  active owner); when nothing is bound, every client-scoped doorway fails closed.
+  The persistence WRITE path also re-resolves the active client live at write
+  time, so a save handle held across a client switch fails closed instead of
+  writing stale client-A data. Opener
   tokens are sealed — a source carries only an opaque `sealAskOpenPath`
   reference, and the raw token is released solely by the guarded
   `resolveAskCitationOpenPath`; it is never a plain field or persisted. Every client-bound scope still retains the

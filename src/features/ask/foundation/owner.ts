@@ -38,6 +38,16 @@ export function createAskSharedClientOwner<
   const token = {};
   return {
     bind: (access) => {
+      // Establish-once at RUNTIME (does not depend on the import-boundary guard):
+      // while one owner holds the binding, a second `bind` is refused. So even a
+      // caller that reached this capability through a boundary blind spot cannot
+      // overwrite the active owner's reader to restore a stale client. Only the
+      // holding owner can `release`, and only then may a new owner establish.
+      if (activeOwner !== null && activeOwner !== token) {
+        throw new Error(
+          'Ask shared-client owner is already established; release it first.'
+        );
+      }
       activeOwner = token;
       boundAccess = access as unknown as AskClientUseAccess<unknown, unknown>;
     },

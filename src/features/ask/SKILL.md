@@ -28,15 +28,30 @@ establishes it (`createAskSharedClientOwner` in `foundation/owner.ts`) is NOT on
 the public `@/features/ask` surface, and there is no free `bind(access)`
 anywhere. An ordinary consumer of `@/features/ask` therefore cannot set,
 replace, or freeze the client reader — it cannot restore client A after the
-owner moves to B. The real owner is absent at the current base, so the binding
-is unset and every client-scoped doorway fails closed by default. When the real
-owner lands it wires the binding from co-located, boundary-guarded code.
+owner moves to B. **Establish-once (runtime):** while one owner holds the
+binding, a second `bind` is refused, so even a caller that reached the
+capability through an import-boundary blind spot cannot overwrite the active
+owner's reader to restore a stale client. The real owner is absent at the
+current base, so the binding is unset and every client-scoped doorway fails
+closed by default.
+
+> **Pending (cross-lane):** the general rule that *no* code outside this feature
+> may deep-import `foundation/owner` is enforced by the shared feature-boundary
+> guard, which currently only inspects importers under `src/features/*`.
+> Extending it to `src/app/` and the fixtures tree is a separate
+> coordinator-owned tooling lane. `ownerImportBoundary.test.ts` asserts that
+> requirement and auto-greens when that guard fix lands. The runtime
+> establish-once defense above already blocks the data leak from every importer.
 
 `useAskConversation({ currentClient, owners })` reads and writes conversation
 metadata, review drafts, and saved source selections through encrypted live
-records. It validates every loaded payload, saves, then requires the record to
-exist in a fresh canonical reload. It returns `conversations`, `reviewDrafts`,
-`sourceSelections`, `saveConversation`, `saveReviewDraft`, and
+records. **The write path re-resolves the active client LIVE at write time**
+(from the owner binding, the same source the read guards use), so a save handle
+held across a client switch fails closed: it will not persist client-A state
+once the active client is B or none. Projection reads use the reactive
+`currentClient` prop. It validates every loaded payload, saves, then requires the
+record to exist in a fresh canonical reload. It returns `conversations`,
+`reviewDrafts`, `sourceSelections`, `saveConversation`, `saveReviewDraft`, and
 `saveSourceSelection`.
 
 ## Appendable registries

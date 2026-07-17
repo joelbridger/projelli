@@ -26,6 +26,7 @@ import {
   useAskConversation,
   type AskOwnerIdentityAdapter,
 } from '@/features/ask';
+import { createAskSharedClientOwner } from './owner';
 
 interface FixtureClientRef {
   readonly owner: 'fixture-client-owner';
@@ -82,6 +83,17 @@ const clientB = {
 const optionsA = { currentClient: clientA, owners } as const;
 const now = '2026-07-16T20:00:00.000Z';
 
+// The write path re-resolves the active client LIVE from the owner binding, so
+// this suite plays the owner (feature-internal). `activeClient` is the live
+// source; flipping it models a real client switch mid-flight.
+let activeClient:
+  | typeof clientA
+  | typeof clientB
+  | null = clientA;
+let owner: ReturnType<
+  typeof createAskSharedClientOwner<FixtureClientRef, FixtureMeetingRef>
+> | null = null;
+
 describe('useAskConversation canonical persistence', () => {
   beforeEach(() => {
     boundary.records = [];
@@ -97,6 +109,10 @@ describe('useAskConversation canonical persistence', () => {
       else boundary.records.push(saved);
       return Promise.resolve(structuredClone(saved));
     });
+    activeClient = clientA;
+    owner?.release();
+    owner = createAskSharedClientOwner<FixtureClientRef, FixtureMeetingRef>();
+    owner.bind({ readCurrentClient: () => activeClient, owners });
   });
 
   it('saves metadata, a review draft, and selected sources, then reads them from genuinely fresh records', async () => {
@@ -204,5 +220,39 @@ describe('useAskConversation canonical persistence', () => {
       })
     ).rejects.toThrow('malformed or stale');
     expect(boundary.save).not.toHaveBeenCalled();
+  });
+
+  it('fails closed on a save handle held across a client switch (A -> B / none)', async () => {
+    // Obtain the save handle while client A is active.
+    const store = renderHook(() => useAskConversation(optionsA));
+    const scopeA = askScopeBuilder.chosenSources('workspace-a', clientA, [
+      'document-a',
+    ]);
+    const conversationA = {
+      id: 'conversation-a',
+      scope: scopeA,
+      title: 'Plan question',
+      createdAt: now,
+      updatedAt: now,
+    };
+    const heldSave = store.result.current.saveConversation;
+
+    // The active client switches to B, then to none, AFTER the handle was taken.
+    for (const next of [clientB, null] as const) {
+      activeClient = next;
+      boundary.save.mockClear();
+      // The held handle re-resolves the active client live at write time and
+      // refuses to persist client-A state under the new active client.
+      await expect(heldSave(conversationA)).rejects.toThrow(
+        'malformed or stale'
+      );
+      expect(boundary.save).not.toHaveBeenCalled();
+    }
+
+    // Back under A, the same held handle writes normally (proves it is the live
+    // recheck, not a permanently broken handle).
+    activeClient = clientA;
+    await expect(heldSave(conversationA)).resolves.toBeUndefined();
+    expect(boundary.save).toHaveBeenCalledTimes(1);
   });
 });

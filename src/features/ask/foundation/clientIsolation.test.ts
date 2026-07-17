@@ -183,4 +183,28 @@ describe('Ask use-time isolation when the real owner switches', () => {
     );
     expect(executed).not.toHaveBeenCalled();
   });
+
+  it('establish-once: a second owner (e.g. reached through a boundary blind spot) cannot overwrite the binding to restore a stale client', () => {
+    // The legitimate owner holds the binding at client B.
+    current = clientB;
+    // beforeEach already established the owner bound to `current`; confirm B.
+    const scope = resolveAskScope(
+      askScopeBuilder.chosenSources('workspace-a', clientA, [sourceA.sourceId]),
+      clientA,
+      owners
+    );
+    expect(askSourceBelongsToScope(scope, sourceA)).toBe(false); // B active, A refused
+
+    // An attacker deep-imports createAskSharedClientOwner and tries to rebind to
+    // a frozen client A to restore stale data. Establish-once refuses at runtime,
+    // independent of any import-path guard.
+    const attacker = createAskSharedClientOwner<CRef, MRef>();
+    expect(() => {
+      attacker.bind({ readCurrentClient: () => clientA, owners });
+    }).toThrow('already established');
+    // The attacker also cannot release the real owner's binding (not the holder).
+    attacker.release();
+    // A remains refused; the attacker could not restore it.
+    expect(askSourceBelongsToScope(scope, sourceA)).toBe(false);
+  });
 });
