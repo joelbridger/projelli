@@ -703,7 +703,9 @@ async function resolveContainedRealPath(
     // containment, so we fail closed rather than trust the raw join.
     if (workspace.isSymlink && (await workspace.isSymlink(relativeSoFar))) {
       if (!workspace.resolveSymlink)
-        throw new Error('Legacy meeting link cannot resolve its folder safely.');
+        throw new Error(
+          'Legacy meeting link cannot resolve its folder safely.'
+        );
       realAbsolute = normalizedAbsolutePath(
         await workspace.resolveSymlink(relativeSoFar),
         'Resolved legacy meeting folder'
@@ -765,9 +767,7 @@ async function validateLegacyMeetingLinkWithin(
 
   let parsed: unknown;
   try {
-    parsed = JSON.parse(
-      await workspace.readFile(`${meetingDir}/meeting.json`)
-    );
+    parsed = JSON.parse(await workspace.readFile(`${meetingDir}/meeting.json`));
   } catch {
     throw new Error('Legacy meeting metadata is unavailable.');
   }
@@ -789,7 +789,8 @@ export async function validateLegacyMeetingLink(
   input: LegacyMeetingLinkInput
 ): Promise<LegacyMeetingLink> {
   const authority = deriveMeetingLinkAuthority();
-  return (await validateLegacyMeetingLinkWithin(meeting, input, authority)).link;
+  return (await validateLegacyMeetingLinkWithin(meeting, input, authority))
+    .link;
 }
 
 /**
@@ -971,10 +972,14 @@ export function createLegacyMeetingLinkStatusReader(
 
     const fresh = await port.reloadRecords();
     if (!fresh)
-      throw new Error('Meeting link status is unavailable until CRM records reload.');
+      throw new Error(
+        'Meeting link status is unavailable until CRM records reload.'
+      );
     requireAvailable(port);
     if (activeMatterIdForLegacyLinkStatus(port) !== activeMatterId)
-      throw new Error('Active client changed while meeting link status reloaded.');
+      throw new Error(
+        'Active client changed while meeting link status reloaded.'
+      );
 
     const matches = new Map<string, MeetingRef[]>();
     for (const record of fresh) {
@@ -1022,7 +1027,9 @@ export function createLegacyMeetingLinkStatusReader(
     for (const meetingDir of requested) {
       const matchingRefs = matches.get(meetingDir) ?? [];
       if (matchingRefs.length > 1)
-        throw new Error('More than one canonical meeting has this legacy link.');
+        throw new Error(
+          'More than one canonical meeting has this legacy link.'
+        );
       statuses.set(
         meetingDir,
         matchingRefs.length === 1

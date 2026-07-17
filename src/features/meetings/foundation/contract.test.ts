@@ -876,7 +876,10 @@ describe('meetings foundation contract', () => {
     const created = await createMeetingStore(live).createDraft(draft);
     const input = { meetingDir: LEGACY_DIR };
     const svc = () =>
-      createMeetingPopulationService({ ...live, records: live.readCanonical() });
+      createMeetingPopulationService({
+        ...live,
+        records: live.readCanonical(),
+      });
 
     // Legacy meeting.json claims a different matter → refused.
     seedTrustedAuthority({ workspace: { metadataMatterId: 'matter-2' } });
@@ -1147,11 +1150,9 @@ describe('meetings foundation contract', () => {
       expect(results.filter((r) => r.status === 'rejected')).toHaveLength(1);
 
       // The durable link is exactly the single winner's — nothing overwrote it.
-      const durable = live
-        .readCanonical()
-        .find((r) => r.id === created.id)?.['legacyMeetingLink'] as
-        | { meetingDir: string }
-        | undefined;
+      const durable = live.readCanonical().find((r) => r.id === created.id)?.[
+        'legacyMeetingLink'
+      ] as { meetingDir: string } | undefined;
       const winnerDir = fulfilled[0]?.value.legacyLink?.meetingDir;
       expect(winnerDir).toBeTruthy();
       expect(durable?.meetingDir).toBe(winnerDir);
@@ -1207,7 +1208,10 @@ describe('meetings foundation contract', () => {
       expect([...grant.allowedMatterIds]).toEqual(['matter-1']);
 
       // The reader honours exactly matter-1 — the victim meeting never leaks.
-      const listed = await createFirmMeetingDirectoryReader(reader, grant).list();
+      const listed = await createFirmMeetingDirectoryReader(
+        reader,
+        grant
+      ).list();
       expect(listed).toHaveLength(1);
       expect(listed.every((meeting) => meeting.matterId === 'matter-1')).toBe(
         true
@@ -1293,7 +1297,10 @@ describe('legacy meeting link-status doorway', () => {
     const folderOnly = statuses.get(
       'Clients/Household One/Meetings/2026-07-22'
     );
-    expect(linked).toMatchObject({ kind: 'linked', meetingRef: 'meeting-linked' });
+    expect(linked).toMatchObject({
+      kind: 'linked',
+      meetingRef: 'meeting-linked',
+    });
     expect(folderOnly).toMatchObject({ kind: 'folder-only' });
     expect(verifyLegacyMeetingLinkStatus(linked)).toBe(true);
     expect(verifyLegacyMeetingLinkStatus(folderOnly)).toBe(true);
@@ -1315,13 +1322,18 @@ describe('legacy meeting link-status doorway', () => {
     expect(verifyLegacyMeetingLinkStatus(forged)).toBe(false);
     expect(verifyLegacyMeetingLinkStatus({ ...status })).toBe(false);
     expect(() => Object.assign(status, { kind: 'folder-only' })).toThrow();
-    expect(status).toMatchObject({ kind: 'linked', meetingRef: 'meeting-linked' });
+    expect(status).toMatchObject({
+      kind: 'linked',
+      meetingRef: 'meeting-linked',
+    });
   });
 
   it('fails closed instead of inventing folder-only when status truth is uncertain', async () => {
     seedTrustedAuthority();
     const unavailable = () =>
-      createLegacyMeetingLinkStatusReader(canonicalPort([linkedStatusRecord()]));
+      createLegacyMeetingLinkStatusReader(
+        canonicalPort([linkedStatusRecord()])
+      );
 
     await expect(
       createLegacyMeetingLinkStatusReader({
@@ -1342,13 +1354,13 @@ describe('legacy meeting link-status doorway', () => {
       }).read({ meetingDir: LEGACY_DIR })
     ).rejects.toThrow('status is unavailable');
     setActiveWorkspaceService(null);
-    await expect(unavailable().read({ meetingDir: LEGACY_DIR })).rejects.toThrow(
-      'requires an open workspace'
-    );
+    await expect(
+      unavailable().read({ meetingDir: LEGACY_DIR })
+    ).rejects.toThrow('requires an open workspace');
     seedTrustedAuthority();
-    await expect(unavailable().read({ meetingDir: '../escape' })).rejects.toThrow(
-      'traversal-free'
-    );
+    await expect(
+      unavailable().read({ meetingDir: '../escape' })
+    ).rejects.toThrow('traversal-free');
     await expect(
       unavailable().read({ meetingDir: '/absolute' })
     ).rejects.toThrow('workspace-relative');
@@ -1371,9 +1383,7 @@ describe('legacy meeting link-status doorway', () => {
     ).rejects.toThrow('More than one');
     await expect(
       createLegacyMeetingLinkStatusReader(
-        canonicalPort([
-          linkedStatusRecord({ matterId: 'matter-victim' }),
-        ])
+        canonicalPort([linkedStatusRecord({ matterId: 'matter-victim' })])
       ).read({ meetingDir: LEGACY_DIR })
     ).rejects.toThrow('different client');
   });

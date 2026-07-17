@@ -25,7 +25,10 @@ export async function proveMeetingsLinkStatusPublicDoorway(
   const status = await createLegacyMeetingLinkStatusReader(port).read(legacy);
   const forged =
     status.kind === 'linked'
-      ? ({ kind: 'linked', meetingRef: status.meetingRef } as LegacyMeetingLinkStatus)
+      ? ({
+          kind: 'linked',
+          meetingRef: status.meetingRef,
+        } as LegacyMeetingLinkStatus)
       : ({ kind: 'folder-only' } as LegacyMeetingLinkStatus);
   return {
     status,
