@@ -62,14 +62,76 @@ export function SchwabPrefillReview({ household }: SchwabReviewInput) {
   const { t } = useTranslation();
   const [accountType, setAccountType] =
     useState<SchwabAccountType>('individual');
+
+  return (
+    <section
+      data-testid="schwab-prefill-review"
+      style={{ display: 'grid', gap: 16, padding: 16 }}
+    >
+      <div>
+        <h2>{t('schwabPrefill.title')}</h2>
+        <p>{t('schwabPrefill.description')}</p>
+      </div>
+      <label>
+        {t('schwabPrefill.accountType')}
+        <select
+          aria-label={t('schwabPrefill.accountType')}
+          value={accountType}
+          onChange={(event) => {
+            setAccountType(event.target.value as SchwabAccountType);
+          }}
+        >
+          {schwabAccountTypes.map((type) => (
+            <option key={type} value={type}>
+              {t(`schwabPrefill.types.${type}`)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <SchwabPrefillContext
+        key={`${household.id}:${accountType}`}
+        household={household}
+        accountType={accountType}
+      />
+    </section>
+  );
+}
+
+interface SchwabPrefillContextProps extends SchwabReviewInput {
+  accountType: SchwabAccountType;
+}
+
+/**
+ * Owns every value derived from one household/account-type pair. The keyed
+ * boundary above destroys this whole state tree before another client or form
+ * context can render, so dirty fields, masked facts, proposals, reveals, and
+ * receipts can never be reused across contexts.
+ */
+function SchwabPrefillContext({
+  household,
+  accountType,
+}: SchwabPrefillContextProps) {
+  const { t } = useTranslation();
   const [facts, setFacts] = useState<
     Awaited<ReturnType<typeof schwabPrivateFacts.listMasked>>
   >([]);
+  const [factsSettled, setFactsSettled] = useState(false);
   const [fields, setFields] = useState<EditableField[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<SchwabPacketReceipt | undefined>();
+  // Fields the advisor has personally touched. Once a key is dirty, no async
+  // re-seed (prefill/household/facts resolving, or a parent re-render handing
+  // us a fresh `household`/`proposed` reference) may overwrite what they typed.
+  // This component is keyed by the seed context, so a context change destroys
+  // this set along with all other client-derived state.
+  const dirtyKeysRef = useRef<Set<SchwabFieldKey>>(new Set());
+  const tRef = useRef(t);
+  tRef.current = t;
+  function markDirty(key: SchwabFieldKey): void {
+    dirtyKeysRef.current.add(key);
+  }
   const revealedFacts = useRef(new Map<string, string>());
   const [revealedFactIds, setRevealedFactIds] = useState<ReadonlySet<string>>(
     new Set()
@@ -97,31 +159,60 @@ export function SchwabPrefillReview({ household }: SchwabReviewInput) {
   useEffect(() => {
     let live = true;
     setLoading(true);
+    setFactsSettled(false);
     setFields([]);
     setError(null);
     void schwabPrivateFacts
       .listMasked(household.id)
       .then((next) => {
-        if (live) setFacts(next);
+        if (live) {
+          setFacts(next);
+          setFactsSettled(true);
+        }
       })
       .catch(() => {
-        if (live) setError(t('schwabPrefill.loadError'));
-      })
-      .finally(() => {
-        if (live) setLoading(false);
+        if (live) {
+          setFacts([]);
+          setError(tRef.current('schwabPrefill.loadError'));
+          setFactsSettled(true);
+        }
       });
     return () => {
       live = false;
     };
-  }, [household.id, t]);
+  }, [household.id]);
   const proposed = useMemo(
     () => buildSchwabProposal(accountType, { household, facts }),
     [accountType, facts, household]
   );
   useEffect(() => {
-    setFields(withState(proposed));
+    const seeds = withState(proposed);
+    setFields((current) => {
+      const dirty = dirtyKeysRef.current;
+      if (dirty.size === 0) return seeds;
+      // Same form, but an async source re-seeded. Preserve every field the
+      // advisor already edited; only refresh untouched fields from the proposal.
+      const byKey = new Map(current.map((field) => [field.key, field]));
+      return seeds.map((seed) => {
+        const edited = byKey.get(seed.key);
+        if (edited && dirty.has(seed.key)) {
+          return {
+            ...seed,
+            value: edited.value,
+            source: edited.source,
+            conflict: edited.conflict,
+            confirmed: edited.confirmed,
+          };
+        }
+        return seed;
+      });
+    });
     setReceipt(findSchwabPacketReceipt(household.id, accountType));
-  }, [accountType, household.id, proposed]);
+    // Do not expose a "loaded" form until this exact facts result has been
+    // folded into the proposal and fields. This removes the one-render window
+    // where stale/empty proposal fields could appear after loading finished.
+    if (factsSettled) setLoading(false);
+  }, [accountType, factsSettled, household.id, proposed]);
   const proposalStatus: SchwabRedactedProposalStatus = {
     accountType,
     fieldCount: fields.length,
@@ -138,6 +229,7 @@ export function SchwabPrefillReview({ household }: SchwabReviewInput) {
   };
   const ready = proposalStatus.ready;
   function update(key: SchwabFieldKey, value: string) {
+    markDirty(key);
     setFields((current) =>
       current.map((field) =>
         field.key === key
@@ -157,6 +249,7 @@ export function SchwabPrefillReview({ household }: SchwabReviewInput) {
       .find((field) => field.key === key)
       ?.candidates.find((item) => item.value === value);
     if (!candidate) return;
+    markDirty(key);
     setFields((current) =>
       current.map((field) =>
         field.key === key
@@ -218,32 +311,7 @@ export function SchwabPrefillReview({ household }: SchwabReviewInput) {
     }
   }
   return (
-    <section
-      data-testid="schwab-prefill-review"
-      style={{ display: 'grid', gap: 16, padding: 16 }}
-    >
-      <div>
-        <h2>{t('schwabPrefill.title')}</h2>
-        <p>{t('schwabPrefill.description')}</p>
-      </div>
-      <label>
-        {t('schwabPrefill.accountType')}
-        <select
-          aria-label={t('schwabPrefill.accountType')}
-          value={accountType}
-          onChange={(event) => {
-            revealedFacts.current.clear();
-            setRevealedFactIds(new Set());
-            setAccountType(event.target.value as SchwabAccountType);
-          }}
-        >
-          {schwabAccountTypes.map((type) => (
-            <option key={type} value={type}>
-              {t(`schwabPrefill.types.${type}`)}
-            </option>
-          ))}
-        </select>
-      </label>
+    <>
       {loading ? (
         <p>{t('schwabPrefill.loading')}</p>
       ) : (
@@ -341,6 +409,7 @@ export function SchwabPrefillReview({ household }: SchwabReviewInput) {
                       checked={field.confirmed}
                       disabled={field.conflict || !field.value.trim()}
                       onChange={(event) => {
+                        markDirty(field.key);
                         setFields((current) =>
                           current.map((item) =>
                             item.key === field.key
@@ -373,6 +442,6 @@ export function SchwabPrefillReview({ household }: SchwabReviewInput) {
           {saving ? t('schwabPrefill.saving') : t('schwabPrefill.approve')}
         </Button>
       )}
-    </section>
+    </>
   );
 }
