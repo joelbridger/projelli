@@ -1,6 +1,7 @@
 import '@/i18n';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
+import type { CalendarEventDraft } from '@/features/calendar';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 
 const canonical = vi.hoisted(() => ({
@@ -31,9 +32,24 @@ vi.mock('@/platform/crm/liveRecordRelay', () => ({
   publishLiveRecord: vi.fn(),
 }));
 
-import { roundTripCalendarFoundation } from '@/features/calendar/testing';
 import { useCalendarEventStore } from '@/features/calendar';
 import { CalendarGridSurface } from '@/features/calendar-grid';
+
+/** Calendar Grid's public-only writer; the rendered surface is the fresh reader. */
+async function createCalendarGridEvent(event: CalendarEventDraft) {
+  const writer = renderHook(() => useCalendarEventStore());
+  try {
+    const initialStore = writer.result.current;
+    await waitFor(() => {
+      if (writer.result.current === initialStore) {
+        throw new Error('The calendar event store has not loaded its canonical records yet.');
+      }
+    });
+    return await writer.result.current.create(event);
+  } finally {
+    writer.unmount();
+  }
+}
 
 function CalendarEditProbe({
   eventId,
@@ -83,17 +99,15 @@ describe('CalendarGridSurface fresh-reader proof', () => {
     const now = new Date();
     const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 5, 9, 0, 0));
     const end = new Date(start.getTime() + 30 * 60 * 1000);
-    const roundTrip = await roundTripCalendarFoundation({
-      event: {
-        title: 'Fresh reader planning',
-        startUtc: start.toISOString(),
-        endUtc: end.toISOString(),
-        displayTimezone: 'UTC',
-        allDay: false,
-        calendarId: 'calendar:local',
-      },
+    const event = await createCalendarGridEvent({
+      title: 'Fresh reader planning',
+      startUtc: start.toISOString(),
+      endUtc: end.toISOString(),
+      displayTimezone: 'UTC',
+      allDay: false,
+      calendarId: 'calendar:local',
     });
-    expect(roundTrip.event?.id).toBeTruthy();
+    expect(event.id).toBeTruthy();
     expect(canonical.records.some((record) => record['canonicalReloadMarker'] === true)).toBe(true);
 
     render(<CalendarGridSurface />);
@@ -110,18 +124,15 @@ describe('CalendarGridSurface fresh-reader proof', () => {
     const end = new Date(start.getTime() + 30 * 60 * 1000);
     const updatedStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 6, 13, 30, 0));
     const updatedEnd = new Date(updatedStart.getTime() + 30 * 60 * 1000);
-    const roundTrip = await roundTripCalendarFoundation({
-      event: {
-        title: 'Original planning',
-        startUtc: start.toISOString(),
-        endUtc: end.toISOString(),
-        displayTimezone: 'UTC',
-        allDay: false,
-        calendarId: 'calendar:local',
-      },
+    const event = await createCalendarGridEvent({
+      title: 'Original planning',
+      startUtc: start.toISOString(),
+      endUtc: end.toISOString(),
+      displayTimezone: 'UTC',
+      allDay: false,
+      calendarId: 'calendar:local',
     });
-    const eventId = roundTrip.event?.id;
-    if (!eventId) throw new Error('Expected the canonical event id.');
+    const eventId = event.id;
 
     render(<>
       <CalendarEditProbe

@@ -1,5 +1,5 @@
 import '@/i18n';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type {
   CalendarEventRecord,
@@ -8,6 +8,10 @@ import type {
   CalendarRange,
 } from '@/features/calendar';
 import type { SchedulingSurfaceRuntime } from '@/platform/calendar';
+import type { PlatformFlagsMockState } from '@/testing/platform-flags';
+
+const { mockPlatformFlags, resetPlatformFlagsOverrides, setPlatformFlagsOverrides } =
+  await vi.hoisted(async () => import('@/testing/platform-flags'));
 
 const runtime = vi.hoisted(() => ({
   enabled: false,
@@ -17,9 +21,17 @@ const runtime = vi.hoisted(() => ({
   useCalendarEventStore: vi.fn(),
   calendarStore: null as unknown as CalendarEventStore,
 }));
+const flagsMock = vi.hoisted(() => ({
+  overrides: { useFlag: undefined } as PlatformFlagsMockState['overrides'],
+}));
 
-vi.mock('@/platform/flags', () => ({ useFlag: () => runtime.enabled }));
-vi.mock('@/platform/flags/router', () => ({ isEnabled: () => runtime.enabled }));
+vi.mock('@/platform/flags', async (importOriginal) =>
+  mockPlatformFlags(importOriginal, flagsMock)
+);
+vi.mock('@/platform/flags/router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/platform/flags/router')>()),
+  isEnabled: () => runtime.enabled,
+}));
 vi.mock('@/features/calendar', () => ({ useCalendarEventStore: runtime.useCalendarEventStore }));
 
 import {
@@ -77,6 +89,8 @@ const schedulingRuntime = {
 
 describe('CalendarGridSurface', () => {
   beforeEach(() => {
+    resetPlatformFlagsOverrides(flagsMock);
+    setPlatformFlagsOverrides(flagsMock, { useFlag: () => runtime.enabled });
     runtime.enabled = false;
     runtime.events = [];
     runtime.listOccurrences.mockReset();
@@ -94,6 +108,10 @@ describe('CalendarGridSurface', () => {
       get: vi.fn(),
     };
     runtime.useCalendarEventStore.mockImplementation(() => runtime.calendarStore);
+  });
+
+  afterEach(() => {
+    resetPlatformFlagsOverrides(flagsMock);
   });
 
   it('stays fully inert while dark, without a calendar hook, query, descriptor registration, or layout', () => {
