@@ -1,0 +1,19 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/v1-w2-booking-public-page
+sha: 67fdb127d3928329c2ce0823f7286939a40138c2
+tree: 00f341b2d221384efd5f2fc590d9fe11a8bd354b
+gate_base: cb09c8c4f9767f1334bedd381fe0f28f0018a2f3
+tool_blob: 7912bf11eefdacea0702600b19d3bc5b3d7f2606
+utc: 2026-07-17T06:09:16Z
+step_timeout_seconds: 900
+loadavg: 5.54 12.07 13.63
+running_vitest_eslint_procs: 1
+step: gate:changed | status=PASS | exit=0 | 06:09:16Z..06:17:45Z | bytes=56217 | sha256=c5c0d323d37341cca091e909ea69704ca6132752e529e2ab3ad9deb715138130 | tail: ssed | 3 skipped (1084) Tests 8663 passed | 29 skipped (8692) Start at 06:11:59 Duration 345.20s (transform 25.72s, setup 175.36s, import 468.22s, tests 234.45s, environment 387.17s) CHANGED GATE GREEN
+step: typecheck | status=PASS | exit=0 | 06:17:45Z..06:18:06Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit
+step: typecheck:tests | status=PASS | exit=0 | 06:18:06Z..06:18:33Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit
+step: handle-guard | status=PASS | exit=0 | 06:18:33Z..06:18:33Z | bytes=1322 | sha256=07f5ce4a9f71d01ce18203d19f530be8b3fd83502c1343206bdf858d1732cd7a | tail: ic-page-unavailable + client-bar-clear + client-bar-current + client-bar-open-${} +330 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen).
+step: arch-dag-guard | status=PASS | exit=0 | 06:18:33Z..06:18:34Z | bytes=225 | sha256=4cb3225f5453949c742146aba04504353079488774e448039b86348cc50e9842 | tail:  v4.1.3 /home/jameson/v1-w2-booking-public-page Test Files 1 passed (1) Tests 1 passed (1) Start at 06:18:33 Duration 943ms (transform 212ms, setup 333ms, import 250ms, tests 3ms, environment 274ms)
+step: i18n-snapshot | status=PASS | exit=0 | 06:18:34Z..06:18:35Z | bytes=226 | sha256=3da1b8f36958de4fda27dd66395b9955ac85497ff2b02c89690dd47f1d354b28 | tail:  v4.1.3 /home/jameson/v1-w2-booking-public-page Test Files 1 passed (1) Tests 5 passed (5) Start at 06:18:34 Duration 979ms (transform 244ms, setup 367ms, import 216ms, tests 22ms, environment 272ms)
+step: focused | status=PASS | exit=0 | 06:18:35Z..06:18:37Z | bytes=227 | sha256=b851bc87fe6228df118f4abd9b5e0fa6b1e1045ee9c30cf20cd7ff8b23acb783 | tail: v4.1.3 /home/jameson/v1-w2-booking-public-page Test Files 1 passed (1) Tests 1 passed (1) Start at 06:18:35 Duration 1.19s (transform 319ms, setup 330ms, import 368ms, tests 139ms, environment 275ms)
+overall: GREEN

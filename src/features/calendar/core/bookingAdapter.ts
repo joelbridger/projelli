@@ -14,7 +14,7 @@ interface BookingPageSlotOptionContract {
 
 type BookingPageAvailabilityPresentationContract =
   | { readonly state: 'loading' }
-  | { readonly state: 'unavailable'; readonly message?: string }
+  | { readonly state: 'unavailable' }
   | {
       readonly state: 'available';
       readonly dates: readonly BookingPageDateOptionContract[];
@@ -28,7 +28,7 @@ export interface BookingPageAvailabilityConsumerContract {
 
 export type BookingAvailabilityConsumerInput =
   | { readonly state: 'loading' }
-  | { readonly state: 'unavailable'; readonly message?: string }
+  | { readonly state: 'unavailable' }
   | {
       readonly state: 'available';
       readonly slots: readonly CalendarBookableSlot[];
@@ -38,11 +38,7 @@ export type BookingAvailabilityConsumerInput =
 
 function presentation(input: BookingAvailabilityConsumerInput): BookingPageAvailabilityPresentationContract {
   if (input.state === 'loading') return { state: 'loading' };
-  if (input.state === 'unavailable') {
-    return input.message === undefined
-      ? { state: 'unavailable' }
-      : { state: 'unavailable', message: input.message };
-  }
+  if (input.state === 'unavailable') return { state: 'unavailable' };
   if (input.slots.length === 0) return { state: 'unavailable' };
 
   const dates = new Map<string, BookingPageDateOptionContract>();
@@ -67,7 +63,7 @@ function presentation(input: BookingAvailabilityConsumerInput): BookingPageAvail
     minute: '2-digit',
   });
 
-  for (const slot of input.slots) {
+  for (const [slotIndex, slot] of input.slots.entries()) {
     const startMs = parseUtc(slot.startUtc, 'Booking slot start');
     const parts = zonedParts(startMs, input.advisorTimezone);
     const dateId = `${String(parts.year).padStart(4, '0')}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`;
@@ -79,7 +75,10 @@ function presentation(input: BookingAvailabilityConsumerInput): BookingPageAvail
       });
       slotsByDate[dateId] = [];
     }
-    slotsByDate[dateId]?.push({ id: slot.id, label: timeFormatter.format(startMs) });
+    // Public IDs are deliberately generated here instead of preserving any
+    // calendar or meeting-type identifier. The public projection may reveal
+    // display-ready dates and times, but no user-authored or internal identity.
+    slotsByDate[dateId]?.push({ id: `public-slot-${String(slotIndex + 1)}`, label: timeFormatter.format(startMs) });
   }
   return { state: 'available', dates: [...dates.values()], slotsByDate };
 }
