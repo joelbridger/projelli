@@ -1,0 +1,18 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/lantern/app/integration/.worktrees/v1/w2-crosscontext-harness
+sha: 1419b9d8c5d42e1736f035b641ffc52efb12de65
+tree: 61c5610cae975b3e6cfed12e3a26c6f692a59d23
+gate_base: d84e2f5b10ad559dcb4a3d9f71236da05193c6af
+tool_blob: 7912bf11eefdacea0702600b19d3bc5b3d7f2606
+utc: 2026-07-17T20:54:34Z
+step_timeout_seconds: 600
+loadavg: 5.95 9.67 11.08
+running_vitest_eslint_procs: 9
+step: gate:changed | status=PASS | exit=0 | 20:54:34Z..21:03:53Z | bytes=56754 | sha256=2684044b6f8b1f0b77119c0d8ce694fa43035f008f979ed6508958f9d4a7375c | tail: ssed | 3 skipped (1120) Tests 8909 passed | 29 skipped (8938) Start at 20:57:35 Duration 378.38s (transform 29.66s, setup 189.43s, import 519.28s, tests 235.86s, environment 430.67s) CHANGED GATE GREEN
+step: typecheck | status=PASS | exit=0 | 21:03:53Z..21:04:16Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit
+step: typecheck:tests | status=PASS | exit=0 | 21:04:16Z..21:04:42Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit
+step: handle-guard | status=PASS | exit=0 | 21:04:42Z..21:04:42Z | bytes=1360 | sha256=725bf79cafd644ebb74927168522eb4e6d9a331df7ea908fe79031f456c1ffe9 | tail: ite-approve + calendar-write-pending-banner + calendar-write-pending-banner-review-now +343 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen).
+step: arch-dag-guard | status=PASS | exit=0 | 21:04:42Z..21:04:44Z | bytes=261 | sha256=103c48fd773e8c69c857a35b28a93d230bf86357345fedb93a1174a4b92b4d77 | tail: ntegration/.worktrees/v1/w2-crosscontext-harness Test Files 1 passed (1) Tests 1 passed (1) Start at 21:04:43 Duration 996ms (transform 244ms, setup 409ms, import 236ms, tests 3ms, environment 260ms)
+step: i18n-snapshot | status=PASS | exit=0 | 21:04:44Z..21:04:45Z | bytes=262 | sha256=4b40de2eb8756c05701092d5ca26962148bf21f80809ea0f71487f476fae4f5e | tail: tegration/.worktrees/v1/w2-crosscontext-harness Test Files 1 passed (1) Tests 5 passed (5) Start at 21:04:44 Duration 1.03s (transform 303ms, setup 444ms, import 211ms, tests 15ms, environment 267ms)
+overall: GREEN
