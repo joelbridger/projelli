@@ -92,3 +92,11 @@ export {
   type MeetingInsightMeetingSummaryContext,
   type MeetingInsightClientSummaryContext,
 } from './meetingInsightRegistry';
+export {
+  detectCitedMeetingKeywordInsights,
+  detectMeetingKeywordMatches,
+  meetingKeywordsInsight,
+  MeetingKeywordSettingsPanel,
+  type MeetingKeywordMatch,
+} from './insights/keywords/meetingKeywords';
+export { meetingKeywordsSettingsPanel } from './insights/keywords/settingsModuleDescriptor';
