@@ -318,7 +318,7 @@ function MeetingKeywordsInsightCardEnabled({
         >
           {matchResults.sourceKinds.map((kind) => (
             <span key={kind} role="listitem">
-              <span className="kp-chip kp-chip--sm">
+              <span className="kp-badge kp-badge--sm kp-badge--neutral">
                 {sourceLabel(t, kind)}
               </span>
             </span>
