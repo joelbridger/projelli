@@ -1,0 +1,19 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/v1-w2-schwab-fieldloss-fix
+sha: 94f90f54a963668d9b6c78ed6d1781339fbf920a
+tree: 3e975ff246798c9466e889f866fe8cec0fcff7f3
+gate_base: 5d472f689950f26de6e7eb9f48ce71303c5a6964
+tool_blob: 7912bf11eefdacea0702600b19d3bc5b3d7f2606
+utc: 2026-07-17T07:16:38Z
+step_timeout_seconds: 1200
+loadavg: 7.05 9.44 10.50
+running_vitest_eslint_procs: 1
+step: gate:changed | status=PASS | exit=0 | 07:16:38Z..07:26:07Z | bytes=55131 | sha256=16647e112b27d3a6dbcce450c4ea7a924540c34fd40d5fdecbc58ab5efcef3eb | tail: ssed | 3 skipped (1116) Tests 8886 passed | 29 skipped (8915) Start at 07:19:22 Duration 405.14s (transform 29.92s, setup 208.57s, import 557.59s, tests 225.51s, environment 474.07s) CHANGED GATE GREEN
+step: typecheck | status=PASS | exit=0 | 07:26:07Z..07:26:52Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit
+step: typecheck:tests | status=PASS | exit=0 | 07:26:52Z..07:27:41Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit
+step: handle-guard | status=PASS | exit=0 | 07:27:41Z..07:27:41Z | bytes=1360 | sha256=725bf79cafd644ebb74927168522eb4e6d9a331df7ea908fe79031f456c1ffe9 | tail: ite-approve + calendar-write-pending-banner + calendar-write-pending-banner-review-now +343 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen).
+step: arch-dag-guard | status=PASS | exit=0 | 07:27:41Z..07:27:43Z | bytes=226 | sha256=72f016573105964cab3ebebc95a6b71d1b2239ad664f5f8a8abbafa1228f855e | tail:  v4.1.3 /home/jameson/v1-w2-schwab-fieldloss-fix Test Files 1 passed (1) Tests 1 passed (1) Start at 07:27:42 Duration 1.46s (transform 351ms, setup 563ms, import 401ms, tests 5ms, environment 369ms)
+step: i18n-snapshot | status=PASS | exit=0 | 07:27:43Z..07:27:45Z | bytes=227 | sha256=e921e2c1bbba13aed1db7d8c39e645ef311c43cd9317930ff8cee0c7e4a03bb8 | tail: v4.1.3 /home/jameson/v1-w2-schwab-fieldloss-fix Test Files 1 passed (1) Tests 5 passed (5) Start at 07:27:43 Duration 1.56s (transform 435ms, setup 640ms, import 337ms, tests 35ms, environment 397ms)
+step: focused | status=PASS | exit=0 | 07:27:45Z..07:27:48Z | bytes=230 | sha256=4f4f6884c315335b6285bdc2285ee5d3f7756ba6fe6fe3aa102191932eb6a0d8 | tail: 1.3 /home/jameson/v1-w2-schwab-fieldloss-fix Test Files 1 passed (1) Tests 11 passed (11) Start at 07:27:45 Duration 2.92s (transform 575ms, setup 618ms, import 788ms, tests 955ms, environment 409ms)
+overall: GREEN
