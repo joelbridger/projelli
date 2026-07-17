@@ -22,6 +22,7 @@ vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
 
 import {
   askScopeBuilder,
+  sealAskOpenPath,
   useAskConversation,
   type AskOwnerIdentityAdapter,
 } from '@/features/ask';
@@ -109,7 +110,7 @@ describe('useAskConversation canonical persistence', () => {
       client: clientA,
       label: 'Plan A',
       availability: 'available' as const,
-      citationOpenPath: { kind: 'document' as const, token: 'document-a' },
+      citationOpenPath: sealAskOpenPath({ kind: 'document', token: 'document-a' }),
     };
     const first = renderHook(() => useAskConversation(optionsA));
 

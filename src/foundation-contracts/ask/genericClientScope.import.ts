@@ -1,23 +1,20 @@
 import {
   askScopeBuilder,
   askSourceBelongsToScope,
-  bindAskSharedClient,
   collectAskSourceCandidates,
   resolveAskScope,
   type AskSourceDescriptor,
 } from '@/features/ask';
 import {
   fixtureClient,
-  fixtureAccess,
   fixtureOwners,
   type FixtureClientRef,
   type FixtureMeetingRef,
 } from './ownerFixture';
 
-// The shared-client owner binds one live access; every use-time doorway reads
-// the current client from that binding, never from a caller-supplied value.
-bindAskSharedClient(fixtureAccess);
-
+// A consumer of @/features/ask cannot bind or replace the shared-client reader:
+// the owner binding is off-barrel. These doorways compile and, at runtime, fail
+// closed until the real shared-client owner establishes the binding.
 const scope = resolveAskScope(
   askScopeBuilder.chosenSources('fixture-workspace', fixtureClient, [
     'source-1',

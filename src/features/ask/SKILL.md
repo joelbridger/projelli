@@ -12,19 +12,25 @@ client revision. Pass the current client plus an `AskOwnerIdentityAdapter` to
 `resolveAskScope`. Chosen sources, single/selected meetings, and meeting ranges
 all fail closed when the current client changes or clears.
 
-**Use-time client isolation is fail-closed and non-freezable.** The shared-
-client owner binds ONE live access once, with
-`bindAskSharedClient({ readCurrentClient, owners })`. Every use-time doorway —
-`askSourceBelongsToScope`, `collectAskSourceCandidates`, `listAskSourceAdapters`,
-`listAskModes`, `buildAskRetrievalPlan`, `buildAskCitation`,
-`askCitationBelongsToScope`, `resolveAskCitationOpenPath`, `listAskAnswerActions`,
-and every registered action's `isAvailable`/`execute` — reads the current client
-from that single binding, NOT from a value the caller passes. There is no per-
-call `access` argument to capture or freeze: a scope, source, citation, or action
-resolved under client A is refused the instant the owner switches to B or clears
-the client, even for a handler that resolved earlier and held on to it. When
-nothing is bound (the current base — the owner doorway is absent), every client-
-scoped doorway fails closed.
+**Use-time client isolation is fail-closed, non-freezable, and owner-only.**
+The current client comes from ONE foundation-owned binding. Every use-time
+doorway — `askSourceBelongsToScope`, `collectAskSourceCandidates`,
+`listAskSourceAdapters`, `listAskModes`, `buildAskRetrievalPlan`,
+`buildAskCitation`, `askCitationBelongsToScope`, `resolveAskCitationOpenPath`,
+`listAskAnswerActions`, and every registered action's `isAvailable`/`execute` —
+reads the current client from that binding, NOT from a value the caller passes.
+A scope, source, citation, or action resolved under client A is refused the
+instant the owner switches to B or clears the client, even for a handler that
+held on to it.
+
+**Only the shared-client OWNER can set the binding.** The capability that
+establishes it (`createAskSharedClientOwner` in `foundation/owner.ts`) is NOT on
+the public `@/features/ask` surface, and there is no free `bind(access)`
+anywhere. An ordinary consumer of `@/features/ask` therefore cannot set,
+replace, or freeze the client reader — it cannot restore client A after the
+owner moves to B. The real owner is absent at the current base, so the binding
+is unset and every client-scoped doorway fails closed by default. When the real
+owner lands it wires the binding from co-located, boundary-guarded code.
 
 `useAskConversation({ currentClient, owners })` reads and writes conversation
 metadata, review drafts, and saved source selections through encrypted live
@@ -78,13 +84,13 @@ paths exclude dark entries and re-check the live client from the single binding.
 `AskAnswerActionContext` carries no client access field: actions registered
 through the public append path are wrapped so availability and execution both
 re-read the bound client, and a previously listed action expires after a switch.
-Citation openers must be obtained through
-`resolveAskCitationOpenPath(scope, citation)`; the saved citation does not expose
-its actionable opener token directly (it is held in a private table and released
-only after the use-time client check passes). A retained source descriptor still
-carries its own owner-supplied `citationOpenPath` as plain data — that is the
-caller's copy of owner data, not a foundation-minted capability; the guarded
-doorways will not re-produce client-A sources once the live client is B.
+**Opener tokens are sealed.** A source's `citationOpenPath` is an opaque,
+non-actionable sealed reference produced by `sealAskOpenPath({ kind, token })` —
+the raw token is never a plain field on a source or a citation, and is never
+persisted. The actionable `{ kind, token }` is released ONLY by the use-time-
+guarded `resolveAskCitationOpenPath(scope, citation)`, and only while the citation
+belongs to the current live client. A retained source or citation therefore
+yields no token after the owner switches away: the doorway fails closed.
 
 ## Availability boundary
 

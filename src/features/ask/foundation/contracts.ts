@@ -96,9 +96,34 @@ export type AskSourceKind =
   | 'meeting-artifact'
   | 'email-descriptor';
 
+export type AskCitationOpenKind =
+  | 'contact'
+  | 'document'
+  | 'meeting'
+  | 'email-descriptor';
+
+/**
+ * The actionable opener metadata. It is produced ONLY as the return of the
+ * use-time-guarded `resolveAskCitationOpenPath`; it is never a plain readable
+ * field on a source or citation.
+ */
 export interface AskCitationOpenPath {
-  readonly kind: 'contact' | 'document' | 'meeting' | 'email-descriptor';
+  readonly kind: AskCitationOpenKind;
   readonly token: string;
+}
+
+declare const askSealedOpenBrand: unique symbol;
+
+/**
+ * The opaque, non-actionable opener reference a source carries. The real token
+ * is held in the foundation and released only through the use-time-guarded
+ * `resolveAskCitationOpenPath`. A source's `citationOpenPath` is this sealed
+ * form — the raw token is never persisted or exposed as a plain field. Owners
+ * produce it with `sealAskOpenPath(...)`; it cannot be forged.
+ */
+export interface AskSealedOpenPath {
+  readonly kind: AskCitationOpenKind;
+  readonly ref: string & { readonly [askSealedOpenBrand]: true };
 }
 
 interface AskSourceBase<ClientReference> {
@@ -107,7 +132,7 @@ interface AskSourceBase<ClientReference> {
   readonly client: AskClientSnapshot<ClientReference>;
   readonly label: string;
   readonly availability: 'available' | 'unavailable';
-  readonly citationOpenPath: AskCitationOpenPath;
+  readonly citationOpenPath: AskSealedOpenPath;
 }
 
 export type AskCrmSource<ClientReference = never> =

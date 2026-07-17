@@ -3,6 +3,7 @@ import type {
   AskCitation,
   AskCitationOpenPath,
   AskRetrievalPlan,
+  AskSealedOpenPath,
   AskSourceDescriptor,
   AskSourceKind,
   ResolvedAskScope,
@@ -15,7 +16,39 @@ import {
   readBoundAskOwners,
 } from './scope';
 
-const citationOpenPaths = new WeakMap<object, AskCitationOpenPath>();
+/**
+ * The real actionable opener metadata lives ONLY here, keyed by an opaque sealed
+ * ref. A source carries the sealed ref (non-actionable); the raw token is
+ * released only through the use-time-guarded `resolveAskCitationOpenPath`.
+ */
+const sealedOpenPaths = new Map<string, AskCitationOpenPath>();
+let sealCounter = 0;
+
+/**
+ * Seal actionable opener metadata into an opaque, non-actionable reference for a
+ * source descriptor. The raw token never appears as a plain source field or in a
+ * persisted record.
+ */
+export function sealAskOpenPath(open: AskCitationOpenPath): AskSealedOpenPath {
+  if (!open.token.trim()) {
+    throw new Error('Ask opener metadata requires a token to seal.');
+  }
+  sealCounter += 1;
+  const ref = `ask-open:${String(sealCounter)}:${Math.random()
+    .toString(36)
+    .slice(2)}`;
+  sealedOpenPaths.set(ref, { kind: open.kind, token: open.token });
+  return { kind: open.kind, ref: ref as AskSealedOpenPath['ref'] };
+}
+
+function unsealAskOpenPath(
+  sealed: AskSealedOpenPath
+): AskCitationOpenPath | null {
+  const actual = sealedOpenPaths.get(sealed.ref);
+  return actual ? { kind: actual.kind, token: actual.token } : null;
+}
+
+const citationOpenPaths = new WeakMap<object, AskSealedOpenPath>();
 
 export function buildAskRetrievalPlan<ClientReference, MeetingReference>(
   scope: ResolvedAskScope<ClientReference, MeetingReference>,
@@ -111,11 +144,15 @@ export function resolveAskCitationOpenPath<
   if (!askCitationBelongsToScope(scope, citation)) {
     throw new Error('Ask citation is stale or outside the current client.');
   }
-  const openPath = citationOpenPaths.get(citation);
-  if (!openPath) {
+  const sealed = citationOpenPaths.get(citation);
+  if (!sealed) {
     throw new Error('Ask citation has no validated opener capability.');
   }
-  return openPath;
+  const actual = unsealAskOpenPath(sealed);
+  if (!actual) {
+    throw new Error('Ask citation opener metadata is unavailable.');
+  }
+  return actual;
 }
 
 export function noLocalAnswer<

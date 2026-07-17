@@ -7,6 +7,7 @@ import type {
   AskSourceDescriptor,
   ResolvedAskScope,
 } from './contracts';
+import { readOwnerBoundAccess } from './owner';
 
 export class AskScopeError extends Error {}
 
@@ -139,59 +140,16 @@ export function resolveAskScope<ClientReference, MeetingReference>(
 }
 
 /**
- * The single live shared-client binding.
- *
- * The shared-client owner (the client bar) binds exactly one live access here.
- * Every use-time doorway reads the current client from THIS binding, never from
- * a caller-supplied value, so a scope, source, citation, or action resolved
- * under client A cannot be read or acted on once the owner switches to B or
- * clears the client — a caller cannot retain a frozen "current client". When
- * nothing is bound (the current base, where the owner doorway is absent), every
- * client-scoped doorway fails closed.
+ * The current shared client comes from the foundation-owned binding in
+ * `./owner`, which an ordinary consumer cannot reach or replace. Every use-time
+ * doorway reads through `liveAskAccess()`; there is no caller-supplied current
+ * client to freeze, and no public way to set the reader. When no owner is
+ * established (the current base), every client-scoped doorway fails closed.
  */
-let boundClientAccess: AskClientUseAccess<unknown, unknown> | null = null;
-
-/**
- * Bind the one live shared-client access. Intended to be called once by the
- * shared-client owner wiring. Returns an unbind function; rebinding replaces the
- * previous binding (e.g. the owner remounting).
- */
-export function bindAskSharedClient<ClientReference, MeetingReference>(
-  access: AskClientUseAccess<ClientReference, MeetingReference>
-): () => void {
-  const entry = access as unknown as AskClientUseAccess<unknown, unknown>;
-  boundClientAccess = entry;
-  return () => {
-    if (boundClientAccess === entry) boundClientAccess = null;
-  };
-}
-
-/** True only when the shared-client owner has bound a live access. */
-export function askSharedClientIsBound(): boolean {
-  return boundClientAccess !== null;
-}
-
-/** The bound live access, or null when the owner is not wired. Internal. */
 function liveAskAccess<ClientReference, MeetingReference>():
   | AskClientUseAccess<ClientReference, MeetingReference>
   | null {
-  return boundClientAccess as unknown as AskClientUseAccess<
-    ClientReference,
-    MeetingReference
-  > | null;
-}
-
-/** The current shared client read live from the single binding, or null. */
-export function readBoundAskClient<ClientReference>():
-  | AskClientSnapshot<ClientReference>
-  | null {
-  const access = boundClientAccess;
-  if (!access || typeof access.readCurrentClient !== 'function') return null;
-  try {
-    return access.readCurrentClient() as AskClientSnapshot<ClientReference> | null;
-  } catch {
-    return null;
-  }
+  return readOwnerBoundAccess<ClientReference, MeetingReference>();
 }
 
 /** The owner identity adapter from the single binding, or null when unbound. */

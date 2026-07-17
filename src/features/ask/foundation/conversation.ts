@@ -111,7 +111,9 @@ function sourceValue<ClientReference, MeetingReference>(
     !['available', 'unavailable'].includes(String(value['availability'])) ||
     !object(value['citationOpenPath']) ||
     !nonBlank(value['citationOpenPath']['kind']) ||
-    !nonBlank(value['citationOpenPath']['token'])
+    // A persisted source carries only the opaque sealed opener ref, never the
+    // raw actionable token.
+    !nonBlank(value['citationOpenPath']['ref'])
   ) {
     return false;
   }

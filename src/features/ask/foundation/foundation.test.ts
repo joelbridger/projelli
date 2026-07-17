@@ -14,14 +14,15 @@ import {
   askScopeBuilder,
   AskScopeError,
   askSourceBelongsToScope,
-  bindAskSharedClient,
   resolveAskScope,
 } from './scope';
+import { createAskSharedClientOwner } from './owner';
 import {
   askCitationBelongsToScope,
   buildAskCitation,
   buildAskRetrievalPlan,
   noLocalAnswer,
+  sealAskOpenPath,
 } from './retrieval';
 import {
   collectAskSourceCandidates,
@@ -86,18 +87,25 @@ const clientB = {
   matterId: 'matter-b',
   revision: 'b:1',
 } as const;
-// The shared-client owner binds ONE live access; the current client is the
-// single source of truth for every use-time doorway. Tests flip `currentClient`
-// to model a real client switch (A -> B -> none) that a caller cannot evade by
-// retaining a frozen access — there is no per-call access to freeze.
+// This test plays the shared-client OWNER (only feature-internal code can — the
+// owner capability is off the public @/features/ask barrel). It establishes ONE
+// live access; the current client is the single source of truth for every
+// use-time doorway. Tests flip `currentClient` to model a real client switch
+// (A -> B -> none) that a consumer cannot evade — there is no per-call access to
+// freeze and no public way to replace the reader.
 let currentClient: AskClientSnapshot<FixtureClientRef> | null = clientA;
 const boundAccess = {
   readCurrentClient: () => currentClient,
   owners,
 };
+let owner: ReturnType<
+  typeof createAskSharedClientOwner<FixtureClientRef, FixtureMeetingRef>
+> | null = null;
 beforeEach(() => {
   currentClient = clientA;
-  bindAskSharedClient(boundAccess);
+  owner?.release();
+  owner = createAskSharedClientOwner<FixtureClientRef, FixtureMeetingRef>();
+  owner.bind(boundAccess);
 });
 const meetingA = {
   owner: 'fixture-meeting-owner',
@@ -122,7 +130,7 @@ const sourceA: AskSourceDescriptor<FixtureClientRef, FixtureMeetingRef> = {
   client: clientA,
   label: 'A plan',
   availability: 'available',
-  citationOpenPath: { kind: 'document', token: 'document-a' },
+  citationOpenPath: sealAskOpenPath({ kind: 'document', token: 'document-a' }),
 };
 
 function meetingArtifact(
@@ -138,7 +146,7 @@ function meetingArtifact(
     client: clientA,
     label: 'Approved meeting artifact',
     availability: 'available',
-    citationOpenPath: { kind: 'meeting', token: meeting.id },
+    citationOpenPath: sealAskOpenPath({ kind: 'meeting', token: meeting.id }),
     meeting,
     occurredOn: '2026-07-10',
     meetingType: 'review',
@@ -148,9 +156,8 @@ function meetingArtifact(
 
 describe('Ask client and meeting foundation behavior', () => {
   it('whole-firm scopes work without a bound client, while client scopes fail closed when unbound', () => {
-    // Unbind the owner entirely (models the current base: no shared-client owner).
-    const unbind = bindAskSharedClient(boundAccess);
-    unbind();
+    // Release the owner entirely (models the current base: no shared-client owner).
+    owner?.release();
     const wholeFirm = resolveAskScope(
       askScopeBuilder.wholeFirm('workspace-a')
     );

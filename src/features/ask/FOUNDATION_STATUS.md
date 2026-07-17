@@ -13,7 +13,7 @@ instead of inventing substitutes.
 | Acceptance | Shipped now | Still unavailable; coordinator prerequisite |
 | --- | --- | --- |
 | A1 | Whole-firm conversation/scope projection. | `@/app/shell/registry` has no public index, and the real surface ID is `search` while the brief says `ask`. The shell owner must decide and land the public swap before `ask-shell-v1` launches. |
-| A2 | Use-time client isolation is fail-closed and non-freezable. The shared-client owner binds ONE live access (`bindAskSharedClient`); every use-time doorway reads the current client from that single binding, not from a caller-passed value, so state resolved under client A is refused the instant the owner switches to B, clears the client, or unbinds — even for a handler that resolved earlier and retained it. There is no per-call access argument to freeze. Source selection persistence is real. | No `useSharedClientContext` / `SharedClientContext`, CRM contact, document, or email descriptor owner doorway exists at this base. `bindAskSharedClient` is the empty socket; the owner that would call it is absent, and no concrete source contributor is registered. |
+| A2 | Use-time client isolation is fail-closed, non-freezable, AND owner-only. Every use-time doorway reads the current client from ONE foundation-owned binding, not a caller-passed value, so state resolved under client A is refused the instant the owner switches to B, clears, or releases — even for a retained handler. The capability that sets the binding (`createAskSharedClientOwner`) is off the public `@/features/ask` surface and there is no free `bind(access)`, so an ordinary consumer cannot set/replace/freeze the reader or restore client A. Opener tokens are sealed: a source carries only an opaque `sealAskOpenPath` reference; the raw token is released solely by the guarded `resolveAskCitationOpenPath`. Source-selection persistence is real. | No `useSharedClientContext` / `SharedClientContext`, CRM contact, document, or email descriptor owner doorway exists at this base. `createAskSharedClientOwner` is the empty, owner-only socket; the owner that would call it is absent, so the binding is unset and every client-scoped doorway fails closed. |
 | A3 | Single/selected meeting eligibility uses the artifact's owner meeting reference. Range eligibility requires and checks date plus type. Mixed-client selected meetings fail closed. | `@/features/meetings` does not export `MeetingRef`, `MeetingSourceAdapter`, or `readApprovedMeetingArtifacts`. The meeting source and mode remain unregistered until those exact exports land. |
 | A4 | Stable local citations, use-time stale-open rejection, and honest `no-local-answer` projection ship. | No concrete owner artifact can be claimed until A2/A3 prerequisites land. |
 | A5 | The generic action registry accepts owner-supplied authority/audit types and wraps availability/execution with a live-client check, including actions retained before a switch. | `requireActionCapability`, `writeAuditAction`, and all five destination doorways are absent. No built-in action is registered, and the exact destination import fixtures cannot honestly compile yet. |
@@ -37,11 +37,13 @@ exact owner doorways/contributors do NOT exist at base
   `useSharedClientContext` / `SharedClientContext`, and nothing supplies the
   `AskClientSnapshot { contactRef, matterId, revision }` (exact owner `ContactRef`
   + matter + revision) or the `AskOwnerIdentityAdapter` (client/meeting identity
-  operations) that `bindAskSharedClient` needs. Ask ships that socket
-  (`bindAskSharedClient` + the `AskClientUseAccess` shape); the small owner adapter
-  that maps the platform `SharedClientIdentity` into an `AskClientUseAccess` — and
-  the CRM/Meetings owner reference contracts it depends on — is what must land. Un-
-  til it binds, every client-scoped Ask doorway fails closed by design.
+  operations) that the binding needs. Ask ships an OWNER-ONLY socket
+  (`createAskSharedClientOwner` — deliberately NOT on the public `@/features/ask`
+  surface — plus the `AskClientUseAccess` shape); the small owner adapter that maps
+  the platform `SharedClientIdentity` into an `AskClientUseAccess` and calls it —
+  and the CRM/Meetings owner reference contracts it depends on — is what must land.
+  Until it binds, every client-scoped Ask doorway fails closed by design, and no
+  ordinary `@/features/ask` consumer can bind in the owner's place.
 - **Shell registry:** there is no public `@/app/shell/registry` index. The real
   base surface descriptor is `id: 'search'`
   (`src/app/shell/registry/legacyAppSurfaceDescriptors.tsx`); the brief's

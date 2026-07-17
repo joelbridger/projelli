@@ -1,13 +1,15 @@
 export * from './contracts';
+// NOTE: the shared-client owner binding (`createAskSharedClientOwner` in
+// ./owner) is deliberately NOT re-exported here. Setting/replacing the client
+// reader is an owner-only capability; an ordinary `@/features/ask` consumer must
+// not be able to bind or freeze it.
 export {
   askScopeBuilder,
   askScopeIsCurrent,
   askScopeSnapshotsMatch,
-  askSharedClientIsBound,
   assertAskScopeCurrent,
   askSourceBelongsToScope,
   AskScopeError,
-  bindAskSharedClient,
   resolveAskScope,
 } from './scope';
 export {
@@ -32,6 +34,7 @@ export {
   buildAskRetrievalPlan,
   noLocalAnswer,
   resolveAskCitationOpenPath,
+  sealAskOpenPath,
 } from './retrieval';
 export {
   askConversationLiveRecord,

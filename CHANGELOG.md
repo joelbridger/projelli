@@ -32,15 +32,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
-- **Ask foundation client isolation is now fail-closed and non-freezable.**
-  The shared-client owner binds ONE live access (`bindAskSharedClient`); every
-  use-time doorway — source reads, citation opens, opener-token resolution, and
-  answer actions — reads the current client from that single binding instead of
-  a value the caller passes. There is no per-call access argument to capture, so
-  a scope, source, citation, or action resolved under client A is refused the
-  instant the owner switches to B, clears the client, or unbinds — even for a
-  handler that resolved earlier and retained it. When nothing is bound, every
-  client-scoped doorway fails closed. Every client-bound scope still retains the
+- **Ask foundation client isolation is now fail-closed, non-freezable, and
+  owner-only.** Every use-time doorway — source reads, citation opens,
+  opener-token resolution, and answer actions — reads the current client from
+  ONE foundation-owned binding instead of a value the caller passes, so a scope,
+  source, citation, or action resolved under client A is refused the instant the
+  owner switches to B, clears, or releases — even for a retained handler. The
+  capability that sets the binding (`createAskSharedClientOwner`) is off the
+  public `@/features/ask` surface and there is no free `bind(access)`, so an
+  ordinary consumer cannot set, replace, or freeze the reader or restore client
+  A; when nothing is bound, every client-scoped doorway fails closed. Opener
+  tokens are sealed — a source carries only an opaque `sealAskOpenPath`
+  reference, and the raw token is released solely by the guarded
+  `resolveAskCitationOpenPath`; it is never a plain field or persisted. Every client-bound scope still retains the
   owner reference, matter, and revision; meeting artifacts prove their meeting,
   date, and type before retrieval; persistence validates payloads and proves
   save-to-fresh-reload for conversations, review drafts, and source selections.

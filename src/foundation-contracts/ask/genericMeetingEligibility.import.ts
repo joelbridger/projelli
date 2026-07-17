@@ -2,19 +2,15 @@ import {
   askScopeBuilder,
   buildAskCitation,
   type AskMeetingArtifactSource,
-  bindAskSharedClient,
   resolveAskScope,
 } from '@/features/ask';
 import {
   fixtureClient,
-  fixtureAccess,
   fixtureMeeting,
   fixtureOwners,
   type FixtureClientRef,
   type FixtureMeetingRef,
 } from './ownerFixture';
-
-bindAskSharedClient(fixtureAccess);
 
 const scope = resolveAskScope(
   askScopeBuilder.singleMeeting(

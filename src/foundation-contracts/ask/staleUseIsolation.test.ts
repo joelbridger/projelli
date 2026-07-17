@@ -1,30 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import * as AskPublic from '@/features/ask';
 import {
-  askAnswerActionRegistry,
-  askCitationBelongsToScope,
   askScopeBuilder,
-  askSharedClientIsBound,
   askSourceBelongsToScope,
-  askSourceRegistry,
-  bindAskSharedClient,
   buildAskCitation,
-  buildAskRetrievalPlan,
   collectAskSourceCandidates,
-  createAskConversationStore,
-  listAskAnswerActions,
-  listAskSourceAdapters,
-  noLocalAnswer,
-  registerAskAnswerAction,
-  registerAskSource,
-  resolveAskCitationOpenPath,
   resolveAskScope,
-  type AskAnswerActionContext,
-  type AskAnswerActionDescriptor,
-  type AskClientSnapshot,
-  type AskClientUseAccess,
-  type AskConversationPort,
-  type AskSavedSourceSelection,
-  type AskSourceAdapter,
+  sealAskOpenPath,
   type AskSourceDescriptor,
 } from '@/features/ask';
 import {
@@ -34,211 +16,67 @@ import {
   type FixtureMeetingRef,
 } from './ownerFixture';
 
-const clientB: AskClientSnapshot<FixtureClientRef> = {
-  contactRef: {
-    owner: 'fixture-client-owner',
-    id: 'client-2',
-    matterId: 'matter-2',
-  },
-  matterId: 'matter-2',
-  revision: 'client-2:1',
-};
-
+const RAW_TOKEN = 'client-a-secret-open-token';
 const sourceA: AskSourceDescriptor<FixtureClientRef, FixtureMeetingRef> = {
-  sourceId: 'stale-use-source-a',
+  sourceId: 'consumer-source-a',
   kind: 'document',
   workspaceId: 'fixture-workspace',
   client: fixtureClient,
   label: 'Client A plan',
   availability: 'available',
-  citationOpenPath: { kind: 'document', token: 'client-a-plan' },
+  citationOpenPath: sealAskOpenPath({ kind: 'document', token: RAW_TOKEN }),
 };
 
-// One live shared-client binding is the single source of truth. Flipping this
-// variable IS the client switch: there is no per-call access a caller could
-// retain to keep reading client A after the owner moves to B or clears it.
-let currentClient: AskClientSnapshot<FixtureClientRef> | null = fixtureClient;
-const boundAccess: AskClientUseAccess<FixtureClientRef, FixtureMeetingRef> = {
-  readCurrentClient: () => currentClient,
-  owners: fixtureOwners,
-};
+const scopeA = () =>
+  resolveAskScope(
+    askScopeBuilder.chosenSources('fixture-workspace', fixtureClient, [
+      sourceA.sourceId,
+    ]),
+    fixtureClient,
+    fixtureOwners
+  );
 
-describe('Ask public use-time client isolation', () => {
-  beforeEach(() => {
-    currentClient = fixtureClient;
-    bindAskSharedClient(boundAccess);
+// A throwaway "ordinary consumer" that imports ONLY @/features/ask. It must have
+// no way to bind, replace, or freeze the shared-client reader, and no way to
+// read a source's raw opener token.
+describe('Ask public surface: an ordinary consumer cannot own the shared client', () => {
+  it('exposes no binder/owner capability that could set or replace the client reader', () => {
+    const surface = AskPublic as Record<string, unknown>;
+    // The verifier's probe reached for these on @/features/ask. They must be gone.
+    expect(surface['bindAskSharedClient']).toBeUndefined();
+    expect(surface['askSharedClientIsBound']).toBeUndefined();
+    expect(surface['createAskSharedClientOwner']).toBeUndefined();
+    expect(surface['readOwnerBoundAccess']).toBeUndefined();
+    // Nothing on the public surface installs a bare access as the current client.
+    const bindLike = Object.keys(surface).filter((n) => /bind|owner/i.test(n));
+    expect(bindLike).toEqual([]);
   });
 
-  it('saves under A, then every source, citation, action, and opener doorway refuses that state after B, none, or unbind', async () => {
-    let records: AskConversationPort['records'] = [];
-    const port = (): AskConversationPort => ({
-      records,
-      workspaceRoot: '/fixture-workspace',
-      save: (record) => {
-        records = [...records.filter((item) => item.id !== record.id), record];
-        return Promise.resolve(record);
-      },
-      reloadRecords: () => Promise.resolve(records),
-    });
-    // The reactive persistence store is projected under its own reactive client
-    // prop; the imperative doorways below read the single live binding.
-    const optionsFor = (
-      client: AskClientSnapshot<FixtureClientRef> | null
-    ) => ({ currentClient: client, owners: fixtureOwners });
-    const savedSelection: AskSavedSourceSelection<
-      FixtureClientRef,
-      FixtureMeetingRef
-    > = {
-      id: 'saved-under-client-a',
-      scope: askScopeBuilder.chosenSources(
-        'fixture-workspace',
-        fixtureClient,
-        [sourceA.sourceId]
-      ),
-      sources: [sourceA],
-      createdAt: '2026-07-16T00:00:00.000Z',
-      updatedAt: '2026-07-16T00:00:00.000Z',
-    };
+  it('reproduces the verifier probe: a consumer cannot restore client A; client-scoped doorways fail closed', () => {
+    const scope = scopeA();
+    // No owner is (or can be) established from the public surface, so every
+    // client-scoped doorway fails closed. There is NO exported function the probe
+    // could call to install `() => clientA` and make these return A's data.
+    expect(askSourceBelongsToScope(scope, sourceA)).toBe(false);
+    expect(() => collectAskSourceCandidates(scope)).toThrow('is not bound');
 
-    await createAskConversationStore(
-      port(),
-      optionsFor(fixtureClient)
-    ).saveSourceSelection(savedSelection);
-    const savedUnderA = createAskConversationStore(
-      port(),
-      optionsFor(fixtureClient)
-    ).sourceSelections[0];
-    expect(savedUnderA).toBeDefined();
-    if (!savedUnderA) throw new Error('Client A selection did not save.');
+    // The verifier's exact move — call the public binder with a frozen A reader —
+    // is not expressible: the binder does not exist on the public surface.
+    const surface = AskPublic as Record<string, unknown>;
+    expect(typeof surface['bindAskSharedClient']).not.toBe('function');
+  });
 
-    // Resolve and build every actionable handle while A is the live client.
-    const oldScope = resolveAskScope(
-      savedUnderA.scope,
-      fixtureClient,
-      fixtureOwners
-    );
-    const oldSource = savedUnderA.sources[0];
-    if (!oldSource) throw new Error('Client A source did not save.');
-    const oldCitation = buildAskCitation('client-a-claim', oldScope, oldSource);
-
-    const sourceAdapter: AskSourceAdapter<
-      FixtureClientRef,
-      FixtureMeetingRef
-    > = {
-      id: 'outside-stale-use-source',
-      order: 9801,
-      sourceKinds: ['document'],
-      listCandidates: () => [oldSource],
-    };
-    registerAskSource(sourceAdapter);
-    const registeredSource = askSourceRegistry.find(
-      (adapter) => adapter.id === sourceAdapter.id
-    ) as AskSourceAdapter<FixtureClientRef, FixtureMeetingRef> | undefined;
-    expect(registeredSource).toBeDefined();
-
-    interface Authority {
-      readonly allowed: true;
-    }
-    interface Audit {
-      readonly receiptId: string;
-    }
-    type ActionContext = AskAnswerActionContext<
-      FixtureClientRef,
-      FixtureMeetingRef,
-      Authority,
-      Audit
-    >;
-    const executed = vi.fn();
-    const action: AskAnswerActionDescriptor<
-      FixtureClientRef,
-      FixtureMeetingRef,
-      Authority,
-      Audit
-    > = {
-      id: 'outside-stale-use-action',
-      order: 9802,
-      isAvailable: () => true,
-      execute: executed,
-    };
-    registerAskAnswerAction(action);
-    const context: ActionContext = {
-      scope: oldScope,
-      answer: noLocalAnswer(),
-      citations: [oldCitation],
-      authority: { allowed: true },
-      audit: { receiptId: 'fixture-receipt' },
-    };
-    const heldAction = listAskAnswerActions(context).find(
-      (candidate) => candidate.id === action.id
-    );
-    expect(heldAction).toBeDefined();
+  it('never exposes a source raw opener token as a plain field', () => {
+    // A consumer holding a source cannot read the actionable token off it.
     expect(
-      askAnswerActionRegistry.some((candidate) => candidate.id === action.id)
-    ).toBe(true);
-
-    // While A is live, every held handle admits the client-A state.
-    expect(askSourceBelongsToScope(oldScope, oldSource)).toBe(true);
-    expect(askCitationBelongsToScope(oldScope, oldCitation)).toBe(true);
-    expect(resolveAskCitationOpenPath(oldScope, oldCitation)).toEqual(
-      oldSource.citationOpenPath
+      (sourceA.citationOpenPath as unknown as Record<string, unknown>)['token']
+    ).toBeUndefined();
+    expect(JSON.stringify(sourceA.citationOpenPath)).not.toContain(RAW_TOKEN);
+    // The only path to the token is a use-time-guarded resolver reached through a
+    // citation; building the citation itself fails closed (no owner established),
+    // so the opener is doubly unreachable for a consumer.
+    expect(() => buildAskCitation('c', scopeA(), sourceA)).toThrow(
+      'outside the resolved scope'
     );
-    expect(collectAskSourceCandidates(oldScope).length).toBeGreaterThan(0);
-
-    // Switch the single live client to B, then clear it. The retained handles
-    // above must refuse the client-A state at their use doorways — this is the
-    // proof, not merely that a re-projected store came back empty.
-    for (const nextClient of [clientB, null] as const) {
-      currentClient = nextClient;
-
-      expect(
-        createAskConversationStore(port(), optionsFor(nextClient))
-          .sourceSelections
-      ).toEqual([]);
-      expect(askSourceBelongsToScope(oldScope, oldSource)).toBe(false);
-      expect(() => registeredSource?.listCandidates(oldScope)).toThrow(
-        'stale or unavailable'
-      );
-      expect(() => listAskSourceAdapters(oldScope)).toThrow(
-        'stale or unavailable'
-      );
-      expect(() => collectAskSourceCandidates(oldScope)).toThrow(
-        'stale or unavailable'
-      );
-      expect(() =>
-        buildAskRetrievalPlan(oldScope, ['document'], [oldSource])
-      ).toThrow('stale or unavailable');
-      expect(() =>
-        buildAskCitation('stale-client-a-claim', oldScope, oldSource)
-      ).toThrow('outside the resolved scope');
-      expect(askCitationBelongsToScope(oldScope, oldCitation)).toBe(false);
-      expect(() =>
-        resolveAskCitationOpenPath(oldScope, oldCitation)
-      ).toThrow('stale or outside the current client');
-      expect(
-        listAskAnswerActions(context).some(
-          (candidate) => candidate.id === action.id
-        )
-      ).toBe(false);
-      expect(heldAction?.isAvailable(context)).toBe(false);
-      expect(() => heldAction?.execute(context)).toThrow(
-        'stale answer action at use time'
-      );
-      expect(executed).not.toHaveBeenCalled();
-    }
-
-    // Unbinding the owner entirely also fails closed at every doorway.
-    currentClient = fixtureClient;
-    const unbind = bindAskSharedClient(boundAccess);
-    unbind();
-    expect(askSharedClientIsBound()).toBe(false);
-    expect(askSourceBelongsToScope(oldScope, oldSource)).toBe(false);
-    expect(() => listAskSourceAdapters(oldScope)).toThrow('is not bound');
-    expect(() =>
-      resolveAskCitationOpenPath(oldScope, oldCitation)
-    ).toThrow('stale or outside the current client');
-    expect(() => heldAction?.execute(context)).toThrow(
-      'stale answer action at use time'
-    );
-    expect(executed).not.toHaveBeenCalled();
   });
 });
