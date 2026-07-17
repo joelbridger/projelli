@@ -1,0 +1,15 @@
+{
+  "meeting-intelligence-settings": {
+    "eyebrow": "Reuniones",
+    "title": "Inteligencia de reuniones",
+    "description": "Elige qué patrones seguir y conserva los tipos y plantillas de reuniones de tu firma en un solo lugar.",
+    "loading": "Cargando ajustes de reuniones…",
+    "saving": "Guardando…",
+    "retry": "Intentar de nuevo",
+    "errors": { "load": "No se pudieron cargar los ajustes. Inténtalo de nuevo.", "save": "No se pudo guardar el cambio. Inténtalo de nuevo.", "catalog-save": "No se pudo guardar el catálogo. Inténtalo de nuevo." },
+    "preferences": { "title": "Qué seguir", "description": "Estas opciones solo cambian lo que la aplicación destaca en las reuniones.", "keywords": { "label": "Seguir palabras clave", "description": "Destaca las palabras que tu firma desea seguir." }, "signals": { "label": "Mostrar señales del cliente", "description": "Muestra patrones útiles de clientes en trabajo de reuniones aprobado." }, "display": { "label": "Vista de reuniones", "description": "Elige cuánto espacio usa cada reunión.", "comfortable": "Cómoda", "compact": "Compacta" } },
+    "types": { "title": "Tipos de reunión", "description": "Usa nombres claros para reconocer cada tipo de reunión.", "empty": "Aún no hay tipos de reunión.", "new-label": "Nuevo tipo de reunión", "add": "Añadir tipo" },
+    "templates": { "title": "Plantillas de reunión", "description": "Define el trabajo aprobado que puede incluir cada plantilla.", "empty": "Aún no hay plantillas de reunión.", "new-label": "Nueva plantilla de reunión", "add": "Añadir plantilla" },
+    "artifacts": { "agenda": "Agenda", "pre-meeting-brief": "Resumen previo", "structured-notes": "Notas estructuradas", "summary": "Resumen", "transcript": "Transcripción" }
+  }
+}

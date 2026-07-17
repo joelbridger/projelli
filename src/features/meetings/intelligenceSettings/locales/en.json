@@ -1,0 +1,25 @@
+{
+  "meeting-intelligence-settings": {
+    "eyebrow": "Meetings",
+    "title": "Meeting intelligence",
+    "description": "Choose what meeting patterns to track and keep your firm’s meeting types and templates in one place.",
+    "loading": "Loading meeting settings…",
+    "saving": "Saving…",
+    "retry": "Try again",
+    "errors": {
+      "load": "Meeting settings could not be loaded. Try again.",
+      "save": "That change could not be saved. Try again.",
+      "catalog-save": "The meeting catalog could not be saved. Try again."
+    },
+    "preferences": {
+      "title": "What to track",
+      "description": "These choices only change what this app highlights in your meeting work.",
+      "keywords": { "label": "Track keywords", "description": "Highlight the words your firm chooses to watch for." },
+      "signals": { "label": "Show client signals", "description": "Show useful client-related patterns found in approved meeting work." },
+      "display": { "label": "Meeting display", "description": "Choose how much room each meeting item uses.", "comfortable": "Comfortable", "compact": "Compact" }
+    },
+    "types": { "title": "Meeting types", "description": "Use clear names so your team can recognize the kind of meeting at a glance.", "empty": "No meeting types have been added yet.", "new-label": "New meeting type", "add": "Add type" },
+    "templates": { "title": "Meeting templates", "description": "Set the approved meeting work each template can include.", "empty": "No meeting templates have been added yet.", "new-label": "New meeting template", "add": "Add template" },
+    "artifacts": { "agenda": "Agenda", "pre-meeting-brief": "Pre-meeting brief", "structured-notes": "Structured notes", "summary": "Summary", "transcript": "Transcript" }
+  }
+}
