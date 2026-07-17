@@ -13,7 +13,7 @@ export {
 export {
   establishAskSharedClientContext,
   readAskSharedClientSnapshot,
-  toAskClientSnapshot,
+  useAskSharedClientSnapshot,
   askClientIdentityAdapter,
 } from './sharedClientContextOwner';
 /**

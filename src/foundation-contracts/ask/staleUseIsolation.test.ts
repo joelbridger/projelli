@@ -2,11 +2,9 @@ import { describe, expect, it } from 'vitest';
 import * as AskPublic from '@/features/ask';
 import {
   askScopeBuilder,
-  askSourceBelongsToScope,
-  buildAskCitation,
-  collectAskSourceCandidates,
   resolveAskScope,
   sealAskOpenPath,
+  type AskClientSnapshot,
   type AskSourceDescriptor,
 } from '@/features/ask';
 import {
@@ -17,11 +15,14 @@ import {
 } from './ownerFixture';
 
 const RAW_TOKEN = 'client-a-secret-open-token';
+// This is the hostile cast the public intake must reject. It can satisfy TypeScript
+// only by erasing the private brand, and it has no runtime provenance seal.
+const forgedClient = fixtureClient as unknown as AskClientSnapshot<FixtureClientRef>;
 const sourceA: AskSourceDescriptor<FixtureClientRef, FixtureMeetingRef> = {
   sourceId: 'consumer-source-a',
   kind: 'document',
   workspaceId: 'fixture-workspace',
-  client: fixtureClient,
+  client: forgedClient,
   label: 'Client A plan',
   availability: 'available',
   citationOpenPath: sealAskOpenPath({ kind: 'document', token: RAW_TOKEN }),
@@ -29,10 +30,10 @@ const sourceA: AskSourceDescriptor<FixtureClientRef, FixtureMeetingRef> = {
 
 const scopeA = () =>
   resolveAskScope(
-    askScopeBuilder.chosenSources('fixture-workspace', fixtureClient, [
+    askScopeBuilder.chosenSources('fixture-workspace', forgedClient, [
       sourceA.sourceId,
     ]),
-    fixtureClient,
+    forgedClient,
     fixtureOwners
   );
 
@@ -52,13 +53,10 @@ describe('Ask public surface: an ordinary consumer cannot own the shared client'
     expect(bindLike).toEqual([]);
   });
 
-  it('reproduces the verifier probe: a consumer cannot restore client A; client-scoped doorways fail closed', () => {
-    const scope = scopeA();
-    // No owner is (or can be) established from the public surface, so every
-    // client-scoped doorway fails closed. There is NO exported function the probe
-    // could call to install `() => clientA` and make these return A's data.
-    expect(askSourceBelongsToScope(scope, sourceA)).toBe(false);
-    expect(() => collectAskSourceCandidates(scope)).toThrow('is not bound');
+  it('reproduces the verifier probe: a consumer cannot restore client A from a cast', () => {
+    // The cast-forged authority is rejected before an ordinary consumer can even
+    // create a client scope. No public function can mint a replacement for it.
+    expect(scopeA).toThrow('minted by the shared-client owner');
 
     // The verifier's exact move — call the public binder with a frozen A reader —
     // is not expressible: the binder does not exist on the public surface.
@@ -72,11 +70,8 @@ describe('Ask public surface: an ordinary consumer cannot own the shared client'
       (sourceA.citationOpenPath as unknown as Record<string, unknown>)['token']
     ).toBeUndefined();
     expect(JSON.stringify(sourceA.citationOpenPath)).not.toContain(RAW_TOKEN);
-    // The only path to the token is a use-time-guarded resolver reached through a
-    // citation; building the citation itself fails closed (no owner established),
-    // so the opener is doubly unreachable for a consumer.
-    expect(() => buildAskCitation('c', scopeA(), sourceA)).toThrow(
-      'outside the resolved scope'
-    );
+    // Its cast-forged client can never enter a scope, so this sealed opener has
+    // no publicly reachable authority path.
+    expect(scopeA).toThrow('minted by the shared-client owner');
   });
 });

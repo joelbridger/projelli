@@ -8,6 +8,7 @@ import type {
   AskSourceDescriptor,
 } from './contracts';
 import { createAskSharedClientOwner } from './owner';
+import { mintAskClientSnapshot } from './clientSnapshotAuthority';
 import {
   askScopeBuilder,
   askSourceBelongsToScope,
@@ -50,16 +51,16 @@ const owners: AskOwnerIdentityAdapter<CRef, MRef> = {
   meetingMatterId: (r) => r.matterId,
   sameMeeting: (l, r) => l.id === r.id && l.matterId === r.matterId,
 };
-const clientA: AskClientSnapshot<CRef> = {
+const clientA: AskClientSnapshot<CRef> = mintAskClientSnapshot({
   contactRef: { owner: 'fixture-client-owner', id: 'a', matterId: 'matter-a' },
   matterId: 'matter-a',
   revision: 'a:1',
-};
-const clientB: AskClientSnapshot<CRef> = {
+});
+const clientB: AskClientSnapshot<CRef> = mintAskClientSnapshot({
   contactRef: { owner: 'fixture-client-owner', id: 'b', matterId: 'matter-b' },
   matterId: 'matter-b',
   revision: 'b:1',
-};
+});
 
 const RAW_TOKEN = 'client-a-document-secret';
 const sourceA: AskSourceDescriptor<CRef, MRef> = {

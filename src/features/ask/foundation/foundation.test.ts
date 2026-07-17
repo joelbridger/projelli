@@ -17,6 +17,7 @@ import {
   resolveAskScope,
 } from './scope';
 import { createAskSharedClientOwner } from './owner';
+import { mintAskClientSnapshot } from './clientSnapshotAuthority';
 import {
   askCitationBelongsToScope,
   buildAskCitation,
@@ -67,7 +68,7 @@ const owners: AskOwnerIdentityAdapter<FixtureClientRef, FixtureMeetingRef> = {
     left.id === right.id && left.matterId === right.matterId,
 };
 
-const clientA = {
+const clientA = mintAskClientSnapshot({
   contactRef: {
     owner: 'fixture-client-owner',
     kind: 'household',
@@ -76,8 +77,8 @@ const clientA = {
   },
   matterId: 'matter-a',
   revision: 'a:1',
-} as const;
-const clientB = {
+});
+const clientB = mintAskClientSnapshot({
   contactRef: {
     owner: 'fixture-client-owner',
     kind: 'household',
@@ -86,7 +87,7 @@ const clientB = {
   },
   matterId: 'matter-b',
   revision: 'b:1',
-} as const;
+});
 // This test plays the shared-client OWNER (only feature-internal code can — the
 // owner capability is off the public @/features/ask barrel). It establishes ONE
 // live access; the current client is the single source of truth for every

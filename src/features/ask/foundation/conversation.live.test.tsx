@@ -27,6 +27,7 @@ import {
   type AskOwnerIdentityAdapter,
 } from '@/features/ask';
 import { createAskSharedClientOwner } from './owner';
+import { mintAskClientSnapshot } from './clientSnapshotAuthority';
 
 interface FixtureClientRef {
   readonly owner: 'fixture-client-owner';
@@ -60,7 +61,7 @@ const owners: AskOwnerIdentityAdapter<FixtureClientRef, FixtureMeetingRef> = {
     left.id === right.id && left.matterId === right.matterId,
 };
 
-const clientA = {
+const clientA = mintAskClientSnapshot({
   contactRef: {
     owner: 'fixture-client-owner',
     id: 'client-a',
@@ -68,9 +69,9 @@ const clientA = {
   },
   matterId: 'matter-a',
   revision: 'client-a:1',
-} as const;
+});
 
-const clientB = {
+const clientB = mintAskClientSnapshot({
   contactRef: {
     owner: 'fixture-client-owner',
     id: 'client-b',
@@ -78,7 +79,7 @@ const clientB = {
   },
   matterId: 'matter-b',
   revision: 'client-b:1',
-} as const;
+});
 
 const optionsA = { currentClient: clientA, owners } as const;
 const now = '2026-07-16T20:00:00.000Z';

@@ -9,8 +9,15 @@ export interface AskWorkspaceBoundary {
   readonly workspaceId: string;
 }
 
-/** The exact owner reference plus the shared-client revision saved at use time. */
-export interface AskClientSnapshot<ClientReference> {
+import type { AskClientSnapshotAuthority } from './clientSnapshotAuthority';
+
+/**
+ * The exact owner reference plus the shared-client revision saved at use time.
+ * This is authority, not a structural transport object: only the Ask owner can
+ * mint the private brand and runtime provenance seal.
+ */
+export interface AskClientSnapshot<ClientReference>
+  extends AskClientSnapshotAuthority {
   readonly contactRef: ClientReference;
   readonly matterId: string;
   readonly revision: string;

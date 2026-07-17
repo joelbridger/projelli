@@ -7,6 +7,7 @@ import type {
   AskSourceDescriptor,
   ResolvedAskScope,
 } from './contracts';
+import { isGenuineAskClientSnapshot } from './clientSnapshotAuthority';
 import { readOwnerBoundAccess } from './owner';
 
 export class AskScopeError extends Error {}
@@ -40,6 +41,11 @@ function validateClient<ClientReference, MeetingReference>(
   client: AskClientSnapshot<ClientReference>,
   owners: AskOwnerIdentityAdapter<ClientReference, MeetingReference>
 ): void {
+  if (!isGenuineAskClientSnapshot<ClientReference>(client)) {
+    throw new AskScopeError(
+      'Ask client context must be minted by the shared-client owner.'
+    );
+  }
   required(client.matterId, 'a client matter');
   required(client.revision, 'a client revision');
   if (!owners.isClientReference(client.contactRef)) {
@@ -277,6 +283,7 @@ export function askSourceMembership<ClientReference, MeetingReference>(
 ): boolean {
   if (
     source.workspaceId !== scope.workspaceId ||
+    !isGenuineAskClientSnapshot<ClientReference>(source.client) ||
     !owners.isClientReference(source.client.contactRef) ||
     source.client.matterId !== owners.clientMatterId(source.client.contactRef)
   ) {
