@@ -1,0 +1,18 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/lantern/app/integration/.worktrees/v1/w2-sc006-craft
+sha: 3c1772f8dbbb84c2b62de708ffc532c56f180ddb
+tree: f01da1e556b7933bb0b73f8f7b4f01edf68c2012
+gate_base: 604348c5708f58c4786df166b1964a63d6c8ac56
+tool_blob: 7912bf11eefdacea0702600b19d3bc5b3d7f2606
+utc: 2026-07-17T20:08:37Z
+step_timeout_seconds: 600
+loadavg: 4.07 7.40 9.22
+running_vitest_eslint_procs: 5
+step: gate:changed | status=PASS | exit=0 | 20:08:37Z..20:15:22Z | bytes=26658 | sha256=313ef3a50b280633dd91dc34c54d3c4a2de21b397563537d2d0abcf0641e2f8f | tail: 505:5) Test Files 277 passed (277) Tests 1800 passed (1800) Start at 20:12:10 Duration 191.73s (transform 30.07s, setup 73.63s, import 336.41s, tests 151.56s, environment 152.62s) CHANGED GATE GREEN
+step: typecheck | status=PASS | exit=0 | 20:15:22Z..20:16:20Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit
+step: typecheck:tests | status=PASS | exit=0 | 20:16:20Z..20:17:38Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit
+step: handle-guard | status=PASS | exit=0 | 20:17:38Z..20:17:39Z | bytes=1329 | sha256=a6f5a7b455b169b970637085264b0d104fc99e5892b659a9fcede58ae529a8e0 | tail: -unavailable + calendar-event-context + calendar-event-end + calendar-event-notes +405 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen).
+step: arch-dag-guard | status=PASS | exit=0 | 20:17:39Z..20:17:42Z | bytes=252 | sha256=254fca244b4acbb7de509f551cbc9238f4934fcd8607b07d796c71d292814e8a | tail: ern/app/integration/.worktrees/v1/w2-sc006-craft Test Files 1 passed (1) Tests 1 passed (1) Start at 20:17:39 Duration 2.31s (transform 685ms, setup 985ms, import 472ms, tests 5ms, environment 642ms)
+step: i18n-snapshot | status=PASS | exit=0 | 20:17:42Z..20:17:45Z | bytes=253 | sha256=a870794b850d098dc5e7102a8ef5c84c9c4305b601c25afc623aa9c012d38cde | tail: rn/app/integration/.worktrees/v1/w2-sc006-craft Test Files 1 passed (1) Tests 5 passed (5) Start at 20:17:42 Duration 2.43s (transform 863ms, setup 1.10s, import 495ms, tests 33ms, environment 597ms)
+overall: GREEN
