@@ -2,12 +2,12 @@
   "meeting-keywords": {
     "title": "Tracked topics",
     "settings-title": "Tracked meeting topics",
-    "settings-description": "These terms will be checked locally in approved meeting notes, summaries, and transcripts.",
+    "settings-description": "Lantern checks these topics using only approved meeting notes, summaries, and transcripts. This check does not use an AI service.",
     "loading": "Loading tracked topics…",
     "insight-empty": "No tracked topics yet. Add them in Settings to see them here.",
     "insight-none": "No tracked topics were found in approved meeting records.",
     "approved-sources": "Approved sources:",
-    "source-preview-pending": "Source previews will appear here when available.",
+    "source-preview-pending": "Source previews aren't available here.",
     "source-preview-unavailable": "{{source}} preview will appear here when available.",
     "sources": {
       "notes": "Notes",

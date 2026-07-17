@@ -2,12 +2,12 @@
   "meeting-keywords": {
     "title": "Temas seguidos",
     "settings-title": "Temas de reuniones seguidos",
-    "settings-description": "Estos términos se comprobarán localmente en notas, resúmenes y transcripciones de reuniones aprobadas.",
+    "settings-description": "Lantern revisa estos temas usando solo notas, resúmenes y transcripciones aprobadas de reuniones. Esta revisión no utiliza un servicio de IA.",
     "loading": "Cargando temas seguidos…",
     "insight-empty": "Aún no hay temas seguidos. Agrégalos en Ajustes para verlos aquí.",
     "insight-none": "No se encontraron temas seguidos en los registros de reuniones aprobados.",
     "approved-sources": "Fuentes aprobadas:",
-    "source-preview-pending": "Las vistas previas de las fuentes aparecerán aquí cuando estén disponibles.",
+    "source-preview-pending": "Las vistas previas de las fuentes no están disponibles aquí.",
     "source-preview-unavailable": "La vista previa de {{source}} aparecerá aquí cuando esté disponible.",
     "sources": {
       "notes": "Notas",

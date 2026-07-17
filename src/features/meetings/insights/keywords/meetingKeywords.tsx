@@ -307,7 +307,7 @@ function MeetingKeywordsInsightCardEnabled({
         style={{
           marginTop: 8,
           fontSize: 12,
-          color: 'var(--color-muted-foreground)',
+          color: 'var(--kp-text-dim)',
         }}
       >
         <span>{t('meeting-keywords.approved-sources')}</span>
@@ -338,7 +338,7 @@ const cardStyle = {
   border: '1px solid var(--kp-divider-strong)',
   borderRadius: 8,
   background: 'var(--color-card)',
-  color: 'var(--color-card-foreground)',
+  color: 'var(--kp-navy)',
   boxShadow: 'var(--kp-shadow-1)',
 } as const;
 
@@ -347,7 +347,7 @@ const quietStateStyle = {
   alignItems: 'center',
   background: 'var(--kp-bg-soft)',
   borderStyle: 'dashed',
-  color: 'var(--color-muted-foreground)',
+  color: 'var(--kp-text-dim)',
   display: 'flex',
   flexDirection: 'column',
   fontSize: 13,
@@ -510,7 +510,7 @@ function MeetingKeywordSettingsPanelEnabled({
         style={{
           margin: '6px 0 12px',
           fontSize: 13,
-          color: 'var(--color-muted-foreground)',
+          color: 'var(--kp-text-dim)',
         }}
       >
         {t('meeting-keywords.settings-description')}

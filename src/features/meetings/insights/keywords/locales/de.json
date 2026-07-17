@@ -2,12 +2,12 @@
   "meeting-keywords": {
     "title": "Verfolgte Themen",
     "settings-title": "Verfolgte Besprechungsthemen",
-    "settings-description": "Diese Begriffe werden lokal in freigegebenen Besprechungsnotizen, Zusammenfassungen und Transkripten geprüft.",
+    "settings-description": "Lantern prüft diese Themen ausschließlich anhand freigegebener Besprechungsnotizen, Zusammenfassungen und Transkripte. Diese Prüfung nutzt keinen KI-Dienst.",
     "loading": "Verfolgte Themen werden geladen…",
     "insight-empty": "Noch keine Themen werden verfolgt. Füge sie in den Einstellungen hinzu, damit sie hier erscheinen.",
     "insight-none": "In freigegebenen Besprechungsunterlagen wurden keine verfolgten Themen gefunden.",
     "approved-sources": "Freigegebene Quellen:",
-    "source-preview-pending": "Quellenvorschauen werden hier angezeigt, sobald sie verfügbar sind.",
+    "source-preview-pending": "Quellenvorschauen sind hier nicht verfügbar.",
     "source-preview-unavailable": "Die Vorschau für {{source}} wird hier angezeigt, sobald sie verfügbar ist.",
     "sources": {
       "notes": "Notizen",
