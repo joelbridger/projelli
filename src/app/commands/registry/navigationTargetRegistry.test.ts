@@ -1,8 +1,8 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   getNavigationTargetDescriptors,
   navigationTargetRegistry,
-  resolveNavigationTarget,
+  resolveNavigationTargetDescriptor,
   validateNavigationTargetDescriptors,
   type NavigationTargetDescriptor,
 } from '@/app/commands/registry/navigationTargetRegistry';
@@ -21,13 +21,12 @@ function descriptor(
 
 describe('navigationTargetRegistry', () => {
   it('owns every existing matter-launch alias', () => {
-    expect(navigationTargetRegistry).toHaveLength(9);
+    expect(navigationTargetRegistry).toHaveLength(8);
     expect(getNavigationTargetDescriptors().map(({ id }) => id)).toEqual([
       'home',
       'search',
       'files',
       'email',
-      'meetings',
       'workflows',
       'audit',
       'privacy',
@@ -49,23 +48,12 @@ describe('navigationTargetRegistry', () => {
     }).toThrow('unknown app surface: missing');
   });
 
-  it('diagnoses unknown targets and uses the named safe fallback', () => {
-    const setSurface = vi.fn();
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-
-    void resolveNavigationTarget(
-      { matterId: 'missing-client', surface: 'not-registered' },
-      {
-        setSurface,
-        setDocumentsView: vi.fn(),
-        setAskPrefill: vi.fn(),
-      }
-    );
-
-    expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining('using restore-matter-snapshot')
-    );
-    expect(setSurface).toHaveBeenCalledExactlyOnceWith('matters');
-    warn.mockRestore();
+  it('returns no descriptor for an unknown alias so the router can refuse it', () => {
+    expect(
+      resolveNavigationTargetDescriptor({
+        matterId: 'missing-client',
+        surface: 'not-registered',
+      })
+    ).toBeUndefined();
   });
 });

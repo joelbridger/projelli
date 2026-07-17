@@ -11,7 +11,7 @@ import { useEffect, useLayoutEffect, useRef } from 'react';
 import type { SettingCategory } from '@/platform/settings/schema';
 import type { MattersSurfaceMode } from '@/platform/state/appNavigationStore';
 import {
-  resolveNavigationTarget,
+  dispatchNavigationTarget,
   type MatterNavigationTarget,
 } from '@/app/commands/registry/navigationTargetRegistry';
 import {
@@ -114,29 +114,13 @@ export function useGlobalEventBus(handlers: GlobalEventBusHandlers): void {
       ref.current.onOpenAccount(tab);
     };
 
-    // Matter launch is descriptor-driven. Features own aliases and their
-    // resolver; this bus only supplies current shell capabilities.
+    // Matter launch is routed by AppSurfaceRouter, where the one legitimate
+    // AppSurfaceRuntime exists. Keep this bus deliberately payload-blind.
     const onMatterLaunch = (e: Event) => {
       const detail = (e as CustomEvent<Partial<MatterNavigationTarget> | null>)
         .detail;
       if (!detail?.matterId) return;
-      const result = resolveNavigationTarget(detail as MatterNavigationTarget, {
-        setSurface: ref.current.setSidebarActiveTab,
-        setDocumentsView: ref.current.setDocumentsView,
-        setAskPrefill: ref.current.setAskPrefill,
-        ...(ref.current.setMattersSurfaceMode
-          ? { setMattersSurfaceMode: ref.current.setMattersSurfaceMode }
-          : {}),
-        ...(ref.current.pushNavigationSnapshot
-          ? { pushNavigationSnapshot: ref.current.pushNavigationSnapshot }
-          : {}),
-      });
-      void Promise.resolve(result).catch((error: unknown) => {
-        console.error(
-          '[navigationTargetRegistry] target resolution failed',
-          error
-        );
-      });
+      dispatchNavigationTarget(detail as MatterNavigationTarget);
     };
 
     // Privacy Center shortcut: jump straight to the privacy surface.

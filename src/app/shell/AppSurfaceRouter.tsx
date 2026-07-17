@@ -9,7 +9,7 @@
  * domains. The old flat props remain as a test/embedding compatibility seam.
  */
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   CrmHome,
   type CrmHomeRoute,
@@ -52,7 +52,12 @@ import { useDocumentExtractionIngestion } from '@/platform/intake/useDocumentExt
 import { resolveDocumentExtractionProvider } from '@/features/intake/resolveDocumentExtractionProvider';
 import { openRunArtifactFromWorkflows } from '@/app/shell/openRunArtifactFromWorkflows';
 
-import type { AppSurface } from '@/platform/types/navigation';
+import type { AppSurface, NavigationTarget } from '@/platform/types/navigation';
+import {
+  NAVIGATION_TARGET_DISPATCH_EVENT,
+  resolveNavigationTargetDescriptor,
+  type MatterNavigationTarget,
+} from '@/app/commands/registry/navigationTargetRegistry';
 import {
   resolveSavedDocumentDirectory,
   resolveSavedDocumentPath,
@@ -860,6 +865,86 @@ export function AppSurfaceRouter(props: AppSurfaceRouterProps) {
       mainPanel: renderMainPanel,
     },
   };
+  const navigationRuntimeRef = useRef(runtime);
+  navigationRuntimeRef.current = runtime;
+
+  // The event bus has already validated only the minimum request shape and
+  // forwarded the raw intent here. This is the single navigation owner: alias
+  // lookup, surface availability, and the existing runtime all meet here.
+  useEffect(() => {
+    const onNavigationTarget = (event: Event) => {
+      const target = (
+        event as CustomEvent<Partial<MatterNavigationTarget> | null>
+      ).detail;
+      if (!target?.matterId) return;
+
+      const resolved = resolveNavigationTargetDescriptor(
+        target as MatterNavigationTarget
+      );
+      void Promise.resolve(resolved)
+        .then((targetDescriptor) => {
+          if (!targetDescriptor) {
+            console.warn(
+              `[AppSurfaceRouter] Refused unknown navigation target "${target.surface ?? ''}".`
+            );
+            return;
+          }
+
+          const surfaceDescriptor = getAppSurfaceDescriptor(
+            targetDescriptor.appSurfaceId
+          );
+          if (!surfaceDescriptor) {
+            console.error(
+              `[AppSurfaceRouter] Navigation target "${targetDescriptor.id}" points to unavailable surface "${targetDescriptor.appSurfaceId}"; falling back to "${SAFE_APP_SURFACE_ID}".`
+            );
+            void sendDiagnosticEvent({
+              event: 'error_caught',
+              component: 'AppSurfaceRouter',
+              code: 'unknown_surface',
+            });
+            setSidebarActiveTab(SAFE_APP_SURFACE_ID);
+            return;
+          }
+
+          if (surfaceDescriptor.resolveNavigation) {
+            const resolvedTarget: NavigationTarget = {
+              ...target,
+              surface: targetDescriptor.appSurfaceId,
+            };
+            surfaceDescriptor.resolveNavigation(
+              resolvedTarget,
+              navigationRuntimeRef.current
+            );
+            return;
+          }
+
+          return targetDescriptor.resolve(target as MatterNavigationTarget, {
+            setSurface: setSidebarActiveTab,
+            setDocumentsView,
+            setAskPrefill,
+            setMattersSurfaceMode,
+            pushNavigationSnapshot,
+          });
+        })
+        .catch((error: unknown) => {
+          console.error('[AppSurfaceRouter] Navigation target resolution failed', error);
+        });
+    };
+
+    window.addEventListener(NAVIGATION_TARGET_DISPATCH_EVENT, onNavigationTarget);
+    return () => {
+      window.removeEventListener(
+        NAVIGATION_TARGET_DISPATCH_EVENT,
+        onNavigationTarget
+      );
+    };
+  }, [
+    pushNavigationSnapshot,
+    setAskPrefill,
+    setDocumentsView,
+    setMattersSurfaceMode,
+    setSidebarActiveTab,
+  ]);
 
   if (!requestedDescriptor && !registryState.ready) {
     return <SurfaceLoadingFallback />;

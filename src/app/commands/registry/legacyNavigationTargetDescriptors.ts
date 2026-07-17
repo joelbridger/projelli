@@ -1,9 +1,6 @@
 import { openMatterDocumentSource } from '@/app/shell/matterDocumentNavigation';
 import { getActiveWorkspaceService } from '@/app/fileOps/flushDirtyTabs';
-import { parseMeetingRef } from '@/features/meetings/meetingSources';
 import { useMatterStore } from '@/platform/matter/matterStore';
-import { useMatterUiStore } from '@/platform/matter/matterUiStore';
-import { useEditorStore } from '@/platform/state/editorStore';
 import type {
   MatterNavigationTarget,
   NavigationTargetDescriptor,
@@ -88,20 +85,6 @@ const documentsTarget: NavigationTargetDescriptor = {
       runtime.setDocumentsView('browser');
     });
   },
-  restoreSnapshot: (snapshot, _target, runtime) => {
-    if (
-      snapshot.activeTabPath &&
-      useEditorStore
-        .getState()
-        .openTabs.some((tab) => tab.path === snapshot.activeTabPath)
-    ) {
-      useEditorStore.getState().setActiveTab(snapshot.activeTabPath);
-      runtime.setDocumentsView('editor');
-    } else {
-      runtime.setDocumentsView('browser');
-    }
-    runtime.setSurface('files');
-  },
 };
 
 const emailTarget: NavigationTargetDescriptor = {
@@ -109,28 +92,6 @@ const emailTarget: NavigationTargetDescriptor = {
   appSurfaceId: 'matters',
   resolve: (target, runtime) => {
     openHub(target, runtime, 'email');
-  },
-};
-
-const meetingsTarget: NavigationTargetDescriptor = {
-  id: 'meetings',
-  appSurfaceId: 'matters',
-  resolve: (target, runtime) => {
-    const source = target.source;
-    if (source?.kind === 'meeting' && typeof source.ref === 'string') {
-      const parsed = parseMeetingRef(source.ref);
-      if (parsed) {
-        runtime.pushNavigationSnapshot?.();
-        selectMatter(target.matterId);
-        const matterState = useMatterStore.getState();
-        matterState.setClientMapHubId(target.matterId);
-        matterState.setPendingMeetingOpen(parsed);
-        runtime.setMattersSurfaceMode?.('client-map');
-        runtime.setSurface('matters');
-        return;
-      }
-    }
-    openHub(target, runtime, 'meetings');
   },
 };
 
@@ -150,36 +111,12 @@ const mattersTarget: NavigationTargetDescriptor = {
   },
 };
 
-/** Named safe fallback for missing/unknown deep-link aliases. */
-export const restoreMatterSnapshotTarget: NavigationTargetDescriptor = {
-  id: 'restore-matter-snapshot',
-  appSurfaceId: 'matters',
-  resolve: (target, runtime) => {
-    runtime.pushNavigationSnapshot?.();
-    selectMatter(target.matterId);
-    const snapshot = useMatterUiStore.getState().getSnapshot(target.matterId);
-    if (!snapshot) {
-      runtime.setMattersSurfaceMode?.('client-map');
-      runtime.setSurface('matters');
-      return;
-    }
-    const snapshotTarget = runtime.registeredTargets?.find(
-      (descriptor) => descriptor.id === snapshot.surface
-    );
-    if (snapshotTarget?.restoreSnapshot) {
-      return snapshotTarget.restoreSnapshot(snapshot, target, runtime);
-    }
-    runtime.setSurface(snapshot.surface);
-  },
-};
-
 export const legacyNavigationTargetDescriptors: readonly NavigationTargetDescriptor[] =
   [
     homeTarget,
     searchTarget,
     documentsTarget,
     emailTarget,
-    meetingsTarget,
     workflowsTarget,
     auditTarget,
     privacyTarget,

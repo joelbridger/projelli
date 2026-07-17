@@ -8,10 +8,8 @@ import type {
 } from '@/app/shell/registry/types';
 import type { MattersSurfaceMode } from '@/platform/state/appNavigationStore';
 import type { AppSurface } from '@/platform/types/navigation';
-import type { MatterUiSnapshot } from '@/platform/matter/matterUiStore';
 import {
   legacyNavigationTargetDescriptors,
-  restoreMatterSnapshotTarget,
 } from '@/app/commands/registry/legacyNavigationTargetDescriptors';
 
 export interface NavigationTargetSource {
@@ -36,7 +34,6 @@ export interface NavigationTargetRuntime {
   ) => void;
   setMattersSurfaceMode?: (mode: MattersSurfaceMode) => void;
   pushNavigationSnapshot?: () => void;
-  registeredTargets?: readonly NavigationTargetDescriptor[];
 }
 
 /**
@@ -51,12 +48,14 @@ export interface NavigationTargetDescriptor {
     target: MatterNavigationTarget,
     runtime: NavigationTargetRuntime
   ) => void | Promise<void>;
-  restoreSnapshot?: (
-    snapshot: MatterUiSnapshot,
-    target: MatterNavigationTarget,
-    runtime: NavigationTargetRuntime
-  ) => void | Promise<void>;
 }
+
+/**
+ * The event-bus-to-router handoff. The event bus carries the raw request to
+ * this app-owned route; only AppSurfaceRouter turns it into navigation.
+ */
+export const NAVIGATION_TARGET_DISPATCH_EVENT =
+  'lantern:navigation-target-dispatch';
 
 export type NavigationTargetRegistration =
   | NavigationTargetDescriptor
@@ -144,40 +143,36 @@ export function resolveNavigationTargetRegistry(): Promise<
   return resolution;
 }
 
-function reportUnknownTarget(target: MatterNavigationTarget): void {
-  if (!target.surface) return;
-  console.warn(
-    `[navigationTargetRegistry] unknown navigation target "${target.surface}"; using ${restoreMatterSnapshotTarget.id}`
-  );
-}
-
-function resolveFromDescriptors(
+function findNavigationTargetDescriptor(
   target: MatterNavigationTarget,
-  runtime: NavigationTargetRuntime,
   descriptors: readonly NavigationTargetDescriptor[]
-): void | Promise<void> {
-  const descriptor = descriptors.find((item) => item.id === target.surface);
-  if (descriptor) return descriptor.resolve(target, runtime);
-  reportUnknownTarget(target);
-  return restoreMatterSnapshotTarget.resolve(target, {
-    ...runtime,
-    registeredTargets: descriptors,
-  });
+): NavigationTargetDescriptor | undefined {
+  return descriptors.find((item) => item.id === target.surface);
 }
 
-/** Resolve a target synchronously when registered, loading lazy modules only on demand. */
-export function resolveNavigationTarget(
-  target: MatterNavigationTarget,
-  runtime: NavigationTargetRuntime
-): void | Promise<void> {
-  const descriptor = resolvedDescriptors.find(
-    (item) => item.id === target.surface
-  );
-  if (descriptor) return descriptor.resolve(target, runtime);
+/**
+ * Resolve only the declared alias. AppSurfaceRouter owns the next step: it
+ * checks the registered surface, supplies its existing runtime, and chooses
+ * either that surface's resolver or the preserved legacy route.
+ */
+export function resolveNavigationTargetDescriptor(
+  target: MatterNavigationTarget
+): NavigationTargetDescriptor | undefined | Promise<NavigationTargetDescriptor | undefined> {
+  const descriptor = findNavigationTargetDescriptor(target, resolvedDescriptors);
+  if (descriptor) return descriptor;
   if (!hasLazyNavigationTargetRegistrations()) {
-    return resolveFromDescriptors(target, runtime, resolvedDescriptors);
+    return undefined;
   }
   return resolveNavigationTargetRegistry().then((descriptors) =>
-    resolveFromDescriptors(target, runtime, descriptors)
+    findNavigationTargetDescriptor(target, descriptors)
+  );
+}
+
+/** Forward a validated raw event-bus request to the router without interpreting it. */
+export function dispatchNavigationTarget(target: MatterNavigationTarget): void {
+  window.dispatchEvent(
+    new CustomEvent<MatterNavigationTarget>(NAVIGATION_TARGET_DISPATCH_EVENT, {
+      detail: target,
+    })
   );
 }
