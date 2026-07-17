@@ -128,6 +128,10 @@ export interface MeetingStore {
     id: MeetingRef,
     transition: MeetingLifecycleTransition
   ): Promise<MeetingRecord>;
+}
+
+/** Internal extension so existing MeetingStore test doubles stay source-compatible. */
+interface LinkableMeetingStore extends MeetingStore {
   /** One-time bridge to a legacy folder, after the complete anchor check. */
   linkLegacy(
     id: MeetingRef,
@@ -505,11 +509,10 @@ function projectLegacyLink(value: unknown): LegacyMeetingLink | undefined {
   if (!value || typeof value !== 'object')
     throw new Error('Legacy meeting link is invalid.');
   const raw = value as Record<string, unknown>;
+  if (typeof raw['meetingDir'] !== 'string')
+    throw new Error('Legacy meeting link folder is invalid.');
   return {
-    meetingDir: normalizedPath(
-      String(raw['meetingDir'] ?? ''),
-      'Legacy meeting folder'
-    ),
+    meetingDir: normalizedPath(raw['meetingDir'], 'Legacy meeting folder'),
     linkedAt: timestamp(raw['linkedAt'], 'Legacy meeting link timestamp'),
   };
 }
@@ -608,7 +611,7 @@ export async function resolveMeetingOpenTarget(
     kind: 'linked-legacy-meeting',
     meeting,
     client: { householdRef: meeting.householdRef, matterId: meeting.matterId },
-    legacyLink: { ...meeting.legacyLink, linkedAt: verified.linkedAt },
+    legacyLink: meeting.legacyLink,
     meetingDir: `${normalizedAbsolutePath(context.workspaceRoot, 'Open workspace root')}/${verified.meetingDir}`,
   };
 }
@@ -736,7 +739,7 @@ export function createMeetingStore(port: ClientScopedLivePort): MeetingStore {
       );
     return saved;
   };
-  const store: MeetingStore = {
+  const store: LinkableMeetingStore = {
     get list() {
       return currentList();
     },
@@ -902,7 +905,7 @@ export function createMeetingPopulationService(
   port: ClientScopedLivePort,
   context: LegacyMeetingLinkValidationContext
 ): MeetingPopulationService {
-  const store = createMeetingStore(port);
+  const store = createMeetingStore(port) as LinkableMeetingStore;
   return {
     createNew: (draft) => store.createDraft(draft),
     createAndLink: async (draft, legacy) => {

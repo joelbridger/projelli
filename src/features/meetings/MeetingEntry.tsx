@@ -147,8 +147,8 @@ function transcriptToText(transcript: TranscriptFile | null): string {
 }
 
 export function MeetingEntry({
-  matterId,
-  meetingDir,
+  matterId: legacyMatterId,
+  meetingDir: legacyMeetingDir,
   folderName,
   clientName,
   workspaceRoot,
@@ -159,6 +159,10 @@ export function MeetingEntry({
   onChanged,
   showBackButton = true,
 }: MeetingEntryProps) {
+  // A canonical opener owns identity. The compatibility host uses the resolved
+  // target rather than trying to derive a canonical client from its folder.
+  const matterId = openTarget?.client.matterId ?? legacyMatterId;
+  const meetingDir = openTarget?.meetingDir ?? legacyMeetingDir;
   const { t } = useTranslation();
   const firm = useFirm();
   const [meta, setMeta] = useState<MeetingMeta | null>(null);
