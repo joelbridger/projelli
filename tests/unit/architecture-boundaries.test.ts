@@ -36,6 +36,7 @@ const ALLOWED_FEATURE_EDGES = new Set<string>([
   'account->firm',        // account/licensing surfaces firm seat state
   'account->settings',    // account window opens settings sections
   'accounts->audit',      // Schwab prep packets await the public durable audit-write promise before local persistence
+  'calendar-add-event->calendar', // local event editor uses Calendar Part A's public store, selection, and recurrence doorway
   'ask->matters',         // Ask is matter-scoped (active matter context)
   'ask->crm',             // Ask adds client-scoped CRM records to the same consent/audit/citation pipeline
   'booking->calendar',    // The flag-gated public booking page uses Calendar's public read-only availability adapter and receives only display-ready slots.
@@ -81,6 +82,7 @@ const ALLOWED_FEATURE_EDGES = new Set<string>([
   'settings->notifications', // Settings mounts the personal notification-preferences descriptor through Notifications' public doorway.
   'settings->workflows', // settings hosts the templates marketplace tab
   'scheduling->calendar-grid', // scheduling composes the feature-owned calendar grid descriptor.
+  'scheduling->calendar-add-event', // scheduling composes the event editor only through its feature-owned surface descriptor
 ]);
 
 function walk(dir: string, acc: string[] = []): string[] {

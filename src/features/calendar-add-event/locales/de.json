@@ -1,0 +1,9 @@
+{
+  "calendar-add-event": {
+    "new-event": "Neues Ereignis", "untitled-event": "Unbenanntes Ereignis", "source-title": "Kalender", "source-description": "Wählen Sie ein Ereignis zum Bearbeiten oder fügen Sie ein neues hinzu.", "source-empty": "Keine Ereignisse in diesem Zeitraum.", "no-local-calendar": "Zum Speichern eines Ereignisses wird ein beschreibbarer lokaler Kalender benötigt.", "unlinked-record": "Mit keinem Datensatz verknüpft",
+    "fields": { "title": "Titel", "title-placeholder": "Ereignistitel", "notes": "Notizen", "start": "Beginn", "end": "Ende", "timezone": "Zeitzone", "calendar": "Kalender", "linked-record": "Verknüpfter Datensatz", "all-day": "Ganztägig" },
+    "options": { "title": "Weitere Optionen" }, "status": { "local-save": "Lokal gespeichert" }, "errors": { "end-before-start": "Die Endzeit muss nach der Startzeit liegen." },
+    "recurrence": { "frequency": "Wiederholung", "none": "Keine Wiederholung", "daily": "Täglich", "weekly": "Wöchentlich", "monthly": "Monatlich", "yearly": "Jährlich", "interval": "Alle", "count": "Anzahl", "month-days": "Monatstage", "month-days-placeholder": "Zum Beispiel: 1, 15" },
+    "weekdays": { "monday": "Mo", "tuesday": "Di", "wednesday": "Mi", "thursday": "Do", "friday": "Fr", "saturday": "Sa", "sunday": "So" }, "save": "Ereignis speichern", "saving": "Ereignis wird gespeichert…", "cancel": "Abbrechen", "saved": "Ereignis gespeichert.", "edit": "Bearbeiten"
+  }
+}

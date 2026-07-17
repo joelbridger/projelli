@@ -85,6 +85,7 @@ export const flagRegistry = [
   defineFlag('booking-public-calendar', 'Show local calendar availability on the public booking page', 'booking-public-calendar', '2026-07-16', '2026-10-14'),
   defineFlag('calendar-grid', 'Show local calendar month, week, and day views', 'calendar-grid', '2026-07-16', '2026-10-14'),
   defineFlag('meeting-keywords', 'Keeps local approved-artifact meeting keyword tracking dark until its acceptance review is complete.', 'meeting-keywords', '2026-07-17', '2026-09-15'),
+  defineFlag('calendar-add-event', 'Create and edit local calendar events', 'calendar-add-event', '2026-07-16', '2026-10-14'),
 ] as const satisfies readonly FlagDescriptor[];
 
 export type FlagId = (typeof flagRegistry)[number]['id'];
