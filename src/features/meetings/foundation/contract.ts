@@ -433,6 +433,12 @@ export interface MeetingTemplateStore {
     templates: readonly MeetingTemplateProjection[]
   ): Promise<readonly MeetingTemplateProjection[]>;
 }
+export interface MeetingKeywordCatalogueStore {
+  readonly terms: readonly string[];
+  readonly error: string | null;
+  get(): Promise<readonly string[]>;
+  save(terms: readonly string[]): Promise<readonly string[]>;
+}
 export interface MeetingIntelligenceSettingsStore {
   readonly settings: MeetingIntelligenceSettingsProjection;
   readonly error: string | null;
@@ -1718,6 +1724,26 @@ export function validateMeetingTemplateCatalogue(
     };
   });
 }
+export function validateMeetingKeywordCatalogue(
+  value: readonly string[]
+): readonly string[] {
+  if (value.length > 200)
+    throw new Error('Meeting keyword catalogue may contain at most 200 terms.');
+  const normalized = new Set<string>();
+  return value.map((entry) => {
+    if (typeof entry !== 'string')
+      throw new Error('Meeting keyword term must be a string.');
+    const term = entry.trim();
+    if (!term) throw new Error('Meeting keyword term must not be empty.');
+    if (term.length > 80)
+      throw new Error('Meeting keyword term must be at most 80 characters.');
+    const key = term.toLocaleLowerCase();
+    if (normalized.has(key))
+      throw new Error('Meeting keyword terms must be unique.');
+    normalized.add(key);
+    return term;
+  });
+}
 export function validateMeetingVisibilityPolicy(
   value: MeetingVisibilityPolicy
 ): MeetingVisibilityPolicy {
@@ -1875,6 +1901,38 @@ export function createMeetingTemplateStore(
       }),
   };
 }
+export function createMeetingKeywordCatalogueStore(
+  port: LivePort
+): MeetingKeywordCatalogueStore {
+  const record = singletonController(port, 'meeting_keyword_catalogue');
+  let terms =
+    record.current() && Array.isArray(record.current()?.['terms'])
+      ? validateMeetingKeywordCatalogue(record.current()?.['terms'] as string[])
+      : [];
+  return {
+    get terms() {
+      return terms;
+    },
+    get error() {
+      return port.error;
+    },
+    get: async () => {
+      const fresh = await record.reload();
+      terms =
+        fresh && Array.isArray(fresh['terms'])
+          ? validateMeetingKeywordCatalogue(fresh['terms'] as string[])
+          : [];
+      return terms;
+    },
+    save: (next) =>
+      Promise.resolve().then(async () => {
+        const validated = validateMeetingKeywordCatalogue(next);
+        const saved = await record.save({ terms: validated });
+        terms = validateMeetingKeywordCatalogue(saved['terms'] as string[]);
+        return terms;
+      }),
+  };
+}
 const defaultMeetingIntelligenceSettings: MeetingIntelligenceSettingsProjection =
   {
     keywordTrackingEnabled: false,
@@ -2013,6 +2071,16 @@ export function useMeetingTypeStore(): MeetingTypeStore {
 export function useMeetingTemplateStore(): MeetingTemplateStore {
   const live = useLiveCrmRecords();
   return createMeetingTemplateStore({
+    records: live.records,
+    workspaceRoot: live.workspaceRoot,
+    error: live.error,
+    save: live.save,
+    reloadRecords: () => loadLiveCrmRecords(live.workspaceRoot),
+  });
+}
+export function useMeetingKeywordCatalogueStore(): MeetingKeywordCatalogueStore {
+  const live = useLiveCrmRecords();
+  return createMeetingKeywordCatalogueStore({
     records: live.records,
     workspaceRoot: live.workspaceRoot,
     error: live.error,

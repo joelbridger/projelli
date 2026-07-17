@@ -39,6 +39,12 @@ export {
 // doorway rather than the legacy capture screen or raw live-record store.
 export * from './foundation/contract';
 export * from './foundation/manifest';
+export {
+  createMeetingKeywordCatalogueStore,
+  useMeetingKeywordCatalogueStore,
+  validateMeetingKeywordCatalogue,
+} from './foundation/contract';
+export type { MeetingKeywordCatalogueStore } from './foundation/contract';
 
 // Meeting composition contracts. These are the append-only registries the real
 // Meetings host (MeetingEntry) renders through its default composition, so a
