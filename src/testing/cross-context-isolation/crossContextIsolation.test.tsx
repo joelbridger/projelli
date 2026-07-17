@@ -62,6 +62,17 @@ describe('assertCrossContextIsolation', () => {
     }
   });
 
+  it('fails when A survives only in a live input value', async () => {
+    const leaked = document.createElement('input');
+    leaked.value = 'A loaded marker';
+    document.body.append(leaked);
+    try {
+      await expect(assertCrossContextIsolation(fixture())).rejects.toThrow(/B pending: A marker survived in live input value/i);
+    } finally {
+      leaked.remove();
+    }
+  });
+
   it('fails if successful B is empty rather than loaded', async () => {
     await expect(assertCrossContextIsolation(fixture({ assertBSuccessLoaded: () => { throw new Error('empty B'); } }))).rejects.toThrow(/B loaded: empty B/);
   });
