@@ -60,7 +60,7 @@ async function at<T>(name: string, phase: string, callback: () => T | Promise<T>
 }
 
 async function assertNoA(input: CrossContextIsolationInput, values: CrossContextProbeValues, phase: CrossContextProbePhase): Promise<void> {
-  await at(input.name, phase, () => assertNoAInLiveInputValues(values));
+  await at(input.name, phase, () => { assertNoAInLiveInputValues(values); });
   await at(input.name, phase, () => input.assertNoAContentInFields(values, phase));
   await at(input.name, phase, () => input.assertNoAContentInUnderlyingState(values, phase));
 }

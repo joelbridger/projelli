@@ -27,13 +27,20 @@ describe('assertCrossContextIsolation', () => {
   it('runs the complete same-context, successful-B, and failed-B probe in order', async () => {
     const steps: string[] = [];
     const input = fixture();
-    for (const [key, callback] of Object.entries(input)) {
-      if (typeof callback === 'function') {
-        (input as unknown as Record<string, unknown>)[key] = (...args: unknown[]) => {
-          steps.push(key === 'switchContext' ? `${key}:${String(args[0])}` : key);
-          return Reflect.apply(callback, undefined, args);
-        };
-      }
+    const callbackKeys = [
+      'renderSurface', 'typeIntoField', 'reseedSameContext', 'switchContext',
+      'waitForBSuccess', 'waitForBFailure', 'assertATypedValueVisible',
+      'assertWithinContextEditPreserved', 'assertBSuccessLoaded',
+      'assertBFailureIsFailClosed', 'assertNoAContentInFields',
+      'assertNoAContentInUnderlyingState',
+    ] as const;
+    const callbacks = input as unknown as Record<(typeof callbackKeys)[number], (...args: unknown[]) => unknown>;
+    for (const key of callbackKeys) {
+      const callback = callbacks[key];
+      callbacks[key] = (...args: unknown[]) => {
+        steps.push(key === 'switchContext' ? `${key}:${String(args[0])}` : key);
+        return callback(...args);
+      };
     }
     await assertCrossContextIsolation(input);
     expect(steps).toEqual([

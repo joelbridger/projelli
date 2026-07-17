@@ -9,6 +9,7 @@ import {
 } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import type { MailListItem } from '@/platform/utils/mail-commands';
 import { assertCrossContextIsolation } from '@/testing/cross-context-isolation';
 import { EmailDropboxSurface } from './EmailDropboxSurface';
@@ -21,7 +22,7 @@ const mailMocks = vi.hoisted(() => ({
 let records: Record<string, unknown>[] = [];
 let workspaceRoot: string | null = '/workspace-a';
 let loadError: string | null = null;
-const save = vi.fn();
+const save = vi.fn<(record: LiveCrmRecord) => Promise<LiveCrmRecord>>();
 
 vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
   useLiveCrmRecords: () => ({
@@ -130,28 +131,28 @@ describe('EmailDropboxSurface', () => {
     await assertCrossContextIsolation({
       name: 'Email Dropbox workspace switch',
       identity: { contextA: '/workspace-a', contextB: '/workspace-b', sameRecordId: 'email-dropbox-config:current-user', sameFieldId: 'crm-email-dropbox-account' },
-      renderSurface: async () => { workspaceRoot = '/workspace-a'; loadError = null; records = [configRecord('A folder', 'a@example.test'), householdRecord('household-a', 'Client A Private')]; aChecks = 0; lateA = deferred<{ items: MailListItem[] }>(); view?.unmount(); view = render(<EmailDropboxSurface />); await waitFor(() => expect(screen.getByTestId('crm-email-dropbox-account')).toHaveValue('a@example.test')); },
-      typeIntoField: async () => { fireEvent.change(screen.getByTestId('crm-email-dropbox-account'), { target: { value: 'advisor-typed-a@example.test' } }); await screen.findByTestId('crm-email-dropbox-email-email-a-private'); fireEvent.change(screen.getByTestId('crm-email-dropbox-household-email-a-private'), { target: { value: 'household-a' } }); fireEvent.click(screen.getByTestId('crm-email-dropbox-check')); await waitFor(() => expect(aChecks).toBe(2)); return { typedA: 'advisor-typed-a@example.test', loadedA: ['Client A private subject', 'Client A Private'] }; },
+      renderSurface: async () => { workspaceRoot = '/workspace-a'; loadError = null; records = [configRecord('A folder', 'a@example.test'), householdRecord('household-a', 'Client A Private')]; aChecks = 0; lateA = deferred<{ items: MailListItem[] }>(); view?.unmount(); view = render(<EmailDropboxSurface />); await waitFor(() => { expect(screen.getByTestId('crm-email-dropbox-account')).toHaveValue('a@example.test'); }); },
+      typeIntoField: async () => { fireEvent.change(screen.getByTestId('crm-email-dropbox-account'), { target: { value: 'advisor-typed-a@example.test' } }); await screen.findByTestId('crm-email-dropbox-email-email-a-private'); fireEvent.change(screen.getByTestId('crm-email-dropbox-household-email-a-private'), { target: { value: 'household-a' } }); fireEvent.click(screen.getByTestId('crm-email-dropbox-check')); await waitFor(() => { expect(aChecks).toBe(2); }); return { typedA: 'advisor-typed-a@example.test', loadedA: ['Client A private subject', 'Client A Private'] }; },
       reseedSameContext: () => { records = [{ ...configRecord('Late A folder', 'a@example.test'), updatedAt: '2026-07-17T00:02:00.000Z' }, householdRecord('household-a', 'Client A Private')]; view?.rerender(<EmailDropboxSurface />); },
       switchContext: (load) => { workspaceRoot = '/workspace-b'; if (load === 'success') { records = [configRecord('B folder', 'b@example.test'), householdRecord('household-b', 'Client B')]; loadError = null; } else { records = []; loadError = 'B encrypted record store unavailable'; } view?.rerender(<EmailDropboxSurface />); },
       waitForBSuccess: async () => { await screen.findByTestId('crm-email-dropbox-email-email-b'); },
-      waitForBFailure: async () => { await waitFor(() => expect(screen.getByTestId('crm-email-dropbox-account')).toHaveValue('')); },
-      assertATypedValueVisible: () => expect(screen.getByTestId('crm-email-dropbox-account')).toHaveValue('advisor-typed-a@example.test'),
-      assertWithinContextEditPreserved: () => expect(screen.getByTestId('crm-email-dropbox-account')).toHaveValue('advisor-typed-a@example.test'),
+      waitForBFailure: async () => { await waitFor(() => { expect(screen.getByTestId('crm-email-dropbox-account')).toHaveValue(''); }); },
+      assertATypedValueVisible: () => { expect(screen.getByTestId('crm-email-dropbox-account')).toHaveValue('advisor-typed-a@example.test'); },
+      assertWithinContextEditPreserved: () => { expect(screen.getByTestId('crm-email-dropbox-account')).toHaveValue('advisor-typed-a@example.test'); },
       assertBSuccessLoaded: () => { expect(screen.getByTestId('crm-email-dropbox-account')).toHaveValue('b@example.test'); expect(screen.getByTestId('crm-email-dropbox-email-email-b')).toBeInTheDocument(); },
       assertBFailureIsFailClosed: () => { expect(screen.getByTestId('crm-email-dropbox-account')).toHaveValue(''); expect(screen.getByTestId('crm-email-dropbox-folder')).toHaveValue('Lantern Dropbox'); },
       assertNoAContentInFields: ({ typedA, loadedA }) => { expect(screen.queryByDisplayValue(typedA)).not.toBeInTheDocument(); for (const marker of loadedA) expect(document.body.textContent).not.toContain(marker); },
       assertNoAContentInUnderlyingState: async (_, phase) => {
         save.mockClear();
         fireEvent.click(screen.getByTestId('crm-email-dropbox-save'));
-        await waitFor(() => expect(save).toHaveBeenCalled());
+        await waitFor(() => { expect(save).toHaveBeenCalled(); });
         expect(save.mock.calls.at(-1)?.[0]).not.toMatchObject({ account: 'advisor-typed-a@example.test' });
         const bMapping = phase === 'B loaded' ? screen.queryByTestId('crm-email-dropbox-household-email-b') : null;
         if (bMapping) {
           fireEvent.change(bMapping, { target: { value: 'household-b' } });
           fireEvent.click(screen.getByTestId('crm-email-dropbox-file-email-b'));
-          await waitFor(() => expect(save.mock.calls.some(([record]) => record?.id === 'email-dropbox:email-b:household-b')).toBe(true));
-          const savedMapping = save.mock.calls.find(([record]) => record?.id === 'email-dropbox:email-b:household-b')?.[0];
+          await waitFor(() => { expect(save.mock.calls.some(([record]) => record.id === 'email-dropbox:email-b:household-b')).toBe(true); });
+          const savedMapping = save.mock.calls.find(([record]) => record.id === 'email-dropbox:email-b:household-b')?.[0];
           expect(savedMapping).toMatchObject({ matterId: 'household-b', householdId: 'household-b' });
           expect(savedMapping).not.toMatchObject({ matterId: 'household-a', householdId: 'household-a' });
         }
