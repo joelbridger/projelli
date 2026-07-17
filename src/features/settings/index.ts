@@ -13,6 +13,11 @@ export {
   registerSettingsSectionRenderer,
   renderRegisteredSettingsPanels,
 } from './registry/sectionRendererBindings';
+export {
+  settingsModuleRegistry,
+  validateSettingsModuleDescriptors,
+} from './registry/settingsModuleRegistry';
+export type { SettingsModuleDescriptor } from './registry/settingsModuleRegistry';
 export type {
   SettingsPanelDescriptor,
   SettingsSectionRenderProps,

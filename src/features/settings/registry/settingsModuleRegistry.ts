@@ -22,6 +22,14 @@ import type {
 } from './types';
 
 /**
+ * The public contribution shape for a feature-owned Settings panel.
+ *
+ * This is intentionally an alias, rather than a parallel contract: Settings
+ * has always rendered `SettingsPanelDescriptor` entries from this registry.
+ */
+export type SettingsModuleDescriptor = SettingsPanelDescriptor;
+
+/**
  * Append-only rail-section mount point. A section is known to the registry
  * even when all of its panels are dark; it only appears in the UI once a
  * visible panel mounts into it.
@@ -42,7 +50,7 @@ export const settingsSectionRegistry: readonly SettingsSectionDescriptor[] = [
  * here for an existing section. A lane introducing a new section makes two
  * append-only changes in this file: one section entry above and one panel here.
  */
-export const settingsPanelRegistry: readonly SettingsPanelDescriptor[] = [
+const mutableSettingsPanelRegistry: SettingsModuleDescriptor[] = [
   ...legacySettingsPanels,
   teamsRolesSettingsModule,
   customFieldsSettingsModule,
@@ -51,6 +59,37 @@ export const settingsPanelRegistry: readonly SettingsPanelDescriptor[] = [
   universalTagsSettingsPanel,
   taskTemplatesAdminSettingsPanel,
 ];
+
+/**
+ * The one true list that the Settings surface reads. It remains read-only to
+ * consumers; register through `settingsModuleRegistry` to add a contribution.
+ */
+export const settingsPanelRegistry: readonly SettingsModuleDescriptor[] =
+  mutableSettingsPanelRegistry;
+
+/**
+ * Public Settings contribution doorway. Registration changes the same list
+ * `getSettingsPanelDescriptors` reads, so a feature cannot register into a
+ * shadow registry that the real Settings surface ignores.
+ */
+export const settingsModuleRegistry = {
+  get descriptors(): readonly SettingsModuleDescriptor[] {
+    return settingsPanelRegistry;
+  },
+
+  register(descriptor: SettingsModuleDescriptor): () => void {
+    validateSettingsModuleDescriptors(settingsSectionRegistry, [
+      ...settingsPanelRegistry,
+      descriptor,
+    ]);
+    mutableSettingsPanelRegistry.push(descriptor);
+
+    return () => {
+      const index = mutableSettingsPanelRegistry.indexOf(descriptor);
+      if (index >= 0) mutableSettingsPanelRegistry.splice(index, 1);
+    };
+  },
+};
 
 function definitionsFor(
   descriptor: Pick<
