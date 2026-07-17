@@ -48,6 +48,9 @@ const VIEWPORTS = [
   { label: 'compact', width: 1024, height: 700 },
 ];
 const INTRO_FLOW_STEP_COUNT = 3;
+const INTRO_FLOW_TITLES = ['Connect your firm', 'It builds a Client Map', 'Ask anything'];
+const CONNECT_HEADLINE = '2. Connect your firm';
+const FIRM_HEADLINE = '3. Setting up your firm';
 
 test.describe('Bench mirror: Onboarding overlap (QA-8, QA-9)', () => {
   for (const viewport of VIEWPORTS) {
@@ -57,6 +60,7 @@ test.describe('Bench mirror: Onboarding overlap (QA-8, QA-9)', () => {
       await expect(page.getByTestId('onboarding-v2-intro')).toBeVisible({ timeout: 30_000 });
 
       await expect(page.locator('[data-testid^="intro-flow-heading-"]')).toHaveCount(INTRO_FLOW_STEP_COUNT);
+      await expect(page.locator('[data-testid^="intro-flow-heading-"]')).toHaveText(INTRO_FLOW_TITLES);
 
       for (let i = 0; i < INTRO_FLOW_STEP_COUNT; i++) {
         const icon = page.getByTestId(`intro-flow-icon-${String(i)}`);
@@ -80,11 +84,6 @@ test.describe('Bench mirror: Onboarding overlap (QA-8, QA-9)', () => {
         const iconSvg = icon.locator('svg').first();
         await expect(iconSvg).toBeVisible({ timeout: 20_000 });
         await expect(heading).toBeVisible({ timeout: 20_000 });
-        // This is a browser-layout test. Keep its assertions on the rendered
-        // page rather than importing the app's i18n-backed copy module into
-        // Playwright's Node process (which cannot load Vite-managed JSON).
-        await expect(heading).toHaveText(/\S/, { timeout: 20_000 });
-
         const iconBox = await iconSvg.boundingBox();
         const headingBox = await heading.boundingBox();
         expect(iconBox, `icon ${String(i)} svg must have a real box`).toBeTruthy();
@@ -122,7 +121,7 @@ test.describe('Bench mirror: Onboarding overlap (QA-8, QA-9)', () => {
       await page.getByTestId('onboarding-v2-continue').click();
 
       await expect(page.getByTestId('onboarding-v2-connect')).toBeVisible({ timeout: 15_000 });
-      const connectHeader = page.getByTestId('onboarding-v2-connect').locator('h1');
+      const connectHeader = page.getByRole('heading', { name: CONNECT_HEADLINE, exact: true });
       await expect(connectHeader).toBeVisible();
       const connectBox = await connectHeader.boundingBox();
       expect(connectBox, 'connect step header must have a real box').toBeTruthy();
@@ -137,7 +136,7 @@ test.describe('Bench mirror: Onboarding overlap (QA-8, QA-9)', () => {
 
       await page.getByTestId('onboarding-v2-continue').click();
       await expect(page.getByTestId('onboarding-v2-firm')).toBeVisible({ timeout: 15_000 });
-      const firmHeader = page.getByTestId('onboarding-v2-firm').locator('h1');
+      const firmHeader = page.getByRole('heading', { name: FIRM_HEADLINE, exact: true });
       await expect(firmHeader).toBeVisible();
       const firmBox = await firmHeader.boundingBox();
       expect(firmBox, 'firm step header must have a real box').toBeTruthy();
