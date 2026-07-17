@@ -1,5 +1,5 @@
 import { createElement } from 'react';
-import type { HouseholdSectionDescriptor } from '../../recordRegistry';
+import type { HouseholdRecordShellSectionDescriptor } from '../../recordRegistry';
 import { InvestmentProfileSection } from './InvestmentProfileSection';
 
 declare module '../../recordRegistry' {
@@ -9,7 +9,7 @@ declare module '../../recordRegistry' {
 }
 
 /** Ordered after the legacy client-details mount; the flag lives inside the section. */
-export const investmentProfileSection: HouseholdSectionDescriptor = {
+export const investmentProfileSection: HouseholdRecordShellSectionDescriptor = {
   id: 'investment_profile',
   order: 40,
   tab: 'client_map',

@@ -25,12 +25,18 @@ import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import { ContactEditor } from './ContactEditor';
 import { householdTabRegistry, type HouseholdTab } from './tabRegistry';
 import {
+  toHouseholdSectionContext,
+  toMeetingClientBoundary,
+} from './clientBoundary';
+import {
   getHouseholdAddActions,
   getHouseholdHeaderActions,
   getHouseholdRecordExtensions,
   getHouseholdSections,
+  mountHouseholdSection,
   type HouseholdRecordShellContext,
 } from './recordRegistry';
+import type { ContactRef } from '@/features/crm-contacts';
 import { useMatterStore } from '@/platform/matter/matterStore';
 
 const syncCopy: Record<HouseholdRecord['syncState'], string> = {
@@ -85,6 +91,7 @@ export function HouseholdRecordSurface({
   timelineRecords = [],
   timelineFreshness,
   onSaveActivityRecord,
+  householdIdentity: _householdIdentity,
 }: {
   household: HouseholdRecord;
   proposals?: readonly CrmProposal[];
@@ -94,6 +101,12 @@ export function HouseholdRecordSurface({
   timelineRecords?: readonly TimelineRecord[];
   timelineFreshness?: CrmEngineFreshness;
   onSaveActivityRecord?: (record: LiveCrmRecord) => unknown;
+  /** Legacy caller data is intentionally ignored; Matter.crmHouseholdKeys is authoritative. */
+  householdIdentity?: {
+    householdRef: ContactRef;
+    matterId: string;
+    displayName?: string;
+  };
 }) {
   const { t } = useTranslation();
   const [tab, setTab] = useState<HouseholdTab>('client_map');
@@ -110,8 +123,12 @@ export function HouseholdRecordSurface({
     import('./adapters').CrmPerson | null
   >(null);
   const sourceProposals = tab === 'client_map' ? [] : proposals;
+  const matters = useMatterStore((state) => state.matters);
+  const sectionContext = toHouseholdSectionContext(household, matters);
+  const clientBoundary = toMeetingClientBoundary(household, matters);
   const recordContext: HouseholdRecordShellContext = {
     household,
+    ...(sectionContext ? { sectionContext } : {}),
     ...(actions ? { actions } : {}),
     ...(onSaveHousehold ? { onSaveHousehold } : {}),
     openPanel: (panel) => {
@@ -315,6 +332,7 @@ export function HouseholdRecordSurface({
         };
         return createElement(selectedTab.Component, {
           household,
+          ...(clientBoundary ? { clientBoundary } : {}),
           proposals: sourceProposals,
           ...(actions ? { actions } : {}),
           timelineRecords,
@@ -325,7 +343,9 @@ export function HouseholdRecordSurface({
               ? sections
                   .filter((section) => section.tab === id)
                   .map((section) => (
-                    <span key={section.id}>{section.mount(recordContext)}</span>
+                    <span key={section.id}>
+                      {mountHouseholdSection(section, recordContext)}
+                    </span>
                   ))
               : legacyTabs[id as keyof typeof legacyTabs],
         });

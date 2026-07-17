@@ -11,6 +11,9 @@ export default defineConfig({
   resolve: { alias: { '@': path.resolve(here, '../..') } },
   test: {
     environment: 'jsdom',
-    include: [path.resolve(here, 'crmClients.test.tsx')],
+    include: [
+      path.resolve(here, 'crmClients.test.tsx'),
+      path.resolve(here, '../../foundation-contracts/crm-clients/doorways.test.tsx'),
+    ],
   },
 });

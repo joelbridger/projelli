@@ -3,6 +3,7 @@ import type { LucideIcon } from 'lucide-react';
 import type { CrmEngineFreshness } from '@/platform/crm/store';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import type { TimelineRecord } from '@/features/crm-timeline';
+import type { ClientBoundary } from '@/features/meetings';
 import type {
   CrmClientsActions,
   CrmProposal,
@@ -32,10 +33,12 @@ function SchwabReviewsGate(props: HouseholdTabSurfaceProps) {
 
 /** Feature modules augment this map beside their tab descriptor. */
 export interface HouseholdTabRouteMap {}
-export type HouseholdTab = Extract<keyof HouseholdTabRouteMap, string>;
+export type HouseholdTab = string;
 
 export interface HouseholdTabSurfaceProps {
   household: HouseholdRecord;
+  /** Absent when the record surface has no authoritative matter linkage. */
+  clientBoundary?: ClientBoundary;
   proposals: readonly CrmProposal[];
   actions?: CrmClientsActions;
   timelineRecords: readonly TimelineRecord[];
@@ -53,7 +56,7 @@ export interface HouseholdTabDescriptor {
 }
 
 /** The append-only list of feature-owned household tabs. Keep existing order stable. */
-export const householdTabRegistry: readonly HouseholdTabDescriptor[] = [
+const registeredHouseholdTabs: HouseholdTabDescriptor[] = [
   clientMapTab,
   timelineTab,
   documentsTab,
@@ -66,6 +69,8 @@ export const householdTabRegistry: readonly HouseholdTabDescriptor[] = [
   activityTab,
   ...(isEnabled('record-member-kebab') ? [memberRailTab] : []),
 ];
+export const householdTabRegistry: readonly HouseholdTabDescriptor[] =
+  registeredHouseholdTabs;
 
 export function validateHouseholdTabDescriptors(
   descriptors: readonly HouseholdTabDescriptor[]
@@ -84,4 +89,16 @@ export function validateHouseholdTabDescriptors(
     ids.add(descriptor.id);
     routes.add(descriptor.route);
   }
+}
+
+/** Add a public tab to the live registry and return its cleanup function. */
+export function registerHouseholdTab(
+  descriptor: HouseholdTabDescriptor
+): () => void {
+  validateHouseholdTabDescriptors([...householdTabRegistry, descriptor]);
+  registeredHouseholdTabs.push(descriptor);
+  return () => {
+    const index = registeredHouseholdTabs.indexOf(descriptor);
+    if (index >= 0) registeredHouseholdTabs.splice(index, 1);
+  };
 }

@@ -6,7 +6,7 @@ import type {
   HouseholdHeaderActionDescriptor,
   HouseholdRecordExtensionDescriptor,
   HouseholdRecordShellContext,
-  HouseholdSectionDescriptor,
+  HouseholdRecordShellSectionDescriptor,
 } from './recordRegistry';
 
 declare module './tabRegistry' {
@@ -241,7 +241,7 @@ export const legacyHouseholdAddActions: readonly HouseholdAddActionDescriptor[] 
     },
   ];
 
-export const legacyHouseholdSections: readonly HouseholdSectionDescriptor[] = [
+export const legacyHouseholdSections: readonly HouseholdRecordShellSectionDescriptor[] = [
   {
     id: 'client_map',
     order: 10,

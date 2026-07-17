@@ -37,11 +37,31 @@ export {
   type DirectoryPreferenceStore,
   type DirectoryPreferenceValue,
 } from './directoryPreferences';
+export {
+  householdSectionRegistry,
+  getHouseholdSections,
+  registerHouseholdSection,
+  validateHouseholdSectionDescriptors,
+} from './recordRegistry';
+export {
+  householdTabRegistry,
+  registerHouseholdTab,
+  validateHouseholdTabDescriptors,
+} from './tabRegistry';
+export {
+  resolveHouseholdMatterId,
+  toHouseholdSectionContext,
+  toMeetingClientBoundary,
+} from './clientBoundary';
 export type {
   HouseholdAddActionDescriptor,
   HouseholdHeaderActionDescriptor,
   HouseholdRecordExtensionDescriptor,
-  HouseholdRecordShellContext,
+  HouseholdSectionContext,
   HouseholdSectionDescriptor,
 } from './recordRegistry';
-export type { HouseholdTabDescriptor } from './tabRegistry';
+export type {
+  HouseholdTab,
+  HouseholdTabDescriptor,
+  HouseholdTabSurfaceProps,
+} from './tabRegistry';

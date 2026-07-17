@@ -1,9 +1,9 @@
-import type { HouseholdSectionDescriptor } from '../../recordRegistry';
+import type { HouseholdRecordShellSectionDescriptor } from '../../recordRegistry';
 import { EmploymentSection } from './EmploymentSection';
 import { readEmploymentInformation } from './persistence';
 
 function employmentSectionKey(
-  household: Parameters<HouseholdSectionDescriptor['mount']>[0]['household']
+  household: Parameters<HouseholdRecordShellSectionDescriptor['mount']>[0]['household']
 ): string {
   const information = readEmploymentInformation(household);
   const memberInformation = Object.entries(information.members)
@@ -26,7 +26,7 @@ function employmentSectionKey(
 }
 
 /** Ordered after Professional contacts (10) and before the remaining profile sections. */
-export const employmentHouseholdSection: HouseholdSectionDescriptor = {
+export const employmentHouseholdSection: HouseholdRecordShellSectionDescriptor = {
   id: 'employment',
   order: 20,
   tab: 'client_map',

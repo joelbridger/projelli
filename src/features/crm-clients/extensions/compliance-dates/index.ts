@@ -2,7 +2,7 @@ import { createElement } from 'react';
 import { isEnabled } from '@/platform/flags/router';
 import type {
   HouseholdRecordExtensionDescriptor,
-  HouseholdSectionDescriptor,
+  HouseholdRecordShellSectionDescriptor,
 } from '../../recordRegistry';
 import { COMPLIANCE_DATES_DATA_KEY } from './persistence';
 import { EMPTY_COMPLIANCE_DATES } from './types';
@@ -27,7 +27,7 @@ export const complianceDatesRecordExtension: HouseholdRecordExtensionDescriptor 
   };
 
 /** The ordered record-section descriptor mounted through the landed P0-E seam. */
-export const writtenAgreementsSection: HouseholdSectionDescriptor = {
+export const writtenAgreementsSection: HouseholdRecordShellSectionDescriptor = {
   id: 'written-agreements',
   order: 40,
   tab: 'client_map',
