@@ -1,0 +1,19 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/lantern/app/integration/.worktrees/v1/w2-ask-owner-snapshot
+sha: c5167f330f2a4f46adbec1165ba4435593cab135
+tree: c8fb2432cc877ba4e551694d0180b63a6aba9e50
+gate_base: a47b0a5a97bcab08e695101e916991cfc737c3dd
+tool_blob: 7912bf11eefdacea0702600b19d3bc5b3d7f2606
+utc: 2026-07-17T12:43:48Z
+step_timeout_seconds: 600
+loadavg: 13.99 14.08 12.52
+running_vitest_eslint_procs: 11
+step: gate:changed | status=FAIL | exit=1 | 12:43:49Z..12:48:26Z | bytes=94815 | sha256=16880a2da5d76e444e96bd2be05e6fb9694b9f9c4a880f344cabc7a14c0d4291 | tail: 0 Duration 66.33s (transform 19.07s, setup 18.71s, import 150.67s, tests 39.83s, environment 41.50s) FAILED: npx vitest run --changed a47b0a5a97bcab08e695101e916991cfc737c3dd CHANGED GATE RED see failures above
+step: typecheck | status=FAIL | exit=2 | 12:48:26Z..12:49:01Z | bytes=33402 | sha256=e40cdeb40c21fbce33f4ed2f8beea725784d99dd443fb9edf9fdeed5654cae6c | tail: ly owner: "fixture-client-owner"; readonly id: "client-1"; readonly matterId: "matter-1"; }; readonly matterId: "matter-1"; readonly revision: "client-1:1"; }' but required in type 'AskClientSnapshot<FixtureClientRef>'.
+step: typecheck:tests | status=FAIL | exit=2 | 12:49:01Z..12:49:37Z | bytes=33430 | sha256=bd2e71ee583ad629aafdadc3c004c469ef710412db1dcf2410c79ea015957ffd | tail: ly owner: "fixture-client-owner"; readonly id: "client-1"; readonly matterId: "matter-1"; }; readonly matterId: "matter-1"; readonly revision: "client-1:1"; }' but required in type 'AskClientSnapshot<FixtureClientRef>'.
+step: handle-guard | status=PASS | exit=0 | 12:49:37Z..12:49:38Z | bytes=1360 | sha256=725bf79cafd644ebb74927168522eb4e6d9a331df7ea908fe79031f456c1ffe9 | tail: ite-approve + calendar-write-pending-banner + calendar-write-pending-banner-review-now +343 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen).
+step: arch-dag-guard | status=PASS | exit=0 | 12:49:38Z..12:49:39Z | bytes=259 | sha256=13ec49a1c1c158af8d0cafef580184289cf0771195c367b9574bbc2bea86cc93 | tail: /integration/.worktrees/v1/w2-ask-owner-snapshot Test Files 1 passed (1) Tests 1 passed (1) Start at 12:49:38 Duration 1.14s (transform 258ms, setup 402ms, import 285ms, tests 3ms, environment 334ms)
+step: i18n-snapshot | status=PASS | exit=0 | 12:49:39Z..12:49:40Z | bytes=260 | sha256=86ac102a5aa1cefd9b26511c935f671c5b70a9af8c3ba1058481da97a548f93b | tail: integration/.worktrees/v1/w2-ask-owner-snapshot Test Files 1 passed (1) Tests 5 passed (5) Start at 12:49:39 Duration 1.05s (transform 224ms, setup 331ms, import 234ms, tests 16ms, environment 269ms)
+step: focused | status=PASS | exit=0 | 12:49:40Z..12:49:45Z | bytes=262 | sha256=d2648442a57051216de9e240880b6c99baf7c68a151ad9d9484d48aed555b951 | tail: tegration/.worktrees/v1/w2-ask-owner-snapshot Test Files 5 passed (5) Tests 20 passed (20) Start at 12:49:41 Duration 4.12s (transform 6.62s, setup 1.74s, import 9.41s, tests 64ms, environment 1.76s)
+overall: RED
