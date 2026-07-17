@@ -1,17 +1,26 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import { FirmSetup } from './FirmSetup';
 
 const save = vi.fn().mockResolvedValue(undefined);
 let records: LiveCrmRecord[] = [];
+let workspaceRoot = 'workspace-a';
+let loadError: string | null = null;
 
 vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
-  useLiveCrmRecords: () => ({ records, save, error: null }),
+  useLiveCrmRecords: () => ({ records, save, error: loadError, workspaceRoot }),
 }));
 
 describe('FirmSetupSurface', () => {
+  beforeEach(() => {
+    records = [];
+    workspaceRoot = 'workspace-a';
+    loadError = null;
+    save.mockReset().mockResolvedValue(undefined);
+  });
+
   it('does not offer a firm administration button that has no visible destination', () => {
     records = [];
     render(<FirmSetup />);
@@ -71,26 +80,78 @@ describe('FirmSetupSurface', () => {
     fireEvent.click(screen.getByTestId('crm-record-values-save'));
     await Promise.resolve();
     expect(save).toHaveBeenCalledWith(expect.objectContaining({
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- Vitest asymmetric matchers are intentionally untyped inside the expected record shape.
       id: 'household-1', tagIds: ['tag-1'], tags: ['New client'], customFields: expect.objectContaining({ region: expect.objectContaining({ value: 'North', updatedAt: expect.any(String) }) }),
     }));
   });
 
-  it('keeps unsaved details through a same-record live refresh, but resets for another record', async () => {
+  it('keeps unsaved details and tags through a same-record refresh, but gives another record a fresh editor', async () => {
     records = [
       { id: 'field-1', kind: 'customFieldDef', matterId: 'firm_home', key: 'region', label: 'Region', fieldType: 'text', appliesTo: ['household'], required: false, order: 1, archived: false, deleted: false },
-      { id: 'household-1', kind: 'household', matterId: 'matter-1', name: 'Smith household', updatedAt: '2026-07-17T00:00:00.000Z', customFields: { region: { value: 'Saved North' } } },
-      { id: 'household-2', kind: 'household', matterId: 'matter-2', name: 'Jones household', updatedAt: '2026-07-17T00:00:00.000Z', customFields: { region: { value: 'Saved South' } } },
+      { id: 'tag-a', kind: 'tag', matterId: 'firm_home', name: 'Client A only', deleted: false },
+      { id: 'tag-b', kind: 'tag', matterId: 'firm_home', name: 'Client B only', deleted: false },
+      { id: 'household-1', kind: 'household', matterId: 'matter-1', name: 'Smith household', updatedAt: '2026-07-17T00:00:00.000Z', tagIds: [], customFields: { region: { value: 'Saved North' } } },
+      { id: 'household-2', kind: 'household', matterId: 'matter-2', name: 'Jones household', updatedAt: '2026-07-17T00:00:00.000Z', tagIds: ['tag-b'], customFields: { region: { value: 'Saved South' } } },
     ];
     const view = render(<FirmSetup initialTab="values" />);
     fireEvent.change(screen.getByTestId('crm-record-values-select'), { target: { value: 'household-1' } });
     await waitFor(() => { expect(screen.getByTestId('crm-record-value-region')).toHaveValue('Saved North'); });
     fireEvent.change(screen.getByTestId('crm-record-value-region'), { target: { value: 'Advisor typed' } });
+    fireEvent.click(screen.getByTestId('crm-record-tag-tag-a'));
     records = records.map((record) => record.id === 'household-1'
       ? { ...record, updatedAt: '2026-07-17T00:01:00.000Z', customFields: { region: { value: 'Late refresh' } } }
       : record);
     view.rerender(<FirmSetup initialTab="values" />);
     await waitFor(() => { expect(screen.getByTestId('crm-record-value-region')).toHaveValue('Advisor typed'); });
+    expect(screen.getByTestId('crm-record-tag-tag-a')).toBeChecked();
     fireEvent.change(screen.getByTestId('crm-record-values-select'), { target: { value: 'household-2' } });
     await waitFor(() => { expect(screen.getByTestId('crm-record-value-region')).toHaveValue('Saved South'); });
+    expect(screen.getByTestId('crm-record-tag-tag-a')).not.toBeChecked();
+    expect(screen.getByTestId('crm-record-tag-tag-b')).toBeChecked();
+  });
+
+  it('fully clears record A on a workspace switch whose record-B load fails', async () => {
+    records = [
+      { id: 'field-1', kind: 'customFieldDef', matterId: 'firm_home', key: 'region', label: 'Region', fieldType: 'text', appliesTo: ['household'], required: false, order: 1, archived: false, deleted: false },
+      { id: 'tag-a', kind: 'tag', matterId: 'firm_home', name: 'Client A only', deleted: false },
+      { id: 'household-1', kind: 'household', matterId: 'matter-a', name: 'Client A secret name', updatedAt: '2026-07-17T00:00:00.000Z', tagIds: [], customFields: { region: { value: 'A saved secret' } } },
+    ];
+    const view = render(<FirmSetup initialTab="values" />);
+    fireEvent.change(screen.getByTestId('crm-record-values-select'), { target: { value: 'household-1' } });
+    await waitFor(() => { expect(screen.getByTestId('crm-record-value-region')).toHaveValue('A saved secret'); });
+    fireEvent.change(screen.getByTestId('crm-record-value-region'), { target: { value: 'A unsaved secret' } });
+    fireEvent.click(screen.getByTestId('crm-record-tag-tag-a'));
+
+    workspaceRoot = 'workspace-b';
+    records = [];
+    loadError = 'B could not load';
+    view.rerender(<FirmSetup initialTab="values" />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('B could not load');
+    expect(screen.getByTestId('crm-record-values-empty')).toBeInTheDocument();
+    expect(screen.queryByTestId('crm-record-values-select')).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue('A unsaved secret')).not.toBeInTheDocument();
+    expect(screen.queryByText('Client A secret name')).not.toBeInTheDocument();
+    expect(screen.queryByText('Client A only')).not.toBeInTheDocument();
+
+    loadError = null;
+    records = [
+      { id: 'field-1', kind: 'customFieldDef', matterId: 'firm_home', key: 'region', label: 'Region', fieldType: 'text', appliesTo: ['household'], required: false, order: 1, archived: false, deleted: false },
+      { id: 'tag-b', kind: 'tag', matterId: 'firm_home', name: 'Client B only', deleted: false },
+      { id: 'household-1', kind: 'household', matterId: 'matter-b', name: 'Client B', updatedAt: '2026-07-17T00:01:00.000Z', tagIds: [], customFields: { region: { value: 'B saved value' } } },
+    ];
+    view.rerender(<FirmSetup initialTab="values" />);
+    fireEvent.change(await screen.findByTestId('crm-record-values-select'), { target: { value: 'household-1' } });
+    await waitFor(() => { expect(screen.getByTestId('crm-record-value-region')).toHaveValue('B saved value'); });
+    expect(screen.getByTestId('crm-record-tag-tag-b')).not.toBeChecked();
+    fireEvent.click(screen.getByTestId('crm-record-values-save'));
+    await waitFor(() => {
+      expect(save).toHaveBeenLastCalledWith(expect.objectContaining({
+        matterId: 'matter-b',
+        tagIds: [],
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- Vitest asymmetric matchers are intentionally untyped inside the expected record shape.
+        customFields: expect.objectContaining({ region: expect.objectContaining({ value: 'B saved value' }) }),
+      }));
+    });
   });
 });

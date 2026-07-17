@@ -130,8 +130,38 @@ export function NudgeReviewModal({
   onOpenChange,
   onSaved,
 }: NudgeReviewModalProps) {
+  if (!open) return null;
+
+  // A modal session owns client-derived draft state. Changing either half of
+  // the client context must synchronously discard the entire old state tree;
+  // an effect-only reset leaves one render where the new client can see it.
+  const contextKey = `${intake.intakeId}:${intake.matterId}`;
+  return (
+    <NudgeReviewModalSession
+      key={contextKey}
+      open={open}
+      row={row}
+      intake={intake}
+      {...(now ? { now } : {})}
+      onOpenChange={onOpenChange}
+      {...(onSaved ? { onSaved } : {})}
+    />
+  );
+}
+
+function NudgeReviewModalSession({
+  open,
+  row,
+  intake,
+  now,
+  onOpenChange,
+  onSaved,
+}: NudgeReviewModalProps) {
   const { t } = useTranslation();
-  const currentIntake = useIntakeStore((state) => state.intakesById[intake.intakeId]) ?? intake;
+  const currentIntake = useIntakeStore((state) => {
+    const stored = state.intakesById[intake.intakeId];
+    return stored?.matterId === intake.matterId ? stored : intake;
+  });
   const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
   const [accountIdx, setAccountIdx] = useState(0);
   const [draft, setDraft] = useState<BuiltNudgeDraft | null>(() => modalDraftIfStoredLink(row, intake, now));
@@ -140,12 +170,14 @@ export function NudgeReviewModal({
   const [error, setError] = useState<string | null>(null);
   const bodyDirtyRef = useRef(false);
   const seedContextRef = useRef<string | null>(null);
+  const asyncEpochRef = useRef(0);
 
   useEffect(() => {
-    const seedContext = `${open ? 'open' : 'closed'}:${intake.intakeId}`;
+    const seedContext = `${open ? 'open' : 'closed'}:${intake.intakeId}:${intake.matterId}`;
     const contextChanged = seedContextRef.current !== seedContext;
     seedContextRef.current = seedContext;
     if (!open) return;
+    const asyncEpoch = ++asyncEpochRef.current;
     if (contextChanged) bodyDirtyRef.current = false;
     let cancelled = false;
     void Promise.resolve()
@@ -156,7 +188,7 @@ export function NudgeReviewModal({
         if (contextChanged) setBody('');
         const nextDraft = await modalDraft(row, intake, now);
         const connected = await mailConnectedAccounts();
-        if (cancelled) return;
+        if (cancelled || asyncEpoch !== asyncEpochRef.current) return;
         setDraft(nextDraft);
         setBody((current) => contextChanged || !bodyDirtyRef.current ? nextDraft.bodyText : current);
         setAccounts(connected);
@@ -164,15 +196,16 @@ export function NudgeReviewModal({
         setStatus('ready');
       })
       .catch((caught: unknown) => {
-        if (cancelled) return;
+        if (cancelled || asyncEpoch !== asyncEpochRef.current) return;
         setAccounts([]);
         setError(caught instanceof Error ? caught.message : String(caught));
         setStatus('error');
       });
     return () => {
       cancelled = true;
+      asyncEpochRef.current += 1;
     };
-  }, [open, row, intake, now]);
+  }, [open, row, intake, intake.matterId, now]);
 
   const account = accounts[accountIdx];
   const canSave = draft !== null && accountCanSaveDraft(account) && draft.to.length > 0 && status !== 'saving' && status !== 'saved';
@@ -185,21 +218,27 @@ export function NudgeReviewModal({
 
   if (!open) return null;
 
-  const latestIntake = () => useIntakeStore.getState().intakesById[intake.intakeId] ?? currentIntake;
+  const latestIntake = () => {
+    const stored = useIntakeStore.getState().intakesById[intake.intakeId];
+    return stored?.matterId === intake.matterId ? stored : currentIntake;
+  };
 
   const regenerate = () => {
     const liveIntake = latestIntake();
     const liveRow = deriveOnboardingRow(liveIntake, now ?? new Date(), DEFAULT_ONBOARDING_CONFIG);
+    const asyncEpoch = ++asyncEpochRef.current;
     setStatus('loading');
     setError(null);
     bodyDirtyRef.current = false;
     void modalDraft(liveRow, liveIntake, now)
       .then((nextDraft) => {
+        if (asyncEpoch !== asyncEpochRef.current) return;
         setDraft(nextDraft);
         setBody(nextDraft.bodyText);
         setStatus('ready');
       })
       .catch((caught: unknown) => {
+        if (asyncEpoch !== asyncEpochRef.current) return;
         setError(caught instanceof Error ? caught.message : String(caught));
         setStatus('error');
       });
@@ -208,6 +247,7 @@ export function NudgeReviewModal({
   const handleRewrite = () => {
     if (!draft || status === 'rewriting') return;
     const activeDraft = draft;
+    const asyncEpoch = ++asyncEpochRef.current;
     setStatus('rewriting');
     setError(null);
     void Promise.resolve()
@@ -224,12 +264,14 @@ export function NudgeReviewModal({
           prompt,
           options: draftStructuredOutputOptions,
         });
+        if (asyncEpoch !== asyncEpochRef.current) return;
         const rewritten = responseBody(response);
         bodyDirtyRef.current = true;
         setBody(enforceNudgeBodyInvariants(rewritten || body, activeDraft));
         setStatus('ready');
       })
       .catch((caught: unknown) => {
+        if (asyncEpoch !== asyncEpochRef.current) return;
         setError(caught instanceof Error ? caught.message : String(caught));
         setStatus('error');
       });
