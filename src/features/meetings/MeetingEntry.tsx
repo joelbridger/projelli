@@ -64,6 +64,7 @@ import {
 } from './meetingPanelRegistry';
 import { getMeetingHeaderActionComposition } from './meetingHeaderActionRegistry';
 import { getMeetingInsightComposition } from './meetingInsightRegistry';
+import type { MeetingOpenTarget } from './foundation/contract';
 
 export interface MeetingEntryProps {
   matterId: string;
@@ -71,6 +72,12 @@ export interface MeetingEntryProps {
   folderName: string;
   clientName: string;
   workspaceRoot: string;
+  /**
+   * Supplied only by the canonical opener after it has resolved the real
+   * meeting projection and client boundary. This host never reconstructs
+   * canonical identity from its legacy folder path.
+   */
+  openTarget?: MeetingOpenTarget;
   onBack: () => void;
   /** Set when opened via a `meeting:<dir>#<ms>` Client Map source link
    *  (Task 11) — seeks the transcript/audio to this moment on open. */
@@ -145,6 +152,7 @@ export function MeetingEntry({
   folderName,
   clientName,
   workspaceRoot,
+  openTarget,
   onBack,
   initialSeekMs,
   workspaceService,
@@ -671,6 +679,8 @@ export function MeetingEntry({
   const panelContext = {
     t,
     matterId,
+    canonicalMeeting: openTarget?.meeting ?? null,
+    clientBoundary: openTarget?.client ?? null,
     meetingDir,
     clientName,
     workspaceRoot,
@@ -709,6 +719,8 @@ export function MeetingEntry({
   };
   const headerActionContext = {
     t,
+    canonicalMeeting: openTarget?.meeting ?? null,
+    clientBoundary: openTarget?.client ?? null,
     meta,
     transcript,
     summaryText,
@@ -1111,6 +1123,8 @@ export function MeetingEntry({
                 <div key={descriptor.id} data-meeting-insight={descriptor.id}>
                   {descriptor.renderMeetingSummary({
                     matterId,
+                    canonicalMeeting: openTarget?.meeting ?? null,
+                    clientBoundary: openTarget?.client ?? null,
                     meetingDir,
                     clientName,
                     workspaceService,

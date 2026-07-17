@@ -86,6 +86,32 @@ fail closed by returning no data.
 Approval is an append-only transition record. It never rewrites the produced
 artifact. Only the legal `produced -> approved` transition is accepted.
 
+## Populate and open canonical meetings honestly
+
+New Meetings workspace rows use `createMeetingPopulationService`. It creates a
+real canonical record first. A legacy folder is optional and can be attached
+only through a one-time, idempotent `linkLegacy` step. The link requires all of
+these facts at once: a normalized workspace-relative folder, the current open
+workspace, the legacy `meeting.json.matterId`, a mapped Matter folder, and
+exactly one matching `crmHouseholdKeys` household. It never matches a title,
+date, path name, or calendar id.
+
+`openTarget()` rechecks that local folder every time. A link relayed from
+another device may be valid canonical data but unavailable locally; opening it
+then fails honestly rather than sending a host a made-up client identity.
+`MeetingEntry` accepts this resolved `MeetingOpenTarget` as `openTarget` and
+passes its canonical meeting and client boundary through to panel, header, and
+insight hosts. Those hosts must never infer canonical identity from
+`meetingDir`.
+
+For an authorized cross-client directory, use
+`createFirmMeetingDirectoryReader(port, authorization)`. Its authorization
+callback and exact allowed-matter list are checked for every read and again
+after reload; missing, empty, revoked, or failing permission returns no rows.
+
+The external compile proof is
+`src/foundation-contracts/meetings-population/meetingsPopulation.import.ts`.
+
 ## Contribute a panel, header action, or insight to the real Meetings host
 
 `MeetingEntry` — the real Meetings page — renders the LIVE host composition:

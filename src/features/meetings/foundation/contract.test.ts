@@ -5,7 +5,9 @@ import {
   approvedMeetingArtifactsForClient,
   createMeetingArtifactStore,
   createMeetingFoundationPreferencesStore,
+  createMeetingPopulationService,
   createMeetingIntelligenceSettingsStore,
+  createFirmMeetingDirectoryReader,
   createMeetingSourceAdapter,
   createMeetingStore,
   createMeetingTemplateStore,
@@ -17,6 +19,7 @@ import {
   validateMeetingArtifactTransition,
   type ClientBoundary,
   type MeetingArtifactRequirement,
+  type LegacyMeetingLinkValidationContext,
 } from './contract';
 
 function canonicalPort(initial: readonly LiveCrmRecord[] = []) {
@@ -65,6 +68,38 @@ const client: ClientBoundary = {
   householdRef: 'household-1',
   matterId: 'matter-1',
 };
+
+function legacyContext(opts?: {
+  exists?: boolean;
+  metadataMatterId?: string;
+  households?: readonly string[];
+  folder?: string;
+}): LegacyMeetingLinkValidationContext {
+  const root = '/workspace';
+  const folder = opts?.folder ?? '/workspace/Clients/Household One';
+  return {
+    workspaceId: 'workspace-1',
+    workspaceRoot: root,
+    workspace: {
+      getRootPath: () => root,
+      exists: () => Promise.resolve(opts?.exists ?? true),
+      readFile: () =>
+        Promise.resolve(
+          JSON.stringify({ matterId: opts?.metadataMatterId ?? 'matter-1' })
+        ),
+    },
+    matters: [
+      {
+        id: 'matter-1',
+        name: 'Household One',
+        client: 'Household One',
+        folderPaths: [folder],
+        crmHouseholdKeys: [...(opts?.households ?? ['household-1'])],
+        createdAt: '2026-07-01T00:00:00.000Z',
+      },
+    ],
+  };
+}
 
 const requirements: readonly MeetingArtifactRequirement[] = [
   { kind: 'structured-notes', minimumSchemaVersion: 2 },
@@ -707,5 +742,99 @@ describe('meetings foundation contract', () => {
       getActiveMatterId: () => undefined,
     });
     expect(noneUndefined.list).toEqual([]);
+  });
+
+  it('creates, durably links, and opens only an exactly-one-matter legacy meeting', async () => {
+    const live = canonicalPort();
+    const service = createMeetingPopulationService(live, legacyContext());
+    const linked = await service.createAndLink(draft, {
+      meetingDir: 'Clients/Household One/Meetings/2026-07-20',
+    });
+    expect(linked.legacyLink?.meetingDir).toBe(
+      'Clients/Household One/Meetings/2026-07-20'
+    );
+
+    // A fresh reader receives the real saved canonical record, not a held
+    // object from the creator. The same link is idempotent and cannot replace
+    // itself with another folder.
+    const fresh = createMeetingPopulationService(
+      { ...live, records: live.readCanonical() },
+      legacyContext()
+    );
+    await expect(
+      fresh.linkLegacy(linked.id, {
+        meetingDir: 'Clients/Household One/Meetings/2026-07-20',
+      })
+    ).resolves.toMatchObject({ id: linked.id });
+    await expect(
+      fresh.linkLegacy(linked.id, {
+        meetingDir: 'Clients/Household One/Meetings/replacement',
+      })
+    ).rejects.toThrow('cannot replace');
+
+    const target = await fresh.openTarget(linked.id);
+    expect(target).toMatchObject({
+      kind: 'linked-legacy-meeting',
+      meeting: { id: linked.id, matterId: 'matter-1' },
+      client: { householdRef: 'household-1', matterId: 'matter-1' },
+      meetingDir: '/workspace/Clients/Household One/Meetings/2026-07-20',
+    });
+  });
+
+  it('fails closed for false legacy identity and cross-device availability', async () => {
+    const live = canonicalPort();
+    const created = await createMeetingStore(live).createDraft(draft);
+    const input = { meetingDir: 'Clients/Household One/Meetings/2026-07-20' };
+    await expect(
+      createMeetingStore({ ...live, records: live.readCanonical() }).linkLegacy(
+        created.id,
+        input,
+        legacyContext({ metadataMatterId: 'matter-2' })
+      )
+    ).rejects.toThrow('different matter');
+    await expect(
+      createMeetingStore({ ...live, records: live.readCanonical() }).linkLegacy(
+        created.id,
+        input,
+        legacyContext({ households: ['household-1', 'household-2'] })
+      )
+    ).rejects.toThrow('exactly one');
+    await expect(
+      createMeetingStore({ ...live, records: live.readCanonical() }).linkLegacy(
+        created.id,
+        { meetingDir: '../other-client' },
+        legacyContext()
+      )
+    ).rejects.toThrow('normalized and traversal-free');
+
+    const linked = await createMeetingStore({
+      ...live,
+      records: live.readCanonical(),
+    }).linkLegacy(created.id, input, legacyContext());
+    await expect(
+      createMeetingPopulationService(
+        { ...live, records: live.readCanonical() },
+        legacyContext({ exists: false })
+      ).openTarget(linked.id)
+    ).rejects.toThrow('unavailable on this device');
+  });
+
+  it('reads a firm directory only through a current explicit authorization', async () => {
+    const live = canonicalPort();
+    const store = createMeetingStore(live);
+    await store.createDraft(draft);
+    let authorized = false;
+    const reader = createFirmMeetingDirectoryReader(live, {
+      isAuthorized: () => authorized,
+      allowedMatterIds: () => ['matter-1'],
+    });
+    await expect(reader.list()).resolves.toEqual([]);
+    authorized = true;
+    await expect(reader.list()).resolves.toHaveLength(1);
+    const revokedDuringRead = createFirmMeetingDirectoryReader(live, {
+      isAuthorized: () => false,
+      allowedMatterIds: () => ['matter-1'],
+    });
+    await expect(revokedDuringRead.get('anything')).resolves.toBeUndefined();
   });
 });

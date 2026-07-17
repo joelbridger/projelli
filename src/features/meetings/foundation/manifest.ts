@@ -30,10 +30,9 @@ export const meetingFoundationDependentManifest: readonly MeetingFoundationDepen
     },
     {
       consumer: 'meetings-shell-v1',
-      fixture: null,
-      status: 'coordinator-blocked',
-      reason:
-        'COORDINATOR: the approved base has no public Meetings AppSurface descriptor or router swap contract, and its legacy list/panel/header hosts cannot consume the foundation context safely.',
+      fixture:
+        '../../../foundation-contracts/meetings-population/meetingsPopulation.import.ts',
+      status: 'ready',
     },
     {
       consumer: 'meeting-spoken-notice',

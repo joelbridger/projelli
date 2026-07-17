@@ -4,6 +4,7 @@ import {
   loadLiveCrmRecords,
   type LiveCrmRecord,
 } from '@/platform/crm/liveRecords';
+import type { Matter } from '@/platform/types/matter';
 
 export type MeetingRef = string;
 export type MeetingArtifactRef = string;
@@ -50,6 +51,21 @@ export interface ClientBoundary {
   readonly displayName?: string;
 }
 
+/**
+ * A durable, explicit bridge to a folder-created meeting.  `meetingDir` is
+ * always a normalized path relative to the open workspace.  It is never an
+ * identity or an authorization grant: the canonical matter and household are
+ * still the only authority for every reader.
+ */
+export interface LegacyMeetingLink {
+  readonly meetingDir: string;
+  readonly linkedAt: string;
+}
+
+export interface LegacyMeetingLinkInput {
+  readonly meetingDir: string;
+}
+
 export interface MeetingProjection {
   readonly id: MeetingRef;
   readonly workspaceId: string;
@@ -63,6 +79,7 @@ export interface MeetingProjection {
   readonly state: MeetingState;
   readonly references: readonly string[];
   readonly visibilityPolicyId?: string;
+  readonly legacyLink?: LegacyMeetingLink;
 }
 
 export interface MeetingRecord extends MeetingProjection {
@@ -111,6 +128,68 @@ export interface MeetingStore {
     id: MeetingRef,
     transition: MeetingLifecycleTransition
   ): Promise<MeetingRecord>;
+  /** One-time bridge to a legacy folder, after the complete anchor check. */
+  linkLegacy(
+    id: MeetingRef,
+    input: LegacyMeetingLinkInput,
+    context: LegacyMeetingLinkValidationContext
+  ): Promise<MeetingRecord>;
+}
+
+/** The minimal filesystem surface needed to prove a legacy folder is local. */
+export interface LegacyMeetingWorkspace {
+  getRootPath(): string | null;
+  exists(path: string): Promise<boolean>;
+  readFile(path: string): Promise<string>;
+  isSymlink?(path: string): Promise<boolean>;
+  resolveSymlink?(path: string): Promise<string>;
+}
+
+/**
+ * The caller must name both the live workspace identity and its root.  A
+ * non-empty workspaceId alone is deliberately not accepted as proof that this
+ * link belongs to the workspace currently open on this device.
+ */
+export interface LegacyMeetingLinkValidationContext {
+  readonly workspaceId: string;
+  readonly workspaceRoot: string;
+  readonly workspace: LegacyMeetingWorkspace;
+  readonly matters: readonly Matter[];
+}
+
+/** A resolved target for the legacy detail host. No host may infer this from a path. */
+export interface MeetingOpenTarget {
+  readonly kind: 'linked-legacy-meeting';
+  readonly meeting: MeetingProjection;
+  readonly client: ClientBoundary;
+  readonly legacyLink: LegacyMeetingLink;
+  /** Absolute local folder path, checked immediately before opening. */
+  readonly meetingDir: string;
+}
+
+export interface MeetingPopulationService {
+  createNew(draft: CreateMeetingDraft): Promise<MeetingRecord>;
+  createAndLink(
+    draft: CreateMeetingDraft,
+    legacy: LegacyMeetingLinkInput
+  ): Promise<MeetingRecord>;
+  linkLegacy(
+    meetingId: MeetingRef,
+    legacy: LegacyMeetingLinkInput
+  ): Promise<MeetingRecord>;
+  openTarget(meetingId: MeetingRef): Promise<MeetingOpenTarget>;
+}
+
+export interface FirmMeetingDirectoryAuthorization {
+  /** A caller-owned permission check; false or a throwing check fails closed. */
+  isAuthorized(): boolean;
+  /** The exact canonical matters this caller may enumerate. */
+  allowedMatterIds(): readonly string[];
+}
+
+export interface FirmMeetingDirectoryReader {
+  list(): Promise<readonly MeetingProjection[]>;
+  get(id: MeetingRef): Promise<MeetingProjection | undefined>;
 }
 
 export interface MeetingArtifactInput {
@@ -395,6 +474,145 @@ const strings = (value: unknown, name: string): readonly string[] => {
   return [...new Set(clean)];
 };
 
+function normalizedPath(value: string, name: string): string {
+  const raw = nonEmpty(value, name).replace(/\\/g, '/');
+  if (raw.startsWith('/') || /^[A-Za-z]:\//.test(raw))
+    throw new Error(`${name} must be workspace-relative.`);
+  const parts = raw.split('/');
+  if (
+    parts.some((part) => !part || part === '.' || part === '..') ||
+    raw !== parts.join('/')
+  )
+    throw new Error(`${name} must be normalized and traversal-free.`);
+  return raw;
+}
+
+function normalizedAbsolutePath(value: string, name: string): string {
+  const raw = nonEmpty(value, name).replace(/\\/g, '/').replace(/\/+$/, '');
+  if (!raw.startsWith('/') && !/^[A-Za-z]:\//.test(raw))
+    throw new Error(`${name} must be absolute.`);
+  if (raw.split('/').some((part) => part === '.' || part === '..'))
+    throw new Error(`${name} must be normalized.`);
+  return raw;
+}
+
+function isInsidePath(child: string, parent: string): boolean {
+  return child === parent || child.startsWith(`${parent}/`);
+}
+
+function projectLegacyLink(value: unknown): LegacyMeetingLink | undefined {
+  if (value === undefined) return undefined;
+  if (!value || typeof value !== 'object')
+    throw new Error('Legacy meeting link is invalid.');
+  const raw = value as Record<string, unknown>;
+  return {
+    meetingDir: normalizedPath(
+      String(raw['meetingDir'] ?? ''),
+      'Legacy meeting folder'
+    ),
+    linkedAt: timestamp(raw['linkedAt'], 'Legacy meeting link timestamp'),
+  };
+}
+
+/**
+ * Validates the only supported legacy-to-canonical anchor.  This deliberately
+ * has no title, date, calendar-event, or caller-supplied household fallback.
+ */
+export async function validateLegacyMeetingLink(
+  meeting: MeetingProjection,
+  input: LegacyMeetingLinkInput,
+  context: LegacyMeetingLinkValidationContext
+): Promise<LegacyMeetingLink> {
+  if (nonEmpty(context.workspaceId, 'Link workspace') !== meeting.workspaceId)
+    throw new Error('Legacy meeting link belongs to a different workspace.');
+  const workspaceRoot = normalizedAbsolutePath(
+    context.workspaceRoot,
+    'Open workspace root'
+  );
+  const liveRoot = context.workspace.getRootPath();
+  if (
+    !liveRoot ||
+    normalizedAbsolutePath(liveRoot, 'Live workspace root') !== workspaceRoot
+  )
+    throw new Error(
+      'Legacy meeting link requires the named workspace to be open.'
+    );
+  const meetingDir = normalizedPath(input.meetingDir, 'Legacy meeting folder');
+  let resolvedDir = `${workspaceRoot}/${meetingDir}`;
+  if (
+    context.workspace.isSymlink &&
+    (await context.workspace.isSymlink(meetingDir))
+  ) {
+    if (!context.workspace.resolveSymlink)
+      throw new Error('Legacy meeting link cannot resolve its folder safely.');
+    resolvedDir = normalizedAbsolutePath(
+      await context.workspace.resolveSymlink(meetingDir),
+      'Resolved legacy meeting folder'
+    );
+  }
+  if (!isInsidePath(resolvedDir, workspaceRoot))
+    throw new Error(
+      'Legacy meeting folder resolves outside the open workspace.'
+    );
+  if (!(await context.workspace.exists(meetingDir)))
+    throw new Error('Legacy meeting folder is unavailable on this device.');
+
+  const matter = context.matters.find(
+    (candidate) => candidate.id === meeting.matterId
+  );
+  if (!matter)
+    throw new Error('Legacy meeting link has no mapped canonical matter.');
+  const mappedRoots = matter.folderPaths.map((folder) =>
+    normalizedAbsolutePath(folder, 'Matter folder root')
+  );
+  if (!mappedRoots.some((root) => isInsidePath(resolvedDir, root)))
+    throw new Error(
+      'Legacy meeting folder is outside its mapped matter folder.'
+    );
+  const households = [...new Set(matter.crmHouseholdKeys ?? [])];
+  if (households.length !== 1 || households[0] !== meeting.householdRef)
+    throw new Error(
+      'Legacy meeting link requires exactly one matching household.'
+    );
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(
+      await context.workspace.readFile(`${meetingDir}/meeting.json`)
+    );
+  } catch {
+    throw new Error('Legacy meeting metadata is unavailable.');
+  }
+  if (
+    !parsed ||
+    typeof parsed !== 'object' ||
+    (parsed as Record<string, unknown>)['matterId'] !== meeting.matterId
+  )
+    throw new Error('Legacy meeting metadata belongs to a different matter.');
+  return { meetingDir, linkedAt: now() };
+}
+
+/** Resolve a link again at open time: a relayed canonical record can outlive its local folder. */
+export async function resolveMeetingOpenTarget(
+  meeting: MeetingProjection,
+  context: LegacyMeetingLinkValidationContext
+): Promise<MeetingOpenTarget> {
+  if (!meeting.legacyLink)
+    throw new Error('This canonical meeting has no linked legacy detail.');
+  const verified = await validateLegacyMeetingLink(
+    meeting,
+    { meetingDir: meeting.legacyLink.meetingDir },
+    context
+  );
+  return {
+    kind: 'linked-legacy-meeting',
+    meeting,
+    client: { householdRef: meeting.householdRef, matterId: meeting.matterId },
+    legacyLink: { ...meeting.legacyLink, linkedAt: verified.linkedAt },
+    meetingDir: `${normalizedAbsolutePath(context.workspaceRoot, 'Open workspace root')}/${verified.meetingDir}`,
+  };
+}
+
 export function validateMeetingDraft(
   input: CreateMeetingDraft
 ): CreateMeetingDraft & { readonly references: readonly string[] } {
@@ -464,6 +682,7 @@ export function projectMeetingRecord(record: LiveCrmRecord): MeetingRecord {
     )
   )
     throw new Error('Meeting state is invalid.');
+  const legacyLink = projectLegacyLink(record['legacyMeetingLink']);
   return {
     id: nonEmpty(record.id, 'Meeting ID'),
     kind: 'meeting',
@@ -471,6 +690,7 @@ export function projectMeetingRecord(record: LiveCrmRecord): MeetingRecord {
     state: state as MeetingState,
     createdAt: nonEmpty(record.createdAt, 'Created timestamp'),
     updatedAt: nonEmpty(record.updatedAt, 'Updated timestamp'),
+    ...(legacyLink ? { legacyLink } : {}),
   };
 }
 
@@ -637,8 +857,119 @@ export function createMeetingStore(port: ClientScopedLivePort): MeetingStore {
         })
       );
     },
+    linkLegacy: async (id, input, context) => {
+      requireAvailable(port);
+      const fresh = await port.reloadRecords();
+      raw = (fresh ?? []).filter((candidate) => candidate.kind === 'meeting');
+      const rawRecord = getRaw(id);
+      if (!rawRecord) throw new Error('That meeting no longer exists.');
+      scope.assertOwns(rawRecord.matterId, 'Meeting');
+      const current = projectMeetingRecord(rawRecord);
+      const existing = current.legacyLink;
+      const requestedDir = normalizedPath(
+        input.meetingDir,
+        'Legacy meeting folder'
+      );
+      if (existing) {
+        if (existing.meetingDir !== requestedDir)
+          throw new Error(
+            'A canonical meeting cannot replace its legacy link.'
+          );
+        // Idempotency is still a real check: a moved/deleted or cross-device
+        // folder must not be reported as linked merely because an old record
+        // happened to contain the same string.
+        await validateLegacyMeetingLink(current, input, context);
+        return current;
+      }
+      const link = await validateLegacyMeetingLink(current, input, context);
+      return projectMeetingRecord(
+        await persist({
+          ...rawRecord,
+          updatedAt: now(),
+          legacyMeetingLink: link,
+        })
+      );
+    },
   };
   return store;
+}
+
+/**
+ * The forward population path.  New meetings are canonical first; attaching a
+ * legacy folder is optional and always goes through the anchor validation.
+ */
+export function createMeetingPopulationService(
+  port: ClientScopedLivePort,
+  context: LegacyMeetingLinkValidationContext
+): MeetingPopulationService {
+  const store = createMeetingStore(port);
+  return {
+    createNew: (draft) => store.createDraft(draft),
+    createAndLink: async (draft, legacy) => {
+      const created = await store.createDraft(draft);
+      return store.linkLegacy(created.id, legacy, context);
+    },
+    linkLegacy: (meetingId, legacy) =>
+      store.linkLegacy(meetingId, legacy, context),
+    openTarget: async (meetingId) => {
+      const meeting = await store.get(meetingId);
+      if (!meeting)
+        throw new Error('That meeting is unavailable to the active client.');
+      return resolveMeetingOpenTarget(meeting, context);
+    },
+  };
+}
+
+/**
+ * An explicit cross-client reader.  It has no active-client fallback: callers
+ * must present an authorization decision and an exact allowed-matter set on
+ * every read, otherwise it returns no records.
+ */
+export function createFirmMeetingDirectoryReader(
+  port: LivePort,
+  authorization: FirmMeetingDirectoryAuthorization
+): FirmMeetingDirectoryReader {
+  const permitted = () => {
+    try {
+      if (!authorization.isAuthorized()) return null;
+      const ids = authorization.allowedMatterIds();
+      if (
+        !Array.isArray(ids) ||
+        ids.some((id) => typeof id !== 'string' || !id.trim())
+      )
+        return null;
+      return new Set(ids);
+    } catch {
+      return null;
+    }
+  };
+  const read = async () => {
+    if (!port.workspaceRoot || port.error)
+      return [] as readonly MeetingProjection[];
+    const allowed = permitted();
+    if (!allowed || allowed.size === 0)
+      return [] as readonly MeetingProjection[];
+    let records: readonly LiveCrmRecord[];
+    try {
+      records = (await port.reloadRecords()) ?? [];
+    } catch {
+      return [] as readonly MeetingProjection[];
+    }
+    // Check authorization after the asynchronous reload as well. A permission
+    // revoke while the read is in flight must not leak the loaded result.
+    const stillAllowed = permitted();
+    if (!stillAllowed || stillAllowed.size === 0)
+      return [] as readonly MeetingProjection[];
+    return meetingRecords(records)
+      .filter((meeting) => stillAllowed.has(meeting.matterId))
+      .sort((left, right) =>
+        left.scheduledStartUtc.localeCompare(right.scheduledStartUtc)
+      );
+  };
+  return {
+    list: read,
+    get: async (id) => (await read()).find((meeting) => meeting.id === id),
+  };
 }
 
 function projectArtifact(
