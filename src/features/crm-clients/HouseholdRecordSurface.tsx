@@ -25,6 +25,11 @@ import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import { ContactEditor } from './ContactEditor';
 import { householdTabRegistry, type HouseholdTab } from './tabRegistry';
 import {
+  householdSectionContextFromRecordIdentity,
+  toMeetingClientBoundary,
+  type HouseholdRecordIdentity,
+} from './clientBoundary';
+import {
   getHouseholdAddActions,
   getHouseholdHeaderActions,
   getHouseholdRecordExtensions,
@@ -85,6 +90,7 @@ export function HouseholdRecordSurface({
   timelineRecords = [],
   timelineFreshness,
   onSaveActivityRecord,
+  householdIdentity,
 }: {
   household: HouseholdRecord;
   proposals?: readonly CrmProposal[];
@@ -94,6 +100,8 @@ export function HouseholdRecordSurface({
   timelineRecords?: readonly TimelineRecord[];
   timelineFreshness?: CrmEngineFreshness;
   onSaveActivityRecord?: (record: LiveCrmRecord) => unknown;
+  /** A live-record identity only; callers must not manufacture this linkage. */
+  householdIdentity?: HouseholdRecordIdentity;
 }) {
   const { t } = useTranslation();
   const [tab, setTab] = useState<HouseholdTab>('client_map');
@@ -110,8 +118,15 @@ export function HouseholdRecordSurface({
     import('./adapters').CrmPerson | null
   >(null);
   const sourceProposals = tab === 'client_map' ? [] : proposals;
+  const sectionContext = householdIdentity
+    ? householdSectionContextFromRecordIdentity(householdIdentity)
+    : undefined;
+  const clientBoundary = householdIdentity
+    ? toMeetingClientBoundary(householdIdentity)
+    : undefined;
   const recordContext: HouseholdRecordShellContext = {
     household,
+    ...(sectionContext ? { sectionContext } : {}),
     ...(actions ? { actions } : {}),
     ...(onSaveHousehold ? { onSaveHousehold } : {}),
     openPanel: (panel) => {
@@ -315,6 +330,7 @@ export function HouseholdRecordSurface({
         };
         return createElement(selectedTab.Component, {
           household,
+          ...(clientBoundary ? { clientBoundary } : {}),
           proposals: sourceProposals,
           ...(actions ? { actions } : {}),
           timelineRecords,

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import type { ContactRef } from '@/features/crm-contacts';
 import type { HouseholdRecord, CrmClientsActions, CrmPerson } from './adapters';
 import type { HouseholdTab } from './tabRegistry';
 
@@ -37,8 +38,19 @@ export interface HouseholdRecordExtensionContext<T> {
   save(value: T): Promise<void> | void;
 }
 
+/**
+ * The only public identity a household-section contributor may rely on.
+ * The shell's editor controls remain private to crm-clients.
+ */
+export interface HouseholdSectionContext {
+  householdRef: ContactRef;
+  matterId: string;
+}
+
 export interface HouseholdRecordShellContext {
   household: HouseholdRecord;
+  /** Present only when the live record supplied a verified matter linkage. */
+  sectionContext?: HouseholdSectionContext;
   actions?: CrmClientsActions;
   onSaveHousehold?: (household: HouseholdRecord) => Promise<void> | void;
   openPanel: (panel: HouseholdRecordPanel) => void;

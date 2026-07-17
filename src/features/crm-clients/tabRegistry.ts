@@ -3,6 +3,7 @@ import type { LucideIcon } from 'lucide-react';
 import type { CrmEngineFreshness } from '@/platform/crm/store';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import type { TimelineRecord } from '@/features/crm-timeline';
+import type { ClientBoundary } from '@/features/meetings';
 import type {
   CrmClientsActions,
   CrmProposal,
@@ -36,6 +37,8 @@ export type HouseholdTab = Extract<keyof HouseholdTabRouteMap, string>;
 
 export interface HouseholdTabSurfaceProps {
   household: HouseholdRecord;
+  /** Absent when the record surface has no authoritative matter linkage. */
+  clientBoundary?: ClientBoundary;
   proposals: readonly CrmProposal[];
   actions?: CrmClientsActions;
   timelineRecords: readonly TimelineRecord[];

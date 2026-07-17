@@ -18,6 +18,7 @@ import type {
   HouseholdRecord,
   SyncState,
 } from './adapters';
+import type { HouseholdRecordIdentity } from './clientBoundary';
 
 type StoredHousehold = LiveCrmRecord & Omit<HouseholdRecord, 'id' | 'syncState'>;
 
@@ -219,6 +220,23 @@ function ClientsSurfaceContent({
   const findRecord = useCallback((id: string): HouseholdRecord | undefined =>
     effectiveRecords.find((record) => record.id === id || recordMatterId(record) === id),
   [effectiveRecords, recordMatterId]);
+  const householdIdentityFor = useCallback((household: HouseholdRecord): HouseholdRecordIdentity | undefined => {
+    const liveHousehold = live.records.find(
+      (record) => record.id === household.id && record.kind === 'household'
+    );
+    const matterId = liveHousehold?.matterId;
+    if (!matterId || !matters.some((matter) => matter.id === matterId)) return undefined;
+    return {
+      householdRef: {
+        kind: 'household',
+        id: household.id,
+        matterId,
+        label: household.name,
+      },
+      matterId,
+      displayName: household.name,
+    };
+  }, [live.records, matters]);
 
   const selectHousehold = useCallback((id: string | null) => {
     const selectedRecord = id ? findRecord(id) : undefined;
@@ -288,6 +306,7 @@ function ClientsSurfaceContent({
 
   if (selected) {
     const current = selected;
+    const householdIdentity = householdIdentityFor(current);
     return (
       <HouseholdRecordSurface
         household={current}
@@ -297,6 +316,7 @@ function ClientsSurfaceContent({
         timelineRecords={live.records as readonly TimelineRecord[]}
         timelineFreshness={live.freshness}
         onSaveActivityRecord={live.save}
+        {...(householdIdentity ? { householdIdentity } : {})}
         actions={{
           ...actions,
           onSaveNote: async (note, notifyFirm) => {
