@@ -1,0 +1,18 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/lantern/app/integration/.worktrees/v1/w2-status-doorway
+sha: 93250652312213c2722b4dfe09080400326493f5
+tree: f0d2c587234e498eebe692d1eb7e947666246dfb
+gate_base: e7020de744cee2c7d97051c1d0efacc17a17d8f6
+tool_blob: 7912bf11eefdacea0702600b19d3bc5b3d7f2606
+utc: 2026-07-17T18:49:46Z
+step_timeout_seconds: 600
+loadavg: 7.56 7.96 7.18
+running_vitest_eslint_procs: 2
+step: gate:changed | status=PASS | exit=0 | 18:49:46Z..18:53:25Z | bytes=26794 | sha256=7ca1dbeed0b696d0bec2d26a2a048ef48896e2636c0bf33c255b03f2da1bfe1d | tail: t.js:26505:5) Test Files 92 passed (92) Tests 577 passed (577) Start at 18:52:35 Duration 49.54s (transform 15.20s, setup 13.95s, import 102.52s, tests 38.26s, environment 30.70s) CHANGED GATE GREEN
+step: typecheck | status=PASS | exit=0 | 18:53:25Z..18:53:48Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit
+step: typecheck:tests | status=PASS | exit=0 | 18:53:48Z..18:54:16Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit
+step: handle-guard | status=PASS | exit=0 | 18:54:16Z..18:54:16Z | bytes=1329 | sha256=377c098568becd16e514ecf9b07c05d464e08e6b1d773c2ddae8d7737fdd34a8 | tail: -unavailable + calendar-event-context + calendar-event-end + calendar-event-notes +403 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen).
+step: arch-dag-guard | status=PASS | exit=0 | 18:54:16Z..18:54:17Z | bytes=255 | sha256=8110a85ac4008a45d27c5a925a52520a0d6712c60065a3f046a43f3890ec2f3e | tail: /app/integration/.worktrees/v1/w2-status-doorway Test Files 1 passed (1) Tests 1 passed (1) Start at 18:54:16 Duration 978ms (transform 230ms, setup 365ms, import 251ms, tests 3ms, environment 268ms)
+step: i18n-snapshot | status=PASS | exit=0 | 18:54:17Z..18:54:18Z | bytes=256 | sha256=597f6b8657d10d4d66a55d15d114b90c294c205d2a3c22ed43d4d5dae6ae49d2 | tail: app/integration/.worktrees/v1/w2-status-doorway Test Files 1 passed (1) Tests 5 passed (5) Start at 18:54:17 Duration 896ms (transform 216ms, setup 312ms, import 214ms, tests 17ms, environment 268ms)
+overall: GREEN
