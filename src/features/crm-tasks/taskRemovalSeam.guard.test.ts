@@ -4,7 +4,10 @@ import { describe, expect, it } from 'vitest';
 
 const ROOT = process.cwd();
 
-function productionFiles(directory: string, extensions: readonly string[]): string[] {
+function productionFiles(
+  directory: string,
+  extensions: readonly string[]
+): string[] {
   const files: string[] = [];
   for (const entry of readdirSync(directory)) {
     const path = resolve(directory, entry);
@@ -30,22 +33,40 @@ function filesContaining(files: readonly string[], pattern: RegExp): string[] {
 
 describe('task removal single-path guard', () => {
   it('keeps task removal behind the public task store and the shared trash authority', () => {
-    const taskFiles = productionFiles(
-      resolve(ROOT, 'src/features/crm-tasks'),
-      ['.ts', '.tsx']
-    );
-    const rendererFiles = productionFiles(resolve(ROOT, 'src'), ['.ts', '.tsx']);
-    const rustFiles = productionFiles(resolve(ROOT, 'src-tauri/src'), ['.rs']);
-
-    expect(filesContaining(taskFiles, /\bsoftDeleteCrmRecord\b/)).toEqual([
-      'src/features/crm-tasks/taskRecordStore.ts',
+    const taskFiles = productionFiles(resolve(ROOT, 'src/features/crm-tasks'), [
+      '.ts',
+      '.tsx',
     ]);
-    expect(filesContaining(taskFiles, /crm_trash_/)).toEqual([]);
-    expect(filesContaining(rendererFiles, /['"]crm_trash_soft_delete['"]/)).toEqual([
+    const rendererFiles = productionFiles(resolve(ROOT, 'src'), [
+      '.ts',
+      '.tsx',
+    ]);
+    const rustFiles = productionFiles(resolve(ROOT, 'src-tauri/src'), ['.rs']);
+    const productionSourceFiles = [...rendererFiles, ...rustFiles];
+
+    expect(filesContaining(rendererFiles, /\bsoftDeleteCrmRecord\b/)).toEqual([
+      'src/features/crm-tasks/taskRecordStore.ts',
+      'src/features/crm-trash/index.ts',
       'src/features/crm-trash/trashClient.ts',
     ]);
-    expect(filesContaining(rustFiles, /DELETE\s+FROM\s+crm_docs/i)).toEqual([
+    expect(filesContaining(taskFiles, /crm_trash_/)).toEqual([]);
+    expect(
+      filesContaining(rendererFiles, /['"]crm_trash_soft_delete['"]/)
+    ).toEqual(['src/features/crm-trash/trashClient.ts']);
+    expect(
+      filesContaining(
+        productionSourceFiles,
+        /\bpermanentlyPurgeTrashedCrmRecord\b/
+      )
+    ).toEqual(['src/features/crm-trash/trashClient.ts']);
+    expect(
+      filesContaining(productionSourceFiles, /\bcrm_trash_purge\b/)
+    ).toEqual([
       'src-tauri/src/commands/crm/features/trash/commands.rs',
+      'src/features/crm-trash/trashClient.ts',
     ]);
+    expect(
+      filesContaining(productionSourceFiles, /\bpermanently_purge_record\b/)
+    ).toEqual(['src-tauri/src/commands/crm/features/trash/commands.rs']);
   });
 });
