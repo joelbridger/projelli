@@ -717,7 +717,7 @@ function TaskDetail({
                 <option value="low">Low priority</option>
               </select>
               <PriorityBadge
-                priority={draft.priority}
+                priority={task.priority}
                 testId="crm-task-priority-preview"
                 announce
               />

@@ -1,32 +1,55 @@
 import {
   fireEvent,
   render,
-  renderHook,
   screen,
   waitFor,
   within,
 } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CrmTask } from '@/features/crm-home/types';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 
 const canonical = vi.hoisted(() => ({
   records: [] as LiveCrmRecord[],
-  save: vi.fn<(record: LiveCrmRecord) => Promise<LiveCrmRecord>>(),
-  reload: vi.fn<() => Promise<void>>(),
+  commands: [] as string[],
+  invoke:
+    vi.fn<
+      (
+        command: string,
+        args?: { record?: LiveCrmRecord }
+      ) => Promise<unknown>
+    >(),
 }));
 
-vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
-  useLiveCrmRecords: () => ({
-    records: canonical.records,
-    save: canonical.save,
-    reload: canonical.reload,
-    workspaceRoot: '/workspace',
-    error: null,
-  }),
+vi.mock('@tauri-apps/api/core', () => ({
+  isTauri: () => true,
+  invoke: (command: string, args?: { record?: LiveCrmRecord }) =>
+    canonical.invoke(command, args),
+}));
+vi.mock('@/platform/utils/wealthbox-commands', () => ({
+  crmSetWorkspace: () => Promise.resolve(),
+}));
+vi.mock('@/platform/fs/workspaceStore', () => ({
+  useWorkspaceStore: <T,>(selector: (state: { rootPath: string }) => T) =>
+    selector({ rootPath: '/workspace' }),
+}));
+vi.mock('@/platform/matter/matterStore', () => ({
+  useMatterStore: <T,>(
+    selector: (state: { matters: []; activeMatterId: null }) => T
+  ) => selector({ matters: [], activeMatterId: null }),
+}));
+vi.mock('@/platform/crm/store', () => ({
+  getCrmEngineFreshness: () => ({ kind: 'idle' }),
+  subscribeCrmEngineFreshness: () => () => undefined,
+}));
+vi.mock('@/platform/crm/liveRecordRelay', () => ({
+  clearLiveRecordRelay: vi.fn(),
+  ensureLiveRecordRelay: vi.fn(() => Promise.resolve(null)),
+  removeLiveRecordRelayWriter: vi.fn(),
+  publishLiveRecord: vi.fn(),
 }));
 
-import { useTaskRecordStore } from './taskRecordStore';
+import { CrmHome } from '@/features/crm-home/CrmHome';
 import { Tasks } from './Tasks';
 
 function task(id: string, priority: CrmTask['priority']): CrmTask {
@@ -62,20 +85,30 @@ function renderTasks(
 describe('task priority urgency', () => {
   beforeEach(() => {
     canonical.records = [];
-    canonical.save.mockReset();
-    canonical.reload.mockReset();
-    canonical.save.mockImplementation((record) => {
-      const saved = structuredClone(record);
-      canonical.records = canonical.records.some(
-        (candidate) => candidate.id === saved.id
-      )
-        ? canonical.records.map((candidate) =>
-            candidate.id === saved.id ? saved : candidate
-          )
-        : [...canonical.records, saved];
-      return Promise.resolve(structuredClone(saved));
+    canonical.commands = [];
+    canonical.invoke.mockReset();
+    canonical.invoke.mockImplementation((command, args) => {
+      canonical.commands.push(command);
+      if (command === 'crm_live_list') {
+        return Promise.resolve(structuredClone(canonical.records));
+      }
+      if (command === 'crm_live_upsert' && args?.record) {
+        const saved = structuredClone(args.record);
+        canonical.records = canonical.records.some(
+          (candidate) => candidate.id === saved.id
+        )
+          ? canonical.records.map((candidate) =>
+              candidate.id === saved.id ? saved : candidate
+            )
+          : [...canonical.records, saved];
+        return Promise.resolve(structuredClone(saved));
+      }
+      return Promise.reject(new Error(`Unexpected command ${command}`));
     });
-    canonical.reload.mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
   });
 
   it('shows readable words and distinct shapes for every priority in the task list', () => {
@@ -106,7 +139,27 @@ describe('task priority urgency', () => {
     ).toBeInTheDocument();
   });
 
-  it('keeps the normal legacy default and round-trips a keyboard priority edit through the canonical store', async () => {
+  it('keeps the saved marker visible when a draft priority edit is cancelled', () => {
+    renderTasks([task('task-cancelled', 'normal')]);
+
+    fireEvent.click(screen.getByTestId('crm-task-open-task-cancelled'));
+    const detail = screen.getByTestId('crm-task-detail');
+    const select = within(detail).getByRole('combobox', {
+      name: 'Task priority: Normal priority',
+    });
+    fireEvent.change(select, { target: { value: 'high' } });
+
+    expect(select).toHaveAccessibleName('Task priority: High priority');
+    expect(
+      within(detail).getByRole('status', { name: 'Normal priority' })
+    ).toHaveTextContent('◆Normal priority');
+    fireEvent.click(within(detail).getByRole('button', { name: 'Close' }));
+    expect(
+      screen.getByTestId('crm-task-priority-label-task-cancelled')
+    ).toHaveAccessibleName('Normal priority');
+  });
+
+  it('keeps the normal legacy default and round-trips a keyboard priority edit through the live Tasks adapter and canonical reload', async () => {
     canonical.records = [
       {
         id: 'task-legacy',
@@ -120,27 +173,10 @@ describe('task priority urgency', () => {
         contextRefs: [],
       },
     ];
-    const writer = renderHook(() => useTaskRecordStore());
-    const legacy = await writer.result.current.get('task-legacy');
-    expect(legacy?.priority).toBe('normal');
-
-    const displayed: CrmTask = {
-      id: 'task-legacy',
-      title: legacy?.title ?? 'Legacy review',
-      assigneeUserId: null,
-      status: 'open',
-      priority: legacy?.priority ?? 'normal',
-      tagIds: [],
-    };
-    const updateTask = vi.fn(async (updated: CrmTask) => {
-      await writer.result.current.update(updated.id, {
-        priority: updated.priority,
-      });
-    });
-    renderTasks([displayed], updateTask);
+    const mounted = render(<CrmHome initialRoute="tasks" />);
 
     expect(
-      screen.getByTestId('crm-task-priority-label-task-legacy')
+      await screen.findByTestId('crm-task-priority-label-task-legacy')
     ).toHaveAccessibleName('Normal priority');
     fireEvent.click(screen.getByTestId('crm-task-open-task-legacy'));
 
@@ -154,25 +190,36 @@ describe('task priority urgency', () => {
 
     expect(select).toHaveAccessibleName('Task priority: High priority');
     expect(
-      screen.getByRole('status', { name: 'High priority' })
-    ).toHaveTextContent('▲High priority');
+      within(detail).getByRole('status', { name: 'Normal priority' })
+    ).toHaveTextContent('◆Normal priority');
     fireEvent.click(screen.getByTestId('crm-task-save'));
 
     await waitFor(() => {
-      expect(updateTask).toHaveBeenCalledWith(
-        expect.objectContaining({ id: 'task-legacy', priority: 'high' })
-      );
-      expect(canonical.save).toHaveBeenCalledWith(
-        expect.objectContaining({ id: 'task-legacy', priority: 'high' })
-      );
-      expect(canonical.reload).toHaveBeenCalledOnce();
+      expect(
+        canonical.records.find((record) => record.id === 'task-legacy')
+      ).toMatchObject({ kind: 'task', priority: 'high' });
+      expect(screen.queryByTestId('crm-task-detail')).not.toBeInTheDocument();
     });
-    writer.unmount();
+    const taskUpsert = canonical.invoke.mock.calls.findIndex(
+      ([command, args]) =>
+        command === 'crm_live_upsert' && args?.record?.id === 'task-legacy'
+    );
+    expect(taskUpsert).toBeGreaterThanOrEqual(0);
+    expect(
+      canonical.commands.slice(taskUpsert + 1)
+    ).toContain('crm_live_list');
+    mounted.unmount();
 
-    const freshReader = renderHook(() => useTaskRecordStore());
-    await expect(
-      freshReader.result.current.get('task-legacy')
-    ).resolves.toMatchObject({ priority: 'high' });
-    freshReader.unmount();
+    const loadsBeforeReopen = canonical.commands.filter(
+      (command) => command === 'crm_live_list'
+    ).length;
+    render(<CrmHome initialRoute="tasks" />);
+    expect(
+      await screen.findByTestId('crm-task-priority-label-task-legacy')
+    ).toHaveAccessibleName('High priority');
+    expect(
+      canonical.commands.filter((command) => command === 'crm_live_list')
+        .length
+    ).toBeGreaterThan(loadsBeforeReopen);
   });
 });
