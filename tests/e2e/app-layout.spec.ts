@@ -4,6 +4,7 @@
  */
 
 import { test, expect } from '@playwright/test';
+import { BRAND } from '../../src/config/brand';
 import { waitForAppLoad, waitForTestModeLoad, hardClick } from './helpers/test-utils';
 
 test.describe('App Layout', () => {
@@ -43,10 +44,11 @@ test.describe('Spine Navigation (test mode)', () => {
   });
 
   test('spine has exactly the 3 IA rail destinations (and not the demoted ones)', async ({ page }) => {
-    const expectedTabs = ['matters', 'search', 'workflows'];
+    const expectedTabs = ['home', 'matters', 'search'];
     for (const tabId of expectedTabs) {
       await expect(page.getByTestId(`spine-nav-${tabId}`)).toBeVisible();
     }
+    await expect(page.getByTestId('spine-nav-workflows')).toHaveCount(0);
     // Documents / Email / Activity Log / Privacy Center / Settings relocated —
     // they are no longer rail tabs (reached via the client hub + the gear).
     for (const tabId of ['files', 'email', 'audit', 'privacy', 'settings']) {
@@ -56,7 +58,7 @@ test.describe('Spine Navigation (test mode)', () => {
 
   test('top bar owns the logo and no longer renders the global Back button', async ({ page }) => {
     const header = page.getByTestId('app-header');
-    const logo = header.getByRole('img', { name: 'Lantern' });
+    const logo = header.getByRole('img', { name: BRAND.name });
 
     await expect(logo).toBeVisible();
     await expect(logo).toHaveAttribute('src', /\/logo-dark\.svg$/);
@@ -95,9 +97,9 @@ test.describe('Spine Navigation (test mode)', () => {
     await expect(page.getByRole('heading', { name: 'Ask' })).toBeVisible();
     await expect(page.getByTestId('ask-composer-input')).toBeVisible();
 
-    await hardClick(page.getByTestId('spine-nav-workflows'));
-    await expect(page.getByTestId('associate-home')).toBeVisible();
-    await expect(page.getByTestId('associate-surface-header')).toContainText('Workflows');
+    await hardClick(page.getByTestId('spine-nav-home'));
+    await hardClick(page.getByTestId('crm-home-nav-workflows'));
+    await expect(page.getByTestId('crm-screen-workflows')).toBeVisible();
 
     // Back to the Client Map — content switches away from Ask.
     await hardClick(page.getByTestId('spine-nav-matters'));
