@@ -1,0 +1,15 @@
+{
+  "active-integrations": {
+    "title": "Integraciones activas",
+    "description": "Revisa el estado actual de cada conexión, a qué puede acceder y su propio control de desconexión segura.",
+    "connector-owned-note": "Esta integración administra el estado, el acceso y la desconexión.",
+    "status-and-access": "Estado y acceso",
+    "disconnect-control": "Control de desconexión segura",
+    "omitted-card_one": "No se pudo mostrar una integración porque sus controles no están disponibles.",
+    "omitted-card_other": "No se pudieron mostrar {{count}} integraciones porque sus controles no están disponibles.",
+    "empty-title": "No hay integraciones disponibles",
+    "empty-description": "No hay tarjetas de conexión disponibles para administrar aquí.",
+    "unavailable-title": "Los detalles de las integraciones no están disponibles",
+    "unavailable-description": "No se pudo comprobar la lista de conexiones de forma segura. No se muestran estados ni opciones de desconexión inventados."
+  }
+}

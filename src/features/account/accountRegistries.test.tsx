@@ -1,5 +1,6 @@
 import { createElement } from 'react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { setDevFlagOverride } from '@/platform/flags';
 import {
   getAccountSectionDescriptors,
   validateAccountSectionDescriptors,
@@ -8,10 +9,9 @@ import {
   getConnectionCardDescriptors,
   validateConnectionCardDescriptors,
 } from './connectionCardRegistry';
-import type {
-  AccountSectionDescriptor,
-} from './accountRegistryTypes';
+import type { AccountSectionDescriptor } from './accountRegistryTypes';
 import type { ConnectionCardDescriptor } from '@/platform/types/account';
+import { ActiveIntegrationsSection } from './active-integrations';
 
 declare module '@/platform/types/account' {
   interface AccountSectionIdMap {
@@ -22,6 +22,10 @@ declare module '@/platform/types/account' {
     'dummy-card': true;
   }
 }
+
+afterEach(() => {
+  setDevFlagOverride('active-integrations', undefined);
+});
 
 function section(
   overrides: Partial<AccountSectionDescriptor> = {}
@@ -55,6 +59,7 @@ function card(
 
 describe('Account registries', () => {
   it('preserves the current Account section order and mounts a new section from its descriptor', () => {
+    setDevFlagOverride('active-integrations', false);
     const sections = getAccountSectionDescriptors();
     expect(sections.map((descriptor) => descriptor.id)).toEqual([
       'account',
@@ -65,6 +70,25 @@ describe('Account registries', () => {
     const dummy = getAccountSectionDescriptors([...sections, section()]).at(-1);
     expect(dummy).toBeDefined();
     expect(dummy?.render({})).toMatchObject({ type: 'div' });
+  });
+
+  it('appends exactly one active-integrations section through the real Account registry only while enabled', () => {
+    setDevFlagOverride('active-integrations', false);
+    expect(
+      getAccountSectionDescriptors().filter(
+        (descriptor) => descriptor.id === 'active-integrations'
+      )
+    ).toHaveLength(0);
+
+    setDevFlagOverride('active-integrations', true);
+    const enabled = getAccountSectionDescriptors();
+    const mounted = enabled.filter(
+      (descriptor) => descriptor.id === 'active-integrations'
+    );
+    expect(mounted).toHaveLength(1);
+    expect(mounted[0]?.render({})).toMatchObject({
+      type: ActiveIntegrationsSection,
+    });
   });
 
   it('preserves connection-card order and mounts a new card from its descriptor', () => {
@@ -87,6 +111,13 @@ describe('Account registries', () => {
       'redtail',
       'ollama',
     ]);
+    expect(
+      cards.every(
+        (descriptor) =>
+          typeof descriptor.renderStatus === 'function' &&
+          typeof descriptor.renderSafeDisconnect === 'function'
+      )
+    ).toBe(true);
     expect(
       getConnectionCardDescriptors('developer-tools').map(
         (descriptor) => descriptor.id

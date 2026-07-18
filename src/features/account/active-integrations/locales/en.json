@@ -1,0 +1,15 @@
+{
+  "active-integrations": {
+    "title": "Active integrations",
+    "description": "Review each connection's current status, what it can access, and its own safe disconnect control.",
+    "connector-owned-note": "Status, access, and disconnect are managed by this integration.",
+    "status-and-access": "Status and access",
+    "disconnect-control": "Safe disconnect control",
+    "omitted-card_one": "One integration could not be shown because its controls are unavailable.",
+    "omitted-card_other": "{{count}} integrations could not be shown because their controls are unavailable.",
+    "empty-title": "No integrations are available",
+    "empty-description": "There are no connection cards available to manage here.",
+    "unavailable-title": "Integration details are unavailable",
+    "unavailable-description": "The connection list could not be checked safely. No status or disconnect option is being guessed at."
+  }
+}
