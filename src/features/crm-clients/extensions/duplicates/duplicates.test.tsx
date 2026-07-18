@@ -2,6 +2,7 @@ import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import {
+  ClientsSurface,
   DirectorySurface,
   defaultDirectoryComposition,
 } from '@/features/crm-clients';
@@ -239,13 +240,12 @@ describe('CRM duplicate review', () => {
     setDevFlagOverride('crm-duplicates', true);
     const openContact = vi.fn(() => Promise.resolve());
     render(
-      <DirectorySurface
-        people={[]}
+      <ClientsSurface
         directoryRepository={{
           openContact,
           resolveContact: vi.fn(() => Promise.resolve(null)),
         }}
-        composition={defaultDirectoryComposition}
+        directoryComposition={defaultDirectoryComposition}
       />
     );
 

@@ -5,7 +5,7 @@ import { readSelectedCrmHousehold, writeSelectedCrmHousehold } from '@/platform/
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import type { Matter } from '@/platform/types/matter';
 import { DirectorySurface } from './DirectorySurface';
-import type { DirectoryComposition } from './directoryRegistry';
+import type { DirectoryComposition, DirectoryRepository } from './directoryRegistry';
 import { HouseholdRecordSurface } from './HouseholdRecordSurface';
 import type { TimelineRecord } from '@/features/crm-timeline';
 import type {
@@ -124,7 +124,7 @@ function householdFromMatter(matter: Matter, currentSyncState: SyncState): House
  * SQLCipher-backed household record and is reloaded after a desktop restart.
  */
 export function ClientsSurface({
-  households = [], people = [], records = [], proposals = [], actions, directoryComposition,
+  households = [], people = [], records = [], proposals = [], actions, directoryComposition, directoryRepository,
 }: {
   households?: readonly HouseholdDirectoryEntry[];
   people?: readonly CrmPerson[];
@@ -132,6 +132,7 @@ export function ClientsSurface({
   proposals?: readonly CrmProposal[];
   actions?: CrmClientsActions;
   directoryComposition?: DirectoryComposition;
+  directoryRepository?: DirectoryRepository;
 }) {
   const live = useLiveCrmRecords();
   return (
@@ -144,12 +145,13 @@ export function ClientsSurface({
       proposals={proposals}
       {...(actions ? { actions } : {})}
       {...(directoryComposition ? { directoryComposition } : {})}
+      {...(directoryRepository ? { directoryRepository } : {})}
     />
   );
 }
 
 function ClientsSurfaceContent({
-  live, households = [], people = [], records = [], proposals = [], actions, directoryComposition,
+  live, households = [], people = [], records = [], proposals = [], actions, directoryComposition, directoryRepository,
 }: {
   live: ReturnType<typeof useLiveCrmRecords>;
   households?: readonly HouseholdDirectoryEntry[];
@@ -158,6 +160,7 @@ function ClientsSurfaceContent({
   proposals?: readonly CrmProposal[];
   actions?: CrmClientsActions;
   directoryComposition?: DirectoryComposition;
+  directoryRepository?: DirectoryRepository;
 }) {
   const matters = useActiveMatters();
   const clientMapHubId = useMatterStore((state) => state.clientMapHubId);
@@ -365,6 +368,7 @@ function ClientsSurfaceContent({
       }}
       error={live.error}
       {...(directoryComposition ? { composition: directoryComposition } : {})}
+      {...(directoryRepository ? { directoryRepository } : {})}
     />
   );
 }
