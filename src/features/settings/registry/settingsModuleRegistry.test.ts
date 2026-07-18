@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { createElement } from 'react';
+import { setDevFlagOverride } from '@/platform/flags';
 import {
   BASE_SETTINGS_SCHEMA,
   SETTINGS_SCHEMA,
@@ -19,6 +22,7 @@ import type {
 
 describe('settingsModuleRegistry', () => {
   afterEach(() => {
+    setDevFlagOverride('booking-availability', undefined);
     vi.doUnmock('@/platform/flags/router');
     vi.doUnmock('./legacySettingsSections');
     vi.doUnmock('@/features/crm-firm');
@@ -313,8 +317,7 @@ describe('settingsModuleRegistry', () => {
         getSettingsSectionDescriptors(),
         settingsPanelRegistry
       );
-    }
-    ).not.toThrow();
+    }).not.toThrow();
   });
 
   it('registers booking availability as the dark Scheduling panel', () => {
@@ -332,6 +335,25 @@ describe('settingsModuleRegistry', () => {
     expect(getSettingsPanelDescriptors('scheduling')).not.toContain(
       bookingAvailability
     );
+  });
+
+  it('mounts the real booking availability panel through the enabled Settings doorway', () => {
+    setDevFlagOverride('booking-availability', true);
+
+    const bookingAvailability = getSettingsPanelDescriptors('scheduling').find(
+      (panel) => panel.id === 'booking-availability'
+    );
+
+    expect(bookingAvailability).toBeDefined();
+    if (!bookingAvailability) {
+      throw new Error('Expected the enabled booking availability Settings panel');
+    }
+
+    render(createElement(bookingAvailability.render));
+
+    expect(
+      screen.getByTestId('booking-availability-settings')
+    ).toBeInTheDocument();
   });
 
   it('hides a registered flag-gated panel while dark and restores it when enabled', async () => {
@@ -390,7 +412,7 @@ describe('settingsModuleRegistry', () => {
       ...(await importOriginal<typeof import('@/features/booking')>()),
       bookingAvailabilitySettingsPanel: {
         id: 'booking-availability',
-        section: 'organization',
+        section: 'scheduling',
         order: 100,
         flagId: 'booking-availability',
         render: () => null,

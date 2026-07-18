@@ -1,14 +1,53 @@
 # Booking availability receipt
 
-## Restoration proof
+Historical snapshot: `5713b4ba8`.
 
-- Restored source snapshot: `5713b4ba8`. The eight availability descendants are byte-clean against that source: `BookingAvailabilitySettings.tsx`, `BookingAvailabilitySettings.test.tsx`, `index.ts`, `settingsModuleDescriptor.tsx`, and `locales/{de,en,es}.json`.
-- The feature reaches Calendar only through `@/features/calendar`'s public doorway. The aggregate writer is the one `calendar_settings` record; it reloads the canonical record after saving and migrates legacy split capability/availability records on the next save.
-- The Settings mount calls `useFlag('booking-availability')` and returns before Calendar hooks, occurrence reads, busy-block work, or slot work. The flag descriptor is default-off.
+## Complete 19-path blob comparison
 
-## Final verification
+| Path | Historical blob SHA | Current blob SHA | Byte-clean |
+| --- | --- | --- | --- |
+| `src/features/booking/availability/BookingAvailabilitySettings.test.tsx` | `9576df96f0dc1c22a246309680f70faab188d25a` | `9576df96f0dc1c22a246309680f70faab188d25a` | yes |
+| `src/features/booking/availability/BookingAvailabilitySettings.tsx` | `d500bc2e86a731b150ad595215281913c68a4252` | `d500bc2e86a731b150ad595215281913c68a4252` | yes |
+| `src/features/booking/availability/evidence/receipt.md` | `aafbe2eafa59bc2bde92fd7845eeb6cb9153c281` | self-referential; final SHA is in the lane report | no |
+| `src/features/booking/availability/index.ts` | `336b4b27b2c1ad8eb5522912bff189d64d019e09` | `336b4b27b2c1ad8eb5522912bff189d64d019e09` | yes |
+| `src/features/booking/availability/locales/de.json` | `ec9029d8030c4c7ba3278cd541276ac8cdd98af5` | `ec9029d8030c4c7ba3278cd541276ac8cdd98af5` | yes |
+| `src/features/booking/availability/locales/en.json` | `a424d268f497044348fe2c6b3ca34e56d17ec3ec` | `a424d268f497044348fe2c6b3ca34e56d17ec3ec` | yes |
+| `src/features/booking/availability/locales/es.json` | `d2059d85c168e6ee9393549c5bd2f15c14a9213f` | `d2059d85c168e6ee9393549c5bd2f15c14a9213f` | yes |
+| `src/features/booking/availability/settingsModuleDescriptor.tsx` | `9cbbfa75507a4836f6103fc84c9cffd15924f65c` | `9cbbfa75507a4836f6103fc84c9cffd15924f65c` | yes |
+| `src/features/booking/index.ts` | `a5419fe6554bdac34ef94151d32ff89b0290d2aa` | `a5419fe6554bdac34ef94151d32ff89b0290d2aa` | yes |
+| `src/features/calendar/core/index.ts` | `203b67256d727d2c247a872c4fe1c32169309331` | `203b67256d727d2c247a872c4fe1c32169309331` | yes |
+| `src/features/calendar/core/settingsStores.ts` | `653dbf8f96f1abf9c1dca09a4aa0a1de68b51784` | `653dbf8f96f1abf9c1dca09a4aa0a1de68b51784` | yes |
+| `src/features/calendar/core/types.ts` | `4302a289625d37ce5bb02e4c06dea3b019a5165a` | `4302a289625d37ce5bb02e4c06dea3b019a5165a` | yes |
+| `src/features/calendar/testing/index.ts` | `f4b22939e42ade527bb86c531af0d21d9501d232` | `f4b22939e42ade527bb86c531af0d21d9501d232` | yes |
+| `src/features/calendar/testing/roundTripCalendarFoundation.test.tsx` | `7499a246e66844bdcd0e88ee97efff2c6f6ac48f` | `7499a246e66844bdcd0e88ee97efff2c6f6ac48f` | yes |
+| `src/features/settings/registry/settingsModuleRegistry.test.ts` | `da5bc8d384a47dec45cd413bf6f4bb11ef095f64` | `7c545b40f9ae1efa727856f20fd8d02947badeb9` | no |
+| `src/features/settings/registry/settingsModuleRegistry.ts` | `96f48861de7a01c83b14760cbeb2a724348639ac` | `33e62c03a26bf9b238fba9e7d4f348e7cf272a43` | no |
+| `src/platform/flags/registry.ts` | `280c957bec91b613994d73897d3c957b3ddb9334` | `a662e2c5152b3e776467f7678ce8cb65f6e551fa` | no |
+| `tests/public-imports/calendar-booking-availability.ts` | `ffd73a8cf9c91a82e8466eefbc00d878281e3398` | `ffd73a8cf9c91a82e8466eefbc00d878281e3398` | yes |
+| `tests/unit/architecture-boundaries.test.ts` | `fd57d21995d83f6c77cc6a367bd69726ddacc73a` | `a13e5dff8718b2356464ef0095921eea9b536348` | no |
 
-- Focused command: `npm test -- src/features/booking/availability/BookingAvailabilitySettings.test.tsx src/features/calendar/testing/roundTripCalendarFoundation.test.tsx src/features/settings/registry/settingsModuleRegistry.test.ts tests/public-imports/calendar-foundation.compile.test.ts tests/unit/architecture-boundaries.test.ts` — PASS (5 files, 35 tests).
-- Flag-off lint coverage: `npx eslint src/features/booking/availability/BookingAvailabilitySettings.tsx src/features/booking/availability/BookingAvailabilitySettings.test.tsx src/features/booking/availability/index.ts src/features/booking/availability/settingsModuleDescriptor.tsx` — PASS; this explicitly includes every restored TypeScript/TSX availability source file.
-- `npm run typecheck:tests` — PASS. `node scripts/ui-system/handle-guard.mjs` — PASS. `npm run gate` — PASS.
-- Rust/native touched: NO.
+The receipt row cannot contain its own final Git blob ID: that ID is calculated from these exact bytes, including the ID cell. The committed, non-self-referential lane report records that final value.
+
+## Every differing hunk and its current doorway
+
+| File and line group | Current doorway served | Why this is the smallest difference |
+| --- | --- | --- |
+| `settingsModuleRegistry.ts`: `@/features/meetings` import | The existing Settings registry mounts `meetingIntelligenceSettingsPanel` and `meetingKeywordsSettingsPanel` through the Meetings public export. | Retains the two current registry entries; removing either would make a current Settings panel unreachable. |
+| `settingsModuleRegistry.ts`: `SettingsModuleDescriptor`, mutable registry, and `settingsModuleRegistry.register` | The current public Settings contribution doorway is `settingsModuleRegistry.register`, and `getSettingsPanelDescriptors` reads that same mutable list. | Preserves the present registry contract while leaving the restored Booking registration as its one historical descriptor line. |
+| `settingsModuleRegistry.ts`: Meetings entries in the panel list | The Settings panel list reaches the two current Meetings descriptors. | Keeps only those existing descriptor entries needed by the current registry list. |
+| `settingsModuleRegistry.test.ts`: testing-library/React/flag imports and `afterEach` override reset | The test reaches the real Settings descriptor render doorway while resetting the development flag override after the test. | Adds only the tools and cleanup needed for the live mount proof; no product code changes. |
+| `settingsModuleRegistry.test.ts`: enabled mount test | `getSettingsPanelDescriptors('scheduling')` returns the descriptor, whose real `render` function mounts `BookingAvailabilitySettingsMount`. | A real render plus the panel test id fails if the public Booking export or registered render doorway is null or a stub. |
+| `settingsModuleRegistry.test.ts`: Scheduling fixture and Booking mock section | The mocked registry still validates the real descriptor's `scheduling` section shape. | One minimal fixture section and matching mock section preserve registry validity without broadening the test fixture. |
+| `flags/registry.ts`: six current flag descriptors before `booking-availability` | `flagRegistry` is the closed-union doorway for current Calendar Write, workflow quick-add, public booking calendar, calendar grid, meeting-keyword, and calendar-add-event flags. | Retains exactly the six pre-existing current flags; the restored default-off Booking flag remains a separate historical descriptor. |
+| `architecture-boundaries.test.ts`: `calendar-add-event->calendar` | The boundary allowlist admits Calendar Add Event's public Calendar import. | Adds one existing public feature edge and does not alter the boundary checker. |
+| `architecture-boundaries.test.ts`: current `booking->calendar` comment plus `calendarWrite->calendar` and `calendar-grid->calendar` | The allowlist admits the current public booking page, Calendar Write, and Calendar Grid Calendar doorways. | Keeps only the three existing current public edges and their reasons; no rule or scan change. |
+| `architecture-boundaries.test.ts`: `scheduling->calendar-grid` and `scheduling->calendar-add-event` | The Scheduling surface composes the two feature-owned descriptors through their public exports. | Adds only the two existing composition edges; the restored `settings->booking` entry remains the historical line. |
+| `availability/evidence/receipt.md`: full replacement | This evidence receipt is the restoration-proof doorway for the Booking availability lane. | Replaces the false seven-versus-eight claim with the complete table and hunk register; it changes no product behavior. |
+
+## Verification
+
+| Check | Result |
+| --- | --- |
+| Registry suite, including `mounts the real booking availability panel through the enabled Settings doorway` | PASS — 14 tests |
+| `npm test -- src/features/settings/registry/settingsModuleRegistry.test.ts src/features/booking/availability/BookingAvailabilitySettings.test.tsx src/features/calendar/testing/roundTripCalendarFoundation.test.tsx` | PASS — 3 files, 34 tests |
+| Scrubbed `gate-preflight.sh` | PASS — `lint:gate`, `typecheck`, and `typecheck:tests` (`GATE_PREFLIGHT_EXIT=0`) |
