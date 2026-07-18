@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { isEnabled as isFlagEnabled } from '@/platform/flags/router';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import type { Matter } from '@/platform/types/matter';
 
@@ -85,7 +86,8 @@ export type SelectionRefusalReason =
   | 'unsealed-client-boundary'
   | 'missing-matter-id'
   | 'invalid-matter-boundary'
-  | 'invalid-client-boundary';
+  | 'invalid-client-boundary'
+  | 'selection-authority-disabled';
 
 export type MatterScopeRefusalReason =
   | 'unsealed-matter-scope-request'
@@ -93,7 +95,8 @@ export type MatterScopeRefusalReason =
   | 'missing-matter'
   | 'archived-matter'
   | 'unauthorized-pair'
-  | 'wrong-client-pair';
+  | 'wrong-client-pair'
+  | 'selection-authority-disabled';
 
 export interface ClientContextState {
   /** The source half of the canonical selection pair. */
@@ -113,19 +116,37 @@ export interface ClientContextState {
   clearClient: () => void;
 }
 
-function normalizeClient(client: SharedClientIdentity): SharedClientIdentity {
+/** The exact normalizer used by the client-only store before this foundation. */
+function normalizeLegacyClient(
+  client: SharedClientIdentity
+): SharedClientIdentity {
   const householdId = client.householdId.trim();
-  if (!householdId)
+  if (!householdId) {
     throw new Error('Shared client context requires a household id.');
+  }
 
-  return Object.freeze({
+  return {
     householdId,
     displayName: client.displayName.trim() || householdId,
     ...(client.primaryPeople
       ? {
-          primaryPeople: Object.freeze(
-            client.primaryPeople.map((person) => person.trim()).filter(Boolean)
-          ),
+          primaryPeople: client.primaryPeople
+            .map((person) => person.trim())
+            .filter(Boolean),
+        }
+      : {}),
+  };
+}
+
+/** Authority handles own immutable identity; legacy writes intentionally do not. */
+function normalizeClient(client: SharedClientIdentity): SharedClientIdentity {
+  const normalized = normalizeLegacyClient(client);
+  return Object.freeze({
+    householdId: normalized.householdId,
+    displayName: normalized.displayName,
+    ...(normalized.primaryPeople
+      ? {
+          primaryPeople: Object.freeze(normalized.primaryPeople),
         }
       : {}),
   });
@@ -267,6 +288,15 @@ let reconciliationPending = false;
 let failedReconciliationAttempts = 0;
 const MAX_RECONCILIATION_RETRIES = 3;
 
+/**
+ * This one dark flag is the authority foundation's activation boundary. Until
+ * the integration lane enables it, legacy client writes retain their original
+ * in-memory behavior and no path may create `blocked-unresolved`.
+ */
+function selectionAuthorityEnabled(): boolean {
+  return isFlagEnabled('selection-authority-boot-gate');
+}
+
 function updateFollowerStatus(): void {
   const state = useClientContextStore.getState();
   const followerStatus = followerStatusFor(state.scope);
@@ -282,6 +312,9 @@ function updateFollowerStatus(): void {
 
 function reconcileFollower(): void {
   reconciliationPending = false;
+  // A reconciliation queued before a development override is turned off must
+  // not turn an otherwise inert foundation into a blocked source transition.
+  if (!selectionAuthorityEnabled()) return;
   const source = useClientContextStore.getState();
   const scope = source.scope;
   if (
@@ -292,7 +325,7 @@ function reconcileFollower(): void {
         (matter) => matter.id === scope.matterId && !matter.archived
       )
   ) {
-    writeSourceSelection(source.client, { kind: 'blocked-unresolved' });
+    writeBlockedSourceSelection(source.client);
     return;
   }
   const projection = projectedFollowerValue(scope);
@@ -329,7 +362,9 @@ function scopeFromPersistedFollower(): MatterScopeSelection {
     : { kind: 'blocked-unresolved' };
 }
 
-const bootScope = freezeScope(scopeFromPersistedFollower());
+// Flag-off must have no boot read or follower write. This neutral source value
+// is intentionally independent of persisted legacy state.
+const bootScope = freezeScope({ kind: 'all-matters' });
 
 /**
  * The source of truth. Every source change is one `set()` call, then its
@@ -337,6 +372,11 @@ const bootScope = freezeScope(scopeFromPersistedFollower());
  */
 const clientContextStore = create<ClientContextState>()((set) => {
   writeSourceSelection = (client, scope) => {
+    // Defense in depth: every caller that can create the blocked state is
+    // explicitly guarded below, and this prevents any future missed caller
+    // from activating it while the foundation remains dark.
+    if (scope.kind === 'blocked-unresolved' && !selectionAuthorityEnabled())
+      return;
     const nextScope = freezeScope(scope);
     failedReconciliationAttempts = 0;
     try {
@@ -361,13 +401,24 @@ const clientContextStore = create<ClientContextState>()((set) => {
     followerStatus: followerStatusFor(bootScope),
     selectionRevision: 0,
     setClient: (client) => {
+      if (!selectionAuthorityEnabled()) {
+        // This exactly retains the old store's observable transition: client
+        // only, including its mutable normalized client value, with no
+        // boot/reconciliation/follower side effect.
+        set({ client: normalizeLegacyClient(client) });
+        return;
+      }
       // Legacy raw-client entry point: retain compatibility without granting a
-      // raw id authority path. Its missing canonical pair is fail-closed.
-      writeSourceSelection(normalizeClient(client), {
-        kind: 'blocked-unresolved',
-      });
+      // raw id authority path. Its missing canonical pair is fail-closed only
+      // after the integration lane activates this foundation.
+      writeBlockedSourceSelection(normalizeClient(client));
     },
     clearClient: () => {
+      if (!selectionAuthorityEnabled()) {
+        // Match the pre-foundation client store exactly while dark.
+        set({ client: null });
+        return;
+      }
       // Ordinary clear is not a failure and never widens a matter scope.
       writeSourceSelection(null, useClientContextStore.getState().scope);
     },
@@ -379,17 +430,27 @@ const clientContextStore = create<ClientContextState>()((set) => {
  * follower against current live matters before any consumer can trust a scope.
  */
 export function bootstrapSelectionAuthorityFromPersistedFollower(): MatterScopeSelection {
+  if (!selectionAuthorityEnabled())
+    return useClientContextStore.getState().scope;
   const scope = freezeScope(scopeFromPersistedFollower());
   writeSourceSelection(useClientContextStore.getState().client, scope);
   return scope;
 }
 
+/** Enter blocked only once the one authority activation gate is on. */
+function writeBlockedSourceSelection(
+  client: SharedClientIdentity | null
+): void {
+  if (!selectionAuthorityEnabled()) return;
+  writeSourceSelection(client, { kind: 'blocked-unresolved' });
+}
+
 function refuseMatterScope(
   reason: MatterScopeRefusalReason
 ): MatterScopeSelectionResult {
-  writeSourceSelection(useClientContextStore.getState().client, {
-    kind: 'blocked-unresolved',
-  });
+  // Validation remains live while dark, but refusal is then a no-op result so
+  // a forged handle cannot alter legacy client-store behavior.
+  writeBlockedSourceSelection(useClientContextStore.getState().client);
   return { kind: 'refused', reason };
 }
 
@@ -411,6 +472,8 @@ export async function requestMatterScopeSelection(
     return refuseMatterScope('stale-matter-scope-request');
   }
   if (sealed.kind === 'all-matters') {
+    if (!selectionAuthorityEnabled())
+      return refuseMatterScope('selection-authority-disabled');
     const client = useClientContextStore.getState().client;
     const scope = freezeScope({ kind: 'all-matters' });
     writeSourceSelection(client, scope);
@@ -419,6 +482,8 @@ export async function requestMatterScopeSelection(
   const validation = validatePair(sealed.client, sealed.matterId);
   if (!validation.matter)
     return refuseMatterScope(validation.reason ?? 'unauthorized-pair');
+  if (!selectionAuthorityEnabled())
+    return refuseMatterScope('selection-authority-disabled');
   const scope = freezeScope({
     kind: 'matter',
     matterId: validation.matter.id,
@@ -434,25 +499,19 @@ export async function requestSharedClientSelection(
   await Promise.resolve();
   const sealed = sealedClientBoundaries.get(boundary);
   if (!sealed || !Object.isFrozen(boundary)) {
-    writeSourceSelection(useClientContextStore.getState().client, {
-      kind: 'blocked-unresolved',
-    });
+    writeBlockedSourceSelection(useClientContextStore.getState().client);
     return { kind: 'refused', reason: 'unsealed-client-boundary' };
   }
   if (
     sealed.issuedAtRevision !==
     useClientContextStore.getState().selectionRevision
   ) {
-    writeSourceSelection(useClientContextStore.getState().client, {
-      kind: 'blocked-unresolved',
-    });
+    writeBlockedSourceSelection(useClientContextStore.getState().client);
     return { kind: 'refused', reason: 'invalid-client-boundary' };
   }
   const validation = validatePair(sealed.client, sealed.matterId);
   if (!validation.matter) {
-    writeSourceSelection(useClientContextStore.getState().client, {
-      kind: 'blocked-unresolved',
-    });
+    writeBlockedSourceSelection(useClientContextStore.getState().client);
     return {
       kind: 'refused',
       reason:
@@ -461,6 +520,8 @@ export async function requestSharedClientSelection(
           : 'invalid-client-boundary',
     };
   }
+  if (!selectionAuthorityEnabled())
+    return { kind: 'refused', reason: 'selection-authority-disabled' };
   writeSourceSelection(sealed.client, {
     kind: 'matter',
     matterId: validation.matter.id,

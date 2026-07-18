@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   bootstrapSelectionAuthorityFromPersistedFollower,
   readAuthoritativeMatterScope,
@@ -12,6 +12,7 @@ import {
   type SharedClientIdentity,
 } from '@/platform/client-context';
 import { useMatterStore } from '@/platform/matter/matterStore';
+import { setDevFlagOverride } from '@/platform/flags/router';
 import type { Matter } from '@/platform/types/matter';
 import {
   sealAllMattersScopeSelection,
@@ -57,7 +58,16 @@ async function waitForConvergence(): Promise<void> {
   });
 }
 
+beforeEach(() => {
+  // Foundation tests exercise the dormant code only through its one activation
+  // gate. Production continues to start dark.
+  setDevFlagOverride('selection-authority-boot-gate', true);
+});
+
 afterEach(async () => {
+  // Cleanup uses the active authority behavior so no selected source leaks to
+  // the next focused case.
+  setDevFlagOverride('selection-authority-boot-gate', true);
   useMatterStore.setState({
     matters: [],
     activeMatterId: null,
@@ -66,6 +76,7 @@ afterEach(async () => {
   useClientContextStore.getState().clearClient();
   bootstrapSelectionAuthorityFromPersistedFollower();
   await waitForConvergence();
+  setDevFlagOverride('selection-authority-boot-gate', undefined);
 });
 
 describe('client-context selection authority', () => {
@@ -82,6 +93,104 @@ describe('client-context selection authority', () => {
       kind: 'blocked-unresolved',
     });
     expect('setState' in useClientContextStore).toBe(false);
+  });
+
+  it('keeps flag-off legacy client paths observationally identical to the pre-foundation store', () => {
+    const activeMatterIdBefore = 'legacy-active-matter';
+    const legacySetActiveMatter = vi.fn();
+    useMatterStore.setState({
+      matters: [matter(activeMatterIdBefore, householdA.householdId)],
+      activeMatterId: activeMatterIdBefore,
+      setActiveMatter: legacySetActiveMatter,
+    });
+    setDevFlagOverride('selection-authority-boot-gate', false);
+
+    // The pre-foundation store only normalized and exposed `client`; this is
+    // the before-model for the same boot, select, and clear observations.
+    const beforeTransitions = [
+      null,
+      {
+        householdId: householdA.householdId,
+        displayName: householdA.displayName,
+        primaryPeople: [...householdA.primaryPeople],
+      },
+      null,
+    ];
+    const afterTransitions: Array<SharedClientIdentity | null> = [
+      useClientContextStore.getState().client,
+    ];
+    const unsubscribe = useClientContextStore.subscribe((state) => {
+      afterTransitions.push(state.client);
+    });
+    const sourceBefore = {
+      scope: useClientContextStore.getState().scope,
+      followerStatus: useClientContextStore.getState().followerStatus,
+      selectionRevision: useClientContextStore.getState().selectionRevision,
+    };
+    try {
+      // The new boot entry point is inert: it performs neither persisted-state
+      // validation nor a follower write while the flag is dark.
+      bootstrapSelectionAuthorityFromPersistedFollower();
+      useClientContextStore.getState().setClient(householdA);
+      useClientContextStore.getState().clearClient();
+    } finally {
+      unsubscribe();
+    }
+
+    expect(afterTransitions).toEqual(beforeTransitions);
+    const selectedClient = afterTransitions[1];
+    if (!selectedClient)
+      throw new Error('legacy selection must expose a client');
+    expect(Object.isFrozen(selectedClient)).toBe(false);
+    expect(Object.isFrozen(selectedClient.primaryPeople)).toBe(false);
+    expect(useMatterStore.getState().activeMatterId).toBe(activeMatterIdBefore);
+    expect(legacySetActiveMatter).not.toHaveBeenCalled();
+    expect({
+      scope: useClientContextStore.getState().scope,
+      followerStatus: useClientContextStore.getState().followerStatus,
+      selectionRevision: useClientContextStore.getState().selectionRevision,
+    }).toEqual(sourceBefore);
+  });
+
+  it('refuses forged or invalid sealed requests without blocking the legacy store while the flag is off', async () => {
+    setDevFlagOverride('selection-authority-boot-gate', false);
+    const before = useClientContextStore.getState();
+
+    await expect(
+      requestMatterScopeSelection(
+        Object.freeze({}) as SealedMatterScopeSelection
+      )
+    ).resolves.toEqual({
+      kind: 'refused',
+      reason: 'unsealed-matter-scope-request',
+    });
+
+    await expect(
+      requestSharedClientSelection(Object.freeze({}) as SealedClientBoundary)
+    ).resolves.toEqual({
+      kind: 'refused',
+      reason: 'unsealed-client-boundary',
+    });
+
+    seed(matter('matter-a', householdA.householdId));
+    const invalidatedRequest = sealMatterScopeSelection({
+      householdRef: householdA.householdId,
+      matterId: 'matter-a',
+    });
+    if (!invalidatedRequest) throw new Error('fixture must seal');
+    useMatterStore.setState({ matters: [] });
+    await expect(
+      requestMatterScopeSelection(invalidatedRequest)
+    ).resolves.toEqual({
+      kind: 'refused',
+      reason: 'missing-matter',
+    });
+
+    expect(useClientContextStore.getState().client).toBe(before.client);
+    expect(useClientContextStore.getState().scope).toBe(before.scope);
+    expect(useClientContextStore.getState().selectionRevision).toBe(
+      before.selectionRevision
+    );
   });
 
   it('resolves exactly one unarchived canonical household match', () => {

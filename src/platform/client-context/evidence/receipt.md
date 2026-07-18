@@ -18,7 +18,12 @@ caller-created object refuse. Its issuer helpers are deliberately absent from
 the package index. The public store facade deliberately omits Zustand's raw
 `setState`, and stored/returned scope values are frozen. The existing `setClient` remains a temporary compatibility
 entry for the later writer-retirement lane; because it has no proven pair it
-sets the source scope to blocked rather than authorizing a raw selection.
+sets the source scope to blocked rather than authorizing a raw selection — but
+only after the one dark integration flag is enabled. While
+`selection-authority-boot-gate` is off (the shipping default), this package is
+inert: boot does not inspect or project the persisted follower, legacy client
+select/clear retains the pre-foundation client-only transition, and a sealed-op
+refusal returns its refused result without changing source state.
 
 ## SALVAGE DELTA LIST
 
@@ -31,7 +36,7 @@ Frozen inventory inspected: `clientContextStore.ts`, `clientContextStore.test.ts
 | `SealedClientBoundary`, private `WeakMap`, and async `requestSharedClientSelection` doorway | Adapted in `clientContextStore.ts` | Replaced frozen two-store ordering/rollback with one source slice and follower projection; forged and invalid boundaries now block the source rather than restoring stores. | `selects a current full client/matter pair…`; `refuses a forged client boundary…` |
 | Frozen `sealResolvedClientBoundary` issuer | Adapted in the owned package | Issuance now validates exactly one live unarchived canonical pair and captures a source revision. | specific-pair, stale, resolver, and revalidation tests |
 | Frozen `resolveHouseholdMatterId` rule in feature `clientBoundary.ts` | Reimplemented as `resolveCanonicalHouseholdMatter` in this platform package | Feature helper counts archived matches and is feature-owned; the legal authority rule must accept exactly one **unarchived** `Matter.crmHouseholdKeys` match. The feature file was not edited. | `resolves exactly one unarchived canonical household match` |
-| Frozen store state and tests | Adapted, not byte-identical | Added tri-state source, sealed scope requests, boot gate, projection-only status, frozen exposed scopes, and finally-owned bounded single-flight retry. Required by R3 amendments 3 and 4. | all 19 focused tests |
+| Frozen store state and tests | Adapted, not byte-identical when activated | Added tri-state source, sealed scope requests, boot gate, projection-only status, frozen exposed scopes, and finally-owned bounded single-flight retry. Required by R3 amendments 3 and 4. The new `selection-authority-boot-gate` makes this behavior inert by default, with a before/after legacy-path observation proving flag-off parity. | focused authority tests, including flag-off parity |
 | Frozen public index | Adapted | Exports narrow readers and request types/doors; no issuer or raw scope writer is exported. | `has no raw-id or raw-union request boundary…` plus TypeScript test gate |
 
 No unrelated frozen path was imported. There are no other byte-identical restored
@@ -75,6 +80,8 @@ second selection write.
 | boot valid / null / invalid / archived | `boot gate validates persisted follower before the authority reader can be used` | PASS |
 | review fixes: no raw `setState`, frozen scope, stale shared boundary | adapter, specific-pair, and stale-client-boundary tests | PASS |
 | review fix: no hot retry loop / live invalidation | `bounds a permanently failing follower retry…`; `blocks a source whose selected matter disappears…` | PASS |
+| inert default / legacy parity | `keeps flag-off legacy client paths observationally identical to the pre-foundation store` | PASS |
+| dark forged/invalid refusal is a no-op | `refuses forged or invalid sealed requests without blocking the legacy store while the flag is off` | PASS |
 
 ## Commands and review status
 
@@ -92,4 +99,6 @@ receipt/report commit and fresh final gates.
 
 The new sealed request operations intentionally have zero external callers in
 this foundation lane. External writer retirement, lifecycle migration, T1
-readers, and T2 presentation remain outside this lane.
+readers, and T2 presentation remain outside this lane. Activation is owned
+only by sub-lane 4's integration gate; this lane must not enable
+`selection-authority-boot-gate` in production.
