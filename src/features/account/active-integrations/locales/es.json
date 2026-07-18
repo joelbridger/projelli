@@ -1,0 +1,13 @@
+{
+  "active-integrations": {
+    "title": "Integraciones activas",
+    "description": "Revisa el estado actual de cada conexión, a qué puede acceder y su propio control de desconexión segura.",
+    "connected": "Conectada",
+    "manage": "Administrar la conexión de {{provider}}",
+    "checking": "Comprobando tus conexiones...",
+    "empty-title": "No hay integraciones conectadas",
+    "empty-description": "Cuando conectes una integración, aparecerá aquí.",
+    "unavailable-title": "Los detalles de las integraciones no están disponibles",
+    "unavailable-description": "No se pudo comprobar la lista de conexiones de forma segura. No se muestran estados ni opciones de desconexión inventados."
+  }
+}

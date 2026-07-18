@@ -1,0 +1,19 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/lantern/app/integration/.worktrees/v1/active-integrations
+sha: a04bda367fd0481a6fc750df132a94ea2a659421
+tree: 3f67b708afda80911e6cf2954c8a28cb4aab4877
+gate_base: a197c9c2073f1b561070db9be52d6a7f35f4847d
+tool_blob: 2cdbd4254c388970d44b9a674dc793caf823040d
+utc: 2026-07-18T19:00:48Z
+step_timeout_seconds: 2400
+loadavg: 5.59 4.14 4.85
+running_vitest_eslint_procs: 7
+step: gate:changed | status=PASS | exit=0 | 19:00:48Z..19:10:45Z | bytes=3624291 | sha256=5c5c0394acbcd982490c3e91853e3271e45666dc73f0421e5a98ed0cc43d64e4 | tail: [22m[2m | [22m[33m29 skipped[39m[90m (9162)[39m [2m Start at [22m 19:04:08 [2m Duration [22m 396.50s[2m (transform 30.06s, setup 200.91s, import 567.20s, tests 244.88s, environment 437.50s)[22m CHANGED GATE GREEN
+step: typecheck | status=PASS | exit=0 | 19:10:45Z..19:11:09Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit
+step: typecheck:tests | status=PASS | exit=0 | 19:11:09Z..19:11:37Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit
+step: handle-guard | status=PASS | exit=0 | 19:11:37Z..19:11:37Z | bytes=1374 | sha256=e2c91cdf07b817de3fb399705f4c1e2a60f492afd8a5a58d6e2d4af6c33d6877 | tail: bility-slots-unavailable + booking-availability-status + booking-availability-timezone +504 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen).
+step: arch-dag-guard | status=PASS | exit=0 | 19:11:37Z..19:11:38Z | bytes=516 | sha256=f23427e1e5ecd113224b316aa6d1ec861e56fccce69d7cf1a8c07d87b9b6228f | tail: assed[39m[22m[90m (1)[39m [2m Tests [22m [1m[32m1 passed[39m[22m[90m (1)[39m [2m Start at [22m 19:11:37 [2m Duration [22m 1.00s[2m (transform 224ms, setup 357ms, import 263ms, tests 3ms, environment 286ms)[22m
+step: i18n-snapshot | status=PASS | exit=0 | 19:11:38Z..19:11:40Z | bytes=517 | sha256=6a4cdc7c4e2c288e45c5c8d2bec747a62538d18d8b469c512475739fa007dbab | tail: ssed[39m[22m[90m (1)[39m [2m Tests [22m [1m[32m5 passed[39m[22m[90m (5)[39m [2m Start at [22m 19:11:38 [2m Duration [22m 1.01s[2m (transform 265ms, setup 388ms, import 223ms, tests 19ms, environment 289ms)[22m
+step: boundaries:check | status=PASS | exit=0 | 19:11:40Z..19:11:42Z | bytes=151 | sha256=28937977f27fc438a6e9ae1a771d2ae8ca85765df3e4cac8a3f0e4e4aaffa5bc | tail:  > advisor-prep-hero@3.3.5 boundaries:check > node scripts/check-boundaries.mjs No feature-boundary regression (599 current baseline finding(s)).
+overall: GREEN

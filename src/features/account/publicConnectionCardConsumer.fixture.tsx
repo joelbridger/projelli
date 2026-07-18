@@ -20,10 +20,7 @@ export function ActiveIntegrationsConsumerFixture({
   return (
     <>
       {cards.map((card) => (
-        <Fragment key={card.id}>
-          {card.renderStatus()}
-          {card.renderSafeDisconnect()}
-        </Fragment>
+        <Fragment key={card.id}>{card.render()}</Fragment>
       ))}
     </>
   );

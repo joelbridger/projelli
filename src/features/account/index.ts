@@ -10,9 +10,9 @@ export type {
 /**
  * Canonical Account connection-card doorway for feature consumers.
  *
- * Use each returned descriptor's `renderStatus()` for its connector-owned
- * status UI and `renderSafeDisconnect()` for its connector-owned safe
- * disconnect UI. This doorway exposes neither credentials nor mutable
+ * Use each descriptor's `isConnected()` as the truth gate, then mount its one
+ * connector-owned `render()` surface for status and safe disconnect controls.
+ * This doorway exposes neither credentials nor mutable
  * registry access, raw connector modules, or a synthetic disconnect action.
  */
 export { getConnectionCardDescriptors } from './connectionCardRegistry';

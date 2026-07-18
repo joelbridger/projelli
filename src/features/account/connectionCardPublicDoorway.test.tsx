@@ -15,12 +15,11 @@ function card(
   return {
     id: 'mcp',
     labelKey: 'connectors.mcp',
+    displayName: 'MCP servers',
     placement: 'developer-tools',
     order: 10,
-    render: () => createElement('div'),
-    renderStatus: () => createElement('span', undefined, 'MCP connected'),
-    renderSafeDisconnect: () =>
-      createElement('button', undefined, 'Disconnect MCP safely'),
+    render: () => createElement('div', undefined, 'MCP setup'),
+    isConnected: () => Promise.resolve(false),
     ...overrides,
   };
 }
@@ -81,16 +80,15 @@ describe('Account public connection-card doorway', () => {
     ).toThrow('duplicate card id: mcp');
   });
 
-  it('lets a public-only consumer render connector-owned status and safe disconnect UI', () => {
+  it('lets a public-only consumer render each connector-owned form once', () => {
     const descriptors: readonly ConnectionCardDescriptor[] = [
       card({
         id: 'ollama',
         labelKey: 'connectors.ollama',
+        displayName: 'Ollama',
         placement: 'connections',
         order: 20,
-        renderStatus: () => createElement('span', undefined, 'Ollama is ready'),
-        renderSafeDisconnect: () =>
-          createElement('button', undefined, 'Disconnect Ollama safely'),
+        render: () => createElement('span', undefined, 'Ollama settings'),
       }),
       card({
         placement: 'developer-tools',
@@ -105,10 +103,7 @@ describe('Account public connection-card doorway', () => {
       })
     );
 
-    expect(screen.getByText('Ollama is ready')).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: 'Disconnect Ollama safely' })
-    ).toBeInTheDocument();
-    expect(screen.queryByText('MCP connected')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Ollama settings')).toHaveLength(1);
+    expect(screen.queryByText('MCP setup')).not.toBeInTheDocument();
   });
 });

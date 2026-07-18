@@ -1,5 +1,7 @@
 import { createElement } from 'react';
-import { describe, expect, it } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it } from 'vitest';
+import { setDevFlagOverride } from '@/platform/flags';
 import {
   getAccountSectionDescriptors,
   validateAccountSectionDescriptors,
@@ -8,10 +10,9 @@ import {
   getConnectionCardDescriptors,
   validateConnectionCardDescriptors,
 } from './connectionCardRegistry';
-import type {
-  AccountSectionDescriptor,
-} from './accountRegistryTypes';
+import type { AccountSectionDescriptor } from './accountRegistryTypes';
 import type { ConnectionCardDescriptor } from '@/platform/types/account';
+import { ActiveIntegrationsSection } from './active-integrations';
 
 declare module '@/platform/types/account' {
   interface AccountSectionIdMap {
@@ -22,6 +23,10 @@ declare module '@/platform/types/account' {
     'dummy-card': true;
   }
 }
+
+afterEach(() => {
+  setDevFlagOverride('active-integrations', undefined);
+});
 
 function section(
   overrides: Partial<AccountSectionDescriptor> = {}
@@ -44,17 +49,18 @@ function card(
   return {
     id: 'dummy-card',
     labelKey: 'dummy.card',
+    displayName: 'Dummy provider',
     placement: 'connections',
     order: 999,
     render,
-    renderStatus: render,
-    renderSafeDisconnect: render,
+    isConnected: () => Promise.resolve(true),
     ...overrides,
   };
 }
 
 describe('Account registries', () => {
   it('preserves the current Account section order and mounts a new section from its descriptor', () => {
+    setDevFlagOverride('active-integrations', false);
     const sections = getAccountSectionDescriptors();
     expect(sections.map((descriptor) => descriptor.id)).toEqual([
       'account',
@@ -65,6 +71,42 @@ describe('Account registries', () => {
     const dummy = getAccountSectionDescriptors([...sections, section()]).at(-1);
     expect(dummy).toBeDefined();
     expect(dummy?.render({})).toMatchObject({ type: 'div' });
+  });
+
+  it('appends and renders the one real active-integrations section only while enabled', () => {
+    setDevFlagOverride('active-integrations', false);
+    expect(
+      getAccountSectionDescriptors().filter(
+        (descriptor) => descriptor.id === 'active-integrations'
+      )
+    ).toHaveLength(0);
+
+    setDevFlagOverride('active-integrations', true);
+    const enabled = getAccountSectionDescriptors();
+    expect(enabled.map((descriptor) => descriptor.id)).toEqual([
+      'account',
+      'firm',
+      'usage',
+      'connections',
+      'active-integrations',
+    ]);
+    const mounted = enabled.filter(
+      (descriptor) => descriptor.id === 'active-integrations'
+    );
+    expect(mounted).toHaveLength(1);
+    const activeIntegrations = mounted[0];
+    if (!activeIntegrations) {
+      throw new Error('Expected the enabled Active integrations section');
+    }
+    expect(activeIntegrations.render({})).toMatchObject({
+      type: ActiveIntegrationsSection,
+    });
+
+    render(activeIntegrations.render({}));
+
+    expect(
+      screen.getByTestId('active-integrations-section')
+    ).toBeInTheDocument();
   });
 
   it('preserves connection-card order and mounts a new card from its descriptor', () => {
@@ -87,6 +129,9 @@ describe('Account registries', () => {
       'redtail',
       'ollama',
     ]);
+    expect(
+      cards.every((descriptor) => typeof descriptor.isConnected === 'function')
+    ).toBe(true);
     expect(
       getConnectionCardDescriptors('developer-tools').map(
         (descriptor) => descriptor.id
@@ -112,5 +157,14 @@ describe('Account registries', () => {
     expect(() => {
       validateConnectionCardDescriptors([descriptor, descriptor]);
     }).toThrow('duplicate card id: dummy-card');
+  });
+
+  it('rejects a connection card that cannot prove its real connection state', () => {
+    const descriptor = card();
+    delete descriptor.isConnected;
+
+    expect(() => {
+      validateConnectionCardDescriptors([descriptor]);
+    }).toThrow('connection proof is required: dummy-card');
   });
 });

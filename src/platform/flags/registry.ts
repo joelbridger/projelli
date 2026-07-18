@@ -92,6 +92,7 @@ export const flagRegistry = [
   defineFlag('crm-duplicates', 'Keeps explainable, review-only duplicate household detection dark until its acceptance review is complete.', 'crm-duplicates', '2026-07-18', '2026-09-16'),
   defineFlag('data-export-backup', 'Keeps the provider-neutral migration archive doorway dark until its manifest claims and completeness checks pass acceptance review.', 'data-export-backup', '2026-07-18', '2026-09-16'),
   defineFlag('workflow-dependent-due', 'Keeps workflow dependency timing and sequence enforcement dark until their acceptance review is complete.', 'workflow-dependent-due', '2026-07-18', '2026-09-16'),
+  defineFlag('active-integrations', 'Keeps connector-owned integration status and safe disconnect controls dark until their acceptance review is complete.', 'active-integrations', '2026-07-18', '2026-09-16'),
 ] as const satisfies readonly FlagDescriptor[];
 
 export type FlagId = (typeof flagRegistry)[number]['id'];
