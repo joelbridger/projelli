@@ -5,9 +5,9 @@ import type { LiveCrmRecord } from './liveRecords';
 const boundary = vi.hoisted(() => ({
   mode: 'matter-only' as 'matter-only' | 'full-pair' | 'all-matters' | 'blocked' | 'disagreement',
   saved: [] as LiveCrmRecord[],
-  ensureRelay: vi.fn(),
-  publish: vi.fn(),
-  invoke: vi.fn(),
+  ensureRelay: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
+  publish: vi.fn<(record: LiveCrmRecord) => void>(),
+  invoke: vi.fn<(command: string, args?: { record?: LiveCrmRecord }) => Promise<unknown>>(),
 }));
 
 const liveMatter = {
@@ -62,7 +62,9 @@ vi.mock('@/platform/crm/liveRecordRelay', () => ({
   clearLiveRecordRelay: vi.fn(),
   ensureLiveRecordRelay: (...args: unknown[]) => boundary.ensureRelay(...args),
   removeLiveRecordRelayWriter: vi.fn(),
-  publishLiveRecord: (record: LiveCrmRecord) => boundary.publish(record),
+  publishLiveRecord: (record: LiveCrmRecord) => {
+    boundary.publish(record);
+  },
 }));
 vi.mock('@tauri-apps/api/core', () => ({
   isTauri: () => true,
@@ -102,7 +104,9 @@ describe('useLiveCrmRecords authoritative selection', () => {
 
   it('lets matter-only save an explicitly matter-owned record but refuses client-derived firm routing and relay', async () => {
     const { result } = renderHook(() => useLiveCrmRecords());
-    await waitFor(() => expect(boundary.invoke).toHaveBeenCalledWith('crm_live_list', undefined));
+    await waitFor(() => {
+      expect(boundary.invoke).toHaveBeenCalledWith('crm_live_list', undefined);
+    });
 
     await act(async () => {
       await result.current.save(record('local-a'));
@@ -116,7 +120,9 @@ describe('useLiveCrmRecords authoritative selection', () => {
   it('uses a full client pair for firm delivery and relay', async () => {
     boundary.mode = 'full-pair';
     const { result } = renderHook(() => useLiveCrmRecords());
-    await waitFor(() => expect(boundary.ensureRelay).toHaveBeenCalledWith('firm-a', expect.any(Function)));
+    await waitFor(() => {
+      expect(boundary.ensureRelay).toHaveBeenCalledWith('firm-a', expect.any(Function));
+    });
 
     await act(async () => {
       await result.current.save(record('firm'));

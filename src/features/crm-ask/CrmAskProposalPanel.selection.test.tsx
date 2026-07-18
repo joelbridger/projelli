@@ -63,7 +63,9 @@ describe('CrmAskProposalPanel authoritative client selection', () => {
     });
     fireEvent.click(screen.getByTestId('crm-ask-proposal-submit'));
 
-    await waitFor(() => expect(boundary.save).toHaveBeenCalledOnce());
+    await waitFor(() => {
+      expect(boundary.save).toHaveBeenCalledOnce();
+    });
     expect(boundary.save.mock.calls[0]?.[0]).toMatchObject({
       matterId: 'household-a',
     });
