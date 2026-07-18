@@ -1,0 +1,27 @@
+{
+  "data-portability": {
+    "title": "Exportación de datos",
+    "description": "Crea el archivo ya disponible para los registros de migración de Wealthbox.",
+    "backup-unavailable": "La copia de seguridad completa de la empresa no está disponible; necesita revisión",
+    "not-a-backup-title": "Esta no es una copia de seguridad completa de la empresa.",
+    "not-a-backup-description": "Esta entrada solo crea una copia de los registros importados mediante la migración existente de Wealthbox.",
+    "includes-title": "Qué incluye el archivo de migración",
+    "includes-records": "El tipo de origen, el identificador de origen, el identificador del registro de destino y los datos originales importados de cada registro que pasó la migración.",
+    "includes-manifest": "Un manifiesto con el total de registros y los totales por tipo de registro de origen.",
+    "includes-fidelity": "La tabla de fidelidad de la migración con las cantidades obtenidas, importadas, omitidas y rechazadas.",
+    "excludes": "No incluye otros datos del espacio de trabajo, documentos, correo ni los datos de las filas de migración omitidas o rechazadas.",
+    "decrypted-warning": "El archivo JSON está descifrado. Guárdalo solo en un lugar aprobado por tu empresa.",
+    "workspace-required": "Abre un espacio de trabajo antes de crear un archivo de migración.",
+    "create": "Crear archivo de migración de Wealthbox",
+    "creating": "Creando archivo de migración…",
+    "saved-title": "Archivo de migración creado",
+    "file": "Archivo guardado",
+    "size": "Tamaño",
+    "bytes": "{{formattedCount}} bytes",
+    "checksum": "Suma de comprobación SHA-256",
+    "manifest": "ID del manifiesto",
+    "reconciliation-report": "ID del informe de fidelidad",
+    "needs-review-error": "La exportación necesita revisión porque no devolvió un recibo de archivo completo e inspeccionable.",
+    "export-failed": "No se pudo crear el archivo de migración."
+  }
+}

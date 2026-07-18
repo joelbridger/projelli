@@ -1,0 +1,27 @@
+{
+  "data-portability": {
+    "title": "Datenexport",
+    "description": "Erstelle das bereits verfügbare Archiv für Wealthbox-Migrationsdatensätze.",
+    "backup-unavailable": "Vollständige Firmensicherung nicht verfügbar – Prüfung erforderlich",
+    "not-a-backup-title": "Dies ist keine vollständige Firmensicherung.",
+    "not-a-backup-description": "Dieser Zugang erstellt nur eine Kopie der Datensätze, die durch die bestehende Wealthbox-Migration importiert wurden.",
+    "includes-title": "Inhalt des Migrationsarchivs",
+    "includes-records": "Quelltyp, Quell-ID, Ziel-Datensatz-ID und ursprüngliche importierte Nutzdaten für jeden Datensatz, der die Migration durchlaufen hat.",
+    "includes-manifest": "Ein Manifest mit der Gesamtzahl und den Anzahlen nach Quelldatensatztyp.",
+    "includes-fidelity": "Die Migrationstreuetabelle mit Anzahlen für abgerufen, importiert, übersprungen und abgelehnt.",
+    "excludes": "Andere Arbeitsbereichsdaten, Dokumente, E-Mails und die Nutzdaten übersprungener oder abgelehnter Migrationszeilen sind nicht enthalten.",
+    "decrypted-warning": "Die JSON-Datei ist entschlüsselt. Speichere sie nur an einem von deiner Firma genehmigten Ort.",
+    "workspace-required": "Öffne einen Arbeitsbereich, bevor du ein Migrationsarchiv erstellst.",
+    "create": "Wealthbox-Migrationsarchiv erstellen",
+    "creating": "Migrationsarchiv wird erstellt…",
+    "saved-title": "Migrationsarchiv erstellt",
+    "file": "Gespeicherte Datei",
+    "size": "Größe",
+    "bytes": "{{formattedCount}} Byte",
+    "checksum": "SHA-256-Prüfsumme",
+    "manifest": "Manifest-ID",
+    "reconciliation-report": "Treuebericht-ID",
+    "needs-review-error": "Der Export muss geprüft werden, weil er keinen vollständigen, prüfbaren Archivbeleg zurückgegeben hat.",
+    "export-failed": "Das Migrationsarchiv konnte nicht erstellt werden."
+  }
+}

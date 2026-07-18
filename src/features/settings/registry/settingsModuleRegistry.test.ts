@@ -286,7 +286,7 @@ describe('settingsModuleRegistry', () => {
     ]);
     expect(
       getSettingsPanelDescriptors('workspace').map((panel) => panel.id)
-    ).toEqual(['legacy-workspace']);
+    ).toEqual(['legacy-workspace', 'data-portability']);
   });
 
   it('registers the Personal section and notification panel as a valid new-section pair', () => {
@@ -356,6 +356,22 @@ describe('settingsModuleRegistry', () => {
     ).toBeInTheDocument();
   });
 
+  it('mounts the one real data export panel through the Workspace Settings doorway', () => {
+    const matches = getSettingsPanelDescriptors('workspace').filter(
+      (panel) => panel.id === 'data-portability'
+    );
+
+    expect(matches).toHaveLength(1);
+    const dataPortability = matches[0];
+    if (!dataPortability) {
+      throw new Error('Expected the data export Settings panel');
+    }
+
+    render(createElement(dataPortability.render));
+
+    expect(screen.getByTestId('data-portability-settings')).toBeInTheDocument();
+  });
+
   it('hides a registered flag-gated panel while dark and restores it when enabled', async () => {
     const alwaysVisible: SettingsPanelDescriptor = {
       id: 'fake-always',
@@ -377,6 +393,12 @@ describe('settingsModuleRegistry', () => {
     }));
     vi.doMock('./legacySettingsSections', () => ({
       legacySettingsSections: [
+        {
+          id: 'workspace',
+          order: 10,
+          labelKey: 'settings.sections.workspace',
+          legacyLabel: 'Workspace',
+        },
         {
           id: 'scheduling',
           order: 40,
