@@ -1,1 +1,9 @@
-Final receipt-bearing verification SHA: 132fb499844e99c130fa9664d767f1c3dddfea49\nFocused suite: 18 files passed; 238 tests passed; duration 39.78s.\nTest typecheck: exit 0.\nWriter retirement tests: 14 passed; 0 failed.\nWriter inventory: PASS, one follower projection writer; zero direct client writers; zero unreviewed persisted-key references.\nFeature boundaries: PASS, 599 baseline findings and no regression.\nHandle guard: PASS, no permanent handle vanished and no new ambiguous handles.\nArchitecture boundaries: 1 file passed; 1 test passed.\ngit diff --check: exit 0.\nProduction delta after banked security tip f6a48b5e5: none.\nWorktree clean before push.
+Final receipt-bearing verification SHA: 132fb499844e99c130fa9664d767f1c3dddfea49
+
+Focused suite: 18 files passed; 238 tests passed; duration 39.78s.
+
+Test typecheck: exit 0. Writer retirement tests: 14 passed; 0 failed. Writer inventory: PASS.
+
+Feature boundaries: PASS. Handle guard: PASS. Architecture boundaries: 1 file and 1 test passed. git diff --check: exit 0.
+
+Production delta after banked security tip f6a48b5e5: none. Full changed-file push gate: 1139 test files passed, 3 skipped; 9079 tests passed, 29 skipped.
