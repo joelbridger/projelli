@@ -14,12 +14,12 @@ import { useMatterStore } from '@/platform/matter/matterStore';
 import type { Matter } from '@/platform/types/matter';
 
 vi.mock('@/platform/utils/mail-commands', () => ({
-  mailListMessages: async () => ({ items: [], total: 0 }),
-  mailIsConnected: async () => false,
-  gmailIsConnected: async () => false,
-  mailImapIsConnected: async () => false,
-  mailConnectedAccounts: async () => [],
-  mailClearMatterFilings: async () => 0,
+  mailListMessages: () => Promise.resolve({ items: [], total: 0 }),
+  mailIsConnected: () => Promise.resolve(false),
+  gmailIsConnected: () => Promise.resolve(false),
+  mailImapIsConnected: () => Promise.resolve(false),
+  mailConnectedAccounts: () => Promise.resolve([]),
+  mailClearMatterFilings: () => Promise.resolve(0),
 }));
 
 vi.mock('@/platform/hooks/useApiKeys', () => ({
@@ -39,15 +39,15 @@ vi.mock('@/platform/hooks/useFirm', () => ({
     isLoading: false,
     error: null,
     assuredProviders: [],
-    signIn: async () => ({ ok: true }),
-    activateSeat: async () => ({ ok: true }),
-    signOut: async () => undefined,
+    signIn: () => Promise.resolve({ ok: true }),
+    activateSeat: () => Promise.resolve({ ok: true }),
+    signOut: () => Promise.resolve(undefined),
   }),
   useAssuredAvailable: () => false,
 }));
 
 vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn(async () => { throw new Error('not in test'); }),
+  invoke: vi.fn(() => Promise.reject(new Error('not in test'))),
   isTauri: () => false,
 }));
 
@@ -57,24 +57,24 @@ vi.mock('@/platform/audit/AuditService', () => ({
 }));
 
 vi.mock('@/platform/firm/matterKeyService', () => ({
-  getOrCreateMatterKey: async () => 'key',
-  publishMatterKeyToMembers: async () => ({ published: 0, skippedWalled: 0 }),
-  obtainMatterKey: async () => null,
+  getOrCreateMatterKey: () => Promise.resolve('key'),
+  publishMatterKeyToMembers: () => Promise.resolve({ published: 0, skippedWalled: 0 }),
+  obtainMatterKey: () => Promise.resolve(null),
 }));
 
 vi.mock('@/platform/firm/deviceKeys', () => ({
-  registerDevice: async () => undefined,
+  registerDevice: () => Promise.resolve(undefined),
   _resetDeviceCache: () => undefined,
-  getOrCreateDeviceKeypair: async () => ({ deviceId: 'test', publicJwk: {} }),
+  getOrCreateDeviceKeypair: () => Promise.resolve({ deviceId: 'test', publicJwk: {} }),
 }));
 
 vi.mock('@/platform/providers/fetchUtils', () => ({
-  getCorsSafeFetch: async () => vi.fn(),
+  getCorsSafeFetch: () => Promise.resolve(vi.fn()),
 }));
 
 vi.mock('@/platform/rag/MemoryService', () => ({
   isMemoryEnabled: () => false,
-  MemoryService: { retrieve: vi.fn(async () => []) },
+  MemoryService: { retrieve: vi.fn(() => Promise.resolve([])) },
 }));
 
 vi.mock('@/features/meetings/TodaysMeetingsStrip', () => ({
@@ -86,8 +86,8 @@ vi.mock('@/features/matters/useClientMap', () => ({
     status: 'empty',
     errorMessage: null,
     map: undefined,
-    generate: vi.fn(async () => 'unchanged'),
-    checkForUpdates: vi.fn(async () => 'unchanged'),
+    generate: vi.fn(() => Promise.resolve('unchanged')),
+    checkForUpdates: vi.fn(() => Promise.resolve('unchanged')),
   }),
 }));
 
