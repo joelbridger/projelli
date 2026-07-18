@@ -1,0 +1,48 @@
+{
+  "manifest": {
+    "batchId": "writer-fixture",
+    "createdAt": "2026-07-18T11:06:27.267611553+00:00",
+    "fidelityMatrix": [
+      {
+        "fetched": 1,
+        "imported": 1,
+        "rejected": 0,
+        "skipped": 0,
+        "sourceType": "contact"
+      },
+      {
+        "fetched": 1,
+        "imported": 1,
+        "rejected": 0,
+        "skipped": 0,
+        "sourceType": "external_note"
+      }
+    ],
+    "format": "lantern-wealthbox-archive-v1",
+    "notice": "This is a decrypted export. Store it somewhere approved by your firm.",
+    "recordCount": 2,
+    "recordCounts": {
+      "contact": 1,
+      "external_note": 1
+    }
+  },
+  "records": [
+    {
+      "payload": {
+        "first_name": "Ada",
+        "last_name": "Advisor"
+      },
+      "sourceId": "1",
+      "sourceType": "contact",
+      "targetRecordId": "contact:1"
+    },
+    {
+      "payload": {
+        "body": "Provider-neutral fixture"
+      },
+      "sourceId": "9",
+      "sourceType": "external_note",
+      "targetRecordId": "external-note:9"
+    }
+  ]
+}

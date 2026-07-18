@@ -23,6 +23,7 @@ import type {
 describe('settingsModuleRegistry', () => {
   afterEach(() => {
     setDevFlagOverride('booking-availability', undefined);
+    setDevFlagOverride('data-export-backup', undefined);
     vi.doUnmock('@/platform/flags/router');
     vi.doUnmock('./legacySettingsSections');
     vi.doUnmock('@/features/crm-firm');
@@ -286,7 +287,7 @@ describe('settingsModuleRegistry', () => {
     ]);
     expect(
       getSettingsPanelDescriptors('workspace').map((panel) => panel.id)
-    ).toEqual(['legacy-workspace', 'data-portability']);
+    ).toEqual(['legacy-workspace']);
   });
 
   it('registers the Personal section and notification panel as a valid new-section pair', () => {
@@ -346,7 +347,9 @@ describe('settingsModuleRegistry', () => {
 
     expect(bookingAvailability).toBeDefined();
     if (!bookingAvailability) {
-      throw new Error('Expected the enabled booking availability Settings panel');
+      throw new Error(
+        'Expected the enabled booking availability Settings panel'
+      );
     }
 
     render(createElement(bookingAvailability.render));
@@ -357,6 +360,13 @@ describe('settingsModuleRegistry', () => {
   });
 
   it('mounts the one real data export panel through the Workspace Settings doorway', () => {
+    expect(
+      getSettingsPanelDescriptors('workspace').filter(
+        (panel) => panel.id === 'data-portability'
+      )
+    ).toEqual([]);
+
+    setDevFlagOverride('data-export-backup', true);
     const matches = getSettingsPanelDescriptors('workspace').filter(
       (panel) => panel.id === 'data-portability'
     );

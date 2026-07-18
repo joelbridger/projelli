@@ -6,6 +6,7 @@ export const dataPortabilitySettingsPanel = {
   section: 'workspace',
   order: 90,
   labelKey: 'data-portability.title',
+  flagId: 'data-export-backup',
   searchTerms: [
     'data export',
     'migration archive',

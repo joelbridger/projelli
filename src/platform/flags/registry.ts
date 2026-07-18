@@ -90,6 +90,7 @@ export const flagRegistry = [
   defineFlag('booking-availability', 'Configure local booking availability', 'booking-availability', '2026-07-16', '2026-10-14'),
   defineFlag('crm-bulk-export', 'Keeps selected-household CSV export dark until its acceptance review is complete.', 'crm-bulk-export', '2026-07-18', '2026-09-16'),
   defineFlag('crm-duplicates', 'Keeps explainable, review-only duplicate household detection dark until its acceptance review is complete.', 'crm-duplicates', '2026-07-18', '2026-09-16'),
+  defineFlag('data-export-backup', 'Keeps the provider-neutral migration archive doorway dark until its manifest claims and completeness checks pass acceptance review.', 'data-export-backup', '2026-07-18', '2026-09-16'),
 ] as const satisfies readonly FlagDescriptor[];
 
 export type FlagId = (typeof flagRegistry)[number]['id'];

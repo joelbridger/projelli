@@ -5,7 +5,7 @@ import { Badge, Button, Callout } from '@/ui/kp';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import {
   createVerifiedMigrationArchive,
-  type MigrationArchiveReceipt,
+  type VerifiedMigrationArchive,
   UninspectableMigrationArchiveError,
 } from './migrationArchive';
 
@@ -29,7 +29,7 @@ export function DataExportBackupSettings() {
   const { t } = useTranslation();
   const workspaceRoot = useWorkspaceStore((state) => state.rootPath);
   const [busy, setBusy] = useState(false);
-  const [receipt, setReceipt] = useState<MigrationArchiveReceipt | null>(null);
+  const [receipt, setReceipt] = useState<VerifiedMigrationArchive | null>(null);
   const [error, setError] = useState<string | null>(null);
   const canExport = Boolean(workspaceRoot) && !busy;
 
@@ -152,6 +152,24 @@ export function DataExportBackupSettings() {
             <dt>{t('data-portability.reconciliation-report')}</dt>
             <dd data-testid="migration-archive-report" style={{ margin: 0 }}>
               {receipt.reconciliationReportId}
+            </dd>
+            <dt>{t('data-portability.record-count')}</dt>
+            <dd
+              data-testid="migration-archive-record-count"
+              style={{ margin: 0 }}
+            >
+              {receipt.manifest.recordCount}
+            </dd>
+            <dt>{t('data-portability.source-types')}</dt>
+            <dd
+              data-testid="migration-archive-source-types"
+              style={{ margin: 0 }}
+            >
+              {Object.entries(receipt.manifest.recordCounts)
+                .map(
+                  ([sourceType, count]) => `${sourceType} (${String(count)})`
+                )
+                .join(', ')}
             </dd>
           </dl>
         </div>
