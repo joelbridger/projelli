@@ -2,103 +2,100 @@
 
 - Base SHA: `0683ff9b6987334e2191a6e8ed302491be55fbf7`
 - Frozen restoration source: `207ec6367`
-- Foundation code SHA: `8e06520466b5c5cb8887096edec839d19964786f`
+- Final foundation code SHA: `c35c7a031cfa74c93722eed7f8bae77fd0c66013`
+- Evidence commits follow this code commit only.
 
 ## What this foundation owns
 
-`clientContextStore` is now the sole source for the client plus a three-state
-scope: a named matter, explicit all-matters intent, or blocked/unresolved. The
-legacy `activeMatterId` is only a projection: matter scopes project to their id;
-all-matters and blocked scopes project to `null`. `followerStatus` reports only
-whether that projection currently agrees.
+`clientContextStore` owns a client plus a three-state scope: a named matter,
+explicit all-matters, or blocked/unresolved. `activeMatterId` is only its
+legacy projection. Scope changes use one source `set()` transition; its
+`finally` schedules one bounded reconciliation even when a source subscriber
+throws. The sealed scope request door accepts only private-WeakMap provenance.
 
-The only public scope request is `requestMatterScopeSelection(SealedMatterScopeSelection)`.
-Its WeakMap provenance and frozen handle make a cast, raw id, raw union, or
-caller-created object refuse. Its issuer helpers are deliberately absent from
-the package index. The public store facade deliberately omits Zustand's raw
-`setState`, and stored/returned scope values are frozen. The existing `setClient` remains a temporary compatibility
-entry for the later writer-retirement lane; because it has no proven pair it
-sets the source scope to blocked rather than authorizing a raw selection — but
-only after the one dark integration flag is enabled. While
-`selection-authority-boot-gate` is off (the shipping default), this package is
-inert: boot does not inspect or project the persisted follower, legacy client
-select/clear retains the pre-foundation client-only transition, and a sealed-op
-refusal returns its refused result without changing source state.
+This is an inert foundation. `selection-authority-boot-gate` ships off. While
+it is off, boot does not read or write the follower, legacy select/clear use
+the same client-only transition as `0683ff9b6`, and rejected sealed requests
+return a refusal without a blocked store transition. When the later integration
+lane enables the flag, the first authority read (and each enabled issuer or
+legacy source entry) validates the persisted follower before exposing or using
+the scope. A source-owned real matter-store subscription immediately blocks a
+selected scope when that matter is archived or deleted, including after
+follower convergence.
 
 ## SALVAGE DELTA LIST
 
-Frozen inventory inspected: `clientContextStore.ts`, `clientContextStore.test.ts`,
-`index.ts`, and `src/features/crm-clients/clientBoundary.ts` at `207ec6367`.
+Compared with frozen `207ec6367`, the three restored files contain 1,163 added
+and 297 removed lines at this code SHA. The following is the complete semantic
+line-group inventory; it deliberately does not collapse the store and test
+rewrites into one vague row. Ranges are frozen → current.
 
-| Frozen material | Result at this SHA | Delta and reason | Fresh proof |
-| --- | --- | --- | --- |
-| `SharedClientIdentity`, `SharedClientContextAdapter`, and `readSharedClientContext` | Byte-identical behavior retained in `clientContextStore.ts` | None; existing current-tip owner already carried these groups. | `keeps a narrow client adapter on the source client identity` |
-| `SealedClientBoundary`, private `WeakMap`, and async `requestSharedClientSelection` doorway | Adapted in `clientContextStore.ts` | Replaced frozen two-store ordering/rollback with one source slice and follower projection; forged and invalid boundaries now block the source rather than restoring stores. | `selects a current full client/matter pair…`; `refuses a forged client boundary…` |
-| Frozen `sealResolvedClientBoundary` issuer | Adapted in the owned package | Issuance now validates exactly one live unarchived canonical pair and captures a source revision. | specific-pair, stale, resolver, and revalidation tests |
-| Frozen `resolveHouseholdMatterId` rule in feature `clientBoundary.ts` | Reimplemented as `resolveCanonicalHouseholdMatter` in this platform package | Feature helper counts archived matches and is feature-owned; the legal authority rule must accept exactly one **unarchived** `Matter.crmHouseholdKeys` match. The feature file was not edited. | `resolves exactly one unarchived canonical household match` |
-| Frozen store state and tests | Adapted, not byte-identical when activated | Added tri-state source, sealed scope requests, boot gate, projection-only status, frozen exposed scopes, and finally-owned bounded single-flight retry. Required by R3 amendments 3 and 4. The new `selection-authority-boot-gate` makes this behavior inert by default, with a before/after legacy-path observation proving flag-off parity. | focused authority tests, including flag-off parity |
-| Frozen public index | Adapted | Exports narrow readers and request types/doors; no issuer or raw scope writer is exported. | `has no raw-id or raw-union request boundary…` plus TypeScript test gate |
+| File and line group | Why it differs | Fresh coverage |
+| --- | --- | --- |
+| `clientContextStore.ts` imports; 1–12 → 1–12 | Adds flag, matter, tri-state dependencies. | whole focused suite |
+| store 13–74 → 14–100 | Moves identity definitions ahead of seals; adds opaque scope handle, provenance records, and result/refusal unions. | compile/raw-boundary, provenance, forged-request tests |
+| store 90–119 → 101–176 | Expands state to source scope/status/revision and separates legacy mutable normalization from immutable authority normalization/projection. | adapter, flag-off parity, immutable-provenance tests |
+| store 116–130 → 177–228 | Replaces feature-owned lookup with exact-one live canonical resolver and pair validation. | resolver and missing/archived/unauthorized/wrong-client tests |
+| store 35–62 → 230–282 | Replaces permissive frozen issuer with live, canonical, revision-sealed client and scope issuers plus all-matters intent. | specific-pair, stale-boundary, all-matters tests |
+| store 131–143 → 283–372 | Replaces two-store rollback state with flag boundary, projection status, bounded single-flight retry, and persisted-follower decoding. | retry, throwing-subscriber, permanent-failure tests |
+| store 177–189 → 374–433 | Replaces client-only Zustand store with one source slice write and dark-compatible legacy transitions. | single-set subscriber test; R1 before/after observation |
+| store — → 435–465 | Adds mandatory enabled-reader boot validation and source-owned live archive/delete invalidation. | real authority-read boot arms; post-convergence archive/delete test |
+| store 153–196 → 467–571 | Replaces rollback selection request with flag-gated sealed-source requests, revalidation, refusal, and source projection. | seal/forgery/stale/revalidation/dark-refusal tests |
+| store — → 580–598 | Adds authority reader and hides raw Zustand `setState` behind a narrow facade. | adapter/public-facade test; architecture/handle guard |
+| `clientContextStore.test.ts` 1–40 → 1–134 | Adds authority imports, fixtures, flag lifecycle, and the executable pre-foundation comparison factory. | all focused tests; R1 test |
+| tests 43–59 → 135–251 | Retains adapter coverage and adds true before/after dark observations: boot no-op, normalized selection, blank-id error, clear, subscriber transitions, and follower values. | R1 observational test |
+| tests 60–125 → 252–328 | Replaces old two-store request expectations with dark-refusal, resolver, sealed client/scope, forgery, and all-matters battery cases. | named tests in this range |
+| tests 125–163 → 329–525 | Replaces rollback and ordering cases with scope freshness, exact-pair revalidation, prior-scope, clear, and opaque-boundary battery cases. | stale, revalidation, clear, compile/runtime forge tests |
+| tests 163–239 → 526–668 | Adds real-reader boot arms and deterministic retry, source-subscriber, follower-failure, and post-convergence archive/delete proofs. | named boot/retry/live-invalidation tests |
+| tests — → 670–703 | Adds bounded permanent-retry and forged-client boundary coverage. | permanent-retry and forged-client tests |
+| `index.ts` 1–10 → 1–17 | Exports only narrow authority readers/types/doors, not issuers or raw writers. | compile boundary test and public-facade assertion |
 
-No unrelated frozen path was imported. There are no other byte-identical restored
-groups in the changed files; every adaptation above has fresh current-SHA test
-coverage and is to be inspected by the independent Sol review.
+### Byte-identical retained groups
 
-## Resolver decision
+These are the complete unchanged code groups within the salvaged source. Both
+were byte-compared, including their comments:
 
-The authority doorway is
-`src/platform/client-context/clientContextStore.ts:resolveCanonicalHouseholdMatter`.
-It uses the canonical current relationship, `Matter.crmHouseholdKeys`, filters
-archived matters, and returns only one match. The feature export
-`resolveHouseholdMatterId` is not used because it is feature-owned and its
-current implementation counts archived entries before applying its exactly-one
-rule. Missing, ambiguous, archived-only, altered, or stale pairs become
-`blocked-unresolved` through the sealed request door.
+| Frozen range | Current range | SHA-256 |
+| --- | --- | --- |
+| store 75–88 (`SharedClientIdentity`, `SharedClientContextAdapter`) | store 14–27 | `db335831cf7ed9bc06810c7d7efa1e45ebd64188c7e4b6a0f33c5ef61f79296d` |
+| store 198–203 (`readSharedClientContext`) | store 573–578 | `b50aabe232bc942454277abb3a9ea8f9ceb97e0fff0b39a35badbb7bbffff65d` |
 
-## Zustand evidence
-
-Installed Zustand is `5.0.12` (`node_modules/zustand/package.json`). In
-`node_modules/zustand/vanilla.js`, lines 6–11 compute the next state, assign it
-to `state` on line 10, then synchronously call listeners on line 11. The source
-transition therefore catches only a subscriber failure after the source has
-swapped, and its `finally` unconditionally schedules reconciliation. Focused
-test `schedules reconciliation in finally when a source subscriber throws
-before follower work` subscribes a throwing source listener, proves the scope
-has still changed, and waits for the legacy follower to converge without a
-second selection write.
+No test block and no `index.ts` line group is byte-identical: each was adapted
+to the new authority contract or its narrow public surface. No other frozen
+source group is claimed unchanged.
 
 ## Required battery and focused cases
 
-| Requirement | Exact focused test | Result |
+| Requirement | Real proof | Result |
 | --- | --- | --- |
-| 3 deterministic retry | `retries a follower failure without another selection write` | PASS |
-| 4 source subscriber throws first | `schedules reconciliation in finally when a source subscriber throws before follower work` | PASS |
-| 5 throwing follower / stale observable | `keeps stale observable when the follower throws and then converges by retry` | PASS |
-| 7 explicit all-matters | `preserves explicit all-matters capability with a separate sealed user-intent handle` | PASS |
-| 8 resolver arms, no prior matter, clear | resolver, `never carries…`, and `preserves…when clearing client` | PASS |
-| 9 forged/stale/missing/archived/unauthorized/wrong-client | forged, stale, and revalidation tests | PASS |
-| valid pair / immutable provenance / raw boundary | specific-pair, immutable-forgery, and raw-boundary tests | PASS |
-| boot valid / null / invalid / archived | `boot gate validates persisted follower before the authority reader can be used` | PASS |
-| review fixes: no raw `setState`, frozen scope, stale shared boundary | adapter, specific-pair, and stale-client-boundary tests | PASS |
-| review fix: no hot retry loop / live invalidation | `bounds a permanently failing follower retry…`; `blocks a source whose selected matter disappears…` | PASS |
-| inert default / legacy parity | `keeps flag-off legacy client paths observationally identical to the pre-foundation store` | PASS |
-| dark forged/invalid refusal is a no-op | `refuses forged or invalid sealed requests without blocking the legacy store while the flag is off` | PASS |
+| 3–5 retry/follower failures | retry, throwing-source-subscriber, throwing-follower, bounded-retry tests use the real stores | PASS |
+| 7 all-matters | separate sealed all-matters intent selects and projects `null` | PASS |
+| 8 resolution/boot/live invalidation | exact-one resolver; real authority read validates valid/null/missing/archived persistence; real `setMatterArchived` and `deleteMatter` after convergence block immediately | PASS |
+| 9 sealed-request validation | compile and runtime forged/raw/stale/missing/archived/unauthorized/wrong-client cases | PASS |
+| R1 flag-off observational proof | executable `0683ff9b6` client store runs beside current dark store; full legacy client transitions, blank-id errors, subscriber values, boot no-op, and follower values are compared | PASS |
+| flag-off refusal | forged and invalid sealed requests refuse without source mutation | PASS |
 
-## Commands and review status
+## Zustand evidence and install state
 
-Fresh commands will be re-run after the final documentation edit and final
-commit: focused Vitest suite, `npm run typecheck:tests`, full `npm run gate`,
-handle guard, and architecture-boundaries test. Rust source touched: no.
+The lockfile records Zustand `5.0.12`, but the actual installed package is
+`5.0.14` (`node_modules/zustand/package.json`; `npm ls zustand --depth=0`).
+`npm ci` was attempted and correctly refused because the lockfile lacks the
+declared `eslint-plugin-lantern-test-hygiene@0.1.0`; this lane did not conceal
+that repository-level lock mismatch by rewriting the lockfile. The subscriber
+proof was therefore re-run against installed `5.0.14`: `vanilla.js` lines 6–11
+compute next state, assign it at line 10, then synchronously notify listeners
+at line 11. The focused throwing-source-subscriber test proves that the source
+is swapped and the `finally` reconciliation still converges.
 
-Independent Sol review round 1 (`gpt-5.6-sol`, reviewed commit `a16258fbc`)
-found four real issues: public raw `setState`, mutable exposed scope, stale
-shared-client boundary replay, and an unbounded permanent-failure retry. All
-four are fixed in `f1bada154`, `d60cd1ee9`, and `8e0652046`, with focused tests.
+## Verification and handoff
 
-Self-review round 1 and independent Sol review round 2: pending the final
-receipt/report commit and fresh final gates.
+- Focused authority suite: 21/21 passed after `c35c7a031`.
+- `npm run typecheck:tests` and `npm run typecheck`: passed after `c35c7a031`.
+- `npm run lint:gate`: passed with zero new findings in this worktree; the
+  retained 359-finding red log came from an unsanitized/mismatched environment,
+  not a code baseline update. `--update-baseline` was not used.
+- Zero external callers of the new authority doors remain; no consumer, writer,
+  Meetings, or guard file was changed.
 
-The new sealed request operations intentionally have zero external callers in
-this foundation lane. External writer retirement, lifecycle migration, T1
-readers, and T2 presentation remain outside this lane. Activation is owned
-only by sub-lane 4's integration gate; this lane must not enable
-`selection-authority-boot-gate` in production.
+The full fresh machine receipt is deliberately coordinator-run at the next
+honest window. It was not run by this evidence-fix round.
