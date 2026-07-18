@@ -98,6 +98,13 @@ import {
 } from '@/platform/fs/BackendFactory';
 import { flushAllDirtyTabs } from '@/app/fileOps/flushDirtyTabs';
 import { useTabWriteGuard } from '@/platform/browserGuard/useTabWriteGuard';
+
+// flushAllDirtyTabs returns failed .docx paths, while the tab guard needs a
+// completion-only callback. Keep this adapter module-stable: guard ownership
+// must not restart merely because App rendered again.
+async function flushDirtyTabsForTabGuard(): Promise<void> {
+  await flushAllDirtyTabs();
+}
 import { TabGateOverlay } from '@/platform/browserGuard/TabGateOverlay';
 import { useAiBatchReviewStore } from '@/platform/ai/aiBatchReviewStore';
 import { createWebFSBackend } from '@/platform/fs/WebFSBackend';
@@ -269,11 +276,9 @@ function App() {
   const tabWriteGuard = useTabWriteGuard(
     !IS_TEST_MODE && !isTauriEnvironment(),
     {
-      // flushAllDirtyTabs returns the failed-.docx paths (QA-34); this guard only
-      // needs the completion, so adapt to its Promise<void> signature.
-      onFlushRequested: async () => {
-        await flushAllDirtyTabs();
-      },
+      // The adapter deliberately ignores failed paths, preserving the existing
+      // handoff semantics while keeping its identity stable across renders.
+      onFlushRequested: flushDirtyTabsForTabGuard,
     }
   );
   if (tabWriteGuard.status === 'blocked') {
