@@ -29,7 +29,8 @@ const directoryComposition = createDirectoryComposition(
   crmTagsRailDirectoryContribution,
   contactTableDirectoryContribution
 );
-import type { AddToHouseholdRequest } from '@/features/crm-clients/adapters';
+import type { AddToHouseholdRequest, OpenMailSurfaceRequest } from '@/features/crm-clients/adapters';
+import type { EmailComposeHandoff } from '@/features/email/composeHandoff';
 import { CrmAskSurface } from '@/features/crm-ask';
 import { DocumentsHome } from '@/features/documents/DocumentsHome';
 import { AssociateHome } from '@/features/workflows/AssociateHome';
@@ -207,6 +208,7 @@ export function AppSurfaceRouter(props: AppSurfaceRouterProps) {
     },
   } = capabilities;
   const [crmAddRequest, setCrmAddRequest] = useState<CrmHouseholdAddRequest | null>(null);
+  const [emailComposeHandoff, setEmailComposeHandoff] = useState<EmailComposeHandoff | null>(null);
   const registryState = useAppSurfaceRegistry();
   const requestedDescriptor = registryState.descriptors.find(
     (descriptor) => descriptor.id === sidebarActiveTab
@@ -433,6 +435,7 @@ export function AppSurfaceRouter(props: AppSurfaceRouterProps) {
   const buildEmailWorkspace = (opts: {
     embedded?: boolean;
     scopeMatterId?: string;
+    composeHandoff?: EmailComposeHandoff;
   }) => (
     <LazyBoundary
       loader={loadEmailWorkspace}
@@ -504,6 +507,10 @@ export function AppSurfaceRouter(props: AppSurfaceRouterProps) {
                 detail: { tab: 'connections' },
               })
             );
+          }}
+          {...(opts.composeHandoff ? { composeHandoff: opts.composeHandoff } : {})}
+          onComposeHandoffConsumed={() => {
+            setEmailComposeHandoff(null);
           }}
           {...(opts.embedded ? { embedded: true } : {})}
         />
@@ -607,6 +614,17 @@ export function AppSurfaceRouter(props: AppSurfaceRouterProps) {
             householdLabel: request.householdRef.label ?? 'Untitled household',
           });
           setSidebarActiveTab('home');
+        },
+        onDraftEmail: (request: OpenMailSurfaceRequest) => {
+          setEmailComposeHandoff({
+            kind: 'household_draft',
+            household: {
+              id: request.householdRef.id,
+              label: request.householdRef.label ?? 'Untitled household',
+            },
+            source: request.source,
+          });
+          setSidebarActiveTab('email');
         },
         onCreateClientDocument: async (matterId) => {
           const folderPath = await prepareClientDocumentsFolder(matterId);
@@ -856,7 +874,7 @@ export function AppSurfaceRouter(props: AppSurfaceRouterProps) {
       home: renderHome,
       clients: renderClients,
       ask: renderAsk,
-      email: () => buildEmailWorkspace({}),
+      email: () => buildEmailWorkspace({ ...(emailComposeHandoff ? { composeHandoff: emailComposeHandoff } : {}) }),
       documents: () => buildDocumentsHome({}),
       workflows: renderWorkflows,
       audit: () => buildActivity({}),

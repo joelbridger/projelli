@@ -7,6 +7,27 @@ import { AppSurfaceRouter, type AppSurfaceRouterProps } from './AppSurfaceRouter
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { setDevFlagOverride } from '@/platform/flags';
 
+const mail = vi.hoisted(() => ({
+  desktop: true,
+  connectedAccounts: vi.fn(),
+  listMessages: vi.fn(),
+}));
+
+vi.mock('@tauri-apps/api/core', () => ({ isTauri: () => mail.desktop }));
+vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn().mockResolvedValue(vi.fn()) }));
+vi.mock('@/platform/utils/mail-commands', () => ({
+  mailConnectedAccounts: mail.connectedAccounts,
+  mailListMessages: mail.listMessages,
+  mailListMessagesByMatter: vi.fn(),
+  mailGetMessage: vi.fn(),
+  mailRetagFolderMatter: vi.fn(),
+  mailRetagMessageMatter: vi.fn(),
+  mailSend: vi.fn(),
+  mailSyncAll: vi.fn().mockResolvedValue(undefined),
+  mailCancelSync: vi.fn().mockResolvedValue(undefined),
+  MAIL_SYNC_EVENT: 'mail-sync-progress',
+}));
+
 const records: readonly LiveCrmRecord[] = [
   {
     id: 'h-1',
@@ -181,6 +202,11 @@ function Harness() {
 
 describe('CRM household add actions', () => {
   beforeEach(() => {
+    mail.desktop = true;
+    mail.connectedAccounts.mockResolvedValue([
+      { provider: 'm365', account: 'default', label: 'Work' },
+    ]);
+    mail.listMessages.mockResolvedValue({ items: [], total: 0 });
     localStorage.setItem('lantern:crm:selected-household:/workspace', 'h-1');
     useMatterStore.setState({
       matters: [{
@@ -261,7 +287,8 @@ describe('CRM household add actions', () => {
       setDevFlagOverride('crm-shell-v1', undefined);
     });
 
-    it('opens a new task form with the current household already selected', async () => {
+    it('opens and saves a new task with the current household attached', async () => {
+      save.mockClear();
       render(<Harness />);
 
       fireEvent.click(await screen.findByTestId('crm-household-add'));
@@ -269,6 +296,23 @@ describe('CRM household add actions', () => {
 
       expect(await screen.findByTestId('crm-task-detail')).toBeInTheDocument();
       expect(screen.getByTestId('crm-task-household')).toHaveValue('h-1');
+      fireEvent.change(screen.getByTestId('crm-task-title-input'), {
+        target: { value: 'Review Henderson plan' },
+      });
+      fireEvent.click(screen.getByTestId('crm-task-save'));
+
+      await waitFor(() => {
+        const taskWrite = save.mock.calls.find(
+          ([record]) => record.kind === 'task' && record.title === 'Review Henderson plan',
+        );
+        expect(taskWrite?.[0]).toMatchObject({
+          householdRef: {
+            kind: 'household',
+            id: 'h-1',
+            matterId: 'h-1',
+          },
+        });
+      });
     });
 
     it('opens a new opportunity form with the current household already selected', async () => {
@@ -312,5 +356,47 @@ describe('CRM household add actions', () => {
         '/workspace/Clients/Henderson household',
       );
     });
+  });
+
+  it.each([
+    ['connected', () => {
+      mail.desktop = true;
+      mail.connectedAccounts.mockResolvedValue([{ provider: 'm365', account: 'default', label: 'Work' }]);
+    }, async () => {
+      expect(await screen.findByTestId('compose-household-context')).toHaveTextContent('Henderson household');
+    }],
+    ['unconnected', () => {
+      mail.desktop = true;
+      mail.connectedAccounts.mockResolvedValue([]);
+    }, async () => {
+      expect(await screen.findByTestId('email-compose-handoff-message')).toHaveTextContent('No email account is connected');
+    }],
+    ['mail connection failure', () => {
+      mail.desktop = true;
+      mail.connectedAccounts.mockRejectedValue(new Error('mail unavailable'));
+    }, async () => {
+      expect(await screen.findByTestId('email-compose-handoff-message')).toHaveTextContent('could not check your email connection');
+    }],
+  ])('takes the real household Email action through the shell when mail is %s', async (_state, setup, assertResult) => {
+    setup();
+    render(<Harness />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Email' }));
+    fireEvent.click(screen.getByTestId('crm-open-mail-surface'));
+
+    await assertResult();
+  });
+
+  it('explains the desktop boundary instead of silently opening a browser draft', async () => {
+    mail.desktop = false;
+    render(<Harness />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Email' }));
+    fireEvent.click(screen.getByTestId('crm-open-mail-surface'));
+
+    expect(await screen.findByTestId('email-compose-handoff-message')).toHaveTextContent(
+      'Email drafts open in the desktop app.',
+    );
+    expect(screen.queryByTestId('compose-household-context')).not.toBeInTheDocument();
   });
 });
