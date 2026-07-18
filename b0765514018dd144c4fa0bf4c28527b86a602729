@@ -1,0 +1,12 @@
+Final receipt-bearing tip verification
+SHA: b0765514018dd144c4fa0bf4c28527b86a602729
+npm run selection:writers:test: tests 9, pass 9, fail 0
+npm run selection:writers:check: PASS; one follower projection writer; zero direct client writers across src and scripts
+focused writer/lifecycle product battery: 13 files, 132 tests passed
+npx tsc --noEmit: exit 0
+npm run typecheck:tests: exit 0
+npm run lint:gate: no ESLint regression; 63 fingerprints cleaned vs baseline
+handle guard: passed; no permanent handle vanished and no new ambiguous handles
+architecture boundary: 1 file, 1 test passed
+git diff --check: exit 0
+worktree: clean
