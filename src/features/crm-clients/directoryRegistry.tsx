@@ -264,11 +264,13 @@ import {
 } from './directoryRegistryCompatibility';
 import { bulkSelectDirectoryTool } from './extensions/bulk-select';
 import { bulkExportDirectoryAction } from './extensions/bulk-export';
+import { crmDuplicatesDirectoryTool } from './extensions/duplicates';
 
 /** Append feature-owned directory tools here without changing the directory shell. */
 export const directoryToolRegistry: readonly DirectoryToolDescriptor[] = [
   ...legacyDirectoryTools,
   bulkSelectDirectoryTool,
+  crmDuplicatesDirectoryTool,
 ];
 export const directoryActionRegistry: readonly DirectoryActionDescriptor[] =
   [

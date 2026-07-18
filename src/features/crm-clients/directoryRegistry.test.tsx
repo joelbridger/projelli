@@ -78,6 +78,7 @@ describe('client directory registries', () => {
       'external-filter',
       'verification-filter',
       'bulk-select',
+      'crm-duplicates',
     ]);
     expect(directoryActionRegistry.map(({ id }) => id)).toEqual([
       'create-household',
