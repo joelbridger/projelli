@@ -456,18 +456,27 @@ function ensureAuthorityBootValidated(): void {
  * Matter-store updates are synchronous, so this source-owned listener blocks
  * immediately; it never waits for another selection or retry to happen.
  */
-useMatterStore.subscribe((state) => {
-  if (!selectionAuthorityEnabled()) return;
-  const source = useClientContextStore.getState();
-  if (
-    source.scope.kind === 'matter' &&
-    !state.matters.some(
-      (matter) => matter.id === source.scope.matterId && !matter.archived
-    )
-  ) {
-    writeBlockedSourceSelection(source.client);
-  }
-});
+function subscribeToMatterInvalidation(): void {
+  // Some isolated consumers replace the matter-store hook with a narrow
+  // read-only test double. Production's Zustand store always has subscribe;
+  // do not let an unrelated consumer's import-time mock prevent that consumer
+  // from loading. The real store still owns this live invalidation listener.
+  const subscribe = useMatterStore.subscribe;
+  if (typeof subscribe !== 'function') return;
+
+  subscribe((state) => {
+    if (!selectionAuthorityEnabled()) return;
+    const source = useClientContextStore.getState();
+    if (source.scope.kind !== 'matter') return;
+
+    const matterId = source.scope.matterId;
+    if (!state.matters.some((matter) => matter.id === matterId && !matter.archived)) {
+      writeBlockedSourceSelection(source.client);
+    }
+  });
+}
+
+subscribeToMatterInvalidation();
 
 /**
  * Boot gate used by the lifecycle lane at startup. It validates the persisted

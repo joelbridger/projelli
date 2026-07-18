@@ -136,6 +136,11 @@ describe('client-context selection authority', () => {
   });
 
   it('keeps flag-off legacy client paths observationally identical to the real pre-foundation store', () => {
+    const deliberatelyMessyClient: SharedClientIdentity = {
+      householdId: '  household-a  ',
+      displayName: '   ',
+      primaryPeople: ['  Ann Alpha  ', ' ', '  Bea Beta '],
+    };
     const activeMatterIdBefore = 'legacy-active-matter';
     const legacySetActiveMatter = vi.fn(originalSetActiveMatter);
     useMatterStore.setState({
@@ -146,17 +151,19 @@ describe('client-context selection authority', () => {
     setDevFlagOverride('selection-authority-boot-gate', false);
 
     const beforeStore = createPreFoundationClientStore();
-    const beforeTransitions: Array<SharedClientIdentity | null> = [null];
-    const afterTransitions: Array<SharedClientIdentity | null> = [
-      useClientContextStore.getState().client,
+    const beforeSubscriberValues: Array<{ client: SharedClientIdentity | null }> = [
+      { client: null },
+    ];
+    const afterSubscriberValues: Array<{ client: SharedClientIdentity | null }> = [
+      { client: useClientContextStore.getState().client },
     ];
     const beforeErrors: string[] = [];
     const afterErrors: string[] = [];
     const unsubscribeBefore = beforeStore.subscribe((state) => {
-      beforeTransitions.push(state.client);
+      beforeSubscriberValues.push({ client: state.client });
     });
     const unsubscribeAfter = useClientContextStore.subscribe((state) => {
-      afterTransitions.push(state.client);
+      afterSubscriberValues.push({ client: state.client });
     });
     const sourceBefore = {
       scope: useClientContextStore.getState().scope,
@@ -167,8 +174,8 @@ describe('client-context selection authority', () => {
       // The pre-foundation app had no authority boot work. The dark current
       // boot call must be observably equivalent to that no-op.
       bootstrapSelectionAuthorityFromPersistedFollower();
-      beforeStore.getState().setClient(householdA);
-      useClientContextStore.getState().setClient(householdA);
+      beforeStore.getState().setClient(deliberatelyMessyClient);
+      useClientContextStore.getState().setClient(deliberatelyMessyClient);
       try {
         beforeStore.getState().setClient({ ...householdA, householdId: '  ' });
       } catch (error) {
@@ -188,13 +195,21 @@ describe('client-context selection authority', () => {
       unsubscribeAfter();
     }
 
-    expect(afterTransitions).toEqual(beforeTransitions);
+    expect(afterSubscriberValues).toEqual(beforeSubscriberValues);
     expect(afterErrors).toEqual(beforeErrors);
-    const selectedClient = afterTransitions[1];
+    const selectedClient = afterSubscriberValues[1]?.client;
     if (!selectedClient)
       throw new Error('legacy selection must expose a client');
+    expect(selectedClient).toEqual({
+      householdId: householdA.householdId,
+      displayName: householdA.householdId,
+      primaryPeople: ['Ann Alpha', 'Bea Beta'],
+    });
     expect(Object.isFrozen(selectedClient)).toBe(false);
     expect(Object.isFrozen(selectedClient.primaryPeople)).toBe(false);
+    expect({ client: useClientContextStore.getState().client }).toEqual({
+      client: beforeStore.getState().client,
+    });
     expect(useMatterStore.getState()).toMatchObject({
       activeMatterId: activeMatterIdBefore,
       clientMapHubId: null,
