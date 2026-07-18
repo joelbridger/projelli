@@ -8,7 +8,10 @@ import {
 import { useAppSurfaceRegistry } from '@/app/shell/runtime/useAppSurfaceRegistry';
 import { useOptionalAppSurfaceCapabilities } from '@/app/shell/runtime/AppSurfaceRuntime';
 import { useFlag } from '@/platform/flags';
-import { useClientContextStore } from '@/platform/client-context';
+import {
+  requestClearClientSelection,
+  useClientContextStore,
+} from '@/platform/client-context';
 
 export interface SharedClientBarProps {
   onChooseClient?: (() => void) | undefined;
@@ -19,7 +22,6 @@ export function SharedClientBar({ onChooseClient }: SharedClientBarProps) {
   const sharedClientBarV1Enabled = useFlag('shared-client-bar');
   const { t } = useTranslation();
   const client = useClientContextStore((state) => state.client);
-  const clearClient = useClientContextStore((state) => state.clearClient);
   const { descriptors } = useAppSurfaceRegistry();
   const capabilities = useOptionalAppSurfaceCapabilities();
   const quickActions = getSharedClientQuickActions(descriptors);
@@ -74,7 +76,7 @@ export function SharedClientBar({ onChooseClient }: SharedClientBarProps) {
           <button
             className="ml-auto rounded px-2 py-1 text-slate-600 hover:bg-slate-100"
             data-testid="shared-client-bar-clear"
-            onClick={clearClient}
+            onClick={requestClearClientSelection}
             type="button"
           >
             {t('shared-client.bar.clear')}

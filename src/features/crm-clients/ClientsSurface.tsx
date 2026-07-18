@@ -4,6 +4,11 @@ import { useActiveMatters, useMatterStore } from '@/platform/matter/matterStore'
 import { readSelectedCrmHousehold, writeSelectedCrmHousehold } from '@/platform/crm/clientSelection';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import type { Matter } from '@/platform/types/matter';
+import {
+  issueAllMattersScopeSelection,
+  issueMatterScopeSelection,
+  requestMatterScopeSelection,
+} from '@/platform/client-context';
 import { DirectorySurface } from './DirectorySurface';
 import type { DirectoryComposition, DirectoryRepository } from './directoryRegistry';
 import { HouseholdRecordSurface } from './HouseholdRecordSurface';
@@ -243,14 +248,23 @@ function ClientsSurfaceContent({
   const selectHousehold = useCallback((id: string | null) => {
     const selectedRecord = id ? findRecord(id) : undefined;
     const selection = selectedRecord ? recordMatterId(selectedRecord) : id;
-    setSelectedId(selection);
-    // Ask's confidentiality boundary is the active client in the matter store.
-    // Keep it scoped only when the selected CRM record maps to a real client.
     const safeMatterId = selection && useMatterStore.getState().matters.some(
       (matter) => matter.id === selection,
     ) ? selection : null;
-    useMatterStore.getState().setActiveMatter(safeMatterId);
-    if (selectionWorkspace) writeSelectedCrmHousehold(selectionWorkspace, selection);
+    const request = safeMatterId
+      ? issueMatterScopeSelection(safeMatterId)
+      : issueAllMattersScopeSelection();
+    void requestMatterScopeSelection(request)
+      .then((result) => {
+        if (result.kind === 'refused') return;
+        setSelectedId(selection);
+        if (selectionWorkspace) {
+          writeSelectedCrmHousehold(selectionWorkspace, selection);
+        }
+      })
+      .catch((error: unknown) => {
+        console.error('[CRM clients] Household scope selection failed.', error);
+      });
   }, [findRecord, recordMatterId, selectionWorkspace]);
 
   const effectiveHouseholds = households.length ? households : effectiveRecords.map((household) => {

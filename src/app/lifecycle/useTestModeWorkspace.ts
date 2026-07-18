@@ -381,7 +381,7 @@ export function useTestModeWorkspace(options: UseTestModeWorkspaceOptions): void
         const sampleMatter = getOrCreateSampleMatter('/test-workspace');
         // seedSampleClientMap also sets the sample matter active + opens its
         // Client Map hub, so first render lands on a filled, cited map.
-        seedSampleClientMap(sampleMatter.id);
+        void seedSampleClientMap(sampleMatter.id);
       }
 
       // Pre-load 2 demo tabs for testing

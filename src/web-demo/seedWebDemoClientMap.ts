@@ -18,6 +18,10 @@
  * runs only for the advisor profession (the Webb pack).
  */
 import { useMatterStore } from '@/platform/matter/matterStore';
+import {
+  issueMatterScopeSelection,
+  requestMatterScopeSelection,
+} from '@/platform/client-context';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import type {
   ClientMap,
@@ -134,7 +138,7 @@ function webbClientMap(): ClientMap {
  * on the filled map. Idempotent: if the matter already exists we only re-focus
  * it (the demo resets on reload, so re-focusing is the desired behavior).
  */
-export function seedWebDemoClientMap(): void {
+export async function seedWebDemoClientMap(): Promise<void> {
   const matterStore = useMatterStore.getState();
   const exists = matterStore.matters.some((m) => m.id === WEBB_MATTER_ID);
   if (!exists) {
@@ -152,6 +156,9 @@ export function seedWebDemoClientMap(): void {
   // is deterministic seed data and the demo resets each load anyway.
   useClientMapStore.getState().setMap(WEBB_MATTER_ID, webbClientMap());
   // Focus the client and open its hub so the Client Map is the first screen.
-  matterStore.setActiveMatter(WEBB_MATTER_ID);
+  const result = await requestMatterScopeSelection(
+    issueMatterScopeSelection(WEBB_MATTER_ID)
+  );
+  if (result.kind === 'refused') return;
   matterStore.setClientMapHubId(WEBB_MATTER_ID);
 }

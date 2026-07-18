@@ -13,7 +13,7 @@ import { useEditorStore } from '@/platform/state/editorStore';
  * AppSurfaceRouter.tsx so the component file only exports components
  * (react-refresh rule) and the routing stays unit-testable.
  */
-export function routeSavedAskDocument({
+export async function routeSavedAskDocument({
   activeMatter,
   savedDocument,
   setDocumentsView,
@@ -31,24 +31,34 @@ export function routeSavedAskDocument({
   setSidebarActiveTab: (tab: AppSurface) => void;
   setMattersSurfaceMode?: (mode: MattersSurfaceMode) => void;
   pushNavigationSnapshot?: () => void;
-}) {
-  pushNavigationSnapshot?.();
-  if (savedDocument) {
-    useEditorStore
-      .getState()
-      .openFile(savedDocument.path, savedDocument.name, savedDocument.content);
-  }
-  setDocumentsView('editor');
+}): Promise<void> {
   if (!activeMatter) {
+    if (savedDocument) {
+      useEditorStore
+        .getState()
+        .openFile(savedDocument.path, savedDocument.name, savedDocument.content);
+    }
+    setDocumentsView('editor');
+    pushNavigationSnapshot?.();
     setSidebarActiveTab('files');
     return;
   }
 
-  showMatterDocuments({
+  const routed = await showMatterDocuments({
     matterId: activeMatter.id,
     documentOpened: true,
-    handlers: { setDocumentsView, setSidebarActiveTab, setMattersSurfaceMode },
+    handlers: {
+      setDocumentsView,
+      setSidebarActiveTab,
+      setMattersSurfaceMode,
+      pushNavigationSnapshot,
+    },
   });
+  if (routed && savedDocument) {
+    useEditorStore
+      .getState()
+      .openFile(savedDocument.path, savedDocument.name, savedDocument.content);
+  }
 }
 
 export function resolveSavedDocumentDirectory({

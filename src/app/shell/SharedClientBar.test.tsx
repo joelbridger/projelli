@@ -8,7 +8,9 @@ import {
   clientContextAdapterRegistry,
   validateClientContextAdapters,
 } from '@/app/shell/client-context/clientContextAdapterRegistry';
-import { useClientContextStore } from '@/platform/client-context';
+import {
+  requestClearClientSelection,
+} from '@/platform/client-context';
 import { crmClientsSharedClientContextAdapter } from '@/features/crm-clients';
 import { askSharedClientContextAdapter } from '@/features/ask';
 import { meetingsSharedClientContextAdapter } from '@/features/meetings';
@@ -17,7 +19,7 @@ import { setDevFlagOverride } from '@/platform/flags';
 
 describe('shared client bar seam', () => {
   afterEach(() => {
-    useClientContextStore.getState().clearClient();
+    requestClearClientSelection();
     setDevFlagOverride('shared-client-bar', undefined);
   });
 
@@ -50,6 +52,7 @@ describe('shared client bar seam', () => {
 
   it('renders the shared selection and clears it from the bar', () => {
     crmClientsSharedClientContextAdapter.selectHousehold({
+      provider: 'wealthbox',
       householdId: 'household-foster',
       displayName: 'Foster household',
     });
@@ -78,6 +81,7 @@ describe('shared client bar seam', () => {
 
   it('propagates one CRM selection across Ask and Meetings adapters', () => {
     crmClientsSharedClientContextAdapter.selectHousehold({
+      provider: 'wealthbox',
       householdId: 'household-foster',
       displayName: 'Foster household',
     });

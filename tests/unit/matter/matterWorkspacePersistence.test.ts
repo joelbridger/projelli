@@ -22,7 +22,7 @@
  *   delete, and the reloadWorkspaceScopedStores wiring.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   useMatterStore,
   getMatters,
@@ -39,6 +39,17 @@ import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { workspacePath } from '@/platform/fs/appPath';
 import { MATTERS_WORKSPACE_REL_PATH, SK_MATTERS } from '@/config/identity';
 import { reloadWorkspaceScopedStores } from '@/platform/state/reloadWorkspaceScopedStores';
+import {
+  readAuthoritativeMatterScope,
+  issueAllMattersScopeSelection,
+  issueMatterScopeSelection,
+  rehydrateSelectionHint,
+  replaceCanonicalHouseholdDirectory,
+  requestClearClientSelection,
+  requestMatterScopeSelection,
+  useClientContextStore,
+} from '@/platform/client-context';
+import { setDevFlagOverride } from '@/platform/flags/router';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -52,7 +63,10 @@ function scopedMattersKey(root: string): string {
 
 /** Minimal in-memory WorkspaceService — the same surface the MCP session-scope
  *  writer's tests mock (writeFile/move/delete) plus exists/readFile/getRootPath. */
-function createMockWorkspaceService(root: string) {
+function createMockWorkspaceService(
+  root: string,
+  beforeWrite?: (() => Promise<void>) | undefined,
+) {
   const files = new Map<string, string>();
   const service = {
     getRootPath: () => root,
@@ -62,9 +76,9 @@ function createMockWorkspaceService(root: string) {
       if (c === undefined) return Promise.reject(new Error(`missing file: ${p}`));
       return Promise.resolve(c);
     },
-    writeFile: (p: string, content: string) => {
+    writeFile: async (p: string, content: string) => {
+      await beforeWrite?.();
       files.set(p, content);
-      return Promise.resolve();
     },
     move: (from: string, to: string) => {
       const c = files.get(from);
@@ -174,8 +188,108 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  setDevFlagOverride('selection-authority-boot-gate', false);
+  requestClearClientSelection();
+  setDevFlagOverride('selection-authority-boot-gate', undefined);
   setActiveWorkspaceScopeRoot(null);
   setActiveWorkspaceService(null);
+});
+
+describe('writer-owned workspace-disk rehydration', () => {
+  it('reclassifies the disk hint and never installs the disk follower as authority', async () => {
+    const { service, files } = createMockWorkspaceService('/wsA');
+    const live = persistedMatter('m_live', '/wsA', 'Live');
+    const forgedFollower = persistedMatter('m_forged', '/wsA', 'Forged');
+    files.set(
+      mattersFilePath('/wsA'),
+      JSON.stringify({
+        version: 10,
+        savedAt: '2026-07-18T00:00:00Z',
+        state: {
+          matters: [live, forgedFollower],
+          activeMatterId: forgedFollower.id,
+          selectionHint: {
+            version: 1,
+            source: 'specific-matter',
+            matterId: live.id,
+          },
+          snapshots: {},
+          cache: {},
+        },
+      })
+    );
+
+    setDevFlagOverride('selection-authority-boot-gate', true);
+    replaceCanonicalHouseholdDirectory('wealthbox', []);
+    rehydrateSelectionHint({
+      kind: 'persisted-hint',
+      value: { version: 1, source: 'explicit-all-matters' },
+    });
+    await openWorkspace('/wsA', service);
+
+    expect(readAuthoritativeMatterScope()).toEqual({
+      kind: 'matter-only',
+      matterId: live.id,
+    });
+    await vi.waitFor(() => {
+      expect(useMatterStore.getState().activeMatterId).toBe(live.id);
+      expect(useClientContextStore.getState().followerStatus).toBe('converged');
+    });
+  });
+
+  it('captures a workspace selection hint before its disk write enters the queue', async () => {
+    let holdNextWrite = false;
+    let releaseHeldWrite = (): void => {};
+    let heldWriteEntered: (() => void) | null = null;
+    const heldWriteStarted = new Promise<void>((resolve) => {
+      heldWriteEntered = resolve;
+    });
+    const heldWrite = new Promise<void>((resolve) => {
+      releaseHeldWrite = () => {
+        resolve();
+      };
+    });
+    const { service, files } = createMockWorkspaceService('/wsA', async () => {
+      if (!holdNextWrite) return;
+      holdNextWrite = false;
+      heldWriteEntered?.();
+      await heldWrite;
+    });
+
+    setDevFlagOverride('selection-authority-boot-gate', true);
+    replaceCanonicalHouseholdDirectory('wealthbox', []);
+    rehydrateSelectionHint({
+      kind: 'persisted-hint',
+      value: { version: 1, source: 'explicit-all-matters' },
+    });
+    await openWorkspace('/wsA', service);
+    const selected = useMatterStore.getState().createMatter({
+      name: 'Selected',
+      client: 'Selected',
+      folderPaths: ['/wsA/Selected'],
+    });
+    await flushMattersWorkspaceDiskWrites();
+    await requestMatterScopeSelection(issueMatterScopeSelection(selected.id));
+
+    holdNextWrite = true;
+    useMatterStore.getState().renameMatter(selected.id, { name: 'First queued edit' });
+    await heldWriteStarted;
+    useMatterStore.getState().renameMatter(selected.id, { name: 'Second queued edit' });
+    await requestMatterScopeSelection(issueAllMattersScopeSelection());
+    releaseHeldWrite();
+    await flushMattersWorkspaceDiskWrites();
+
+    const raw = files.get(mattersFilePath('/wsA'));
+    expect(raw).toBeDefined();
+    const disk = JSON.parse(raw ?? '{}') as {
+      state?: { selectionHint?: unknown };
+    };
+    expect(disk.state?.selectionHint).toEqual({
+      version: 1,
+      source: 'specific-matter',
+      matterId: selected.id,
+    });
+  });
 });
 
 // ── (a) fresh-profile durability — the reproduced Windows-bench data loss ────

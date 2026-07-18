@@ -222,7 +222,7 @@ function makeMeetingsWorkspace() {
 describe('MatterHub — list to hub navigation', () => {
   beforeEach(resetStore);
 
-  it('clicking a matter row opens the hub', () => {
+  it('clicking a matter row opens the hub', async () => {
     useMatterStore.getState().createMatter({ name: 'Acme v. Beta', client: 'Acme' });
     const matter = useMatterStore.getState().matters[0]!;
 
@@ -233,7 +233,7 @@ describe('MatterHub — list to hub navigation', () => {
     // The hub's defining marker is the sub-tab bar (Client Map / Documents /
     // Email / Activity). The old in-header back chevron was removed — returning
     // to the clients list now happens via the left-nav "Client Map" item.
-    expect(screen.getByTestId('hub-subtab-bar')).toBeInTheDocument();
+    expect(await screen.findByTestId('hub-subtab-bar')).toBeInTheDocument();
   });
 
   it('hub header shows the client name', () => {
@@ -402,7 +402,7 @@ describe('MatterHub — list to hub navigation', () => {
     expect(screen.queryByTestId('hub-isolated-badge')).toBeNull();
   });
 
-  it('closing the hub returns to the matter list', () => {
+  it('closing the hub returns to the matter list', async () => {
     useMatterStore.getState().createMatter({ name: 'Back Test', client: 'Client' });
     const matter = useMatterStore.getState().matters[0]!;
 
@@ -410,7 +410,7 @@ describe('MatterHub — list to hub navigation', () => {
 
     // Open the hub
     fireEvent.click(screen.getByTestId(`matter-row-${matter.id}`));
-    expect(screen.getByTestId('hub-subtab-bar')).toBeInTheDocument();
+    expect(await screen.findByTestId('hub-subtab-bar')).toBeInTheDocument();
 
     // The in-header back chevron is gone; closing the hub is now driven by the
     // store (what the left-nav "Client Map" item does — App.tsx onTabChange).

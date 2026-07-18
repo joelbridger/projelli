@@ -46,6 +46,10 @@ import {
   useActiveMatterId,
   useMatterStore,
 } from '@/platform/matter/matterStore';
+import {
+  issueMatterScopeSelection,
+  requestMatterScopeSelection,
+} from '@/platform/client-context';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { MatterHub } from '@/features/matters/MatterHub';
 import { TodaysMeetingsStrip } from '@/features/meetings/TodaysMeetingsStrip';
@@ -863,7 +867,6 @@ export function MattersHome({
   const activeMatters = useActiveMatters();
   const archivedMatters = useArchivedMatters();
   const activeMatterId = useActiveMatterId();
-  const setActiveMatter = useMatterStore((s) => s.setActiveMatter);
   const setMatterArchived = useMatterStore((s) => s.setMatterArchived);
   // Hub-open state lives in the store's ephemeral clientMapHubId so it survives
   // the MattersHome remount a surface switch causes — returning to the Client
@@ -879,9 +882,16 @@ export function MattersHome({
       ? clientMapHubId
       : null;
   const openHub = (id: string) => {
-    onClientMapModeChange?.('client-map');
-    setActiveMatter(id);
-    setClientMapHubId(id);
+    const request = issueMatterScopeSelection(id);
+    void requestMatterScopeSelection(request)
+      .then((result) => {
+        if (result.kind === 'refused') return;
+        onClientMapModeChange?.('client-map');
+        setClientMapHubId(id);
+      })
+      .catch((error: unknown) => {
+        console.error('[Client Map] Client scope selection failed.', error);
+      });
   };
   const closeHub = () => {
     onClientMapModeChange?.('all-clients');

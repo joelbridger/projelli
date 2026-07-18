@@ -84,13 +84,13 @@ describe('ClientsSurface during a CRM search update', () => {
     expect(screen.getByText('Abernathy Household')).toBeInTheDocument();
   });
 
-  it('shows an imported household in the directory and lets the advisor open it before search is ready', () => {
+  it('shows an imported household in the directory and lets the advisor open it before search is ready', async () => {
     useMatterStore.setState({ activeMatterId: null, clientMapHubId: null });
     render(<ClientsSurface />);
 
     expect(screen.queryByText('No households match this search.')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('crm-directory-household-matter-wealthbox-1'));
-    expect(screen.getByTestId('crm-household-record')).toBeInTheDocument();
+    expect(await screen.findByTestId('crm-household-record')).toBeInTheDocument();
     expect(screen.getByText('Abernathy Household')).toBeInTheDocument();
   });
 

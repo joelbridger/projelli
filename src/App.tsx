@@ -143,6 +143,11 @@ import {
 } from '@/platform/matter/matterUiStore';
 import { usePrivilegedMatterModeActive } from '@/platform/hooks/usePrivilegedMatterMode';
 import {
+  issueAllMattersScopeSelection,
+  issueMatterScopeSelection,
+  requestMatterScopeSelection,
+} from '@/platform/client-context';
+import {
   requestNativeNetworkLockdown,
   useNativeNetworkLockdownBridgeState,
 } from '@/platform/privacy/nativeNetworkLockdownBridge';
@@ -641,21 +646,30 @@ function AppShell() {
       rootPath
     );
     if (!safeSnapshot) return;
-    const matterState = useMatterStore.getState();
-    matterState.setActiveMatter(safeSnapshot.activeMatterId);
-    matterState.setClientMapHubId(safeSnapshot.clientMapHubId);
-    matterState.setClientMapHubTab(safeSnapshot.clientMapHubTab);
-    setMattersSurfaceMode(safeSnapshot.mattersSurfaceMode);
-    setDocumentsView(safeSnapshot.documentsView);
-    if (
-      safeSnapshot.activeTabPath &&
-      useEditorStore
-        .getState()
-        .openTabs.some((tab) => tab.path === safeSnapshot.activeTabPath)
-    ) {
-      useEditorStore.getState().setActiveTab(safeSnapshot.activeTabPath);
-    }
-    setSidebarActiveTab(safeSnapshot.sidebarActiveTab);
+    const request = safeSnapshot.activeMatterId
+      ? issueMatterScopeSelection(safeSnapshot.activeMatterId)
+      : issueAllMattersScopeSelection();
+    void requestMatterScopeSelection(request)
+      .then((result) => {
+        if (result.kind === 'refused') return;
+        const matterState = useMatterStore.getState();
+        matterState.setClientMapHubId(safeSnapshot.clientMapHubId);
+        matterState.setClientMapHubTab(safeSnapshot.clientMapHubTab);
+        setMattersSurfaceMode(safeSnapshot.mattersSurfaceMode);
+        setDocumentsView(safeSnapshot.documentsView);
+        if (
+          safeSnapshot.activeTabPath &&
+          useEditorStore
+            .getState()
+            .openTabs.some((tab) => tab.path === safeSnapshot.activeTabPath)
+        ) {
+          useEditorStore.getState().setActiveTab(safeSnapshot.activeTabPath);
+        }
+        setSidebarActiveTab(safeSnapshot.sidebarActiveTab);
+      })
+      .catch((error: unknown) => {
+        console.error('[App navigation] Back scope restoration failed.', error);
+      });
   }, [matters, popNavigationEntry, rootPath]);
   // The global Back button was removed from the UI by the 2026-07-07 chrome
   // pass. Keep the navigation machinery compiled for future non-button entry
@@ -1420,7 +1434,7 @@ function AppShell() {
           useProfessionStore.getState().setProfession('advisor');
           await writeSampleFiles(service, 'advisor');
           const matter = getOrCreateSampleMatter(root);
-          seedSampleClientMap(matter.id);
+          await seedSampleClientMap(matter.id);
           // Golden-path extras (sample meeting, prep brief, CRM card) are
           // garnish — a seeding failure must never fail the sample start
           // itself, so it is caught and logged instead of bubbling.
@@ -1966,7 +1980,11 @@ function AppShell() {
         if (opts?.writeSamples && rootPath) {
           try {
             const sampleMatter = getOrCreateSampleMatter(rootPath);
-            useMatterStore.getState().setActiveMatter(sampleMatter.id);
+            void requestMatterScopeSelection(
+              issueMatterScopeSelection(sampleMatter.id)
+            ).catch((error: unknown) => {
+              console.warn('[App] Sample scope selection failed.', error);
+            });
           } catch (err) {
             console.warn(
               '[App] sample-matter post-onboarding setup failed:',

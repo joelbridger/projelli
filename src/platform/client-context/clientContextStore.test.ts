@@ -1,758 +1,593 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { create } from 'zustand';
+import fc from 'fast-check';
 import {
   bootstrapSelectionAuthorityFromPersistedFollower,
+  issueAllMattersScopeSelection,
+  issueMatterScopeSelection,
+  issueRehydratedSelection,
+  issueSharedClientSelection,
   readAuthoritativeMatterScope,
-  readSharedClientContext,
+  rehydrateSelectionHint,
+  replaceCanonicalHouseholdDirectory,
+  requestClearClientSelection,
   requestMatterScopeSelection,
+  requestRehydratedSelection,
   requestSharedClientSelection,
-  resolveCanonicalHouseholdMatter,
+  resolveCanonicalHouseholdClassification,
   useClientContextStore,
-  type ClientContextState,
-  type SealedClientBoundary,
+  type RehydratedSelectionInput,
+  type SealedClientSelectionClassification,
   type SealedMatterScopeSelection,
-  type SharedClientIdentity,
 } from '@/platform/client-context';
-import { useMatterStore } from '@/platform/matter/matterStore';
 import { setDevFlagOverride } from '@/platform/flags/router';
+import { useMatterStore } from '@/platform/matter/matterStore';
 import type { Matter } from '@/platform/types/matter';
-import {
-  sealAllMattersScopeSelection,
-  sealMatterScopeSelection,
-  sealResolvedClientBoundary,
-} from './clientContextStore';
 
-const householdA = {
+const clientA = {
+  provider: 'wealthbox' as const,
   householdId: 'household-a',
   displayName: 'Alpha household',
-  primaryPeople: ['Ann Alpha'],
-} as const;
-const householdB = {
+};
+const clientB = {
+  provider: 'wealthbox' as const,
   householdId: 'household-b',
   displayName: 'Beta household',
-} as const;
-
-const originalSetActiveMatter = useMatterStore.getState().setActiveMatter;
-
-/**
- * Exact behavioral copy of the pre-foundation client store at 0683ff9b6.
- * This test deliberately runs the real old transition beside the dark current
- * transition rather than comparing the new store to a hand-written trace.
- */
-function createPreFoundationClientStore() {
-  type PreFoundationState = {
-    client: SharedClientIdentity | null;
-    setClient: (client: SharedClientIdentity) => void;
-    clearClient: () => void;
-  };
-  function normalizeClient(client: SharedClientIdentity): SharedClientIdentity {
-    const householdId = client.householdId.trim();
-    if (!householdId) {
-      throw new Error('Shared client context requires a household id.');
-    }
-    return {
-      householdId,
-      displayName: client.displayName.trim() || householdId,
-      ...(client.primaryPeople
-        ? {
-            primaryPeople: client.primaryPeople
-              .map((person) => person.trim())
-              .filter(Boolean),
-          }
-        : {}),
-    };
-  }
-  return create<PreFoundationState>()((set) => ({
-    client: null,
-    setClient: (client) => {
-      set({ client: normalizeClient(client) });
-    },
-    clearClient: () => {
-      set({ client: null });
-    },
-  }));
-}
-
-/**
- * This is intentionally the whole subscriber-visible ClientContextState.
- * Explicit fields make adding a state field fail this dark-path proof until it
- * is captured and asserted here too.
- */
-function captureClientContextState(
-  state: ClientContextState
-): ClientContextState {
-  return {
-    client: state.client,
-    scope: state.scope,
-    followerStatus: state.followerStatus,
-    selectionRevision: state.selectionRevision,
-    setClient: state.setClient,
-    clearClient: state.clearClient,
-  };
-}
+};
+const clientWrong = {
+  provider: 'wealthbox' as const,
+  householdId: 'household-wrong',
+  displayName: 'Wrong household',
+};
 
 function matter(
   id: string,
-  householdId: string,
+  crmHouseholdKeys?: string[],
   patch: Partial<Matter> = {}
 ): Matter {
   return {
     id,
     name: id,
-    client: householdId,
+    client: id,
     folderPaths: [],
-    crmHouseholdKeys: [householdId],
+    ...(crmHouseholdKeys === undefined ? {} : { crmHouseholdKeys }),
     createdAt: '2026-07-18T00:00:00.000Z',
     ...patch,
   };
 }
 
-function seed(...matters: Matter[]): void {
-  useMatterStore.setState({ matters, activeMatterId: null });
+function seed(matters: Matter[], activeMatterId: string | null = null): void {
+  useMatterStore.setState({ matters, activeMatterId });
 }
 
-async function waitForConvergence(): Promise<void> {
+function publish(...clients: Array<typeof clientA | typeof clientB | typeof clientWrong>): void {
+  replaceCanonicalHouseholdDirectory('wealthbox', clients);
+}
+
+async function selectMatter(matterId: string) {
+  return requestMatterScopeSelection(issueMatterScopeSelection(matterId));
+}
+
+async function selectClient(client: typeof clientA | typeof clientB | typeof clientWrong) {
+  return requestSharedClientSelection(issueSharedClientSelection(client));
+}
+
+async function waitForFollower(value: string | null): Promise<void> {
   await vi.waitFor(() => {
+    expect(useMatterStore.getState().activeMatterId).toBe(value);
     expect(useClientContextStore.getState().followerStatus).toBe('converged');
   });
 }
 
+function restartFrom(value: unknown): void {
+  rehydrateSelectionHint({ kind: 'persisted-hint', value });
+}
+
 beforeEach(() => {
-  // Foundation tests exercise the dormant code only through its one activation
-  // gate. Production continues to start dark.
+  localStorage.clear();
+  setDevFlagOverride('selection-authority-boot-gate', false);
+  seed([]);
+  replaceCanonicalHouseholdDirectory('wealthbox', null);
+  requestClearClientSelection();
   setDevFlagOverride('selection-authority-boot-gate', true);
+  publish();
+  restartFrom({ version: 1, source: 'explicit-all-matters' });
 });
 
-afterEach(async () => {
-  // Cleanup uses the active authority behavior so no selected source leaks to
-  // the next focused case.
-  setDevFlagOverride('selection-authority-boot-gate', true);
-  useMatterStore.setState({
-    matters: [],
-    activeMatterId: null,
-    setActiveMatter: originalSetActiveMatter,
-  });
-  useClientContextStore.getState().clearClient();
-  bootstrapSelectionAuthorityFromPersistedFollower();
-  await waitForConvergence();
+afterEach(() => {
+  setDevFlagOverride('selection-authority-boot-gate', false);
+  seed([]);
+  replaceCanonicalHouseholdDirectory('wealthbox', null);
+  requestClearClientSelection();
+  localStorage.clear();
   setDevFlagOverride('selection-authority-boot-gate', undefined);
 });
 
-describe('client-context selection authority', () => {
-  it('keeps a narrow client adapter on the source client identity', () => {
-    const adapter = {
-      id: 'test',
-      derive: (client: SharedClientIdentity | null) =>
-        client?.householdId ?? null,
-    };
-    useClientContextStore.getState().setClient(householdA);
+describe('total selection classifiers', () => {
+  it('classifies provider-qualified liveness and every matter topology deterministically', () => {
+    const live = matter('matter-live', ['household-a']);
+    const archived = matter('matter-archived', ['household-a'], { archived: true });
+    publish(clientA);
 
-    expect(readSharedClientContext(adapter)).toBe('household-a');
-    expect(readAuthoritativeMatterScope()).toEqual({
-      kind: 'blocked-unresolved',
-    });
-    expect('setState' in useClientContextStore).toBe(false);
+    expect(
+      resolveCanonicalHouseholdClassification(clientA, [live]).kind
+    ).toBe('exactly-one-live');
+    expect(
+      resolveCanonicalHouseholdClassification(clientA, []).kind
+    ).toBe('zero-live');
+    expect(
+      resolveCanonicalHouseholdClassification(clientA, [live, matter('two', ['household-a'])]).kind
+    ).toBe('ambiguous-live');
+    expect(
+      resolveCanonicalHouseholdClassification(clientA, [archived]).kind
+    ).toBe('archived-only');
+
+    replaceCanonicalHouseholdDirectory('wealthbox', null);
+    expect(
+      resolveCanonicalHouseholdClassification(clientA, [live]).kind
+    ).toBe('invalid-household');
   });
 
-  it('keeps flag-off legacy client paths observationally identical to the real pre-foundation store', () => {
-    const deliberatelyMessyClient: SharedClientIdentity = {
-      householdId: '  household-a  ',
-      displayName: '   ',
-      primaryPeople: ['  Ann Alpha  ', ' ', '  Bea Beta '],
-    };
-    const activeMatterIdBefore = 'legacy-active-matter';
-    const legacySetActiveMatter = vi.fn(originalSetActiveMatter);
-    useMatterStore.setState({
-      matters: [matter(activeMatterIdBefore, householdA.householdId)],
-      activeMatterId: activeMatterIdBefore,
-      setActiveMatter: legacySetActiveMatter,
-    });
-    setDevFlagOverride('selection-authority-boot-gate', false);
-
-    const beforeStore = createPreFoundationClientStore();
-    const beforeSubscriberValues: Array<{ client: SharedClientIdentity | null }> = [
-      { client: null },
-    ];
-    const initialAfterState = captureClientContextState(
-      useClientContextStore.getState()
-    );
-    const afterSubscriberValues: ClientContextState[] = [initialAfterState];
-    const beforeErrors: string[] = [];
-    const afterErrors: string[] = [];
-    const unsubscribeBefore = beforeStore.subscribe((state) => {
-      beforeSubscriberValues.push({ client: state.client });
-    });
-    const unsubscribeAfter = useClientContextStore.subscribe((state) => {
-      afterSubscriberValues.push(captureClientContextState(state));
-    });
-    const sourceBefore = {
-      scope: useClientContextStore.getState().scope,
-      followerStatus: useClientContextStore.getState().followerStatus,
-      selectionRevision: useClientContextStore.getState().selectionRevision,
-    };
-    try {
-      // The pre-foundation app had no authority boot work. The dark current
-      // boot call must be observably equivalent to that no-op.
-      bootstrapSelectionAuthorityFromPersistedFollower();
-      beforeStore.getState().setClient(deliberatelyMessyClient);
-      useClientContextStore.getState().setClient(deliberatelyMessyClient);
-      try {
-        beforeStore.getState().setClient({ ...householdA, householdId: '  ' });
-      } catch (error) {
-        beforeErrors.push((error as Error).message);
-      }
-      try {
-        useClientContextStore
-          .getState()
-          .setClient({ ...householdA, householdId: '  ' });
-      } catch (error) {
-        afterErrors.push((error as Error).message);
-      }
-      beforeStore.getState().clearClient();
-      useClientContextStore.getState().clearClient();
-    } finally {
-      unsubscribeBefore();
-      unsubscribeAfter();
-    }
-
-    const expectedSelectedClient: SharedClientIdentity = {
-      householdId: householdA.householdId,
-      displayName: householdA.householdId,
-      primaryPeople: ['Ann Alpha', 'Bea Beta'],
-    };
-    const expectedSelectedState: ClientContextState = {
-      client: expectedSelectedClient,
-      scope: initialAfterState.scope,
-      followerStatus: initialAfterState.followerStatus,
-      selectionRevision: initialAfterState.selectionRevision,
-      setClient: initialAfterState.setClient,
-      clearClient: initialAfterState.clearClient,
-    };
-    expect(afterSubscriberValues).toStrictEqual([
-      initialAfterState,
-      expectedSelectedState,
-      initialAfterState,
+  it('returns a sealed classification for blank, missing, archived, and live matter inputs', () => {
+    seed([
+      matter('live'),
+      matter('archived', [], { archived: true }),
     ]);
-    expect(afterSubscriberValues.map(({ client }) => ({ client }))).toEqual(
-      beforeSubscriberValues
-    );
-    expect(afterErrors).toEqual(beforeErrors);
-    const selectedClient = afterSubscriberValues[1]?.client;
-    if (!selectedClient)
-      throw new Error('legacy selection must expose a client');
-    expect(selectedClient).toEqual(expectedSelectedClient);
-    expect(Object.isFrozen(selectedClient)).toBe(false);
-    expect(Object.isFrozen(selectedClient.primaryPeople)).toBe(false);
-    const finalAfterState = captureClientContextState(
-      useClientContextStore.getState()
-    );
-    expect(finalAfterState).toStrictEqual(initialAfterState);
-    expect(finalAfterState.client).toEqual(beforeStore.getState().client);
-    expect(useMatterStore.getState()).toMatchObject({
-      activeMatterId: activeMatterIdBefore,
-      clientMapHubId: null,
-    });
-    expect(legacySetActiveMatter).not.toHaveBeenCalled();
-    expect({
-      scope: finalAfterState.scope,
-      followerStatus: finalAfterState.followerStatus,
-      selectionRevision: finalAfterState.selectionRevision,
-    }).toEqual(sourceBefore);
+    for (const input of ['', '   ', 'missing', 'archived', 'live']) {
+      const request = issueMatterScopeSelection(input);
+      expect(request).toBeTruthy();
+      expect(Object.isFrozen(request)).toBe(true);
+    }
   });
 
-  it('refuses forged or invalid sealed requests without blocking the legacy store while the flag is off', async () => {
-    setDevFlagOverride('selection-authority-boot-gate', false);
-    const before = useClientContextStore.getState();
+  it('makes seals runtime-only and rejects copied or fabricated handles', async () => {
+    seed([matter('matter-a')]);
+    const sealed = issueMatterScopeSelection('matter-a');
+    expect(() => JSON.stringify(sealed)).toThrow(/runtime-only/);
+    expect(() => JSON.stringify(issueSharedClientSelection(clientA))).toThrow(
+      /runtime-only/
+    );
+    expect(() =>
+      JSON.stringify(
+        issueRehydratedSelection({
+          kind: 'legacy-follower',
+          activeMatterId: null,
+        })
+      )
+    ).toThrow(/runtime-only/);
 
     await expect(
-      requestMatterScopeSelection(
-        Object.freeze({}) as SealedMatterScopeSelection
-      )
+      requestMatterScopeSelection(Object.freeze({}) as SealedMatterScopeSelection)
     ).resolves.toEqual({
       kind: 'refused',
       reason: 'unsealed-matter-scope-request',
     });
-
     await expect(
-      requestSharedClientSelection(Object.freeze({}) as SealedClientBoundary)
+      requestSharedClientSelection(
+        Object.freeze({}) as SealedClientSelectionClassification
+      )
     ).resolves.toEqual({
       kind: 'refused',
       reason: 'unsealed-client-boundary',
     });
-
-    seed(matter('matter-a', householdA.householdId));
-    const invalidatedRequest = sealMatterScopeSelection({
-      householdRef: householdA.householdId,
-      matterId: 'matter-a',
-    });
-    if (!invalidatedRequest) throw new Error('fixture must seal');
-    useMatterStore.setState({ matters: [] });
-    await expect(
-      requestMatterScopeSelection(invalidatedRequest)
-    ).resolves.toEqual({
-      kind: 'refused',
-      reason: 'missing-matter',
-    });
-
-    expect(useClientContextStore.getState().client).toBe(before.client);
-    expect(useClientContextStore.getState().scope).toBe(before.scope);
-    expect(useClientContextStore.getState().selectionRevision).toBe(
-      before.selectionRevision
-    );
   });
 
-  it('resolves exactly one unarchived canonical household match', () => {
-    const one = matter('matter-a', householdA.householdId);
-    expect(resolveCanonicalHouseholdMatter(householdA.householdId, [one])).toBe(
-      one
-    );
-    expect(
-      resolveCanonicalHouseholdMatter(householdA.householdId, [])
-    ).toBeUndefined();
-    expect(
-      resolveCanonicalHouseholdMatter(householdA.householdId, [
-        one,
-        matter('matter-b', householdA.householdId),
-      ])
-    ).toBeUndefined();
-    expect(
-      resolveCanonicalHouseholdMatter(householdA.householdId, [
-        matter('archived', householdA.householdId, { archived: true }),
-      ])
-    ).toBeUndefined();
-  });
+  it('refuses stale matter and client classifications after live data changes', async () => {
+    seed([matter('matter-a', ['household-a'])]);
+    publish(clientA);
+    const matterRequest = issueMatterScopeSelection('matter-a');
+    const clientRequest = issueSharedClientSelection(clientA);
 
-  it('selects a current full client/matter pair through the salvaged sealed boundary', async () => {
-    seed(matter('matter-a', householdA.householdId));
-    const boundary = sealResolvedClientBoundary({
-      householdRef: householdA.householdId,
-      matterId: 'matter-a',
-      displayName: householdA.displayName,
-    });
-    if (!boundary) throw new Error('fixture must seal');
+    seed([matter('matter-a', ['household-a'], { archived: true })]);
 
-    await expect(requestSharedClientSelection(boundary)).resolves.toEqual({
-      kind: 'selected',
-      client: { householdId: 'household-a', displayName: 'Alpha household' },
-    });
-    expect(useClientContextStore.getState().scope).toEqual({
-      kind: 'matter',
-      matterId: 'matter-a',
-    });
-    await waitForConvergence();
-    expect(useMatterStore.getState().activeMatterId).toBe('matter-a');
-  });
-
-  it('accepts only a runtime-provenance-sealed specific scope request', async () => {
-    seed(matter('matter-a', householdA.householdId));
-    const request = sealMatterScopeSelection({
-      householdRef: householdA.householdId,
-      matterId: 'matter-a',
-      displayName: householdA.displayName,
-    });
-    if (!request) throw new Error('fixture must seal');
-
-    const result = await requestMatterScopeSelection(request);
-    expect(result).toEqual({
-      kind: 'selected',
-      client: { householdId: 'household-a', displayName: 'Alpha household' },
-      scope: { kind: 'matter', matterId: 'matter-a' },
-    });
-    if (result.kind !== 'selected')
-      throw new Error('fixture request must select');
-    expect(Object.isFrozen(result.scope)).toBe(true);
-    expect(() => Object.assign(result.scope, { matterId: 'other' })).toThrow();
-    expect(Object.isFrozen(readAuthoritativeMatterScope())).toBe(true);
-    await waitForConvergence();
-  });
-
-  it('keeps request provenance immutable and refuses a forged cast at runtime', async () => {
-    seed(matter('matter-a', householdA.householdId));
-    const request = sealMatterScopeSelection({
-      householdRef: householdA.householdId,
-      matterId: 'matter-a',
-    });
-    if (!request) throw new Error('fixture must seal');
-    expect(Object.isFrozen(request)).toBe(true);
-    expect(() => Object.assign(request, { matterId: 'other' })).toThrow();
-
-    const forged = Object.freeze({}) as SealedMatterScopeSelection;
-    await expect(requestMatterScopeSelection(forged)).resolves.toEqual({
-      kind: 'refused',
-      reason: 'unsealed-matter-scope-request',
-    });
-    expect(useClientContextStore.getState().scope).toEqual({
-      kind: 'blocked-unresolved',
-    });
-  });
-
-  it('has no raw-id or raw-union request boundary at compile time or runtime', async () => {
-    const compileOnly = false as boolean;
-    if (compileOnly) {
-      // @ts-expect-error The authority door never accepts a raw matter id.
-      await requestMatterScopeSelection('matter-a');
-      // @ts-expect-error The authority door never accepts a caller-made scope union.
-      await requestMatterScopeSelection({ kind: 'all-matters' });
-    }
-
-    await expect(
-      requestMatterScopeSelection(
-        'matter-a' as unknown as SealedMatterScopeSelection
-      )
-    ).resolves.toMatchObject({
-      kind: 'refused',
-      reason: 'unsealed-matter-scope-request',
-    });
-    expect(useClientContextStore.getState().scope.kind).toBe(
-      'blocked-unresolved'
-    );
-  });
-
-  it('preserves explicit all-matters capability with a separate sealed user-intent handle', async () => {
-    seed(matter('matter-a', householdA.householdId));
-    const request = sealAllMattersScopeSelection();
-
-    await expect(requestMatterScopeSelection(request)).resolves.toEqual({
-      kind: 'selected',
-      client: null,
-      scope: { kind: 'all-matters' },
-    });
-    await waitForConvergence();
-    expect(useMatterStore.getState().activeMatterId).toBeNull();
-  });
-
-  it('refuses a stale request rather than replaying it after another source transition', async () => {
-    seed(
-      matter('matter-a', householdA.householdId),
-      matter('matter-b', householdB.householdId)
-    );
-    const stale = sealMatterScopeSelection({
-      householdRef: householdA.householdId,
-      matterId: 'matter-a',
-    });
-    const next = sealMatterScopeSelection({
-      householdRef: householdB.householdId,
-      matterId: 'matter-b',
-    });
-    if (!stale || !next) throw new Error('fixtures must seal');
-    await requestMatterScopeSelection(next);
-
-    await expect(requestMatterScopeSelection(stale)).resolves.toEqual({
+    await expect(requestMatterScopeSelection(matterRequest)).resolves.toEqual({
       kind: 'refused',
       reason: 'stale-matter-scope-request',
     });
-    expect(useClientContextStore.getState().scope).toEqual({
-      kind: 'blocked-unresolved',
-    });
-  });
-
-  it('refuses a stale sealed client boundary rather than replaying it', async () => {
-    seed(
-      matter('matter-a', householdA.householdId),
-      matter('matter-b', householdB.householdId)
-    );
-    const stale = sealResolvedClientBoundary({
-      householdRef: householdA.householdId,
-      matterId: 'matter-a',
-    });
-    const next = sealResolvedClientBoundary({
-      householdRef: householdB.householdId,
-      matterId: 'matter-b',
-    });
-    if (!stale || !next) throw new Error('fixtures must seal');
-    await requestSharedClientSelection(next);
-
-    await expect(requestSharedClientSelection(stale)).resolves.toEqual({
+    await expect(requestSharedClientSelection(clientRequest)).resolves.toEqual({
       kind: 'refused',
-      reason: 'invalid-client-boundary',
-    });
-    expect(useClientContextStore.getState().scope).toEqual({
-      kind: 'blocked-unresolved',
+      reason: 'stale-client-boundary',
     });
   });
+});
 
-  it('revalidates missing, archived, unauthorized, and wrong-client pairs fail-closed', async () => {
-    seed(matter('matter-a', householdA.householdId));
-    const missing = sealMatterScopeSelection({
-      householdRef: householdA.householdId,
-      matterId: 'matter-a',
-    });
-    if (!missing) throw new Error('fixture must seal');
-    useMatterStore.setState({ matters: [] });
-    await expect(requestMatterScopeSelection(missing)).resolves.toMatchObject({
-      kind: 'refused',
-      reason: 'missing-matter',
-    });
-
-    seed(matter('matter-a', householdA.householdId));
-    bootstrapSelectionAuthorityFromPersistedFollower();
-    const archived = sealMatterScopeSelection({
-      householdRef: householdA.householdId,
-      matterId: 'matter-a',
-    });
-    if (!archived) throw new Error('fixture must seal');
-    useMatterStore.setState({
-      matters: [matter('matter-a', householdA.householdId, { archived: true })],
-    });
-    await expect(requestMatterScopeSelection(archived)).resolves.toMatchObject({
-      kind: 'refused',
-      reason: 'archived-matter',
-    });
-
-    seed(matter('matter-a', householdA.householdId));
-    bootstrapSelectionAuthorityFromPersistedFollower();
-    const unauthorized = sealMatterScopeSelection({
-      householdRef: householdA.householdId,
-      matterId: 'matter-a',
-    });
-    if (!unauthorized) throw new Error('fixture must seal');
-    useMatterStore.setState({
-      matters: [matter('matter-a', 'household-other')],
-    });
-    await expect(
-      requestMatterScopeSelection(unauthorized)
-    ).resolves.toMatchObject({ kind: 'refused', reason: 'unauthorized-pair' });
-
-    seed(matter('matter-a', householdA.householdId));
-    bootstrapSelectionAuthorityFromPersistedFollower();
-    const wrongClient = sealMatterScopeSelection({
-      householdRef: householdA.householdId,
-      matterId: 'matter-a',
-    });
-    if (!wrongClient) throw new Error('fixture must seal');
-    useMatterStore.setState({
-      matters: [
-        matter('matter-a', householdB.householdId),
-        matter('matter-b', householdA.householdId),
-      ],
-    });
-    await expect(
-      requestMatterScopeSelection(wrongClient)
-    ).resolves.toMatchObject({ kind: 'refused', reason: 'wrong-client-pair' });
-  });
-
-  it('never carries a prior matter across a proven next-client selection', async () => {
-    seed(
-      matter('matter-a', householdA.householdId),
-      matter('matter-b', householdB.householdId)
+describe('writer-owned localStorage rehydration', () => {
+  it('treats the stored follower as a hint and reclassifies the persisted selection hint', async () => {
+    const live = matter('matter-live');
+    const forgedFollower = matter('matter-forged');
+    localStorage.setItem(
+      'lantern:matters',
+      JSON.stringify({
+        version: 10,
+        state: {
+          matters: [live, forgedFollower],
+          activeMatterId: forgedFollower.id,
+          selectionHint: {
+            version: 1,
+            source: 'specific-matter',
+            matterId: live.id,
+          },
+        },
+      })
     );
-    const first = sealMatterScopeSelection({
-      householdRef: householdA.householdId,
-      matterId: 'matter-a',
-    });
-    if (!first) throw new Error('fixture must seal');
-    await requestMatterScopeSelection(first);
-    await waitForConvergence();
-    const second = sealMatterScopeSelection({
-      householdRef: householdB.householdId,
-      matterId: 'matter-b',
-    });
-    if (!second) throw new Error('fixture must seal');
-    await requestMatterScopeSelection(second);
 
-    expect(useClientContextStore.getState().client?.householdId).toBe(
-      householdB.householdId
-    );
-    expect(useClientContextStore.getState().scope).toEqual({
-      kind: 'matter',
-      matterId: 'matter-b',
+    await useMatterStore.persist.rehydrate();
+
+    expect(readAuthoritativeMatterScope()).toEqual({
+      kind: 'matter-only',
+      matterId: live.id,
     });
-    await waitForConvergence();
-    expect(useMatterStore.getState().activeMatterId).toBe('matter-b');
+    await waitForFollower(live.id);
+  });
+});
+
+describe('matter-only and full-pair writer classification', () => {
+  it('selects an unlinked or legacy-missing-link matter as matter-only', async () => {
+    for (const value of [matter('empty', []), matter('missing-field')]) {
+      seed([value]);
+      const result = await selectMatter(value.id);
+      expect(result).toMatchObject({
+        kind: 'selected',
+        client: null,
+        scope: { kind: 'matter-only', matterId: value.id },
+      });
+      await waitForFollower(value.id);
+    }
   });
 
-  it('preserves the authoritative scope exactly when clearing client', async () => {
-    seed(matter('matter-a', householdA.householdId));
-    const request = sealMatterScopeSelection({
-      householdRef: householdA.householdId,
-      matterId: 'matter-a',
-    });
-    if (!request) throw new Error('fixture must seal');
-    await requestMatterScopeSelection(request);
-    await waitForConvergence();
+  it('never lets a caller downgrade one canonical pair to matter-only', async () => {
+    seed([matter('matter-a', ['household-a'])]);
+    publish(clientA);
 
-    useClientContextStore.getState().clearClient();
+    await expect(selectMatter('matter-a')).resolves.toMatchObject({
+      kind: 'selected',
+      client: clientA,
+      scope: { kind: 'matter', matterId: 'matter-a' },
+    });
+  });
+
+  it('uses matter-only for 2+ candidates unless a live selected client disambiguates', async () => {
+    seed([matter('matter-a', ['household-a', 'household-b'])]);
+    publish(clientA, clientB);
+
+    await expect(selectMatter('matter-a')).resolves.toMatchObject({
+      kind: 'selected',
+      client: null,
+      scope: { kind: 'matter-only', matterId: 'matter-a' },
+    });
+
+    seed([
+      matter('matter-a', ['household-a', 'household-b']),
+      matter('matter-wrong', ['household-wrong']),
+    ]);
+    await selectClient(clientWrong);
+    await expect(selectMatter('matter-a')).resolves.toMatchObject({
+      kind: 'selected',
+      client: null,
+      scope: { kind: 'matter-only', matterId: 'matter-a' },
+    });
+
+    seed([matter('matter-a', ['household-a', 'household-b'])]);
+    await selectClient(clientA);
+    await expect(selectMatter('matter-a')).resolves.toMatchObject({
+      kind: 'selected',
+      client: clientA,
+      scope: { kind: 'matter', matterId: 'matter-a' },
+    });
+  });
+
+  it('keeps matter-only stable across unrelated matter and directory revisions', async () => {
+    const selected = matter('matter-a');
+    seed([selected]);
+    await selectMatter(selected.id);
+
+    seed([selected, matter('unrelated', ['household-b'])]);
+    publish(clientA, clientB);
+    publish(clientA, clientB);
+
+    expect(readAuthoritativeMatterScope()).toEqual({
+      kind: 'matter-only',
+      matterId: selected.id,
+    });
     expect(useClientContextStore.getState().client).toBeNull();
-    expect(useClientContextStore.getState().scope).toEqual({
-      kind: 'matter',
-      matterId: 'matter-a',
-    });
   });
 
-  it('real authority reads validate persisted follower before exposing a scope', () => {
-    const valid = matter('matter-a', householdA.householdId);
-    const startFreshEnabledBoot = () => {
-      setDevFlagOverride('selection-authority-boot-gate', false);
-      bootstrapSelectionAuthorityFromPersistedFollower();
-      setDevFlagOverride('selection-authority-boot-gate', true);
-    };
-    useMatterStore.setState({ matters: [valid], activeMatterId: valid.id });
-    startFreshEnabledBoot();
-    const booted = readAuthoritativeMatterScope();
-    expect(booted).toEqual({
-      kind: 'matter',
-      matterId: 'matter-a',
-    });
-    expect(Object.isFrozen(booted)).toBe(true);
-    expect(readAuthoritativeMatterScope()).toEqual({
-      kind: 'matter',
-      matterId: 'matter-a',
-    });
+  it('blocks failed specific-matter inputs while active and leaves dark state byte-identical', async () => {
+    seed([matter('archived', [], { archived: true })], null);
+    for (const input of ['', 'missing', 'archived']) {
+      restartFrom({ version: 1, source: 'explicit-all-matters' });
+      const result = await selectMatter(input);
+      expect(result.kind).toBe('refused');
+      expect(readAuthoritativeMatterScope()).toEqual({
+        kind: 'blocked-unresolved',
+      });
+      expect(useClientContextStore.getState().client).toBeNull();
+    }
 
-    useMatterStore.setState({ matters: [valid], activeMatterId: null });
-    startFreshEnabledBoot();
-    expect(readAuthoritativeMatterScope()).toEqual({
-      kind: 'all-matters',
-    });
-
-    useMatterStore.setState({ matters: [valid], activeMatterId: 'missing' });
-    startFreshEnabledBoot();
-    expect(readAuthoritativeMatterScope()).toEqual({
-      kind: 'blocked-unresolved',
-    });
-
-    useMatterStore.setState({
-      matters: [{ ...valid, archived: true }],
-      activeMatterId: valid.id,
-    });
-    startFreshEnabledBoot();
-    expect(readAuthoritativeMatterScope()).toEqual({
-      kind: 'blocked-unresolved',
-    });
+    setDevFlagOverride('selection-authority-boot-gate', false);
+    const before = useClientContextStore.getState();
+    await selectMatter('missing');
+    expect(useClientContextStore.getState()).toBe(before);
   });
 
-  it('retries a follower failure without another selection write', async () => {
-    seed(matter('matter-a', householdA.householdId));
+  it('keeps existing matter and all-matters outcomes byte-identical while dark', async () => {
+    seed([matter('matter-a')], null);
+    setDevFlagOverride('selection-authority-boot-gate', false);
+    const sourceBefore = useClientContextStore.getState();
+
+    await expect(selectMatter('matter-a')).resolves.toEqual({
+      kind: 'routed-dark',
+      projectedMatterId: 'matter-a',
+    });
+    expect(useMatterStore.getState().activeMatterId).toBe('matter-a');
+    expect(useClientContextStore.getState()).toBe(sourceBefore);
+
+    await expect(
+      requestMatterScopeSelection(issueAllMattersScopeSelection())
+    ).resolves.toEqual({ kind: 'routed-dark', projectedMatterId: null });
+    expect(useMatterStore.getState().activeMatterId).toBeNull();
+    expect(useClientContextStore.getState()).toBe(sourceBefore);
+  });
+});
+
+describe('client selection, clear, lifecycle, and follower ownership', () => {
+  it('classifies every live client intent as full pair or retained-client blocked', async () => {
+    publish(clientA, clientB);
+    seed([matter('exact', ['household-a'])]);
+    await expect(selectClient(clientA)).resolves.toEqual({
+      kind: 'selected',
+      client: clientA,
+    });
+    expect(readAuthoritativeMatterScope()).toEqual({
+      kind: 'matter',
+      matterId: 'exact',
+    });
+
+    for (const matters of [
+      [] as Matter[],
+      [matter('a', ['household-b']), matter('b', ['household-b'])],
+      [matter('archived', ['household-b'], { archived: true })],
+    ]) {
+      seed(matters);
+      await selectClient(clientB);
+      expect(useClientContextStore.getState().client).toEqual(clientB);
+      expect(readAuthoritativeMatterScope()).toEqual({
+        kind: 'blocked-unresolved',
+      });
+    }
+  });
+
+  it('preserves the exact scope on clear and rehydrates a cleared pair as matter-only', async () => {
+    seed([matter('matter-a', ['household-a'])]);
+    publish(clientA);
+    await selectMatter('matter-a');
+    requestClearClientSelection();
+
+    expect(useClientContextStore.getState()).toMatchObject({
+      client: null,
+      scope: { kind: 'matter', matterId: 'matter-a' },
+      persistenceHint: {
+        version: 1,
+        source: 'specific-matter',
+        matterId: 'matter-a',
+      },
+    });
+    const persisted = JSON.parse(
+      JSON.stringify(useClientContextStore.getState().persistenceHint)
+    ) as unknown;
+    restartFrom(persisted);
+    expect(readAuthoritativeMatterScope()).toEqual({
+      kind: 'matter-only',
+      matterId: 'matter-a',
+    });
+    expect(useClientContextStore.getState().client).toBeNull();
+  });
+
+  it('blocks immediately on link removal, archive, and delete without a follower rollback', async () => {
+    seed([matter('matter-a', ['household-a'])]);
+    publish(clientA);
+    await selectMatter('matter-a');
+    await waitForFollower('matter-a');
+
+    useMatterStore.getState().setMatterArchived('matter-a', true);
+    expect(readAuthoritativeMatterScope()).toEqual({ kind: 'blocked-unresolved' });
+
+    seed([matter('matter-b')]);
+    await selectMatter('matter-b');
+    await waitForFollower('matter-b');
+    useMatterStore.getState().deleteMatter('matter-b');
+    expect(readAuthoritativeMatterScope()).toEqual({ kind: 'blocked-unresolved' });
+  });
+
+  it('retries one throwing follower from the source-owned projection writer', async () => {
+    const original = useMatterStore.getState().setActiveMatter;
+    seed([matter('matter-a')]);
     let attempts = 0;
     useMatterStore.setState({
       setActiveMatter: (id) => {
         attempts += 1;
-        if (attempts === 1) throw new Error('pre-apply follower failure');
-        originalSetActiveMatter(id);
+        if (attempts === 1) throw new Error('first projection failed');
+        original(id);
       },
     });
-    const request = sealMatterScopeSelection({
-      householdRef: householdA.householdId,
-      matterId: 'matter-a',
-    });
-    if (!request) throw new Error('fixture must seal');
-
-    await requestMatterScopeSelection(request);
-    expect(useClientContextStore.getState().followerStatus).toBe('stale');
-    await waitForConvergence();
-    expect(attempts).toBeGreaterThanOrEqual(2);
-    expect(useMatterStore.getState().activeMatterId).toBe('matter-a');
+    try {
+      await selectMatter('matter-a');
+      expect(useClientContextStore.getState().followerStatus).toBe('stale');
+      await waitForFollower('matter-a');
+      expect(attempts).toBeGreaterThanOrEqual(2);
+    } finally {
+      useMatterStore.setState({ setActiveMatter: original });
+    }
   });
 
-  it('schedules reconciliation in finally when a source subscriber throws before follower work', async () => {
-    seed(matter('matter-a', householdA.householdId));
+  it('still schedules reconciliation when a source subscriber throws', async () => {
+    seed([matter('matter-a')]);
     const unsubscribe = useClientContextStore.subscribe(() => {
-      throw new Error('source subscriber failure');
+      throw new Error('subscriber failed');
     });
-    const request = sealMatterScopeSelection({
-      householdRef: householdA.householdId,
-      matterId: 'matter-a',
-    });
-    if (!request) throw new Error('fixture must seal');
     try {
-      await requestMatterScopeSelection(request);
-      expect(useClientContextStore.getState().scope).toEqual({
-        kind: 'matter',
+      await selectMatter('matter-a');
+      expect(readAuthoritativeMatterScope()).toEqual({
+        kind: 'matter-only',
         matterId: 'matter-a',
       });
-      await vi.waitFor(() => {
-        expect(useMatterStore.getState().activeMatterId).toBe('matter-a');
-      });
+      await waitForFollower('matter-a');
     } finally {
       unsubscribe();
     }
   });
+});
 
-  it('keeps stale observable when the follower throws and then converges by retry', async () => {
-    seed(matter('matter-a', householdA.householdId));
-    let first = true;
-    useMatterStore.setState({
-      setActiveMatter: (id) => {
-        if (first) {
-          first = false;
-          throw new Error('throwing follower');
-        }
-        originalSetActiveMatter(id);
-      },
-    });
-    const request = sealMatterScopeSelection({
-      householdRef: householdA.householdId,
+describe('authority is re-derived across every restart', () => {
+  it('treats legacy follower ids as hints: null is compatibility All, live id is matter-only', () => {
+    seed([matter('matter-a', ['household-a'])], 'matter-a');
+    setDevFlagOverride('selection-authority-boot-gate', false);
+    bootstrapSelectionAuthorityFromPersistedFollower();
+    setDevFlagOverride('selection-authority-boot-gate', true);
+    expect(bootstrapSelectionAuthorityFromPersistedFollower()).toEqual({
+      kind: 'matter-only',
       matterId: 'matter-a',
     });
-    if (!request) throw new Error('fixture must seal');
 
-    await requestMatterScopeSelection(request);
-    expect(useClientContextStore.getState().followerStatus).toBe('stale');
-    await waitForConvergence();
-  });
-
-  it('blocks a selected source immediately when the real matter store archives or deletes after convergence', async () => {
-    seed(matter('matter-a', householdA.householdId));
-    const request = sealMatterScopeSelection({
-      householdRef: householdA.householdId,
-      matterId: 'matter-a',
-    });
-    if (!request) throw new Error('fixture must seal');
-
-    await requestMatterScopeSelection(request);
-    await waitForConvergence();
-    useMatterStore.getState().setMatterArchived('matter-a', true);
-    expect(readAuthoritativeMatterScope()).toEqual({
-      kind: 'blocked-unresolved',
-    });
-
-    seed(matter('matter-b', householdA.householdId));
-    const replacement = sealMatterScopeSelection({
-      householdRef: householdA.householdId,
-      matterId: 'matter-b',
-    });
-    if (!replacement) throw new Error('replacement fixture must seal');
-    await requestMatterScopeSelection(replacement);
-    await waitForConvergence();
-    useMatterStore.getState().deleteMatter('matter-b');
-    expect(readAuthoritativeMatterScope()).toEqual({
-      kind: 'blocked-unresolved',
+    setDevFlagOverride('selection-authority-boot-gate', false);
+    seed([matter('matter-a')], null);
+    setDevFlagOverride('selection-authority-boot-gate', true);
+    expect(bootstrapSelectionAuthorityFromPersistedFollower()).toEqual({
+      kind: 'all-matters',
     });
   });
 
-  it('bounds a permanently failing follower retry and leaves stale observable', async () => {
-    seed(matter('matter-a', householdA.householdId));
-    let attempts = 0;
-    useMatterStore.setState({
-      setActiveMatter: () => {
-        attempts += 1;
-        throw new Error('permanent follower failure');
-      },
-    });
-    const request = sealMatterScopeSelection({
-      householdRef: householdA.householdId,
-      matterId: 'matter-a',
-    });
-    if (!request) throw new Error('fixture must seal');
+  it('keeps blocked blocked, drops stale optional All client, and blocks corrupt versions', () => {
+    publish(clientA);
+    restartFrom({ version: 1, source: 'blocked/refused', client: clientA });
+    expect(readAuthoritativeMatterScope()).toEqual({ kind: 'blocked-unresolved' });
 
-    await requestMatterScopeSelection(request);
-    await vi.waitFor(() => {
-      expect(attempts).toBe(4);
+    restartFrom({
+      version: 1,
+      source: 'explicit-all-matters',
+      client: clientA,
     });
-    expect(useClientContextStore.getState().followerStatus).toBe('stale');
-    await new Promise<void>((resolve) => setTimeout(resolve, 20));
-    expect(attempts).toBe(4);
+    replaceCanonicalHouseholdDirectory('wealthbox', null);
+    restartFrom(useClientContextStore.getState().persistenceHint);
+    expect(useClientContextStore.getState()).toMatchObject({
+      client: null,
+      scope: { kind: 'all-matters' },
+    });
+
+    for (const corrupt of [null, {}, { version: 999 }, { version: 1, source: 'made-up' }]) {
+      restartFrom(corrupt);
+      expect(readAuthoritativeMatterScope()).toEqual({
+        kind: 'blocked-unresolved',
+      });
+    }
   });
 
-  it('refuses a forged client boundary and blocks the source scope', async () => {
-    const forged = Object.freeze({}) as SealedClientBoundary;
-    await expect(requestSharedClientSelection(forged)).resolves.toEqual({
-      kind: 'refused',
-      reason: 'unsealed-client-boundary',
+  it('classifies unavailable provider liveness to blocked and never auto-upgrades it', async () => {
+    seed([matter('matter-a', ['household-a'])]);
+    publish(clientA);
+    await selectClient(clientA);
+    const persisted = useClientContextStore.getState().persistenceHint;
+
+    replaceCanonicalHouseholdDirectory('wealthbox', null);
+    restartFrom(persisted);
+    expect(useClientContextStore.getState()).toMatchObject({
+      client: null,
+      scope: { kind: 'blocked-unresolved' },
     });
+
+    publish(clientA);
+    expect(readAuthoritativeMatterScope()).toEqual({ kind: 'blocked-unresolved' });
     expect(useClientContextStore.getState().client).toBeNull();
-    expect(useClientContextStore.getState().scope).toEqual({
-      kind: 'blocked-unresolved',
+
+    await selectClient(clientA);
+    expect(readAuthoritativeMatterScope()).toEqual({
+      kind: 'matter',
+      matterId: 'matter-a',
     });
+  });
+
+  it('obeys the quantified arm × restart round-trip law', async () => {
+    const startingArm = fc.constantFrom(
+      'full-pair' as const,
+      'matter-only' as const,
+      'all-matters' as const,
+      'blocked' as const
+    );
+    const mutation = fc.constantFrom(
+      'same' as const,
+      'archive' as const,
+      'move-link' as const,
+      'provider-unavailable' as const
+    );
+
+    await fc.assert(
+      fc.asyncProperty(startingArm, mutation, async (arm, change) => {
+        setDevFlagOverride('selection-authority-boot-gate', false);
+        seed([]);
+        requestClearClientSelection();
+        setDevFlagOverride('selection-authority-boot-gate', true);
+        seed([matter('matter-a', ['household-a'])]);
+        publish(clientA, clientB);
+        restartFrom({ version: 1, source: 'explicit-all-matters' });
+
+        if (arm === 'full-pair') await selectMatter('matter-a');
+        else if (arm === 'matter-only') {
+          seed([matter('matter-a')]);
+          await selectMatter('matter-a');
+        } else if (arm === 'all-matters') {
+          await requestMatterScopeSelection(issueAllMattersScopeSelection());
+        } else {
+          restartFrom({ version: 1, source: 'blocked/refused' });
+        }
+
+        const persisted = JSON.parse(
+          JSON.stringify(useClientContextStore.getState().persistenceHint)
+        ) as unknown;
+        if (change === 'archive') {
+          seed([matter('matter-a', ['household-a'], { archived: true })]);
+        } else if (change === 'move-link') {
+          seed([matter('matter-a', ['household-b'])]);
+        } else if (change === 'provider-unavailable') {
+          replaceCanonicalHouseholdDirectory('wealthbox', null);
+        }
+
+        const request = issueRehydratedSelection({
+          kind: 'persisted-hint',
+          value: persisted,
+        });
+        const result = await requestRehydratedSelection(request);
+        expect(result.kind).toBe('selected');
+        const state = useClientContextStore.getState();
+        expect(['matter', 'matter-only', 'all-matters', 'blocked-unresolved']).toContain(
+          state.scope.kind
+        );
+        if (arm === 'blocked') expect(state.scope.kind).toBe('blocked-unresolved');
+        if (arm === 'matter-only') expect(state.scope.kind).not.toBe('matter');
+        if (arm === 'all-matters') expect(state.scope.kind).toBe('all-matters');
+        if (state.scope.kind === 'matter') expect(state.client).not.toBeNull();
+        if (state.scope.kind === 'matter-only') expect(state.client).toBeNull();
+        await waitForFollower(
+          state.scope.kind === 'matter' || state.scope.kind === 'matter-only'
+            ? state.scope.matterId
+            : null
+        );
+      }),
+      { numRuns: 32, verbose: true }
+    );
+  });
+
+  it('classifies malformed rehydration input through the declared conservative arm', async () => {
+    const inputs: RehydratedSelectionInput[] = [
+      { kind: 'persisted-hint', value: undefined },
+      { kind: 'persisted-hint', value: { version: -1 } },
+      { kind: 'legacy-follower', activeMatterId: 42 },
+    ];
+    for (const input of inputs) {
+      const result = await requestRehydratedSelection(issueRehydratedSelection(input));
+      expect(result).toMatchObject({
+        kind: 'selected',
+        client: null,
+        scope: { kind: 'blocked-unresolved' },
+      });
+    }
   });
 });

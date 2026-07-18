@@ -1,7 +1,8 @@
 // Restore the correct demo workspace (Northcrest Wealth Partners) in the recent list,
-// clear active matter, reload to picker, open it. Then verify mail is retrievable.
+// open it, then select All Clients through the app's sanctioned selection path.
 import { getPage, reconnect } from '../robot/connection.mjs';
 import { readFileSync } from 'fs';
+import { selectAllClientsThroughApp } from './select-all-clients.mjs';
 
 const seed = JSON.parse(readFileSync(new URL('./seed-loaded.json', import.meta.url)));
 const recent = seed.recentWorkspaces; // [{path, name, lastOpened}]
@@ -9,9 +10,6 @@ let page = await getPage();
 
 await page.evaluate((recent) => {
   localStorage.setItem('keepance_recent_workspaces', JSON.stringify(recent));
-  const m = JSON.parse(localStorage.getItem('keepance:matters') || '{}');
-  if (m.state) m.state.activeMatterId = null; else m.activeMatterId = null;
-  localStorage.setItem('keepance:matters', JSON.stringify(m));
 }, recent);
 console.log('set recent ->', recent[0].path);
 
@@ -29,7 +27,7 @@ if (await page.$('[data-testid="workspace-selector-dialog"]')) {
   await page.waitForTimeout(6000);
 }
 for (let i = 0; i < 4; i++) { const tour = await page.$('[data-testid="feature-tour-center"]'); if (tour) { await page.click('[data-testid="feature-tour-skip"]').catch(() => page.keyboard.press('Escape')); await page.waitForTimeout(500); } else break; }
-await page.waitForSelector('[data-testid="spine-nav-matters"]', { timeout: 30000 }).catch(() => {});
+await selectAllClientsThroughApp(page);
 const v = await page.evaluate(() => {
   const m = JSON.parse(localStorage.getItem('keepance:matters') || '{}');
   const rw = JSON.parse(localStorage.getItem('keepance_recent_workspaces') || '[]');

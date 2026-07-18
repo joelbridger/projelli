@@ -1,5 +1,9 @@
 import { openSourceDocument, type DocumentReader } from '@/features/matters/clientMap/openSource';
 import { useMatterStore } from '@/platform/matter/matterStore';
+import {
+  issueMatterScopeSelection,
+  requestMatterScopeSelection,
+} from '@/platform/client-context';
 import type { AppSurface } from '@/app/lifecycle/useGlobalEventBus';
 import type { MattersSurfaceMode } from '@/platform/state/appNavigationStore';
 
@@ -10,7 +14,7 @@ interface MatterDocumentsHandlers {
   pushNavigationSnapshot?: (() => void) | undefined;
 }
 
-export function showMatterDocuments({
+export async function showMatterDocuments({
   matterId,
   documentOpened,
   handlers,
@@ -18,14 +22,21 @@ export function showMatterDocuments({
   matterId: string;
   documentOpened: boolean;
   handlers: MatterDocumentsHandlers;
-}): void {
+}): Promise<boolean> {
+  const request = issueMatterScopeSelection(matterId);
+  // Back must restore the scope we are leaving. The dark compatibility path
+  // updates the legacy follower synchronously when the request is consumed,
+  // so capture the source navigation state before that happens.
+  handlers.pushNavigationSnapshot?.();
+  const result = await requestMatterScopeSelection(request);
+  if (result.kind === 'refused') return false;
   const matterState = useMatterStore.getState();
-  matterState.setActiveMatter(matterId);
   matterState.setClientMapHubId(matterId);
   matterState.setClientMapHubTab('documents');
   handlers.setMattersSurfaceMode?.('client-map');
   handlers.setDocumentsView(documentOpened ? 'editor' : 'browser');
   handlers.setSidebarActiveTab('matters');
+  return true;
 }
 
 export async function openMatterDocumentSource({
@@ -41,8 +52,9 @@ export async function openMatterDocumentSource({
   service: DocumentReader | null;
   handlers: MatterDocumentsHandlers;
 }): Promise<boolean> {
-  handlers.pushNavigationSnapshot?.();
-  showMatterDocuments({ matterId, documentOpened: false, handlers });
+  if (!(await showMatterDocuments({ matterId, documentOpened: false, handlers }))) {
+    return false;
+  }
   const opened = await openSourceDocument(ref, matterId, service, snippet);
   if (opened) {
     handlers.setDocumentsView('editor');

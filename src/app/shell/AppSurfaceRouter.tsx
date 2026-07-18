@@ -518,7 +518,7 @@ export function AppSurfaceRouter(props: AppSurfaceRouterProps) {
             await workspaceServiceRef.current.writeFileBinary(path, buffer);
             const tree = await workspaceServiceRef.current.getFileTree();
             setFileTree(tree);
-            routeSavedAskDocument({
+            void routeSavedAskDocument({
               activeMatter,
               savedDocument: {
                 path,
@@ -717,7 +717,7 @@ export function AppSurfaceRouter(props: AppSurfaceRouterProps) {
           await workspaceServiceRef.current.writeFileBinary(path, buffer);
           const tree = await workspaceServiceRef.current.getFileTree();
           setFileTree(tree);
-          routeSavedAskDocument({
+          void routeSavedAskDocument({
             activeMatter,
             savedDocument: {
               path,

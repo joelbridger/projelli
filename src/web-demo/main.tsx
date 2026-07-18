@@ -103,7 +103,7 @@ async function bootstrap(): Promise<void> {
       // fully-filled, cited Client Map and open its hub, so the demo lands on the
       // Client Map — the first thing a visitor sees — instead of the file browser.
       if (profession === 'advisor') {
-        seedWebDemoClientMap();
+        await seedWebDemoClientMap();
       }
     } else {
       console.warn(

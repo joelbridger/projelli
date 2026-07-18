@@ -22,6 +22,10 @@
  * it" value the product promises.
  */
 import { useMatterStore } from '@/platform/matter/matterStore';
+import {
+  issueMatterScopeSelection,
+  requestMatterScopeSelection,
+} from '@/platform/client-context';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import type {
   ClientMap,
@@ -199,10 +203,11 @@ function hendricksClientMap(matterId: string): ClientMap {
  * created the sample matter (`getOrCreateSampleMatter`) and written the sample
  * files first. Idempotent: re-seeding overwrites the deterministic map.
  */
-export function seedSampleClientMap(matterId: string): void {
+export async function seedSampleClientMap(matterId: string): Promise<void> {
   const matterStore = useMatterStore.getState();
   useClientMapStore.getState().setMap(matterId, hendricksClientMap(matterId));
-  matterStore.setActiveMatter(matterId);
+  const result = await requestMatterScopeSelection(issueMatterScopeSelection(matterId));
+  if (result.kind === 'refused') return;
   matterStore.setClientMapHubId(matterId);
 }
 

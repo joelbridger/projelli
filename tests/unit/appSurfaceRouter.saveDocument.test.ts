@@ -6,6 +6,16 @@ import {
 import type { Matter } from '@/platform/types/matter';
 
 const matterState = {
+  matters: [
+    {
+      id: 'client-1',
+      name: 'Morgan Household',
+      client: 'Morgan Household',
+      folderPaths: ['/workspace/Clients/Morgan Household'],
+      createdAt: '2026-07-06T00:00:00.000Z',
+    },
+  ],
+  activeMatterId: null,
   setActiveMatter: vi.fn(),
   setClientMapHubId: vi.fn(),
   setClientMapHubTab: vi.fn(),
@@ -15,6 +25,7 @@ const openFileMock = vi.hoisted(() => vi.fn());
 vi.mock('@/platform/matter/matterStore', () => ({
   useMatterStore: {
     getState: () => matterState,
+    subscribe: () => () => {},
   },
 }));
 vi.mock('@/platform/state/editorStore', () => ({
@@ -39,11 +50,11 @@ describe('routeSavedAskDocument', () => {
     vi.clearAllMocks();
   });
 
-  it('opens the saved document through the document tab store before routing', () => {
+  it('opens the saved document through the document tab store before routing', async () => {
     const setDocumentsView = vi.fn();
     const setSidebarActiveTab = vi.fn();
 
-    routeSavedAskDocument({
+    await routeSavedAskDocument({
       activeMatter: sampleMatter(),
       savedDocument: {
         path: '/workspace/Clients/Morgan Household/Documents/Planning notes.docx',
@@ -62,12 +73,12 @@ describe('routeSavedAskDocument', () => {
     expect(setDocumentsView).toHaveBeenCalledWith('editor');
   });
 
-  it('opens the saved document inside the active client Documents tab', () => {
+  it('opens the saved document inside the active client Documents tab', async () => {
     const setDocumentsView = vi.fn();
     const setSidebarActiveTab = vi.fn();
     const pushNavigationSnapshot = vi.fn();
 
-    routeSavedAskDocument({
+    await routeSavedAskDocument({
       activeMatter: sampleMatter(),
       setDocumentsView,
       setSidebarActiveTab,
@@ -82,12 +93,12 @@ describe('routeSavedAskDocument', () => {
     expect(setSidebarActiveTab).toHaveBeenCalledWith('matters');
   });
 
-  it('opens the saved document in the main Documents area when no client is active', () => {
+  it('opens the saved document in the main Documents area when no client is active', async () => {
     const setDocumentsView = vi.fn();
     const setSidebarActiveTab = vi.fn();
     const pushNavigationSnapshot = vi.fn();
 
-    routeSavedAskDocument({
+    await routeSavedAskDocument({
       activeMatter: null,
       setDocumentsView,
       setSidebarActiveTab,
