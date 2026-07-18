@@ -20,7 +20,8 @@ template, so an earlier draft or archived template cannot hide a later
 published one. With no startable template, the control is disabled and a
 visible sentence explains why. The existing start callback searches the full
 list again when clicked, so a template that becomes rejected cannot create a
-household or workflow instance even if the disabled DOM state is bypassed.
+household or workflow instance while the screen is still showing its earlier
+enabled state.
 
 A published template remains enabled and follows the unchanged production
 start flow: the selected canonical template and household go to the existing
@@ -32,18 +33,21 @@ previously startable behavior.
 
 `Workflows.startGate.test.tsx` mounts the real `LiveWorkflows` screen and proves:
 
-- zero templates: the real button is disabled, its reason is accessible and
-  visible, and forcibly bypassing the DOM disable still makes the real callback
-  save nothing;
-- a draft template: the button says publication is required and its forcibly
-  invoked real callback saves nothing;
+- zero templates: the real button is disabled and its reason is accessible and
+  visible; a separately enabled render also saves nothing when its template
+  disappears immediately before the click;
+- a draft template: the button says publication is required; a separate click
+  on a genuinely enabled React control saves nothing when that template changes
+  to draft immediately before the click;
 - an archived record reaching the broad live-record boundary: the button stays
-  unavailable and its forcibly invoked real callback saves nothing;
+  unavailable; a separate click on a genuinely enabled React control saves
+  nothing when that template changes to archived immediately before the click;
 - a draft first template followed by a published template: Start stays enabled
   and saves an instance from the published template;
 - a template that changes from published to rejected after the first render:
-  the button becomes disabled and bypassing that DOM state still makes the
-  rechecked real callback save nothing; and
+  a rerender disables the button, while a separate no-rerender fire-time check
+  clicks a genuinely enabled React control and proves the handler saves nothing;
+  and
 - a published template: the real household selection and Start click save
   exactly one workflow instance carrying the existing template ID, household
   ID, matter ID, and template name.
@@ -67,7 +71,7 @@ git diff --check f6973732479cac37df3722c7411a701f768ec1d5..HEAD
 git status --short
 ```
 
-Focused result: 6/6 tests pass. Adjacent workflow result: 6/6 tests pass.
+Focused result: 10/10 tests pass. Adjacent workflow result: 6/6 tests pass.
 Both type checks pass. Feature and architecture boundary checks pass. Touched
 file ESLint has zero errors and only the eight pre-existing async warnings in
 `Workflows.tsx`; no warning suppression was added.

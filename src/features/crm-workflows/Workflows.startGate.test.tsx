@@ -19,10 +19,11 @@ function renderWorkflows(records: readonly LiveCrmRecord[]) {
     Promise.resolve(record)
   );
   const onNavigate = vi.fn();
+  const data = workflowRecords(records);
 
   const view = render(
     <LiveWorkflows
-      data={workflowRecords(records)}
+      data={data}
       households={[household]}
       onSave={onSave}
       onNavigate={onNavigate}
@@ -30,6 +31,7 @@ function renderWorkflows(records: readonly LiveCrmRecord[]) {
   );
 
   return {
+    data,
     onSave,
     rerenderWithRecords: (nextRecords: readonly LiveCrmRecord[]) => {
       view.rerender(
@@ -44,8 +46,17 @@ function renderWorkflows(records: readonly LiveCrmRecord[]) {
   };
 }
 
+function changeRenderedTemplateStatus(
+  data: ReturnType<typeof workflowRecords>,
+  status: 'draft' | 'archived' | 'rejected'
+) {
+  const template = data.templates[0];
+  if (!template) throw new Error('Expected a rendered workflow template.');
+  (template as LiveCrmRecord)['status'] = status;
+}
+
 describe('workflow start gate', () => {
-  it('shows why Start workflow is unavailable and saves nothing with zero templates', () => {
+  it('shows why Start workflow is unavailable with zero templates', () => {
     const { onSave } = renderWorkflows([]);
     const start = screen.getByTestId('crm-live-workflow-start');
 
@@ -53,15 +64,26 @@ describe('workflow start gate', () => {
     expect(start).toHaveAccessibleDescription(
       'Create a workflow template before starting a workflow.'
     );
+    expect(onSave).not.toHaveBeenCalled();
+  });
 
-    // Bypass the visual disable to prove the callback repeats the same guard.
-    (start as HTMLButtonElement).disabled = false;
+  it('rechecks when the published template disappears before Start runs', () => {
+    const published = {
+      ...createTemplate('Annual review', ['Prepare review']),
+      status: 'published' as const,
+    };
+    const { data, onSave } = renderWorkflows([published]);
+    const start = screen.getByTestId('crm-live-workflow-start');
+
+    expect(start).toBeEnabled();
+    data.templates.splice(0);
+    expect(start).toBeEnabled();
     fireEvent.click(start);
 
     expect(onSave).not.toHaveBeenCalled();
   });
 
-  it('rejects a draft template through the real Start control and saves nothing', () => {
+  it('shows that a draft template cannot be started', () => {
     const draft = {
       ...createTemplate('Annual review', ['Prepare review']),
       status: 'draft' as const,
@@ -73,14 +95,26 @@ describe('workflow start gate', () => {
     expect(start).toHaveAccessibleDescription(
       'Publish this workflow template before starting it.'
     );
+    expect(onSave).not.toHaveBeenCalled();
+  });
 
-    (start as HTMLButtonElement).disabled = false;
+  it('rechecks a template that becomes draft before Start runs', () => {
+    const published = {
+      ...createTemplate('Annual review', ['Prepare review']),
+      status: 'published' as const,
+    };
+    const { data, onSave } = renderWorkflows([published]);
+    const start = screen.getByTestId('crm-live-workflow-start');
+
+    expect(start).toBeEnabled();
+    changeRenderedTemplateStatus(data, 'draft');
+    expect(start).toBeEnabled();
     fireEvent.click(start);
 
     expect(onSave).not.toHaveBeenCalled();
   });
 
-  it('keeps an archived template rejected if one reaches the live record boundary', () => {
+  it('shows that an archived template cannot be started at the live record boundary', () => {
     const archived: LiveCrmRecord = {
       ...createTemplate('Archived review', ['Prepare review']),
       status: 'archived',
@@ -92,8 +126,20 @@ describe('workflow start gate', () => {
     expect(start).toHaveAccessibleDescription(
       'Publish this workflow template before starting it.'
     );
+    expect(onSave).not.toHaveBeenCalled();
+  });
 
-    (start as HTMLButtonElement).disabled = false;
+  it('rechecks a template that becomes archived before Start runs', () => {
+    const published = {
+      ...createTemplate('Annual review', ['Prepare review']),
+      status: 'published' as const,
+    };
+    const { data, onSave } = renderWorkflows([published]);
+    const start = screen.getByTestId('crm-live-workflow-start');
+
+    expect(start).toBeEnabled();
+    changeRenderedTemplateStatus(data, 'archived');
+    expect(start).toBeEnabled();
     fireEvent.click(start);
 
     expect(onSave).not.toHaveBeenCalled();
@@ -131,7 +177,7 @@ describe('workflow start gate', () => {
     );
   });
 
-  it('rechecks a published template that becomes rejected before Start runs', () => {
+  it('rerenders a template that becomes rejected as unavailable', () => {
     const published = {
       ...createTemplate('Annual review', ['Prepare review']),
       status: 'published' as const,
@@ -151,8 +197,20 @@ describe('workflow start gate', () => {
       'Publish this workflow template before starting it.'
     );
 
-    // Bypass the disabled DOM state to exercise the canonical click handler.
-    (start as HTMLButtonElement).disabled = false;
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('rechecks a template that becomes rejected before Start runs', () => {
+    const published = {
+      ...createTemplate('Annual review', ['Prepare review']),
+      status: 'published' as const,
+    };
+    const { data, onSave } = renderWorkflows([published]);
+    const start = screen.getByTestId('crm-live-workflow-start');
+
+    expect(start).toBeEnabled();
+    changeRenderedTemplateStatus(data, 'rejected');
+    expect(start).toBeEnabled();
     fireEvent.click(start);
 
     expect(onSave).not.toHaveBeenCalled();
