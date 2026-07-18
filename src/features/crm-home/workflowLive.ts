@@ -199,7 +199,7 @@ export function startWorkflow(
   };
 }
 
-export function completeWorkflowStep(instance: LiveWorkflowInstance, stepId: string, outcomeId?: string): LiveWorkflowInstance {
+function completeWorkflowStep(instance: LiveWorkflowInstance, stepId: string, outcomeId?: string): LiveWorkflowInstance {
   const next = clone(instance);
   const step = next.snapshot.steps[stepId];
   if (!step) throw new Error('This workflow step no longer exists.');
@@ -222,8 +222,16 @@ export function applyWorkflowStepCompletion(
   stepId: string,
   outcomeId?: string
 ): LiveWorkflowInstance {
-  const request = { instance, stepId, ...(outcomeId === undefined ? {} : { outcomeId }) };
   for (const validator of workflowCompletionValidators) {
+    // A validator may inspect the whole workflow, but it must never receive the
+    // live object that will be completed and saved. Give every validator its
+    // own defensive snapshot so one validator cannot mutate either the caller
+    // or the input observed by a later validator.
+    const request = {
+      instance: clone(instance),
+      stepId,
+      ...(outcomeId === undefined ? {} : { outcomeId }),
+    };
     const result = validator(request);
     if (!result.ok) throw new WorkflowCompletionRefusedError(result.refusal);
   }

@@ -1,122 +1,81 @@
 # Workflow completion seam result
 
 - Branch: `feat/workflow-completion-seam`
-- Base: `8118b12cca5f05892e1418c254818268795694e8`
-- Tested implementation SHA: `15c134a6f5fae729dcf0229fbd6b95ffd1e7b100`
-- Final result tip: the commit containing this file
-- Final-tip verification: `git notes --ref=verification show HEAD`
-
-The verification note is attached after this file is committed. This avoids the
-impossible task of making a commit contain its own SHA while still binding the
-fresh terminal receipt to the exact final tip.
+- Approved base: `8118b12cca5f05892e1418c254818268795694e8`
+- Review cured: `terra-seam-CHANGES5.log`
+- Final code SHA: the `sha:` recorded by the machine-generated self-check receipt
+- Admitted branch tip: the evidence-only commit containing that receipt
 
 ## Outcome
 
-PASS. One canonical workflow-step completion writer now runs the append-only,
-ordered validator list before calling the existing pure completion helper. The
-Workflows completion button, Today work-item completion, and migration
-checklist completion loop all use that writer. A typed refusal is surfaced as
-`WorkflowCompletionRefusedError` through the existing error paths.
+PASS. Round 2 closes every CHANGES-5 finding:
 
-There is no behavior change while the validator list is empty. The focused
-test fixes time and randomness, sends the same instance through the canonical
-and pure paths, serializes both complete outputs, and proves the bytes are
-identical.
+1. The legacy completion helper is private. The whole-tree guard rejects any
+   production reference to its name, including an aliased import, and separately
+   proves the owner module does not export it.
+2. Each validator receives its own defensive workflow snapshot. A validator can
+   alter that copy without changing the live instance or what a later validator
+   sees.
+3. Today catches a refused completion and shows the refusal through its existing
+   `FreshnessBanner` attention state.
+4. The migration checklist catches a refused completion and shows it through the
+   existing migration error surface. It does not mark the decision saved.
+5. Migration builds and validates the complete recreated instance before saving
+   the new template. A refusal therefore makes zero persistence calls.
+6. Focused tests click the real Workflows, Today, and migration controls instead
+   of relabelling three calls to the canonical writer.
 
-## Fix-round diagnosis
+## Compatibility proof
 
-The builder diagnosis was correct: the red test was wired incorrectly, not the
-product seam. The fixture passed the intended blocked ID as the household ID.
-`startWorkflow` generates a separate workflow-instance ID unless its third
-argument supplies one, so the validator correctly allowed that instance. The
-fixture now gives the household a stable household ID and passes the blocked ID
-as the explicit workflow-instance ID. No assertion was weakened and no product
-behavior was changed to fit the broken test.
-
-Reproduced before the fixture fix:
-
-```text
-Test Files  1 failed | 1 passed (2)
-Tests       1 failed | 13 passed (14)
-
-FAIL workflowCompletionSeam.test.ts > workflow completion seam > surfaces a
-typed refusal and prevents every production completion entry from producing a
-saveable instance
-AssertionError: expected Error: Workflows per-step completion butt… to be an
-instance of WorkflowCompletionRefusedError
-```
-
-## Required implementation-tip evidence
-
-All commands below ran at
-`15c134a6f5fae729dcf0229fbd6b95ffd1e7b100`. The same complete battery was rerun
-after this result file was committed; that final-tip transcript is the
-`verification` git note named above.
-
-### Focused suite
+The empty-validator test fixes time and randomness, serializes the complete
+output, and compares both its exact byte length and SHA-256 with the pre-round-2
+baseline:
 
 ```text
-$ npm exec vitest run -- src/features/crm-home/workflowLive.test.ts src/features/crm-home/workflowCompletionSeam.test.ts
-
- RUN  v4.1.3 /home/jameson/lantern/app/integration/.worktrees/feat/workflow-completion-seam
-
- Test Files  2 passed (2)
-      Tests  14 passed (14)
-   Duration  1.30s
-
-exit 0
+bytes: 7141
+sha256: fc307244a38bb17ffa76dc75f48f1fd906c153559b7f29a6f0ecf3056e2de409
 ```
 
-This includes the byte-identical empty-list proof, validator ordering, typed
-refusal shape, refusal at all three completion entry paths, and the whole-tree
-no-stray-caller guard.
+Any byte change fails the test. The existing workflow behavior assertions were
+kept and now enter through the only public completion writer. The earlier result
+text about an original red fixture was removed because the reviewer correctly
+found that fixture was not present in branch history.
 
-### TypeScript
+## Focused proof added
+
+- A validator mutates its snapshot; the live instance stays `todo`, the next
+  validator still sees `todo`, and the saved result becomes `done` normally.
+- Workflows shows the typed refusal and never calls its save boundary.
+- Today shows the refusal in the existing attention banner.
+- Migration shows the refusal in the existing error surface and never shows
+  “Decision saved.”
+- A missing-template migration refuses before any template, instance, or
+  checklist save.
+- The bypass guard scans all production TypeScript for the retired helper name
+  and checks both function exports and export lists in the owner module.
+
+The first focused run after implementation was green:
 
 ```text
-$ npm run typecheck
-
-> advisor-prep-hero@3.3.5 typecheck
-> tsc --noEmit
-
-exit 0
+Test Files  5 passed (5)
+Tests       40 passed (40)
+Duration    5.51s
+exit        0
 ```
 
-### Feature boundaries
+## Final verification
 
-```text
-$ npm run boundaries:check
-
-> advisor-prep-hero@3.3.5 boundaries:check
-> node scripts/check-boundaries.mjs
-
-✅ No feature-boundary regression (599 current baseline finding(s)).
-exit 0
-```
-
-### Whole-tree completion scan
-
-Scope: production `src/**/*.ts` and `src/**/*.tsx`; test/spec files and
-`__tests__` directories are excluded. `workflowLive.ts` is the sanctioned owner
-of the pure helper.
-
-```text
-DIRECT_HELPER_CALLS
-src/features/crm-home/workflowLive.ts:202:export function completeWorkflowStep(instance: LiveWorkflowInstance, stepId: string, outcomeId?: string): LiveWorkflowInstance {
-src/features/crm-home/workflowLive.ts:230:  return completeWorkflowStep(instance, stepId, outcomeId);
-
-CANONICAL_WRITER_PRODUCTION_CALLS
-src/features/crm-home/workflowLive.ts:220:export function applyWorkflowStepCompletion(
-src/features/crm-home/shared/LiveCrmHome.tsx:567:    await live.save(applyWorkflowStepCompletion(instance, item.stepId));
-src/features/crm-home/shared/LiveCrmHome.tsx:657:          instance = applyWorkflowStepCompletion(instance, step.id);
-src/features/crm-workflows/Workflows.tsx:933:                            applyWorkflowStepCompletion(
-```
-
-`git diff --check` also exited 0 with no output.
+After the code/result commit, the standard self-check tool reruns the changed
+gate, production typecheck, test typecheck, handle guard, architecture guard,
+translation snapshot, feature boundaries, and the full focused suite. Its
+machine-generated receipt under `evidence/` is the authoritative transcript
+bound to the final code SHA. The receipt is committed separately so no code or
+result file changes after the verified SHA.
 
 ## Fence attestation
 
-Only the four granted source/test files and this required result file changed.
-No selection, client-context, matter, shell, routing, placement,
-`useWorkflowRunner.ts`, `workflowStepPersistence.ts`,
-`workflowExtensionRegistry.tsx`, or `extensions/**` file was touched.
+The round-2 production edits are limited to the reviewed completion seam,
+Today refusal handling, and migration refusal/order handling. Tests and this
+result were updated to prove those cures. The inherited receipts for meetings
+(`f3ec9e0d`), browser guard (`1ca9e197`), and universal tags (`d3b0b0ff`) remain
+untouched, as required.

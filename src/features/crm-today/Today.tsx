@@ -35,6 +35,7 @@ export function Today({
   ) => void | Promise<void>;
 }) {
   const [reviewing, setReviewing] = useState(false);
+  const [completionError, setCompletionError] = useState<string | null>(null);
   const today = todayKey();
   const plan = buildCapacityTriage(
     workItems,
@@ -91,7 +92,11 @@ export function Today({
         }}
       >
         <AskBar />
-        <FreshnessBanner freshness={freshness} />
+        <FreshnessBanner
+          freshness={completionError
+            ? { kind: 'error', error: completionError }
+            : freshness}
+        />
       </div>
       {open.length === 0 ? (
         <section data-testid="crm-today-first-use" style={panelStyle}>
@@ -182,7 +187,14 @@ export function Today({
                 variant="secondary"
                 data-testid={`crm-today-complete-${item.id}`}
                 onClick={() => {
-                  void onCompleteWorkItem(item);
+                  setCompletionError(null);
+                  void Promise.resolve(onCompleteWorkItem(item)).catch(
+                    (reason: unknown) => {
+                      setCompletionError(
+                        reason instanceof Error ? reason.message : String(reason)
+                      );
+                    }
+                  );
                 }}
               >
                 Complete

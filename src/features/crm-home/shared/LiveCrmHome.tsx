@@ -631,6 +631,7 @@ export function LiveCrmHome({
         let template = workflowRecords(live.records).templates.find(
           (item) => item.name === record.sourceTemplateLabel
         );
+        let templateNeedsSave = false;
         if (!template) {
           if (!record.availableSteps.length)
             throw new Error(
@@ -640,7 +641,7 @@ export function LiveCrmHome({
             record.sourceTemplateLabel,
             record.availableSteps
           );
-          await live.save(template);
+          templateNeedsSave = true;
         }
         let instance = startWorkflow(template, {
           id: household.id,
@@ -655,6 +656,10 @@ export function LiveCrmHome({
           Math.max(0, currentStepIndex)
         ))
           instance = applyWorkflowStepCompletion(instance, step.id);
+        // Run every completion preflight before persisting any part of this
+        // recreation. A refusal must not leave a template without its matching
+        // workflow instance and checklist record.
+        if (templateNeedsSave) await live.save(template);
         await live.save(instance);
         await live.save({
           ...record,

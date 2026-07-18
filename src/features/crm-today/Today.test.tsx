@@ -1,5 +1,5 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string -- Test fixtures cover frozen CRM copy. */
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { CrmHomeSurfaceContext } from '@/features/crm-home/surfaceContext';
 import type { CrmHomeAdapter } from '@/features/crm-home/types';
@@ -45,6 +45,64 @@ describe('Today', () => {
 
     expect(screen.getByTestId('crm-screen-today')).toBeInTheDocument();
     expect(screen.getByTestId('crm-today-first-use')).toBeInTheDocument();
+  });
+
+
+  it('shows a workflow-completion refusal through the existing attention banner', async () => {
+    const completeWorkflowWorkItem = vi
+      .fn()
+      .mockRejectedValue(new Error('Finish the required earlier step first.'));
+    const adapter = {
+      freshness: { kind: 'live' },
+      tasks: [],
+      workflowWorkItems: [
+        {
+          id: 'workflow-1:step-2',
+          instanceId: 'workflow-1',
+          stepId: 'step-2',
+          title: 'Meet with client',
+          householdId: 'household-1',
+          householdLabel: 'River household',
+          assigneeUserId: null,
+          status: 'open',
+          priority: 'normal',
+          tagIds: [],
+        },
+      ],
+      offers: [],
+      migration: {
+        workflowChecklists: [],
+        attachmentAccounting: [],
+        exports: [],
+      },
+      actions: { completeWorkflowWorkItem },
+    } as CrmHomeAdapter;
+
+    render(
+      <CrmHomeSurfaceContext.Provider
+        value={{
+          adapter,
+          route: 'today',
+          navigate: vi.fn(),
+          undoReport: null,
+          reportUndo: vi.fn(),
+          adapterProvided: true,
+        }}
+      >
+        <TodaySurface />
+      </CrmHomeSurfaceContext.Provider>
+    );
+
+    fireEvent.click(
+      screen.getByTestId('crm-today-complete-workflow-1:step-2')
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('crm-freshness-banner')).toHaveTextContent(
+        'Finish the required earlier step first.'
+      );
+    });
+    expect(completeWorkflowWorkItem).toHaveBeenCalledOnce();
   });
 
   it('computes the visible plan from live open work and active members', () => {

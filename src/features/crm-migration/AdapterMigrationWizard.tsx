@@ -59,6 +59,16 @@ export function AdapterMigrationWizard({
       <WorkflowFallbackChecklist
         records={migration.workflowChecklists}
         onRecord={(record) => actions.recordWorkflowChecklist?.(record)}
+        error={error}
+        onError={(reason) => {
+          setError(
+            reason === null
+              ? null
+              : reason instanceof Error
+                ? reason.message
+                : String(reason)
+          );
+        }}
       />
     );
   if (route === 'attachment-accounting')
@@ -399,9 +409,13 @@ function FidelityReport({
 function WorkflowFallbackChecklist({
   records,
   onRecord,
+  error,
+  onError,
 }: {
   records: readonly MigrationWorkflowChecklist[];
   onRecord: (record: MigrationWorkflowChecklist) => void | Promise<void>;
+  error: string | null;
+  onError: (reason: unknown | null) => void;
 }) {
   const [drafts, setDrafts] = useState(records);
   const [saved, setSaved] = useState<ReadonlySet<string>>(() => new Set());
@@ -418,8 +432,13 @@ function WorkflowFallbackChecklist({
     (record.decision === 'recreate' ||
       (record.decision === 'gap' && record.gapReason));
   const recordChecklist = async (record: MigrationWorkflowChecklist) => {
-    await onRecord(record);
-    setSaved((current) => new Set(current).add(record.id));
+    onError(null);
+    try {
+      await onRecord(record);
+      setSaved((current) => new Set(current).add(record.id));
+    } catch (reason) {
+      onError(reason);
+    }
   };
   return (
     <Screen
@@ -432,6 +451,11 @@ function WorkflowFallbackChecklist({
         evidence below, choose the current step, then rebuild the remaining work
         or explain why it cannot be rebuilt.
       </p>
+      {error && (
+        <p data-testid="crm-migration-error" role="alert">
+          {error}
+        </p>
+      )}
       {drafts.map((record) => (
         <section
           key={record.id}

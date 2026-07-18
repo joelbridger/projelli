@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion -- Test setup asserts an intentionally matched element. */
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { CrmHome } from './CrmHome';
 import type { CrmHomeAdapter } from './types';
@@ -536,6 +536,44 @@ describe('CrmHome', () => {
         exportedBy: 'Maya',
       })
     );
+  });
+
+
+  it('shows a migration completion refusal and does not mark the checklist saved', async () => {
+    const recordWorkflowChecklist = vi
+      .fn()
+      .mockRejectedValue(new Error('Finish the required earlier step first.'));
+    render(
+      <CrmHome
+        adapter={adapter({ actions: { recordWorkflowChecklist } })}
+        initialRoute="workflow-recreation"
+      />
+    );
+    fireEvent.click(
+      screen.getByTestId('crm-workflow-evidence-workflow-henderson')
+    );
+    fireEvent.change(
+      screen.getByTestId('crm-workflow-step-workflow-henderson'),
+      { target: { value: 'Confirm meeting' } }
+    );
+    fireEvent.click(screen.getAllByText('Rebuild this workflow')[0]!);
+    fireEvent.change(
+      screen.getByTestId('crm-workflow-instance-workflow-henderson'),
+      { target: { value: 'Imported annual review' } }
+    );
+    fireEvent.click(
+      screen.getByTestId('crm-workflow-record-workflow-henderson')
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('crm-migration-error')).toHaveTextContent(
+        'Finish the required earlier step first.'
+      );
+    });
+    expect(recordWorkflowChecklist).toHaveBeenCalledOnce();
+    expect(
+      screen.queryByTestId('crm-workflow-recorded-workflow-henderson')
+    ).not.toBeInTheDocument();
   });
 
   it('renders supplied failed and exported export states with their required evidence', () => {
