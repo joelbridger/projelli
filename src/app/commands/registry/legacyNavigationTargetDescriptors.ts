@@ -23,9 +23,9 @@ function openHub(
   tab: 'overview' | 'documents' | 'email' | 'meetings' | 'activity',
   beforeSurfaceChange?: () => void
 ): Promise<void> {
+  runtime.pushNavigationSnapshot?.();
   return selectMatter(target.matterId).then((selected) => {
     if (!selected) return;
-    runtime.pushNavigationSnapshot?.();
     const matterState = useMatterStore.getState();
     matterState.setClientMapHubId(target.matterId);
     matterState.setClientMapHubTab(tab);
@@ -43,9 +43,9 @@ function directSurface(
     id,
     appSurfaceId,
     resolve: (target, runtime) => {
+      runtime.pushNavigationSnapshot?.();
       return selectMatter(target.matterId).then((selected) => {
         if (!selected) return;
-        runtime.pushNavigationSnapshot?.();
         runtime.setSurface(appSurfaceId);
       });
     },
@@ -57,9 +57,9 @@ const searchTarget: NavigationTargetDescriptor = {
   id: 'search',
   appSurfaceId: 'search',
   resolve: (target, runtime) => {
+    runtime.pushNavigationSnapshot?.();
     return selectMatter(target.matterId).then((selected) => {
       if (!selected) return;
-      runtime.pushNavigationSnapshot?.();
       runtime.setSurface('search');
       if (target.question) {
         runtime.setAskPrefill({ question: target.question, autoSubmit: true });

@@ -59,6 +59,9 @@ describe('AppSurfaceRouter workflow artifact opening', () => {
     expect(opened).toBe(true);
     expect(pushNavigationSnapshot).toHaveBeenCalledTimes(1);
     expect(matterState.setActiveMatter).toHaveBeenCalledWith('client-1');
+    expect(pushNavigationSnapshot.mock.invocationCallOrder[0]).toBeLessThan(
+      matterState.setActiveMatter.mock.invocationCallOrder[0] ?? Number.MAX_SAFE_INTEGER
+    );
     expect(matterState.setClientMapHubId).toHaveBeenCalledWith('client-1');
     expect(matterState.setClientMapHubTab).toHaveBeenCalledWith('documents');
     expect(setMattersSurfaceMode).toHaveBeenCalledWith('client-map');

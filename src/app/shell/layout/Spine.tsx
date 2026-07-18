@@ -581,10 +581,12 @@ export function Spine({
                 aria-current={allClientsActive ? 'page' : undefined}
                 onClick={() => {
                   const request = issueAllMattersScopeSelection();
+                  // Capture the scope being left before the compatibility
+                  // writer synchronously projects All Clients.
+                  onAllClientsSelect?.();
                   void requestMatterScopeSelection(request)
                     .then((result) => {
                       if (result.kind === 'refused') return;
-                      onAllClientsSelect?.();
                       setClientMapHubId(null);
                       setClientMapHubTab(null);
                       if (!onAllClientsSelect) onTabChange?.('matters');

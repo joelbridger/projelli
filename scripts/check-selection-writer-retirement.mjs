@@ -4,6 +4,31 @@ import process from 'node:process';
 import ts from 'typescript';
 
 const TEST_PATH = /(?:\.test\.|\.spec\.|\/__tests__\/)/;
+const REVIEWED_EXTERNAL_MATTER_SET_STATE = new Set([
+  'src/dev/marketing-capture-bridge.ts',
+  'src/platform/state/reloadWorkspaceScopedStores.ts',
+]);
+
+function memberCall(node, sourceFile) {
+  if (ts.isPropertyAccessExpression(node.expression)) {
+    return {
+      owner: node.expression.expression.getText(sourceFile),
+      method: node.expression.name.text,
+    };
+  }
+  if (
+    ts.isElementAccessExpression(node.expression) &&
+    node.expression.argumentExpression &&
+    (ts.isStringLiteral(node.expression.argumentExpression) ||
+      ts.isNoSubstitutionTemplateLiteral(node.expression.argumentExpression))
+  ) {
+    return {
+      owner: node.expression.expression.getText(sourceFile),
+      method: node.expression.argumentExpression.text,
+    };
+  }
+  return null;
+}
 
 function propertyName(node, sourceFile) {
   return node.name && ts.isIdentifier(node.name)
@@ -77,8 +102,9 @@ export function scanSelectionWriters(relativePath, source) {
       }
     }
 
-    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
-      const method = node.expression.name.text;
+    if (ts.isCallExpression(node)) {
+      const member = memberCall(node, sourceFile);
+      const method = member?.method;
       if (method === 'setActiveMatter') {
         if (relativePath === 'src/platform/client-context/clientContextStore.ts') {
           record(node, 'allowed', 'single source-owned follower projection');
@@ -91,9 +117,26 @@ export function scanSelectionWriters(relativePath, source) {
       }
       if (
         method === 'setState' &&
-        node.expression.expression.getText(sourceFile) === 'useClientContextStore'
+        member?.owner === 'useClientContextStore'
       ) {
         record(node, 'forbidden', 'raw client-context setState');
+      }
+      if (
+        method === 'setState' &&
+        member?.owner === 'useMatterStore' &&
+        relativePath !== 'src/platform/matter/matterStore.ts' &&
+        !REVIEWED_EXTERNAL_MATTER_SET_STATE.has(relativePath) &&
+        !(
+          node.arguments[0] &&
+          ts.isObjectLiteralExpression(node.arguments[0]) &&
+          node.arguments[0].properties.some(
+            (property) =>
+              ts.isPropertyAssignment(property) &&
+              propertyName(property, sourceFile) === 'activeMatterId'
+          )
+        )
+      ) {
+        record(node, 'forbidden', 'unreviewed raw matter-store setState');
       }
     }
 
@@ -104,8 +147,9 @@ export function scanSelectionWriters(relativePath, source) {
       let call = node.parent;
       while (call && !ts.isCallExpression(call)) call = call.parent;
       if (call && ts.isCallExpression(call)) {
-        const callee = call.expression.getText(sourceFile);
-        if (callee === 'useMatterStore.setState') {
+        const callee = memberCall(call, sourceFile);
+        const calleeText = call.expression.getText(sourceFile);
+        if (callee?.owner === 'useMatterStore' && callee.method === 'setState') {
           const guard = enclosingIfText(call, sourceFile);
           if (
             relativePath === 'src/platform/matter/matterStore.ts' &&
@@ -115,7 +159,7 @@ export function scanSelectionWriters(relativePath, source) {
           } else {
             record(node, 'forbidden', 'raw useMatterStore.setState follower assignment');
           }
-        } else if (callee === 'set') {
+        } else if (calleeText === 'set') {
           const owner = enclosingPropertyName(call, sourceFile);
           if (relativePath === 'src/features/meetings/meetingStore.ts') {
             record(node, 'allowed', 'Meetings-private record cursor, not matter follower');

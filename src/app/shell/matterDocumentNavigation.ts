@@ -23,9 +23,13 @@ export async function showMatterDocuments({
   documentOpened: boolean;
   handlers: MatterDocumentsHandlers;
 }): Promise<boolean> {
-  const result = await requestMatterScopeSelection(issueMatterScopeSelection(matterId));
-  if (result.kind === 'refused') return false;
+  const request = issueMatterScopeSelection(matterId);
+  // Back must restore the scope we are leaving. The dark compatibility path
+  // updates the legacy follower synchronously when the request is consumed,
+  // so capture the source navigation state before that happens.
   handlers.pushNavigationSnapshot?.();
+  const result = await requestMatterScopeSelection(request);
+  if (result.kind === 'refused') return false;
   const matterState = useMatterStore.getState();
   matterState.setClientMapHubId(matterId);
   matterState.setClientMapHubTab('documents');

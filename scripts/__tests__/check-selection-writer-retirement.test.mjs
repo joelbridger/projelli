@@ -37,6 +37,29 @@ test('the proof fails raw hydration and direct client writers', () => {
   assert.equal(result.forbidden.length, 3);
 });
 
+test('the proof fails an identifier-bound raw follower payload', () => {
+  const result = scanSelectionWriters(
+    'src/features/example/Forbidden.ts',
+    `
+      const next = { activeMatterId: saved };
+      useMatterStore.setState(next);
+    `
+  );
+  assert.equal(result.forbidden.length, 1);
+  assert.match(result.forbidden[0], /unreviewed raw matter-store setState/);
+});
+
+test('the proof rejects bracket-syntax selection writers', () => {
+  const result = scanSelectionWriters(
+    'src/features/example/Forbidden.ts',
+    `
+      useMatterStore.getState()['setActiveMatter']('x');
+      useClientContextStore.getState()['setClient'](client);
+    `
+  );
+  assert.equal(result.forbidden.length, 2);
+});
+
 test('the proof fails destructured matter and client writer bindings', () => {
   const result = scanSelectionWriters(
     'src/features/example/Forbidden.ts',
