@@ -15,6 +15,16 @@ const SAMPLE_MATTER_ID = 'matter_sample_garcia_v_meridian';
 // Mutable so individual tests can override the active matter
 let mockActiveMatter: { id: string; name: string; isSample?: boolean } | null = null;
 
+function mockSelectionDecision() {
+  return mockActiveMatter
+    ? { kind: 'matter' as const, sourceKind: 'matter-only' as const, matter: mockActiveMatter, client: null }
+    : { kind: 'all-matters' as const, client: null };
+}
+
+vi.mock('@/platform/client-context', () => ({
+  useSelectionOperationDecision: mockSelectionDecision,
+  readSelectionOperationDecision: mockSelectionDecision,
+}));
 vi.mock('@/platform/matter/matterStore', () => ({
   useActiveMatter: () => mockActiveMatter,
   SAMPLE_MATTER_ID: 'matter_sample_garcia_v_meridian',

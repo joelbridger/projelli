@@ -52,7 +52,9 @@ describe('useAsk scope normalization', () => {
       folderPaths: [],
     });
     await requestMatterScopeSelection(issueMatterScopeSelection(matter.id));
-    await waitFor(() => expect(useMatterStore.getState().activeMatterId).toBe(matter.id));
+    await waitFor(() => {
+      expect(useMatterStore.getState().activeMatterId).toBe(matter.id);
+    });
 
     const { result } = renderHook(() => useAsk({}));
 
@@ -72,7 +74,9 @@ describe('useAsk scope normalization', () => {
     });
     const { result } = renderHook(() => useAsk({}));
 
-    act(() => result.current.setQuestion('What changed?'));
+    act(() => {
+      result.current.setQuestion('What changed?');
+    });
     await act(async () => result.current.handleAsk());
 
     expect(result.current.status).toBe('error');
@@ -88,11 +92,15 @@ describe('useAsk scope normalization', () => {
       folderPaths: [],
     });
     await requestMatterScopeSelection(issueMatterScopeSelection(matter.id));
-    await waitFor(() => expect(useMatterStore.getState().activeMatterId).toBe(matter.id));
+    await waitFor(() => {
+      expect(useMatterStore.getState().activeMatterId).toBe(matter.id);
+    });
     useMatterStore.setState({ activeMatterId: null });
     const { result } = renderHook(() => useAsk({}));
 
-    act(() => result.current.setQuestion('What changed?'));
+    act(() => {
+      result.current.setQuestion('What changed?');
+    });
     await act(async () => result.current.handleAsk());
 
     expect(result.current.status).toBe('error');

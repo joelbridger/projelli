@@ -34,7 +34,10 @@ const h = vi.hoisted(() => ({
   // The retrieval never settles for the duration of these tests — it models
   // a real in-flight question that hasn't come back yet when the user
   // switches clients.
-  retrieve: vi.fn((..._args: unknown[]) => new Promise<unknown[]>(() => { /* never resolves */ })),
+  retrieve: vi.fn((...args: unknown[]) => {
+    void args;
+    return new Promise<unknown[]>(() => { /* never resolves */ });
+  }),
   // QA-25 (P1, Codex re-review) — controllable provider resolution, so a test
   // can trigger a navigation-cancel WHILE this specific await is pending (a
   // gap the fix at useAsk.ts's buildResolvedAskProvider() call closes).
@@ -89,6 +92,14 @@ vi.mock('@/features/ask/askHelpers', async (importOriginal) => {
   };
 });
 
+vi.mock('@/platform/client-context', () => ({
+  useSelectionOperationDecision: () => h.activeMatter
+    ? { kind: 'matter' as const, sourceKind: 'matter-only' as const, matter: h.activeMatter, client: null }
+    : { kind: 'all-matters' as const, client: null },
+  readSelectionOperationDecision: () => h.activeMatter
+    ? { kind: 'matter' as const, sourceKind: 'matter-only' as const, matter: h.activeMatter, client: null }
+    : { kind: 'all-matters' as const, client: null },
+}));
 vi.mock('@/platform/matter/matterStore', () => ({
   useActiveMatter: () => h.activeMatter,
   SAMPLE_MATTER_ID: 'matter_sample_garcia_v_meridian',

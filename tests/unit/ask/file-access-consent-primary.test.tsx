@@ -49,6 +49,14 @@ const h = vi.hoisted(() => ({
 
 vi.mock('@/i18n', () => ({ default: { t: (k: string) => k } }));
 
+vi.mock('@/platform/client-context', () => ({
+  useSelectionOperationDecision: () => h.activeMatter
+    ? { kind: 'matter' as const, sourceKind: 'matter-only' as const, matter: h.activeMatter, client: null }
+    : { kind: 'all-matters' as const, client: null },
+  readSelectionOperationDecision: () => h.activeMatter
+    ? { kind: 'matter' as const, sourceKind: 'matter-only' as const, matter: h.activeMatter, client: null }
+    : { kind: 'all-matters' as const, client: null },
+}));
 vi.mock('@/platform/matter/matterStore', () => ({
   useActiveMatter: () => h.activeMatter,
   SAMPLE_MATTER_ID: 'matter_sample_garcia_v_meridian',

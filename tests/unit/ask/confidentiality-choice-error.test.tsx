@@ -35,6 +35,10 @@ vi.mock('@/features/ask/askHelpers', async (orig) => {
   };
 });
 
+vi.mock('@/platform/client-context', () => ({
+  useSelectionOperationDecision: () => ({ kind: 'all-matters', client: null }),
+  readSelectionOperationDecision: () => ({ kind: 'all-matters', client: null }),
+}));
 vi.mock('@/platform/matter/matterStore', () => ({
   useActiveMatter: () => null,
   SAMPLE_MATTER_ID: 'matter_sample_garcia_v_meridian',
