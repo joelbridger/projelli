@@ -1,5 +1,5 @@
 export { CrmHome, type CrmHomeProps, type CrmHomeRoute } from './CrmHome';
-export type { CrmHouseholdAddRequest } from './routes';
+export type { CrmHouseholdAddRequest, CrmOriginatingContextRef } from './routes';
 export type {
   CrmHomeAdapter,
   CrmFreshnessState,

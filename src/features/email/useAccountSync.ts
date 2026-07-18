@@ -58,6 +58,8 @@ export function useAccountSync({ onNoAccounts, onSyncDone }: UseAccountSyncOptio
   syncImportedMessages: number | null;
   accounts: ConnectedAccount[];
   accountsLoaded: boolean;
+  /** True when the desktop mail connection check itself failed. */
+  accountLoadError: boolean;
   hasConnectedMail: boolean;
   handleSyncNow: () => void;
 } {
@@ -67,6 +69,7 @@ export function useAccountSync({ onNoAccounts, onSyncDone }: UseAccountSyncOptio
   const [syncImportedMessages, setSyncImportedMessages] = useState<number | null>(null);
   const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
   const [accountsLoaded, setAccountsLoaded] = useState(false);
+  const [accountLoadError, setAccountLoadError] = useState(false);
   const hasConnectedMail = accountsLoaded && accounts.length > 0;
   const liveWrittenByProviderRef = useRef(new Map<string, number>());
   const activeAllProviderSyncRef = useRef(false);
@@ -128,6 +131,7 @@ export function useAccountSync({ onNoAccounts, onSyncDone }: UseAccountSyncOptio
   useEffect(() => {
     let cancelled = false;
     const load = () => {
+      setAccountLoadError(false);
       mailConnectedAccounts()
         .then((accs) => {
           if (!cancelled) {
@@ -143,6 +147,7 @@ export function useAccountSync({ onNoAccounts, onSyncDone }: UseAccountSyncOptio
         .catch(() => {
           if (!cancelled) {
             setAccounts([]);
+            setAccountLoadError(true);
             setAccountsLoaded(true);
           }
         });
@@ -231,6 +236,7 @@ export function useAccountSync({ onNoAccounts, onSyncDone }: UseAccountSyncOptio
     syncImportedMessages,
     accounts,
     accountsLoaded,
+    accountLoadError,
     hasConnectedMail,
     handleSyncNow,
   };

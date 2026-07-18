@@ -65,3 +65,4 @@ export type {
   HouseholdTabDescriptor,
   HouseholdTabSurfaceProps,
 } from './tabRegistry';
+export { memberRailTab } from './extensions/record-member-kebab';

@@ -59,18 +59,20 @@ const deferredAddAction = (
 ): HouseholdAddActionDescriptor => ({
   id,
   order,
-  mount: ({ household, actions }: HouseholdRecordShellContext) => (
+  mount: ({ household, sectionContext, actions }: HouseholdRecordShellContext) => (
     <Button
       variant="secondary"
       size="sm"
       data-testid={`crm-household-add-${id}`}
-      onClick={() =>
+      onClick={() => {
+        const authoritativeHouseholdRef =
+          sectionContext?.householdRef ?? householdRef(household);
         actions?.onAdd?.({
           kind: id,
-          householdRef: householdRef(household),
-          contextRefs: [householdRef(household)],
-        })
-      }
+          householdRef: authoritativeHouseholdRef,
+          contextRefs: [authoritativeHouseholdRef],
+        });
+      }}
     >
       Add {id}
     </Button>

@@ -72,6 +72,7 @@ import { NoAccountsState } from './NoAccountsState';
 import { EmailViewer } from './EmailViewer';
 import { sendDiagnosticEvent } from '@/platform/utils/diagnostics';
 import { ComposeModal } from './ComposeModal';
+import type { EmailComposeHandoff } from './composeHandoff';
 import { BulkActionBar } from './BulkActionBar';
 import { useAccountSync } from './useAccountSync';
 import { EV_OPEN_EMAIL, EV_OPEN_SETTINGS } from '@/config/identity';
@@ -266,6 +267,9 @@ export interface EmailWorkspaceProps {
    * inbox as a destination is gone — global reach is Ctrl+P + Ask citations).
    */
   embedded?: boolean;
+  /** One-shot request from a household record to open the existing compose flow. */
+  composeHandoff?: EmailComposeHandoff;
+  onComposeHandoffConsumed?: (() => void) | undefined;
 }
 
 // ── No-accounts empty state ────────────────────────────────────────────────
@@ -276,6 +280,8 @@ export function EmailWorkspace({
   onSaveToWorkspace,
   onOpenSettings,
   embedded = false,
+  composeHandoff,
+  onComposeHandoffConsumed,
 }: EmailWorkspaceProps) {
   const { t } = useTranslation();
   const activeMatter = useActiveMatter();
@@ -365,6 +371,7 @@ export function EmailWorkspace({
     syncImportedMessages,
     accounts,
     accountsLoaded,
+    accountLoadError,
     hasConnectedMail,
     handleSyncNow,
   } = useAccountSync({
@@ -386,8 +393,44 @@ export function EmailWorkspace({
 
   // Compose open state — compose state/effects live in ComposeModal
   const [composeOpen, setComposeOpen] = useState(false);
+  const [composeHouseholdContext, setComposeHouseholdContext] = useState<string | null>(null);
+  const [composeHandoffMessage, setComposeHandoffMessage] = useState<string | null>(null);
+  const consumedComposeHandoffRef = useRef<string | null>(null);
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
   const [railCollapsed, setRailCollapsed] = useState(false);
+
+  // A household record may request the already-owned compose flow. Browser
+  // preview deliberately stops at a clear desktop boundary instead of looking
+  // like it drafted an email it cannot send.
+  useEffect(() => {
+    if (!composeHandoff) return;
+    const handoffKey = `${composeHandoff.source}:${composeHandoff.household.id}`;
+    if (consumedComposeHandoffRef.current === handoffKey) return;
+    if (!isTauri()) {
+      consumedComposeHandoffRef.current = handoffKey;
+      setComposeHandoffMessage(`Email drafts open in the desktop app. Open ${composeHandoff.household.label} there to draft an email.`);
+      onComposeHandoffConsumed?.();
+      return;
+    }
+    if (!accountsLoaded) return;
+
+    consumedComposeHandoffRef.current = handoffKey;
+    if (accountLoadError) {
+      setComposeHandoffMessage('We could not check your email connection, so no draft was opened. Try again in the desktop app.');
+    } else if (accounts.length === 0) {
+      setComposeHandoffMessage(`No email account is connected. Connect one in the desktop app, then draft an email for ${composeHandoff.household.label}.`);
+    } else {
+      setComposeHandoffMessage(null);
+      setComposeHouseholdContext(composeHandoff.household.label);
+      setComposeOpen(true);
+    }
+    onComposeHandoffConsumed?.();
+  }, [accountLoadError, accounts.length, accountsLoaded, composeHandoff, onComposeHandoffConsumed]);
+
+  const handleComposeOpenChange = useCallback((open: boolean) => {
+    setComposeOpen(open);
+    if (!open) setComposeHouseholdContext(null);
+  }, []);
 
   // Ref for focusing the search field from the first-connect callout CTA.
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -1211,6 +1254,12 @@ export function EmailWorkspace({
               </div>
             ) : null}
 
+            {composeHandoffMessage ? (
+              <div data-testid="email-compose-handoff-message" className="shrink-0 px-6 pt-4">
+                <Callout variant="info" icon={Mail}>{composeHandoffMessage}</Callout>
+              </div>
+            ) : null}
+
             {selectedIds.size > 0 ? (
               <BulkActionBar
                 selectedCount={selectedIds.size}
@@ -1277,9 +1326,10 @@ export function EmailWorkspace({
 
       <ComposeModal
         open={composeOpen}
-        onOpenChange={setComposeOpen}
+        onOpenChange={handleComposeOpenChange}
         accounts={accounts}
         onOpenSettings={onOpenSettings}
+        {...(composeHouseholdContext ? { householdContextLabel: composeHouseholdContext } : {})}
       />
     </div>
   );

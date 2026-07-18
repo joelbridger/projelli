@@ -34,6 +34,9 @@ export function createLegacyTaskDraft(
       ? {
           householdId: household.householdId,
           householdLabel: household.householdLabel,
+          ...(household.contextRefs
+            ? { originatingContextRefs: household.contextRefs }
+            : {}),
         }
       : {}),
     assigneeUserId: null,

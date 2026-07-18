@@ -16,11 +16,12 @@ interface ComposeModalProps {
   onOpenChange: (open: boolean) => void;
   accounts: ConnectedAccount[];
   onOpenSettings?: (() => void) | undefined;
+  householdContextLabel?: string | undefined;
 }
 
 // ── Component ──────────────────────────────────────────────────────────────
 
-export function ComposeModal({ open, onOpenChange, accounts, onOpenSettings }: ComposeModalProps) {
+export function ComposeModal({ open, onOpenChange, accounts, onOpenSettings, householdContextLabel }: ComposeModalProps) {
   const { t } = useTranslation();
   const [composeProvider, setComposeProvider] = useState('');
   const [composeAccount, setComposeAccount] = useState('');
@@ -193,6 +194,13 @@ export function ComposeModal({ open, onOpenChange, accounts, onOpenSettings }: C
 
         {/* Modal body (scrollable) */}
         <div style={{ flex: 1, overflowY: 'auto', padding: `var(--kp-space-sm) var(--kp-card-pad) var(--kp-card-pad)`, display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-xs)' }}>
+          {householdContextLabel ? (
+            <p data-testid="compose-household-context" style={{ margin: 0, fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
+              {t('mail.compose.household-context', {
+                household: householdContextLabel,
+              })}
+            </p>
+          ) : null}
           {/* From selector */}
           {accounts.length === 0 ? (
             <div data-testid="compose-no-accounts" style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)', padding: '8px 0' }}>
