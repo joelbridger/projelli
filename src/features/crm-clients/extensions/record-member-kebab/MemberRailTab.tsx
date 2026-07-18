@@ -13,7 +13,7 @@ type MemberRailProps = Pick<
 
 function householdRef(
   household: MemberRailProps['household'],
-  matterId: string | undefined
+  matterId?: string
 ) {
   return {
     kind: 'household',
@@ -23,7 +23,7 @@ function householdRef(
   };
 }
 
-function memberRef(member: CrmPerson, matterId: string | undefined) {
+function memberRef(member: CrmPerson, matterId?: string) {
   return {
     kind: 'person',
     id: member.id,
@@ -135,14 +135,13 @@ function EnabledMemberRail({ household, clientBoundary, actions }: MemberRailPro
                             variant="secondary"
                             data-testid={`crm-household-member-email-${member.id}`}
                             onClick={() => {
-                              const matterId = clientBoundary?.matterId;
-                              const householdContext = householdRef(household, matterId);
+                              const householdContext = householdRef(household);
                               actions?.onDraftEmail?.({
                                 kind: 'open_mail_surface',
                                 householdRef: householdContext,
                                 contextRefs: [
                                   householdContext,
-                                  memberRef(member, matterId),
+                                  memberRef(member),
                                 ],
                                 source: 'crm_household',
                               });
