@@ -2,7 +2,8 @@
 
 **Base:** `974f34e2394ad7b4131557be5c9fa9b09de0322c`
 
-**Implementation commit:** `5ce098d30fff0c18d4b2f0c79d4b76eb79210f52`.
+**Implementation dark delta:** `5ce098d30fff0c18d4b2f0c79d4b76eb79210f52`.
+**Final verified source tip:** `1808372a143c0577ec8ff2a348eac6c630171f6b`.
 **Shared receipt:** `src/features/booking/availability/evidence/receipt.md`
 
 ## Result
@@ -22,12 +23,23 @@ The existing shared-panel tests prove the booking-window fields use the one
 aggregate Calendar writer and reject invalid drafts before any write. This
 lane found no host defect and made no production change.
 
-## Open evidence item
+## Row-stamp evidence gate
 
-The required browser live drive and D2 screenshot review are incomplete. The
-temporary local flag-on browser session could not open a real development
-workspace, so no fresh-read/cold-reload drive or design verdict is claimed.
-This blocks merge candidacy but does not change the flag's default-off state.
+**JP-056 ROW STAMP OWED.** Its controlled flag-on live drive and D2 screenshot
+review are incomplete. The temporary local browser session could not open a
+real development workspace, so no fresh-read/cold-reload persistence proof or
+design verdict is claimed for this row. This holds the JP-056 row stamp only;
+it does not gate this dark delta's merge or change the flag's default-off
+posture.
+
+## Final-tip checks
+
+All required checks passed at final verified source tip
+`1808372a143c0577ec8ff2a348eac6c630171f6b`: the canonical scrubbed
+gate preflight (`lint:gate`, `typecheck`, and `typecheck:tests`), a separate
+`npm run typecheck:tests`, the UI handle guard, flag-off availability lint
+coverage, and the four focused Settings/Booking host suites (35 tests). The
+shared receipt pastes the commands and terminal outcomes.
 
 ## Self-attestation
 

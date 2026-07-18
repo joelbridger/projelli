@@ -55,6 +55,14 @@ The receipt row cannot contain its own final Git blob ID: that ID is calculated 
 ## Combined final-tip Settings-host evidence (JP-056 + SC-011)
 
 **Base:** `974f34e2394ad7b4131557be5c9fa9b09de0322c`.
+**Implementation dark delta:** `5ce098d30fff0c18d4b2f0c79d4b76eb79210f52`.
+**Final verified source tip:** `1808372a143c0577ec8ff2a348eac6c630171f6b`.
+
+The final verified source tip includes only the test-hygiene repair required to
+make the claimed four-suite command reproducible: each registry-host test
+cleans up its rendered DOM and has a 15-second integration-test timeout. It
+does not change production behavior. This receipt/report commit follows that
+source tip and changes evidence text only.
 
 The restoration proof above is inherited from `974f34e23`; this combined lane
 did not re-perform its 19-path restoration comparison or alter the restored
@@ -104,24 +112,63 @@ their own capability:
 No production defect was found. The only production changes are **none**;
 this lane adds host-path regression proof only.
 
-### D2 design review and live-drive status
+### Row-stamp evidence gate: D2 design review and live drive
 
-**D2 design review: INCOMPLETE, not PASS.** The required populated,
-empty/no-slot, loading, unavailable/error, calendar-selection/blocker,
-opaque-preview, and flag-off screenshots were not available. A temporary local
-Vite flag-on browser attempt reached the app shell but the browser development
-configuration could not open a real workspace, so it could not truthfully
-drive Settings, save, cold-reload, or capture the required panel states. The
-temporary override was cleared and the local server was stopped. This is a
-missing pre-merge evidence item, not a green design verdict; no
-`DESIGN-CHANGES` verdict has been issued.
+**JP-056 ROW STAMP OWED:** its controlled flag-on live drive and D2 review are
+incomplete. The required populated, empty/no-slot, loading,
+unavailable/error, calendar-selection/blocker, opaque-preview, and flag-off
+screenshots were not available. No fresh-read/cold-reload persistence proof or
+design verdict is claimed for JP-056.
 
-### Final commands in this lane
+**SC-011 ROW STAMP OWED:** its controlled flag-on live drive and D2 review are
+also incomplete. The same unavailable real workspace prevented a fresh-reader
+proof for the home-calendar and selected-blocker state, and no D2 verdict is
+claimed for SC-011.
+
+A temporary local Vite flag-on browser attempt reached the app shell but could
+not open a real workspace, so it could not truthfully drive Settings, save,
+cold-reload, or capture the required panel states. The temporary override was
+cleared and the local server was stopped. These are row-stamp evidence gaps,
+not a green design verdict or a `DESIGN-CHANGES` verdict, and they do **not**
+gate this dark delta's merge.
+
+### Final commands and terminal output at final verified source tip
+
+All commands below were run from
+`1808372a143c0577ec8ff2a348eac6c630171f6b` before this evidence-only commit.
 
 | Command | Result |
 | --- | --- |
-| `npm test -- src/features/settings/registry/settingsContentRegistry.test.tsx src/features/settings/v1-frame/SettingsV1FrameEnabled.test.tsx src/features/settings/registry/settingsModuleRegistry.test.ts src/features/booking/availability/BookingAvailabilitySettings.test.tsx` | PASS, 4 files and 35 tests |
+| Canonical scrubbed `/home/jameson/lantern/coordination/coordinator/tools/gate-preflight.sh` | PASS — `lint:gate`, `typecheck`, and `typecheck:tests` |
+| `npm run typecheck:tests` | PASS |
+| `node scripts/ui-system/handle-guard.mjs` | PASS — no permanent handle vanished and no new ambiguous handle was found (64 frozen duplicates; 479 permitted new handles) |
+| `npx eslint src/features/booking/availability/BookingAvailabilitySettings.tsx src/features/booking/availability/BookingAvailabilitySettings.test.tsx src/features/booking/availability/index.ts src/features/booking/availability/settingsModuleDescriptor.tsx` | PASS — explicit flag-off availability lint coverage |
+| `npm test -- src/features/settings/registry/settingsContentRegistry.test.tsx src/features/settings/v1-frame/SettingsV1FrameEnabled.test.tsx src/features/settings/registry/settingsModuleRegistry.test.ts src/features/booking/availability/BookingAvailabilitySettings.test.tsx` | PASS — 4 files, 35 tests |
 | Temporary `VITE_FLAG_BOOKING_AVAILABILITY=true npm run dev -- --host 127.0.0.1 --port 5173` browser drive | INCOMPLETE, no real workspace available; override cleared and server stopped |
+
+```text
+$ npm run typecheck:tests
+> advisor-prep-hero@3.3.5 typecheck:tests
+> tsc -p tsconfig.test.json --noEmit
+
+$ node scripts/ui-system/handle-guard.mjs
+Handle guard: 2985 keys in source, 2506 in baseline.
+✅ Handle guard passed — no permanent handle vanished, and no new ambiguous
+(duplicate) handles (64 frozen; 479 new handles permitted).
+
+$ npx eslint src/features/booking/availability/BookingAvailabilitySettings.tsx \
+  src/features/booking/availability/BookingAvailabilitySettings.test.tsx \
+  src/features/booking/availability/index.ts \
+  src/features/booking/availability/settingsModuleDescriptor.tsx
+[no output; exit 0]
+
+$ npm test -- src/features/settings/registry/settingsContentRegistry.test.tsx \
+  src/features/settings/v1-frame/SettingsV1FrameEnabled.test.tsx \
+  src/features/settings/registry/settingsModuleRegistry.test.ts \
+  src/features/booking/availability/BookingAvailabilitySettings.test.tsx
+Test Files  4 passed (4)
+     Tests  35 passed (35)
+```
 
 Self-review attestation: this lane did not add a flag, enable a default, add a
 Settings rail/section, use dynamic duplicate registration, touch a Meetings or

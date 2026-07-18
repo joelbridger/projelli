@@ -2,7 +2,8 @@
 
 **Base:** `974f34e2394ad7b4131557be5c9fa9b09de0322c`
 
-**Implementation commit:** `5ce098d30fff0c18d4b2f0c79d4b76eb79210f52`.
+**Implementation dark delta:** `5ce098d30fff0c18d4b2f0c79d4b76eb79210f52`.
+**Final verified source tip:** `1808372a143c0577ec8ff2a348eac6c630171f6b`.
 **Shared receipt:** `src/features/booking/availability/evidence/receipt.md`
 
 ## Result
@@ -19,12 +20,23 @@ set of busy-time blockers, one aggregate save operation, opaque busy blocks,
 and fail-closed slot behavior. A loading or rejected occurrence read produces
 no slots and does not fall back to treating time as free.
 
-## Open evidence item
+## Row-stamp evidence gate
 
-The live development drive did not receive a real workspace, so a live fresh
-reader/cold-reload proof and the required D2 screenshot review are not claimed.
-The temporary flag override was cleared. This is an evidence gap, not a
-provider capability or a reason to change the default flag posture.
+**SC-011 ROW STAMP OWED.** The controlled flag-on live drive did not receive a
+real workspace, so this row has no live fresh-reader/cold-reload proof and no
+required D2 screenshot-review verdict. The temporary flag override was
+cleared. This holds the SC-011 row stamp only; it does not gate this dark
+delta's merge, assert a provider capability, or change the default flag
+posture.
+
+## Final-tip checks
+
+All required checks passed at final verified source tip
+`1808372a143c0577ec8ff2a348eac6c630171f6b`: the canonical scrubbed
+gate preflight (`lint:gate`, `typecheck`, and `typecheck:tests`), a separate
+`npm run typecheck:tests`, the UI handle guard, flag-off availability lint
+coverage, and the four focused Settings/Booking host suites (35 tests). The
+shared receipt pastes the commands and terminal outcomes.
 
 ## Self-attestation
 
