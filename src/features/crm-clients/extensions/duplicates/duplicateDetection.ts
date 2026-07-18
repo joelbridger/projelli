@@ -100,6 +100,7 @@ export function findLikelyDuplicateContacts(
 
   for (let leftIndex = 0; leftIndex < people.length; leftIndex += 1) {
     const left = people[leftIndex];
+    if (!left) continue;
     const leftNormalizedName = normalizeDuplicateHouseholdName(left.name);
     const leftAliasKey = knownGivenNameAliasKey(left.name);
     for (const right of people.slice(leftIndex + 1)) {

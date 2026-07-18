@@ -1,6 +1,10 @@
 import { useMemo, useState } from 'react';
 import { Button, Card } from '@/ui/kp';
 import type { DirectoryContext } from '@/features/crm-clients';
+import {
+  useContactRecordStore,
+  type ContactRef,
+} from '@/features/crm-contacts';
 import { crmDuplicatesCopy } from './copy';
 import {
   findLikelyDuplicateContacts,
@@ -22,15 +26,15 @@ function explanationFor(match: DuplicateContactMatch): string {
 
 function MatchReview({
   match,
-  context,
   disposition,
   onDisposition,
+  onOpen,
   onOpenError,
 }: {
   match: DuplicateContactMatch;
-  context: DirectoryContext;
   disposition: DuplicateReviewDisposition | undefined;
   onDisposition: (disposition: DuplicateReviewDisposition) => void;
+  onOpen: (ref: ContactRef) => Promise<void>;
   onOpenError: () => void;
 }) {
   return (
@@ -48,9 +52,7 @@ function MatchReview({
               variant="secondary"
               data-testid={`crm-duplicates-open-${record.id}`}
               onClick={() => {
-                void context.repository
-                  .openContact(record.ref)
-                  .catch(onOpenError);
+                void onOpen(record.ref).catch(onOpenError);
               }}
             >
               {crmDuplicatesCopy.openRecord}
@@ -100,15 +102,21 @@ export function CrmDuplicatesDirectoryTool({
 }: {
   context: DirectoryContext;
 }) {
+  const contactStore = useContactRecordStore();
   const [isReviewOpen, setReviewOpen] = useState(false);
   const [reviewState, setReviewState] = useState<DuplicateReviewState>(
     readDuplicateReviewState
   );
   const [openError, setOpenError] = useState(false);
   const matches = useMemo(
-    () => findLikelyDuplicateContacts(context.contacts ?? []),
-    [context.contacts]
+    () => findLikelyDuplicateContacts(contactStore.listDirectory()),
+    [contactStore]
   );
+  const openContact = async (ref: ContactRef) => {
+    const screen = await contactStore.resolve(ref);
+    if (!screen) throw new Error('Contact record is unavailable.');
+    context.legacyRepository.openHousehold(screen.ref.matterId);
+  };
   const saveDisposition = (
     match: DuplicateContactMatch,
     disposition: DuplicateReviewDisposition
@@ -146,11 +154,11 @@ export function CrmDuplicatesDirectoryTool({
               <MatchReview
                 key={`${match.normalizedName}:${match.records.map((record) => record.id).join(':')}`}
                 match={match}
-                context={context}
                 disposition={reviewState[duplicateMatchKey(match)]}
                 onDisposition={(disposition) => {
                   saveDisposition(match, disposition);
                 }}
+                onOpen={openContact}
                 onOpenError={() => {
                   setOpenError(true);
                 }}

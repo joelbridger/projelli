@@ -1,4 +1,7 @@
-import { createDirectoryPreferenceStore } from '@/features/crm-clients/directoryPreferences';
+import {
+  createDirectoryPreferenceStore,
+  type DirectoryPreferenceStore,
+} from '@/features/crm-clients';
 import type { DuplicateContactMatch } from './duplicateDetection';
 
 export type DuplicateReviewDisposition = 'reviewed' | 'dismissed';
@@ -11,22 +14,29 @@ export const EMPTY_DUPLICATE_REVIEW_STATE: DuplicateReviewState = Object.freeze(
 );
 
 function isDuplicateReviewState(value: unknown): value is DuplicateReviewState {
-  return (
-    Boolean(value) &&
-    typeof value === 'object' &&
-    !Array.isArray(value) &&
-    Object.values(value).every(
-      (disposition) => disposition === 'reviewed' || disposition === 'dismissed'
-    )
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  return Object.values(value).every(
+    (disposition) => disposition === 'reviewed' || disposition === 'dismissed'
   );
 }
 
-/** The duplicate extension's one sanctioned saved-preference slot. */
-export const duplicateReviewPreferences =
-  createDirectoryPreferenceStore<DuplicateReviewState>(
+function createDuplicateReviewPreferences(): DirectoryPreferenceStore<DuplicateReviewState> {
+  return createDirectoryPreferenceStore<DuplicateReviewState>(
     'crm-duplicates',
     isDuplicateReviewState
   );
+}
+
+/** The duplicate extension's one sanctioned, lazily opened saved-preference slot. */
+export const duplicateReviewPreferences: DirectoryPreferenceStore<DuplicateReviewState> = {
+  load: () => createDuplicateReviewPreferences().load(),
+  save: (value) => {
+    createDuplicateReviewPreferences().save(value);
+  },
+  clear: () => {
+    createDuplicateReviewPreferences().clear();
+  },
+};
 
 export function readDuplicateReviewState(): DuplicateReviewState {
   return duplicateReviewPreferences.load() ?? EMPTY_DUPLICATE_REVIEW_STATE;
