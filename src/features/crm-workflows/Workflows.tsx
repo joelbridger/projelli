@@ -127,9 +127,7 @@ export function LiveWorkflows({
   onAddRequestConsumed?: () => void;
 }) {
   const template = data.templates[0];
-  const startableTemplate = isStartableTemplate(template)
-    ? template
-    : undefined;
+  const startableTemplate = data.templates.find(isStartableTemplate);
   const [creating, setCreating] = useState(
     addRequest?.kind === 'workflow' && !template
   );
@@ -185,7 +183,8 @@ export function LiveWorkflows({
     setCreating(false);
   };
   const start = async () => {
-    if (!startableTemplate) return;
+    const currentStartableTemplate = data.templates.find(isStartableTemplate);
+    if (!currentStartableTemplate) return;
     let household = households.find((item) => item.id === selectedHouseholdId);
     if (!household) {
       const id = `household-${String(Date.now())}`;
@@ -197,7 +196,7 @@ export function LiveWorkflows({
         name: household.label,
       });
     }
-    await save(startWorkflow(startableTemplate, household));
+    await save(startWorkflow(currentStartableTemplate, household));
     onAddRequestConsumed?.();
   };
   const publish = async () => {

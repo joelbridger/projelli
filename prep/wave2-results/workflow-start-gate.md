@@ -15,10 +15,12 @@
 PASS for the builder-owned WB-062 outcome.
 
 The real Workflow screen now always shows its existing Start workflow control.
-With no template, a draft template, or an archived/rejected template, the
-control is disabled and a visible sentence explains why. The same eligibility
-check runs again inside the existing start callback, so bypassing the disabled
-button cannot create a household or workflow instance.
+It searches the full template list for a published or legacy startable
+template, so an earlier draft or archived template cannot hide a later
+published one. With no startable template, the control is disabled and a
+visible sentence explains why. The existing start callback searches the full
+list again when clicked, so a template that becomes rejected cannot create a
+household or workflow instance even if the disabled DOM state is bypassed.
 
 A published template remains enabled and follows the unchanged production
 start flow: the selected canonical template and household go to the existing
@@ -33,9 +35,15 @@ previously startable behavior.
 - zero templates: the real button is disabled, its reason is accessible and
   visible, and forcibly bypassing the DOM disable still makes the real callback
   save nothing;
-- a draft template: the button says publication is required and saves nothing;
+- a draft template: the button says publication is required and its forcibly
+  invoked real callback saves nothing;
 - an archived record reaching the broad live-record boundary: the button stays
-  unavailable and saves nothing; and
+  unavailable and its forcibly invoked real callback saves nothing;
+- a draft first template followed by a published template: Start stays enabled
+  and saves an instance from the published template;
+- a template that changes from published to rejected after the first render:
+  the button becomes disabled and bypassing that DOM state still makes the
+  rechecked real callback save nothing; and
 - a published template: the real household selection and Start click save
   exactly one workflow instance carrying the existing template ID, household
   ID, matter ID, and template name.
@@ -59,7 +67,7 @@ git diff --check f6973732479cac37df3722c7411a701f768ec1d5..HEAD
 git status --short
 ```
 
-Focused result: 4/4 tests pass. Adjacent workflow result: 6/6 tests pass.
+Focused result: 6/6 tests pass. Adjacent workflow result: 6/6 tests pass.
 Both type checks pass. Feature and architecture boundary checks pass. Touched
 file ESLint has zero errors and only the eight pre-existing async warnings in
 `Workflows.tsx`; no warning suppression was added.
