@@ -182,6 +182,7 @@ describe('TaskAttachmentsField', () => {
       get: getTask,
       create: vi.fn(),
       update: updateTask,
+      remove: vi.fn(),
     };
     boundary.useTaskRecordStore.mockReturnValue(store);
     boundary.useFirmTagStore.mockReturnValue({

@@ -94,6 +94,7 @@ function storeFor(record: TaskRecord): TaskRecordStore & {
     get: vi.fn(() => Promise.resolve(record)),
     create: vi.fn(),
     update,
+    remove: vi.fn(),
   };
 }
 

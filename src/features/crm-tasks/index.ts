@@ -1,9 +1,10 @@
 /**
  * Public doorway for canonical CRM tasks.
  *
- * Consumers create and update tasks only through `useTaskRecordStore()`. The
+ * Consumers create, update, and remove tasks only through `useTaskRecordStore()`. The
  * adapter is reactive, async, and writes through the existing encrypted live
- * CRM record route. It exposes no raw record writer or copied tag display data.
+ * CRM record and trash routes. It exposes no raw record writer or copied tag
+ * display data.
  */
 export { useTaskRecordStore } from './taskRecordStore';
 export type {
