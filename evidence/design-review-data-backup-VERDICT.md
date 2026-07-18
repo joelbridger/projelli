@@ -77,3 +77,33 @@ DESIGN-VERDICT: CHANGES-3
 The browser-only failure path also now speaks like a person: “This export needs review” and “No verified archive is being claimed.” The old raw engineering error is absent. The compact technical detail is no longer in the primary decision path, so the screen is clear before an advisor needs to understand the proof mechanics.
 
 DESIGN-VERDICT: PASS
+
+---
+
+## Rendered-name re-check — 2026-07-18
+
+**Build reviewed:** `b1e5cf5dc59eb4d998f988a30bb9c1132cb9f8d0`
+
+### Fresh live check
+
+- Fresh X display: `:96` (not `:1` or `:251`)
+- Fresh Vite port: `5271` (not `5174`)
+- Fresh disposable Chromium profile with `--password-store=basic`
+- Runtime-only feature enablement: the disposable browser profile set `localStorage['lantern:feature-flags']` to exactly `{"data-export-backup":true}` before the app loaded. No source, registry, or test file was changed.
+- Test workspace: `?testMode=true`; no real client files were used.
+- Teardown proven: the owned browser, Vite server, and X display stopped; port `5271` and display `:96` were free, and the disposable profile was removed before this note was written.
+
+### Fresh screenshots
+
+| Screen | Evidence |
+| --- | --- |
+| Panel with the rendered product name | `2026-07-18-data-export-backup-rendered-name/01-data-export-panel-rendered-name.png` |
+| Human needs-review outcome with the rendered product name | `2026-07-18-data-export-backup-rendered-name/02-data-export-needs-review-rendered-name.png` |
+
+### Re-verdict
+
+**Pass.** “Advisor Prep Hero” is fully visible in the panel’s success-check sentence. Its three words cause a natural two-line wrap at this bench size, with no clipping, overlap, or cramped reading. The sentence remains clear: the app only calls the export successful when its results match the JSON file.
+
+The same rendered name is fully visible in the needs-review message. That message still plainly says the archive could not be created and checked, needs review, and is not being claimed as verified. The existing warning and exclusions remain unchanged and easy to scan.
+
+DESIGN-VERDICT: PASS
