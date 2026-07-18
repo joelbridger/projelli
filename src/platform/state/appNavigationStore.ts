@@ -10,8 +10,8 @@ export interface AppNavigationSnapshot {
   rootPath: string | null;
   sidebarActiveTab: AppSurface;
   activeMatterId: string | null;
-  selectionScope: MatterScopeSelection;
-  selectionFollowerStatus: FollowerStatus;
+  selectionScope?: MatterScopeSelection;
+  selectionFollowerStatus?: FollowerStatus;
   clientMapHubId: string | null;
   clientMapHubTab: ClientMapHubTab | null;
   documentsView: 'browser' | 'editor';
@@ -34,9 +34,9 @@ function sameSnapshot(
     a.rootPath === b.rootPath &&
     a.sidebarActiveTab === b.sidebarActiveTab &&
     a.activeMatterId === b.activeMatterId &&
-    a.selectionScope.kind === b.selectionScope.kind &&
-    ('matterId' in a.selectionScope ? a.selectionScope.matterId : null) ===
-      ('matterId' in b.selectionScope ? b.selectionScope.matterId : null) &&
+    a.selectionScope?.kind === b.selectionScope?.kind &&
+    (a.selectionScope && 'matterId' in a.selectionScope ? a.selectionScope.matterId : null) ===
+      (b.selectionScope && 'matterId' in b.selectionScope ? b.selectionScope.matterId : null) &&
     a.selectionFollowerStatus === b.selectionFollowerStatus &&
     a.clientMapHubId === b.clientMapHubId &&
     a.clientMapHubTab === b.clientMapHubTab &&
@@ -77,7 +77,7 @@ export function sanitizeNavigationSnapshotForCurrentMatters(
     clientMapHubId === null &&
     snapshot.mattersSurfaceMode === 'client-map';
 
-  const selectionScope =
+  const selectionScope = snapshot.selectionScope &&
     (snapshot.selectionScope.kind === 'matter' || snapshot.selectionScope.kind === 'matter-only') &&
     !matterExists(snapshot.selectionScope.matterId, matters)
       ? ({ kind: 'all-matters' } as const)
@@ -86,7 +86,7 @@ export function sanitizeNavigationSnapshotForCurrentMatters(
   return {
     ...snapshot,
     activeMatterId,
-    selectionScope,
+    ...(selectionScope ? { selectionScope } : {}),
     clientMapHubId,
     clientMapHubTab: clientMapHubId ? snapshot.clientMapHubTab : null,
     mattersSurfaceMode: lostClientMapTarget

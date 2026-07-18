@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   MCP_SESSION_SCOPE_REL_PATH,
   buildMcpSessionScopeFile,
@@ -8,6 +8,7 @@ import {
 } from '@/platform/mcp/mcpSessionScope';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { Matter } from '@/platform/types/matter';
+import { setDevFlagOverride } from '@/platform/flags/router';
 
 function createMockWorkspaceService() {
   const files = new Map<string, string>();
@@ -52,6 +53,60 @@ const matterB: Matter = {
 };
 
 describe('MCP session scope file', () => {
+  beforeEach(() => {
+    setDevFlagOverride('selection-authority-boot-gate', true);
+  });
+
+  afterEach(() => {
+    setDevFlagOverride('selection-authority-boot-gate', undefined);
+  });
+
+  it('keeps the flag-off payload byte-identical to the landed sidecar shape', () => {
+    setDevFlagOverride('selection-authority-boot-gate', false);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-18T12:00:00.000Z'));
+
+    const payload = buildMcpSessionScopeFile({
+      selectionScope: { kind: 'matter-only', matterId: 'matter-a' },
+      selectionFollowerStatus: 'stale',
+      matters: [matterA, matterB],
+      networkLockdown: false,
+    });
+
+    expect(JSON.stringify(payload, null, 2)).toBe(`{
+  "version": 1,
+  "updatedAt": "2026-07-18T12:00:00.000Z",
+  "activeMatterId": "matter-a",
+  "grantedMatterIds": [
+    "matter-b"
+  ],
+  "networkLockdown": false,
+  "matters": [
+    {
+      "id": "matter-a",
+      "name": "Matter A",
+      "client": "Client A",
+      "folderPaths": [
+        "/workspace/Matter A"
+      ],
+      "privileged": false,
+      "archived": false
+    },
+    {
+      "id": "matter-b",
+      "name": "Matter B",
+      "client": "Client B",
+      "folderPaths": [
+        "/workspace/Matter B"
+      ],
+      "privileged": false,
+      "archived": false
+    }
+  ]
+}`);
+
+    vi.useRealTimers();
+  });
   it('writes the live scope by temp file then final rename', async () => {
     const { service, files, raw } = createMockWorkspaceService();
 

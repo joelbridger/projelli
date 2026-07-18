@@ -33,6 +33,22 @@ describe('app navigation history stack', () => {
     expect(useAppNavigationStore.getState().pop()).toBeNull();
   });
 
+  it('does not add authority fields to a legacy flag-off snapshot', () => {
+    const legacy = snap();
+    delete legacy.selectionScope;
+    delete legacy.selectionFollowerStatus;
+
+    const restored = sanitizeNavigationSnapshotForCurrentMatters(
+      legacy,
+      [{ id: 'm1' }],
+      '/workspaces/current'
+    );
+
+    expect(restored).toEqual(legacy);
+    expect(restored).not.toHaveProperty('selectionScope');
+    expect(restored).not.toHaveProperty('selectionFollowerStatus');
+  });
+
   it('pushes and restores the last app snapshot', () => {
     const previous = snap({
       sidebarActiveTab: 'search',

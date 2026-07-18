@@ -144,9 +144,17 @@ export function MatterScopeSelector({
         <button
           type="button"
           data-testid="matter-scope-selector"
-          data-scope={selection.scope.kind === 'matter-only' ? 'matter' : selection.scope.kind}
-          data-source-scope={selection.sourceScope.kind}
-          data-follower-status={selection.followerStatus}
+          data-scope={
+            selection.authorityEnabled
+              ? selection.scope.kind === 'matter-only'
+                ? 'matter'
+                : selection.scope.kind
+              : isAllMatters
+                ? 'allMatters'
+                : 'matter'
+          }
+          data-source-scope={selection.authorityEnabled ? selection.sourceScope.kind : undefined}
+          data-follower-status={selection.authorityEnabled ? selection.followerStatus : undefined}
           data-matter-id={active?.id ?? ''}
           title={
             isBlocked

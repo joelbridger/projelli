@@ -609,8 +609,12 @@ function AppShell() {
       rootPath,
       sidebarActiveTab,
       activeMatterId: selection.matterId,
-      selectionScope: selection.scope,
-      selectionFollowerStatus: selection.followerStatus,
+      ...(selection.authorityEnabled
+        ? {
+            selectionScope: selection.scope,
+            selectionFollowerStatus: selection.followerStatus,
+          }
+        : {}),
       clientMapHubId: matterState.clientMapHubId,
       clientMapHubTab: matterState.clientMapHubTab,
       documentsView,
@@ -654,6 +658,11 @@ function AppShell() {
     );
     if (!safeSnapshot) return;
     const request = (() => {
+      if (!safeSnapshot.selectionScope) {
+        return safeSnapshot.activeMatterId
+          ? issueMatterScopeSelection(safeSnapshot.activeMatterId)
+          : issueAllMattersScopeSelection();
+      }
       switch (safeSnapshot.selectionScope.kind) {
         case 'matter':
         case 'matter-only':

@@ -4,6 +4,7 @@ import { workspacePath } from '@/platform/fs/appPath';
 export { MCP_SESSION_SCOPE_REL_PATH } from '@/config/identity';
 import { MCP_SESSION_SCOPE_REL_PATH } from '@/config/identity';
 import type { FollowerStatus, MatterScopeSelection } from '@/platform/client-context';
+import { isEnabled } from '@/platform/flags/router';
 
 interface McpSessionMatter {
   id: string;
@@ -18,9 +19,9 @@ interface McpSessionScopeFile {
   version: 1;
   updatedAt: string;
   activeMatterId: string | null;
-  selectionKind: MatterScopeSelection['kind'];
-  selectionFollowerStatus: FollowerStatus;
-  contextNote: string;
+  selectionKind?: MatterScopeSelection['kind'];
+  selectionFollowerStatus?: FollowerStatus;
+  contextNote?: string;
   grantedMatterIds: string[];
   networkLockdown: boolean;
   matters: McpSessionMatter[];
@@ -32,6 +33,7 @@ export function buildMcpSessionScopeFile(input: {
   matters: Matter[];
   networkLockdown: boolean;
 }): McpSessionScopeFile {
+  const authorityEnabled = isEnabled('selection-authority-boot-gate');
   const selectedMatterId =
     input.selectionScope.kind === 'matter' || input.selectionScope.kind === 'matter-only'
       ? input.selectionScope.matterId
@@ -41,17 +43,10 @@ export function buildMcpSessionScopeFile(input: {
     .filter((m) => !m.archived && !!m.mcpAccessGranted)
     .map((m) => m.id)
     .sort();
-  return {
+  const legacyPayload: McpSessionScopeFile = {
     version: 1,
     updatedAt: new Date().toISOString(),
     activeMatterId: active?.id ?? null,
-    selectionKind: input.selectionScope.kind,
-    selectionFollowerStatus: input.selectionFollowerStatus,
-    contextNote: buildSelectionContextNote(
-      input.selectionScope,
-      input.selectionFollowerStatus,
-      active?.id ?? null,
-    ),
     grantedMatterIds,
     networkLockdown: input.networkLockdown,
     matters: input.matters.map((m) => ({
@@ -63,19 +58,34 @@ export function buildMcpSessionScopeFile(input: {
       archived: !!m.archived,
     })),
   };
+  if (!authorityEnabled) return legacyPayload;
+  return {
+    ...legacyPayload,
+    selectionKind: input.selectionScope.kind,
+    selectionFollowerStatus: input.selectionFollowerStatus,
+    contextNote: buildSelectionContextNote(
+      input.selectionScope,
+      input.selectionFollowerStatus,
+      active?.id ?? null,
+    ),
+  };
 }
 
 export function buildDenyAllMcpSessionScopeFile(): McpSessionScopeFile {
-  return {
+  const legacyPayload: McpSessionScopeFile = {
     version: 1,
     updatedAt: new Date().toISOString(),
     activeMatterId: null,
-    selectionKind: 'blocked-unresolved',
-    selectionFollowerStatus: 'stale',
-    contextNote: 'BLOCKED: the app session is closed. This context does not grant MCP access.',
     grantedMatterIds: [],
     networkLockdown: true,
     matters: [],
+  };
+  if (!isEnabled('selection-authority-boot-gate')) return legacyPayload;
+  return {
+    ...legacyPayload,
+    selectionKind: 'blocked-unresolved',
+    selectionFollowerStatus: 'stale',
+    contextNote: 'BLOCKED: the app session is closed. This context does not grant MCP access.',
   };
 }
 

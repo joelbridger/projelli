@@ -1,7 +1,7 @@
 import '@/i18n';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MatterScopeSelector } from '@/features/matters';
+import { MatterScopeSelector } from './MatterScopeSelector';
 import { setDevFlagOverride } from '@/platform/flags/router';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import type { Matter } from '@/platform/types/matter';
@@ -57,10 +57,20 @@ describe('selection T2 presentation', () => {
 
     const trigger = screen.getByTestId('matter-scope-selector');
     expect(trigger).toHaveAttribute('data-scope', 'matter');
-    expect(trigger).toHaveAttribute('data-source-scope', 'all-matters');
+    expect(trigger).not.toHaveAttribute('data-source-scope');
+    expect(trigger).not.toHaveAttribute('data-follower-status');
     expect(trigger).toHaveTextContent('Alpha');
     expect(trigger).not.toHaveTextContent('BLOCKED');
     expect(trigger).not.toHaveTextContent('Updating');
+  });
+
+  it('keeps the legacy all-matters selector attribute spelling while the flag is off', () => {
+    render(<MatterScopeSelector />);
+
+    const trigger = screen.getByTestId('matter-scope-selector');
+    expect(trigger).toHaveAttribute('data-scope', 'allMatters');
+    expect(trigger).not.toHaveAttribute('data-source-scope');
+    expect(trigger).not.toHaveAttribute('data-follower-status');
   });
 
   it('boot-validation-failure-renders-BLOCKED', () => {
