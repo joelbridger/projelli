@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createTemplate, startWorkflow } from '@/features/crm-home/workflowLive';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import type { LiveWorkflowInstance } from '@/features/crm-home/workflowLive';
-import { saveWorkflowStepMetadata } from './workflowStepPersistence';
+import { readWorkflowStepTiming, saveWorkflowStepMetadata } from './workflowStepPersistence';
 
 describe('workflow step extension save callback', () => {
   it('saves one immutable patch through Workflows onSave and returns the saved instance', async () => {
@@ -32,5 +32,42 @@ describe('workflow step extension save callback', () => {
       documentRefs: [],
     }, onSave);
     expect(removed.snapshot.steps[stepId]?.documentRefs).toEqual([]);
+  });
+
+  it('returns the saved dependency rule through the same mounted callback after a fresh clone', async () => {
+    const template = createTemplate('Annual review', ['Prepare', 'Meet']);
+    const instance = startWorkflow(template, { id: 'household-1', label: 'River household' });
+    instance.createdAt = '2026-07-01T09:00:00.000Z';
+    const [firstId, secondId] = Object.keys(instance.snapshot.steps);
+    if (!firstId || !secondId) throw new Error('Expected two workflow steps.');
+    let persisted = structuredClone(instance);
+    const onSave = vi.fn((record: LiveCrmRecord) => {
+      persisted = structuredClone(record) as LiveWorkflowInstance;
+      return Promise.resolve(structuredClone(persisted));
+    });
+
+    await saveWorkflowStepMetadata(instance, secondId, {
+      sequential: true,
+      dependentDue: {
+        base: 'predecessor_completion',
+        predecessorStepId: firstId,
+        direction: 'after',
+        offset: 2,
+        unit: 'days',
+      },
+    }, onSave);
+    const freshReader = structuredClone(persisted);
+
+    expect(readWorkflowStepTiming(freshReader, secondId)).toMatchObject({
+      sequential: true,
+      rule: {
+        predecessorStepId: firstId,
+        direction: 'after',
+        offset: 2,
+        unit: 'days',
+      },
+      blockedByStepId: firstId,
+    });
+    expect(instance['workflowDependentDue']).toBeUndefined();
   });
 });

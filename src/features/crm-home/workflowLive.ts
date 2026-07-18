@@ -8,6 +8,7 @@ import {
 } from '@/platform/crm/propagation';
 import { UNTOUCHED, type EntityRef, type PropagationEngineOffer, type PropagationTransactionPayload, type TemplateStepChange, type WorkflowInstanceSnapshot, type WorkflowTemplateSnapshot } from '@/platform/crm/types';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
+import { registerWorkflowDependentDueCompletion } from '@/features/crm-workflows';
 
 export type WorkflowStepOutcomeDraft = { id: string; label: string; nextStepId?: string | undefined; restartAtStepId?: string | undefined };
 export type WorkflowStepDraft = { id: string; title: string; role: string; dueOffset: number; required: boolean; outcomes: WorkflowStepOutcomeDraft[]; tagIds: string[] };
@@ -61,6 +62,8 @@ const workflowCompletionValidators: WorkflowCompletionValidator[] = [];
 export function registerWorkflowCompletionValidator(validator: WorkflowCompletionValidator): void {
   workflowCompletionValidators.push(validator);
 }
+
+const applyWorkflowDependentDueCompletion = registerWorkflowDependentDueCompletion(registerWorkflowCompletionValidator);
 
 const now = () => new Date().toISOString();
 const unique = (prefix: string) => `${prefix}-${String(Date.now())}-${Math.random().toString(36).slice(2, 7)}`;
@@ -235,7 +238,7 @@ export function applyWorkflowStepCompletion(
     const result = validator(request);
     if (!result.ok) throw new WorkflowCompletionRefusedError(result.refusal);
   }
-  return completeWorkflowStep(instance, stepId, outcomeId);
+  return applyWorkflowDependentDueCompletion(instance, stepId, outcomeId, completeWorkflowStep);
 }
 
 export function addWorkflowStepNote(instance: LiveWorkflowInstance, stepId: string, note: string): LiveWorkflowInstance {

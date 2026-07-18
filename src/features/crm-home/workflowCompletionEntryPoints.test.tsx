@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LiveWorkflows } from '@/features/crm-workflows/Workflows';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
@@ -71,13 +71,25 @@ describe('workflow completion production entry points', () => {
       />
     );
 
-    fireEvent.click(
-      screen.getByTestId(`crm-live-workflow-complete-${instance.id}-${stepId}`)
+    const completeButton = screen.getByTestId(
+      `crm-live-workflow-complete-${instance.id}-${stepId}`
     );
+    const stepRow = screen.getByTestId(
+      `crm-live-workflow-instance-step-${stepId}`
+    );
+    fireEvent.click(completeButton);
 
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent(refusal.message);
+      const nearbyRefusal = within(stepRow).getByRole('alert');
+      expect(nearbyRefusal).toHaveTextContent(refusal.message);
+      expect(nearbyRefusal).toHaveFocus();
     });
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+    expect(
+      screen.getByTestId(
+        `crm-live-workflow-completion-refusal-${instance.id}-${stepId}`
+      ).parentElement
+    ).toContainElement(completeButton);
     expect(save).not.toHaveBeenCalled();
   });
 
