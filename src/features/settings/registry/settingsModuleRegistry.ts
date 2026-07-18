@@ -16,6 +16,7 @@ import {
 import { universalTagsSettingsPanel } from '@/features/crm-tags';
 import { taskTemplatesAdminSettingsPanel } from '@/features/crm-tasks';
 import { meetingIntelligenceSettingsPanel, meetingKeywordsSettingsPanel } from '@/features/meetings';
+import { bookingAvailabilitySettingsPanel } from '@/features/booking';
 import type {
   SettingsGroupDescriptor,
   SettingsPanelDescriptor,
@@ -61,6 +62,7 @@ const mutableSettingsPanelRegistry: SettingsModuleDescriptor[] = [
   taskTemplatesAdminSettingsPanel,
   meetingIntelligenceSettingsPanel,
   meetingKeywordsSettingsPanel,
+  bookingAvailabilitySettingsPanel,
 ];
 
 /**

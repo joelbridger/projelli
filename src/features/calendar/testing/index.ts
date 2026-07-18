@@ -3,6 +3,7 @@ import {
   useBookingAvailabilityStore,
   useCalendarCapabilityStore,
   useCalendarEventStore,
+  useCalendarSettingsStore,
   type BookingAvailabilityDraft,
   type BookingAvailabilityRecord,
   type CalendarCapabilityDraft,
@@ -52,7 +53,19 @@ export async function roundTripCalendarFoundation(
       writer.unmount();
     }
   }
-  if (input.capability) {
+  if (input.capability && input.availability) {
+    const writer = renderHook(() => useCalendarSettingsStore());
+    try {
+      const written = await writer.result.current.save({
+        capability: input.capability,
+        availability: input.availability,
+      });
+      writtenCapability = written.capability;
+      writtenAvailability = written.availability;
+    } finally {
+      writer.unmount();
+    }
+  } else if (input.capability) {
     const writer = renderHook(() => useCalendarCapabilityStore());
     try {
       writtenCapability = await writer.result.current.save(input.capability);
@@ -60,7 +73,7 @@ export async function roundTripCalendarFoundation(
       writer.unmount();
     }
   }
-  if (input.availability) {
+  if (input.availability && !input.capability) {
     const writer = renderHook(() => useBookingAvailabilityStore());
     try {
       writtenAvailability = await writer.result.current.save(input.availability);

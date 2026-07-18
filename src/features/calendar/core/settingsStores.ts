@@ -10,6 +10,9 @@ import {
   type CalendarCapabilityStore,
   type CalendarDescriptor,
   type CalendarMeetingType,
+  type CalendarSettingsDraft,
+  type CalendarSettingsState,
+  type CalendarSettingsStore,
   type CalendarWorkingHours,
 } from './types';
 import { validateLocalTime, validateTimeZone } from './time';
@@ -19,6 +22,7 @@ const ADVISOR_ID = 'local-user';
 const LOCAL_CALENDAR_ID = 'calendar:local';
 const CAPABILITY_RECORD_ID = `calendar-capability:${ADVISOR_ID}`;
 const AVAILABILITY_RECORD_ID = `booking-availability:${ADVISOR_ID}`;
+const SETTINGS_RECORD_ID = `calendar-settings:${ADVISOR_ID}`;
 
 type CalendarSettingsPort = Pick<
   ReturnType<typeof useLiveCrmRecords>,
@@ -26,6 +30,20 @@ type CalendarSettingsPort = Pick<
 > & {
   reloadRecords(): Promise<readonly LiveCrmRecord[] | undefined>;
 };
+
+let calendarSettingsWrite: Promise<void> = Promise.resolve();
+
+function inCalendarSettingsWrite<T>(operation: () => Promise<T>): Promise<T> {
+  const task = calendarSettingsWrite
+    .then(operation, operation);
+  calendarSettingsWrite = task.then(
+    () => undefined,
+    (error: unknown) => {
+      console.warn('Calendar settings write failed.', error);
+    },
+  );
+  return task;
+}
 
 function actor() {
   return { userId: ADVISOR_ID, display: 'You', kind: 'user' as const };
@@ -113,53 +131,23 @@ function storedCapability(record: LiveCrmRecord | undefined): CalendarCapability
   }
 }
 
-export function calendarCapabilityFromRecords(records: readonly LiveCrmRecord[]): CalendarCapabilityState {
+function legacyCalendarCapabilityFromRecords(records: readonly LiveCrmRecord[]): CalendarCapabilityState {
   return storedCapability(records.find(
     (candidate) => candidate.id === CAPABILITY_RECORD_ID && candidate.kind === 'calendar_capability',
   ));
 }
 
-function capabilityRecord(draftInput: CalendarCapabilityDraft, existing?: LiveCrmRecord): LiveCrmRecord {
-  const draft = validateCalendarCapabilityDraft(draftInput);
-  const timestamp = now();
-  return {
-    ...existing,
-    id: CAPABILITY_RECORD_ID,
-    kind: 'calendar_capability',
-    matterId: 'firm_home',
-    createdAt: existing?.createdAt ?? timestamp,
-    createdBy: existing?.['createdBy'] ?? actor(),
-    updatedAt: timestamp,
-    updatedBy: actor(),
-    source: existing?.['source'] ?? { origin: 'user', sources: [] },
-    deleted: false,
-    schemaVersion: 1,
-    scope: 'active-workspace-advisor',
-    advisorId: ADVISOR_ID,
-    calendars: draft.calendars,
-    homeCalendarId: draft.homeCalendarId,
-    busyCalendarIds: draft.busyCalendarIds,
-  };
+export function calendarCapabilityFromRecords(records: readonly LiveCrmRecord[]): CalendarCapabilityState {
+  return calendarSettingsFromRecords(records).capability;
 }
 
 export function createCalendarCapabilityStore(port: CalendarSettingsPort): CalendarCapabilityStore {
-  const record = port.records.find((candidate) => candidate.id === CAPABILITY_RECORD_ID && candidate.kind === 'calendar_capability');
   const state = calendarCapabilityFromRecords(port.records);
-  const save = async (draft: CalendarCapabilityDraft): Promise<CalendarCapabilityState> => {
-    requireAvailable(port);
-    await port.save(capabilityRecord(draft, record));
-    const reloaded = await port.reloadRecords();
-    const canonical = reloaded?.find(
-      (candidate) => candidate.id === CAPABILITY_RECORD_ID && candidate.kind === 'calendar_capability',
-    );
-    if (!canonical) {
-      throw new CalendarFoundationError(
-        'canonical_reload_missing',
-        'The saved calendar capability was not present after the canonical reload.',
-      );
-    }
-    return storedCapability(canonical);
-  };
+  const save = (draft: CalendarCapabilityDraft): Promise<CalendarCapabilityState> =>
+    updateCalendarSettings(port, (current) => ({
+      capability: draft,
+      availability: current.availability,
+    })).then((settings) => settings.capability);
   return {
     state,
     error: port.error,
@@ -284,13 +272,25 @@ function storedAvailability(record: LiveCrmRecord | undefined): BookingAvailabil
   }
 }
 
-function availabilityRecord(draftInput: BookingAvailabilityDraft, existing?: LiveCrmRecord): LiveCrmRecord {
-  const draft = validateBookingAvailabilityDraft(draftInput);
+function legacyBookingAvailabilityFromRecords(records: readonly LiveCrmRecord[]): BookingAvailabilityRecord {
+  return storedAvailability(records.find(
+    (candidate) => candidate.id === AVAILABILITY_RECORD_ID && candidate.kind === 'booking_availability',
+  ));
+}
+
+function settingsRecord(
+  draftInput: CalendarSettingsDraft,
+  existing?: LiveCrmRecord,
+): LiveCrmRecord {
+  const capability = validateCalendarCapabilityDraft(draftInput.capability);
+  const availability = validateBookingAvailabilityDraft(draftInput.availability);
   const timestamp = now();
+  const previousCapability = existing?.['capability'];
+  const previousAvailability = existing?.['availability'];
   return {
     ...existing,
-    id: AVAILABILITY_RECORD_ID,
-    kind: 'booking_availability',
+    id: SETTINGS_RECORD_ID,
+    kind: 'calendar_settings',
     matterId: 'firm_home',
     createdAt: existing?.createdAt ?? timestamp,
     createdBy: existing?.['createdBy'] ?? actor(),
@@ -301,13 +301,118 @@ function availabilityRecord(draftInput: BookingAvailabilityDraft, existing?: Liv
     schemaVersion: 1,
     scope: 'active-workspace-advisor',
     advisorId: ADVISOR_ID,
-    ...draft,
+    capability: {
+      ...(typeof previousCapability === 'object' && previousCapability !== null
+        ? previousCapability
+        : {}),
+      ...capability,
+    },
+    availability: {
+      ...(typeof previousAvailability === 'object' && previousAvailability !== null
+        ? previousAvailability
+        : {}),
+      ...availability,
+    },
   };
 }
 
+function settingsFromAggregate(record: LiveCrmRecord): CalendarSettingsState {
+  const capability = validateCalendarCapabilityDraft(
+    record['capability'] as CalendarCapabilityDraft,
+  );
+  const availability = validateBookingAvailabilityDraft(
+    record['availability'] as BookingAvailabilityDraft,
+  );
+  return {
+    capability: {
+      scope: 'active-workspace-advisor',
+      advisorId: ADVISOR_ID,
+      ...capability,
+    },
+    availability: {
+      id: AVAILABILITY_RECORD_ID,
+      kind: 'booking_availability',
+      scope: 'active-workspace-advisor',
+      advisorId: ADVISOR_ID,
+      ...availability,
+    },
+  };
+}
+
+function aggregateRecord(records: readonly LiveCrmRecord[]): LiveCrmRecord | undefined {
+  return records.find(
+    (candidate) => candidate.id === SETTINGS_RECORD_ID && candidate.kind === 'calendar_settings',
+  );
+}
+
+export function calendarSettingsFromRecords(records: readonly LiveCrmRecord[]): CalendarSettingsState {
+  const aggregate = aggregateRecord(records);
+  if (aggregate) {
+    try {
+      return settingsFromAggregate(aggregate);
+    } catch (error) {
+      // Preserve the established fail-closed defaults for an unreadable record.
+      console.warn('Stored calendar settings are unreadable.', error);
+    }
+  }
+  return {
+    capability: legacyCalendarCapabilityFromRecords(records),
+    availability: legacyBookingAvailabilityFromRecords(records),
+  };
+}
+
+type InternalCalendarSettingsStore = CalendarSettingsStore & {
+  getCurrent(): CalendarSettingsState;
+};
+
+async function updateCalendarSettings(
+  port: CalendarSettingsPort,
+  update: (current: CalendarSettingsState) => CalendarSettingsDraft,
+): Promise<CalendarSettingsState> {
+  return inCalendarSettingsWrite(async () => {
+    requireAvailable(port);
+    const beforeWrite = await port.reloadRecords();
+    const records = beforeWrite ?? port.records;
+    const current = calendarSettingsFromRecords(records);
+    await port.save(settingsRecord(update(current), aggregateRecord(records)));
+    const reloaded = await port.reloadRecords();
+    const canonical = reloaded ? aggregateRecord(reloaded) : undefined;
+    if (!canonical) {
+      throw new CalendarFoundationError(
+        'canonical_reload_missing',
+        'The saved calendar settings were not present after the canonical reload.',
+      );
+    }
+    return settingsFromAggregate(canonical);
+  });
+}
+
+function createCalendarSettingsStore(port: CalendarSettingsPort): InternalCalendarSettingsStore {
+  const current = calendarSettingsFromRecords(port.records);
+  return {
+    error: port.error,
+    getCurrent: () => current,
+    get: () => Promise.resolve().then(() => {
+      requireAvailable(port);
+      return current;
+    }),
+    save: (draft) => updateCalendarSettings(port, () => draft),
+  };
+}
+
+export function useCalendarSettingsStore(): CalendarSettingsStore {
+  const live = useLiveCrmRecords();
+  return createCalendarSettingsStore({
+    records: live.records,
+    workspaceRoot: live.workspaceRoot,
+    error: live.error,
+    save: live.save,
+    reloadRecords: () => loadLiveCrmRecords(live.workspaceRoot),
+  });
+}
+
 export function createBookingAvailabilityStore(port: CalendarSettingsPort): BookingAvailabilityStore {
-  const record = port.records.find((candidate) => candidate.id === AVAILABILITY_RECORD_ID && candidate.kind === 'booking_availability');
-  const availability = storedAvailability(record);
+  const availability = calendarSettingsFromRecords(port.records).availability;
   return {
     availability,
     error: port.error,
@@ -315,21 +420,10 @@ export function createBookingAvailabilityStore(port: CalendarSettingsPort): Book
       requireAvailable(port);
       return availability;
     }),
-    save: async (draft) => {
-      requireAvailable(port);
-      await port.save(availabilityRecord(draft, record));
-      const reloaded = await port.reloadRecords();
-      const canonical = reloaded?.find(
-        (candidate) => candidate.id === AVAILABILITY_RECORD_ID && candidate.kind === 'booking_availability',
-      );
-      if (!canonical) {
-        throw new CalendarFoundationError(
-          'canonical_reload_missing',
-          'The saved booking availability was not present after the canonical reload.',
-        );
-      }
-      return storedAvailability(canonical);
-    },
+    save: (draft) => updateCalendarSettings(port, (current) => ({
+      capability: current.capability,
+      availability: draft,
+    })).then((settings) => settings.availability),
   };
 }
 

@@ -30,7 +30,13 @@ vi.mock('@/platform/crm/liveRecordRelay', () => ({
   publishLiveRecord: vi.fn(),
 }));
 
-import { CalendarFoundationError, useCalendarEventStore } from '@/features/calendar';
+import {
+  CalendarFoundationError,
+  useBookingAvailabilityStore,
+  useCalendarCapabilityStore,
+  useCalendarEventStore,
+  useCalendarSettingsStore,
+} from '@/features/calendar';
 import { roundTripCalendarEvent, roundTripCalendarFoundation } from '@/features/calendar/testing';
 
 const baseEvent = {
@@ -56,6 +62,57 @@ function capabilityRecord(calendars: readonly {
     busyCalendarIds: ['calendar:local'],
   };
 }
+
+function legacyAvailabilityRecord(): LiveCrmRecord {
+  return {
+    id: 'booking-availability:local-user',
+    kind: 'booking_availability',
+    ...structuredClone(oldAvailability),
+  };
+}
+
+const oldCapability = {
+  calendars: [
+    { id: 'calendar:local', label: 'My calendar', ownership: 'local' as const, canBlockBusyTime: true },
+    { id: 'calendar:second', label: 'Second', ownership: 'local' as const, canBlockBusyTime: true },
+  ],
+  homeCalendarId: 'calendar:local',
+  busyCalendarIds: ['calendar:local'],
+};
+
+const oldAvailability = {
+  advisorTimezone: 'UTC',
+  workingHours: {
+    monday: [{ startLocal: '09:00', endLocal: '17:00' }],
+    tuesday: [], wednesday: [], thursday: [], friday: [], saturday: [], sunday: [],
+  },
+  meetingTypes: [{ id: 'intro', name: 'Intro', durationMinutes: 30, bufferBeforeMinutes: 0, bufferAfterMinutes: 0 }],
+  minimumNoticeMinutes: 30,
+  maximumHorizonDays: 30,
+};
+
+function calendarSettingsRecord(): LiveCrmRecord {
+  return {
+    id: 'calendar-settings:local-user',
+    kind: 'calendar_settings',
+    matterId: 'firm_home',
+    futureAggregateField: 'keep-me',
+    capability: { ...structuredClone(oldCapability), futureCapabilityField: 'keep-me' },
+    availability: { ...structuredClone(oldAvailability), futureAvailabilityField: 'keep-me' },
+  };
+}
+
+const newCapability = {
+  ...oldCapability,
+  homeCalendarId: 'calendar:second',
+  busyCalendarIds: ['calendar:local', 'calendar:second'],
+};
+
+const newAvailability = {
+  ...oldAvailability,
+  advisorTimezone: 'America/Chicago',
+  maximumHorizonDays: 45,
+};
 
 async function expectCalendarFailure(
   promise: Promise<unknown>,
@@ -90,6 +147,21 @@ describe('roundTripCalendarFoundation', () => {
             : {}),
           ...(saveEcho.kind === 'booking_availability'
             ? { meetingTypes: [{ id: 'intro', name: 'Loaded meeting type', durationMinutes: 30, bufferBeforeMinutes: 0, bufferAfterMinutes: 0 }] }
+            : {}),
+          ...(saveEcho.kind === 'calendar_settings'
+            ? {
+                capability: {
+                  ...(saveEcho['capability'] as Record<string, unknown>),
+                  calendars: ((saveEcho['capability'] as Record<string, unknown>)['calendars'] as { id: string; label: string }[])
+                    .map((calendar) => calendar.id === 'calendar:second'
+                      ? { ...calendar, label: 'Loaded home calendar' }
+                      : calendar),
+                },
+                availability: {
+                  ...(saveEcho['availability'] as Record<string, unknown>),
+                  meetingTypes: [{ id: 'intro', name: 'Loaded meeting type', durationMinutes: 30, bufferBeforeMinutes: 0, bufferAfterMinutes: 0 }],
+                },
+              }
             : {}),
         };
         const index = canonical.records.findIndex((item) => item.id === stored.id);
@@ -153,6 +225,174 @@ describe('roundTripCalendarFoundation', () => {
     expect(result.capability?.calendars.find((calendar) => calendar.id === 'calendar:second')?.label).toBe('Loaded home calendar');
     expect(result.availability).toMatchObject({ advisorTimezone: 'America/Chicago', maximumHorizonDays: 45 });
     expect(result.availability?.meetingTypes[0]?.name).toBe('Loaded meeting type');
+    const settingsUpserts = canonical.commands.filter((command) => command === 'crm_live_upsert');
+    expect(settingsUpserts).toHaveLength(1);
+  });
+
+  it('keeps a failed aggregate writer failing and leaves exact prior settings for a fresh reader', async () => {
+    canonical.records = [calendarSettingsRecord()];
+    const before = structuredClone(canonical.records);
+    const failSettingsWrite = vi.fn(() =>
+      Promise.reject(new Error('Calendar settings transaction failed.'))
+    );
+    const attemptedRecords: LiveCrmRecord[] = [];
+    canonical.invoke.mockReset().mockImplementation((command, args) => {
+      canonical.commands.push(command);
+      if (command === 'crm_live_list') {
+        return Promise.resolve(structuredClone(canonical.records));
+      }
+      if (command === 'crm_live_upsert' && args?.record) {
+        attemptedRecords.push(structuredClone(args.record));
+        if (args.record.kind === 'calendar_settings') {
+          return failSettingsWrite();
+        }
+      }
+      return Promise.reject(new Error(`Unexpected command ${command}`));
+    });
+
+    const writer = renderHook(() => useCalendarSettingsStore());
+    await waitFor(async () => {
+      const current = await writer.result.current.get();
+      if (current.capability.calendars.length !== oldCapability.calendars.length) {
+        throw new Error('Waiting for the original settings aggregate.');
+      }
+    });
+    await expect(writer.result.current.save({
+      capability: newCapability,
+      availability: newAvailability,
+    })).rejects.toThrow('Calendar settings transaction failed.');
+    writer.unmount();
+
+    const reader = renderHook(() => useCalendarSettingsStore());
+    let reloaded = await reader.result.current.get();
+    await waitFor(async () => {
+      reloaded = await reader.result.current.get();
+      if (reloaded.capability.calendars.length !== oldCapability.calendars.length) {
+        throw new Error('Waiting for a fresh read of the original settings.');
+      }
+    });
+    reader.unmount();
+
+    expect(failSettingsWrite).toHaveBeenCalledOnce();
+    expect(attemptedRecords).toHaveLength(1);
+    expect(attemptedRecords[0]).toMatchObject({
+      kind: 'calendar_settings',
+      capability: newCapability,
+      availability: newAvailability,
+    });
+    expect(attemptedRecords.some((record) => record.kind === 'calendar_capability')).toBe(false);
+    expect(attemptedRecords.some((record) => record.kind === 'booking_availability')).toBe(false);
+    expect(canonical.records).toEqual(before);
+    expect(reloaded).toEqual({
+      capability: {
+        scope: 'active-workspace-advisor',
+        advisorId: 'local-user',
+        ...oldCapability,
+      },
+      availability: {
+        id: 'booking-availability:local-user',
+        kind: 'booking_availability',
+        scope: 'active-workspace-advisor',
+        advisorId: 'local-user',
+        ...oldAvailability,
+      },
+    });
+    expect(JSON.stringify(canonical.records)).not.toContain('America/Chicago');
+  });
+
+  it('merges stale one-setting writers without losing the other saved half', async () => {
+    canonical.records = [calendarSettingsRecord()];
+    const writers = renderHook(() => ({
+      capability: useCalendarCapabilityStore(),
+      availability: useBookingAvailabilityStore(),
+    }));
+    await waitFor(() => {
+      if (writers.result.current.capability.state.calendars.length < 2) {
+        throw new Error('Waiting for the original aggregate.');
+      }
+    });
+
+    const staleCapabilityWriter = writers.result.current.capability;
+    const staleAvailabilityWriter = writers.result.current.availability;
+    await Promise.all([
+      staleCapabilityWriter.save(newCapability),
+      staleAvailabilityWriter.save(newAvailability),
+    ]);
+    writers.unmount();
+
+    const reader = renderHook(() => useCalendarSettingsStore());
+    let reloaded = await reader.result.current.get();
+    await waitFor(async () => {
+      reloaded = await reader.result.current.get();
+      if (
+        reloaded.capability.homeCalendarId !== 'calendar:second'
+        || reloaded.availability.advisorTimezone !== 'America/Chicago'
+      ) {
+        throw new Error('Waiting for both settings halves to reload.');
+      }
+    });
+    reader.unmount();
+
+    expect(reloaded.capability.homeCalendarId).toBe('calendar:second');
+    expect(reloaded.availability.advisorTimezone).toBe('America/Chicago');
+    expect(canonical.records[0]).toMatchObject({
+      futureAggregateField: 'keep-me',
+      capability: { futureCapabilityField: 'keep-me' },
+      availability: { futureAvailabilityField: 'keep-me' },
+    });
+  });
+
+  it('migrates legacy split settings into one aggregate without losing either half', async () => {
+    canonical.records = [
+      capabilityRecord(oldCapability.calendars),
+      legacyAvailabilityRecord(),
+    ];
+    const attemptedRecords: LiveCrmRecord[] = [];
+    const originalInvoke = canonical.invoke.getMockImplementation();
+    canonical.invoke.mockImplementation(async (command, args) => {
+      if (command === 'crm_live_upsert' && args?.record) {
+        attemptedRecords.push(structuredClone(args.record));
+      }
+      if (!originalInvoke) throw new Error('Missing canonical persistence mock.');
+      return originalInvoke(command, args);
+    });
+
+    const writer = renderHook(() => useCalendarCapabilityStore());
+    await waitFor(() => {
+      if (writer.result.current.state.calendars.length !== oldCapability.calendars.length) {
+        throw new Error('Waiting for both legacy settings records.');
+      }
+    });
+    await writer.result.current.save(newCapability);
+    writer.unmount();
+
+    expect(attemptedRecords).toHaveLength(1);
+    expect(attemptedRecords[0]).toMatchObject({
+      kind: 'calendar_settings',
+      capability: newCapability,
+      availability: oldAvailability,
+    });
+
+    const reader = renderHook(() => useCalendarSettingsStore());
+    let reloaded = await reader.result.current.get();
+    await waitFor(async () => {
+      reloaded = await reader.result.current.get();
+      if (reloaded.capability.homeCalendarId !== 'calendar:second') {
+        throw new Error('Waiting for the migrated aggregate.');
+      }
+    });
+    reader.unmount();
+
+    expect(reloaded.capability).toMatchObject({
+      homeCalendarId: 'calendar:second',
+      busyCalendarIds: ['calendar:local', 'calendar:second'],
+    });
+    expect(reloaded.availability).toMatchObject({
+      advisorTimezone: oldAvailability.advisorTimezone,
+      workingHours: oldAvailability.workingHours,
+      minimumNoticeMinutes: oldAvailability.minimumNoticeMinutes,
+      maximumHorizonDays: oldAvailability.maximumHorizonDays,
+    });
   });
 
   it('exposes each settings writer return so a pre-reload save echo fails the round trip', async () => {

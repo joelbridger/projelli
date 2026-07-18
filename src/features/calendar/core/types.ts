@@ -163,6 +163,23 @@ export interface BookingAvailabilityStore {
   save(draft: BookingAvailabilityDraft): Promise<BookingAvailabilityRecord>;
 }
 
+export interface CalendarSettingsDraft {
+  readonly capability: CalendarCapabilityDraft;
+  readonly availability: BookingAvailabilityDraft;
+}
+
+export interface CalendarSettingsState {
+  readonly capability: CalendarCapabilityState;
+  readonly availability: BookingAvailabilityRecord;
+}
+
+/** One durable aggregate write for settings that are presented as one Save action. */
+export interface CalendarSettingsStore {
+  readonly error: string | null;
+  get(): Promise<CalendarSettingsState>;
+  save(draft: CalendarSettingsDraft): Promise<CalendarSettingsState>;
+}
+
 export interface OpaqueCalendarBusyBlock {
   readonly startUtc: string;
   readonly endUtc: string;

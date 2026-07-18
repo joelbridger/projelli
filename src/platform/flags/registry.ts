@@ -87,6 +87,7 @@ export const flagRegistry = [
   defineFlag('meeting-keywords', 'Keeps local approved-artifact meeting keyword tracking dark until its acceptance review is complete.', 'meeting-keywords', '2026-07-17', '2026-09-15'),
   defineFlag('calendar-add-event', 'Create and edit local calendar events', 'calendar-add-event', '2026-07-16', '2026-10-14'),
   defineFlag('selection-authority-boot-gate', 'Keeps selection-authority boot validation and fail-closed source transitions inert until the writer, T1-reader, and T2 integration gates are complete.', 'unification-sublane4', '2026-07-18', '2026-09-16'),
+  defineFlag('booking-availability', 'Configure local booking availability', 'booking-availability', '2026-07-16', '2026-10-14'),
 ] as const satisfies readonly FlagDescriptor[];
 
 export type FlagId = (typeof flagRegistry)[number]['id'];
