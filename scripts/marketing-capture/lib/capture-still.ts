@@ -15,6 +15,7 @@
  */
 
 import { chromium, type Page } from 'playwright';
+import { withBrowserLaunchOptions } from '../../browser-launch.mjs';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -53,7 +54,7 @@ export interface StillShotOptions {
 
 export async function captureStill(opts: StillShotOptions): Promise<string> {
   const ownsBrowser = !opts.browser;
-  const browser = opts.browser ?? (await chromium.launch());
+  const browser = opts.browser ?? (await chromium.launch(withBrowserLaunchOptions()));
 
   try {
     const context = await browser.newContext({

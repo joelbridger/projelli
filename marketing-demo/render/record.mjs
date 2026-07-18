@@ -13,6 +13,7 @@
  * Requires the web-demo dev server (or a static preview) running at BASE_URL.
  */
 import { chromium } from 'playwright';
+import { withBrowserLaunchOptions } from '../../scripts/browser-launch.mjs';
 import { spawnSync } from 'node:child_process';
 import { readFileSync, mkdirSync, rmSync, readdirSync, existsSync } from 'node:fs';
 import path from 'node:path';
@@ -76,10 +77,10 @@ async function main() {
   mkdirSync(RAW, { recursive: true });
   mkdirSync(OUT, { recursive: true });
 
-  const browser = await chromium.launch({
+  const browser = await chromium.launch(withBrowserLaunchOptions({
     headless: true,
     args: ['--force-color-profile=srgb', '--font-render-hinting=none', '--disable-lcd-text', '--hide-scrollbars'],
-  });
+  }));
   const context = await browser.newContext({
     viewport: VIEW,
     deviceScaleFactor: 1,

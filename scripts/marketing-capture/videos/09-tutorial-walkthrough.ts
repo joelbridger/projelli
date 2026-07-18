@@ -14,6 +14,7 @@
  * (scale-pad-overlay chrome), only the final crop is now time-varying.
  */
 import { chromium } from 'playwright';
+import { withBrowserLaunchOptions } from '../../browser-launch.mjs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -210,9 +211,9 @@ export async function video09() {
   // black-padded canvas. The fix is `--force-device-scale-factor=2`
   // at the Chromium command-line level, which makes the compositor
   // render at 2x pixels for real.
-  const browser = await chromium.launch({
+  const browser = await chromium.launch(withBrowserLaunchOptions({
     args: ['--force-device-scale-factor=2', '--high-dpi-support=1'],
-  });
+  }));
   const context = await browser.newContext({
     viewport: { width: 1920, height: 1080 },
     deviceScaleFactor: 2,

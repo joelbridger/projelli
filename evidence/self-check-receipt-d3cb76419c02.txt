@@ -1,0 +1,19 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/lantern/app/integration/.worktrees/tool/e2e-browser-recipe
+sha: d3cb76419c02409393d4b80c38d2c31485016f71
+tree: 9c9d6eba5bc0b8a0653a956821192cc4bad018b8
+gate_base: 974f34e2394ad7b4131557be5c9fa9b09de0322c
+tool_blob: 04db9a936f686f872e7914b7a20ed016027c37b8
+utc: 2026-07-18T05:19:45Z
+step_timeout_seconds: 300
+loadavg: 15.83 12.67 11.07
+running_vitest_eslint_procs: 8
+step: gate:changed | status=INCONCLUSIVE-UNDER-LOAD | exit=124 | 05:19:45Z..05:24:45Z | bytes=630109 | sha256=5b3ec7afbbb16ebd0454ec0053917dd1df2144e3e265bf74b7bc24b5843df34e | tail: me/jameson/lantern/app/integration/.worktrees/tool/e2e-browser-recipe/src/features/onboarding/v2/OnboardingV2.tsx:25:25) [32m[39m tests/unit/onboarding-v2.test.tsx [2m([22m[2m20 tests[22m[2m)[22m[33m 1630[2mms[22m[39m
+step: typecheck | status=PASS | exit=0 | 05:24:45Z..05:25:22Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit
+step: typecheck:tests | status=FAIL | exit=2 | 05:25:22Z..05:25:59Z | bytes=360 | sha256=55f9b5a168004111e740ae4a63f140bb1b5995528fa69a95d685a03049c73065 | tail: S7016: Could not find a declaration file for module '../../scripts/browser-launch.mjs'. '/home/jameson/lantern/app/integration/.worktrees/tool/e2e-browser-recipe/scripts/browser-launch.mjs' implicitly has an 'any' type.
+step: handle-guard | status=PASS | exit=0 | 05:25:59Z..05:25:59Z | bytes=1364 | sha256=ba49e3be6135e7724d2940290d677716ac1388c5ad2c14f19fd6a14039ba9e23 | tail:  + booking-page-hosted-link-rail + booking-page-preview-button + booking-page-settings +449 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen).
+step: arch-dag-guard | status=PASS | exit=0 | 05:25:59Z..05:26:01Z | bytes=517 | sha256=680cfc4e62c7d23ee9e5cca61dfe0527a049a20c83ed31242619614d30708c47 | tail: assed[39m[22m[90m (1)[39m [2m Tests [22m [1m[32m1 passed[39m[22m[90m (1)[39m [2m Start at [22m 05:25:59 [2m Duration [22m 1.09s[2m (transform 258ms, setup 404ms, import 269ms, tests 3ms, environment 319ms)[22m
+step: i18n-snapshot | status=PASS | exit=0 | 05:26:01Z..05:26:02Z | bytes=518 | sha256=632f41976a79df0bc77d78a20c19d358ddc150b3f8f0405a0e16bf589c5eb584 | tail: ssed[39m[22m[90m (1)[39m [2m Tests [22m [1m[32m5 passed[39m[22m[90m (5)[39m [2m Start at [22m 05:26:01 [2m Duration [22m 1.23s[2m (transform 311ms, setup 481ms, import 261ms, tests 21ms, environment 365ms)[22m
+step: focused | status=PASS | exit=0 | 05:26:02Z..05:26:04Z | bytes=653 | sha256=111b5968099cbb2c75bacf86aa2645542e02bd6ca0485eed2c19add394e25ff5 | tail: sed[39m[22m[90m (1)[39m [2m Tests [22m [1m[32m1 passed[39m[22m[90m (1)[39m [2m Start at [22m 05:26:02 [2m Duration [22m 2.06s[2m (transform 299ms, setup 483ms, import 434ms, tests 675ms, environment 340ms)[22m
+overall: INCONCLUSIVE

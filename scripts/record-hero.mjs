@@ -10,11 +10,12 @@
  * Run: node scripts/record-hero.mjs
  */
 import { chromium } from 'playwright';
+import { withBrowserLaunchOptions } from './browser-launch.mjs';
 
 const URL = process.env.REC_URL || 'http://localhost:5173/?testMode=true&recordMatter=1';
 const OUT = 'scripts/recordings';
 
-const browser = await chromium.launch();
+const browser = await chromium.launch(withBrowserLaunchOptions());
 const context = await browser.newContext({
   viewport: { width: 1280, height: 800 },
   deviceScaleFactor: 2,

@@ -1,4 +1,5 @@
 import { chromium, type Browser } from 'playwright';
+import { withBrowserLaunchOptions } from '../../browser-launch.mjs';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -26,7 +27,7 @@ export async function composeChrome(
 ): Promise<Buffer> {
   const { title = 'Keepance', padding = 80 } = opts;
   const ownsBrowser = !opts.browser;
-  const browser = opts.browser ?? await chromium.launch();
+  const browser = opts.browser ?? await chromium.launch(withBrowserLaunchOptions());
 
   try {
     const html = loadTemplate().replace(
