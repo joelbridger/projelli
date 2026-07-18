@@ -8,6 +8,7 @@ import {
   requestSharedClientSelection,
   resolveCanonicalHouseholdMatter,
   useClientContextStore,
+  type ClientContextState,
   type SealedClientBoundary,
   type SealedMatterScopeSelection,
   type SharedClientIdentity,
@@ -70,6 +71,24 @@ function createPreFoundationClientStore() {
       set({ client: null });
     },
   }));
+}
+
+/**
+ * This is intentionally the whole subscriber-visible ClientContextState.
+ * Explicit fields make adding a state field fail this dark-path proof until it
+ * is captured and asserted here too.
+ */
+function captureClientContextState(
+  state: ClientContextState
+): ClientContextState {
+  return {
+    client: state.client,
+    scope: state.scope,
+    followerStatus: state.followerStatus,
+    selectionRevision: state.selectionRevision,
+    setClient: state.setClient,
+    clearClient: state.clearClient,
+  };
 }
 
 function matter(
@@ -154,16 +173,17 @@ describe('client-context selection authority', () => {
     const beforeSubscriberValues: Array<{ client: SharedClientIdentity | null }> = [
       { client: null },
     ];
-    const afterSubscriberValues: Array<{ client: SharedClientIdentity | null }> = [
-      { client: useClientContextStore.getState().client },
-    ];
+    const initialAfterState = captureClientContextState(
+      useClientContextStore.getState()
+    );
+    const afterSubscriberValues: ClientContextState[] = [initialAfterState];
     const beforeErrors: string[] = [];
     const afterErrors: string[] = [];
     const unsubscribeBefore = beforeStore.subscribe((state) => {
       beforeSubscriberValues.push({ client: state.client });
     });
     const unsubscribeAfter = useClientContextStore.subscribe((state) => {
-      afterSubscriberValues.push({ client: state.client });
+      afterSubscriberValues.push(captureClientContextState(state));
     });
     const sourceBefore = {
       scope: useClientContextStore.getState().scope,
@@ -195,30 +215,48 @@ describe('client-context selection authority', () => {
       unsubscribeAfter();
     }
 
-    expect(afterSubscriberValues).toEqual(beforeSubscriberValues);
+    const expectedSelectedClient: SharedClientIdentity = {
+      householdId: householdA.householdId,
+      displayName: householdA.householdId,
+      primaryPeople: ['Ann Alpha', 'Bea Beta'],
+    };
+    const expectedSelectedState: ClientContextState = {
+      client: expectedSelectedClient,
+      scope: initialAfterState.scope,
+      followerStatus: initialAfterState.followerStatus,
+      selectionRevision: initialAfterState.selectionRevision,
+      setClient: initialAfterState.setClient,
+      clearClient: initialAfterState.clearClient,
+    };
+    expect(afterSubscriberValues).toStrictEqual([
+      initialAfterState,
+      expectedSelectedState,
+      initialAfterState,
+    ]);
+    expect(afterSubscriberValues.map(({ client }) => ({ client }))).toEqual(
+      beforeSubscriberValues
+    );
     expect(afterErrors).toEqual(beforeErrors);
     const selectedClient = afterSubscriberValues[1]?.client;
     if (!selectedClient)
       throw new Error('legacy selection must expose a client');
-    expect(selectedClient).toEqual({
-      householdId: householdA.householdId,
-      displayName: householdA.householdId,
-      primaryPeople: ['Ann Alpha', 'Bea Beta'],
-    });
+    expect(selectedClient).toEqual(expectedSelectedClient);
     expect(Object.isFrozen(selectedClient)).toBe(false);
     expect(Object.isFrozen(selectedClient.primaryPeople)).toBe(false);
-    expect({ client: useClientContextStore.getState().client }).toEqual({
-      client: beforeStore.getState().client,
-    });
+    const finalAfterState = captureClientContextState(
+      useClientContextStore.getState()
+    );
+    expect(finalAfterState).toStrictEqual(initialAfterState);
+    expect(finalAfterState.client).toEqual(beforeStore.getState().client);
     expect(useMatterStore.getState()).toMatchObject({
       activeMatterId: activeMatterIdBefore,
       clientMapHubId: null,
     });
     expect(legacySetActiveMatter).not.toHaveBeenCalled();
     expect({
-      scope: useClientContextStore.getState().scope,
-      followerStatus: useClientContextStore.getState().followerStatus,
-      selectionRevision: useClientContextStore.getState().selectionRevision,
+      scope: finalAfterState.scope,
+      followerStatus: finalAfterState.followerStatus,
+      selectionRevision: finalAfterState.selectionRevision,
     }).toEqual(sourceBefore);
   });
 
@@ -698,7 +736,9 @@ describe('client-context selection authority', () => {
     if (!request) throw new Error('fixture must seal');
 
     await requestMatterScopeSelection(request);
-    await vi.waitFor(() => expect(attempts).toBe(4));
+    await vi.waitFor(() => {
+      expect(attempts).toBe(4);
+    });
     expect(useClientContextStore.getState().followerStatus).toBe('stale');
     await new Promise<void>((resolve) => setTimeout(resolve, 20));
     expect(attempts).toBe(4);

@@ -39,10 +39,10 @@ caller, consumer, writer, Meeting surface, or guard was migrated in this lane.
 
 ## Verification
 
-- Focused authority suite plus the 15 formerly import-failing changed-gate
-  files: 16 files / 82 tests passed.
-- The scrubbed `gate-preflight.sh` lint, application TypeScript, and test
-  TypeScript checks passed.
+- The prior focused-suite and gate PASS claims applied only to `ef9b7d878` and
+  are not carried forward as evidence for this final fix-3 tip. The coordinator
+  must create the fresh machine receipt at that tip.
+- No lint baseline was updated.
 - Authority proof includes sealed forgery, stale/request revalidation,
   all-matters, single-flight retry, subscriber throw, dark refusal, boot, and
   live archive/delete invalidation.

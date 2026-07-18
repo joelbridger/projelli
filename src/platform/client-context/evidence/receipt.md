@@ -89,10 +89,10 @@ source stays swapped and the `finally` reconciliation still converges.
 
 ## Verification and handoff
 
-- Focused authority suite plus the 15 formerly import-failing changed-gate
-  files: 16 files / 82 tests passed at `ef9b7d878`.
-- `gate-preflight.sh` passed its scrubbed `lint:gate`, `typecheck`, and
-  `typecheck:tests` steps at `ef9b7d878`. The lint baseline was not updated.
+- The prior focused-suite and gate PASS claims applied only to `ef9b7d878` and
+  are not carried forward as evidence for this final fix-3 tip. The coordinator
+  must create the fresh machine receipt at that tip.
+- No lint baseline was updated.
 - The coordinator-run receipt at `310082ab2a04` is retained as the honest RED
   record of the pre-fix state. A fresh final receipt remains coordinator-run
   and drain-queued; this human evidence does not substitute for it.
