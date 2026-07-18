@@ -45,3 +45,26 @@ Teardown was proven before this verdict: the owned Chrome process, Vite server, 
 **Not ready.** The individual Wealthbox confirmation is honest, but the section's central promise is not: it labels every possible integration as active and has no live route to the no-integrations state. The duplicated renderer also means a card does not cleanly separate what it proves from the action it offers.
 
 DESIGN-VERDICT: CHANGES-3
+
+## Re-verdict — 2026-07-18
+
+**Pass.** The three requested cures now hold on the live desktop screen.
+
+### Fresh evidence
+
+| Screen | Evidence |
+| --- | --- |
+| One genuinely connected provider, with its connector-owned panel mounted once | [05-rereview-connected-single-form.png](design-review-active-integrations/05-rereview-connected-single-form.png) |
+| The driven zero-connection route, with no card or setup form shown | [06-rereview-empty-state-reached.png](design-review-active-integrations/06-rereview-empty-state-reached.png) |
+
+### What I verified on screen
+
+1. The fresh desktop workspace reported Microsoft 365 and the other 14 remote providers as unconnected. None appeared in **Active integrations**. The one real local connection, Ollama, appeared with the honest **Connected** label; its provider name is rendered as `Ollama`, not a translation key.
+2. The real connected Ollama card has exactly one connector-owned management panel and one **Check Ollama connection** control. There is no repeated copy of the form, status panel, or action in the visible card or its focusable controls.
+3. I then drove the genuine zero-connection branch. This bench has a real local Ollama service, so I used a disposable, in-memory browser fetch interceptor only for that service's connection probe, remounted the real Account tab, and confirmed the actual component rendered **No integrations connected** with no list, card, or setup form. No source, registry, or test file was changed; reloading restored the normal probe.
+
+### Fresh-run and teardown proof
+
+This re-review used the real desktop debug app with the current worktree served by Vite on `:5174`, an isolated bridge on `:9438`, a fresh workspace, and a private X display (`:388`). The feature used the sanctioned development-only `setDevFlagOverride('active-integrations', true)` path. The owned app, Vite server, X display, bridge port, and Vite port were all stopped/free after capture; the disposable workspace was not used for product data.
+
+DESIGN-VERDICT: PASS
