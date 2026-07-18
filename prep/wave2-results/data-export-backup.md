@@ -1,61 +1,58 @@
-# WB-138 data export/backup micro-fix round 2 result
+# WB-138 data export/backup fix round 5 result
 
-**Launch base SHA:** `86dbab240e1945dd353261421c23d92bbf43bbfd`
+**Launch base SHA:** `8e845408c306bdb55b49d1765f4595abf7f9d51b`
 
-**Final verified source SHA:** `16e0e830fc89481686d20187c40e3b9d18014de0`
+**Final verified source SHA:** `7f5bf988745a07bdc05bc7d3d097b52361bb6e71`
 
 ## Result
 
-PASS. Both remaining test-tightening findings are fixed without changing
-product code:
+PASS. This final consultant-directed fix round made only the requested changes:
 
-- the native-writer fixture is now the exact 1,050-byte
-  `serde_json::to_vec_pretty(...)` output, with no trailing newline; its fixed
-  SHA-256 is
-  `b12847d84c62723e637bb52fac41b265fed396dfe2f3dc09c4cb0787c77f0476`;
-- the claims regression now compares the complete pre-export panel copy as one
-  exact value, including the description, all inclusion statements, and the
-  full exclusion wording. Appending a promise such as “It includes every
-  document” now fails the test.
+- removed the extra, outer archive-creation catch added in the launch-base
+  commit; the button again invokes `createArchive()` directly, and that helper
+  retains the original user-facing error path;
+- added a real Settings-renderer assertion for the real `data-portability`
+  panel in the `workspace` section: it is absent while `data-export-backup` is
+  dark and present when that flag is enabled. The existing made-up
+  `teams-roles` coverage remains as the file's general ordering/gating case.
 
-The displayed size and checksum expectations are fixed to those exact native
-bytes. The receipt helper remains dynamic only for the separate deliberately
-mutated-fixture failure test.
+The direct invocation has a narrowly scoped lint note because the helper
+already catches archive failures. It does not add another catch or change the
+runtime error path.
 
-## Fresh checks for `16e0e830fc89481686d20187c40e3b9d18014de0`
+## Fresh complete changed-files gate for `7f5bf988745a07bdc05bc7d3d097b52361bb6e71`
 
 ```text
-$ npx vitest run src/features/data-portability/DataExportBackupSettings.test.tsx src/features/settings/registry/settingsModuleRegistry.test.ts tests/unit/architecture-boundaries.test.ts tests/unit/i18n/en-json-snapshot.test.ts
-Test Files  4 passed (4)
-Tests       28 passed (28)
+$ npm run gate:changed
+
+Gate base: HEAD~1 (merge base 5b6993f52d5d7faf3212c2e9457408efde9f2e58)
+Changed files: 7
+Vitest: full suite (fail-closed)
+Contracts: always run by the changed gate
+Backend: not selected
+Rust packages: not selected
+
+Build assets                         PASS
+Tauri version parity                 PASS
+Tauri TS/Rust command contracts      PASS (warnings only)
+Provider front door                  PASS
+Consent-gate wiring                  PASS
+Case-only filename collisions        PASS
+TypeScript                           PASS
+TypeScript (tests)                   PASS
+Wire-contract suite                  PASS
+Brand sync                           PASS
+Identity check                       PASS
+ESLint gate                          PASS
+
+Test Files  1137 passed | 3 skipped (1140)
+Tests       9052 passed | 29 skipped (9081)
+
+✅ CHANGED GATE GREEN
 ```
-
-```text
-$ npm run typecheck
-> tsc --noEmit
-PASS (exit 0)
-
-$ npm run typecheck:tests
-> tsc -p tsconfig.test.json --noEmit
-PASS (exit 0)
-
-$ npm run boundaries:check
-✅ No feature-boundary regression (599 current baseline finding(s)).
-```
-
-```text
-$ npx eslint src/features/data-portability/DataExportBackupSettings.test.tsx
-PASS (exit 0, no diagnostics)
-
-$ git diff --check
-PASS (exit 0, no diagnostics)
-```
-
-An additional Prettier probe passed for the TypeScript test and warned only on
-the raw JSON fixture because Prettier would add the forbidden trailing newline.
-The exact writer bytes were intentionally preserved.
 
 ## Scope attestation
 
-The verified source commit changes only the focused test and its committed raw
-fixture. No product-code file changed.
+The verified source commit changes only the requested archive error boundary
+and Settings-renderer coverage. This record is the sole accompanying evidence
+update for the round.
