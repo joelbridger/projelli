@@ -51,3 +51,79 @@ The receipt row cannot contain its own final Git blob ID: that ID is calculated 
 | Registry suite, including `mounts the real booking availability panel through the enabled Settings doorway` | PASS — 14 tests |
 | `npm test -- src/features/settings/registry/settingsModuleRegistry.test.ts src/features/booking/availability/BookingAvailabilitySettings.test.tsx src/features/calendar/testing/roundTripCalendarFoundation.test.tsx` | PASS — 3 files, 34 tests |
 | Scrubbed `gate-preflight.sh` | PASS — `lint:gate`, `typecheck`, and `typecheck:tests` (`GATE_PREFLIGHT_EXIT=0`) |
+
+## Combined final-tip Settings-host evidence (JP-056 + SC-011)
+
+**Base:** `974f34e2394ad7b4131557be5c9fa9b09de0322c`.
+
+The restoration proof above is inherited from `974f34e23`; this combined lane
+did not re-perform its 19-path restoration comparison or alter the restored
+production capability.
+
+### Re-traced host and public-doorway route
+
+- Static append: `settingsModuleRegistry.ts` imports
+  `bookingAvailabilitySettingsPanel` from public `@/features/booking` and
+  includes it once in `mutableSettingsPanelRegistry`.
+- Descriptor: `settingsModuleDescriptor.tsx` remains `id:
+  booking-availability`, `section: scheduling`, `order: 10`, and `flagId:
+  booking-availability`. The existing Scheduling rail comes from
+  `legacySettingsSections.tsx`; no rail or section was added.
+- Both real shells use the shared renderer: legacy `SettingsContent.tsx` calls
+  `renderRegisteredSettingsPanels(activeSection, sectionProps)` and enabled V1
+  `SettingsV1FrameEnabled.tsx` calls
+  `renderRegisteredSettingsPanels(effectiveSection, sectionProps)`.
+- The panel's Calendar imports stay on public `@/features/calendar` doorways:
+  capability, availability, aggregate settings and event stores, validators,
+  `getBusyBlocks`, and `getBookableSlots`. No Calendar core/store/type file was
+  changed.
+
+The descriptor flag remains verbatim and default-off:
+
+> defineFlag('booking-availability', 'Configure local booking availability', 'booking-availability', '2026-07-16', '2026-10-14'),
+
+### Automated combined proof
+
+New real-host tests use `setDevFlagOverride('booking-availability', true)` only
+inside the test process. They prove the same restored descriptor is reachable
+through legacy Settings → Scheduling and enabled V1 Settings → Scheduling.
+Separate flag-off assertions prove that neither real host renders the panel.
+They do not direct-render the panel as the host proof.
+
+The existing restored panel tests remain green and prove both ledger rows on
+their own capability:
+
+- **JP-056:** one aggregate Calendar writer saves timezone, weekly hours,
+  meeting types, buffers, notice, and horizon. Invalid drafts refuse before a
+  writer runs.
+- **SC-011:** exactly one home calendar plus selected busy blockers save in the
+  same aggregate operation; the panel presents opaque busy blocks, not event
+  titles or other event detail. Busy-time loading and rejected occurrence reads
+  both show no slots and do not calculate slots.
+
+No production defect was found. The only production changes are **none**;
+this lane adds host-path regression proof only.
+
+### D2 design review and live-drive status
+
+**D2 design review: INCOMPLETE, not PASS.** The required populated,
+empty/no-slot, loading, unavailable/error, calendar-selection/blocker,
+opaque-preview, and flag-off screenshots were not available. A temporary local
+Vite flag-on browser attempt reached the app shell but the browser development
+configuration could not open a real workspace, so it could not truthfully
+drive Settings, save, cold-reload, or capture the required panel states. The
+temporary override was cleared and the local server was stopped. This is a
+missing pre-merge evidence item, not a green design verdict; no
+`DESIGN-CHANGES` verdict has been issued.
+
+### Final commands in this lane
+
+| Command | Result |
+| --- | --- |
+| `npm test -- src/features/settings/registry/settingsContentRegistry.test.tsx src/features/settings/v1-frame/SettingsV1FrameEnabled.test.tsx src/features/settings/registry/settingsModuleRegistry.test.ts src/features/booking/availability/BookingAvailabilitySettings.test.tsx` | PASS, 4 files and 35 tests |
+| Temporary `VITE_FLAG_BOOKING_AVAILABILITY=true npm run dev -- --host 127.0.0.1 --port 5173` browser drive | INCOMPLETE, no real workspace available; override cleared and server stopped |
+
+Self-review attestation: this lane did not add a flag, enable a default, add a
+Settings rail/section, use dynamic duplicate registration, touch a Meetings or
+daily Calendar surface, expose event detail, or introduce provider writes,
+holds, bookings, or confirmations.

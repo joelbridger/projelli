@@ -30,9 +30,13 @@ const personalPanel: SettingsPanelDescriptor = {
 };
 
 describe('SettingsContent registry-derived rail', () => {
-  afterEach(() => {
+  afterEach(async () => {
+    const flags = await import('@/platform/flags');
+    flags.setDevFlagOverride('booking-availability', undefined);
+    flags.setDevFlagOverride('notification-preferences', undefined);
     localStorage.clear();
     vi.resetModules();
+    vi.doUnmock('@/features/booking');
     vi.doUnmock('./legacySettingsSections');
   });
 
@@ -45,6 +49,15 @@ describe('SettingsContent registry-derived rail', () => {
         legacySettingsPanels: [...actual.legacySettingsPanels, personalPanel],
       };
     });
+    vi.doMock('@/features/booking', () => ({
+      bookingAvailabilitySettingsPanel: {
+        id: 'booking-availability',
+        section: 'scheduling',
+        order: 10,
+        flagId: 'booking-availability',
+        render: () => null,
+      },
+    }));
     const { SettingsContent } = await import('../SettingsContent');
 
     render(<SettingsContent variant="page" />);
@@ -87,5 +100,41 @@ describe('SettingsContent registry-derived rail', () => {
       target: { value: 'digest' },
     });
     expect(screen.getByTestId('settings-category-personal')).toBeInTheDocument();
+  });
+
+  it('keeps booking availability absent in the real legacy Settings Scheduling host while dark', async () => {
+    const flags = await import('@/platform/flags');
+    flags.setDevFlagOverride('booking-availability', undefined);
+    const { SettingsContent } = await import('../SettingsContent');
+
+    render(
+      <SettingsContent initialCategory="scheduling" variant="page" />
+    );
+
+    expect(screen.getByTestId('settings-category-scheduling')).toHaveAttribute(
+      'aria-current',
+      'page'
+    );
+    expect(
+      screen.queryByTestId('booking-availability-settings')
+    ).not.toBeInTheDocument();
+  });
+
+  it('reaches booking availability through the real legacy Settings Scheduling host only while enabled', async () => {
+    const flags = await import('@/platform/flags');
+    flags.setDevFlagOverride('booking-availability', true);
+    const { SettingsContent } = await import('../SettingsContent');
+
+    render(
+      <SettingsContent initialCategory="scheduling" variant="page" />
+    );
+
+    expect(screen.getByTestId('settings-category-scheduling')).toHaveAttribute(
+      'aria-current',
+      'page'
+    );
+    expect(
+      await screen.findByTestId('booking-availability-settings')
+    ).toBeInTheDocument();
   });
 });
