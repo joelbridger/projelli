@@ -65,7 +65,8 @@ The canonical flag was enabled in its own one-line commit
 `abfbd090ed7468421f176fe6561fdeb3935ea76c`. Because the required final gate was
 red, commit `4af5ce853c79a114966ffb651415b69207548436` removed that one line again. The
 fix round did not modify that flip mechanism. It removed the newly tracked
-empty `.env.production` file, so the final code tip is still OFF.
+empty `.env.production` file. That OFF state is HISTORICAL; activation commit
+`5dd4f06e5` restored the flag, so the final code tip is ON.
 
 ## Final T2 inventory and disposition
 
