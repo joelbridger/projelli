@@ -228,6 +228,8 @@ describe('useWorkspaceLifecycle — handleOpenRecentProject (QA-33)', () => {
       rootPath: '/old-workspace',
       sidebarActiveTab: 'matters',
       activeMatterId: 'old-client',
+      selectionScope: { kind: 'matter-only', matterId: 'old-client' },
+      selectionFollowerStatus: 'converged',
       clientMapHubId: 'old-client',
       clientMapHubTab: 'overview',
       documentsView: 'browser',

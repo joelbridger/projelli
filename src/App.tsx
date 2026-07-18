@@ -134,7 +134,6 @@ import {
   setMatterAuditEmitter,
   setMatterAuditEmitterAsync,
   useMatterStore,
-  useActiveMatter,
   useMatters,
 } from '@/platform/matter/matterStore';
 import {
@@ -145,7 +144,9 @@ import { usePrivilegedMatterModeActive } from '@/platform/hooks/usePrivilegedMat
 import {
   issueAllMattersScopeSelection,
   issueMatterScopeSelection,
+  readSelectionPresentation,
   requestMatterScopeSelection,
+  useSelectionPresentation,
 } from '@/platform/client-context';
 import {
   requestNativeNetworkLockdown,
@@ -473,9 +474,12 @@ function AppShell() {
   }>({ key: 0 });
   // Per-matter UI memory (matterUiStore): subscribe to the active matter so we
   // can save + restore each matter's last working surface and focused document.
-  const activeMatterId = useMatterStore((s) => s.activeMatterId);
-  const activeMatter = useActiveMatter();
+  const selectionPresentation = useSelectionPresentation();
+  const activeMatterId = selectionPresentation.matterId;
   const matters = useMatters();
+  const activeMatter = activeMatterId
+    ? matters.find((matter) => matter.id === activeMatterId && !matter.archived) ?? null
+    : null;
   const requestedNetworkLockdown = usePrivilegedMatterModeActive();
   const enforcedNetworkLockdown = useNativeNetworkLockdownBridgeState();
 
@@ -600,10 +604,13 @@ function AppShell() {
   const popNavigationEntry = useAppNavigationStore((s) => s.pop);
   const pushNavigationSnapshot = useCallback(() => {
     const matterState = useMatterStore.getState();
+    const selection = readSelectionPresentation();
     pushNavigationEntry({
       rootPath,
       sidebarActiveTab,
-      activeMatterId: matterState.activeMatterId,
+      activeMatterId: selection.matterId,
+      selectionScope: selection.scope,
+      selectionFollowerStatus: selection.followerStatus,
       clientMapHubId: matterState.clientMapHubId,
       clientMapHubTab: matterState.clientMapHubTab,
       documentsView,
@@ -646,9 +653,18 @@ function AppShell() {
       rootPath
     );
     if (!safeSnapshot) return;
-    const request = safeSnapshot.activeMatterId
-      ? issueMatterScopeSelection(safeSnapshot.activeMatterId)
-      : issueAllMattersScopeSelection();
+    const request = (() => {
+      switch (safeSnapshot.selectionScope.kind) {
+        case 'matter':
+        case 'matter-only':
+          return issueMatterScopeSelection(safeSnapshot.selectionScope.matterId);
+        case 'all-matters':
+          return issueAllMattersScopeSelection();
+        case 'blocked-unresolved':
+          return null;
+      }
+    })();
+    if (!request) return;
     void requestMatterScopeSelection(request)
       .then((result) => {
         if (result.kind === 'refused') return;
@@ -696,7 +712,8 @@ function AppShell() {
       void writeMcpSessionScopeFile({
         service,
         workspaceRoot: rootPath,
-        activeMatterId,
+        selectionScope: selectionPresentation.scope,
+        selectionFollowerStatus: selectionPresentation.followerStatus,
         matters,
         // The sidecar derives from the same confirmed native enforcement as
         // connector UI. Unknown/pending stays fail-closed, never from the
@@ -717,7 +734,14 @@ function AppShell() {
         console.warn('[MCP] Failed to write deny-all session scope file', err);
       });
     };
-  }, [rootPath, activeMatterId, matters, enforcedNetworkLockdown.blocked]);
+  }, [
+    rootPath,
+    activeMatterId,
+    selectionPresentation.scope,
+    selectionPresentation.followerStatus,
+    matters,
+    enforcedNetworkLockdown.blocked,
+  ]);
 
   // Keep the AI ambient file-context store in sync with whatever tabs are
   // open. Mounted at App level so a single subscription drives every chat.
@@ -2227,9 +2251,10 @@ function AppShell() {
           if (surface === 'files') setDocumentsView('browser');
           if (surface === 'matters') {
             const matterState = useMatterStore.getState();
-            if (matterState.activeMatterId) {
+            const selection = readSelectionPresentation();
+            if (selection.matterId) {
               setMattersSurfaceMode('client-map');
-              matterState.setClientMapHubId(matterState.activeMatterId);
+              matterState.setClientMapHubId(selection.matterId);
               matterState.setClientMapHubTab('overview');
             } else {
               setMattersSurfaceMode('all-clients');
@@ -2387,9 +2412,10 @@ function AppShell() {
             }
             if (tab === 'matters') {
               const matterState = useMatterStore.getState();
-              if (matterState.activeMatterId) {
+              const selection = readSelectionPresentation();
+              if (selection.matterId) {
                 setMattersSurfaceMode('client-map');
-                matterState.setClientMapHubId(matterState.activeMatterId);
+                matterState.setClientMapHubId(selection.matterId);
                 matterState.setClientMapHubTab('overview');
               } else {
                 setMattersSurfaceMode('all-clients');

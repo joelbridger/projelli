@@ -3,6 +3,7 @@ import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { workspacePath } from '@/platform/fs/appPath';
 export { MCP_SESSION_SCOPE_REL_PATH } from '@/config/identity';
 import { MCP_SESSION_SCOPE_REL_PATH } from '@/config/identity';
+import type { FollowerStatus, MatterScopeSelection } from '@/platform/client-context';
 
 interface McpSessionMatter {
   id: string;
@@ -17,17 +18,25 @@ interface McpSessionScopeFile {
   version: 1;
   updatedAt: string;
   activeMatterId: string | null;
+  selectionKind: MatterScopeSelection['kind'];
+  selectionFollowerStatus: FollowerStatus;
+  contextNote: string;
   grantedMatterIds: string[];
   networkLockdown: boolean;
   matters: McpSessionMatter[];
 }
 
 export function buildMcpSessionScopeFile(input: {
-  activeMatterId: string | null;
+  selectionScope: MatterScopeSelection;
+  selectionFollowerStatus: FollowerStatus;
   matters: Matter[];
   networkLockdown: boolean;
 }): McpSessionScopeFile {
-  const active = input.matters.find((m) => m.id === input.activeMatterId && !m.archived) ?? null;
+  const selectedMatterId =
+    input.selectionScope.kind === 'matter' || input.selectionScope.kind === 'matter-only'
+      ? input.selectionScope.matterId
+      : null;
+  const active = input.matters.find((m) => m.id === selectedMatterId && !m.archived) ?? null;
   const grantedMatterIds = input.matters
     .filter((m) => !m.archived && !!m.mcpAccessGranted)
     .map((m) => m.id)
@@ -36,6 +45,13 @@ export function buildMcpSessionScopeFile(input: {
     version: 1,
     updatedAt: new Date().toISOString(),
     activeMatterId: active?.id ?? null,
+    selectionKind: input.selectionScope.kind,
+    selectionFollowerStatus: input.selectionFollowerStatus,
+    contextNote: buildSelectionContextNote(
+      input.selectionScope,
+      input.selectionFollowerStatus,
+      active?.id ?? null,
+    ),
     grantedMatterIds,
     networkLockdown: input.networkLockdown,
     matters: input.matters.map((m) => ({
@@ -54,6 +70,9 @@ export function buildDenyAllMcpSessionScopeFile(): McpSessionScopeFile {
     version: 1,
     updatedAt: new Date().toISOString(),
     activeMatterId: null,
+    selectionKind: 'blocked-unresolved',
+    selectionFollowerStatus: 'stale',
+    contextNote: 'BLOCKED: the app session is closed. This context does not grant MCP access.',
     grantedMatterIds: [],
     networkLockdown: true,
     matters: [],
@@ -63,16 +82,37 @@ export function buildDenyAllMcpSessionScopeFile(): McpSessionScopeFile {
 export async function writeMcpSessionScopeFile(input: {
   service: WorkspaceService;
   workspaceRoot: string;
-  activeMatterId: string | null;
+  selectionScope: MatterScopeSelection;
+  selectionFollowerStatus: FollowerStatus;
   matters: Matter[];
   networkLockdown: boolean;
 }): Promise<void> {
   const payload = buildMcpSessionScopeFile({
-    activeMatterId: input.activeMatterId,
+    selectionScope: input.selectionScope,
+    selectionFollowerStatus: input.selectionFollowerStatus,
     matters: input.matters,
     networkLockdown: input.networkLockdown,
   });
   await writeMcpScopeFileAtomically(input.service, input.workspaceRoot, payload);
+}
+
+function buildSelectionContextNote(
+  scope: MatterScopeSelection,
+  followerStatus: FollowerStatus,
+  activeMatterId: string | null,
+): string {
+  const stale = followerStatus === 'stale'
+    ? ' The legacy UI context may still be catching up.'
+    : '';
+  switch (scope.kind) {
+    case 'matter':
+    case 'matter-only':
+      return `Active matter context: ${activeMatterId ?? scope.matterId}.${stale} This context does not grant MCP access.`;
+    case 'all-matters':
+      return `All matters is the current app context.${stale} This context does not grant MCP access.`;
+    case 'blocked-unresolved':
+      return `BLOCKED: the current app selection is unresolved.${stale} This context does not grant MCP access.`;
+  }
 }
 
 export async function writeDenyAllMcpSessionScopeFile(input: {

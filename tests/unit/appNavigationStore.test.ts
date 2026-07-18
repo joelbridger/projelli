@@ -12,6 +12,8 @@ function snap(
     sidebarActiveTab: 'search',
     rootPath: '/workspaces/current',
     activeMatterId: 'm1',
+    selectionScope: { kind: 'matter-only', matterId: 'm1' },
+    selectionFollowerStatus: 'converged',
     clientMapHubId: null,
     clientMapHubTab: null,
     documentsView: 'browser',
@@ -97,6 +99,7 @@ describe('app navigation history stack', () => {
       snap({
         sidebarActiveTab: 'matters',
         activeMatterId: 'deleted-client',
+        selectionScope: { kind: 'matter-only', matterId: 'deleted-client' },
         clientMapHubId: 'deleted-client',
         clientMapHubTab: 'overview',
         mattersSurfaceMode: 'client-map',
@@ -107,6 +110,7 @@ describe('app navigation history stack', () => {
 
     expect(restored).toMatchObject({
       activeMatterId: null,
+      selectionScope: { kind: 'all-matters' },
       clientMapHubId: null,
       clientMapHubTab: null,
       mattersSurfaceMode: 'all-clients',
@@ -118,6 +122,7 @@ describe('app navigation history stack', () => {
       snap({
         sidebarActiveTab: 'matters',
         activeMatterId: 'archived-client',
+        selectionScope: { kind: 'matter-only', matterId: 'archived-client' },
         clientMapHubId: 'archived-client',
         clientMapHubTab: 'overview',
         mattersSurfaceMode: 'client-map',
@@ -128,9 +133,30 @@ describe('app navigation history stack', () => {
 
     expect(restored).toMatchObject({
       activeMatterId: null,
+      selectionScope: { kind: 'all-matters' },
       clientMapHubId: null,
       clientMapHubTab: null,
       mattersSurfaceMode: 'all-clients',
+    });
+  });
+
+  it('keeps blocked navigation memory distinct from all matters', () => {
+    const restored = sanitizeNavigationSnapshotForCurrentMatters(
+      snap({
+        activeMatterId: null,
+        selectionScope: { kind: 'blocked-unresolved' },
+        selectionFollowerStatus: 'stale',
+        clientMapHubId: null,
+        mattersSurfaceMode: 'client-map',
+      }),
+      [{ id: 'm1' }],
+      '/workspaces/current'
+    );
+
+    expect(restored).toMatchObject({
+      activeMatterId: null,
+      selectionScope: { kind: 'blocked-unresolved' },
+      selectionFollowerStatus: 'stale',
     });
   });
 

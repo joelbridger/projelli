@@ -58,7 +58,8 @@ describe('MCP session scope file', () => {
     await writeMcpSessionScopeFile({
       service,
       workspaceRoot: '/workspace',
-      activeMatterId: 'matter-a',
+      selectionScope: { kind: 'matter-only', matterId: 'matter-a' },
+      selectionFollowerStatus: 'converged',
       matters: [matterA],
       networkLockdown: false,
     });
@@ -66,6 +67,8 @@ describe('MCP session scope file', () => {
     const finalPath = `/workspace/${MCP_SESSION_SCOPE_REL_PATH}`;
     const payload = JSON.parse(files.get(finalPath) ?? '{}') as {
       activeMatterId?: string;
+      selectionKind?: string;
+      contextNote?: string;
       networkLockdown?: boolean;
       matters?: unknown[];
     };
@@ -75,6 +78,8 @@ describe('MCP session scope file', () => {
     expect(raw.move).toHaveBeenCalledTimes(1);
     expect(raw.move.mock.calls[0]?.[1]).toBe(finalPath);
     expect(payload.activeMatterId).toBe('matter-a');
+    expect(payload.selectionKind).toBe('matter-only');
+    expect(payload.contextNote).toContain('does not grant MCP access');
     expect(payload.networkLockdown).toBe(false);
     expect(payload.matters).toHaveLength(1);
   });
@@ -85,7 +90,8 @@ describe('MCP session scope file', () => {
     await writeMcpSessionScopeFile({
       service,
       workspaceRoot: '/workspace',
-      activeMatterId: 'matter-a',
+      selectionScope: { kind: 'matter-only', matterId: 'matter-a' },
+      selectionFollowerStatus: 'converged',
       matters: [matterA, matterB],
       networkLockdown: false,
     });
@@ -102,12 +108,14 @@ describe('MCP session scope file', () => {
 
   it('keeps the granted scope stable when the active matter changes', () => {
     const activeA = buildMcpSessionScopeFile({
-      activeMatterId: 'matter-a',
+      selectionScope: { kind: 'matter-only', matterId: 'matter-a' },
+      selectionFollowerStatus: 'converged',
       matters: [matterA, matterB],
       networkLockdown: false,
     });
     const activeB = buildMcpSessionScopeFile({
-      activeMatterId: 'matter-b',
+      selectionScope: { kind: 'matter-only', matterId: 'matter-b' },
+      selectionFollowerStatus: 'converged',
       matters: [matterA, matterB],
       networkLockdown: false,
     });
@@ -124,7 +132,8 @@ describe('MCP session scope file', () => {
     await writeMcpSessionScopeFile({
       service,
       workspaceRoot: '/workspace',
-      activeMatterId: 'matter-a',
+      selectionScope: { kind: 'matter-only', matterId: 'matter-a' },
+      selectionFollowerStatus: 'converged',
       matters: [matterA],
       networkLockdown: false,
     });
@@ -135,6 +144,32 @@ describe('MCP session scope file', () => {
     };
 
     expect(payload.grantedMatterIds).toEqual([]);
+  });
+
+  it('distinguishes all-matters, blocked, and stale context without changing grants', () => {
+    const all = buildMcpSessionScopeFile({
+      selectionScope: { kind: 'all-matters' },
+      selectionFollowerStatus: 'converged',
+      matters: [matterA, matterB],
+      networkLockdown: false,
+    });
+    const blocked = buildMcpSessionScopeFile({
+      selectionScope: { kind: 'blocked-unresolved' },
+      selectionFollowerStatus: 'stale',
+      matters: [matterA, matterB],
+      networkLockdown: false,
+    });
+
+    expect(all.activeMatterId).toBeNull();
+    expect(all.selectionKind).toBe('all-matters');
+    expect(all.contextNote).toContain('All matters');
+    expect(all.contextNote).not.toContain('BLOCKED');
+    expect(blocked.activeMatterId).toBeNull();
+    expect(blocked.selectionKind).toBe('blocked-unresolved');
+    expect(blocked.contextNote).toContain('BLOCKED');
+    expect(blocked.contextNote).toContain('catching up');
+    expect(all.grantedMatterIds).toEqual(['matter-b']);
+    expect(blocked.grantedMatterIds).toEqual(['matter-b']);
   });
 
   it('writes a deny-all scope for cleanup', async () => {

@@ -14,7 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu';
-import { useActiveMatter } from '@/platform/matter/matterStore';
+import { useMatters } from '@/platform/matter/matterStore';
 import { BugReportDialog } from '@/app/shell/common/BugReportDialog';
 import { TrialStatusChip } from '@/features/account/trial';
 import { useTrial } from '@/platform/hooks/useTrial';
@@ -25,6 +25,8 @@ import { usePrivilegedMatterMode } from '@/platform/hooks/usePrivilegedMatterMod
 import { useEgressActivityStore } from '@/platform/privacy/egressActivity';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { useNativeNetworkLockdownBridgeState } from '@/platform/privacy/nativeNetworkLockdownBridge';
+import { Badge } from '@/ui/kp';
+import { useSelectionPresentation } from '@/platform/client-context';
 
 /**
  * Extract project name from full path
@@ -138,6 +140,8 @@ interface StatusBarProps {
 
 export function StatusBar({ onOpenSettings, showFileContext = true }: StatusBarProps = {}) {
   const { t } = useTranslation();
+  const selection = useSelectionPresentation();
+  const matters = useMatters();
   // Perf (P1.2): exact-data-only selectors. The old bare `useWorkspaceStore()`
   // / `useEditorStore()` calls subscribed to the ENTIRE store (every field,
   // including ones this bar never reads), so StatusBar re-rendered on any
@@ -152,7 +156,9 @@ export function StatusBar({ onOpenSettings, showFileContext = true }: StatusBarP
   const activeTab = useEditorStore((s) => s.openTabs.find((tab) => tab.path === s.activeTabPath));
   const [bugReportOpen, setBugReportOpen] = useState(false);
   // WS-B/C: which matter the AI is currently confined to (null = all matters).
-  const activeMatter = useActiveMatter();
+  const activeMatter = selection.matterId
+    ? matters.find((matter) => matter.id === selection.matterId && !matter.archived) ?? null
+    : null;
   // The saved choice requests isolation; only native status may claim it is on.
   const privilegedMode = usePrivilegedMatterMode();
   const enforcedNetworkLockdown = useNativeNetworkLockdownBridgeState();
@@ -337,6 +343,16 @@ export function StatusBar({ onOpenSettings, showFileContext = true }: StatusBarP
       {/* Right-side cluster. gap-4 gives every segment consistent breathing
           room so nothing feels mashed together (v1.6 rc.6). */}
       <div className="flex items-center gap-4">
+        {selection.blocked ? (
+          <Badge variant="danger" data-testid="status-bar-selection-blocked" aria-label="Client selection blocked">
+            BLOCKED
+          </Badge>
+        ) : null}
+        {selection.stale ? (
+          <Badge variant="warning" data-testid="status-bar-selection-stale" aria-label="Client selection updating">
+            Selection updating
+          </Badge>
+        ) : null}
         {/* Non-urgent trial details live in the account surface; the status bar
             only keeps urgent trial warnings. */}
         {showTrialInStatus ? (

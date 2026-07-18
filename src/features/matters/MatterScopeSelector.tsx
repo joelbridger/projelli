@@ -28,7 +28,7 @@ import {
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
-import { useActiveMatters, useActiveMatterId } from '@/platform/matter/matterStore';
+import { useActiveMatters } from '@/platform/matter/matterStore';
 import { useMatterSyncStatus } from '@/platform/matter/matterSyncStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import type { MatterSyncStatus } from '@/platform/matter/matterSyncStore';
@@ -37,6 +37,7 @@ import {
   issueAllMattersScopeSelection,
   issueMatterScopeSelection,
   requestMatterScopeSelection,
+  useSelectionPresentation,
 } from '@/platform/client-context';
 
 export interface MatterScopeSelectorProps {
@@ -123,15 +124,19 @@ export function MatterScopeSelector({
   const { t } = useTranslation();
   const entityLabel = useEntityLabel();
   const matters = useActiveMatters();
-  const activeMatterId = useActiveMatterId();
+  const selection = useSelectionPresentation();
+  const activeMatterId = selection.matterId;
 
   const active = matters.find((m) => m.id === activeMatterId) ?? null;
-  const isAllMatters = active === null;
+  const isAllMatters = selection.allMatters;
+  const isBlocked = selection.blocked || (!selection.allMatters && active === null);
 
   const allLabel = t('ask.scope-toggle.all-entity', { entity: entityLabel.other });
-  const triggerLabel = active
-    ? matterLabel(active)
-    : allLabel;
+  const triggerLabel = isBlocked
+    ? 'BLOCKED'
+    : active
+      ? matterLabel(active)
+      : allLabel;
 
   return (
     <DropdownMenu>
@@ -139,30 +144,47 @@ export function MatterScopeSelector({
         <button
           type="button"
           data-testid="matter-scope-selector"
-          data-scope={isAllMatters ? 'allMatters' : 'matter'}
+          data-scope={selection.scope.kind === 'matter-only' ? 'matter' : selection.scope.kind}
+          data-source-scope={selection.sourceScope.kind}
+          data-follower-status={selection.followerStatus}
           data-matter-id={active?.id ?? ''}
           title={
-            isAllMatters
+            isBlocked
+              ? 'Client selection is blocked. Choose a valid client or matter.'
+              : isAllMatters
               ? t('matter.scope.all-matters-title-entity', { entityOther: entityLabel.other, entityOne: entityLabel.one })
               : t('matter.scope.active-title-entity', { entity: entityLabel.one, name: triggerLabel })
           }
           className={cn(
             'inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium max-w-[260px]',
-            isAllMatters
+            isBlocked
+              ? 'border-rose-400/60 bg-rose-50 text-rose-900'
+              : isAllMatters
               ? 'border-amber-400/60 bg-amber-50 text-amber-900'
               : 'border-primary/40 bg-primary/10 text-primary',
             className,
           )}
         >
-          {isAllMatters ? (
+          {isBlocked ? (
+            <>
+              <Briefcase className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">BLOCKED</span>
+              {selection.stale ? <span className="text-[10px]">Updating</span> : null}
+              <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-70" />
+            </>
+          ) : isAllMatters ? (
             <>
               <Globe className="h-3.5 w-3.5 shrink-0" />
               <span className="truncate">{triggerLabel}</span>
+              {selection.stale ? <span className="text-[10px]">Updating</span> : null}
               <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-70" />
             </>
-          ) : (
-            <ActiveMatterTriggerContent matterId={active.id} label={triggerLabel} />
-          )}
+          ) : active ? (
+            <>
+              <ActiveMatterTriggerContent matterId={active.id} label={triggerLabel} />
+              {selection.stale ? <span className="text-[10px]">Updating</span> : null}
+            </>
+          ) : null}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72">
