@@ -4,6 +4,26 @@ import process from 'node:process';
 import ts from 'typescript';
 
 const TEST_PATH = /(?:\.test\.|\.spec\.|\/__tests__\/)/;
+const REQUIRED_TREE_ROOTS = ['src', 'scripts'];
+const SOURCE_EXTENSION = /\.(?:cjs|js|jsx|mjs|ts|tsx)$/;
+const ASSIGNMENT_OPERATORS = new Set([
+  ts.SyntaxKind.EqualsToken,
+  ts.SyntaxKind.PlusEqualsToken,
+  ts.SyntaxKind.MinusEqualsToken,
+  ts.SyntaxKind.AsteriskAsteriskEqualsToken,
+  ts.SyntaxKind.AsteriskEqualsToken,
+  ts.SyntaxKind.SlashEqualsToken,
+  ts.SyntaxKind.PercentEqualsToken,
+  ts.SyntaxKind.AmpersandEqualsToken,
+  ts.SyntaxKind.BarEqualsToken,
+  ts.SyntaxKind.CaretEqualsToken,
+  ts.SyntaxKind.LessThanLessThanEqualsToken,
+  ts.SyntaxKind.GreaterThanGreaterThanEqualsToken,
+  ts.SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken,
+  ts.SyntaxKind.BarBarEqualsToken,
+  ts.SyntaxKind.AmpersandAmpersandEqualsToken,
+  ts.SyntaxKind.QuestionQuestionEqualsToken,
+]);
 const REVIEWED_EXTERNAL_MATTER_SET_STATE = new Set([
   'src/dev/marketing-capture-bridge.ts',
   'src/platform/state/reloadWorkspaceScopedStores.ts',
@@ -36,6 +56,19 @@ function propertyName(node, sourceFile) {
     : node.name?.getText(sourceFile);
 }
 
+function assignedPropertyName(node) {
+  if (ts.isPropertyAccessExpression(node)) return node.name.text;
+  if (
+    ts.isElementAccessExpression(node) &&
+    node.argumentExpression &&
+    (ts.isStringLiteral(node.argumentExpression) ||
+      ts.isNoSubstitutionTemplateLiteral(node.argumentExpression))
+  ) {
+    return node.argumentExpression.text;
+  }
+  return undefined;
+}
+
 function enclosingPropertyName(node, sourceFile) {
   let current = node.parent;
   while (current) {
@@ -63,7 +96,13 @@ export function scanSelectionWriters(relativePath, source) {
     source,
     ts.ScriptTarget.Latest,
     true,
-    relativePath.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS
+    relativePath.endsWith('.tsx')
+      ? ts.ScriptKind.TSX
+      : relativePath.endsWith('.jsx')
+        ? ts.ScriptKind.JSX
+        : /\.(?:cjs|js|mjs)$/.test(relativePath)
+          ? ts.ScriptKind.JS
+          : ts.ScriptKind.TS
   );
   const allowed = [];
   const forbidden = [];
@@ -75,6 +114,14 @@ export function scanSelectionWriters(relativePath, source) {
   }
 
   function visit(node) {
+    if (
+      ts.isBinaryExpression(node) &&
+      ASSIGNMENT_OPERATORS.has(node.operatorToken.kind) &&
+      assignedPropertyName(node.left) === 'activeMatterId'
+    ) {
+      record(node, 'forbidden', 'direct activeMatterId property assignment');
+    }
+
     if (ts.isVariableDeclaration(node) && node.initializer) {
       const initializer = node.initializer.getText(sourceFile);
       const sourceOwnsMatterWriter = initializer.includes('useMatterStore');
@@ -194,7 +241,7 @@ function walk(directory) {
   for (const entry of entries) {
     const target = path.join(directory, entry.name);
     if (entry.isDirectory()) files.push(...walk(target));
-    else if (/\.(?:ts|tsx)$/.test(entry.name)) files.push(target);
+    else if (SOURCE_EXTENSION.test(entry.name)) files.push(target);
   }
   return files;
 }
@@ -202,11 +249,15 @@ function walk(directory) {
 export function auditSelectionWriters(root) {
   const allowed = [];
   const forbidden = [];
-  for (const file of walk(path.join(root, 'src'))) {
-    const relativePath = path.relative(root, file).split(path.sep).join('/');
-    const result = scanSelectionWriters(relativePath, fs.readFileSync(file, 'utf8'));
-    allowed.push(...result.allowed);
-    forbidden.push(...result.forbidden);
+  for (const treeRoot of REQUIRED_TREE_ROOTS) {
+    const directory = path.join(root, treeRoot);
+    if (!fs.existsSync(directory)) continue;
+    for (const file of walk(directory)) {
+      const relativePath = path.relative(root, file).split(path.sep).join('/');
+      const result = scanSelectionWriters(relativePath, fs.readFileSync(file, 'utf8'));
+      allowed.push(...result.allowed);
+      forbidden.push(...result.forbidden);
+    }
   }
   const projectionWriterCount = allowed.filter((entry) =>
     entry.includes('single source-owned follower projection')

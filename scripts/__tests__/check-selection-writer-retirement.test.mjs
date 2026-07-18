@@ -1,11 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {
   auditSelectionWriters,
   scanSelectionWriters,
 } from '../check-selection-writer-retirement.mjs';
 
-test('the production tree has one follower projection writer and no legacy client writer', () => {
+test('the required tree has one follower projection writer and no legacy client writer', () => {
   const result = auditSelectionWriters(process.cwd());
   assert.deepEqual(result.forbidden, []);
   assert.equal(
@@ -14,6 +17,38 @@ test('the production tree has one follower projection writer and no legacy clien
     ).length,
     1
   );
+});
+
+test('the proof fails direct activeMatterId property assignments', () => {
+  const result = scanSelectionWriters(
+    'scripts/demo/Forbidden.mjs',
+    `
+      state.activeMatterId = null;
+      state['activeMatterId'] ||= saved;
+    `
+  );
+  assert.equal(result.forbidden.length, 2);
+  assert.match(result.forbidden[0], /direct activeMatterId property assignment/);
+  assert.match(result.forbidden[1], /direct activeMatterId property assignment/);
+});
+
+test('the executable audit includes scripts in the required tree', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'selection-writer-audit-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(root, 'src/platform/client-context'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'scripts/demo'), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, 'src/platform/client-context/clientContextStore.ts'),
+    `useMatterStore.getState().setActiveMatter(projection);`
+  );
+  fs.writeFileSync(
+    path.join(root, 'scripts/demo/Forbidden.mjs'),
+    `persisted.activeMatterId = null;`
+  );
+
+  const result = auditSelectionWriters(root);
+  assert.equal(result.forbidden.length, 1);
+  assert.match(result.forbidden[0], /^scripts\/demo\/Forbidden\.mjs:/);
 });
 
 test('the proof fails a newly introduced direct follower writer', () => {
