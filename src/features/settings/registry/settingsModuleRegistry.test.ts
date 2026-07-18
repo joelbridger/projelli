@@ -23,6 +23,7 @@ import type {
 describe('settingsModuleRegistry', () => {
   afterEach(() => {
     setDevFlagOverride('booking-availability', undefined);
+    setDevFlagOverride('data-export-backup', undefined);
     vi.doUnmock('@/platform/flags/router');
     vi.doUnmock('./legacySettingsSections');
     vi.doUnmock('@/features/crm-firm');
@@ -346,7 +347,9 @@ describe('settingsModuleRegistry', () => {
 
     expect(bookingAvailability).toBeDefined();
     if (!bookingAvailability) {
-      throw new Error('Expected the enabled booking availability Settings panel');
+      throw new Error(
+        'Expected the enabled booking availability Settings panel'
+      );
     }
 
     render(createElement(bookingAvailability.render));
@@ -354,6 +357,29 @@ describe('settingsModuleRegistry', () => {
     expect(
       screen.getByTestId('booking-availability-settings')
     ).toBeInTheDocument();
+  });
+
+  it('mounts the one real data export panel through the Workspace Settings doorway', () => {
+    expect(
+      getSettingsPanelDescriptors('workspace').filter(
+        (panel) => panel.id === 'data-portability'
+      )
+    ).toEqual([]);
+
+    setDevFlagOverride('data-export-backup', true);
+    const matches = getSettingsPanelDescriptors('workspace').filter(
+      (panel) => panel.id === 'data-portability'
+    );
+
+    expect(matches).toHaveLength(1);
+    const dataPortability = matches[0];
+    if (!dataPortability) {
+      throw new Error('Expected the data export Settings panel');
+    }
+
+    render(createElement(dataPortability.render));
+
+    expect(screen.getByTestId('data-portability-settings')).toBeInTheDocument();
   });
 
   it('hides a registered flag-gated panel while dark and restores it when enabled', async () => {
@@ -377,6 +403,12 @@ describe('settingsModuleRegistry', () => {
     }));
     vi.doMock('./legacySettingsSections', () => ({
       legacySettingsSections: [
+        {
+          id: 'workspace',
+          order: 10,
+          labelKey: 'settings.sections.workspace',
+          legacyLabel: 'Workspace',
+        },
         {
           id: 'scheduling',
           order: 40,
