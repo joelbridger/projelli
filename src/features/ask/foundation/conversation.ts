@@ -270,10 +270,7 @@ function projectStoredRecord<ClientReference, MeetingReference>(
   const kind = record.kind as AskStoredKind;
   if (!payloadForKind(kind, record['payload'], options)) return undefined;
 
-  const payload = record['payload'] as AskPayload<
-    ClientReference,
-    MeetingReference
-  >;
+  const payload = record['payload'];
   const currentClient = options.currentClient;
 
   if (kind === 'askConversation') {
