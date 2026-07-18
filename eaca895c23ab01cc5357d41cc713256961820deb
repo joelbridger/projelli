@@ -1,0 +1,4 @@
+WB-039 receipt-bearing final tip: eaca895c23ab01cc5357d41cc713256961820deb
+Verified base: 8118b12cca5f05892e1418c254818268795694e8
+Tested implementation: adcf61dacc2bd775d4ff9233a76fae1336ce3f1e
+Required checks: PASS; independent review: coordinator-owned pending.
