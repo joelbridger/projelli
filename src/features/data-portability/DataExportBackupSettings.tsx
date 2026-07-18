@@ -6,7 +6,6 @@ import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import {
   createVerifiedMigrationArchive,
   type VerifiedMigrationArchive,
-  UninspectableMigrationArchiveError,
 } from './migrationArchive';
 
 const panel = {
@@ -40,14 +39,8 @@ export function DataExportBackupSettings() {
     setError(null);
     try {
       setReceipt(await createVerifiedMigrationArchive(workspaceRoot));
-    } catch (caught) {
-      setError(
-        caught instanceof UninspectableMigrationArchiveError
-          ? t('data-portability.needs-review-error')
-          : caught instanceof Error
-            ? caught.message
-            : t('data-portability.export-failed')
-      );
+    } catch {
+      setError(t('data-portability.needs-review-error'));
     } finally {
       setBusy(false);
     }
@@ -70,6 +63,16 @@ export function DataExportBackupSettings() {
           </Badge>
           <strong>{t('data-portability.not-a-backup-title')}</strong>
           <span>{t('data-portability.not-a-backup-description')}</span>
+          <strong>{t('data-portability.excludes-title')}</strong>
+          <ul
+            data-testid="migration-archive-excludes"
+            style={{ margin: 0, paddingInlineStart: 22 }}
+          >
+            <li>{t('data-portability.excludes-documents')}</li>
+            <li>{t('data-portability.excludes-email')}</li>
+            <li>{t('data-portability.excludes-records')}</li>
+          </ul>
+          <span>{t('data-portability.decrypted-warning')}</span>
         </div>
       </Callout>
 
@@ -80,10 +83,6 @@ export function DataExportBackupSettings() {
           <li>{t('data-portability.includes-manifest')}</li>
           <li>{t('data-portability.includes-fidelity')}</li>
         </ul>
-        <p data-testid="migration-archive-excludes" style={muted}>
-          {t('data-portability.excludes')}
-        </p>
-        <p style={muted}>{t('data-portability.decrypted-warning')}</p>
 
         {!workspaceRoot ? (
           <p data-testid="migration-archive-workspace-required" role="status">
@@ -96,9 +95,7 @@ export function DataExportBackupSettings() {
           disabled={!canExport}
           iconLeft={Download}
           onClick={() => {
-            void createArchive().catch(() => {
-              setError(t('data-portability.export-failed'));
-            });
+            void createArchive();
           }}
         >
           {busy ? t('data-portability.creating') : t('data-portability.create')}
@@ -106,10 +103,11 @@ export function DataExportBackupSettings() {
       </div>
 
       {error ? (
-        <Callout variant="error">
-          <p data-testid="migration-archive-error" style={{ margin: 0 }}>
-            {error}
-          </p>
+        <Callout variant="error" icon={AlertTriangle}>
+          <div style={{ display: 'grid', gap: 4 }}>
+            <strong>{t('data-portability.needs-review-title')}</strong>
+            <span data-testid="migration-archive-error">{error}</span>
+          </div>
         </Callout>
       ) : null}
 
@@ -138,21 +136,6 @@ export function DataExportBackupSettings() {
                 formattedCount: formatBytes(receipt.byteLength),
               })}
             </dd>
-            <dt>{t('data-portability.checksum')}</dt>
-            <dd
-              data-testid="migration-archive-checksum"
-              style={{ margin: 0, overflowWrap: 'anywhere' }}
-            >
-              {receipt.sha256}
-            </dd>
-            <dt>{t('data-portability.manifest')}</dt>
-            <dd data-testid="migration-archive-manifest" style={{ margin: 0 }}>
-              {receipt.manifestId}
-            </dd>
-            <dt>{t('data-portability.reconciliation-report')}</dt>
-            <dd data-testid="migration-archive-report" style={{ margin: 0 }}>
-              {receipt.reconciliationReportId}
-            </dd>
             <dt>{t('data-portability.record-count')}</dt>
             <dd
               data-testid="migration-archive-record-count"
@@ -160,18 +143,48 @@ export function DataExportBackupSettings() {
             >
               {receipt.manifest.recordCount}
             </dd>
-            <dt>{t('data-portability.source-types')}</dt>
-            <dd
-              data-testid="migration-archive-source-types"
-              style={{ margin: 0 }}
-            >
-              {Object.entries(receipt.manifest.recordCounts)
-                .map(
-                  ([sourceType, count]) => `${sourceType} (${String(count)})`
-                )
-                .join(', ')}
-            </dd>
           </dl>
+          <details style={{ marginTop: 'var(--kp-space-md)' }}>
+            <summary>{t('data-portability.technical-details')}</summary>
+            <dl
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'max-content minmax(0, 1fr)',
+                gap: '8px 12px',
+                marginBottom: 0,
+              }}
+            >
+              <dt>{t('data-portability.checksum')}</dt>
+              <dd
+                data-testid="migration-archive-checksum"
+                style={{ margin: 0, overflowWrap: 'anywhere' }}
+              >
+                {receipt.sha256}
+              </dd>
+              <dt>{t('data-portability.manifest')}</dt>
+              <dd
+                data-testid="migration-archive-manifest"
+                style={{ margin: 0 }}
+              >
+                {receipt.manifestId}
+              </dd>
+              <dt>{t('data-portability.reconciliation-report')}</dt>
+              <dd data-testid="migration-archive-report" style={{ margin: 0 }}>
+                {receipt.reconciliationReportId}
+              </dd>
+              <dt>{t('data-portability.source-types')}</dt>
+              <dd
+                data-testid="migration-archive-source-types"
+                style={{ margin: 0 }}
+              >
+                {Object.entries(receipt.manifest.recordCounts)
+                  .map(
+                    ([sourceType, count]) => `${sourceType} (${String(count)})`
+                  )
+                  .join(', ')}
+              </dd>
+            </dl>
+          </details>
         </div>
       ) : null}
     </section>

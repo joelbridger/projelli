@@ -84,13 +84,19 @@ describe('data export Settings panel', () => {
         .getAllByRole('listitem')
         .map((item) => item.textContent)
     ).toEqual([
-      'For each eligible stored CRM record: its source type, source ID, copied source payload, and target record ID when one is stored.',
-      'A manifest with the total record count and counts by source record type.',
-      'The fidelity rows saved in the migration report. Success is shown only when every archived source type has a matching, reconciled row.',
+      'The import data saved with each CRM record that can be copied.',
+      'The total number of copied records, plus totals for each kind of CRM record.',
+      'The import results for each kind of CRM record. Lantern only shows success when those results match the records in the JSON file.',
     ]);
-    expect(screen.getByTestId('migration-archive-excludes')).toHaveTextContent(
-      'The contract omits stored records missing any of the three source fields.'
-    );
+    expect(
+      within(screen.getByTestId('migration-archive-excludes'))
+        .getAllByRole('listitem')
+        .map((item) => item.textContent)
+    ).toEqual([
+      'The documents and attachments themselves.',
+      'The email files themselves.',
+      'CRM records that are missing any of the import information needed for this copy.',
+    ]);
 
     fireEvent.click(screen.getByTestId('migration-archive-create'));
 
@@ -115,7 +121,7 @@ describe('data export Settings panel', () => {
     ).toHaveTextContent(/^contact \(1\), external_note \(1\)$/);
     await waitFor(() => {
       expect(screen.getByTestId('migration-archive-create')).toHaveTextContent(
-        'Create CRM source-record archive'
+        'Create JSON copy'
       );
     });
   });
@@ -133,17 +139,20 @@ describe('data export Settings panel', () => {
     expect(preExportClaimsCopy).toBe(
       [
         'Data export',
-        'Create the existing archive for stored CRM records that carry a source type, source ID, and source payload.',
-        'Complete firm backup unavailable — needs review',
+        'Create a JSON copy of CRM records that still have their original import data.',
+        'Complete firm backup unavailable. Needs review.',
         'This is not a complete firm backup.',
-        'This doorway copies every stored CRM record with those three source fields, regardless of import provider. It does not select only Wealthbox records.',
-        'What the archive contract includes',
-        'For each eligible stored CRM record: its source type, source ID, copied source payload, and target record ID when one is stored.',
-        'A manifest with the total record count and counts by source record type.',
-        'The fidelity rows saved in the migration report. Success is shown only when every archived source type has a matching, reconciled row.',
-        'The contract omits stored records missing any of the three source fields. It does not copy workspace documents or email as files, but a CRM record describing either is included when it has all three fields.',
-        'The JSON file is decrypted. Store it only in a place your firm approves.',
-        'Create CRM source-record archive',
+        'This only copies CRM records that still have the information saved from their original import. It can include records imported from Wealthbox or another system.',
+        'Does not include',
+        'The documents and attachments themselves.',
+        'The email files themselves.',
+        'CRM records that are missing any of the import information needed for this copy.',
+        'This JSON file is not encrypted. Store it only in a place your firm approves.',
+        'What this JSON file includes',
+        'The import data saved with each CRM record that can be copied.',
+        'The total number of copied records, plus totals for each kind of CRM record.',
+        'The import results for each kind of CRM record. Lantern only shows success when those results match the records in the JSON file.',
+        'Create JSON copy',
       ]
         .join('')
         .replace(/\s+/gu, '')
@@ -157,20 +166,21 @@ describe('data export Settings panel', () => {
       .textContent?.replace(/\s+/gu, '');
     expect(provenResultText).toBe(
       [
-        'Archive created and manifest checked',
+        'JSON copy created and checked',
         'Saved file',
         receipt.filePath,
         'Size',
         '1,050 bytes',
-        'SHA-256 checksum',
+        'CRM records copied',
+        '2',
+        'Details for your tech team',
+        'SHA-256 file check',
         WRITER_FIXTURE_SHA256,
         'Manifest ID',
         receipt.manifestId,
         'Fidelity report ID',
         receipt.reconciliationReportId,
-        'Archived records',
-        '2',
-        'Manifest source types',
+        'CRM record kinds',
         'contact (1), external_note (1)',
       ]
         .join('')
@@ -203,9 +213,9 @@ describe('data export Settings panel', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('shows the existing export error and no successful artifact', async () => {
+  it('replaces an engineering error with the safe review message', async () => {
     vi.mocked(createMigrationExport).mockRejectedValue(
-      new Error('Run the migration before creating an export file.')
+      new TypeError("Cannot read properties of undefined (reading 'invoke')")
     );
     renderPanel();
 
@@ -213,7 +223,14 @@ describe('data export Settings panel', () => {
 
     expect(
       await screen.findByTestId('migration-archive-error')
-    ).toHaveTextContent('Run the migration before creating an export file.');
+    ).toHaveTextContent(
+      'Lantern could not finish creating and checking this archive. It needs review. No verified archive is being claimed.'
+    );
+    expect(
+      screen.getByTestId('data-portability-settings')
+    ).not.toHaveTextContent(
+      "Cannot read properties of undefined (reading 'invoke')"
+    );
     expect(
       screen.queryByTestId('migration-archive-result')
     ).not.toBeInTheDocument();
