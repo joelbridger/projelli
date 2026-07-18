@@ -44,6 +44,10 @@ import {
   EV_OPEN_NEW_GROUP,
   EV_MATTER_LAUNCH,
 } from '@/config/identity';
+import {
+  issueAllMattersScopeSelection,
+  requestMatterScopeSelection,
+} from '@/platform/client-context';
 
 interface SpineProps {
   fileTreeContent?: React.ReactNode;
@@ -89,7 +93,6 @@ export function Spine({
   // shrinks this list instead of leaving it there forever.
   const matters = useActiveMatters();
   const activeMatterId = useActiveMatterId();
-  const setActiveMatter = useMatterStore((s) => s.setActiveMatter);
   const setClientMapHubId = useMatterStore((s) => s.setClientMapHubId);
   const setClientMapHubTab = useMatterStore((s) => s.setClientMapHubTab);
   // Client groups (feedback line 13). Rendered as collapsible sections under
@@ -577,15 +580,18 @@ export function Spine({
                 data-testid="spine-all-clients-row"
                 aria-current={allClientsActive ? 'page' : undefined}
                 onClick={() => {
-                  if (onAllClientsSelect) {
-                    onAllClientsSelect();
-                  }
-                  setActiveMatter(null);
-                  setClientMapHubId(null);
-                  setClientMapHubTab(null);
-                  if (!onAllClientsSelect) {
-                    onTabChange?.('matters');
-                  }
+                  const request = issueAllMattersScopeSelection();
+                  void requestMatterScopeSelection(request)
+                    .then((result) => {
+                      if (result.kind === 'refused') return;
+                      onAllClientsSelect?.();
+                      setClientMapHubId(null);
+                      setClientMapHubTab(null);
+                      if (!onAllClientsSelect) onTabChange?.('matters');
+                    })
+                    .catch((error: unknown) => {
+                      console.error('[Spine] All-client scope selection failed.', error);
+                    });
                 }}
                 style={{
                   display: 'flex',

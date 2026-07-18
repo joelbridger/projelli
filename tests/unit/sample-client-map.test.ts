@@ -57,7 +57,7 @@ describe('sample Client Map seed (Hendricks)', () => {
     }
   });
 
-  it('seedSampleClientMap stores the map and opens its hub as the active matter', () => {
+  it('seedSampleClientMap stores the map and opens its hub as the active matter', async () => {
     // The caller (App) creates the sample matter first (getOrCreateSampleMatter);
     // mirror that so setActiveMatter has a real matter to activate.
     useMatterStore.getState().createMatter({
@@ -67,7 +67,7 @@ describe('sample Client Map seed (Hendricks)', () => {
       folderPaths: ['/ws'],
       isSample: true,
     });
-    seedSampleClientMap('matter_sample_test');
+    await seedSampleClientMap('matter_sample_test');
     const stored = useClientMapStore.getState().getMap('matter_sample_test');
     expect(stored).toBeTruthy();
     expect(stored?.sections.length).toBe(4);

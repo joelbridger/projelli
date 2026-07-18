@@ -19,8 +19,8 @@ beforeEach(() => {
 });
 
 describe('seedWebDemoClientMap', () => {
-  it('creates the Webb client keyed to the seeded demo folder and focuses its hub', () => {
-    seedWebDemoClientMap();
+  it('creates the Webb client keyed to the seeded demo folder and focuses its hub', async () => {
+    await seedWebDemoClientMap();
 
     const matter = useMatterStore.getState().matters.find((m) => m.id === WEBB_ID);
     expect(matter).toBeTruthy();
@@ -32,8 +32,8 @@ describe('seedWebDemoClientMap', () => {
     expect(useMatterStore.getState().clientMapHubId).toBe(WEBB_ID);
   });
 
-  it('seeds a fully-filled, cited "solid" Client Map (no open gaps, no assumptions)', () => {
-    seedWebDemoClientMap();
+  it('seeds a fully-filled, cited "solid" Client Map (no open gaps, no assumptions)', async () => {
+    await seedWebDemoClientMap();
     const map = useClientMapStore.getState().getMap(WEBB_ID);
     expect(map).toBeTruthy();
     expect(map!.completeness.level).toBe('solid');
@@ -55,9 +55,9 @@ describe('seedWebDemoClientMap', () => {
     expect(sources.every((src) => src.kind === 'document' && src.ref.startsWith(`${WEBB_DIR}/`))).toBe(true);
   });
 
-  it('is idempotent — a reload re-focuses the same single client + map', () => {
-    seedWebDemoClientMap();
-    seedWebDemoClientMap();
+  it('is idempotent — a reload re-focuses the same single client + map', async () => {
+    await seedWebDemoClientMap();
+    await seedWebDemoClientMap();
     expect(useMatterStore.getState().matters.filter((m) => m.id === WEBB_ID)).toHaveLength(1);
     expect(useClientMapStore.getState().getMap(WEBB_ID)).toBeTruthy();
   });

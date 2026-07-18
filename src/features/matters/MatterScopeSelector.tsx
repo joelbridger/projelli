@@ -28,11 +28,16 @@ import {
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
-import { useActiveMatters, useActiveMatterId, useMatterStore } from '@/platform/matter/matterStore';
+import { useActiveMatters, useActiveMatterId } from '@/platform/matter/matterStore';
 import { useMatterSyncStatus } from '@/platform/matter/matterSyncStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import type { MatterSyncStatus } from '@/platform/matter/matterSyncStore';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
+import {
+  issueAllMattersScopeSelection,
+  issueMatterScopeSelection,
+  requestMatterScopeSelection,
+} from '@/platform/client-context';
 
 export interface MatterScopeSelectorProps {
   /** Opens the matter manager dialog so the user can create/map matters. */
@@ -119,7 +124,6 @@ export function MatterScopeSelector({
   const entityLabel = useEntityLabel();
   const matters = useActiveMatters();
   const activeMatterId = useActiveMatterId();
-  const setActiveMatter = useMatterStore((s) => s.setActiveMatter);
 
   const active = matters.find((m) => m.id === activeMatterId) ?? null;
   const isAllMatters = active === null;
@@ -181,7 +185,11 @@ export function MatterScopeSelector({
                 key={m.id}
                 data-testid={`matter-scope-option-${m.id}`}
                 onClick={() => {
-                  setActiveMatter(m.id);
+                  void requestMatterScopeSelection(issueMatterScopeSelection(m.id)).catch(
+                    (error: unknown) => {
+                      console.error('[Matter scope] Matter selection failed.', error);
+                    }
+                  );
                 }}
                 className="flex items-start gap-2 text-xs"
               >
@@ -204,7 +212,11 @@ export function MatterScopeSelector({
         <DropdownMenuItem
           data-testid="matter-scope-option-all"
           onClick={() => {
-            setActiveMatter(null);
+            void requestMatterScopeSelection(issueAllMattersScopeSelection()).catch(
+              (error: unknown) => {
+                console.error('[Matter scope] All-matters selection failed.', error);
+              }
+            );
           }}
           className="flex items-center gap-2 text-xs"
         >

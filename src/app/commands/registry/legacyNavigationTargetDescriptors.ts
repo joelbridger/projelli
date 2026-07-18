@@ -1,14 +1,20 @@
 import { openMatterDocumentSource } from '@/app/shell/matterDocumentNavigation';
 import { getActiveWorkspaceService } from '@/app/fileOps/flushDirtyTabs';
 import { useMatterStore } from '@/platform/matter/matterStore';
+import {
+  issueMatterScopeSelection,
+  requestMatterScopeSelection,
+} from '@/platform/client-context';
 import type {
   MatterNavigationTarget,
   NavigationTargetDescriptor,
   NavigationTargetRuntime,
 } from '@/app/commands/registry/navigationTargetRegistry';
 
-function selectMatter(matterId: string): void {
-  useMatterStore.getState().setActiveMatter(matterId);
+function selectMatter(matterId: string): Promise<boolean> {
+  return requestMatterScopeSelection(issueMatterScopeSelection(matterId)).then(
+    (result) => result.kind !== 'refused'
+  );
 }
 
 function openHub(
@@ -16,15 +22,17 @@ function openHub(
   runtime: NavigationTargetRuntime,
   tab: 'overview' | 'documents' | 'email' | 'meetings' | 'activity',
   beforeSurfaceChange?: () => void
-): void {
-  runtime.pushNavigationSnapshot?.();
-  selectMatter(target.matterId);
-  const matterState = useMatterStore.getState();
-  matterState.setClientMapHubId(target.matterId);
-  matterState.setClientMapHubTab(tab);
-  runtime.setMattersSurfaceMode?.('client-map');
-  beforeSurfaceChange?.();
-  runtime.setSurface('matters');
+): Promise<void> {
+  return selectMatter(target.matterId).then((selected) => {
+    if (!selected) return;
+    runtime.pushNavigationSnapshot?.();
+    const matterState = useMatterStore.getState();
+    matterState.setClientMapHubId(target.matterId);
+    matterState.setClientMapHubTab(tab);
+    runtime.setMattersSurfaceMode?.('client-map');
+    beforeSurfaceChange?.();
+    runtime.setSurface('matters');
+  });
 }
 
 function directSurface(
@@ -35,9 +43,11 @@ function directSurface(
     id,
     appSurfaceId,
     resolve: (target, runtime) => {
-      runtime.pushNavigationSnapshot?.();
-      selectMatter(target.matterId);
-      runtime.setSurface(appSurfaceId);
+      return selectMatter(target.matterId).then((selected) => {
+        if (!selected) return;
+        runtime.pushNavigationSnapshot?.();
+        runtime.setSurface(appSurfaceId);
+      });
     },
   };
 }
@@ -47,15 +57,14 @@ const searchTarget: NavigationTargetDescriptor = {
   id: 'search',
   appSurfaceId: 'search',
   resolve: (target, runtime) => {
-    runtime.pushNavigationSnapshot?.();
-    selectMatter(target.matterId);
-    runtime.setSurface('search');
-    if (target.question) {
-      runtime.setAskPrefill({
-        question: target.question,
-        autoSubmit: true,
-      });
-    }
+    return selectMatter(target.matterId).then((selected) => {
+      if (!selected) return;
+      runtime.pushNavigationSnapshot?.();
+      runtime.setSurface('search');
+      if (target.question) {
+        runtime.setAskPrefill({ question: target.question, autoSubmit: true });
+      }
+    });
   },
 };
 const workflowsTarget = directSurface('workflows', 'workflows');
@@ -67,7 +76,7 @@ const documentsTarget: NavigationTargetDescriptor = {
   resolve: (target, runtime) => {
     const source = target.source;
     if (source?.kind === 'document' && typeof source.ref === 'string') {
-      void openMatterDocumentSource({
+      return openMatterDocumentSource({
         matterId: target.matterId,
         ref: source.ref,
         ...(source.snippet ? { snippet: source.snippet } : {}),
@@ -78,10 +87,9 @@ const documentsTarget: NavigationTargetDescriptor = {
           setMattersSurfaceMode: runtime.setMattersSurfaceMode,
           pushNavigationSnapshot: runtime.pushNavigationSnapshot,
         },
-      });
-      return;
+      }).then(() => undefined);
     }
-    openHub(target, runtime, 'documents', () => {
+    return openHub(target, runtime, 'documents', () => {
       runtime.setDocumentsView('browser');
     });
   },
@@ -91,7 +99,7 @@ const emailTarget: NavigationTargetDescriptor = {
   id: 'email',
   appSurfaceId: 'matters',
   resolve: (target, runtime) => {
-    openHub(target, runtime, 'email');
+    return openHub(target, runtime, 'email');
   },
 };
 
@@ -99,7 +107,7 @@ const auditTarget: NavigationTargetDescriptor = {
   id: 'audit',
   appSurfaceId: 'matters',
   resolve: (target, runtime) => {
-    openHub(target, runtime, 'activity');
+    return openHub(target, runtime, 'activity');
   },
 };
 
@@ -107,7 +115,7 @@ const mattersTarget: NavigationTargetDescriptor = {
   id: 'matters',
   appSurfaceId: 'matters',
   resolve: (target, runtime) => {
-    openHub(target, runtime, 'overview');
+    return openHub(target, runtime, 'overview');
   },
 };
 

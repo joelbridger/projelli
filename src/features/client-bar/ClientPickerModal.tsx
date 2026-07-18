@@ -59,6 +59,7 @@ export function ClientPickerModal({
 
   const selectClient = (household: ClientPickerHousehold) => {
     onSelect({
+      provider: household.provider,
       householdId: household.householdId,
       displayName: household.displayName,
       ...(household.primaryPeople

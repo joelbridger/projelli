@@ -57,17 +57,17 @@ export async function openRunArtifactFromWorkflows({
       useMatterStore.getState().matters
     );
     if (matterId) {
-      pushNavigationSnapshot?.();
-      showMatterDocuments({
+      const routed = await showMatterDocuments({
         matterId,
         documentOpened: true,
         handlers: {
           setDocumentsView,
           setSidebarActiveTab,
           setMattersSurfaceMode,
+          pushNavigationSnapshot,
         },
       });
-      return true;
+      return routed;
     }
     setSidebarActiveTab('files');
   }

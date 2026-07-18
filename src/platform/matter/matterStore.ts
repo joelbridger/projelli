@@ -78,6 +78,15 @@ import { getProfession } from '@/platform/profile/professionStore';
 import { getSampleMatterName } from '@/platform/matter/samples/sampleMatterDemo';
 import { useClientGroupStore } from '@/platform/matter/clientGroupStore';
 import type { MatterUiSnapshot } from '@/platform/matter/matterUiStore';
+import {
+  readSelectionPersistenceHint,
+  rehydrateSelectionFromData,
+  selectionWriterRetirementEnabled,
+} from '@/platform/client-context/selectionWriterBridge';
+import type {
+  PersistedSelectionHint,
+  RehydratedSelectionInput,
+} from '@/platform/client-context/selectionTypes';
 import type { MatterAtAGlanceEntry } from '@/platform/matter/matterAtAGlanceStore';
 import type { MatterSyncStatus } from '@/platform/matter/matterSyncStore';
 import type { MatterAtAGlanceResult } from '@/platform/matter/matterAtAGlance';
@@ -476,6 +485,8 @@ interface MatterState {
 interface PersistedMatterState {
   matters: Matter[];
   activeMatterId: string | null;
+  /** Restart input only. The client-context classifier never trusts it as an arm. */
+  selectionHint?: PersistedSelectionHint;
   snapshots: Record<string, MatterUiSnapshot>;
   cache: Record<string, MatterAtAGlanceEntry>;
 }
@@ -488,6 +499,22 @@ const MATTERS_BASE_KEY = SK_MATTERS;
 const UI_BASE_KEY = SK_MATTER_UI_SNAPSHOTS;
 const GLANCE_BASE_KEY = SK_MATTER_AT_A_GLANCE;
 const MATTERS_VERSION = 10;
+let pendingSelectionRehydration: RehydratedSelectionInput | null = null;
+
+function selectionRehydrationInput(
+  state: Pick<PersistedMatterState, 'activeMatterId' | 'selectionHint'>
+): RehydratedSelectionInput {
+  return state.selectionHint
+    ? { kind: 'persisted-hint', value: state.selectionHint }
+    : { kind: 'legacy-follower', activeMatterId: state.activeMatterId };
+}
+
+function persistenceHintFields():
+  | { selectionHint: PersistedSelectionHint }
+  | Record<string, never> {
+  const selectionHint = readSelectionPersistenceHint();
+  return selectionHint ? { selectionHint } : {};
+}
 
 /** The three scoped keys for the currently-active workspace scope (suffix is
  *  `''` — i.e. the legacy global keys — when no workspace scope is set). */
@@ -732,6 +759,9 @@ function migrateGlobalMattersForScope(root: string): StorageValue<PersistedMatte
     {
       matters: (gMatters?.state?.['matters'] as Matter[] | undefined) ?? [],
       activeMatterId: (gMatters?.state?.['activeMatterId'] as string | null | undefined) ?? null,
+      selectionHint: gMatters?.state?.['selectionHint'] as
+        | PersistedSelectionHint
+        | undefined,
       snapshots: (gUi?.state?.['snapshots'] as Record<string, MatterUiSnapshot> | undefined) ?? {},
       cache: (gGlance?.state?.['cache'] as Record<string, MatterAtAGlanceEntry> | undefined) ?? {},
     },
@@ -768,6 +798,7 @@ function migrateGlobalMattersForScope(root: string): StorageValue<PersistedMatte
       migrated.activeMatterId && keptIds.has(migrated.activeMatterId)
         ? migrated.activeMatterId
         : null,
+    ...(migrated.selectionHint ? { selectionHint: migrated.selectionHint } : {}),
     snapshots: pickByIds(migrated.snapshots, keptIds),
     cache: pickByIds(migrated.cache, keptIds),
   };
@@ -792,7 +823,11 @@ function writeScopedMatterEnvelopes(
     localStorage.setItem(
       keys.matters,
       JSON.stringify({
-        state: { matters: state.matters, activeMatterId: state.activeMatterId },
+        state: {
+          matters: state.matters,
+          activeMatterId: state.activeMatterId,
+          ...(state.selectionHint ? { selectionHint: state.selectionHint } : {}),
+        },
         version,
       })
     );
@@ -834,6 +869,11 @@ const multiKeyMatterStorage: PersistStorage<PersistedMatterState> = {
         matters: (matters?.state?.['matters'] as Matter[] | undefined) ?? [],
         activeMatterId:
           (matters?.state?.['activeMatterId'] as string | null | undefined) ?? null,
+        ...((matters?.state?.['selectionHint'] as PersistedSelectionHint | undefined)
+          ? {
+              selectionHint: matters?.state?.['selectionHint'] as PersistedSelectionHint,
+            }
+          : {}),
         snapshots:
           (ui?.state?.['snapshots'] as Record<string, MatterUiSnapshot> | undefined) ?? {},
         cache:
@@ -841,21 +881,42 @@ const multiKeyMatterStorage: PersistStorage<PersistedMatterState> = {
       };
       // Return the matters key's stored version so `persist` runs the schema
       // migration when an older user hydrates. ui/glance are unversioned.
+      if (selectionWriterRetirementEnabled()) {
+        pendingSelectionRehydration = selectionRehydrationInput(state);
+      }
       return { state, version: matters?.version ?? MATTERS_VERSION };
     }
     // No data at this scope.
     const root = getActiveWorkspaceScopeRoot();
     if (!root) return null; // no scope + no global data — fresh user → defaults
     // A workspace is open but has no scoped data yet → migrate from global.
-    return migrateGlobalMattersForScope(root);
+    const migrated = migrateGlobalMattersForScope(root);
+    if (selectionWriterRetirementEnabled()) {
+      pendingSelectionRehydration = selectionRehydrationInput(migrated.state);
+    }
+    return migrated;
   },
   setItem: (_name, value): void => {
-    writeScopedMatterEnvelopes(scopedMatterKeys(), value.state, value.version ?? MATTERS_VERSION);
+    // Capture the authority hint in the same workspace-bound snapshot as the
+    // matter facts. A queued write must never read whichever workspace happens
+    // to be active later.
+    const persistedState: PersistedMatterState = {
+      ...value.state,
+      ...persistenceHintFields(),
+    };
+    writeScopedMatterEnvelopes(
+      scopedMatterKeys(),
+      persistedState,
+      value.version ?? MATTERS_VERSION
+    );
     // WORKSPACE-DISK WRITE-THROUGH (2026-07 durability fix): localStorage is
     // only a fast cache — every persisted change is also committed to the open
     // workspace's own `.lantern/matters.json` so a browser-profile wipe can
     // never destroy the client organization. See the disk-sync section below.
-    scheduleMattersWorkspaceDiskWrite(value.state, value.version ?? MATTERS_VERSION);
+    scheduleMattersWorkspaceDiskWrite(
+      persistedState,
+      value.version ?? MATTERS_VERSION
+    );
   },
   removeItem: (): void => {
     const keys = scopedMatterKeys();
@@ -957,6 +1018,7 @@ function serializeDiskState(state: PersistedMatterState, version: number): strin
     state: {
       matters: state.matters,
       activeMatterId: state.activeMatterId,
+      ...(state.selectionHint ? { selectionHint: state.selectionHint } : {}),
       snapshots: state.snapshots,
       cache: state.cache,
     },
@@ -988,6 +1050,7 @@ function scheduleMattersWorkspaceDiskWrite(state: PersistedMatterState, version:
     await writeMattersWorkspaceFile(target.service, root, {
       matters: state.matters,
       activeMatterId: state.activeMatterId,
+      ...(state.selectionHint ? { selectionHint: state.selectionHint } : {}),
       snapshots: state.snapshots,
       cache: state.cache,
     }, version);
@@ -1005,6 +1068,7 @@ function sanitizeDiskMatterState(migrated: PersistedMatterState | undefined): Pe
   return {
     matters,
     activeMatterId,
+    ...(migrated?.selectionHint ? { selectionHint: migrated.selectionHint } : {}),
     snapshots:
       migrated?.snapshots && typeof migrated.snapshots === 'object' ? migrated.snapshots : {},
     cache: migrated?.cache && typeof migrated.cache === 'object' ? migrated.cache : {},
@@ -1034,6 +1098,7 @@ export function hydrateMattersFromWorkspaceDisk(root: string): Promise<void> {
   const preSnapshot: PersistedMatterState = {
     matters: pre.matters,
     activeMatterId: pre.activeMatterId,
+    ...persistenceHintFields(),
     snapshots: pre.snapshots,
     cache: pre.cache,
   };
@@ -1104,6 +1169,11 @@ export function hydrateMattersFromWorkspaceDisk(root: string): Promise<void> {
         applied = {
           matters,
           activeMatterId,
+          ...(selectionWriterRetirementEnabled()
+            ? persistenceHintFields()
+            : applied.selectionHint
+              ? { selectionHint: applied.selectionHint }
+              : {}),
           snapshots: {
             ...pickByIds(applied.snapshots, keptIds),
             ...pickByIds(now.snapshots, keptIds),
@@ -1125,12 +1195,21 @@ export function hydrateMattersFromWorkspaceDisk(root: string): Promise<void> {
       if (!needsDiskCommit) {
         lastDiskWriteJsonByScope.set(target.scopeId, serializeDiskState(applied, MATTERS_VERSION));
       }
-      useMatterStore.setState({
-        matters: applied.matters,
-        activeMatterId: applied.activeMatterId,
-        snapshots: applied.snapshots,
-        cache: applied.cache,
-      });
+      if (selectionWriterRetirementEnabled()) {
+        useMatterStore.setState({
+          matters: applied.matters,
+          snapshots: applied.snapshots,
+          cache: applied.cache,
+        });
+        rehydrateSelectionFromData(selectionRehydrationInput(applied));
+      } else {
+        useMatterStore.setState({
+          matters: applied.matters,
+          activeMatterId: applied.activeMatterId,
+          snapshots: applied.snapshots,
+          cache: applied.cache,
+        });
+      }
       return;
     }
 
@@ -1158,6 +1237,9 @@ export function hydrateMattersFromWorkspaceDisk(root: string): Promise<void> {
       await writeMattersWorkspaceFile(target.service, root, {
         matters: preSnapshot.matters,
         activeMatterId: preSnapshot.activeMatterId,
+        ...(preSnapshot.selectionHint
+          ? { selectionHint: preSnapshot.selectionHint }
+          : {}),
         snapshots: preSnapshot.snapshots,
         cache: preSnapshot.cache,
       }, MATTERS_VERSION);
@@ -1180,6 +1262,7 @@ export function hydrateMattersFromWorkspaceDisk(root: string): Promise<void> {
     const snapshot: PersistedMatterState = {
       matters: s.matters,
       activeMatterId: s.activeMatterId,
+      ...persistenceHintFields(),
       snapshots: s.snapshots,
       cache: s.cache,
     };
@@ -1190,6 +1273,7 @@ export function hydrateMattersFromWorkspaceDisk(root: string): Promise<void> {
     await writeMattersWorkspaceFile(target.service, root, {
       matters: snapshot.matters,
       activeMatterId: snapshot.activeMatterId,
+      ...(snapshot.selectionHint ? { selectionHint: snapshot.selectionHint } : {}),
       snapshots: snapshot.snapshots,
       cache: snapshot.cache,
     }, MATTERS_VERSION);
@@ -1449,7 +1533,14 @@ export const useMatterStore = create<MatterState>()(
           return {
             matters: state.matters.filter((m) => m.id !== id),
             // If the deleted matter was active, fall back to the all-matters scope.
-            activeMatterId: state.activeMatterId === id ? null : state.activeMatterId,
+            // While authority is active, deletion changes matter facts only;
+            // the source classifier synchronously blocks and its one projection
+            // writer owns follower convergence. Dark mode keeps legacy bytes.
+            activeMatterId: selectionWriterRetirementEnabled()
+              ? state.activeMatterId
+              : state.activeMatterId === id
+                ? null
+                : state.activeMatterId,
             // Close its Client Map hub so a recycled id can't reopen it.
             clientMapHubId: state.clientMapHubId === id ? null : state.clientMapHubId,
             snapshots,
@@ -1828,7 +1919,11 @@ export const useMatterStore = create<MatterState>()(
           // Don't leave the active scope pointing at a just-archived matter —
           // fall back to the explicit all-matters scope (same as deleteMatter).
           activeMatterId:
-            archived && state.activeMatterId === id ? null : state.activeMatterId,
+            selectionWriterRetirementEnabled()
+              ? state.activeMatterId
+              : archived && state.activeMatterId === id
+                ? null
+                : state.activeMatterId,
           // Close its Client Map hub too, so it can't resurface on archive.
           clientMapHubId:
             archived && state.clientMapHubId === id ? null : state.clientMapHubId,
@@ -1988,6 +2083,22 @@ export const useMatterStore = create<MatterState>()(
         snapshots: state.snapshots,
         cache: state.cache,
       }),
+      merge: (persisted, current) => {
+        const restored = persisted as Partial<PersistedMatterState>;
+        if (!selectionWriterRetirementEnabled()) {
+          return { ...current, ...restored };
+        }
+        const { activeMatterId: _legacyFollowerHint, ...facts } = restored;
+        return { ...current, ...facts };
+      },
+      onRehydrateStorage: () => () => {
+        if (!selectionWriterRetirementEnabled() || !pendingSelectionRehydration) {
+          return;
+        }
+        const input = pendingSelectionRehydration;
+        pendingSelectionRehydration = null;
+        rehydrateSelectionFromData(input);
+      },
     }
   )
 );

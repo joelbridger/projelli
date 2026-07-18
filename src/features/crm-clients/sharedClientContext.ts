@@ -1,5 +1,7 @@
 import {
-  useClientContextStore,
+  issueSharedClientSelection,
+  replaceCanonicalHouseholdDirectory,
+  requestSharedClientSelection,
   type SharedClientContextAdapter,
   type SharedClientIdentity,
 } from '@/platform/client-context';
@@ -15,7 +17,11 @@ export const crmClientsSharedClientContextAdapter = {
       ? { mode: 'household', householdId: client.householdId }
       : { mode: 'directory' },
   selectHousehold: (client: SharedClientIdentity): void => {
-    useClientContextStore.getState().setClient(client);
+    replaceCanonicalHouseholdDirectory(client.provider, [client]);
+    const request = issueSharedClientSelection(client);
+    void requestSharedClientSelection(request).catch((error: unknown) => {
+      console.error('[CRM clients] Shared client selection failed.', error);
+    });
   },
 } satisfies SharedClientContextAdapter<CrmClientsSharedContext> & {
   selectHousehold: (client: SharedClientIdentity) => void;

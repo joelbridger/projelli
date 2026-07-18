@@ -55,18 +55,31 @@ vi.mock('@/platform/matter/matterStore', () => ({
   useMatters: () => matterMocks.matters,
   useActiveMatters: () => matterMocks.matters,
   useActiveMatterId: () => matterMocks.activeMatterId,
-  useMatterStore: (
-    selector: (s: {
+  useMatterStore: Object.assign(
+    (selector: (s: {
+      matters: Matter[];
+      activeMatterId: string | null;
       setActiveMatter: (id: string | null) => void;
       setClientMapHubId: (id: string | null) => void;
       setClientMapHubTab: (tab: string | null) => void;
-    }) => unknown
-  ) =>
-    selector({
+    }) => unknown) => selector({
+      matters: matterMocks.matters,
+      activeMatterId: matterMocks.activeMatterId,
       setActiveMatter: storeMocks.setActiveMatter,
       setClientMapHubId: storeMocks.setClientMapHubId,
       setClientMapHubTab: storeMocks.setClientMapHubTab,
     }),
+    {
+      getState: () => ({
+        matters: matterMocks.matters,
+        activeMatterId: matterMocks.activeMatterId,
+        setActiveMatter: storeMocks.setActiveMatter,
+        setClientMapHubId: storeMocks.setClientMapHubId,
+        setClientMapHubTab: storeMocks.setClientMapHubTab,
+      }),
+      subscribe: () => () => {},
+    }
+  ),
 }));
 
 describe('Spine — Clients section', () => {
@@ -110,16 +123,18 @@ describe('Spine — Clients section', () => {
     ).toBeTruthy();
   });
 
-  it('clicking All Clients clears the selected client and returns to the Client Map surface', () => {
+  it('clicking All Clients clears the selected client and returns to the Client Map surface', async () => {
     const onTabChange = vi.fn();
     render(<Spine activeTab="search" onTabChange={onTabChange} />);
 
     fireEvent.click(screen.getByTestId('spine-all-clients-row'));
 
-    expect(storeMocks.setActiveMatter).toHaveBeenCalledWith(null);
-    expect(storeMocks.setClientMapHubId).toHaveBeenCalledWith(null);
-    expect(storeMocks.setClientMapHubTab).toHaveBeenCalledWith(null);
-    expect(onTabChange).toHaveBeenCalledWith('matters');
+    await vi.waitFor(() => {
+      expect(storeMocks.setActiveMatter).toHaveBeenCalledWith(null);
+      expect(storeMocks.setClientMapHubId).toHaveBeenCalledWith(null);
+      expect(storeMocks.setClientMapHubTab).toHaveBeenCalledWith(null);
+      expect(onTabChange).toHaveBeenCalledWith('matters');
+    });
   });
 
   it('highlights All Clients without also highlighting the Client Map nav tab', () => {

@@ -16,12 +16,17 @@ import {
   type AskSourceDescriptor,
 } from '@/features/ask';
 import type { ContactRef } from '@/features/crm-contacts';
-import { useClientContextStore } from '@/platform/client-context';
+import {
+  issueSharedClientSelection,
+  replaceCanonicalHouseholdDirectory,
+  requestClearClientSelection,
+  requestSharedClientSelection,
+} from '@/platform/client-context';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import type { Matter } from '@/platform/types/matter';
 
-const householdA = { householdId: 'household-a', displayName: 'Alpha household' };
-const householdB = { householdId: 'household-b', displayName: 'Beta household' };
+const householdA = { provider: 'wealthbox' as const, householdId: 'household-a', displayName: 'Alpha household' };
+const householdB = { provider: 'wealthbox' as const, householdId: 'household-b', displayName: 'Beta household' };
 
 function matter(id: string, householdId: string): Matter {
   return {
@@ -36,13 +41,14 @@ function matter(id: string, householdId: string): Matter {
 
 function select(client: typeof householdA | typeof householdB): void {
   act(() => {
-    useClientContextStore.getState().setClient(client);
+    replaceCanonicalHouseholdDirectory('wealthbox', [client]);
+    void requestSharedClientSelection(issueSharedClientSelection(client));
   });
 }
 
 function clearSelection(): void {
   act(() => {
-    useClientContextStore.getState().clearClient();
+    requestClearClientSelection();
   });
 }
 

@@ -1,5 +1,5 @@
 import {
-  useClientContextStore,
+  requestClearClientSelection,
   type SharedClientContextAdapter,
 } from '@/platform/client-context';
 
@@ -14,7 +14,7 @@ export const meetingsSharedClientContextAdapter = {
       ? { filter: 'client', householdId: client.householdId }
       : { filter: 'all' },
   showAllMeetings: (): void => {
-    useClientContextStore.getState().clearClient();
+    requestClearClientSelection();
   },
 } satisfies SharedClientContextAdapter<MeetingsSharedClientContext> & {
   showAllMeetings: () => void;

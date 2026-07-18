@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import { useClientContextStore } from '@/platform/client-context';
+import {
+  issueSharedClientSelection,
+  replaceCanonicalHouseholdDirectory,
+  requestClearClientSelection,
+  requestSharedClientSelection,
+  useClientContextStore,
+} from '@/platform/client-context';
 import { ClientBarV1 } from './ClientBarV1';
 import {
   getSharedClientQuickActions,
@@ -19,12 +25,14 @@ vi.mock('@tauri-apps/api/core', () => tauriBoundary);
 
 const HOUSEHOLDS = [
   {
+    provider: 'wealthbox',
     householdId: 'household-foster',
     displayName: 'Foster household',
     primaryPeople: ['Robert Foster', 'Elena Foster'],
     description: 'Robert & Elena Foster · Active client',
   },
   {
+    provider: 'wealthbox',
     householdId: 'household-diaz',
     displayName: 'Diaz household',
     primaryPeople: ['Camila Diaz', 'Mateo Diaz'],
@@ -39,7 +47,7 @@ describe('ClientBarV1', () => {
   });
 
   afterEach(() => {
-    useClientContextStore.getState().clearClient();
+    requestClearClientSelection();
   });
 
   it('shows the empty and selected shared-client states', () => {
@@ -55,11 +63,18 @@ describe('ClientBarV1', () => {
     ).toBeInTheDocument();
 
     act(() => {
-      useClientContextStore.getState().setClient({
+      const client = {
+        provider: 'wealthbox' as const,
         householdId: 'household-foster',
         displayName: 'Foster household',
         primaryPeople: ['Robert Foster', 'Elena Foster'],
-      });
+      };
+      replaceCanonicalHouseholdDirectory('wealthbox', [client]);
+      void requestSharedClientSelection(issueSharedClientSelection(client)).catch(
+        (error: unknown) => {
+          console.error('[ClientBar test] Client selection failed.', error);
+        }
+      );
     });
 
     expect(screen.getByTestId('client-bar-current')).toHaveTextContent(
@@ -132,6 +147,7 @@ describe('ClientBarV1', () => {
       await screen.findByTestId('client-picker-option-household-native')
     );
     expect(useClientContextStore.getState().client).toEqual({
+      provider: 'wealthbox',
       householdId: 'household-native',
       displayName: 'Native household',
     });

@@ -12,6 +12,7 @@ step () { echo ""; echo "===== $1 ====="; shift; "$@" || { echo "❌ FAILED: $*"
 step "Build assets"    node scripts/copy-build-assets.mjs
 step "Module boundaries" npm run boundaries:check
 step "Active CRM/client boundary" npm run crm:active-boundary
+step "Selection writer retirement" npm run selection:writers:test
 step "Union registry safety" node scripts/check-union-registry-preconditions.mjs
 step "Union registry merge history" node scripts/check-union-registry-merge-history.mjs
 step "Flag cap"         node scripts/check-flag-cap.mjs

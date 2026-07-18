@@ -21,6 +21,7 @@ export async function fetchClientPickerHouseholds(): Promise<
   });
 
   return households.map((household) => ({
+    provider: 'wealthbox',
     householdId: household.id,
     displayName: household.name,
   }));

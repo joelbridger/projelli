@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronDown } from 'lucide-react';
-import { useClientContextStore } from '@/platform/client-context';
+import {
+  issueSharedClientSelection,
+  replaceCanonicalHouseholdDirectory,
+  requestClearClientSelection,
+  requestSharedClientSelection,
+  useClientContextStore,
+} from '@/platform/client-context';
 import type { SharedClientIdentity } from '@/platform/client-context';
 import { ClientPickerModal } from './ClientPickerModal';
 import type { ClientPickerHousehold } from './clientPickerHouseholds';
@@ -31,9 +37,11 @@ export function ClientBarV1({
   const [householdsLoadFailed, setHouseholdsLoadFailed] = useState(false);
   const householdRequestId = useRef(0);
   const client = useClientContextStore((state) => state.client);
-  const setClient = useClientContextStore((state) => state.setClient);
-  const clearClient = useClientContextStore((state) => state.clearClient);
   const pickerHouseholds = households ?? loadedHouseholds;
+
+  useEffect(() => {
+    replaceCanonicalHouseholdDirectory('wealthbox', pickerHouseholds);
+  }, [pickerHouseholds]);
 
   const loadHouseholds = useCallback(async () => {
     if (households) return;
@@ -79,11 +87,14 @@ export function ClientBarV1({
   };
 
   const selectClient = (nextClient: SharedClientIdentity) => {
-    setClient(nextClient);
+    const request = issueSharedClientSelection(nextClient);
+    void requestSharedClientSelection(request).catch((error: unknown) => {
+      console.error('[ClientBar] Client selection failed.', error);
+    });
   };
 
   const clearSelectedClient = () => {
-    clearClient();
+    requestClearClientSelection();
   };
 
   return (

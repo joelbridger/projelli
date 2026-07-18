@@ -20,6 +20,7 @@ const matterState = {
 vi.mock('@/platform/matter/matterStore', () => ({
   useMatterStore: {
     getState: () => matterState,
+    subscribe: () => () => {},
   },
 }));
 

@@ -28,7 +28,10 @@ export interface SeedPayload {
   aiChat?: Partial<ReturnType<typeof useAIChatStore.getState>>;
   settings?: Partial<ReturnType<typeof useSettingsStore.getState>>;
   workflow?: Partial<ReturnType<typeof useWorkflowStore.getState>>;
-  matter?: Partial<ReturnType<typeof useMatterStore.getState>>;
+  matter?: Omit<
+    Partial<ReturnType<typeof useMatterStore.getState>>,
+    'activeMatterId' | 'setActiveMatter'
+  >;
   /** Wave-1c evidence capture: BeforeYouMeetStrip reads directly from
    *  useBriefStore (no Tauri gate), so seeding it here is enough to render
    *  the ready/stale states for a screenshot. */
@@ -62,7 +65,15 @@ export function mountMarketingCaptureBridge(): void {
     if (payload.aiChat) useAIChatStore.setState(payload.aiChat);
     if (payload.settings) useSettingsStore.setState(payload.settings);
     if (payload.workflow) useWorkflowStore.setState(payload.workflow);
-    if (payload.matter) useMatterStore.setState(payload.matter);
+    if (payload.matter) {
+      // Capture data may seed matter facts, never the selection follower.
+      const matterFacts = {
+        ...payload.matter,
+      } as Partial<ReturnType<typeof useMatterStore.getState>>;
+      Reflect.deleteProperty(matterFacts, 'activeMatterId');
+      Reflect.deleteProperty(matterFacts, 'setActiveMatter');
+      useMatterStore.setState(matterFacts);
+    }
     if (payload.briefs) useBriefStore.setState(payload.briefs);
     if (payload.calendarEvents) {
       localStorage.setItem(

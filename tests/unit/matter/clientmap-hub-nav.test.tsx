@@ -184,13 +184,15 @@ describe('Client Map hub navigation', () => {
     expect(screen.queryByTestId('mock-matter-hub')).not.toBeInTheDocument();
   });
 
-  it('clicking a client row opens that client\'s hub via the store', () => {
+  it('clicking a client row opens that client\'s hub via the store', async () => {
     const id = seedMatter();
     render(<MattersHome />);
     fireEvent.click(screen.getByTestId(`matter-row-${id}`));
-    expect(useMatterStore.getState().clientMapHubId).toBe(id);
-    expect(useMatterStore.getState().activeMatterId).toBe(id);
-    expect(screen.getByTestId('mock-matter-hub')).toBeInTheDocument();
+    await vi.waitFor(() => {
+      expect(useMatterStore.getState().clientMapHubId).toBe(id);
+      expect(useMatterStore.getState().activeMatterId).toBe(id);
+      expect(screen.getByTestId('mock-matter-hub')).toBeInTheDocument();
+    });
   });
 
   it('hub "back" clears clientMapHubId and returns to the overview', () => {
