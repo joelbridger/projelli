@@ -423,7 +423,7 @@
   .kp-badge--local     { background: var(--kp-local-bg); color: var(--kp-local); border-color: var(--kp-local-line); }
   .kp-badge--direct    { background: var(--kp-direct-bg); color: var(--kp-direct); border-color: var(--kp-direct-line); }
   .kp-badge--assured   { background: var(--kp-assured-bg); color: var(--kp-assured); border-color: var(--kp-assured-line); }
-  .kp-badge--success   { background: var(--kp-success-bg); color: var(--kp-success); border-color: var(--kp-success-line); }
+  .kp-badge--success   { background: var(--kp-success-bg); color: var(--kp-success-text); border-color: var(--kp-success-line); }
   .kp-badge--warning   { background: var(--kp-warning-bg); color: var(--kp-warning); border-color: var(--kp-warning-line); }
   .kp-badge--danger    { background: var(--kp-danger-bg); color: var(--kp-danger); border-color: rgba(176, 42, 31, 0.3); }
   .kp-badge--featured  { background: var(--kp-action-bg); color: var(--kp-action-fg); border-color: var(--kp-action-border); }

@@ -467,13 +467,13 @@ function AccordionSection({
     <div className="space-y-8">
       {visibleItems.map((it) => (
         <section key={it.id} aria-labelledby={`${it.id}-heading`} className="space-y-3">
-          <h3
+          <h2
             id={`${it.id}-heading`}
             {...(it.testid ? { 'data-testid': `${it.testid}-heading` } : {})}
             className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
           >
             <span {...(it.testid ? { 'data-testid': it.testid } : {})}>{it.label}</span>
-          </h3>
+          </h2>
           {it.node}
         </section>
       ))}
