@@ -214,6 +214,7 @@ function validatePair(
 export function sealResolvedClientBoundary(
   identity: ClientBoundaryIdentity
 ): SealedClientBoundary | null {
+  ensureAuthorityBootValidated();
   const matterId = identity.matterId?.trim();
   if (!matterId) return null;
   let client: SharedClientIdentity;
@@ -243,6 +244,7 @@ export function sealResolvedClientBoundary(
 export function sealMatterScopeSelection(
   identity: MatterScopeRequestIdentity
 ): SealedMatterScopeSelection | null {
+  ensureAuthorityBootValidated();
   let client: SharedClientIdentity;
   try {
     client = normalizeClient({
@@ -269,6 +271,7 @@ export function sealMatterScopeSelection(
 
 /** Internal issuer for explicit workspace-wide user intent; it carries no raw scope union. */
 export function sealAllMattersScopeSelection(): SealedMatterScopeSelection {
+  ensureAuthorityBootValidated();
   const request = Object.freeze({}) as SealedMatterScopeSelection;
   sealedMatterScopeRequests.set(
     request,
@@ -287,6 +290,7 @@ let writeSourceSelection: (
 let reconciliationPending = false;
 let failedReconciliationAttempts = 0;
 const MAX_RECONCILIATION_RETRIES = 3;
+let authorityBootValidated = false;
 
 /**
  * This one dark flag is the authority foundation's activation boundary. Until
@@ -294,7 +298,11 @@ const MAX_RECONCILIATION_RETRIES = 3;
  * in-memory behavior and no path may create `blocked-unresolved`.
  */
 function selectionAuthorityEnabled(): boolean {
-  return isFlagEnabled('selection-authority-boot-gate');
+  const enabled = isFlagEnabled('selection-authority-boot-gate');
+  // Development overrides can toggle between focused cases. A real dark → on
+  // activation must validate again too; no enabled epoch inherits a dark boot.
+  if (!enabled) authorityBootValidated = false;
+  return enabled;
 }
 
 function updateFollowerStatus(): void {
@@ -410,6 +418,7 @@ const clientContextStore = create<ClientContextState>()((set) => {
         set({ client: normalizeLegacyClient(client) });
         return;
       }
+      ensureAuthorityBootValidated();
       // Legacy raw-client entry point: retain compatibility without granting a
       // raw id authority path. Its missing canonical pair is fail-closed only
       // after the integration lane activates this foundation.
@@ -421,6 +430,7 @@ const clientContextStore = create<ClientContextState>()((set) => {
         set({ client: null });
         return;
       }
+      ensureAuthorityBootValidated();
       // Ordinary clear is not a failure and never widens a matter scope.
       writeSourceSelection(null, useClientContextStore.getState().scope);
     },
@@ -428,15 +438,44 @@ const clientContextStore = create<ClientContextState>()((set) => {
 });
 
 /**
+ * The real authority-reader boot boundary.  There is deliberately no separate
+ * consumer-managed lifecycle call: an enabled authority read cannot observe a
+ * persisted follower before this validation has completed.  Keeping this here
+ * also makes the dark path a true no-op -- it neither reads nor projects the
+ * legacy follower while the integration flag is off.
+ */
+function ensureAuthorityBootValidated(): void {
+  if (!selectionAuthorityEnabled() || authorityBootValidated) return;
+  authorityBootValidated = true;
+  const scope = freezeScope(scopeFromPersistedFollower());
+  writeSourceSelection(useClientContextStore.getState().client, scope);
+}
+
+/**
+ * A selected matter may disappear after its follower has already converged.
+ * Matter-store updates are synchronous, so this source-owned listener blocks
+ * immediately; it never waits for another selection or retry to happen.
+ */
+useMatterStore.subscribe((state) => {
+  if (!selectionAuthorityEnabled()) return;
+  const source = useClientContextStore.getState();
+  if (
+    source.scope.kind === 'matter' &&
+    !state.matters.some(
+      (matter) => matter.id === source.scope.matterId && !matter.archived
+    )
+  ) {
+    writeBlockedSourceSelection(source.client);
+  }
+});
+
+/**
  * Boot gate used by the lifecycle lane at startup. It validates the persisted
  * follower against current live matters before any consumer can trust a scope.
  */
 export function bootstrapSelectionAuthorityFromPersistedFollower(): MatterScopeSelection {
-  if (!selectionAuthorityEnabled())
-    return useClientContextStore.getState().scope;
-  const scope = freezeScope(scopeFromPersistedFollower());
-  writeSourceSelection(useClientContextStore.getState().client, scope);
-  return scope;
+  ensureAuthorityBootValidated();
+  return useClientContextStore.getState().scope;
 }
 
 /** Enter blocked only once the one authority activation gate is on. */
@@ -540,6 +579,7 @@ export function readSharedClientContext<Context>(
 
 /** A narrow reader for future T1/T2 consumers; it never exposes a raw writer. */
 export function readAuthoritativeMatterScope(): MatterScopeSelection {
+  ensureAuthorityBootValidated();
   return useClientContextStore.getState().scope;
 }
 

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { create } from 'zustand';
 import {
   bootstrapSelectionAuthorityFromPersistedFollower,
   readAuthoritativeMatterScope,
@@ -31,6 +32,45 @@ const householdB = {
 } as const;
 
 const originalSetActiveMatter = useMatterStore.getState().setActiveMatter;
+
+/**
+ * Exact behavioral copy of the pre-foundation client store at 0683ff9b6.
+ * This test deliberately runs the real old transition beside the dark current
+ * transition rather than comparing the new store to a hand-written trace.
+ */
+function createPreFoundationClientStore() {
+  type PreFoundationState = {
+    client: SharedClientIdentity | null;
+    setClient: (client: SharedClientIdentity) => void;
+    clearClient: () => void;
+  };
+  function normalizeClient(client: SharedClientIdentity): SharedClientIdentity {
+    const householdId = client.householdId.trim();
+    if (!householdId) {
+      throw new Error('Shared client context requires a household id.');
+    }
+    return {
+      householdId,
+      displayName: client.displayName.trim() || householdId,
+      ...(client.primaryPeople
+        ? {
+            primaryPeople: client.primaryPeople
+              .map((person) => person.trim())
+              .filter(Boolean),
+          }
+        : {}),
+    };
+  }
+  return create<PreFoundationState>()((set) => ({
+    client: null,
+    setClient: (client) => {
+      set({ client: normalizeClient(client) });
+    },
+    clearClient: () => {
+      set({ client: null });
+    },
+  }));
+}
 
 function matter(
   id: string,
@@ -95,9 +135,9 @@ describe('client-context selection authority', () => {
     expect('setState' in useClientContextStore).toBe(false);
   });
 
-  it('keeps flag-off legacy client paths observationally identical to the pre-foundation store', () => {
+  it('keeps flag-off legacy client paths observationally identical to the real pre-foundation store', () => {
     const activeMatterIdBefore = 'legacy-active-matter';
-    const legacySetActiveMatter = vi.fn();
+    const legacySetActiveMatter = vi.fn(originalSetActiveMatter);
     useMatterStore.setState({
       matters: [matter(activeMatterIdBefore, householdA.householdId)],
       activeMatterId: activeMatterIdBefore,
@@ -105,21 +145,17 @@ describe('client-context selection authority', () => {
     });
     setDevFlagOverride('selection-authority-boot-gate', false);
 
-    // The pre-foundation store only normalized and exposed `client`; this is
-    // the before-model for the same boot, select, and clear observations.
-    const beforeTransitions = [
-      null,
-      {
-        householdId: householdA.householdId,
-        displayName: householdA.displayName,
-        primaryPeople: [...householdA.primaryPeople],
-      },
-      null,
-    ];
+    const beforeStore = createPreFoundationClientStore();
+    const beforeTransitions: Array<SharedClientIdentity | null> = [null];
     const afterTransitions: Array<SharedClientIdentity | null> = [
       useClientContextStore.getState().client,
     ];
-    const unsubscribe = useClientContextStore.subscribe((state) => {
+    const beforeErrors: string[] = [];
+    const afterErrors: string[] = [];
+    const unsubscribeBefore = beforeStore.subscribe((state) => {
+      beforeTransitions.push(state.client);
+    });
+    const unsubscribeAfter = useClientContextStore.subscribe((state) => {
       afterTransitions.push(state.client);
     });
     const sourceBefore = {
@@ -128,22 +164,41 @@ describe('client-context selection authority', () => {
       selectionRevision: useClientContextStore.getState().selectionRevision,
     };
     try {
-      // The new boot entry point is inert: it performs neither persisted-state
-      // validation nor a follower write while the flag is dark.
+      // The pre-foundation app had no authority boot work. The dark current
+      // boot call must be observably equivalent to that no-op.
       bootstrapSelectionAuthorityFromPersistedFollower();
+      beforeStore.getState().setClient(householdA);
       useClientContextStore.getState().setClient(householdA);
+      try {
+        beforeStore.getState().setClient({ ...householdA, householdId: '  ' });
+      } catch (error) {
+        beforeErrors.push((error as Error).message);
+      }
+      try {
+        useClientContextStore
+          .getState()
+          .setClient({ ...householdA, householdId: '  ' });
+      } catch (error) {
+        afterErrors.push((error as Error).message);
+      }
+      beforeStore.getState().clearClient();
       useClientContextStore.getState().clearClient();
     } finally {
-      unsubscribe();
+      unsubscribeBefore();
+      unsubscribeAfter();
     }
 
     expect(afterTransitions).toEqual(beforeTransitions);
+    expect(afterErrors).toEqual(beforeErrors);
     const selectedClient = afterTransitions[1];
     if (!selectedClient)
       throw new Error('legacy selection must expose a client');
     expect(Object.isFrozen(selectedClient)).toBe(false);
     expect(Object.isFrozen(selectedClient.primaryPeople)).toBe(false);
-    expect(useMatterStore.getState().activeMatterId).toBe(activeMatterIdBefore);
+    expect(useMatterStore.getState()).toMatchObject({
+      activeMatterId: activeMatterIdBefore,
+      clientMapHubId: null,
+    });
     expect(legacySetActiveMatter).not.toHaveBeenCalled();
     expect({
       scope: useClientContextStore.getState().scope,
@@ -471,10 +526,16 @@ describe('client-context selection authority', () => {
     });
   });
 
-  it('boot gate validates persisted follower before the authority reader can be used', () => {
+  it('real authority reads validate persisted follower before exposing a scope', () => {
     const valid = matter('matter-a', householdA.householdId);
+    const startFreshEnabledBoot = () => {
+      setDevFlagOverride('selection-authority-boot-gate', false);
+      bootstrapSelectionAuthorityFromPersistedFollower();
+      setDevFlagOverride('selection-authority-boot-gate', true);
+    };
     useMatterStore.setState({ matters: [valid], activeMatterId: valid.id });
-    const booted = bootstrapSelectionAuthorityFromPersistedFollower();
+    startFreshEnabledBoot();
+    const booted = readAuthoritativeMatterScope();
     expect(booted).toEqual({
       kind: 'matter',
       matterId: 'matter-a',
@@ -486,12 +547,14 @@ describe('client-context selection authority', () => {
     });
 
     useMatterStore.setState({ matters: [valid], activeMatterId: null });
-    expect(bootstrapSelectionAuthorityFromPersistedFollower()).toEqual({
+    startFreshEnabledBoot();
+    expect(readAuthoritativeMatterScope()).toEqual({
       kind: 'all-matters',
     });
 
     useMatterStore.setState({ matters: [valid], activeMatterId: 'missing' });
-    expect(bootstrapSelectionAuthorityFromPersistedFollower()).toEqual({
+    startFreshEnabledBoot();
+    expect(readAuthoritativeMatterScope()).toEqual({
       kind: 'blocked-unresolved',
     });
 
@@ -499,7 +562,8 @@ describe('client-context selection authority', () => {
       matters: [{ ...valid, archived: true }],
       activeMatterId: valid.id,
     });
-    expect(bootstrapSelectionAuthorityFromPersistedFollower()).toEqual({
+    startFreshEnabledBoot();
+    expect(readAuthoritativeMatterScope()).toEqual({
       kind: 'blocked-unresolved',
     });
   });
@@ -574,7 +638,7 @@ describe('client-context selection authority', () => {
     await waitForConvergence();
   });
 
-  it('blocks a source whose selected matter disappears before follower projection', async () => {
+  it('blocks a selected source immediately when the real matter store archives or deletes after convergence', async () => {
     seed(matter('matter-a', householdA.householdId));
     const request = sealMatterScopeSelection({
       householdRef: householdA.householdId,
@@ -583,13 +647,24 @@ describe('client-context selection authority', () => {
     if (!request) throw new Error('fixture must seal');
 
     await requestMatterScopeSelection(request);
-    useMatterStore.setState({ matters: [] });
-    await vi.waitFor(() => {
-      expect(useClientContextStore.getState().scope).toEqual({
-        kind: 'blocked-unresolved',
-      });
-    });
     await waitForConvergence();
+    useMatterStore.getState().setMatterArchived('matter-a', true);
+    expect(readAuthoritativeMatterScope()).toEqual({
+      kind: 'blocked-unresolved',
+    });
+
+    seed(matter('matter-b', householdA.householdId));
+    const replacement = sealMatterScopeSelection({
+      householdRef: householdA.householdId,
+      matterId: 'matter-b',
+    });
+    if (!replacement) throw new Error('replacement fixture must seal');
+    await requestMatterScopeSelection(replacement);
+    await waitForConvergence();
+    useMatterStore.getState().deleteMatter('matter-b');
+    expect(readAuthoritativeMatterScope()).toEqual({
+      kind: 'blocked-unresolved',
+    });
   });
 
   it('bounds a permanently failing follower retry and leaves stale observable', async () => {
