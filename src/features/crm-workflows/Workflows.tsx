@@ -100,6 +100,17 @@ export function WorkflowsSurface() {
 
 export type LiveWorkflowData = ReturnType<typeof workflowRecords>;
 export type HouseholdChoice = { id: string; label: string; matterId: string };
+
+function isStartableTemplate(
+  template: LiveWorkflowData['templates'][number] | undefined
+): template is LiveWorkflowData['templates'][number] {
+  // Templates saved before lifecycle statuses existed were already startable.
+  return (
+    template !== undefined &&
+    (template.status === undefined || template.status === 'published')
+  );
+}
+
 export function LiveWorkflows({
   data,
   households,
@@ -116,6 +127,9 @@ export function LiveWorkflows({
   onAddRequestConsumed?: () => void;
 }) {
   const template = data.templates[0];
+  const startableTemplate = isStartableTemplate(template)
+    ? template
+    : undefined;
   const [creating, setCreating] = useState(
     addRequest?.kind === 'workflow' && !template
   );
@@ -171,7 +185,7 @@ export function LiveWorkflows({
     setCreating(false);
   };
   const start = async () => {
-    if (!template) return;
+    if (!startableTemplate) return;
     let household = households.find((item) => item.id === selectedHouseholdId);
     if (!household) {
       const id = `household-${String(Date.now())}`;
@@ -183,7 +197,7 @@ export function LiveWorkflows({
         name: household.label,
       });
     }
-    await save(startWorkflow(template, household));
+    await save(startWorkflow(startableTemplate, household));
     onAddRequestConsumed?.();
   };
   const publish = async () => {
@@ -695,52 +709,80 @@ export function LiveWorkflows({
               </div>
             )}
           </section>
-          <section style={panelStyle}>
-            <strong>Start for a household</strong>
-            <p style={mutedStyle}>
-              This creates an open workflow for one real household. Nothing is
-              shared until you choose to do so.
-            </p>
-            {households.length ? (
-              <label>
-                Household
-                <select
-                  data-testid="crm-live-workflow-household"
-                  value={selectedHouseholdId}
-                  onChange={(event) => {
-                    setSelectedHouseholdId(event.target.value);
-                  }}
-                >
-                  <option value="">Choose a household</option>
-                  {households.map((household) => (
-                    <option key={household.id} value={household.id}>
-                      {household.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : (
-              <label>
-                Household name
-                <input
-                  data-testid="crm-live-workflow-new-household"
-                  value={newHousehold}
-                  onChange={(event) => {
-                    setNewHousehold(event.target.value);
-                  }}
-                />
-              </label>
-            )}
-            <Button
-              data-testid="crm-live-workflow-start"
-              style={{ marginLeft: 8 }}
-              onClick={() => {
-                void start();
+        </>
+      )}
+      <section style={panelStyle}>
+        <strong>Start for a household</strong>
+        <p style={mutedStyle}>
+          This creates an open workflow for one real household. Nothing is
+          shared until you choose to do so.
+        </p>
+        {!startableTemplate && (
+          <p
+            id="crm-live-workflow-start-unavailable"
+            data-testid="crm-live-workflow-start-unavailable"
+            style={mutedStyle}
+          >
+            {template
+              ? 'Publish this workflow template before starting it.'
+              : 'Create a workflow template before starting a workflow.'}
+          </p>
+        )}
+        {households.length ? (
+          <label>
+            Household
+            <select
+              data-testid="crm-live-workflow-household"
+              value={selectedHouseholdId}
+              onChange={(event) => {
+                setSelectedHouseholdId(event.target.value);
               }}
             >
-              Start workflow
-            </Button>
-          </section>
+              <option value="">Choose a household</option>
+              {households.map((household) => (
+                <option key={household.id} value={household.id}>
+                  {household.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <label>
+            Household name
+            <input
+              data-testid="crm-live-workflow-new-household"
+              value={newHousehold}
+              onChange={(event) => {
+                setNewHousehold(event.target.value);
+              }}
+            />
+          </label>
+        )}
+        <Button
+          data-testid="crm-live-workflow-start"
+          style={{ marginLeft: 8 }}
+          disabled={!startableTemplate}
+          aria-describedby={
+            startableTemplate
+              ? undefined
+              : 'crm-live-workflow-start-unavailable'
+          }
+          title={
+            startableTemplate
+              ? undefined
+              : template
+                ? 'Publish this workflow template before starting it.'
+                : 'Create a workflow template before starting a workflow.'
+          }
+          onClick={() => {
+            void start();
+          }}
+        >
+          Start workflow
+        </Button>
+      </section>
+      {template && (
+        <>
           <section data-testid="crm-live-workflow-instances" style={panelStyle}>
             <strong>Household workflows</strong>
             {instances.length === 0 ? (
