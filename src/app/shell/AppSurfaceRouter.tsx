@@ -41,7 +41,7 @@ const CRM_ADD_CONTACT_KINDS = new Set<CrmOriginatingContextRef['kind']>([
 function normalizeAddContextRefs(
   request: AddToHouseholdRequest
 ): readonly CrmOriginatingContextRef[] {
-  const matterId = request.householdRef.id.trim();
+  const matterId = request.householdRef.matterId?.trim();
   const seen = new Set<string>();
   if (!matterId) return [];
   return request.contextRefs.flatMap((ref) => {

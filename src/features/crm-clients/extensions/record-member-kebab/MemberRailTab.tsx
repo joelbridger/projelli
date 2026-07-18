@@ -6,14 +6,30 @@ import { Button, Card, Dropdown, IconButton } from '@/ui/kp';
 import type { CrmPerson } from '@/features/crm-clients';
 import type { HouseholdTabSurfaceProps } from '@/features/crm-clients/tabRegistry';
 
-type MemberRailProps = Pick<HouseholdTabSurfaceProps, 'household' | 'actions'>;
+type MemberRailProps = Pick<
+  HouseholdTabSurfaceProps,
+  'household' | 'clientBoundary' | 'actions'
+>;
 
-function householdRef(household: MemberRailProps['household']) {
-  return { kind: 'household', id: household.id, label: household.name };
+function householdRef(
+  household: MemberRailProps['household'],
+  matterId: string | undefined
+) {
+  return {
+    kind: 'household',
+    id: household.id,
+    ...(matterId ? { matterId } : {}),
+    label: household.name,
+  };
 }
 
-function memberRef(member: CrmPerson) {
-  return { kind: 'person', id: member.id, label: member.name };
+function memberRef(member: CrmPerson, matterId: string | undefined) {
+  return {
+    kind: 'person',
+    id: member.id,
+    ...(matterId ? { matterId } : {}),
+    label: member.name,
+  };
 }
 
 function primaryEmail(member: CrmPerson) {
@@ -34,7 +50,7 @@ export function MemberRailTab(props: MemberRailProps) {
   return <EnabledMemberRail {...props} />;
 }
 
-function EnabledMemberRail({ household, actions }: MemberRailProps) {
+function EnabledMemberRail({ household, clientBoundary, actions }: MemberRailProps) {
   const { t } = useTranslation();
   const [openMemberId, setOpenMemberId] = useState<string | null>(null);
   const members = household.members;
@@ -119,13 +135,14 @@ function EnabledMemberRail({ household, actions }: MemberRailProps) {
                             variant="secondary"
                             data-testid={`crm-household-member-email-${member.id}`}
                             onClick={() => {
-                              const householdContext = householdRef(household);
+                              const matterId = clientBoundary?.matterId;
+                              const householdContext = householdRef(household, matterId);
                               actions?.onDraftEmail?.({
                                 kind: 'open_mail_surface',
                                 householdRef: householdContext,
                                 contextRefs: [
                                   householdContext,
-                                  memberRef(member),
+                                  memberRef(member, matterId),
                                 ],
                                 source: 'crm_household',
                               });
@@ -139,13 +156,14 @@ function EnabledMemberRail({ household, actions }: MemberRailProps) {
                             variant="secondary"
                             data-testid={`crm-household-member-task-${member.id}`}
                             onClick={() => {
-                              const householdContext = householdRef(household);
+                              const matterId = clientBoundary?.matterId;
+                              const householdContext = householdRef(household, matterId);
                               actions?.onAdd?.({
                                 kind: 'task',
                                 householdRef: householdContext,
                                 contextRefs: [
                                   householdContext,
-                                  memberRef(member),
+                                  memberRef(member, matterId),
                                 ],
                               });
                               setOpenMemberId(null);

@@ -34,7 +34,7 @@ const records: readonly LiveCrmRecord[] = [
   {
     id: 'h-1',
     kind: 'household',
-    matterId: 'h-1',
+    matterId: 'matter-1',
     name: 'Henderson household',
     lifecycle: 'Active',
     primaryAdvisor: 'Maya',
@@ -217,16 +217,17 @@ describe('CRM household add actions', () => {
       { provider: 'm365', account: 'default', label: 'Work' },
     ]);
     mail.listMessages.mockResolvedValue({ items: [], total: 0 });
-    localStorage.setItem('lantern:crm:selected-household:/workspace', 'h-1');
+    localStorage.setItem('lantern:crm:selected-household:/workspace', 'matter-1');
     useMatterStore.setState({
       matters: [{
-        id: 'h-1',
+        id: 'matter-1',
         name: 'Henderson household',
         client: 'Henderson household',
+        crmHouseholdKeys: ['h-1'],
         folderPaths: ['/workspace/Clients/Henderson household'],
         createdAt: '2026-07-14T00:00:00.000Z',
       }],
-      activeMatterId: 'h-1',
+      activeMatterId: 'matter-1',
     });
   });
 
@@ -265,12 +266,12 @@ describe('CRM household add actions', () => {
           {
             kind: 'household',
             id: 'h-1',
-            matterId: 'h-1',
+            matterId: 'matter-1',
           },
           {
             kind: 'person',
             id: 'person-jordan',
-            matterId: 'h-1',
+            matterId: 'matter-1',
             label: 'Jordan Henderson',
           },
         ]);
@@ -309,7 +310,7 @@ describe('CRM household add actions', () => {
     expect(instanceWrites[0]?.[0]).toMatchObject({
       householdId: 'h-1',
       householdLabel: 'Henderson household',
-      matterId: 'h-1',
+      matterId: 'matter-1',
       templateId: 'workflow-1',
     });
 
@@ -361,7 +362,7 @@ describe('CRM household add actions', () => {
           householdRef: {
             kind: 'household',
             id: 'h-1',
-            matterId: 'h-1',
+            matterId: 'matter-1',
           },
         });
       });

@@ -20,6 +20,7 @@ export type ProposalState = 'pending' | 'approved' | 'rejected' | 'expired';
 export interface EntityRef {
   kind: string;
   id: string;
+  matterId?: string;
   label?: string;
 }
 export interface ActorRef {
