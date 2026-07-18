@@ -77,6 +77,10 @@ describe('workflow dependent due extension', () => {
     fireEvent.change(screen.getByTestId('workflow-dependent-due-unit'), {
       target: { value: 'weeks' },
     });
+    expect(screen.getByTestId('workflow-dependent-due-base')).toHaveTextContent('Completed step: “Prepare”');
+    expect(screen.getByTestId('workflow-dependent-due-summary')).toHaveTextContent(
+      'Due 3 weeks after “Prepare” is completed.',
+    );
     fireEvent.click(screen.getByTestId('workflow-dependent-due-sequential'));
     fireEvent.click(screen.getByTestId('workflow-dependent-due-save'));
 
@@ -105,7 +109,7 @@ describe('workflow dependent due extension', () => {
     render(<WorkflowDependentDue context={{ ...test.context, stepId: test.firstId }} />);
 
     expect(screen.getByTestId('workflow-dependent-due-base')).toHaveTextContent('Workflow start');
-    expect(screen.getByTestId('workflow-dependent-due-base')).not.toHaveTextContent('Previous step completed');
+    expect(screen.getByTestId('workflow-dependent-due-base')).not.toHaveTextContent('Prepare');
   });
 
   it('exposes a minimal contract that delegates persistence to the mounted callback', async () => {

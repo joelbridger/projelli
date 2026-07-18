@@ -1,5 +1,5 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string -- Frozen CRM screen copy needs its translation catalog in a separate product change. */
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Plus, Workflow } from 'lucide-react';
 import { Button } from '@/ui/kp';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
@@ -28,6 +28,7 @@ import {
   type LiveWorkflowInstance,
   type WorkflowScheduleDraft,
   type WorkflowStepOutcomeDraft,
+  WorkflowCompletionRefusedError,
 } from '@/features/crm-home/workflowLive';
 import type { CrmFreshnessState } from '@/features/crm-home/types';
 import { useCrmHomeSurfaceContext } from '@/features/crm-home/surfaceContext';
@@ -854,9 +855,14 @@ function LiveInstanceCard({
   const [localTitle, setLocalTitle] = useState('');
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [outcomeIds, setOutcomeIds] = useState<Record<string, string>>({});
+  const [completionRefusal, setCompletionRefusal] = useState<{ stepId: string; message: string } | null>(null);
+  const completionRefusalRef = useRef<HTMLParagraphElement>(null);
   const steps = Object.values(instance.snapshot.steps).filter(
     (step) => !step.hiddenByTemplateRemoval
   );
+  useEffect(() => {
+    completionRefusalRef.current?.focus();
+  }, [completionRefusal]);
   return (
     <section
       data-testid={`crm-live-workflow-instance-${instance.id}`}
@@ -924,22 +930,53 @@ function LiveInstanceCard({
                           </select>
                         )}
                       </>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        data-testid={`crm-live-workflow-complete-${instance.id}-${step.stepId}`}
-                        onClick={() => {
-                          void onSave(() =>
-                            applyWorkflowStepCompletion(
-                              instance,
-                              step.stepId,
-                              outcomeIds[step.stepId]
-                            )
-                          );
-                        }}
-                      >
-                        Complete step
-                      </Button>
+                      <div style={{ alignItems: 'center', display: 'inline-flex', flexWrap: 'wrap', gap: 8 }}>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          data-testid={`crm-live-workflow-complete-${instance.id}-${step.stepId}`}
+                          onClick={() => {
+                            try {
+                              const completed = applyWorkflowStepCompletion(
+                                instance,
+                                step.stepId,
+                                outcomeIds[step.stepId]
+                              );
+                              setCompletionRefusal(null);
+                              void onSave(completed).catch((saveReason: unknown) => {
+                                setCompletionRefusal({
+                                  stepId: step.stepId,
+                                  message: saveReason instanceof Error ? saveReason.message : String(saveReason),
+                                });
+                              });
+                            } catch (reason) {
+                              if (reason instanceof WorkflowCompletionRefusedError) {
+                                setCompletionRefusal({ stepId: step.stepId, message: reason.message });
+                                return;
+                              }
+                              void onSave(() => { throw reason; }).catch((saveReason: unknown) => {
+                                setCompletionRefusal({
+                                  stepId: step.stepId,
+                                  message: saveReason instanceof Error ? saveReason.message : String(saveReason),
+                                });
+                              });
+                            }
+                          }}
+                        >
+                          Complete step
+                        </Button>
+                        {completionRefusal?.stepId === step.stepId ? (
+                          <p
+                            data-testid={`crm-live-workflow-completion-refusal-${instance.id}-${step.stepId}`}
+                            ref={completionRefusalRef}
+                            role="alert"
+                            tabIndex={-1}
+                            style={{ color: 'var(--kp-danger)', fontWeight: 600, margin: 0 }}
+                          >
+                            {completionRefusal.message}
+                          </p>
+                        ) : null}
+                      </div>
                     </>
                   )}
                   <Button
