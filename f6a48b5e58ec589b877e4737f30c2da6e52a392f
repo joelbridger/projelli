@@ -1,0 +1,17 @@
+FINAL-SHA: f6a48b5e58ec589b877e4737f30c2da6e52a392f
+TESTED-IMPLEMENTATION-SHA: 36bed13195ab5af2f5bea067af89adf35cec5de1
+BASE-SHA: 8118b12cca5f05892e1418c254818268795694e8
+BRANCH: feat/unification-sublane3-reader-migration
+TREE: committed and clean before delivery
+FOCUSED-BATTERY: Test Files 18 passed (18); Tests 238 passed (238)
+FULL-FRONTEND: Test Files 1139 passed | 3 skipped (1142); Tests 9079 passed | 29 skipped (9108)
+BOUNDARIES: No feature-boundary regression (599 baseline findings)
+WRITER-PROOF: 14/14; one follower projection writer; zero direct client writers; zero unreviewed SK_MATTERS references
+TYPECHECK-TESTS: exit 0
+HANDLE-GUARD: passed; 64 frozen
+ARCHITECTURE-BOUNDARY: 1/1 passed
+SELF-REVIEW: two clean codex-review rounds at 36bed13195ab5af2f5bea067af89adf35cec5de1
+CANONICAL-GATE: frontend/static stages green; overall RED only because unchanged worktree lacks binaries/piper-x86_64-unknown-linux-gnu for Rust and golden-loop stages
+RUST-TOUCHED: no
+RECEIPT: src/platform/client-context/evidence/reader-migration-receipt.md
+REPORT: prep/wave2-results/unification-sublane3-reader-migration.md
