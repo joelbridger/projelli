@@ -27,6 +27,82 @@ import {
   mountTaskTemplates,
 } from './taskExtensionRegistry';
 
+type TaskPriority = CrmTask['priority'];
+
+const PRIORITY_PRESENTATION: Record<
+  TaskPriority,
+  {
+    label: string;
+    symbol: string;
+    color: string;
+    background: string;
+    border: string;
+  }
+> = {
+  high: {
+    label: 'High priority',
+    symbol: '▲',
+    color: 'var(--kp-warning)',
+    background: 'var(--kp-warning-bg)',
+    border: 'var(--kp-warning-line)',
+  },
+  normal: {
+    label: 'Normal priority',
+    symbol: '◆',
+    color: 'var(--kp-text-dim)',
+    background: 'var(--kp-bg-soft)',
+    border: 'var(--kp-divider-strong)',
+  },
+  low: {
+    label: 'Low priority',
+    symbol: '▼',
+    color: 'var(--kp-local)',
+    background: 'var(--kp-local-bg)',
+    border: 'var(--kp-local-line)',
+  },
+};
+
+function normalizeTaskPriority(priority: unknown): TaskPriority {
+  return priority === 'high' || priority === 'low' ? priority : 'normal';
+}
+
+function PriorityBadge({
+  priority,
+  testId,
+  announce = false,
+}: {
+  priority: unknown;
+  testId: string;
+  announce?: boolean;
+}) {
+  const presentation = PRIORITY_PRESENTATION[normalizeTaskPriority(priority)];
+  return (
+    <span
+      data-testid={testId}
+      role={announce ? 'status' : 'img'}
+      aria-label={presentation.label}
+      aria-live={announce ? 'polite' : undefined}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 5,
+        padding: '2px 7px',
+        border: `1px solid ${presentation.border}`,
+        borderRadius: 999,
+        color: presentation.color,
+        background: presentation.background,
+        fontSize: 12,
+        fontWeight: 700,
+        lineHeight: 1.4,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      <span aria-hidden="true">{presentation.symbol}</span>
+      <span aria-hidden="true">{presentation.label}</span>
+    </span>
+  );
+}
+
 export function Tasks({
   tasks,
   workflowWorkItems,
@@ -344,9 +420,10 @@ function TaskRow({
         <span style={mutedStyle}>
           {' '}
           · {task.householdLabel ?? 'No client'} ·{' '}
-          <span data-testid={`crm-task-priority-label-${task.id}`}>
-            {task.priority}
-          </span>{' '}
+          <PriorityBadge
+            priority={task.priority}
+            testId={`crm-task-priority-label-${task.id}`}
+          />{' '}
           · {task.dueLabel ?? 'No due date'} ·{' '}
           <span data-testid={`crm-task-assignee-label-${task.id}`}>
             {task.assigneeLabel ?? task.assigneeUserId ?? 'Unassigned'}
@@ -474,7 +551,10 @@ function TaskDetail({
   onClose: () => void;
   onSave: (task: CrmTask) => void | Promise<void>;
 }) {
-  const [draft, setDraft] = useState(task);
+  const [draft, setDraft] = useState<CrmTask>(() => ({
+    ...task,
+    priority: normalizeTaskPriority(task.priority),
+  }));
   const [saving, setSaving] = useState(false);
   const [fieldPersistenceBusy, setFieldPersistenceBusy] = useState(false);
   const householdId = draft.householdId ?? draft.contextRefs?.[0] ?? '';
@@ -624,6 +704,7 @@ function TaskDetail({
               <select
                 data-testid="crm-task-priority"
                 value={draft.priority}
+                aria-label={`Task priority: ${PRIORITY_PRESENTATION[draft.priority].label}`}
                 onChange={(event) => {
                   setDraft({
                     ...draft,
@@ -631,10 +712,15 @@ function TaskDetail({
                   });
                 }}
               >
-                <option value="high">High</option>
-                <option value="normal">Normal</option>
-                <option value="low">Low</option>
+                <option value="high">High priority</option>
+                <option value="normal">Normal priority</option>
+                <option value="low">Low priority</option>
               </select>
+              <PriorityBadge
+                priority={task.priority}
+                testId="crm-task-priority-preview"
+                announce
+              />
             </label>
             <label>
               Due date
