@@ -5,7 +5,10 @@ import {
   startWorkflow,
   WorkflowCompletionRefusedError,
 } from '@/features/crm-home/workflowLive';
-import { patchWorkflowStepMetadata } from '@/features/crm-workflows';
+import {
+  patchWorkflowStepMetadata,
+  prepareWorkflowDependentDueCompletion,
+} from '@/features/crm-workflows';
 import { setDevFlagOverride } from '@/platform/flags';
 import { readWorkflowStepTiming } from './workflowStepPersistence';
 
@@ -215,8 +218,9 @@ describe('public workflow step metadata persistence', () => {
     expect(instance['workflowDependentDue']).toBeUndefined();
   });
 
-  it('refuses out-of-order completion with a typed error and keeps the candidate unchanged', () => {
+  it('refuses out-of-order completion with a typed error and keeps the candidate unchanged', async () => {
     setDevFlagOverride('workflow-dependent-due', true);
+    await prepareWorkflowDependentDueCompletion();
     const template = createTemplate('Annual review', ['Prepare', 'Meet']);
     const instance = startWorkflow(template, { id: 'household-1', label: 'River household' });
     const [firstId, secondId] = Object.keys(instance.snapshot.steps);

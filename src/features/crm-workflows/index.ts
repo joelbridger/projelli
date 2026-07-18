@@ -5,6 +5,7 @@
  * save callback from `WorkflowStepExtensionContext`; raw live-record storage is
  * intentionally not exported.
  */
+export { prepareWorkflowDependentDueCompletion, registerWorkflowDependentDueCompletion } from './workflowDependentDueCompletionRegistration';
 export { patchWorkflowStepMetadata } from './workflowStepPersistence';
 export type {
   WorkflowStepDocumentRef,

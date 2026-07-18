@@ -1,11 +1,9 @@
 import type { EntityRef } from '@/platform/crm/types';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
-import {
-  registerWorkflowCompletionValidator,
-  type LiveWorkflowInstance,
-  type WorkflowCompletionValidation,
+import type {
+  LiveWorkflowInstance,
+  WorkflowCompletionValidation,
 } from '@/features/crm-home/workflowLive';
-import { isEnabled } from '@/platform/flags';
 
 export type WorkflowStepDocumentRef = Pick<EntityRef, 'kind' | 'id' | 'matterId' | 'label'> & {
   kind: 'document';
@@ -31,9 +29,15 @@ export interface WorkflowStepTimingState {
 }
 
 interface WorkflowDependentDueMetadata {
-  version: 1;
+  version: 1 | 2;
   sequential: boolean;
   steps: Record<string, WorkflowStepDependentDueRule>;
+  completed: Record<string, WorkflowStepTimingHistory>;
+}
+
+interface WorkflowStepTimingHistory {
+  baseAt: string | null;
+  dueAt: string | null;
 }
 
 const DEPENDENT_DUE_METADATA_KEY = 'workflowDependentDue';
@@ -150,11 +154,16 @@ function validateNoRawDependencyCycles(steps: Record<string, unknown>): void {
 
 function readDependentDueMetadata(instance: LiveWorkflowInstance): WorkflowDependentDueMetadata {
   const value: unknown = instance[DEPENDENT_DUE_METADATA_KEY];
-  if (value === undefined) return { version: 1, sequential: false, steps: {} };
-  if (!isRecord(value) || !hasOnlyKeys(value, ['version', 'sequential', 'steps'])) {
+  if (value === undefined) return { version: 2, sequential: false, steps: {}, completed: {} };
+  if (!isRecord(value) || !hasOnlyKeys(value, ['version', 'sequential', 'steps', 'completed'])) {
     throw new Error('Workflow dependency metadata is malformed or duplicated.');
   }
-  if (value['version'] !== 1 || typeof value['sequential'] !== 'boolean' || !isRecord(value['steps'])) {
+  if (
+    (value['version'] !== 1 && value['version'] !== 2) ||
+    typeof value['sequential'] !== 'boolean' ||
+    !isRecord(value['steps']) ||
+    (value['version'] === 2 && !isRecord(value['completed']))
+  ) {
     throw new Error('Workflow dependency metadata is malformed or duplicated.');
   }
   validateNoRawDependencyCycles(value['steps']);
@@ -165,7 +174,29 @@ function readDependentDueMetadata(instance: LiveWorkflowInstance): WorkflowDepen
     }
     steps[stepId] = cleanDependentDueRule(rule, instance, stepId);
   }
-  const metadata = { version: 1 as const, sequential: value['sequential'], steps };
+  const completed: Record<string, WorkflowStepTimingHistory> = {};
+  const storedCompleted = value['version'] === 2 ? value['completed'] : {};
+  if (!isRecord(storedCompleted)) {
+    throw new Error('Workflow dependency metadata is malformed or duplicated.');
+  }
+  for (const [stepId, history] of Object.entries(storedCompleted)) {
+    if (!instance.snapshot.steps[stepId] || !steps[stepId] || !isRecord(history) ||
+      !hasOnlyKeys(history, ['baseAt', 'dueAt']) ||
+      (history['baseAt'] !== null && !validIso(history['baseAt'])) ||
+      (history['dueAt'] !== null && !validIso(history['dueAt']))) {
+      throw new Error('Workflow dependency completion history is malformed.');
+    }
+    completed[stepId] = {
+      baseAt: history['baseAt'],
+      dueAt: history['dueAt'],
+    };
+  }
+  const metadata: WorkflowDependentDueMetadata = {
+    version: value['version'],
+    sequential: value['sequential'],
+    steps,
+    completed,
+  };
   validateNoDependencyCycles(metadata);
   return metadata;
 }
@@ -224,10 +255,11 @@ export function readWorkflowStepTiming(
       ...(blockedByStepId ? { blockedByStepId } : {}),
     };
   }
+  const frozen = metadata.completed[stepId];
   const baseAt = rule.base === 'workflow_start'
     ? (validIso(instance.createdAt) ? instance.createdAt : undefined)
-    : completionTime(instance, rule.predecessorStepId ?? '', step.status === 'done');
-  const dueAt = dueAtFrom(baseAt, rule);
+    : completionTime(instance, rule.predecessorStepId ?? '', false);
+  const dueAt = frozen ? frozen.dueAt ?? undefined : dueAtFrom(baseAt, rule);
   return {
     sequential: metadata.sequential,
     rule: structuredClone(rule),
@@ -374,9 +406,10 @@ export function patchWorkflowStepMetadata(
   }
   if (patch.dependentDue !== undefined || patch.sequential !== undefined) {
     const metadata: WorkflowDependentDueMetadata = {
-      version: 1,
+      version: 2,
       sequential: patch.sequential ?? currentDependentDue.sequential,
       steps: structuredClone(currentDependentDue.steps),
+      completed: structuredClone(currentDependentDue.completed),
     };
     if (patch.dependentDue === null) Reflect.deleteProperty(metadata.steps, stepId);
     else if (patch.dependentDue !== undefined) {
@@ -405,7 +438,6 @@ export function validateWorkflowDependentDueCompletion(request: {
   instance: LiveWorkflowInstance;
   stepId: string;
 }): WorkflowCompletionValidation {
-  if (!isEnabled('workflow-dependent-due')) return { ok: true };
   try {
     const timing = readWorkflowStepTiming(request.instance, request.stepId);
     if (!timing.sequential || !timing.blockedByStepId) return { ok: true };
@@ -430,4 +462,27 @@ export function validateWorkflowDependentDueCompletion(request: {
   }
 }
 
-registerWorkflowCompletionValidator(validateWorkflowDependentDueCompletion);
+/** Saves the displayed base/due pair into the same durable extension bag. */
+export function freezeWorkflowDependentDueCompletion(
+  completedInstance: LiveWorkflowInstance,
+  stepId: string,
+): LiveWorkflowInstance {
+  const metadata = readDependentDueMetadata(completedInstance);
+  const rule = metadata.steps[stepId];
+  if (!rule || metadata.completed[stepId]) return completedInstance;
+  const baseAt = rule.base === 'workflow_start'
+    ? (validIso(completedInstance.createdAt) ? completedInstance.createdAt : undefined)
+    : completionTime(completedInstance, rule.predecessorStepId ?? '', false);
+  const dueAt = dueAtFrom(baseAt, rule);
+  const next = structuredClone(completedInstance);
+  next[DEPENDENT_DUE_METADATA_KEY] = {
+    version: 2,
+    sequential: metadata.sequential,
+    steps: structuredClone(metadata.steps),
+    completed: {
+      ...structuredClone(metadata.completed),
+      [stepId]: { baseAt: baseAt ?? null, dueAt: dueAt ?? null },
+    },
+  } satisfies WorkflowDependentDueMetadata;
+  return next;
+}

@@ -13,6 +13,7 @@ import {
   type LiveCrmRecord,
 } from '@/platform/crm/liveRecords';
 import { setDevFlagOverride } from '@/platform/flags';
+import { prepareWorkflowDependentDueCompletion } from '../..';
 import {
   readWorkflowStepTiming,
   saveWorkflowStepMetadata,
@@ -44,7 +45,7 @@ async function freshInstance(id: string): Promise<LiveWorkflowInstance> {
   return instance;
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   boundary.records = [seededInstance()];
   boundary.invoke.mockReset();
   boundary.invoke.mockImplementation((command, args) => {
@@ -60,6 +61,7 @@ beforeEach(() => {
     return Promise.reject(new Error(`Unexpected command ${command}`));
   });
   setDevFlagOverride('workflow-dependent-due', true);
+  await prepareWorkflowDependentDueCompletion();
   vi.useFakeTimers();
 });
 
@@ -113,27 +115,51 @@ describe('workflow dependent due canonical live route', () => {
       .toBe('2026-07-12T10:00:00.000Z');
     expect(readWorkflowStepTiming(afterFirstCompletion, secondId).blockedByStepId).toBeUndefined();
 
-    vi.setSystemTime(new Date('2026-07-11T11:00:00.000Z'));
-    await saveLiveCrmRecord(workspaceRoot, applyWorkflowStepCompletion(afterFirstCompletion, secondId));
-    const afterSecondCompletion = await freshInstance(instance.id);
-    expect(readWorkflowStepTiming(afterSecondCompletion, thirdId).dueAt)
-      .toBe('2026-07-18T11:00:00.000Z');
-
-    const corrected = structuredClone(afterSecondCompletion);
-    corrected.snapshot.steps[firstId]?.completionOperations.push({
+    const correctedBeforeCompletion = structuredClone(afterFirstCompletion);
+    correctedBeforeCompletion.snapshot.steps[firstId]?.completionOperations.push({
       completionId: 'first-correction', completedBy: 'advisor',
       completedAt: '2026-07-20T10:00:00.000Z', sourceOperationId: 'first-correction-operation',
     });
+    await saveLiveCrmRecord(workspaceRoot, correctedBeforeCompletion);
+    const afterCorrectionBeforeCompletion = await freshInstance(instance.id);
+    expect(readWorkflowStepTiming(afterCorrectionBeforeCompletion, secondId).dueAt)
+      .toBe('2026-07-22T10:00:00.000Z');
+
+    vi.setSystemTime(new Date('2026-07-21T11:00:00.000Z'));
+    await saveLiveCrmRecord(
+      workspaceRoot,
+      applyWorkflowStepCompletion(afterCorrectionBeforeCompletion, secondId),
+    );
+    const afterSecondCompletion = await freshInstance(instance.id);
+    expect(afterSecondCompletion['workflowDependentDue']).toMatchObject({
+      version: 2,
+      completed: {
+        [secondId]: {
+          baseAt: '2026-07-20T10:00:00.000Z',
+          dueAt: '2026-07-22T10:00:00.000Z',
+        },
+      },
+    });
+    expect(readWorkflowStepTiming(afterSecondCompletion, secondId).dueAt)
+      .toBe('2026-07-22T10:00:00.000Z');
+    expect(readWorkflowStepTiming(afterSecondCompletion, thirdId).dueAt)
+      .toBe('2026-07-28T11:00:00.000Z');
+
+    const corrected = structuredClone(afterSecondCompletion);
+    corrected.snapshot.steps[firstId]?.completionOperations.push({
+      completionId: 'first-later-correction', completedBy: 'advisor',
+      completedAt: '2026-07-30T10:00:00.000Z', sourceOperationId: 'first-later-correction-operation',
+    });
     corrected.snapshot.steps[secondId]?.completionOperations.push({
       completionId: 'second-correction', completedBy: 'advisor',
-      completedAt: '2026-07-21T11:00:00.000Z', sourceOperationId: 'second-correction-operation',
+      completedAt: '2026-07-31T11:00:00.000Z', sourceOperationId: 'second-correction-operation',
     });
     await saveLiveCrmRecord(workspaceRoot, corrected);
     const afterCorrection = await freshInstance(instance.id);
     expect(readWorkflowStepTiming(afterCorrection, secondId).dueAt)
-      .toBe('2026-07-12T10:00:00.000Z');
+      .toBe('2026-07-22T10:00:00.000Z');
     expect(readWorkflowStepTiming(afterCorrection, thirdId).dueAt)
-      .toBe('2026-07-28T11:00:00.000Z');
+      .toBe('2026-08-07T11:00:00.000Z');
 
     boundary.invoke.mockClear();
     const forbiddenSave = vi.fn((record: LiveCrmRecord) => saveLiveCrmRecord(workspaceRoot, record));
