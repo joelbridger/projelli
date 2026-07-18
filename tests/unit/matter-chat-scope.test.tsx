@@ -81,6 +81,14 @@ import { AIChatViewer } from '@/features/ask/AIChatViewer';
 import type { AIChatFile } from '@/platform/types/ai';
 import { useAIChatStore } from '@/platform/state/aiChatStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
+import {
+  issueAllMattersScopeSelection,
+  issueMatterScopeSelection,
+  requestClearClientSelection,
+  requestMatterScopeSelection,
+  useClientContextStore,
+} from '@/platform/client-context';
+import { setDevFlagOverride } from '@/platform/flags/router';
 
 const chat: AIChatFile = {
   id: 'wsbc-scope-test',
@@ -94,24 +102,32 @@ const chat: AIChatFile = {
 
 const apiKey = [{ provider: 'anthropic', key: 'stub-key', isValid: true }];
 
-function seedMatter() {
+async function seedMatter() {
   useMatterStore.setState({ matters: [], activeMatterId: null });
   const m = useMatterStore.getState().createMatter({
     name: 'Acme v. Beta',
     client: 'Acme Corp',
     folderPaths: ['/ws/Acme'],
   });
-  useMatterStore.getState().setActiveMatter(m.id);
+  await requestMatterScopeSelection(issueMatterScopeSelection(m.id));
+  await waitFor(() => {
+    expect(useMatterStore.getState().activeMatterId).toBe(m.id);
+    expect(useClientContextStore.getState().followerStatus).toBe('converged');
+  });
   return m;
 }
 
 describe('WS-B/C scoped cited retrieval in chat', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     mocks.retrieve.mockReset();
     mocks.sendMessage.mockReset();
     mocks.verifyCitation.mockReset();
     useAIChatStore.setState({ sessions: {}, dailyCosts: {}, askWorkspaceMode: {}, fileAccessConsent: { 'wsbc-scope-test': { state: 'granted', grantedScope: { kind: 'allMatters' } } } }); // F2.5: ambient retrieval needs file-access consent
     useMatterStore.setState({ matters: [], activeMatterId: null });
+    setDevFlagOverride('selection-authority-boot-gate', false);
+    requestClearClientSelection();
+    setDevFlagOverride('selection-authority-boot-gate', true);
+    await requestMatterScopeSelection(issueAllMattersScopeSelection());
 
     mocks.retrieve.mockResolvedValue([
       {
@@ -138,10 +154,13 @@ describe('WS-B/C scoped cited retrieval in chat', () => {
   afterEach(() => {
     useAIChatStore.setState({ sessions: {}, dailyCosts: {}, askWorkspaceMode: {}, fileAccessConsent: { 'wsbc-scope-test': { state: 'granted', grantedScope: { kind: 'allMatters' } } } }); // F2.5: ambient retrieval needs file-access consent
     useMatterStore.setState({ matters: [], activeMatterId: null });
+    setDevFlagOverride('selection-authority-boot-gate', false);
+    requestClearClientSelection();
+    setDevFlagOverride('selection-authority-boot-gate', undefined);
   });
 
   it('retrieves with the ACTIVE matter scope, not all-matters', async () => {
-    const m = seedMatter();
+    const m = await seedMatter();
     // make the hit carry the active matter id so verification "claims" it
     mocks.retrieve.mockResolvedValue([
       {
@@ -194,8 +213,8 @@ describe('WS-B/C scoped cited retrieval in chat', () => {
     );
   });
 
-  it('shows the active matter in the scope selector', () => {
-    seedMatter();
+  it('shows the active matter in the scope selector', async () => {
+    await seedMatter();
     render(<AIChatViewer chatData={chat} apiKeys={apiKey} />);
     const selector = screen.getByTestId('matter-scope-selector');
     expect(selector.getAttribute('data-scope')).toBe('matter');
@@ -203,7 +222,7 @@ describe('WS-B/C scoped cited retrieval in chat', () => {
   });
 
   it('stamps a "Scoped to" indicator on the assistant reply', async () => {
-    seedMatter();
+    await seedMatter();
     render(<AIChatViewer chatData={chat} apiKeys={apiKey} />);
     act(() => fireEvent.click(screen.getByTestId('ask-workspace-toggle')));
     const textarea = screen.getByTestId('chat-input') as HTMLTextAreaElement;
@@ -219,7 +238,7 @@ describe('WS-B/C scoped cited retrieval in chat', () => {
   });
 
   it('flags an unverified citation and shows the warning strip', async () => {
-    const m = seedMatter();
+    const m = await seedMatter();
     mocks.retrieve.mockResolvedValue([
       {
         path: 'Acme/pricing.md',
@@ -255,7 +274,7 @@ describe('WS-B/C scoped cited retrieval in chat', () => {
   });
 
   it('marks a verified citation safe and clicking it opens the source', async () => {
-    const m = seedMatter();
+    const m = await seedMatter();
     mocks.retrieve.mockResolvedValue([
       {
         path: 'Acme/pricing.md',
