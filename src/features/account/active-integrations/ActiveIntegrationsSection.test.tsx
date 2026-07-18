@@ -23,7 +23,9 @@ function card(
 describe('ActiveIntegrationsSection', () => {
   it('opens without calling a provider or disconnect operation and uses only public card renderers', () => {
     const providerCall = vi.fn();
-    const disconnect = vi.fn();
+    const disconnect = vi.fn(() => {
+      providerCall();
+    });
     const renderStatus = vi.fn(() =>
       createElement('p', undefined, 'Connected with read-only access')
     );

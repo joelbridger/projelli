@@ -1,4 +1,5 @@
 import { createElement } from 'react';
+import { render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { setDevFlagOverride } from '@/platform/flags';
 import {
@@ -72,7 +73,7 @@ describe('Account registries', () => {
     expect(dummy?.render({})).toMatchObject({ type: 'div' });
   });
 
-  it('appends exactly one active-integrations section through the real Account registry only while enabled', () => {
+  it('appends and renders the one real active-integrations section only while enabled', () => {
     setDevFlagOverride('active-integrations', false);
     expect(
       getAccountSectionDescriptors().filter(
@@ -82,13 +83,30 @@ describe('Account registries', () => {
 
     setDevFlagOverride('active-integrations', true);
     const enabled = getAccountSectionDescriptors();
+    expect(enabled.map((descriptor) => descriptor.id)).toEqual([
+      'account',
+      'firm',
+      'usage',
+      'connections',
+      'active-integrations',
+    ]);
     const mounted = enabled.filter(
       (descriptor) => descriptor.id === 'active-integrations'
     );
     expect(mounted).toHaveLength(1);
-    expect(mounted[0]?.render({})).toMatchObject({
+    const activeIntegrations = mounted[0];
+    if (!activeIntegrations) {
+      throw new Error('Expected the enabled Active integrations section');
+    }
+    expect(activeIntegrations.render({})).toMatchObject({
       type: ActiveIntegrationsSection,
     });
+
+    render(activeIntegrations.render({}));
+
+    expect(
+      screen.getByTestId('active-integrations-section')
+    ).toBeInTheDocument();
   });
 
   it('preserves connection-card order and mounts a new card from its descriptor', () => {
