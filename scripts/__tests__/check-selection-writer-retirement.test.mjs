@@ -70,7 +70,7 @@ test('the executable audit rejects an unlisted persisted-key script', (t) => {
   );
 });
 
-test('the key anchor rejects runtime storage smuggling regardless of API shape', () => {
+test('the key anchor rejects a literal persisted key through a runtime storage API', () => {
   const result = scanSelectionWriters(
     'src/features/example/Forbidden.ts',
     `unknownFilesystemBridge.write('lantern:matters', serializedFollowerState);`

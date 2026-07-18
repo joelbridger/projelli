@@ -17,7 +17,7 @@ This receipt applies the packet through Amendments 6 and 7 and the folded
 Reassessment Addendum. Persisted values and the legacy follower are hints only.
 Every restart re-enters a total classifier. Runtime authority is not persisted.
 
-## Complete writer disposition
+## Reviewed writer disposition
 
 The arm columns say which outcomes the row can legally produce after current
 data is classified. `FP` = full pair, `MO` = matter-only, `ALL` = explicit
@@ -45,8 +45,8 @@ all-matters, and `BLK` = blocked-unresolved.
 | C2 | `SharedClientBar` direct clear | `requestClearClientSelection`; current scope preserved | preserved | preserved | preserved | preserved | SharedClientBar clear test + clear law | retired |
 | C3 | CRM adapter direct set | provider-qualified identity → total shared-client issuer/request | yes | — | — | yes | shared adapter propagation + client classifier | retired |
 | C4 | Meetings adapter direct clear | `requestClearClientSelection`; no Meetings surface change | preserved | preserved | preserved | preserved | shared adapter propagation + clear law | retired |
-| S1 | `bench-clear-active.mjs:10` persisted follower mutation | `bench-clear-active.mjs:28` → `selectAllClientsThroughApp` → real `spine-all-clients-row` → sealed All request | — | — | yes | — | whole-tree audit rejects direct property assignment; script syntax check | retired |
-| S2 | `bench-open-northcrest.mjs:13` persisted follower mutation | `bench-open-northcrest.mjs:30` → `selectAllClientsThroughApp` → real `spine-all-clients-row` → sealed All request | — | — | yes | — | whole-tree audit rejects direct property assignment; script syntax check | retired |
+| S1 | `bench-clear-active.mjs:10` persisted follower mutation | `bench-clear-active.mjs:28` → `selectAllClientsThroughApp` → real `spine-all-clients-row` → sealed All request | — | — | yes | — | static regression guard exercised with a direct property assignment; script syntax check | retired |
+| S2 | `bench-open-northcrest.mjs:13` persisted follower mutation | `bench-open-northcrest.mjs:30` → `selectAllClientsThroughApp` → real `spine-all-clients-row` → sealed All request | — | — | yes | — | static regression guard exercised with a direct property assignment; script syntax check | retired |
 
 The mandatory base re-grep found eleven external production
 `setActiveMatter(...)` calls, the one foundation projection call, and four
@@ -92,12 +92,7 @@ src/platform/client-context/clientContextStore.ts:779:  useMatterStore.getState(
 ```
 
 The AST proof walks both `src` and `scripts` and parses TS, TSX, JS, JSX, MJS,
-and CJS. It deliberately distinguishes declarations, serialization, T2
-context copies, the Meetings-private cursor, dark-only compatibility writes,
-and the one projection from selection writers. It also rejects direct calls,
-destructured/local writer bindings, bracket syntax, raw client-context state,
-direct active-matter object literals, identifier-bound raw state payloads, and
-direct `activeMatterId` property assignments using simple or compound operators.
+and CJS. Regression guard against ACCIDENTAL direct writes of the persisted follower key. Does NOT detect deliberate dynamic key construction (e.g. ['lantern','matters'].join(':')) — static string detection cannot. The AUTHORITY guarantee does not rest on this checker: it rests on re-derivation at boot (a persisted key write plants only a HINT the classifier re-derives) plus the sealed non-exported store / single-path writer (Opus security review PASS).
 
 Exact final proof:
 

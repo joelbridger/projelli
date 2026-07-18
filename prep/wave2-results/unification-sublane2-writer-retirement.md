@@ -32,8 +32,9 @@ exact writer proof are in the receipt.
   sanctioned projection, four direct client set/clear callers.
 - Final inventory: one source-owned projection; zero external follower calls;
   zero direct client calls.
-- Machine proof: 9/9 positive/negative audit tests passed, including a synthetic
-  direct script assignment and a temporary-tree proof that `scripts` is scanned.
+- Regression guard: 9/9 positive/negative audit tests passed, including a
+  synthetic direct script assignment and a temporary-tree proof that `scripts`
+  is scanned. Regression guard against ACCIDENTAL direct writes of the persisted follower key. Does NOT detect deliberate dynamic key construction (e.g. ['lantern','matters'].join(':')) — static string detection cannot. The AUTHORITY guarantee does not rest on this checker: it rests on re-derivation at boot (a persisted key write plants only a HINT the classifier re-derives) plus the sealed non-exported store / single-path writer (Opus security review PASS).
 - Fresh focused product battery at `636ba77c2`: 13 files, 132 tests passed.
 - TypeScript app and test typechecks passed.
 - Lint gate passed without changing its baseline.

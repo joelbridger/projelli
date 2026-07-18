@@ -29,13 +29,7 @@ const REVIEWED_EXTERNAL_MATTER_SET_STATE = new Set([
   'src/platform/state/reloadWorkspaceScopedStores.ts',
 ]);
 
-// Key-anchored persisted-follower proof. SK_MATTERS is the Zustand persist
-// name, and `lantern:matters` is its resolved storage key. The old
-// `keepance:matters` spelling remains in a few named demo tools, so it is part
-// of the same sink boundary until those tools disappear. Detection deliberately
-// keys off this sink rather than trying to enumerate storage APIs: a new
-// localStorage/sessionStorage/IndexedDB/cookie/filesystem shape still has to
-// identify the matters key somewhere in its source.
+// Regression guard against ACCIDENTAL direct writes of the persisted follower key. Does NOT detect deliberate dynamic key construction (e.g. ['lantern','matters'].join(':')) — static string detection cannot. The AUTHORITY guarantee does not rest on this checker: it rests on re-derivation at boot (a persisted key write plants only a HINT the classifier re-derives) plus the sealed non-exported store / single-path writer (Opus security review PASS).
 export const PERSISTED_FOLLOWER_KEY_SYMBOL = 'SK_MATTERS';
 export const PERSISTED_FOLLOWER_PERSIST_NAME = 'lantern:matters';
 const PERSISTED_FOLLOWER_KEY_IDENTIFIERS = new Set([
@@ -81,9 +75,9 @@ const PERSISTED_HINT_SEED_SCRIPT_ALLOWLIST = new Map([
   ],
 ]);
 
-// Read-only tools also name the key. Keep them individually accounted for so
-// the key anchor remains fail-closed: any new script reference, read or write,
-// is rejected until it receives a line-by-line review and a named rationale.
+// Read-only tools that name a literal key are also individually accounted for.
+// An unlisted literal script reference, read or write, is rejected until it
+// receives a line-by-line review and a named rationale.
 const READ_ONLY_PERSISTED_KEY_SCRIPT_ALLOWLIST = new Map([
   [
     'scripts/check-selection-writer-retirement.mjs',
