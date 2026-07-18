@@ -1,7 +1,8 @@
 # JP-056 Settings light-up result
 
-**Base:** `974f34e2394ad7b4131557be5c9fa9b09de0322c`  
-**Implementation commit:** recorded after the final evidence commit.  
+**Base:** `974f34e2394ad7b4131557be5c9fa9b09de0322c`
+
+**Implementation commit:** `5ce098d30fff0c18d4b2f0c79d4b76eb79210f52`.
 **Shared receipt:** `src/features/booking/availability/evidence/receipt.md`
 
 ## Result
