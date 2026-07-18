@@ -88,4 +88,13 @@ describe('SettingsContent registry-derived rail', () => {
     });
     expect(screen.getByTestId('settings-category-personal')).toBeInTheDocument();
   });
+
+  it('keeps workspace section headings one level below the Settings page heading', async () => {
+    const { SettingsContent } = await import('../SettingsContent');
+
+    render(<SettingsContent variant="page" />);
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Settings' })).toBeInTheDocument();
+    expect(screen.getByTestId('subheader-general-heading').tagName).toBe('H2');
+  });
 });

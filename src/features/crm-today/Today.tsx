@@ -1,6 +1,6 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string -- Frozen CRM screen copy needs its translation catalog in a separate product change. */
 import { useState } from 'react';
-import { ClipboardList, LayoutDashboard } from 'lucide-react';
+import { Bell, ClipboardList, LayoutDashboard } from 'lucide-react';
 import { Button } from '@/ui/kp';
 import { buildCapacityTriage, dailyWorkReason } from '@/platform/crm/tasks';
 import { AskBar, FreshnessBanner, Screen, mutedStyle, panelStyle } from '@/features/crm-home/shared/ui';
@@ -58,15 +58,28 @@ export function Today({
       description="Your morning plan"
       Icon={LayoutDashboard}
       action={
-        <Button
-          data-testid="crm-today-review"
-          iconLeft={ClipboardList}
-          onClick={() => {
-            setReviewing(true);
-          }}
-        >
-          Review today’s plan
-        </Button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Button
+            data-testid="crm-today-review"
+            iconLeft={ClipboardList}
+            onClick={() => {
+              setReviewing(true);
+            }}
+          >
+            Review today’s plan
+          </Button>
+          <button
+            data-testid="crm-today-notifications-button"
+            aria-label="Open notifications"
+            onClick={() => {
+              onNavigate('activity');
+            }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, border: 0, background: 'transparent', cursor: 'pointer', color: 'var(--kp-navy)' }}
+          >
+            <Bell size={20} />
+            <span>Notifications</span>
+          </button>
+        </div>
       }
     >
       <div

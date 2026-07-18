@@ -255,7 +255,7 @@ export function CrmHomeShell({
         }}
       >
         {content}
-        <button
+        {activeRoute !== 'today' && <button
           data-testid="crm-notifications-button"
           aria-label="Open notifications"
           onClick={() => {
@@ -273,7 +273,7 @@ export function CrmHomeShell({
         >
           <Bell size={20} />{' '}
           <span aria-label="Open notifications">Notifications</span>
-        </button>
+        </button>}
       </div>
     </div>
   );
