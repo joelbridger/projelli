@@ -365,10 +365,12 @@ describe('client-context selection authority', () => {
   it('boot gate validates persisted follower before the authority reader can be used', () => {
     const valid = matter('matter-a', householdA.householdId);
     useMatterStore.setState({ matters: [valid], activeMatterId: valid.id });
-    expect(bootstrapSelectionAuthorityFromPersistedFollower()).toEqual({
+    const booted = bootstrapSelectionAuthorityFromPersistedFollower();
+    expect(booted).toEqual({
       kind: 'matter',
       matterId: 'matter-a',
     });
+    expect(Object.isFrozen(booted)).toBe(true);
     expect(readAuthoritativeMatterScope()).toEqual({
       kind: 'matter',
       matterId: 'matter-a',

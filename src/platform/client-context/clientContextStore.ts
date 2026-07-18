@@ -329,7 +329,7 @@ function scopeFromPersistedFollower(): MatterScopeSelection {
     : { kind: 'blocked-unresolved' };
 }
 
-const bootScope = scopeFromPersistedFollower();
+const bootScope = freezeScope(scopeFromPersistedFollower());
 
 /**
  * The source of truth. Every source change is one `set()` call, then its
@@ -379,7 +379,7 @@ const clientContextStore = create<ClientContextState>()((set) => {
  * follower against current live matters before any consumer can trust a scope.
  */
 export function bootstrapSelectionAuthorityFromPersistedFollower(): MatterScopeSelection {
-  const scope = scopeFromPersistedFollower();
+  const scope = freezeScope(scopeFromPersistedFollower());
   writeSourceSelection(useClientContextStore.getState().client, scope);
   return scope;
 }
