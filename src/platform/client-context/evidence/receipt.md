@@ -2,7 +2,7 @@
 
 - Base SHA: `0683ff9b6987334e2191a6e8ed302491be55fbf7`
 - Frozen restoration source: `207ec6367`
-- Final SHA: `PENDING-FINAL-COMMIT`
+- Foundation code SHA: `8e06520466b5c5cb8887096edec839d19964786f`
 
 ## What this foundation owns
 
@@ -15,7 +15,8 @@ whether that projection currently agrees.
 The only public scope request is `requestMatterScopeSelection(SealedMatterScopeSelection)`.
 Its WeakMap provenance and frozen handle make a cast, raw id, raw union, or
 caller-created object refuse. Its issuer helpers are deliberately absent from
-the package index. The existing `setClient` remains a temporary compatibility
+the package index. The public store facade deliberately omits Zustand's raw
+`setState`, and stored/returned scope values are frozen. The existing `setClient` remains a temporary compatibility
 entry for the later writer-retirement lane; because it has no proven pair it
 sets the source scope to blocked rather than authorizing a raw selection.
 
@@ -30,7 +31,7 @@ Frozen inventory inspected: `clientContextStore.ts`, `clientContextStore.test.ts
 | `SealedClientBoundary`, private `WeakMap`, and async `requestSharedClientSelection` doorway | Adapted in `clientContextStore.ts` | Replaced frozen two-store ordering/rollback with one source slice and follower projection; forged and invalid boundaries now block the source rather than restoring stores. | `selects a current full client/matter pair…`; `refuses a forged client boundary…` |
 | Frozen `sealResolvedClientBoundary` issuer | Adapted in the owned package | Issuance now validates exactly one live unarchived canonical pair and captures a source revision. | specific-pair, stale, resolver, and revalidation tests |
 | Frozen `resolveHouseholdMatterId` rule in feature `clientBoundary.ts` | Reimplemented as `resolveCanonicalHouseholdMatter` in this platform package | Feature helper counts archived matches and is feature-owned; the legal authority rule must accept exactly one **unarchived** `Matter.crmHouseholdKeys` match. The feature file was not edited. | `resolves exactly one unarchived canonical household match` |
-| Frozen store state and tests | Adapted, not byte-identical | Added tri-state source, sealed scope requests, boot gate, projection-only status, and finally-owned single-flight retry. Required by R3 amendments 3 and 4. | all 16 focused tests |
+| Frozen store state and tests | Adapted, not byte-identical | Added tri-state source, sealed scope requests, boot gate, projection-only status, frozen exposed scopes, and finally-owned bounded single-flight retry. Required by R3 amendments 3 and 4. | all 19 focused tests |
 | Frozen public index | Adapted | Exports narrow readers and request types/doors; no issuer or raw scope writer is exported. | `has no raw-id or raw-union request boundary…` plus TypeScript test gate |
 
 No unrelated frozen path was imported. There are no other byte-identical restored
@@ -72,6 +73,8 @@ second selection write.
 | 9 forged/stale/missing/archived/unauthorized/wrong-client | forged, stale, and revalidation tests | PASS |
 | valid pair / immutable provenance / raw boundary | specific-pair, immutable-forgery, and raw-boundary tests | PASS |
 | boot valid / null / invalid / archived | `boot gate validates persisted follower before the authority reader can be used` | PASS |
+| review fixes: no raw `setState`, frozen scope, stale shared boundary | adapter, specific-pair, and stale-client-boundary tests | PASS |
+| review fix: no hot retry loop / live invalidation | `bounds a permanently failing follower retry…`; `blocks a source whose selected matter disappears…` | PASS |
 
 ## Commands and review status
 
@@ -79,9 +82,13 @@ Fresh commands will be re-run after the final documentation edit and final
 commit: focused Vitest suite, `npm run typecheck:tests`, full `npm run gate`,
 handle guard, and architecture-boundaries test. Rust source touched: no.
 
-Self-review round 1: pending final commit.  
-Self-review round 2: pending final commit.  
-Independent Sol review of every delta-list line: pending final commit.
+Independent Sol review round 1 (`gpt-5.6-sol`, reviewed commit `a16258fbc`)
+found four real issues: public raw `setState`, mutable exposed scope, stale
+shared-client boundary replay, and an unbounded permanent-failure retry. All
+four are fixed in `f1bada154`, `d60cd1ee9`, and `8e0652046`, with focused tests.
+
+Self-review round 1 and independent Sol review round 2: pending the final
+receipt/report commit and fresh final gates.
 
 The new sealed request operations intentionally have zero external callers in
 this foundation lane. External writer retirement, lifecycle migration, T1

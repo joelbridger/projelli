@@ -3,7 +3,7 @@
 - Branch: `feat/unification-sublane1-authority-foundation`
 - Base SHA: `0683ff9b6987334e2191a6e8ed302491be55fbf7`
 - Frozen source: `207ec6367`
-- Final SHA: `PENDING-FINAL-COMMIT`
+- Foundation code SHA: `8e06520466b5c5cb8887096edec839d19964786f`
 - Receipt: `src/platform/client-context/evidence/receipt.md`
 - Rust touched: no
 
@@ -22,18 +22,20 @@ boot gate. No external writer or consumer was migrated in this sub-lane.
 | --- | --- |
 | `clientContextStore.ts` | tri-state source, sealed provenance, resolver, boot gate, projection/retry |
 | `index.ts` | narrow read/request surface; no issuer or raw scope writer |
-| `clientContextStore.test.ts` | 16 focused tests covering required battery and request/boot cases |
+| `clientContextStore.test.ts` | 19 focused tests covering required battery, request/boot cases, and review fixes |
 | `evidence/receipt.md` | salvage delta list, Zustand evidence, battery map |
 | this report | final lane handoff |
 
 ## Final verification and review
 
-Pending final commit and final fresh rerun. This report will be updated with
-the exact command results, two clean self-review rounds, independent Sol
-review result, final clean-tree proof, and the final SHA.
+The first independent Sol review found four real issues: a public raw store
+writer, mutable exposed scope values, stale shared-client boundaries, and an
+endless retry risk. All four have been fixed and tested. A final independent
+review and the final fresh checks are still pending this receipt/report commit.
 
 ## Builder attestation
 
-Pending final commit. At finalization I will attest only to checks actually
-re-run after the last edit, scope limited to the granted roots, unchanged guard
-integrity, and public contracts that expose no raw scope-selection path.
+Pending final fresh checks. At finalization I will attest only to checks
+actually re-run after the last edit, scope limited to the granted roots,
+unchanged guard integrity, and public contracts that expose no raw
+scope-selection path.
