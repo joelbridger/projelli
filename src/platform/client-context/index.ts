@@ -1,6 +1,18 @@
 export {
+  bootstrapSelectionAuthorityFromPersistedFollower,
+  readAuthoritativeMatterScope,
   readSharedClientContext,
+  requestMatterScopeSelection,
+  requestSharedClientSelection,
+  resolveCanonicalHouseholdMatter,
   useClientContextStore,
+  type ClientContextState,
+  type FollowerStatus,
+  type MatterScopeSelection,
+  type MatterScopeSelectionResult,
+  type SealedClientBoundary,
+  type SealedMatterScopeSelection,
+  type SelectionResult,
   type SharedClientContextAdapter,
   type SharedClientIdentity,
 } from './clientContextStore';
