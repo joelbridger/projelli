@@ -48,7 +48,9 @@ describe('workflow completion production entry points', () => {
       { id: 'household-workflows', label: 'River household' },
       { id: 'workflows-refusal-instance' }
     );
-    const stepId = template.steps[0]!.id;
+    const step = template.steps[0];
+    if (!step) throw new Error('Expected a workflow template step.');
+    const stepId = step.id;
     registerWorkflowCompletionValidator(({ instance: candidate }) =>
       candidate.id === instance.id ? { ok: false, refusal } : { ok: true }
     );

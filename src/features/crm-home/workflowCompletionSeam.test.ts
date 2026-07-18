@@ -26,6 +26,15 @@ function workflowInstance(id: string) {
   };
 }
 
+function workflowStep(
+  instance: ReturnType<typeof startWorkflow>,
+  stepId: string
+) {
+  const step = instance.snapshot.steps[stepId];
+  if (!step) throw new Error('Expected a workflow instance step.');
+  return step;
+}
+
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
@@ -70,13 +79,14 @@ describe('workflow completion seam', () => {
     const observations: string[] = [];
     registerWorkflowCompletionValidator(({ instance, stepId }) => {
       if (instance.id !== guardedInstanceId) return { ok: true };
-      instance.snapshot.steps[stepId]!.status = 'in_progress';
-      observations.push(instance.snapshot.steps[stepId]!.status);
+      const step = workflowStep(instance, stepId);
+      step.status = 'in_progress';
+      observations.push(step.status);
       return { ok: true };
     });
     registerWorkflowCompletionValidator(({ instance, stepId }) => {
       if (instance.id !== guardedInstanceId) return { ok: true };
-      observations.push(instance.snapshot.steps[stepId]!.status);
+      observations.push(workflowStep(instance, stepId).status);
       return { ok: true };
     });
     const { instance, stepId } = workflowInstance(guardedInstanceId);
@@ -84,8 +94,8 @@ describe('workflow completion seam', () => {
     const completed = applyWorkflowStepCompletion(instance, stepId);
 
     expect(observations).toEqual(['in_progress', 'todo']);
-    expect(instance.snapshot.steps[stepId]!.status).toBe('todo');
-    expect(completed.snapshot.steps[stepId]!.status).toBe('done');
+    expect(workflowStep(instance, stepId).status).toBe('todo');
+    expect(workflowStep(completed, stepId).status).toBe('done');
   });
 
   it('surfaces a typed refusal without producing a saveable instance', () => {
@@ -109,7 +119,7 @@ describe('workflow completion seam', () => {
       );
       expect((error as Error).message).toBe(refusal.message);
     }
-    expect(instance.snapshot.steps[stepId]!.status).toBe('todo');
+    expect(workflowStep(instance, stepId).status).toBe('todo');
   });
 
   it('keeps the retired helper private and has no production bypass reference', () => {

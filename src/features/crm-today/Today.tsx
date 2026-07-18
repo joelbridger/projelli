@@ -191,7 +191,11 @@ export function Today({
                   void Promise.resolve(onCompleteWorkItem(item)).catch(
                     (reason: unknown) => {
                       setCompletionError(
-                        reason instanceof Error ? reason.message : String(reason)
+                        reason instanceof Error
+                          ? reason.message
+                          : typeof reason === 'string'
+                            ? reason
+                            : 'This work item could not be completed.'
                       );
                     }
                   );

@@ -66,7 +66,9 @@ export function AdapterMigrationWizard({
               ? null
               : reason instanceof Error
                 ? reason.message
-                : String(reason)
+                : typeof reason === 'string'
+                  ? reason
+                  : 'The workflow decision could not be saved.'
           );
         }}
       />
@@ -415,7 +417,7 @@ function WorkflowFallbackChecklist({
   records: readonly MigrationWorkflowChecklist[];
   onRecord: (record: MigrationWorkflowChecklist) => void | Promise<void>;
   error: string | null;
-  onError: (reason: unknown | null) => void;
+  onError: (reason: unknown) => void;
 }) {
   const [drafts, setDrafts] = useState(records);
   const [saved, setSaved] = useState<ReadonlySet<string>>(() => new Set());
@@ -782,4 +784,3 @@ function ExportReadiness({
     </Screen>
   );
 }
-
