@@ -1,47 +1,46 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type {
-  LiveWorkflowInstance,
-  WorkflowCompletionValidator,
-} from '@/features/crm-home/workflowLive';
+
+const IMPLEMENTATION_LOAD_OBSERVER = Symbol.for(
+  'lantern.workflowDependentDueCompletionLogic.loadObserver',
+);
 
 afterEach(() => {
-  vi.doUnmock('./workflowDependentDueCompletionLogic');
+  Reflect.deleteProperty(globalThis, IMPLEMENTATION_LOAD_OBSERVER);
   vi.resetModules();
 });
 
 describe('workflow dependent-due completion registration', () => {
-  it('does not load or enforce dependent-due completion logic while the flag is off', async () => {
+  it('keeps the real completion implementation unloaded on the workflowLive public-index path while the flag is off', async () => {
     vi.resetModules();
-    const heavyModuleLoad = vi.fn();
-    vi.doMock('./workflowDependentDueCompletionLogic', () => {
-      heavyModuleLoad();
-      return {
-        validateWorkflowDependentDueCompletion: vi.fn(),
-        freezeWorkflowDependentDueCompletion: vi.fn(),
-      };
-    });
-    const { registerWorkflowDependentDueCompletion } = await import(
-      './workflowDependentDueCompletionRegistration'
-    );
-    const validators: WorkflowCompletionValidator[] = [];
-    const complete = vi.fn((instance: LiveWorkflowInstance) => ({
-      ...instance,
-      status: 'completed' as const,
-    }));
-    const completion = registerWorkflowDependentDueCompletion((validator) => {
-      validators.push(validator);
-    });
-    const instance = {
-      id: 'flag-off-instance',
-      kind: 'crm_workflow_instance',
-    } as unknown as LiveWorkflowInstance;
+    const implementationLoad = vi.fn();
+    Reflect.set(globalThis, IMPLEMENTATION_LOAD_OBSERVER, implementationLoad);
 
-    expect(validators).toHaveLength(1);
-    expect(validators[0]?.({ instance, stepId: 'step-1' })).toEqual({ ok: true });
-    expect(completion(instance, 'step-1', undefined, complete)).toMatchObject({
-      status: 'completed',
+    const { setDevFlagOverride } = await import('@/platform/flags');
+    setDevFlagOverride('workflow-dependent-due', false);
+    const {
+      applyWorkflowStepCompletion,
+      createTemplate,
+      startWorkflow,
+    } = await import('@/features/crm-home/workflowLive');
+    const { prepareWorkflowDependentDueCompletion } = await import('@/features/crm-workflows');
+
+    const template = createTemplate('Flag-off workflow', ['Complete normally']);
+    const instance = startWorkflow(template, {
+      id: 'flag-off-household',
+      label: 'Flag-off household',
     });
-    expect(complete).toHaveBeenCalledOnce();
-    expect(heavyModuleLoad).not.toHaveBeenCalled();
+    const stepId = Object.keys(instance.snapshot.steps)[0];
+    if (!stepId) throw new Error('Expected the workflow fixture to contain one step.');
+
+    expect(applyWorkflowStepCompletion(instance, stepId).snapshot.steps[stepId]?.status)
+      .toBe('done');
+    await prepareWorkflowDependentDueCompletion();
+    expect(implementationLoad).not.toHaveBeenCalled();
+
+    // Prove the observer is attached to the real implementation, rather than
+    // passing because the assertion watches an unrelated wrapper.
+    setDevFlagOverride('workflow-dependent-due', true);
+    await prepareWorkflowDependentDueCompletion();
+    expect(implementationLoad).toHaveBeenCalledOnce();
   });
 });

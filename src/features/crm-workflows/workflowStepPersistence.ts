@@ -1,9 +1,6 @@
 import type { EntityRef } from '@/platform/crm/types';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
-import type {
-  LiveWorkflowInstance,
-  WorkflowCompletionValidation,
-} from '@/features/crm-home/workflowLive';
+import type { LiveWorkflowInstance } from '@/features/crm-home/workflowLive';
 
 export type WorkflowStepDocumentRef = Pick<EntityRef, 'kind' | 'id' | 'matterId' | 'label'> & {
   kind: 'document';
@@ -431,58 +428,4 @@ export async function saveWorkflowStepMetadata(
   const next = patchWorkflowStepMetadata(instance, stepId, patch);
   const saved = await onSave(next);
   return isSavedWorkflowInstance(saved) ? saved : next;
-}
-
-/** Shared fail-closed validator used by every canonical completion entry point. */
-export function validateWorkflowDependentDueCompletion(request: {
-  instance: LiveWorkflowInstance;
-  stepId: string;
-}): WorkflowCompletionValidation {
-  try {
-    const timing = readWorkflowStepTiming(request.instance, request.stepId);
-    if (!timing.sequential || !timing.blockedByStepId) return { ok: true };
-    const blockedTitle = request.instance.snapshot.steps[timing.blockedByStepId]?.titleSnapshot;
-    return {
-      ok: false,
-      refusal: {
-        code: 'workflow_dependency_incomplete',
-        message: blockedTitle
-          ? `Finish “${blockedTitle}” before completing this step.`
-          : 'Finish the required earlier step before completing this step.',
-      },
-    };
-  } catch {
-    return {
-      ok: false,
-      refusal: {
-        code: 'workflow_dependency_invalid',
-        message: 'Review this workflow’s step timing rules before completing work.',
-      },
-    };
-  }
-}
-
-/** Saves the displayed base/due pair into the same durable extension bag. */
-export function freezeWorkflowDependentDueCompletion(
-  completedInstance: LiveWorkflowInstance,
-  stepId: string,
-): LiveWorkflowInstance {
-  const metadata = readDependentDueMetadata(completedInstance);
-  const rule = metadata.steps[stepId];
-  if (!rule || metadata.completed[stepId]) return completedInstance;
-  const baseAt = rule.base === 'workflow_start'
-    ? (validIso(completedInstance.createdAt) ? completedInstance.createdAt : undefined)
-    : completionTime(completedInstance, rule.predecessorStepId ?? '', false);
-  const dueAt = dueAtFrom(baseAt, rule);
-  const next = structuredClone(completedInstance);
-  next[DEPENDENT_DUE_METADATA_KEY] = {
-    version: 2,
-    sequential: metadata.sequential,
-    steps: structuredClone(metadata.steps),
-    completed: {
-      ...structuredClone(metadata.completed),
-      [stepId]: { baseAt: baseAt ?? null, dueAt: dueAt ?? null },
-    },
-  } satisfies WorkflowDependentDueMetadata;
-  return next;
 }
