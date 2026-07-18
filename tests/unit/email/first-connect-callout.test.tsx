@@ -29,6 +29,10 @@ vi.mock('@/platform/utils/mail-commands', () => ({
   MAIL_INDEX_CHUNK_EVENT: 'mail-index-chunk',
 }));
 
+vi.mock('@/platform/client-context', () => ({
+  useSelectionOperationDecision: () => ({ kind: 'all-matters', client: null }),
+  readSelectionOperationDecision: () => ({ kind: 'all-matters', client: null }),
+}));
 vi.mock('@/platform/matter/matterStore', () => ({
   useActiveMatter: vi.fn().mockReturnValue(null),
   useMatters: vi.fn().mockReturnValue([]),

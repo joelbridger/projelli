@@ -12,6 +12,10 @@ vi.mock('@/platform/utils/mail-commands', () => ({
   MAIL_SYNC_EVENT: 'mail-sync-progress',
 }));
 
+vi.mock('@/platform/client-context', () => ({
+  useSelectionOperationDecision: () => ({ kind: 'all-matters', client: null }),
+  readSelectionOperationDecision: () => ({ kind: 'all-matters', client: null }),
+}));
 vi.mock('@/platform/matter/matterStore', () => ({
   useActiveMatter: vi.fn(),
   useMatters: vi.fn(),
