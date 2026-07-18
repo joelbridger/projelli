@@ -46,3 +46,34 @@ Teardown completed before this verdict: the owned browser, Vite server, and X di
 **Not yet clear enough to pass.** The main limitation is honestly signposted, but the exact boundary of what is and is not included is not unmistakable to a non-engineering advisor. The generic failure message makes that trust problem worse when the export cannot run.
 
 DESIGN-VERDICT: CHANGES-3
+
+---
+
+## Re-review — 2026-07-18
+
+**Build reviewed:** `de08e929eb9c31c4cee3cfc9084f371c30b34c2d`
+
+### Fresh live check
+
+- Fresh X display: `:87` (not `:1` or `:251`)
+- Fresh Vite port: `5197` (not `5174`)
+- Fresh disposable Chromium profile with `--password-store=basic`
+- Runtime-only feature enablement: the disposable browser profile set `localStorage['lantern:feature-flags']` to exactly `{"data-export-backup":true}` before the app loaded. No source, registry, or test files were changed.
+- Test workspace: `?testMode=true`; no real client files were used.
+- Teardown proven: the owned browser, Vite server, and X display stopped; ports `5197` and `9347`, display `:87`, and the disposable profile were all gone before this verdict was written.
+
+### Fresh screenshots
+
+| Screen | Evidence |
+| --- | --- |
+| Full panel copy | `2026-07-18-data-export-backup-rereview/01-data-export-panel-copy.png` |
+| Prominent exclusions statement | `2026-07-18-data-export-backup-rereview/02-data-export-exclusions.png` |
+| Human needs-review outcome | `2026-07-18-data-export-backup-rereview/03-data-export-needs-review.png` |
+
+### Re-verdict
+
+**Pass.** The panel now starts in ordinary language: it creates a JSON copy of CRM records that still have their original import data. The central warning says this is not a complete firm backup, and the adjacent, bold “Does not include” list makes the three missing categories unmistakable: documents and attachments, email files, and CRM records missing the needed import information. The unencrypted-file warning stays with that boundary.
+
+The browser-only failure path also now speaks like a person: “This export needs review” and “No verified archive is being claimed.” The old raw engineering error is absent. The compact technical detail is no longer in the primary decision path, so the screen is clear before an advisor needs to understand the proof mechanics.
+
+DESIGN-VERDICT: PASS
