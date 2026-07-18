@@ -2,15 +2,20 @@
 
 - Branch: `feat/unification-sublane2-writer-retirement`
 - Verified base: `dcb49570f9244fe81f683963050b6a7016d505cd`
-- Tested implementation: `524d9c285cc28a64acf44164a7eee76ae52abe85`
+- Tested implementation: `636ba77c2ac841ecfcea3c62829b410c3f192c91`
 - Receipt: `src/platform/client-context/evidence/writer-retirement-receipt.md`
+- Receipt-bearing final-tip proof: `git notes --ref=verification show HEAD`
+  (the note is attached after this record is committed, so it can name the
+  receipt-bearing commit without the impossible task of a commit embedding its own SHA)
 - Rust touched: no
 - Dark activation flag: still OFF by default
 - Pushed/merged: no/no
 
 ## Outcome
 
-Every production selection change now enters the sealed source-owned path.
+Every selection change in the required `src` and `scripts` tree now enters the
+sealed source-owned path. The two Northcrest demo helpers select All Clients by
+clicking the real app control, which enters the same door as a user action.
 The legacy `activeMatterId` value is a follower, not authority. Its only enabled
 writer is the source projection. Matter choices can settle as full-pair,
 matter-only, or blocked; explicit All remains its own sealed intent. Client
@@ -27,8 +32,9 @@ exact writer proof are in the receipt.
   sanctioned projection, four direct client set/clear callers.
 - Final inventory: one source-owned projection; zero external follower calls;
   zero direct client calls.
-- Machine proof: 7/7 positive/negative audit tests passed.
-- Fresh focused battery at `524d9c285`: 14 files, 136 tests passed.
+- Machine proof: 9/9 positive/negative audit tests passed, including a synthetic
+  direct script assignment and a temporary-tree proof that `scripts` is scanned.
+- Fresh focused product battery at `636ba77c2`: 13 files, 132 tests passed.
 - TypeScript app and test typechecks passed.
 - Lint gate passed without changing its baseline.
 - Handle guard passed; architecture boundary test passed.
@@ -40,6 +46,44 @@ but the overall gate is honestly RED: the worktree lacks the required Piper
 sidecar binary, so Rust/golden work could not start. The lint findings reported
 after that frontend run were fixed and the lint gate was rerun green. A third
 full gate was not permitted.
+
+## Final implementation-tip verification
+
+The complete scoped battery was rerun after the fix commit, at the immutable
+implementation SHA above. Exact identifying and summary output:
+
+```text
+$ git rev-parse HEAD
+636ba77c2ac841ecfcea3c62829b410c3f192c91
+
+$ npm run selection:writers:test
+1..9
+# tests 9
+# pass 9
+# fail 0
+
+$ npm run selection:writers:check
+ALLOW src/platform/client-context/clientContextStore.ts:779 single source-owned follower projection
+PASS: one follower projection writer; zero direct client writers.
+
+$ npx vitest run <13 writer/lifecycle product files> --reporter=dot
+Test Files  13 passed (13)
+Tests       132 passed (132)
+
+$ npx tsc --noEmit
+# exit 0
+$ npm run typecheck:tests
+# exit 0
+$ npm run lint:gate
+✅ No ESLint regression vs baseline. (63 fingerprint(s) cleaned up vs baseline)
+$ node scripts/ui-system/handle-guard.mjs
+✅ Handle guard passed — no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen).
+$ npx vitest run tests/unit/architecture-boundaries.test.ts
+Test Files  1 passed (1)
+Tests       1 passed (1)
+$ git diff --check
+# exit 0
+```
 
 ## Review disposition
 

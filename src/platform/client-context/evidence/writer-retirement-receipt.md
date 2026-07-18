@@ -4,7 +4,10 @@
 
 - Branch: `feat/unification-sublane2-writer-retirement`
 - Required base, verified before work: `dcb49570f9244fe81f683963050b6a7016d505cd`
-- Tested implementation SHA: `524d9c285cc28a64acf44164a7eee76ae52abe85`
+- Tested implementation SHA: `636ba77c2ac841ecfcea3c62829b410c3f192c91`
+- Receipt-bearing final-tip proof: `git notes --ref=verification show HEAD`.
+  The note is attached after this file is committed, allowing the evidence to
+  name the exact final commit without pretending a commit can embed its own SHA.
 - Sub-lane 1 was already landed in that base.
 - Rust touched: no.
 - Activation: `selection-authority-boot-gate` remains default OFF. Sub-lane 4 still owns activation.
@@ -42,11 +45,15 @@ all-matters, and `BLK` = blocked-unresolved.
 | C2 | `SharedClientBar` direct clear | `requestClearClientSelection`; current scope preserved | preserved | preserved | preserved | preserved | SharedClientBar clear test + clear law | retired |
 | C3 | CRM adapter direct set | provider-qualified identity → total shared-client issuer/request | yes | — | — | yes | shared adapter propagation + client classifier | retired |
 | C4 | Meetings adapter direct clear | `requestClearClientSelection`; no Meetings surface change | preserved | preserved | preserved | preserved | shared adapter propagation + clear law | retired |
+| S1 | `bench-clear-active.mjs:10` persisted follower mutation | `bench-clear-active.mjs:28` → `selectAllClientsThroughApp` → real `spine-all-clients-row` → sealed All request | — | — | yes | — | whole-tree audit rejects direct property assignment; script syntax check | retired |
+| S2 | `bench-open-northcrest.mjs:13` persisted follower mutation | `bench-open-northcrest.mjs:30` → `selectAllClientsThroughApp` → real `spine-all-clients-row` → sealed All request | — | — | yes | — | whole-tree audit rejects direct property assignment; script syntax check | retired |
 
 The mandatory base re-grep found eleven external production
 `setActiveMatter(...)` calls, the one foundation projection call, and four
 external client set/clear calls. Those are exactly the W/A2/C rows above. No
-additional production selection writer was found.
+additional in-app selection writer was found. The round-4 whole-tree audit then
+found S1/S2 in `scripts`; both are now retired through the real UI route rather
+than allowlisted.
 
 ## Base and final inventories
 
@@ -76,19 +83,21 @@ features/crm-clients/sharedClientContext.ts:18
 features/meetings/sharedClientContext.ts:17
 ```
 
-Final production call search:
+Final required-tree call search:
 
 ```text
-$ rg -n 'setActiveMatter\(|setClient\(|clearClient\(' src --glob '!**/*.test.*' --glob '!**/*.spec.*'
+$ rg -n 'setActiveMatter\(|setClient\(|clearClient\(' src scripts --glob '!**/*.test.*' --glob '!**/*.spec.*'
 src/platform/matter/matterStore.ts:1950:          // historical comment only
 src/platform/client-context/clientContextStore.ts:779:  useMatterStore.getState().setActiveMatter(projection);
 ```
 
-The AST proof deliberately distinguishes declarations, serialization, T2
+The AST proof walks both `src` and `scripts` and parses TS, TSX, JS, JSX, MJS,
+and CJS. It deliberately distinguishes declarations, serialization, T2
 context copies, the Meetings-private cursor, dark-only compatibility writes,
 and the one projection from selection writers. It also rejects direct calls,
 destructured/local writer bindings, bracket syntax, raw client-context state,
-direct active-matter object literals, and identifier-bound raw state payloads.
+direct active-matter object literals, identifier-bound raw state payloads, and
+direct `activeMatterId` property assignments using simple or compound operators.
 
 Exact final proof:
 
@@ -109,10 +118,10 @@ PASS: one follower projection writer; zero direct client writers.
 
 ## Round-trip and lifecycle battery
 
-| Requirement | Exact proof | Final result at `524d9c285` |
+| Requirement | Exact proof | Final result at `636ba77c2` |
 |---|---|---|
-| Battery 6, real writer routes | 14-file focused Vitest command below | 14 files, 136 tests passed |
-| Battery 10, single writer | `npm run selection:writers:test` | 7/7 passed, including negative bypass fixtures |
+| Battery 6, real writer routes | 13-file focused Vitest product command below | 13 files, 132 tests passed |
+| Battery 10, single writer | `npm run selection:writers:test` | 9/9 passed, including script assignment and whole-tree negative fixtures |
 | Total classifier + handle negatives | `clientContextStore.test.ts` | valid/blank/missing/archived, forged, stale, wrong pair passed |
 | FP/MO/ALL/BLK × restart | quantified fast-check property in `clientContextStore.test.ts` | passed |
 | Authority never persisted | localStorage test + workspace-disk test | passed |
@@ -164,21 +173,28 @@ full gate was not run a third time because the packet caps attempts at two.
 Final-SHA scoped evidence:
 
 ```text
-npm run selection:writers:test
-# tests 7; pass 7; fail 0
+$ git rev-parse HEAD
+636ba77c2ac841ecfcea3c62829b410c3f192c91
 
-npx vitest run <14 writer/lifecycle files> --reporter=verbose
-Test Files 14 passed (14)
-Tests 136 passed (136)
+npm run selection:writers:test
+# tests 9; pass 9; fail 0
+
+npm run selection:writers:check
+ALLOW src/platform/client-context/clientContextStore.ts:779 single source-owned follower projection
+PASS: one follower projection writer; zero direct client writers.
+
+npx vitest run <13 writer/lifecycle product files> --reporter=dot
+Test Files 13 passed (13)
+Tests 132 passed (132)
 
 npx tsc --noEmit
 # exit 0
 npm run typecheck:tests
 # exit 0
 npm run lint:gate
-# exit 0; no baseline update
+✅ No ESLint regression vs baseline. (63 fingerprint(s) cleaned up vs baseline)
 node scripts/ui-system/handle-guard.mjs
-# PASS; no permanent handle vanished; no new ambiguous handles
+✅ Handle guard passed — no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen).
 npx vitest run tests/unit/architecture-boundaries.test.ts
 # 1 file, 1 test passed
 git diff --check
