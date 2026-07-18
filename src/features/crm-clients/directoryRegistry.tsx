@@ -122,7 +122,10 @@ export interface DirectoryFeatureToolDescriptor<Value extends DirectoryFeatureSt
   mount: (context: DirectoryFeatureContext<Value>) => ReactNode;
   isEnabled?(): boolean;
 }
-export interface DirectoryActionDescriptor extends DirectoryDescriptorBase<DirectoryActionId> {}
+export interface DirectoryActionDescriptor extends DirectoryDescriptorBase<DirectoryActionId> {
+  /** Lets a descriptor opt out before the directory shell creates its layout wrapper. */
+  isEnabled?(): boolean;
+}
 export interface DirectoryRailDescriptor extends DirectoryDescriptorBase<DirectoryRailId> {}
 export interface DirectoryViewDescriptor<Id extends string = DirectoryViewId>
   extends DirectoryDescriptorBase<Id> {
@@ -260,6 +263,7 @@ import {
   legacyDirectoryViews,
 } from './directoryRegistryCompatibility';
 import { bulkSelectDirectoryTool } from './extensions/bulk-select';
+import { bulkExportDirectoryAction } from './extensions/bulk-export';
 
 /** Append feature-owned directory tools here without changing the directory shell. */
 export const directoryToolRegistry: readonly DirectoryToolDescriptor[] = [
@@ -267,7 +271,10 @@ export const directoryToolRegistry: readonly DirectoryToolDescriptor[] = [
   bulkSelectDirectoryTool,
 ];
 export const directoryActionRegistry: readonly DirectoryActionDescriptor[] =
-  legacyDirectoryActions;
+  [
+    ...legacyDirectoryActions,
+    bulkExportDirectoryAction,
+  ];
 export const directoryRailRegistry: readonly DirectoryRailDescriptor[] =
   legacyDirectoryRails;
 export const directoryViewRegistry: readonly DirectoryViewDescriptor<string>[] =

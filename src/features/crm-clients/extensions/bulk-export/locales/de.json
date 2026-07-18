@@ -1,0 +1,9 @@
+{
+  "bulkExport": {
+    "action": "CSV exportieren",
+    "includeHeader": "Spaltenüberschriften einschließen",
+    "empty": "Wählen Sie einen oder mehrere Haushalte zum Exportieren aus.",
+    "download": "CSV herunterladen",
+    "output": "CSV-Export"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "bulkExport": {
+    "action": "Exportar CSV",
+    "includeHeader": "Incluir encabezados de columna",
+    "empty": "Seleccione uno o más hogares para exportar.",
+    "download": "Descargar CSV",
+    "output": "Exportación CSV"
+  }
+}
