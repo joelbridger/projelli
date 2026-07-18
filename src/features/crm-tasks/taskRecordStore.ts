@@ -2,6 +2,7 @@ import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import type { EntityRef, RecurrenceRule, Task } from '@/platform/crm/types';
 import { validateContactRef, type ContactRef } from '@/features/crm-contacts';
+import { softDeleteCrmRecord } from '@/features/crm-trash';
 
 export type TaskStatus = Task['status'];
 export type TaskPriority = Task['priority'];
@@ -70,6 +71,8 @@ export interface TaskRecordStore {
   get(id: string): Promise<TaskRecord | undefined>;
   create(input: CreateTaskRecordInput): Promise<TaskRecord>;
   update(id: string, patch: UpdateTaskRecordPatch): Promise<TaskRecord>;
+  /** Moves the canonical task into the shared, restorable CRM trash. */
+  remove(id: string): Promise<void>;
 }
 
 type LiveTaskPort = Pick<
@@ -465,6 +468,20 @@ function createTaskRecordStore(port: LiveTaskPort): TaskRecordStore {
       const record = tasks.find((candidate) => candidate.id === id);
       if (!record) throw new Error('That task no longer exists.');
       return saveAndReload(mergePatch(record, patch));
+    },
+    remove: async (id) => {
+      requireAvailable(port);
+      const record = tasks.find((candidate) => candidate.id === id);
+      if (!record) throw new Error('That task no longer exists.');
+      const matterId = record.matterId?.trim();
+      if (!matterId) throw new Error('That task has no valid storage scope.');
+      await softDeleteCrmRecord({
+        workspaceRoot: port.workspaceRoot,
+        recordId: record.id,
+        matterId,
+        actorId: actor().userId,
+      });
+      await port.reload();
     },
   };
 }

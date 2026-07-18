@@ -620,6 +620,15 @@ mod tests {
         })
     }
 
+    fn live_task(id: &str) -> Value {
+        serde_json::json!({
+            "id": id, "kind": "task", "matterId": "firm_home",
+            "createdAt": "2026-07-15T00:00:00Z", "updatedAt": "2026-07-15T00:00:00Z",
+            "title": "Prepare annual review", "body": "", "status": "open",
+            "priority": "normal", "assigneeUserId": null, "tagIds": [], "contextRefs": []
+        })
+    }
+
     #[test]
     fn audit_record_keeps_lifecycle_actor_and_workspace_scope_metadata() {
         let record = build_trash_audit_record(
@@ -752,6 +761,50 @@ mod tests {
                 Ok(())
             })
             .unwrap();
+    }
+
+    #[test]
+    fn task_remove_trash_restore_round_trip_uses_the_canonical_store() {
+        let (directory, store) = store();
+        let task = live_task("task-1");
+        store.upsert_live_record(&task).unwrap();
+        let deleted_at = parse_time("2026-07-18T12:00:00Z", "test").unwrap();
+
+        let deleted =
+            soft_delete_record(&store, "task-1", "firm_home", "local-user", deleted_at).unwrap();
+        assert_eq!(deleted.record_type, "task");
+        assert_eq!(deleted.record, task);
+        assert!(store.list_live_records().unwrap().is_empty());
+        drop(store);
+
+        let reopened = CrmCoreStore::open_with_key(directory.path(), &[7; 32]).unwrap();
+        assert_eq!(
+            list_trashed_records(&reopened, deleted_at).unwrap(),
+            vec![deleted.clone()]
+        );
+        assert!(reopened.upsert_live_record(&deleted.record).is_err());
+
+        restore_record(
+            &reopened,
+            "task-1",
+            "firm_home",
+            "advisor-2",
+            deleted_at + Duration::days(1),
+        )
+        .unwrap();
+        drop(reopened);
+
+        let reopened_after_restore =
+            CrmCoreStore::open_with_key(directory.path(), &[7; 32]).unwrap();
+        assert_eq!(
+            reopened_after_restore.list_live_records().unwrap(),
+            vec![task]
+        );
+        assert!(
+            list_trashed_records(&reopened_after_restore, deleted_at + Duration::days(1))
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[test]

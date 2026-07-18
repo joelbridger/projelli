@@ -6,6 +6,12 @@ const canonical = vi.hoisted(() => ({
   records: [] as LiveCrmRecord[],
   save: vi.fn<(record: LiveCrmRecord) => Promise<LiveCrmRecord>>(),
   reload: vi.fn<() => Promise<void>>(),
+  softDelete: vi.fn<(request: {
+    workspaceRoot: string;
+    recordId: string;
+    matterId: string;
+    actorId: string;
+  }) => Promise<unknown>>(),
 }));
 
 vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
@@ -17,6 +23,9 @@ vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
     error: null,
   }),
 }));
+vi.mock('@/features/crm-trash', () => ({
+  softDeleteCrmRecord: canonical.softDelete,
+}));
 
 import { useTaskRecordStore } from '@/features/crm-tasks';
 
@@ -25,11 +34,13 @@ describe('public task record store', () => {
     canonical.records = [];
     canonical.save.mockReset();
     canonical.reload.mockReset();
+    canonical.softDelete.mockReset();
     canonical.save.mockImplementation((record) => {
       canonical.records = [...canonical.records, structuredClone(record)];
       return Promise.resolve(structuredClone(record));
     });
     canonical.reload.mockResolvedValue(undefined);
+    canonical.softDelete.mockResolvedValue({});
   });
 
   it('creates a complete canonical task through the live record route', async () => {
@@ -182,5 +193,51 @@ describe('public task record store', () => {
       householdRef: { kind: 'household', id: 'household-2', matterId: 'matter-2' },
     })).rejects.toThrow('same client');
     expect(canonical.save).not.toHaveBeenCalled();
+  });
+
+  it('removes through the sole CRM trash doorway and reloads without writing a deletion marker', async () => {
+    canonical.records = [{
+      id: 'task-1',
+      kind: 'task',
+      matterId: 'matter-1',
+      title: 'Prepare review',
+      body: '',
+      assigneeUserId: null,
+      status: 'open',
+      priority: 'normal',
+      tagIds: [],
+      contextRefs: [],
+    }];
+    const { result } = renderHook(() => useTaskRecordStore());
+
+    await result.current.remove('task-1');
+
+    expect(canonical.softDelete).toHaveBeenCalledWith({
+      workspaceRoot: '/workspace',
+      recordId: 'task-1',
+      matterId: 'matter-1',
+      actorId: 'local-user',
+    });
+    expect(canonical.save).not.toHaveBeenCalled();
+    expect(canonical.reload).toHaveBeenCalledOnce();
+  });
+
+  it('refuses missing tasks and malformed storage scope before touching trash', async () => {
+    canonical.records = [{
+      id: 'unscoped-task',
+      kind: 'task',
+      title: 'Legacy task',
+    }];
+    const { result } = renderHook(() => useTaskRecordStore());
+
+    await expect(result.current.remove('missing-task')).rejects.toThrow(
+      'no longer exists'
+    );
+    await expect(result.current.remove('unscoped-task')).rejects.toThrow(
+      'no valid storage scope'
+    );
+    expect(canonical.softDelete).not.toHaveBeenCalled();
+    expect(canonical.save).not.toHaveBeenCalled();
+    expect(canonical.reload).not.toHaveBeenCalled();
   });
 });
