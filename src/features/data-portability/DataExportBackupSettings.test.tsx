@@ -15,6 +15,10 @@ import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import writerProducedArchive from './__fixtures__/writer-produced-archive.json?raw';
 import { dataPortabilitySettingsPanel } from './settingsModuleDescriptor';
 
+const WRITER_FIXTURE_BYTE_LENGTH = 1_050;
+const WRITER_FIXTURE_SHA256 =
+  'b12847d84c62723e637bb52fac41b265fed396dfe2f3dc09c4cb0787c77f0476';
+
 vi.mock('@/platform/crm/migration', () => ({
   createMigrationExport: vi.fn(),
 }));
@@ -65,6 +69,12 @@ describe('data export Settings panel', () => {
     vi.mocked(readTauriTextFile).mockResolvedValue(writerProducedArchive);
     renderPanel();
 
+    expect(Buffer.byteLength(writerProducedArchive)).toBe(
+      WRITER_FIXTURE_BYTE_LENGTH
+    );
+    expect(
+      createHash('sha256').update(writerProducedArchive).digest('hex')
+    ).toBe(WRITER_FIXTURE_SHA256);
     expect(createMigrationExport).not.toHaveBeenCalled();
     expect(screen.getByTestId('firm-backup-unavailable')).toHaveTextContent(
       'Complete firm backup unavailable'
@@ -92,10 +102,10 @@ describe('data export Settings panel', () => {
       receipt.filePath
     );
     expect(screen.getByTestId('migration-archive-size')).toHaveTextContent(
-      '1,051 bytes'
+      '1,050 bytes'
     );
     expect(screen.getByTestId('migration-archive-checksum')).toHaveTextContent(
-      receipt.sha256
+      WRITER_FIXTURE_SHA256
     );
     expect(
       screen.getByTestId('migration-archive-record-count')
@@ -117,17 +127,27 @@ describe('data export Settings panel', () => {
     vi.mocked(readTauriTextFile).mockResolvedValue(writerProducedArchive);
     renderPanel();
 
-    expect(
-      screen.getByText(/does not select only Wealthbox records/i)
-    ).toBeVisible();
-    expect(
-      screen.queryByText(/only Wealthbox records are included/i)
-    ).not.toBeInTheDocument();
-    expect(
-      within(screen.getByTestId('migration-archive-includes')).getAllByRole(
-        'listitem'
-      )
-    ).toHaveLength(3);
+    const preExportClaimsCopy = screen
+      .getByTestId('data-portability-settings')
+      .textContent?.replace(/\s+/gu, '');
+    expect(preExportClaimsCopy).toBe(
+      [
+        'Data export',
+        'Create the existing archive for stored CRM records that carry a source type, source ID, and source payload.',
+        'Complete firm backup unavailable — needs review',
+        'This is not a complete firm backup.',
+        'This doorway copies every stored CRM record with those three source fields, regardless of import provider. It does not select only Wealthbox records.',
+        'What the archive contract includes',
+        'For each eligible stored CRM record: its source type, source ID, copied source payload, and target record ID when one is stored.',
+        'A manifest with the total record count and counts by source record type.',
+        'The fidelity rows saved in the migration report. Success is shown only when every archived source type has a matching, reconciled row.',
+        'The contract omits stored records missing any of the three source fields. It does not copy workspace documents or email as files, but a CRM record describing either is included when it has all three fields.',
+        'The JSON file is decrypted. Store it only in a place your firm approves.',
+        'Create CRM source-record archive',
+      ]
+        .join('')
+        .replace(/\s+/gu, '')
+    );
 
     fireEvent.click(screen.getByTestId('migration-archive-create'));
     expect(await screen.findByTestId('migration-archive-result')).toBeVisible();
@@ -141,9 +161,9 @@ describe('data export Settings panel', () => {
         'Saved file',
         receipt.filePath,
         'Size',
-        '1,051 bytes',
+        '1,050 bytes',
         'SHA-256 checksum',
-        receipt.sha256,
+        WRITER_FIXTURE_SHA256,
         'Manifest ID',
         receipt.manifestId,
         'Fidelity report ID',
