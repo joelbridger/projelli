@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   addWorkflowStepNote,
   applyWorkflowOffer,
-  completeWorkflowStep,
+  applyWorkflowStepCompletion,
   createMeetingWorkflowProposal,
   createTemplate,
   offerForInstance,
@@ -19,7 +19,7 @@ describe('saved CRM workflow wiring', () => {
   it('keeps completed work untouched and conditionally protects a later household edit on undo', () => {
     const template = createTemplate('Annual review', ['Confirm household details', 'Open accounts', 'Send welcome packet']);
     const started = startWorkflow(template, { id: 'household-northcrest', label: 'Northcrest household' });
-    const completed = completeWorkflowStep(started, template.steps[0]!.id);
+    const completed = applyWorkflowStepCompletion(started, template.steps[0]!.id);
     const update = publishTemplateUpdate(template, 'Confirm household goals', 'Send welcome summary');
     const offer = offerForInstance(update.template, completed, update.revisionId, update.label);
 
@@ -44,7 +44,7 @@ describe('saved CRM workflow wiring', () => {
     const configured = updateWorkflowTemplate(template, { outcomes: { [first.id]: [{ id: 'held', label: 'Meeting held', nextStepId: next.id }] } });
     const started = startWorkflow(configured, { id: 'household-1', label: 'River household' });
     const noted = addWorkflowStepNote(started, first.id, 'Client asked for a tax projection.');
-    const completed = completeWorkflowStep(noted, first.id, 'held');
+    const completed = applyWorkflowStepCompletion(noted, first.id, 'held');
 
     expect(completed.snapshot.steps[first.id]!.stepNotes).toContain('Client asked for a tax projection.');
     expect(completed.snapshot.steps[first.id]!.outcome).toBe('Meeting held');

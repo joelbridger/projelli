@@ -3,7 +3,7 @@ import { useEffect, type ReactNode } from 'react';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import { nextRecurringDue } from '@/platform/crm/tasks';
 import { createMigrationExport, runWealthboxMigration } from '@/platform/crm/migration';
-import { completeWorkflowStep, createTemplate, startScheduledWorkflows, startWorkflow, workflowRecords } from '../workflowLive';
+import { applyWorkflowStepCompletion, createTemplate, startScheduledWorkflows, startWorkflow, workflowRecords } from '../workflowLive';
 import { CrmHomeShell } from '../CrmHome';
 import type { HouseholdChoice } from '@/features/crm-workflows/Workflows';
 import { mergeCrmTaskRecord, projectCrmTask } from './liveTaskAdapter';
@@ -564,7 +564,7 @@ export function LiveCrmHome({
     );
     if (!instance)
       throw new Error('That workflow step is no longer available.');
-    await live.save(completeWorkflowStep(instance, item.stepId));
+    await live.save(applyWorkflowStepCompletion(instance, item.stepId));
     const now = new Date().toISOString();
     await live.save({
       id: `activity-${crypto.randomUUID()}`,
@@ -631,6 +631,7 @@ export function LiveCrmHome({
         let template = workflowRecords(live.records).templates.find(
           (item) => item.name === record.sourceTemplateLabel
         );
+        let templateNeedsSave = false;
         if (!template) {
           if (!record.availableSteps.length)
             throw new Error(
@@ -640,7 +641,7 @@ export function LiveCrmHome({
             record.sourceTemplateLabel,
             record.availableSteps
           );
-          await live.save(template);
+          templateNeedsSave = true;
         }
         let instance = startWorkflow(template, {
           id: household.id,
@@ -654,7 +655,11 @@ export function LiveCrmHome({
           0,
           Math.max(0, currentStepIndex)
         ))
-          instance = completeWorkflowStep(instance, step.id);
+          instance = applyWorkflowStepCompletion(instance, step.id);
+        // Run every completion preflight before persisting any part of this
+        // recreation. A refusal must not leave a template without its matching
+        // workflow instance and checklist record.
+        if (templateNeedsSave) await live.save(template);
         await live.save(instance);
         await live.save({
           ...record,

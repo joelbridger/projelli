@@ -16,7 +16,7 @@ import type {
 } from '@/features/crm-home/routes';
 import {
   addWorkflowStepNote,
-  completeWorkflowStep,
+  applyWorkflowStepCompletion,
   createMeetingWorkflowProposal,
   createTemplate,
   offerForInstance,
@@ -144,10 +144,10 @@ export function LiveWorkflows({
   const instances = template
     ? data.instances.filter((instance) => instance.templateId === template.id)
     : [];
-  const save = async (record: LiveCrmRecord) => {
+  const save = async (record: LiveCrmRecord | (() => LiveCrmRecord)) => {
     try {
       setError(null);
-      await onSave(record);
+      await onSave(typeof record === 'function' ? record() : record);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
     }
@@ -847,7 +847,7 @@ function LiveInstanceCard({
   onSaveStepMetadata,
 }: {
   instance: LiveWorkflowInstance;
-  onSave: (record: LiveCrmRecord) => Promise<unknown>;
+  onSave: (record: LiveCrmRecord | (() => LiveCrmRecord)) => Promise<unknown>;
   onSaveStepMetadata: (record: LiveCrmRecord) => Promise<unknown>;
 }) {
   const [editingStep, setEditingStep] = useState<string | null>(null);
@@ -929,8 +929,8 @@ function LiveInstanceCard({
                         variant="secondary"
                         data-testid={`crm-live-workflow-complete-${instance.id}-${step.stepId}`}
                         onClick={() => {
-                          void onSave(
-                            completeWorkflowStep(
+                          void onSave(() =>
+                            applyWorkflowStepCompletion(
                               instance,
                               step.stepId,
                               outcomeIds[step.stepId]
