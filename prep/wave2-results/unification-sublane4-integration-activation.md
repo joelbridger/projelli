@@ -1,4 +1,4 @@
-# Unification sub-lane 4 result — coordinator stop
+# Unification sub-lane 4 result — CHANGES-3 fix round
 
 `COORDINATOR:` The implementation reached the final desktop launch check, but
 the second and final allowed canonical gate attempt was red. Activation has
@@ -9,8 +9,9 @@ ready to land as activated**.
 
 - Base: `19de3e85f6c8b34099860c3cc46a0725510b95a5`
 - Activation-under-test: `abfbd090ed7468421f176fe6561fdeb3935ea76c`
-- Safe code tip before evidence:
-  `4af5ce853c79a114966ffb651415b69207548436`
+- Reviewed stop tip: `a51899f658c4acd917a58e0c110d857726872082`
+- Fix-round code tip before evidence:
+  `f8ce1c82f3499f752684e51735ed4b78ab38bed2`
 - Activation: OFF at the safe tip
 - Rust touched: no
 - Tree after the evidence commit: expected clean
@@ -20,7 +21,7 @@ ready to land as activated**.
 Evidence-only binding:
 
 ```text
-git diff --name-only 4af5ce853c79a114966ffb651415b69207548436..HEAD
+git diff --name-only f8ce1c82f3499f752684e51735ed4b78ab38bed2..HEAD
 prep/wave2-results/unification-sublane4-integration-activation.md
 src/platform/client-context/evidence/integration-activation-receipt.md
 ```
@@ -38,6 +39,12 @@ src/platform/client-context/evidence/integration-activation-receipt.md
    adapter under all-matters, matter-scoped, and blocked-unresolved.
 5. The named test `boot-validation-failure-renders-BLOCKED` covers the old
    projection-null fail-open class through visible UI.
+6. The test-only Matters public barrel is removed. Its tests now live beside
+   the owned components, and the real boundary check passes unchanged.
+7. All newly observable selector, navigation-memory, live MCP, and cleanup MCP
+   output is behind the existing canonical flag. OFF keeps the landed shapes.
+8. TrustBar, StatusBar, MatterHub, MattersHome, and Spine each have direct
+   BLOCKED and stale DOM assertions.
 
 Logical implementation commits:
 
@@ -47,6 +54,7 @@ a20448d07 feat(selection): present authoritative scope truthfully
 b7db58c75 test(selection): align T2 integration fixtures
 abfbd090e feat(selection): activate validated boot authority
 4af5ce853 fix(selection): keep boot authority inactive after red gate
+f8ce1c82f fix(selection): preserve inert output behind boot gate
 ```
 
 The activation commit was deliberately one flag-only commit after item-by-item
@@ -59,7 +67,14 @@ was not green.
 - Flag-off protected battery: 15 files / 214 tests PASS.
 - `boot-validation-failure-renders-BLOCKED`: PASS.
 - Activation-on focused amended battery: 30 files / 378 tests PASS.
+- Fix-round full focused amended battery: 32 files / 385 tests PASS at
+  `f8ce1c82f`.
 - The permanent task interaction case was part of that run and passed.
+- Production typecheck: PASS.
+- Test typecheck: PASS.
+- Boundaries: PASS — 599 existing baseline findings, zero regression.
+- Architecture-boundary test: 1/1 PASS.
+- Selection writer proof: 14/14 PASS; whole-tree scan PASS.
 - Canonical gate attempt 2 passed boundaries, both TypeScript typechecks, the
   selection writer proof, 1,143 frontend test files / 9,099 tests, lint, handle
   guard, and the Rust suites reached after that point.
@@ -84,23 +99,20 @@ golden-loop command, or describe the result as green.
 
 - Fresh checks on an activated final SHA: **not attestable** because the gate
   was red and activation was rolled back.
-- Scope and guard integrity: no guard weakening found. One possible fence
-  crossing is disclosed in the receipt: a four-line Matters public entry was
-  added for the focused test's architecture-safe import, despite the brief's
-  “no public export” rule.
-- Presentation truth: focused tests passed, but coordinator review remains
-  pending.
+- Scope and guard integrity: PASS for this fix round. The public entry is gone;
+  no boundary baseline, guard, test, timeout, assertion, or activation mechanism
+  was weakened.
+- Presentation truth: direct blocked/stale assertions pass for all five named
+  surfaces; selector OFF attributes and MCP OFF JSON bytes are proven.
 - Activation: preconditions passed and the flag was isolated, but final
   activation is withheld.
 - Full release proof: **not attestable** because the canonical gate was red.
-- Two clean self-reviews: not run after the hard stop.
-- Independent different-model review: coordinator-arranged and still pending.
+- Banked review: Opus SECURITY-PASS at `a51899f65` remains valid for the
+  reviewed parent. The coordinator's required delta verification of
+  `a51899f65..f8ce1c82f` is still pending and is not claimed here.
 
 ## Coordinator decision needed
 
-Please decide whether to repair the canonical golden-loop command so it uses
-the shared Cargo output (or locally neutralizes that setting), and whether to
-grant a new gate attempt. Please also decide whether the test-only Matters
-public entry must be removed. If work resumes, the lane still needs a fully
-green activated gate, the exact post-edit proof commands, two clean self-review
-rounds, and the coordinator's independent review before it can be accepted.
+Run the planned Opus delta verification. Activation remains safely OFF and the
+old canonical gate remains honestly red; this fix round did not spend a third
+gate attempt or touch the activation flip mechanism.
