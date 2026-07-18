@@ -326,11 +326,11 @@ describe('Privileged Matter Mode activation (reactive hook + stores)', () => {
 });
 
 describe('StatusBar: Privileged Matter Mode badge', () => {
-  it('renders the persistent badge when the mode is active and a matter is open', () => {
+  it('renders the persistent badge when the mode is active and a matter is open', async () => {
     // Badge requires both the mode active AND an active matter (it only makes
     // sense to show it when scoped to a specific matter).
     const matter = useMatterStore.getState().createMatter({ name: 'Test', client: 'C' });
-    useMatterStore.getState().setActiveMatter(matter.id);
+    await selectMatterWithConvergedFollower(matter.id);
     useSettingsStore.getState().setSetting(PRIVILEGED_MATTER_MODE_SETTING_KEY, true);
     useOfflineModeStore.setState({
       offlineMode: true,
@@ -347,7 +347,10 @@ describe('StatusBar: Privileged Matter Mode badge', () => {
     // The visible badge stays short in the simplified status bar; the hover
     // text keeps the fuller explanation.
     expect(badge.textContent).toContain('Isolated client');
-    expect(badge).toHaveAttribute('title', expect.stringContaining('Network plugins'));
+    expect(badge).toHaveAttribute(
+      'title',
+      'Network lockdown: network plugins and MCP servers are disabled.',
+    );
   });
 
   it('does not render the badge when the mode is off', () => {

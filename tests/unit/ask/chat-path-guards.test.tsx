@@ -57,6 +57,47 @@ vi.mock('@/platform/client-context', () => ({
     authoritativeSelection.readRequests.push(request);
     return authoritativeSelection.decision;
   },
+  useSelectionPresentation: () => {
+    const decision = authoritativeSelection.decision;
+    if (decision.kind === 'matter') {
+      const scope = { kind: 'matter-only' as const, matterId: decision.matter.id };
+      return {
+        scope,
+        sourceScope: scope,
+        followerStatus: 'converged' as const,
+        matterId: decision.matter.id,
+        blocked: false,
+        allMatters: false,
+        stale: false,
+        authorityEnabled: true,
+      };
+    }
+    if (decision.kind === 'refused') {
+      const scope = { kind: 'blocked-unresolved' as const };
+      return {
+        scope,
+        sourceScope: scope,
+        followerStatus:
+          decision.reason === 'follower-disagreement' ? ('stale' as const) : ('converged' as const),
+        matterId: null,
+        blocked: decision.reason === 'blocked-unresolved',
+        allMatters: false,
+        stale: decision.reason === 'follower-disagreement',
+        authorityEnabled: true,
+      };
+    }
+    const scope = { kind: 'all-matters' as const };
+    return {
+      scope,
+      sourceScope: scope,
+      followerStatus: 'converged' as const,
+      matterId: null,
+      blocked: false,
+      allMatters: true,
+      stale: false,
+      authorityEnabled: true,
+    };
+  },
 }));
 
 function makeStubProvider() {
