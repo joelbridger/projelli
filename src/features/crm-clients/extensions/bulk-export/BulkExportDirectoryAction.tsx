@@ -7,6 +7,11 @@ import { useFlag } from '@/platform/flags/router';
 import { createHouseholdCsv } from './csv';
 import { bulkExportPreferences, readBulkExportPreference } from './preferences';
 
+interface CsvOutput {
+  readonly content: string;
+  readonly inputKey: string;
+}
+
 function BulkExportDirectoryActionEnabled({
   context,
 }: {
@@ -17,7 +22,7 @@ function BulkExportDirectoryActionEnabled({
   const [includeHeader, setIncludeHeader] = useState(
     () => readBulkExportPreference().includeHeader,
   );
-  const [csv, setCsv] = useState<string | null>(null);
+  const [csv, setCsv] = useState<CsvOutput | null>(null);
   const selectedHouseholds = useMemo(() => {
     const authorizedById = new Map(
       context.records.households.map((household) => [household.id, household]),
@@ -27,6 +32,18 @@ function BulkExportDirectoryActionEnabled({
       return household ? [household] : [];
     });
   }, [context.records.households, selection.selectedHouseholdIds]);
+  const exportInputKey = JSON.stringify([
+    includeHeader,
+    selectedHouseholds.map((household) => [
+      household.id,
+      household.name,
+      household.lifecycle,
+      household.primaryAdvisor,
+      household.serviceTier,
+      household.peopleCount,
+    ]),
+  ]);
+  const currentCsv = csv?.inputKey === exportInputKey ? csv.content : null;
 
   const updateIncludeHeader = (next: boolean) => {
     bulkExportPreferences.save({ includeHeader: next });
@@ -35,11 +52,14 @@ function BulkExportDirectoryActionEnabled({
   };
   const exportCsv = () => {
     if (selectedHouseholds.length === 0) return;
-    setCsv(createHouseholdCsv(selectedHouseholds, { includeHeader }));
+    setCsv({
+      content: createHouseholdCsv(selectedHouseholds, { includeHeader }),
+      inputKey: exportInputKey,
+    });
   };
-  const downloadHref = csv === null
+  const downloadHref = currentCsv === null
     ? undefined
-    : `data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`;
+    : `data:text/csv;charset=utf-8,${encodeURIComponent(currentCsv)}`;
 
   return (
     <div data-testid="crm-directory-bulk-export" style={{ alignItems: 'center', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -67,12 +87,12 @@ function BulkExportDirectoryActionEnabled({
           {t('bulkExport.empty')}
         </span>
       ) : null}
-      {csv !== null ? (
+      {currentCsv !== null ? (
         <>
           <a data-testid="crm-directory-bulk-export-download" download="selected-households.csv" href={downloadHref}>
             {t('bulkExport.download')}
           </a>
-          <pre aria-label={t('bulkExport.output')} data-testid="crm-directory-bulk-export-output">{csv}</pre>
+          <pre aria-label={t('bulkExport.output')} data-testid="crm-directory-bulk-export-output">{currentCsv}</pre>
         </>
       ) : null}
     </div>

@@ -57,6 +57,13 @@ describe('CRM selected-household CSV export', () => {
     expect(createHouseholdCsv([households[0], households[1]], { includeHeader: true })).toBe(
       '"Household ID","Household name","Lifecycle","Primary advisor","Service tier","People count"\r\n"alpha","Alpha, household","Active","Taylor ""T""","Planning","3"\r\n"zebra","\'=Formula household","\'+Active","\'-Jordan","\'@Private","2"',
     );
+    expect(createHouseholdCsv([
+      { ...households[0], id: 'z', name: '\t=tab formula' },
+      { ...households[1], id: 'ä', name: 'accented' },
+      { ...households[1], id: 'a', name: 'plain' },
+    ], { includeHeader: false })).toBe(
+      '"a","plain","Active","Taylor ""T""","Planning","3"\r\n"z","\'\t=tab formula","\'+Active","\'-Jordan","\'@Private","2"\r\n"ä","accented","Active","Taylor ""T""","Planning","3"',
+    );
   });
 
   it('mounts from the real directory registry, shows the empty state, and exports only current selected records', () => {
@@ -77,6 +84,17 @@ describe('CRM selected-household CSV export', () => {
       'download',
       'selected-households.csv',
     );
+  });
+
+  it('withdraws an old download when the selected records change', () => {
+    renderEnabledDirectory();
+    fireEvent.click(screen.getByTestId('crm-directory-bulk-select-all'));
+    fireEvent.click(screen.getByTestId('crm-directory-bulk-export-generate'));
+    expect(screen.getByTestId('crm-directory-bulk-export-download')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('crm-directory-bulk-clear'));
+    expect(screen.queryByTestId('crm-directory-bulk-export-download')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('crm-directory-bulk-export-output')).not.toBeInTheDocument();
   });
 
   it('authorizes selected ids against the current directory records before exporting', async () => {

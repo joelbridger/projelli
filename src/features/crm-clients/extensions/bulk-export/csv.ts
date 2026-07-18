@@ -14,7 +14,9 @@ export interface BulkExportOptions {
 }
 
 function spreadsheetSafe(value: string): string {
-  return /^[=+\-@]/.test(value) ? `'${value}` : value;
+  let index = 0;
+  while (value.charCodeAt(index) <= 0x20) index += 1;
+  return /^[=+\-@]/.test(value.slice(index)) ? `'${value}` : value;
 }
 
 function quoteCsvCell(value: string | number): string {
@@ -33,7 +35,7 @@ export function createHouseholdCsv(
 ): string {
   const rows = households
     .slice()
-    .sort((left, right) => left.id.localeCompare(right.id))
+    .sort((left, right) => left.id < right.id ? -1 : left.id > right.id ? 1 : 0)
     .map((household) => [
       household.id,
       household.name,
