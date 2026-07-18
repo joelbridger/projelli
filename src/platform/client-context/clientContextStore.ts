@@ -135,6 +135,16 @@ function projectedFollowerValue(scope: MatterScopeSelection): string | null {
   return scope.kind === 'matter' ? scope.matterId : null;
 }
 
+function freezeScope(scope: MatterScopeSelection): MatterScopeSelection {
+  return Object.freeze(
+    scope.kind === 'matter'
+      ? { kind: 'matter' as const, matterId: scope.matterId }
+      : scope.kind === 'all-matters'
+        ? { kind: 'all-matters' as const }
+        : { kind: 'blocked-unresolved' as const }
+  );
+}
+
 function followerStatusFor(scope: MatterScopeSelection): FollowerStatus {
   return useMatterStore.getState().activeMatterId ===
     projectedFollowerValue(scope)
@@ -254,6 +264,8 @@ let writeSourceSelection: (
   scope: MatterScopeSelection
 ) => void;
 let reconciliationPending = false;
+let failedReconciliationAttempts = 0;
+const MAX_RECONCILIATION_RETRIES = 3;
 
 function updateFollowerStatus(): void {
   const state = useClientContextStore.getState();
@@ -270,7 +282,19 @@ function updateFollowerStatus(): void {
 
 function reconcileFollower(): void {
   reconciliationPending = false;
-  const scope = useClientContextStore.getState().scope;
+  const source = useClientContextStore.getState();
+  const scope = source.scope;
+  if (
+    scope.kind === 'matter' &&
+    !useMatterStore
+      .getState()
+      .matters.some(
+        (matter) => matter.id === scope.matterId && !matter.archived
+      )
+  ) {
+    writeSourceSelection(source.client, { kind: 'blocked-unresolved' });
+    return;
+  }
   const projection = projectedFollowerValue(scope);
   try {
     useMatterStore.getState().setActiveMatter(projection);
@@ -280,15 +304,20 @@ function reconcileFollower(): void {
   }
   updateFollowerStatus();
   if (followerStatusFor(useClientContextStore.getState().scope) === 'stale') {
-    scheduleFollowerReconciliation();
+    if (failedReconciliationAttempts < MAX_RECONCILIATION_RETRIES) {
+      failedReconciliationAttempts += 1;
+      scheduleFollowerReconciliation(2 ** failedReconciliationAttempts);
+    }
+  } else {
+    failedReconciliationAttempts = 0;
   }
 }
 
 /** Exactly one queued reconciliation exists, independently of any later selection write. */
-function scheduleFollowerReconciliation(): void {
+function scheduleFollowerReconciliation(delayMs = 0): void {
   if (reconciliationPending) return;
   reconciliationPending = true;
-  setTimeout(reconcileFollower, 0);
+  setTimeout(reconcileFollower, delayMs);
 }
 
 function scopeFromPersistedFollower(): MatterScopeSelection {
@@ -308,11 +337,13 @@ const bootScope = scopeFromPersistedFollower();
  */
 const clientContextStore = create<ClientContextState>()((set) => {
   writeSourceSelection = (client, scope) => {
+    const nextScope = freezeScope(scope);
+    failedReconciliationAttempts = 0;
     try {
       set((state) => ({
         client,
-        scope,
-        followerStatus: followerStatusFor(scope),
+        scope: nextScope,
+        followerStatus: followerStatusFor(nextScope),
         selectionRevision: state.selectionRevision + 1,
       }));
     } catch (error) {
@@ -381,16 +412,17 @@ export async function requestMatterScopeSelection(
   }
   if (sealed.kind === 'all-matters') {
     const client = useClientContextStore.getState().client;
-    writeSourceSelection(client, { kind: 'all-matters' });
-    return { kind: 'selected', client, scope: { kind: 'all-matters' } };
+    const scope = freezeScope({ kind: 'all-matters' });
+    writeSourceSelection(client, scope);
+    return { kind: 'selected', client, scope };
   }
   const validation = validatePair(sealed.client, sealed.matterId);
   if (!validation.matter)
     return refuseMatterScope(validation.reason ?? 'unauthorized-pair');
-  const scope: MatterScopeSelection = {
+  const scope = freezeScope({
     kind: 'matter',
     matterId: validation.matter.id,
-  };
+  });
   writeSourceSelection(sealed.client, scope);
   return { kind: 'selected', client: sealed.client, scope };
 }

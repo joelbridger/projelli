@@ -135,11 +135,17 @@ describe('client-context selection authority', () => {
     });
     if (!request) throw new Error('fixture must seal');
 
-    await expect(requestMatterScopeSelection(request)).resolves.toEqual({
+    const result = await requestMatterScopeSelection(request);
+    expect(result).toEqual({
       kind: 'selected',
       client: { householdId: 'household-a', displayName: 'Alpha household' },
       scope: { kind: 'matter', matterId: 'matter-a' },
     });
+    if (result.kind !== 'selected')
+      throw new Error('fixture request must select');
+    expect(Object.isFrozen(result.scope)).toBe(true);
+    expect(() => Object.assign(result.scope, { matterId: 'other' })).toThrow();
+    expect(Object.isFrozen(readAuthoritativeMatterScope())).toBe(true);
     await waitForConvergence();
   });
 
@@ -455,6 +461,46 @@ describe('client-context selection authority', () => {
     await requestMatterScopeSelection(request);
     expect(useClientContextStore.getState().followerStatus).toBe('stale');
     await waitForConvergence();
+  });
+
+  it('blocks a source whose selected matter disappears before follower projection', async () => {
+    seed(matter('matter-a', householdA.householdId));
+    const request = sealMatterScopeSelection({
+      householdRef: householdA.householdId,
+      matterId: 'matter-a',
+    });
+    if (!request) throw new Error('fixture must seal');
+
+    await requestMatterScopeSelection(request);
+    useMatterStore.setState({ matters: [] });
+    await vi.waitFor(() => {
+      expect(useClientContextStore.getState().scope).toEqual({
+        kind: 'blocked-unresolved',
+      });
+    });
+    await waitForConvergence();
+  });
+
+  it('bounds a permanently failing follower retry and leaves stale observable', async () => {
+    seed(matter('matter-a', householdA.householdId));
+    let attempts = 0;
+    useMatterStore.setState({
+      setActiveMatter: () => {
+        attempts += 1;
+        throw new Error('permanent follower failure');
+      },
+    });
+    const request = sealMatterScopeSelection({
+      householdRef: householdA.householdId,
+      matterId: 'matter-a',
+    });
+    if (!request) throw new Error('fixture must seal');
+
+    await requestMatterScopeSelection(request);
+    await vi.waitFor(() => expect(attempts).toBe(4));
+    expect(useClientContextStore.getState().followerStatus).toBe('stale');
+    await new Promise<void>((resolve) => setTimeout(resolve, 20));
+    expect(attempts).toBe(4);
   });
 
   it('refuses a forged client boundary and blocks the source scope', async () => {
