@@ -1,0 +1,44 @@
+Workflow completion seam final-tip verification
+Final SHA: ba82a42bea2d3b1b2373526ddbece7143b67955f
+
+$ npm exec vitest run -- src/features/crm-home/workflowLive.test.ts src/features/crm-home/workflowCompletionSeam.test.ts
+RUN v4.1.3
+Test Files 2 passed (2)
+Tests 14 passed (14)
+Duration 1.34s
+exit 0
+
+$ npm run typecheck
+> advisor-prep-hero@3.3.5 typecheck
+> tsc --noEmit
+exit 0
+
+$ npm run boundaries:check
+> advisor-prep-hero@3.3.5 boundaries:check
+> node scripts/check-boundaries.mjs
+No feature-boundary regression (599 current baseline finding(s)).
+exit 0
+
+$ whole-tree production completion scan
+DIRECT_HELPER_CALLS
+src/features/crm-home/workflowLive.ts:202 export function completeWorkflowStep(...)
+src/features/crm-home/workflowLive.ts:230 return completeWorkflowStep(...)
+CANONICAL_WRITER_PRODUCTION_CALLS
+src/features/crm-home/workflowLive.ts:220 export function applyWorkflowStepCompletion(...)
+src/features/crm-workflows/Workflows.tsx:933 applyWorkflowStepCompletion(...)
+src/features/crm-home/shared/LiveCrmHome.tsx:567 live.save(applyWorkflowStepCompletion(...))
+src/features/crm-home/shared/LiveCrmHome.tsx:657 instance = applyWorkflowStepCompletion(...)
+exit 0
+
+$ git diff --check
+exit 0, no output
+
+$ git status --short
+exit 0, no output
+
+Changed from base 8118b12cc:
+prep/wave2-results/workflow-completion-seam.md
+src/features/crm-home/shared/LiveCrmHome.tsx
+src/features/crm-home/workflowCompletionSeam.test.ts
+src/features/crm-home/workflowLive.ts
+src/features/crm-workflows/Workflows.tsx
