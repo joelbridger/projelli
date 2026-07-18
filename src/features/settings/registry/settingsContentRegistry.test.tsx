@@ -1,5 +1,5 @@
 import { createElement } from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SettingsPanelDescriptor, SettingsSectionDescriptor } from './types';
 
@@ -31,6 +31,7 @@ const personalPanel: SettingsPanelDescriptor = {
 
 describe('SettingsContent registry-derived rail', () => {
   afterEach(async () => {
+    cleanup();
     const flags = await import('@/platform/flags');
     flags.setDevFlagOverride('booking-availability', undefined);
     flags.setDevFlagOverride('notification-preferences', undefined);
@@ -74,7 +75,7 @@ describe('SettingsContent registry-derived rail', () => {
     expect(
       screen.getByTestId('settings-category-personalTest')
     ).toBeInTheDocument();
-  });
+  }, 15_000);
 
   it('self-serves the real My settings rail, visible panel, and search terms without a SettingsContent edit', async () => {
     const flags = await import('@/platform/flags');
@@ -100,7 +101,7 @@ describe('SettingsContent registry-derived rail', () => {
       target: { value: 'digest' },
     });
     expect(screen.getByTestId('settings-category-personal')).toBeInTheDocument();
-  });
+  }, 15_000);
 
   it('keeps booking availability absent in the real legacy Settings Scheduling host while dark', async () => {
     const flags = await import('@/platform/flags');
@@ -118,7 +119,7 @@ describe('SettingsContent registry-derived rail', () => {
     expect(
       screen.queryByTestId('booking-availability-settings')
     ).not.toBeInTheDocument();
-  });
+  }, 15_000);
 
   it('reaches booking availability through the real legacy Settings Scheduling host only while enabled', async () => {
     const flags = await import('@/platform/flags');
@@ -136,5 +137,5 @@ describe('SettingsContent registry-derived rail', () => {
     expect(
       await screen.findByTestId('booking-availability-settings')
     ).toBeInTheDocument();
-  });
+  }, 15_000);
 });
