@@ -223,6 +223,31 @@ describe('client-context selection authority', () => {
     });
   });
 
+  it('refuses a stale sealed client boundary rather than replaying it', async () => {
+    seed(
+      matter('matter-a', householdA.householdId),
+      matter('matter-b', householdB.householdId)
+    );
+    const stale = sealResolvedClientBoundary({
+      householdRef: householdA.householdId,
+      matterId: 'matter-a',
+    });
+    const next = sealResolvedClientBoundary({
+      householdRef: householdB.householdId,
+      matterId: 'matter-b',
+    });
+    if (!stale || !next) throw new Error('fixtures must seal');
+    await requestSharedClientSelection(next);
+
+    await expect(requestSharedClientSelection(stale)).resolves.toEqual({
+      kind: 'refused',
+      reason: 'invalid-client-boundary',
+    });
+    expect(useClientContextStore.getState().scope).toEqual({
+      kind: 'blocked-unresolved',
+    });
+  });
+
   it('revalidates missing, archived, unauthorized, and wrong-client pairs fail-closed', async () => {
     seed(matter('matter-a', householdA.householdId));
     const missing = sealMatterScopeSelection({

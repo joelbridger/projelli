@@ -407,6 +407,15 @@ export async function requestSharedClientSelection(
     });
     return { kind: 'refused', reason: 'unsealed-client-boundary' };
   }
+  if (
+    sealed.issuedAtRevision !==
+    useClientContextStore.getState().selectionRevision
+  ) {
+    writeSourceSelection(useClientContextStore.getState().client, {
+      kind: 'blocked-unresolved',
+    });
+    return { kind: 'refused', reason: 'invalid-client-boundary' };
+  }
   const validation = validatePair(sealed.client, sealed.matterId);
   if (!validation.matter) {
     writeSourceSelection(useClientContextStore.getState().client, {
