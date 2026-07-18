@@ -19,6 +19,14 @@ const runtime: SettingsV1Runtime = {
   workspace: { rootPath: null },
 };
 
+const schedulingRuntime: SettingsV1Runtime = {
+  ...runtime,
+  settings: {
+    ...runtime.settings,
+    pageFocus: { category: 'scheduling', key: 1 },
+  },
+};
+
 describe('SettingsV1FrameEnabled', () => {
   afterEach(() => {
     useProfileStore.setState({ soloName: '', firmName: '' });
@@ -27,6 +35,7 @@ describe('SettingsV1FrameEnabled', () => {
     setDevFlagOverride('custom-fields-firm', undefined);
     setDevFlagOverride('contact-sources', undefined);
     setDevFlagOverride('notification-preferences', undefined);
+    setDevFlagOverride('booking-availability', undefined);
   });
 
   it('uses the visible registered settings sections and keeps Organization wording', () => {
@@ -117,5 +126,30 @@ describe('SettingsV1FrameEnabled', () => {
       'aria-current',
       'page'
     );
+  });
+
+  it('keeps booking availability absent in the enabled V1 Scheduling host while dark', () => {
+    render(<SettingsV1FrameEnabled runtime={schedulingRuntime} />);
+
+    expect(screen.getByTestId('settings-v1-section-scheduling')).toHaveAttribute(
+      'aria-current',
+      'page'
+    );
+    expect(
+      screen.queryByTestId('booking-availability-settings')
+    ).not.toBeInTheDocument();
+  });
+
+  it('reaches booking availability through the enabled V1 Scheduling host only while enabled', async () => {
+    setDevFlagOverride('booking-availability', true);
+    render(<SettingsV1FrameEnabled runtime={schedulingRuntime} />);
+
+    expect(screen.getByTestId('settings-v1-section-scheduling')).toHaveAttribute(
+      'aria-current',
+      'page'
+    );
+    expect(
+      await screen.findByTestId('booking-availability-settings')
+    ).toBeInTheDocument();
   });
 });

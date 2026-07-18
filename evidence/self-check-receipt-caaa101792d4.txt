@@ -1,0 +1,18 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/lantern/app/integration/.worktrees/feat/jp056-settings-host-combined
+sha: caaa101792d446d9b532351a3fd5f3793a802941
+tree: be39531e28aa60cca812149ae149f9bf0968b8d3
+gate_base: 974f34e2394ad7b4131557be5c9fa9b09de0322c
+tool_blob: 04db9a936f686f872e7914b7a20ed016027c37b8
+utc: 2026-07-18T07:54:52Z
+step_timeout_seconds: 600
+loadavg: 5.77 7.94 7.49
+running_vitest_eslint_procs: 1
+step: gate:changed | status=PASS | exit=0 | 07:54:52Z..08:03:25Z | bytes=3308495 | sha256=e745e407381c86bdb68857b3582de43e2435d7be8827cd163ecc6d0ca9d46d9e | tail: [22m[2m | [22m[33m29 skipped[39m[90m (9052)[39m [2m Start at [22m 07:57:38 [2m Duration [22m 346.79s[2m (transform 26.11s, setup 173.03s, import 491.05s, tests 214.51s, environment 385.54s)[22m CHANGED GATE GREEN
+step: typecheck | status=PASS | exit=0 | 08:03:25Z..08:03:48Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit
+step: typecheck:tests | status=PASS | exit=0 | 08:03:48Z..08:04:15Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit
+step: handle-guard | status=PASS | exit=0 | 08:04:15Z..08:04:15Z | bytes=1364 | sha256=ba49e3be6135e7724d2940290d677716ac1388c5ad2c14f19fd6a14039ba9e23 | tail:  + booking-page-hosted-link-rail + booking-page-preview-button + booking-page-settings +449 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen).
+step: arch-dag-guard | status=PASS | exit=0 | 08:04:15Z..08:04:16Z | bytes=527 | sha256=1b53afa4f1339a5e50a9d0d64d677fa1fdb6274a38bbea20f6f272b7875b0038 | tail: assed[39m[22m[90m (1)[39m [2m Tests [22m [1m[32m1 passed[39m[22m[90m (1)[39m [2m Start at [22m 08:04:15 [2m Duration [22m 913ms[2m (transform 202ms, setup 311ms, import 250ms, tests 3ms, environment 263ms)[22m
+step: i18n-snapshot | status=PASS | exit=0 | 08:04:16Z..08:04:17Z | bytes=528 | sha256=ab57a3536c6838839f645abc5a3a334faaa5c729ba9b968642f44cba76b5922c | tail: ssed[39m[22m[90m (1)[39m [2m Tests [22m [1m[32m5 passed[39m[22m[90m (5)[39m [2m Start at [22m 08:04:16 [2m Duration [22m 961ms[2m (transform 259ms, setup 380ms, import 216ms, tests 18ms, environment 263ms)[22m
+overall: GREEN
