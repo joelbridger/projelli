@@ -60,7 +60,7 @@ function normalizeAddContextRefs(
   });
 }
 import type { AddToHouseholdRequest, OpenMailSurfaceRequest } from '@/features/crm-clients/adapters';
-import type { EmailComposeHandoff } from '@/features/email/composeHandoff';
+import type { EmailComposeHandoff } from '@/features/email';
 import { CrmAskSurface } from '@/features/crm-ask';
 import { DocumentsHome } from '@/features/documents/DocumentsHome';
 import { AssociateHome } from '@/features/workflows/AssociateHome';

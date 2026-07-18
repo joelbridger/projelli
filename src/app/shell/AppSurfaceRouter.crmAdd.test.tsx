@@ -6,8 +6,7 @@ import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import { AppSurfaceRouter, type AppSurfaceRouterProps } from './AppSurfaceRouter';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { setDevFlagOverride } from '@/platform/flags';
-import { registerHouseholdTab } from '@/features/crm-clients/tabRegistry';
-import { memberRailTab } from '@/features/crm-clients/extensions/record-member-kebab';
+import { memberRailTab, registerHouseholdTab } from '@/features/crm-clients';
 
 const mail = vi.hoisted(() => ({
   desktop: true,
