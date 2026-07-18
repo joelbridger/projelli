@@ -81,6 +81,7 @@ describe('client-context selection authority', () => {
     expect(readAuthoritativeMatterScope()).toEqual({
       kind: 'blocked-unresolved',
     });
+    expect('setState' in useClientContextStore).toBe(false);
   });
 
   it('resolves exactly one unarchived canonical household match', () => {

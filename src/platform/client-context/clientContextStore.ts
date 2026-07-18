@@ -260,7 +260,7 @@ function updateFollowerStatus(): void {
   const followerStatus = followerStatusFor(state.scope);
   if (state.followerStatus === followerStatus) return;
   try {
-    useClientContextStore.setState({ followerStatus });
+    clientContextStore.setState({ followerStatus });
   } catch (error) {
     // A subscriber cannot prevent state already swapped by Zustand from being
     // observed or retried. The next reconcile still re-checks the projection.
@@ -306,7 +306,7 @@ const bootScope = scopeFromPersistedFollower();
  * The source of truth. Every source change is one `set()` call, then its
  * finally block schedules reconciliation even if a source subscriber throws.
  */
-export const useClientContextStore = create<ClientContextState>()((set) => {
+const clientContextStore = create<ClientContextState>()((set) => {
   writeSourceSelection = (client, scope) => {
     try {
       set((state) => ({
@@ -438,3 +438,17 @@ export function readSharedClientContext<Context>(
 export function readAuthoritativeMatterScope(): MatterScopeSelection {
   return useClientContextStore.getState().scope;
 }
+
+/**
+ * Public read facade. Deliberately omit Zustand's raw `setState`: selection
+ * changes must enter through the sealed request door or legacy compatibility
+ * methods on the state, never through a structural scope object.
+ */
+export const useClientContextStore = Object.assign(
+  <Selection>(selector: (state: ClientContextState) => Selection): Selection =>
+    clientContextStore(selector),
+  {
+    getState: clientContextStore.getState,
+    subscribe: clientContextStore.subscribe,
+  }
+);
