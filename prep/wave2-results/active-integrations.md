@@ -1,23 +1,34 @@
-# Active integrations result
+# Active integrations fix-round result
 
-## Source state
+## Source state and evidence binding
 
 - Branch: `v1/active-integrations`
-- Launch base: `a197c9c2073f1b561070db9be52d6a7f35f4847d`
-- Final verified source commit: `b82cfabbb94d8094ea907ac5ad093359ffcd950b`
-- Source commit state: clean before the machine receipt was generated
-- Rust: **NO**
+- Original approved base: `a197c9c2073f1b561070db9be52d6a7f35f4847d`
+- Fix-round launch tip: `2a91f8d9c19610f6cc0c5ff393556644abdc6741`
+- Last code tip (the exact tree checked):
+  `28d34cc007ae2b2affffe448b89b5f424bc3ee22`
+- Final evidence tip: the commit containing this report
+- Final commits after the code tip: evidence only
+- Rust/native work: **NO**
+
+This follows the ruled evidence convention: checks bind to the exact last code
+tip above. The only path after that code tip is this report:
+
+```text
+$ git diff 28d34cc007ae2b2affffe448b89b5f424bc3ee22..HEAD --name-only
+prep/wave2-results/active-integrations.md
+```
 
 ## Outcome
 
-The Account registry now appends one default-off **Active integrations**
-section. When enabled, the section reads the existing `connections` cards
-through `@/features/account` and renders only each card's own `renderStatus()`
+The Account registry appends one default-off **Active integrations** section.
+When enabled, it reads the existing `connections` cards through the public
+`@/features/account` doorway and renders only each card's own `renderStatus()`
 and `renderSafeDisconnect()` output.
 
 No connector, provider operation, credential path, OAuth flow, Account host,
-shell route, client selection path, or Rust file was changed. The section adds
-no disconnect operation or status store.
+shell route, client selection path, or Rust file changed. The section adds no
+disconnect operation or status store.
 
 Each shown card has:
 
@@ -27,114 +38,138 @@ Each shown card has:
 - an honest omission notice if a runtime-malformed card lacks a required
   renderer.
 
-If the public descriptor read itself fails validation, the section fails
-closed with an unavailable state and does not guess status or controls.
+If the public descriptor read fails validation, the section fails closed with
+an unavailable state and does not guess status or controls. After an
+interaction with a connector-owned disconnect control, it performs a fresh
+public descriptor/render read. It also observes later connector-owned UI
+changes and refreshes without copying provider-specific success logic.
 
-After an interaction with a connector-owned disconnect control, the section
-performs a fresh public descriptor/render read. It also observes later UI
-changes from an asynchronous connector-owned result and refreshes the public
-read without copying provider-specific success logic.
+## F1: Privacy Center diagnosis and cure
 
-## Public-contract preflight
+The disputed Settings test was run from an isolated detached worktree at the
+exact approved base. The scratch worktree used the repository's already
+installed dependencies; no lane source was present.
 
-PASS at the launch base.
+```text
+$ git rev-parse HEAD
+a197c9c2073f1b561070db9be52d6a7f35f4847d
 
-- The slate safety grep returned `1`, meaning zero protected navigation,
-  shell, client-context, matter-store, or CRM-home matches in the granted
-  attachment files.
-- `@/features/account` publicly exports the canonical validated
-  `getConnectionCardDescriptors()` reader.
-- The real `connections` projection contains 16 ordered cards, and the focused
-  registry proof confirms every one supplies callable `renderStatus` and
-  `renderSafeDisconnect` renderers.
-- Whole-source-scope scan at the verified source commit found no private
-  connector import. Every import from the child to Account uses
-  `@/features/account`.
+$ npx vitest run src/app/shell/SettingsSurfaceFlagGate.integration.test.tsx
 
-## Flag-off proof
+ RUN  v4.1.3 /home/jameson/lantern/app/integration/.worktrees/base-activeint-proof
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  18:18:25
+   Duration  7.57s (transform 4.60s, setup 373ms, import 5.85s, tests 971ms, environment 280ms)
+```
+
+**Register note:** the Settings test is green at the base, so the earlier
+`privacy-center-scroll` failure is not registered as pre-existing. This lane
+owns the acceptance debt. The Account registry proof now follows the real
+registry-enumeration pattern: with the flag dark it asserts the unchanged four
+section ids; with the flag enabled it asserts the complete five-id order,
+selects the one real `active-integrations` descriptor, renders that real
+descriptor, and asserts the real `active-integrations-section` panel. The
+final focused run below also executes the disputed Settings test and is green.
+
+The historical machine receipt remains truthfully RED and unedited at
+`evidence/self-check-receipt-b82cfabbb94d.txt`. It records the earlier broad
+gate observation; this report does not relabel that historical run.
+
+## F2: non-vacuous provider-operation proof
+
+The opening test's `providerCall` spy is now on the rendered control's actual
+code path:
+
+```text
+connector-owned button onClick -> disconnect spy -> providerCall spy
+```
+
+The section is rendered with that card, then the test asserts that opening it
+invokes neither `disconnect` nor `providerCall`. This proof can now fail if the
+rendered disconnect control is invoked during opening. The separate click test
+continues to prove that a user click invokes the connector-owned control and
+causes a fresh public registry read.
+
+## Flag-off and public-contract proof
 
 `active-integrations` is appended once with `defaultEnabled: false`,
 `ownerLane: 'active-integrations'`, creation date `2026-07-18`, and expiry date
 `2026-09-16`.
 
-The real `getAccountSectionDescriptors()` doorway calls the outer feature gate
-before it receives the descriptor. With the flag off, the focused registry
-test proves there is no Active integrations descriptor or tab. Therefore the
-child is not mounted, its state is not created, and the public card reader is
-not called. With the flag on, the same real registry returns exactly one
-descriptor and its renderer mounts `ActiveIntegrationsSection`.
+The real `getAccountSectionDescriptors()` doorway applies the feature gate
+before returning the descriptor. With the flag off, there is no Active
+integrations descriptor or tab, so the child is not mounted and its public
+card reader is not called. With the flag on, the same registry returns exactly
+one descriptor and its renderer mounts the real section.
 
-## Fresh final checks at `b82cfabbb94d8094ea907ac5ad093359ffcd950b`
+The canonical public card projection contains 16 ordered `connections` cards.
+Every one supplies callable status and safe-disconnect renderers. All child
+imports from Account use `@/features/account`; there is no private connector
+import.
 
-| Check | Result |
-| --- | --- |
-| `npm run typecheck` | PASS |
-| `npm run typecheck:tests` | PASS |
-| Focused Vitest: active-integrations package, Account registry, public Account doorway | PASS, 3 files / 14 tests |
-| `npm run boundaries:check` | PASS, no regression; 599 current baseline findings |
-| `npx vitest run tests/unit/architecture-boundaries.test.ts` | PASS, 1 test |
-| `node scripts/ui-system/handle-guard.mjs` | PASS, no removed or newly ambiguous handles |
-| `npx vitest run tests/unit/i18n/en-json-snapshot.test.ts` | PASS, 5 tests |
-| ESLint on every touched TS/TSX file | PASS |
-| `git diff --check a197c9c2073f1b561070db9be52d6a7f35f4847d..HEAD` | PASS |
-| Whole-source-scope protected-path/private-connector scan | PASS, zero forbidden matches |
+## Fresh final checks at `28d34cc007ae2b2affffe448b89b5f424bc3ee22`
 
-The machine receipt is
-`evidence/self-check-receipt-b82cfabbb94d.txt`. Its individual `typecheck`,
-`typecheck:tests`, `handle-guard`, `arch-dag-guard`, `i18n-snapshot`,
-`boundaries:check`, and focused steps all passed. The focused receipt step ran
-the feature directory and passed 4 tests.
+### Focused suite
 
-The receipt's overall result is truthfully **RED** because its broader
-`gate:changed` step hit the five-minute cap after reporting one failure in
-`src/app/shell/SettingsSurfaceFlagGate.integration.test.tsx`. An isolated rerun
-reproduced that unrelated failure: 1 passed, 1 failed because
-`privacy-center-scroll` was absent. A source comparison confirms this lane
-changed neither that test nor any `src/features/settings` file. Those paths are
-outside this grant and were not edited.
+```text
+$ npx vitest run src/features/account/active-integrations/ActiveIntegrationsSection.test.tsx src/features/account/accountRegistries.test.tsx src/features/account/connectionCardPublicDoorway.test.tsx src/app/shell/SettingsSurfaceFlagGate.integration.test.tsx
 
-`COORDINATOR:` the inherited Settings surface test above remains red and needs
-owner triage outside this lane. The required checks for the granted Active
-integrations source are green; the receipt is intentionally not represented as
-green.
+ RUN  v4.1.3 /home/jameson/lantern/app/integration/.worktrees/v1/active-integrations
 
-## Review status
+ Test Files  4 passed (4)
+      Tests  16 passed (16)
+   Start at  18:22:56
+   Duration  15.54s (transform 27.36s, setup 4.70s, import 36.78s, tests 2.71s, environment 3.08s)
+```
 
-- Worker self-review: PASS. The full base-to-source diff contains only the ten
-  granted source paths. No private connector import, copied provider operation,
-  alternate status store, unsafe disconnect route, flag default, suppressed
-  test, weakened assertion, timeout, snapshot, baseline, or manifest change
-  was found.
-- Independent Sol review: **NOT RUN IN THIS LANE**. The coordinator launch
-  delta explicitly says reviews are coordinator-arranged. No review result is
-  fabricated here.
+### Application type check
 
-## Product and contract decisions
+```text
+$ npm run typecheck
+> advisor-prep-hero@3.3.5 typecheck
+> tsc --noEmit
+exit=0
+```
 
-1. The existing `connections` placement is the complete candidate list;
-   developer tools are not shown in this firm-integration section.
-2. Connector cards remain the only authority for status, access/capability
-   truth, confirmation, result handling, and disconnect behavior.
-3. A malformed card is omitted; a failed public read shows an unavailable
-   state. Neither path synthesizes connection truth.
-4. A connector-owned UI interaction causes a fresh public read. Later
-   connector-owned UI changes cause another fresh read so asynchronous success
-   does not leave the section presenting its earlier render.
-5. The host registry and Account window remain unchanged except for the one
-   append-only public section contribution.
+### Test type check
 
-## Attestations against the final source commit
+```text
+$ npm run typecheck:tests
+> advisor-prep-hero@3.3.5 typecheck:tests
+> tsc -p tsconfig.test.json --noEmit
+exit=0
+```
 
-1. **Fresh checks:** every reported required check ran after the last source
-   edit. `[attest: yes + b82cfabbb94d8094ea907ac5ad093359ffcd950b]`
-2. **Scope:** every source path is authorized: the new
-   `src/features/account/active-integrations/` package, the append-only Account
-   registry import/default contribution and its focused test, and the appended
-   flag descriptor. The mandated receipt and this result are evidence only.
-   `[attest: yes | list authorization above]`
+### Feature boundaries
+
+```text
+$ npm run boundaries:check
+> advisor-prep-hero@3.3.5 boundaries:check
+> node scripts/check-boundaries.mjs
+
+✅ No feature-boundary regression (599 current baseline finding(s)).
+exit=0
+```
+
+Touched-test ESLint, Prettier, and `git diff --check` also passed against the
+same code tree.
+
+## Attestations
+
+1. **Fresh checks:** every reported final check ran after the last code edit at
+   the exact code tip above.
+   `[attest: yes + 28d34cc007ae2b2affffe448b89b5f424bc3ee22]`
+2. **Scope:** source paths remain limited to the active-integrations package,
+   the append-only Account registry contribution and focused registry test,
+   and the appended flag descriptor. This fix round changes only two granted
+   tests plus this evidence report.
 3. **Guard integrity:** no test, validation, type, timeout, snapshot, baseline,
-   or manifest was weakened. `[attest: yes]`
-4. **Contracts:** all cross-feature use is through the public Account doorway
-   and all shown controls are connector-owned. `[attest: yes]`
+   or manifest was weakened. The provider assertion was strengthened by wiring
+   it to an observable rendered path.
+4. **Contracts:** all cross-feature production use remains through the public
+   Account doorway; all displayed controls remain connector-owned.
 
-Ready for coordinator review. The launcher owns the completion sentinel.
+Ready for coordinator re-review. The launcher alone owns the completion
+sentinel.
