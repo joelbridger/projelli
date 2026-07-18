@@ -3,23 +3,42 @@ import { Button, Card } from '@/ui/kp';
 import type { DirectoryContext } from '@/features/crm-clients';
 import { crmDuplicatesCopy } from './copy';
 import {
-  findLikelyDuplicateHouseholds,
-  type DuplicateHouseholdMatch,
+  findLikelyDuplicateContacts,
+  type DuplicateContactMatch,
 } from './duplicateDetection';
+import {
+  duplicateMatchKey,
+  duplicateReviewPreferences,
+  readDuplicateReviewState,
+  type DuplicateReviewDisposition,
+  type DuplicateReviewState,
+} from './reviewState';
+
+function explanationFor(match: DuplicateContactMatch): string {
+  return match.explanation === 'same-normalized-contact-name'
+    ? crmDuplicatesCopy.sameNormalizedNameExplanation
+    : crmDuplicatesCopy.knownAliasExplanation;
+}
 
 function MatchReview({
   match,
   context,
+  disposition,
+  onDisposition,
+  onOpenError,
 }: {
-  match: DuplicateHouseholdMatch;
+  match: DuplicateContactMatch;
   context: DirectoryContext;
+  disposition: DuplicateReviewDisposition | undefined;
+  onDisposition: (disposition: DuplicateReviewDisposition) => void;
+  onOpenError: () => void;
 }) {
   return (
     <Card
       data-testid={`crm-duplicates-match-${match.normalizedName}`}
       variant="raised"
     >
-      <p>{crmDuplicatesCopy.explanation}</p>
+      <p>{explanationFor(match)}</p>
       <ul>
         {match.records.map((record) => (
           <li key={record.id}>
@@ -29,7 +48,9 @@ function MatchReview({
               variant="secondary"
               data-testid={`crm-duplicates-open-${record.id}`}
               onClick={() => {
-                context.legacyRepository.openHousehold(record.id);
+                void context.repository
+                  .openContact(record.ref)
+                  .catch(onOpenError);
               }}
             >
               {crmDuplicatesCopy.openRecord}
@@ -37,6 +58,37 @@ function MatchReview({
           </li>
         ))}
       </ul>
+      {disposition ? (
+        <p
+          data-testid={`crm-duplicates-disposition-${duplicateMatchKey(match)}`}
+        >
+          {disposition === 'reviewed'
+            ? crmDuplicatesCopy.reviewed
+            : crmDuplicatesCopy.dismissed}
+        </p>
+      ) : null}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <Button
+          size="sm"
+          variant="secondary"
+          data-testid={`crm-duplicates-review-${duplicateMatchKey(match)}`}
+          onClick={() => {
+            onDisposition('reviewed');
+          }}
+        >
+          {crmDuplicatesCopy.markReviewed}
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          data-testid={`crm-duplicates-dismiss-${duplicateMatchKey(match)}`}
+          onClick={() => {
+            onDisposition('dismissed');
+          }}
+        >
+          {crmDuplicatesCopy.dismiss}
+        </Button>
+      </div>
       <p>{crmDuplicatesCopy.reviewOnly}</p>
     </Card>
   );
@@ -49,10 +101,22 @@ export function CrmDuplicatesDirectoryTool({
   context: DirectoryContext;
 }) {
   const [isReviewOpen, setReviewOpen] = useState(false);
-  const matches = useMemo(
-    () => findLikelyDuplicateHouseholds(context.records.households),
-    [context.records.households]
+  const [reviewState, setReviewState] = useState<DuplicateReviewState>(
+    readDuplicateReviewState
   );
+  const [openError, setOpenError] = useState(false);
+  const matches = useMemo(
+    () => findLikelyDuplicateContacts(context.contacts ?? []),
+    [context.contacts]
+  );
+  const saveDisposition = (
+    match: DuplicateContactMatch,
+    disposition: DuplicateReviewDisposition
+  ) => {
+    const next = { ...reviewState, [duplicateMatchKey(match)]: disposition };
+    duplicateReviewPreferences.save(next);
+    setReviewState(next);
+  };
 
   return (
     <div data-testid="crm-directory-duplicates">
@@ -69,11 +133,12 @@ export function CrmDuplicatesDirectoryTool({
       {isReviewOpen ? (
         <section
           data-testid="crm-duplicates-review"
-          aria-label="Duplicate household review"
+          aria-label="Duplicate contact review"
         >
           <p data-testid="crm-duplicates-count">
             {crmDuplicatesCopy.resultCount(matches.length)}
           </p>
+          {openError ? <p role="alert">{crmDuplicatesCopy.openError}</p> : null}
           {matches.length === 0 ? (
             <p>{crmDuplicatesCopy.noMatches}</p>
           ) : (
@@ -82,6 +147,13 @@ export function CrmDuplicatesDirectoryTool({
                 key={`${match.normalizedName}:${match.records.map((record) => record.id).join(':')}`}
                 match={match}
                 context={context}
+                disposition={reviewState[duplicateMatchKey(match)]}
+                onDisposition={(disposition) => {
+                  saveDisposition(match, disposition);
+                }}
+                onOpenError={() => {
+                  setOpenError(true);
+                }}
               />
             ))
           )}

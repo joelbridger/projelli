@@ -4,107 +4,86 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import {
   DirectorySurface,
   defaultDirectoryComposition,
-  type DirectoryContext,
 } from '@/features/crm-clients';
+import type { ContactDirectoryProjection } from '@/features/crm-contacts';
 import { setDevFlagOverride } from '@/platform/flags/router';
-import {
-  crmDuplicatesDirectoryTool,
-  findLikelyDuplicateHouseholds,
-} from '@/features/crm-clients/extensions/duplicates';
+import { findLikelyDuplicateContacts } from '@/features/crm-clients/extensions/duplicates';
+import { duplicateReviewPreferences } from './reviewState';
 
-const households = [
+const fosterContacts: readonly ContactDirectoryProjection[] = [
   {
-    id: 'foster-1',
-    name: 'Foster Household',
+    id: 'contact-robert',
+    kind: 'person',
+    matterId: 'matter-foster',
+    displayName: 'Robert Foster',
     lifecycle: 'Active',
-    primaryAdvisor: 'Avery',
-    serviceTier: 'Private wealth',
-    peopleCount: 2,
+    tagIds: [],
+    contextRefs: [],
+    ref: {
+      id: 'contact-robert',
+      kind: 'person',
+      matterId: 'matter-foster',
+      label: 'Robert Foster',
+    },
+    status: 'Active',
   },
   {
-    id: 'foster-2',
-    name: ' foster-household ',
+    id: 'contact-bob',
+    kind: 'person',
+    matterId: 'matter-foster',
+    displayName: 'Bob Foster',
     lifecycle: 'Active',
-    primaryAdvisor: 'Morgan',
-    serviceTier: 'Planning',
-    peopleCount: 3,
-  },
-  {
-    id: 'diaz',
-    name: 'Diaz household',
-    lifecycle: 'Active',
-    primaryAdvisor: 'Avery',
-    serviceTier: 'Planning',
-    peopleCount: 2,
+    tagIds: [],
+    contextRefs: [],
+    ref: {
+      id: 'contact-bob',
+      kind: 'person',
+      matterId: 'matter-foster',
+      label: 'Bob Foster',
+    },
+    status: 'Active',
   },
 ] as const;
 
-function directoryContext(
-  overrides: Partial<DirectoryContext> = {}
-): DirectoryContext {
-  return {
-    query: { value: '', setValue: vi.fn() },
-    selection: { person: null, setPerson: vi.fn() },
-    view: { value: 'directory', setValue: vi.fn() },
-    sort: { value: 'directory', setValue: vi.fn() },
-    filters: {
-      tab: 'households',
-      setTab: vi.fn(),
-      externalOnly: false,
-      setExternalOnly: vi.fn(),
-      needsVerification: false,
-      setNeedsVerification: vi.fn(),
-    },
-    records: { people: [], households },
-    repository: { openContact: vi.fn(), resolveContact: vi.fn() },
-    legacyRepository: {
-      openHousehold: vi.fn(),
-      reviewRecipient: vi.fn(),
-      createHousehold: vi.fn(),
-    },
-    composition: defaultDirectoryComposition,
-    ...overrides,
-  };
-}
-
 afterEach(() => {
   cleanup();
+  duplicateReviewPreferences.clear();
   setDevFlagOverride('crm-duplicates', undefined);
 });
 
 describe('CRM duplicate review', () => {
-  it('finds deterministic pairs with a visible, narrow explanation', () => {
-    const matches = findLikelyDuplicateHouseholds(households);
-
-    expect(matches).toEqual([
+  it('finds deterministic person-contact pairs, including the Robert/Bob alias class', () => {
+    expect(findLikelyDuplicateContacts(fosterContacts)).toEqual([
       {
-        normalizedName: 'fosterhousehold',
-        explanation: 'same-normalized-household-name',
+        normalizedName: 'robertfoster',
+        explanation: 'same-last-name-and-known-given-name-alias',
         records: [
-          { id: 'foster-1', name: 'Foster Household' },
-          { id: 'foster-2', name: ' foster-household ' },
+          {
+            id: 'contact-bob',
+            name: 'Bob Foster',
+            ref: fosterContacts[1].ref,
+          },
+          {
+            id: 'contact-robert',
+            name: 'Robert Foster',
+            ref: fosterContacts[0].ref,
+          },
         ],
       },
     ]);
   });
 
-  it('stays absent while dark without reading the supplied directory records or adding a toolbar gap', () => {
+  it('stays absent while dark without adding a toolbar gap', () => {
     setDevFlagOverride('crm-duplicates', false);
-    const readHouseholds = vi.fn(() => households);
-    const records = {
-      people: [],
-      get households() {
-        return readHouseholds();
-      },
-    };
 
-    render(crmDuplicatesDirectoryTool.mount(directoryContext({ records })));
-    expect(
-      screen.queryByTestId('crm-directory-duplicates')
-    ).not.toBeInTheDocument();
-    expect(readHouseholds).not.toHaveBeenCalled();
+    render(
+      <DirectorySurface
+        people={[]}
+        contacts={fosterContacts}
+        composition={defaultDirectoryComposition}
+      />
+    );
 
-    render(<DirectorySurface people={[]} households={households} />);
     expect(
       screen.queryByTestId('crm-directory-duplicates')
     ).not.toBeInTheDocument();
@@ -113,34 +92,67 @@ describe('CRM duplicate review', () => {
     );
   });
 
-  it('registers the real tool and only hands records to the existing record-opening boundary', () => {
+  it('detects, reviews, persists, and opens person contacts through the real default DirectorySurface', () => {
     setDevFlagOverride('crm-duplicates', true);
-    const openHousehold = vi.fn();
-    const openContact = vi.fn();
-    const resolveContact = vi.fn();
-    const context = directoryContext({
-      repository: { openContact, resolveContact },
-      legacyRepository: {
-        openHousehold,
-        reviewRecipient: vi.fn(),
-        createHousehold: vi.fn(),
-      },
-    });
+    const openContact = vi.fn(() => Promise.resolve());
+    const firstMount = render(
+      <DirectorySurface
+        people={[]}
+        contacts={fosterContacts}
+        directoryRepository={{
+          openContact,
+          resolveContact: vi.fn(() => Promise.resolve(null)),
+        }}
+        composition={defaultDirectoryComposition}
+      />
+    );
 
-    render(crmDuplicatesDirectoryTool.mount(context));
     fireEvent.click(screen.getByTestId('crm-directory-duplicates-toggle'));
     expect(screen.getByTestId('crm-duplicates-count')).toHaveTextContent(
       '1 possible duplicate pair'
     );
     expect(
       screen.getByText(
-        'These names match after ignoring capitalization, spacing, and punctuation.'
+        'These contacts share a last name and a known first-name alias.'
       )
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId('crm-duplicates-open-foster-2'));
+    fireEvent.click(screen.getByTestId('crm-duplicates-open-contact-bob'));
+    expect(openContact).toHaveBeenCalledWith(fosterContacts[1].ref);
 
-    expect(openHousehold).toHaveBeenCalledWith('foster-2');
-    expect(openContact).not.toHaveBeenCalled();
-    expect(resolveContact).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Mark reviewed' }));
+    expect(screen.getByText('Reviewed')).toBeInTheDocument();
+    firstMount.unmount();
+
+    const secondMount = render(
+      <DirectorySurface
+        people={[]}
+        contacts={fosterContacts}
+        directoryRepository={{
+          openContact,
+          resolveContact: vi.fn(() => Promise.resolve(null)),
+        }}
+        composition={defaultDirectoryComposition}
+      />
+    );
+    fireEvent.click(screen.getByTestId('crm-directory-duplicates-toggle'));
+    expect(screen.getByText('Reviewed')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(screen.getByText('Dismissed')).toBeInTheDocument();
+    secondMount.unmount();
+
+    render(
+      <DirectorySurface
+        people={[]}
+        contacts={fosterContacts}
+        directoryRepository={{
+          openContact,
+          resolveContact: vi.fn(() => Promise.resolve(null)),
+        }}
+        composition={defaultDirectoryComposition}
+      />
+    );
+    fireEvent.click(screen.getByTestId('crm-directory-duplicates-toggle'));
+    expect(screen.getByText('Dismissed')).toBeInTheDocument();
   });
 });
