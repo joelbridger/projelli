@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
-import { useMatterStore } from '@/platform/matter/matterStore';
+import {
+  readSelectionOperationDecision,
+  useSelectionOperationDecision,
+} from '@/platform/client-context';
 import {
   getCrmEngineFreshness,
   subscribeCrmEngineFreshness,
@@ -23,21 +26,28 @@ import {
 // workflow exists in SQLCipher but the Workflows screen still says it is empty.
 export const LIVE_CRM_RECORDS_CHANGED = 'lantern:crm-live-records-changed';
 
+const CRM_CLIENT_SELECTION_REQUEST = {
+  operationClass: 'client-scoped',
+  allowAllMatters: false,
+  requireFollowerAgreement: true,
+} as const;
+
 /** Keeps a mounted CRM screen in step with the encrypted record store. */
 export function useLiveCrmRecords() {
   const workspaceRoot = useWorkspaceStore((state) => state.rootPath);
-  const sharedMatterId = useMatterStore((state) => {
-    const active = state.matters.find(
-      (matter) => matter.id === state.activeMatterId
-    );
-    return active?.shared && active.firmMatterId ? active.firmMatterId : null;
-  });
-  const sharedLocalMatterId = useMatterStore((state) => {
-    const active = state.matters.find(
-      (matter) => matter.id === state.activeMatterId
-    );
-    return active?.shared && active.firmMatterId ? active.id : null;
-  });
+  const clientSelection = useSelectionOperationDecision(CRM_CLIENT_SELECTION_REQUEST);
+  const sharedMatterId =
+    clientSelection.kind === 'matter' &&
+    clientSelection.matter.shared &&
+    clientSelection.matter.firmMatterId
+      ? clientSelection.matter.firmMatterId
+      : null;
+  const sharedLocalMatterId =
+    clientSelection.kind === 'matter' &&
+    clientSelection.matter.shared &&
+    clientSelection.matter.firmMatterId
+      ? clientSelection.matter.id
+      : null;
   const [records, setRecords] = useState<readonly LiveCrmRecord[]>([]);
   const [recordsWorkspaceRoot, setRecordsWorkspaceRoot] =
     useState(workspaceRoot);
@@ -125,18 +135,42 @@ export function useLiveCrmRecords() {
   );
   const save = useCallback(
     async (record: LiveCrmRecord) => {
+      const matterSelection = readSelectionOperationDecision({
+        operationClass: 'matter-scoped',
+        allowAllMatters: true,
+        requireFollowerAgreement: true,
+      });
+      if (matterSelection.kind === 'refused') throw new Error(matterSelection.message);
+
+      let currentSharedMatterId: string | null = null;
+      if (
+        matterSelection.kind === 'matter' &&
+        (!record.matterId || record.matterId === 'firm')
+      ) {
+        const clientDecision = readSelectionOperationDecision({
+          ...CRM_CLIENT_SELECTION_REQUEST,
+          expectedScope: { kind: 'matter', matterId: matterSelection.matter.id },
+        });
+        if (clientDecision.kind === 'refused') throw new Error(clientDecision.message);
+        currentSharedMatterId =
+          clientDecision.kind === 'matter' &&
+          clientDecision.matter.shared &&
+          clientDecision.matter.firmMatterId
+            ? clientDecision.matter.firmMatterId
+            : null;
+      }
       // Scope firm-level records to the shared client matter (multi-seat), and
       // pin the workspace we started from so a mid-save folder switch can never
       // land one workspace's record in another's view.
       const scoped =
-        sharedMatterId && (!record.matterId || record.matterId === 'firm')
-          ? { ...record, matterId: sharedMatterId }
+        currentSharedMatterId && (!record.matterId || record.matterId === 'firm')
+          ? { ...record, matterId: currentSharedMatterId }
           : record;
       const rootAtStart = workspaceRoot;
       const saved = await saveLiveCrmRecord(rootAtStart, scoped);
       return publishSavedRecord(saved);
     },
-    [publishSavedRecord, sharedMatterId, workspaceRoot]
+    [publishSavedRecord, workspaceRoot]
   );
   // Derive the user-facing state from the same shared-matter check that starts
   // the relay. This also prevents a one-frame offline warning while React is

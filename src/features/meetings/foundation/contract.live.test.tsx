@@ -12,6 +12,21 @@ const boundary = vi.hoisted(() => ({
     >(),
 }));
 
+vi.mock('@/platform/client-context', () => ({
+  useSelectionOperationDecision: () => ({
+    kind: 'matter',
+    sourceKind: 'matter-only',
+    matter: { id: 'matter-1' },
+    client: null,
+  }),
+  readSelectionOperationDecision: () => ({
+    kind: 'matter',
+    sourceKind: 'matter-only',
+    matter: { id: 'matter-1' },
+    client: null,
+  }),
+}));
+
 vi.mock('@tauri-apps/api/core', () => ({
   isTauri: () => true,
   invoke: (command: string, args?: { record?: LiveCrmRecord }) =>

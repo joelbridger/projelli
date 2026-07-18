@@ -34,7 +34,8 @@ import { isAssuredProvider } from '@/platform/firm/resolveAssuredRoute';
 import { useFirmStore } from '@/platform/firm/firmStore';
 import { useAIChatStore, getDraftInput, useAskWorkspaceMode, useScopedFolder, useFileAccessConsent } from '@/platform/state/aiChatStore';
 import type { ConsentScope } from '@/platform/ai/fileAccessConsent';
-import { useActiveMatter, useActiveMatters } from '@/platform/matter/matterStore';
+import { useActiveMatters } from '@/platform/matter/matterStore';
+import { useSelectionOperationDecision } from '@/platform/client-context';
 import { pathInMatterScope } from '@/platform/matter/matterScopeGuard';
 import { useIncludePrivileged, usePrivilegeStore } from '@/platform/firm/privilegeStore';
 import { MatterManagerDialog } from '@/features/matters/MatterManagerDialog';
@@ -166,6 +167,12 @@ export function buildOpenFilesPromptBlock(openFiles: ExtractedContext[]): string
 }
 
 
+const AI_CHAT_SELECTION_REQUEST = {
+  operationClass: 'matter-scoped',
+  allowAllMatters: true,
+  requireFollowerAgreement: true,
+} as const;
+
 export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, onOpenFileAtPath, className }: AIChatViewerProps) {
   const { t } = useTranslation();
   const promptPreparationDialog = usePromptPreparationDecision();
@@ -218,7 +225,9 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   // WS-B/C — the active matter is the confidentiality boundary for retrieval.
   // When null, the chat searches across all matters (the explicit cross-matter
   // capability). Switching the active matter changes retrieval scope.
-  const activeMatter = useActiveMatter();
+  const selection = useSelectionOperationDecision(AI_CHAT_SELECTION_REQUEST);
+  const activeMatter = selection.kind === 'matter' ? selection.matter : null;
+  const selectionRefusalMessage = selection.kind === 'refused' ? selection.message : null;
   // F2.5 — per-conversation file-access consent + the scope the next send runs
   // under. A single-client chat scopes to the active client; otherwise the chat
   // spans all clients, which requires its own (stricter) grant.
@@ -1084,6 +1093,11 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           fileAccessScopeLabel={fileAccessScopeLabel}
           setFileAccessConsent={setFileAccessConsent}
         />
+        {selectionRefusalMessage ? (
+          <p role="alert" data-testid="ai-chat-selection-refused" className="mb-2 text-sm text-destructive">
+            {selectionRefusalMessage}
+          </p>
+        ) : null}
         {/* Stream A1 — ChatInputToolbar: paperclip, paste, drop, tiles, vision warning */}
         <ChatInputToolbar
           provider={(effectiveProvider && effectiveProvider !== 'none') ? effectiveProvider : 'anthropic'}
@@ -1094,7 +1108,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           onRemoveAttachment={handleRemoveAttachment}
           onSwitchModel={handleSwitchModel}
           visionWarning={visionWarning}
-          sendDisabled={visionWarning !== null || isLoading || trialGate.isLocked || localStatusPending || noProviderConnected}
+          sendDisabled={visionWarning !== null || isLoading || trialGate.isLocked || localStatusPending || noProviderConnected || selectionRefusalMessage !== null}
           className="mb-2"
         />
         <div className="flex gap-2">
@@ -1109,13 +1123,13 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
                 : 'Type your message... (Enter to send, Shift+Enter for new line)'
             }
             className="min-h-[60px] max-h-[200px] resize-none"
-            disabled={isLoading || trialGate.isLocked}
+            disabled={isLoading || trialGate.isLocked || selectionRefusalMessage !== null}
           />
           <div className="flex flex-col gap-2 shrink-0">
             <Button
               data-testid="chat-voice-button"
               onClick={toggleVoiceRecording}
-              disabled={isLoading || trialGate.isLocked}
+              disabled={isLoading || trialGate.isLocked || selectionRefusalMessage !== null}
               size="icon"
               variant={isRecording ? 'destructive' : 'outline'}
               className={`h-[60px] w-[60px] ${isRecording ? 'animate-pulse' : ''}`}
@@ -1127,7 +1141,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           <Button
             data-testid="chat-send-button"
             onClick={handleSendMessage}
-            disabled={(!inputValue.trim() && pendingAttachments.length === 0) || isLoading || trialGate.isLocked || visionWarning !== null || localStatusPending || noProviderConnected}
+            disabled={(!inputValue.trim() && pendingAttachments.length === 0) || isLoading || trialGate.isLocked || visionWarning !== null || localStatusPending || noProviderConnected || selectionRefusalMessage !== null}
             size="icon"
             className="h-[60px] w-[60px] shrink-0"
           >

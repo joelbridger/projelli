@@ -49,7 +49,8 @@ import { isTauriProductionBuild, parseApiError, ApiResponseParseError } from '@/
 import { isAuthRejectionError } from '@/features/ask/askHelpers';
 import { markKeyInvalid, isVerifiableProvider } from '@/platform/providers/keyVerification';
 import { FILE_ACCESS_TOOLS } from '@/platform/tools/fileAccessTools';
-import type { useActiveMatter } from '@/platform/matter/matterStore';
+import type { Matter } from '@/platform/types/matter';
+import { readSelectionOperationDecision } from '@/platform/client-context';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import {
@@ -177,7 +178,7 @@ export interface UseChatSendingDeps {
   chatId: string;
   askWorkspaceMode: boolean;
   scopedFolder: string | null;
-  activeMatter: ReturnType<typeof useActiveMatter>;
+  activeMatter: Matter | null;
   includePrivileged: boolean;
   messages: ChatMessage[];
   isLoading: boolean;
@@ -460,6 +461,23 @@ export function useChatSending(deps: UseChatSendingDeps) {
 
   const handleSendMessage = useCallback(async () => {
     if ((!inputValue.trim() && pendingAttachments.length === 0) || isLoading) return;
+    const currentSelection = readSelectionOperationDecision({
+      operationClass: 'matter-scoped',
+      allowAllMatters: true,
+      requireFollowerAgreement: true,
+      expectedScope: activeMatter
+        ? { kind: 'matter', matterId: activeMatter.id }
+        : { kind: 'all-matters' },
+    });
+    if (currentSelection.kind === 'refused') {
+      addMessage(chatId, {
+        role: 'assistant',
+        content: currentSelection.message,
+        timestamp: new Date().toISOString(),
+        isError: true,
+      });
+      return;
+    }
     // The provider this send ACTUALLY targets — must match the egress badge.
     // A chat with no saved provider resolves to the embedded local model when
     // it is ready, never to a hidden cloud fallback (see effectiveChatProvider).

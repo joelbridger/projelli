@@ -4,11 +4,21 @@ import { Button, Card } from '@/ui/kp';
 import type { AskTurn } from '@/features/ask/askHelpers';
 import { createCrmAskProposal, type CrmAskProposalKind } from './proposals';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
-import { useActiveMatter } from '@/platform/matter/matterStore';
+import {
+  readSelectionOperationDecision,
+  useSelectionOperationDecision,
+} from '@/platform/client-context';
+
+const CRM_PROPOSAL_SELECTION_REQUEST = {
+  operationClass: 'client-scoped',
+  allowAllMatters: false,
+  requireFollowerAgreement: true,
+} as const;
 
 export function CrmAskProposalPanel({ answer }: { answer: AskTurn | null }) {
   const live = useLiveCrmRecords();
-  const activeMatter = useActiveMatter();
+  const selection = useSelectionOperationDecision(CRM_PROPOSAL_SELECTION_REQUEST);
+  const activeMatter = selection.kind === 'matter' ? selection.matter : null;
   const [kind, setKind] = useState<CrmAskProposalKind>('task_create');
   const [text, setText] = useState('');
   const [saved, setSaved] = useState(false);
@@ -20,10 +30,23 @@ export function CrmAskProposalPanel({ answer }: { answer: AskTurn | null }) {
     setError(null);
     setSaved(false);
     try {
+      const current = readSelectionOperationDecision({
+        ...CRM_PROPOSAL_SELECTION_REQUEST,
+        ...(activeMatter
+          ? { expectedScope: { kind: 'matter' as const, matterId: activeMatter.id } }
+          : {}),
+      });
+      if (current.kind !== 'matter' || !current.client) {
+        throw new Error(
+          current.kind === 'refused'
+            ? current.message
+            : 'Choose a confirmed client and try again.',
+        );
+      }
       await live.save(createCrmAskProposal({
         kind,
         text,
-        householdId: activeMatter?.id ?? null,
+        householdId: current.client.householdId,
         answer,
       }));
       setText('');
@@ -44,7 +67,7 @@ export function CrmAskProposalPanel({ answer }: { answer: AskTurn | null }) {
       <input data-testid="crm-ask-proposal-text" value={text} onChange={(event) => { setText(event.target.value); }} placeholder={kind === 'task_create' ? 'Task to propose' : 'Fact to propose'} style={{ flex: '1 1 260px' }} />
       <Button data-testid="crm-ask-proposal-submit" disabled={!text.trim() || !activeMatter} onClick={() => { void submit(); }}>Prepare for approval</Button>
     </div>
-    {!activeMatter ? <p style={{ margin: '8px 0 0', color: 'var(--kp-text-dim)' }}>Open a household first so this proposal has the right client.</p> : null}
+    {!activeMatter ? <p role="alert" style={{ margin: '8px 0 0', color: 'var(--kp-text-dim)' }}>{selection.kind === 'refused' ? selection.message : 'Open a household first so this proposal has the right client.'}</p> : null}
     {saved ? <p data-testid="crm-ask-proposal-saved" style={{ margin: '8px 0 0', color: 'var(--kp-success)' }}>Proposal saved. Nothing changed until you approve it.</p> : null}
     {error ? <p role="alert" style={{ margin: '8px 0 0', color: 'var(--kp-danger)' }}>{error}</p> : null}
   </Card>;

@@ -93,6 +93,14 @@ import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { AuditEntry } from '@/platform/types/audit';
 import { useAIChatStore } from '@/platform/state/aiChatStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
+import {
+  issueAllMattersScopeSelection,
+  issueMatterScopeSelection,
+  requestClearClientSelection,
+  requestMatterScopeSelection,
+  useClientContextStore,
+} from '@/platform/client-context';
+import { setDevFlagOverride } from '@/platform/flags/router';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { CONFIDENTIALITY_MODE_SETTING_KEY } from '@/platform/privacy/egress';
 import { CONFIDENTIALITY_CHOICE_MADE_KEY } from '@/platform/privacy/resolvePersonalEgressDefault';
@@ -154,14 +162,18 @@ function makeWorkspaceRef() {
   } as unknown as MutableRefObject<WorkspaceService | null>;
 }
 
-function seedMatter() {
+async function seedMatter() {
   useMatterStore.setState({ matters: [], activeMatterId: null });
   const m = useMatterStore.getState().createMatter({
     name: 'Acme v. Beta',
     client: 'Acme Corp',
     folderPaths: ['/ws/Acme'],
   });
-  useMatterStore.getState().setActiveMatter(m.id);
+  await requestMatterScopeSelection(issueMatterScopeSelection(m.id));
+  await waitFor(() => {
+    expect(useMatterStore.getState().activeMatterId).toBe(m.id);
+    expect(useClientContextStore.getState().followerStatus).toBe('converged');
+  });
   return m;
 }
 
@@ -178,7 +190,7 @@ async function sendWorkspaceMessage(
 }
 
 describe('Lantern 3.0 audit provenance events', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     mocks.retrieve.mockReset();
     mocks.sendMessage.mockReset();
     mocks.sendMessageStreaming.mockReset();
@@ -187,6 +199,10 @@ describe('Lantern 3.0 audit provenance events', () => {
     mocks.streamingEnabled.value = false;
     useAIChatStore.setState({ sessions: {}, dailyCosts: {}, askWorkspaceMode: {}, fileAccessConsent: { 'audit-provenance-test': { state: 'granted', grantedScope: { kind: 'allMatters' } }, 'audit-provenance-default-model-test': { state: 'granted', grantedScope: { kind: 'allMatters' } } } }); // F2.5: ambient retrieval needs file-access consent
     useMatterStore.setState({ matters: [], activeMatterId: null });
+    setDevFlagOverride('selection-authority-boot-gate', false);
+    requestClearClientSelection();
+    setDevFlagOverride('selection-authority-boot-gate', true);
+    await requestMatterScopeSelection(issueAllMattersScopeSelection());
     // Default confidentiality mode = direct (cloud BYOK).
     useSettingsStore.getState().setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, 'direct');
     // Mark the confidentiality choice as made so the Task 1.3 gate is a no-op
@@ -213,10 +229,13 @@ describe('Lantern 3.0 audit provenance events', () => {
   afterEach(() => {
     useAIChatStore.setState({ sessions: {}, dailyCosts: {}, askWorkspaceMode: {}, fileAccessConsent: { 'audit-provenance-test': { state: 'granted', grantedScope: { kind: 'allMatters' } }, 'audit-provenance-default-model-test': { state: 'granted', grantedScope: { kind: 'allMatters' } } } }); // F2.5: ambient retrieval needs file-access consent
     useMatterStore.setState({ matters: [], activeMatterId: null });
+    setDevFlagOverride('selection-authority-boot-gate', false);
+    requestClearClientSelection();
+    setDevFlagOverride('selection-authority-boot-gate', undefined);
   });
 
   it('logs retrieval_executed with the active matter scope, hit count, and top score', async () => {
-    const m = seedMatter();
+    const m = await seedMatter();
     mocks.retrieve.mockResolvedValue([
       { path: 'Acme/pricing.md', chunkText: 'Premium tier priced at $49.', score: 0.91, paragraphIndex: 3, id: 'chunk-1', matterId: m.id, sourceId: '/ws/Acme/pricing.md' },
       { path: 'Acme/terms.md', chunkText: 'Net 30.', score: 0.72, paragraphIndex: 1, id: 'chunk-2', matterId: m.id, sourceId: '/ws/Acme/terms.md' },
@@ -235,7 +254,7 @@ describe('Lantern 3.0 audit provenance events', () => {
   });
 
   it('logs scope_active for the active matter', async () => {
-    const m = seedMatter();
+    const m = await seedMatter();
     mocks.retrieve.mockResolvedValue([
       { path: 'Acme/pricing.md', chunkText: 'x', score: 0.5, paragraphIndex: 0, id: 'c', matterId: m.id, sourceId: '/ws/Acme/pricing.md' },
     ]);
@@ -249,7 +268,7 @@ describe('Lantern 3.0 audit provenance events', () => {
   });
 
   it('logs privilege_evaluated with excluded:true by default (privileged held back)', async () => {
-    const m = seedMatter();
+    const m = await seedMatter();
     // Supply a real result so the turn proceeds through to sendMessage.
     // privilege_evaluated fires before the model call so it is logged
     // regardless, but the sendWorkspaceMessage helper waits on sendMessage.
@@ -282,7 +301,7 @@ describe('Lantern 3.0 audit provenance events', () => {
   });
 
   it('logs egress with the provider-direct destination for a cloud BYOK send', async () => {
-    const m = seedMatter();
+    const m = await seedMatter();
     // Supply a real result so data is sent to the provider and egress is logged.
     mocks.retrieve.mockResolvedValue([
       { path: 'Acme/pricing.md', chunkText: 'Premium tier priced at $49.', score: 0.88, paragraphIndex: 2, id: 'chunk-e', matterId: m.id, sourceId: '/ws/Acme/pricing.md' },
@@ -307,7 +326,7 @@ describe('Lantern 3.0 audit provenance events', () => {
   });
 
   it('BUG-094 logs the provider resolved model when a chat has no explicit model', async () => {
-    const m = seedMatter();
+    const m = await seedMatter();
     const chatWithoutModel: AIChatFile = {
       id: 'audit-provenance-default-model-test',
       title: 'Audit Provenance Default Model',
@@ -331,7 +350,7 @@ describe('Lantern 3.0 audit provenance events', () => {
   });
 
   it('logs egress with the active matter scope', async () => {
-    const m = seedMatter();
+    const m = await seedMatter();
     mocks.retrieve.mockResolvedValue([
       { path: 'Acme/pricing.md', chunkText: 'Premium tier priced at $49.', score: 0.88, paragraphIndex: 2, id: 'chunk-e', matterId: m.id, sourceId: '/ws/Acme/pricing.md' },
     ]);
@@ -366,7 +385,7 @@ describe('Lantern 3.0 audit provenance events', () => {
   });
 
   it('keeps model_call and successful egress when local citation verification throws after provider success', async () => {
-    const m = seedMatter();
+    const m = await seedMatter();
     mocks.retrieve.mockResolvedValue([
       { path: 'Acme/pricing.md', chunkText: 'Premium tier priced at $49.', score: 0.88, paragraphIndex: 2, id: 'chunk-e', matterId: m.id, sourceId: '/ws/Acme/pricing.md' },
     ]);
@@ -585,7 +604,7 @@ describe('Lantern 3.0 audit provenance events', () => {
   });
 
   it('logs citation_verified with the verdict for each checked citation', async () => {
-    const m = seedMatter();
+    const m = await seedMatter();
     mocks.retrieve.mockResolvedValue([
       { path: 'Acme/pricing.md', chunkText: 'Premium tier priced at $49.', score: 0.9, paragraphIndex: 3, id: 'chunk-1', matterId: m.id, sourceId: '/ws/Acme/pricing.md' },
     ]);

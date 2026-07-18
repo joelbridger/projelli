@@ -11,6 +11,10 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 
+const selectionFixture = vi.hoisted(() => ({
+  matter: null as { id: string; name: string; client: string; folderPaths: string[]; createdAt: string } | null,
+}));
+
 vi.mock('@/platform/utils/mail-commands', () => ({
   mailListMessages: vi.fn(),
   mailListMessagesByMatter: vi.fn(),
@@ -25,6 +29,14 @@ vi.mock('@/platform/utils/mail-commands', () => ({
   MAIL_INDEX_CHUNK_EVENT: 'mail-index-chunk',
 }));
 
+vi.mock('@/platform/client-context', () => ({
+  useSelectionOperationDecision: () => selectionFixture.matter
+    ? { kind: 'matter' as const, sourceKind: 'matter-only' as const, matter: selectionFixture.matter, client: null }
+    : { kind: 'all-matters' as const, client: null },
+  readSelectionOperationDecision: () => selectionFixture.matter
+    ? { kind: 'matter' as const, sourceKind: 'matter-only' as const, matter: selectionFixture.matter, client: null }
+    : { kind: 'all-matters' as const, client: null },
+}));
 vi.mock('@/platform/matter/matterStore', () => ({
   useActiveMatter: vi.fn(),
   useMatters: vi.fn(),
@@ -109,6 +121,7 @@ function setupMocks(items: ReturnType<typeof makeItems>) {
     });
   });
   mockUseActiveMatter.mockReturnValue(null);
+  selectionFixture.matter = null;
   mockUseMatters.mockReturnValue([]);
   (usePrivilegeStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue(vi.fn());
   mockUsePrivilegeForSource.mockReturnValue('none');
@@ -288,7 +301,9 @@ describe('EmailWorkspace rail-shell regression coverage', () => {
   it('scopedItems (embedded mode) reflects a matters/folder-mapping change via a backend refetch', async () => {
     const items = makeItems(1);
     setupMocks(items);
-    mockUseActiveMatter.mockReturnValue({ id: 'matter-1', name: 'Acme', client: 'Acme Corp', folderPaths: [], createdAt: '2026-01-01T00:00:00Z' });
+    const matter = { id: 'matter-1', name: 'Acme', client: 'Acme Corp', folderPaths: [], createdAt: '2026-01-01T00:00:00Z' };
+    mockUseActiveMatter.mockReturnValue(matter);
+    selectionFixture.matter = matter;
 
     const mockByMatter = mailListMessagesByMatter as ReturnType<typeof vi.fn>;
     const mockBuildMap = buildMailMatterMap as ReturnType<typeof vi.fn>;

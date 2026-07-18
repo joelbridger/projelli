@@ -20,6 +20,10 @@ vi.mock('@/platform/utils/mail-commands', () => ({
   mailSend: vi.fn(),
 }));
 
+vi.mock('@/platform/client-context', () => ({
+  useSelectionOperationDecision: () => ({ kind: 'all-matters', client: null }),
+  readSelectionOperationDecision: () => ({ kind: 'all-matters', client: null }),
+}));
 vi.mock('@/platform/matter/matterStore', () => ({
   useActiveMatter: vi.fn(),
   useMatters: vi.fn(),

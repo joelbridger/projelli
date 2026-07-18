@@ -54,7 +54,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu';
-import { useActiveMatter, useMatters } from '@/platform/matter/matterStore';
+import { useMatters } from '@/platform/matter/matterStore';
+import {
+  readSelectionOperationDecision,
+  useSelectionOperationDecision,
+} from '@/platform/client-context';
 import { buildMailMatterMap, type MailMatterMapEntry } from '@/platform/rag/matterResolver';
 import { useMailStore } from './mailStore';
 import {
@@ -86,6 +90,13 @@ import { useEntityLabelEnglish } from '@/platform/hooks/useEntityLabel';
 const EMPTY_MAIL_MATTER_MAP: MailMatterMapEntry[] = [];
 const EMAIL_RAIL_VIRTUALIZE_ROW_THRESHOLD = 40;
 const EMAIL_RAIL_ROW_ESTIMATED_HEIGHT_PX = 88;
+const EMAIL_SELECTION_REQUEST = {
+  operationClass: 'matter-scoped',
+  allowAllMatters: true,
+  requireFollowerAgreement: true,
+} as const;
+
+class EmailSelectionRefusal extends Error {}
 
 function providerDisplayLabel(provider: string, t: (key: string) => string): string {
   const normalized = provider.toLowerCase();
@@ -284,7 +295,8 @@ export function EmailWorkspace({
   onComposeHandoffConsumed,
 }: EmailWorkspaceProps) {
   const { t } = useTranslation();
-  const activeMatter = useActiveMatter();
+  const selection = useSelectionOperationDecision(EMAIL_SELECTION_REQUEST);
+  const activeMatter = selection.kind === 'matter' ? selection.matter : null;
 
   // One page size everywhere. Embedded (per-client) browse is now scoped in the
   // BACKEND (F2.6b `mailListMessagesByMatter`), so a client's mail is paged
@@ -320,9 +332,20 @@ export function EmailWorkspace({
   // is intentionally gone — scoping is the backend's job now).
   const runList = useCallback(
     (listQuery: MailListQuery): Promise<MailListPage> => {
+      const current = readSelectionOperationDecision({
+        ...EMAIL_SELECTION_REQUEST,
+        ...(embedded && activeMatter
+          ? { expectedScope: { kind: 'matter' as const, matterId: activeMatter.id } }
+          : {}),
+      });
+      if (current.kind === 'refused') {
+        return Promise.reject(new EmailSelectionRefusal(current.message));
+      }
       if (embedded) {
-        if (!activeMatter) return Promise.resolve({ items: [], total: 0 });
-        return mailListMessagesByMatter(activeMatter.id, mailMatterMap, listQuery);
+        if (current.kind !== 'matter') {
+          return Promise.reject(new Error('Choose one client to read its email.'));
+        }
+        return mailListMessagesByMatter(current.matter.id, mailMatterMap, listQuery);
       }
       return mailListMessages(listQuery);
     },
@@ -501,7 +524,7 @@ export function EmailWorkspace({
         setLoadedScope(scopeKey);
       } catch (e: unknown) {
         if (latestQueryRef.current !== thisQuery) return;
-        setError(mapMailError(e));
+        setError(e instanceof EmailSelectionRefusal ? e.message : mapMailError(e));
       } finally {
         if (latestQueryRef.current === thisQuery) {
           setLoading(false);
@@ -561,7 +584,7 @@ export function EmailWorkspace({
         setLoadedScope(scopeKey);
       } catch (e: unknown) {
         if (latestQueryRef.current !== thisQuery) return;
-        setError(mapMailError(e));
+        setError(e instanceof EmailSelectionRefusal ? e.message : mapMailError(e));
       } finally {
         if (latestQueryRef.current === thisQuery) {
           setLoadingMore(false);
@@ -574,6 +597,18 @@ export function EmailWorkspace({
   // Ask mode search
   useEffect(() => {
     if (mode !== 'ask') return;
+    const currentSelection = readSelectionOperationDecision({
+      ...EMAIL_SELECTION_REQUEST,
+      ...(embedded && activeMatter
+        ? { expectedScope: { kind: 'matter' as const, matterId: activeMatter.id } }
+        : {}),
+    });
+    if (currentSelection.kind === 'refused') {
+      setAskHits([]);
+      setAskLoading(false);
+      setAskError(currentSelection.message);
+      return;
+    }
     if (!hasConnectedMail) {
       setAskHits([]);
       setAskLoading(false);
@@ -584,10 +619,10 @@ export function EmailWorkspace({
     // all-clients retrieval. If it has no active client (momentary null / initial
     // mount / mid-switch), show no hits rather than risk another client's mail
     // surfacing here — mirrors the keyword `runList` guard above.
-    if (embedded && !activeMatter) {
+    if (embedded && currentSelection.kind !== 'matter') {
       setAskHits([]);
       setAskLoading(false);
-      setAskError(null);
+      setAskError('Choose one client to search its email.');
       return;
     }
     if (!query.trim()) {
@@ -610,8 +645,8 @@ export function EmailWorkspace({
     // (`embedded && !activeMatter` already returned above, so in the embedded
     // branch `activeMatter` is non-null.)
     let scope: RetrievalScope;
-    if (embedded && activeMatter) {
-      scope = { kind: 'matter', matterId: activeMatter.id };
+    if (embedded && currentSelection.kind === 'matter') {
+      scope = { kind: 'matter', matterId: currentSelection.matter.id };
     } else if (activeMatter && !scopeAllEmail) {
       scope = { kind: 'matter', matterId: activeMatter.id };
     } else {

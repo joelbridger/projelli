@@ -32,6 +32,20 @@ vi.mock('@/platform/utils/wealthbox-commands', () => ({
 vi.mock('@/platform/fs/workspaceStore', () => ({
   useWorkspaceStore: <T,>(selector: (state: { rootPath: string }) => T) => selector({ rootPath: '/firm' }),
 }));
+vi.mock('@/platform/client-context', () => ({
+  useSelectionOperationDecision: () => ({
+    kind: 'matter' as const,
+    sourceKind: 'matter' as const,
+    matter: { id: 'local-firm', shared: true, firmMatterId: 'firm-delivery-matter' },
+    client: { provider: 'wealthbox' as const, householdId: 'household-firm', displayName: 'Firm household' },
+  }),
+  readSelectionOperationDecision: () => ({
+    kind: 'matter' as const,
+    sourceKind: 'matter' as const,
+    matter: { id: 'local-firm', shared: true, firmMatterId: 'firm-delivery-matter' },
+    client: { provider: 'wealthbox' as const, householdId: 'household-firm', displayName: 'Firm household' },
+  }),
+}));
 vi.mock('@/platform/matter/matterStore', () => ({
   useMatterStore: <T,>(selector: (state: {
     matters: Array<{ id: string; shared: boolean; firmMatterId: string }>;

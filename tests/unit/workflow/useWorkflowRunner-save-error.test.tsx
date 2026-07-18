@@ -22,6 +22,24 @@ import type { FileNode } from '@/platform/types/workspace';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import type { Matter } from '@/platform/types/matter';
 
+const authoritativeSelection = vi.hoisted(() => ({
+  requests: [] as Array<Record<string, unknown>>,
+  decision: {
+    kind: 'refused',
+    reason: 'all-matters-not-allowed',
+    message: 'Choose one client and try again.',
+  } as
+    | { kind: 'refused'; reason: 'all-matters-not-allowed' | 'blocked-unresolved' | 'follower-disagreement'; message: string }
+    | { kind: 'matter'; sourceKind: 'matter-only'; matter: Matter; client: null },
+}));
+
+vi.mock('@/platform/client-context', () => ({
+  readSelectionOperationDecision: (request: Record<string, unknown>) => {
+    authoritativeSelection.requests.push(request);
+    return authoritativeSelection.decision;
+  },
+}));
+
 function saveErrorTemplate(): WorkflowTemplate {
   return {
     id: 'save-error-template',
@@ -72,11 +90,23 @@ describe('useWorkflowRunner — terminal write failure surfacing (Bug F2)', () =
       ...overrides,
     };
     useMatterStore.setState({ matters: [activeMatter], activeMatterId: activeMatter.id });
+    authoritativeSelection.decision = {
+      kind: 'matter',
+      sourceKind: 'matter-only',
+      matter: activeMatter,
+      client: null,
+    };
     return activeMatter;
   }
 
   beforeEach(() => {
+    authoritativeSelection.requests = [];
     useMatterStore.setState({ matters: [], activeMatterId: null });
+    authoritativeSelection.decision = {
+      kind: 'refused',
+      reason: 'all-matters-not-allowed',
+      message: 'Choose one client and try again.',
+    };
   });
 
   it(
@@ -245,9 +275,52 @@ describe('useWorkflowRunner — terminal write failure surfacing (Bug F2)', () =
     });
 
     expect(result.current.workflowProviderError).toBe('needs-client');
+    expect(result.current.workflowSaveError).toBe('Choose one client and try again.');
     expect(workspaceServiceRef.current.mkdir).not.toHaveBeenCalled();
     expect(writeFile).not.toHaveBeenCalled();
     expect(completeRun).not.toHaveBeenCalled();
+  });
+
+  it('surfaces forced source/follower disagreement before any workflow destination write', async () => {
+    authoritativeSelection.decision = {
+      kind: 'refused',
+      reason: 'follower-disagreement',
+      message: 'The client selection is still catching up.',
+    };
+    const writeFile = vi.fn(async () => {});
+    const workspaceServiceRef = makeWorkspaceServiceRef(writeFile);
+    const { result } = renderHook(() =>
+      useWorkflowRunner({
+        rootPath: '/workspace',
+        isTestMode: true,
+        apiKeys: [],
+        completeRun: vi.fn(),
+        openTab: vi.fn(),
+        setFileTree: vi.fn(),
+        addAuditEntry: vi.fn(),
+        workspaceServiceRef,
+        templatesMetadataReaderRef: { current: null },
+        templatesMarketplaceServiceRef: { current: null },
+      }),
+    );
+
+    await act(async () => {
+      await result.current.handleStartWorkflow(saveErrorTemplate());
+    });
+
+    expect(result.current.workflowSaveError).toBe('The client selection is still catching up.');
+    expect(workspaceServiceRef.current.mkdir).not.toHaveBeenCalled();
+    expect(writeFile).not.toHaveBeenCalled();
+    expect(authoritativeSelection.requests).not.toHaveLength(0);
+    expect(authoritativeSelection.requests).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          operationClass: 'matter-scoped',
+          allowAllMatters: false,
+          requireFollowerAgreement: true,
+        }),
+      ]),
+    );
   });
 
   it('ignores a second start click while the first workflow start is still in flight', async () => {

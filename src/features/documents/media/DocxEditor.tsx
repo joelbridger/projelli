@@ -84,7 +84,10 @@ import { createProvider, isLocalProviderId, type ChatProviderId } from '@/platfo
 import { useTrialGate } from '@/platform/hooks/useTrial';
 import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { assertCloudGenerationAllowed } from '@/platform/privacy/localOnlyGuard';
-import { getActiveScope } from '@/platform/matter/matterStore';
+import {
+  expectedScopeFromDecision,
+  readSelectionOperationDecision,
+} from '@/platform/client-context';
 import { crmIsConnected } from '@/platform/utils/wealthbox-commands';
 import { IS_DEMO } from '@/web-demo/demoModeFlag';
 import {
@@ -1894,7 +1897,13 @@ export function DocxEditor({
         ...(aiModel ? { model: aiModel } : {}),
       });
       const effectiveModel = provider.getMetadata().model;
-      const activeScope = getActiveScope();
+      const selection = readSelectionOperationDecision({
+        operationClass: 'matter-scoped',
+        allowAllMatters: true,
+        requireFollowerAgreement: true,
+      });
+      if (selection.kind === 'refused') throw new Error(selection.message);
+      const expectedSelection = expectedScopeFromDecision(selection);
       const edits = await requestRedlineEditsWithAudit(
         provider,
         instruction,
@@ -1905,8 +1914,8 @@ export function DocxEditor({
           mode: getConfidentialityMode(),
           fileName,
           ...(filePath ? { filePath } : {}),
-          scope: activeScope.kind === 'matter'
-            ? { kind: 'matter', matterId: activeScope.matterId }
+          scope: selection.kind === 'matter'
+            ? { kind: 'matter', matterId: selection.matter.id }
             : { kind: 'allMatters' },
           isDemo: IS_DEMO,
           ...(onAuditLog ? { onAuditLog } : {}),
@@ -1927,6 +1936,13 @@ export function DocxEditor({
       // one the AI saw is safe: an edit whose anchor no longer matches is
       // simply reported skipped, never silently misapplied elsewhere.
       const { results } = await enqueueDocOp(async () => {
+        const currentSelection = readSelectionOperationDecision({
+          operationClass: 'matter-scoped',
+          allowAllMatters: true,
+          requireFollowerAgreement: true,
+          expectedScope: expectedSelection,
+        });
+        if (currentSelection.kind === 'refused') throw new Error(currentSelection.message);
         const doc = currentDocRef.current;
         if (!doc) throw new Error('Document is no longer open.');
         const outcome = await docxAuthorRevisions(doc, edits, { author: REDLINE_AUTHOR });

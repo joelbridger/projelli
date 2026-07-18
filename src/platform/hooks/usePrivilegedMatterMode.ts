@@ -14,9 +14,9 @@
 
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import {
-  useActiveMatterPrivileged,
   isActiveMatterPrivileged,
 } from '@/platform/matter/matterStore';
+import { useSelectionOperationDecision } from '@/platform/client-context';
 import { useConfidentialityMode, getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import {
   PRIVILEGED_MATTER_MODE_SETTING_KEY,
@@ -47,7 +47,13 @@ export function usePrivilegedMatterMode(): PrivilegedMatterModeState {
   const manual = useSettingsStore((s) =>
     coerceManual(s.getSetting(PRIVILEGED_MATTER_MODE_SETTING_KEY)),
   );
-  const activeMatterPrivileged = useActiveMatterPrivileged();
+  const selection = useSelectionOperationDecision(PRIVILEGED_SELECTION_REQUEST);
+  // Any unresolved/stale/disagreeing selection stays protected. A matter-only
+  // selection reads the exact live matter's flag and never becomes an
+  // unprotected route merely because it has no client identity.
+  const activeMatterPrivileged =
+    selection.kind === 'refused' ||
+    (selection.kind === 'matter' && !!selection.matter.privileged);
   const confidentialityMode = useConfidentialityMode();
   const resolved = resolvePrivilegedMatterMode({
     manual,
@@ -56,6 +62,12 @@ export function usePrivilegedMatterMode(): PrivilegedMatterModeState {
   });
   return { ...resolved, manual };
 }
+
+const PRIVILEGED_SELECTION_REQUEST = {
+  operationClass: 'matter-scoped',
+  allowAllMatters: true,
+  requireFollowerAgreement: true,
+} as const;
 
 /** Convenience: just the effective boolean (reactive). */
 export function usePrivilegedMatterModeActive(): boolean {

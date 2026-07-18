@@ -14,6 +14,23 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, act, fireEvent } from '@testing-library/react';
 
+const selectionState = vi.hoisted(() => ({
+  decision: null as unknown,
+  hookRequests: [] as Array<Record<string, unknown>>,
+  readRequests: [] as Array<Record<string, unknown>>,
+}));
+
+vi.mock('@/platform/client-context', () => ({
+  useSelectionOperationDecision: (request: Record<string, unknown>) => {
+    selectionState.hookRequests.push(request);
+    return selectionState.decision;
+  },
+  readSelectionOperationDecision: (request: Record<string, unknown>) => {
+    selectionState.readRequests.push(request);
+    return selectionState.decision;
+  },
+}));
+
 // ── Module mocks ────────────────────────────────────────────────────────────
 
 vi.mock('@/platform/utils/mail-commands', () => ({
@@ -122,6 +139,12 @@ function setupMocks() {
     });
   });
   mockUseActiveMatter.mockReturnValue(ACTIVE_MATTER);
+  selectionState.decision = {
+    kind: 'matter',
+    sourceKind: 'matter-only',
+    matter: ACTIVE_MATTER,
+    client: null,
+  };
   mockUseMatters.mockReturnValue(FIXTURE_MATTERS);
   mockGetMatters.mockReturnValue(FIXTURE_MATTERS);
   (usePrivilegeStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue(vi.fn());
@@ -144,6 +167,8 @@ async function openEmailActionsMenu() {
 
 beforeEach(() => {
   setupMocks();
+  selectionState.hookRequests = [];
+  selectionState.readRequests = [];
   vi.useFakeTimers();
 });
 
@@ -178,13 +203,53 @@ describe('EmailWorkspace per-client backend scoping (F2.6b)', () => {
   it('embedded mode FAILS CLOSED when no client is active — never calls the global list', async () => {
     // A momentarily-null active matter must NOT fall back to the unscoped list;
     // that would render another client's mail inside a client tab.
-    mockUseActiveMatter.mockReturnValue(null);
+    selectionState.decision = { kind: 'all-matters', client: null };
     render(<EmailWorkspace embedded />);
     await waitForInitialLoad();
 
     expect(mockList).not.toHaveBeenCalled();
     expect(mockListByMatter).not.toHaveBeenCalled();
     expect(screen.queryByText('Some other client mail')).not.toBeInTheDocument();
+  });
+
+  it('embedded mode surfaces blocked source selection and never reads email', async () => {
+    selectionState.decision = {
+      kind: 'refused',
+      reason: 'blocked-unresolved',
+      message: 'The selected client is still unresolved.',
+    };
+    render(<EmailWorkspace embedded />);
+    await waitForInitialLoad();
+
+    expect(mockList).not.toHaveBeenCalled();
+    expect(mockListByMatter).not.toHaveBeenCalled();
+    expect(screen.getByTestId('error-state')).toHaveTextContent(
+      'The selected client is still unresolved.',
+    );
+  });
+
+  it('embedded mode surfaces forced source/follower disagreement and never reads email', async () => {
+    selectionState.decision = {
+      kind: 'refused',
+      reason: 'follower-disagreement',
+      message: 'The client selection is still catching up.',
+    };
+    render(<EmailWorkspace embedded />);
+    await waitForInitialLoad();
+
+    expect(mockList).not.toHaveBeenCalled();
+    expect(mockListByMatter).not.toHaveBeenCalled();
+    expect(screen.getByTestId('error-state')).toHaveTextContent('still catching up');
+    expect(selectionState.hookRequests).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ requireFollowerAgreement: true }),
+      ]),
+    );
+    expect(selectionState.readRequests).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ requireFollowerAgreement: true }),
+      ]),
+    );
   });
 
   it('embedded mode hides already-loaded rows the instant the active client disappears', async () => {
@@ -195,7 +260,7 @@ describe('EmailWorkspace per-client backend scoping (F2.6b)', () => {
     await waitForInitialLoad();
     expect(screen.getAllByText('Annual review agenda').length).toBeGreaterThan(0);
 
-    mockUseActiveMatter.mockReturnValue(null);
+    selectionState.decision = { kind: 'all-matters', client: null };
     await act(async () => {
       rerender(<EmailWorkspace embedded />);
     });
@@ -222,7 +287,7 @@ describe('EmailWorkspace per-client backend scoping (F2.6b)', () => {
   });
 
   it('embedded AI search FAILS CLOSED with no active client — never retrieves', async () => {
-    mockUseActiveMatter.mockReturnValue(null);
+    selectionState.decision = { kind: 'all-matters', client: null };
     render(<EmailWorkspace embedded />);
     await waitForInitialLoad();
 

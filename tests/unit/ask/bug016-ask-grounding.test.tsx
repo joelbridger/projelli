@@ -58,6 +58,10 @@ vi.mock('@/i18n', () => ({ default: { t: (k: string) => k } }));
 
 /* ----- stores / environment (mirrors reimagined-ask.test.tsx) ------------- */
 
+vi.mock('@/platform/client-context', () => ({
+  useSelectionOperationDecision: () => ({ kind: 'all-matters', client: null }),
+  readSelectionOperationDecision: () => ({ kind: 'all-matters', client: null }),
+}));
 vi.mock('@/platform/matter/matterStore', () => ({
   useActiveMatter: () => null, // no active matter → all-matters scope
   SAMPLE_MATTER_ID: 'matter_sample_garcia_v_meridian',

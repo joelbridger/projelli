@@ -25,6 +25,45 @@ const matter = vi.hoisted(() => ({
     activeMatterId: 'matter-1' as string | null,
   },
 }));
+const selection = vi.hoisted(() => ({
+  forcedRefusal: null as null | { reason: string; message: string },
+  hookRequests: [] as Array<Record<string, unknown>>,
+  readRequests: [] as Array<Record<string, unknown>>,
+}));
+
+function selectionDecision() {
+  if (selection.forcedRefusal) {
+    return {
+      kind: 'refused' as const,
+      reason: selection.forcedRefusal.reason,
+      message: selection.forcedRefusal.message,
+    };
+  }
+  const active = matter.state.activeMatterId;
+  return active
+    ? {
+        kind: 'matter' as const,
+        sourceKind: 'matter-only' as const,
+        matter: { id: active },
+        client: null,
+      }
+    : {
+        kind: 'refused' as const,
+        reason: 'all-matters-not-allowed' as const,
+        message: 'Choose one client and try again.',
+      };
+}
+
+vi.mock('@/platform/client-context', () => ({
+  useSelectionOperationDecision: (request: Record<string, unknown>) => {
+    selection.hookRequests.push(request);
+    return selectionDecision();
+  },
+  readSelectionOperationDecision: (request: Record<string, unknown>) => {
+    selection.readRequests.push(request);
+    return selectionDecision();
+  },
+}));
 
 vi.mock('@tauri-apps/api/core', () => ({
   isTauri: () => true,
@@ -60,6 +99,7 @@ vi.mock('@/platform/crm/liveRecordRelay', () => ({
 import {
   useMeetingArtifactStore,
   useMeetingFoundationStore,
+  useMeetingKeywordCatalogueStore,
 } from './contract';
 
 const draft = {
@@ -80,6 +120,9 @@ describe('meetings hook-layer client isolation', () => {
     boundary.records = [];
     matter.state.matters = [{ id: 'matter-1' }];
     matter.state.activeMatterId = 'matter-1';
+    selection.forcedRefusal = null;
+    selection.hookRequests = [];
+    selection.readRequests = [];
     boundary.invoke.mockReset();
     boundary.invoke.mockImplementation((command, args) => {
       if (command === 'crm_live_list')
@@ -170,7 +213,7 @@ describe('meetings hook-layer client isolation', () => {
         to: 'approved',
         at: '2026-07-20T10:06:00.000Z',
       })
-    ).rejects.toThrow('different client');
+    ).rejects.toThrow('Choose one client');
 
     // Back to A on the SAME held store: it works again, nothing corrupted.
     matter.state.activeMatterId = 'matter-1';
@@ -218,5 +261,71 @@ describe('meetings hook-layer client isolation', () => {
         (record) => record.kind === 'meeting_artifact_transition'
       )
     ).toBe(false);
+  });
+
+  it('surfaces forced source/follower disagreement and refuses list, read, mutation, append, approve, and artifact reads', async () => {
+    const meetings = renderHook(() => useMeetingFoundationStore());
+    const artifacts = renderHook(() => useMeetingArtifactStore());
+    const keywords = renderHook(() => useMeetingKeywordCatalogueStore());
+    const meeting = await meetings.result.current.createDraft(draft);
+    const artifact = await artifacts.result.current.append({
+      meetingId: meeting.id,
+      kind: 'structured-notes',
+      schemaVersion: 1,
+      producedAt: '2026-07-20T10:00:00.000Z',
+      sourceRefs: [],
+      provenance: 'local-entry',
+      payload: {},
+    });
+
+    selection.forcedRefusal = {
+      reason: 'follower-disagreement',
+      message: 'The client selection is still catching up. Wait a moment and try again.',
+    };
+    keywords.rerender();
+
+    expect(meetings.result.current.error).toContain('still catching up');
+    expect(keywords.result.current.error).toContain('still catching up');
+    expect(meetings.result.current.list).toEqual([]);
+    await expect(meetings.result.current.get(meeting.id)).resolves.toBeUndefined();
+    await expect(
+      meetings.result.current.update(meeting.id, { ownerRef: 'member-2' }),
+    ).rejects.toThrow('still catching up');
+    await expect(
+      artifacts.result.current.append({
+        meetingId: meeting.id,
+        kind: 'summary',
+        schemaVersion: 1,
+        producedAt: '2026-07-20T10:05:00.000Z',
+        sourceRefs: [],
+        provenance: 'local-entry',
+        payload: {},
+      }),
+    ).rejects.toThrow('still catching up');
+    await expect(
+      artifacts.result.current.approve(artifact.id, {
+        from: 'produced',
+        to: 'approved',
+        at: '2026-07-20T10:06:00.000Z',
+      }),
+    ).rejects.toThrow('still catching up');
+    expect(
+      artifacts.result.current
+        .readerFor(meetings.result.current, clientA, [
+          { kind: 'structured-notes', minimumSchemaVersion: 1 },
+        ])
+        .get(artifact.id),
+    ).toBeNull();
+    expect(selection.hookRequests).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ requireFollowerAgreement: true }),
+      ]),
+    );
+    expect(selection.readRequests).not.toHaveLength(0);
+    expect(
+      selection.readRequests.every(
+        (request) => request['requireFollowerAgreement'] === true,
+      ),
+    ).toBe(true);
   });
 });

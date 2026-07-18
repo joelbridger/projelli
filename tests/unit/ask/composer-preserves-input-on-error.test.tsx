@@ -64,6 +64,10 @@ vi.mock('@/platform/providers/ClaudeProvider', () => ({
 vi.mock('@/platform/providers/OpenAIProvider', () => ({ OpenAIProvider: vi.fn() }));
 vi.mock('@/platform/providers/GeminiProvider', () => ({ GeminiProvider: vi.fn() }));
 
+vi.mock('@/platform/client-context', () => ({
+  useSelectionOperationDecision: () => ({ kind: 'all-matters', client: null }),
+  readSelectionOperationDecision: () => ({ kind: 'all-matters', client: null }),
+}));
 vi.mock('@/platform/matter/matterStore', () => ({
   useActiveMatter: () => null,
   SAMPLE_MATTER_ID: 'matter_sample_garcia_v_meridian',

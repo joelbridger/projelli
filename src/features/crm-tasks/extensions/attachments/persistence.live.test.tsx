@@ -25,6 +25,10 @@ vi.mock('@/platform/fs/workspaceStore', () => ({
   useWorkspaceStore: <T,>(selector: (state: { rootPath: string }) => T) =>
     selector({ rootPath: '/workspace' }),
 }));
+vi.mock('@/platform/client-context', () => ({
+  useSelectionOperationDecision: () => ({ kind: 'all-matters', client: null }),
+  readSelectionOperationDecision: () => ({ kind: 'all-matters', client: null }),
+}));
 vi.mock('@/platform/matter/matterStore', () => ({
   useMatterStore: <T,>(
     selector: (state: { matters: []; activeMatterId: null }) => T

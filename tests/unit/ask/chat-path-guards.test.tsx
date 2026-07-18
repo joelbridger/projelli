@@ -35,9 +35,28 @@ type ToolExecutor = (name: string, params: Record<string, unknown>) => Promise<u
 // `captured` + `mocks` live in vi.hoisted so the provider-mock factories (which
 // are hoisted to the top of the module) can close over them. The stub provider
 // records the tool executor the send path registers via setTools.
-const { captured, mocks } = vi.hoisted(() => ({
+const { captured, mocks, authoritativeSelection } = vi.hoisted(() => ({
   captured: { executor: null as ToolExecutor | null },
   mocks: { sendMessage: vi.fn() },
+  authoritativeSelection: {
+    hookRequests: [] as Array<Record<string, unknown>>,
+    readRequests: [] as Array<Record<string, unknown>>,
+    decision: { kind: 'all-matters', client: null } as
+      | { kind: 'all-matters'; client: null }
+      | { kind: 'matter'; sourceKind: 'matter-only'; matter: Matter; client: null }
+      | { kind: 'refused'; reason: 'blocked-unresolved' | 'follower-disagreement'; message: string },
+  },
+}));
+
+vi.mock('@/platform/client-context', () => ({
+  useSelectionOperationDecision: (request: Record<string, unknown>) => {
+    authoritativeSelection.hookRequests.push(request);
+    return authoritativeSelection.decision;
+  },
+  readSelectionOperationDecision: (request: Record<string, unknown>) => {
+    authoritativeSelection.readRequests.push(request);
+    return authoritativeSelection.decision;
+  },
 }));
 
 function makeStubProvider() {
@@ -74,6 +93,7 @@ vi.mock('@/platform/privacy/localOnlyGuard', async (orig) => {
 
 import { AIChatViewer } from '@/features/ask/AIChatViewer';
 import type { AIChatFile } from '@/platform/types/ai';
+import type { Matter } from '@/platform/types/matter';
 import { useAIChatStore } from '@/platform/state/aiChatStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
 
@@ -150,6 +170,8 @@ const ROOTS: Array<[label: string, root: string, expectedJoin: string]> = [
 
 describe('F2.8 useChatSending workspace-boundary guard — per tool, per platform', () => {
   beforeEach(() => {
+    authoritativeSelection.hookRequests = [];
+    authoritativeSelection.readRequests = [];
     mocks.sendMessage.mockReset();
     mocks.sendMessage.mockResolvedValue({
       content: 'ok',
@@ -158,6 +180,7 @@ describe('F2.8 useChatSending workspace-boundary guard — per tool, per platfor
       model: 'stub',
     });
     useMatterStore.setState({ matters: [], activeMatterId: null }); // all-matters
+    authoritativeSelection.decision = { kind: 'all-matters', client: null };
     grantConsent();
   });
   afterEach(() => {
@@ -239,6 +262,72 @@ describe('F2.8 useChatSending workspace-boundary guard — per tool, per platfor
     await expect(executor('read_file', { path: 'c:/ws/acme/doc.txt' })).rejects.toThrow(/outside workspace/);
     expect(ws.readFile).not.toHaveBeenCalledWith(expect.stringContaining('acme'));
   });
+
+  it('surfaces blocked source selection and disables the real send controls', () => {
+    authoritativeSelection.decision = {
+      kind: 'refused',
+      reason: 'blocked-unresolved',
+      message: 'Choose a valid client before sending.',
+    };
+    const { ws } = makeWorkspaceMock();
+    const ref = { current: ws } as unknown as MutableRefObject<never>;
+
+    render(
+      <AIChatViewer
+        chatData={chat}
+        apiKeys={apiKey}
+        workspaceServiceRef={ref}
+        rootPath="/ws"
+      />,
+    );
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Choose a valid client before sending.');
+    expect(screen.getByTestId('chat-input')).toBeDisabled();
+    expect(screen.getByTestId('chat-send-button')).toBeDisabled();
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('refuses and surfaces a follower disagreement that appears at the real send boundary', async () => {
+    authoritativeSelection.decision = { kind: 'all-matters', client: null };
+    const { ws } = makeWorkspaceMock();
+    const ref = { current: ws } as unknown as MutableRefObject<never>;
+    render(
+      <AIChatViewer
+        chatData={chat}
+        apiKeys={apiKey}
+        workspaceServiceRef={ref}
+        rootPath="/ws"
+      />,
+    );
+    fireEvent.change(screen.getByTestId('chat-input'), { target: { value: 'hello' } });
+    authoritativeSelection.decision = {
+      kind: 'refused',
+      reason: 'follower-disagreement',
+      message: 'The client selection is still catching up.',
+    };
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('chat-send-button'));
+    });
+
+    expect(
+      (await screen.findAllByText('The client selection is still catching up.')).length,
+    ).toBeGreaterThan(0);
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+    expect(authoritativeSelection.hookRequests).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ requireFollowerAgreement: true }),
+      ]),
+    );
+    expect(authoritativeSelection.readRequests).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          operationClass: 'matter-scoped',
+          requireFollowerAgreement: true,
+        }),
+      ]),
+    );
+  });
 });
 
 describe('F2.8 search_files matter filter — normalized join on a backslash root', () => {
@@ -260,6 +349,12 @@ describe('F2.8 search_files matter filter — normalized join on a backslash roo
       folderPaths: ['C:/WS/Clients/Acme'], // forward-slash normalized, as stored
     });
     useMatterStore.getState().setActiveMatter(m.id);
+    authoritativeSelection.decision = {
+      kind: 'matter',
+      sourceKind: 'matter-only',
+      matter: m,
+      client: null,
+    };
     matterId = m.id;
     grantConsent();
   });

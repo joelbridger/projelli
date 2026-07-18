@@ -20,6 +20,10 @@ const h = vi.hoisted(() => ({
 
 vi.mock('@/i18n', () => ({ default: { t: (key: string) => key } }));
 
+vi.mock('@/platform/client-context', () => ({
+  useSelectionOperationDecision: () => ({ kind: 'all-matters', client: null }),
+  readSelectionOperationDecision: () => ({ kind: 'all-matters', client: null }),
+}));
 vi.mock('@/platform/matter/matterStore', () => ({
   useActiveMatter: () => null,
   SAMPLE_MATTER_ID: 'matter_sample_garcia_v_meridian',

@@ -1,5 +1,9 @@
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
-import { useMatterStore, getMatters } from '@/platform/matter/matterStore';
+import { getMatters } from '@/platform/matter/matterStore';
+import {
+  readSelectionOperationDecision,
+  useSelectionOperationDecision,
+} from '@/platform/client-context';
 import { getActiveWorkspaceService } from '@/platform/fs/activeWorkspaceService';
 import {
   loadLiveCrmRecords,
@@ -44,6 +48,26 @@ const MEETING_ARTIFACT_KINDS: readonly MeetingArtifactKind[] = [
   'talk-time-result',
   'client-signal',
 ];
+
+const MEETINGS_SELECTION_REQUEST = {
+  operationClass: 'matter-scoped',
+  allowAllMatters: false,
+  requireFollowerAgreement: true,
+} as const;
+
+function readAuthoritativeMeetingSelection() {
+  return readSelectionOperationDecision(MEETINGS_SELECTION_REQUEST);
+}
+
+function readAuthoritativeMeetingMatterId(): string | null {
+  const selection = readAuthoritativeMeetingSelection();
+  return selection.kind === 'matter' ? selection.matter.id : null;
+}
+
+function readAuthoritativeMeetingSelectionError(): string | null {
+  const selection = readAuthoritativeMeetingSelection();
+  return selection.kind === 'refused' ? selection.message : null;
+}
 
 /** Deliberately small: a display name is never authorization. */
 export interface ClientBoundary {
@@ -536,8 +560,9 @@ type LivePort = Pick<
  * cannot be constructed without live client isolation, so the isolation-less
  * shape is a compile error, not a silent leak.
  *
- * `getActiveMatterId` MUST resolve the LIVE active client at call time (it is
- * re-read at every operation), e.g. `() => useMatterStore.getState().activeMatterId`.
+ * `getActiveMatterId` MUST resolve the LIVE authoritative selection at call
+ * time (it is re-read at every operation). The production adapter uses the
+ * four-arm selection reader and treats follower disagreement only as refusal.
  * Passing a value captured once (a snapshot) reintroduces the stale-client leak.
  * A resolver returning `null`/`undefined` (no active client) FAILS CLOSED:
  * nothing is listed, read in full, mutated, appended, approved, or read through
@@ -546,6 +571,8 @@ type LivePort = Pick<
  */
 export type ClientScopedLivePort = LivePort & {
   readonly getActiveMatterId: () => string | null | undefined;
+  /** Production supplies the exact surfaced four-arm refusal. Test ports may omit it. */
+  readonly getSelectionError?: () => string | null;
 };
 
 interface ClientScope {
@@ -567,6 +594,8 @@ function clientScope(port: ClientScopedLivePort): ClientScope {
       return typeof matterId === 'string' && matterId === current;
     },
     assertOwns(matterId, subject) {
+      const selectionError = port.getSelectionError?.();
+      if (selectionError) throw new Error(selectionError);
       if (!scope.owns(matterId))
         throw new Error(
           `${subject} belongs to a different client than the active one.`
@@ -1125,7 +1154,7 @@ export function createMeetingStore(port: ClientScopedLivePort): MeetingStore {
       return currentList();
     },
     get error() {
-      return port.error;
+      return port.getSelectionError?.() ?? port.error;
     },
     get: (id) =>
       Promise.resolve().then(async () => {
@@ -2222,7 +2251,7 @@ export function useMeetingFoundationStore(): MeetingStore {
   // operation, so a store held across an async client switch (e.g. click
   // Approve, switch client, the await resolves) fails closed on the now-stale
   // client instead of acting on the snapshot captured when it was grabbed.
-  useMatterStore((state) => state.activeMatterId);
+  useSelectionOperationDecision(MEETINGS_SELECTION_REQUEST);
   return createMeetingStore({
     records: live.records,
     workspaceRoot: live.workspaceRoot,
@@ -2230,19 +2259,21 @@ export function useMeetingFoundationStore(): MeetingStore {
     save: live.save,
     sharedMatterId: live.sharedMatterId,
     sharedLocalMatterId: live.sharedLocalMatterId,
-    getActiveMatterId: () => useMatterStore.getState().activeMatterId,
+    getActiveMatterId: readAuthoritativeMeetingMatterId,
+    getSelectionError: readAuthoritativeMeetingSelectionError,
     reloadRecords: () => loadLiveCrmRecords(live.workspaceRoot),
   });
 }
 export function useMeetingArtifactStore(): MeetingArtifactStore {
   const live = useLiveCrmRecords();
-  useMatterStore((state) => state.activeMatterId);
+  useSelectionOperationDecision(MEETINGS_SELECTION_REQUEST);
   return createMeetingArtifactStore({
     records: live.records,
     workspaceRoot: live.workspaceRoot,
     error: live.error,
     save: live.save,
-    getActiveMatterId: () => useMatterStore.getState().activeMatterId,
+    getActiveMatterId: readAuthoritativeMeetingMatterId,
+    getSelectionError: readAuthoritativeMeetingSelectionError,
     reloadRecords: () => loadLiveCrmRecords(live.workspaceRoot),
   });
 }
@@ -2268,10 +2299,18 @@ export function useMeetingTemplateStore(): MeetingTemplateStore {
 }
 export function useMeetingKeywordCatalogueStore(): MeetingKeywordCatalogueStore {
   const live = useLiveCrmRecords();
+  // The keyword insight already renders this store's error channel. Feed the
+  // authoritative meeting-selection refusal through that existing channel so
+  // a blocked reader cannot be mistaken for a genuine "no tracked topics"
+  // result. This stays inside the foundation adapter; no Meetings surface or
+  // presentation contract changes are needed.
+  const selection = useSelectionOperationDecision(MEETINGS_SELECTION_REQUEST);
+  const selectionError =
+    selection.kind === 'refused' ? selection.message : null;
   return createMeetingKeywordCatalogueStore({
     records: live.records,
     workspaceRoot: live.workspaceRoot,
-    error: live.error,
+    error: selectionError ?? live.error,
     save: live.save,
     reloadRecords: () => loadLiveCrmRecords(live.workspaceRoot),
   });

@@ -87,6 +87,7 @@ import type {
   PersistedSelectionHint,
   RehydratedSelectionInput,
 } from '@/platform/client-context/selectionTypes';
+import { readSelectionOperationDecision } from '@/platform/client-context/selectionReader';
 import type { MatterAtAGlanceEntry } from '@/platform/matter/matterAtAGlanceStore';
 import type { MatterSyncStatus } from '@/platform/matter/matterSyncStore';
 import type { MatterAtAGlanceResult } from '@/platform/matter/matterAtAGlance';
@@ -1890,8 +1891,20 @@ export const useMatterStore = create<MatterState>()(
       },
 
       setMatterPrivileged: (id, privileged) => {
-        if (privileged && get().activeMatterId === id) {
-          requestNativeNetworkLockdown(true);
+        if (privileged) {
+          const selection = readSelectionOperationDecision({
+            operationClass: 'matter-scoped',
+            allowAllMatters: true,
+            requireFollowerAgreement: true,
+          });
+          // Any uncertainty stays protected. The follower is consulted only to
+          // refuse/unconditionally arm; it can never turn protection off.
+          if (
+            selection.kind === 'refused' ||
+            (selection.kind === 'matter' && selection.matter.id === id)
+          ) {
+            requestNativeNetworkLockdown(true);
+          }
         }
         set((state) => ({
           matters: state.matters.map((m) =>
@@ -2162,9 +2175,13 @@ export function getActiveMatterId(): string | null {
  * the non-reactive Privileged Matter Mode resolver (e.g. the bridge gate).
  */
 export function isActiveMatterPrivileged(): boolean {
-  const { matters, activeMatterId } = useMatterStore.getState();
-  if (!activeMatterId) return false;
-  return !!findMatter(activeMatterId, matters)?.privileged;
+  const selection = readSelectionOperationDecision({
+    operationClass: 'matter-scoped',
+    allowAllMatters: true,
+    requireFollowerAgreement: true,
+  });
+  if (selection.kind === 'refused') return true;
+  return selection.kind === 'matter' && !!selection.matter.privileged;
 }
 
 /**
@@ -2249,9 +2266,15 @@ export function resolveActiveMatter(
 }
 
 export function getActiveScope(): MatterScope {
-  const { activeMatterId, matters } = useMatterStore.getState();
-  const m = resolveActiveMatter(matters, activeMatterId);
-  return m ? { kind: 'matter', matterId: m.id } : { kind: 'allMatters' };
+  const selection = readSelectionOperationDecision({
+    operationClass: 'matter-scoped',
+    allowAllMatters: true,
+    requireFollowerAgreement: true,
+  });
+  if (selection.kind === 'refused') throw new Error(selection.message);
+  return selection.kind === 'matter'
+    ? { kind: 'matter', matterId: selection.matter.id }
+    : { kind: 'allMatters' };
 }
 
 // ─────────────────────────────────────────────────────────────────────
