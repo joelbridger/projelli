@@ -1,4 +1,15 @@
 import { create } from 'zustand';
+import { isEnabled as isFlagEnabled } from '@/platform/flags/router';
+import { useMatterStore } from '@/platform/matter/matterStore';
+import type { Matter } from '@/platform/types/matter';
+
+/** The scope the authority owns. `blocked-unresolved` is never all-matters. */
+export type MatterScopeSelection =
+  | { readonly kind: 'matter'; readonly matterId: string }
+  | { readonly kind: 'all-matters' }
+  | { readonly kind: 'blocked-unresolved' };
+
+export type FollowerStatus = 'converged' | 'stale';
 
 /**
  * The stable, cross-tool identity of the household the advisor is working on.
@@ -15,13 +26,100 @@ export interface SharedClientContextAdapter<Context> {
   derive: (client: SharedClientIdentity | null) => Context;
 }
 
-interface ClientContextState {
+/** A branded object is insufficient on its own: provenance lives in a private WeakMap. */
+declare const sealedClientBoundaryBrand: unique symbol;
+export interface SealedClientBoundary {
+  readonly [sealedClientBoundaryBrand]: true;
+}
+
+declare const sealedMatterScopeRequestBrand: unique symbol;
+export interface SealedMatterScopeSelection {
+  readonly [sealedMatterScopeRequestBrand]: true;
+}
+
+interface ClientBoundaryIdentity {
+  readonly householdRef: string;
+  readonly matterId?: string;
+  readonly displayName?: string;
+}
+
+interface MatterScopeRequestIdentity {
+  readonly householdRef: string;
+  readonly matterId: string;
+  readonly displayName?: string;
+}
+
+interface SealedSpecificPair {
+  readonly kind: 'matter';
+  readonly client: SharedClientIdentity;
+  readonly matterId: string;
+  readonly issuedAtRevision: number;
+}
+
+interface SealedAllMattersIntent {
+  readonly kind: 'all-matters';
+  readonly issuedAtRevision: number;
+}
+
+const sealedClientBoundaries = new WeakMap<
+  SealedClientBoundary,
+  SealedSpecificPair
+>();
+const sealedMatterScopeRequests = new WeakMap<
+  SealedMatterScopeSelection,
+  SealedSpecificPair | SealedAllMattersIntent
+>();
+
+export type SelectionResult =
+  | { readonly kind: 'selected'; readonly client: SharedClientIdentity }
+  | { readonly kind: 'refused'; readonly reason: SelectionRefusalReason };
+
+export type MatterScopeSelectionResult =
+  | {
+      readonly kind: 'selected';
+      readonly client: SharedClientIdentity | null;
+      readonly scope: MatterScopeSelection;
+    }
+  | { readonly kind: 'refused'; readonly reason: MatterScopeRefusalReason };
+
+export type SelectionRefusalReason =
+  | 'unsealed-client-boundary'
+  | 'missing-matter-id'
+  | 'invalid-matter-boundary'
+  | 'invalid-client-boundary'
+  | 'selection-authority-disabled';
+
+export type MatterScopeRefusalReason =
+  | 'unsealed-matter-scope-request'
+  | 'stale-matter-scope-request'
+  | 'missing-matter'
+  | 'archived-matter'
+  | 'unauthorized-pair'
+  | 'wrong-client-pair'
+  | 'selection-authority-disabled';
+
+export interface ClientContextState {
+  /** The source half of the canonical selection pair. */
   client: SharedClientIdentity | null;
+  /** The source half of the canonical selection pair. */
+  scope: MatterScopeSelection;
+  /** Only whether the legacy activeMatterId currently equals the projection. */
+  followerStatus: FollowerStatus;
+  /** Monotonic freshness token; never a caller-supplied selection value. */
+  selectionRevision: number;
+  /**
+   * Compatibility client writer until the writer-retirement lane moves callers.
+   * A raw client has no proven matter pair, so it deliberately blocks scope.
+   */
   setClient: (client: SharedClientIdentity) => void;
+  /** Clearing client is not a failure and preserves the owned scope exactly. */
   clearClient: () => void;
 }
 
-function normalizeClient(client: SharedClientIdentity): SharedClientIdentity {
+/** The exact normalizer used by the client-only store before this foundation. */
+function normalizeLegacyClient(
+  client: SharedClientIdentity
+): SharedClientIdentity {
   const householdId = client.householdId.trim();
   if (!householdId) {
     throw new Error('Shared client context requires a household id.');
@@ -40,20 +138,446 @@ function normalizeClient(client: SharedClientIdentity): SharedClientIdentity {
   };
 }
 
+/** Authority handles own immutable identity; legacy writes intentionally do not. */
+function normalizeClient(client: SharedClientIdentity): SharedClientIdentity {
+  const normalized = normalizeLegacyClient(client);
+  return Object.freeze({
+    householdId: normalized.householdId,
+    displayName: normalized.displayName,
+    ...(normalized.primaryPeople
+      ? {
+          primaryPeople: Object.freeze(normalized.primaryPeople),
+        }
+      : {}),
+  });
+}
+
+function projectedFollowerValue(scope: MatterScopeSelection): string | null {
+  return scope.kind === 'matter' ? scope.matterId : null;
+}
+
+function freezeScope(scope: MatterScopeSelection): MatterScopeSelection {
+  return Object.freeze(
+    scope.kind === 'matter'
+      ? { kind: 'matter' as const, matterId: scope.matterId }
+      : scope.kind === 'all-matters'
+        ? { kind: 'all-matters' as const }
+        : { kind: 'blocked-unresolved' as const }
+  );
+}
+
+function followerStatusFor(scope: MatterScopeSelection): FollowerStatus {
+  return useMatterStore.getState().activeMatterId ===
+    projectedFollowerValue(scope)
+    ? 'converged'
+    : 'stale';
+}
+
 /**
- * One in-memory client selection for CRM, Ask, Meetings, and the shell bar.
- * It intentionally is not persisted: a reopened workspace must establish its
- * own valid household selection rather than inheriting a stale client id.
+ * The one legal household-to-matter resolver for this package. The CRM feature
+ * helper is intentionally not used: it includes archived matches and therefore
+ * cannot be the authority doorway.
  */
-export const useClientContextStore = create<ClientContextState>()((set) => ({
-  client: null,
-  setClient: (client) => {
-    set({ client: normalizeClient(client) });
-  },
-  clearClient: () => {
-    set({ client: null });
-  },
-}));
+export function resolveCanonicalHouseholdMatter(
+  householdId: string,
+  matters: readonly Matter[] = useMatterStore.getState().matters
+): Matter | undefined {
+  const normalizedHouseholdId = householdId.trim();
+  if (!normalizedHouseholdId) return undefined;
+  const matches = matters.filter(
+    (matter) =>
+      !matter.archived &&
+      (matter.crmHouseholdKeys ?? []).includes(normalizedHouseholdId)
+  );
+  return matches.length === 1 ? matches[0] : undefined;
+}
+
+function validatePair(
+  client: SharedClientIdentity,
+  matterId: string
+): { readonly matter?: Matter; readonly reason?: MatterScopeRefusalReason } {
+  const exact = useMatterStore
+    .getState()
+    .matters.find((matter) => matter.id === matterId);
+  if (!exact) return { reason: 'missing-matter' };
+  if (exact.archived) return { reason: 'archived-matter' };
+  const canonical = resolveCanonicalHouseholdMatter(client.householdId);
+  if (!canonical) return { reason: 'unauthorized-pair' };
+  if (canonical.id !== matterId) return { reason: 'wrong-client-pair' };
+  return { matter: exact };
+}
+
+/**
+ * Internal issuer for a proven full client/matter pair. It is deliberately not
+ * re-exported from this package's index; callers receive only its opaque handle.
+ */
+export function sealResolvedClientBoundary(
+  identity: ClientBoundaryIdentity
+): SealedClientBoundary | null {
+  ensureAuthorityBootValidated();
+  const matterId = identity.matterId?.trim();
+  if (!matterId) return null;
+  let client: SharedClientIdentity;
+  try {
+    client = normalizeClient({
+      householdId: identity.householdRef,
+      displayName: identity.displayName ?? identity.householdRef,
+    });
+  } catch {
+    return null;
+  }
+  if (!validatePair(client, matterId).matter) return null;
+  const boundary = Object.freeze({}) as SealedClientBoundary;
+  sealedClientBoundaries.set(
+    boundary,
+    Object.freeze({
+      kind: 'matter',
+      client,
+      matterId,
+      issuedAtRevision: useClientContextStore.getState().selectionRevision,
+    })
+  );
+  return boundary;
+}
+
+/** Internal issuer for a specific, already-authorized full selection pair. */
+export function sealMatterScopeSelection(
+  identity: MatterScopeRequestIdentity
+): SealedMatterScopeSelection | null {
+  ensureAuthorityBootValidated();
+  let client: SharedClientIdentity;
+  try {
+    client = normalizeClient({
+      householdId: identity.householdRef,
+      displayName: identity.displayName ?? identity.householdRef,
+    });
+  } catch {
+    return null;
+  }
+  const matterId = identity.matterId.trim();
+  if (!matterId || !validatePair(client, matterId).matter) return null;
+  const request = Object.freeze({}) as SealedMatterScopeSelection;
+  sealedMatterScopeRequests.set(
+    request,
+    Object.freeze({
+      kind: 'matter',
+      client,
+      matterId,
+      issuedAtRevision: useClientContextStore.getState().selectionRevision,
+    })
+  );
+  return request;
+}
+
+/** Internal issuer for explicit workspace-wide user intent; it carries no raw scope union. */
+export function sealAllMattersScopeSelection(): SealedMatterScopeSelection {
+  ensureAuthorityBootValidated();
+  const request = Object.freeze({}) as SealedMatterScopeSelection;
+  sealedMatterScopeRequests.set(
+    request,
+    Object.freeze({
+      kind: 'all-matters',
+      issuedAtRevision: useClientContextStore.getState().selectionRevision,
+    })
+  );
+  return request;
+}
+
+let writeSourceSelection: (
+  client: SharedClientIdentity | null,
+  scope: MatterScopeSelection
+) => void;
+let reconciliationPending = false;
+let failedReconciliationAttempts = 0;
+const MAX_RECONCILIATION_RETRIES = 3;
+let authorityBootValidated = false;
+
+/**
+ * This one dark flag is the authority foundation's activation boundary. Until
+ * the integration lane enables it, legacy client writes retain their original
+ * in-memory behavior and no path may create `blocked-unresolved`.
+ */
+function selectionAuthorityEnabled(): boolean {
+  const enabled = isFlagEnabled('selection-authority-boot-gate');
+  // Development overrides can toggle between focused cases. A real dark → on
+  // activation must validate again too; no enabled epoch inherits a dark boot.
+  if (!enabled) authorityBootValidated = false;
+  return enabled;
+}
+
+function updateFollowerStatus(): void {
+  const state = useClientContextStore.getState();
+  const followerStatus = followerStatusFor(state.scope);
+  if (state.followerStatus === followerStatus) return;
+  try {
+    clientContextStore.setState({ followerStatus });
+  } catch (error) {
+    // A subscriber cannot prevent state already swapped by Zustand from being
+    // observed or retried. The next reconcile still re-checks the projection.
+    void error;
+  }
+}
+
+function reconcileFollower(): void {
+  reconciliationPending = false;
+  // A reconciliation queued before a development override is turned off must
+  // not turn an otherwise inert foundation into a blocked source transition.
+  if (!selectionAuthorityEnabled()) return;
+  const source = useClientContextStore.getState();
+  const scope = source.scope;
+  if (
+    scope.kind === 'matter' &&
+    !useMatterStore
+      .getState()
+      .matters.some(
+        (matter) => matter.id === scope.matterId && !matter.archived
+      )
+  ) {
+    writeBlockedSourceSelection(source.client);
+    return;
+  }
+  const projection = projectedFollowerValue(scope);
+  try {
+    useMatterStore.getState().setActiveMatter(projection);
+  } catch (error) {
+    // A throwing legacy subscriber/setter must leave an observable stale marker.
+    void error;
+  }
+  updateFollowerStatus();
+  if (followerStatusFor(useClientContextStore.getState().scope) === 'stale') {
+    if (failedReconciliationAttempts < MAX_RECONCILIATION_RETRIES) {
+      failedReconciliationAttempts += 1;
+      scheduleFollowerReconciliation(2 ** failedReconciliationAttempts);
+    }
+  } else {
+    failedReconciliationAttempts = 0;
+  }
+}
+
+/** Exactly one queued reconciliation exists, independently of any later selection write. */
+function scheduleFollowerReconciliation(delayMs = 0): void {
+  if (reconciliationPending) return;
+  reconciliationPending = true;
+  setTimeout(reconcileFollower, delayMs);
+}
+
+function scopeFromPersistedFollower(): MatterScopeSelection {
+  const { activeMatterId, matters } = useMatterStore.getState();
+  if (activeMatterId === null) return { kind: 'all-matters' };
+  const active = matters.find((matter) => matter.id === activeMatterId);
+  return active && !active.archived
+    ? { kind: 'matter', matterId: active.id }
+    : { kind: 'blocked-unresolved' };
+}
+
+// Flag-off must have no boot read or follower write. This neutral source value
+// is intentionally independent of persisted legacy state.
+const bootScope = freezeScope({ kind: 'all-matters' });
+
+/**
+ * The source of truth. Every source change is one `set()` call, then its
+ * finally block schedules reconciliation even if a source subscriber throws.
+ */
+const clientContextStore = create<ClientContextState>()((set) => {
+  writeSourceSelection = (client, scope) => {
+    // Defense in depth: every caller that can create the blocked state is
+    // explicitly guarded below, and this prevents any future missed caller
+    // from activating it while the foundation remains dark.
+    if (scope.kind === 'blocked-unresolved' && !selectionAuthorityEnabled())
+      return;
+    const nextScope = freezeScope(scope);
+    failedReconciliationAttempts = 0;
+    try {
+      set((state) => ({
+        client,
+        scope: nextScope,
+        followerStatus: followerStatusFor(nextScope),
+        selectionRevision: state.selectionRevision + 1,
+      }));
+    } catch (error) {
+      // Zustand's set has already swapped state before synchronously notifying
+      // subscribers. A subscriber failure is not permission to roll back or
+      // invent a different selection.
+      void error;
+    } finally {
+      scheduleFollowerReconciliation();
+    }
+  };
+  return {
+    client: null,
+    scope: bootScope,
+    // A dark foundation must not even read the legacy follower at module load.
+    // The first enabled source transition computes its real projection status.
+    followerStatus: 'converged',
+    selectionRevision: 0,
+    setClient: (client) => {
+      if (!selectionAuthorityEnabled()) {
+        // This exactly retains the old store's observable transition: client
+        // only, including its mutable normalized client value, with no
+        // boot/reconciliation/follower side effect.
+        set({ client: normalizeLegacyClient(client) });
+        return;
+      }
+      ensureAuthorityBootValidated();
+      // Legacy raw-client entry point: retain compatibility without granting a
+      // raw id authority path. Its missing canonical pair is fail-closed only
+      // after the integration lane activates this foundation.
+      writeBlockedSourceSelection(normalizeClient(client));
+    },
+    clearClient: () => {
+      if (!selectionAuthorityEnabled()) {
+        // Match the pre-foundation client store exactly while dark.
+        set({ client: null });
+        return;
+      }
+      ensureAuthorityBootValidated();
+      // Ordinary clear is not a failure and never widens a matter scope.
+      writeSourceSelection(null, useClientContextStore.getState().scope);
+    },
+  };
+});
+
+/**
+ * The real authority-reader boot boundary.  There is deliberately no separate
+ * consumer-managed lifecycle call: an enabled authority read cannot observe a
+ * persisted follower before this validation has completed.  Keeping this here
+ * also makes the dark path a true no-op -- it neither reads nor projects the
+ * legacy follower while the integration flag is off.
+ */
+function ensureAuthorityBootValidated(): void {
+  if (!selectionAuthorityEnabled() || authorityBootValidated) return;
+  authorityBootValidated = true;
+  const scope = freezeScope(scopeFromPersistedFollower());
+  writeSourceSelection(useClientContextStore.getState().client, scope);
+}
+
+/**
+ * A selected matter may disappear after its follower has already converged.
+ * Matter-store updates are synchronous, so this source-owned listener blocks
+ * immediately; it never waits for another selection or retry to happen.
+ */
+function subscribeToMatterInvalidation(): void {
+  // Some isolated consumers replace the matter-store hook with a narrow
+  // read-only test double. Production's Zustand store always has subscribe;
+  // do not let an unrelated consumer's import-time mock prevent that consumer
+  // from loading. The real store still owns this live invalidation listener.
+  const subscribe = useMatterStore.subscribe;
+  if (typeof subscribe !== 'function') return;
+
+  subscribe((state) => {
+    if (!selectionAuthorityEnabled()) return;
+    const source = useClientContextStore.getState();
+    if (source.scope.kind !== 'matter') return;
+
+    const matterId = source.scope.matterId;
+    if (!state.matters.some((matter) => matter.id === matterId && !matter.archived)) {
+      writeBlockedSourceSelection(source.client);
+    }
+  });
+}
+
+subscribeToMatterInvalidation();
+
+/**
+ * Boot gate used by the lifecycle lane at startup. It validates the persisted
+ * follower against current live matters before any consumer can trust a scope.
+ */
+export function bootstrapSelectionAuthorityFromPersistedFollower(): MatterScopeSelection {
+  ensureAuthorityBootValidated();
+  return useClientContextStore.getState().scope;
+}
+
+/** Enter blocked only once the one authority activation gate is on. */
+function writeBlockedSourceSelection(
+  client: SharedClientIdentity | null
+): void {
+  if (!selectionAuthorityEnabled()) return;
+  writeSourceSelection(client, { kind: 'blocked-unresolved' });
+}
+
+function refuseMatterScope(
+  reason: MatterScopeRefusalReason
+): MatterScopeSelectionResult {
+  // Validation remains live while dark, but refusal is then a no-op result so
+  // a forged handle cannot alter legacy client-store behavior.
+  writeBlockedSourceSelection(useClientContextStore.getState().client);
+  return { kind: 'refused', reason };
+}
+
+/**
+ * The only public scope-selection request door. It accepts runtime-provenance
+ * handles only; a raw id, raw union, cast, or stale handle cannot select scope.
+ */
+export async function requestMatterScopeSelection(
+  request: SealedMatterScopeSelection
+): Promise<MatterScopeSelectionResult> {
+  await Promise.resolve();
+  const sealed = sealedMatterScopeRequests.get(request);
+  if (!sealed || !Object.isFrozen(request))
+    return refuseMatterScope('unsealed-matter-scope-request');
+  if (
+    sealed.issuedAtRevision !==
+    useClientContextStore.getState().selectionRevision
+  ) {
+    return refuseMatterScope('stale-matter-scope-request');
+  }
+  if (sealed.kind === 'all-matters') {
+    if (!selectionAuthorityEnabled())
+      return refuseMatterScope('selection-authority-disabled');
+    const client = useClientContextStore.getState().client;
+    const scope = freezeScope({ kind: 'all-matters' });
+    writeSourceSelection(client, scope);
+    return { kind: 'selected', client, scope };
+  }
+  const validation = validatePair(sealed.client, sealed.matterId);
+  if (!validation.matter)
+    return refuseMatterScope(validation.reason ?? 'unauthorized-pair');
+  if (!selectionAuthorityEnabled())
+    return refuseMatterScope('selection-authority-disabled');
+  const scope = freezeScope({
+    kind: 'matter',
+    matterId: validation.matter.id,
+  });
+  writeSourceSelection(sealed.client, scope);
+  return { kind: 'selected', client: sealed.client, scope };
+}
+
+/** The sealed cross-client doorway salvaged from the frozen worktree, now source-owned. */
+export async function requestSharedClientSelection(
+  boundary: SealedClientBoundary
+): Promise<SelectionResult> {
+  await Promise.resolve();
+  const sealed = sealedClientBoundaries.get(boundary);
+  if (!sealed || !Object.isFrozen(boundary)) {
+    writeBlockedSourceSelection(useClientContextStore.getState().client);
+    return { kind: 'refused', reason: 'unsealed-client-boundary' };
+  }
+  if (
+    sealed.issuedAtRevision !==
+    useClientContextStore.getState().selectionRevision
+  ) {
+    writeBlockedSourceSelection(useClientContextStore.getState().client);
+    return { kind: 'refused', reason: 'invalid-client-boundary' };
+  }
+  const validation = validatePair(sealed.client, sealed.matterId);
+  if (!validation.matter) {
+    writeBlockedSourceSelection(useClientContextStore.getState().client);
+    return {
+      kind: 'refused',
+      reason:
+        validation.reason === 'missing-matter'
+          ? 'invalid-matter-boundary'
+          : 'invalid-client-boundary',
+    };
+  }
+  if (!selectionAuthorityEnabled())
+    return { kind: 'refused', reason: 'selection-authority-disabled' };
+  writeSourceSelection(sealed.client, {
+    kind: 'matter',
+    matterId: validation.matter.id,
+  });
+  return { kind: 'selected', client: sealed.client };
+}
 
 /** Read a feature's narrow view without copying client state into that feature. */
 export function readSharedClientContext<Context>(
@@ -61,3 +585,23 @@ export function readSharedClientContext<Context>(
 ): Context {
   return adapter.derive(useClientContextStore.getState().client);
 }
+
+/** A narrow reader for future T1/T2 consumers; it never exposes a raw writer. */
+export function readAuthoritativeMatterScope(): MatterScopeSelection {
+  ensureAuthorityBootValidated();
+  return useClientContextStore.getState().scope;
+}
+
+/**
+ * Public read facade. Deliberately omit Zustand's raw `setState`: selection
+ * changes must enter through the sealed request door or legacy compatibility
+ * methods on the state, never through a structural scope object.
+ */
+export const useClientContextStore = Object.assign(
+  <Selection>(selector: (state: ClientContextState) => Selection): Selection =>
+    clientContextStore(selector),
+  {
+    getState: clientContextStore.getState,
+    subscribe: clientContextStore.subscribe,
+  }
+);

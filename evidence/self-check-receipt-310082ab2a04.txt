@@ -1,0 +1,18 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/lantern/app/integration/.worktrees/feat/unification-sublane1-authority-foundation
+sha: 310082ab2a04a992e83c0c7a9291bc4671205e5e
+tree: 0d4533096cbed0a39b249f5480342acf775cb39c
+gate_base: 0683ff9b6987334e2191a6e8ed302491be55fbf7
+tool_blob: 04db9a936f686f872e7914b7a20ed016027c37b8
+utc: 2026-07-18T03:00:13Z
+step_timeout_seconds: 600
+loadavg: 4.69 5.86 5.91
+running_vitest_eslint_procs: 1
+step: gate:changed | status=FAIL | exit=1 | 03:00:13Z..03:08:47Z | bytes=2317820 | sha256=7a0daefe49e808e69c80766f8f032b52b8fc6f70aefb8149b8c0f7058e5c39ec | tail: )[39m [2m Start at [22m 03:03:04 [2m Duration [22m 343.23s[2m (transform 26.07s, setup 173.38s, import 458.49s, tests 203.77s, environment 395.82s)[22m FAILED: npx vitest run CHANGED GATE RED see failures above
+step: typecheck | status=FAIL | exit=2 | 03:08:47Z..03:09:11Z | bytes=275 | sha256=397fdea90ec73432e1020dd123a6916da0c0759bbb771e33825988d584cc9911 | tail: c/platform/client-context/clientContextStore.ts(465,46): error TS2339: Property 'matterId' does not exist on type 'MatterScopeSelection'. Property 'matterId' does not exist on type '{ readonly kind: "all-matters"; }'.
+step: typecheck:tests | status=FAIL | exit=2 | 03:09:11Z..03:09:40Z | bytes=303 | sha256=c5d2e0e92a13048e57945da91d2218f7538dbe2283d32d9d8df06adeace29906 | tail: c/platform/client-context/clientContextStore.ts(465,46): error TS2339: Property 'matterId' does not exist on type 'MatterScopeSelection'. Property 'matterId' does not exist on type '{ readonly kind: "all-matters"; }'.
+step: handle-guard | status=PASS | exit=0 | 03:09:40Z..03:09:41Z | bytes=1347 | sha256=fc627905fdd98e717c91808afb4221784d2ced7b8ecccadd3382cec8013919f5 | tail: + calendar-add-event-all-day + calendar-add-event-calendar + calendar-add-event-cancel +432 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen).
+step: arch-dag-guard | status=PASS | exit=0 | 03:09:41Z..03:09:42Z | bytes=551 | sha256=90db033d755e1aff6e6a0b890df0c8e32ce5ccfbcd6cc8e4cad88650baafe20e | tail: assed[39m[22m[90m (1)[39m [2m Tests [22m [1m[32m1 passed[39m[22m[90m (1)[39m [2m Start at [22m 03:09:41 [2m Duration [22m 983ms[2m (transform 217ms, setup 343ms, import 263ms, tests 3ms, environment 283ms)[22m
+step: i18n-snapshot | status=PASS | exit=0 | 03:09:42Z..03:09:43Z | bytes=552 | sha256=ad484105ed2bc942ec2f7c3799c7707be30c0fc78e385d612aac62ca2d83d0db | tail: ssed[39m[22m[90m (1)[39m [2m Tests [22m [1m[32m5 passed[39m[22m[90m (5)[39m [2m Start at [22m 03:09:42 [2m Duration [22m 989ms[2m (transform 251ms, setup 367ms, import 223ms, tests 22ms, environment 284ms)[22m
+overall: RED
