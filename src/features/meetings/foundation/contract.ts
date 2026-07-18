@@ -1,8 +1,11 @@
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import { getMatters } from '@/platform/matter/matterStore';
 import {
+  issueSharedClientSelection,
   readSelectionOperationDecision,
+  resolveCanonicalHouseholdClassification,
   useSelectionOperationDecision,
+  type SealedClientBoundary,
 } from '@/platform/client-context';
 import { getActiveWorkspaceService } from '@/platform/fs/activeWorkspaceService';
 import {
@@ -111,6 +114,26 @@ export type LegacyMeetingLinkStatus =
   | ({ readonly kind: 'folder-only' } & {
       readonly [legacyMeetingLinkStatusBrand]: true;
     });
+
+/**
+ * Surface-blind navigation authority for one firm-wide meeting reference.
+ *
+ * The four dispositions are deliberately compile-distinct. `folder-only`
+ * means the canonical meeting is known but has no durable legacy-folder link.
+ * `unavailable` means the meeting is known but its current link or client
+ * authority cannot be used. `unknown` is an authority refusal, not an empty or
+ * unavailable state; callers must surface that refusal and must not route.
+ * Only `linked` carries a born-sealed value accepted by the sanctioned client
+ * selection doorway.
+ */
+export type MeetingNavigationResolution =
+  | {
+      readonly kind: 'linked';
+      readonly clientBoundary: SealedClientBoundary;
+    }
+  | { readonly kind: 'folder-only' }
+  | { readonly kind: 'unavailable' }
+  | { readonly kind: 'unknown'; readonly disposition: 'refuse' };
 
 export interface LegacyMeetingLinkStatusReader {
   /** Read one status from authoritative canonical link keys. */
@@ -708,6 +731,106 @@ function resolveExactlyOneMatterForHousehold(
     (candidate.crmHouseholdKeys ?? []).includes(householdRef)
   );
   return candidates.length === 1 ? (candidates[0] ?? null) : null;
+}
+
+const FOLDER_ONLY_MEETING_NAVIGATION = Object.freeze({
+  kind: 'folder-only',
+} as const);
+const UNAVAILABLE_MEETING_NAVIGATION = Object.freeze({
+  kind: 'unavailable',
+} as const);
+const UNKNOWN_MEETING_NAVIGATION_REFUSAL = Object.freeze({
+  kind: 'unknown',
+  disposition: 'refuse',
+} as const);
+
+function assertNeverHouseholdClassification(value: never): never {
+  throw new Error(`Unreachable household classification arm: ${String(value)}`);
+}
+
+/**
+ * Resolve fresh firm-wide navigation authority for one meeting reference.
+ *
+ * This reads the app-standard canonical collection once per call, then asks
+ * the activated client classifier to re-derive the household/matter pair from
+ * current data. No result, seal, classifier arm, or authority decision is
+ * persisted. The resolver exposes no meeting payload and performs no client
+ * selection; a linked result must still be awaited through
+ * `requestSharedClientSelection` before a client-scoped meeting store is used.
+ */
+export async function resolveMeetingNavigation(
+  ref: MeetingRef
+): Promise<MeetingNavigationResolution> {
+  const meetingRef = typeof ref === 'string' ? ref.trim() : '';
+  if (!meetingRef) return UNKNOWN_MEETING_NAVIGATION_REFUSAL;
+
+  let workspaceRoot: string;
+  try {
+    ({ workspaceRoot } = deriveActiveMeetingWorkspace());
+  } catch {
+    return UNAVAILABLE_MEETING_NAVIGATION;
+  }
+
+  let records: readonly LiveCrmRecord[];
+  try {
+    records = await loadLiveCrmRecords(workspaceRoot);
+  } catch {
+    return UNAVAILABLE_MEETING_NAVIGATION;
+  }
+
+  const matches = records.filter(
+    (record) => record.kind === 'meeting' && record.id === meetingRef
+  );
+  if (matches.length !== 1) return UNKNOWN_MEETING_NAVIGATION_REFUSAL;
+  const meeting = matches[0];
+  if (!meeting) return UNKNOWN_MEETING_NAVIGATION_REFUSAL;
+
+  if (meeting['legacyMeetingLink'] === undefined) {
+    return FOLDER_ONLY_MEETING_NAVIGATION;
+  }
+  try {
+    if (!projectLegacyLink(meeting['legacyMeetingLink'])) {
+      return UNAVAILABLE_MEETING_NAVIGATION;
+    }
+  } catch {
+    return UNAVAILABLE_MEETING_NAVIGATION;
+  }
+
+  const householdRef =
+    typeof meeting['householdRef'] === 'string'
+      ? meeting['householdRef'].trim()
+      : '';
+  const matterId =
+    typeof meeting.matterId === 'string' ? meeting.matterId.trim() : '';
+  if (!householdRef || !matterId) return UNKNOWN_MEETING_NAVIGATION_REFUSAL;
+
+  const classification = resolveCanonicalHouseholdClassification({
+    provider: 'wealthbox',
+    householdId: householdRef,
+  });
+  switch (classification.kind) {
+    case 'exactly-one-live': {
+      if (classification.liveMatterIds[0] !== matterId) {
+        return UNKNOWN_MEETING_NAVIGATION_REFUSAL;
+      }
+      if (!classification.client) return UNAVAILABLE_MEETING_NAVIGATION;
+      try {
+        return Object.freeze({
+          kind: 'linked',
+          clientBoundary: issueSharedClientSelection(classification.client),
+        });
+      } catch {
+        return UNAVAILABLE_MEETING_NAVIGATION;
+      }
+    }
+    case 'zero-live':
+    case 'ambiguous-live':
+    case 'archived-only':
+    case 'invalid-household':
+      return UNAVAILABLE_MEETING_NAVIGATION;
+    default:
+      return assertNeverHouseholdClassification(classification.kind);
+  }
 }
 
 /**
