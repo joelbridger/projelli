@@ -3,8 +3,9 @@
 - Branch: `feat/workflow-completion-seam`
 - Approved base: `8118b12cca5f05892e1418c254818268795694e8`
 - Review cured: `terra-seam-CHANGES5.log`
-- Final code SHA: the `sha:` recorded by the machine-generated self-check receipt
-- Admitted branch tip: the evidence-only commit containing that receipt
+- Reviewed code tip: `c2a2198be`
+- Final full verification receipt: pending the separate quiet-window run
+- Existing receipt: covers pre-fix commit `ba82a42be` only
 
 ## Outcome
 
@@ -65,12 +66,9 @@ exit        0
 
 ## Final verification
 
-After the code/result commit, the standard self-check tool reruns the changed
-gate, production typecheck, test typecheck, handle guard, architecture guard,
-translation snapshot, feature boundaries, and the full focused suite. Its
-machine-generated receipt under `evidence/` is the authoritative transcript
-bound to the final code SHA. The receipt is committed separately so no code or
-result file changes after the verified SHA.
+Reviewed code tip: `c2a2198be`. The final full verification receipt is pending
+the separate quiet-window run. The existing receipt covers pre-fix commit
+`ba82a42be` only.
 
 ## Fence attestation
 
