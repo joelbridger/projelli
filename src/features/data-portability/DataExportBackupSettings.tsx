@@ -95,7 +95,10 @@ export function DataExportBackupSettings() {
           disabled={!canExport}
           iconLeft={Download}
           onClick={() => {
-            void createArchive();
+            void createArchive().catch(() => {
+              setError(t('data-portability.needs-review-error'));
+              setBusy(false);
+            });
           }}
         >
           {busy ? t('data-portability.creating') : t('data-portability.create')}

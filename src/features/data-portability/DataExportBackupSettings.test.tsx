@@ -9,6 +9,7 @@ import {
   within,
 } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { BRAND } from '@/config/brand';
 import { createMigrationExport } from '@/platform/crm/migration';
 import { readTauriTextFile } from '@/platform/fs/tauriFsPlugin';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
@@ -86,7 +87,7 @@ describe('data export Settings panel', () => {
     ).toEqual([
       'The import data saved with each CRM record that can be copied.',
       'The total number of copied records, plus totals for each kind of CRM record.',
-      'The import results for each kind of CRM record. Lantern only shows success when those results match the records in the JSON file.',
+      `The import results for each kind of CRM record. ${BRAND.name} only shows success when those results match the records in the JSON file.`,
     ]);
     expect(
       within(screen.getByTestId('migration-archive-excludes'))
@@ -151,7 +152,7 @@ describe('data export Settings panel', () => {
         'What this JSON file includes',
         'The import data saved with each CRM record that can be copied.',
         'The total number of copied records, plus totals for each kind of CRM record.',
-        'The import results for each kind of CRM record. Lantern only shows success when those results match the records in the JSON file.',
+        `The import results for each kind of CRM record. ${BRAND.name} only shows success when those results match the records in the JSON file.`,
         'Create JSON copy',
       ]
         .join('')
@@ -224,7 +225,7 @@ describe('data export Settings panel', () => {
     expect(
       await screen.findByTestId('migration-archive-error')
     ).toHaveTextContent(
-      'Lantern could not finish creating and checking this archive. It needs review. No verified archive is being claimed.'
+      `${BRAND.name} could not finish creating and checking this archive. It needs review. No verified archive is being claimed.`
     );
     expect(
       screen.getByTestId('data-portability-settings')

@@ -13,7 +13,7 @@
     "includes-title": "Was diese JSON-Datei enthält",
     "includes-records": "Die Importdaten, die mit jedem kopierbaren CRM-Datensatz gespeichert sind.",
     "includes-manifest": "Die Gesamtzahl der kopierten Datensätze und die Anzahl jeder CRM-Datensatzart.",
-    "includes-fidelity": "Die Importergebnisse für jede CRM-Datensatzart. Lantern zeigt Erfolg nur an, wenn diese Ergebnisse mit den Datensätzen in der JSON-Datei übereinstimmen.",
+    "includes-fidelity": "Die Importergebnisse für jede CRM-Datensatzart. {{productName}} zeigt Erfolg nur an, wenn diese Ergebnisse mit den Datensätzen in der JSON-Datei übereinstimmen.",
     "workspace-required": "Öffne einen Arbeitsbereich, bevor du eine JSON-Kopie erstellst.",
     "create": "JSON-Kopie erstellen",
     "creating": "JSON-Kopie wird erstellt…",
@@ -28,7 +28,7 @@
     "record-count": "Kopierte CRM-Datensätze",
     "source-types": "CRM-Datensatzarten",
     "needs-review-title": "Dieser Export muss geprüft werden",
-    "needs-review-error": "Lantern konnte die Erstellung und Prüfung dieses Archivs nicht abschließen. Es muss geprüft werden. Lantern behauptet nicht, dass es ein geprüftes Archiv ist.",
+    "needs-review-error": "{{productName}} konnte die Erstellung und Prüfung dieses Archivs nicht abschließen. Es muss geprüft werden. {{productName}} behauptet nicht, dass es ein geprüftes Archiv ist.",
     "export-failed": "Das Archiv konnte nicht erstellt werden."
   }
 }

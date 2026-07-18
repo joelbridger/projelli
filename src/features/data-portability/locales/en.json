@@ -13,7 +13,7 @@
     "includes-title": "What this JSON file includes",
     "includes-records": "The import data saved with each CRM record that can be copied.",
     "includes-manifest": "The total number of copied records, plus totals for each kind of CRM record.",
-    "includes-fidelity": "The import results for each kind of CRM record. Lantern only shows success when those results match the records in the JSON file.",
+    "includes-fidelity": "The import results for each kind of CRM record. {{productName}} only shows success when those results match the records in the JSON file.",
     "workspace-required": "Open a workspace before creating a JSON copy.",
     "create": "Create JSON copy",
     "creating": "Creating JSON copy…",
@@ -28,7 +28,7 @@
     "record-count": "CRM records copied",
     "source-types": "CRM record kinds",
     "needs-review-title": "This export needs review",
-    "needs-review-error": "Lantern could not finish creating and checking this archive. It needs review. No verified archive is being claimed.",
+    "needs-review-error": "{{productName}} could not finish creating and checking this archive. It needs review. No verified archive is being claimed.",
     "export-failed": "The archive could not be created."
   }
 }

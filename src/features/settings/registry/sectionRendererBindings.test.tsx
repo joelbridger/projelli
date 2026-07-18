@@ -51,6 +51,12 @@ describe('renderRegisteredSettingsPanels', () => {
     vi.doMock('./legacySettingsSections', () => ({
       legacySettingsSections: [
         {
+          id: 'workspace',
+          order: 10,
+          labelKey: 'settings.sections.workspace',
+          legacyLabel: 'Workspace',
+        },
+        {
           id: 'scheduling',
           order: 40,
           labelKey: 'settings.sections.scheduling',

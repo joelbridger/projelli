@@ -13,7 +13,7 @@
     "includes-title": "Qué incluye este archivo JSON",
     "includes-records": "Los datos de importación guardados con cada registro del CRM que se pueda copiar.",
     "includes-manifest": "El número total de registros copiados y los totales de cada tipo de registro del CRM.",
-    "includes-fidelity": "Los resultados de importación de cada tipo de registro del CRM. Lantern solo muestra que todo salió bien cuando esos resultados coinciden con los registros del archivo JSON.",
+    "includes-fidelity": "Los resultados de importación de cada tipo de registro del CRM. {{productName}} solo muestra que todo salió bien cuando esos resultados coinciden con los registros del archivo JSON.",
     "workspace-required": "Abre un espacio de trabajo antes de crear una copia JSON.",
     "create": "Crear copia JSON",
     "creating": "Creando copia JSON…",
@@ -28,7 +28,7 @@
     "record-count": "Registros del CRM copiados",
     "source-types": "Tipos de registros del CRM",
     "needs-review-title": "Esta exportación necesita revisión",
-    "needs-review-error": "Lantern no pudo terminar de crear y comprobar este archivo. Necesita revisión. Lantern no afirma que sea un archivo verificado.",
+    "needs-review-error": "{{productName}} no pudo terminar de crear y comprobar este archivo. Necesita revisión. {{productName}} no afirma que sea un archivo verificado.",
     "export-failed": "No se pudo crear el archivo."
   }
 }
