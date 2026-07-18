@@ -10,6 +10,15 @@
 - Rust touched: no
 - Production touched by the CHANGES-2 fix: no
 - Activation flag: still OFF; sub-lane 4 owns activation and T2 stale/blocked presentation
+- All checks ran at code tip `4b4fb3a87` (outputs recorded in these records).
+- The final branch tip differs from that code tip ONLY by evidence-only commits touching exactly these paths: `src/platform/client-context/evidence/reader-migration-receipt.md`, `prep/wave2-results/unification-sublane3-reader-migration.md`.
+- This is mechanically checked by the following actual output:
+
+```text
+$ git diff 4b4fb3a87..HEAD --name-only
+prep/wave2-results/unification-sublane3-reader-migration.md
+src/platform/client-context/evidence/reader-migration-receipt.md
+```
 
 The coordinator-run Opus SECURITY review is PASSED and banked for the complete
 production diff at `f6a48b5e5`. This fix changes only ten tests and the two
@@ -197,7 +206,8 @@ production path and therefore does not expand the banked security diff.
 
 ## Exact fresh verification
 
-Fresh 18-file focused run after the final test edit at `4b4fb3a877...`:
+All checks ran at code tip `4b4fb3a87`; their outputs are recorded below. The
+fresh 18-file focused run produced:
 
 ```text
 Test Files  18 passed (18)
@@ -258,5 +268,5 @@ that sidecar.
 No assertion, guard, type, timeout, snapshot, baseline, lint rule, or
 architecture rule was weakened, skipped, or suppressed. Authority is
 re-derived, not persisted. No follower or null inference authorizes work.
-Clean-tree and pushed-tip evidence is added by the final commit verification
-note after these two records are committed.
+The final branch tip differs from code tip `4b4fb3a87` ONLY by the two evidence
+paths listed and mechanically checked in the final identity section.

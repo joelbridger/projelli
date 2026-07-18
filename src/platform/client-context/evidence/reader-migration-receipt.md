@@ -11,6 +11,15 @@
 - Activation: `selection-authority-boot-gate` remains default OFF. Sub-lane 4 owns activation and T2 presentation.
 - Security route: the coordinator-run Opus review of the production diff is PASSED and banked at `f6a48b5e5`. This fix round changes tests and these two evidence records only; it does not claim to rerun that security review.
 - Strict route: the terra contract/test-honesty review returned CHANGES-2; commit `4b4fb3a87` cures its test-honesty finding by checking each reader's actual request, not by trusting a fabricated refusal.
+- All checks ran at code tip `4b4fb3a87` (outputs recorded in these records).
+- The final branch tip differs from that code tip ONLY by evidence-only commits touching exactly these paths: `src/platform/client-context/evidence/reader-migration-receipt.md`, `prep/wave2-results/unification-sublane3-reader-migration.md`.
+- This is mechanically checked by the following actual output:
+
+```text
+$ git diff 4b4fb3a87..HEAD --name-only
+prep/wave2-results/unification-sublane3-reader-migration.md
+src/platform/client-context/evidence/reader-migration-receipt.md
+```
 
 The four compiler-visible source arms are `matter`, `matter-only`,
 `all-matters`, and `blocked-unresolved`. A follower may only strengthen a
@@ -170,8 +179,8 @@ proves the resulting decision is enforced and surfaced.
 
 ## Fresh verification output
 
-The complete 18-file run was executed on
-`4b4fb3a877f6fc5ee868d79f5786296844c72a74` after the final test edit:
+All checks ran at code tip `4b4fb3a87`; their outputs are recorded below. The
+complete 18-file run produced:
 
 ```text
 Test Files  18 passed (18)
@@ -233,5 +242,5 @@ sidecar change was made in this fix round.
   assertion on the actual request made by that reader.
 - `git diff f6a48b5e5..4b4fb3a87 --name-only` contains ten test files and zero
   production files.
-- Clean-tree and pushed-tip status are recorded after the evidence commit in
-  the lane report and the commit's verification note.
+- The final branch tip differs from code tip `4b4fb3a87` ONLY by the two
+  evidence paths listed and mechanically checked in the identity section.
