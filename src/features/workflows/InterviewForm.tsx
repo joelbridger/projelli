@@ -8,8 +8,17 @@ import { Input } from '@/ui/input';
 import type { InterviewQuestion } from '@/platform/types/workflow';
 import type { Matter } from '@/platform/types/matter';
 import { cn } from '@/lib/utils';
-import { useActiveMatter } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
+import {
+  readSelectionOperationDecision,
+  useSelectionOperationDecision,
+} from '@/platform/client-context';
+
+const INTERVIEW_SELECTION_REQUEST = {
+  operationClass: 'matter-scoped',
+  allowAllMatters: false,
+  requireFollowerAgreement: true,
+} as const;
 
 interface InterviewFormProps {
   questions: InterviewQuestion[];
@@ -25,7 +34,9 @@ export function InterviewForm({
   isSubmitting = false,
 }: InterviewFormProps) {
   const { t } = useTranslation();
-  const activeMatter = useActiveMatter();
+  const selection = useSelectionOperationDecision(INTERVIEW_SELECTION_REQUEST);
+  const activeMatter = selection.kind === 'matter' ? selection.matter : null;
+  const initialMatterIdRef = useRef(activeMatter?.id ?? null);
   const fieldRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [highlightedQuestionId, setHighlightedQuestionId] = useState<string | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>(() =>
@@ -33,6 +44,9 @@ export function InterviewForm({
   );
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [selectionError, setSelectionError] = useState<string | null>(
+    selection.kind === 'refused' ? selection.message : null,
+  );
 
   const handleChange = (questionId: string, value: string) => {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
@@ -48,6 +62,22 @@ export function InterviewForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    const currentSelection = readSelectionOperationDecision({
+      ...INTERVIEW_SELECTION_REQUEST,
+      ...(initialMatterIdRef.current
+        ? { expectedScope: { kind: 'matter' as const, matterId: initialMatterIdRef.current } }
+        : {}),
+    });
+    if (currentSelection.kind !== 'matter') {
+      setSelectionError(
+        currentSelection.kind === 'refused'
+          ? currentSelection.message
+          : 'Choose one client before running this workflow.',
+      );
+      return;
+    }
+    setSelectionError(null);
 
     // Validate required fields
     const newErrors: Record<string, string> = {};
@@ -200,6 +230,11 @@ export function InterviewForm({
       ))}
 
       <div className="flex gap-2 justify-end pt-4">
+        {selectionError ? (
+          <p role="alert" className="mr-auto text-sm text-red-600">
+            {selectionError}
+          </p>
+        ) : null}
         {onCancel && (
           <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
             {t('workflow.interview.cancel')}

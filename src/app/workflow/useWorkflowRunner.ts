@@ -11,7 +11,7 @@ import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { useEditorStore } from '@/platform/state/editorStore';
 import { saveFile } from '@/platform/utils/saveFile';
 import { workspacePath } from '@/platform/fs/appPath';
-import { resolveActiveMatter, useMatterStore } from '@/platform/matter/matterStore';
+import { readSelectionOperationDecision } from '@/platform/client-context';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import {
   resolveTemplateModel,
@@ -50,7 +50,6 @@ import {
 } from '@/platform/profile/professionModel';
 import { MemoryService } from '@/platform/rag/MemoryService';
 import { filterHitsForExportConsent } from '@/platform/rag/exportConsent';
-import { getActiveScope } from '@/platform/matter/matterStore';
 import { ragVerifyCitation, type RetrievalScope } from '@/platform/utils/tauri-commands';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
 import { IS_DEMO } from '@/web-demo/demoModeFlag';
@@ -98,11 +97,6 @@ export interface UseWorkflowRunnerOptions {
   } | null>;
   templatesMetadataReaderRef: React.MutableRefObject<TemplateMetadataReader | null>;
   templatesMarketplaceServiceRef: React.MutableRefObject<MarketplaceService | null>;
-}
-
-function getActiveWorkflowMatter(): Matter | null {
-  const { matters, activeMatterId } = useMatterStore.getState();
-  return resolveActiveMatter(matters, activeMatterId);
 }
 
 function resolveWorkflowRunFolderPath(
@@ -179,10 +173,9 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
   const [showInterviewDialog, setShowInterviewDialog] = useState(false);
   const [activeWorkflowFilePath, setActiveWorkflowFilePath] = useState<string | null>(null);
   const [workflowProviderError, setWorkflowProviderError] = useState<'needs-provider' | 'ollama-unreachable' | 'needs-client' | null>(null);
-  // BUG F2 — set when the TERMINAL .workflow run-record write (completed/
-  // failed/cancelled) could not be durably saved after retries. Mirrors
-  // `workflowProviderError`'s plumbing so it surfaces via the same Callout
-  // pattern instead of being a silent console.warn.
+  // Existing surfaced workflow error channel. It carries terminal record-write
+  // failures and authoritative selection refusals, so neither disk risk nor a
+  // stale/unresolved client is reduced to a silent early return.
   const [workflowSaveError, setWorkflowSaveError] = useState<string | null>(null);
   const workflowStartInFlightRef = useRef(false);
 
@@ -208,11 +201,34 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
       const startTime = new Date();
       const timestamp = startTime.toISOString().replace(/:/g, '-').replace(/\..+/, '').replace('T', '_');
       const workflowFolderName = `${template.name} - ${timestamp}`;
-      const activeMatter = getActiveWorkflowMatter();
-      if (!activeMatter?.folderPaths[0]) {
+      const initialSelection = readSelectionOperationDecision({
+        operationClass: 'matter-scoped',
+        allowAllMatters: false,
+        requireFollowerAgreement: true,
+      });
+      if (initialSelection.kind !== 'matter' || !initialSelection.matter.folderPaths[0]) {
         setWorkflowProviderError('needs-client');
+        setWorkflowSaveError(
+          initialSelection.kind === 'refused'
+            ? initialSelection.message
+            : 'Choose one client before running this workflow.',
+        );
         return;
       }
+      const activeMatter = initialSelection.matter;
+      const assertCurrentWorkflowSelection = (): void => {
+        const current = readSelectionOperationDecision({
+          operationClass: 'matter-scoped',
+          allowAllMatters: false,
+          requireFollowerAgreement: true,
+          expectedScope: { kind: 'matter', matterId: activeMatter.id },
+        });
+        if (current.kind === 'refused') {
+          setWorkflowProviderError('needs-client');
+          setWorkflowSaveError(current.message);
+          throw new Error(current.message);
+        }
+      };
       const clientName = matterLabel(activeMatter);
       const workflowFolderPath = resolveWorkflowRunFolderPath(rootPath, activeMatter, workflowFolderName);
 
@@ -344,6 +360,7 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
 
       // Provider resolution succeeded — create the workflow folder now.
       try {
+        assertCurrentWorkflowSelection();
         await workspaceServiceRef.current.mkdir(workflowFolderPath);
         console.log(`Created workflow folder: ${workflowFolderName}`);
       } catch (error) {
@@ -392,6 +409,7 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
         }
         pendingFileData = null;
         try {
+          assertCurrentWorkflowSelection();
           const json = JSON.stringify(data, null, 2);
           await workspaceServiceRef.current!.writeFile(workflowFilePath, json);
           // Keep the open tab's in-memory content in lockstep with disk so
@@ -532,16 +550,15 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
               ? 'lantern-local'
               : 'mock';
       const getWorkflowAuditScope = (): AuditScope => {
-        const scope = getActiveScope();
-        return scope.kind === 'matter'
-          ? { kind: 'matter', matterId: scope.matterId }
-          : { kind: 'allMatters' };
+        assertCurrentWorkflowSelection();
+        return { kind: 'matter', matterId: activeMatter.id };
       };
 
       const engine = createWorkflowEngine(
         provider,
         {
           writeFile: async (path: string, content: string) => {
+            assertCurrentWorkflowSelection();
             // Write files inside the workflow folder. BUG F3(1b) — `path` is
             // already interpolated + sanitized by the engine and may contain
             // a template-authored subfolder (e.g. `Estate Planning/Client -
@@ -562,6 +579,7 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
             setFileTree(fileTree);
           },
           readFile: async (path: string) => {
+            assertCurrentWorkflowSelection();
             // Read from workflow folder if relative path, otherwise use
             // absolute. BUG F3(1b) — preserve any subfolder in a relative
             // path (same reasoning as writeFile above) rather than reading
@@ -573,6 +591,7 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
           // in the same workflow folder under the active matter. Tracked as an
           // artifact so the .workflow file records what the run produced.
           writeFileBinary: async (path: string, bytes: Uint8Array) => {
+            assertCurrentWorkflowSelection();
             // BUG F3(1b) — use the full (already-interpolated, already-
             // sanitized) relative path, not just its basename, so an
             // outputFile like `Estate Planning/Client - Summary.docx` lands
@@ -656,7 +675,10 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
           // the local store via rag_verify_citation. The Word renderer is the
           // shared structured-deliverable serializer.
           analyzeDeps: {
-            getScope: (): RetrievalScope => getActiveScope() as RetrievalScope,
+            getScope: (): RetrievalScope => {
+              assertCurrentWorkflowSelection();
+              return { kind: 'matter', matterId: activeMatter.id };
+            },
             retrieve: async (query, topK, scope, perSourceCap) => {
               // F-510 — the finder's per-source diversity cap rides through
               // (privilege stays EXCLUDED, the 4th positional default).
@@ -768,6 +790,7 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
           status: 'running',
         });
         const initialJson = JSON.stringify(initialData, null, 2);
+        assertCurrentWorkflowSelection();
         await workspaceServiceRef.current.writeFile(workflowFilePath, initialJson);
 
         // Open the workflow tab pointing at the real file path. Type stays

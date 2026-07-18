@@ -2,6 +2,7 @@ import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { InterviewForm } from '@/features/workflows/InterviewForm';
 import type { InterviewQuestion } from '@/platform/types/workflow';
+import type { Matter } from '@/platform/types/matter';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -15,9 +16,17 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-let activeMatter: { id: string; name: string; client: string } | null = null;
-vi.mock('@/platform/matter/matterStore', () => ({
-  useActiveMatter: () => activeMatter,
+let activeMatter: Matter | null = null;
+let forcedSelectionRefusal: { reason: string; message: string } | null = null;
+const selectionDecision = () =>
+  forcedSelectionRefusal
+    ? { kind: 'refused' as const, ...forcedSelectionRefusal }
+    : activeMatter
+    ? { kind: 'matter' as const, sourceKind: 'matter-only' as const, matter: activeMatter, client: null }
+    : { kind: 'refused' as const, reason: 'all-matters-not-allowed' as const, message: 'Choose one client.' };
+vi.mock('@/platform/client-context', () => ({
+  useSelectionOperationDecision: () => selectionDecision(),
+  readSelectionOperationDecision: () => selectionDecision(),
 }));
 
 vi.mock('@/platform/rag/matterResolver', () => ({
@@ -40,7 +49,14 @@ const multiselectQuestion: InterviewQuestion = {
 
 describe('InterviewForm multiselect rendering', () => {
   beforeEach(() => {
-    activeMatter = null;
+    forcedSelectionRefusal = null;
+    activeMatter = {
+      id: 'matter-1',
+      client: 'Alice Smith',
+      name: 'Retirement Review',
+      folderPaths: ['/workspace/Clients/Alice Smith'],
+      createdAt: '2026-07-18T00:00:00.000Z',
+    };
     Element.prototype.scrollIntoView = vi.fn();
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
       cb(0);
@@ -98,6 +114,8 @@ describe('InterviewForm multiselect rendering', () => {
       id: 'matter-1',
       client: 'Alice Smith',
       name: 'Retirement Review',
+      folderPaths: ['/workspace/Clients/Alice Smith'],
+      createdAt: '2026-07-18T00:00:00.000Z',
     };
     render(<InterviewForm questions={[{
       id: 'clientName',
@@ -115,6 +133,8 @@ describe('InterviewForm multiselect rendering', () => {
       id: 'matter-1',
       client: 'Alice Smith',
       name: 'Retirement Review',
+      folderPaths: ['/workspace/Clients/Alice Smith'],
+      createdAt: '2026-07-18T00:00:00.000Z',
     };
     render(<InterviewForm questions={[{
       id: 'matterName',
@@ -150,5 +170,30 @@ describe('InterviewForm multiselect rendering', () => {
     const missing = screen.getByTestId('workflow-question-notes');
     expect(missing.className).toContain('ring-2');
     expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
+  });
+
+  it('refuses and surfaces blocked selection instead of submitting a workflow interview', () => {
+    activeMatter = null;
+    const onSubmit = vi.fn();
+    render(<InterviewForm questions={[]} onSubmit={onSubmit} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Run/i }));
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent('Choose one client.');
+  });
+
+  it('refuses and surfaces forced source/follower disagreement at submit time', () => {
+    const onSubmit = vi.fn();
+    render(<InterviewForm questions={[]} onSubmit={onSubmit} />);
+    forcedSelectionRefusal = {
+      reason: 'follower-disagreement',
+      message: 'The client selection is still catching up.',
+    };
+
+    fireEvent.click(screen.getByRole('button', { name: /Run/i }));
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent('still catching up');
   });
 });
