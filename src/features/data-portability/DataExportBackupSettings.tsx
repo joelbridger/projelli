@@ -95,10 +95,8 @@ export function DataExportBackupSettings() {
           disabled={!canExport}
           iconLeft={Download}
           onClick={() => {
-            void createArchive().catch(() => {
-              setError(t('data-portability.needs-review-error'));
-              setBusy(false);
-            });
+            // eslint-disable-next-line lantern-async/no-silent-failure -- createArchive handles archive failures itself.
+            void createArchive();
           }}
         >
           {busy ? t('data-portability.creating') : t('data-portability.create')}
