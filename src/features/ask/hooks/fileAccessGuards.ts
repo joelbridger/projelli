@@ -23,6 +23,23 @@ import {
   hasOpenDescendant,
 } from '@/platform/state/editorStore';
 import { getEntityLabelEnglish } from '@/platform/hooks/useEntityLabel';
+import { readSelectionOperationDecision } from '@/platform/client-context';
+
+function readFileToolSelection(scope: ActiveMatterScope) {
+  return readSelectionOperationDecision({
+    operationClass: 'matter-scoped',
+    allowAllMatters: true,
+    expectedScope: scope.toolActiveMatterId
+      ? { kind: 'matter', matterId: scope.toolActiveMatterId }
+      : { kind: 'all-matters' },
+    requireFollowerAgreement: true,
+  });
+}
+
+function assertFileToolSelection(scope: ActiveMatterScope): void {
+  const decision = readFileToolSelection(scope);
+  if (decision.kind === 'refused') throw new Error(decision.message);
+}
 
 /**
  * BUG-036 — true when `absPath` is allowed under the active matter scope.
@@ -34,6 +51,15 @@ export function pathInActiveMatter(
   toolActiveMatterId: string | null,
   toolMatters: Matter[],
 ): boolean {
+  const decision = readSelectionOperationDecision({
+    operationClass: 'matter-scoped',
+    allowAllMatters: true,
+    expectedScope: toolActiveMatterId
+      ? { kind: 'matter', matterId: toolActiveMatterId }
+      : { kind: 'all-matters' },
+    requireFollowerAgreement: true,
+  });
+  if (decision.kind === 'refused') return false;
   return pathInMatterScope(absPath, toolActiveMatterId, toolMatters);
 }
 
@@ -54,6 +80,7 @@ export function assertInActiveMatter(
   relativePath: string,
   scope: ActiveMatterScope,
 ): void {
+  assertFileToolSelection(scope);
   const { toolActiveMatterId, toolMatters, activeMatterName } = scope;
   if (pathInActiveMatter(absPath, toolActiveMatterId, toolMatters)) return;
   // Distinguish a '..' traversal (rejected in any scope) from a genuine
@@ -95,6 +122,7 @@ export function assertDirInActiveMatter(
   if (relativePath.split(/[\\/]/).some((seg) => seg === '..')) {
     throw new Error(`Access denied: path "${relativePath}" must not contain "..".`);
   }
+  assertFileToolSelection(scope);
   const { toolActiveMatterId, toolMatters, activeMatterName } = scope;
   // All-clients scope is workspace-wide, matching all-matters retrieval.
   if (!toolActiveMatterId) return;

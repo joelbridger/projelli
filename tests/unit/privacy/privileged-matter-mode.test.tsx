@@ -17,6 +17,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 
+const nativeRequest = vi.hoisted(() => vi.fn());
+vi.mock('@/platform/privacy/nativeNetworkLockdownBridge', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/platform/privacy/nativeNetworkLockdownBridge')>();
+  return { ...actual, requestNativeNetworkLockdown: nativeRequest };
+});
 
 import {
   resolvePrivilegedMatterMode,
@@ -28,13 +33,21 @@ import {
   getPrivilegedMatterModeActive,
 } from '@/platform/hooks/usePrivilegedMatterMode';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
-import { useMatterStore } from '@/platform/matter/matterStore';
+import { getActiveScope, useMatterStore } from '@/platform/matter/matterStore';
 import { CONFIDENTIALITY_MODE_SETTING_KEY } from '@/platform/privacy/egress';
 import { McpApprovalModal } from '@/features/settings/McpApprovalModal';
 import type { McpPendingApproval } from '@/platform/utils/tauri-commands';
 import { StatusBar } from '@/app/shell/layout/StatusBar';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useOfflineModeStore } from '@/platform/privacy/offlineMode';
+import {
+  issueMatterScopeSelection,
+  readSelectionOperationDecision,
+  rehydrateSelectionHint,
+  requestClearClientSelection,
+  requestMatterScopeSelection,
+} from '@/platform/client-context';
+import { setDevFlagOverride } from '@/platform/flags/router';
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -52,10 +65,31 @@ function makeApproval(over: Partial<McpPendingApproval> = {}): McpPendingApprova
   };
 }
 
+async function selectMatterWithConvergedFollower(matterId: string) {
+  await requestMatterScopeSelection(issueMatterScopeSelection(matterId));
+  await waitFor(() => {
+    expect(
+      readSelectionOperationDecision({
+        operationClass: 'matter-scoped',
+        allowAllMatters: true,
+        requireFollowerAgreement: true,
+      }),
+    ).toMatchObject({ kind: 'matter', matter: { id: matterId } });
+  });
+}
+
 beforeEach(() => {
   globalThis.localStorage.clear();
   useSettingsStore.setState({ values: {} });
   useMatterStore.setState({ matters: [], activeMatterId: null });
+  nativeRequest.mockReset();
+  setDevFlagOverride('selection-authority-boot-gate', false);
+  requestClearClientSelection();
+  setDevFlagOverride('selection-authority-boot-gate', true);
+  rehydrateSelectionHint({
+    kind: 'persisted-hint',
+    value: { version: 1, source: 'explicit-all-matters' },
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -176,13 +210,13 @@ describe('Privileged Matter Mode activation (reactive hook + stores)', () => {
     expect(screen.getByTestId('probe').getAttribute('data-active')).toBe('false');
   });
 
-  it('turns on automatically when the active matter is privileged', () => {
+  it('turns on automatically when the authoritative matter-only selection is privileged', async () => {
     const matter = useMatterStore.getState().createMatter({
       name: 'Acme v. Beta',
       client: 'Acme',
       privileged: true,
     });
-    useMatterStore.getState().setActiveMatter(matter.id);
+    await selectMatterWithConvergedFollower(matter.id);
 
     render(<ModeProbe />);
     const probe = screen.getByTestId('probe');
@@ -197,12 +231,92 @@ describe('Privileged Matter Mode activation (reactive hook + stores)', () => {
     expect(screen.getByTestId('probe').getAttribute('data-trigger')).toBe('local-only');
   });
 
-  it('the non-reactive read agrees with the reactive resolver (privileged active matter)', () => {
+  it('the non-reactive read agrees with the reactive resolver (privileged active matter)', async () => {
     const matter = useMatterStore.getState().createMatter({
       name: 'M', client: 'C', privileged: true,
     });
-    useMatterStore.getState().setActiveMatter(matter.id);
+    await selectMatterWithConvergedFollower(matter.id);
     expect(getPrivilegedMatterModeActive()).toBe(true);
+  });
+
+  it('keeps an unlinked, non-privileged matter-only selection unforced', async () => {
+    const matter = useMatterStore.getState().createMatter({
+      name: 'Unlinked', client: 'Unlinked', privileged: false,
+    });
+    await selectMatterWithConvergedFollower(matter.id);
+
+    const decision = readSelectionOperationDecision({
+        operationClass: 'matter-scoped',
+        allowAllMatters: true,
+        requireFollowerAgreement: true,
+      });
+    expect(decision).toMatchObject({ kind: 'matter', sourceKind: 'matter-only' });
+    expect(getPrivilegedMatterModeActive()).toBe(false);
+  });
+
+  it('fails protected when source selection is blocked', () => {
+    rehydrateSelectionHint({
+      kind: 'persisted-hint',
+      value: { version: 1, source: 'blocked/refused' },
+    });
+
+    render(<ModeProbe />);
+    expect(screen.getByTestId('probe')).toHaveAttribute('data-active', 'true');
+    expect(getPrivilegedMatterModeActive()).toBe(true);
+  });
+
+  it('uses follower disagreement only to strengthen protection', async () => {
+    const matter = useMatterStore.getState().createMatter({
+      name: 'Unlinked', client: 'Unlinked', privileged: false,
+    });
+    await selectMatterWithConvergedFollower(matter.id);
+    useMatterStore.setState({ activeMatterId: null });
+
+    expect(() => getActiveScope()).toThrow('still catching up');
+    render(<ModeProbe />);
+    expect(screen.getByTestId('probe')).toHaveAttribute('data-active', 'true');
+    expect(getPrivilegedMatterModeActive()).toBe(true);
+  });
+
+  it('setMatterPrivileged arms the native guard for the authoritative matter-only selection', async () => {
+    const matter = useMatterStore.getState().createMatter({
+      name: 'Unlinked', client: 'Unlinked', privileged: false,
+    });
+    await selectMatterWithConvergedFollower(matter.id);
+    nativeRequest.mockClear();
+
+    useMatterStore.getState().setMatterPrivileged(matter.id, true);
+
+    expect(nativeRequest).toHaveBeenCalledWith(true);
+    expect(useMatterStore.getState().matters.find((item) => item.id === matter.id)?.privileged).toBe(true);
+  });
+
+  it('setMatterPrivileged stays armed when the selection is blocked or disagrees', async () => {
+    const matter = useMatterStore.getState().createMatter({
+      name: 'Unlinked', client: 'Unlinked', privileged: false,
+    });
+    await selectMatterWithConvergedFollower(matter.id);
+    useMatterStore.setState({ activeMatterId: null });
+    nativeRequest.mockClear();
+
+    useMatterStore.getState().setMatterPrivileged(matter.id, true);
+
+    expect(nativeRequest).toHaveBeenCalledWith(true);
+  });
+
+  it('setMatterPrivileged also stays armed for blocked-unresolved source state', () => {
+    const matter = useMatterStore.getState().createMatter({
+      name: 'Unlinked', client: 'Unlinked', privileged: false,
+    });
+    rehydrateSelectionHint({
+      kind: 'persisted-hint',
+      value: { version: 1, source: 'blocked/refused' },
+    });
+    nativeRequest.mockClear();
+
+    useMatterStore.getState().setMatterPrivileged(matter.id, true);
+
+    expect(nativeRequest).toHaveBeenCalledWith(true);
   });
 
   it('manual toggle alone activates it (non-reactive read)', () => {
@@ -233,7 +347,7 @@ describe('StatusBar: Privileged Matter Mode badge', () => {
     // The visible badge stays short in the simplified status bar; the hover
     // text keeps the fuller explanation.
     expect(badge.textContent).toContain('Isolated client');
-    expect(badge).toHaveAttribute('title', expect.stringContaining('network plugins'));
+    expect(badge).toHaveAttribute('title', expect.stringContaining('Network plugins'));
   });
 
   it('does not render the badge when the mode is off', () => {

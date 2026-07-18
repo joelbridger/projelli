@@ -5,9 +5,21 @@
  * BEFORE the filesystem is touched, while still permitting ancestor navigation
  * (list "/ws" to reach a nested matter) and all-clients listing.
  */
-import { describe, it, expect } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { assertDirInActiveMatter } from '@/features/ask/hooks/fileAccessGuards';
 import type { Matter } from '@/platform/types/matter';
+
+const selectionState = vi.hoisted(() => ({ refuse: false }));
+vi.mock('@/platform/client-context', () => ({
+  readSelectionOperationDecision: () =>
+    selectionState.refuse
+      ? { kind: 'refused', reason: 'follower-disagreement', message: 'Selection is catching up.' }
+      : { kind: 'matter', sourceKind: 'matter-only', matter: {}, client: null },
+}));
+
+beforeEach(() => {
+  selectionState.refuse = false;
+});
 
 const ROOT = '/ws';
 const acme: Matter = {
@@ -54,6 +66,12 @@ describe('assertDirInActiveMatter — matter scope', () => {
   });
   it('rejects an unrelated directory outside the matter tree', () => {
     expect(() => assertDirInActiveMatter('/ws/Firm', 'Firm', acmeScope, acme.folderPaths)).toThrow(/outside the active/);
+  });
+  it('refuses and surfaces forced follower disagreement before filesystem access', () => {
+    selectionState.refuse = true;
+    expect(() =>
+      assertDirInActiveMatter('/ws/Clients/Acme', 'Clients/Acme', acmeScope, acme.folderPaths),
+    ).toThrow('Selection is catching up.');
   });
 });
 
