@@ -24,6 +24,14 @@ import {
   getActiveScope,
   setMatterAuditEmitter,
 } from '@/platform/matter/matterStore';
+import {
+  issueAllMattersScopeSelection,
+  issueMatterScopeSelection,
+  requestClearClientSelection,
+  requestMatterScopeSelection,
+  useClientContextStore,
+} from '@/platform/client-context';
+import { setDevFlagOverride } from '@/platform/flags/router';
 
 const ROOT = '/home/lawyer/Lantern';
 
@@ -289,33 +297,56 @@ describe('useMatterStore CRUD', () => {
 // ---------------------------------------------------------------------------
 
 describe('active matter -> retrieval scope', () => {
-  beforeEach(resetStore);
+  beforeEach(async () => {
+    resetStore();
+    setDevFlagOverride('selection-authority-boot-gate', false);
+    requestClearClientSelection();
+    setDevFlagOverride('selection-authority-boot-gate', true);
+    await requestMatterScopeSelection(issueAllMattersScopeSelection());
+  });
+
+  afterEach(() => {
+    setDevFlagOverride('selection-authority-boot-gate', false);
+    requestClearClientSelection();
+    setDevFlagOverride('selection-authority-boot-gate', undefined);
+  });
 
   it('defaults to the explicit allMatters scope', () => {
     expect(getActiveScope()).toEqual({ kind: 'allMatters' });
   });
 
-  it('returns a matter scope once a matter is active', () => {
+  it('returns a matter scope once the source selects a matter', async () => {
     const m = useMatterStore.getState().createMatter({ name: 'A', client: 'C' });
-    useMatterStore.getState().setActiveMatter(m.id);
+    await requestMatterScopeSelection(issueMatterScopeSelection(m.id));
+    await vi.waitFor(() => {
+      expect(useMatterStore.getState().activeMatterId).toBe(m.id);
+      expect(useClientContextStore.getState().followerStatus).toBe('converged');
+    });
     expect(getActiveScope()).toEqual({ kind: 'matter', matterId: m.id });
   });
 
-  it('falls back to all-matters when the active id points at a DELETED matter (defensive)', () => {
-    // Stale persisted id / stale event: getActiveScope must not scope retrieval
-    // to a matter that no longer exists.
-    useMatterStore.setState({ activeMatterId: 'ghost-id' });
-    expect(getActiveScope()).toEqual({ kind: 'allMatters' });
+  it('refuses when the selected matter has been deleted instead of broadening authority', async () => {
+    const m = useMatterStore.getState().createMatter({ name: 'A', client: 'C' });
+    await requestMatterScopeSelection(issueMatterScopeSelection(m.id));
+    await vi.waitFor(() => {
+      expect(useClientContextStore.getState().followerStatus).toBe('converged');
+    });
+    useMatterStore.setState({ matters: [], activeMatterId: m.id });
+    expect(() => getActiveScope()).toThrow('still catching up');
   });
 
-  it('falls back to all-matters when the active id points at an ARCHIVED matter (defensive)', () => {
+  it('refuses when the selected matter is archived instead of broadening authority', async () => {
     const s = useMatterStore.getState();
     const m = s.createMatter({ name: 'A', client: 'C' });
+    await requestMatterScopeSelection(issueMatterScopeSelection(m.id));
+    await vi.waitFor(() => {
+      expect(useClientContextStore.getState().followerStatus).toBe('converged');
+    });
     s.setMatterArchived(m.id, true);
-    // Force a stale active id directly (setMatterArchived already clears it; this
-    // proves getActiveScope is itself defensive against a leaked archived id).
+    // Restore only the follower to prove it cannot turn the stale selection into
+    // workspace-wide authority or revive an archived matter.
     useMatterStore.setState({ activeMatterId: m.id });
-    expect(getActiveScope()).toEqual({ kind: 'allMatters' });
+    expect(() => getActiveScope()).toThrow('still catching up');
   });
 
   it('resolveMatterIdForPath uses the live store contents', () => {
