@@ -25,6 +25,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 // resulting tracked changes.
 const requestRedlineEditsMock = vi.fn();
 const selectionState = vi.hoisted(() => ({
+  requests: [] as Array<Record<string, unknown>>,
   decision: { kind: 'all-matters', client: null } as
     | { kind: 'all-matters'; client: null }
     | {
@@ -45,7 +46,10 @@ vi.mock('@/platform/client-context', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/platform/client-context')>();
   return {
     ...actual,
-    readSelectionOperationDecision: () => selectionState.decision,
+    readSelectionOperationDecision: (request: Record<string, unknown>) => {
+      selectionState.requests.push(request);
+      return selectionState.decision;
+    },
   };
 });
 vi.mock('@/features/documents/docx/redline', async (importOriginal) => {
@@ -117,6 +121,7 @@ import {
 // Resetting the registry too (belt-and-suspenders) guarantees no residual
 // entry can linger even if a session's own unregister races with this reset.
 beforeEach(() => {
+  selectionState.requests = [];
   __resetDocxSaveSessions();
   __resetDocxSaveRegistry();
   useEditorStore.getState().clearTabState();
@@ -1923,6 +1928,14 @@ describe('DocxEditor — AI redline (A4)', () => {
     expect(
       invokeMock.mock.calls.some((call) => call[0] === 'docx_author_revisions'),
     ).toBe(false);
+    expect(selectionState.requests).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          operationClass: 'matter-scoped',
+          requireFollowerAgreement: true,
+        }),
+      ]),
+    );
   });
 });
 

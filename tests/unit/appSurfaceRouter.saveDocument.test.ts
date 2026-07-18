@@ -23,6 +23,7 @@ const matterState = {
 };
 const openFileMock = vi.hoisted(() => vi.fn());
 const selectionState = vi.hoisted(() => ({
+  requests: [] as Array<Record<string, unknown>>,
   decision: null as null | {
     kind: 'matter' | 'all-matters' | 'refused';
     matter?: Matter;
@@ -34,7 +35,10 @@ const selectionState = vi.hoisted(() => ({
 }));
 
 vi.mock('@/platform/client-context', () => ({
-  readSelectionOperationDecision: () => selectionState.decision,
+  readSelectionOperationDecision: (request: Record<string, unknown>) => {
+    selectionState.requests.push(request);
+    return selectionState.decision;
+  },
   expectedScopeFromDecision: (decision: { kind: string; matter?: Matter }) =>
     decision.kind === 'matter'
       ? { kind: 'matter', matterId: decision.matter?.id }
@@ -72,6 +76,7 @@ function sampleMatter(): Matter {
 describe('routeSavedAskDocument', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    selectionState.requests = [];
     selectionState.decision = {
       kind: 'matter',
       sourceKind: 'matter-only',
@@ -178,6 +183,13 @@ describe('routeSavedAskDocument', () => {
     expect(() =>
       assertSavedDocumentTargetCurrent({ kind: 'matter', matterId: 'client-1' }),
     ).toThrow('still catching up');
+    expect(selectionState.requests).toEqual([
+      expect.objectContaining({
+        operationClass: 'matter-scoped',
+        requireFollowerAgreement: true,
+        expectedScope: { kind: 'matter', matterId: 'client-1' },
+      }),
+    ]);
   });
 
   it('saves a new Ask or email document at the workspace root only when no client is active', () => {

@@ -9,16 +9,22 @@ import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { assertDirInActiveMatter } from '@/features/ask/hooks/fileAccessGuards';
 import type { Matter } from '@/platform/types/matter';
 
-const selectionState = vi.hoisted(() => ({ refuse: false }));
+const selectionState = vi.hoisted(() => ({
+  refuse: false,
+  requests: [] as Array<Record<string, unknown>>,
+}));
 vi.mock('@/platform/client-context', () => ({
-  readSelectionOperationDecision: () =>
-    selectionState.refuse
+  readSelectionOperationDecision: (request: Record<string, unknown>) => {
+    selectionState.requests.push(request);
+    return selectionState.refuse
       ? { kind: 'refused', reason: 'follower-disagreement', message: 'Selection is catching up.' }
-      : { kind: 'matter', sourceKind: 'matter-only', matter: {}, client: null },
+      : { kind: 'matter', sourceKind: 'matter-only', matter: {}, client: null };
+  },
 }));
 
 beforeEach(() => {
   selectionState.refuse = false;
+  selectionState.requests = [];
 });
 
 const ROOT = '/ws';
@@ -72,6 +78,13 @@ describe('assertDirInActiveMatter — matter scope', () => {
     expect(() =>
       assertDirInActiveMatter('/ws/Clients/Acme', 'Clients/Acme', acmeScope, acme.folderPaths),
     ).toThrow('Selection is catching up.');
+    expect(selectionState.requests).toEqual([
+      expect.objectContaining({
+        operationClass: 'matter-scoped',
+        requireFollowerAgreement: true,
+        expectedScope: { kind: 'matter', matterId: 'm-acme' },
+      }),
+    ]);
   });
 });
 

@@ -14,11 +14,21 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, act, fireEvent } from '@testing-library/react';
 
-const selectionState = vi.hoisted(() => ({ decision: null as unknown }));
+const selectionState = vi.hoisted(() => ({
+  decision: null as unknown,
+  hookRequests: [] as Array<Record<string, unknown>>,
+  readRequests: [] as Array<Record<string, unknown>>,
+}));
 
 vi.mock('@/platform/client-context', () => ({
-  useSelectionOperationDecision: () => selectionState.decision,
-  readSelectionOperationDecision: () => selectionState.decision,
+  useSelectionOperationDecision: (request: Record<string, unknown>) => {
+    selectionState.hookRequests.push(request);
+    return selectionState.decision;
+  },
+  readSelectionOperationDecision: (request: Record<string, unknown>) => {
+    selectionState.readRequests.push(request);
+    return selectionState.decision;
+  },
 }));
 
 // ── Module mocks ────────────────────────────────────────────────────────────
@@ -157,6 +167,8 @@ async function openEmailActionsMenu() {
 
 beforeEach(() => {
   setupMocks();
+  selectionState.hookRequests = [];
+  selectionState.readRequests = [];
   vi.useFakeTimers();
 });
 
@@ -228,6 +240,16 @@ describe('EmailWorkspace per-client backend scoping (F2.6b)', () => {
     expect(mockList).not.toHaveBeenCalled();
     expect(mockListByMatter).not.toHaveBeenCalled();
     expect(screen.getByTestId('error-state')).toHaveTextContent('still catching up');
+    expect(selectionState.hookRequests).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ requireFollowerAgreement: true }),
+      ]),
+    );
+    expect(selectionState.readRequests).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ requireFollowerAgreement: true }),
+      ]),
+    );
   });
 
   it('embedded mode hides already-loaded rows the instant the active client disappears', async () => {

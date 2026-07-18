@@ -5,11 +5,19 @@ import type { Matter } from '@/platform/types/matter';
 const boundary = vi.hoisted(() => ({
   decision: null as unknown,
   save: vi.fn(),
+  hookRequests: [] as Array<Record<string, unknown>>,
+  readRequests: [] as Array<Record<string, unknown>>,
 }));
 
 vi.mock('@/platform/client-context', () => ({
-  useSelectionOperationDecision: () => boundary.decision,
-  readSelectionOperationDecision: () => boundary.decision,
+  useSelectionOperationDecision: (request: Record<string, unknown>) => {
+    boundary.hookRequests.push(request);
+    return boundary.decision;
+  },
+  readSelectionOperationDecision: (request: Record<string, unknown>) => {
+    boundary.readRequests.push(request);
+    return boundary.decision;
+  },
 }));
 vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
   useLiveCrmRecords: () => ({ save: boundary.save }),
@@ -43,6 +51,8 @@ const answer = {
 
 describe('CrmAskProposalPanel authoritative client selection', () => {
   beforeEach(() => {
+    boundary.hookRequests = [];
+    boundary.readRequests = [];
     boundary.save.mockReset().mockResolvedValue(undefined);
     boundary.decision = {
       kind: 'matter',
@@ -82,5 +92,13 @@ describe('CrmAskProposalPanel authoritative client selection', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(message);
     expect(screen.getByTestId('crm-ask-proposal-submit')).toBeDisabled();
     expect(boundary.save).not.toHaveBeenCalled();
+    expect(boundary.hookRequests).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          operationClass: 'client-scoped',
+          requireFollowerAgreement: true,
+        }),
+      ]),
+    );
   });
 });

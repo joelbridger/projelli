@@ -23,6 +23,7 @@ import { useMatterStore } from '@/platform/matter/matterStore';
 import type { Matter } from '@/platform/types/matter';
 
 const authoritativeSelection = vi.hoisted(() => ({
+  requests: [] as Array<Record<string, unknown>>,
   decision: {
     kind: 'refused',
     reason: 'all-matters-not-allowed',
@@ -33,7 +34,10 @@ const authoritativeSelection = vi.hoisted(() => ({
 }));
 
 vi.mock('@/platform/client-context', () => ({
-  readSelectionOperationDecision: () => authoritativeSelection.decision,
+  readSelectionOperationDecision: (request: Record<string, unknown>) => {
+    authoritativeSelection.requests.push(request);
+    return authoritativeSelection.decision;
+  },
 }));
 
 function saveErrorTemplate(): WorkflowTemplate {
@@ -96,6 +100,7 @@ describe('useWorkflowRunner — terminal write failure surfacing (Bug F2)', () =
   }
 
   beforeEach(() => {
+    authoritativeSelection.requests = [];
     useMatterStore.setState({ matters: [], activeMatterId: null });
     authoritativeSelection.decision = {
       kind: 'refused',
@@ -306,6 +311,16 @@ describe('useWorkflowRunner — terminal write failure surfacing (Bug F2)', () =
     expect(result.current.workflowSaveError).toBe('The client selection is still catching up.');
     expect(workspaceServiceRef.current.mkdir).not.toHaveBeenCalled();
     expect(writeFile).not.toHaveBeenCalled();
+    expect(authoritativeSelection.requests).not.toHaveLength(0);
+    expect(authoritativeSelection.requests).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          operationClass: 'matter-scoped',
+          allowAllMatters: false,
+          requireFollowerAgreement: true,
+        }),
+      ]),
+    );
   });
 
   it('ignores a second start click while the first workflow start is still in flight', async () => {

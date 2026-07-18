@@ -18,6 +18,10 @@ vi.mock('react-i18next', () => ({
 
 let activeMatter: Matter | null = null;
 let forcedSelectionRefusal: { reason: string; message: string } | null = null;
+const selectionRequests = vi.hoisted(() => ({
+  hook: [] as Array<Record<string, unknown>>,
+  read: [] as Array<Record<string, unknown>>,
+}));
 const selectionDecision = () =>
   forcedSelectionRefusal
     ? { kind: 'refused' as const, ...forcedSelectionRefusal }
@@ -25,8 +29,14 @@ const selectionDecision = () =>
     ? { kind: 'matter' as const, sourceKind: 'matter-only' as const, matter: activeMatter, client: null }
     : { kind: 'refused' as const, reason: 'all-matters-not-allowed' as const, message: 'Choose one client.' };
 vi.mock('@/platform/client-context', () => ({
-  useSelectionOperationDecision: () => selectionDecision(),
-  readSelectionOperationDecision: () => selectionDecision(),
+  useSelectionOperationDecision: (request: Record<string, unknown>) => {
+    selectionRequests.hook.push(request);
+    return selectionDecision();
+  },
+  readSelectionOperationDecision: (request: Record<string, unknown>) => {
+    selectionRequests.read.push(request);
+    return selectionDecision();
+  },
 }));
 
 vi.mock('@/platform/rag/matterResolver', () => ({
@@ -49,6 +59,8 @@ const multiselectQuestion: InterviewQuestion = {
 
 describe('InterviewForm multiselect rendering', () => {
   beforeEach(() => {
+    selectionRequests.hook = [];
+    selectionRequests.read = [];
     forcedSelectionRefusal = null;
     activeMatter = {
       id: 'matter-1',
@@ -195,5 +207,13 @@ describe('InterviewForm multiselect rendering', () => {
 
     expect(onSubmit).not.toHaveBeenCalled();
     expect(screen.getByRole('alert')).toHaveTextContent('still catching up');
+    expect(selectionRequests.hook).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ requireFollowerAgreement: true }),
+      ]),
+    );
+    expect(selectionRequests.read).toEqual([
+      expect.objectContaining({ requireFollowerAgreement: true }),
+    ]);
   });
 });

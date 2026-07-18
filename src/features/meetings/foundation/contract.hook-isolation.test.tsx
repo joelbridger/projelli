@@ -27,6 +27,8 @@ const matter = vi.hoisted(() => ({
 }));
 const selection = vi.hoisted(() => ({
   forcedRefusal: null as null | { reason: string; message: string },
+  hookRequests: [] as Array<Record<string, unknown>>,
+  readRequests: [] as Array<Record<string, unknown>>,
 }));
 
 function selectionDecision() {
@@ -53,8 +55,14 @@ function selectionDecision() {
 }
 
 vi.mock('@/platform/client-context', () => ({
-  useSelectionOperationDecision: () => selectionDecision(),
-  readSelectionOperationDecision: () => selectionDecision(),
+  useSelectionOperationDecision: (request: Record<string, unknown>) => {
+    selection.hookRequests.push(request);
+    return selectionDecision();
+  },
+  readSelectionOperationDecision: (request: Record<string, unknown>) => {
+    selection.readRequests.push(request);
+    return selectionDecision();
+  },
 }));
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -113,6 +121,8 @@ describe('meetings hook-layer client isolation', () => {
     matter.state.matters = [{ id: 'matter-1' }];
     matter.state.activeMatterId = 'matter-1';
     selection.forcedRefusal = null;
+    selection.hookRequests = [];
+    selection.readRequests = [];
     boundary.invoke.mockReset();
     boundary.invoke.mockImplementation((command, args) => {
       if (command === 'crm_live_list')
@@ -306,5 +316,16 @@ describe('meetings hook-layer client isolation', () => {
         ])
         .get(artifact.id),
     ).toBeNull();
+    expect(selection.hookRequests).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ requireFollowerAgreement: true }),
+      ]),
+    );
+    expect(selection.readRequests).not.toHaveLength(0);
+    expect(
+      selection.readRequests.every(
+        (request) => request['requireFollowerAgreement'] === true,
+      ),
+    ).toBe(true);
   });
 });

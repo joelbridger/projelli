@@ -39,6 +39,8 @@ const { captured, mocks, authoritativeSelection } = vi.hoisted(() => ({
   captured: { executor: null as ToolExecutor | null },
   mocks: { sendMessage: vi.fn() },
   authoritativeSelection: {
+    hookRequests: [] as Array<Record<string, unknown>>,
+    readRequests: [] as Array<Record<string, unknown>>,
     decision: { kind: 'all-matters', client: null } as
       | { kind: 'all-matters'; client: null }
       | { kind: 'matter'; sourceKind: 'matter-only'; matter: Matter; client: null }
@@ -47,8 +49,14 @@ const { captured, mocks, authoritativeSelection } = vi.hoisted(() => ({
 }));
 
 vi.mock('@/platform/client-context', () => ({
-  useSelectionOperationDecision: () => authoritativeSelection.decision,
-  readSelectionOperationDecision: () => authoritativeSelection.decision,
+  useSelectionOperationDecision: (request: Record<string, unknown>) => {
+    authoritativeSelection.hookRequests.push(request);
+    return authoritativeSelection.decision;
+  },
+  readSelectionOperationDecision: (request: Record<string, unknown>) => {
+    authoritativeSelection.readRequests.push(request);
+    return authoritativeSelection.decision;
+  },
 }));
 
 function makeStubProvider() {
@@ -162,6 +170,8 @@ const ROOTS: Array<[label: string, root: string, expectedJoin: string]> = [
 
 describe('F2.8 useChatSending workspace-boundary guard — per tool, per platform', () => {
   beforeEach(() => {
+    authoritativeSelection.hookRequests = [];
+    authoritativeSelection.readRequests = [];
     mocks.sendMessage.mockReset();
     mocks.sendMessage.mockResolvedValue({
       content: 'ok',
@@ -304,6 +314,19 @@ describe('F2.8 useChatSending workspace-boundary guard — per tool, per platfor
       (await screen.findAllByText('The client selection is still catching up.')).length,
     ).toBeGreaterThan(0);
     expect(mocks.sendMessage).not.toHaveBeenCalled();
+    expect(authoritativeSelection.hookRequests).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ requireFollowerAgreement: true }),
+      ]),
+    );
+    expect(authoritativeSelection.readRequests).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          operationClass: 'matter-scoped',
+          requireFollowerAgreement: true,
+        }),
+      ]),
+    );
   });
 });
 

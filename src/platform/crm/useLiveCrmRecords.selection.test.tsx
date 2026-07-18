@@ -8,6 +8,8 @@ const boundary = vi.hoisted(() => ({
   ensureRelay: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
   publish: vi.fn<(record: LiveCrmRecord) => void>(),
   invoke: vi.fn<(command: string, args?: { record?: LiveCrmRecord }) => Promise<unknown>>(),
+  hookRequests: [] as Array<Record<string, unknown>>,
+  readRequests: [] as Array<Record<string, unknown>>,
 }));
 
 const liveMatter = {
@@ -45,10 +47,14 @@ function decision(operationClass: 'matter-scoped' | 'client-scoped') {
 }
 
 vi.mock('@/platform/client-context', () => ({
-  useSelectionOperationDecision: (request: { operationClass: 'matter-scoped' | 'client-scoped' }) =>
-    decision(request.operationClass),
-  readSelectionOperationDecision: (request: { operationClass: 'matter-scoped' | 'client-scoped' }) =>
-    decision(request.operationClass),
+  useSelectionOperationDecision: (request: { operationClass: 'matter-scoped' | 'client-scoped' }) => {
+    boundary.hookRequests.push(request);
+    return decision(request.operationClass);
+  },
+  readSelectionOperationDecision: (request: { operationClass: 'matter-scoped' | 'client-scoped' }) => {
+    boundary.readRequests.push(request);
+    return decision(request.operationClass);
+  },
 }));
 vi.mock('@/platform/fs/workspaceStore', () => ({
   useWorkspaceStore: <T,>(selector: (state: { rootPath: string }) => T) =>
@@ -90,6 +96,8 @@ describe('useLiveCrmRecords authoritative selection', () => {
   beforeEach(() => {
     boundary.mode = 'matter-only';
     boundary.saved = [];
+    boundary.hookRequests = [];
+    boundary.readRequests = [];
     boundary.ensureRelay.mockReset().mockResolvedValue(null);
     boundary.publish.mockReset();
     boundary.invoke.mockReset().mockImplementation((command: string, args?: { record?: LiveCrmRecord }) => {
@@ -160,5 +168,21 @@ describe('useLiveCrmRecords authoritative selection', () => {
     expect(result.current.sharedMatterId).toBeNull();
     expect(boundary.ensureRelay).not.toHaveBeenCalled();
     expect(boundary.saved).toEqual([]);
+    expect(boundary.hookRequests).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          operationClass: 'client-scoped',
+          requireFollowerAgreement: true,
+        }),
+      ]),
+    );
+    expect(boundary.readRequests).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          operationClass: 'matter-scoped',
+          requireFollowerAgreement: true,
+        }),
+      ]),
+    );
   });
 });
