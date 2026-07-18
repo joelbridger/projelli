@@ -1,5 +1,5 @@
 // src/platform/browserGuard/useTabWriteGuard.ts
-import { useCallback, useEffect, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import { SK_TAB_LOCK } from '@/config/identity';
 import { useEditorStore } from '@/platform/state/editorStore';
 import { createTabGuard, type TabLockGuard, type TabGuardStatus } from './tabLockGuard';
@@ -194,6 +194,14 @@ export interface UseTabWriteGuardOptions {
  */
 export function useTabWriteGuard(enabled: boolean, options: UseTabWriteGuardOptions = {}): TabWriteGuardState {
   const { onFlushRequested } = options;
+  // Options may change as the parent renders. The lock lifecycle is about
+  // enabled/disabled ownership, not callback identity: restarting it while
+  // holding a real Web Lock looks like contention and can trigger a reload.
+  // Keep the responder current without making it a lifecycle dependency.
+  const onFlushRequestedRef = useRef(onFlushRequested);
+  useEffect(() => {
+    onFlushRequestedRef.current = onFlushRequested;
+  }, [onFlushRequested]);
   const subscribe = useCallback(
     (onStoreChange: () => void) => (enabled ? getSharedGuard().subscribe(onStoreChange) : noopUnsubscribe),
     [enabled],
@@ -255,7 +263,7 @@ export function useTabWriteGuard(enabled: boolean, options: UseTabWriteGuardOpti
     const flushChannel = getSharedFlushChannel();
     const unsubscribeFlushResponder = flushChannel
       ? wireFlushResponder(flushChannel, () => guard.status === 'owner', async () => {
-          if (onFlushRequested) await onFlushRequested();
+          if (onFlushRequestedRef.current) await onFlushRequestedRef.current();
           guard.yieldIfOwner();
         })
       : undefined;
@@ -312,7 +320,7 @@ export function useTabWriteGuard(enabled: boolean, options: UseTabWriteGuardOpti
       window.removeEventListener('pageshow', handlePageShow);
       if (!takingOver) guard.stop();
     };
-  }, [enabled, onFlushRequested]);
+  }, [enabled]);
 
   return {
     status,

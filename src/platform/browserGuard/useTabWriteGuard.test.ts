@@ -10,6 +10,22 @@ import {
   shouldReleaseOnPersistedFreeze,
 } from './useTabWriteGuard';
 import type { TabLockGuard } from './tabLockGuard';
+import { WebLocksTabGuard, type LockGrantedCallback, type LockManagerLike, type LockRequestOptions } from './webLocksTabGuard';
+
+/** Enough of the browser Web Locks API to give the hook a real
+ * WebLocksTabGuard, including its held-lock lifecycle. */
+class ImmediateLockManager implements LockManagerLike {
+  request(
+    _name: string,
+    optionsOrCallback: LockRequestOptions | LockGrantedCallback,
+    maybeCallback?: LockGrantedCallback,
+  ): Promise<unknown> {
+    const callback = (typeof optionsOrCallback === 'function'
+      ? optionsOrCallback
+      : maybeCallback) as LockGrantedCallback;
+    return Promise.resolve().then(() => callback({}));
+  }
+}
 
 describe('useTabWriteGuard', () => {
   beforeEach(() => {
@@ -29,6 +45,48 @@ describe('useTabWriteGuard', () => {
     const { result } = renderHook(() => useTabWriteGuard(true));
     expect(result.current.status).toBe('owner');
     expect(localStorage.getItem(SK_TAB_LOCK)).not.toBeNull();
+  });
+
+  it('regression: replacing the flush callback does not restart a held Web Lock or mark false contention', async () => {
+    const originalLocks = Object.getOwnPropertyDescriptor(navigator, 'locks');
+    Object.defineProperty(navigator, 'locks', {
+      configurable: true,
+      value: new ImmediateLockManager(),
+    });
+    const startSpy = vi.spyOn(WebLocksTabGuard.prototype, 'start');
+    const stopSpy = vi.spyOn(WebLocksTabGuard.prototype, 'stop');
+    const firstCallback = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    const replacementCallback = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+
+    try {
+      const hook = renderHook(
+        ({ onFlushRequested }) => useTabWriteGuard(true, { onFlushRequested }),
+        { initialProps: { onFlushRequested: firstCallback } },
+      );
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(hook.result.current.status).toBe('owner');
+      expect(startSpy).toHaveBeenCalledTimes(1);
+      expect(stopSpy).not.toHaveBeenCalled();
+
+      hook.rerender({ onFlushRequested: replacementCallback });
+
+      // A changed callback must only update the responder ref. It must not
+      // release/reacquire the lock (the old loop's false-contention path).
+      expect(startSpy).toHaveBeenCalledTimes(1);
+      expect(stopSpy).not.toHaveBeenCalled();
+      const guard = startSpy.mock.instances[0] as WebLocksTabGuard;
+      expect((guard as unknown as { contentionEverConfirmed: boolean }).contentionEverConfirmed).toBe(false);
+    } finally {
+      startSpy.mockRestore();
+      stopSpy.mockRestore();
+      if (originalLocks) {
+        Object.defineProperty(navigator, 'locks', originalLocks);
+      } else {
+        Reflect.deleteProperty(navigator, 'locks');
+      }
+    }
   });
 
   it('reports "blocked" when another (fresh) tab already holds the lock', () => {
