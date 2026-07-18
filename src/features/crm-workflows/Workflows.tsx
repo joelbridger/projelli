@@ -128,6 +128,9 @@ export function LiveWorkflows({
 }) {
   const template = data.templates[0];
   const startableTemplate = data.templates.find(isStartableTemplate);
+  const startUnavailableMessage = template
+    ? 'Publish this workflow template before starting it.'
+    : 'Create a workflow template before starting a workflow.';
   const [creating, setCreating] = useState(
     addRequest?.kind === 'workflow' && !template
   );
@@ -716,17 +719,17 @@ export function LiveWorkflows({
           This creates an open workflow for one real household. Nothing is
           shared until you choose to do so.
         </p>
-        {!startableTemplate && (
-          <p
-            id="crm-live-workflow-start-unavailable"
-            data-testid="crm-live-workflow-start-unavailable"
-            style={mutedStyle}
-          >
-            {template
-              ? 'Publish this workflow template before starting it.'
-              : 'Create a workflow template before starting a workflow.'}
-          </p>
-        )}
+        <p
+          id="crm-live-workflow-start-unavailable"
+          data-testid="crm-live-workflow-start-unavailable"
+          aria-hidden={startableTemplate ? true : undefined}
+          style={{
+            ...mutedStyle,
+            visibility: startableTemplate ? 'hidden' : 'visible',
+          }}
+        >
+          {startUnavailableMessage}
+        </p>
         {households.length ? (
           <label>
             Household
@@ -760,20 +763,28 @@ export function LiveWorkflows({
         <Button
           data-testid="crm-live-workflow-start"
           style={{ marginLeft: 8 }}
-          disabled={!startableTemplate}
+          aria-disabled={!startableTemplate || undefined}
           aria-describedby={
             startableTemplate
               ? undefined
               : 'crm-live-workflow-start-unavailable'
           }
-          title={
-            startableTemplate
-              ? undefined
-              : template
-                ? 'Publish this workflow template before starting it.'
-                : 'Create a workflow template before starting a workflow.'
-          }
-          onClick={() => {
+          title={startableTemplate ? undefined : startUnavailableMessage}
+          onKeyDown={(event) => {
+            if (
+              !startableTemplate &&
+              (event.key === 'Enter' || event.key === ' ')
+            ) {
+              event.preventDefault();
+              event.stopPropagation();
+            }
+          }}
+          onClick={(event) => {
+            if (!startableTemplate) {
+              event.preventDefault();
+              event.stopPropagation();
+              return;
+            }
             void start();
           }}
         >
