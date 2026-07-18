@@ -91,6 +91,7 @@ vi.mock('@/platform/crm/liveRecordRelay', () => ({
 import {
   useMeetingArtifactStore,
   useMeetingFoundationStore,
+  useMeetingKeywordCatalogueStore,
 } from './contract';
 
 const draft = {
@@ -255,6 +256,7 @@ describe('meetings hook-layer client isolation', () => {
   it('surfaces forced source/follower disagreement and refuses list, read, mutation, append, approve, and artifact reads', async () => {
     const meetings = renderHook(() => useMeetingFoundationStore());
     const artifacts = renderHook(() => useMeetingArtifactStore());
+    const keywords = renderHook(() => useMeetingKeywordCatalogueStore());
     const meeting = await meetings.result.current.createDraft(draft);
     const artifact = await artifacts.result.current.append({
       meetingId: meeting.id,
@@ -270,8 +272,10 @@ describe('meetings hook-layer client isolation', () => {
       reason: 'follower-disagreement',
       message: 'The client selection is still catching up. Wait a moment and try again.',
     };
+    keywords.rerender();
 
     expect(meetings.result.current.error).toContain('still catching up');
+    expect(keywords.result.current.error).toContain('still catching up');
     expect(meetings.result.current.list).toEqual([]);
     await expect(meetings.result.current.get(meeting.id)).resolves.toBeUndefined();
     await expect(

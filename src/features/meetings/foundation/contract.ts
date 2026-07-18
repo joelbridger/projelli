@@ -2299,10 +2299,18 @@ export function useMeetingTemplateStore(): MeetingTemplateStore {
 }
 export function useMeetingKeywordCatalogueStore(): MeetingKeywordCatalogueStore {
   const live = useLiveCrmRecords();
+  // The keyword insight already renders this store's error channel. Feed the
+  // authoritative meeting-selection refusal through that existing channel so
+  // a blocked reader cannot be mistaken for a genuine "no tracked topics"
+  // result. This stays inside the foundation adapter; no Meetings surface or
+  // presentation contract changes are needed.
+  const selection = useSelectionOperationDecision(MEETINGS_SELECTION_REQUEST);
+  const selectionError =
+    selection.kind === 'refused' ? selection.message : null;
   return createMeetingKeywordCatalogueStore({
     records: live.records,
     workspaceRoot: live.workspaceRoot,
-    error: live.error,
+    error: selectionError ?? live.error,
     save: live.save,
     reloadRecords: () => loadLiveCrmRecords(live.workspaceRoot),
   });
