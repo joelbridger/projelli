@@ -34,3 +34,24 @@ The runtime development-only flag mechanism is `setDevFlagOverride('workflow-dep
 - With the flag off, no timing card, timing copy, or related control remains in the editor.
 
 DESIGN-VERDICT: CHANGES-3
+
+## Re-verdict — 2026-07-18
+
+**Pass.** The three requested cures now read clearly on the live workflow screen.
+
+### Fresh evidence
+
+- [Real predecessor name and plain timing sentence](design-review-wdd-rereview-2026-07-18/01-real-name-and-plain-timing.png)
+- [Out-of-order refusal beside the blocked action](design-review-wdd-rereview-2026-07-18/02-out-of-order-refusal-beside-action.png)
+
+### What I verified on screen
+
+1. The dependent step identifies its real earlier step: `Completed step: “Prepare client file”`.
+2. The same card states the rule in one plain sentence: `Due 2 days after “Prepare client file” is completed.`
+3. I pressed **Complete step** on *Hold annual review* before completing *Prepare client file*. The refusal appeared in the same action group as the blocked button, named the earlier step, and received keyboard focus.
+
+### Fresh-run conditions
+
+This re-review used a new X display (`:93`), a new Vite port (`5189`), and a new disposable Google Chrome profile with `--password-store=basic`. The feature was enabled through the sanctioned development-only `setDevFlagOverride('workflow-dependent-due', true)` path, then its lazy completion check was prepared before the screen rendered. Chrome was closed after the capture; the temporary profile, display, local server, and review fixture were removed after the teardown check.
+
+DESIGN-VERDICT: PASS
