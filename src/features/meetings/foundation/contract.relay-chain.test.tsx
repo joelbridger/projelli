@@ -31,6 +31,20 @@ vi.mock('@/platform/fs/workspaceStore', () => ({
   useWorkspaceStore: <T,>(selector: (state: { rootPath: string }) => T) =>
     selector({ rootPath: '/workspace' }),
 }));
+vi.mock('@/platform/client-context', () => ({
+  useSelectionOperationDecision: () => ({
+    kind: 'matter' as const,
+    sourceKind: 'matter' as const,
+    matter: { id: 'local-matter-1', shared: true, firmMatterId: 'firm-matter-1' },
+    client: { provider: 'wealthbox' as const, householdId: 'household-1', displayName: 'Household 1' },
+  }),
+  readSelectionOperationDecision: () => ({
+    kind: 'matter' as const,
+    sourceKind: 'matter' as const,
+    matter: { id: 'local-matter-1', shared: true, firmMatterId: 'firm-matter-1' },
+    client: { provider: 'wealthbox' as const, householdId: 'household-1', displayName: 'Household 1' },
+  }),
+}));
 vi.mock('@/platform/matter/matterStore', () => {
   // An active SHARED client, so useLiveCrmRecords starts the firm relay.
   const state: {
