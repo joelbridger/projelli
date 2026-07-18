@@ -1,6 +1,6 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string -- Dummy labels are test-only registry mounts. */
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   createTemplate,
   startWorkflow,
@@ -20,6 +20,7 @@ import {
   type WorkflowRuleDescriptor,
   type WorkflowStepExtensionDescriptor,
 } from './workflowExtensionRegistry';
+import { setDevFlagOverride } from '@/platform/flags';
 
 declare module './workflowExtensionRegistry' {
   interface WorkflowRuleIdMap {
@@ -30,10 +31,14 @@ declare module './workflowExtensionRegistry' {
   }
 }
 
-const template = createTemplate('Annual review', ['Prepare']);
+const template = createTemplate('Annual review', ['Prepare', 'Meet']);
 const instance = startWorkflow(template, {
   id: 'household-1',
   label: 'Morgan',
+});
+
+afterEach(() => {
+  setDevFlagOverride('workflow-dependent-due', undefined);
 });
 
 describe('workflow extension registries', () => {
@@ -55,7 +60,45 @@ describe('workflow extension registries', () => {
     expect(getWorkflowStepExtensions().map(({ id }) => id)).toEqual([
       'legacy.step-controls',
       'workflow-step.attachments',
+      'workflow-step.dependent-due',
     ]);
+  });
+
+  it('mounts the registered dependency extension only when its flag is on', () => {
+    const descriptor = getWorkflowStepExtensions().find(
+      ({ id }) => id === 'workflow-step.dependent-due'
+    );
+    if (!descriptor) throw new Error('Expected the dependency extension descriptor.');
+    const saveStepMetadata = vi.fn().mockResolvedValue(instance);
+    const stepId = Object.keys(instance.snapshot.steps)[1];
+    if (!stepId) throw new Error('Expected a dependent workflow step.');
+    const unreadableInstance = new Proxy(instance, {
+      get(target, property, receiver) {
+        if (property === 'snapshot') throw new Error('Flag-off metadata read');
+        return Reflect.get(target, property, receiver) as unknown;
+      },
+    });
+
+    setDevFlagOverride('workflow-dependent-due', false);
+    const off = render(<>{descriptor.mount({
+      instance: unreadableInstance,
+      stepId,
+      saveStepMetadata,
+      compatibilityMount: null,
+    })}</>);
+    expect(off.container).toBeEmptyDOMElement();
+    expect(saveStepMetadata).not.toHaveBeenCalled();
+    off.unmount();
+
+    setDevFlagOverride('workflow-dependent-due', true);
+    render(<>{descriptor.mount({
+      instance,
+      stepId,
+      saveStepMetadata,
+      compatibilityMount: null,
+    })}</>);
+    expect(screen.getByTestId(`workflow-dependent-due-${instance.id}-${stepId}`))
+      .toBeInTheDocument();
   });
 
   it('mounts a rule and step extension without a shell switch edit', () => {

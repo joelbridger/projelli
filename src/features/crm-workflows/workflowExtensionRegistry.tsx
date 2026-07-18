@@ -8,6 +8,7 @@ import {
   legacyWorkflowStepExtensions,
 } from './workflowExtensionRegistryCompatibility';
 import { workflowStepAttachmentsExtension } from './extensions/attachments';
+import { workflowStepDependentDueExtension } from './extensions/dependent-due';
 import type { WorkflowStepMetadataPatch } from './workflowStepPersistence';
 import { workflowAuthoringRuleDescriptor } from './authoring';
 
@@ -88,7 +89,7 @@ export function validateWorkflowRuleDescriptors(
 
 /** Append-only mount lists. Existing entries keep their order. */
 export const workflowStepExtensionRegistry: readonly WorkflowStepExtensionDescriptor[] =
-  [...legacyWorkflowStepExtensions, workflowStepAttachmentsExtension];
+  [...legacyWorkflowStepExtensions, workflowStepAttachmentsExtension, workflowStepDependentDueExtension];
 export const workflowRuleRegistry: readonly WorkflowRuleDescriptor[] = [
   ...legacyWorkflowRules,
   workflowAuthoringRuleDescriptor,

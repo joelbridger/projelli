@@ -1,0 +1,25 @@
+{
+  "workflowDependentDue": {
+    "heading": "Programación del paso",
+    "copy": "Define cuándo vence este paso y si los pasos anteriores deben terminarse primero.",
+    "sequential": "Exigir que los pasos se completen en orden",
+    "basedOn": "Basado en",
+    "workflowStart": "Inicio del flujo de trabajo",
+    "previousStep": "Finalización del paso anterior",
+    "direction": "Dirección",
+    "after": "Después",
+    "before": "Antes",
+    "offset": "Cantidad",
+    "unit": "Unidad",
+    "days": "Días",
+    "weeks": "Semanas",
+    "months": "Meses",
+    "currentDue": "Vencimiento actual: {{date}}",
+    "waiting": "El vencimiento aparecerá cuando esté disponible su punto de partida guardado.",
+    "blocked": "Debe terminarse un paso anterior antes de completar este.",
+    "save": "Guardar programación",
+    "saving": "Guardando…",
+    "saved": "Programación del paso guardada.",
+    "saveFailed": "No se pudo guardar la programación del paso. Inténtalo de nuevo."
+  }
+}

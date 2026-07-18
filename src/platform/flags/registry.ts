@@ -90,6 +90,7 @@ export const flagRegistry = [
   defineFlag('booking-availability', 'Configure local booking availability', 'booking-availability', '2026-07-16', '2026-10-14'),
   defineFlag('crm-bulk-export', 'Keeps selected-household CSV export dark until its acceptance review is complete.', 'crm-bulk-export', '2026-07-18', '2026-09-16'),
   defineFlag('crm-duplicates', 'Keeps explainable, review-only duplicate household detection dark until its acceptance review is complete.', 'crm-duplicates', '2026-07-18', '2026-09-16'),
+  defineFlag('workflow-dependent-due', 'Keeps workflow dependency timing and sequence enforcement dark until their acceptance review is complete.', 'workflow-dependent-due', '2026-07-18', '2026-09-16'),
 ] as const satisfies readonly FlagDescriptor[];
 
 export type FlagId = (typeof flagRegistry)[number]['id'];

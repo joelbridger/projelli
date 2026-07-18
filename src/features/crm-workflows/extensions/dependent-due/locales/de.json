@@ -1,0 +1,25 @@
+{
+  "workflowDependentDue": {
+    "heading": "Schrittplanung",
+    "copy": "Legen Sie fest, wann dieser Schritt fällig ist und ob frühere Schritte zuerst abgeschlossen sein müssen.",
+    "sequential": "Schritte müssen der Reihe nach abgeschlossen werden",
+    "basedOn": "Basiert auf",
+    "workflowStart": "Workflow-Start",
+    "previousStep": "Abschluss des vorherigen Schritts",
+    "direction": "Richtung",
+    "after": "Danach",
+    "before": "Davor",
+    "offset": "Anzahl",
+    "unit": "Einheit",
+    "days": "Tage",
+    "weeks": "Wochen",
+    "months": "Monate",
+    "currentDue": "Aktuelle Fälligkeit: {{date}}",
+    "waiting": "Die Fälligkeit erscheint, sobald der gespeicherte Ausgangspunkt verfügbar ist.",
+    "blocked": "Ein früherer Schritt muss abgeschlossen sein, bevor dieser Schritt beendet werden kann.",
+    "save": "Planung speichern",
+    "saving": "Wird gespeichert…",
+    "saved": "Schrittplanung gespeichert.",
+    "saveFailed": "Die Schrittplanung konnte nicht gespeichert werden. Versuchen Sie es erneut."
+  }
+}
