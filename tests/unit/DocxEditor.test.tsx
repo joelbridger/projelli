@@ -24,6 +24,30 @@ vi.mock('@tauri-apps/api/core', () => ({
 // assert the editor translates edits -> engine call correctly and renders the
 // resulting tracked changes.
 const requestRedlineEditsMock = vi.fn();
+const selectionState = vi.hoisted(() => ({
+  decision: { kind: 'all-matters', client: null } as
+    | { kind: 'all-matters'; client: null }
+    | {
+        kind: 'matter';
+        sourceKind: 'matter-only';
+        matter: {
+          id: string;
+          name: string;
+          client: string;
+          folderPaths: string[];
+          createdAt: string;
+        };
+        client: null;
+      }
+    | { kind: 'refused'; reason: 'blocked-unresolved' | 'follower-disagreement'; message: string },
+}));
+vi.mock('@/platform/client-context', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/platform/client-context')>();
+  return {
+    ...actual,
+    readSelectionOperationDecision: () => selectionState.decision,
+  };
+});
 vi.mock('@/features/documents/docx/redline', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/features/documents/docx/redline')>();
   return {
@@ -96,6 +120,7 @@ beforeEach(() => {
   __resetDocxSaveSessions();
   __resetDocxSaveRegistry();
   useEditorStore.getState().clearTabState();
+  selectionState.decision = { kind: 'all-matters', client: null };
 });
 
 function docWithRevisions(): DocumentJson {
@@ -1736,6 +1761,18 @@ describe('DocxEditor — AI redline (A4)', () => {
   }
 
   it('applies AI edits as tracked changes via the batch engine command and surfaces them for accept/reject', async () => {
+    selectionState.decision = {
+      kind: 'matter',
+      sourceKind: 'matter-only',
+      matter: {
+        id: 'matter-a',
+        name: 'Alpha',
+        client: 'Alpha',
+        folderPaths: ['/ws'],
+        createdAt: '2026-07-18T00:00:00.000Z',
+      },
+      client: null,
+    };
     requestRedlineEditsMock.mockResolvedValue(TWO_EDITS);
 
     invokeMock.mockImplementation((cmd: string, args?: Record<string, unknown>) => {
@@ -1855,6 +1892,37 @@ describe('DocxEditor — AI redline (A4)', () => {
     // Key hint visible; submit disabled.
     expect(screen.getByTestId('docx-redline-need-key')).toBeInTheDocument();
     expect(screen.getByTestId('docx-redline-submit')).toBeDisabled();
+  });
+
+  it.each([
+    ['blocked-unresolved', 'The selected client is still unresolved.'],
+    ['follower-disagreement', 'The client selection is still catching up.'],
+  ] as const)('refuses and surfaces %s before asking AI or changing the document', async (reason, message) => {
+    selectionState.decision = {
+      kind: 'refused',
+      reason,
+      message,
+    };
+    invokeMock.mockImplementation((cmd: string) =>
+      cmd === 'docx_open' ? Promise.resolve(plainDoc()) : Promise.resolve(undefined),
+    );
+
+    renderWithKeys();
+    await screen.findByTestId('docx-document-body');
+    await openDocxActionsMenu();
+    fireEvent.click(screen.getByTestId('docx-revise-with-ai'));
+    fireEvent.change(await screen.findByTestId('docx-redline-input'), {
+      target: { value: 'change this document' },
+    });
+    fireEvent.click(screen.getByTestId('docx-redline-submit'));
+
+    expect(await screen.findByTestId('docx-redline-error')).toHaveTextContent(
+      message,
+    );
+    expect(requestRedlineEditsMock).not.toHaveBeenCalled();
+    expect(
+      invokeMock.mock.calls.some((call) => call[0] === 'docx_author_revisions'),
+    ).toBe(false);
   });
 });
 

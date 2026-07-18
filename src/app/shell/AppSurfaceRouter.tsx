@@ -90,8 +90,8 @@ import {
   type MatterNavigationTarget,
 } from '@/app/commands/registry/navigationTargetRegistry';
 import {
-  resolveSavedDocumentDirectory,
-  resolveSavedDocumentPath,
+  assertSavedDocumentTargetCurrent,
+  resolveSavedDocumentTarget,
   routeSavedAskDocument,
 } from '@/app/shell/routeSavedAskDocument';
 import { openMatterDocumentSource } from '@/app/shell/matterDocumentNavigation';
@@ -496,30 +496,27 @@ export function AppSurfaceRouter(props: AppSurfaceRouterProps) {
               }
             })();
             const base = suggestedName.replace(/\.(md|markdown|txt)$/i, '');
-            const targetDir = resolveSavedDocumentDirectory({
+            const target = resolveSavedDocumentTarget({
               rootPath,
-              activeMatter,
+              fileName: `${base}.docx`,
             });
             const finalName = await resolveUniqueName(
               workspaceServiceRef.current,
-              targetDir,
+              target.directory,
               `${base}.docx`
             );
-            const path = resolveSavedDocumentPath({
-              rootPath,
-              activeMatter,
-              fileName: finalName,
-            });
+            const path = workspacePath(target.directory, finalName);
             const bytes = await markdownToDocxBytes(content, finalName, {
               firmName,
             });
             const buffer = new ArrayBuffer(bytes.byteLength);
             new Uint8Array(buffer).set(bytes);
+            assertSavedDocumentTargetCurrent(target.expectedScope);
             await workspaceServiceRef.current.writeFileBinary(path, buffer);
             const tree = await workspaceServiceRef.current.getFileTree();
             setFileTree(tree);
-            void routeSavedAskDocument({
-              activeMatter,
+            await routeSavedAskDocument({
+              expectedScope: target.expectedScope,
               savedDocument: {
                 path,
                 name: finalName,
@@ -695,30 +692,27 @@ export function AppSurfaceRouter(props: AppSurfaceRouterProps) {
             /\.(md|markdown|txt)$/i,
             ''
           );
-          const targetDir = resolveSavedDocumentDirectory({
+          const target = resolveSavedDocumentTarget({
             rootPath,
-            activeMatter,
+            fileName: `${base}.docx`,
           });
           const finalName = await resolveUniqueName(
             workspaceServiceRef.current,
-            targetDir,
+            target.directory,
             `${base}.docx`
           );
-          const path = resolveSavedDocumentPath({
-            rootPath,
-            activeMatter,
-            fileName: finalName,
-          });
+          const path = workspacePath(target.directory, finalName);
           const bytes = await markdownToDocxBytes(content, finalName, {
             firmName,
           });
           const buffer = new ArrayBuffer(bytes.byteLength);
           new Uint8Array(buffer).set(bytes);
+          assertSavedDocumentTargetCurrent(target.expectedScope);
           await workspaceServiceRef.current.writeFileBinary(path, buffer);
           const tree = await workspaceServiceRef.current.getFileTree();
           setFileTree(tree);
-          void routeSavedAskDocument({
-            activeMatter,
+          await routeSavedAskDocument({
+            expectedScope: target.expectedScope,
             savedDocument: {
               path,
               name: finalName,
