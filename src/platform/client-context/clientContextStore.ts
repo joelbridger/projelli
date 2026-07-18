@@ -398,7 +398,9 @@ const clientContextStore = create<ClientContextState>()((set) => {
   return {
     client: null,
     scope: bootScope,
-    followerStatus: followerStatusFor(bootScope),
+    // A dark foundation must not even read the legacy follower at module load.
+    // The first enabled source transition computes its real projection status.
+    followerStatus: 'converged',
     selectionRevision: 0,
     setClient: (client) => {
       if (!selectionAuthorityEnabled()) {
