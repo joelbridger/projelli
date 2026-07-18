@@ -23,6 +23,7 @@ describe('settingsModuleRegistry', () => {
     vi.doUnmock('./legacySettingsSections');
     vi.doUnmock('@/features/crm-firm');
     vi.doUnmock('@/features/notifications/preferences');
+    vi.doUnmock('@/features/booking');
     vi.resetModules();
   });
 
@@ -316,6 +317,23 @@ describe('settingsModuleRegistry', () => {
     ).not.toThrow();
   });
 
+  it('registers booking availability as the dark Scheduling panel', () => {
+    const bookingAvailability = settingsPanelRegistry.find(
+      (panel) => panel.id === 'booking-availability'
+    );
+
+    expect(bookingAvailability).toEqual(
+      expect.objectContaining({
+        id: 'booking-availability',
+        section: 'scheduling',
+        flagId: 'booking-availability',
+      })
+    );
+    expect(getSettingsPanelDescriptors('scheduling')).not.toContain(
+      bookingAvailability
+    );
+  });
+
   it('hides a registered flag-gated panel while dark and restores it when enabled', async () => {
     const alwaysVisible: SettingsPanelDescriptor = {
       id: 'fake-always',
@@ -365,6 +383,16 @@ describe('settingsModuleRegistry', () => {
         section: 'organization',
         order: 20,
         flagId: 'contact-sources',
+        render: () => null,
+      },
+    }));
+    vi.doMock('@/features/booking', async (importOriginal) => ({
+      ...(await importOriginal<typeof import('@/features/booking')>()),
+      bookingAvailabilitySettingsPanel: {
+        id: 'booking-availability',
+        section: 'organization',
+        order: 100,
+        flagId: 'booking-availability',
         render: () => null,
       },
     }));

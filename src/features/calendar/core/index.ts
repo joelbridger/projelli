@@ -1,7 +1,7 @@
 /**
  * Calendar Part A public doorway.
  *
- * Durable event, capability, and availability records are scoped to the active
+ * Durable event and aggregate calendar-settings records are scoped to the active
  * workspace and local advisor. They use the encrypted CRM live-record route;
  * they are not firm-wide defaults and they never fall back to browser storage.
  * External projections are read-only. Provider writes, holds, confirmations,
@@ -25,6 +25,7 @@ export {
   defaultCalendarCapabilityState,
   useBookingAvailabilityStore,
   useCalendarCapabilityStore,
+  useCalendarSettingsStore,
   validateBookingAvailabilityDraft,
   validateCalendarCapabilityDraft,
 } from './settingsStores';
@@ -77,6 +78,9 @@ export type {
   CalendarRange,
   CalendarReadProjection,
   CalendarRecurrenceRule,
+  CalendarSettingsDraft,
+  CalendarSettingsState,
+  CalendarSettingsStore,
   CalendarWeekday,
   CalendarWorkingHours,
   OpaqueCalendarBusyBlock,

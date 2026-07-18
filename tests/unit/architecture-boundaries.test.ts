@@ -74,6 +74,7 @@ const ALLOWED_FEATURE_EDGES = new Set<string>([
   'onboarding->settings', // onboarding hands off to settings sections
   'privacy->firm', // Privacy Center hosts the vault enable/disable control
   'settings->ask', // AI/model settings touch Ask config
+  'settings->booking', // Settings mounts booking availability through Booking's public descriptor doorway.
   'settings->dictation', // voice-output settings
   'settings->meetings', // RecordingNoticeSettings (Recording Notice Kit) configures the meetings notice policy + spoken-script, reusing meetings/noticeSettings' pure readers (mirrors settings->ask / settings->dictation config edges)
   'settings->onboarding', // settings can relaunch onboarding flows
