@@ -1,31 +1,35 @@
-# Unification sub-lane 4 integration receipt — fix round complete, activation withheld
+# Unification sub-lane 4 integration receipt — activated gate green
 
-`COORDINATOR:` The second and final permitted canonical gate attempt was red in
-the golden-loop launch step. The boot-authority flag is therefore OFF at the
-safe code tip. Do not land this lane as an activated result.
+The coordinator-granted lint-cure rerun passed. The lane-owned async test
+doubles now return explicit promises, the ESLint baseline was not changed,
+the boot-authority flag is ON, and the complete gate passed through a real
+desktop create/save/restart/persistence cycle.
 
 ## Binding
 
 - Branch: `feat/unification-sublane4-integration-activation`
 - Required base: `19de3e85f6c8b34099860c3cc46a0725510b95a5`
-- Activation-under-test commit: `abfbd090ed7468421f176fe6561fdeb3935ea76c`
+- Granted rerun launch base: `29f102dae3accb0e06157ddcff86a0e5129d72e0`
+- Lint-cure commit: `f4e58a9d8`
+- Gate-tested activation commit: `5dd4f06e567465dc7110e873cdbcc82b7c78c44e`
 - Reviewed stop tip: `a51899f658c4acd917a58e0c110d857726872082`
 - Fix-round code tip before this evidence-only commit:
   `f8ce1c82f3499f752684e51735ed4b78ab38bed2`
-- Safe-tip state: `.env.production` is absent, so the canonical
-  `selection-authority-boot-gate` remains not activated.
-- Evidence binding: the commit after the safe code tip contains evidence only.
+- Activated state: `.env.production` contains only
+  `VITE_FLAG_SELECTION_AUTHORITY_BOOT_GATE=true`.
+- Evidence binding: the commit after the gate-tested activation commit contains
+  evidence only.
   This is checkable with:
 
   ```text
-  git diff --name-only f8ce1c82f3499f752684e51735ed4b78ab38bed2..HEAD
+  git diff --name-only 5dd4f06e567465dc7110e873cdbcc82b7c78c44e..HEAD
   prep/wave2-results/unification-sublane4-integration-activation.md
   src/platform/client-context/evidence/integration-activation-receipt.md
   ```
 
   The evidence commit cannot truthfully contain its own SHA. Its SHA is the
-  repository `HEAD`; the immutable code to which the checks apply is named
-  above.
+  repository `HEAD`; the immutable activated code to which the gate applies is
+  named above.
 
 ## Base and ancestry
 
@@ -318,6 +322,46 @@ for `src-tauri/target/debug/lantern`. This is consistent with the shared Cargo
 target setting. No third attempt was made because the brief caps attempts at
 two.
 
+### Coordinator-granted lint-cure rerun
+
+The new brief granted exactly one additional full activated gate attempt. The
+lane first replaced every lane-owned no-`await` async test double with an
+explicit promise-returning function. It used no ESLint suppression, baseline
+change, deleted behavior, weakened assertion, or skipped test. The cure was
+committed separately at `f4e58a9d8`, then the one-line production activation
+was reapplied at `5dd4f06e5`.
+
+The single permitted rerun used the corrected worktree-local Rust build folder:
+
+```text
+CARGO_TARGET_DIR=<worktree>/src-tauri/target npm run gate
+```
+
+Results at immutable activated SHA `5dd4f06e567465dc7110e873cdbcc82b7c78c44e`:
+
+```text
+Module boundaries: PASS (599 existing baseline findings; zero regression)
+Active CRM/client boundary: PASS
+Selection writer proof: PASS (14/14 plus whole-tree scan)
+Union registry and feature-flag cap: PASS
+Tauri version and TS/Rust command contracts: PASS
+TypeScript production and test typechecks: PASS
+Brand, identity, i18n completeness, and intake build: PASS
+Frontend unit suite: 1,145 files passed, 3 skipped;
+                     9,108 tests passed, 27 skipped
+ESLint gate: PASS — no regression; 63 baseline fingerprints cleaned
+Permanent-handle and design-token guards: PASS
+Rust workspace: PASS — core, integration, DOCX, vault, and doc tests
+Golden-loop binary provenance: source_sha=5dd4f06e567465dc7110e873cdbcc82b7c78c44e
+Golden loop: PASS write; PASS persistence after restart
+✅ GATE GREEN
+```
+
+The final desktop proof created
+`golden-loop-1784398350-586619.docx`, displayed it, restarted the app, and
+confirmed the same document remained visible. This closes the prior build-path
+failure without substituting an ad-hoc command for the canonical gate.
+
 ## Writer proof and fence
 
 The canonical gate's whole-tree selection writer checks passed before its
@@ -341,8 +385,9 @@ The earlier Opus SECURITY-PASS remains banked at `a51899f65` per the fix-round
 brief. This receipt does not claim that it reviewed the delta. The coordinator
 will run the required Opus delta verification over `a51899f65..f8ce1c82f`.
 
-Final fix-round status: **CHANGES-3 CURED, SAFE OFF, DELTA REVIEW PENDING.** The
-public barrel is gone; OFF-path outputs are gated and directly proven; every
-battery item and extension is mapped above. The earlier canonical activation
-gate remains honestly red and activation remains withheld. No third canonical
-gate attempt was made.
+Final status after the coordinator-granted rerun: **CHANGES-3 CURED,
+ACTIVATION ON, COMPLETE GATE GREEN, DELTA REVIEW PENDING.** The public barrel is
+gone; OFF-path outputs remain gated and directly proven; every battery item and
+extension is mapped above. The two earlier capped attempts remain honestly
+recorded as historical red results. The one newly granted attempt passed and
+is the governing final result.
