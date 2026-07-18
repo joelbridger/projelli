@@ -9,9 +9,12 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { flushSync } from 'react-dom';
 import {
-  useActiveMatter,
   SAMPLE_MATTER_ID,
 } from '@/platform/matter/matterStore';
+import {
+  readSelectionOperationDecision,
+  useSelectionOperationDecision,
+} from '@/platform/client-context';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import {
@@ -161,6 +164,12 @@ const ASK_RAIL_COLLAPSED_KEY = SK_ASK_RAIL_COLLAPSED;
  */
 const ASK_FILES_ONLY_KEY = SK_ASK_FILES_ONLY;
 
+const ASK_SELECTION_REQUEST = {
+  operationClass: 'matter-scoped',
+  allowAllMatters: true,
+  requireFollowerAgreement: true,
+} as const;
+
 /** How many prior exchanges are placed in the prompt's history block. The SAME
  *  window bounds transitive grounding, so a turn outside it can't mark the answer
  *  file-derived (Codex final review P2). */
@@ -226,7 +235,8 @@ export function useAsk({
   // The shipped Ask flow is a descriptor, not a special case in this hook.
   // Future modes contribute the same three contracts (scope, retrieval, prompt).
   const askMode = getAskMode(NORMAL_ASK_MODE);
-  const activeMatter = useActiveMatter();
+  const selection = useSelectionOperationDecision(ASK_SELECTION_REQUEST);
+  const activeMatter = selection.kind === 'matter' ? selection.matter : null;
   const hasActiveMatter = Boolean(activeMatter);
   const rootPath = useWorkspaceStore((s) => s.rootPath);
   const profession = useProfessionStore((s) => s.profession);
@@ -697,6 +707,13 @@ export function useAsk({
     async (overrideQuestion?: string) => {
       const q = (overrideQuestion ?? question).trim();
       if (!q || status === 'retrieving' || status === 'answering') return;
+
+      const currentSelection = readSelectionOperationDecision(ASK_SELECTION_REQUEST);
+      if (currentSelection.kind === 'refused') {
+        setErrorMsg(currentSelection.message);
+        setStatus('error');
+        return;
+      }
 
       abortRef.current?.abort();
       const abort = new AbortController();

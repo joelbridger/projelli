@@ -34,3 +34,14 @@ export {
   type SharedClientIdentity,
   type SharedClientSelectionInput,
 } from './clientContextStore';
+export {
+  expectedScopeFromDecision,
+  readSelectionOperationDecision,
+  resolveSelectionOperationDecision,
+  useSelectionOperationDecision,
+  type ExpectedSelectionScope,
+  type SelectionOperationClass,
+  type SelectionOperationDecision,
+  type SelectionOperationRequest,
+  type SelectionRefusalReason,
+} from './selectionReader';
