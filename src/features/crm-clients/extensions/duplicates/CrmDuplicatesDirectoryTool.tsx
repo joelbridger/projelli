@@ -112,11 +112,6 @@ export function CrmDuplicatesDirectoryTool({
     () => findLikelyDuplicateContacts(contactStore.listDirectory()),
     [contactStore]
   );
-  const openContact = async (ref: ContactRef) => {
-    const screen = await contactStore.resolve(ref);
-    if (!screen) throw new Error('Contact record is unavailable.');
-    context.legacyRepository.openHousehold(screen.ref.matterId);
-  };
   const saveDisposition = (
     match: DuplicateContactMatch,
     disposition: DuplicateReviewDisposition
@@ -158,7 +153,7 @@ export function CrmDuplicatesDirectoryTool({
                 onDisposition={(disposition) => {
                   saveDisposition(match, disposition);
                 }}
-                onOpen={openContact}
+                onOpen={(ref) => context.repository.openContact(ref)}
                 onOpenError={() => {
                   setOpenError(true);
                 }}

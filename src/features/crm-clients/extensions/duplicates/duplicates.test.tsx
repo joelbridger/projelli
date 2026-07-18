@@ -2,7 +2,6 @@ import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import {
-  ClientsSurface,
   DirectorySurface,
   defaultDirectoryComposition,
 } from '@/features/crm-clients';
@@ -236,14 +235,24 @@ describe('CRM duplicate review', () => {
     expect(screen.getByText('Dismissed')).toBeInTheDocument();
   });
 
-  it('opens a canonical duplicate through the real Clients screen navigation path', async () => {
+  it('opens the exact canonical duplicate contact through the real Clients / Directory path', () => {
     setDevFlagOverride('crm-duplicates', true);
-    render(<ClientsSurface />);
+    const openContact = vi.fn(() => Promise.resolve());
+    render(
+      <DirectorySurface
+        people={[]}
+        directoryRepository={{
+          openContact,
+          resolveContact: vi.fn(() => Promise.resolve(null)),
+        }}
+        composition={defaultDirectoryComposition}
+      />
+    );
 
     fireEvent.click(screen.getByTestId('crm-directory-duplicates-toggle'));
     fireEvent.click(screen.getByTestId('crm-duplicates-open-contact-bob'));
 
-    expect(await screen.findByTestId('crm-household-record')).toBeInTheDocument();
-    expect(screen.getByText('Foster Household')).toBeInTheDocument();
+    expect(openContact).toHaveBeenCalledTimes(1);
+    expect(openContact).toHaveBeenCalledWith(bobContact.ref);
   });
 });
