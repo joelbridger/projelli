@@ -1,0 +1,631 @@
+
+> advisor-prep-hero@3.3.5 gate:changed
+> bash scripts/gate-changed.sh
+
+Gate base: a47b0a5a97bcab08e695101e916991cfc737c3dd (merge base a47b0a5a97bcab08e695101e916991cfc737c3dd)
+Changed files: 19
+- evidence/self-check-receipt-81c29ed35455.txt: unclassified path; full Vitest selected
+- evidence/self-check-receipt-c5167f330f2a.txt: unclassified path; full Vitest selected
+- scripts/check-boundaries.mjs: unclassified path; full Vitest selected
+- src/features/ask/foundation/clientIsolation.test.ts: frontend source or unit tests changed
+- src/features/ask/foundation/clientSnapshotAuthority.ts: frontend source or unit tests changed
+- src/features/ask/foundation/contracts.ts: frontend source or unit tests changed
+- src/features/ask/foundation/conversation.live.test.tsx: frontend source or unit tests changed
+- src/features/ask/foundation/conversation.ts: frontend source or unit tests changed
+- src/features/ask/foundation/foundation.test.ts: frontend source or unit tests changed
+- src/features/ask/foundation/scope.ts: frontend source or unit tests changed
+- src/features/ask/index.ts: frontend source or unit tests changed
+- src/features/ask/sharedClientContextOwner.ts: frontend source or unit tests changed
+- src/features/ask/testing/index.ts: frontend source or unit tests changed
+- src/foundation-contracts/ask-producers/askProducers.test.ts: frontend source or unit tests changed
+- src/foundation-contracts/ask/askOwnerSnapshot.import.ts: frontend source or unit tests changed
+- src/foundation-contracts/ask/ownerFixture.ts: frontend source or unit tests changed
+- src/foundation-contracts/ask/staleUseIsolation.test.ts: frontend source or unit tests changed
+- src/foundation-contracts/client-context/pavedPath.import.ts: frontend source or unit tests changed
+- src/foundation-contracts/client-context/sharedClientContextBinding.test.ts: frontend source or unit tests changed
+Vitest: full suite (fail-closed)
+Contracts: always run by the changed gate
+Backend: not selected
+Rust packages: not selected
+
+===== Build assets =====
+copied node_modules/pdfjs-dist/build/pdf.worker.min.mjs -> public/pdf.worker.min.mjs
+copied node_modules/tesseract-wasm/dist/tesseract-worker.js -> public/ocr/tesseract-worker.js
+copied node_modules/tesseract-wasm/dist/tesseract-core.wasm -> public/ocr/tesseract-core.wasm
+copied node_modules/tesseract-wasm/dist/tesseract-core-fallback.wasm -> public/ocr/tesseract-core-fallback.wasm
+skipped public/ocr/eng.traineddata (present, checksum OK)
+
+===== Tauri version parity =====
+✅ Tauri version parity check passed (core pair, all plugin pairs, app version strings).
+
+===== Tauri TS/Rust command contracts =====
+Tauri contract warnings:
+  - capture_find_orphans: registered Rust command has no non-test TS invoke call yet
+  - capture_recover: registered Rust command has no non-test TS invoke call yet
+  - crm_approve_write_proposal: registered Rust command has no non-test TS invoke call yet
+  - crm_connect: registered Rust command has no non-test TS invoke call yet
+  - crm_create_note: registered Rust command has no non-test TS invoke call yet
+  - crm_create_task: registered Rust command has no non-test TS invoke call yet
+  - crm_live_upsert_many: registered Rust command has no non-test TS invoke call yet
+  - crm_migration_import: registered Rust command has no non-test TS invoke call yet
+  - crm_oauth_connect: registered Rust command has no non-test TS invoke call yet
+  - crm_sync_all: registered Rust command has no non-test TS invoke call yet
+  - crm_teams_roles_assign_member: registered Rust command has no non-test TS invoke call yet
+  - crm_teams_roles_create_role: registered Rust command has no non-test TS invoke call yet
+  - crm_teams_roles_create_team: registered Rust command has no non-test TS invoke call yet
+  - crm_teams_roles_delete_role: registered Rust command has no non-test TS invoke call yet
+  - crm_teams_roles_delete_team: registered Rust command has no non-test TS invoke call yet
+  - crm_teams_roles_get: registered Rust command has no non-test TS invoke call yet
+  - crm_teams_roles_update_role: registered Rust command has no non-test TS invoke call yet
+  - crm_teams_roles_update_team: registered Rust command has no non-test TS invoke call yet
+  - crm_update_field: registered Rust command has no non-test TS invoke call yet
+
+Tauri contract check passed: 75 TS invokes, 88 target registered Rust commands checked (302 total manifest commands).
+
+===== Provider front door =====
+✅ Provider construction: one front door (createProvider) — no drift.
+
+===== Consent-gate wiring =====
+✅ Consent-gate wiring: every file-content cloud sender is gated or explicitly vetted.
+
+===== Case-only filename collisions =====
+✅ No case-only filename collisions.
+
+===== TypeScript =====
+
+> advisor-prep-hero@3.3.5 typecheck
+> tsc --noEmit
+
+
+===== TypeScript (tests) =====
+
+> advisor-prep-hero@3.3.5 typecheck:tests
+> tsc -p tsconfig.test.json --noEmit
+
+
+===== Wire-contract suite =====
+
+> advisor-prep-hero@3.3.5 test:contracts
+> bash scripts/test-contracts.sh
+
+bun test v1.3.4 (5eb2145b)
+
+test/intake-e2e.test.ts:
+[startup] keepance-firm-backend listening on http://127.0.0.1:40561
+[startup] DB: :memory:
+[startup] seat-token public key fingerprint: 949203768f7a8698
+[zustand persist middleware] Unable to update item 'lantern:intakes', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'lantern:intakes', the given storage is currently unavailable.
+
+ 1 pass
+ 0 fail
+ 48 expect() calls
+Ran 1 test across 1 file. [143.00ms]
+✅ Intake wire-contract suite is green
+
+===== Brand sync =====
+
+> advisor-prep-hero@3.3.5 brand:check
+> node scripts/brand-sync.mjs --check
+
+[1mbrand-sync[0m — source: brand/brand.config.json   name: "Advisor Prep Hero"
+
+
+[1mLocked identifiers (read-only safety check)[0m
+  [2m·[0m [2mbundle id "com.lantern.app" intact[0m
+  [2m·[0m [2mupdater endpoint intact[0m
+  [2m·[0m [2mCargo binary name "lantern" intact[0m
+  [2m·[0m [2mkeychain service names intact[0m
+
+[1mbrand:check[0m — verifying generated files match brand/brand.config.json
+
+  [2m·[0m [2msrc/config/brand.ts up to date[0m
+  [2m·[0m [2mwebsite/styles/brand.css up to date[0m
+  [2m·[0m [2mglobals.css @brand:colors block up to date[0m
+  [2m·[0m [2mpublic/favicon.svg matches brand/assets/favicon.svg[0m
+  [2m·[0m [2mwebsite/favicon.svg matches brand/assets/favicon.svg[0m
+  [2m·[0m [2mpublic/logo.svg matches brand/assets/logo.svg[0m
+  [2m·[0m [2mpublic/logo-dark.svg matches brand/assets/logo.svg[0m
+  [2m·[0m [2mpublic/logo-white.svg matches brand/assets/logo-white.svg[0m
+  [2m·[0m [2mwebsite/logo-white.svg matches brand/assets/logo-white.svg[0m
+  [2m·[0m [2mwebsite/og-image.png matches brand/assets/og-image.png[0m
+  [2m·[0m [2msrc-tauri/icons/icon.png matches brand/assets/icon-source.png[0m
+  [2m·[0m [2mall shared-nav pages link brand.css[0m
+
+[32m✓ all generated brand files are in sync, and the locked identifiers are intact.[0m
+
+===== Identity check =====
+
+> advisor-prep-hero@3.3.5 identity:check
+> node scripts/identity-check.mjs
+
+
+Checking src/config/identity.ts …
+  pass  export KC_FIRM_NS
+  pass  export kcUserService
+  pass  export kcMatterService
+  pass  export KC_DEVICE_PREFIX
+  pass  export KC_DEVICE_META_SERVICE
+  pass  export SK_SETTINGS
+  pass  export SK_MATTERS
+  pass  export SK_FIRM_SESSION
+  pass  export SK_PRIVILEGE
+  pass  export SK_PROFILE
+  pass  export EV_OPEN_EMAIL
+  pass  export EV_OPEN_MATTER_MANAGER
+  pass  export EV_MATTER_LAUNCH
+  pass  export EV_TRASH_CHANGED
+  pass  export EV_DEMO_LIMIT_HIT
+
+Checking src-tauri/src/identity.rs …
+  pass  pub const/fn APP_NS
+  pass  pub const/fn KC_FIRM_NS
+  pass  pub const/fn DEFAULT_KEYCHAIN_SERVICE
+  pass  pub const/fn VAULT_KEYCHAIN_PREFIX
+  pass  pub const/fn AUDIT_ENC_SERVICE
+  pass  pub const/fn MAIL_ENC_SERVICE
+  pass  pub const/fn VECTORS_ENC_SERVICE
+  pass  pub const/fn MAIL_MS_SERVICE
+  pass  pub const/fn MAIL_IMAP_SERVICE
+  pass  pub const/fn MAIL_GMAIL_SERVICE
+  pass  pub const/fn DOCS_MS_SERVICE
+  pass  pub const/fn ONEDRIVE_ENC_SERVICE
+  pass  pub const/fn CRM_ENC_SERVICE
+  pass  pub const/fn CRM_SERVICE_PREFIX
+  pass  pub const/fn WEALTHBOX_LEGACY_SERVICE
+  pass  pub const/fn WORKSPACE_DATA_DIR
+  pass  pub const/fn VAULT_META_FILE
+  pass  pub const/fn OS_DATA_SUBDIR
+  pass  pub const/fn MCP_SERVER_NAME
+  pass  pub const/fn MCP_APPROVAL_TEMP_PREFIX
+  pass  pub const/fn MCP_APPROVAL_MARKER
+  pass  APP_NS is consistent between TS and RS
+
+Checking for stray inline identity strings in call sites …
+  pass  no stray inline keepance: literals in src/ TS files
+
+identity:check PASSED
+
+===== ESLint gate =====
+
+> advisor-prep-hero@3.3.5 lint:gate
+> node scripts/eslint-gate.mjs
+
+
+❌ ESLint regression: 1 new/increased finding(s) vs baseline:
+
+  +1  [@typescript-eslint/no-unnecessary-type-assertion]  src/features/ask/foundation/conversation.ts
+        This assertion is unnecessary since it does not change the type of the expression.
+
+Fix the new findings, or if intentional run: npm run lint:gate -- --update-baseline
+❌ FAILED: npm run lint:gate
+
+===== Unit tests (full; conservative trigger) =====
+
+ RUN  v4.1.3 /home/jameson/lantern/app/integration/.worktrees/v1/w2-ask-owner-snapshot
+
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLMediaElement's pause() method
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLMediaElement's pause() method
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLMediaElement's pause() method
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLMediaElement's pause() method
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLMediaElement's pause() method
+Error: home surface boom (simulated, no per-surface boundary)
+    at CrmHome (/home/jameson/lantern/app/integration/.worktrees/v1/w2-ask-owner-snapshot/src/app/shell/AppShellSurvivesSurfaceCrash.test.tsx:46:11)
+    at renderWithHooks (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:15486:18)
+    at mountIndeterminateComponent (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:20103:13)
+    at beginWork (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:21626:16)
+    at HTMLUnknownElement.callCallback (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:4164:14)
+    at HTMLUnknownElement.callTheUserObjectsOperation (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/generated/EventListener.js:26:30)
+    at innerInvokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:360:16)
+    at invokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:296:3)
+    at HTMLUnknownElementImpl._dispatch (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:243:9)
+    at HTMLUnknownElementImpl.dispatchEvent (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:114:17)
+    at HTMLUnknownElement.dispatchEvent (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/generated/EventTarget.js:241:34)
+    at Object.invokeGuardedCallbackDev (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:4213:16)
+    at invokeGuardedCallback (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:4277:31)
+    at beginWork$1 (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:27490:7)
+    at performUnitOfWork (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:26599:12)
+    at workLoopSync (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:26505:5)
+Error: home surface boom (simulated, no per-surface boundary)
+    at CrmHome (/home/jameson/lantern/app/integration/.worktrees/v1/w2-ask-owner-snapshot/src/app/shell/AppShellSurvivesSurfaceCrash.test.tsx:46:11)
+    at renderWithHooks (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:15486:18)
+    at mountIndeterminateComponent (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:20103:13)
+    at beginWork (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:21626:16)
+    at HTMLUnknownElement.callCallback (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:4164:14)
+    at HTMLUnknownElement.callTheUserObjectsOperation (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/generated/EventListener.js:26:30)
+    at innerInvokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:360:16)
+    at invokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:296:3)
+    at HTMLUnknownElementImpl._dispatch (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:243:9)
+    at HTMLUnknownElementImpl.dispatchEvent (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:114:17)
+    at HTMLUnknownElement.dispatchEvent (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/generated/EventTarget.js:241:34)
+    at Object.invokeGuardedCallbackDev (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:4213:16)
+    at invokeGuardedCallback (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:4277:31)
+    at beginWork$1 (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:27490:7)
+    at performUnitOfWork (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:26599:12)
+    at workLoopSync (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:26505:5)
+Error: ask conversation boom (simulated, no citation popup involved)
+    at CrmAskSurface (/home/jameson/lantern/app/integration/.worktrees/v1/w2-ask-owner-snapshot/src/app/shell/AppShellSurvivesSurfaceCrash.test.tsx:55:11)
+    at renderWithHooks (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:15486:18)
+    at mountIndeterminateComponent (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:20103:13)
+    at beginWork (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:21626:16)
+    at HTMLUnknownElement.callCallback (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:4164:14)
+    at HTMLUnknownElement.callTheUserObjectsOperation (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/generated/EventListener.js:26:30)
+    at innerInvokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:360:16)
+    at invokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:296:3)
+    at HTMLUnknownElementImpl._dispatch (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:243:9)
+    at HTMLUnknownElementImpl.dispatchEvent (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:114:17)
+    at HTMLUnknownElement.dispatchEvent (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/generated/EventTarget.js:241:34)
+    at Object.invokeGuardedCallbackDev (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:4213:16)
+    at invokeGuardedCallback (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:4277:31)
+    at beginWork$1 (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:27490:7)
+    at performUnitOfWork (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:26599:12)
+    at workLoopSync (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:26505:5)
+Error: ask conversation boom (simulated, no citation popup involved)
+    at CrmAskSurface (/home/jameson/lantern/app/integration/.worktrees/v1/w2-ask-owner-snapshot/src/app/shell/AppShellSurvivesSurfaceCrash.test.tsx:55:11)
+    at renderWithHooks (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:15486:18)
+    at mountIndeterminateComponent (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:20103:13)
+    at beginWork (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:21626:16)
+    at HTMLUnknownElement.callCallback (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:4164:14)
+    at HTMLUnknownElement.callTheUserObjectsOperation (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/generated/EventListener.js:26:30)
+    at innerInvokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:360:16)
+    at invokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:296:3)
+    at HTMLUnknownElementImpl._dispatch (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:243:9)
+    at HTMLUnknownElementImpl.dispatchEvent (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:114:17)
+    at HTMLUnknownElement.dispatchEvent (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/generated/EventTarget.js:241:34)
+    at Object.invokeGuardedCallbackDev (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:4213:16)
+    at invokeGuardedCallback (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:4277:31)
+    at beginWork$1 (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:27490:7)
+    at performUnitOfWork (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:26599:12)
+    at workLoopSync (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:26505:5)
+Error: home surface boom (simulated, no per-surface boundary)
+    at CrmHome (/home/jameson/lantern/app/integration/.worktrees/v1/w2-ask-owner-snapshot/src/app/shell/AppShellSurvivesSurfaceCrash.test.tsx:46:11)
+    at renderWithHooks (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:15486:18)
+    at mountIndeterminateComponent (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:20103:13)
+    at beginWork (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:21626:16)
+    at HTMLUnknownElement.callCallback (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:4164:14)
+    at HTMLUnknownElement.callTheUserObjectsOperation (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/generated/EventListener.js:26:30)
+    at innerInvokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:360:16)
+    at invokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:296:3)
+    at HTMLUnknownElementImpl._dispatch (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:243:9)
+    at HTMLUnknownElementImpl.dispatchEvent (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:114:17)
+    at HTMLUnknownElement.dispatchEvent (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/generated/EventTarget.js:241:34)
+    at Object.invokeGuardedCallbackDev (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:4213:16)
+    at invokeGuardedCallback (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:4277:31)
+    at beginWork$1 (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:27490:7)
+    at performUnitOfWork (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:26599:12)
+    at workLoopSync (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:26505:5)
+Error: home surface boom (simulated, no per-surface boundary)
+    at CrmHome (/home/jameson/lantern/app/integration/.worktrees/v1/w2-ask-owner-snapshot/src/app/shell/AppShellSurvivesSurfaceCrash.test.tsx:46:11)
+    at renderWithHooks (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:15486:18)
+    at mountIndeterminateComponent (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:20103:13)
+    at beginWork (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:21626:16)
+    at HTMLUnknownElement.callCallback (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:4164:14)
+    at HTMLUnknownElement.callTheUserObjectsOperation (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/generated/EventListener.js:26:30)
+    at innerInvokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:360:16)
+    at invokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:296:3)
+    at HTMLUnknownElementImpl._dispatch (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:243:9)
+    at HTMLUnknownElementImpl.dispatchEvent (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:114:17)
+    at HTMLUnknownElement.dispatchEvent (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/generated/EventTarget.js:241:34)
+    at Object.invokeGuardedCallbackDev (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:4213:16)
+    at invokeGuardedCallback (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:4277:31)
+    at beginWork$1 (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:27490:7)
+    at performUnitOfWork (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:26599:12)
+    at workLoopSync (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:26505:5)
+Error: ERR_INSUFFICIENT_RESOURCES
+    at /home/jameson/lantern/app/integration/.worktrees/v1/w2-ask-owner-snapshot/tests/unit/ui/LazyBoundary.test.tsx:32:50
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+    at new Promise (<anonymous>)
+    at runWithCancel (file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64
+Error: ERR_INSUFFICIENT_RESOURCES
+    at /home/jameson/lantern/app/integration/.worktrees/v1/w2-ask-owner-snapshot/tests/unit/ui/LazyBoundary.test.tsx:32:50
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+    at new Promise (<anonymous>)
+    at runWithCancel (file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64
+Error: chunk load failed
+    at /home/jameson/lantern/app/integration/.worktrees/v1/w2-ask-owner-snapshot/tests/unit/ui/LazyBoundary.test.tsx:56:30
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+    at new Promise (<anonymous>)
+    at runWithCancel (file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64
+Error: chunk load failed
+    at /home/jameson/lantern/app/integration/.worktrees/v1/w2-ask-owner-snapshot/tests/unit/ui/LazyBoundary.test.tsx:56:30
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+    at new Promise (<anonymous>)
+    at runWithCancel (file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64
+Error: first failure
+    at /home/jameson/lantern/app/integration/.worktrees/v1/w2-ask-owner-snapshot/tests/unit/ui/LazyBoundary.test.tsx:78:30
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+    at new Promise (<anonymous>)
+    at runWithCancel (file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64
+Error: first failure
+    at /home/jameson/lantern/app/integration/.worktrees/v1/w2-ask-owner-snapshot/tests/unit/ui/LazyBoundary.test.tsx:78:30
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+    at new Promise (<anonymous>)
+    at runWithCancel (file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64
+Error: second failure
+    at /home/jameson/lantern/app/integration/.worktrees/v1/w2-ask-owner-snapshot/tests/unit/ui/LazyBoundary.test.tsx:79:30
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+    at new Promise (<anonymous>)
+    at runWithCancel (file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64
+Error: second failure
+    at /home/jameson/lantern/app/integration/.worktrees/v1/w2-ask-owner-snapshot/tests/unit/ui/LazyBoundary.test.tsx:79:30
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+    at new Promise (<anonymous>)
+    at runWithCancel (file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64
+Error: render kaboom
+    at Boom (/home/jameson/lantern/app/integration/.worktrees/v1/w2-ask-owner-snapshot/tests/unit/ui/LazyBoundary.test.tsx:100:13)
+    at renderWithHooks (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:15486:18)
+    at updateFunctionComponent (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:19617:20)
+    at mountLazyComponent (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:19988:17)
+    at beginWork (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:21632:16)
+    at HTMLUnknownElement.callCallback (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:4164:14)
+    at HTMLUnknownElement.callTheUserObjectsOperation (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/generated/EventListener.js:26:30)
+    at innerInvokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:360:16)
+    at invokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:296:3)
+    at HTMLUnknownElementImpl._dispatch (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:243:9)
+Error: render kaboom
+    at Boom (/home/jameson/lantern/app/integration/.worktrees/v1/w2-ask-owner-snapshot/tests/unit/ui/LazyBoundary.test.tsx:100:13)
+    at renderWithHooks (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:15486:18)
+    at updateFunctionComponent (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:19617:20)
+    at mountLazyComponent (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:19988:17)
+    at beginWork (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:21632:16)
+    at HTMLUnknownElement.callCallback (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:4164:14)
+    at HTMLUnknownElement.callTheUserObjectsOperation (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/generated/EventListener.js:26:30)
+    at innerInvokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:360:16)
+    at invokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:296:3)
+    at HTMLUnknownElementImpl._dispatch (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:243:9)
+Error: corrupt file A
+    at FileViewer (/home/jameson/lantern/app/integration/.worktrees/v1/w2-ask-owner-snapshot/tests/unit/ui/LazyBoundary.test.tsx:119:40)
+    at renderWithHooks (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:15486:18)
+    at updateFunctionComponent (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:19617:20)
+    at mountLazyComponent (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:19988:17)
+    at beginWork (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:21632:16)
+    at HTMLUnknownElement.callCallback (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:4164:14)
+    at HTMLUnknownElement.callTheUserObjectsOperation (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/generated/EventListener.js:26:30)
+    at innerInvokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:360:16)
+    at invokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:296:3)
+    at HTMLUnknownElementImpl._dispatch (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:243:9)
+Error: corrupt file A
+    at FileViewer (/home/jameson/lantern/app/integration/.worktrees/v1/w2-ask-owner-snapshot/tests/unit/ui/LazyBoundary.test.tsx:119:40)
+    at renderWithHooks (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:15486:18)
+    at updateFunctionComponent (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:19617:20)
+    at mountLazyComponent (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:19988:17)
+    at beginWork (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:21632:16)
+    at HTMLUnknownElement.callCallback (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:4164:14)
+    at HTMLUnknownElement.callTheUserObjectsOperation (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/generated/EventListener.js:26:30)
+    at innerInvokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:360:16)
+    at invokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:296:3)
+    at HTMLUnknownElementImpl._dispatch (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:243:9)
+Error: A failed
+    at /home/jameson/lantern/app/integration/.worktrees/v1/w2-ask-owner-snapshot/tests/unit/ui/LazyBoundary.test.tsx:167:51
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+    at new Promise (<anonymous>)
+    at runWithCancel (file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64
+Error: A failed
+    at /home/jameson/lantern/app/integration/.worktrees/v1/w2-ask-owner-snapshot/tests/unit/ui/LazyBoundary.test.tsx:167:51
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+    at new Promise (<anonymous>)
+    at runWithCancel (file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64
+Error: boom
+    at /home/jameson/lantern/app/integration/.worktrees/v1/w2-ask-owner-snapshot/tests/unit/ui/LazyBoundary.test.tsx:185:50
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+    at new Promise (<anonymous>)
+    at runWithCancel (file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64
+Error: boom
+    at /home/jameson/lantern/app/integration/.worktrees/v1/w2-ask-owner-snapshot/tests/unit/ui/LazyBoundary.test.tsx:185:50
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+    at new Promise (<anonymous>)
+    at runWithCancel (file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)
+    at file:///home/jameson/lantern/app/integration/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64
+Error: kaboom
+    at Boom (/home/jameson/lantern/app/integration/.worktrees/v1/w2-ask-owner-snapshot/tests/unit/ui/ErrorBoundary.test.tsx:15:19)
+    at renderWithHooks (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:15486:18)
+    at mountIndeterminateComponent (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:20103:13)
+    at beginWork (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:21626:16)
+    at HTMLUnknownElement.callCallback (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:4164:14)
+    at HTMLUnknownElement.callTheUserObjectsOperation (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/generated/EventListener.js:26:30)
+    at innerInvokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:360:16)
+    at invokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:296:3)
+    at HTMLUnknownElementImpl._dispatch (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:243:9)
+    at HTMLUnknownElementImpl.dispatchEvent (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:114:17)
+Error: kaboom
+    at Boom (/home/jameson/lantern/app/integration/.worktrees/v1/w2-ask-owner-snapshot/tests/unit/ui/ErrorBoundary.test.tsx:15:19)
+    at renderWithHooks (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:15486:18)
+    at mountIndeterminateComponent (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:20103:13)
+    at beginWork (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:21626:16)
+    at HTMLUnknownElement.callCallback (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:4164:14)
+    at HTMLUnknownElement.callTheUserObjectsOperation (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/generated/EventListener.js:26:30)
+    at innerInvokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:360:16)
+    at invokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:296:3)
+    at HTMLUnknownElementImpl._dispatch (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:243:9)
+    at HTMLUnknownElementImpl.dispatchEvent (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:114:17)
+Error: kaboom
+    at Boom (/home/jameson/lantern/app/integration/.worktrees/v1/w2-ask-owner-snapshot/tests/unit/ui/ErrorBoundary.test.tsx:15:19)
+    at renderWithHooks (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:15486:18)
+    at mountIndeterminateComponent (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:20103:13)
+    at beginWork (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:21626:16)
+    at HTMLUnknownElement.callCallback (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:4164:14)
+    at HTMLUnknownElement.callTheUserObjectsOperation (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/generated/EventListener.js:26:30)
+    at innerInvokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:360:16)
+    at invokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:296:3)
+    at HTMLUnknownElementImpl._dispatch (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:243:9)
+    at HTMLUnknownElementImpl.dispatchEvent (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:114:17)
+Error: kaboom
+    at Boom (/home/jameson/lantern/app/integration/.worktrees/v1/w2-ask-owner-snapshot/tests/unit/ui/ErrorBoundary.test.tsx:15:19)
+    at renderWithHooks (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:15486:18)
+    at mountIndeterminateComponent (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:20103:13)
+    at beginWork (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:21626:16)
+    at HTMLUnknownElement.callCallback (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:4164:14)
+    at HTMLUnknownElement.callTheUserObjectsOperation (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/generated/EventListener.js:26:30)
+    at innerInvokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:360:16)
+    at invokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:296:3)
+    at HTMLUnknownElementImpl._dispatch (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:243:9)
+    at HTMLUnknownElementImpl.dispatchEvent (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:114:17)
+Error: kaboom
+    at Boom (/home/jameson/lantern/app/integration/.worktrees/v1/w2-ask-owner-snapshot/tests/unit/ui/ErrorBoundary.test.tsx:15:19)
+    at renderWithHooks (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:15486:18)
+    at mountIndeterminateComponent (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:20103:13)
+    at beginWork (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:21626:16)
+    at HTMLUnknownElement.callCallback (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:4164:14)
+    at HTMLUnknownElement.callTheUserObjectsOperation (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/generated/EventListener.js:26:30)
+    at innerInvokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:360:16)
+    at invokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:296:3)
+    at HTMLUnknownElementImpl._dispatch (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:243:9)
+    at HTMLUnknownElementImpl.dispatchEvent (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:114:17)
+Error: kaboom
+    at Boom (/home/jameson/lantern/app/integration/.worktrees/v1/w2-ask-owner-snapshot/tests/unit/ui/ErrorBoundary.test.tsx:15:19)
+    at renderWithHooks (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:15486:18)
+    at mountIndeterminateComponent (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:20103:13)
+    at beginWork (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:21626:16)
+    at HTMLUnknownElement.callCallback (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:4164:14)
+    at HTMLUnknownElement.callTheUserObjectsOperation (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/generated/EventListener.js:26:30)
+    at innerInvokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:360:16)
+    at invokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:296:3)
+    at HTMLUnknownElementImpl._dispatch (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:243:9)
+    at HTMLUnknownElementImpl.dispatchEvent (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:114:17)
+Error: boom
+    at Controlled (/home/jameson/lantern/app/integration/.worktrees/v1/w2-ask-owner-snapshot/tests/unit/ui/ErrorBoundary.test.tsx:78:33)
+    at renderWithHooks (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:15486:18)
+    at mountIndeterminateComponent (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:20103:13)
+    at beginWork (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:21626:16)
+    at HTMLUnknownElement.callCallback (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:4164:14)
+    at HTMLUnknownElement.callTheUserObjectsOperation (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/generated/EventListener.js:26:30)
+    at innerInvokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:360:16)
+    at invokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:296:3)
+    at HTMLUnknownElementImpl._dispatch (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:243:9)
+    at HTMLUnknownElementImpl.dispatchEvent (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:114:17)
+Error: boom
+    at Controlled (/home/jameson/lantern/app/integration/.worktrees/v1/w2-ask-owner-snapshot/tests/unit/ui/ErrorBoundary.test.tsx:78:33)
+    at renderWithHooks (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:15486:18)
+    at mountIndeterminateComponent (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:20103:13)
+    at beginWork (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:21626:16)
+    at HTMLUnknownElement.callCallback (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:4164:14)
+    at HTMLUnknownElement.callTheUserObjectsOperation (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/generated/EventListener.js:26:30)
+    at innerInvokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:360:16)
+    at invokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:296:3)
+    at HTMLUnknownElementImpl._dispatch (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:243:9)
+    at HTMLUnknownElementImpl.dispatchEvent (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:114:17)
+Error: citation-popup boom (simulated)
+    at CrmAskSurface (/home/jameson/lantern/app/integration/.worktrees/v1/w2-ask-owner-snapshot/src/app/shell/AppSurfaceRouter.askCrash.test.tsx:26:11)
+    at renderWithHooks (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:15486:18)
+    at mountIndeterminateComponent (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:20103:13)
+    at beginWork (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:21626:16)
+    at HTMLUnknownElement.callCallback (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:4164:14)
+    at HTMLUnknownElement.callTheUserObjectsOperation (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/generated/EventListener.js:26:30)
+    at innerInvokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:360:16)
+    at invokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:296:3)
+    at HTMLUnknownElementImpl._dispatch (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:243:9)
+    at HTMLUnknownElementImpl.dispatchEvent (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:114:17)
+    at HTMLUnknownElement.dispatchEvent (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/generated/EventTarget.js:241:34)
+    at Object.invokeGuardedCallbackDev (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:4213:16)
+    at invokeGuardedCallback (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:4277:31)
+    at beginWork$1 (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:27490:7)
+    at performUnitOfWork (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:26599:12)
+    at workLoopSync (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:26505:5)
+Error: citation-popup boom (simulated)
+    at CrmAskSurface (/home/jameson/lantern/app/integration/.worktrees/v1/w2-ask-owner-snapshot/src/app/shell/AppSurfaceRouter.askCrash.test.tsx:26:11)
+    at renderWithHooks (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:15486:18)
+    at mountIndeterminateComponent (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:20103:13)
+    at beginWork (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:21626:16)
+    at HTMLUnknownElement.callCallback (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:4164:14)
+    at HTMLUnknownElement.callTheUserObjectsOperation (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/generated/EventListener.js:26:30)
+    at innerInvokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:360:16)
+    at invokeEventListeners (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:296:3)
+    at HTMLUnknownElementImpl._dispatch (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:243:9)
+    at HTMLUnknownElementImpl.dispatchEvent (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:114:17)
+    at HTMLUnknownElement.dispatchEvent (/home/jameson/lantern/app/integration/node_modules/jsdom/lib/jsdom/living/generated/EventTarget.js:241:34)
+    at Object.invokeGuardedCallbackDev (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:4213:16)
+    at invokeGuardedCallback (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:4277:31)
+    at beginWork$1 (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:27490:7)
+    at performUnitOfWork (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:26599:12)
+    at workLoopSync (/home/jameson/lantern/app/integration/node_modules/react-dom/cjs/react-dom.development.js:26505:5)
+Not implemented: navigation to another Document
+Not implemented: navigation to another Document
+Not implemented: navigation to another Document
+Not implemented: navigation to another Document
+Not implemented: navigation to another Document
+Not implemented: navigation to another Document
+Not implemented: navigation to another Document
+[es] batch 1/1 (3 keys)... [es] batch 1/1 (1 keys)... [es] batch 1/2 (5 keys)... [es] batch 2/2 (2 keys)... 
+ Test Files  1119 passed | 3 skipped (1122)
+      Tests  8929 passed | 29 skipped (8958)
+   Start at  00:30:05
+   Duration  328.93s (transform 23.97s, setup 155.56s, import 469.44s, tests 204.37s, environment 368.01s)
+
+
+❌ CHANGED GATE RED — see failures above
