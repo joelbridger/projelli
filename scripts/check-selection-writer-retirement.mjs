@@ -29,6 +29,80 @@ const REVIEWED_EXTERNAL_MATTER_SET_STATE = new Set([
   'src/platform/state/reloadWorkspaceScopedStores.ts',
 ]);
 
+// Key-anchored persisted-follower proof. SK_MATTERS is the Zustand persist
+// name, and `lantern:matters` is its resolved storage key. The old
+// `keepance:matters` spelling remains in a few named demo tools, so it is part
+// of the same sink boundary until those tools disappear. Detection deliberately
+// keys off this sink rather than trying to enumerate storage APIs: a new
+// localStorage/sessionStorage/IndexedDB/cookie/filesystem shape still has to
+// identify the matters key somewhere in its source.
+export const PERSISTED_FOLLOWER_KEY_SYMBOL = 'SK_MATTERS';
+export const PERSISTED_FOLLOWER_PERSIST_NAME = 'lantern:matters';
+const PERSISTED_FOLLOWER_KEY_IDENTIFIERS = new Set([
+  PERSISTED_FOLLOWER_KEY_SYMBOL,
+  'MATTERS_KEY',
+]);
+const PERSISTED_FOLLOWER_KEY_LITERALS = new Set([
+  PERSISTED_FOLLOWER_PERSIST_NAME,
+  'keepance:matters',
+]);
+
+const SANCTIONED_RUNTIME_PERSISTED_KEY_MODULES = new Map([
+  [
+    'src/config/identity.ts',
+    'defines SK_MATTERS, the persisted follower sink name; it does not write follower state',
+  ],
+  [
+    'src/platform/matter/matterStore.ts',
+    'sanctioned persistence owner; saved selection is only a hint that boot re-classifies',
+  ],
+]);
+
+// REASSESSMENT ADDENDUM: authority is never persisted. Each named seed writes
+// only an initial HINT; the boot classifier re-derives authority from current
+// data, so a seed cannot grant authority. This is intentionally a per-file
+// allowlist, never a scripts/demo pattern exception.
+const PERSISTED_HINT_SEED_SCRIPT_ALLOWLIST = new Map([
+  [
+    'scripts/demo/legion-reset.mjs',
+    'REASSESSMENT ADDENDUM: clean-slate demo seed writes a hint, not authority; boot re-classifies it',
+  ],
+  [
+    'scripts/demo/legion-seed.mjs',
+    'REASSESSMENT ADDENDUM: Northcrest demo seed writes a hint, not authority; boot re-classifies it',
+  ],
+  [
+    'scripts/demo/reset-loaded.mjs',
+    'REASSESSMENT ADDENDUM: captured demo seed contains a hint, not authority; boot re-classifies it',
+  ],
+  [
+    'scripts/robot/verbs/reset.mjs',
+    'REASSESSMENT ADDENDUM: robot reset seed writes a hint, not authority; boot re-classifies it',
+  ],
+]);
+
+// Read-only tools also name the key. Keep them individually accounted for so
+// the key anchor remains fail-closed: any new script reference, read or write,
+// is rejected until it receives a line-by-line review and a named rationale.
+const READ_ONLY_PERSISTED_KEY_SCRIPT_ALLOWLIST = new Map([
+  [
+    'scripts/check-selection-writer-retirement.mjs',
+    'proof-owned anchor declarations and matching logic; no persisted-state access',
+  ],
+  ['scripts/demo/bench-ask-matter.mjs', 'read-only active-selection verification'],
+  ['scripts/demo/bench-clear-active.mjs', 'read-only verification after selecting All through the app'],
+  ['scripts/demo/bench-open-northcrest.mjs', 'read-only post-open verification'],
+  ['scripts/demo/bench-probe.mjs', 'read-only persisted-state probe'],
+  ['scripts/demo/bench-reopen-recent.mjs', 'read-only post-reopen verification'],
+  ['scripts/demo/bench-reopen.mjs', 'read-only post-reopen verification'],
+  ['scripts/demo/bench-tag-emails-bridge.mjs', 'read-only matter/mail mapping bridge probe'],
+  ['scripts/demo/bench-tag-emails.mjs', 'read-only matter/mail mapping capture'],
+  ['scripts/demo/legion-purge-residue.mjs', 'read-only post-purge key-presence check'],
+  ['scripts/demo/legion-state.mjs', 'read-only demo-state inventory'],
+  ['scripts/demo/select-all-clients.mjs', 'read-only verification of the sealed All selection request'],
+  ['scripts/lib/scopedStorage.mjs', 'read-only workspace-scoped storage helper'],
+]);
+
 function memberCall(node, sourceFile) {
   if (ts.isPropertyAccessExpression(node.expression)) {
     return {
@@ -89,6 +163,28 @@ function enclosingIfText(node, sourceFile) {
   return '';
 }
 
+function persistedFollowerKeyReference(node) {
+  if (
+    ts.isIdentifier(node) &&
+    PERSISTED_FOLLOWER_KEY_IDENTIFIERS.has(node.text)
+  ) {
+    return node.text;
+  }
+  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+    const referencedKey = [...PERSISTED_FOLLOWER_KEY_LITERALS].find((key) =>
+      node.text.includes(key)
+    );
+    if (referencedKey) return referencedKey;
+  }
+  if (
+    ts.isRegularExpressionLiteral(node) &&
+    /(?:lantern|keepance).*matters/.test(node.text)
+  ) {
+    return node.text;
+  }
+  return null;
+}
+
 export function scanSelectionWriters(relativePath, source) {
   if (TEST_PATH.test(relativePath)) return { allowed: [], forbidden: [] };
   const sourceFile = ts.createSourceFile(
@@ -114,6 +210,26 @@ export function scanSelectionWriters(relativePath, source) {
   }
 
   function visit(node) {
+    const persistedKeyReference = persistedFollowerKeyReference(node);
+    if (persistedKeyReference !== null) {
+      const runtimeReason = SANCTIONED_RUNTIME_PERSISTED_KEY_MODULES.get(relativePath);
+      const seedReason = PERSISTED_HINT_SEED_SCRIPT_ALLOWLIST.get(relativePath);
+      const readOnlyReason = READ_ONLY_PERSISTED_KEY_SCRIPT_ALLOWLIST.get(relativePath);
+      if (runtimeReason) {
+        record(node, 'allowed', `persisted follower key ${persistedKeyReference}: ${runtimeReason}`);
+      } else if (seedReason) {
+        record(node, 'allowed', `persisted follower key ${persistedKeyReference}: ${seedReason}`);
+      } else if (readOnlyReason) {
+        record(node, 'allowed', `persisted follower key ${persistedKeyReference}: ${readOnlyReason}`);
+      } else {
+        record(
+          node,
+          'forbidden',
+          `unreviewed persisted follower key ${persistedKeyReference}; only the sanctioned owner or a named script may reference it`
+        );
+      }
+    }
+
     if (
       ts.isBinaryExpression(node) &&
       ASSIGNMENT_OPERATORS.has(node.operatorToken.kind) &&
@@ -284,6 +400,8 @@ if (invokedDirectly) {
     for (const entry of result.forbidden) console.error(`FORBID ${entry}`);
     process.exitCode = 1;
   } else {
-    console.log('PASS: one follower projection writer; zero direct client writers.');
+    console.log(
+      `PASS: one follower projection writer; zero direct client writers; zero unreviewed ${PERSISTED_FOLLOWER_KEY_SYMBOL} (${PERSISTED_FOLLOWER_PERSIST_NAME}) references.`
+    );
   }
 }
