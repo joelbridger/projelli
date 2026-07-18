@@ -5,6 +5,7 @@
  * display labels only and never become a second persistence model.
  */
 import type { EntityRef } from '@/platform/crm/types';
+import type { CrmOriginatingContextRef } from './routes';
 
 export type CrmFreshness = 'idle' | 'live' | 'syncing' | 'last-synced' | 'offline' | 'error';
 
@@ -34,6 +35,8 @@ export interface CrmTask {
   recurrenceLabel?: string | undefined;
   recurrence?: { freq: 'daily' | 'weekly' | 'monthly' | 'yearly'; interval: number; regenerateOnComplete: boolean } | undefined;
   contextRefs?: readonly string[] | undefined;
+  /** Client/contact relations retained from the record that opened this task. */
+  originatingContextRefs?: readonly CrmOriginatingContextRef[] | undefined;
   /** Read-only projection of existing workspace document pointers. */
   documentRefs?: readonly (EntityRef & { kind: 'document' })[] | undefined;
 }

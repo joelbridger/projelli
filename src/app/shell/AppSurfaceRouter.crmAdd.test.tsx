@@ -6,6 +6,8 @@ import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import { AppSurfaceRouter, type AppSurfaceRouterProps } from './AppSurfaceRouter';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { setDevFlagOverride } from '@/platform/flags';
+import { registerHouseholdTab } from '@/features/crm-clients/tabRegistry';
+import { memberRailTab } from '@/features/crm-clients/extensions/record-member-kebab';
 
 const mail = vi.hoisted(() => ({
   desktop: true,
@@ -40,7 +42,15 @@ const records: readonly LiveCrmRecord[] = [
     serviceTier: 'Platinum',
     facts: [],
     accounts: [],
-    members: [],
+    members: [{
+      id: 'person-jordan',
+      name: 'Jordan Henderson',
+      personType: 'person',
+      roles: ['Client'],
+      householdRole: 'Spouse',
+      relatedHouseholds: 1,
+      emails: [{ id: 'email-jordan', address: 'jordan@example.com', kind: 'home', primary: true }],
+    }],
     externalParties: [],
     notes: [],
     customFields: [],
@@ -225,7 +235,49 @@ describe('CRM household add actions', () => {
     localStorage.clear();
     setDevFlagOverride('workflow-record-quickadd', undefined);
     setDevFlagOverride('crm-shell-v1', undefined);
+    setDevFlagOverride('record-member-kebab', undefined);
     useMatterStore.setState({ matters: [], activeMatterId: null });
+  });
+
+  it('saves both household and person context when Add task starts from a member record', async () => {
+    setDevFlagOverride('crm-shell-v1', false);
+    setDevFlagOverride('record-member-kebab', true);
+    const unregisterMemberTab = registerHouseholdTab(memberRailTab);
+    save.mockClear();
+    try {
+      render(<Harness />);
+
+      fireEvent.click(await screen.findByTestId('crm-household-tab-members'));
+      fireEvent.click(await screen.findByTestId('crm-household-member-kebab-person-jordan'));
+      fireEvent.click(screen.getByTestId('crm-household-member-task-person-jordan'));
+
+      expect(await screen.findByTestId('crm-task-detail')).toBeInTheDocument();
+      fireEvent.change(screen.getByTestId('crm-task-title-input'), {
+        target: { value: 'Call Jordan Henderson' },
+      });
+      fireEvent.click(screen.getByTestId('crm-task-save'));
+
+      await waitFor(() => {
+        const taskWrite = save.mock.calls.find(
+          ([record]) => record.kind === 'task' && record['title'] === 'Call Jordan Henderson',
+        );
+        expect(taskWrite?.[0]?.['contextRefs']).toEqual([
+          {
+            kind: 'household',
+            id: 'h-1',
+            matterId: 'h-1',
+          },
+          {
+            kind: 'person',
+            id: 'person-jordan',
+            matterId: 'h-1',
+            label: 'Jordan Henderson',
+          },
+        ]);
+      });
+    } finally {
+      unregisterMemberTab();
+    }
   });
 
   it('starts once from the public household workflow action and does not replay on revisit', async () => {
@@ -303,7 +355,7 @@ describe('CRM household add actions', () => {
 
       await waitFor(() => {
         const taskWrite = save.mock.calls.find(
-          ([record]) => record.kind === 'task' && record.title === 'Review Henderson plan',
+          ([record]) => record.kind === 'task' && record['title'] === 'Review Henderson plan',
         );
         expect(taskWrite?.[0]).toMatchObject({
           householdRef: {

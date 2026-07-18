@@ -20,6 +20,9 @@ function createTaskCreateV1Draft(
           householdId: related.householdId,
           householdLabel: related.householdLabel,
           contextRefs: [related.householdId],
+          ...(related.contextRefs
+            ? { originatingContextRefs: related.contextRefs }
+            : {}),
         }
       : { contextRefs: [] }),
     assigneeUserId: null,

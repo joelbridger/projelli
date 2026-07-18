@@ -14,6 +14,7 @@ import {
   CrmHome,
   type CrmHomeRoute,
   type CrmHouseholdAddRequest,
+  type CrmOriginatingContextRef,
 } from '@/features/crm-home';
 import { ClientsSurface, createDirectoryComposition } from '@/features/crm-clients';
 import { advisorFiltersDirectoryContribution } from '@/features/crm-clients/extensions/advisor-filters';
@@ -29,6 +30,35 @@ const directoryComposition = createDirectoryComposition(
   crmTagsRailDirectoryContribution,
   contactTableDirectoryContribution
 );
+
+const CRM_ADD_CONTACT_KINDS = new Set<CrmOriginatingContextRef['kind']>([
+  'household',
+  'person',
+  'organization',
+  'trust',
+]);
+
+function normalizeAddContextRefs(
+  request: AddToHouseholdRequest
+): readonly CrmOriginatingContextRef[] {
+  const matterId = request.householdRef.id.trim();
+  const seen = new Set<string>();
+  if (!matterId) return [];
+  return request.contextRefs.flatMap((ref) => {
+    if (!CRM_ADD_CONTACT_KINDS.has(ref.kind as CrmOriginatingContextRef['kind'])) return [];
+    const id = ref.id.trim();
+    const kind = ref.kind as CrmOriginatingContextRef['kind'];
+    const key = `${kind}:${id}`;
+    if (!id || seen.has(key)) return [];
+    seen.add(key);
+    return [{
+      kind,
+      id,
+      matterId,
+      ...(ref.label?.trim() ? { label: ref.label.trim() } : {}),
+    }];
+  });
+}
 import type { AddToHouseholdRequest, OpenMailSurfaceRequest } from '@/features/crm-clients/adapters';
 import type { EmailComposeHandoff } from '@/features/email/composeHandoff';
 import { CrmAskSurface } from '@/features/crm-ask';
@@ -612,6 +642,7 @@ export function AppSurfaceRouter(props: AppSurfaceRouterProps) {
             kind: request.kind,
             householdId: request.householdRef.id,
             householdLabel: request.householdRef.label ?? 'Untitled household',
+            contextRefs: normalizeAddContextRefs(request),
           });
           setSidebarActiveTab('home');
         },

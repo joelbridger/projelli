@@ -41,6 +41,25 @@ function tagIds(value: unknown): string[] {
   return [...new Set(value.filter((id): id is string => typeof id === 'string' && Boolean(id.trim())))];
 }
 
+function originatingContactRefs(task: CrmTask, matterId: string | null): EntityRef[] {
+  if (!matterId) return [];
+  const seen = new Set<string>();
+  return (task.originatingContextRefs ?? []).flatMap((ref) => {
+    if (ref.kind === 'household') return [];
+    const id = ref.id.trim();
+    if (!id || ref.matterId !== matterId) return [];
+    const key = `${ref.kind}:${id}`;
+    if (seen.has(key)) return [];
+    seen.add(key);
+    return [{
+      kind: ref.kind,
+      id,
+      matterId,
+      ...(ref.label?.trim() ? { label: ref.label.trim() } : {}),
+    }];
+  });
+}
+
 function householdIdFor(record: LiveCrmRecord): string | undefined {
   const householdRef = record['householdRef'];
   if (householdRef && typeof householdRef === 'object') {
@@ -130,9 +149,18 @@ export function mergeCrmTaskRecord(
   const householdRef = householdId
     ? { kind: 'household' as const, id: householdId, matterId: householdMatterId }
     : null;
-  const retainedRelations = currentRefs.filter(
+  const existingRelations = currentRefs.filter(
     (ref) => ref.kind !== 'household' && ref.kind !== 'document'
   );
+  const retainedRelations = [...existingRelations];
+  const relationKeys = new Set(existingRelations.map((ref) => `${ref.kind}:${ref.id}`));
+  for (const ref of originatingContactRefs(task, householdMatterId ?? null)) {
+    const key = `${ref.kind}:${ref.id}`;
+    if (!relationKeys.has(key)) {
+      relationKeys.add(key);
+      retainedRelations.push(ref);
+    }
+  }
   const retainedDocuments = task.documentRefs === undefined
     ? documentRefs(currentRefs)
     : documentRefs(task.documentRefs);
