@@ -23,6 +23,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { chromium } from 'playwright';
+import { withBrowserLaunchOptions } from '../../browser-launch.mjs';
 
 // ────────────────────────────────────────────────────────────────────────
 // Types
@@ -211,7 +212,7 @@ const PROJELLI_LOGO_WHITE_SVG = `<svg viewBox="0 0 2697 727" fill="none" xmlns="
  * brand logo + text).
  */
 async function renderHtmlPng(html: string, outPath: string, width: number, height: number): Promise<void> {
-  const browser = await chromium.launch();
+  const browser = await chromium.launch(withBrowserLaunchOptions());
   const context = await browser.newContext({
     deviceScaleFactor: 1,
     viewport: { width, height },
@@ -234,7 +235,7 @@ async function renderHtmlPng(html: string, outPath: string, width: number, heigh
  * can't produce.
  */
 async function renderCaptionPng(text: string, outPath: string): Promise<{ width: number; height: number }> {
-  const browser = await chromium.launch();
+  const browser = await chromium.launch(withBrowserLaunchOptions());
   const context = await browser.newContext({
     deviceScaleFactor: 2, // retina render so the overlay stays crisp
     viewport: { width: 1920, height: 200 },

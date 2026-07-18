@@ -7,6 +7,7 @@
  */
 
 import { chromium } from 'playwright';
+import { withBrowserLaunchOptions } from '../../browser-launch.mjs';
 import sharp from 'sharp';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
@@ -22,7 +23,7 @@ const FINDER_HTML = path.resolve(HERE, '../chrome-template/finder-overlay.html')
  * Finder widget is 540×392 logical pixels (titlebar 28 + toolbar 38 + body + statusbar).
  */
 async function renderFinder(): Promise<Buffer> {
-  const browser = await chromium.launch();
+  const browser = await chromium.launch(withBrowserLaunchOptions());
   try {
     const page = await browser.newPage({
       viewport: { width: 540, height: 392 },

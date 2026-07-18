@@ -15,6 +15,7 @@
  */
 
 import { chromium } from 'playwright';
+import { withBrowserLaunchOptions } from '../../browser-launch.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mkdirSync, readdirSync, copyFileSync, rmSync, statSync } from 'node:fs';
@@ -35,9 +36,9 @@ export async function video07() {
   rmSync(VIDEO_TMP, { recursive: true, force: true });
   mkdirSync(VIDEO_TMP, { recursive: true });
 
-  const browser = await chromium.launch({
+  const browser = await chromium.launch(withBrowserLaunchOptions({
     args: ['--force-device-scale-factor=2', '--high-dpi-support=1'],
-  });
+  }));
   const context = await browser.newContext({
     viewport: { width: 1920, height: 1080 },
     deviceScaleFactor: 2,

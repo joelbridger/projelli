@@ -64,6 +64,7 @@ function main() {
           '--headless=new',
           '--no-sandbox',
           '--disable-gpu',
+          ...(process.platform === 'linux' ? ['--password-store=basic'] : []),
           `--user-data-dir=${profile}`,
           '--no-pdf-header-footer',
           `--print-to-pdf=${pdfPath}`,

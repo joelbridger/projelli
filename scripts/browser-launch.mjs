@@ -12,6 +12,10 @@
  * browser context for every test. Do not replace this with
  * `launchPersistentContext` or a shared user-data directory: disposable
  * profiles are part of the isolation and of this keyring cure.
+ *
+ * This only controls Chromium processes started through `browserType.launch`.
+ * `connectOverCDP` attaches to an already-running browser, so it cannot add or
+ * change that browser's launch arguments.
  */
 export function withBrowserLaunchOptions(options = {}) {
   if (process.platform !== 'linux') return { ...options };

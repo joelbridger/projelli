@@ -21,6 +21,7 @@
  *   --output <id>  write a new output filename without changing the flow name
  */
 import { chromium } from 'playwright';
+import { withBrowserLaunchOptions } from '../browser-launch.mjs';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
@@ -127,7 +128,7 @@ const { DemoEngine } = await import(
   pathToFileURL(path.join(__dirname, 'engine', 'DemoEngine.mjs')).href
 );
 
-const browser = await chromium.launch({ headless: !hasFlag('--headed') });
+const browser = await chromium.launch(withBrowserLaunchOptions({ headless: !hasFlag('--headed') }));
 const context = await browser.newContext({
   viewport,
   deviceScaleFactor,
