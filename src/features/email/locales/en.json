@@ -163,7 +163,8 @@
       "attach-file": "Attach file",
       "sent": "Email sent",
       "scope-upgrade": "Sending needs a one-time reconnect for the send permission. Go to Settings to reconnect your email.",
-      "go-to-settings": "Go to Settings"
+      "go-to-settings": "Go to Settings",
+      "household-context": "Drafting email for {{household}}. Check the recipient before sending."
     },
     "no-accounts": {
       "title": "Connect email",

@@ -196,7 +196,9 @@ export function ComposeModal({ open, onOpenChange, accounts, onOpenSettings, hou
         <div style={{ flex: 1, overflowY: 'auto', padding: `var(--kp-space-sm) var(--kp-card-pad) var(--kp-card-pad)`, display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-xs)' }}>
           {householdContextLabel ? (
             <p data-testid="compose-household-context" style={{ margin: 0, fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
-              Drafting email for {householdContextLabel}. Check the recipient before sending.
+              {t('mail.compose.household-context', {
+                household: householdContextLabel,
+              })}
             </p>
           ) : null}
           {/* From selector */}
