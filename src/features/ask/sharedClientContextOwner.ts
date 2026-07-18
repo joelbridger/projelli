@@ -22,31 +22,32 @@
  * state resolved under a prior client survives the switch.
  *
  * It exposes only a zero-argument establish doorway (which binds the real store
- * and nothing else) and the pure identity adapter / snapshot mapper. It exposes
+ * and nothing else), the sealed live readers, and the pure identity adapter. It exposes
  * NO way to inject an arbitrary client reader: there is no public `bind(access)`
  * here, and the underlying socket refuses a second binder at runtime
  * (establish-once). An ordinary consumer therefore cannot restore a stale
  * client through this module.
  */
+import { useClientContextStore } from '@/platform/client-context';
+import { useMatterStore } from '@/platform/matter/matterStore';
 import {
-  useClientContextStore,
-  type SharedClientIdentity,
-} from '@/platform/client-context';
+  resolveHouseholdMatterId,
+} from '@/features/crm-clients';
+import type { ContactRef } from '@/features/crm-contacts';
 import type {
   AskClientSnapshot,
   AskClientUseAccess,
   AskOwnerIdentityAdapter,
 } from './foundation/contracts';
 import { createAskSharedClientOwner } from './foundation/owner';
+import { mintAskClientSnapshot } from './foundation/clientSnapshotAuthority';
 
 /**
- * The Ask binding's client reference is the platform shared-client identity —
- * the true source of the active client. `@/features/client-bar` publishes this
- * same identity to consumers as `SharedClientContext` (a structurally identical
- * view of the same store); this wiring binds against the platform type directly
- * so the Ask feature depends only on the platform layer, not on another feature.
+ * Ask authority is the real CRM ContactRef, never the client-bar household
+ * projection. The selected household is only the input to the canonical CRM
+ * matter resolver.
  */
-type AskClientReference = SharedClientIdentity;
+type AskClientReference = ContactRef;
 
 /**
  * This owner owns the CLIENT identity only. There is no meetings owner at this
@@ -59,38 +60,56 @@ type AskClientReference = SharedClientIdentity;
 type NoMeetingReference = never;
 
 /**
- * The shared-client revision for a selection. It bumps whenever the identity
- * content changes, so a scope resolved under one client is refused after the
- * shared selection moves to a different client (or the same household with
- * changed identity). Whole-firm (`null`) has no revision.
+ * The shared-client revision includes the canonical matter. A household remap
+ * therefore invalidates every retained client-scoped handle. Whole-firm
+ * (`null`) has no revision.
  */
-function revisionOf(client: AskClientReference): string {
-  const people = client.primaryPeople ? [...client.primaryPeople].join('|') : '';
-  return `${client.householdId}::${client.displayName}::${people}`;
+function revisionOf(householdId: string, matterId: string): string {
+  return `${householdId}::${matterId}`;
 }
 
 /**
- * Map the live shared client into the exact snapshot the Ask binding needs.
- *
- * Until a dedicated matters owner lands, one household is its own matter scope
- * (`matterId === householdId`). This is the honest minimal mapping from the
- * only real client data available; it is NOT a lookalike CRM/matter owner
- * contract, only the required snapshot fields filled from the shared selection.
+ * Map the live selected household through the canonical CRM matter resolver.
+ * Missing and ambiguous links deliberately produce no client authority.
  */
-export function toAskClientSnapshot(
-  client: AskClientReference | null
-): AskClientSnapshot<AskClientReference> | null {
+function snapshotFromLiveState(
+  client: ReturnType<typeof useClientContextStore.getState>['client'],
+  matters: ReturnType<typeof useMatterStore.getState>['matters']
+): AskClientSnapshot<ContactRef> | null {
   if (!client) return null;
-  return {
-    contactRef: client,
-    matterId: client.householdId,
-    revision: revisionOf(client),
+  const matterId = resolveHouseholdMatterId({ id: client.householdId }, matters);
+  if (!matterId) return null;
+  const label = client.displayName.trim();
+  const contactRef: ContactRef = {
+    kind: 'household',
+    id: client.householdId,
+    matterId,
+    ...(label ? { label } : {}),
   };
+  return mintAskClientSnapshot({
+    contactRef,
+    matterId,
+    revision: revisionOf(client.householdId, matterId),
+  });
 }
 
 /** The live snapshot of the current shared client, or `null` for whole-firm. */
-export function readAskSharedClientSnapshot(): AskClientSnapshot<AskClientReference> | null {
-  return toAskClientSnapshot(useClientContextStore.getState().client);
+export function readAskSharedClientSnapshot(): AskClientSnapshot<ContactRef> | null {
+  return snapshotFromLiveState(
+    useClientContextStore.getState().client,
+    useMatterStore.getState().matters
+  );
+}
+
+/**
+ * Reactive counterpart to the live read. Both the selected household and the
+ * matter mapping are read at render time, so an A→B/none switch or a remap
+ * produces a new sealed snapshot (or null) immediately.
+ */
+export function useAskSharedClientSnapshot(): AskClientSnapshot<ContactRef> | null {
+  const client = useClientContextStore((state) => state.client);
+  const matters = useMatterStore((state) => state.matters);
+  return snapshotFromLiveState(client, matters);
 }
 
 /**
@@ -104,11 +123,16 @@ export const askClientIdentityAdapter: AskOwnerIdentityAdapter<
   isClientReference: (value): value is AskClientReference =>
     !!value &&
     typeof value === 'object' &&
-    'householdId' in value &&
-    typeof (value as { householdId: unknown }).householdId === 'string' &&
-    (value as { householdId: string }).householdId.trim().length > 0,
-  clientMatterId: (reference) => reference.householdId,
-  sameClient: (left, right) => left.householdId === right.householdId,
+    (value as ContactRef).kind === 'household' &&
+    typeof (value as ContactRef).id === 'string' &&
+    (value as ContactRef).id.trim().length > 0 &&
+    typeof (value as ContactRef).matterId === 'string' &&
+    (value as ContactRef).matterId.trim().length > 0,
+  clientMatterId: (reference) => reference.matterId,
+  sameClient: (left, right) =>
+    left.kind === right.kind &&
+    left.id === right.id &&
+    left.matterId === right.matterId,
   isMeetingReference: (_value): _value is NoMeetingReference => false,
   meetingId: () => {
     throw new Error('Ask meetings owner is not bound.');

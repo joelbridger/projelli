@@ -2,6 +2,7 @@ import type {
   AskClientUseAccess,
   AskOwnerIdentityAdapter,
 } from '@/features/ask';
+import { mintAskClientSnapshotForTest } from '@/features/ask/testing';
 
 export interface FixtureClientRef {
   readonly owner: 'fixture-client-owner';
@@ -15,7 +16,7 @@ export interface FixtureMeetingRef {
   readonly matterId: string;
 }
 
-export const fixtureClient = {
+export const fixtureClient = mintAskClientSnapshotForTest<FixtureClientRef>({
   contactRef: {
     owner: 'fixture-client-owner',
     id: 'client-1',
@@ -23,7 +24,7 @@ export const fixtureClient = {
   },
   matterId: 'matter-1',
   revision: 'client-1:1',
-} as const;
+});
 
 export const fixtureMeeting = {
   owner: 'fixture-meeting-owner',

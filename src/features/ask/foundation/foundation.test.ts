@@ -17,6 +17,7 @@ import {
   resolveAskScope,
 } from './scope';
 import { createAskSharedClientOwner } from './owner';
+import { mintAskClientSnapshotForTest } from '@/features/ask/testing';
 import {
   askCitationBelongsToScope,
   buildAskCitation,
@@ -67,7 +68,7 @@ const owners: AskOwnerIdentityAdapter<FixtureClientRef, FixtureMeetingRef> = {
     left.id === right.id && left.matterId === right.matterId,
 };
 
-const clientA = {
+const clientA = mintAskClientSnapshotForTest<FixtureClientRef>({
   contactRef: {
     owner: 'fixture-client-owner',
     kind: 'household',
@@ -76,8 +77,8 @@ const clientA = {
   },
   matterId: 'matter-a',
   revision: 'a:1',
-} as const;
-const clientB = {
+});
+const clientB = mintAskClientSnapshotForTest<FixtureClientRef>({
   contactRef: {
     owner: 'fixture-client-owner',
     kind: 'household',
@@ -86,7 +87,7 @@ const clientB = {
   },
   matterId: 'matter-b',
   revision: 'b:1',
-} as const;
+});
 // This test plays the shared-client OWNER (only feature-internal code can — the
 // owner capability is off the public @/features/ask barrel). It establishes ONE
 // live access; the current client is the single source of truth for every
@@ -158,14 +159,12 @@ describe('Ask client and meeting foundation behavior', () => {
   it('whole-firm scopes work without a bound client, while client scopes fail closed when unbound', () => {
     // Release the owner entirely (models the current base: no shared-client owner).
     owner?.release();
-    const wholeFirm = resolveAskScope(
-      askScopeBuilder.wholeFirm('workspace-a')
-    );
+    const wholeFirm = resolveAskScope(askScopeBuilder.wholeFirm('workspace-a'));
     // A whole-firm read needs no shared client and must still succeed.
     expect(() => listAskModes(wholeFirm)).not.toThrow();
-    expect(buildAskRetrievalPlan(wholeFirm, ['document'], []).references).toEqual(
-      []
-    );
+    expect(
+      buildAskRetrievalPlan(wholeFirm, ['document'], []).references
+    ).toEqual([]);
     // A client-scoped read fails closed with no owner bound.
     const clientScope = resolveAskScope(
       askScopeBuilder.currentClient('workspace-a', clientA),
@@ -240,9 +239,9 @@ describe('Ask client and meeting foundation behavior', () => {
       owners
     );
     expect(askSourceBelongsToScope(selected, artifact)).toBe(true);
-    expect(
-      askSourceBelongsToScope(selected, meetingArtifact(meetingB))
-    ).toBe(false);
+    expect(askSourceBelongsToScope(selected, meetingArtifact(meetingB))).toBe(
+      false
+    );
     expect(() =>
       resolveAskScope(
         askScopeBuilder.selectedMeetings('workspace-a', clientA, [
@@ -310,11 +309,7 @@ describe('Ask client and meeting foundation behavior', () => {
       },
     ]);
     expect(() =>
-      buildAskCitation(
-        'claim',
-        scope,
-        { ...sourceA, sourceId: 'source-b' }
-      )
+      buildAskCitation('claim', scope, { ...sourceA, sourceId: 'source-b' })
     ).toThrow('outside the resolved scope');
     expect(noLocalAnswer()).toEqual({
       kind: 'no-local-answer',

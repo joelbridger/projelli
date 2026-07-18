@@ -18,6 +18,7 @@ import {
   readBoundAskClient,
   resolveAskScope,
 } from './scope';
+import { isGenuineAskClientSnapshot } from './clientSnapshotAuthority';
 
 type AskStoredKind =
   | 'askConversation'
@@ -67,14 +68,24 @@ function stringList(value: unknown): value is readonly string[] {
 
 function clientSnapshot<ClientReference, MeetingReference>(
   value: unknown,
-  owners: AskOwnerIdentityAdapter<ClientReference, MeetingReference>
+  options: AskConversationStoreOptions<ClientReference, MeetingReference>
 ): value is AskClientSnapshot<ClientReference> {
+  const owners = options.owners;
   return (
     object(value) &&
     owners.isClientReference(value['contactRef']) &&
     nonBlank(value['matterId']) &&
     nonBlank(value['revision']) &&
-    owners.clientMatterId(value['contactRef']) === value['matterId']
+    owners.clientMatterId(value['contactRef']) === value['matterId'] &&
+    // Persisted records intentionally lose symbol/WeakSet provenance on
+    // serialization. Whether fresh or persisted, they are accepted only when
+    // they exactly match the CURRENT genuine owner snapshot; history can never
+    // recreate authority or survive a switch/remap on its own.
+    !!options.currentClient &&
+    isGenuineAskClientSnapshot<ClientReference>(options.currentClient) &&
+    value['matterId'] === options.currentClient.matterId &&
+    value['revision'] === options.currentClient.revision &&
+    owners.sameClient(value['contactRef'], options.currentClient.contactRef)
   );
 }
 
@@ -90,13 +101,28 @@ function scopeValue<ClientReference, MeetingReference>(
     return false;
   }
   if (value['kind'] === 'whole-firm') return true;
-  if (!clientSnapshot(value['client'], options.owners)) return false;
+  if (!clientSnapshot(value['client'], options)) return false;
   const scope = value as unknown as AskScope<ClientReference, MeetingReference>;
   try {
     resolveAskScope(scope, options.currentClient, options.owners);
     return true;
   } catch {
-    return false;
+    // Serialized history has no private brand. Its shape was checked above and
+    // it can be revalidated only against the current genuine snapshot.
+    if (!options.currentClient) return false;
+    try {
+      resolveAskScope(
+        { ...scope, client: options.currentClient } as AskScope<
+          ClientReference,
+          MeetingReference
+        >,
+        options.currentClient,
+        options.owners
+      );
+      return true;
+    } catch {
+      return false;
+    }
   }
 }
 
@@ -110,7 +136,7 @@ function sourceValue<ClientReference, MeetingReference>(
     !nonBlank(value['sourceId']) ||
     !nonBlank(value['kind']) ||
     !nonBlank(value['workspaceId']) ||
-    !clientSnapshot(value['client'], options.owners) ||
+    !clientSnapshot(value['client'], options) ||
     !nonBlank(value['label']) ||
     !['available', 'unavailable'].includes(String(value['availability'])) ||
     !object(value['citationOpenPath']) ||
@@ -142,18 +168,27 @@ function sourceValue<ClientReference, MeetingReference>(
   if (value['kind'] === 'email-descriptor' && !timestamp(value['date'])) {
     return false;
   }
+  if (!options.currentClient) return false;
   try {
+    const currentClient = options.currentClient;
+    const normalizedScope =
+      scope.kind === 'whole-firm'
+        ? scope
+        : { ...scope, client: currentClient };
     const resolved = resolveAskScope(
-      scope,
-      options.currentClient,
+      normalizedScope,
+      currentClient,
       options.owners
     );
     return askSourceMembership(
       resolved,
-      value as unknown as AskSourceDescriptor<
-        ClientReference,
-        MeetingReference
-      >,
+      {
+        ...(value as unknown as AskSourceDescriptor<
+          ClientReference,
+          MeetingReference
+        >),
+        client: currentClient,
+      },
       options.owners
     );
   } catch {
@@ -233,9 +268,61 @@ function projectStoredRecord<ClientReference, MeetingReference>(
     return undefined;
   }
   const kind = record.kind as AskStoredKind;
-  return payloadForKind(kind, record['payload'], options)
-    ? (record as AskStoredRecord<ClientReference, MeetingReference>)
-    : undefined;
+  if (!payloadForKind(kind, record['payload'], options)) return undefined;
+
+  const payload = record['payload'];
+  const currentClient = options.currentClient;
+
+  if (kind === 'askConversation') {
+    const scope = payload.scope;
+    if (scope.kind !== 'whole-firm' && !currentClient) return undefined;
+    return {
+      ...record,
+      kind,
+      payload: {
+        ...payload,
+        scope:
+          scope.kind === 'whole-firm'
+            ? scope
+            : { ...scope, client: currentClient },
+      },
+    } as AskStoredRecord<ClientReference, MeetingReference>;
+  }
+  if (kind === 'askReviewDraft') {
+    const scope = payload.scope;
+    if (scope.kind !== 'whole-firm' && !currentClient) return undefined;
+    return {
+      ...record,
+      kind,
+      payload: {
+        ...payload,
+        scope:
+          scope.kind === 'whole-firm'
+            ? scope
+            : { ...scope, client: currentClient },
+      },
+    } as AskStoredRecord<ClientReference, MeetingReference>;
+  }
+  if (!currentClient) return undefined;
+  const selection = payload as AskSavedSourceSelection<
+    ClientReference,
+    MeetingReference
+  >;
+  return {
+    ...record,
+    kind,
+    payload: {
+      ...selection,
+      scope:
+        selection.scope.kind === 'whole-firm'
+          ? selection.scope
+          : { ...selection.scope, client: currentClient },
+      sources: selection.sources.map((source) => ({
+        ...source,
+        client: currentClient,
+      })),
+    },
+  } as AskStoredRecord<ClientReference, MeetingReference>;
 }
 
 function matterForScope<ClientReference, MeetingReference>(

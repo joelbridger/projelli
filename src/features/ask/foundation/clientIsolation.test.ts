@@ -8,6 +8,7 @@ import type {
   AskSourceDescriptor,
 } from './contracts';
 import { createAskSharedClientOwner } from './owner';
+import { mintAskClientSnapshotForTest } from '@/features/ask/testing';
 import {
   askScopeBuilder,
   askSourceBelongsToScope,
@@ -41,25 +42,31 @@ interface MRef {
 }
 const owners: AskOwnerIdentityAdapter<CRef, MRef> = {
   isClientReference: (v): v is CRef =>
-    !!v && typeof v === 'object' && 'owner' in v && v.owner === 'fixture-client-owner',
+    !!v &&
+    typeof v === 'object' &&
+    'owner' in v &&
+    v.owner === 'fixture-client-owner',
   clientMatterId: (r) => r.matterId,
   sameClient: (l, r) => l.id === r.id && l.matterId === r.matterId,
   isMeetingReference: (v): v is MRef =>
-    !!v && typeof v === 'object' && 'owner' in v && v.owner === 'fixture-meeting-owner',
+    !!v &&
+    typeof v === 'object' &&
+    'owner' in v &&
+    v.owner === 'fixture-meeting-owner',
   meetingId: (r) => r.id,
   meetingMatterId: (r) => r.matterId,
   sameMeeting: (l, r) => l.id === r.id && l.matterId === r.matterId,
 };
-const clientA: AskClientSnapshot<CRef> = {
+const clientA: AskClientSnapshot<CRef> = mintAskClientSnapshotForTest<CRef>({
   contactRef: { owner: 'fixture-client-owner', id: 'a', matterId: 'matter-a' },
   matterId: 'matter-a',
   revision: 'a:1',
-};
-const clientB: AskClientSnapshot<CRef> = {
+});
+const clientB: AskClientSnapshot<CRef> = mintAskClientSnapshotForTest<CRef>({
   contactRef: { owner: 'fixture-client-owner', id: 'b', matterId: 'matter-b' },
   matterId: 'matter-b',
   revision: 'b:1',
-};
+});
 
 const RAW_TOKEN = 'client-a-document-secret';
 const sourceA: AskSourceDescriptor<CRef, MRef> = {

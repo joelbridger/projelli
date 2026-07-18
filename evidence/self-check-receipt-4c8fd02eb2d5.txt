@@ -1,0 +1,18 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/lantern/app/integration/.worktrees/v1/w2-ask-owner-snapshot
+sha: 4c8fd02eb2d5fe874d28be587cdfcdda8f1fd374
+tree: a33d4730496fbabf9e06ac30ca7ba02e7fc47f95
+gate_base: a47b0a5a97bcab08e695101e916991cfc737c3dd
+tool_blob: 0817082ed84d5703bab1b9e9043ebb5e3695a98c
+utc: 2026-07-18T00:27:27Z
+step_timeout_seconds: 600
+loadavg: 3.44 4.95 5.72
+running_vitest_eslint_procs: 1
+step: gate:changed | status=FAIL | exit=1 | 00:27:27Z..00:35:34Z | bytes=57850 | sha256=755dd1becee9e45295d61fae3e0e68a244fd09d4be83460110a79c216458a022 | tail: 1122) Tests 8929 passed | 29 skipped (8958) Start at 00:30:05 Duration 328.93s (transform 23.97s, setup 155.56s, import 469.44s, tests 204.37s, environment 368.01s) CHANGED GATE RED see failures above
+step: typecheck | status=PASS | exit=0 | 00:35:34Z..00:35:56Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit
+step: typecheck:tests | status=PASS | exit=0 | 00:35:56Z..00:36:23Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit
+step: handle-guard | status=PASS | exit=0 | 00:36:23Z..00:36:24Z | bytes=1360 | sha256=725bf79cafd644ebb74927168522eb4e6d9a331df7ea908fe79031f456c1ffe9 | tail: ite-approve + calendar-write-pending-banner + calendar-write-pending-banner-review-now +343 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen).
+step: arch-dag-guard | status=PASS | exit=0 | 00:36:24Z..00:36:25Z | bytes=259 | sha256=3879aece2260cb6337f9b2680782fa4764d471a30b7415f75666a44b4ba54036 | tail: /integration/.worktrees/v1/w2-ask-owner-snapshot Test Files 1 passed (1) Tests 1 passed (1) Start at 00:36:24 Duration 1.06s (transform 199ms, setup 312ms, import 267ms, tests 3ms, environment 276ms)
+step: i18n-snapshot | status=PASS | exit=0 | 00:36:25Z..00:36:26Z | bytes=260 | sha256=fb8036d5a498fd90bfd0c4413caf611d98c15829dc42cc5986d96d8aa1c52154 | tail: integration/.worktrees/v1/w2-ask-owner-snapshot Test Files 1 passed (1) Tests 5 passed (5) Start at 00:36:25 Duration 915ms (transform 227ms, setup 327ms, import 221ms, tests 15ms, environment 265ms)
+overall: RED
