@@ -15,6 +15,7 @@ import { oneDriveConnectionCard } from '@/platform/connectors/onedrive/accountCo
 import { shareFileConnectionCard } from '@/platform/connectors/sharefile/accountConnectionCard';
 import { zocksConnectionCard } from '@/platform/connectors/zocks/accountConnectionCard';
 import { McpSettingsSection, OllamaSettingsSection } from '@/features/settings';
+import { detectOllama } from '@/platform/providers/OllamaProvider';
 import type {
   ConnectionCardDescriptor,
   ConnectionCardPlacement,
@@ -47,20 +48,19 @@ export const connectionCardRegistry: readonly ConnectionCardDescriptor[] = [
   {
     id: 'ollama',
     labelKey: 'connectors.ollama',
+    displayName: 'Ollama',
     placement: 'connections',
     order: 160,
     render: () => createElement(OllamaSettingsSection),
-    renderStatus: () => createElement(OllamaSettingsSection),
-    renderSafeDisconnect: () => createElement(OllamaSettingsSection),
+    isConnected: async () => (await detectOllama()).reachable,
   },
   {
     id: 'mcp',
     labelKey: 'connectors.mcp',
+    displayName: 'MCP servers',
     placement: 'developer-tools',
     order: 10,
     render: () => createElement(McpSettingsSection),
-    renderStatus: () => createElement(McpSettingsSection),
-    renderSafeDisconnect: () => createElement(McpSettingsSection),
   },
 ];
 
@@ -78,6 +78,19 @@ export function validateConnectionCardDescriptors(
     if (!descriptor.labelKey.includes('.')) {
       throw new Error(
         `[connectionCardRegistry] labelKey must include a namespace: ${descriptor.id}`
+      );
+    }
+    if (descriptor.displayName.trim().length === 0) {
+      throw new Error(
+        `[connectionCardRegistry] displayName must not be empty: ${descriptor.id}`
+      );
+    }
+    if (
+      descriptor.placement === 'connections' &&
+      typeof descriptor.isConnected !== 'function'
+    ) {
+      throw new Error(
+        `[connectionCardRegistry] connection proof is required: ${descriptor.id}`
       );
     }
   }

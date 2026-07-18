@@ -49,11 +49,11 @@ function card(
   return {
     id: 'dummy-card',
     labelKey: 'dummy.card',
+    displayName: 'Dummy provider',
     placement: 'connections',
     order: 999,
     render,
-    renderStatus: render,
-    renderSafeDisconnect: render,
+    isConnected: () => Promise.resolve(true),
     ...overrides,
   };
 }
@@ -130,11 +130,7 @@ describe('Account registries', () => {
       'ollama',
     ]);
     expect(
-      cards.every(
-        (descriptor) =>
-          typeof descriptor.renderStatus === 'function' &&
-          typeof descriptor.renderSafeDisconnect === 'function'
-      )
+      cards.every((descriptor) => typeof descriptor.isConnected === 'function')
     ).toBe(true);
     expect(
       getConnectionCardDescriptors('developer-tools').map(
@@ -161,5 +157,14 @@ describe('Account registries', () => {
     expect(() => {
       validateConnectionCardDescriptors([descriptor, descriptor]);
     }).toThrow('duplicate card id: dummy-card');
+  });
+
+  it('rejects a connection card that cannot prove its real connection state', () => {
+    const descriptor = card();
+    delete descriptor.isConnected;
+
+    expect(() => {
+      validateConnectionCardDescriptors([descriptor]);
+    }).toThrow('connection proof is required: dummy-card');
   });
 });

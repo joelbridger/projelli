@@ -1,5 +1,5 @@
 import { createElement } from 'react';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { ConnectionCardDescriptor } from '@/features/account';
 import { ActiveIntegrationsSection } from './ActiveIntegrationsSection';
@@ -10,110 +10,190 @@ function card(
   return {
     id: 'ollama',
     labelKey: 'connectors.ollama',
+    displayName: 'Ollama',
     placement: 'connections',
     order: 10,
-    render: () => createElement('div'),
-    renderStatus: () => createElement('p', undefined, 'Ready to use'),
-    renderSafeDisconnect: () =>
-      createElement('button', undefined, 'Disconnect safely'),
+    render: () => createElement('p', undefined, 'Connector-owned form'),
+    isConnected: () => Promise.resolve(true),
     ...overrides,
   };
 }
 
 describe('ActiveIntegrationsSection', () => {
-  it('opens without calling a provider or disconnect operation and uses only public card renderers', () => {
+  it('renders one connector-owned form only after real connection proof succeeds', async () => {
     const providerCall = vi.fn();
-    const disconnect = vi.fn(() => {
-      providerCall();
-    });
-    const renderStatus = vi.fn(() =>
-      createElement('p', undefined, 'Connected with read-only access')
+    const renderConnector = vi.fn(() =>
+      createElement('button', { onClick: providerCall }, 'Disconnect safely')
     );
-    const renderSafeDisconnect = vi.fn(() =>
-      createElement('button', { onClick: disconnect }, 'Disconnect safely')
-    );
-    const readConnectionCards = vi.fn(() => [
-      card({ renderStatus, renderSafeDisconnect }),
-    ]);
-
-    render(
-      <ActiveIntegrationsSection readConnectionCards={readConnectionCards} />
-    );
-
-    expect(readConnectionCards).toHaveBeenCalledWith('connections');
-    expect(renderStatus).toHaveBeenCalledOnce();
-    expect(renderSafeDisconnect).toHaveBeenCalledOnce();
-    expect(
-      screen.getByText('Connected with read-only access')
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: 'Disconnect safely' })
-    ).toBeInTheDocument();
-    expect(providerCall).not.toHaveBeenCalled();
-    expect(disconnect).not.toHaveBeenCalled();
-  });
-
-  it('performs a fresh public read after the connector-owned disconnect succeeds', async () => {
-    let connected = true;
-    const disconnect = vi.fn(() => {
-      connected = false;
-    });
+    const isConnected = vi.fn(() => Promise.resolve(true));
     const readConnectionCards = vi.fn(() => [
       card({
-        renderStatus: () =>
-          createElement(
-            'p',
-            undefined,
-            connected ? 'Connected' : 'Disconnected'
-          ),
-        renderSafeDisconnect: () =>
-          createElement('button', { onClick: disconnect }, 'Disconnect safely'),
+        displayName: 'Microsoft 365',
+        labelKey: 'connectors.microsoft365',
+        render: renderConnector,
+        isConnected,
       }),
     ]);
 
     render(
       <ActiveIntegrationsSection readConnectionCards={readConnectionCards} />
     );
+
+    expect(
+      screen.getByTestId('active-integrations-checking')
+    ).toHaveTextContent('Checking your connections');
+    expect(await screen.findByText('Microsoft 365')).toBeInTheDocument();
     expect(screen.getByText('Connected')).toBeInTheDocument();
-
-    await act(async () => {
-      fireEvent.click(
-        screen.getByRole('button', { name: 'Disconnect safely' })
-      );
-      await Promise.resolve();
-    });
-
-    expect(disconnect).toHaveBeenCalledOnce();
-    expect(readConnectionCards.mock.calls.length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByText('Disconnected')).toBeInTheDocument();
-    expect(screen.queryByText('Connected')).not.toBeInTheDocument();
+    expect(screen.queryByText('connectors.microsoft365')).toBeNull();
+    expect(
+      screen.getAllByRole('button', { name: 'Disconnect safely' })
+    ).toHaveLength(1);
+    expect(isConnected).toHaveBeenCalledOnce();
+    expect(renderConnector).toHaveBeenCalledOnce();
+    expect(providerCall).not.toHaveBeenCalled();
   });
 
-  it('omits a malformed card without inventing controls for it', () => {
-    const valid = card({ id: 'ollama', order: 20 });
-    const malformed = {
-      ...card({ id: 'mcp', placement: 'connections', order: 10 }),
-      renderSafeDisconnect: undefined,
-    } as unknown as ConnectionCardDescriptor;
+  it('does not call an unconnected provider active and reaches the empty state', async () => {
+    const renderConnector = vi.fn(() =>
+      createElement('button', undefined, 'Connect Microsoft 365')
+    );
+    const isConnected = vi.fn(() => Promise.resolve(false));
 
     render(
       <ActiveIntegrationsSection
-        readConnectionCards={() => [malformed, valid]}
+        readConnectionCards={() => [
+          card({
+            displayName: 'Microsoft 365',
+            render: renderConnector,
+            isConnected,
+          }),
+        ]}
       />
     );
 
     expect(
-      screen.queryByTestId('active-integration-card-mcp')
-    ).not.toBeInTheDocument();
-    expect(
-      screen.getByTestId('active-integration-card-ollama')
+      await screen.findByText('No integrations connected')
     ).toBeInTheDocument();
-    expect(screen.getByTestId('active-integrations-omitted')).toHaveTextContent(
-      'One integration could not be shown'
-    );
+    expect(
+      screen.getByText('When you connect an integration, it will appear here.')
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId('active-integrations-list')).toBeNull();
+    expect(screen.queryByText('Microsoft 365')).toBeNull();
+    expect(screen.queryByText('Connect Microsoft 365')).toBeNull();
+    expect(isConnected).toHaveBeenCalledOnce();
+    expect(renderConnector).not.toHaveBeenCalled();
   });
 
-  it('fails closed with an honest empty state when the public read is invalid', () => {
+  it('renders only the provider whose own check proves it is connected', async () => {
+    const disconnectedRender = vi.fn(() =>
+      createElement('button', undefined, 'Connect Gmail')
+    );
+
+    render(
+      <ActiveIntegrationsSection
+        readConnectionCards={() => [
+          card({
+            id: 'gmail-mail',
+            displayName: 'Gmail',
+            render: disconnectedRender,
+            isConnected: () => Promise.resolve(false),
+          }),
+          card({
+            id: 'ollama',
+            displayName: 'Ollama',
+            render: () => createElement('p', undefined, 'Ollama status'),
+            isConnected: () => Promise.resolve(true),
+          }),
+        ]}
+      />
+    );
+
+    expect(await screen.findByText('Ollama')).toBeInTheDocument();
+    expect(screen.queryByText('Gmail')).toBeNull();
+    expect(screen.queryByText('Connect Gmail')).toBeNull();
+    expect(disconnectedRender).not.toHaveBeenCalled();
+  });
+
+  it('removes a card after its connector-owned disconnect changes the proven state', async () => {
+    let connected = true;
+    const disconnect = vi.fn(() => {
+      connected = false;
+    });
+    const readConnectionCards = vi.fn(() => [
+      card({
+        displayName: 'Wealthbox',
+        isConnected: () => Promise.resolve(connected),
+        render: () =>
+          createElement(
+            'button',
+            { onClick: disconnect },
+            'Disconnect Wealthbox'
+          ),
+      }),
+    ]);
+
+    render(
+      <ActiveIntegrationsSection readConnectionCards={readConnectionCards} />
+    );
+    expect(await screen.findByText('Wealthbox')).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Disconnect Wealthbox' })
+    );
+
+    expect(disconnect).toHaveBeenCalledOnce();
+    expect(
+      await screen.findByText('No integrations connected')
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Wealthbox')).toBeNull();
+    await waitFor(() => {
+      expect(readConnectionCards.mock.calls.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  it('fails closed when a descriptor cannot prove a connection', async () => {
+    const renderConnector = vi.fn(() =>
+      createElement('p', undefined, 'Unsafe card')
+    );
+    const malformed = {
+      ...card({ render: renderConnector }),
+      isConnected: undefined,
+    } as unknown as ConnectionCardDescriptor;
+
+    render(
+      <ActiveIntegrationsSection readConnectionCards={() => [malformed]} />
+    );
+
+    expect(
+      await screen.findByText('No integrations connected')
+    ).toBeInTheDocument();
+    expect(renderConnector).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when a provider connection check rejects', async () => {
+    const renderConnector = vi.fn(() =>
+      createElement('p', undefined, 'Unsafe card')
+    );
+
+    render(
+      <ActiveIntegrationsSection
+        readConnectionCards={() => [
+          card({
+            render: renderConnector,
+            isConnected: () =>
+              Promise.reject(new Error('native command unavailable')),
+          }),
+        ]}
+      />
+    );
+
+    expect(
+      await screen.findByText('No integrations connected')
+    ).toBeInTheDocument();
+    expect(renderConnector).not.toHaveBeenCalled();
+  });
+
+  it('shows unavailable rather than guessing when the public registry read fails', async () => {
     render(
       <ActiveIntegrationsSection
         readConnectionCards={() => {
@@ -122,9 +202,9 @@ describe('ActiveIntegrationsSection', () => {
       />
     );
 
+    expect(
+      await screen.findByText('Integration details are unavailable')
+    ).toBeInTheDocument();
     expect(screen.queryByTestId('active-integrations-list')).toBeNull();
-    expect(screen.getByTestId('active-integrations-empty')).toHaveTextContent(
-      'Integration details are unavailable'
-    );
   });
 });

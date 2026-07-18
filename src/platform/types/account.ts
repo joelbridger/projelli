@@ -25,9 +25,12 @@ export type ConnectionCardPlacement = 'connections' | 'developer-tools';
 export interface ConnectionCardDescriptor {
   id: ConnectionCardId;
   labelKey: string;
+  /** Plain advisor-facing provider name. Never render the translation key. */
+  displayName: string;
   placement: ConnectionCardPlacement;
   order: number;
+  /** The connector's one shared setup/status/disconnect surface. */
   render: () => ReactNode;
-  renderStatus: () => ReactNode;
-  renderSafeDisconnect: () => ReactNode;
+  /** Authoritative connection proof. Rejection or false means not active. */
+  isConnected?: () => Promise<boolean>;
 }

@@ -2,13 +2,11 @@
   "active-integrations": {
     "title": "Aktive Integrationen",
     "description": "Prüfe den aktuellen Status jeder Verbindung, ihre Zugriffsrechte und ihre eigene sichere Trennfunktion.",
-    "connector-owned-note": "Status, Zugriff und Trennung werden von dieser Integration verwaltet.",
-    "status-and-access": "Status und Zugriff",
-    "disconnect-control": "Sichere Trennfunktion",
-    "omitted-card_one": "Eine Integration konnte nicht angezeigt werden, weil ihre Steuerelemente nicht verfügbar sind.",
-    "omitted-card_other": "{{count}} Integrationen konnten nicht angezeigt werden, weil ihre Steuerelemente nicht verfügbar sind.",
-    "empty-title": "Keine Integrationen verfügbar",
-    "empty-description": "Hier sind keine Verbindungskarten zur Verwaltung verfügbar.",
+    "connected": "Verbunden",
+    "manage": "{{provider}}-Verbindung verwalten",
+    "checking": "Verbindungen werden geprüft...",
+    "empty-title": "Keine Integrationen verbunden",
+    "empty-description": "Wenn du eine Integration verbindest, wird sie hier angezeigt.",
     "unavailable-title": "Integrationsdetails sind nicht verfügbar",
     "unavailable-description": "Die Verbindungsliste konnte nicht sicher geprüft werden. Es werden keine Statusangaben oder Trennoptionen vermutet."
   }
