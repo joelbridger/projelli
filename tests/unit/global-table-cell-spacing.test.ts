@@ -3,6 +3,7 @@ import path from 'node:path';
 import postcss from 'postcss';
 import tailwindcss from '@tailwindcss/postcss';
 import { chromium } from 'playwright';
+import { withBrowserLaunchOptions } from '../../scripts/browser-launch.mjs';
 
 describe('global table cell spacing', () => {
   it('restores readable padding after Tailwind Preflight resets plain table cells', async () => {
@@ -14,7 +15,7 @@ describe('global table cell spacing', () => {
       from: path.resolve(process.cwd(), 'src/styles/globals.css'),
     });
 
-    const browser = await chromium.launch({ headless: true });
+    const browser = await chromium.launch(withBrowserLaunchOptions({ headless: true }));
     try {
       const page = await browser.newPage();
       await page.setContent(`

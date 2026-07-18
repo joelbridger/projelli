@@ -44,6 +44,7 @@ import { fileURLToPath } from 'node:url';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { evaluateHandleFacts, ALLOWED_WRAPPERS } from './lib/handle-eval.mjs';
 import { evaluateScrollabilityFacts } from './lib/scroll-eval.mjs';
+import { withBrowserLaunchOptions } from '../browser-launch.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '..', '..');
@@ -404,7 +405,7 @@ async function main() {
 
   if (OWN_SERVER) await startServer();
 
-  const browser = await chromium.launch({ headless: !HEADED });
+  const browser = await chromium.launch(withBrowserLaunchOptions({ headless: !HEADED }));
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await context.newPage();
 

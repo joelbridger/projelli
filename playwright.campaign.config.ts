@@ -16,6 +16,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from '@playwright/test';
+import { withBrowserLaunchOptions } from './scripts/browser-launch.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -41,6 +42,7 @@ export default defineConfig({
 
   use: {
     baseURL: 'http://localhost:5173',
+    launchOptions: withBrowserLaunchOptions(),
     trace: 'on',
     video: 'retain-on-failure',
     screenshot: 'on',

@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { withBrowserLaunchOptions } from './scripts/browser-launch.mjs';
 
 /**
  * Playwright configuration for Keepance UI tests
@@ -61,6 +62,7 @@ export default defineConfig({
 
   use: {
     baseURL: E2E_BASE_URL,
+    launchOptions: withBrowserLaunchOptions(),
     trace: 'on-first-retry',
     video: 'retain-on-failure',
     screenshot: 'only-on-failure',

@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { withBrowserLaunchOptions } from '../scripts/browser-launch.mjs';
 
 const port = Number(process.env.PLAYWRIGHT_PORT ?? 4178);
 
@@ -8,6 +9,7 @@ export default defineConfig({
   reporter: [['list']],
   use: {
     baseURL: `http://127.0.0.1:${String(port)}`,
+    launchOptions: withBrowserLaunchOptions(),
     trace: 'on-first-retry',
   },
   webServer: {
