@@ -41,6 +41,35 @@ gate preflight (`lint:gate`, `typecheck`, and `typecheck:tests`), a separate
 coverage, and the four focused Settings/Booking host suites (35 tests). The
 shared receipt pastes the commands and terminal outcomes.
 
+### j69j final-tip gate-preflight terminal receipt
+
+The canonical scrubbed preflight was re-run at
+`a9e2a5c3e90766c8086a0241536cbf38f8b63ce0` before this evidence-only update.
+Terminal control characters are omitted below.
+
+```text
+$ /home/jameson/lantern/coordination/coordinator/tools/gate-preflight.sh
+
+> advisor-prep-hero@3.3.5 lint:gate
+> node scripts/eslint-gate.mjs
+
+✅ No ESLint regression vs baseline. (63 fingerprint(s) cleaned up vs baseline)
+gate-preflight: PASS — lint:gate
+
+> advisor-prep-hero@3.3.5 typecheck
+> tsc --noEmit
+
+gate-preflight: PASS — typecheck
+
+> advisor-prep-hero@3.3.5 typecheck:tests
+> tsc -p tsconfig.test.json --noEmit
+
+gate-preflight: PASS — typecheck:tests
+
+GATE_PREFLIGHT_EXIT=0
+GATE_PREFLIGHT_SHA=a9e2a5c3e90766c8086a0241536cbf38f8b63ce0
+```
+
 ## Self-attestation
 
 No public booking-page presentation, provider write/hold/confirmation, Meetings

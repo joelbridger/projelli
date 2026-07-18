@@ -146,6 +146,34 @@ All commands below were run from
 | `npm test -- src/features/settings/registry/settingsContentRegistry.test.tsx src/features/settings/v1-frame/SettingsV1FrameEnabled.test.tsx src/features/settings/registry/settingsModuleRegistry.test.ts src/features/booking/availability/BookingAvailabilitySettings.test.tsx` | PASS — 4 files, 35 tests |
 | Temporary `VITE_FLAG_BOOKING_AVAILABILITY=true npm run dev -- --host 127.0.0.1 --port 5173` browser drive | INCOMPLETE, no real workspace available; override cleared and server stopped |
 
+### j69j final-tip gate-preflight terminal receipt
+
+Re-run at source tip `a9e2a5c3e90766c8086a0241536cbf38f8b63ce0` before this
+evidence-only update. Terminal control characters are omitted below.
+
+```text
+$ /home/jameson/lantern/coordination/coordinator/tools/gate-preflight.sh
+
+> advisor-prep-hero@3.3.5 lint:gate
+> node scripts/eslint-gate.mjs
+
+✅ No ESLint regression vs baseline. (63 fingerprint(s) cleaned up vs baseline)
+gate-preflight: PASS — lint:gate
+
+> advisor-prep-hero@3.3.5 typecheck
+> tsc --noEmit
+
+gate-preflight: PASS — typecheck
+
+> advisor-prep-hero@3.3.5 typecheck:tests
+> tsc -p tsconfig.test.json --noEmit
+
+gate-preflight: PASS — typecheck:tests
+
+GATE_PREFLIGHT_EXIT=0
+GATE_PREFLIGHT_SHA=a9e2a5c3e90766c8086a0241536cbf38f8b63ce0
+```
+
 ```text
 $ npm run typecheck:tests
 > advisor-prep-hero@3.3.5 typecheck:tests
