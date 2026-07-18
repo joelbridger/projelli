@@ -1,5 +1,7 @@
-import { describe, expect, expectTypeOf, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
+import { cleanup, render, screen } from '@testing-library/react';
+import { setDevFlagOverride } from '@/platform/flags/router';
+import { DirectorySurface } from './DirectorySurface';
 import type {
   DirectoryActionDescriptor,
   DirectoryContext,
@@ -61,6 +63,12 @@ const context: DirectoryContext = {
   composition: defaultDirectoryComposition,
 };
 
+afterEach(() => {
+  cleanup();
+  setDevFlagOverride('crm-bulk-select', undefined);
+  setDevFlagOverride('crm-bulk-export', undefined);
+});
+
 describe('client directory registries', () => {
   it('keeps frozen compatibility descriptors in stable order', () => {
     expect(directoryToolRegistry.map(({ id }) => id)).toEqual([
@@ -73,6 +81,7 @@ describe('client directory registries', () => {
     ]);
     expect(directoryActionRegistry.map(({ id }) => id)).toEqual([
       'create-household',
+      'bulk-export',
     ]);
     expect(directoryRailRegistry.map(({ id }) => id)).toEqual([
       'person-details',
@@ -139,6 +148,18 @@ describe('client directory registries', () => {
     expect(screen.getByTestId('dummy-action')).toBeTruthy();
     expect(screen.getByTestId('dummy-rail')).toBeTruthy();
     expect(screen.getByTestId('dummy-view')).toBeTruthy();
+  });
+
+  it('does not create an empty toolbar wrapper for a disabled registered action', () => {
+    setDevFlagOverride('crm-bulk-select', false);
+    setDevFlagOverride('crm-bulk-export', false);
+
+    render(<DirectorySurface people={[]} households={[]} />);
+
+    const toolbar = screen.getByTestId('crm-directory-toolbar');
+    expect(screen.queryByTestId('crm-directory-bulk-export')).not.toBeInTheDocument();
+    expect(toolbar.children).toHaveLength(6);
+    expect(Array.from(toolbar.children).every((child) => child.childElementCount > 0)).toBe(true);
   });
 
   it('rejects duplicate IDs and malformed descriptors clearly', () => {
