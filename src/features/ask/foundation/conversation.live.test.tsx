@@ -87,7 +87,7 @@ const now = '2026-07-16T20:00:00.000Z';
 // The write path re-resolves the active client LIVE from the owner binding, so
 // this suite plays the owner (feature-internal). `activeClient` is the live
 // source; flipping it models a real client switch mid-flight.
-let activeClient: typeof clientA | typeof clientB | null = clientA;
+let activeClient: typeof clientA | null = clientA;
 let owner: ReturnType<
   typeof createAskSharedClientOwner<FixtureClientRef, FixtureMeetingRef>
 > | null = null;

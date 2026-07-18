@@ -174,10 +174,7 @@ function sourceValue<ClientReference, MeetingReference>(
     const normalizedScope =
       scope.kind === 'whole-firm'
         ? scope
-        : ({ ...scope, client: currentClient } as AskScope<
-            ClientReference,
-            MeetingReference
-          >);
+        : { ...scope, client: currentClient };
     const resolved = resolveAskScope(
       normalizedScope,
       currentClient,
