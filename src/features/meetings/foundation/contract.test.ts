@@ -32,6 +32,7 @@ import {
   type MeetingOpenTarget,
   type LegacyMeetingLinkStatus,
 } from './contract';
+import { readReviewNeededMeetingArtifacts } from '../reviewArtifacts';
 
 /**
  * Seed the TRUSTED authority the contract derives from — the platform matter
@@ -951,6 +952,181 @@ describe('meetings foundation contract', () => {
     await expect(
       createFirmMeetingDirectoryReader(reader, forgedGrant).get('anything')
     ).resolves.toBeUndefined();
+  });
+
+  it('reads review-needed artifacts from the fresh canonical store across the sealed firm grant', async () => {
+    seedTrustedAuthority({
+      matters: [
+        {
+          id: 'matter-1',
+          name: 'One',
+          client: 'One',
+          folderPaths: ['/workspace/Clients/One'],
+          crmHouseholdKeys: ['household-1'],
+          createdAt: '2026-07-01T00:00:00.000Z',
+        } as Matter,
+        {
+          id: 'matter-2',
+          name: 'Two',
+          client: 'Two',
+          folderPaths: ['/workspace/Clients/Two'],
+          crmHouseholdKeys: ['household-2'],
+          createdAt: '2026-07-01T00:00:00.000Z',
+        } as Matter,
+      ],
+    });
+    const live = canonicalPort();
+    const grant = grantFirmMeetingDirectoryAccess();
+    if (!grant) throw new Error('expected a genuine firm grant');
+    const reader = readReviewNeededMeetingArtifacts(
+      createMeetingArtifactStore({
+        ...live,
+        getFirmSelectionError: () => null,
+      }),
+      grant,
+      [
+        { kind: 'action-update-proposal', minimumSchemaVersion: 1 },
+        { kind: 'follow-up-draft', minimumSchemaVersion: 1 },
+      ]
+    );
+
+    // Create the records AFTER the reader. Its answer must come from a fresh
+    // canonical reload, not the empty construction-time snapshot.
+    const meetingOne = await createMeetingStore(live).createDraft(draft);
+    const meetingTwo = await createMeetingStore({
+      ...live,
+      records: live.readCanonical(),
+      getActiveMatterId: () => 'matter-2',
+    }).createDraft({
+      ...draft,
+      matterId: 'matter-2',
+      householdRef: 'household-2',
+      scheduledStartUtc: '2026-07-21T09:00:00.000Z',
+      scheduledEndUtc: '2026-07-21T10:00:00.000Z',
+    });
+    let writer = createMeetingArtifactStore({
+      ...live,
+      records: live.readCanonical(),
+    });
+    const reviewOne = await writer.append({
+      meetingId: meetingOne.id,
+      kind: 'action-update-proposal',
+      schemaVersion: 1,
+      producedAt: '2026-07-20T10:00:00.000Z',
+      sourceRefs: [],
+      provenance: 'local-processing',
+      payload: { summary: 'Review client one' },
+    });
+    const approved = await writer.append({
+      meetingId: meetingOne.id,
+      kind: 'follow-up-draft',
+      schemaVersion: 1,
+      producedAt: '2026-07-20T10:01:00.000Z',
+      approvedAt: '2026-07-20T10:02:00.000Z',
+      sourceRefs: [],
+      provenance: 'local-processing',
+      payload: { summary: 'Already reviewed' },
+    });
+    writer = createMeetingArtifactStore({
+      ...live,
+      records: live.readCanonical(),
+      getActiveMatterId: () => 'matter-2',
+    });
+    const reviewTwo = await writer.append({
+      meetingId: meetingTwo.id,
+      kind: 'follow-up-draft',
+      schemaVersion: 1,
+      producedAt: '2026-07-21T10:00:00.000Z',
+      sourceRefs: [],
+      provenance: 'local-processing',
+      payload: { summary: 'Review client two' },
+    });
+
+    const result = await reader.list();
+    expect(result.kind).toBe('ready');
+    if (result.kind !== 'ready') throw new Error(result.message);
+    expect(result.artifacts.map((artifact) => artifact.id)).toEqual([
+      reviewOne.id,
+      reviewTwo.id,
+    ]);
+    expect(result.artifacts.map((artifact) => artifact.matterId)).toEqual([
+      'matter-1',
+      'matter-2',
+    ]);
+    expect(
+      result.artifacts.some((artifact) => artifact.id === approved.id)
+    ).toBe(false);
+    expect(
+      live.commands.filter((command) => command === 'crm_live_list')
+    ).not.toHaveLength(0);
+
+    const forgedGrant = {
+      allowedMatterIds: ['matter-1', 'matter-2'],
+    } as unknown as Parameters<typeof readReviewNeededMeetingArtifacts>[1];
+    const forgedReader = readReviewNeededMeetingArtifacts(
+      createMeetingArtifactStore({
+        ...live,
+        records: live.readCanonical(),
+        getFirmSelectionError: () => null,
+      }),
+      forgedGrant,
+      [{ kind: 'action-update-proposal', minimumSchemaVersion: 1 }]
+    );
+    await expect(forgedReader.list()).resolves.toEqual({
+      kind: 'refused',
+      reason: 'authority-refused',
+      message: 'Firm meeting artifact access was not authorized.',
+    });
+  });
+
+  it('surfaces a blocked firm selection instead of returning an empty artifact list', async () => {
+    seedTrustedAuthority();
+    const live = canonicalPort();
+    const grant = grantFirmMeetingDirectoryAccess();
+    if (!grant) throw new Error('expected a genuine firm grant');
+    const reader = readReviewNeededMeetingArtifacts(
+      createMeetingArtifactStore({
+        ...live,
+        getFirmSelectionError: () =>
+          'The selected client is still unresolved. Choose a valid client or matter and try again.',
+      }),
+      grant,
+      [{ kind: 'action-update-proposal', minimumSchemaVersion: 1 }]
+    );
+
+    await expect(reader.list()).resolves.toEqual({
+      kind: 'refused',
+      reason: 'selection-blocked',
+      message:
+        'The selected client is still unresolved. Choose a valid client or matter and try again.',
+    });
+  });
+
+  it('keeps a truthful empty firm distinct from the same firm becoming blocked', async () => {
+    seedTrustedAuthority();
+    const live = canonicalPort();
+    let blocked: string | null = null;
+    const grant = grantFirmMeetingDirectoryAccess();
+    if (!grant) throw new Error('expected a genuine firm grant');
+    const reader = readReviewNeededMeetingArtifacts(
+      createMeetingArtifactStore({
+        ...live,
+        getFirmSelectionError: () => blocked,
+      }),
+      grant,
+      [{ kind: 'action-update-proposal', minimumSchemaVersion: 1 }]
+    );
+
+    await expect(reader.list()).resolves.toEqual({
+      kind: 'ready',
+      artifacts: [],
+    });
+    blocked = 'The client selection is still catching up.';
+    await expect(reader.list()).resolves.toEqual({
+      kind: 'refused',
+      reason: 'selection-blocked',
+      message: 'The client selection is still catching up.',
+    });
   });
 
   // ── Boundary probes: reach ACROSS the authority boundary and FAIL if the

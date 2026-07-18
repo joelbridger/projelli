@@ -31,7 +31,7 @@ const selection = vi.hoisted(() => ({
   readRequests: [] as Array<Record<string, unknown>>,
 }));
 
-function selectionDecision() {
+function selectionDecision(request: Record<string, unknown>) {
   if (selection.forcedRefusal) {
     return {
       kind: 'refused' as const,
@@ -47,21 +47,26 @@ function selectionDecision() {
         matter: { id: active },
         client: null,
       }
-    : {
-        kind: 'refused' as const,
-        reason: 'all-matters-not-allowed' as const,
-        message: 'Choose one client and try again.',
-      };
+    : request['allowAllMatters'] === true
+      ? {
+          kind: 'all-matters' as const,
+          client: null,
+        }
+      : {
+          kind: 'refused' as const,
+          reason: 'all-matters-not-allowed' as const,
+          message: 'Choose one client and try again.',
+        };
 }
 
 vi.mock('@/platform/client-context', () => ({
   useSelectionOperationDecision: (request: Record<string, unknown>) => {
     selection.hookRequests.push(request);
-    return selectionDecision();
+    return selectionDecision(request);
   },
   readSelectionOperationDecision: (request: Record<string, unknown>) => {
     selection.readRequests.push(request);
-    return selectionDecision();
+    return selectionDecision(request);
   },
 }));
 
@@ -82,7 +87,7 @@ vi.mock('@/platform/matter/matterStore', () => {
     <T,>(selector: (s: typeof matter.state) => T): T => selector(matter.state),
     { getState: () => matter.state }
   );
-  return { useMatterStore };
+  return { useMatterStore, getMatters: () => matter.state.matters };
 });
 vi.mock('@/platform/crm/store', () => ({
   getCrmEngineFreshness: () => ({ kind: 'idle' }),
@@ -97,6 +102,7 @@ vi.mock('@/platform/crm/liveRecordRelay', () => ({
 }));
 
 import {
+  grantFirmMeetingDirectoryAccess,
   useMeetingArtifactStore,
   useMeetingFoundationStore,
   useMeetingKeywordCatalogueStore,
@@ -280,16 +286,19 @@ describe('meetings hook-layer client isolation', () => {
 
     selection.forcedRefusal = {
       reason: 'follower-disagreement',
-      message: 'The client selection is still catching up. Wait a moment and try again.',
+      message:
+        'The client selection is still catching up. Wait a moment and try again.',
     };
     keywords.rerender();
 
     expect(meetings.result.current.error).toContain('still catching up');
     expect(keywords.result.current.error).toContain('still catching up');
     expect(meetings.result.current.list).toEqual([]);
-    await expect(meetings.result.current.get(meeting.id)).resolves.toBeUndefined();
     await expect(
-      meetings.result.current.update(meeting.id, { ownerRef: 'member-2' }),
+      meetings.result.current.get(meeting.id)
+    ).resolves.toBeUndefined();
+    await expect(
+      meetings.result.current.update(meeting.id, { ownerRef: 'member-2' })
     ).rejects.toThrow('still catching up');
     await expect(
       artifacts.result.current.append({
@@ -300,32 +309,63 @@ describe('meetings hook-layer client isolation', () => {
         sourceRefs: [],
         provenance: 'local-entry',
         payload: {},
-      }),
+      })
     ).rejects.toThrow('still catching up');
     await expect(
       artifacts.result.current.approve(artifact.id, {
         from: 'produced',
         to: 'approved',
         at: '2026-07-20T10:06:00.000Z',
-      }),
+      })
     ).rejects.toThrow('still catching up');
     expect(
       artifacts.result.current
         .readerFor(meetings.result.current, clientA, [
           { kind: 'structured-notes', minimumSchemaVersion: 1 },
         ])
-        .get(artifact.id),
+        .get(artifact.id)
     ).toBeNull();
     expect(selection.hookRequests).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ requireFollowerAgreement: true }),
-      ]),
+      ])
     );
     expect(selection.readRequests).not.toHaveLength(0);
     expect(
       selection.readRequests.every(
-        (request) => request['requireFollowerAgreement'] === true,
-      ),
+        (request) => request['requireFollowerAgreement'] === true
+      )
     ).toBe(true);
+  });
+
+  it('uses the activated all-matters tri-state for firm review reads and surfaces its blocked arm', async () => {
+    const artifacts = renderHook(() => useMeetingArtifactStore());
+    const grant = grantFirmMeetingDirectoryAccess();
+    if (!grant) throw new Error('expected a genuine firm grant');
+    const reader = artifacts.result.current.reviewNeededForFirm(grant, [
+      { kind: 'action-update-proposal', minimumSchemaVersion: 1 },
+    ]);
+
+    matter.state.activeMatterId = null;
+    await expect(reader.list()).resolves.toEqual({
+      kind: 'ready',
+      artifacts: [],
+    });
+    expect(selection.readRequests).toContainEqual(
+      expect.objectContaining({
+        allowAllMatters: true,
+        requireFollowerAgreement: true,
+      })
+    );
+
+    selection.forcedRefusal = {
+      reason: 'blocked-unresolved',
+      message: 'The selected client is still unresolved.',
+    };
+    await expect(reader.list()).resolves.toEqual({
+      kind: 'refused',
+      reason: 'selection-blocked',
+      message: 'The selected client is still unresolved.',
+    });
   });
 });

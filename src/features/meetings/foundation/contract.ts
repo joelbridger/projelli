@@ -58,6 +58,12 @@ const MEETINGS_SELECTION_REQUEST = {
   requireFollowerAgreement: true,
 } as const;
 
+const MEETINGS_FIRM_READ_SELECTION_REQUEST = {
+  operationClass: 'matter-scoped',
+  allowAllMatters: true,
+  requireFollowerAgreement: true,
+} as const;
+
 function readAuthoritativeMeetingSelection() {
   return readSelectionOperationDecision(MEETINGS_SELECTION_REQUEST);
 }
@@ -69,6 +75,13 @@ function readAuthoritativeMeetingMatterId(): string | null {
 
 function readAuthoritativeMeetingSelectionError(): string | null {
   const selection = readAuthoritativeMeetingSelection();
+  return selection.kind === 'refused' ? selection.message : null;
+}
+
+function readAuthoritativeFirmMeetingSelectionError(): string | null {
+  const selection = readSelectionOperationDecision(
+    MEETINGS_FIRM_READ_SELECTION_REQUEST
+  );
   return selection.kind === 'refused' ? selection.message : null;
 }
 
@@ -436,6 +449,30 @@ export interface ApprovedMeetingArtifactReader {
   get(id: MeetingArtifactRef): MeetingArtifact | null;
 }
 
+export type ReviewNeededMeetingArtifactsReadResult =
+  | {
+      readonly kind: 'ready';
+      readonly artifacts: readonly MeetingArtifact[];
+    }
+  | {
+      readonly kind: 'refused';
+      readonly reason:
+        | 'authority-refused'
+        | 'selection-blocked'
+        | 'records-unavailable';
+      readonly message: string;
+    };
+
+/**
+ * A sealed, firm-bounded, read-only view of produced artifacts that still need
+ * review. A successful read may truthfully contain zero artifacts; refusal is
+ * a separate result and must be surfaced rather than rendered as emptiness.
+ */
+export interface ReviewNeededMeetingArtifactReader {
+  readonly kinds: readonly MeetingArtifactKind[];
+  list(): Promise<ReviewNeededMeetingArtifactsReadResult>;
+}
+
 export interface MeetingArtifactStore {
   readerFor(
     meetings: MeetingStore,
@@ -447,6 +484,14 @@ export interface MeetingArtifactStore {
     id: MeetingArtifactRef,
     transition: MeetingArtifactTransition
   ): Promise<MeetingArtifact>;
+}
+
+/** The canonical artifact store plus its sealed, firm-wide read-only doorway. */
+export interface FirmReadableMeetingArtifactStore extends MeetingArtifactStore {
+  reviewNeededForFirm(
+    grant: FirmMeetingDirectoryGrant,
+    requirements: readonly MeetingArtifactRequirement[]
+  ): ReviewNeededMeetingArtifactReader;
 }
 
 export interface NoticeEvidenceInput {
@@ -596,6 +641,11 @@ export type ClientScopedLivePort = LivePort & {
   readonly getActiveMatterId: () => string | null | undefined;
   /** Production supplies the exact surfaced four-arm refusal. Test ports may omit it. */
   readonly getSelectionError?: () => string | null;
+  /**
+   * Production's firm-read tri-state. Unlike the client reader, explicit
+   * all-matters is valid; blocked/unresolved still refuses and is surfaced.
+   */
+  readonly getFirmSelectionError?: () => string | null;
 };
 
 interface ClientScope {
@@ -1621,7 +1671,7 @@ function projectArtifact(
 
 export function createMeetingArtifactStore(
   port: ClientScopedLivePort
-): MeetingArtifactStore {
+): FirmReadableMeetingArtifactStore {
   const scope = clientScope(port);
   let raw = port.records.filter(
     (record) =>
@@ -1696,6 +1746,108 @@ export function createMeetingArtifactStore(
         get: (id) => {
           const artifact = reader.get(id);
           return artifact && allowedArtifact(artifact) ? artifact : null;
+        },
+      };
+    },
+    reviewNeededForFirm: (grant, requirements) => {
+      const minimumVersion = artifactMinimumVersions(requirements);
+      const kinds = [...minimumVersion.keys()];
+      const permitted = () => {
+        if (!sealedFirmGrants.has(grant)) return null;
+        const ids = grant.allowedMatterIds;
+        if (
+          !Array.isArray(ids) ||
+          ids.some((id) => typeof id !== 'string' || !id.trim())
+        )
+          return null;
+        return new Set(ids);
+      };
+      const refused = (
+        reason: Extract<
+          ReviewNeededMeetingArtifactsReadResult,
+          { kind: 'refused' }
+        >['reason'],
+        message: string
+      ): ReviewNeededMeetingArtifactsReadResult => ({
+        kind: 'refused',
+        reason,
+        message,
+      });
+      return {
+        kinds,
+        list: async () => {
+          if (!port.getFirmSelectionError)
+            return refused(
+              'selection-blocked',
+              'The firm meeting selection is unavailable.'
+            );
+          const selectionError = port.getFirmSelectionError();
+          if (selectionError)
+            return refused('selection-blocked', selectionError);
+          if (!port.workspaceRoot || port.error)
+            return refused(
+              'records-unavailable',
+              'Meeting artifacts are unavailable until records reload.'
+            );
+          const allowed = permitted();
+          if (!allowed || allowed.size === 0)
+            return refused(
+              'authority-refused',
+              'Firm meeting artifact access was not authorized.'
+            );
+
+          let fresh: readonly LiveCrmRecord[];
+          try {
+            fresh = (await port.reloadRecords()) ?? [];
+          } catch {
+            return refused(
+              'records-unavailable',
+              'Meeting artifacts are unavailable until records reload.'
+            );
+          }
+
+          // Re-check both gates after the asynchronous store read. A selection
+          // becoming blocked while the reload is in flight must refuse instead
+          // of leaking the loaded snapshot or pretending that the firm is empty.
+          const freshSelectionError = port.getFirmSelectionError();
+          if (freshSelectionError)
+            return refused('selection-blocked', freshSelectionError);
+          const stillAllowed = permitted();
+          if (!stillAllowed || stillAllowed.size === 0)
+            return refused(
+              'authority-refused',
+              'Firm meeting artifact access was not authorized.'
+            );
+
+          const meetingsById = new Map<string, MeetingProjection[]>();
+          for (const meeting of meetingRecords(fresh)) {
+            const matches = meetingsById.get(meeting.id) ?? [];
+            matches.push(meeting);
+            meetingsById.set(meeting.id, matches);
+          }
+          const reviewNeeded = fresh
+            .filter((record) => record.kind === 'meeting_artifact')
+            .flatMap((record) => {
+              try {
+                return [projectArtifact(record, fresh)];
+              } catch {
+                return [];
+              }
+            })
+            .filter((artifact) => {
+              const parents = meetingsById.get(artifact.meetingId) ?? [];
+              const parent = parents.length === 1 ? parents[0] : undefined;
+              return (
+                artifact.state === 'produced' &&
+                minimumVersion.has(artifact.kind) &&
+                artifact.schemaVersion >=
+                  (minimumVersion.get(artifact.kind) ?? Infinity) &&
+                stillAllowed.has(artifact.matterId) &&
+                parent?.matterId === artifact.matterId &&
+                parent.householdRef === artifact.householdRef
+              );
+            });
+          return { kind: 'ready', artifacts: reviewNeeded };
         },
       };
     },
@@ -2387,7 +2539,7 @@ export function useMeetingFoundationStore(): MeetingStore {
     reloadRecords: () => loadLiveCrmRecords(live.workspaceRoot),
   });
 }
-export function useMeetingArtifactStore(): MeetingArtifactStore {
+export function useMeetingArtifactStore(): FirmReadableMeetingArtifactStore {
   const live = useLiveCrmRecords();
   useSelectionOperationDecision(MEETINGS_SELECTION_REQUEST);
   return createMeetingArtifactStore({
@@ -2397,6 +2549,7 @@ export function useMeetingArtifactStore(): MeetingArtifactStore {
     save: live.save,
     getActiveMatterId: readAuthoritativeMeetingMatterId,
     getSelectionError: readAuthoritativeMeetingSelectionError,
+    getFirmSelectionError: readAuthoritativeFirmMeetingSelectionError,
     reloadRecords: () => loadLiveCrmRecords(live.workspaceRoot),
   });
 }
