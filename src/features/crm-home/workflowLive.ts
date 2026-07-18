@@ -32,6 +32,36 @@ export type LiveWorkflowOffer = LiveCrmRecord & {
   kind: 'crm_workflow_offer'; templateId: string; householdLabel: string; revisionLabel: string; engineOffer: PropagationEngineOffer;
 };
 
+export type WorkflowCompletionRefusal = {
+  code: string;
+  message: string;
+};
+export type WorkflowCompletionValidation =
+  | { ok: true }
+  | { ok: false; refusal: WorkflowCompletionRefusal };
+export type WorkflowCompletionValidator = (request: {
+  instance: LiveWorkflowInstance;
+  stepId: string;
+  outcomeId?: string;
+}) => WorkflowCompletionValidation;
+
+export class WorkflowCompletionRefusedError extends Error {
+  readonly refusal: WorkflowCompletionRefusal;
+
+  constructor(refusal: WorkflowCompletionRefusal) {
+    super(refusal.message);
+    this.name = 'WorkflowCompletionRefusedError';
+    this.refusal = refusal;
+  }
+}
+
+const workflowCompletionValidators: WorkflowCompletionValidator[] = [];
+
+/** Registers an append-only completion preflight for every saved workflow step. */
+export function registerWorkflowCompletionValidator(validator: WorkflowCompletionValidator): void {
+  workflowCompletionValidators.push(validator);
+}
+
 const now = () => new Date().toISOString();
 const unique = (prefix: string) => `${prefix}-${String(Date.now())}-${Math.random().toString(36).slice(2, 7)}`;
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
@@ -185,6 +215,19 @@ export function completeWorkflowStep(instance: LiveWorkflowInstance, stepId: str
   if (restartAtStepId && next.snapshot.steps[restartAtStepId]) next.snapshot.steps[restartAtStepId].status = 'in_progress';
   const completed = Boolean(outcome && !outcome.nextStepId && !outcome.restartAtStepId);
   return { ...next, snapshot: reconcileTemplateRemovals(next.snapshot), ...(completed ? { status: 'completed' as const } : {}) };
+}
+
+export function applyWorkflowStepCompletion(
+  instance: LiveWorkflowInstance,
+  stepId: string,
+  outcomeId?: string
+): LiveWorkflowInstance {
+  const request = { instance, stepId, ...(outcomeId === undefined ? {} : { outcomeId }) };
+  for (const validator of workflowCompletionValidators) {
+    const result = validator(request);
+    if (!result.ok) throw new WorkflowCompletionRefusedError(result.refusal);
+  }
+  return completeWorkflowStep(instance, stepId, outcomeId);
 }
 
 export function addWorkflowStepNote(instance: LiveWorkflowInstance, stepId: string, note: string): LiveWorkflowInstance {

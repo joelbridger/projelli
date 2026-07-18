@@ -3,7 +3,7 @@ import { useEffect, type ReactNode } from 'react';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import { nextRecurringDue } from '@/platform/crm/tasks';
 import { createMigrationExport, runWealthboxMigration } from '@/platform/crm/migration';
-import { completeWorkflowStep, createTemplate, startScheduledWorkflows, startWorkflow, workflowRecords } from '../workflowLive';
+import { applyWorkflowStepCompletion, createTemplate, startScheduledWorkflows, startWorkflow, workflowRecords } from '../workflowLive';
 import { CrmHomeShell } from '../CrmHome';
 import type { HouseholdChoice } from '@/features/crm-workflows/Workflows';
 import { mergeCrmTaskRecord, projectCrmTask } from './liveTaskAdapter';
@@ -564,7 +564,7 @@ export function LiveCrmHome({
     );
     if (!instance)
       throw new Error('That workflow step is no longer available.');
-    await live.save(completeWorkflowStep(instance, item.stepId));
+    await live.save(applyWorkflowStepCompletion(instance, item.stepId));
     const now = new Date().toISOString();
     await live.save({
       id: `activity-${crypto.randomUUID()}`,
@@ -654,7 +654,7 @@ export function LiveCrmHome({
           0,
           Math.max(0, currentStepIndex)
         ))
-          instance = completeWorkflowStep(instance, step.id);
+          instance = applyWorkflowStepCompletion(instance, step.id);
         await live.save(instance);
         await live.save({
           ...record,
