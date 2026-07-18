@@ -16,6 +16,9 @@ function relativeLuminance(color: string): number {
     const value = channel / 255;
     return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
   });
+  if (red === undefined || green === undefined || blue === undefined) {
+    throw new Error(`Expected three RGB channels, received ${color}`);
+  }
   return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
 }
 

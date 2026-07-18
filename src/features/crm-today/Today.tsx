@@ -69,7 +69,7 @@ export function Today({
             Review today’s plan
           </Button>
           <button
-            data-testid="crm-notifications-button"
+            data-testid="crm-today-notifications-button"
             aria-label="Open notifications"
             onClick={() => {
               onNavigate('activity');

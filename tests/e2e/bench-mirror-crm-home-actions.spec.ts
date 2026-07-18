@@ -21,7 +21,7 @@ test.describe('Bench mirror: CRM Home header actions', () => {
       await waitForTestModeLoad(page);
 
       const review = page.getByTestId('crm-today-review');
-      const notifications = page.getByTestId('crm-notifications-button');
+      const notifications = page.getByTestId('crm-today-notifications-button');
       await expect(review).toBeVisible();
       await expect(review).toBeEnabled();
       await expect(notifications).toBeVisible();
