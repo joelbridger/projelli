@@ -218,6 +218,7 @@ describe('WS-B/C scoped cited retrieval in chat', () => {
     render(<AIChatViewer chatData={chat} apiKeys={apiKey} />);
     const selector = screen.getByTestId('matter-scope-selector');
     expect(selector.getAttribute('data-scope')).toBe('matter');
+    expect(selector.getAttribute('data-source-scope')).toBe('matter-only');
     expect(selector.textContent).toContain('Acme');
   });
 

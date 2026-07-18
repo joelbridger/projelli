@@ -296,6 +296,10 @@ describe('writer-owned workspace-disk rehydration', () => {
 
 describe('workspace-disk durability (fresh profile wipe)', () => {
   it('matters created in a workspace survive a full profile wipe (localStorage gone, workspace files intact)', async () => {
+    setDevFlagOverride('selection-authority-boot-gate', false);
+    requestClearClientSelection();
+    setDevFlagOverride('selection-authority-boot-gate', true);
+    await requestMatterScopeSelection(issueAllMattersScopeSelection());
     const { service, files } = createMockWorkspaceService('/wsA');
     await openWorkspace('/wsA', service);
 
@@ -304,7 +308,11 @@ describe('workspace-disk durability (fresh profile wipe)', () => {
       client: 'Acme',
       folderPaths: ['/wsA/Clients/Acme'],
     });
-    useMatterStore.getState().setActiveMatter(m.id);
+    await requestMatterScopeSelection(issueMatterScopeSelection(m.id));
+    await vi.waitFor(() => {
+      expect(useMatterStore.getState().activeMatterId).toBe(m.id);
+      expect(useClientContextStore.getState().followerStatus).toBe('converged');
+    });
     await flushMattersWorkspaceDiskWrites();
 
     // The record reached the WORKSPACE's own folder, not just the profile.
@@ -319,7 +327,10 @@ describe('workspace-disk durability (fresh profile wipe)', () => {
     await openWorkspace('/wsA', service);
     expect(getMatters().map((x) => x.id)).toEqual([m.id]);
     expect(getMatters()[0]?.name).toBe('Acme Family Trust');
-    expect(useMatterStore.getState().activeMatterId).toBe(m.id);
+    await vi.waitFor(() => {
+      expect(useMatterStore.getState().activeMatterId).toBe(m.id);
+      expect(useClientContextStore.getState().followerStatus).toBe('converged');
+    });
 
     // And the localStorage fast-cache was repopulated for next boot.
     const cached = localStorage.getItem(scopedMattersKey('/wsA'));
@@ -648,6 +659,10 @@ describe('disk is the source of truth', () => {
 
 describe('reloadWorkspaceScopedStores wiring', () => {
   it('the workspace-open choke-point itself triggers the disk hydrate (fresh profile, records only on disk)', async () => {
+    setDevFlagOverride('selection-authority-boot-gate', false);
+    requestClearClientSelection();
+    setDevFlagOverride('selection-authority-boot-gate', true);
+    await requestMatterScopeSelection(issueAllMattersScopeSelection());
     const { service, files } = createMockWorkspaceService('/wsA');
     seedDiskFile(files, '/wsA', [persistedMatter('m_wired', '/wsA', 'Wired')], 'm_wired');
 
@@ -656,6 +671,9 @@ describe('reloadWorkspaceScopedStores wiring', () => {
     await flushMattersWorkspaceDiskWrites();
 
     expect(getMatters().map((m) => m.id)).toEqual(['m_wired']);
-    expect(useMatterStore.getState().activeMatterId).toBe('m_wired');
+    await vi.waitFor(() => {
+      expect(useMatterStore.getState().activeMatterId).toBe('m_wired');
+      expect(useClientContextStore.getState().followerStatus).toBe('converged');
+    });
   });
 });

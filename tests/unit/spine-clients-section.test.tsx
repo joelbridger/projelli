@@ -138,6 +138,7 @@ describe('Spine — Clients section', () => {
   });
 
   it('highlights All Clients without also highlighting the Client Map nav tab', () => {
+    matterMocks.activeMatterId = null;
     render(<Spine activeTab="matters" allClientsSelected />);
 
     expect(screen.getByTestId('spine-all-clients-row')).toHaveAttribute('aria-current', 'page');

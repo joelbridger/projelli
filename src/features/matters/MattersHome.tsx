@@ -43,12 +43,12 @@ import {
   useMatters,
   useActiveMatters,
   useArchivedMatters,
-  useActiveMatterId,
   useMatterStore,
 } from '@/platform/matter/matterStore';
 import {
   issueMatterScopeSelection,
   requestMatterScopeSelection,
+  useSelectionPresentation,
 } from '@/platform/client-context';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { MatterHub } from '@/features/matters/MatterHub';
@@ -866,7 +866,8 @@ export function MattersHome({
   const { t } = useTranslation();
   const activeMatters = useActiveMatters();
   const archivedMatters = useArchivedMatters();
-  const activeMatterId = useActiveMatterId();
+  const selection = useSelectionPresentation();
+  const activeMatterId = selection.matterId;
   const setMatterArchived = useMatterStore((s) => s.setMatterArchived);
   // Hub-open state lives in the store's ephemeral clientMapHubId so it survives
   // the MattersHome remount a surface switch causes — returning to the Client
@@ -997,6 +998,17 @@ export function MattersHome({
         Icon={Users}
         iconColor="var(--kp-accent)"
         title={entityLabel.Other}
+        actions={
+          selection.blocked ? (
+            <Badge variant="danger" data-testid="matters-home-selection-blocked" aria-label="Client selection blocked">
+              BLOCKED
+            </Badge>
+          ) : selection.stale ? (
+            <Badge variant="warning" data-testid="matters-home-selection-stale" aria-label="Client selection updating">
+              Selection updating
+            </Badge>
+          ) : undefined
+        }
       />
     </div>
   );
