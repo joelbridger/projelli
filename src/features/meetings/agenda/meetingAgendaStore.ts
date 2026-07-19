@@ -432,34 +432,29 @@ export function createMeetingAgendaStore(
         );
   };
 
-  const unavailableFrom = (
-    error: unknown
-  ): Extract<MeetingAgendaWriteResult, { kind: 'error' }> =>
-    errorResult(
-      'unavailable',
-      error instanceof Error ? error.message : String(error)
-    );
+  const unavailableMessage = (error: unknown): string =>
+    error instanceof Error ? error.message : String(error);
 
   return {
     read: async (target) => {
       try {
         return await readUnsafe(target);
       } catch (error) {
-        return unavailableFrom(error);
+        return errorResult('unavailable', unavailableMessage(error));
       }
     },
     create: async (target) => {
       try {
         return await write(target, '', null);
       } catch (error) {
-        return unavailableFrom(error);
+        return errorResult('unavailable', unavailableMessage(error));
       }
     },
     save: async (target, input) => {
       try {
         return await write(target, input.body, input.expectedRevision);
       } catch (error) {
-        return unavailableFrom(error);
+        return errorResult('unavailable', unavailableMessage(error));
       }
     },
   };
