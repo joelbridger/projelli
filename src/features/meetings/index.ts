@@ -74,6 +74,25 @@ export {
   type BlessedMeetingPanelId,
 } from './meetingPanelRegistry';
 export {
+  MeetingAgendaPanel,
+  type MeetingAgendaPanelState,
+} from './agenda/MeetingAgendaPanel';
+export {
+  createMeetingAgendaPanelDescriptor,
+  useMeetingAgendaCompatibility,
+} from './agenda/meetingAgendaCompatibility';
+export {
+  createMeetingAgendaStore,
+  deriveMeetingAgendaRecordId,
+  meetingAgendaTarget,
+  useMeetingAgendaStore,
+  type MeetingAgenda,
+  type MeetingAgendaReadResult,
+  type MeetingAgendaStore,
+  type MeetingAgendaTarget,
+  type MeetingAgendaWriteResult,
+} from './agenda/meetingAgendaStore';
+export {
   meetingHeaderActionRegistry,
   validateMeetingHeaderActionDescriptors,
   getMeetingHeaderActions,

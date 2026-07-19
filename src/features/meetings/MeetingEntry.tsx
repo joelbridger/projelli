@@ -67,6 +67,7 @@ import { getMeetingHeaderActionComposition } from './meetingHeaderActionRegistry
 import { getMeetingInsightComposition } from './meetingInsightRegistry';
 import type { MeetingOpenTarget } from './foundation/contract';
 import { resolveMeetingEntryHostIdentity } from './meetingEntryHostIdentity';
+import { useMeetingAgendaCompatibility } from './agenda/meetingAgendaCompatibility';
 
 export interface MeetingEntryProps {
   matterId: string;
@@ -161,6 +162,9 @@ export function MeetingEntry({
   onChanged,
   showBackButton = true,
 }: MeetingEntryProps) {
+  // Agenda had no compatibility tab. Its real persisted panel is registered
+  // only for the lifetime of an actual meeting-detail host.
+  useMeetingAgendaCompatibility();
   // A canonical opener owns identity — but ONLY a target the trusted resolver
   // actually minted is believed (see resolveMeetingEntryHostIdentity). A forged
   // target confers no identity and this host falls back to its legacy props.
