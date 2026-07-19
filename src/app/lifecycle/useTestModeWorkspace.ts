@@ -5,7 +5,7 @@
  * VERBATIM from App.tsx; the only edit is IS_TEST_MODE → isTestMode (the option)
  * inside the body and in the dependency array.
  */
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useEditorStore } from '@/platform/state/editorStore';
 import { setActiveWorkspaceService } from '@/app/fileOps/flushDirtyTabs';
@@ -342,7 +342,6 @@ export function createTestModeWorkspaceMock(): TestModeWorkspaceMock {
     },
   };
 }
-
 export interface UseTestModeWorkspaceOptions {
   isTestMode: boolean;
   rootPath: string | null;
@@ -355,6 +354,17 @@ export interface UseTestModeWorkspaceOptions {
 
 export function useTestModeWorkspace(options: UseTestModeWorkspaceOptions): void {
   const { isTestMode, rootPath, setRootPath, openFile, setFileTree, expandAllFolders, workspaceServiceRef } = options;
+  // This hook's recording setup writes several files asynchronously. Keep the
+  // mounted state separate from the setup effect: setting rootPath reruns that
+  // effect, but must not discard a recording setup that is still in progress.
+  const isMountedRef = useRef(false);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   useEffect(() => {
     if (isTestMode && !rootPath) {
       // Set a mock workspace path
@@ -562,6 +572,7 @@ export function useTestModeWorkspace(options: UseTestModeWorkspaceOptions): void
         ];
         const service = workspaceServiceRef.current;
         void Promise.all(matterFiles.map((f) => service.writeFile(f.path, f.content))).then(() => {
+            if (!isMountedRef.current) return;
             setFileTree([
               {
                 id: DIR, name: 'Webb Household', path: DIR, type: 'folder',

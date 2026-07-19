@@ -916,11 +916,15 @@ function AppShell() {
   useEffect(() => {
     if (fileTree.length > 0 && expandedPaths.size === 0 && rootPath) {
       // File tree exists but nothing is expanded - expand all folders
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         expandAllFolders();
         console.log('Auto-expanded all folders on file tree load');
       }, 100); // Small delay to ensure React state is updated
+      return () => {
+        clearTimeout(timer);
+      };
     }
+    return undefined;
   }, [fileTree, expandedPaths.size, expandAllFolders, rootPath]);
 
   // File system watcher - auto-refresh when external changes detected

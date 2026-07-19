@@ -150,6 +150,7 @@ import {
   type AuditWriteEmitter,
   type AuditWriteEntry,
 } from '@/features/audit';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 
 const { default: App } = await import('@/App');
 
@@ -194,6 +195,7 @@ beforeEach(() => {
 afterEach(() => {
   Reflect.deleteProperty(window, '__TAURI_INTERNALS__');
   setAuditWriteEmitter(null);
+  vi.useRealTimers();
 });
 
 describe('App canonical audit-write registration', () => {
@@ -403,5 +405,43 @@ describe('App canonical audit-write registration', () => {
     });
 
     app.unmount();
+  });
+
+  it('cancels the pending folder expansion when App unmounts', async () => {
+    vi.useFakeTimers();
+    const originalWorkspace = useWorkspaceStore.getState();
+    const expandAllFolders = vi.fn(originalWorkspace.expandAllFolders);
+    useWorkspaceStore.setState({
+      rootPath: '/timer-leak-workspace',
+      fileTree: [
+        {
+          id: 'clients',
+          name: 'Clients',
+          path: '/timer-leak-workspace/Clients',
+          type: 'folder',
+          children: [],
+        },
+      ],
+      expandedPaths: new Set(),
+      expandAllFolders,
+    });
+
+    try {
+      const app = render(<App />);
+      app.unmount();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(100);
+      });
+
+      expect(expandAllFolders).not.toHaveBeenCalled();
+    } finally {
+      useWorkspaceStore.setState({
+        rootPath: originalWorkspace.rootPath,
+        fileTree: originalWorkspace.fileTree,
+        expandedPaths: originalWorkspace.expandedPaths,
+        expandAllFolders: originalWorkspace.expandAllFolders,
+      });
+    }
   });
 });

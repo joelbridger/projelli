@@ -1,0 +1,20 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/lantern/app/integration/.worktrees/v1/timer-leak-cure
+sha: 073153a740a72bf9ad592481887fb058b53b8333
+tree: 1441185d08e76ffb6ce78e89fe40d5fbc6c88a06
+gate_base: 6c22f1299d6be46a545eb329adfc0de4ae3c92a4
+tool_blob: 2cdbd4254c388970d44b9a674dc793caf823040d
+utc: 2026-07-19T04:46:38Z
+step_timeout_seconds: 900
+loadavg: 4.34 5.17 7.15
+running_vitest_eslint_procs: 1
+step: gate:changed | status=FAIL | exit=1 | 04:46:38Z..04:56:02Z | bytes=3647272 | sha256=e07a09d6fcda6c2b3fbefa2e50eca0fd6a670d29e1b8a978dfea1daff5d979a7 | tail: 29 skipped[39m[90m (9198)[39m [2m Start at [22m 04:49:40 [2m Duration [22m 382.18s[2m (transform 28.56s, setup 196.63s, import 541.48s, tests 232.95s, environment 425.63s)[22m CHANGED GATE RED see failures above
+step: typecheck | status=FAIL | exit=2 | 04:56:02Z..04:56:32Z | bytes=1160 | sha256=7bb126851603b519593bff9de845c1b5a94cd0030e38543bd328b649d98109a8 | tail: es of property 'current' are incompatible. Type '{ writeFile: Mock<() => Promise<void>>; }' is missing the following properties from type 'WorkspaceService': backend, pathValidator, workspace, treeScan, and 28 more.
+step: typecheck:tests | status=FAIL | exit=2 | 04:56:32Z..04:57:03Z | bytes=1188 | sha256=785bf0608d6da15810de11808b74029d4f9893f7d212d9156cb41c4008049212 | tail: es of property 'current' are incompatible. Type '{ writeFile: Mock<() => Promise<void>>; }' is missing the following properties from type 'WorkspaceService': backend, pathValidator, workspace, treeScan, and 28 more.
+step: handle-guard | status=PASS | exit=0 | 04:57:03Z..04:57:03Z | bytes=1374 | sha256=5acfb457de698bf1fd64fececb5762ff55e186598b10738176cf151e896fe54a | tail: bility-slots-unavailable + booking-availability-status + booking-availability-timezone +519 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen).
+step: arch-dag-guard | status=PASS | exit=0 | 04:57:03Z..04:57:04Z | bytes=512 | sha256=540b22a619f8a12024f7b8b459ca6cc33a4eee5af6a6e40ee2899023fb887653 | tail: assed[39m[22m[90m (1)[39m [2m Tests [22m [1m[32m1 passed[39m[22m[90m (1)[39m [2m Start at [22m 04:57:03 [2m Duration [22m 1.07s[2m (transform 265ms, setup 418ms, import 266ms, tests 3ms, environment 295ms)[22m
+step: i18n-snapshot | status=PASS | exit=0 | 04:57:04Z..04:57:06Z | bytes=513 | sha256=b9a30c81f0844c0cf8f7d412556fe4826875b1436dc1f57e7d60c738ecddb98b | tail: ssed[39m[22m[90m (1)[39m [2m Tests [22m [1m[32m5 passed[39m[22m[90m (5)[39m [2m Start at [22m 04:57:05 [2m Duration [22m 1.00s[2m (transform 261ms, setup 365ms, import 227ms, tests 22ms, environment 299ms)[22m
+step: boundaries:check | status=PASS | exit=0 | 04:57:06Z..04:57:08Z | bytes=151 | sha256=28937977f27fc438a6e9ae1a771d2ae8ca85765df3e4cac8a3f0e4e4aaffa5bc | tail:  > advisor-prep-hero@3.3.5 boundaries:check > node scripts/check-boundaries.mjs No feature-boundary regression (599 current baseline finding(s)).
+step: focused | status=PASS | exit=0 | 04:57:08Z..04:57:11Z | bytes=1104 | sha256=07d5faff7169f03fd6c482c0bbf1ad6fbf424133d6ae49a0dd3ebde5faf6f6ed | tail: ssed[39m[22m[90m (1)[39m [2m Tests [22m [1m[32m3 passed[39m[22m[90m (3)[39m [2m Start at [22m 04:57:08 [2m Duration [22m 2.76s[2m (transform 1.44s, setup 375ms, import 1.88s, tests 23ms, environment 285ms)[22m
+overall: RED
