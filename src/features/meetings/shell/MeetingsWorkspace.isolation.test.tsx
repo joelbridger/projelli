@@ -420,6 +420,11 @@ describe('Meetings cross-client isolation in the mounted shell', () => {
     expect(screen.getByTestId('meetings-actions-view-filter')).toHaveValue(
       'need-attention'
     );
+    fireEvent.click(screen.getByTestId('meetings-view-templates'));
+    expect(await screen.findByTestId('meeting-template-panel')).toBeTruthy();
+    fireEvent.click(await screen.findByTestId('meeting-template-create'));
+    expect(screen.getByTestId('meeting-template-editor')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('meeting-template-cancel'));
     fireEvent.click(screen.getByTestId('meetings-view-upcoming'));
     fireEvent.click(screen.getByTestId('meetings-owner-all'));
 

@@ -39,6 +39,7 @@ import {
   type MeetingArtifactKind,
   type MeetingOpenTarget,
   type MeetingProjection,
+  type SealedMeetingClientBoundary,
 } from '../foundation/contract';
 import { resolveMatterFolder } from '../meetingStore';
 import { AutoJoinMeetingsPanel } from '../AutoJoinMeetingsPanel';
@@ -243,12 +244,12 @@ export function MeetingsDetailHost({
 
 function TemplateManagement({
   target,
+  activeClientBoundary,
   runtime,
-  onShowUpcoming,
 }: {
   target: MeetingOpenTarget | null;
+  activeClientBoundary: SealedMeetingClientBoundary | null;
   runtime: Pick<MeetingsSurfaceRuntime, 'workspace'>;
-  onShowUpcoming: () => void;
 }) {
   const { t } = useTranslation();
   const firm = useFirm();
@@ -258,6 +259,8 @@ function TemplateManagement({
 
   useEffect(() => {
     let current = true;
+    setTranscript(null);
+    setLoading(target !== null);
     if (!target || !workspace) return () => { current = false; };
     void workspace
       .readFile(`${target.meetingDir}/transcript.json`)
@@ -273,47 +276,49 @@ function TemplateManagement({
     return () => { current = false; };
   }, [target, workspace]);
 
-  if (!target) {
-    return (
-      <div className="meetings-shell-empty" data-testid="meetings-templates-needs-meeting">
-        <p>{t('meetings.shell.templates.choose-meeting')}</p>
-        <button
-          type="button"
-          className="kp-btn kp-btn--secondary kp-btn--sm"
-          data-testid="meetings-templates-show-upcoming"
-          onClick={onShowUpcoming}
-        >
-          {t('meetings.shell.actions.show-upcoming')}
-        </button>
-      </div>
-    );
-  }
-  if (loading) {
-    return <div className="meetings-shell-local-state">{t('meetings.shell.loading.templates')}</div>;
-  }
-  if (!workspace || !transcript) {
+  if (!workspace) {
     return (
       <div className="meetings-shell-empty" data-testid="meetings-templates-unavailable">
         {t('meetings.shell.templates.no-transcript')}
       </div>
     );
   }
+  const fill =
+    target && transcript && activeClientBoundary
+      ? {
+          activeClientBoundary,
+          target,
+          transcript,
+          clientName:
+            activeClientBoundary.displayName ??
+            activeClientBoundary.householdRef,
+          getProvider: async () => {
+            const resolved = await buildResolvedProviderForGlance();
+            return createPreparedMeetingTemplateFillProvider({
+              matterId: activeClientBoundary.matterId,
+              resolved,
+            });
+          },
+        }
+      : undefined;
   return (
-    <MeetingTemplatePanel
-      workspace={workspace}
-      firmId={firm.org?.org_id ?? LOCAL_PRACTICE_TEMPLATE_OWNER}
-      canManageTemplates={firm.role === 'admin' || !firm.org}
-      meetingDir={target.meetingDir}
-      transcript={transcript}
-      clientName={target.client.displayName ?? target.client.householdRef}
-      getProvider={async () => {
-        const resolved = await buildResolvedProviderForGlance();
-        return createPreparedMeetingTemplateFillProvider({
-          matterId: target.client.matterId,
-          resolved,
-        });
-      }}
-    />
+    <>
+      {loading ? (
+        <div className="meetings-shell-local-state" data-testid="meetings-templates-loading">
+          {t('meetings.shell.loading.templates')}
+        </div>
+      ) : target && !transcript ? (
+        <div className="meetings-shell-empty" data-testid="meetings-templates-unavailable">
+          {t('meetings.shell.templates.no-transcript')}
+        </div>
+      ) : null}
+      <MeetingTemplatePanel
+        workspace={workspace}
+        firmId={firm.org?.org_id ?? LOCAL_PRACTICE_TEMPLATE_OWNER}
+        canManageTemplates={firm.role === 'admin' || !firm.org}
+        {...(fill ? { fill } : {})}
+      />
+    </>
   );
 }
 
@@ -807,8 +812,8 @@ export function MeetingsWorkspace({ runtime }: { runtime: MeetingsWorkspaceRunti
                 <TemplateManagement
                   key={safeTemplateTarget?.meeting.id ?? 'no-template-target'}
                   target={safeTemplateTarget}
+                  activeClientBoundary={activeClientBoundary}
                   runtime={runtime}
-                  onShowUpcoming={() => { setView('upcoming'); }}
                 />
               ) : selectedDescriptor.id === 'automations' ? (
                 <AutomationsManagement />
