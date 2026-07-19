@@ -85,6 +85,7 @@ const PRIMARY_RAIL_IDENTITY = Object.fromEntries(
 export const legacyHomeSurface = legacySurface({
   id: 'home',
   labelKey: PRIMARY_RAIL_IDENTITY.home.labelKey,
+  legacyLabel: PRIMARY_RAIL_IDENTITY.home.label,
   icon: Home,
   placement: 'primary',
   order: 10,
@@ -105,6 +106,7 @@ export const legacyHomeSurface = legacySurface({
 export const legacyClientsSurface = legacySurface({
   id: 'matters',
   labelKey: PRIMARY_RAIL_IDENTITY.matters.labelKey,
+  legacyLabel: PRIMARY_RAIL_IDENTITY.matters.label,
   icon: MapIcon,
   placement: 'primary',
   order: 20,
@@ -116,6 +118,7 @@ export const legacyClientsSurface = legacySurface({
 export const legacyAskSurface = legacySurface({
   id: 'search',
   labelKey: PRIMARY_RAIL_IDENTITY.search.labelKey,
+  legacyLabel: PRIMARY_RAIL_IDENTITY.search.label,
   icon: Sparkles,
   placement: 'primary',
   order: 30,
