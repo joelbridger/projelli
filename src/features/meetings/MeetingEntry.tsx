@@ -77,6 +77,7 @@ import {
   type MeetingDetailHeaderProjection,
 } from './meetingDetailHeaderProjection';
 import { useMeetingAgendaCompatibility } from './agenda/meetingAgendaCompatibility';
+import { useMeetingFollowUpCompatibility } from './followUp/meetingFollowUpCompatibility';
 
 export interface MeetingEntryProps {
   /** The live, complete household + matter pair. */
@@ -209,6 +210,8 @@ function MeetingEntryHost({
   // Agenda had no compatibility tab. Its real persisted panel is registered
   // only for the lifetime of an actual meeting-detail host.
   useMeetingAgendaCompatibility();
+  // Follow-up likewise claims F2's blessed slot only inside a sealed host.
+  useMeetingFollowUpCompatibility();
   const { t } = useTranslation();
   const firm = useFirm();
   const [meta, setMeta] = useState<MeetingMeta | null>(null);

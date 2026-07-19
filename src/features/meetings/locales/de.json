@@ -110,6 +110,7 @@
       "tab-tasks": "Aufgaben",
       "tab-crm-update": "CRM-Aktualisierung",
       "tab-agenda": "Agenda",
+      "tab-follow-up": "Nachbereitung",
       "tab-send-to-team": "Ans Team senden",
       "download-audio": "Audio herunterladen",
       "no-audio": "Für dieses Gespräch ist kein Audio gespeichert.",
@@ -127,6 +128,14 @@
       "structured-summary-processing": "Verarbeitung",
       "structured-summary-ready": "Zusammenfassung bereit",
       "structured-summary-needs-review": "Prüfung nötig",
+      "follow-up": {
+        "loading": "Die Nachbereitung dieses Gesprächs wird geladen.",
+        "not-produced": "Für dieses Gespräch wurde noch keine Nachbereitung erstellt.",
+        "refused": "Öffnen Sie dieses Gespräch über den bestätigten Kunden, bevor Sie die Nachbereitung ansehen.",
+        "local-error": "Die Nachbereitung dieses Gesprächs konnte nicht geladen werden. Es wurde nichts gesendet oder in Outlook gespeichert.",
+        "retry": "Erneut versuchen",
+        "description": "Bearbeiten Sie die Zusammenfassung hier. Beim Speichern wird nur ein Outlook-Entwurf erstellt; es wird keine E-Mail gesendet."
+      },
       "export-saved": "Gespeichert unter {{path}}",
       "generic-title": "Gespräch",
       "dictated-title": "Diktierte Notiz",

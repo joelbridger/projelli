@@ -110,6 +110,7 @@
       "tab-tasks": "Tareas",
       "tab-crm-update": "Actualización de CRM",
       "tab-agenda": "Agenda",
+      "tab-follow-up": "Seguimiento",
       "tab-send-to-team": "Enviar al equipo",
       "download-audio": "Descargar audio",
       "no-audio": "No hay audio guardado para esta reunión.",
@@ -127,6 +128,14 @@
       "structured-summary-processing": "Procesamiento",
       "structured-summary-ready": "Resumen listo",
       "structured-summary-needs-review": "Requiere revisión",
+      "follow-up": {
+        "loading": "Cargando el seguimiento de esta reunión.",
+        "not-produced": "Todavía no se ha creado un resumen de seguimiento para esta reunión.",
+        "refused": "Abre esta reunión desde su cliente confirmado antes de ver el seguimiento.",
+        "local-error": "No se pudo cargar el seguimiento de esta reunión. No se envió ni se guardó nada en Outlook.",
+        "retry": "Intentar de nuevo",
+        "description": "Edita el resumen aquí. Al guardar solo se crea un borrador de Outlook; nunca se envía un correo."
+      },
       "export-saved": "Guardado en {{path}}",
       "generic-title": "Reunión",
       "dictated-title": "Nota dictada",

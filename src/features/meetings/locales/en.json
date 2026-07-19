@@ -108,6 +108,7 @@
       "tab-tasks": "Tasks",
       "tab-crm-update": "CRM update",
       "tab-agenda": "Agenda",
+      "tab-follow-up": "Follow-up",
       "tab-send-to-team": "Send to team",
       "download-audio": "Download audio",
       "no-audio": "No audio is saved for this meeting.",
@@ -125,6 +126,14 @@
       "structured-summary-processing": "Processing",
       "structured-summary-ready": "Summary ready",
       "structured-summary-needs-review": "Needs review",
+      "follow-up": {
+        "loading": "Loading this meeting's follow-up.",
+        "not-produced": "A follow-up recap has not been produced for this meeting yet.",
+        "refused": "Open this meeting from its confirmed client before viewing the follow-up.",
+        "local-error": "This meeting's follow-up could not be loaded. Nothing was sent or saved to Outlook.",
+        "retry": "Try again",
+        "description": "Edit the recap here. Saving creates an Outlook draft only; it never sends email."
+      },
       "export-saved": "Saved to {{path}}",
       "generic-title": "Meeting",
       "dictated-title": "Dictated note",
