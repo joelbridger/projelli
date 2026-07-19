@@ -300,6 +300,7 @@ async function realStoreFixture(): Promise<RealStoreFixture> {
       grant,
       MEETING_REVIEW_INBOX_REQUIREMENTS
     ),
+    getActiveClientBoundary: readActiveMeetingClientBoundary,
     getMeetingFacts: () => [],
     now: () => '2026-07-20T12:00:00.000Z',
   });
