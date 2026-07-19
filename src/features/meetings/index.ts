@@ -211,3 +211,7 @@ export {
   type MeetingKeywordMatch,
 } from './insights/keywords/meetingKeywords';
 export { meetingKeywordsSettingsPanel } from './insights/keywords/settingsModuleDescriptor';
+
+// The feature-owned shell doorway. The app registry imports this public root;
+// no app surface reaches into meetings/shell internals.
+export * from './shell';

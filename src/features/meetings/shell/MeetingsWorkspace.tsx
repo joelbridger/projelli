@@ -1,0 +1,785 @@
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { useTranslation } from 'react-i18next';
+import { CalendarDays, ChevronLeft, Mic, Plus } from 'lucide-react';
+import { CalendarGridSurface } from '@/features/calendar-grid';
+import {
+  readSelectionOperationDecision,
+  useClientContextStore,
+  useSelectionPresentation,
+} from '@/platform/client-context';
+import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
+import { useFlag } from '@/platform/flags';
+import { useFirmStore } from '@/platform/firm/firmStore';
+import { useFirm } from '@/platform/hooks/useFirm';
+import { buildResolvedProviderForGlance } from '@/platform/matter/matterAtAGlance';
+import { useMatterStore } from '@/platform/matter/matterStore';
+import type { TranscriptFile } from '@/platform/types/meeting';
+import {
+  appendNoticeEvidence,
+  createFirmMeetingDirectoryReader,
+  createMeetingPopulationService,
+  grantFirmMeetingDirectoryAccess,
+  projectMeetingList,
+  useMeetingArtifactStore,
+  useMeetingFoundationStore,
+  type ClientBoundary,
+  type MeetingArtifactKind,
+  type MeetingOpenTarget,
+  type MeetingProjection,
+  type ReviewNeededMeetingArtifactsReadResult,
+} from '../foundation/contract';
+import { readReviewNeededMeetingArtifacts } from '../reviewArtifacts';
+import { resolveMatterFolder } from '../meetingStore';
+import { AutoJoinMeetingsPanel } from '../AutoJoinMeetingsPanel';
+import { ClientMeetingsTab } from '../ClientMeetingsTab';
+import { MeetingEntry } from '../MeetingEntry';
+import { MeetingTemplatePanel } from '../MeetingTemplatePanel';
+import { createPreparedMeetingTemplateFillProvider } from '../meetingTemplateAi';
+import {
+  getMeetingArtifactComposition,
+  getNoticeEvidenceProviderComposition,
+  hasMeetingArtifactContributions,
+  hasNoticeEvidenceProviderContributions,
+  useMeetingArtifactRegistryVersion,
+  useMeetingListComposition,
+  useMeetingListToolComposition,
+  useNoticeEvidenceProviderRegistryVersion,
+  type MeetingArtifactContext,
+  type MeetingListContext,
+  type MeetingListToolContext,
+  type NoticeEvidenceProviderContext,
+} from './contracts';
+import {
+  registerMeetingsNavigationHost,
+  resolveMeetingsSurfaceNavigation,
+  type MeetingsNavigationNotice,
+  type MeetingsNavigationRuntime,
+} from './navigation';
+import type { MeetingsSurfaceRuntime } from './appSurface';
+import './meetingsShell.css';
+
+type ShellView = string;
+
+interface DirectoryLoadState {
+  readonly key: string;
+  readonly status: 'loading' | 'ready' | 'error';
+  readonly records: readonly MeetingProjection[];
+}
+
+interface ReviewLoadState {
+  readonly key: string;
+  readonly status: 'loading' | 'ready';
+  readonly result: ReviewNeededMeetingArtifactsReadResult | null;
+}
+
+const REVIEW_REQUIREMENTS = [
+  { kind: 'action-update-proposal', minimumSchemaVersion: 1 },
+  { kind: 'follow-up-draft', minimumSchemaVersion: 1 },
+  { kind: 'diarization', minimumSchemaVersion: 1 },
+] as const satisfies readonly {
+  kind: MeetingArtifactKind;
+  minimumSchemaVersion: number;
+}[];
+
+const ALL_ARTIFACT_KINDS: readonly MeetingArtifactKind[] = [
+  'agenda',
+  'pre-meeting-brief',
+  'structured-notes',
+  'summary',
+  'transcript',
+  'diarization',
+  'notice-evidence',
+  'action-update-proposal',
+  'follow-up-draft',
+  'keyword-match',
+  'talk-time-result',
+  'client-signal',
+];
+
+const ALL_ARTIFACT_REQUIREMENTS: readonly {
+  kind: MeetingArtifactKind;
+  minimumSchemaVersion: number;
+}[] = ALL_ARTIFACT_KINDS.map((kind) => ({
+  kind,
+  minimumSchemaVersion: 1,
+}));
+
+const CLIENT_MEETING_SELECTION_REQUEST = {
+  operationClass: 'matter-scoped',
+  allowAllMatters: false,
+  requireFollowerAgreement: true,
+} as const;
+
+const LOCAL_PRACTICE_TEMPLATE_OWNER = 'local-practice';
+
+function currentMeetingMatterId(): string | null {
+  const decision = readSelectionOperationDecision(
+    CLIENT_MEETING_SELECTION_REQUEST
+  );
+  return decision.kind === 'matter' ? decision.matter.id : null;
+}
+
+function currentMeetingSelectionError(): string | null {
+  const decision = readSelectionOperationDecision(
+    CLIENT_MEETING_SELECTION_REQUEST
+  );
+  return decision.kind === 'refused' ? decision.message : null;
+}
+
+function ArtifactHost({ target }: { target: MeetingOpenTarget }) {
+  useMeetingArtifactRegistryVersion();
+  if (!hasMeetingArtifactContributions()) return null;
+  return <ActiveArtifactHost target={target} />;
+}
+
+function ActiveArtifactHost({ target }: { target: MeetingOpenTarget }) {
+  const artifacts = useMeetingArtifactStore();
+  const meetings = useMeetingFoundationStore();
+  const context: MeetingArtifactContext = {
+    meeting: target.meeting,
+    read: artifacts.readerFor(
+      meetings,
+      target.client,
+      ALL_ARTIFACT_REQUIREMENTS
+    ),
+    append: async (input) => {
+      if (input.meetingId !== target.meeting.id) {
+        throw new Error('Artifact belongs to a different meeting.');
+      }
+      return artifacts.append(input);
+    },
+  };
+  return (
+    <div data-testid="meeting-artifact-host" className="meetings-shell-extension-host">
+      {getMeetingArtifactComposition(context).map((descriptor) => (
+        <section key={descriptor.id} data-meeting-artifact={descriptor.id}>
+          {descriptor.render(context)}
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function NoticeEvidenceHost({ target }: { target: MeetingOpenTarget }) {
+  useNoticeEvidenceProviderRegistryVersion();
+  if (!hasNoticeEvidenceProviderContributions()) return null;
+  return <ActiveNoticeEvidenceHost target={target} />;
+}
+
+function ActiveNoticeEvidenceHost({ target }: { target: MeetingOpenTarget }) {
+  const artifacts = useMeetingArtifactStore();
+  const context: NoticeEvidenceProviderContext = {
+    meeting: target.meeting,
+    appendNoticeEvidence: async (input) => {
+      if (input.meetingId !== target.meeting.id) {
+        throw new Error('Notice evidence belongs to a different meeting.');
+      }
+      return appendNoticeEvidence(artifacts, input);
+    },
+  };
+  return (
+    <div data-testid="meeting-notice-evidence-host" className="meetings-shell-extension-host">
+      {getNoticeEvidenceProviderComposition(context).map((descriptor) => (
+        <section key={descriptor.id} data-notice-evidence-provider={descriptor.id}>
+          {descriptor.render(context)}
+        </section>
+      ))}
+    </div>
+  );
+}
+
+/** The production linked-detail composition reached only with a sealed target. */
+export function MeetingsDetailHost({
+  target,
+  runtime,
+  onBack,
+}: {
+  target: MeetingOpenTarget;
+  runtime: Pick<MeetingsSurfaceRuntime, 'workspace'>;
+  onBack: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <section className="meetings-shell-detail" data-testid="meetings-linked-detail">
+      <MeetingEntry
+        matterId={target.client.matterId}
+        meetingDir={target.meetingDir}
+        folderName={
+          target.legacyLink.meetingDir.split('/').at(-1) ??
+          t('meetings.shell.fallback.meeting')
+        }
+        clientName={target.client.displayName ?? target.client.householdRef}
+        workspaceRoot={runtime.workspace.rootPath ?? ''}
+        workspaceService={runtime.workspace.serviceRef.current}
+        openTarget={target}
+        onBack={onBack}
+      />
+      <ArtifactHost target={target} />
+      <NoticeEvidenceHost target={target} />
+    </section>
+  );
+}
+
+function TemplateManagement({
+  target,
+  runtime,
+  onShowUpcoming,
+}: {
+  target: MeetingOpenTarget | null;
+  runtime: Pick<MeetingsSurfaceRuntime, 'workspace'>;
+  onShowUpcoming: () => void;
+}) {
+  const { t } = useTranslation();
+  const firm = useFirm();
+  const [transcript, setTranscript] = useState<TranscriptFile | null>(null);
+  const [loading, setLoading] = useState(target !== null);
+  const workspace = runtime.workspace.serviceRef.current;
+
+  useEffect(() => {
+    let current = true;
+    if (!target || !workspace) return () => { current = false; };
+    void workspace
+      .readFile(`${target.meetingDir}/transcript.json`)
+      .then((raw) => {
+        if (current) setTranscript(JSON.parse(raw) as TranscriptFile);
+      })
+      .catch(() => {
+        if (current) setTranscript(null);
+      })
+      .finally(() => {
+        if (current) setLoading(false);
+      });
+    return () => { current = false; };
+  }, [target, workspace]);
+
+  if (!target) {
+    return (
+      <div className="meetings-shell-empty" data-testid="meetings-templates-needs-meeting">
+        <p>{t('meetings.shell.templates.choose-meeting')}</p>
+        <button
+          type="button"
+          className="kp-btn kp-btn--secondary kp-btn--sm"
+          data-testid="meetings-templates-show-upcoming"
+          onClick={onShowUpcoming}
+        >
+          {t('meetings.shell.actions.show-upcoming')}
+        </button>
+      </div>
+    );
+  }
+  if (loading) {
+    return <div className="meetings-shell-local-state">{t('meetings.shell.loading.templates')}</div>;
+  }
+  if (!workspace || !transcript) {
+    return (
+      <div className="meetings-shell-empty" data-testid="meetings-templates-unavailable">
+        {t('meetings.shell.templates.no-transcript')}
+      </div>
+    );
+  }
+  return (
+    <MeetingTemplatePanel
+      workspace={workspace}
+      firmId={firm.org?.org_id ?? LOCAL_PRACTICE_TEMPLATE_OWNER}
+      canManageTemplates={firm.role === 'admin' || !firm.org}
+      meetingDir={target.meetingDir}
+      transcript={transcript}
+      clientName={target.client.displayName ?? target.client.householdRef}
+      getProvider={async () => {
+        const resolved = await buildResolvedProviderForGlance();
+        return createPreparedMeetingTemplateFillProvider({
+          matterId: target.client.matterId,
+          resolved,
+        });
+      }}
+    />
+  );
+}
+
+function AutomationsManagement() {
+  const { t } = useTranslation();
+  return (
+    <section data-testid="meetings-automations-management">
+      <p className="meetings-shell-section-copy">
+        {t('meetings.shell.automations.description')}
+      </p>
+      <AutoJoinMeetingsPanel />
+    </section>
+  );
+}
+
+export interface MeetingsWorkspaceRuntime
+  extends MeetingsNavigationRuntime {
+  readonly workspace: MeetingsSurfaceRuntime['workspace'];
+}
+
+export function MeetingsWorkspace({ runtime }: { runtime: MeetingsWorkspaceRuntime }) {
+  const { t } = useTranslation();
+  const live = useLiveCrmRecords();
+  const selection = useSelectionPresentation();
+  const selectedClient = useClientContextStore((state) => state.client);
+  const matters = useMatterStore((state) => state.matters);
+  const currentMemberId = useFirmStore((state) => state.session?.userId ?? null);
+  const calendarEnabled = useFlag('calendar-grid');
+  const [view, setView] = useState<ShellView>('upcoming');
+  const [ownerFilter, setOwnerFilter] = useState<string | null>(null);
+  const [detailTarget, setDetailTarget] = useState<MeetingOpenTarget | null>(null);
+  const [templateTarget, setTemplateTarget] = useState<MeetingOpenTarget | null>(null);
+  const [navigationNotice, setNavigationNotice] = useState<
+    'folder-only' | 'refused' | 'open-failed' | null
+  >(null);
+  const [now] = useState(() => Date.now());
+  const artifactStore = useMeetingArtifactStore();
+  const artifactStoreRef = useRef(artifactStore);
+  useEffect(() => {
+    artifactStoreRef.current = artifactStore;
+  }, [artifactStore]);
+
+  const matterKey = matters.map((matter) => matter.id).sort().join('\u0000');
+  const grant = useMemo(() => {
+    if (!matterKey) return null;
+    return grantFirmMeetingDirectoryAccess();
+  }, [matterKey]);
+  const recordRevision = live.records
+    .map((record) => `${record.id}:${record.updatedAt ?? ''}`)
+    .sort()
+    .join('\u0000');
+  const selectionKey = `${selection.scope.kind}:${selection.matterId ?? ''}:${selection.followerStatus}`;
+  const directoryKey = `${selectionKey}:${recordRevision}:${grant ? 'granted' : 'refused'}`;
+  const [directoryState, setDirectoryState] = useState<DirectoryLoadState>({
+    key: directoryKey,
+    status: 'loading',
+    records: [],
+  });
+  const [reviewState, setReviewState] = useState<ReviewLoadState>({
+    key: directoryKey,
+    status: 'loading',
+    result: null,
+  });
+  const activeDirectoryState = directoryState.key === directoryKey
+    ? directoryState
+    : { key: directoryKey, status: 'loading' as const, records: [] };
+  const activeReviewState = reviewState.key === directoryKey
+    ? reviewState
+    : { key: directoryKey, status: 'loading' as const, result: null };
+  const records = activeDirectoryState.records;
+  const loading = activeDirectoryState.status === 'loading';
+  const loadError = activeDirectoryState.status === 'error';
+  const reviewResult = activeReviewState.result;
+  const reviewLoading = activeReviewState.status === 'loading';
+  const port = useMemo(
+    () => ({
+      records: live.records,
+      workspaceRoot: live.workspaceRoot,
+      error: live.error,
+      save: live.save,
+      reloadRecords: live.reloadRecords,
+      getActiveMatterId: currentMeetingMatterId,
+      getSelectionError: currentMeetingSelectionError,
+    }),
+    [live.error, live.records, live.reloadRecords, live.save, live.workspaceRoot]
+  );
+  const portRef = useRef(port);
+  useEffect(() => {
+    portRef.current = port;
+  }, [port]);
+
+  useEffect(() => {
+    let current = true;
+    if (selection.blocked || !grant) {
+      queueMicrotask(() => {
+        if (!current) return;
+        setDirectoryState({ key: directoryKey, status: 'ready', records: [] });
+      });
+      return () => { current = false; };
+    }
+    void createFirmMeetingDirectoryReader(portRef.current, grant)
+      .list()
+      .then((next) => {
+        if (!current) return;
+        setDirectoryState({ key: directoryKey, status: 'ready', records: next });
+      })
+      .catch(() => {
+        if (!current) return;
+        setDirectoryState({ key: directoryKey, status: 'error', records: [] });
+      });
+    return () => { current = false; };
+  }, [directoryKey, grant, selection.blocked]);
+
+  useEffect(() => {
+    let current = true;
+    if (selection.blocked || !grant) {
+      queueMicrotask(() => {
+        if (!current) return;
+        setReviewState({ key: directoryKey, status: 'ready', result: null });
+      });
+      return () => { current = false; };
+    }
+    const reader = readReviewNeededMeetingArtifacts(
+      artifactStoreRef.current,
+      grant,
+      REVIEW_REQUIREMENTS
+    );
+    void reader.list().then((next) => {
+      if (!current) return;
+      setReviewState({ key: directoryKey, status: 'ready', result: next });
+    }).catch(() => {
+      if (!current) return;
+      setReviewState({
+        key: directoryKey,
+        status: 'ready',
+        result: {
+          kind: 'refused',
+          reason: 'records-unavailable',
+          message: 'Meeting review records are unavailable.',
+        },
+      });
+    });
+    return () => { current = false; };
+  }, [directoryKey, grant, selection.blocked]);
+
+  const clientBoundary = useMemo<ClientBoundary | null>(
+    () =>
+      selectedClient && selection.matterId
+        ? {
+            householdRef: selectedClient.householdId,
+            matterId: selection.matterId,
+            displayName: selectedClient.displayName,
+          }
+        : null,
+    [selectedClient, selection.matterId]
+  );
+  const scopedMeetings = useMemo(
+    () =>
+      projectMeetingList(
+        records,
+        clientBoundary ? 'household' : ownerFilter ? 'owner' : 'firm',
+        clientBoundary,
+        ownerFilter
+      ).meetings,
+    [clientBoundary, ownerFilter, records]
+  );
+  const scopedReviewResult = useMemo<ReviewNeededMeetingArtifactsReadResult | null>(() => {
+    if (!reviewResult || reviewResult.kind === 'refused' || !clientBoundary) {
+      return reviewResult;
+    }
+    return {
+      kind: 'ready',
+      artifacts: reviewResult.artifacts.filter(
+        (artifact) =>
+          artifact.matterId === clientBoundary.matterId &&
+          artifact.householdRef === clientBoundary.householdRef
+      ),
+    };
+  }, [clientBoundary, reviewResult]);
+  const reviewMeetingCount =
+    scopedReviewResult?.kind === 'ready'
+      ? new Set(scopedReviewResult.artifacts.map((artifact) => artifact.meetingId)).size
+      : 0;
+
+  const safeDetailTarget =
+    detailTarget && detailTarget.client.matterId === selection.matterId
+      ? detailTarget
+      : null;
+  const safeTemplateTarget =
+    templateTarget && templateTarget.client.matterId === selection.matterId
+      ? templateTarget
+      : null;
+
+  const openSelectedMeeting = useCallback(async (meetingRef: string) => {
+    try {
+      const service = createMeetingPopulationService(portRef.current);
+      const target = await service.openTarget(meetingRef);
+      if (target.client.matterId !== currentMeetingMatterId()) {
+        setNavigationNotice('open-failed');
+        return;
+      }
+      setDetailTarget(target);
+      setTemplateTarget(target);
+      setNavigationNotice(null);
+    } catch {
+      setDetailTarget(null);
+      setNavigationNotice('open-failed');
+    }
+  }, []);
+
+  useEffect(() => {
+    return registerMeetingsNavigationHost((notice: MeetingsNavigationNotice) => {
+      if (notice.kind === 'open') {
+        void openSelectedMeeting(notice.meetingRef).catch(() => {
+          setNavigationNotice('open-failed');
+        });
+        return;
+      }
+      setDetailTarget(null);
+      setNavigationNotice(notice.kind);
+    });
+  }, [openSelectedMeeting]);
+
+  useEffect(() => {
+    let current = true;
+    queueMicrotask(() => {
+      if (!current) return;
+      if (detailTarget && !safeDetailTarget) setDetailTarget(null);
+      if (templateTarget && !safeTemplateTarget) setTemplateTarget(null);
+    });
+    return () => { current = false; };
+  }, [detailTarget, safeDetailTarget, safeTemplateTarget, templateTarget]);
+
+  const openMeeting = useCallback(
+    async (meetingRef: string) => {
+      try {
+        await resolveMeetingsSurfaceNavigation(meetingRef, runtime);
+      } catch {
+        setNavigationNotice('open-failed');
+      }
+    },
+    [runtime]
+  );
+  const listContext: MeetingListContext = {
+    client: clientBoundary,
+    meetings: scopedMeetings,
+    reviewResult: scopedReviewResult,
+    reviewLoading,
+    now,
+    openMeeting,
+  };
+  const listDescriptors = useMeetingListComposition(listContext);
+  const toolContext: MeetingListToolContext = {
+    currentMemberId,
+    ownerFilter,
+    setOwnerFilter,
+  };
+  const toolDescriptors = useMeetingListToolComposition(toolContext);
+  const primaryViews = listDescriptors.filter((descriptor) => descriptor.kind === 'primary');
+  const manageViews = listDescriptors.filter((descriptor) => descriptor.kind === 'manage');
+  const selectedDescriptor = listDescriptors.find((descriptor) => descriptor.id === view);
+  const currentMatter = selection.matterId
+    ? matters.find((matter) => matter.id === selection.matterId) ?? null
+    : null;
+  const newMeetingFolder = (() => {
+    if (!currentMatter) return null;
+    try {
+      return resolveMatterFolder(currentMatter.id);
+    } catch {
+      return null;
+    }
+  })();
+
+  if (safeDetailTarget) {
+    return (
+      <MeetingsDetailHost
+        target={safeDetailTarget}
+        runtime={runtime}
+        onBack={() => { setDetailTarget(null); }}
+      />
+    );
+  }
+
+  return (
+    <section className="meetings-shell" data-testid="meetings-shell-v2">
+      <aside className="meetings-shell-subnav" aria-label={t('meetings.shell.navigation')}>
+        <h1>{t('meetings.shell.title')}</h1>
+        <button
+          type="button"
+          className="kp-btn kp-btn--primary kp-btn--sm meetings-shell-new"
+          data-testid="meetings-new-meeting"
+          disabled={!newMeetingFolder || !runtime.workspace.serviceRef.current}
+          title={!newMeetingFolder ? t('meetings.shell.new-meeting.choose-client') : undefined}
+          onClick={() => { setView('new-meeting'); }}
+        >
+          <Plus aria-hidden="true" />
+          {t('meetings.shell.actions.new-meeting')}
+        </button>
+        <nav>
+          {primaryViews.map((descriptor) => (
+            <button
+              type="button"
+              key={descriptor.id}
+              className={view === descriptor.id ? 'is-active' : ''}
+              data-testid={`meetings-view-${descriptor.id}`}
+              onClick={() => { setView(descriptor.id); }}
+            >
+              <span>{t(descriptor.labelKey)}</span>
+              {descriptor.id === 'actions' && reviewMeetingCount > 0 ? (
+                <span className="meetings-shell-count" data-testid="meetings-actions-badge">
+                  {reviewMeetingCount}
+                </span>
+              ) : null}
+            </button>
+          ))}
+          <div className="meetings-shell-group-label">
+            {t('meetings.shell.manage.label')}
+          </div>
+          {manageViews.map((descriptor) => (
+            <button
+              type="button"
+              key={descriptor.id}
+              className={view === descriptor.id ? 'is-active' : ''}
+              data-testid={`meetings-view-${descriptor.id}`}
+              onClick={() => { setView(descriptor.id); }}
+            >
+              <span>{t(descriptor.labelKey)}</span>
+            </button>
+          ))}
+        </nav>
+      </aside>
+      <main className="meetings-shell-main">
+        <header className="meetings-shell-header">
+          <div>
+            <h2>
+              {view === 'calendar'
+                ? t('meetings.shell.views.calendar')
+                : view === 'new-meeting'
+                  ? t('meetings.shell.actions.new-meeting')
+                  : selectedDescriptor
+                    ? t(selectedDescriptor.labelKey)
+                    : t('meetings.shell.title')}
+            </h2>
+            <p>
+              {clientBoundary
+                ? t('meetings.shell.scope.client', { client: clientBoundary.displayName ?? clientBoundary.householdRef })
+                : t('meetings.shell.scope.firm')}
+            </p>
+          </div>
+          <div className="meetings-shell-header-actions">
+            {view === 'calendar' ? (
+              <button
+                type="button"
+                className="kp-btn kp-btn--secondary kp-btn--sm"
+                data-testid="meetings-calendar-back"
+                onClick={() => { setView('upcoming'); }}
+              >
+                <ChevronLeft aria-hidden="true" />
+                {t('meetings.shell.views.upcoming')}
+              </button>
+            ) : view === 'upcoming' && calendarEnabled ? (
+              <button
+                type="button"
+                className="kp-btn kp-btn--secondary kp-btn--sm"
+                data-testid="meetings-open-calendar"
+                onClick={() => { setView('calendar'); }}
+              >
+                <CalendarDays aria-hidden="true" />
+                {t('meetings.shell.views.calendar')}
+              </button>
+            ) : null}
+            {(view === 'upcoming' || view === 'calendar') ? (
+              <button
+                type="button"
+                className="kp-btn kp-btn--primary kp-btn--sm"
+                data-testid="meetings-header-new-meeting"
+                disabled={!newMeetingFolder || !runtime.workspace.serviceRef.current}
+                title={!newMeetingFolder ? t('meetings.shell.new-meeting.choose-client') : undefined}
+                onClick={() => { setView('new-meeting'); }}
+              >
+                <Plus aria-hidden="true" />
+                {t('meetings.shell.actions.new-meeting')}
+              </button>
+            ) : null}
+          </div>
+        </header>
+
+        {selection.blocked ? (
+          <div className="meetings-shell-error" role="alert" data-testid="meetings-selection-blocked">
+            {t('meetings.shell.errors.selection-blocked')}
+          </div>
+        ) : null}
+        {navigationNotice ? (
+          <div className="meetings-shell-notice" role="status" data-testid={`meetings-navigation-${navigationNotice}`}>
+            {t({
+              'folder-only': 'meetings.shell.navigation-result.folder-only',
+              refused: 'meetings.shell.navigation-result.refused',
+              'open-failed': 'meetings.shell.navigation-result.open-failed',
+            }[navigationNotice])}
+          </div>
+        ) : null}
+        {!selection.blocked && loadError ? (
+          <div className="meetings-shell-error" role="alert" data-testid="meetings-load-error">
+            <span>{t('meetings.shell.errors.load')}</span>
+            <button
+              type="button"
+              className="kp-btn kp-btn--secondary kp-btn--sm"
+              data-testid="meetings-retry"
+              onClick={() => {
+                void live.reload().catch(() => {
+                  setDirectoryState({
+                    key: directoryKey,
+                    status: 'error',
+                    records: [],
+                  });
+                });
+              }}
+            >
+              {t('meetings.shell.actions.retry')}
+            </button>
+          </div>
+        ) : null}
+        {!selection.blocked && loading ? (
+          <div className="meetings-shell-local-state" data-testid="meetings-loading">
+            {t('meetings.shell.loading.meetings')}
+          </div>
+        ) : null}
+
+        {!selection.blocked && !loading && !loadError && view === 'calendar' ? (
+          <CalendarGridSurface
+            {...(runtime.workspace.openSelector
+              ? { onOpenWorkspace: runtime.workspace.openSelector }
+              : {})}
+          />
+        ) : null}
+
+        {!selection.blocked && !loading && !loadError && view === 'new-meeting' ? (
+          currentMatter && newMeetingFolder ? (
+            <div className="meetings-shell-client-recorder" data-testid="meetings-new-meeting-host">
+              <ClientMeetingsTab
+                matterId={currentMatter.id}
+                matterFolder={newMeetingFolder}
+                workspaceService={runtime.workspace.serviceRef.current}
+              />
+            </div>
+          ) : (
+            <div className="meetings-shell-empty" data-testid="meetings-new-meeting-needs-client">
+              <Mic aria-hidden="true" />
+              {t('meetings.shell.new-meeting.choose-client')}
+            </div>
+          )
+        ) : null}
+
+        {!selection.blocked && !loading && !loadError && selectedDescriptor ? (
+          <>
+            {selectedDescriptor.kind === 'primary' ? (
+              <div className="meetings-shell-toolbar" data-testid="meeting-list-tool-host">
+                {toolDescriptors.map((descriptor) => (
+                  <span key={descriptor.id} data-meeting-list-tool={descriptor.id}>
+                    {descriptor.render(toolContext)}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            <div data-testid="meeting-list-view-host" data-meeting-list-view={selectedDescriptor.id}>
+              {selectedDescriptor.id === 'templates' ? (
+                <TemplateManagement
+                  key={safeTemplateTarget?.meeting.id ?? 'no-template-target'}
+                  target={safeTemplateTarget}
+                  runtime={runtime}
+                  onShowUpcoming={() => { setView('upcoming'); }}
+                />
+              ) : selectedDescriptor.id === 'automations' ? (
+                <AutomationsManagement />
+              ) : (
+                selectedDescriptor.render(listContext)
+              )}
+            </div>
+          </>
+        ) : null}
+      </main>
+    </section>
+  );
+}

@@ -29,7 +29,10 @@ import { AccountIdentity } from './AccountIdentity';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { Badge, IconButton } from '@/ui/kp';
-import { getOrderedAppSurfaces } from '@/app/shell/registry/appSurfaceRegistry';
+import {
+  getBlessedAppRailLabel,
+  getOrderedAppSurfaces,
+} from '@/app/shell/registry/appSurfaceRegistry';
 import { useAppSurfaceRegistry } from '@/app/shell/runtime/useAppSurfaceRegistry';
 import {
   DropdownMenu,
@@ -256,7 +259,7 @@ export function Spine({
           }}
         />
         {nav.map(({ id, labelKey, legacyLabel, icon: Icon }) => {
-          const label = legacyLabel ?? t(labelKey);
+          const label = getBlessedAppRailLabel(id) ?? legacyLabel ?? t(labelKey);
           return (
             <button
               key={id}
@@ -342,7 +345,7 @@ export function Spine({
           }}
         >
           {nav.map(({ id, labelKey, legacyLabel, icon: Icon }) => {
-            const label = legacyLabel ?? t(labelKey);
+            const label = getBlessedAppRailLabel(id) ?? legacyLabel ?? t(labelKey);
             // The Client Map tab yields its highlight while All Clients mode is on.
             const on = active === id && !(id === 'matters' && allClientsActive);
             return (

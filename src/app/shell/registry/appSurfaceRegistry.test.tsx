@@ -3,6 +3,7 @@ import { Home } from 'lucide-react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   appSurfaceRegistry,
+  BLESSED_APP_RAIL_ITEMS,
   getAvailableAppSurfaceDescriptors,
   getAppSurfaceDescriptors,
   getOrderedAppSurfaces,
@@ -49,7 +50,7 @@ describe('appSurfaceRegistry', () => {
 
   it('is the complete source for current routing and primary navigation', () => {
     const descriptors = getAppSurfaceDescriptors();
-    expect(appSurfaceRegistry).toHaveLength(13);
+    expect(appSurfaceRegistry).toHaveLength(14);
     expect(descriptors.map(({ id }) => id)).toEqual([
       'home',
       'matters',
@@ -70,6 +71,17 @@ describe('appSurfaceRegistry', () => {
       'matters',
       'search',
     ]);
+  });
+
+  it('keeps the design-reviewed rail labels in one frozen registry-ordered source', () => {
+    expect(BLESSED_APP_RAIL_ITEMS).toEqual([
+      { id: 'home', label: 'Today' },
+      { id: 'matters', label: 'CRM' },
+      { id: 'meetings', label: 'Meetings' },
+      { id: 'search', label: 'Ask' },
+    ]);
+    expect(Object.isFrozen(BLESSED_APP_RAIL_ITEMS)).toBe(true);
+    expect(BLESSED_APP_RAIL_ITEMS.every(Object.isFrozen)).toBe(true);
   });
 
   it('rejects duplicate ids', () => {
@@ -103,6 +115,20 @@ describe('appSurfaceRegistry', () => {
     expect(getOrderedAppSurfaces('primary').map(({ id }) => id)).toEqual([
       'home',
       'matters',
+      'search',
+    ]);
+  });
+
+  it('registers the real Meetings surface lazily and exposes it only while its flag is on', async () => {
+    flagEnabled.set('meetings-shell-v1', true);
+
+    const descriptors = await resolveAppSurfaceRegistry();
+
+    expect(descriptors.map(({ id }) => id)).toContain('meetings');
+    expect(getOrderedAppSurfaces('primary').map(({ id }) => id)).toEqual([
+      'home',
+      'matters',
+      'meetings',
       'search',
     ]);
   });
