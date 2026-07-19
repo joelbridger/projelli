@@ -513,7 +513,7 @@ export interface ApprovedMeetingArtifactReader {
 export type ReviewNeededMeetingArtifactsReadResult =
   | {
       readonly kind: 'ready';
-      readonly artifacts: readonly MeetingArtifact[];
+      readonly artifacts: readonly ReviewNeededMeetingArtifact[];
     }
   | {
       readonly kind: 'refused';
@@ -524,14 +524,69 @@ export type ReviewNeededMeetingArtifactsReadResult =
       readonly message: string;
     };
 
+export type MeetingArtifactReviewArchiveState = 'active' | 'archived';
+
 /**
- * A sealed, firm-bounded, read-only view of produced artifacts that still need
- * review. A successful read may truthfully contain zero artifacts; refusal is
- * a separate result and must be surfaced rather than rendered as emptiness.
+ * A produced, unapproved artifact plus its independent Actions-inbox state.
+ * Archiving does not approve or mutate the produced artifact; it only removes
+ * the item from attention until an advisor restores it.
+ */
+export interface ReviewNeededMeetingArtifact extends MeetingArtifact {
+  readonly reviewArchiveState: MeetingArtifactReviewArchiveState;
+  readonly reviewArchiveChangedAt?: string;
+}
+
+export type MeetingArtifactReviewArchiveTransition =
+  | {
+      readonly from: 'active';
+      readonly to: 'archived';
+      readonly at: string;
+    }
+  | {
+      readonly from: 'archived';
+      readonly to: 'active';
+      readonly at: string;
+    };
+
+/** Firm mode is explicit; selected mode additionally requires the sealed pair. */
+export type MeetingArtifactReviewArchiveScope =
+  | { readonly kind: 'whole-firm' }
+  | {
+      readonly kind: 'selected-client';
+      readonly client: SealedMeetingClientBoundary;
+    };
+
+export type MeetingArtifactReviewArchiveTransitionResult =
+  | {
+      readonly kind: 'ready';
+      readonly artifact: ReviewNeededMeetingArtifact;
+    }
+  | {
+      readonly kind: 'refused';
+      readonly reason:
+        | 'authority-refused'
+        | 'selection-blocked'
+        | 'client-mismatch'
+        | 'stale-transition';
+      readonly message: string;
+    }
+  | { readonly kind: 'error'; readonly message: string };
+
+/**
+ * A sealed, firm-bounded view of produced artifacts that still need review.
+ * Listing is read-only. The one mutation is an explicit, reversible archive
+ * transition that never approves or changes the produced artifact. A
+ * successful read may truthfully contain zero artifacts; refusal is separate
+ * and must be surfaced rather than rendered as emptiness.
  */
 export interface ReviewNeededMeetingArtifactReader {
   readonly kinds: readonly MeetingArtifactKind[];
   list(): Promise<ReviewNeededMeetingArtifactsReadResult>;
+  transitionArchive(
+    id: MeetingArtifactRef,
+    scope: MeetingArtifactReviewArchiveScope,
+    transition: MeetingArtifactReviewArchiveTransition
+  ): Promise<MeetingArtifactReviewArchiveTransitionResult>;
 }
 
 export interface MeetingArtifactStore {
@@ -1908,6 +1963,73 @@ function projectArtifact(
   };
 }
 
+function validateMeetingArtifactReviewArchiveTransition(
+  transition: MeetingArtifactReviewArchiveTransition
+): MeetingArtifactReviewArchiveTransition {
+  const runtime = transition as {
+    readonly from: unknown;
+    readonly to: unknown;
+    readonly at: unknown;
+  };
+  const legal =
+    (runtime.from === 'active' && runtime.to === 'archived') ||
+    (runtime.from === 'archived' && runtime.to === 'active');
+  if (!legal)
+    throw new Error('That meeting review archive transition is not allowed.');
+  return {
+    from: runtime.from,
+    to: runtime.to,
+    at: timestamp(runtime.at, 'Review archive timestamp'),
+  } as MeetingArtifactReviewArchiveTransition;
+}
+
+function projectReviewNeededArtifact(
+  artifact: MeetingArtifact,
+  records: readonly LiveCrmRecord[]
+): ReviewNeededMeetingArtifact {
+  let reviewArchiveState: MeetingArtifactReviewArchiveState = 'active';
+  let reviewArchiveChangedAt: string | undefined;
+  const transitions = records
+    .filter(
+      (candidate) =>
+        candidate.kind === 'meeting_artifact_review_archive_transition' &&
+        candidate['artifactId'] === artifact.id &&
+        candidate.matterId === artifact.matterId &&
+        candidate['householdRef'] === artifact.householdRef
+    )
+    .sort(
+      (left, right) =>
+        String(left['transitionAt']).localeCompare(
+          String(right['transitionAt'])
+        ) || left.id.localeCompare(right.id)
+    );
+  try {
+    for (const record of transitions) {
+      const transition = validateMeetingArtifactReviewArchiveTransition({
+        from: record['fromState'] as MeetingArtifactReviewArchiveState,
+        to: record['toState'] as MeetingArtifactReviewArchiveState,
+        at: record['transitionAt'] as string,
+      } as MeetingArtifactReviewArchiveTransition);
+      if (transition.from !== reviewArchiveState)
+        throw new Error('Meeting review archive history is inconsistent.');
+      if (
+        Date.parse(transition.at) < Date.parse(artifact.producedAt) ||
+        (reviewArchiveChangedAt && transition.at <= reviewArchiveChangedAt)
+      )
+        throw new Error('Meeting review archive history is out of order.');
+      reviewArchiveState = transition.to;
+      reviewArchiveChangedAt = transition.at;
+    }
+  } catch {
+    throw new Error('Meeting review archive history is invalid.');
+  }
+  return {
+    ...artifact,
+    reviewArchiveState,
+    ...(reviewArchiveChangedAt ? { reviewArchiveChangedAt } : {}),
+  };
+}
+
 export function createMeetingArtifactStore(
   port: ClientScopedLivePort
 ): FirmReadableMeetingArtifactStore {
@@ -2002,98 +2124,248 @@ export function createMeetingArtifactStore(
       const minimumVersion = artifactMinimumVersions(requirements);
       const kinds = [...minimumVersion.keys()];
       const permitted = () => permittedFirmMatterIds(grant);
+      type ReviewRefusal = Extract<
+        ReviewNeededMeetingArtifactsReadResult,
+        { readonly kind: 'refused' }
+      >;
       const refused = (
-        reason: Extract<
-          ReviewNeededMeetingArtifactsReadResult,
-          { kind: 'refused' }
-        >['reason'],
+        reason: ReviewRefusal['reason'],
         message: string
-      ): ReviewNeededMeetingArtifactsReadResult => ({
+      ): ReviewRefusal => ({
         kind: 'refused',
         reason,
         message,
       });
+      const transitionRefused = (
+        reason: Extract<
+          MeetingArtifactReviewArchiveTransitionResult,
+          { kind: 'refused' }
+        >['reason'],
+        message: string
+      ): MeetingArtifactReviewArchiveTransitionResult => ({
+        kind: 'refused',
+        reason,
+        message,
+      });
+
+      const projectFresh = (
+        fresh: readonly LiveCrmRecord[],
+        stillAllowed: ReadonlySet<string>
+      ): readonly ReviewNeededMeetingArtifact[] => {
+        const meetingsById = new Map<string, MeetingProjection[]>();
+        for (const meeting of meetingRecords(fresh)) {
+          const matches = meetingsById.get(meeting.id) ?? [];
+          matches.push(meeting);
+          meetingsById.set(meeting.id, matches);
+        }
+        return fresh
+          .filter((record) => record.kind === 'meeting_artifact')
+          .flatMap((record) => {
+            try {
+              return [projectArtifact(record, fresh)];
+            } catch {
+              return [];
+            }
+          })
+          .filter((artifact) => {
+            const parents = meetingsById.get(artifact.meetingId) ?? [];
+            const parent = parents.length === 1 ? parents[0] : undefined;
+            return (
+              artifact.state === 'produced' &&
+              minimumVersion.has(artifact.kind) &&
+              artifact.schemaVersion >=
+                (minimumVersion.get(artifact.kind) ?? Infinity) &&
+              stillAllowed.has(artifact.matterId) &&
+              parent?.matterId === artifact.matterId &&
+              parent.householdRef === artifact.householdRef
+            );
+          })
+          .map((artifact) => projectReviewNeededArtifact(artifact, fresh));
+      };
+
+      const reloadAuthorized = async (): Promise<
+        | {
+            readonly kind: 'ready';
+            readonly fresh: readonly LiveCrmRecord[];
+            readonly allowed: ReadonlySet<string>;
+          }
+        | Exclude<
+            ReviewNeededMeetingArtifactsReadResult,
+            { readonly kind: 'ready' }
+          >
+      > => {
+        if (!port.getFirmSelectionError)
+          return refused(
+            'selection-blocked',
+            'The firm meeting selection is unavailable.'
+          );
+        const selectionError = port.getFirmSelectionError();
+        if (selectionError) return refused('selection-blocked', selectionError);
+        if (!port.workspaceRoot || port.error)
+          return refused(
+            'records-unavailable',
+            'Meeting artifacts are unavailable until records reload.'
+          );
+        const allowed = permitted();
+        if (!allowed || allowed.size === 0)
+          return refused(
+            'authority-refused',
+            'Firm meeting artifact access was not authorized.'
+          );
+        let fresh: readonly LiveCrmRecord[];
+        try {
+          const reloaded = await port.reloadRecords();
+          if (!reloaded)
+            return refused(
+              'records-unavailable',
+              'Meeting artifacts are unavailable until records reload.'
+            );
+          fresh = reloaded;
+        } catch {
+          return refused(
+            'records-unavailable',
+            'Meeting artifacts are unavailable until records reload.'
+          );
+        }
+        const freshSelectionError = port.getFirmSelectionError();
+        if (freshSelectionError)
+          return refused('selection-blocked', freshSelectionError);
+        const stillAllowed = permitted();
+        if (!stillAllowed || stillAllowed.size === 0)
+          return refused(
+            'authority-refused',
+            'Firm meeting artifact access was not authorized.'
+          );
+        return { kind: 'ready', fresh, allowed: stillAllowed };
+      };
+
       return {
         kinds,
         list: async () => {
-          if (!port.getFirmSelectionError)
-            return refused(
-              'selection-blocked',
-              'The firm meeting selection is unavailable.'
-            );
-          const selectionError = port.getFirmSelectionError();
-          if (selectionError)
-            return refused('selection-blocked', selectionError);
-          if (!port.workspaceRoot || port.error)
-            return refused(
-              'records-unavailable',
-              'Meeting artifacts are unavailable until records reload.'
-            );
-          const allowed = permitted();
-          if (!allowed || allowed.size === 0)
-            return refused(
-              'authority-refused',
-              'Firm meeting artifact access was not authorized.'
-            );
-
-          let fresh: readonly LiveCrmRecord[];
+          const authorized = await reloadAuthorized();
+          if (authorized.kind !== 'ready') return authorized;
+          return {
+            kind: 'ready',
+            artifacts: projectFresh(authorized.fresh, authorized.allowed),
+          };
+        },
+        transitionArchive: async (id, archiveScope, transition) => {
+          let valid: MeetingArtifactReviewArchiveTransition;
           try {
-            const reloaded = await port.reloadRecords();
-            if (!reloaded)
-              return refused(
-                'records-unavailable',
-                'Meeting artifacts are unavailable until records reload.'
-              );
-            fresh = reloaded;
+            valid = validateMeetingArtifactReviewArchiveTransition(transition);
           } catch {
-            return refused(
-              'records-unavailable',
-              'Meeting artifacts are unavailable until records reload.'
+            return transitionRefused(
+              'stale-transition',
+              'That review item changed. Reload it before trying again.'
             );
           }
-
-          // Re-check both gates after the asynchronous store read. A selection
-          // becoming blocked while the reload is in flight must refuse instead
-          // of leaking the loaded snapshot or pretending that the firm is empty.
-          const freshSelectionError = port.getFirmSelectionError();
-          if (freshSelectionError)
-            return refused('selection-blocked', freshSelectionError);
-          const stillAllowed = permitted();
-          if (!stillAllowed || stillAllowed.size === 0)
-            return refused(
+          const authorized = await reloadAuthorized();
+          if (authorized.kind !== 'ready') {
+            return authorized.reason === 'records-unavailable'
+              ? {
+                  kind: 'error',
+                  message: 'Meeting review records could not be reloaded.',
+                }
+              : transitionRefused(authorized.reason, authorized.message);
+          }
+          let candidates: readonly ReviewNeededMeetingArtifact[];
+          try {
+            candidates = projectFresh(
+              authorized.fresh,
+              authorized.allowed
+            ).filter((artifact) => artifact.id === id);
+          } catch {
+            return {
+              kind: 'error',
+              message: 'Meeting review history could not be loaded.',
+            };
+          }
+          const current = candidates.length === 1 ? candidates[0] : undefined;
+          if (!current)
+            return transitionRefused(
               'authority-refused',
-              'Firm meeting artifact access was not authorized.'
+              'That review item is unavailable.'
             );
-
-          const meetingsById = new Map<string, MeetingProjection[]>();
-          for (const meeting of meetingRecords(fresh)) {
-            const matches = meetingsById.get(meeting.id) ?? [];
-            matches.push(meeting);
-            meetingsById.set(meeting.id, matches);
-          }
-          const reviewNeeded = fresh
-            .filter((record) => record.kind === 'meeting_artifact')
-            .flatMap((record) => {
-              try {
-                return [projectArtifact(record, fresh)];
-              } catch {
-                return [];
-              }
-            })
-            .filter((artifact) => {
-              const parents = meetingsById.get(artifact.meetingId) ?? [];
-              const parent = parents.length === 1 ? parents[0] : undefined;
-              return (
-                artifact.state === 'produced' &&
-                minimumVersion.has(artifact.kind) &&
-                artifact.schemaVersion >=
-                  (minimumVersion.get(artifact.kind) ?? Infinity) &&
-                stillAllowed.has(artifact.matterId) &&
-                parent?.matterId === artifact.matterId &&
-                parent.householdRef === artifact.householdRef
-              );
+          if (
+            archiveScope.kind === 'selected-client' &&
+            !sameClientBoundary(current, archiveScope.client)
+          )
+            return transitionRefused(
+              'client-mismatch',
+              'That review item belongs to a different client.'
+            );
+          if (current.reviewArchiveState !== valid.from)
+            return transitionRefused(
+              'stale-transition',
+              'That review item changed. Reload it before trying again.'
+            );
+          if (
+            Date.parse(valid.at) < Date.parse(current.producedAt) ||
+            (current.reviewArchiveChangedAt &&
+              valid.at <= current.reviewArchiveChangedAt)
+          )
+            return transitionRefused(
+              'stale-transition',
+              'That review item changed. Reload it before trying again.'
+            );
+          const base = authorized.fresh.find(
+            (record) =>
+              record.kind === 'meeting_artifact' && record.id === current.id
+          );
+          try {
+            await port.save({
+              id: recordId('meeting-artifact-review-archive-transition'),
+              kind: 'meeting_artifact_review_archive_transition',
+              matterId: current.matterId,
+              householdRef: current.householdRef,
+              ...(typeof base?.['relayMatterId'] === 'string'
+                ? { relayMatterId: base['relayMatterId'] }
+                : {}),
+              createdAt: valid.at,
+              updatedAt: valid.at,
+              artifactId: current.id,
+              fromState: valid.from,
+              toState: valid.to,
+              transitionAt: valid.at,
             });
-          return { kind: 'ready', artifacts: reviewNeeded };
+          } catch {
+            return {
+              kind: 'error',
+              message: 'That review item could not be updated.',
+            };
+          }
+          const reloaded = await reloadAuthorized();
+          if (reloaded.kind !== 'ready') {
+            return reloaded.reason === 'records-unavailable'
+              ? {
+                  kind: 'error',
+                  message: 'Meeting review records could not be reloaded.',
+                }
+              : transitionRefused(reloaded.reason, reloaded.message);
+          }
+          let saved: readonly ReviewNeededMeetingArtifact[];
+          try {
+            saved = projectFresh(reloaded.fresh, reloaded.allowed).filter(
+              (artifact) => artifact.id === id
+            );
+          } catch {
+            return {
+              kind: 'error',
+              message: 'Meeting review history could not be loaded.',
+            };
+          }
+          const result = saved.length === 1 ? saved[0] : undefined;
+          if (
+            !result ||
+            result.reviewArchiveState !== valid.to ||
+            (archiveScope.kind === 'selected-client' &&
+              !sameClientBoundary(result, archiveScope.client))
+          )
+            return transitionRefused(
+              'stale-transition',
+              'That review item changed while it was being updated.'
+            );
+          return { kind: 'ready', artifact: result };
         },
       };
     },
@@ -2597,6 +2869,8 @@ export interface MeetingSurfaceFacts {
   readonly householdRef: string;
   readonly matterId: string;
   readonly title?: string;
+  /** Display-only client label; the household + matter pair remains authority. */
+  readonly clientLabel?: string;
   readonly platform?: MeetingPlatform;
   readonly joinUrl?: string;
   readonly participants?: readonly {
@@ -2747,14 +3021,17 @@ export function projectMeetingSurface(
     const participantNames = (joined?.participants ?? [])
       .map((participant) => participant.name?.trim() ?? '')
       .filter((name) => !!name);
+    const clientDisplayName = (
+      source.kind === 'selected-client'
+        ? source.client.displayName
+        : joined?.clientLabel
+    )?.trim();
     return {
       id: meeting.id,
       clientLink: {
         householdRef: meeting.householdRef,
         matterId: meeting.matterId,
-        ...(source.kind === 'selected-client' && source.client.displayName
-          ? { displayName: source.client.displayName }
-          : {}),
+        ...(clientDisplayName ? { displayName: clientDisplayName } : {}),
       },
       title: joined?.title?.trim() || meeting.typeId,
       typeId: meeting.typeId,
