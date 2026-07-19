@@ -15,11 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu';
-import { buildResolvedProviderForGlance } from '@/platform/matter/matterAtAGlance';
-import { MeetingTemplatePanel } from './MeetingTemplatePanel';
-import { createPreparedMeetingTemplateFillProvider } from './meetingTemplateAi';
-import { SpeakerNamesPanel } from './SpeakerNamesPanel';
-import { TranscriptViewer } from './TranscriptViewer';
+import { TranscriptCompatibilityPanel } from './TranscriptCompatibilityPanel';
 import type {
   MeetingHeaderActionDescriptor,
   MeetingPanelContext,
@@ -45,6 +41,26 @@ function transcriptLooksSilent(context: MeetingPanelContext): boolean {
     context.transcript !== null &&
     context.transcript.segments.every((segment) => !segment.text.trim())
   );
+}
+
+/**
+ * The search projection belongs to one exact household/matter/meeting target.
+ * The host has already loaded and guarded the transcript before this
+ * compatibility mount receives it; this component performs no reads of its
+ * own. A key change remounts it synchronously, so neither the query nor a
+ * previous target's projected turns can flash under the next target.
+ */
+function transcriptProjectionTargetKey(context: MeetingPanelContext): string {
+  const householdRef =
+    context.clientBoundary?.householdRef ??
+    context.canonicalMeeting?.householdRef ??
+    '';
+  const matterId =
+    context.clientBoundary?.matterId ??
+    context.canonicalMeeting?.matterId ??
+    context.matterId;
+  const meetingRef = context.canonicalMeeting?.id ?? context.meetingDir;
+  return `${householdRef}\u0000${matterId}\u0000${meetingRef}`;
 }
 
 export const legacyMeetingPanels: readonly MeetingPanelDescriptor[] = [
@@ -112,39 +128,10 @@ export const legacyMeetingPanels: readonly MeetingPanelDescriptor[] = [
         }}
       >
         {context.transcript ? (
-          <>
-            <TranscriptViewer
-              transcript={context.transcript}
-              onSeek={context.onSeek}
-              {...(context.seekMs !== undefined
-                ? { activeMs: context.seekMs }
-                : {})}
-            />
-            <div style={{ marginTop: 'var(--kp-space-lg)' }}>
-              <SpeakerNamesPanel
-                meetingDir={context.meetingDir}
-                matterId={context.matterId}
-                workspaceRoot={context.workspaceRoot}
-              />
-            </div>
-            {context.workspaceService && context.firm.org && (
-              <MeetingTemplatePanel
-                workspace={context.workspaceService}
-                firmId={context.firm.org.org_id}
-                canManageTemplates={context.firm.role === 'admin'}
-                meetingDir={context.meetingDir}
-                transcript={context.transcript}
-                clientName={context.clientName}
-                getProvider={async () => {
-                  const resolved = await buildResolvedProviderForGlance();
-                  return createPreparedMeetingTemplateFillProvider({
-                    matterId: context.matterId,
-                    resolved,
-                  });
-                }}
-              />
-            )}
-          </>
+          <TranscriptCompatibilityPanel
+            key={transcriptProjectionTargetKey(context)}
+            context={context}
+          />
         ) : context.meta?.transcriptError ? (
           <div
             data-testid="meeting-entry-transcript-failed"
