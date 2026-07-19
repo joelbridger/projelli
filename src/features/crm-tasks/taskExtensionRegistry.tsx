@@ -14,6 +14,7 @@ import {
 } from './taskExtensionRegistryCompatibility';
 import { taskCreateV1Template } from './extensions/create';
 import { capacityTriageTaskAction } from './extensions/capacity-triage';
+import { taskListPrintAction } from './extensions/print';
 
 /** Feature modules augment these maps beside their descriptors. */
 export interface TaskFieldIdMap {}
@@ -128,6 +129,7 @@ export const taskFieldRegistry: readonly TaskFieldDescriptor[] =
 export const taskActionRegistry: readonly TaskActionDescriptor[] = [
   ...legacyTaskActions,
   capacityTriageTaskAction,
+  taskListPrintAction,
 ];
 export const taskTemplateRegistry: readonly TaskTemplateDescriptor[] =
   [...legacyTaskTemplates, taskCreateV1Template, taskTemplatesLibrary];

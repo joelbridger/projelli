@@ -60,6 +60,7 @@ describe('task extension registries', () => {
     expect(getTaskActions().map(({ id }) => id)).toEqual([
       'legacy.save-view',
       'capacity-triage.toolbar',
+      'task-list-print.toolbar',
     ]);
     expect(getTaskTemplates().map(({ id }) => id)).toEqual([
       'legacy.blank-task',
