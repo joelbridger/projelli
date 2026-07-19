@@ -30,12 +30,18 @@ describe('useAutoprepRescan', () => {
       id: 'm-hend', name: 'Henderson', client: 'Kim Henderson',
       folderPaths: [], createdAt: '2024-01-01T00:00:00Z',
       meetingKeys: ['kim@henderson.com'],
+      crmHouseholdKeys: ['hh-hend'],
     }];
     const { unmount } = renderHook(() => useAutoprepRescan(matters));
     await vi.advanceTimersByTimeAsync(RESCAN_INTERVAL_MS + 10);
     expect(listEvents).toHaveBeenCalled();
     expect(enqueue).toHaveBeenCalledWith([
-      expect.objectContaining({ matterId: 'm-hend' }),
+      expect.objectContaining({
+        clientBoundary: expect.objectContaining({
+          matterId: 'm-hend',
+          householdRef: 'hh-hend',
+        }),
+      }),
     ]);
     unmount();
     const calls = enqueue.mock.calls.length;

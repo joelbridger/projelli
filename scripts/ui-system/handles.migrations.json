@@ -360,6 +360,42 @@
       "replacement": "meeting-subtab-${}",
       "reason": "P0-O consolidated the three static meeting sub-tab handles into one descriptor-driven dynamic handle meeting-subtab-${id}; runtime testids unchanged (recording/transcript/summary), verified by meeting-entry-r7 + meeting-entry-transcript-failed tests.",
       "date": "2026-07-15"
+    },
+    {
+      "removed": "meeting-notes-review-error",
+      "replacement": null,
+      "reason": "F6 (Group B tasks/CRM) replaced the inline MeetingNotesReview with the blessed Tasks/CRM proposal panels (NotesReviewPanel); the old inline notes-review handles are removed.",
+      "date": "2026-07-19"
+    },
+    {
+      "removed": "notes-review-blocked-${}",
+      "replacement": null,
+      "reason": "F6 (Group B tasks/CRM) replaced the inline MeetingNotesReview with the blessed Tasks/CRM proposal panels (NotesReviewPanel); the old inline notes-review handles are removed.",
+      "date": "2026-07-19"
+    },
+    {
+      "removed": "notes-review-destination-${}",
+      "replacement": null,
+      "reason": "F6 (Group B tasks/CRM) replaced the inline MeetingNotesReview with the blessed Tasks/CRM proposal panels (NotesReviewPanel); the old inline notes-review handles are removed.",
+      "date": "2026-07-19"
+    },
+    {
+      "removed": "notes-review-detail-${}",
+      "replacement": null,
+      "reason": "F6 (Group B tasks/CRM) replaced the inline MeetingNotesReview with the blessed Tasks/CRM proposal panels (NotesReviewPanel); the old inline notes-review handles are removed.",
+      "date": "2026-07-19"
+    },
+    {
+      "removed": "notes-review-panel",
+      "replacement": null,
+      "reason": "F6 (Group B tasks/CRM) replaced the inline MeetingNotesReview with the blessed Tasks/CRM proposal panels (NotesReviewPanel); the old inline notes-review handles are removed.",
+      "date": "2026-07-19"
+    },
+    {
+      "removed": "notes-review-receipt-${}",
+      "replacement": null,
+      "reason": "F6 (Group B tasks/CRM) replaced the inline MeetingNotesReview with the blessed Tasks/CRM proposal panels (NotesReviewPanel); the old inline notes-review handles are removed.",
+      "date": "2026-07-19"
     }
   ]
 }
