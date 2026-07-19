@@ -1,12 +1,82 @@
 import type { MeetingPanelDescriptor } from './meetingWorkspaceTypes';
 import { legacyMeetingPanels } from './meetingWorkspaceCompatibility';
 
+/**
+ * The only meeting-detail panel slots the product can render. New panel lanes
+ * must import an id from this sealed manifest rather than inventing one.
+ */
+export const BLESSED_MEETING_PANEL_IDS = Object.freeze([
+  'prep',
+  'agenda',
+  'summary',
+  'transcript',
+  'tasks',
+  'crm-update',
+  'follow-up',
+] as const);
+
+export type BlessedMeetingPanelId = (typeof BLESSED_MEETING_PANEL_IDS)[number];
+
+declare module './meetingWorkspaceTypes' {
+  interface MeetingPanelIdMap {
+    prep: true;
+    agenda: true;
+    tasks: true;
+    'crm-update': true;
+    'follow-up': true;
+  }
+}
+
 export type {
   MeetingPanelContext,
   MeetingPanelDescriptor,
   MeetingPanelId,
   MeetingPanelIdMap,
 } from './meetingWorkspaceTypes';
+
+const BLESSED_MEETING_PANEL_ID_SET = new Set<string>(BLESSED_MEETING_PANEL_IDS);
+
+const BLESSED_MEETING_PANEL_ORDER = new Map<string, number>(
+  BLESSED_MEETING_PANEL_IDS.map((id, index) => [id, index])
+);
+
+/** The two pre-manifest content tabs occupy their matching live slots. */
+const LEGACY_PANEL_ID_TO_BLESSED_ID: Readonly<
+  Record<string, BlessedMeetingPanelId>
+> = {
+  transcript: 'transcript',
+  summary: 'summary',
+};
+
+function isBlessedMeetingPanelId(id: string): id is BlessedMeetingPanelId {
+  return BLESSED_MEETING_PANEL_ID_SET.has(id);
+}
+
+function assertBlessedMeetingPanelId(id: string): void {
+  if (!isBlessedMeetingPanelId(id)) {
+    throw new Error(
+      `[meetingPanelRegistry] panel id is not in the blessed manifest: ${id}`
+    );
+  }
+}
+
+function countVisiblePanels(
+  descriptors: readonly MeetingPanelDescriptor[]
+): number {
+  return descriptors.filter((descriptor) => descriptor.isAvailable?.() ?? true)
+    .length;
+}
+
+function assertVisiblePanelLimit(
+  descriptors: readonly MeetingPanelDescriptor[]
+): void {
+  const visiblePanelCount = countVisiblePanels(descriptors);
+  if (visiblePanelCount > BLESSED_MEETING_PANEL_IDS.length) {
+    throw new Error(
+      `[meetingPanelRegistry] visible panel limit exceeded: ${String(visiblePanelCount)} (maximum ${String(BLESSED_MEETING_PANEL_IDS.length)})`
+    );
+  }
+}
 
 function validateLabelKey(registryName: string, id: string, labelKey: string) {
   if (!labelKey.includes('.')) {
@@ -17,8 +87,10 @@ function validateLabelKey(registryName: string, id: string, labelKey: string) {
 export function validateMeetingPanelDescriptors(
   descriptors: readonly MeetingPanelDescriptor[]
 ): void {
+  assertVisiblePanelLimit(descriptors);
   const ids = new Set<string>();
   for (const descriptor of descriptors) {
+    assertBlessedMeetingPanelId(descriptor.id);
     if (ids.has(descriptor.id)) {
       throw new Error(
         `[meetingPanelRegistry] duplicate panel id: ${descriptor.id}`
@@ -43,9 +115,23 @@ export function validateMeetingPanelDescriptors(
   }
 }
 
-/** Append-only mount list. Compatibility entries preserve today's visible order. */
+/**
+ * Compatibility entries keep their existing mounts while claiming their fixed
+ * v2 slots. Recording is deliberately not bridged: audio is secondary media,
+ * not a meeting-detail tab. This chokepoint keeps its renderer available for
+ * the later media handoff without letting the raw id reach a composed host tab.
+ */
 export const meetingPanelRegistry: readonly MeetingPanelDescriptor[] =
-  legacyMeetingPanels;
+  legacyMeetingPanels.flatMap((descriptor) => {
+    const blessedId = LEGACY_PANEL_ID_TO_BLESSED_ID[descriptor.id];
+    if (!blessedId) {
+      if (descriptor.id === 'recording') return [];
+      throw new Error(
+        `[meetingPanelRegistry] legacy panel has no blessed manifest slot: ${descriptor.id}`
+      );
+    }
+    return { ...descriptor, id: blessedId };
+  });
 
 export function getMeetingPanels(
   descriptors: readonly MeetingPanelDescriptor[] = meetingPanelRegistry
@@ -53,7 +139,16 @@ export function getMeetingPanels(
   validateMeetingPanelDescriptors(descriptors);
   return descriptors
     .filter((descriptor) => descriptor.isAvailable?.() ?? true)
-    .sort((a, b) => a.order - b.order);
+    .sort((a, b) => {
+      const aOrder = BLESSED_MEETING_PANEL_ORDER.get(a.id);
+      const bOrder = BLESSED_MEETING_PANEL_ORDER.get(b.id);
+      if (aOrder === undefined || bOrder === undefined) {
+        throw new Error(
+          '[meetingPanelRegistry] blessed panel ordering is incomplete'
+        );
+      }
+      return aOrder - bOrder;
+    });
 }
 
 export interface MeetingPanelComposition {
@@ -62,16 +157,22 @@ export interface MeetingPanelComposition {
 }
 
 /**
- * Open-world panel composition. Contributions are validated together with the
- * base compatibility panels (duplicate ids, malformed contracts, and unstable
- * order are rejected), dark (unavailable) entries are excluded, and the result
- * is ordered without mutating the shared registry.
+ * Closed-world panel composition. Contributions can replace a compatibility
+ * mount in its fixed slot or fill an empty blessed slot. Every other id and an
+ * eighth visible panel are rejected before the host can render them.
  */
 export function createMeetingPanelComposition(
   ...contributions: readonly MeetingPanelDescriptor[]
 ): MeetingPanelComposition {
+  validateMeetingPanelDescriptors(contributions);
+  const panelsById = new Map<string, MeetingPanelDescriptor>(
+    meetingPanelRegistry.map((descriptor) => [descriptor.id, descriptor])
+  );
+  for (const descriptor of contributions) {
+    panelsById.set(descriptor.id, descriptor);
+  }
   return {
-    panels: getMeetingPanels([...meetingPanelRegistry, ...contributions]),
+    panels: getMeetingPanels([...panelsById.values()]),
   };
 }
 
@@ -85,14 +186,15 @@ export const defaultMeetingPanelComposition: MeetingPanelComposition =
 const registeredMeetingPanels: MeetingPanelDescriptor[] = [];
 
 /**
- * Register a feature-owned panel into the live host composition. Validates the
- * contribution against the base plus already-registered panels (duplicate id
- * and malformed descriptors are rejected) BEFORE it is added. Returns an
- * unregister function; a dependent's flag-off path should not register at all.
+ * Register a feature-owned panel into the live host composition. A panel may
+ * replace its compatibility mount, but a second feature may not claim that
+ * same blessed slot. Returns an unregister function; a dependent's flag-off
+ * path should not register at all.
  */
 export function registerMeetingPanel(
   descriptor: MeetingPanelDescriptor
 ): () => void {
+  validateMeetingPanelDescriptors([...registeredMeetingPanels, descriptor]);
   createMeetingPanelComposition(...registeredMeetingPanels, descriptor);
   registeredMeetingPanels.push(descriptor);
   return () => {

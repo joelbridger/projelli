@@ -28,10 +28,13 @@ vi.mock('@/platform/utils/docx-commands', () => ({
 }));
 
 vi.mock('@/platform/utils/mail-commands', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/platform/utils/mail-commands')>();
+  const actual =
+    await importOriginal<typeof import('@/platform/utils/mail-commands')>();
   return {
     ...actual,
-    mailConnectedAccounts: vi.fn(async () => [{ provider: 'm365', account: 'default', label: 'Outlook' }]),
+    mailConnectedAccounts: vi.fn(async () => [
+      { provider: 'm365', account: 'default', label: 'Outlook' },
+    ]),
   };
 });
 
@@ -55,16 +58,36 @@ async function openActionsMenu() {
   fireEvent.click(trigger);
 }
 
-function makeWorkspace(opts: { notesExists?: boolean; existingExports?: string[] } = {}) {
+function makeWorkspace(
+  opts: { notesExists?: boolean; existingExports?: string[] } = {}
+) {
   const files = new Map<string, string>();
-  files.set('/ws/C/Meetings/x/meeting.json', JSON.stringify({
-    matterId: 'm-1',
-    startedAt: '2026-07-04T10:00:00Z',
-    consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: '2026-07-04T10:00:00Z' },
-  }));
-  files.set('/ws/C/Meetings/x/transcript.json', JSON.stringify({
-    segments: [{ startMs: 0, endMs: 1000, channel: 'mic', speaker: 'Advisor', text: 'Hello client.' }],
-  }));
+  files.set(
+    '/ws/C/Meetings/x/meeting.json',
+    JSON.stringify({
+      matterId: 'm-1',
+      startedAt: '2026-07-04T10:00:00Z',
+      consent: {
+        mode: 'one-party',
+        confirmedBy: 'user',
+        confirmedAt: '2026-07-04T10:00:00Z',
+      },
+    })
+  );
+  files.set(
+    '/ws/C/Meetings/x/transcript.json',
+    JSON.stringify({
+      segments: [
+        {
+          startMs: 0,
+          endMs: 1000,
+          channel: 'mic',
+          speaker: 'Advisor',
+          text: 'Hello client.',
+        },
+      ],
+    })
+  );
   const ws = {
     readFile: vi.fn(async (path: string) => {
       const value = files.get(path);
@@ -72,8 +95,10 @@ function makeWorkspace(opts: { notesExists?: boolean; existingExports?: string[]
       return value;
     }),
     readFileBinary: vi.fn(async (path: string) => {
-      if (path.endsWith('audio.wav')) return new Uint8Array([80, 75, 3, 4]).buffer;
-      if (path.endsWith('notes.docx')) return new Uint8Array([80, 75, 3, 4]).buffer;
+      if (path.endsWith('audio.wav'))
+        return new Uint8Array([80, 75, 3, 4]).buffer;
+      if (path.endsWith('notes.docx'))
+        return new Uint8Array([80, 75, 3, 4]).buffer;
       throw new Error(`missing binary ${path}`);
     }),
     exists: vi.fn(async (path: string) => {
@@ -102,7 +127,10 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     firmState.current = { org: null, role: null };
-    docxExtraction.current = { html: '<p>Summary body</p>', plainText: 'Summary body' };
+    docxExtraction.current = {
+      html: '<p>Summary body</p>',
+      plainText: 'Summary body',
+    };
   });
 
   it('shows Word-native action items in the Summary review checklist', async () => {
@@ -135,25 +163,27 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
     fireEvent.click(screen.getByTestId('meeting-subtab-summary'));
 
     expect(await screen.findByTestId('notes-review-panel')).toBeInTheDocument();
-    expect(screen.getAllByText('Start the rollover paperwork.')).toHaveLength(2);
-    expect(screen.queryByText('The next review is in fall.')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Start the rollover paperwork.')).toHaveLength(
+      2
+    );
+    expect(
+      screen.queryByText('The next review is in fall.')
+    ).not.toBeInTheDocument();
   });
 
   it('renders a registered panel contribution in the real host composition', async () => {
     // A dependent registers a panel through the public weave path.
     const unregister = registerMeetingPanel({
-      id: 'woven-signals' as MeetingPanelId,
+      id: 'agenda' as MeetingPanelId,
       order: 25,
       labelKey: 'meetings.woven.tab',
-      mount: () => (
-        <div data-testid="woven-signals-body">woven contribution</div>
-      ),
+      mount: () => <div data-testid="agenda-body">woven contribution</div>,
     });
     try {
       // The outside host getter now includes the contribution...
       expect(
         getMeetingPanelComposition().panels.map((panel) => panel.id)
-      ).toContain('woven-signals');
+      ).toContain('agenda');
 
       const ws = makeWorkspace();
       setMeetingsWorkspaceService(ws as never);
@@ -161,7 +191,7 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
 
       // ...and the real host actually renders that woven tab.
       expect(
-        await screen.findByTestId('meeting-subtab-woven-signals')
+        await screen.findByTestId('meeting-subtab-agenda')
       ).toBeInTheDocument();
       // The host-rendered tab order equals the outside composition order.
       const hostTabs = screen
@@ -178,7 +208,7 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
     // After unregister the host is back to the base tabs.
     expect(
       getMeetingPanelComposition().panels.map((panel) => panel.id)
-    ).not.toContain('woven-signals');
+    ).not.toContain('agenda');
   });
 
   it('mounts speaker naming and firm templates together in the transcript tab', async () => {
@@ -196,74 +226,95 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
     ).toBeTruthy();
   });
 
-  it('keeps three content tabs and opens the merged send surface in a drawer, not a fourth tab', async () => {
+  it('keeps the two legacy content tabs and opens the merged send surface in a drawer', async () => {
     const ws = makeWorkspace({ notesExists: true });
     setMeetingsWorkspaceService(ws as never);
 
     render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
 
-    await waitFor(() => expect(screen.getByTestId('notice-trail')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByTestId('notice-trail')).toBeInTheDocument()
+    );
 
-    const recordingTab = screen.getByTestId('meeting-subtab-recording');
-    const transcriptTab = screen.getByTestId('meeting-subtab-transcript');
     const summaryTab = screen.getByTestId('meeting-subtab-summary');
-    expect([recordingTab, transcriptTab, summaryTab].map((tab) => tab.textContent)).toEqual([
-      'Recording', 'Transcript', 'Summary',
+    const transcriptTab = screen.getByTestId('meeting-subtab-transcript');
+    expect([summaryTab, transcriptTab].map((tab) => tab.textContent)).toEqual([
+      'Summary',
+      'Transcript',
     ]);
+    expect(
+      screen.queryByTestId('meeting-subtab-recording')
+    ).not.toBeInTheDocument();
     // Send left the tab row (item 1).
-    expect(screen.queryByTestId('meeting-subtab-send-to-team')).not.toBeInTheDocument();
-    for (const [left, right] of [
-      [recordingTab, transcriptTab],
-      [transcriptTab, summaryTab],
-    ] as const) {
-      expect(left.compareDocumentPosition(right) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    }
-
-    expect(screen.getByTestId('meeting-recording-tab')).toBeInTheDocument();
+    expect(
+      screen.queryByTestId('meeting-subtab-send-to-team')
+    ).not.toBeInTheDocument();
+    expect(
+      summaryTab.compareDocumentPosition(transcriptTab) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
     // The merged send surface is not mounted until the drawer opens.
     expect(screen.queryByTestId('meeting-send-panel')).not.toBeInTheDocument();
 
     // Send is disabled until the meeting is reviewed.
     expect(screen.getByTestId('meeting-entry-send')).toBeDisabled();
     fireEvent.click(screen.getByTestId('meeting-entry-mark-reviewed'));
-    await waitFor(() => expect(screen.getByTestId('meeting-entry-send')).toBeEnabled());
+    await waitFor(() =>
+      expect(screen.getByTestId('meeting-entry-send')).toBeEnabled()
+    );
 
     fireEvent.click(screen.getByTestId('meeting-entry-send'));
-    await waitFor(() => expect(screen.getByTestId('meeting-send-panel')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByTestId('meeting-send-panel')).toBeInTheDocument()
+    );
     // The review tabs stay mounted behind the drawer.
-    expect(screen.getByTestId('meeting-recording-tab')).toBeInTheDocument();
+    expect(screen.getByTestId('meeting-summary-tab')).toBeInTheDocument();
   });
 
-  it('shows the three tabs; renames the meeting; exports transcript and Summary Word from the actions menu', async () => {
+  it('shows the legacy content tabs; renames the meeting; exports transcript and Summary Word from the actions menu', async () => {
     const ws = makeWorkspace({ notesExists: true });
     setMeetingsWorkspaceService(ws as never);
 
     render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
 
-    expect(screen.getByTestId('meeting-subtab-recording')).toBeTruthy();
+    expect(screen.queryByTestId('meeting-subtab-recording')).toBeNull();
     expect(screen.getByTestId('meeting-subtab-transcript')).toBeTruthy();
     expect(screen.getByTestId('meeting-subtab-summary')).toBeTruthy();
 
-    await waitFor(() => expect(screen.getByTestId('meeting-entry-mark-reviewed')).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByTestId('meeting-entry-mark-reviewed')).toBeTruthy()
+    );
     fireEvent.click(screen.getByTestId('meeting-title-rename'));
-    fireEvent.change(screen.getByTestId('meeting-title-input'), { target: { value: 'Quarterly plan review' } });
+    fireEvent.change(screen.getByTestId('meeting-title-input'), {
+      target: { value: 'Quarterly plan review' },
+    });
     fireEvent.click(screen.getByTestId('meeting-title-save'));
     await waitFor(() => {
-      const write = ws.writeFile.mock.calls.find((c) => c[0] === '/ws/C/Meetings/x/meeting.json');
+      const write = ws.writeFile.mock.calls.find(
+        (c) => c[0] === '/ws/C/Meetings/x/meeting.json'
+      );
       expect(write).toBeTruthy();
-      expect(JSON.parse(write?.[1] as string).customTitle).toBe('Quarterly plan review');
+      expect(JSON.parse(write?.[1] as string).customTitle).toBe(
+        'Quarterly plan review'
+      );
     });
 
     await openActionsMenu();
     fireEvent.click(await screen.findByTestId('meeting-transcript-export'));
     await waitFor(() => {
-      expect(ws.writeFile).toHaveBeenCalledWith('/ws/C/Meetings/x/transcript.txt', expect.stringContaining('Advisor: Hello client.'));
+      expect(ws.writeFile).toHaveBeenCalledWith(
+        '/ws/C/Meetings/x/transcript.txt',
+        expect.stringContaining('Advisor: Hello client.')
+      );
     });
 
     await openActionsMenu();
     fireEvent.click(await screen.findByTestId('meeting-summary-export-docx'));
     await waitFor(() => {
-      expect(ws.writeFileBinary).toHaveBeenCalledWith('/ws/C/Documents/Quarterly plan review summary.docx', expect.any(ArrayBuffer));
+      expect(ws.writeFileBinary).toHaveBeenCalledWith(
+        '/ws/C/Documents/Quarterly plan review summary.docx',
+        expect.any(ArrayBuffer)
+      );
     });
   });
 
@@ -274,14 +325,25 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
     render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
 
     fireEvent.click(screen.getByTestId('meeting-subtab-summary'));
-    await waitFor(() => expect(screen.getByTestId('meeting-entry-notes-pending')).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByTestId('meeting-entry-notes-pending')).toBeTruthy()
+    );
 
     await openActionsMenu();
     // Menu items are radix menuitems, disabled via aria-disabled, and clicking
     // them writes nothing.
-    expect(await screen.findByTestId('meeting-summary-copy')).toHaveAttribute('aria-disabled', 'true');
-    expect(screen.getByTestId('meeting-summary-export-docx')).toHaveAttribute('aria-disabled', 'true');
-    expect(screen.getByTestId('meeting-summary-export-pdf')).toHaveAttribute('aria-disabled', 'true');
+    expect(await screen.findByTestId('meeting-summary-copy')).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
+    expect(screen.getByTestId('meeting-summary-export-docx')).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
+    expect(screen.getByTestId('meeting-summary-export-pdf')).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
     fireEvent.click(screen.getByTestId('meeting-summary-export-docx'));
     expect(ws.writeFileBinary).not.toHaveBeenCalled();
   });
@@ -295,12 +357,17 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
 
     render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
 
-    await waitFor(() => expect(screen.getByTestId('meeting-entry-actions-menu')).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByTestId('meeting-entry-actions-menu')).toBeTruthy()
+    );
     await openActionsMenu();
     fireEvent.click(await screen.findByTestId('meeting-summary-export-docx'));
 
     await waitFor(() => {
-      expect(ws.writeFileBinary).toHaveBeenCalledWith('/ws/C/Documents/Meeting summary 2.docx', expect.any(ArrayBuffer));
+      expect(ws.writeFileBinary).toHaveBeenCalledWith(
+        '/ws/C/Documents/Meeting summary 2.docx',
+        expect.any(ArrayBuffer)
+      );
     });
   });
 
@@ -310,7 +377,9 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
 
     render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
 
-    await waitFor(() => expect(screen.getByTestId('meeting-entry-actions-menu')).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByTestId('meeting-entry-actions-menu')).toBeTruthy()
+    );
     await openActionsMenu();
     fireEvent.click(await screen.findByTestId('meeting-summary-export-pdf'));
 
@@ -328,21 +397,46 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
 
   it('clears loaded meeting state before a different meeting can export stale notes', async () => {
     const files = new Map<string, string>();
-    files.set('/ws/C/Meetings/A/meeting.json', JSON.stringify({
-      matterId: 'm-1',
-      startedAt: '2026-07-04T10:00:00Z',
-      customTitle: 'Meeting A',
-      consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: '2026-07-04T10:00:00Z' },
-    }));
-    files.set('/ws/C/Meetings/A/transcript.json', JSON.stringify({
-      segments: [{ startMs: 0, endMs: 1000, channel: 'mic', speaker: 'Advisor', text: 'A transcript.' }],
-    }));
-    files.set('/ws/C/Meetings/B/meeting.json', JSON.stringify({
-      matterId: 'm-1',
-      startedAt: '2026-07-05T10:00:00Z',
-      customTitle: 'Meeting B',
-      consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: '2026-07-05T10:00:00Z' },
-    }));
+    files.set(
+      '/ws/C/Meetings/A/meeting.json',
+      JSON.stringify({
+        matterId: 'm-1',
+        startedAt: '2026-07-04T10:00:00Z',
+        customTitle: 'Meeting A',
+        consent: {
+          mode: 'one-party',
+          confirmedBy: 'user',
+          confirmedAt: '2026-07-04T10:00:00Z',
+        },
+      })
+    );
+    files.set(
+      '/ws/C/Meetings/A/transcript.json',
+      JSON.stringify({
+        segments: [
+          {
+            startMs: 0,
+            endMs: 1000,
+            channel: 'mic',
+            speaker: 'Advisor',
+            text: 'A transcript.',
+          },
+        ],
+      })
+    );
+    files.set(
+      '/ws/C/Meetings/B/meeting.json',
+      JSON.stringify({
+        matterId: 'm-1',
+        startedAt: '2026-07-05T10:00:00Z',
+        customTitle: 'Meeting B',
+        consent: {
+          mode: 'one-party',
+          confirmedBy: 'user',
+          confirmedAt: '2026-07-05T10:00:00Z',
+        },
+      })
+    );
     const ws = {
       readFile: vi.fn(async (path: string) => {
         const value = files.get(path);
@@ -350,10 +444,13 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
         return value;
       }),
       readFileBinary: vi.fn(async (path: string) => {
-        if (path === '/ws/C/Meetings/A/notes.docx') return new Uint8Array([80, 75, 3, 4]).buffer;
+        if (path === '/ws/C/Meetings/A/notes.docx')
+          return new Uint8Array([80, 75, 3, 4]).buffer;
         throw new Error(`missing binary ${path}`);
       }),
-      exists: vi.fn(async (path: string) => path === '/ws/C/Meetings/A/notes.docx'),
+      exists: vi.fn(
+        async (path: string) => path === '/ws/C/Meetings/A/notes.docx'
+      ),
       writeFile: vi.fn(async () => {}),
       writeFileBinary: vi.fn(async () => {}),
       delete: vi.fn(async () => {}),
@@ -361,20 +458,36 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
     setMeetingsWorkspaceService(ws as never);
 
     const { rerender } = render(
-      <MeetingEntry {...baseProps} meetingDir="/ws/C/Meetings/A" folderName="A" workspaceService={ws as never} />,
+      <MeetingEntry
+        {...baseProps}
+        meetingDir="/ws/C/Meetings/A"
+        folderName="A"
+        workspaceService={ws as never}
+      />
     );
     fireEvent.click(screen.getByTestId('meeting-subtab-summary'));
-    await waitFor(() => expect(screen.getByTestId('meeting-summary-text')).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByTestId('meeting-summary-text')).toBeTruthy()
+    );
 
     rerender(
-      <MeetingEntry {...baseProps} meetingDir="/ws/C/Meetings/B" folderName="B" workspaceService={ws as never} />,
+      <MeetingEntry
+        {...baseProps}
+        meetingDir="/ws/C/Meetings/B"
+        folderName="B"
+        workspaceService={ws as never}
+      />
     );
 
     // Meeting B has no notes: the summary export in the actions menu is disabled
     // and writes nothing.
-    await waitFor(() => expect(screen.queryByTestId('meeting-summary-text')).toBeNull());
+    await waitFor(() =>
+      expect(screen.queryByTestId('meeting-summary-text')).toBeNull()
+    );
     await openActionsMenu();
-    expect(await screen.findByTestId('meeting-summary-export-docx')).toHaveAttribute('aria-disabled', 'true');
+    expect(
+      await screen.findByTestId('meeting-summary-export-docx')
+    ).toHaveAttribute('aria-disabled', 'true');
     fireEvent.click(screen.getByTestId('meeting-summary-export-docx'));
     expect(ws.writeFileBinary).not.toHaveBeenCalled();
   });
