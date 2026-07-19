@@ -22,8 +22,14 @@ import {
   CheckCircle2,
   MoreVertical,
 } from 'lucide-react';
-import { localDay, useBriefStore, type MeetingBrief } from './briefStore';
+import {
+  isValidMeetingBrief,
+  localDay,
+  useBriefStore,
+  type MeetingBrief,
+} from './briefStore';
 import { enqueueBriefs } from './briefQueue';
+import { useActiveMeetingClientBoundary } from './foundation/contract';
 import { calendarListEvents } from '@/platform/utils/calendar-commands';
 import { todayWindowUtc } from './todayWindow';
 import { agendaMarkdownFromBrief } from './agendaExport';
@@ -48,6 +54,7 @@ export function BeforeYouMeetStrip({ matterId }: { matterId: string }) {
   const matter = useMatterStore((s) =>
     s.matters.find((m) => m.id === matterId)
   );
+  const activeClientBoundary = useActiveMeetingClientBoundary();
   const [collapsed, setCollapsed] = useState(true);
   const [busy, setBusy] = useState(false);
   const [savedKey, setSavedKey] = useState<string | null>(null);
@@ -56,7 +63,14 @@ export function BeforeYouMeetStrip({ matterId }: { matterId: string }) {
   const today = localDay();
   const todays: MeetingBrief[] = Object.values(briefs)
     .filter((b) => {
-      if (b.matterId !== matterId) return false;
+      if (
+        !activeClientBoundary ||
+        activeClientBoundary.matterId !== matterId ||
+        !isValidMeetingBrief(b) ||
+        b.householdRef !== activeClientBoundary.householdRef ||
+        b.matterId !== activeClientBoundary.matterId
+      )
+        return false;
       if (b.day === today) return true;
       return matter?.isSample === true && b.isSample === true;
     })
@@ -64,9 +78,10 @@ export function BeforeYouMeetStrip({ matterId }: { matterId: string }) {
 
   if (todays.length === 0) return null;
   const firstBrief = todays[0];
-  const summary = todays.length === 1 && firstBrief
-    ? firstBrief.eventTitle
-    : t('meetings.before-you-meet.count', { count: todays.length });
+  const summary =
+    todays.length === 1 && firstBrief
+      ? firstBrief.eventTitle
+      : t('meetings.before-you-meet.count', { count: todays.length });
 
   async function exportDocx(brief: MeetingBrief) {
     setBusy(true);
@@ -145,7 +160,12 @@ export function BeforeYouMeetStrip({ matterId }: { matterId: string }) {
     const { fromUtc, toUtc } = todayWindowUtc();
     const events = await calendarListEvents(fromUtc, toUtc).catch(() => []);
     const event = events.find((e) => e.id === brief.eventId);
-    if (event) {
+    if (
+      event &&
+      activeClientBoundary &&
+      brief.householdRef === activeClientBoundary.householdRef &&
+      brief.matterId === activeClientBoundary.matterId
+    ) {
       // COORDINATOR FINDING (P2): enqueueBriefs() skips any job whose
       // EXISTING store status is already 'pending'/'generating' — setting
       // status: 'pending' here BEFORE calling it made that skip-check trip
@@ -154,10 +174,12 @@ export function BeforeYouMeetStrip({ matterId }: { matterId: string }) {
       // stays 'ready', so neither of enqueueBriefs' skip conditions fire);
       // enqueueBriefs' own internal upsert transitions it through pending
       // -> generating -> ready once the job actually runs.
-      useBriefStore.getState().upsert({ ...brief, stale: true });
-      if (brief.householdRef) {
-        enqueueBriefs([{ householdRef: brief.householdRef, matterId, event }]);
-      }
+      useBriefStore.getState().markStale({
+        clientBoundary: activeClientBoundary,
+        eventId: brief.eventId,
+        day: brief.day,
+      });
+      enqueueBriefs([{ clientBoundary: activeClientBoundary, event }]);
     }
   }
 
@@ -182,7 +204,11 @@ export function BeforeYouMeetStrip({ matterId }: { matterId: string }) {
         <span className="min-w-0 flex-1 truncate text-xs text-slate-500">
           {summary}
         </span>
-        {collapsed ? <ChevronDown size={16} aria-hidden /> : <ChevronUp size={16} aria-hidden />}
+        {collapsed ? (
+          <ChevronDown size={16} aria-hidden />
+        ) : (
+          <ChevronUp size={16} aria-hidden />
+        )}
       </button>
       {!collapsed &&
         todays.map((brief) => (
@@ -201,7 +227,11 @@ export function BeforeYouMeetStrip({ matterId }: { matterId: string }) {
                         aria-label={t('meetings.before-you-meet.actions')}
                         className="kp-icon-btn kp-icon-btn--ghost kp-icon-btn--xs"
                       >
-                        <MoreVertical size={14} strokeWidth={1.75} aria-hidden />
+                        <MoreVertical
+                          size={14}
+                          strokeWidth={1.75}
+                          aria-hidden
+                        />
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-36">
@@ -300,11 +330,16 @@ export function BeforeYouMeetStrip({ matterId }: { matterId: string }) {
               </>
             )}
             {(brief.status === 'pending' || brief.status === 'generating') && (
-              <p className="text-xs text-slate-500">{t('meetings.before-you-meet.preparing')}</p>
+              <p className="text-xs text-slate-500">
+                {t('meetings.before-you-meet.preparing')}
+              </p>
             )}
             {brief.status === 'failed' && (
               <p className="text-xs text-red-700">
-                {t('meetings.before-you-meet.failed', { error: brief.error ?? t('meetings.before-you-meet.unknown-error') })}
+                {t('meetings.before-you-meet.failed', {
+                  error:
+                    brief.error ?? t('meetings.before-you-meet.unknown-error'),
+                })}
               </p>
             )}
           </div>

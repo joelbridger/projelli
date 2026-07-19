@@ -6,7 +6,12 @@ import type {
   SealedMeetingClientBoundary,
 } from './foundation/contract';
 import { MeetingPrepPanel } from './MeetingPrepPanel';
-import { briefKey, useBriefStore, type ExactMeetingBriefTarget, type MeetingBrief } from './briefStore';
+import {
+  briefKey,
+  useBriefStore,
+  type ExactMeetingBriefTarget,
+  type MeetingBrief,
+} from './briefStore';
 
 const NOW = '2026-07-20T08:00:00.000Z';
 
@@ -31,10 +36,21 @@ function target(suffix: string): ExactMeetingBriefTarget {
   return { eventId: `event-${suffix}`, meeting, clientBoundary: client };
 }
 
-function brief(suffix: string, overrides: Partial<MeetingBrief> = {}): MeetingBrief {
+function brief(
+  suffix: string,
+  overrides: Partial<MeetingBrief> = {}
+): MeetingBrief {
   const day = '2026-07-20';
+  const clientBoundary = {
+    householdRef: `household-${suffix}`,
+    matterId: `matter-${suffix}`,
+  } as SealedMeetingClientBoundary;
   return {
-    key: briefKey(day, `event-${suffix}`, `matter-${suffix}`),
+    key: briefKey({
+      clientBoundary,
+      eventId: `event-${suffix}`,
+      day,
+    }),
     eventId: `event-${suffix}`,
     householdRef: `household-${suffix}`,
     matterId: `matter-${suffix}`,
@@ -62,14 +78,16 @@ function brief(suffix: string, overrides: Partial<MeetingBrief> = {}): MeetingBr
 }
 
 function facts(value: ExactMeetingBriefTarget): readonly MeetingSurfaceFacts[] {
-  return [{
-    meetingId: value.meeting.id,
-    householdRef: value.clientBoundary.householdRef,
-    matterId: value.clientBoundary.matterId,
-    platform: 'zoom',
-    joinUrl: 'https://zoom.us/j/123',
-    recordingStatus: 'not-recorded',
-  }];
+  return [
+    {
+      meetingId: value.meeting.id,
+      householdRef: value.clientBoundary.householdRef,
+      matterId: value.clientBoundary.matterId,
+      platform: 'zoom',
+      joinUrl: 'https://zoom.us/j/123',
+      recordingStatus: 'not-recorded',
+    },
+  ];
 }
 
 afterEach(() => {
@@ -83,35 +101,69 @@ describe('MeetingPrepPanel', () => {
     const join = vi.fn();
     const record = vi.fn();
     const openSource = vi.fn();
-    render(<MeetingPrepPanel target={value} surfaceFacts={facts(value)} nowUtc={NOW} handoffs={{ join, record, openSource }} />);
+    render(
+      <MeetingPrepPanel
+        target={value}
+        surfaceFacts={facts(value)}
+        nowUtc={NOW}
+        handoffs={{ join, record, openSource }}
+      />
+    );
 
     expect(screen.getByText(/Morgan changed jobs in June/)).toBeInTheDocument();
-    expect(screen.getByText(/Decided to keep a six-month cash reserve/)).toBeInTheDocument();
-    expect(screen.getByText(/Confirm the beneficiary update/)).toBeInTheDocument();
-    expect(screen.getByText(/concentrated employer-stock position/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Decided to keep a six-month cash reserve/)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Confirm the beneficiary update/)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/concentrated employer-stock position/)
+    ).toBeInTheDocument();
     expect(screen.getByText('Generated from 2 sources.')).toBeInTheDocument();
-    expect(screen.getByTestId('meeting-prep-client-match')).toHaveTextContent('Exact client match');
+    expect(screen.getByTestId('meeting-prep-client-match')).toHaveTextContent(
+      'Exact client match'
+    );
 
     fireEvent.click(screen.getByTestId('meeting-prep-join'));
     fireEvent.click(screen.getByTestId('meeting-prep-record'));
-    fireEvent.click(screen.getAllByTestId('meeting-prep-source')[0] as HTMLElement);
+    fireEvent.click(
+      screen.getAllByTestId('meeting-prep-source')[0] as HTMLElement
+    );
     expect(join).toHaveBeenCalledOnce();
     expect(record).toHaveBeenCalledOnce();
-    expect(openSource).toHaveBeenCalledWith('/workspace/Clients/Morgan/plan.docx');
+    expect(openSource).toHaveBeenCalledWith(
+      '/workspace/Clients/Morgan/plan.docx'
+    );
   });
 
   it('renders distinct loading, empty, and error states without borrowing another brief', () => {
     const value = target('a');
-    useBriefStore.setState({ briefs: { a: brief('a', { status: 'generating' }) } });
-    const view = render(<MeetingPrepPanel target={value} surfaceFacts={[]} nowUtc={NOW} />);
+    useBriefStore.setState({
+      briefs: { a: brief('a', { status: 'generating' }) },
+    });
+    const view = render(
+      <MeetingPrepPanel target={value} surfaceFacts={[]} nowUtc={NOW} />
+    );
     expect(screen.getByTestId('meeting-prep-loading')).toBeInTheDocument();
 
     act(() => {
-      useBriefStore.setState({ briefs: { a: brief('a', { status: 'failed', error: 'Local model unavailable.' }) } });
+      useBriefStore.setState({
+        briefs: {
+          a: brief('a', {
+            status: 'failed',
+            error: 'Local model unavailable.',
+          }),
+        },
+      });
     });
-    expect(screen.getByTestId('meeting-prep-error')).toHaveTextContent('Local model unavailable.');
+    expect(screen.getByTestId('meeting-prep-error')).toHaveTextContent(
+      'Local model unavailable.'
+    );
 
-    view.rerender(<MeetingPrepPanel target={target('b')} surfaceFacts={[]} nowUtc={NOW} />);
+    view.rerender(
+      <MeetingPrepPanel target={target('b')} surfaceFacts={[]} nowUtc={NOW} />
+    );
     expect(screen.getByTestId('meeting-prep-empty')).toBeInTheDocument();
     expect(screen.queryByText(/Annual review a/)).not.toBeInTheDocument();
   });
@@ -120,10 +172,22 @@ describe('MeetingPrepPanel', () => {
     const clientA = target('a');
     const clientB = target('b');
     useBriefStore.setState({ briefs: { a: brief('a') } });
-    const view = render(<MeetingPrepPanel target={clientA} surfaceFacts={facts(clientA)} nowUtc={NOW} />);
+    const view = render(
+      <MeetingPrepPanel
+        target={clientA}
+        surfaceFacts={facts(clientA)}
+        nowUtc={NOW}
+      />
+    );
     expect(screen.getByText('Annual review a')).toBeInTheDocument();
 
-    view.rerender(<MeetingPrepPanel target={clientB} surfaceFacts={facts(clientB)} nowUtc={NOW} />);
+    view.rerender(
+      <MeetingPrepPanel
+        target={clientB}
+        surfaceFacts={facts(clientB)}
+        nowUtc={NOW}
+      />
+    );
     expect(screen.queryByText('Annual review a')).not.toBeInTheDocument();
     expect(screen.getByTestId('meeting-prep-empty')).toBeInTheDocument();
   });
@@ -168,15 +232,23 @@ describe('MeetingPrepPanel', () => {
     const exactFact = exactFacts[0];
     if (!exactFact) throw new Error('expected exact meeting facts');
     useBriefStore.setState({ briefs: { a: brief('a') } });
-    render(<MeetingPrepPanel
-      target={value}
-      surfaceFacts={[{ ...exactFact, householdRef: 'household-b', matterId: 'matter-b' }]}
-      nowUtc={NOW}
-      handoffs={{ join: vi.fn(), record: vi.fn() }}
-    />);
+    render(
+      <MeetingPrepPanel
+        target={value}
+        surfaceFacts={[
+          { ...exactFact, householdRef: 'household-b', matterId: 'matter-b' },
+        ]}
+        nowUtc={NOW}
+        handoffs={{ join: vi.fn(), record: vi.fn() }}
+      />
+    );
     expect(screen.queryByTestId('meeting-prep-join')).not.toBeInTheDocument();
     expect(screen.queryByTestId('meeting-prep-record')).not.toBeInTheDocument();
-    expect(screen.getByTestId('meeting-prep-readiness')).toHaveTextContent('No proven join handoff is available.');
-    expect(screen.getByTestId('meeting-prep-readiness')).toHaveTextContent('No proven recording handoff is available.');
+    expect(screen.getByTestId('meeting-prep-readiness')).toHaveTextContent(
+      'No proven join handoff is available.'
+    );
+    expect(screen.getByTestId('meeting-prep-readiness')).toHaveTextContent(
+      'No proven recording handoff is available.'
+    );
   });
 });

@@ -44,11 +44,12 @@ function BoundMeetingPrepPanel({ context }: { context: MeetingPanelContext }) {
       : null;
   const joinUrl = context.meta?.calendarEvent?.joinUrl?.trim() ?? '';
   const detectedPlatform = detectPlatform(joinUrl);
-  const platform = detectedPlatform === 'meet'
-    ? 'google-meet'
-    : detectedPlatform === 'none'
-      ? 'unknown'
-      : detectedPlatform;
+  const platform =
+    detectedPlatform === 'meet'
+      ? 'google-meet'
+      : detectedPlatform === 'none'
+        ? 'unknown'
+        : detectedPlatform;
   const surfaceFacts: readonly MeetingSurfaceFacts[] = target
     ? [
         {
@@ -73,11 +74,12 @@ function BoundMeetingPrepPanel({ context }: { context: MeetingPanelContext }) {
       provider: 'ics' as const,
       organizerEmail: '',
     };
-    enqueueBriefs([{
-      householdRef: target.clientBoundary.householdRef,
-      matterId: target.clientBoundary.matterId,
-      event,
-    }]);
+    enqueueBriefs([
+      {
+        clientBoundary: target.clientBoundary,
+        event,
+      },
+    ]);
   }, [context.meta?.calendarEvent, target]);
 
   return (

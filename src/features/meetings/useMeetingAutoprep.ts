@@ -19,6 +19,7 @@ import {
 } from '@/platform/rag/matterResolver';
 import type { Matter } from '@/platform/types/matter';
 import { enqueueBriefs, type BriefJob } from './briefQueue';
+import type { SealedMeetingClientBoundary } from './foundation/contract';
 import { todayWindowUtc } from './todayWindow';
 
 export function jobsForEvents(
@@ -30,8 +31,14 @@ export function jobsForEvents(
   for (const event of events) {
     for (const matterId of resolveMattersForCalendarEvent(event, map)) {
       const matter = matters.find((candidate) => candidate.id === matterId);
-      for (const householdRef of matter?.crmHouseholdKeys ?? []) {
-        jobs.push({ householdRef, matterId, event });
+      for (const rawHouseholdRef of matter?.crmHouseholdKeys ?? []) {
+        const householdRef = rawHouseholdRef.trim();
+        if (!householdRef || !matterId.trim()) continue;
+        const clientBoundary = {
+          householdRef,
+          matterId,
+        } as SealedMeetingClientBoundary;
+        jobs.push({ clientBoundary, event });
       }
     }
   }
@@ -63,7 +70,9 @@ export function useMeetingAutoprep(
           .join('+')}`
     )
     .join('|');
-  const matterIdsKey = matters.map((m) => m.id).join(',');
+  const clientPairsKey = matters
+    .map((m) => `${m.id}:${(m.crmHouseholdKeys ?? []).join('+')}`)
+    .join(',');
   const meetingKeysKey = matters
     .map((m) => (m.meetingKeys ?? []).join('+'))
     .join('|');
@@ -72,7 +81,7 @@ export function useMeetingAutoprep(
     if (events.length === 0) return;
     enqueueBriefs(jobsForEvents(events, matters));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eventsSignature, matterIdsKey, meetingKeysKey]);
+  }, [eventsSignature, clientPairsKey, meetingKeysKey]);
 }
 
 export const RESCAN_INTERVAL_MS = 5 * 60 * 1000;
@@ -89,8 +98,13 @@ export const RESCAN_INTERVAL_MS = 5 * 60 * 1000;
  * failed fetch skips enqueueing, same as a genuinely empty calendar, but the
  * caller now gets told the difference).
  */
-export function useAutoprepRescan(matters: Matter[], onError?: () => void): void {
-  const matterIdsKey = matters.map((m) => m.id).join(',');
+export function useAutoprepRescan(
+  matters: Matter[],
+  onError?: () => void
+): void {
+  const clientPairsKey = matters
+    .map((m) => `${m.id}:${(m.crmHouseholdKeys ?? []).join('+')}`)
+    .join(',');
   // codex-review P2: same class of bug already fixed in useMeetingAutoprep
   // above — teaching/moving a meeting key changes no matter id, so without
   // signing on meetingKeys too the interval keeps matching events against a
@@ -104,11 +118,13 @@ export function useAutoprepRescan(matters: Matter[], onError?: () => void): void
     const timer = setInterval(() => {
       void (async () => {
         const { fromUtc, toUtc } = todayWindowUtc();
-        const events = await calendarListEvents(fromUtc, toUtc).catch((err: unknown) => {
-          console.error('[useAutoprepRescan] calendar fetch failed:', err);
-          onError?.();
-          return null;
-        });
+        const events = await calendarListEvents(fromUtc, toUtc).catch(
+          (err: unknown) => {
+            console.error('[useAutoprepRescan] calendar fetch failed:', err);
+            onError?.();
+            return null;
+          }
+        );
         if (cancelled || events === null) return;
         if (events.length > 0) {
           enqueueBriefs(jobsForEvents(events, matters));
@@ -120,5 +136,5 @@ export function useAutoprepRescan(matters: Matter[], onError?: () => void): void
       clearInterval(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matterIdsKey, meetingKeysKey]);
+  }, [clientPairsKey, meetingKeysKey]);
 }

@@ -67,9 +67,14 @@ function section(markdown: string, heading: RegExp): string {
 }
 
 /** Project existing generated work; no second model run or forked generator. */
-export function projectMeetingPrepSections(markdown: string): MeetingPrepSections {
+export function projectMeetingPrepSections(
+  markdown: string
+): MeetingPrepSections {
   return {
-    recentChanges: section(markdown, /^###\s+Current Concerns and Life Events\s*$/i),
+    recentChanges: section(
+      markdown,
+      /^###\s+Current Concerns and Life Events\s*$/i
+    ),
     priorDecisions: section(markdown, /^###\s+Last Meeting Recap\s*$/i),
     openItems: section(markdown, /^##\s+Suggested Talking Points\s*$/i),
     personalAndPortfolio: section(markdown, /^###\s+Client Snapshot\s*$/i),
@@ -92,23 +97,32 @@ function exactRow(
     nowUtc
   );
   if (result.kind !== 'ready') return null;
-  return [...result.upcoming, ...result.past].find(
-    (row) => row.id === target.meeting.id
-  ) ?? null;
+  return (
+    [...result.upcoming, ...result.past].find(
+      (row) => row.id === target.meeting.id
+    ) ?? null
+  );
 }
 
 function sourcePaths(brief: MeetingBrief): readonly string[] {
-  return [...new Set([
-    ...brief.citations.map((citation) => citation.path),
-    ...(brief.bullets ?? []).map((bullet) => bullet.sourcePath),
-  ].filter((path) => path.trim().length > 0))];
+  return [
+    ...new Set(
+      [
+        ...brief.citations.map((citation) => citation.path),
+        ...(brief.bullets ?? []).map((bullet) => bullet.sourcePath),
+      ].filter((path) => path.trim().length > 0)
+    ),
+  ];
 }
 
 function basename(path: string): string {
   return path.split(/[\\/]/).pop() ?? path;
 }
 
-function Readiness({ row, handoffs }: {
+function Readiness({
+  row,
+  handoffs,
+}: {
   row: MeetingSurfaceRow | null;
   handoffs: MeetingPrepHandoffs | undefined;
 }) {
@@ -117,13 +131,28 @@ function Readiness({ row, handoffs }: {
   const canJoin = row?.joinReadiness === 'available' && !!join;
   const canRecord = row?.recordingStatus === 'not-recorded' && !!record;
   return (
-    <Card data-testid="meeting-prep-readiness" variant="flat" className="grid gap-3 p-3 sm:grid-cols-2">
+    <Card
+      data-testid="meeting-prep-readiness"
+      variant="flat"
+      className="grid gap-3 p-3 sm:grid-cols-2"
+    >
       <div>
         <strong className="text-sm text-[var(--kp-navy)]">Join</strong>
         <p className="mb-2 mt-1 text-xs text-[var(--color-muted-foreground)]">
-          {canJoin ? 'Exact linked meeting ready.' : 'No proven join handoff is available.'}
+          {canJoin
+            ? 'Exact linked meeting ready.'
+            : 'No proven join handoff is available.'}
         </p>
-        {canJoin ? <Button size="sm" iconRight={ExternalLink} onClick={join} data-testid="meeting-prep-join">Join meeting</Button> : null}
+        {canJoin ? (
+          <Button
+            size="sm"
+            iconRight={ExternalLink}
+            onClick={join}
+            data-testid="meeting-prep-join"
+          >
+            Join meeting
+          </Button>
+        ) : null}
       </div>
       <div>
         <strong className="text-sm text-[var(--kp-navy)]">Record</strong>
@@ -136,7 +165,16 @@ function Readiness({ row, handoffs }: {
                 ? 'Consent-first recording is ready.'
                 : 'No proven recording handoff is available.'}
         </p>
-        {canRecord ? <Button size="sm" variant="secondary" onClick={record} data-testid="meeting-prep-record">Review consent and record</Button> : null}
+        {canRecord ? (
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={record}
+            data-testid="meeting-prep-record"
+          >
+            Review consent and record
+          </Button>
+        ) : null}
       </div>
     </Card>
   );
@@ -150,7 +188,7 @@ export function MeetingPrepPanel({
 }: MeetingPrepPanelProps) {
   const briefs = useBriefStore((state) => state.briefs);
   const brief = useMemo(
-    () => selectExactMeetingBrief(briefs, target),
+    () => (target ? selectExactMeetingBrief(briefs, target) : null),
     [briefs, target]
   );
   const row = useMemo(
@@ -158,21 +196,50 @@ export function MeetingPrepPanel({
     [target, surfaceFacts, nowUtc]
   );
   if (!target) {
-    return <div data-testid="meeting-prep-empty"><Callout variant="info">This meeting does not have an exact canonical event and client link yet.</Callout></div>;
+    return (
+      <div data-testid="meeting-prep-empty">
+        <Callout variant="info">
+          This meeting does not have an exact canonical event and client link
+          yet.
+        </Callout>
+      </div>
+    );
   }
   if (!brief) {
-    return <div data-testid="meeting-prep-empty"><Callout variant="info">No brief is linked to this exact meeting and client.</Callout></div>;
+    return (
+      <div data-testid="meeting-prep-empty">
+        <Callout variant="info">
+          No brief is linked to this exact meeting and client.
+        </Callout>
+      </div>
+    );
   }
   if (brief.status === 'pending' || brief.status === 'generating') {
-    return <div data-testid="meeting-prep-loading" role="status" className="flex items-center gap-2 text-sm text-[var(--color-muted-foreground)]"><RefreshCw className="h-4 w-4 animate-spin" aria-hidden="true" />Preparing this meeting brief from linked sources.</div>;
+    return (
+      <div
+        data-testid="meeting-prep-loading"
+        role="status"
+        className="flex items-center gap-2 text-sm text-[var(--color-muted-foreground)]"
+      >
+        <RefreshCw className="h-4 w-4 animate-spin" aria-hidden="true" />
+        Preparing this meeting brief from linked sources.
+      </div>
+    );
   }
   if (brief.status === 'failed') {
     return (
       <div data-testid="meeting-prep-error">
         <Callout variant="error" icon={AlertTriangle}>
           <strong>Meeting prep could not load.</strong>
-          <p className="mb-2 mt-1">{brief.error?.trim() || 'The brief generator did not return a result.'}</p>
-          {handoffs?.retry ? <Button size="sm" variant="secondary" onClick={handoffs.retry}>Try again</Button> : null}
+          <p className="mb-2 mt-1">
+            {brief.error?.trim() ||
+              'The brief generator did not return a result.'}
+          </p>
+          {handoffs?.retry ? (
+            <Button size="sm" variant="secondary" onClick={handoffs.retry}>
+              Try again
+            </Button>
+          ) : null}
         </Callout>
       </div>
     );
@@ -191,29 +258,53 @@ export function MeetingPrepPanel({
     <div data-testid="meeting-prep-panel" className="grid gap-4">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="m-0 text-xs font-semibold uppercase tracking-wide text-[var(--color-muted-foreground)]">Meeting prep</p>
-          <h2 className="mb-1 mt-1 text-lg font-bold text-[var(--kp-navy)]">{brief.eventTitle}</h2>
-          <p className="m-0 text-xs text-[var(--color-muted-foreground)]">Generated from {sources.length} {sources.length === 1 ? 'source' : 'sources'}.</p>
+          <p className="m-0 text-xs font-semibold uppercase tracking-wide text-[var(--color-muted-foreground)]">
+            Meeting prep
+          </p>
+          <h2 className="mb-1 mt-1 text-lg font-bold text-[var(--kp-navy)]">
+            {brief.eventTitle}
+          </h2>
+          <p className="m-0 text-xs text-[var(--color-muted-foreground)]">
+            Generated from {sources.length}{' '}
+            {sources.length === 1 ? 'source' : 'sources'}.
+          </p>
         </div>
-        <Badge variant="success" data-testid="meeting-prep-client-match">Exact client match</Badge>
+        <Badge variant="success" data-testid="meeting-prep-client-match">
+          Exact client match
+        </Badge>
       </header>
 
-      {brief.stale ? <Callout variant="warning">New client information may have arrived since this brief was prepared.</Callout> : null}
+      {brief.stale ? (
+        <Callout variant="warning">
+          New client information may have arrived since this brief was prepared.
+        </Callout>
+      ) : null}
       <Readiness row={row} handoffs={handoffs} />
 
       <div className="grid gap-3 md:grid-cols-2">
         {cards.map(([title, content]) => (
-          <Card key={title} data-testid={`meeting-prep-section-${title.toLowerCase().replaceAll(' ', '-')}`}>
-            <h3 className="m-0 text-sm font-bold text-[var(--kp-navy)]">{title}</h3>
-            <p className="mb-0 mt-2 whitespace-pre-line text-sm leading-6 text-[var(--kp-navy)]">{content}</p>
+          <Card
+            key={title}
+            data-testid={`meeting-prep-section-${title.toLowerCase().replaceAll(' ', '-')}`}
+          >
+            <h3 className="m-0 text-sm font-bold text-[var(--kp-navy)]">
+              {title}
+            </h3>
+            <p className="mb-0 mt-2 whitespace-pre-line text-sm leading-6 text-[var(--kp-navy)]">
+              {content}
+            </p>
           </Card>
         ))}
       </div>
 
       <Card data-testid="meeting-prep-sources">
-        <h3 className="m-0 text-sm font-bold text-[var(--kp-navy)]">Sources ({sources.length})</h3>
+        <h3 className="m-0 text-sm font-bold text-[var(--kp-navy)]">
+          Sources ({sources.length})
+        </h3>
         {sources.length === 0 ? (
-          <p className="mb-0 mt-2 text-sm text-[var(--color-muted-foreground)]">No source citations were attached to this brief.</p>
+          <p className="mb-0 mt-2 text-sm text-[var(--color-muted-foreground)]">
+            No source citations were attached to this brief.
+          </p>
         ) : (
           <div className="mt-2 flex flex-wrap gap-2">
             {sources.map((path) => (
