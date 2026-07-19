@@ -8,6 +8,11 @@ Base: `800a5df6512d157aab481376b22cec44cd8bf5cf`
    artifact type and reader.
 2. `4a6495aa4cc49a34c6221d0612087c2ef4a54deb` — structured Summary panel,
    stale-load clearing, and compatibility-slot rebind.
+3. `a92a595789d11b827041cc71600424e4ef4ad729` — CHANGES-1 fix: the Summary
+   panel no longer reads or renders folder-only summary content.
+4. `4a665a07dc752ad748197993bd3742fc39932bda` — preserves non-content
+   pending/error feedback and updates legacy host tests to require the new
+   fail-closed behavior.
 
 ## Claim artifacts
 
@@ -36,17 +41,25 @@ Base: `800a5df6512d157aab481376b22cec44cd8bf5cf`
   `StructuredMeetingSummaryPanel`. A production-source search finds the sole
   `id: 'summary'` binding in `meetingWorkspaceCompatibility.tsx` and no Summary
   call to `registerMeetingPanel`.
-- Existing behavior preserved: the focused legacy tests for notes retry,
-  unreadable Word bytes, Word-native review items, pending state, and the
-  existing Summary test IDs all pass. The folder-only compatibility branch is
-  intentionally retained until F11 makes pair-bound host identity mandatory;
-  structured artifact access itself is available only with the canonical
-  meeting and sealed household + matter pair.
+- Folder-only compatibility fails closed: the compatibility binding remains in
+  place until F11 makes pair-bound host identity mandatory, but it renders only
+  an empty state. It never projects `context.summaryText`, `notes.docx`, or
+  folder metadata into the Summary screen.
+- Shared-folder isolation:
+  `StructuredMeetingSummaryPanel.test.tsx > does not give household B household
+  A folder summary when both share a matter and meeting folder` gives both
+  households the same matter and folder, leaves B without a sealed summary
+  artifact, and proves the folder is not read and A's summary never reaches the
+  DOM.
+- Missing-host isolation:
+  `StructuredMeetingSummaryPanel.test.tsx > fails closed when the folder-only
+  host already extracted a summary` proves even pre-extracted folder text stays
+  dark when the host has not supplied the canonical meeting and sealed pair.
 - Fence: the panel reads the client-scoped meeting/artifact stores only. It does
   not import or call the firm-wide review reader, a provider/model, or
   `registerMeetingPanel`; it performs no generation to populate the shell.
 
-## Verification receipt
+## Original F12 verification receipt
 
 - `npm run gate:changed` — PASS.
   - TypeScript application and test type checks passed.
@@ -59,3 +72,17 @@ Base: `800a5df6512d157aab481376b22cec44cd8bf5cf`
   63 catalogues, 3,790 keys, all target shards complete.
 - Focused F12 + preserved-behavior run — PASS:
   5 files, 22 tests.
+
+## CHANGES-1 fix receipt
+
+- Focused Summary plus affected legacy-host run — PASS: 5 files, 26 tests.
+- `npm run gate:changed` — PASS on attempt 2: 155 files, 831 tests. Attempt 1
+  correctly exposed 11 old expectations that required the retired folder-only
+  content; those focused expectations were updated before the green rerun.
+- `npx eslint src/features/meetings/StructuredMeetingSummaryPanel.tsx
+  src/features/meetings/StructuredMeetingSummaryPanel.test.tsx
+  src/features/meetings/structuredMeetingSummary.ts
+  src/features/meetings/structuredMeetingSummary.test.ts` — PASS.
+- `npm run typecheck -- --pretty false` — PASS.
+- `npm run boundaries:check` — PASS:
+  `No feature-boundary regression (597 current baseline finding(s)).`
