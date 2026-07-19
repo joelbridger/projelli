@@ -53,6 +53,12 @@ const firstAuditEntry: AuditEntry = {
 };
 const auditEntries: AuditEntry[] = [firstAuditEntry];
 
+// This integration crosses the production React.lazy Settings boundary and
+// several real nested destinations. Under the full suite, transforming those
+// modules can legitimately outlast Testing Library's one-second default even
+// though the same assertions complete immediately once the surface mounts.
+const SETTINGS_SURFACE_WAIT = { timeout: 5_000 } as const;
+
 vi.mock('@/platform/crm/useLiveCrmRecords', () => ({ useLiveCrmRecords }));
 vi.mock('@/app/lifecycle/useIntakeInboxSync', () => ({
   useIntakeInboxSync: vi.fn(),
@@ -189,14 +195,14 @@ describe('real Settings surface flag-gated swap', () => {
     expect(getAppSurfaceDescriptor('settings')).toBeDefined();
     render(<SettingsHarness />);
 
-    expect(await screen.findByTestId('settings-page')).toBeInTheDocument();
-    expect(await screen.findByTestId('settings-content')).toHaveAttribute(
+    expect(await screen.findByTestId('settings-page', undefined, SETTINGS_SURFACE_WAIT)).toBeInTheDocument();
+    expect(await screen.findByTestId('settings-content', undefined, SETTINGS_SURFACE_WAIT)).toHaveAttribute(
       'data-variant',
       'page'
     );
     expect(screen.queryByTestId('settings-v1-frame')).not.toBeInTheDocument();
     expect(useLiveCrmRecords).not.toHaveBeenCalled();
-  });
+  }, 10_000);
 
   it('uses the real registry/router Settings route to keep live Settings inputs and nested destinations', async () => {
     setSettingsShell(true);
@@ -205,21 +211,19 @@ describe('real Settings surface flag-gated swap', () => {
     expect(getAppSurfaceDescriptor('settings')).toBeDefined();
     render(<SettingsHarness />);
 
-    expect(await screen.findByTestId('settings-v1-frame')).toBeInTheDocument();
+    expect(await screen.findByTestId('settings-v1-frame', undefined, SETTINGS_SURFACE_WAIT)).toBeInTheDocument();
     expect(screen.queryByTestId('settings-page')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId('settings-v1-section-organization'));
-    expect(await screen.findByTestId('teams-roles-settings')).toBeInTheDocument();
+    expect(await screen.findByTestId('teams-roles-settings', undefined, SETTINGS_SURFACE_WAIT)).toBeInTheDocument();
     expect(screen.getByTestId('custom-fields-settings')).toBeInTheDocument();
     expect(screen.getByTestId('contact-sources-settings')).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId('settings-v1-section-personal'));
-    expect(
-      await screen.findByTestId('notification-preferences-panel')
-    ).toBeInTheDocument();
+    expect(await screen.findByTestId('notification-preferences-panel', undefined, SETTINGS_SURFACE_WAIT)).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId('settings-v1-section-advanced'));
-    expect(await screen.findByTestId('template-model-settings')).toBeInTheDocument();
+    expect(await screen.findByTestId('template-model-settings', undefined, SETTINGS_SURFACE_WAIT)).toBeInTheDocument();
     expect(screen.getByTestId('template-model-add').querySelectorAll('option').length).toBeGreaterThan(1);
 
     fireEvent.change(screen.getByTestId('settings-v1-search'), {
@@ -227,22 +231,22 @@ describe('real Settings surface flag-gated swap', () => {
     });
     expect(screen.getByTestId('settings-v1-section-workspace')).toBeVisible();
     expect(screen.queryByTestId('settings-v1-section-advanced')).not.toBeInTheDocument();
-    expect(await screen.findByText('Autosave')).toBeVisible();
+    expect(await screen.findByText('Autosave', undefined, SETTINGS_SURFACE_WAIT)).toBeVisible();
 
     fireEvent.click(screen.getByTestId('settings-category-privacy-center'));
-    expect(await screen.findByTestId('privacy-center-scroll')).toBeInTheDocument();
+    expect(await screen.findByTestId('privacy-center-scroll', undefined, SETTINGS_SURFACE_WAIT)).toBeInTheDocument();
     const reportButton = screen.getByTestId('privacy-center-report-button');
     expect(reportButton).toHaveTextContent('Confidentiality Report');
     fireEvent.click(reportButton);
-    expect(await screen.findByTestId('confidentiality-report')).toHaveTextContent(
+    expect(await screen.findByTestId('confidentiality-report', undefined, SETTINGS_SURFACE_WAIT)).toHaveTextContent(
       'Northstar review',
     );
 
     fireEvent.click(screen.getByTestId('settings-category-activity-log'));
-    expect(await screen.findByTestId('audit-home-search')).toBeInTheDocument();
+    expect(await screen.findByTestId('audit-home-search', undefined, SETTINGS_SURFACE_WAIT)).toBeInTheDocument();
     expect(screen.getByText('Exported the Northstar review packet')).toBeVisible();
     fireEvent.click(screen.getByTestId('audit-repair-button'));
-    fireEvent.click(await screen.findByTestId('confirm-dialog-confirm'));
+    fireEvent.click(await screen.findByTestId('confirm-dialog-confirm', undefined, SETTINGS_SURFACE_WAIT));
     await waitFor(() => {
       expect(screen.getByTestId('audit-integrity-badge')).toHaveAttribute(
         'data-integrity-status',
@@ -289,10 +293,10 @@ describe('real Settings surface flag-gated swap', () => {
       button: 0,
       ctrlKey: false,
     });
-    fireEvent.click(await screen.findByTestId('settings-v1-reset'));
-    fireEvent.click(await screen.findByTestId('confirm-dialog-confirm'));
+    fireEvent.click(await screen.findByTestId('settings-v1-reset', undefined, SETTINGS_SURFACE_WAIT));
+    fireEvent.click(await screen.findByTestId('confirm-dialog-confirm', undefined, SETTINGS_SURFACE_WAIT));
     await waitFor(() => {
       expect(useSettingsStore.getState().getSetting('fontSize')).toBe(14);
     });
-  });
+  }, 20_000);
 });
