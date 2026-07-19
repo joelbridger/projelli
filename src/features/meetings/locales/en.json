@@ -27,7 +27,8 @@
     },
     "review": {
       "title": "Review notes",
-      "approve-description": "Nothing is added anywhere until you approve each item."
+      "approve-description": "Nothing is added anywhere until you approve each item.",
+      "not-produced": "{{label}} have not been produced for this meeting yet."
     },
     "speakers": {
       "title": "Who is speaking?",
@@ -104,6 +105,8 @@
       "transcript-search-count": "{{count}} of {{total}} turns",
       "transcript-search-empty": "No matching transcript turns.",
       "tab-summary": "Summary",
+      "tab-tasks": "Tasks",
+      "tab-crm-update": "CRM update",
       "tab-send-to-team": "Send to team",
       "download-audio": "Download audio",
       "no-audio": "No audio is saved for this meeting.",

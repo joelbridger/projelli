@@ -1,4 +1,12 @@
 import type {
+  ExactMeetingCrmReviewItem,
+  ExactMeetingNotesReviewItem,
+  ExactMeetingReviewKind,
+  ExactMeetingTaskReviewItem,
+  NotesReviewClientPair,
+  NotesReviewCrmFieldChange,
+  NotesReviewCrmFieldType,
+  NotesReviewCrmFieldValue,
   NotesReviewDestination,
   NotesReviewItem,
   NotesReviewReceipt,
@@ -17,12 +25,16 @@ export interface NotesReviewCrmDelivery {
   isConnected(): Promise<boolean>;
   saveProposal(proposal: {
     id: string;
-    kind: 'note';
+    kind: 'note' | 'field';
     matterId: string;
     title: string;
     body: string;
     sourceRef: string;
     status: 'proposed';
+    field?: string;
+    existingValue?: string;
+    newValue?: string;
+    finalValue?: string;
   }): Promise<unknown>;
   prepareProposal(args: {
     proposalId: string;
@@ -171,8 +183,8 @@ export function makeNotesReviewRepository(
   async function load(): Promise<StoredState> {
     const existing = await readState();
     const merged = mergeSourceItems(existing.items, sourceItems);
-    if (!statesEqual(existing.items, merged))
-      await writeState({ schemaVersion: SCHEMA_VERSION, items: merged });
+    // Loading a review is read-only. The first durable write happens only
+    // after the advisor approves one exact item.
     return { schemaVersion: SCHEMA_VERSION, items: merged };
   }
 
@@ -389,10 +401,6 @@ function mergeSourceItems(
   ];
 }
 
-function statesEqual(left: StoredItem[], right: StoredItem[]): boolean {
-  return JSON.stringify(left) === JSON.stringify(right);
-}
-
 function replaceItem(
   items: StoredItem[],
   replacement: StoredItem
@@ -442,4 +450,558 @@ function isStoredItem(value: unknown): value is StoredItem {
       item.destination === 'client-note' ||
       item.destination === 'internal')
   );
+}
+
+// ── Foundation exact-meeting proposal contract ─────────────────────────────
+
+export const EXACT_MEETING_REVIEW_SCHEMA_VERSION = 2 as const;
+
+/**
+ * Runtime fail-closed guard for the exact meeting plus client pair. The type
+ * contract requires all three values, but persisted or bridged data can still
+ * arrive malformed at runtime.
+ */
+export function hasCompleteExactMeetingReviewIdentity(
+  meetingId: unknown,
+  client:
+    | {
+        readonly householdRef?: unknown;
+        readonly matterId?: unknown;
+      }
+    | null
+    | undefined
+): boolean {
+  return (
+    hasNonEmptyIdentityPart(meetingId) &&
+    client !== null &&
+    client !== undefined &&
+    hasNonEmptyIdentityPart(client.householdRef) &&
+    hasNonEmptyIdentityPart(client.matterId)
+  );
+}
+
+export interface ExactMeetingTaskProposalPayload {
+  readonly id: string;
+  readonly kind: 'task';
+  readonly title: string;
+  readonly detail: string;
+  readonly ownerRef: string | null;
+  readonly dueDate: string | null;
+  readonly transcriptRef: string;
+  readonly sourceLabel?: string;
+}
+
+export interface ExactMeetingCrmProposalPayload {
+  readonly id: string;
+  readonly kind: 'crm-update';
+  readonly title: string;
+  readonly detail: string;
+  readonly transcriptRef: string;
+  readonly entityRef: string;
+  readonly fields: readonly NotesReviewCrmFieldChange[];
+  readonly sourceLabel?: string;
+}
+
+export type ExactMeetingReviewProposalPayload =
+  | ExactMeetingTaskProposalPayload
+  | ExactMeetingCrmProposalPayload;
+
+export interface ExactMeetingReviewArtifact {
+  readonly id: string;
+  readonly meetingId: string;
+  readonly householdRef: string;
+  readonly matterId: string;
+  readonly kind: 'action-update-proposal';
+  readonly schemaVersion: number;
+  readonly state: 'produced' | 'approved';
+  readonly producedAt: string;
+  readonly payload: Readonly<Record<string, unknown>>;
+}
+
+export interface ExactMeetingReviewArtifactReader {
+  listForMeeting(
+    meetingId: string,
+    kinds?: readonly ['action-update-proposal']
+  ): readonly ExactMeetingReviewArtifact[];
+}
+
+export interface ExactMeetingTaskDelivery {
+  create(input: {
+    title: string;
+    body: string;
+    householdRef: {
+      kind: 'household';
+      id: string;
+      matterId: string;
+      label?: string;
+    };
+    assigneeUserId: string | null;
+    status: 'open';
+    due?: string;
+    priority: 'normal';
+    contextRefs: readonly [];
+  }): Promise<{ readonly id: string }>;
+}
+
+export interface ExactMeetingReviewFacts<
+  Client extends NotesReviewClientPair = NotesReviewClientPair,
+> {
+  readonly meetingId: string;
+  readonly client: Client;
+  readonly tasks: readonly ExactMeetingTaskReviewItem<Client>[];
+  readonly crmUpdates: readonly ExactMeetingCrmReviewItem<Client>[];
+  readonly proposedCount: number;
+  readonly approvedCount: number;
+}
+
+export interface ExactMeetingNotesReviewRepository<
+  Client extends NotesReviewClientPair = NotesReviewClientPair,
+> {
+  /** One exact read model shared by the Tasks, CRM-update, and Actions tabs. */
+  readFacts(): Promise<ExactMeetingReviewFacts<Client>>;
+  list(
+    kind: ExactMeetingReviewKind
+  ): Promise<readonly ExactMeetingNotesReviewItem<Client>[]>;
+  approve(
+    item: ExactMeetingNotesReviewItem<Client>
+  ): Promise<NotesReviewReceipt>;
+}
+
+export interface MakeExactMeetingNotesReviewRepositoryInput<
+  Client extends NotesReviewClientPair,
+> {
+  readonly meetingId: string;
+  readonly client: Client;
+  readonly artifacts: ExactMeetingReviewArtifactReader;
+  readonly approveArtifact: (
+    artifactId: string,
+    transition: {
+      readonly from: 'produced';
+      readonly to: 'approved';
+      readonly at: string;
+    }
+  ) => Promise<ExactMeetingReviewArtifact>;
+  readonly taskDelivery: ExactMeetingTaskDelivery;
+  readonly crmDelivery: NotesReviewCrmDelivery;
+  readonly now?: () => string;
+}
+
+/** Approval is durable even when the later destination reports a failure. */
+export class ApprovedMeetingProposalDeliveryError extends Error {
+  readonly approvalRecorded = true as const;
+
+  constructor(cause: unknown) {
+    super(
+      cause instanceof Error
+        ? `Approval was recorded, but delivery failed: ${cause.message}`
+        : 'Approval was recorded, but delivery failed.'
+    );
+    this.name = 'ApprovedMeetingProposalDeliveryError';
+    this.cause = cause;
+  }
+}
+
+/**
+ * Builds the single exact-meeting reader used by both review tabs and later by
+ * Actions. It never scans another meeting and never writes while reading.
+ */
+export function makeExactMeetingNotesReviewRepository<
+  Client extends NotesReviewClientPair,
+>(
+  input: MakeExactMeetingNotesReviewRepositoryInput<Client>
+): ExactMeetingNotesReviewRepository<Client> {
+  const now = input.now ?? (() => new Date().toISOString());
+
+  const assertCompleteIdentity = (): void => {
+    if (!hasCompleteExactMeetingReviewIdentity(input.meetingId, input.client)) {
+      throw new Error(
+        'This meeting proposal is missing its complete meeting and client identity. Nothing was read or changed.'
+      );
+    }
+  };
+
+  function readFacts(): Promise<ExactMeetingReviewFacts<Client>> {
+    return Promise.resolve().then(() => {
+      // Reject before the artifact reader can see an empty or partial scope.
+      assertCompleteIdentity();
+      const artifacts = input.artifacts.listForMeeting(input.meetingId, [
+        'action-update-proposal',
+      ]);
+      const exact = artifacts.filter(
+        (artifact) =>
+          artifact.meetingId === input.meetingId &&
+          artifact.householdRef === input.client.householdRef &&
+          artifact.matterId === input.client.matterId &&
+          artifact.schemaVersion >= EXACT_MEETING_REVIEW_SCHEMA_VERSION
+      );
+      const items = exact.flatMap((artifact) =>
+        proposalsFromArtifact(artifact, input.client)
+      );
+      assertUniqueProposalIds(items);
+      const tasks = items.filter(
+        (item): item is ExactMeetingTaskReviewItem<Client> =>
+          item.kind === 'task'
+      );
+      const crmUpdates = items.filter(
+        (item): item is ExactMeetingCrmReviewItem<Client> =>
+          item.kind === 'crm-update'
+      );
+      return {
+        meetingId: input.meetingId,
+        client: input.client,
+        tasks,
+        crmUpdates,
+        proposedCount: items.filter((item) => item.approvalState === 'proposed')
+          .length,
+        approvedCount: items.filter((item) => item.approvalState === 'approved')
+          .length,
+      };
+    });
+  }
+
+  async function list(
+    kind: ExactMeetingReviewKind
+  ): Promise<readonly ExactMeetingNotesReviewItem<Client>[]> {
+    const facts = await readFacts();
+    return kind === 'task' ? facts.tasks : facts.crmUpdates;
+  }
+
+  async function approve(
+    edited: ExactMeetingNotesReviewItem<Client>
+  ): Promise<NotesReviewReceipt> {
+    // Approval must fail before even re-reading when its scope is incomplete.
+    assertCompleteIdentity();
+    const facts = await readFacts();
+    const source = [...facts.tasks, ...facts.crmUpdates].find(
+      (item) => item.id === edited.id
+    );
+    if (!source || !sameExactProposalIdentity(source, edited)) {
+      throw new Error(
+        'This proposal does not belong to this meeting and client. Refresh and review it again.'
+      );
+    }
+    if (source.approvalState === 'approved') {
+      throw new Error('This proposal has already been approved.');
+    }
+    const validated = validateEditedProposal(source, edited);
+
+    // Connectivity is a read-only preflight. A known disconnected provider
+    // should not consume the one legal approval transition.
+    assertCompleteIdentity();
+    if (
+      validated.kind === 'crm-update' &&
+      !(await input.crmDelivery.isConnected())
+    ) {
+      throw new Error(
+        'Connect Wealthbox before sending a CRM update. Nothing was sent.'
+      );
+    }
+
+    // The append-only approval transition is the authorization token. No task
+    // or CRM destination is touched until this exact artifact accepts it.
+    assertCompleteIdentity();
+    await input.approveArtifact(source.artifactId, {
+      from: 'produced',
+      to: 'approved',
+      at: now(),
+    });
+
+    try {
+      assertCompleteIdentity();
+      return validated.kind === 'task'
+        ? await deliverExactTask(validated, input.taskDelivery)
+        : await deliverExactCrm(validated, input.crmDelivery);
+    } catch (error) {
+      throw new ApprovedMeetingProposalDeliveryError(error);
+    }
+  }
+
+  return { readFacts, list, approve };
+}
+
+/** Actions consumes these facts instead of constructing a second artifact reader. */
+export function readExactMeetingReviewFactsForActions<
+  Client extends NotesReviewClientPair,
+>(
+  repository: ExactMeetingNotesReviewRepository<Client>
+): Promise<ExactMeetingReviewFacts<Client>> {
+  return repository.readFacts();
+}
+
+function proposalsFromArtifact<Client extends NotesReviewClientPair>(
+  artifact: ExactMeetingReviewArtifact,
+  client: Client
+): ExactMeetingNotesReviewItem<Client>[] {
+  // One artifact is one independently approvable item. An array here would
+  // let one artifact transition approve several proposals at once.
+  const raw = artifact.payload['proposal'];
+  if (!raw) {
+    throw new Error('The meeting proposal artifact is malformed.');
+  }
+  return [proposalFromUnknown(raw, artifact, client)];
+}
+
+function proposalFromUnknown<Client extends NotesReviewClientPair>(
+  value: unknown,
+  artifact: ExactMeetingReviewArtifact,
+  client: Client
+): ExactMeetingNotesReviewItem<Client> {
+  const proposal = record(value, 'Meeting proposal');
+  const common = {
+    id: requiredText(proposal['id'], 'Proposal ID'),
+    artifactId: artifact.id,
+    meetingId: artifact.meetingId,
+    client,
+    title: requiredText(proposal['title'], 'Proposal title'),
+    detail: requiredText(proposal['detail'], 'Proposal detail'),
+    transcriptRef: requiredText(
+      proposal['transcriptRef'],
+      'Proposal transcript reference'
+    ),
+    ...(optionalText(proposal['sourceLabel'])
+      ? { sourceLabel: optionalText(proposal['sourceLabel']) as string }
+      : {}),
+    approvalState:
+      artifact.state === 'approved'
+        ? ('approved' as const)
+        : ('proposed' as const),
+  };
+  if (proposal['kind'] === 'task') {
+    return {
+      ...common,
+      kind: 'task',
+      ownerRef: nullableText(proposal['ownerRef'], 'Task owner'),
+      dueDate: nullableDate(proposal['dueDate']),
+    };
+  }
+  if (proposal['kind'] === 'crm-update') {
+    const fields = proposal['fields'];
+    if (!Array.isArray(fields) || fields.length === 0)
+      throw new Error(
+        'A CRM update must include at least one before/after field.'
+      );
+    return {
+      ...common,
+      kind: 'crm-update',
+      entityRef: requiredText(proposal['entityRef'], 'CRM entity reference'),
+      fields: fields.map(crmFieldFromUnknown),
+    };
+  }
+  throw new Error('Meeting proposal kind is invalid.');
+}
+
+function crmFieldFromUnknown(value: unknown): NotesReviewCrmFieldChange {
+  const field = record(value, 'CRM field change');
+  if (!Object.prototype.hasOwnProperty.call(field, 'before')) {
+    throw new Error('A CRM field change is missing its real before value.');
+  }
+  const valueType = field['valueType'];
+  if (
+    valueType !== 'text' &&
+    valueType !== 'number' &&
+    valueType !== 'date' &&
+    valueType !== 'boolean'
+  ) {
+    throw new Error('CRM field value type is invalid.');
+  }
+  const before = crmValue(field['before'], valueType);
+  const proposed = crmValue(field['proposed'], valueType);
+  return {
+    field: requiredText(field['field'], 'CRM field'),
+    label: requiredText(field['label'], 'CRM field label'),
+    valueType,
+    before,
+    proposed,
+  };
+}
+
+function validateEditedProposal<Client extends NotesReviewClientPair>(
+  source: ExactMeetingNotesReviewItem<Client>,
+  edited: ExactMeetingNotesReviewItem<Client>
+): ExactMeetingNotesReviewItem<Client> {
+  if (source.kind === 'task' && edited.kind === 'task') {
+    return {
+      ...source,
+      title: requiredText(edited.title, 'Task title'),
+      detail: requiredText(edited.detail, 'Task detail'),
+      ownerRef: nullableText(edited.ownerRef, 'Task owner'),
+      dueDate: nullableDate(edited.dueDate),
+    };
+  }
+  if (source.kind === 'crm-update' && edited.kind === 'crm-update') {
+    const fieldsChanged = source.fields.some((field, index) => {
+      const candidate = edited.fields.at(index);
+      return (
+        !candidate ||
+        field.field !== candidate.field ||
+        field.valueType !== candidate.valueType ||
+        field.before !== candidate.before
+      );
+    });
+    if (source.fields.length !== edited.fields.length || fieldsChanged) {
+      throw new Error(
+        'CRM before values and field identities cannot be changed.'
+      );
+    }
+    return {
+      ...source,
+      title: requiredText(edited.title, 'CRM proposal title'),
+      detail: requiredText(edited.detail, 'CRM proposal detail'),
+      fields: source.fields.map((field, index) => {
+        const candidate = edited.fields.at(index);
+        if (!candidate) throw new Error('CRM field changes cannot be removed.');
+        return {
+          ...field,
+          proposed: crmValue(candidate.proposed, field.valueType),
+        };
+      }),
+    };
+  }
+  throw new Error('The proposal kind cannot be changed.');
+}
+
+async function deliverExactTask<Client extends NotesReviewClientPair>(
+  item: ExactMeetingTaskReviewItem<Client>,
+  delivery: ExactMeetingTaskDelivery
+): Promise<NotesReviewReceipt> {
+  const created = await delivery.create({
+    title: item.title,
+    body: item.detail,
+    householdRef: {
+      kind: 'household',
+      id: item.client.householdRef,
+      matterId: item.client.matterId,
+      ...(item.client.displayName ? { label: item.client.displayName } : {}),
+    },
+    assigneeUserId: item.ownerRef,
+    status: 'open',
+    ...(item.dueDate ? { due: item.dueDate } : {}),
+    priority: 'normal',
+    contextRefs: [],
+  });
+  return {
+    status: 'created',
+    message: `Task created (receipt ${created.id}).`,
+  };
+}
+
+async function deliverExactCrm<Client extends NotesReviewClientPair>(
+  item: ExactMeetingCrmReviewItem<Client>,
+  delivery: NotesReviewCrmDelivery
+): Promise<NotesReviewReceipt> {
+  const receipts: string[] = [];
+  for (const field of item.fields) {
+    const proposalId = `meeting-review-${stableId(
+      `${item.artifactId}\n${item.id}\n${field.field}`
+    )}`;
+    const requestedAt = new Date().toISOString();
+    await delivery.saveProposal({
+      id: proposalId,
+      kind: 'field',
+      matterId: item.client.matterId,
+      title: item.title,
+      body: item.detail,
+      sourceRef: item.transcriptRef,
+      status: 'proposed',
+      field: field.field,
+      existingValue: crmValueForTransport(field.before),
+      newValue: crmValueForTransport(field.proposed),
+      finalValue: crmValueForTransport(field.proposed),
+    });
+    await delivery.prepareProposal({
+      proposalId,
+      householdKey: item.client.householdRef,
+      requestedAt,
+    });
+    const result = await delivery.approveProposal(proposalId);
+    receipts.push(result.remoteId);
+  }
+  return {
+    status: 'sent',
+    message: `CRM update delivered (${receipts.length.toString()} field${
+      receipts.length === 1 ? '' : 's'
+    }; receipts ${receipts.join(', ')}).`,
+  };
+}
+
+function sameExactProposalIdentity(
+  left: ExactMeetingNotesReviewItem,
+  right: ExactMeetingNotesReviewItem
+): boolean {
+  return (
+    left.id === right.id &&
+    left.artifactId === right.artifactId &&
+    left.meetingId === right.meetingId &&
+    left.client.householdRef === right.client.householdRef &&
+    left.client.matterId === right.client.matterId &&
+    left.kind === right.kind &&
+    (left.kind !== 'crm-update' ||
+      (right.kind === 'crm-update' && left.entityRef === right.entityRef))
+  );
+}
+
+function assertUniqueProposalIds(
+  items: readonly ExactMeetingNotesReviewItem[]
+): void {
+  const seen = new Set<string>();
+  for (const item of items) {
+    if (seen.has(item.id))
+      throw new Error(
+        'Meeting proposal IDs must be unique within one meeting.'
+      );
+    seen.add(item.id);
+  }
+}
+
+function record(value: unknown, label: string): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw new Error(`${label} is malformed.`);
+  return value as Record<string, unknown>;
+}
+
+function requiredText(value: unknown, label: string): string {
+  if (typeof value !== 'string' || !value.trim())
+    throw new Error(`${label} is required.`);
+  return value.trim();
+}
+
+function hasNonEmptyIdentityPart(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function optionalText(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function nullableText(value: unknown, label: string): string | null {
+  if (value === null) return null;
+  return requiredText(value, label);
+}
+
+function nullableDate(value: unknown): string | null {
+  if (value === null) return null;
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value))
+    throw new Error('Task due date must use YYYY-MM-DD or null.');
+  return value;
+}
+
+function crmValue(
+  value: unknown,
+  type: NotesReviewCrmFieldType
+): NotesReviewCrmFieldValue {
+  if (value === null) return null;
+  if (type === 'number' && typeof value === 'number' && Number.isFinite(value))
+    return value;
+  if (type === 'boolean' && typeof value === 'boolean') return value;
+  if ((type === 'text' || type === 'date') && typeof value === 'string') {
+    if (type === 'date' && !/^\d{4}-\d{2}-\d{2}$/.test(value))
+      throw new Error('CRM date values must use YYYY-MM-DD.');
+    return value;
+  }
+  throw new Error(`CRM ${type} value is malformed.`);
+}
+
+function crmValueForTransport(value: NotesReviewCrmFieldValue): string {
+  if (value === null) return '';
+  return String(value);
 }

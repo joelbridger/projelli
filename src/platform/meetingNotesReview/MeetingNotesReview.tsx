@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { buildInverseCrmMap } from '@/platform/rag/matterResolver';
-import { useMatterStore } from '@/platform/matter/matterStore';
+/* eslint-disable react-refresh/only-export-components -- the production CRM port is deliberately colocated with its only mounted bridge */
+import { useCallback, useEffect, useState } from 'react';
 import {
   crmApproveWriteProposal,
   crmIsConnected,
@@ -8,164 +7,144 @@ import {
   crmSaveWriteProposal,
 } from '@/platform/utils/wealthbox-commands';
 import { NotesReviewPanel } from '@/ui/NotesReviewPanel';
-import {
-  makeNotesReviewRepository,
-  type NotesReviewCrmDelivery,
-  type NotesReviewWorkspace,
-} from './notesReviewDelivery';
 import type {
-  NotesReviewDestination,
-  NotesReviewItem,
+  ExactMeetingNotesReviewItem,
+  ExactMeetingReviewKind,
+  NotesReviewClientPair,
+  NotesReviewPanelState,
   NotesReviewReceipt,
 } from '@/ui/notesReview';
+import type {
+  ExactMeetingNotesReviewRepository,
+  NotesReviewCrmDelivery,
+} from './notesReviewDelivery';
 
-export interface MeetingNotesReviewProps {
-  meetingDir: string;
-  matterId: string;
-  summaryText: string;
-  summaryHtml?: string;
-  workspaceService: NotesReviewWorkspace | null;
-  /** Meeting review/notice checks fail closed for the one external destination. */
-  crmBlockedReason?: string;
-  /** Test seam; production uses the Rust-enforced Wealthbox proposal path. */
-  crmDelivery?: NotesReviewCrmDelivery;
-}
-
-const productionCrmDelivery: NotesReviewCrmDelivery = {
+/** Production CRM writes still pass through the Rust proposal/approval path. */
+export const productionMeetingNotesReviewCrmDelivery: NotesReviewCrmDelivery = {
   isConnected: () => crmIsConnected('wealthbox'),
   saveProposal: (proposal) => crmSaveWriteProposal(proposal),
   prepareProposal: (args) => crmPrepareWriteProposal(args),
   approveProposal: (proposalId) => crmApproveWriteProposal(proposalId),
 };
 
+export interface MeetingNotesReviewProps<
+  Client extends NotesReviewClientPair = NotesReviewClientPair,
+> {
+  readonly reviewKind: ExactMeetingReviewKind;
+  readonly repository: ExactMeetingNotesReviewRepository<Client> | null;
+  readonly blockedReason?: string;
+}
+
 /**
- * The mounted bridge: real generated action items in, durable local files or
- * the Rust-enforced CRM write path out. The panel never invents a success
- * message; it only receives a receipt after the destination finishes.
+ * Loads one exact-meeting destination and preserves every visible state. A
+ * retry repeats the same repository read; it never falls back to a folder scan.
  */
-export function MeetingNotesReview({
-  meetingDir,
-  matterId,
-  summaryText,
-  summaryHtml = '',
-  workspaceService,
-  crmBlockedReason,
-  crmDelivery = productionCrmDelivery,
-}: MeetingNotesReviewProps) {
-  const matters = useMatterStore((state) => state.matters);
-  const householdKey = useMemo(() => {
-    const candidates = (buildInverseCrmMap(matters).get(matterId) ?? []).filter(
-      (key) => !key.startsWith('sfdc:') && !key.startsWith('redtail:')
+export function MeetingNotesReview<Client extends NotesReviewClientPair>({
+  reviewKind,
+  repository,
+  blockedReason,
+}: MeetingNotesReviewProps<Client>) {
+  if (blockedReason) {
+    return (
+      <NotesReviewPanel
+        reviewKind={reviewKind}
+        state={{ kind: 'blocked', message: blockedReason }}
+        onApprove={() =>
+          Promise.reject(new Error('This meeting proposal review is blocked.'))
+        }
+      />
     );
-    return candidates.length === 1 ? (candidates[0] ?? null) : null;
-  }, [matters, matterId]);
-  const repository = useMemo(
-    () =>
-      workspaceService
-        ? makeNotesReviewRepository({
-            workspace: workspaceService,
-            meetingDir,
-            matterId,
-            summaryText,
-            summaryHtml,
-            crm: crmDelivery,
-            householdKey,
-          })
-        : null,
-    [
-      workspaceService,
-      meetingDir,
-      matterId,
-      summaryText,
-      summaryHtml,
-      crmDelivery,
-      householdKey,
-    ]
-  );
-
-  if (!repository) return null;
-
+  }
+  if (!repository) {
+    return (
+      <NotesReviewPanel
+        reviewKind={reviewKind}
+        state={{
+          kind: 'blocked',
+          message:
+            'Open this meeting from a confirmed client before reviewing proposals.',
+        }}
+        onApprove={() =>
+          Promise.reject(new Error('This meeting proposal reader is unavailable.'))
+        }
+      />
+    );
+  }
   return (
     <LoadedMeetingNotesReview
-      key={`${meetingDir}\u0000${matterId}\u0000${summaryText}\u0000${summaryHtml}\u0000${householdKey ?? ''}`}
+      reviewKind={reviewKind}
       repository={repository}
-      {...(crmBlockedReason ? { crmBlockedReason } : {})}
     />
   );
 }
 
-interface LoadedMeetingNotesReviewProps {
-  repository: ReturnType<typeof makeNotesReviewRepository>;
-  crmBlockedReason?: string;
-}
-
-/**
- * The keyed child starts fresh when its meeting input changes. That avoids a
- * synchronous state reset in an effect, while the effect below only reflects
- * the asynchronous repository result.
- */
-function LoadedMeetingNotesReview({
+function LoadedMeetingNotesReview<Client extends NotesReviewClientPair>({
+  reviewKind,
   repository,
-  crmBlockedReason,
-}: LoadedMeetingNotesReviewProps) {
-  const [items, setItems] = useState<NotesReviewItem[]>([]);
-  const [receipts, setReceipts] = useState<Record<string, NotesReviewReceipt>>(
-    {}
-  );
-  const [loadError, setLoadError] = useState<string | null>(null);
+}: {
+  readonly reviewKind: ExactMeetingReviewKind;
+  readonly repository: ExactMeetingNotesReviewRepository<Client>;
+}) {
+  const [state, setState] = useState<NotesReviewPanelState<Client>>({
+    kind: 'loading',
+  });
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   useEffect(() => {
     let live = true;
     void repository
-      .load()
-      .then((state) => {
+      .list(reviewKind)
+      .then((items) => {
         if (!live) return;
-        setItems(state.items);
-        setReceipts(
-          Object.fromEntries(
-            state.items.flatMap((item) =>
-              item.receipt ? [[item.id, item.receipt] as const] : []
-            )
-          )
+        setState(
+          items.length === 0
+            ? { kind: 'empty', reason: 'not-produced' }
+            : { kind: 'populated', items }
         );
-        setLoadError(null);
       })
       .catch(() => {
-        if (live) setLoadError('Could not load the saved review items.');
+        if (live)
+          setState({
+            kind: 'error',
+            message: 'Could not load the saved meeting proposals.',
+          });
       });
     return () => {
       live = false;
     };
-  }, [repository]);
+  }, [repository, reviewKind, loadAttempt]);
 
-  if (loadError) {
-    return (
-      <div
-        data-testid="meeting-notes-review-error"
-        role="alert"
-        style={{ color: 'var(--destructive)', fontSize: 'var(--kp-font-sm)' }}
-      >
-        {loadError}
-      </div>
-    );
-  }
-  if (items.length === 0) return null;
+  const retry = useCallback(() => {
+    setState({ kind: 'loading' });
+    setLoadAttempt((current) => current + 1);
+  }, []);
 
-  const onApprove = async (
-    item: NotesReviewItem
+  const approve = async (
+    item: ExactMeetingNotesReviewItem<Client>
   ): Promise<NotesReviewReceipt> => {
     const receipt = await repository.approve(item);
-    setReceipts((current) => ({ ...current, [item.id]: receipt }));
+    setState((current) =>
+      current.kind !== 'populated'
+        ? current
+        : {
+            ...current,
+            items: current.items.map((candidate) =>
+              candidate.id === item.id
+                ? { ...candidate, approvalState: 'approved' as const }
+                : candidate
+            ),
+            receipts: { ...(current.receipts ?? {}), [item.id]: receipt },
+          }
+    );
     return receipt;
   };
-  const blockedDestinations: Partial<Record<NotesReviewDestination, string>> =
-    crmBlockedReason ? { crm: crmBlockedReason } : {};
+
   return (
     <NotesReviewPanel
-      rawItems={items}
-      initialReceipts={receipts}
-      blockedDestinations={blockedDestinations}
-      onApprove={onApprove}
+      reviewKind={reviewKind}
+      state={state}
+      onRetry={retry}
+      onApprove={approve}
     />
   );
 }

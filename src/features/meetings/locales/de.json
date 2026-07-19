@@ -29,7 +29,8 @@
     },
     "review": {
       "title": "Notizen prüfen",
-      "approve-description": "Nichts wird hinzugefügt, bis Sie jeden Punkt genehmigen."
+      "approve-description": "Nichts wird hinzugefügt, bis Sie jeden Punkt genehmigen.",
+      "not-produced": "{{label}} wurden für dieses Meeting noch nicht erstellt."
     },
     "speakers": {
       "title": "Wer spricht hier?",
@@ -106,6 +107,8 @@
       "transcript-search-count": "{{count}} von {{total}} Gesprächsbeiträgen",
       "transcript-search-empty": "Keine passenden Gesprächsbeiträge im Transkript.",
       "tab-summary": "Zusammenfassung",
+      "tab-tasks": "Aufgaben",
+      "tab-crm-update": "CRM-Aktualisierung",
       "tab-send-to-team": "Ans Team senden",
       "download-audio": "Audio herunterladen",
       "no-audio": "Für dieses Gespräch ist kein Audio gespeichert.",
