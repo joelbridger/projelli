@@ -18,6 +18,7 @@ import {
 } from '@/features/meetings';
 import {
   getMeetingPanels,
+  type MeetingPanelContext,
   type MeetingPanelDescriptor,
   validateMeetingPanelDescriptors,
 } from '@/features/meetings/meetingPanelRegistry';
@@ -38,7 +39,7 @@ const dummyPanel = {
   id: 'dummy_panel',
   order: 10,
   labelKey: 'meetings.test.dummy-panel',
-  mount: ({ t }) => (
+  mount: ({ t }: MeetingPanelContext) => (
     <div data-testid="dummy-panel">{t('meetings.test.dummy-panel')}</div>
   ),
 } as unknown as MeetingPanelDescriptor;
