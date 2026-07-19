@@ -321,6 +321,81 @@ describe('MeetingTemplatePanel', () => {
     );
   });
 
+  it('discards an in-flight fill when the sealed target changes within the same F11 pair and folder', async () => {
+    const { files, workspace } = makeWorkspace();
+    const template = createFirmOwnedMeetingTemplate({
+      id: 'template-1',
+      firmId: 'firm-1',
+      name: 'Advisor follow-up',
+      audience: 'internal',
+      blocks: [
+        {
+          id: 'section-1',
+          label: 'Next steps',
+          instruction: 'List the advisor follow-up.',
+          required: true,
+        },
+      ],
+    });
+    files.set(
+      '.lantern/meeting-templates.json',
+      JSON.stringify({ schemaVersion: 1, templates: [template] })
+    );
+    let finishFill!: (value: { content: string }) => void;
+    const getProvider = vi.fn(() =>
+      Promise.resolve({
+        send: () =>
+          new Promise<{ content: string }>((resolve) => {
+            finishFill = resolve;
+          }),
+      })
+    );
+    const currentFill = await fillBinding(clientA, getProvider);
+    const nextFill = await fillBinding(clientA, getProvider);
+    expect(nextFill.activeClientBoundary).toBe(
+      currentFill.activeClientBoundary
+    );
+    expect(nextFill.target.meetingDir).toBe(currentFill.target.meetingDir);
+    expect(nextFill.target).not.toBe(currentFill.target);
+
+    const view = render(
+      <MeetingTemplatePanel {...panelProps(workspace)} fill={currentFill} />
+    );
+
+    fireEvent.click(await screen.findByTestId('meeting-template-fill'));
+    await waitFor(() => {
+      expect(getProvider).toHaveBeenCalledTimes(1);
+    });
+    view.rerender(
+      <MeetingTemplatePanel {...panelProps(workspace)} fill={nextFill} />
+    );
+    finishFill({
+      content: JSON.stringify({
+        sections: [
+          {
+            id: 'section-1',
+            body: 'Prior sealed target private follow-up.',
+            citations: [12_000],
+          },
+        ],
+      }),
+    });
+
+    expect(
+      await screen.findByTestId('meeting-template-error')
+    ).toHaveTextContent(
+      'Choose a current meeting for this client before filling a template.'
+    );
+    expect(screen.queryByTestId('meeting-template-review')).toBeNull();
+    expect(
+      screen.queryByText('Prior sealed target private follow-up.')
+    ).toBeNull();
+    expect(workspace.writeFile).not.toHaveBeenCalledWith(
+      expect.stringContaining('template-notes.json'),
+      expect.any(String)
+    );
+  });
+
   it('shows translated load failure copy and retries the real library', async () => {
     let shouldFail = true;
     const workspace = {

@@ -82,7 +82,8 @@ function sameFillIdentity(
   return !!right &&
     right.clientBoundary.householdRef === left.clientBoundary.householdRef &&
     right.matterId === left.matterId &&
-    right.meetingDir === left.meetingDir;
+    right.meetingDir === left.meetingDir &&
+    right.target === left.target;
 }
 
 /** Read saved template results without treating a bad/missing note file as a
@@ -192,7 +193,7 @@ export function MeetingTemplatePanel({
 
   useEffect(() => {
     setDraft(null);
-  }, [fillIdentityKey]);
+  }, [fillIdentityKey, fillIdentity?.target]);
 
   useEffect(() => {
     mountedRef.current = true;
