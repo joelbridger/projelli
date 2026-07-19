@@ -162,6 +162,98 @@ describe('meetingAgendaStore exact-meeting persistence', () => {
     expect(harness.save).not.toHaveBeenCalled();
   });
 
+  it('does not read household A agenda through household B with the same matter and meeting', async () => {
+    const householdA = boundary('household-a', 'matter-shared');
+    const householdB = boundary('household-b', 'matter-shared');
+    const harness = portHarness([
+      canonicalMeeting('meeting-shared', householdA),
+    ]);
+    harness.setActive(householdA);
+    const householdAStore = createMeetingAgendaStore(harness.port);
+    const created = await householdAStore.create(
+      target('meeting-shared', householdA)
+    );
+    if (created.kind !== 'ready') throw new Error(created.message);
+    const saved = await householdAStore.save(
+      target('meeting-shared', householdA),
+      {
+        body: 'Household A private agenda',
+        expectedRevision: created.agenda.revision,
+      }
+    );
+    expect(saved.kind).toBe('ready');
+
+    harness.replaceRecords([
+      ...harness.records(),
+      canonicalMeeting('meeting-shared', householdB),
+    ]);
+    harness.setActive(householdB);
+    const householdBStore = createMeetingAgendaStore({
+      ...harness.port,
+      records: harness.records(),
+    });
+
+    await expect(
+      householdBStore.read(target('meeting-shared', householdB))
+    ).resolves.toEqual({ kind: 'empty' });
+  });
+
+  it('refuses incomplete client pairs before reading or writing records', async () => {
+    const reloadRecords = vi.fn<MeetingAgendaPort['reloadRecords']>();
+    const save = vi.fn<MeetingAgendaPort['save']>();
+    const incompletePairs = [
+      boundary('', ''),
+      boundary('household-1', ''),
+      boundary('', 'matter-1'),
+      boundary('   ', '\t'),
+      {
+        householdRef: undefined,
+        matterId: undefined,
+      } as unknown as SealedMeetingClientBoundary,
+    ];
+
+    for (const incomplete of incompletePairs) {
+      const store = createMeetingAgendaStore({
+        records: [],
+        workspaceRoot: '/workspace',
+        error: null,
+        getActiveClientBoundary: () => incomplete,
+        save,
+        reloadRecords,
+      });
+      const incompleteTarget = target('meeting-1', incomplete);
+
+      await expect(store.read(incompleteTarget)).resolves.toMatchObject({
+        kind: 'error',
+        reason: 'identity-refused',
+      });
+      await expect(store.create(incompleteTarget)).resolves.toMatchObject({
+        kind: 'error',
+        reason: 'identity-refused',
+      });
+      await expect(
+        store.save(incompleteTarget, {
+          body: 'Must not save',
+          expectedRevision: 1,
+        })
+      ).resolves.toMatchObject({ kind: 'error', reason: 'identity-refused' });
+
+      expect(
+        meetingAgendaTarget(
+          {
+            id: 'meeting-1',
+            householdRef: incomplete.householdRef,
+            matterId: incomplete.matterId,
+          } as MeetingProjection,
+          incomplete
+        )
+      ).toBeNull();
+    }
+
+    expect(reloadRecords).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
+  });
+
   it('rejects a late read after the active sealed pair changes', async () => {
     let resolveReload!: (records: readonly LiveCrmRecord[]) => void;
     const harness = portHarness([canonicalMeeting()]);

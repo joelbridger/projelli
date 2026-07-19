@@ -107,11 +107,17 @@ function sameClient(
   left: Pick<SealedMeetingClientBoundary, 'householdRef' | 'matterId'> | null,
   right: Pick<SealedMeetingClientBoundary, 'householdRef' | 'matterId'> | null
 ): boolean {
+  const leftHouseholdRef = cleanId(left?.householdRef);
+  const leftMatterId = cleanId(left?.matterId);
+  const rightHouseholdRef = cleanId(right?.householdRef);
+  const rightMatterId = cleanId(right?.matterId);
   return (
-    !!left &&
-    !!right &&
-    left.householdRef === right.householdRef &&
-    left.matterId === right.matterId
+    !!leftHouseholdRef &&
+    !!leftMatterId &&
+    !!rightHouseholdRef &&
+    !!rightMatterId &&
+    leftHouseholdRef === rightHouseholdRef &&
+    leftMatterId === rightMatterId
   );
 }
 
@@ -158,8 +164,7 @@ export function meetingAgendaTarget(
   if (
     !meeting ||
     !client ||
-    meeting.householdRef !== client.householdRef ||
-    meeting.matterId !== client.matterId ||
+    !sameClient(meeting, client) ||
     !cleanId(meeting.id)
   ) {
     return null;
