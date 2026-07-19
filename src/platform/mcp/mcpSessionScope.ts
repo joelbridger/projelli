@@ -3,6 +3,8 @@ import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { workspacePath } from '@/platform/fs/appPath';
 export { MCP_SESSION_SCOPE_REL_PATH } from '@/config/identity';
 import { MCP_SESSION_SCOPE_REL_PATH } from '@/config/identity';
+import type { FollowerStatus, MatterScopeSelection } from '@/platform/client-context';
+import { isEnabled } from '@/platform/flags/router';
 
 interface McpSessionMatter {
   id: string;
@@ -17,22 +19,31 @@ interface McpSessionScopeFile {
   version: 1;
   updatedAt: string;
   activeMatterId: string | null;
+  selectionKind?: MatterScopeSelection['kind'];
+  selectionFollowerStatus?: FollowerStatus;
+  contextNote?: string;
   grantedMatterIds: string[];
   networkLockdown: boolean;
   matters: McpSessionMatter[];
 }
 
 export function buildMcpSessionScopeFile(input: {
-  activeMatterId: string | null;
+  selectionScope: MatterScopeSelection;
+  selectionFollowerStatus: FollowerStatus;
   matters: Matter[];
   networkLockdown: boolean;
 }): McpSessionScopeFile {
-  const active = input.matters.find((m) => m.id === input.activeMatterId && !m.archived) ?? null;
+  const authorityEnabled = isEnabled('selection-authority-boot-gate');
+  const selectedMatterId =
+    input.selectionScope.kind === 'matter' || input.selectionScope.kind === 'matter-only'
+      ? input.selectionScope.matterId
+      : null;
+  const active = input.matters.find((m) => m.id === selectedMatterId && !m.archived) ?? null;
   const grantedMatterIds = input.matters
     .filter((m) => !m.archived && !!m.mcpAccessGranted)
     .map((m) => m.id)
     .sort();
-  return {
+  const legacyPayload: McpSessionScopeFile = {
     version: 1,
     updatedAt: new Date().toISOString(),
     activeMatterId: active?.id ?? null,
@@ -47,10 +58,21 @@ export function buildMcpSessionScopeFile(input: {
       archived: !!m.archived,
     })),
   };
+  if (!authorityEnabled) return legacyPayload;
+  return {
+    ...legacyPayload,
+    selectionKind: input.selectionScope.kind,
+    selectionFollowerStatus: input.selectionFollowerStatus,
+    contextNote: buildSelectionContextNote(
+      input.selectionScope,
+      input.selectionFollowerStatus,
+      active?.id ?? null,
+    ),
+  };
 }
 
 export function buildDenyAllMcpSessionScopeFile(): McpSessionScopeFile {
-  return {
+  const legacyPayload: McpSessionScopeFile = {
     version: 1,
     updatedAt: new Date().toISOString(),
     activeMatterId: null,
@@ -58,21 +80,49 @@ export function buildDenyAllMcpSessionScopeFile(): McpSessionScopeFile {
     networkLockdown: true,
     matters: [],
   };
+  if (!isEnabled('selection-authority-boot-gate')) return legacyPayload;
+  return {
+    ...legacyPayload,
+    selectionKind: 'blocked-unresolved',
+    selectionFollowerStatus: 'stale',
+    contextNote: 'BLOCKED: the app session is closed. This context does not grant MCP access.',
+  };
 }
 
 export async function writeMcpSessionScopeFile(input: {
   service: WorkspaceService;
   workspaceRoot: string;
-  activeMatterId: string | null;
+  selectionScope: MatterScopeSelection;
+  selectionFollowerStatus: FollowerStatus;
   matters: Matter[];
   networkLockdown: boolean;
 }): Promise<void> {
   const payload = buildMcpSessionScopeFile({
-    activeMatterId: input.activeMatterId,
+    selectionScope: input.selectionScope,
+    selectionFollowerStatus: input.selectionFollowerStatus,
     matters: input.matters,
     networkLockdown: input.networkLockdown,
   });
   await writeMcpScopeFileAtomically(input.service, input.workspaceRoot, payload);
+}
+
+function buildSelectionContextNote(
+  scope: MatterScopeSelection,
+  followerStatus: FollowerStatus,
+  activeMatterId: string | null,
+): string {
+  const stale = followerStatus === 'stale'
+    ? ' The legacy UI context may still be catching up.'
+    : '';
+  switch (scope.kind) {
+    case 'matter':
+    case 'matter-only':
+      return `Active matter context: ${activeMatterId ?? scope.matterId}.${stale} This context does not grant MCP access.`;
+    case 'all-matters':
+      return `All matters is the current app context.${stale} This context does not grant MCP access.`;
+    case 'blocked-unresolved':
+      return `BLOCKED: the current app selection is unresolved.${stale} This context does not grant MCP access.`;
+  }
 }
 
 export async function writeDenyAllMcpSessionScopeFile(input: {

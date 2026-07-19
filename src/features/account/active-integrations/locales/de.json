@@ -1,0 +1,13 @@
+{
+  "active-integrations": {
+    "title": "Aktive Integrationen",
+    "description": "Prüfe den aktuellen Status jeder Verbindung, ihre Zugriffsrechte und ihre eigene sichere Trennfunktion.",
+    "connected": "Verbunden",
+    "manage": "{{provider}}-Verbindung verwalten",
+    "checking": "Verbindungen werden geprüft...",
+    "empty-title": "Keine Integrationen verbunden",
+    "empty-description": "Wenn du eine Integration verbindest, wird sie hier angezeigt.",
+    "unavailable-title": "Integrationsdetails sind nicht verfügbar",
+    "unavailable-description": "Die Verbindungsliste konnte nicht sicher geprüft werden. Es werden keine Statusangaben oder Trennoptionen vermutet."
+  }
+}

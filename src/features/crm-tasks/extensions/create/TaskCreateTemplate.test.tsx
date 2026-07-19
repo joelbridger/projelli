@@ -26,6 +26,7 @@ function taskStore() {
     get: vi.fn(),
     create,
     update: vi.fn(),
+    remove: vi.fn(),
   };
   return { store, create };
 }

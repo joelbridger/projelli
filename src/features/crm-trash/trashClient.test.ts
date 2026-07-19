@@ -88,4 +88,17 @@ describe('trashClient', () => {
       actorId: 'advisor-1',
     });
   });
+
+  it('refuses disabled trash and missing workspaces before any native mutation', async () => {
+    setPlatformFlagsOverrides(flagsMock, { isEnabled: () => false });
+    await expect(softDeleteCrmRecord(request)).rejects.toThrow('not enabled');
+
+    setPlatformFlagsOverrides(flagsMock, { isEnabled: () => true });
+    await expect(
+      softDeleteCrmRecord({ ...request, workspaceRoot: null })
+    ).rejects.toThrow('Open a workspace');
+
+    expect(crmSetWorkspace).not.toHaveBeenCalled();
+    expect(invoke).not.toHaveBeenCalled();
+  });
 });

@@ -77,6 +77,7 @@ import type { SourceRef } from '@/platform/clientMap/types';
 import type { AuditEntry } from '@/platform/types/audit';
 import type { Matter } from '@/platform/types/matter';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
+import { useSelectionPresentation } from '@/platform/client-context';
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
@@ -189,6 +190,7 @@ async function saveIntakeLinkSecretWithRetry(intakeId: string, linkSecretB64: st
 
 export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, renderEmail, renderActivity, workspaceService }: MatterHubProps) {
   const { t } = useTranslation();
+  const selection = useSelectionPresentation();
   // ── Client Map wiring ────────────────────────────────────────────────────
   // Declare client map hook at component top — must not be inside a condition.
   // autoBuild: a client's Client Map builds automatically the first time the
@@ -796,8 +798,18 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
             </div>
           }
           actions={
-            (isPrivileged || matter.privileged || matter.isSample) ? (
+            (selection.blocked || selection.stale || isPrivileged || matter.privileged || matter.isSample) ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-md)' }}>
+              {selection.blocked ? (
+                <Badge variant="danger" size="sm" data-testid="matter-hub-selection-blocked" aria-label="Client selection blocked">
+                  BLOCKED
+                </Badge>
+              ) : null}
+              {selection.stale ? (
+                <Badge variant="warning" size="sm" data-testid="matter-hub-selection-stale" aria-label="Client selection updating">
+                  Selection updating
+                </Badge>
+              ) : null}
               {(isPrivileged || matter.privileged) && (
                 <span data-testid="hub-isolated-badge">
                   <Badge variant="privilege" size="sm" icon={Lock}>{t('matter.hub.isolated-pill')}</Badge>

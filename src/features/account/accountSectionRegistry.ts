@@ -1,4 +1,5 @@
 import { legacyAccountSections } from './legacyAccountSections';
+import { getActiveIntegrationsAccountSections } from './active-integrations';
 import type { AccountSectionDescriptor } from './accountRegistryTypes';
 
 /** The append-only mount list for Account-window tabs. */
@@ -25,7 +26,10 @@ export function validateAccountSectionDescriptors(
 }
 
 export function getAccountSectionDescriptors(
-  descriptors: readonly AccountSectionDescriptor[] = accountSectionRegistry
+  descriptors: readonly AccountSectionDescriptor[] = [
+    ...accountSectionRegistry,
+    ...getActiveIntegrationsAccountSections(),
+  ]
 ): readonly AccountSectionDescriptor[] {
   validateAccountSectionDescriptors(descriptors);
   return descriptors.slice().sort((a, b) => a.order - b.order);

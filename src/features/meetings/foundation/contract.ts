@@ -1,8 +1,11 @@
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import { getMatters } from '@/platform/matter/matterStore';
 import {
+  issueSharedClientSelection,
   readSelectionOperationDecision,
+  resolveCanonicalHouseholdClassification,
   useSelectionOperationDecision,
+  type SealedClientBoundary,
 } from '@/platform/client-context';
 import { getActiveWorkspaceService } from '@/platform/fs/activeWorkspaceService';
 import {
@@ -55,6 +58,12 @@ const MEETINGS_SELECTION_REQUEST = {
   requireFollowerAgreement: true,
 } as const;
 
+const MEETINGS_FIRM_READ_SELECTION_REQUEST = {
+  operationClass: 'matter-scoped',
+  allowAllMatters: true,
+  requireFollowerAgreement: true,
+} as const;
+
 function readAuthoritativeMeetingSelection() {
   return readSelectionOperationDecision(MEETINGS_SELECTION_REQUEST);
 }
@@ -66,6 +75,13 @@ function readAuthoritativeMeetingMatterId(): string | null {
 
 function readAuthoritativeMeetingSelectionError(): string | null {
   const selection = readAuthoritativeMeetingSelection();
+  return selection.kind === 'refused' ? selection.message : null;
+}
+
+function readAuthoritativeFirmMeetingSelectionError(): string | null {
+  const selection = readSelectionOperationDecision(
+    MEETINGS_FIRM_READ_SELECTION_REQUEST
+  );
   return selection.kind === 'refused' ? selection.message : null;
 }
 
@@ -111,6 +127,26 @@ export type LegacyMeetingLinkStatus =
   | ({ readonly kind: 'folder-only' } & {
       readonly [legacyMeetingLinkStatusBrand]: true;
     });
+
+/**
+ * Surface-blind navigation authority for one firm-wide meeting reference.
+ *
+ * The four dispositions are deliberately compile-distinct. `folder-only`
+ * means the canonical meeting is known but has no durable legacy-folder link.
+ * `unavailable` means the meeting is known but its current link or client
+ * authority cannot be used. `unknown` is an authority refusal, not an empty or
+ * unavailable state; callers must surface that refusal and must not route.
+ * Only `linked` carries a born-sealed value accepted by the sanctioned client
+ * selection doorway.
+ */
+export type MeetingNavigationResolution =
+  | {
+      readonly kind: 'linked';
+      readonly clientBoundary: SealedClientBoundary;
+    }
+  | { readonly kind: 'folder-only' }
+  | { readonly kind: 'unavailable' }
+  | { readonly kind: 'unknown'; readonly disposition: 'refuse' };
 
 export interface LegacyMeetingLinkStatusReader {
   /** Read one status from authoritative canonical link keys. */
@@ -413,6 +449,30 @@ export interface ApprovedMeetingArtifactReader {
   get(id: MeetingArtifactRef): MeetingArtifact | null;
 }
 
+export type ReviewNeededMeetingArtifactsReadResult =
+  | {
+      readonly kind: 'ready';
+      readonly artifacts: readonly MeetingArtifact[];
+    }
+  | {
+      readonly kind: 'refused';
+      readonly reason:
+        | 'authority-refused'
+        | 'selection-blocked'
+        | 'records-unavailable';
+      readonly message: string;
+    };
+
+/**
+ * A sealed, firm-bounded, read-only view of produced artifacts that still need
+ * review. A successful read may truthfully contain zero artifacts; refusal is
+ * a separate result and must be surfaced rather than rendered as emptiness.
+ */
+export interface ReviewNeededMeetingArtifactReader {
+  readonly kinds: readonly MeetingArtifactKind[];
+  list(): Promise<ReviewNeededMeetingArtifactsReadResult>;
+}
+
 export interface MeetingArtifactStore {
   readerFor(
     meetings: MeetingStore,
@@ -424,6 +484,14 @@ export interface MeetingArtifactStore {
     id: MeetingArtifactRef,
     transition: MeetingArtifactTransition
   ): Promise<MeetingArtifact>;
+}
+
+/** The canonical artifact store plus its sealed, firm-wide read-only doorway. */
+export interface FirmReadableMeetingArtifactStore extends MeetingArtifactStore {
+  reviewNeededForFirm(
+    grant: FirmMeetingDirectoryGrant,
+    requirements: readonly MeetingArtifactRequirement[]
+  ): ReviewNeededMeetingArtifactReader;
 }
 
 export interface NoticeEvidenceInput {
@@ -573,6 +641,11 @@ export type ClientScopedLivePort = LivePort & {
   readonly getActiveMatterId: () => string | null | undefined;
   /** Production supplies the exact surfaced four-arm refusal. Test ports may omit it. */
   readonly getSelectionError?: () => string | null;
+  /**
+   * Production's firm-read tri-state. Unlike the client reader, explicit
+   * all-matters is valid; blocked/unresolved still refuses and is surfaced.
+   */
+  readonly getFirmSelectionError?: () => string | null;
 };
 
 interface ClientScope {
@@ -708,6 +781,106 @@ function resolveExactlyOneMatterForHousehold(
     (candidate.crmHouseholdKeys ?? []).includes(householdRef)
   );
   return candidates.length === 1 ? (candidates[0] ?? null) : null;
+}
+
+const FOLDER_ONLY_MEETING_NAVIGATION = Object.freeze({
+  kind: 'folder-only',
+} as const);
+const UNAVAILABLE_MEETING_NAVIGATION = Object.freeze({
+  kind: 'unavailable',
+} as const);
+const UNKNOWN_MEETING_NAVIGATION_REFUSAL = Object.freeze({
+  kind: 'unknown',
+  disposition: 'refuse',
+} as const);
+
+function assertNeverHouseholdClassification(value: never): never {
+  throw new Error(`Unreachable household classification arm: ${String(value)}`);
+}
+
+/**
+ * Resolve fresh firm-wide navigation authority for one meeting reference.
+ *
+ * This reads the app-standard canonical collection once per call, then asks
+ * the activated client classifier to re-derive the household/matter pair from
+ * current data. No result, seal, classifier arm, or authority decision is
+ * persisted. The resolver exposes no meeting payload and performs no client
+ * selection; a linked result must still be awaited through
+ * `requestSharedClientSelection` before a client-scoped meeting store is used.
+ */
+export async function resolveMeetingNavigation(
+  ref: MeetingRef
+): Promise<MeetingNavigationResolution> {
+  const meetingRef = typeof ref === 'string' ? ref.trim() : '';
+  if (!meetingRef) return UNKNOWN_MEETING_NAVIGATION_REFUSAL;
+
+  let workspaceRoot: string;
+  try {
+    ({ workspaceRoot } = deriveActiveMeetingWorkspace());
+  } catch {
+    return UNAVAILABLE_MEETING_NAVIGATION;
+  }
+
+  let records: readonly LiveCrmRecord[];
+  try {
+    records = await loadLiveCrmRecords(workspaceRoot);
+  } catch {
+    return UNAVAILABLE_MEETING_NAVIGATION;
+  }
+
+  const matches = records.filter(
+    (record) => record.kind === 'meeting' && record.id === meetingRef
+  );
+  if (matches.length !== 1) return UNKNOWN_MEETING_NAVIGATION_REFUSAL;
+  const meeting = matches[0];
+  if (!meeting) return UNKNOWN_MEETING_NAVIGATION_REFUSAL;
+
+  if (meeting['legacyMeetingLink'] === undefined) {
+    return FOLDER_ONLY_MEETING_NAVIGATION;
+  }
+  try {
+    if (!projectLegacyLink(meeting['legacyMeetingLink'])) {
+      return UNAVAILABLE_MEETING_NAVIGATION;
+    }
+  } catch {
+    return UNAVAILABLE_MEETING_NAVIGATION;
+  }
+
+  const householdRef =
+    typeof meeting['householdRef'] === 'string'
+      ? meeting['householdRef'].trim()
+      : '';
+  const matterId =
+    typeof meeting.matterId === 'string' ? meeting.matterId.trim() : '';
+  if (!householdRef || !matterId) return UNKNOWN_MEETING_NAVIGATION_REFUSAL;
+
+  const classification = resolveCanonicalHouseholdClassification({
+    provider: 'wealthbox',
+    householdId: householdRef,
+  });
+  switch (classification.kind) {
+    case 'exactly-one-live': {
+      if (classification.liveMatterIds[0] !== matterId) {
+        return UNKNOWN_MEETING_NAVIGATION_REFUSAL;
+      }
+      if (!classification.client) return UNAVAILABLE_MEETING_NAVIGATION;
+      try {
+        return Object.freeze({
+          kind: 'linked',
+          clientBoundary: issueSharedClientSelection(classification.client),
+        });
+      } catch {
+        return UNAVAILABLE_MEETING_NAVIGATION;
+      }
+    }
+    case 'zero-live':
+    case 'ambiguous-live':
+    case 'archived-only':
+    case 'invalid-household':
+      return UNAVAILABLE_MEETING_NAVIGATION;
+    default:
+      return assertNeverHouseholdClassification(classification.kind);
+  }
 }
 
 /**
@@ -1498,7 +1671,7 @@ function projectArtifact(
 
 export function createMeetingArtifactStore(
   port: ClientScopedLivePort
-): MeetingArtifactStore {
+): FirmReadableMeetingArtifactStore {
   const scope = clientScope(port);
   let raw = port.records.filter(
     (record) =>
@@ -1573,6 +1746,108 @@ export function createMeetingArtifactStore(
         get: (id) => {
           const artifact = reader.get(id);
           return artifact && allowedArtifact(artifact) ? artifact : null;
+        },
+      };
+    },
+    reviewNeededForFirm: (grant, requirements) => {
+      const minimumVersion = artifactMinimumVersions(requirements);
+      const kinds = [...minimumVersion.keys()];
+      const permitted = () => {
+        if (!sealedFirmGrants.has(grant)) return null;
+        const ids = grant.allowedMatterIds;
+        if (
+          !Array.isArray(ids) ||
+          ids.some((id) => typeof id !== 'string' || !id.trim())
+        )
+          return null;
+        return new Set(ids);
+      };
+      const refused = (
+        reason: Extract<
+          ReviewNeededMeetingArtifactsReadResult,
+          { kind: 'refused' }
+        >['reason'],
+        message: string
+      ): ReviewNeededMeetingArtifactsReadResult => ({
+        kind: 'refused',
+        reason,
+        message,
+      });
+      return {
+        kinds,
+        list: async () => {
+          if (!port.getFirmSelectionError)
+            return refused(
+              'selection-blocked',
+              'The firm meeting selection is unavailable.'
+            );
+          const selectionError = port.getFirmSelectionError();
+          if (selectionError)
+            return refused('selection-blocked', selectionError);
+          if (!port.workspaceRoot || port.error)
+            return refused(
+              'records-unavailable',
+              'Meeting artifacts are unavailable until records reload.'
+            );
+          const allowed = permitted();
+          if (!allowed || allowed.size === 0)
+            return refused(
+              'authority-refused',
+              'Firm meeting artifact access was not authorized.'
+            );
+
+          let fresh: readonly LiveCrmRecord[];
+          try {
+            fresh = (await port.reloadRecords()) ?? [];
+          } catch {
+            return refused(
+              'records-unavailable',
+              'Meeting artifacts are unavailable until records reload.'
+            );
+          }
+
+          // Re-check both gates after the asynchronous store read. A selection
+          // becoming blocked while the reload is in flight must refuse instead
+          // of leaking the loaded snapshot or pretending that the firm is empty.
+          const freshSelectionError = port.getFirmSelectionError();
+          if (freshSelectionError)
+            return refused('selection-blocked', freshSelectionError);
+          const stillAllowed = permitted();
+          if (!stillAllowed || stillAllowed.size === 0)
+            return refused(
+              'authority-refused',
+              'Firm meeting artifact access was not authorized.'
+            );
+
+          const meetingsById = new Map<string, MeetingProjection[]>();
+          for (const meeting of meetingRecords(fresh)) {
+            const matches = meetingsById.get(meeting.id) ?? [];
+            matches.push(meeting);
+            meetingsById.set(meeting.id, matches);
+          }
+          const reviewNeeded = fresh
+            .filter((record) => record.kind === 'meeting_artifact')
+            .flatMap((record) => {
+              try {
+                return [projectArtifact(record, fresh)];
+              } catch {
+                return [];
+              }
+            })
+            .filter((artifact) => {
+              const parents = meetingsById.get(artifact.meetingId) ?? [];
+              const parent = parents.length === 1 ? parents[0] : undefined;
+              return (
+                artifact.state === 'produced' &&
+                minimumVersion.has(artifact.kind) &&
+                artifact.schemaVersion >=
+                  (minimumVersion.get(artifact.kind) ?? Infinity) &&
+                stillAllowed.has(artifact.matterId) &&
+                parent?.matterId === artifact.matterId &&
+                parent.householdRef === artifact.householdRef
+              );
+            });
+          return { kind: 'ready', artifacts: reviewNeeded };
         },
       };
     },
@@ -2264,7 +2539,7 @@ export function useMeetingFoundationStore(): MeetingStore {
     reloadRecords: () => loadLiveCrmRecords(live.workspaceRoot),
   });
 }
-export function useMeetingArtifactStore(): MeetingArtifactStore {
+export function useMeetingArtifactStore(): FirmReadableMeetingArtifactStore {
   const live = useLiveCrmRecords();
   useSelectionOperationDecision(MEETINGS_SELECTION_REQUEST);
   return createMeetingArtifactStore({
@@ -2274,6 +2549,7 @@ export function useMeetingArtifactStore(): MeetingArtifactStore {
     save: live.save,
     getActiveMatterId: readAuthoritativeMeetingMatterId,
     getSelectionError: readAuthoritativeMeetingSelectionError,
+    getFirmSelectionError: readAuthoritativeFirmMeetingSelectionError,
     reloadRecords: () => loadLiveCrmRecords(live.workspaceRoot),
   });
 }

@@ -106,6 +106,7 @@ function runHandler(
     setSidebarActiveTab: (value: string) => {
       record('setSidebarActiveTab', value);
     },
+    readSelectionPresentation: () => ({ matterId: activeMatterId }),
     useMatterStore: { getState: () => matterState },
   });
   compiled(targetSurface);

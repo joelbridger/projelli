@@ -19,7 +19,6 @@ import {
 } from 'lucide-react';
 import {
   useActiveMatters,
-  useActiveMatterId,
   useMatterStore,
 } from '@/platform/matter/matterStore';
 import {
@@ -29,7 +28,7 @@ import {
 import { AccountIdentity } from './AccountIdentity';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
-import { IconButton } from '@/ui/kp';
+import { Badge, IconButton } from '@/ui/kp';
 import { getOrderedAppSurfaces } from '@/app/shell/registry/appSurfaceRegistry';
 import { useAppSurfaceRegistry } from '@/app/shell/runtime/useAppSurfaceRegistry';
 import {
@@ -47,6 +46,7 @@ import {
 import {
   issueAllMattersScopeSelection,
   requestMatterScopeSelection,
+  useSelectionPresentation,
 } from '@/platform/client-context';
 
 interface SpineProps {
@@ -92,7 +92,8 @@ export function Spine({
   // only ever lists the active roster, so archiving a client actually
   // shrinks this list instead of leaving it there forever.
   const matters = useActiveMatters();
-  const activeMatterId = useActiveMatterId();
+  const selection = useSelectionPresentation();
+  const activeMatterId = selection.matterId;
   const setClientMapHubId = useMatterStore((s) => s.setClientMapHubId);
   const setClientMapHubTab = useMatterStore((s) => s.setClientMapHubTab);
   // Client groups (feedback line 13). Rendered as collapsible sections under
@@ -135,7 +136,8 @@ export function Spine({
     ? activeTab
     : 'matters';
   const allClientsActive =
-    allClientsSelected ?? (active === 'matters' && activeMatterId === null);
+    selection.allMatters &&
+    (allClientsSelected ?? active === 'matters');
 
   // A single client row, reused by the flat list and by each group section.
   // When rendered inside a group, `groupId` is set so the handle differs from
@@ -532,6 +534,15 @@ export function Spine({
                 padding: '0 10px var(--kp-space-xs)',
               }}
             >
+              {selection.blocked ? (
+                <Badge variant="danger" data-testid="spine-selection-blocked" aria-label="Client selection blocked">
+                  BLOCKED
+                </Badge>
+              ) : selection.stale ? (
+                <Badge variant="warning" data-testid="spine-selection-stale" aria-label="Client selection updating">
+                  Selection updating
+                </Badge>
+              ) : null}
               {clientSearchVisible && (
                 <label
                   style={{

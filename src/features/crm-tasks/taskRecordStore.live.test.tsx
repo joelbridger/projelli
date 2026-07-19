@@ -15,13 +15,6 @@ vi.mock('@/platform/utils/wealthbox-commands', () => ({ crmSetWorkspace: () => P
 vi.mock('@/platform/fs/workspaceStore', () => ({
   useWorkspaceStore: <T,>(selector: (state: { rootPath: string }) => T) => selector({ rootPath: '/workspace' }),
 }));
-vi.mock('@/platform/client-context', () => ({
-  useSelectionOperationDecision: () => ({ kind: 'all-matters', client: null }),
-  readSelectionOperationDecision: () => ({ kind: 'all-matters', client: null }),
-}));
-vi.mock('@/platform/matter/matterStore', () => ({
-  useMatterStore: <T,>(selector: (state: { matters: []; activeMatterId: null }) => T) => selector({ matters: [], activeMatterId: null }),
-}));
 vi.mock('@/platform/crm/store', () => ({
   getCrmEngineFreshness: () => ({ kind: 'idle' }),
   subscribeCrmEngineFreshness: () => () => undefined,
@@ -35,9 +28,69 @@ vi.mock('@/platform/crm/liveRecordRelay', () => ({
 
 import { LIVE_CRM_RECORDS_CHANGED } from '@/platform/crm/useLiveCrmRecords';
 import { useTaskRecordStore } from '@/features/crm-tasks';
+import {
+  issueAllMattersScopeSelection,
+  issueMatterScopeSelection,
+  readAuthoritativeMatterScope,
+  rehydrateSelectionHint,
+  replaceCanonicalHouseholdDirectory,
+  requestClearClientSelection,
+  requestMatterScopeSelection,
+  useClientContextStore,
+} from '@/platform/client-context';
+import { setDevFlagOverride } from '@/platform/flags/router';
+import { useMatterStore } from '@/platform/matter/matterStore';
+import type { Matter } from '@/platform/types/matter';
+
+const alphaMatter: Matter = {
+  id: 'matter-alpha',
+  name: 'Alpha plan',
+  client: 'Alpha household',
+  folderPaths: ['/workspace/Alpha'],
+  crmHouseholdKeys: ['household-alpha'],
+  createdAt: '2026-07-18T00:00:00.000Z',
+};
+
+async function waitForSelectionProjection(value: string | null): Promise<void> {
+  await waitFor(() => {
+    expect(useMatterStore.getState().activeMatterId).toBe(value);
+    expect(useClientContextStore.getState().followerStatus).toBe('converged');
+  });
+}
+
+async function selectAllMatters(): Promise<void> {
+  await requestMatterScopeSelection(issueAllMattersScopeSelection());
+  await waitForSelectionProjection(null);
+}
+
+async function selectAlphaMatter(): Promise<void> {
+  await requestMatterScopeSelection(issueMatterScopeSelection(alphaMatter.id));
+  await waitForSelectionProjection(alphaMatter.id);
+}
+
+function blockSelection(): void {
+  rehydrateSelectionHint({
+    kind: 'persisted-hint',
+    value: { version: 1, source: 'blocked/refused' },
+  });
+}
 
 describe('task record store canonical reload integration', () => {
   beforeEach(() => {
+    localStorage.clear();
+    setDevFlagOverride('selection-authority-boot-gate', false);
+    readAuthoritativeMatterScope();
+    useMatterStore.setState({ matters: [alphaMatter], activeMatterId: null });
+    requestClearClientSelection();
+    replaceCanonicalHouseholdDirectory('wealthbox', [
+      {
+        provider: 'wealthbox',
+        householdId: 'household-alpha',
+        displayName: 'Alpha household',
+      },
+    ]);
+    setDevFlagOverride('selection-authority-boot-gate', true);
+    readAuthoritativeMatterScope();
     boundary.records = [];
     boundary.invoke.mockReset();
     boundary.invoke.mockImplementation((command, args) => {
@@ -55,6 +108,13 @@ describe('task record store canonical reload integration', () => {
 
   afterEach(() => {
     vi.clearAllMocks();
+    setDevFlagOverride('selection-authority-boot-gate', false);
+    readAuthoritativeMatterScope();
+    useMatterStore.setState({ matters: [], activeMatterId: null });
+    requestClearClientSelection();
+    replaceCanonicalHouseholdDirectory('wealthbox', null);
+    setDevFlagOverride('selection-authority-boot-gate', undefined);
+    localStorage.clear();
   });
 
   it('retains foundation fields through create, canonical reopen, update, and peer refresh', async () => {
@@ -99,5 +159,77 @@ describe('task record store canonical reload integration', () => {
       await expect(reopened.result.current.get(created.id)).resolves.toMatchObject({ category: 'Peer category' });
     });
     reopened.unmount();
+  });
+
+  it('task-round-trip x reader-migration interaction', async () => {
+    boundary.records = [
+      {
+        id: 'task-selection-proof',
+        kind: 'task',
+        matterId: 'firm',
+        title: 'Review beneficiary notes',
+        body: 'Original task metadata',
+        assigneeUserId: null,
+        status: 'open',
+        priority: 'normal',
+        category: 'Annual review',
+        tagIds: ['tag:original'],
+        contextRefs: [],
+      },
+    ];
+
+    const roundTripEdit = async (
+      select: () => Promise<void>,
+      priority: 'high' | 'low',
+      category: string,
+      tagId: string,
+    ) => {
+      await select();
+      const writer = renderHook(() => useTaskRecordStore());
+      await waitFor(async () => {
+        await expect(writer.result.current.get('task-selection-proof')).resolves.toBeDefined();
+      });
+      await act(async () => {
+        await writer.result.current.update('task-selection-proof', {
+          priority,
+          category,
+          tagIds: [tagId],
+        });
+      });
+      writer.unmount();
+
+      const reader = renderHook(() => useTaskRecordStore());
+      await waitFor(async () => {
+        await expect(reader.result.current.get('task-selection-proof')).resolves.toMatchObject({
+          priority,
+          category,
+          tagIds: [tagId],
+        });
+      });
+      reader.unmount();
+    };
+
+    await roundTripEdit(selectAllMatters, 'high', 'All-matters review', 'tag:all');
+    await roundTripEdit(selectAlphaMatter, 'low', 'Alpha review', 'tag:alpha');
+
+    blockSelection();
+    await waitForSelectionProjection(null);
+    expect(readAuthoritativeMatterScope()).toEqual({ kind: 'blocked-unresolved' });
+    const blockedWriter = renderHook(() => useTaskRecordStore());
+    await waitFor(async () => {
+      await expect(blockedWriter.result.current.get('task-selection-proof')).resolves.toBeDefined();
+    });
+    await expect(
+      blockedWriter.result.current.update('task-selection-proof', {
+        priority: 'high',
+        category: 'Must not save',
+      }),
+    ).rejects.toThrow('still unresolved');
+    expect(boundary.records[0]).toMatchObject({
+      priority: 'low',
+      category: 'Alpha review',
+      tagIds: ['tag:alpha'],
+    });
+    blockedWriter.unmount();
   });
 });

@@ -1,0 +1,13 @@
+{
+  "active-integrations": {
+    "title": "Active integrations",
+    "description": "Review each connection's current status, what it can access, and its own safe disconnect control.",
+    "connected": "Connected",
+    "manage": "Manage {{provider}} connection",
+    "checking": "Checking your connections...",
+    "empty-title": "No integrations connected",
+    "empty-description": "When you connect an integration, it will appear here.",
+    "unavailable-title": "Integration details are unavailable",
+    "unavailable-description": "The connection list could not be checked safely. No status or disconnect option is being guessed at."
+  }
+}

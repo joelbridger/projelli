@@ -13,11 +13,12 @@
  * data-testid="trust-bar".
  */
 import { Lock } from 'lucide-react';
-import { useActiveMatter } from '@/platform/matter/matterStore';
+import { useMatters } from '@/platform/matter/matterStore';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { useActiveEgressDestination } from '@/platform/hooks/useActiveEgressProvider';
 import { useEntityLabelEnglish } from '@/platform/hooks/useEntityLabel';
-import { IconButton } from '@/ui/kp';
+import { Badge, IconButton } from '@/ui/kp';
+import { useSelectionPresentation } from '@/platform/client-context';
 import { EV_OPEN_PRIVACY_CENTER } from '@/config/identity';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
 import { brandText } from '@/config/brandText';
@@ -28,7 +29,11 @@ interface TrustBarProps {
 }
 
 export function TrustBar({ inline = false, onOpenAiSettings }: TrustBarProps) {
-  const activeMatter = useActiveMatter();
+  const selection = useSelectionPresentation();
+  const matters = useMatters();
+  const activeMatter = selection.matterId
+    ? matters.find((matter) => matter.id === selection.matterId && !matter.archived) ?? null
+    : null;
   const confidentialityMode = useConfidentialityMode();
   // Single source of truth: provider id + whether the firm assured proxy is live,
   // so the badge renders the real destination (incl. assured) — never a provider
@@ -45,9 +50,11 @@ export function TrustBar({ inline = false, onOpenAiSettings }: TrustBarProps) {
   // NOT egress. The old all-matters copy claimed "Nothing leaves your machine"
   // unconditionally, which is false in Direct/Assured cloud modes. Egress is
   // conveyed separately by the mode-aware egress indicator + `egressTooltip`.
-  const scopeSubtitle = activeMatter
-    ? `Scoped to this ${entityLabel.one}. Nothing from other clients can appear.`
-    : `Searching across every ${entityLabel.one}. Answers may draw on more than one client.`;
+  const scopeSubtitle = selection.blocked
+    ? `Client scope is blocked. Choose a valid ${entityLabel.one} before continuing.`
+    : activeMatter
+      ? `Scoped to this ${entityLabel.one}. Nothing from other clients can appear.`
+      : `Searching across every ${entityLabel.one}. Answers may draw on more than one client.`;
 
   const egressTooltip =
     confidentialityMode === 'local-only'
@@ -73,6 +80,16 @@ export function TrustBar({ inline = false, onOpenAiSettings }: TrustBarProps) {
         borderBottom: inline ? 'none' : '1px solid var(--color-border)',
       }}
     >
+      {selection.blocked ? (
+        <Badge variant="danger" data-testid="trust-bar-selection-blocked" aria-label="Client selection blocked">
+          BLOCKED
+        </Badge>
+      ) : null}
+      {selection.stale ? (
+        <Badge variant="warning" data-testid="trust-bar-selection-stale" aria-label="Client selection updating">
+          Selection updating
+        </Badge>
+      ) : null}
       {/* F1: the ONE always-visible egress pill for the whole app. The short
           status form ("Using local AI" / "Using cloud AI" / "No AI connected");
           the full provider detail stays in its tooltip + the inspectable data-*

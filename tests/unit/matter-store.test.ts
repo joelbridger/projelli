@@ -9,7 +9,7 @@
  *   - deleting the active matter falls back to all-matters
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   resolveMatterId,
   findMatter,
@@ -169,7 +169,15 @@ describe('matterLabel', () => {
 // ---------------------------------------------------------------------------
 
 describe('useMatterStore CRUD', () => {
-  beforeEach(resetStore);
+  beforeEach(() => {
+    setDevFlagOverride('selection-authority-boot-gate', false);
+    resetStore();
+  });
+
+  afterEach(() => {
+    requestClearClientSelection();
+    setDevFlagOverride('selection-authority-boot-gate', undefined);
+  });
 
   it('creates a matter with normalised folder paths', () => {
     const m = useMatterStore.getState().createMatter({

@@ -45,3 +45,9 @@ export {
   type SelectionOperationRequest,
   type SelectionRefusalReason,
 } from './selectionReader';
+export {
+  readSelectionPresentation,
+  resolveSelectionPresentation,
+  useSelectionPresentation,
+  type SelectionPresentation,
+} from './selectionPresentation';
