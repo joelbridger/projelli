@@ -1,4 +1,27 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+const activeBriefClient = vi.hoisted(() => ({
+  householdRef: 'household-a',
+  matterId: 'matter-a',
+}));
+
+vi.mock('@/platform/client-context', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/platform/client-context')>();
+  return {
+    ...actual,
+    readSelectionOperationDecision: () => ({
+      kind: 'matter' as const,
+      sourceKind: 'matter' as const,
+      matter: { id: activeBriefClient.matterId },
+      client: {
+        provider: 'wealthbox' as const,
+        householdId: activeBriefClient.householdRef,
+        displayName: activeBriefClient.householdRef,
+      },
+    }),
+  };
+});
 import type {
   MeetingProjection,
   SealedMeetingClientBoundary,

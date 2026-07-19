@@ -10,6 +10,7 @@ import {
 } from './followUp/meetingFollowUpStore';
 import {
   projectMeetingSurface,
+  verifyLiveMeetingClientBoundary,
   type ClientBoundary,
   type FirmMeetingDirectoryReader,
   type MeetingArtifactReviewArchiveScope,
@@ -180,6 +181,8 @@ export interface MeetingReviewInboxReader {
 export interface MeetingReviewInboxSource {
   readonly directory: FirmMeetingDirectoryReader;
   readonly reviews: ReviewNeededMeetingArtifactReader;
+  /** Read at call and completion time so a held reader cannot outlive selection. */
+  readonly getActiveClientBoundary: () => SealedMeetingClientBoundary | null;
   /** Fresh label/status facts are read again on every retry. */
   readonly getMeetingFacts: () => readonly MeetingSurfaceFacts[];
   readonly getOwners?: () => readonly MeetingOwnerProjection[];
@@ -453,6 +456,15 @@ function sealReadyResult<T extends object>(value: T): T {
   return sealed;
 }
 
+function sameClientPair(
+  left: SealedMeetingClientBoundary,
+  right: SealedMeetingClientBoundary
+): boolean {
+  return (
+    left.householdRef === right.householdRef && left.matterId === right.matterId
+  );
+}
+
 /**
  * Builds the only Actions projection. It consumes G2's authorized result and
  * the sealed firm directory; selected mode then applies the exact client pair
@@ -462,6 +474,28 @@ export function createMeetingReviewInboxReader(
   source: MeetingReviewInboxSource
 ): MeetingReviewInboxReader {
   const now = source.now ?? (() => new Date().toISOString());
+  const isCurrentClient = (client: SealedMeetingClientBoundary): boolean => {
+    try {
+      const active = source.getActiveClientBoundary();
+      return (
+        verifyLiveMeetingClientBoundary(active) &&
+        sameClientPair(active, client)
+      );
+    } catch {
+      return false;
+    }
+  };
+  const nonCurrentClientResult = (
+    requestedFilter?: MeetingReviewInboxFilter
+  ): MeetingReviewInboxResult =>
+    sealReadyResult({
+      kind: 'ready-empty',
+      items: [] as const,
+      badgeMeetingCount: 0,
+      emptyCopy: 'Nothing waiting on you.',
+      filter: validFilter(requestedFilter),
+      retry: 'not-available',
+    });
 
   const read = async (
     client: SealedMeetingClientBoundary | null,
@@ -586,7 +620,7 @@ export function createMeetingReviewInboxReader(
 
   return {
     read: (filter) => read(null, filter),
-    readForClient: (client, filter) => {
+    readForClient: async (client, filter) => {
       if (
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime cast/bridge guard: the type says `client` is a non-null sealed pair, but a caller can cast undefined/partial past the type at runtime (the F9 fail-open class). Fail closed here rather than leak the whole-firm inbox.
         !client ||
@@ -595,13 +629,25 @@ export function createMeetingReviewInboxReader(
         typeof client.matterId !== 'string' ||
         client.matterId.trim().length === 0
       )
-        return Promise.resolve({
+        return {
           kind: 'refused',
           reason: 'invalid-client-pair',
           message: 'A complete client selection is required.',
           retry: 'not-available',
-        });
-      return read(client, filter);
+        };
+      if (!verifyLiveMeetingClientBoundary(client)) {
+        return {
+          kind: 'refused',
+          reason: 'invalid-client-pair',
+          message: 'A complete client selection is required.',
+          retry: 'not-available',
+        };
+      }
+      if (!isCurrentClient(client)) {
+        return nonCurrentClientResult(filter);
+      }
+      const result = await read(client, filter);
+      return isCurrentClient(client) ? result : nonCurrentClientResult(filter);
     },
     transitionArchive: (id, scope, transition) =>
       source.reviews.transitionArchive(id, scope, transition),

@@ -267,6 +267,7 @@ async function fixture() {
   const inbox = createMeetingReviewInboxReader({
     directory: createFirmMeetingDirectoryReader(port, grant),
     reviews,
+    getActiveClientBoundary: port.getActiveClientBoundary,
     getMeetingFacts: () => facts,
     getOwners: () => owners,
     now: () => '2026-07-20T00:00:00.000Z',
@@ -309,7 +310,7 @@ describe('meeting Actions inbox', () => {
   });
 
   it('isolates rows and unique-meeting badges by household plus matter', async () => {
-    const { inbox, meetingA, meetingB } = await fixture();
+    const { inbox, port, meetingA, meetingB } = await fixture();
     const firm = await inbox.read();
     expect(firm.kind).toBe('ready-populated');
     if (firm.kind !== 'ready-populated') throw new Error(firm.kind);
@@ -339,6 +340,12 @@ describe('meeting Actions inbox', () => {
     );
     expect(beta.badgeMeetingCount).toBe(1);
 
+    await expect(inbox.readForClient(clientA)).resolves.toMatchObject({
+      kind: 'ready-empty',
+      items: [],
+      badgeMeetingCount: 0,
+    });
+    port.setActive(clientA);
     const alpha = await inbox.readForClient(clientA);
     expect(alpha.kind).toBe('ready-populated');
     if (alpha.kind !== 'ready-populated') throw new Error(alpha.kind);
@@ -347,7 +354,8 @@ describe('meeting Actions inbox', () => {
   });
 
   it('persists archive and restore lifecycle without leaking across the pair', async () => {
-    const { inbox, taskA, meetingA, meetingB } = await fixture();
+    const { inbox, port, taskA, meetingA, meetingB } = await fixture();
+    port.setActive(clientA);
     await expect(
       inbox.transitionArchive(
         taskA.id,
@@ -375,6 +383,7 @@ describe('meeting Actions inbox', () => {
       artifact: { reviewArchiveState: 'archived' },
     });
 
+    port.setActive(clientB);
     const betaArchived = await inbox.readForClient(clientB, {
       view: 'archived',
       type: 'all',
@@ -384,6 +393,7 @@ describe('meeting Actions inbox', () => {
     if (betaArchived.kind !== 'ready-empty') throw new Error(betaArchived.kind);
     expect(betaArchived.badgeMeetingCount).toBe(1);
 
+    port.setActive(clientA);
     const alphaArchived = await inbox.readForClient(clientA, {
       view: 'archived',
       type: 'all',
@@ -432,6 +442,7 @@ describe('meeting Actions inbox', () => {
       transitionAt: '2026-07-20T01:00:00.000Z',
     });
 
+    port.setActive(clientA);
     await expect(inbox.readForClient(clientA)).resolves.toEqual({
       kind: 'error',
       message: 'Meeting review records could not be loaded.',
@@ -440,12 +451,13 @@ describe('meeting Actions inbox', () => {
   });
 
   it('applies attention/all/archive, type, and owner filters after pair scope', async () => {
-    const { inbox } = await fixture();
+    const { inbox, port } = await fixture();
     const filter: MeetingReviewInboxFilter = {
       view: 'all',
       type: 'task-proposal',
       owner: { kind: 'owner', ownerRef: 'owner-task' },
     };
+    port.setActive(clientA);
     const alpha = await inbox.readForClient(clientA, filter);
     expect(alpha.kind).toBe('ready-populated');
     if (alpha.kind !== 'ready-populated') throw new Error(alpha.kind);
@@ -455,6 +467,7 @@ describe('meeting Actions inbox', () => {
       owner: { ref: 'owner-task', label: 'Task Owner', source: 'proposal' },
     });
 
+    port.setActive(clientB);
     const beta = await inbox.readForClient(clientB, filter);
     expect(beta.kind).toBe('ready-empty');
     if (beta.kind !== 'ready-empty') throw new Error(beta.kind);

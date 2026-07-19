@@ -373,6 +373,7 @@ export function MeetingsWorkspace({ runtime }: { runtime: MeetingsWorkspaceRunti
     const reader = createMeetingReviewInboxReader({
       directory,
       reviews,
+      getActiveClientBoundary: readActiveMeetingClientBoundary,
       getMeetingFacts: () => [],
     });
     void reader
