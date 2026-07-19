@@ -18,6 +18,12 @@ export type BriefStatus = 'pending' | 'generating' | 'ready' | 'failed';
 export interface MeetingBrief {
   key: string;
   eventId: string;
+  /**
+   * Household half of the sealed client boundary. Optional only because
+   * persisted briefs from before this field existed must still deserialize;
+   * exact-client readers reject those legacy briefs.
+   */
+  householdRef?: string;
   matterId: string;
   day: string;
   status: BriefStatus;
@@ -87,6 +93,7 @@ export function selectExactMeetingBrief(
   const matches = Object.values(briefs).filter(
     (brief) =>
       brief.eventId === eventId &&
+      brief.householdRef === clientBoundary.householdRef &&
       brief.matterId === clientBoundary.matterId &&
       brief.key === briefKey(brief.day, eventId, clientBoundary.matterId)
   );

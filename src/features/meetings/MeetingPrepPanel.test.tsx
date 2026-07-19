@@ -36,6 +36,7 @@ function brief(suffix: string, overrides: Partial<MeetingBrief> = {}): MeetingBr
   return {
     key: briefKey(day, `event-${suffix}`, `matter-${suffix}`),
     eventId: `event-${suffix}`,
+    householdRef: `household-${suffix}`,
     matterId: `matter-${suffix}`,
     day,
     status: 'ready',
@@ -123,6 +124,40 @@ describe('MeetingPrepPanel', () => {
     expect(screen.getByText('Annual review a')).toBeInTheDocument();
 
     view.rerender(<MeetingPrepPanel target={clientB} surfaceFacts={facts(clientB)} nowUtc={NOW} />);
+    expect(screen.queryByText('Annual review a')).not.toBeInTheDocument();
+    expect(screen.getByTestId('meeting-prep-empty')).toBeInTheDocument();
+  });
+
+  it('shows no brief when only the household changes for the same matter and event', () => {
+    const householdA = target('a');
+    const householdB: ExactMeetingBriefTarget = {
+      eventId: householdA.eventId,
+      meeting: {
+        ...householdA.meeting,
+        householdRef: 'household-b',
+      },
+      clientBoundary: {
+        householdRef: 'household-b',
+        matterId: householdA.clientBoundary.matterId,
+      } as SealedMeetingClientBoundary,
+    };
+    useBriefStore.setState({ briefs: { a: brief('a') } });
+    const view = render(
+      <MeetingPrepPanel
+        target={householdA}
+        surfaceFacts={facts(householdA)}
+        nowUtc={NOW}
+      />
+    );
+    expect(screen.getByText('Annual review a')).toBeInTheDocument();
+
+    view.rerender(
+      <MeetingPrepPanel
+        target={householdB}
+        surfaceFacts={facts(householdB)}
+        nowUtc={NOW}
+      />
+    );
     expect(screen.queryByText('Annual review a')).not.toBeInTheDocument();
     expect(screen.getByTestId('meeting-prep-empty')).toBeInTheDocument();
   });

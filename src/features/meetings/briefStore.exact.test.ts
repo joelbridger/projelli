@@ -37,6 +37,7 @@ function brief(overrides: Partial<MeetingBrief> = {}): MeetingBrief {
   return {
     key: briefKey(day, 'event-a', 'matter-a'),
     eventId: 'event-a',
+    householdRef: 'household-a',
     matterId: 'matter-a',
     day,
     status: 'ready',
@@ -82,6 +83,29 @@ describe('selectExactMeetingBrief', () => {
         matterId: 'matter-b',
       } as SealedMeetingClientBoundary,
     }))).toBeNull();
+  });
+
+  it('fails closed when only the household changes for the same matter and event', () => {
+    const householdABrief = brief();
+    const householdB = {
+      householdRef: 'household-b',
+      matterId: client.matterId,
+    } as SealedMeetingClientBoundary;
+
+    expect(selectExactMeetingBrief({ householdABrief }, {
+      eventId: 'event-a',
+      meeting: meeting({ householdRef: householdB.householdRef }),
+      clientBoundary: householdB,
+    })).toBeNull();
+  });
+
+  it('fails closed for a persisted brief that predates household identity', () => {
+    const { householdRef: _legacyMissingField, ...legacyBrief } = brief();
+
+    expect(selectExactMeetingBrief(
+      { legacyBrief: legacyBrief as MeetingBrief },
+      target()
+    )).toBeNull();
   });
 
   it('does not choose one when persisted identity is malformed or duplicated', () => {
