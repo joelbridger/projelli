@@ -5,7 +5,7 @@ import { legacyMeetingPanels } from './meetingWorkspaceCompatibility';
  * The only meeting-detail panel slots the product can render. New panel lanes
  * must import an id from this sealed manifest rather than inventing one.
  */
-export const BLESSED_MEETING_PANEL_IDS = [
+export const BLESSED_MEETING_PANEL_IDS = Object.freeze([
   'prep',
   'agenda',
   'summary',
@@ -13,10 +13,9 @@ export const BLESSED_MEETING_PANEL_IDS = [
   'tasks',
   'crm-update',
   'follow-up',
-] as const;
+] as const);
 
-export type BlessedMeetingPanelId =
-  (typeof BLESSED_MEETING_PANEL_IDS)[number];
+export type BlessedMeetingPanelId = (typeof BLESSED_MEETING_PANEL_IDS)[number];
 
 declare module './meetingWorkspaceTypes' {
   interface MeetingPanelIdMap {
@@ -35,26 +34,21 @@ export type {
   MeetingPanelIdMap,
 } from './meetingWorkspaceTypes';
 
-const BLESSED_MEETING_PANEL_ID_SET = new Set<string>(
-  BLESSED_MEETING_PANEL_IDS
-);
+const BLESSED_MEETING_PANEL_ID_SET = new Set<string>(BLESSED_MEETING_PANEL_IDS);
 
 const BLESSED_MEETING_PANEL_ORDER = new Map<string, number>(
   BLESSED_MEETING_PANEL_IDS.map((id, index) => [id, index])
 );
 
-/** The three pre-manifest compatibility tabs occupy their matching live slots. */
+/** The two pre-manifest content tabs occupy their matching live slots. */
 const LEGACY_PANEL_ID_TO_BLESSED_ID: Readonly<
   Record<string, BlessedMeetingPanelId>
 > = {
-  recording: 'prep',
   transcript: 'transcript',
   summary: 'summary',
 };
 
-function isBlessedMeetingPanelId(
-  id: string
-): id is BlessedMeetingPanelId {
+function isBlessedMeetingPanelId(id: string): id is BlessedMeetingPanelId {
   return BLESSED_MEETING_PANEL_ID_SET.has(id);
 }
 
@@ -123,13 +117,15 @@ export function validateMeetingPanelDescriptors(
 
 /**
  * Compatibility entries keep their existing mounts while claiming their fixed
- * v2 slots. This bridge is deliberately here, at the manifest chokepoint, so
- * the old raw IDs can never leak into a composed host tab.
+ * v2 slots. Recording is deliberately not bridged: audio is secondary media,
+ * not a meeting-detail tab. This chokepoint keeps its renderer available for
+ * the later media handoff without letting the raw id reach a composed host tab.
  */
 export const meetingPanelRegistry: readonly MeetingPanelDescriptor[] =
-  legacyMeetingPanels.map((descriptor) => {
+  legacyMeetingPanels.flatMap((descriptor) => {
     const blessedId = LEGACY_PANEL_ID_TO_BLESSED_ID[descriptor.id];
     if (!blessedId) {
+      if (descriptor.id === 'recording') return [];
       throw new Error(
         `[meetingPanelRegistry] legacy panel has no blessed manifest slot: ${descriptor.id}`
       );

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { BLESSED_MEETING_PANEL_IDS } from '../meetingPanelRegistry';
+import { BLESSED_MEETING_PANEL_IDS } from '@/features/meetings';
 // Import the composition contracts from the PUBLIC surface only, exactly as an
 // outside dependent would — this is the registry MeetingEntry renders through
 // its default composition, so a contribution here is load-bearing in the host.
@@ -24,8 +24,7 @@ import {
   type MeetingInsightId,
 } from '@/features/meetings';
 
-const ids = (items: readonly { id: string }[]) =>
-  items.map((item) => item.id);
+const ids = (items: readonly { id: string }[]) => items.map((item) => item.id);
 
 const panel = (
   id: string,
@@ -88,7 +87,6 @@ describe('meeting panel registry (closed blessed manifest)', () => {
   it('renders the exact base composition the host reads with no contributions', () => {
     // These are the descriptors MeetingEntry renders through the defaults.
     expect(ids(defaultMeetingPanelComposition.panels)).toEqual([
-      'prep',
       'summary',
       'transcript',
     ]);
@@ -103,10 +101,11 @@ describe('meeting panel registry (closed blessed manifest)', () => {
     expect(defaultMeetingInsightComposition.meetingSummary).toEqual([]);
   });
 
-  it('maps the three legacy compatibility tabs into blessed slots in manifest order', () => {
-    expect(
-      ids(createMeetingPanelComposition().panels)
-    ).toEqual(['prep', 'summary', 'transcript']);
+  it('maps the two legacy content tabs into blessed slots in manifest order', () => {
+    expect(ids(createMeetingPanelComposition().panels)).toEqual([
+      'summary',
+      'transcript',
+    ]);
   });
 
   it('returns the registered subset in blessed order, not caller order', () => {
@@ -118,14 +117,7 @@ describe('meeting panel registry (closed blessed manifest)', () => {
           panel('tasks', 2)
         ).panels
       )
-    ).toEqual([
-      'prep',
-      'agenda',
-      'summary',
-      'transcript',
-      'tasks',
-      'follow-up',
-    ]);
+    ).toEqual(['agenda', 'summary', 'transcript', 'tasks', 'follow-up']);
     expect(
       ids(createMeetingHeaderActionComposition(action('archive', 15)).actions)
     ).toEqual(['send', 'archive', 'mark_reviewed', 'utilities']);
@@ -137,17 +129,15 @@ describe('meeting panel registry (closed blessed manifest)', () => {
   });
 
   it('rejects an off-list id before it can reach the host', () => {
-    expect(
-      () => createMeetingPanelComposition(panel('media', 5))
-    ).toThrow('panel id is not in the blessed manifest: media');
+    expect(() => createMeetingPanelComposition(panel('media', 5))).toThrow(
+      'panel id is not in the blessed manifest: media'
+    );
   });
 
   it('rejects an attempted visible eighth tab', () => {
     expect(() =>
       createMeetingPanelComposition(
-        ...BLESSED_MEETING_PANEL_IDS.map((id, index) =>
-          panel(id, index)
-        ),
+        ...BLESSED_MEETING_PANEL_IDS.map((id, index) => panel(id, index)),
         panel('media', 99)
       )
     ).toThrow('visible panel limit exceeded: 8 (maximum 7)');
@@ -160,7 +150,7 @@ describe('meeting panel registry (closed blessed manifest)', () => {
           panel('agenda', 5, { isAvailable: () => false })
         ).panels
       )
-    ).toEqual(['prep', 'summary', 'transcript']);
+    ).toEqual(['summary', 'transcript']);
     expect(
       ids(
         createMeetingHeaderActionComposition(
@@ -206,7 +196,9 @@ describe('meeting panel registry (closed blessed manifest)', () => {
       )
     ).toThrow('invalid action contract');
     expect(() =>
-      createMeetingInsightComposition(insight('badver', 15, true, { version: 0 }))
+      createMeetingInsightComposition(
+        insight('badver', 15, true, { version: 0 })
+      )
     ).toThrow('version must be a positive integer');
   });
 });
@@ -224,7 +216,6 @@ describe('meeting composition weave (the host reads registered contributions)', 
   it('registers a panel into the live host composition and removes it on unregister', () => {
     // The host getter (what MeetingEntry reads) starts at the base tabs.
     expect(ids(getMeetingPanelComposition().panels)).toEqual([
-      'prep',
       'summary',
       'transcript',
     ]);
@@ -232,7 +223,6 @@ describe('meeting composition weave (the host reads registered contributions)', 
     // The registered contribution now appears in the HOST composition, in order,
     // and equals what the outside builder would produce for the same input.
     expect(ids(getMeetingPanelComposition().panels)).toEqual([
-      'prep',
       'agenda',
       'summary',
       'transcript',
@@ -243,7 +233,6 @@ describe('meeting composition weave (the host reads registered contributions)', 
     off();
     cleanups.pop();
     expect(ids(getMeetingPanelComposition().panels)).toEqual([
-      'prep',
       'summary',
       'transcript',
     ]);
@@ -298,7 +287,6 @@ describe('meeting composition weave (the host reads registered contributions)', 
       registerMeetingPanel(panel('agenda', 5, { isAvailable: () => false }))
     );
     expect(ids(getMeetingPanelComposition().panels)).toEqual([
-      'prep',
       'summary',
       'transcript',
     ]);

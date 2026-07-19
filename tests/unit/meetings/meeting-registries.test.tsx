@@ -13,17 +13,16 @@ import {
   validateMeetingInsightDescriptors,
 } from '@/features/meetings/meetingInsightRegistry';
 import {
+  BLESSED_MEETING_PANEL_IDS,
+  type BlessedMeetingPanelId,
+} from '@/features/meetings';
+import {
   getMeetingPanels,
   type MeetingPanelDescriptor,
   validateMeetingPanelDescriptors,
 } from '@/features/meetings/meetingPanelRegistry';
 
 declare module '@/features/meetings/meetingWorkspaceTypes' {
-  interface MeetingPanelIdMap {
-    dummy_panel: true;
-    second_dummy_panel: true;
-  }
-
   interface MeetingHeaderActionIdMap {
     dummy_action: true;
     second_dummy_action: true;
@@ -35,14 +34,25 @@ declare module '@/features/meetings/meetingWorkspaceTypes' {
   }
 }
 
-const dummyPanel: MeetingPanelDescriptor = {
+const dummyPanel = {
   id: 'dummy_panel',
   order: 10,
   labelKey: 'meetings.test.dummy-panel',
   mount: ({ t }) => (
     <div data-testid="dummy-panel">{t('meetings.test.dummy-panel')}</div>
   ),
-};
+} as unknown as MeetingPanelDescriptor;
+
+function blessedPanel(id: BlessedMeetingPanelId): MeetingPanelDescriptor {
+  return {
+    id,
+    order: 10,
+    labelKey: `meetings.test.${id}`,
+    mount: ({ t }) => (
+      <div data-testid={`panel-${id}`}>{t(`meetings.test.${id}`)}</div>
+    ),
+  };
+}
 
 const dummyAction: MeetingHeaderActionDescriptor = {
   id: 'dummy_action',
@@ -88,12 +98,24 @@ const dummyInsight: MeetingInsightDescriptor = {
 };
 
 describe('meeting workspace registries', () => {
-  it('keeps current compatibility descriptors in stable visible order', () => {
-    expect(getMeetingPanels().map((descriptor) => descriptor.id)).toEqual([
-      'recording',
-      'transcript',
+  it('keeps the seven-slot manifest frozen and only bridges legacy content tabs', () => {
+    expect(BLESSED_MEETING_PANEL_IDS).toEqual([
+      'prep',
+      'agenda',
       'summary',
+      'transcript',
+      'tasks',
+      'crm-update',
+      'follow-up',
     ]);
+    expect(Object.isFrozen(BLESSED_MEETING_PANEL_IDS)).toBe(true);
+    expect(getMeetingPanels().map((descriptor) => descriptor.id)).toEqual([
+      'summary',
+      'transcript',
+    ]);
+    expect(getMeetingPanels().map((descriptor) => descriptor.id)).not.toContain(
+      'recording'
+    );
     expect(
       getMeetingHeaderActions().map((descriptor) => descriptor.id)
     ).toEqual(['send', 'mark_reviewed', 'utilities']);
@@ -103,11 +125,9 @@ describe('meeting workspace registries', () => {
     ).toEqual(['review_status']);
   });
 
-  it('preserves registration order when descriptors have the same order', () => {
-    const secondPanel: MeetingPanelDescriptor = {
-      ...dummyPanel,
-      id: 'second_dummy_panel',
-    };
+  it('orders blessed panels by the manifest rather than caller order', () => {
+    const secondPanel = blessedPanel('agenda');
+    const firstPanel = blessedPanel('tasks');
     const secondAction: MeetingHeaderActionDescriptor = {
       ...dummyAction,
       id: 'second_dummy_action',
@@ -118,8 +138,8 @@ describe('meeting workspace registries', () => {
     };
 
     expect(
-      getMeetingPanels([dummyPanel, secondPanel]).map((item) => item.id)
-    ).toEqual(['dummy_panel', 'second_dummy_panel']);
+      getMeetingPanels([firstPanel, secondPanel]).map((item) => item.id)
+    ).toEqual(['agenda', 'tasks']);
     expect(
       getMeetingHeaderActions([dummyAction, secondAction]).map(
         (item) => item.id
@@ -132,8 +152,9 @@ describe('meeting workspace registries', () => {
 
   it('rejects duplicate ids in every registry with a clear registry name', () => {
     expect(() => {
-      validateMeetingPanelDescriptors([dummyPanel, dummyPanel]);
-    }).toThrow('[meetingPanelRegistry] duplicate panel id: dummy_panel');
+      const prepPanel = blessedPanel('prep');
+      validateMeetingPanelDescriptors([prepPanel, prepPanel]);
+    }).toThrow('[meetingPanelRegistry] duplicate panel id: prep');
     expect(() => {
       validateMeetingHeaderActionDescriptors([dummyAction, dummyAction]);
     }).toThrow(
@@ -144,17 +165,25 @@ describe('meeting workspace registries', () => {
     }).toThrow('[meetingInsightRegistry] duplicate insight id: dummy_insight');
   });
 
+  it('rejects off-list panel ids before the host can render them', () => {
+    expect(() => {
+      getMeetingPanels([dummyPanel]);
+    }).toThrow(
+      '[meetingPanelRegistry] panel id is not in the blessed manifest: dummy_panel'
+    );
+  });
+
   it('rejects incomplete panel and header action contracts', () => {
     expect(() => {
       validateMeetingPanelDescriptors([
-        { ...dummyPanel, labelKey: 'not-namespaced' },
+        { ...blessedPanel('prep'), labelKey: 'not-namespaced' },
       ]);
-    }).toThrow('labelKey must be namespaced: dummy_panel');
+    }).toThrow('labelKey must be namespaced: prep');
     expect(() => {
       validateMeetingPanelDescriptors([
-        { ...dummyPanel, mount: undefined as never },
+        { ...blessedPanel('prep'), mount: undefined as never },
       ]);
-    }).toThrow('invalid panel contract: dummy_panel');
+    }).toThrow('invalid panel contract: prep');
     expect(() => {
       validateMeetingHeaderActionDescriptors([
         { ...dummyAction, placement: 'floating' as never },
@@ -187,9 +216,7 @@ describe('meeting workspace registries', () => {
       ]);
     }).toThrow('artifact store is required: dummy_insight');
     expect(() => {
-      validateMeetingInsightDescriptors([
-        { ...dummyInsight, selectors: {} },
-      ]);
+      validateMeetingInsightDescriptors([{ ...dummyInsight, selectors: {} }]);
     }).toThrow('selectors are required: dummy_insight');
     expect(() => {
       validateMeetingInsightDescriptors([

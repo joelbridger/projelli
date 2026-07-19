@@ -43,23 +43,36 @@ const baseProps = {
 };
 
 describe('MeetingEntry — honest recording-incomplete state (QA-35 review round 2)', () => {
-  it('shows the durable "didn\'t finish saving" message in BOTH panes, never eternal pending, when a recordingError left no audio at all', async () => {
+  it('shows the durable "didn\'t finish saving" message in Transcript, not a retired audio tab, when a recordingError left no audio at all', async () => {
     const ws = makeWorkspace(
       {
         matterId: 'm-1',
         startedAt: '2026-07-04T10:00:00Z',
-        consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: '2026-07-04T10:00:00Z' },
-        recordingError: { kind: 'error', at: '2026-07-04T10:05:00Z', message: 'No space left on device' },
+        consent: {
+          mode: 'one-party',
+          confirmedBy: 'user',
+          confirmedAt: '2026-07-04T10:00:00Z',
+        },
+        recordingError: {
+          kind: 'error',
+          at: '2026-07-04T10:05:00Z',
+          message: 'No space left on device',
+        },
       },
       { audioExists: false }
     );
 
     render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
 
-    await waitFor(() => expect(screen.getByTestId('meeting-entry-recording-incomplete')).toBeTruthy());
     fireEvent.click(screen.getByTestId('meeting-subtab-transcript'));
-    expect(screen.getByTestId('meeting-entry-recording-incomplete-transcript')).toBeTruthy();
-    expect(screen.queryByTestId('meeting-entry-notes-pending')).toBeNull();
+    await waitFor(() =>
+      expect(
+        screen.getByTestId('meeting-entry-recording-incomplete-transcript')
+      ).toBeTruthy()
+    );
+    expect(
+      screen.queryByTestId('meeting-entry-recording-incomplete')
+    ).toBeNull();
     expect(screen.queryByTestId('meeting-entry-transcript-pending')).toBeNull();
     // No retry offered — there's nothing to regenerate from; re-recording the
     // meeting is the only way forward, which this component has no action for.
@@ -72,8 +85,16 @@ describe('MeetingEntry — honest recording-incomplete state (QA-35 review round
       {
         matterId: 'm-1',
         startedAt: '2026-07-04T10:00:00Z',
-        consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: '2026-07-04T10:00:00Z' },
-        recordingError: { kind: 'disk-full', at: '2026-07-04T10:05:00Z', message: 'partial audio at ...' },
+        consent: {
+          mode: 'one-party',
+          confirmedBy: 'user',
+          confirmedAt: '2026-07-04T10:00:00Z',
+        },
+        recordingError: {
+          kind: 'disk-full',
+          at: '2026-07-04T10:05:00Z',
+          message: 'partial audio at ...',
+        },
       },
       { audioExists: true }
     );
@@ -81,24 +102,38 @@ describe('MeetingEntry — honest recording-incomplete state (QA-35 review round
     render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
 
     fireEvent.click(screen.getByTestId('meeting-subtab-summary'));
-    await waitFor(() => expect(screen.getByTestId('meeting-entry-notes-pending')).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByTestId('meeting-entry-notes-pending')).toBeTruthy()
+    );
     fireEvent.click(screen.getByTestId('meeting-subtab-transcript'));
     expect(screen.getByTestId('meeting-entry-transcript-pending')).toBeTruthy();
-    expect(screen.queryByTestId('meeting-entry-recording-incomplete')).toBeNull();
-    expect(screen.queryByTestId('meeting-entry-recording-incomplete-transcript')).toBeNull();
+    expect(
+      screen.queryByTestId('meeting-entry-recording-incomplete')
+    ).toBeNull();
+    expect(
+      screen.queryByTestId('meeting-entry-recording-incomplete-transcript')
+    ).toBeNull();
   });
 
   it('still shows the plain "pending" state when there is no recordingError at all', async () => {
     const ws = makeWorkspace({
       matterId: 'm-1',
       startedAt: '2026-07-04T10:00:00Z',
-      consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: '2026-07-04T10:00:00Z' },
+      consent: {
+        mode: 'one-party',
+        confirmedBy: 'user',
+        confirmedAt: '2026-07-04T10:00:00Z',
+      },
     });
 
     render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
 
     fireEvent.click(screen.getByTestId('meeting-subtab-summary'));
-    await waitFor(() => expect(screen.getByTestId('meeting-entry-notes-pending')).toBeTruthy());
-    expect(screen.queryByTestId('meeting-entry-recording-incomplete')).toBeNull();
+    await waitFor(() =>
+      expect(screen.getByTestId('meeting-entry-notes-pending')).toBeTruthy()
+    );
+    expect(
+      screen.queryByTestId('meeting-entry-recording-incomplete')
+    ).toBeNull();
   });
 });

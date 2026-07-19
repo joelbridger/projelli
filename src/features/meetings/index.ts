@@ -59,6 +59,7 @@ export type { MeetingKeywordCatalogueStore } from './foundation/contract';
 // dependent's panel / header action / insight is load-bearing in the product.
 // Contribute with `createMeeting*Composition(...descriptors)` (see SKILL.md).
 export {
+  BLESSED_MEETING_PANEL_IDS,
   meetingPanelRegistry,
   validateMeetingPanelDescriptors,
   getMeetingPanels,
@@ -70,6 +71,7 @@ export {
   type MeetingPanelContext,
   type MeetingPanelDescriptor,
   type MeetingPanelId,
+  type BlessedMeetingPanelId,
 } from './meetingPanelRegistry';
 export {
   meetingHeaderActionRegistry,

@@ -1,7 +1,8 @@
 /**
  * MeetingEntry — the meeting page: date/duration/consent, a retention
- * action, and three review tabs: Recording, Transcript, Summary. Opened from
- * both the client's Meetings tab and its Activity timeline entry.
+ * action, and composable review tabs. Audio remains a secondary media handoff,
+ * not a detail tab. Opened from both the client's Meetings tab and its Activity
+ * timeline entry.
  */
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -170,7 +171,10 @@ export function MeetingEntry({
   );
   const { matterId, meetingDir } = hostIdentity;
   const canonicalTarget = hostIdentity.canonicalMeeting
-    ? { meeting: hostIdentity.canonicalMeeting, client: hostIdentity.clientBoundary }
+    ? {
+        meeting: hostIdentity.canonicalMeeting,
+        client: hostIdentity.clientBoundary,
+      }
     : null;
   const { t } = useTranslation();
   const firm = useFirm();
@@ -183,7 +187,7 @@ export function MeetingEntry({
   const [audioSrc, setAudioSrc] = useState<string | null>(null);
   const [hasAudio, setHasAudio] = useState(false);
   const [seekMs, setSeekMs] = useState<number | undefined>(initialSeekMs);
-  const [activeTab, setActiveTab] = useState<MeetingPanelId>('recording');
+  const [activeTab, setActiveTab] = useState<MeetingPanelId>('summary');
   const [sendOpen, setSendOpen] = useState(false);
   const [editingType, setEditingType] = useState(false);
   const [typeInput, setTypeInput] = useState('');
