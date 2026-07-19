@@ -1,4 +1,8 @@
-export { CalendarGridSurface } from './CalendarGridSurface';
+export {
+  CalendarGridSurface,
+  type CalendarGridClientScope,
+  type CalendarGridSurfaceProps,
+} from './CalendarGridSurface';
 export { CalendarEventSheet, eventSheetHeading, type CalendarEventSheetProps } from './CalendarEventSheet';
 export { calendarGridRange, type CalendarGridView } from './calendarGridRange';
 export {

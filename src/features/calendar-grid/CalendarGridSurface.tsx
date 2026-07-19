@@ -16,9 +16,55 @@ import { CalendarEventSheet, eventSheetHeading } from './CalendarEventSheet';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+type CalendarGridLoadError = 'workspace-required' | 'load-failed';
+
+interface CalendarGridLoadState {
+  readonly key: string;
+  readonly occurrences: readonly CalendarOccurrence[];
+  readonly error: CalendarGridLoadError | null;
+}
+
+type CalendarGridClientPair = Pick<CalendarGridClientScope, 'householdRef' | 'matterId'>;
+
+export interface CalendarGridClientScope {
+  /** The canonical household identity selected by the shared client context. */
+  readonly householdRef: string;
+  /** The canonical matter paired with that exact household. */
+  readonly matterId: string;
+  /** Display-only client name used by the filtered empty state. */
+  readonly displayName: string;
+}
+
 function chronological(occurrences: readonly CalendarOccurrence[]): readonly CalendarOccurrence[] {
   return [...occurrences].sort((left, right) =>
     left.startUtc.localeCompare(right.startUtc) || left.occurrenceKey.localeCompare(right.occurrenceKey));
+}
+
+function isStableScopeValue(value: string): boolean {
+  return value.length > 0 && value === value.trim();
+}
+
+/**
+ * Selected-client projection is deliberately exact and fail-closed. The
+ * calendar link itself must name a household and carry both halves of the
+ * selected pair. Matter equality alone never proves household ownership.
+ */
+function projectOccurrencesForClient(
+  occurrences: readonly CalendarOccurrence[],
+  scope: CalendarGridClientPair | null,
+): readonly CalendarOccurrence[] {
+  if (scope === null) return occurrences;
+  if (!isStableScopeValue(scope.householdRef) || !isStableScopeValue(scope.matterId)) return [];
+  return occurrences.filter((occurrence) =>
+    occurrence.contextRef?.kind === 'household'
+    && occurrence.contextRef.id === scope.householdRef
+    && occurrence.contextRef.matterId === scope.matterId);
+}
+
+function loadErrorKind(reason: unknown): CalendarGridLoadError {
+  return reason instanceof Error && reason.message.includes('Open a workspace')
+    ? 'workspace-required'
+    : 'load-failed';
 }
 
 function localTime(occurrence: CalendarOccurrence): string {
@@ -63,6 +109,11 @@ export interface CalendarGridSurfaceProps {
   readonly now?: Date;
   /** Optional real workspace-picker hand-off for the no-workspace recovery state. */
   readonly onOpenWorkspace?: () => void;
+  /**
+   * Exact selected-client pair. `null` (and omission for existing consumers)
+   * is the explicit whole-firm projection; a non-null scope fails closed.
+   */
+  readonly clientScope?: CalendarGridClientScope | null;
 }
 
 /**
@@ -79,6 +130,7 @@ function CalendarGridSurfaceEnabled({
   viewComposition = defaultCalendarGridViewComposition,
   now,
   onOpenWorkspace,
+  clientScope = null,
 }: CalendarGridSurfaceProps) {
   const { t } = useTranslation();
   const calendar = useCalendarEventStore();
@@ -86,17 +138,36 @@ function CalendarGridSurfaceEnabled({
   const [today] = useState(() => now ?? new Date());
   const [rangeView, setRangeView] = useState<CalendarGridView>('month');
   const [activeViewId, setActiveViewId] = useState<CalendarGridViewId>('month');
-  const [occurrences, setOccurrences] = useState<readonly CalendarOccurrence[]>([]);
+  const [loadState, setLoadState] = useState<CalendarGridLoadState>({
+    key: '',
+    occurrences: [],
+    error: null,
+  });
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [selectedDayKey, setSelectedDayKey] = useState(() => dayKey(now ?? new Date()));
   const [peekOpen, setPeekOpen] = useState(false);
   const [editor, setEditor] = useState<'new' | 'edit' | null>(null);
-  const [loadedRangeKey, setLoadedRangeKey] = useState('');
-  const [error, setError] = useState<string | null>(null);
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
   const range = useMemo(() => calendarGridRange(rangeView, anchor), [anchor, rangeView]);
   const rangeKey = `${range.startUtc}:${range.endUtc}`;
-  const loading = loadedRangeKey !== rangeKey;
+  const scopeHouseholdRef = clientScope?.householdRef ?? null;
+  const scopeMatterId = clientScope?.matterId ?? null;
+  const projectionScope = useMemo<CalendarGridClientPair | null>(
+    () => scopeHouseholdRef === null || scopeMatterId === null
+      ? null
+      : { householdRef: scopeHouseholdRef, matterId: scopeMatterId },
+    [scopeHouseholdRef, scopeMatterId]
+  );
+  const clientSelectionKey = clientScope === null
+    ? 'whole-firm'
+    : JSON.stringify(['client', scopeHouseholdRef, scopeMatterId]);
+  const queryKey = `${rangeKey}:${clientSelectionKey}`;
+  const activeLoadState = loadState.key === queryKey
+    ? loadState
+    : { key: queryKey, occurrences: [], error: null };
+  const occurrences = activeLoadState.occurrences;
+  const error = activeLoadState.error;
+  const loading = loadState.key !== queryKey;
   const enabledViews = getEnabledCalendarGridViews(viewComposition);
   const activeView = enabledViews.find((descriptor) => descriptor.id === activeViewId)
     ?? enabledViews[0];
@@ -105,23 +176,19 @@ function CalendarGridSurfaceEnabled({
     let current = true;
     void calendar.listOccurrences(range).then((next) => {
       if (!current) return;
-      const sorted = chronological(next);
-      setError(null);
-      setOccurrences(sorted);
-      setLoadedRangeKey(rangeKey);
+      const sorted = chronological(projectOccurrencesForClient(next, projectionScope));
+      setLoadState({ key: queryKey, occurrences: sorted, error: null });
       setSelectedKey((previous) => {
         if (sorted.some((item) => item.occurrenceKey === previous)) return previous;
         return null;
       });
     }).catch((reason: unknown) => {
       if (!current) return;
-      setOccurrences([]);
+      setLoadState({ key: queryKey, occurrences: [], error: loadErrorKind(reason) });
       setSelectedKey(null);
-      setError(reason instanceof Error ? reason.message : String(reason));
-      setLoadedRangeKey(rangeKey);
     });
     return () => { current = false; };
-  }, [calendar, range, rangeKey]);
+  }, [calendar, projectionScope, queryKey, range]);
 
   useEffect(() => {
     if (!saveNotice) return undefined;
@@ -149,7 +216,21 @@ function CalendarGridSurfaceEnabled({
 
   const nativeViews = enabledViews.filter((descriptor) => descriptor.rangeView !== undefined);
   const presentationViews = enabledViews.filter((descriptor) => descriptor.rangeView === undefined);
-  const hasNoWorkspace = error?.includes('Open a workspace') ?? false;
+  const hasNoWorkspace = error === 'workspace-required';
+  const errorCopy = hasNoWorkspace
+    ? t('calendar-grid.errors.workspace-required', {
+        defaultValue: 'Open a workspace to view calendar events.',
+      })
+    : t('calendar-grid.errors.load', {
+        defaultValue: 'Calendar events could not be loaded. Try again.',
+      });
+  const clientName = clientScope?.displayName.trim() || clientScope?.householdRef;
+  const emptyCopy = clientScope
+    ? t('calendar-grid.empty-client', {
+        client: clientName,
+        defaultValue: 'No events for {{client}} in this range. This calendar is filtered to this client.',
+      })
+    : t('calendar-grid.empty');
   const handleSaved = () => {
     setEditor(null);
     setPeekOpen(false);
@@ -181,8 +262,8 @@ function CalendarGridSurfaceEnabled({
       <div className="relative" data-testid="calendar-grid-workspace">
         {activeView?.mount(viewContext) ?? null}
         {loading ? <div data-testid="calendar-grid-loading" className="absolute inset-x-4 top-4 rounded-md border border-[var(--kp-divider)] bg-[var(--kp-bg-soft)] px-3 py-2 text-center text-[length:var(--kp-font-xs)] text-[var(--kp-text-dim)]">{t('calendar-grid.loading')}</div> : null}
-        {error ? <div role="alert" data-testid="calendar-grid-error" className="absolute inset-x-4 top-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-[var(--kp-danger)] bg-[var(--kp-danger-bg)] px-3 py-2 text-[length:var(--kp-font-sm)] text-[var(--kp-navy)]"><span>{error}</span>{hasNoWorkspace ? (onOpenWorkspace ? <button type="button" className="kp-btn kp-btn--secondary kp-btn--sm" onClick={onOpenWorkspace}>{t('calendar-grid.open-workspace')}</button> : null) : <button type="button" className="kp-btn kp-btn--secondary kp-btn--sm" onClick={() => { setAnchor((current) => new Date(current)); }}>{t('calendar-grid.retry')}</button>}</div> : null}
-        {!loading && !error && occurrences.length === 0 ? <div data-testid="calendar-grid-empty" className="absolute inset-x-4 top-4 grid min-h-28 place-items-center rounded-lg border border-dashed border-[var(--kp-divider)] bg-[var(--kp-bg-soft)] px-4 text-center text-[length:var(--kp-font-sm)] text-[var(--kp-text-faint)]">{t('calendar-grid.empty')}</div> : null}
+        {error ? <div role="alert" data-testid="calendar-grid-error" className="absolute inset-x-4 top-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-[var(--kp-danger)] bg-[var(--kp-danger-bg)] px-3 py-2 text-[length:var(--kp-font-sm)] text-[var(--kp-navy)]"><span>{errorCopy}</span>{hasNoWorkspace ? (onOpenWorkspace ? <button type="button" className="kp-btn kp-btn--secondary kp-btn--sm" onClick={onOpenWorkspace}>{t('calendar-grid.open-workspace')}</button> : null) : <button type="button" className="kp-btn kp-btn--secondary kp-btn--sm" onClick={() => { setAnchor((current) => new Date(current)); }}>{t('calendar-grid.retry')}</button>}</div> : null}
+        {!loading && !error && occurrences.length === 0 ? <div data-testid="calendar-grid-empty" className="absolute inset-x-4 top-4 grid min-h-28 place-items-center rounded-lg border border-dashed border-[var(--kp-divider)] bg-[var(--kp-bg-soft)] px-4 text-center text-[length:var(--kp-font-sm)] text-[var(--kp-text-faint)]">{emptyCopy}</div> : null}
       </div>
     </div>
     {saveNotice ? <div role="status" data-testid="calendar-grid-save-toast" className="fixed bottom-5 right-5 z-[var(--kp-z-toast)] rounded-lg border border-[var(--kp-divider)] bg-[var(--kp-surface)] px-4 py-3 text-[length:var(--kp-font-sm)] font-semibold text-[var(--kp-navy)] shadow-[var(--kp-shadow-3)]">
