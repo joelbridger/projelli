@@ -29,7 +29,8 @@
     },
     "review": {
       "title": "Revisar notas",
-      "approve-description": "No se añade nada hasta que apruebe cada elemento."
+      "approve-description": "No se añade nada hasta que apruebe cada elemento.",
+      "not-produced": "Todavía no se han producido {{label}} para esta reunión."
     },
     "speakers": {
       "title": "¿Quién está hablando?",
@@ -102,6 +103,8 @@
       "tab-recording": "Grabación",
       "tab-transcript": "Transcripción",
       "tab-summary": "Resumen",
+      "tab-tasks": "Tareas",
+      "tab-crm-update": "Actualización de CRM",
       "tab-send-to-team": "Enviar al equipo",
       "download-audio": "Descargar audio",
       "no-audio": "No hay audio guardado para esta reunión.",

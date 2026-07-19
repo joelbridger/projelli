@@ -98,6 +98,9 @@ import {
 } from '@/platform/fs/BackendFactory';
 import { flushAllDirtyTabs } from '@/app/fileOps/flushDirtyTabs';
 import { useTabWriteGuard } from '@/platform/browserGuard/useTabWriteGuard';
+import { registerMeetingNotesReviewCompatibilityPanels } from '@/app/meetingNotesReviewBindings';
+
+registerMeetingNotesReviewCompatibilityPanels();
 
 // flushAllDirtyTabs returns failed .docx paths, while the tab guard needs a
 // completion-only callback. Keep this adapter module-stable: guard ownership

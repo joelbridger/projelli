@@ -7,7 +7,6 @@ import {
   Send,
   Trash2,
 } from 'lucide-react';
-import { MeetingNotesReview } from '@/platform/meetingNotesReview/MeetingNotesReview';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -232,19 +231,6 @@ export const legacyMeetingPanels: readonly MeetingPanelDescriptor[] = [
       >
         {context.summaryReady ? (
           <>
-            <MeetingNotesReview
-              meetingDir={context.meetingDir}
-              matterId={context.matterId}
-              summaryText={context.summaryText}
-              summaryHtml={context.summaryExtraction?.html ?? ''}
-              workspaceService={context.workspaceService}
-              {...(context.crmBlockedReason
-                ? {
-                    crmBlockedReason:
-                      'Mark this meeting reviewed before sending a CRM update.',
-                  }
-                : {})}
-            />
             <pre
               data-testid="meeting-summary-text"
               style={{

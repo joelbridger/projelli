@@ -2,53 +2,223 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { describe, expect, it, vi } from 'vitest';
 import { NotesReviewPanel } from './NotesReviewPanel';
-import { normalizeNotesReviewItems } from './normalizeNotesReviewItems';
+import type {
+  ExactMeetingCrmReviewItem,
+  ExactMeetingNotesReviewItem,
+  ExactMeetingTaskReviewItem,
+} from './notesReview';
 
-describe('normalizeNotesReviewItems', () => {
-  it('safely adapts template-shaped input and defaults unknown destinations to internal', () => {
-    expect(normalizeNotesReviewItems([
-      { itemId: 'follow-up', summary: 'Call the CPA', description: 'Confirm the estimated tax payment.', target: 'TASK', sourceRef: 'Annual review' },
-      { id: 'fallback', title: 'Save planning note', output: 'new vendor output' },
-      { blockId: 'decisions', label: 'Decisions', body: 'Move the rollover forward.', citations: [12000, 'bad'] },
-      null,
-      { id: 'missing-title' },
-    ])).toEqual([
-      { id: 'follow-up', title: 'Call the CPA', detail: 'Confirm the estimated tax payment.', destination: 'task', sourceLabel: 'Annual review' },
-      { id: 'fallback', title: 'Save planning note', detail: 'Save planning note', destination: 'internal' },
-      { id: 'decisions', title: 'Decisions', detail: 'Move the rollover forward.', destination: 'internal', sourceLabel: '12000' },
-    ]);
+const client = {
+  householdRef: 'household-webb',
+  matterId: 'matter-webb',
+};
+const task: ExactMeetingTaskReviewItem = {
+  id: 'call-cpa',
+  artifactId: 'artifact-actions',
+  meetingId: 'meeting-review',
+  client,
+  kind: 'task',
+  title: 'Call the CPA',
+  detail: 'Confirm the estimated tax payment.',
+  ownerRef: 'advisor-a',
+  dueDate: '2026-08-01',
+  transcriptRef: 'meeting:meeting-review#42000',
+  approvalState: 'proposed',
+};
+const crm: ExactMeetingCrmReviewItem = {
+  id: 'risk-update',
+  artifactId: 'artifact-actions',
+  meetingId: 'meeting-review',
+  client,
+  kind: 'crm-update',
+  title: 'Update risk preference',
+  detail: 'The client confirmed moderate growth.',
+  transcriptRef: 'meeting:meeting-review#88000',
+  entityRef: 'household:household-webb',
+  fields: [
+    {
+      field: 'risk_tolerance',
+      label: 'Risk tolerance',
+      valueType: 'text',
+      before: 'Conservative',
+      proposed: 'Moderate growth',
+    },
+  ],
+  approvalState: 'proposed',
+};
+
+describe('NotesReviewPanel exact-meeting states', () => {
+  it.each([
+    ['task', 'notes-review-task-loading'],
+    ['crm-update', 'notes-review-crm-update-loading'],
+  ] as const)('shows a distinct loading state for %s', (reviewKind, testId) => {
+    render(
+      <NotesReviewPanel
+        reviewKind={reviewKind}
+        state={{ kind: 'loading' }}
+        onApprove={vi.fn()}
+      />
+    );
+    expect(screen.getByTestId(testId)).toBeInTheDocument();
   });
+
+  it.each(['task', 'crm-update'] as const)(
+    'distinguishes not-produced, blocked, and retryable local errors for %s',
+    (reviewKind) => {
+      const retry = vi.fn();
+      const { rerender } = render(
+        <NotesReviewPanel
+          reviewKind={reviewKind}
+          state={{ kind: 'empty', reason: 'not-produced' }}
+          onApprove={vi.fn()}
+        />
+      );
+      expect(
+        screen.getByTestId(`notes-review-${reviewKind}-empty`)
+      ).toHaveTextContent('not been produced');
+
+      rerender(
+        <NotesReviewPanel
+          reviewKind={reviewKind}
+          state={{ kind: 'blocked', message: 'Client selection is blocked.' }}
+          onApprove={vi.fn()}
+        />
+      );
+      expect(
+        screen.getByTestId(`notes-review-${reviewKind}-blocked`)
+      ).toHaveTextContent('Client selection is blocked.');
+
+      rerender(
+        <NotesReviewPanel
+          reviewKind={reviewKind}
+          state={{ kind: 'error', message: 'Local records did not load.' }}
+          onRetry={retry}
+          onApprove={vi.fn()}
+        />
+      );
+      fireEvent.click(screen.getByTestId(`notes-review-${reviewKind}-retry`));
+      expect(retry).toHaveBeenCalledTimes(1);
+    }
+  );
 });
 
-describe('NotesReviewPanel', () => {
-  const item = { id: 'follow-up', title: 'Call the CPA', detail: 'Confirm the estimated tax payment.', destination: 'task' };
+describe('NotesReviewPanel item approval', () => {
+  it('keeps task edits local until the explicit click and submits owner, due date, and exact identity', async () => {
+    const approve = vi.fn((_item: ExactMeetingNotesReviewItem) =>
+      Promise.resolve({ status: 'created' as const, message: 'Task created.' })
+    );
+    render(
+      <NotesReviewPanel
+        reviewKind="task"
+        state={{ kind: 'populated', items: [task] }}
+        onApprove={approve}
+      />
+    );
 
-  it('requires an explicit approve click, sends the selected destination, and shows its receipt', async () => {
-    const approve = vi.fn(() => Promise.resolve({ status: 'created' as const, message: 'Task added to the client plan.' }));
-    render(<NotesReviewPanel rawItems={[item]} onApprove={approve} />);
-
+    fireEvent.change(screen.getByTestId('notes-review-task-title-call-cpa'), {
+      target: { value: 'Call tax advisor' },
+    });
+    fireEvent.change(screen.getByTestId('notes-review-task-owner-call-cpa'), {
+      target: { value: 'advisor-b' },
+    });
+    fireEvent.change(screen.getByTestId('notes-review-task-due-call-cpa'), {
+      target: { value: '2026-08-05' },
+    });
     expect(approve).not.toHaveBeenCalled();
-    fireEvent.change(screen.getByTestId('notes-review-destination-follow-up'), { target: { value: 'crm' } });
-    expect(screen.getByTestId('notes-review-approve-follow-up')).toHaveTextContent('Approve crm update');
-    fireEvent.click(screen.getByTestId('notes-review-approve-follow-up'));
 
-    await waitFor(() => { expect(approve).toHaveBeenCalledWith({ ...item, destination: 'crm' }); });
-    expect(screen.getByTestId('notes-review-receipt-follow-up')).toHaveTextContent('Task added to the client plan.');
-    expect(screen.getByTestId('notes-review-item-follow-up')).toHaveTextContent('Approved');
+    fireEvent.click(screen.getByTestId('notes-review-approve-call-cpa'));
+    await waitFor(() => {
+      expect(approve).toHaveBeenCalledTimes(1);
+    });
+    expect(approve.mock.calls[0]?.[0]).toMatchObject({
+      artifactId: 'artifact-actions',
+      meetingId: 'meeting-review',
+      client,
+      title: 'Call tax advisor',
+      ownerRef: 'advisor-b',
+      dueDate: '2026-08-05',
+      transcriptRef: 'meeting:meeting-review#42000',
+    });
+    expect(screen.getByTestId('notes-review-approved-call-cpa')).toHaveTextContent(
+      'Task created.'
+    );
   });
 
-  it('does not claim delivery when the connected destination returns no receipt', async () => {
-    render(<NotesReviewPanel rawItems={[item]} onApprove={() => Promise.resolve(undefined)} />);
-    fireEvent.click(screen.getByTestId('notes-review-approve-follow-up'));
+  it('shows the typed CRM before value, edits only proposed, and does not write on render or type', async () => {
+    const approve = vi.fn((_item: ExactMeetingNotesReviewItem) =>
+      Promise.resolve({ status: 'sent' as const, message: 'CRM updated.' })
+    );
+    render(
+      <NotesReviewPanel
+        reviewKind="crm-update"
+        state={{ kind: 'populated', items: [crm] }}
+        onApprove={approve}
+      />
+    );
+    const before = screen.getByTestId(
+      'notes-review-crm-before-risk-update-risk_tolerance'
+    );
+    expect(before).toHaveValue('Conservative');
+    expect(before).toHaveAttribute('readonly');
+    fireEvent.change(
+      screen.getByTestId(
+        'notes-review-crm-proposed-risk-update-risk_tolerance'
+      ),
+      { target: { value: 'Balanced' } }
+    );
+    expect(approve).not.toHaveBeenCalled();
 
-    expect(await screen.findByTestId('notes-review-receipt-follow-up')).toHaveTextContent('did not return a delivery receipt');
+    fireEvent.click(screen.getByTestId('notes-review-approve-risk-update'));
+    await waitFor(() => {
+      expect(approve).toHaveBeenCalledTimes(1);
+    });
+    expect(approve.mock.calls[0]?.[0]).toMatchObject({
+      fields: [
+        {
+          field: 'risk_tolerance',
+          before: 'Conservative',
+          proposed: 'Balanced',
+        },
+      ],
+    });
   });
 
-  it('shows a failure beside the proposal and never turns it into an approval receipt', async () => {
-    render(<NotesReviewPanel rawItems={[item]} onApprove={() => Promise.reject(new Error('CRM is unavailable. Nothing was sent.'))} />);
-    fireEvent.click(screen.getByTestId('notes-review-approve-follow-up'));
+  it('renders an already-approved proposal without an approval button', () => {
+    render(
+      <NotesReviewPanel
+        reviewKind="task"
+        state={{
+          kind: 'populated',
+          items: [{ ...task, approvalState: 'approved' }],
+        }}
+        onApprove={vi.fn()}
+      />
+    );
+    expect(screen.getByTestId('notes-review-approved-call-cpa')).toHaveTextContent(
+      'Approved earlier.'
+    );
+    expect(screen.queryByTestId('notes-review-approve-call-cpa')).toBeNull();
+  });
 
-    expect(await screen.findByTestId('notes-review-error-follow-up')).toHaveTextContent('CRM is unavailable. Nothing was sent.');
-    expect(screen.queryByTestId('notes-review-receipt-follow-up')).toBeNull();
+  it('keeps a saved approval visible when later destination delivery fails', async () => {
+    const failure = Object.assign(
+      new Error('Approval was recorded, but delivery failed.'),
+      { approvalRecorded: true as const }
+    );
+    render(
+      <NotesReviewPanel
+        reviewKind="task"
+        state={{ kind: 'populated', items: [task] }}
+        onApprove={() => Promise.reject(failure)}
+      />
+    );
+    fireEvent.click(screen.getByTestId('notes-review-approve-call-cpa'));
+    expect(await screen.findByTestId('notes-review-approved-call-cpa')).toHaveTextContent(
+      'Approved earlier.'
+    );
+    expect(screen.getByTestId('notes-review-error-call-cpa')).toHaveTextContent(
+      'delivery failed'
+    );
+    expect(screen.queryByTestId('notes-review-approve-call-cpa')).toBeNull();
   });
 });
