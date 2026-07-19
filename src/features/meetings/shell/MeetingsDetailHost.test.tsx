@@ -10,9 +10,12 @@ import { useMatterStore } from '@/platform/matter/matterStore';
 import {
   OutsideMeetingsShellContributions,
 } from '@/foundation-contracts/meetings-shell/meetingsShellV2.import';
+import '@/app/shell/meetingPrepCompatibility';
+import { registerMeetingNotesReviewCompatibilityPanels } from '@/app/meetingNotesReviewBindings';
 
 const seam = vi.hoisted(() => ({
   records: [] as LiveCrmRecord[],
+  selected: true,
 }));
 
 vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
@@ -32,25 +35,42 @@ vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
 
 vi.mock('@/platform/client-context', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/platform/client-context')>()),
-  useSelectionOperationDecision: () => ({
-    kind: 'matter',
-    sourceKind: 'matter-only',
-    matter: { id: 'matter-1' },
-    client: null,
-  }),
-  readSelectionOperationDecision: () => ({
-    kind: 'matter',
-    sourceKind: 'matter-only',
-    matter: { id: 'matter-1' },
-    client: null,
-  }),
+  useSelectionOperationDecision: () =>
+    seam.selected
+      ? {
+          kind: 'matter',
+          sourceKind: 'matter',
+          matter: { id: 'matter-1' },
+          client: {
+            provider: 'wealthbox',
+            householdId: 'household-1',
+            displayName: 'Household One',
+          },
+        }
+      : { kind: 'refused', reason: 'blocked-unresolved', message: 'Blocked.' },
+  readSelectionOperationDecision: () =>
+    seam.selected
+      ? {
+          kind: 'matter',
+          sourceKind: 'matter',
+          matter: { id: 'matter-1' },
+          client: {
+            provider: 'wealthbox',
+            householdId: 'household-1',
+            displayName: 'Household One',
+          },
+        }
+      : { kind: 'refused', reason: 'blocked-unresolved', message: 'Blocked.' },
 }));
 
 import {
   createMeetingStore,
+  readActiveMeetingClientBoundary,
   resolveMeetingOpenTarget,
 } from '../foundation/contract';
 import { MeetingsDetailHost } from './MeetingsWorkspace';
+
+registerMeetingNotesReviewCompatibilityPanels();
 
 const MEETING_DIR = 'Clients/Household One/Meetings/2026-07-20';
 
@@ -197,6 +217,7 @@ describe('Meetings sealed detail contribution hosts', () => {
   let service: WorkspaceService;
 
   beforeEach(async () => {
+    seam.selected = true;
     service = new WorkspaceService();
     await service.initialize(new DetailHostBackend(), '/workspace');
     setActiveWorkspaceService(service);
@@ -248,14 +269,15 @@ describe('Meetings sealed detail contribution hosts', () => {
       records: seam.records,
       workspaceRoot: '/workspace',
       error: null,
-      getActiveMatterId: () => 'matter-1',
+      getActiveClientBoundary: readActiveMeetingClientBoundary,
       getSelectionError: () => null,
       save: (record: LiveCrmRecord) => Promise.resolve(record),
       reloadRecords: () => Promise.resolve(seam.records),
     };
     const target = await resolveMeetingOpenTarget(
       createMeetingStore(port),
-      'meeting-a'
+      'meeting-a',
+      readActiveMeetingClientBoundary
     );
 
     render(<DetailHarness target={target} service={service} />);
@@ -271,25 +293,46 @@ describe('Meetings sealed detail contribution hosts', () => {
     );
 
     const tabProof = [
-      ['prep', 'meeting-recording-tab'],
-      ['agenda', 'meeting-agenda-tab'],
+      ['prep', 'meeting-prep-empty'],
+      ['agenda', 'meeting-agenda-empty'],
       ['summary', 'meeting-summary-tab'],
       ['transcript', 'meeting-transcript-tab'],
-      ['tasks', 'meeting-tasks-tab'],
-      ['crm-update', 'meeting-crm-update-tab'],
-      ['follow-up', 'meeting-follow-up-tab'],
+      ['tasks', 'notes-review-task-empty'],
+      ['crm-update', 'notes-review-crm-update-empty'],
+      ['follow-up', 'meeting-follow-up-not-produced'],
     ] as const;
     for (const [tab, panel] of tabProof) {
-      fireEvent.click(screen.getByTestId(`meeting-subtab-${tab}`));
-      expect(screen.getByTestId(panel)).toBeTruthy();
+      fireEvent.click(await screen.findByTestId(`meeting-subtab-${tab}`));
+      expect(await screen.findByTestId(panel)).toBeTruthy();
     }
-    fireEvent.click(screen.getByTestId('meeting-follow-up-open'));
-    expect(await screen.findByTestId('meeting-send-panel')).toBeTruthy();
-
     fireEvent.click(screen.getByTestId('detail-contributions-toggle'));
     await waitFor(() => {
       expect(screen.queryByTestId('outside-meeting-artifact-host')).toBeNull();
       expect(screen.queryByTestId('outside-meeting-notice-host')).toBeNull();
     });
+  });
+
+  it('mounts no detail or extension host after live client authority disappears', async () => {
+    const port = {
+      records: seam.records,
+      workspaceRoot: '/workspace',
+      error: null,
+      getActiveClientBoundary: readActiveMeetingClientBoundary,
+      getSelectionError: () => null,
+      save: (record: LiveCrmRecord) => Promise.resolve(record),
+      reloadRecords: () => Promise.resolve(seam.records),
+    };
+    const target = await resolveMeetingOpenTarget(
+      createMeetingStore(port),
+      'meeting-a',
+      readActiveMeetingClientBoundary
+    );
+    seam.selected = false;
+
+    render(<DetailHarness target={target} service={service} />);
+
+    expect(screen.queryByTestId('meetings-linked-detail')).toBeNull();
+    expect(screen.queryByTestId('outside-meeting-artifact-host')).toBeNull();
+    expect(screen.queryByTestId('outside-meeting-notice-host')).toBeNull();
   });
 });

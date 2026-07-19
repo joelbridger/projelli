@@ -135,7 +135,11 @@ vi.mock('../foundation/contract', async (importOriginal) => ({
   resolveMeetingNavigation: seam.resolve,
 }));
 
-import { createMeetingStore, resolveMeetingOpenTarget } from '../foundation/contract';
+import {
+  createMeetingStore,
+  readActiveMeetingClientBoundary,
+  resolveMeetingOpenTarget,
+} from '../foundation/contract';
 import { MeetingsWorkspace } from './MeetingsWorkspace';
 import { resolveMeetingsSurfaceNavigation } from './navigation';
 
@@ -393,14 +397,18 @@ describe('Meetings cross-client isolation in the mounted shell', () => {
       records: seam.records,
       workspaceRoot: '/workspace',
       error: null,
-      getActiveMatterId: () => seam.presentation.matterId,
+      getActiveClientBoundary: readActiveMeetingClientBoundary,
       getSelectionError: () =>
         seam.presentation.blocked ? 'Selection is blocked.' : null,
       save: (record: LiveCrmRecord) => Promise.resolve(record),
       reloadRecords: () => Promise.resolve(seam.records),
     };
     await expect(
-      resolveMeetingOpenTarget(createMeetingStore(port), 'meeting-a')
+      resolveMeetingOpenTarget(
+        createMeetingStore(port),
+        'meeting-a',
+        readActiveMeetingClientBoundary
+      )
     ).rejects.toThrow('unavailable to the active client');
 
     render(<MeetingsWorkspace runtime={runtime} />);

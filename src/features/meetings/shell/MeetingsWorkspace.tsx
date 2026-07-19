@@ -30,9 +30,11 @@ import {
 import {
   appendNoticeEvidence,
   createFirmMeetingDirectoryReader,
+  createMeetingArtifactStore,
   createMeetingPopulationService,
   grantFirmMeetingDirectoryAccess,
   projectMeetingList,
+  readActiveMeetingClientBoundary,
   useActiveMeetingClientBoundary,
   useMeetingArtifactStore,
   useMeetingFoundationStore,
@@ -45,6 +47,7 @@ import { resolveMatterFolder } from '../meetingStore';
 import { AutoJoinMeetingsPanel } from '../AutoJoinMeetingsPanel';
 import { ClientMeetingsTab } from '../ClientMeetingsTab';
 import { MeetingEntry } from '../MeetingEntry';
+import { meetingEntryHostIdentity } from '../meetingEntryHostIdentity';
 import { MeetingTemplatePanel } from '../MeetingTemplatePanel';
 import { createPreparedMeetingTemplateFillProvider } from '../meetingTemplateAi';
 import {
@@ -126,13 +129,6 @@ const FIRM_MEETING_SELECTION_REQUEST = {
 } as const;
 
 const LOCAL_PRACTICE_TEMPLATE_OWNER = 'local-practice';
-
-function currentMeetingMatterId(): string | null {
-  const decision = readSelectionOperationDecision(
-    CLIENT_MEETING_SELECTION_REQUEST
-  );
-  return decision.kind === 'matter' ? decision.matter.id : null;
-}
 
 function currentMeetingSelectionError(): string | null {
   const decision = readSelectionOperationDecision(
@@ -220,20 +216,22 @@ export function MeetingsDetailHost({
   runtime: Pick<MeetingsSurfaceRuntime, 'workspace'>;
   onBack: () => void;
 }) {
-  const { t } = useTranslation();
+  const activeClientBoundary = useActiveMeetingClientBoundary();
+  const identity = activeClientBoundary
+    ? meetingEntryHostIdentity({ activeClientBoundary, target })
+    : null;
+  if (!identity) return null;
   return (
     <section className="meetings-shell-detail" data-testid="meetings-linked-detail">
       <MeetingEntry
-        matterId={target.client.matterId}
-        meetingDir={target.meetingDir}
-        folderName={
-          target.legacyLink.meetingDir.split('/').at(-1) ??
-          t('meetings.shell.fallback.meeting')
+        activeClientBoundary={identity.clientBoundary}
+        target={identity.target}
+        clientName={
+          identity.clientBoundary.displayName ??
+          identity.clientBoundary.householdRef
         }
-        clientName={target.client.displayName ?? target.client.householdRef}
         workspaceRoot={runtime.workspace.rootPath ?? ''}
         workspaceService={runtime.workspace.serviceRef.current}
-        openTarget={target}
         onBack={onBack}
       />
       <ArtifactHost target={target} />
@@ -359,12 +357,7 @@ export function MeetingsWorkspace({ runtime }: { runtime: MeetingsWorkspaceRunti
     'folder-only' | 'refused' | 'open-failed' | null
   >(null);
   const [now] = useState(() => Date.now());
-  const artifactStore = useMeetingArtifactStore();
-  const artifactStoreRef = useRef(artifactStore);
   const activeClientBoundaryRef = useRef(activeClientBoundary);
-  useEffect(() => {
-    artifactStoreRef.current = artifactStore;
-  }, [artifactStore]);
   useEffect(() => {
     activeClientBoundaryRef.current = activeClientBoundary;
   }, [activeClientBoundary]);
@@ -410,7 +403,7 @@ export function MeetingsWorkspace({ runtime }: { runtime: MeetingsWorkspaceRunti
       error: live.error,
       save: live.save,
       reloadRecords: live.reloadRecords,
-      getActiveMatterId: currentMeetingMatterId,
+      getActiveClientBoundary: readActiveMeetingClientBoundary,
       getSelectionError: currentMeetingSelectionError,
       getFirmSelectionError: currentFirmMeetingSelectionError,
     }),
@@ -469,7 +462,7 @@ export function MeetingsWorkspace({ runtime }: { runtime: MeetingsWorkspaceRunti
       return () => { current = false; };
     }
     const directory = createFirmMeetingDirectoryReader(portRef.current, grant);
-    const reviews = artifactStoreRef.current.reviewNeededForFirm(
+    const reviews = createMeetingArtifactStore(portRef.current).reviewNeededForFirm(
       grant,
       MEETING_REVIEW_INBOX_REQUIREMENTS
     );
@@ -525,11 +518,17 @@ export function MeetingsWorkspace({ runtime }: { runtime: MeetingsWorkspaceRunti
       : 0;
 
   const safeDetailTarget =
-    detailTarget && detailTarget.client.matterId === selection.matterId
+    detailTarget &&
+    activeClientBoundary &&
+    detailTarget.client.matterId === activeClientBoundary.matterId &&
+    detailTarget.client.householdRef === activeClientBoundary.householdRef
       ? detailTarget
       : null;
   const safeTemplateTarget =
-    templateTarget && templateTarget.client.matterId === selection.matterId
+    templateTarget &&
+    activeClientBoundary &&
+    templateTarget.client.matterId === activeClientBoundary.matterId &&
+    templateTarget.client.householdRef === activeClientBoundary.householdRef
       ? templateTarget
       : null;
 
@@ -537,7 +536,12 @@ export function MeetingsWorkspace({ runtime }: { runtime: MeetingsWorkspaceRunti
     try {
       const service = createMeetingPopulationService(portRef.current);
       const target = await service.openTarget(meetingRef);
-      if (target.client.matterId !== currentMeetingMatterId()) {
+      const boundary = readActiveMeetingClientBoundary();
+      if (
+        !boundary ||
+        target.client.matterId !== boundary.matterId ||
+        target.client.householdRef !== boundary.householdRef
+      ) {
         setNavigationNotice('open-failed');
         return;
       }
@@ -780,10 +784,11 @@ export function MeetingsWorkspace({ runtime }: { runtime: MeetingsWorkspaceRunti
         ) : null}
 
         {!selection.blocked && !loading && !loadError && view === 'new-meeting' ? (
-          currentMatter && newMeetingFolder ? (
+          currentMatter && newMeetingFolder && activeClientBoundary ? (
             <div className="meetings-shell-client-recorder" data-testid="meetings-new-meeting-host">
               <ClientMeetingsTab
-                matterId={currentMatter.id}
+                clientBoundary={activeClientBoundary}
+                getActiveClientBoundary={readActiveMeetingClientBoundary}
                 matterFolder={newMeetingFolder}
                 workspaceService={runtime.workspace.serviceRef.current}
               />
