@@ -275,6 +275,7 @@ describe('CrmHome', () => {
               instanceId: 'workflow-1',
               stepId: 'step-1',
               title: 'Confirm transfer',
+              workflowLabel: 'Account transfer',
               householdId: 'hh-1',
               householdLabel: 'Henderson household',
               assigneeUserId: 'maya',
@@ -302,6 +303,10 @@ describe('CrmHome', () => {
     expect(screen.getByTestId('crm-task-assignee')).toHaveTextContent(
       /maya patel/i
     );
+    fireEvent.click(
+      screen.getByTestId('crm-workflow-work-open-workflow-1:step-1')
+    );
+    expect(screen.getByTestId('crm-screen-workflows')).toBeInTheDocument();
   });
 
   it('blocks Apply until every concurrent propagation decision is explicitly reviewed', () => {

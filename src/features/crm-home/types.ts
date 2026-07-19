@@ -81,6 +81,8 @@ export interface CrmWorkflowWorkItem {
   instanceId: string;
   stepId: string;
   title: string;
+  /** Parent workflow name shown beside the step so it is never mistaken for a task. */
+  workflowLabel: string;
   householdId: string;
   householdLabel: string;
   assigneeUserId: string | null;

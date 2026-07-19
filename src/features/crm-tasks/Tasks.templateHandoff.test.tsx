@@ -84,6 +84,7 @@ function HandoffHarness({ onConsumed, onUpdateTask, tasks = [] }: { onConsumed: 
     freshness={{ kind: 'idle' }}
     onUpdateTask={onUpdateTask ?? vi.fn()}
     onCompleteWorkflowWorkItem={vi.fn()}
+    onOpenWorkflowWorkItem={vi.fn()}
     onSaveView={vi.fn()}
     {...(addRequest ? { addRequest } : {})}
     onAddRequestConsumed={() => { setAddRequest(null); onConsumed(); }}

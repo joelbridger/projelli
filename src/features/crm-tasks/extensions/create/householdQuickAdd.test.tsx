@@ -87,6 +87,7 @@ function HouseholdQuickAddPath() {
           freshness={{ kind: 'live' }}
           onUpdateTask={() => undefined}
           onCompleteWorkflowWorkItem={() => undefined}
+          onOpenWorkflowWorkItem={() => undefined}
           onSaveView={() => undefined}
           {...(addRequest ? { addRequest } : {})}
           onAddRequestConsumed={() => {

@@ -40,6 +40,7 @@ function workflowStep(
     instanceId: `instance-${id}`,
     stepId: `step-${id}`,
     title,
+    workflowLabel: 'Annual client review',
     householdId: 'household-1',
     householdLabel: 'Morgan household',
     assigneeUserId: null,
@@ -55,6 +56,7 @@ function renderTasks({
   workflowWorkItems,
   onUpdateTask = vi.fn(),
   onCompleteWorkflowWorkItem = vi.fn(),
+  onOpenWorkflowWorkItem = vi.fn(),
 }: {
   tasks: readonly CrmTask[];
   workflowWorkItems: readonly CrmWorkflowWorkItem[];
@@ -62,6 +64,7 @@ function renderTasks({
   onCompleteWorkflowWorkItem?: (
     item: CrmWorkflowWorkItem
   ) => void | Promise<void>;
+  onOpenWorkflowWorkItem?: (item: CrmWorkflowWorkItem) => void;
 }) {
   render(
     <Tasks
@@ -73,6 +76,7 @@ function renderTasks({
       freshness={{ kind: 'live' }}
       onUpdateTask={onUpdateTask}
       onCompleteWorkflowWorkItem={onCompleteWorkflowWorkItem}
+      onOpenWorkflowWorkItem={onOpenWorkflowWorkItem}
       onSaveView={vi.fn()}
     />
   );
@@ -80,7 +84,7 @@ function renderTasks({
 
 function visibleRowIds(): string[] {
   return within(screen.getByTestId('crm-task-list'))
-    .getAllByTestId(/^crm-(?:task-record-|workflow-work-(?!complete-))/)
+    .getAllByRole('listitem')
     .map((row) => row.getAttribute('data-testid') ?? '');
 }
 
@@ -119,6 +123,65 @@ describe('unified daily work list', () => {
     expect(screen.getByTestId('crm-task-record-later-task')).toHaveTextContent(
       'Task'
     );
+    expect(
+      screen.getByTestId('crm-work-list-order-explanation')
+    ).toHaveTextContent(
+      /due now first.*high priority.*closed work stays last/i
+    );
+    expect(
+      screen.getByTestId('crm-workflow-work-due-due-step')
+    ).toHaveTextContent('2000-01-01');
+    expect(
+      screen.getByTestId('crm-workflow-work-priority-label-due-step')
+    ).toHaveAccessibleName('Normal priority');
+    expect(
+      screen.getByTestId('crm-workflow-work-rank-reason-due-step')
+    ).toHaveTextContent(/why here: overdue.*normal priority/i);
+    expect(screen.getByTestId('crm-task-due-later-task')).toHaveTextContent(
+      '2999-01-01'
+    );
+    expect(
+      screen.getByTestId('crm-task-rank-reason-done-task')
+    ).toHaveTextContent(/closed work stays last/i);
+  });
+
+  it('gives task and workflow rows equal list semantics and keyboard-open actions', () => {
+    const onOpenWorkflowWorkItem = vi.fn();
+    const step = workflowStep('workflow', 'Confirm beneficiary', {
+      workflowLabel: 'Annual client review',
+      priority: 'high',
+      dueAt: '2999-03-10',
+    });
+    renderTasks({
+      tasks: [task('task', 'Call custodian')],
+      workflowWorkItems: [step],
+      onOpenWorkflowWorkItem,
+    });
+
+    const list = screen.getByRole('list');
+    const rows = within(list).getAllByRole('listitem');
+    expect(rows).toHaveLength(2);
+    const [workflowRow, taskRow] = rows;
+    if (!workflowRow || !taskRow) throw new Error('Expected two work rows.');
+    expect(
+      within(workflowRow).getByRole('button', { name: /open workflow/i })
+    ).toBeInTheDocument();
+    expect(
+      within(taskRow).getByRole('button', { name: /open task/i })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId('crm-workflow-work-kind-workflow')
+    ).toHaveTextContent('Workflow step');
+    expect(
+      screen.getByTestId('crm-workflow-work-context-workflow')
+    ).toHaveTextContent('Workflow: Annual client review');
+
+    const workflowOpen = screen.getByTestId('crm-workflow-work-open-workflow');
+    workflowOpen.focus();
+    expect(workflowOpen).toHaveFocus();
+    fireEvent.keyDown(workflowOpen, { key: 'Enter' });
+    fireEvent.click(workflowOpen);
+    expect(onOpenWorkflowWorkItem).toHaveBeenCalledWith(step);
   });
 
   it('filters matching tasks and workflow steps into the same result list', () => {

@@ -65,6 +65,7 @@ const workflowWorkItems = [
     instanceId: 'workflow-1',
     stepId: 'prepare',
     title: 'Prepare packet',
+    workflowLabel: 'Annual client review',
     householdId: 'household-1',
     householdLabel: 'Morgan household',
     assigneeUserId: 'advisor-2',

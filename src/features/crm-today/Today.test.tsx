@@ -61,6 +61,7 @@ describe('Today', () => {
           instanceId: 'workflow-1',
           stepId: 'step-2',
           title: 'Meet with client',
+          workflowLabel: 'Annual client review',
           householdId: 'household-1',
           householdLabel: 'River household',
           assigneeUserId: null,
@@ -125,7 +126,7 @@ describe('Today', () => {
           {
             id: 'blocked', title: 'Get signed form', kind: 'workflow_step', status: 'blocked',
             priority: 'high', assigneeUserId: 'maya', instanceId: 'annual-review',
-            stepId: 'signed-form', householdId: 'henderson', householdLabel: 'Henderson household', tagIds: [],
+            stepId: 'signed-form', workflowLabel: 'Annual client review', householdId: 'henderson', householdLabel: 'Henderson household', tagIds: [],
           },
         ]}
       />

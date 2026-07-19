@@ -43,6 +43,7 @@ const workflowWorkItem: CrmWorkflowWorkItem = {
   instanceId: 'workflow-instance-1',
   stepId: 'workflow-step-1',
   title: 'Prepare workflow review',
+  workflowLabel: 'Annual client review',
   householdId: 'household-1',
   householdLabel: 'Morgan household',
   assigneeUserId: null,

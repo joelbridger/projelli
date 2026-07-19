@@ -100,6 +100,7 @@ const workflowWorkItem: CrmWorkflowWorkItem = {
   instanceId: 'workflow-instance-1',
   stepId: 'workflow-step-1',
   title: 'Prepare workflow review',
+  workflowLabel: 'Annual client review',
   householdId: 'household-1',
   householdLabel: 'Morgan household',
   assigneeUserId: null,
@@ -147,6 +148,7 @@ describe('task action context', () => {
         freshness={{ kind: 'live' }}
         onUpdateTask={vi.fn()}
         onCompleteWorkflowWorkItem={vi.fn()}
+        onOpenWorkflowWorkItem={vi.fn()}
         onSaveView={vi.fn()}
       />
     );
@@ -259,6 +261,7 @@ function renderTasks() {
       freshness={{ kind: 'live' }}
       onUpdateTask={vi.fn()}
       onCompleteWorkflowWorkItem={vi.fn()}
+      onOpenWorkflowWorkItem={vi.fn()}
       onSaveView={vi.fn()}
     />
   );
