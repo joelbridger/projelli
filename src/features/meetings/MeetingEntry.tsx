@@ -76,6 +76,7 @@ import {
   type MeetingCrmNavigationHandoff,
   type MeetingDetailHeaderProjection,
 } from './meetingDetailHeaderProjection';
+import { useMeetingAgendaCompatibility } from './agenda/meetingAgendaCompatibility';
 
 export interface MeetingEntryProps {
   /** The live, complete household + matter pair. */
@@ -205,6 +206,9 @@ function MeetingEntryHost({
   crmNavigation,
 }: MeetingEntryHostProps) {
   const { matterId, meetingDir, folderName } = hostIdentity;
+  // Agenda had no compatibility tab. Its real persisted panel is registered
+  // only for the lifetime of an actual meeting-detail host.
+  useMeetingAgendaCompatibility();
   const { t } = useTranslation();
   const firm = useFirm();
   const [meta, setMeta] = useState<MeetingMeta | null>(null);

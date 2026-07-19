@@ -12,6 +12,11 @@ import { sendPreparedMessageWithEgressAudit } from '@/platform/privacy/promptPre
 import { modelAuditMetrics } from '@/platform/privacy/sendWithEgressAudit';
 import type { AuditEntry } from '@/platform/types/audit';
 import type { GeneratedBrief } from './generateBrief';
+import { isTauriEnvironment } from '@/platform/fs/BackendFactory';
+
+export type PersistedAgendaExportResult =
+  | { readonly kind: 'saved'; readonly path?: string }
+  | { readonly kind: 'cancelled' };
 
 // codex-review (wave-1c self-review round 2, P2): this direct
 // provider.sendMessage call (unlike generateBrief.ts's engine-routed one)
@@ -25,7 +30,9 @@ function onAgendaAuditLog(entry: Omit<AuditEntry, 'id' | 'timestamp'>): void {
     ...(entry.model !== undefined ? { model: entry.model } : {}),
     inputs: entry.inputs,
     outputs: entry.outputs,
-    ...(entry.userDecision !== undefined ? { userDecision: entry.userDecision } : {}),
+    ...(entry.userDecision !== undefined
+      ? { userDecision: entry.userDecision }
+      : {}),
     metadata: entry.metadata,
     ...(entry.tokensIn !== undefined ? { tokensIn: entry.tokensIn } : {}),
     ...(entry.tokensOut !== undefined ? { tokensOut: entry.tokensOut } : {}),
@@ -81,7 +88,12 @@ export function fallbackAgenda(
 
 export async function agendaMarkdownFromBrief(
   brief: Pick<GeneratedBrief, 'markdown'>,
-  opts: { clientLabel: string; eventTitle: string; matterId: string; provider?: Provider }
+  opts: {
+    clientLabel: string;
+    eventTitle: string;
+    matterId: string;
+    provider?: Provider;
+  }
 ): Promise<string> {
   // codex-review catch (round 2): getMetadata().providerId is unset on the
   // real cloud providers (Claude/OpenAI/Gemini only expose name/model), so
@@ -109,12 +121,32 @@ export async function agendaMarkdownFromBrief(
       options: { systemPrompt: SYSTEM_PROMPT, maxTokens: 700 },
       surface: 'meeting_agenda_rewrite',
       parts: [
-        { id: 'prompt', origin: 'meeting', label: 'Agenda request', text: prompt },
-        { id: 'brief', origin: 'meeting', label: 'Meeting brief', text: brief.markdown },
+        {
+          id: 'prompt',
+          origin: 'meeting',
+          label: 'Agenda request',
+          text: prompt,
+        },
+        {
+          id: 'brief',
+          origin: 'meeting',
+          label: 'Meeting brief',
+          text: brief.markdown,
+        },
       ],
       onAuditLog: onAgendaAuditLog,
       scope: { kind: 'matter', matterId: opts.matterId },
-      modelCall: (response) => ({ action: 'model_call', description: `Agenda rewrite for ${opts.eventTitle}`, model, inputs: { eventTitle: opts.eventTitle }, outputs: { contentLength: response.content.length }, userDecision: 'auto', metadata: { feature: 'meeting_agenda', provider: providerId }, ...modelAuditMetrics(response), provider: providerId }),
+      modelCall: (response) => ({
+        action: 'model_call',
+        description: `Agenda rewrite for ${opts.eventTitle}`,
+        model,
+        inputs: { eventTitle: opts.eventTitle },
+        outputs: { contentLength: response.content.length },
+        userDecision: 'auto',
+        metadata: { feature: 'meeting_agenda', provider: providerId },
+        ...modelAuditMetrics(response),
+        provider: providerId,
+      }),
     });
     const md = res.content.trim();
     const wellFormed = REQUIRED_SECTIONS.every((s) => md.includes(s));
@@ -122,4 +154,54 @@ export async function agendaMarkdownFromBrief(
   } catch {
     return fallbackAgenda(brief.markdown, opts.eventTitle);
   }
+}
+
+function safeAgendaFileLabel(value: string): string {
+  return (
+    value
+      .trim()
+      .replace(/[\\/:*?"<>|]+/gu, '-')
+      .replace(/\s+/gu, ' ')
+      .slice(0, 70)
+      .replace(/^[.\s-]+/gu, '')
+      .replace(/[.\s-]+$/gu, '') || 'Client'
+  );
+}
+
+/**
+ * Export an already-persisted editable agenda through the product's real save
+ * picker. Callers provide content, never a filesystem path; cancellation is a
+ * typed, non-error outcome and this seam never sends or uploads anything.
+ */
+export async function exportPersistedAgendaToWord(input: {
+  readonly body: string;
+  readonly clientLabel: string;
+}): Promise<PersistedAgendaExportResult> {
+  const body = input.body.trim();
+  if (!body) throw new Error('Add agenda text before exporting.');
+  const fileName = `Agenda - ${safeAgendaFileLabel(input.clientLabel)}.docx`;
+  const [{ markdownToDocxBytes }, { saveFile }] = await Promise.all([
+    import('@/platform/utils/docx-io'),
+    import('@/platform/utils/saveFile'),
+  ]);
+  const bytes = await markdownToDocxBytes(body, fileName, {});
+  const path = await saveFile(bytes, {
+    suggestedName: fileName,
+    types: [
+      {
+        description: 'Word Documents',
+        accept: {
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+            ['.docx'],
+        },
+      },
+    ],
+  });
+  // Browser save pickers do not return a path, so undefined means only that
+  // the browser helper completed without a native path. In Tauri, undefined is
+  // the explicit cancel signal and can be reported precisely.
+  if (path === undefined && isTauriEnvironment()) {
+    return { kind: 'cancelled' };
+  }
+  return path === undefined ? { kind: 'saved' } : { kind: 'saved', path };
 }
