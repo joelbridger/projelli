@@ -65,6 +65,7 @@ const workflowWorkItems = [
     instanceId: 'workflow-1',
     stepId: 'prepare',
     title: 'Prepare packet',
+    workflowLabel: 'Annual client review',
     householdId: 'household-1',
     householdLabel: 'Morgan household',
     assigneeUserId: 'advisor-2',
@@ -136,6 +137,40 @@ describe('capacity triage', () => {
       ranked: [expect.objectContaining({ id: 'task-unscheduled' })],
     });
     expect('capacity' in result).toBe(false);
+  });
+
+  it('uses the shared blocked-last order instead of contradicting the work list', () => {
+    const sourceTask = tasks[0];
+    if (!sourceTask) throw new Error('Expected a source task.');
+    const result = buildCapacityTriage({
+      tasks: [
+        {
+          ...sourceTask,
+          id: 'blocked-high',
+          status: 'blocked',
+          priority: 'high',
+        },
+        {
+          ...sourceTask,
+          id: 'available-low',
+          status: 'open',
+          priority: 'low',
+        },
+      ],
+      workflowWorkItems: [],
+      preference: {
+        assignee: 'all',
+        duePressure: 'all',
+        priority: 'all',
+        tagIds: [],
+      },
+      today: '2030-01-01',
+    });
+
+    expect(result.ranked.map((item) => item.id)).toEqual([
+      'available-low',
+      'blocked-high',
+    ]);
   });
 
   it('does not read tags or leave a toolbar gap while the flag is off', () => {

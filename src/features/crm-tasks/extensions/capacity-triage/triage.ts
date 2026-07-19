@@ -1,4 +1,5 @@
 import type { CrmTask, CrmWorkflowWorkItem } from '@/features/crm-home';
+import { compareDailyWorkItems } from '@/platform/crm/tasks';
 import type {
   CapacityTriageInput,
   CapacityTriagePreference,
@@ -13,22 +14,12 @@ export const DEFAULT_CAPACITY_TRIAGE_PREFERENCE: CapacityTriagePreference =
     tagIds: Object.freeze([]),
   });
 
-const priorityRank = { high: 0, normal: 1, low: 2 } as const;
-
 function calendarDay(value: string | undefined): string | undefined {
   return value?.slice(0, 10);
 }
 
 function isOpen(status: CrmTask['status']): boolean {
   return status !== 'done' && status !== 'cancelled';
-}
-
-function dueRank(item: CrmTask | CrmWorkflowWorkItem, today: string): number {
-  const due = calendarDay(item.dueAt);
-  if (!due) return 3;
-  if (due < today) return 0;
-  if (due === today) return 1;
-  return 2;
 }
 
 function matchesPreference(
@@ -73,21 +64,7 @@ export function buildCapacityTriage(
   ].filter((item) => isOpen(item.status));
   const ranked = open
     .filter((item) => matchesPreference(item, input.preference, today))
-    .sort((left, right) => {
-      const urgency = dueRank(left, today) - dueRank(right, today);
-      if (urgency) return urgency;
-      const priority =
-        priorityRank[left.priority] - priorityRank[right.priority];
-      if (priority) return priority;
-      const due = (calendarDay(left.dueAt) ?? '9999-12-31').localeCompare(
-        calendarDay(right.dueAt) ?? '9999-12-31'
-      );
-      return (
-        due ||
-        left.title.localeCompare(right.title) ||
-        left.id.localeCompare(right.id)
-      );
-    });
+    .sort((left, right) => compareDailyWorkItems(left, right, today));
 
   return {
     openCount: open.length,

@@ -24,6 +24,7 @@ export function projectCrmWorkflowWorkItem(
     instanceId: instance.id,
     stepId: step.stepId,
     title: liveStepTitle(instance, step.stepId),
+    workflowLabel: instance.name,
     householdId: instance.householdId,
     householdLabel: instance.householdLabel,
     assigneeUserId,

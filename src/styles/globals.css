@@ -98,6 +98,14 @@
   --kp-date-conflict-bg: #fef6e6;
   --kp-date-conflict-text: #754b00;
 
+  /* Unified work-list kind badges. */
+  --kp-work-kind-task-bg: #eff6ff;
+  --kp-work-kind-task-border: #bfdbfe;
+  --kp-work-kind-task-text: #1d4ed8;
+  --kp-work-kind-workflow-bg: #f5f3ff;
+  --kp-work-kind-workflow-border: #c4b5fd;
+  --kp-work-kind-workflow-text: #6d28d9;
+
   /* Firm tag palette. Records persist the matching values; components paint via these tokens. */
   --kp-tag-blue: #2563eb;
   --kp-tag-green: #15803d;

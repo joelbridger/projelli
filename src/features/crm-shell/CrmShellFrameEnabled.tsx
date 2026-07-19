@@ -4,6 +4,7 @@ import { useFlag } from '@/platform/flags';
 import {
   CrmHomeSurfaceContext,
   type CrmHomeRoute,
+  type CrmWorkflowWorkItem,
   type LiveCrmHomeRuntime,
 } from '@/features/crm-home';
 import type { CrmRailDestination } from './crmHomeRegistryAdapter';
@@ -58,12 +59,16 @@ function CrmShellDestination({
   runtime,
   onFallback,
   onNavigate,
+  workflowOpenItem,
+  onOpenWorkflowWorkItem,
 }: {
   destination: CrmRailDestination | undefined;
   fallback: CrmRailDestination | undefined;
   runtime: LiveCrmHomeRuntime;
   onFallback: () => void;
   onNavigate: (route: CrmHomeRoute) => void;
+  workflowOpenItem: CrmWorkflowWorkItem | null;
+  onOpenWorkflowWorkItem: (item: CrmWorkflowWorkItem) => void;
 }) {
   const { t } = useTranslation();
   const selectedEnabled = useDestinationEnabled(destination);
@@ -84,6 +89,8 @@ function CrmShellDestination({
         navigate: (route) => {
           onNavigate(route as CrmHomeRoute);
         },
+        workflowOpenItem,
+        openWorkflowWorkItem: onOpenWorkflowWorkItem,
         ...(runtime.workflowData ? { workflowData: runtime.workflowData } : {}),
         ...(runtime.workflowHouseholds
           ? { workflowHouseholds: runtime.workflowHouseholds }
@@ -113,6 +120,8 @@ export function CrmShellFrameEnabled(runtime: LiveCrmHomeRuntime) {
   const [activeRoute, setActiveRoute] = useState<CrmHomeRoute | null>(
     () => runtime.initialRoute ?? fallback?.route ?? null
   );
+  const [workflowOpenItem, setWorkflowOpenItem] =
+    useState<CrmWorkflowWorkItem | null>(null);
   const activeDestination = destinations.find(
     (destination) => destination.route === activeRoute
   );
@@ -139,6 +148,7 @@ export function CrmShellFrameEnabled(runtime: LiveCrmHomeRuntime) {
                 destination={destination}
                 key={destination.id}
                 onSelect={() => {
+                  setWorkflowOpenItem(null);
                   setActiveRoute(destination.route);
                 }}
                 selected={selected}
@@ -157,9 +167,20 @@ export function CrmShellFrameEnabled(runtime: LiveCrmHomeRuntime) {
           destination={activeDestination}
           fallback={fallback}
           onFallback={() => {
-            if (fallback) setActiveRoute(fallback.route);
+            if (fallback) {
+              setWorkflowOpenItem(null);
+              setActiveRoute(fallback.route);
+            }
           }}
-          onNavigate={setActiveRoute}
+          onNavigate={(route) => {
+            setWorkflowOpenItem(null);
+            setActiveRoute(route);
+          }}
+          workflowOpenItem={workflowOpenItem}
+          onOpenWorkflowWorkItem={(item) => {
+            setWorkflowOpenItem(item);
+            setActiveRoute('workflows');
+          }}
           runtime={runtime}
         />
       </main>

@@ -1,0 +1,35 @@
+{
+  "crmTasks": {
+    "workList": {
+      "orderExplanation": "Así se ordena: primero el trabajo que vence ahora, después las fechas futuras y luego el trabajo sin fecha. Dentro de cada grupo, el trabajo disponible aparece antes que el bloqueado, seguido por la prioridad, la fecha exacta, el título y el ID del registro. El trabajo cerrado queda al final.",
+      "openTask": "Abrir tarea {{title}}. {{reason}}",
+      "openWorkflowStep": "Abrir flujo de trabajo {{workflow}}. Paso: {{title}}. {{reason}}",
+      "workflowContext": "Flujo de trabajo: {{workflow}}",
+      "noClient": "Sin cliente",
+      "unassigned": "Sin asignar",
+      "kind": {
+        "task": "Tarea",
+        "workflowStep": "Paso del flujo de trabajo"
+      },
+      "priority": {
+        "high": "Prioridad alta",
+        "normal": "Prioridad normal",
+        "low": "Prioridad baja"
+      },
+      "due": {
+        "overdue": "Atrasado",
+        "today": "Vence hoy",
+        "onDate": "Vence el {{date}}",
+        "none": "Sin fecha de vencimiento"
+      },
+      "rank": {
+        "position": "Posición {{rank}}",
+        "reason": "Motivo de la posición: {{due}} · {{availability}} · {{priority}}. Los empates usan {{exactDue}}, el título «{{title}}» y después el ID del registro {{id}}.",
+        "available": "Disponible",
+        "blocked": "Bloqueado",
+        "noExactDate": "sin fecha exacta",
+        "closed": "Motivo de la posición: el trabajo cerrado queda al final"
+      }
+    }
+  }
+}

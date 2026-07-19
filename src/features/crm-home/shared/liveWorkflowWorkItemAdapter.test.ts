@@ -15,6 +15,7 @@ describe('live workflow work-item projection', () => {
     const item = projectCrmWorkflowWorkItem(instance, step);
 
     expect(item.tagIds).toEqual(['tag:prep']);
+    expect(item.workflowLabel).toBe('Annual review');
     expect(item).not.toHaveProperty('tagNames');
     expect(item).not.toHaveProperty('tagColors');
   });

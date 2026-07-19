@@ -1,7 +1,9 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion -- Test setup asserts an intentionally matched element. */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { CrmHome } from './CrmHome';
+import { CrmHome, CrmHomeShell } from './CrmHome';
+import { createTemplate, startWorkflow, workflowRecords } from './workflowLive';
+import { projectCrmWorkflowWorkItem } from './shared/liveWorkflowWorkItemAdapter';
 import type { CrmHomeAdapter } from './types';
 
 const { useFlag } = vi.hoisted(() => ({
@@ -91,7 +93,9 @@ describe('CrmHome', () => {
     rerender(<CrmHome initialRoute="activity" />);
     expect(screen.getByTestId('crm-home-nav-activity')).toBeInTheDocument();
     expect(screen.getByTestId('team-activity-feed')).toBeInTheDocument();
-    expect(screen.queryByTestId('crm-activity-surface')).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId('crm-activity-surface')
+    ).not.toBeInTheDocument();
     useFlag.mockImplementation(() => false);
   });
 
@@ -275,6 +279,7 @@ describe('CrmHome', () => {
               instanceId: 'workflow-1',
               stepId: 'step-1',
               title: 'Confirm transfer',
+              workflowLabel: 'Account transfer',
               householdId: 'hh-1',
               householdLabel: 'Henderson household',
               assigneeUserId: 'maya',
@@ -302,6 +307,60 @@ describe('CrmHome', () => {
     expect(screen.getByTestId('crm-task-assignee')).toHaveTextContent(
       /maya patel/i
     );
+    fireEvent.click(
+      screen.getByTestId('crm-workflow-work-open-workflow-1:step-1')
+    );
+    expect(screen.getByTestId('crm-screen-workflows')).toBeInTheDocument();
+  });
+
+  it('opens the selected workflow instance and step for editing', async () => {
+    const otherTemplate = createTemplate('Other workflow', ['Other step']);
+    const selectedTemplate = createTemplate('Account transfer', [
+      'Confirm transfer',
+    ]);
+    const selectedInstance = startWorkflow(
+      selectedTemplate,
+      {
+        id: 'hh-1',
+        matterId: 'matter-1',
+        label: 'Henderson household',
+      },
+      { id: 'workflow-selected' }
+    );
+    const selectedStep = Object.values(selectedInstance.snapshot.steps)[0];
+    if (!selectedStep) throw new Error('Expected a selected workflow step.');
+    const workItem = projectCrmWorkflowWorkItem(selectedInstance, selectedStep);
+
+    render(
+      <CrmHomeShell
+        adapter={adapter({ workflowWorkItems: [workItem] })}
+        initialRoute="tasks"
+        workflowData={workflowRecords([
+          otherTemplate,
+          selectedTemplate,
+          selectedInstance,
+        ])}
+        workflowHouseholds={[
+          { id: 'hh-1', matterId: 'matter-1', label: 'Henderson household' },
+        ]}
+        saveLiveRecord={vi.fn(() => Promise.resolve(undefined))}
+        adapterProvided={false}
+      />
+    );
+
+    fireEvent.click(
+      screen.getByTestId(`crm-workflow-work-open-${workItem.id}`)
+    );
+
+    expect(
+      screen.getByTestId(`crm-live-workflow-instance-${selectedInstance.id}`)
+    ).toBeInTheDocument();
+    const editor = await screen.findByTestId(
+      `crm-live-workflow-local-title-${selectedInstance.id}-${selectedStep.stepId}`
+    );
+    expect(editor).toHaveValue('Confirm transfer');
+    expect(editor).toHaveFocus();
+    expect(screen.queryByText('Other workflow')).not.toBeInTheDocument();
   });
 
   it('blocks Apply until every concurrent propagation decision is explicitly reviewed', () => {
@@ -537,7 +596,6 @@ describe('CrmHome', () => {
       })
     );
   });
-
 
   it('shows a migration completion refusal and does not mark the checklist saved', async () => {
     const recordWorkflowChecklist = vi

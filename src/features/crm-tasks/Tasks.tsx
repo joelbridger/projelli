@@ -1,10 +1,12 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string -- Frozen CRM screen copy needs its translation catalog in a separate product change. */
 import { useState } from 'react';
-import { ListChecks } from 'lucide-react';
+import type { TFunction } from 'i18next';
+import { useTranslation } from 'react-i18next';
+import { ListChecks, ListTodo, Workflow } from 'lucide-react';
 import { Button } from '@/ui/kp';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
-import { buildCapacityTriage } from '@/platform/crm/tasks';
+import { buildCapacityTriage, dailyWorkSortFacts } from '@/platform/crm/tasks';
 import {
   AskBar,
   FreshnessBanner,
@@ -39,7 +41,6 @@ type TaskPriority = CrmTask['priority'];
 const PRIORITY_PRESENTATION: Record<
   TaskPriority,
   {
-    label: string;
     symbol: string;
     color: string;
     background: string;
@@ -47,21 +48,18 @@ const PRIORITY_PRESENTATION: Record<
   }
 > = {
   high: {
-    label: 'High priority',
     symbol: '▲',
     color: 'var(--kp-warning)',
     background: 'var(--kp-warning-bg)',
     border: 'var(--kp-warning-line)',
   },
   normal: {
-    label: 'Normal priority',
     symbol: '◆',
     color: 'var(--kp-text-dim)',
     background: 'var(--kp-bg-soft)',
     border: 'var(--kp-divider-strong)',
   },
   low: {
-    label: 'Low priority',
     symbol: '▼',
     color: 'var(--kp-local)',
     background: 'var(--kp-local-bg)',
@@ -71,6 +69,64 @@ const PRIORITY_PRESENTATION: Record<
 
 function normalizeTaskPriority(priority: unknown): TaskPriority {
   return priority === 'high' || priority === 'low' ? priority : 'normal';
+}
+
+function priorityLabel(priority: unknown, t: TFunction): string {
+  return t(`crmTasks.workList.priority.${normalizeTaskPriority(priority)}`);
+}
+
+function calendarDay(value: string | undefined): string | undefined {
+  return value?.slice(0, 10);
+}
+
+function formattedDay(value: string, language: string): string {
+  return new Intl.DateTimeFormat(language, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(`${value}T00:00:00Z`));
+}
+
+function dueFact(
+  item: CrmTask | CrmWorkflowWorkItem,
+  today: string,
+  language: string,
+  t: TFunction
+): string {
+  const due = calendarDay(item.dueAt);
+  if (!due) return t('crmTasks.workList.due.none');
+  if (due < today) return t('crmTasks.workList.due.overdue');
+  if (due === today) return t('crmTasks.workList.due.today');
+  return t('crmTasks.workList.due.onDate', {
+    date: formattedDay(due, language),
+  });
+}
+
+function rankReason(
+  item: CrmTask | CrmWorkflowWorkItem,
+  today: string,
+  language: string,
+  t: TFunction
+): string {
+  if (item.status === 'done' || item.status === 'cancelled') {
+    return t('crmTasks.workList.rank.closed');
+  }
+  const facts = dailyWorkSortFacts(item, today);
+  return t('crmTasks.workList.rank.reason', {
+    due: dueFact(item, today, language, t),
+    availability: t(
+      facts.blocked
+        ? 'crmTasks.workList.rank.blocked'
+        : 'crmTasks.workList.rank.available'
+    ),
+    priority: priorityLabel(facts.priority, t),
+    exactDue: facts.exactDueDay
+      ? formattedDay(facts.exactDueDay, language)
+      : t('crmTasks.workList.rank.noExactDate'),
+    title: facts.title,
+    id: facts.id,
+  });
 }
 
 function duplicateTaskInput(source: TaskRecord): CreateTaskRecordInput {
@@ -99,12 +155,14 @@ function PriorityBadge({
   testId: string;
   announce?: boolean;
 }) {
+  const { t } = useTranslation();
   const presentation = PRIORITY_PRESENTATION[normalizeTaskPriority(priority)];
+  const label = priorityLabel(priority, t);
   return (
     <span
       data-testid={testId}
       role={announce ? 'status' : 'img'}
-      aria-label={presentation.label}
+      aria-label={label}
       aria-live={announce ? 'polite' : undefined}
       style={{
         display: 'inline-flex',
@@ -122,7 +180,55 @@ function PriorityBadge({
       }}
     >
       <span aria-hidden="true">{presentation.symbol}</span>
-      <span aria-hidden="true">{presentation.label}</span>
+      <span aria-hidden="true">{label}</span>
+    </span>
+  );
+}
+
+function WorkKindBadge({
+  kind,
+  testId,
+}: {
+  kind: 'task' | 'workflow_step';
+  testId: string;
+}) {
+  const { t } = useTranslation();
+  const workflow = kind === 'workflow_step';
+  const Icon = workflow ? Workflow : ListTodo;
+  const label = t(
+    workflow
+      ? 'crmTasks.workList.kind.workflowStep'
+      : 'crmTasks.workList.kind.task'
+  );
+  return (
+    <span
+      data-testid={testId}
+      style={{
+        alignItems: 'center',
+        background: workflow
+          ? 'var(--kp-work-kind-workflow-bg)'
+          : 'var(--kp-work-kind-task-bg)',
+        border: `1px solid ${
+          workflow
+            ? 'var(--kp-work-kind-workflow-border)'
+            : 'var(--kp-work-kind-task-border)'
+        }`,
+        borderRadius: 6,
+        color: workflow
+          ? 'var(--kp-work-kind-workflow-text)'
+          : 'var(--kp-work-kind-task-text)',
+        display: 'inline-flex',
+        fontSize: 12,
+        fontWeight: 800,
+        gap: 5,
+        letterSpacing: '0.01em',
+        lineHeight: 1.4,
+        padding: '3px 7px',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      <Icon aria-hidden="true" size={14} strokeWidth={2.5} />
+      {label}
     </span>
   );
 }
@@ -136,6 +242,7 @@ export function Tasks({
   freshness,
   onUpdateTask,
   onCompleteWorkflowWorkItem,
+  onOpenWorkflowWorkItem,
   onSaveView,
   addRequest,
   onAddRequestConsumed,
@@ -150,10 +257,12 @@ export function Tasks({
   onCompleteWorkflowWorkItem: (
     item: CrmWorkflowWorkItem
   ) => void | Promise<void>;
+  onOpenWorkflowWorkItem: (item: CrmWorkflowWorkItem) => void;
   onSaveView: (view: CrmTaskSavedView) => void | Promise<void>;
   addRequest?: CrmHouseholdAddRequest;
   onAddRequestConsumed?: () => void;
 }) {
+  const { i18n, t } = useTranslation();
   const [view, setView] = useState<'list' | 'board'>('list');
   const [filter, setFilter] = useState('');
   const [addRequestDraft] = useState<CrmTask | null>(() =>
@@ -179,6 +288,18 @@ export function Tasks({
     item.title.toLowerCase().includes(filter.toLowerCase())
   );
   const workItems = dailyWorkItems(filtered, filteredWorkflowSteps);
+  const orderedWorkItems = [
+    ...buildCapacityTriage(workItems, []).ranked,
+    ...workItems.filter(
+      (item) => item.status === 'done' || item.status === 'cancelled'
+    ),
+  ];
+  const today = new Date().toISOString().slice(0, 10);
+  const language = i18n.resolvedLanguage ?? i18n.language;
+  const filteredTasksById = new Map(filtered.map((task) => [task.id, task]));
+  const filteredWorkflowStepsById = new Map(
+    filteredWorkflowSteps.map((item) => [item.id, item])
+  );
   const plan = buildCapacityTriage(
     dailyWorkItems(tasks, workflowWorkItems),
     firmMembers.map((member) => member.userId)
@@ -385,8 +506,19 @@ export function Tasks({
         </p>
       )}
       {view === 'list' ? (
-        <section data-testid="crm-unified-work-list">
-          <div data-testid="crm-task-list" style={panelStyle}>
+        <section
+          aria-labelledby="crm-work-list-order"
+          data-testid="crm-unified-work-list"
+          style={panelStyle}
+        >
+          <p
+            data-testid="crm-work-list-order-explanation"
+            id="crm-work-list-order"
+            style={{ ...mutedStyle, margin: '0 0 10px' }}
+          >
+            {t('crmTasks.workList.orderExplanation')}
+          </p>
+          <div>
             {workItems.length === 0 ? (
               <p>
                 {tasks.length === 0 && workflowWorkItems.length === 0
@@ -394,48 +526,66 @@ export function Tasks({
                   : 'No work matches these filters.'}
               </p>
             ) : (
-              <>
-                {filtered.map((task) => (
-                  <TaskRow
-                    key={task.id}
-                    task={task}
-                    onComplete={() => {
-                      advance(task);
-                    }}
-                    onOpen={() => {
-                      setEditing(task);
-                    }}
-                    onDuplicate={() => {
-                      void duplicateTask(task).catch((reason: unknown) => {
-                        setTaskActionError(
-                          reason instanceof Error
-                            ? reason.message
-                            : 'The task could not be duplicated.'
-                        );
-                      });
-                    }}
-                    onDelete={() => {
-                      void deleteTask(task).catch((reason: unknown) => {
-                        setTaskActionError(
-                          reason instanceof Error
-                            ? reason.message
-                            : 'The task could not be deleted.'
-                        );
-                      });
-                    }}
-                    actionPending={pendingTaskActionId === task.id}
-                  />
-                ))}
-                {filteredWorkflowSteps.map((item) => (
-                  <WorkflowWorkRow
-                    key={item.id}
-                    item={item}
-                    onComplete={() => {
-                      void onCompleteWorkflowWorkItem(item);
-                    }}
-                  />
-                ))}
-              </>
+              <ol
+                aria-describedby="crm-work-list-order"
+                data-testid="crm-task-list"
+                style={{ listStyle: 'none', margin: 0, padding: 0 }}
+              >
+                {orderedWorkItems.map((item, index) => {
+                  const reason = rankReason(item, today, language, t);
+                  if (item.kind === 'task') {
+                    const task = filteredTasksById.get(item.id);
+                    return task ? (
+                      <TaskRow
+                        key={task.id}
+                        rank={index + 1}
+                        rankReason={reason}
+                        task={task}
+                        onComplete={() => {
+                          advance(task);
+                        }}
+                        onOpen={() => {
+                          setEditing(task);
+                        }}
+                        onDuplicate={() => {
+                          void duplicateTask(task).catch((reason: unknown) => {
+                            setTaskActionError(
+                              reason instanceof Error
+                                ? reason.message
+                                : 'The task could not be duplicated.'
+                            );
+                          });
+                        }}
+                        onDelete={() => {
+                          void deleteTask(task).catch((reason: unknown) => {
+                            setTaskActionError(
+                              reason instanceof Error
+                                ? reason.message
+                                : 'The task could not be deleted.'
+                            );
+                          });
+                        }}
+                        actionPending={pendingTaskActionId === task.id}
+                      />
+                    ) : null;
+                  }
+                  const workflowStep = filteredWorkflowStepsById.get(item.id);
+                  return workflowStep ? (
+                    <WorkflowWorkRow
+                      key={workflowStep.id}
+                      rank={index + 1}
+                      rankReason={reason}
+                      item={workflowStep}
+                      onComplete={() => {
+                        void onCompleteWorkflowWorkItem(workflowStep);
+                      }}
+                      onOpen={() => {
+                        onOpenWorkflowWorkItem(workflowStep);
+                      }}
+                    />
+                  ) : null;
+                })}
+              </ol>
             )}
           </div>
         </section>
@@ -469,8 +619,13 @@ export function Tasks({
 }
 
 export function TasksSurface() {
-  const { adapter, addRequest, onAddRequestConsumed } =
-    useCrmHomeSurfaceContext();
+  const {
+    adapter,
+    addRequest,
+    navigate,
+    openWorkflowWorkItem,
+    onAddRequestConsumed,
+  } = useCrmHomeSurfaceContext();
   return (
     <Tasks
       tasks={adapter.tasks}
@@ -483,6 +638,10 @@ export function TasksSurface() {
       onCompleteWorkflowWorkItem={(item) =>
         adapter.actions.completeWorkflowWorkItem?.(item)
       }
+      onOpenWorkflowWorkItem={(item) => {
+        if (openWorkflowWorkItem) openWorkflowWorkItem(item);
+        else navigate('workflows');
+      }}
       onSaveView={(view) => adapter.actions.saveTaskView?.(view)}
       {...(addRequest ? { addRequest } : {})}
       {...(onAddRequestConsumed ? { onAddRequestConsumed } : {})}
@@ -492,6 +651,8 @@ export function TasksSurface() {
 
 function TaskRow({
   task,
+  rank,
+  rankReason,
   onComplete,
   onOpen,
   onDuplicate,
@@ -499,14 +660,17 @@ function TaskRow({
   actionPending,
 }: {
   task: CrmTask;
+  rank: number;
+  rankReason: string;
   onComplete: () => void;
   onOpen: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
   actionPending: boolean;
 }) {
+  const { t } = useTranslation();
   return (
-    <div
+    <li
       data-testid={`crm-task-record-${task.id}`}
       style={{
         display: 'flex',
@@ -517,6 +681,13 @@ function TaskRow({
         borderBottom: '1px solid var(--kp-border)',
       }}
     >
+      <span
+        aria-label={t('crmTasks.workList.rank.position', { rank })}
+        data-testid={`crm-task-rank-${task.id}`}
+        style={{ color: 'var(--kp-text-dim)', fontSize: 12, fontWeight: 800 }}
+      >
+        {String(rank)}
+      </span>
       <button
         data-testid={`crm-task-complete-${task.id}`}
         aria-label={`Complete ${task.title}`}
@@ -526,6 +697,10 @@ function TaskRow({
       </button>
       <button
         data-testid={`crm-task-open-${task.id}`}
+        aria-label={t('crmTasks.workList.openTask', {
+          title: task.title,
+          reason: rankReason,
+        })}
         onClick={onOpen}
         style={{
           background: 'transparent',
@@ -536,23 +711,39 @@ function TaskRow({
         }}
       >
         <strong data-testid={`crm-task-title-${task.id}`}>{task.title}</strong>
-        <span style={mutedStyle}>
-          {' '}
-          · {task.householdLabel ?? 'No client'} ·{' '}
+        <span
+          style={{
+            ...mutedStyle,
+            alignItems: 'center',
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 6,
+            marginTop: 5,
+          }}
+        >
+          <WorkKindBadge kind="task" testId={`crm-task-kind-${task.id}`} />
+          <span>{task.householdLabel ?? t('crmTasks.workList.noClient')}</span>
           <PriorityBadge
             priority={task.priority}
             testId={`crm-task-priority-label-${task.id}`}
-          />{' '}
-          · {task.dueLabel ?? 'No due date'} ·{' '}
+          />
+          <span data-testid={`crm-task-due-${task.id}`}>
+            {task.dueLabel ?? task.dueAt ?? t('crmTasks.workList.due.none')}
+          </span>
           <span data-testid={`crm-task-assignee-label-${task.id}`}>
             {task.assigneeLabel ?? task.assigneeUserId ?? 'Unassigned'}
           </span>
           {task.recurrence && (
             <span data-testid={`crm-task-recurrence-label-${task.id}`}>
-              {' '}
-              · Recurring
+              Recurring
             </span>
           )}
+        </span>
+        <span
+          data-testid={`crm-task-rank-reason-${task.id}`}
+          style={{ ...mutedStyle, display: 'block', marginTop: 5 }}
+        >
+          {rankReason}
         </span>
       </button>
       <div
@@ -591,19 +782,26 @@ function TaskRow({
           Delete
         </Button>
       </div>
-    </div>
+    </li>
   );
 }
 
 function WorkflowWorkRow({
   item,
+  rank,
+  rankReason,
   onComplete,
+  onOpen,
 }: {
   item: CrmWorkflowWorkItem;
+  rank: number;
+  rankReason: string;
   onComplete: () => void;
+  onOpen: () => void;
 }) {
+  const { t } = useTranslation();
   return (
-    <div
+    <li
       data-testid={`crm-workflow-work-${item.id}`}
       style={{
         display: 'flex',
@@ -614,6 +812,13 @@ function WorkflowWorkRow({
         borderBottom: '1px solid var(--kp-border)',
       }}
     >
+      <span
+        aria-label={t('crmTasks.workList.rank.position', { rank })}
+        data-testid={`crm-workflow-work-rank-${item.id}`}
+        style={{ color: 'var(--kp-text-dim)', fontSize: 12, fontWeight: 800 }}
+      >
+        {String(rank)}
+      </span>
       <button
         data-testid={`crm-workflow-work-complete-${item.id}`}
         aria-label={`Complete ${item.title}`}
@@ -621,15 +826,64 @@ function WorkflowWorkRow({
       >
         □
       </button>
-      <span style={{ flex: 1 }}>
+      <button
+        aria-label={t('crmTasks.workList.openWorkflowStep', {
+          workflow: item.workflowLabel,
+          title: item.title,
+          reason: rankReason,
+        })}
+        data-testid={`crm-workflow-work-open-${item.id}`}
+        onClick={onOpen}
+        style={{
+          background: 'transparent',
+          border: 0,
+          cursor: 'pointer',
+          flex: 1,
+          textAlign: 'left',
+        }}
+      >
         <strong>{item.title}</strong>
-        <span style={mutedStyle}>
-          {' '}
-          · Workflow step · {item.householdLabel} ·{' '}
-          {item.assigneeLabel ?? item.assigneeUserId ?? 'Unassigned'}
+        <span
+          style={{
+            ...mutedStyle,
+            alignItems: 'center',
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 6,
+            marginTop: 5,
+          }}
+        >
+          <WorkKindBadge
+            kind="workflow_step"
+            testId={`crm-workflow-work-kind-${item.id}`}
+          />
+          <span data-testid={`crm-workflow-work-context-${item.id}`}>
+            {t('crmTasks.workList.workflowContext', {
+              workflow: item.workflowLabel,
+            })}
+          </span>
+          <span>{item.householdLabel}</span>
+          <PriorityBadge
+            priority={item.priority}
+            testId={`crm-workflow-work-priority-label-${item.id}`}
+          />
+          <span data-testid={`crm-workflow-work-due-${item.id}`}>
+            {item.dueAt ?? t('crmTasks.workList.due.none')}
+          </span>
+          <span>
+            {item.assigneeLabel ??
+              item.assigneeUserId ??
+              t('crmTasks.workList.unassigned')}
+          </span>
         </span>
-      </span>
-    </div>
+        <span
+          data-testid={`crm-workflow-work-rank-reason-${item.id}`}
+          style={{ ...mutedStyle, display: 'block', marginTop: 5 }}
+        >
+          {rankReason}
+        </span>
+      </button>
+    </li>
   );
 }
 
@@ -706,6 +960,7 @@ function TaskDetail({
   onClose: () => void;
   onSave: (task: CrmTask) => void | Promise<void>;
 }) {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState<CrmTask>(() => ({
     ...task,
     priority: normalizeTaskPriority(task.priority),
@@ -859,7 +1114,7 @@ function TaskDetail({
               <select
                 data-testid="crm-task-priority"
                 value={draft.priority}
-                aria-label={`Task priority: ${PRIORITY_PRESENTATION[draft.priority].label}`}
+                aria-label={`Task priority: ${priorityLabel(draft.priority, t)}`}
                 onChange={(event) => {
                   setDraft({
                     ...draft,

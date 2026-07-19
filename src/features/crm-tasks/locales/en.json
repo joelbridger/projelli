@@ -1,0 +1,35 @@
+{
+  "crmTasks": {
+    "workList": {
+      "orderExplanation": "How order works: due now first, then future dates, then no date. Within each group, available work comes before blocked work, then priority, exact due date, title, and record ID. Closed work stays last.",
+      "openTask": "Open task {{title}}. {{reason}}",
+      "openWorkflowStep": "Open workflow {{workflow}}. Step: {{title}}. {{reason}}",
+      "workflowContext": "Workflow: {{workflow}}",
+      "noClient": "No client",
+      "unassigned": "Unassigned",
+      "kind": {
+        "task": "Task",
+        "workflowStep": "Workflow step"
+      },
+      "priority": {
+        "high": "High priority",
+        "normal": "Normal priority",
+        "low": "Low priority"
+      },
+      "due": {
+        "overdue": "Overdue",
+        "today": "Due today",
+        "onDate": "Due {{date}}",
+        "none": "No due date"
+      },
+      "rank": {
+        "position": "Rank {{rank}}",
+        "reason": "Why here: {{due}} · {{availability}} · {{priority}}. Ties use {{exactDue}}, title “{{title}}”, then record ID {{id}}.",
+        "available": "Available",
+        "blocked": "Blocked",
+        "noExactDate": "no exact date",
+        "closed": "Why here: closed work stays last"
+      }
+    }
+  }
+}

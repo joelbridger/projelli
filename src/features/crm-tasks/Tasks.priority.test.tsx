@@ -81,6 +81,7 @@ function renderTasks(
       freshness={{ kind: 'live' }}
       onUpdateTask={onUpdateTask}
       onCompleteWorkflowWorkItem={vi.fn()}
+      onOpenWorkflowWorkItem={vi.fn()}
       onSaveView={vi.fn()}
     />
   );
