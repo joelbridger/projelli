@@ -135,6 +135,27 @@ export {
   type MeetingAgendaWriteResult,
 } from './agenda/meetingAgendaStore';
 export {
+  MeetingFollowUpPanel,
+  LiveMeetingFollowUpPanel,
+  type MeetingFollowUpPanelProps,
+} from './followUp/MeetingFollowUpPanel';
+export {
+  createMeetingFollowUpPanelDescriptor,
+  useMeetingFollowUpCompatibility,
+} from './followUp/meetingFollowUpCompatibility';
+export {
+  MEETING_FOLLOW_UP_SCHEMA_VERSION,
+  createMeetingFollowUpStore,
+  deriveMeetingFollowUpRecapKey,
+  meetingFollowUpTarget,
+  type MeetingFollowUpDraft,
+  type MeetingFollowUpReadResult,
+  type MeetingFollowUpRecap,
+  type MeetingFollowUpStore,
+  type MeetingFollowUpTarget,
+  type MeetingFollowUpWriteResult,
+} from './followUp/meetingFollowUpStore';
+export {
   meetingHeaderActionRegistry,
   validateMeetingHeaderActionDescriptors,
   getMeetingHeaderActions,

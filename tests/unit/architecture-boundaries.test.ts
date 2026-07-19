@@ -33,27 +33,27 @@ type Layer = keyof typeof RANK;
 // product surface that legitimately references another (e.g. Settings hosts the
 // templates marketplace; Ask is matter-scoped). Keep this list short and justified.
 const ALLOWED_FEATURE_EDGES = new Set<string>([
-  'account->firm',        // account/licensing surfaces firm seat state
-  'account->settings',    // account window opens settings sections
-  'accounts->audit',      // Schwab prep packets await the public durable audit-write promise before local persistence
+  'account->firm', // account/licensing surfaces firm seat state
+  'account->settings', // account window opens settings sections
+  'accounts->audit', // Schwab prep packets await the public durable audit-write promise before local persistence
   'calendar-add-event->calendar', // local event editor uses Calendar Part A's public store, selection, and recurrence doorway
-  'ask->matters',         // Ask is matter-scoped (active matter context)
-  'ask->crm',             // Ask adds client-scoped CRM records to the same consent/audit/citation pipeline
-  'booking->calendar',    // The flag-gated public booking page uses Calendar's public read-only availability adapter and receives only display-ready slots.
+  'ask->matters', // Ask is matter-scoped (active matter context)
+  'ask->crm', // Ask adds client-scoped CRM records to the same consent/audit/citation pipeline
+  'booking->calendar', // The flag-gated public booking page uses Calendar's public read-only availability adapter and receives only display-ready slots.
   'calendarWrite->calendar', // Part B write consumes Part A's public doorway (busy blocks, home-calendar capability, event store) for the pre-approval availability refresh; it never reaches into calendar/core internals.
   'calendar-grid->calendar', // Calendar Grid reads the calendar feature's bounded public occurrence projection.
-  'crm->ask',             // CRM Ask reuses the primary Ask safety rails and citation contracts
-  'crm->acats',           // CRM Reviews makes the ACATS transfer-review workflow reachable from the relevant client record
-  'crm->accounts',        // CRM Reviews swaps its one documented descriptor to the flag-gated Schwab prep packet
-  'crm->audit',           // Team activity must use Audit's public fail-closed durable writer; no deep audit storage import is allowed.
-  'crm->documents',       // client-scoped document creation doorway, deliberate public API
-  'crm->email',           // CRM broadcast reuses the hardened mail provider resolver
-  'crm->firm',            // CRM firm setup composes the existing firm administration surface
-  'crm->meetings',        // CRM household record's Meeting Notes tab hosts the meeting-notes-review
-                          // flow (ClientMeetingsTab/MeetingEntry) — restores the entry point MatterHub
-                          // used to own before the CRM merge dropped its mount (fix/matterhub-entry-point)
-  'crm->planning',        // CRM Reviews shows pending planning-system write reviews in the relevant client record
-  'crm->matters',         // The live CRM Client Map tab hosts the proven Client Map build, refresh, ranking, and cited-summary surfaces after the combined merge orphaned their old MattersHome/MatterHub mount.
+  'crm->ask', // CRM Ask reuses the primary Ask safety rails and citation contracts
+  'crm->acats', // CRM Reviews makes the ACATS transfer-review workflow reachable from the relevant client record
+  'crm->accounts', // CRM Reviews swaps its one documented descriptor to the flag-gated Schwab prep packet
+  'crm->audit', // Team activity must use Audit's public fail-closed durable writer; no deep audit storage import is allowed.
+  'crm->documents', // client-scoped document creation doorway, deliberate public API
+  'crm->email', // CRM broadcast reuses the hardened mail provider resolver
+  'crm->firm', // CRM firm setup composes the existing firm administration surface
+  'crm->meetings', // CRM household record's Meeting Notes tab hosts the meeting-notes-review
+  // flow (ClientMeetingsTab/MeetingEntry) — restores the entry point MatterHub
+  // used to own before the CRM merge dropped its mount (fix/matterhub-entry-point)
+  'crm->planning', // CRM Reviews shows pending planning-system write reviews in the relevant client record
+  'crm->matters', // The live CRM Client Map tab hosts the proven Client Map build, refresh, ranking, and cited-summary surfaces after the combined merge orphaned their old MattersHome/MatterHub mount.
   'crm-connectors->crm-views', // Broadcast uses the saved-view query language to define its recipient list
   'crm-connectors->email', // Broadcast reuses the hardened mail AI provider resolver; delivery still uses the platform mail connector
   'documents->firm', // file navigator shows privilege/vault affordances
@@ -68,6 +68,7 @@ const ALLOWED_FEATURE_EDGES = new Set<string>([
   'matters->intake', // MatterHub hosts the Onboarding tab (OnboardingTab) and NewClientDialog composes the intake New-household checklist (newHouseholdTemplate) — client onboarding lives on the matters/Client Map surfaces (Intake Wave 1), same pattern as matters->meetings
   'meetings->dictation', // MeetingEntry (Wave 3c) reuses the existing AudioPlayer for the meeting audio scrubber instead of building a second audio player
   'meetings->documents', // MeetingEntry (Wave 3c) reuses the existing DocxEditor to show notes.docx inline instead of a second docx renderer
+  'meetings->email', // Follow-up composes Email's public Outlook Drafts-only capability; the mode cannot send and receives the sealed meeting + household/matter identity.
   'meetings->workflows', // generateBrief.ts runs the existing MeetingPrepAndSuitabilityNotes template headlessly via the workflow engine, instead of duplicating template-execution logic in the meetings feature
   'onboarding->firm', // onboarding explains firm/SSO setup
   'onboarding->meetings', // seedSampleGoldenPath (B3 demo golden path) seeds a sample past meeting + upcoming prep brief via the meetings stores/generateBrief instead of duplicating meeting logic
