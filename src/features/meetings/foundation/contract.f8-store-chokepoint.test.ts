@@ -154,6 +154,49 @@ describe('F8 sealed-pair store chokepoint', () => {
     expect(verifyDirectClientMeetingTarget(target, clientB)).toBe(false);
   });
 
+  it("refuses a ready result minted by another client's adapter", async () => {
+    seedMatter();
+    const adapterA = createDirectClientMeetingsAdapter({
+      client: clientA,
+      getActiveClientBoundary: () => clientA,
+      matterFolder: clientFolder,
+      scan: () =>
+        Promise.resolve({
+          meetings: [
+            {
+              dir: `${clientFolder}/Meetings/meeting-a`,
+              folderName: 'meeting-a',
+            },
+          ],
+          scanFailed: false,
+        }),
+    });
+    const readyFromA = await adapterA.list();
+
+    useMatterStore.setState((state) => ({
+      matters: state.matters.map((matter) => ({
+        ...matter,
+        crmHouseholdKeys: [clientA.householdRef, clientB.householdRef],
+      })),
+    }));
+    const adapterB = createDirectClientMeetingsAdapter<{
+      readonly dir: string;
+      readonly folderName: string;
+    }>({
+      client: clientB,
+      getActiveClientBoundary: () => clientB,
+      matterFolder: clientFolder,
+      scan: () => Promise.resolve({ meetings: [], scanFailed: false }),
+    });
+
+    expect(
+      adapterB.resolveTarget(readyFromA, {
+        dir: `${clientFolder}/Meetings/meeting-a`,
+        folderName: 'meeting-a',
+      })
+    ).toBeNull();
+  });
+
   it('keeps firm ready/refused/error distinct and rechecks the firm gate after reload', async () => {
     seedMatter();
     const grant = grantFirmMeetingDirectoryAccess();

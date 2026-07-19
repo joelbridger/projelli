@@ -2544,7 +2544,9 @@ export function createDirectClientMeetingsAdapter<
       const match = result.meetings.find(
         (candidate) => candidate.target.meetingDir === requestedDir
       );
-      return match && sealedDirectClientMeetingTargets.has(match.target)
+      return match &&
+        sealedDirectClientMeetingTargets.has(match.target) &&
+        sameClientBoundary(match.target.client, input.client)
         ? match.target
         : null;
     },
