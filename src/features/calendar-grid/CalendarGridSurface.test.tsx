@@ -41,6 +41,7 @@ import {
   createCalendarGridViewComposition,
   defineCalendarGridView,
   eventSheetHeading,
+  type CalendarGridClientScope,
 } from '@/features/calendar-grid';
 
 declare module '@/features/calendar-grid' {
@@ -50,6 +51,24 @@ declare module '@/features/calendar-grid' {
 }
 
 const ANCHOR = new Date('2026-08-05T15:00:00Z');
+
+const CLIENT_A_SCOPE = {
+  householdRef: 'household-a',
+  matterId: 'shared-matter',
+  displayName: 'Adams household',
+} satisfies CalendarGridClientScope;
+
+const CLIENT_B_SCOPE = {
+  householdRef: 'household-b',
+  matterId: 'shared-matter',
+  displayName: 'Bennett household',
+} satisfies CalendarGridClientScope;
+
+const CLIENT_B_OTHER_MATTER_SCOPE = {
+  householdRef: CLIENT_B_SCOPE.householdRef,
+  matterId: 'other-matter',
+  displayName: CLIENT_B_SCOPE.displayName,
+} satisfies CalendarGridClientScope;
 
 const occurrence = (overrides: Partial<CalendarOccurrence> = {}): CalendarOccurrence => ({
   occurrenceKey: 'event-1@2026-08-05T09:00:00Z',
@@ -150,6 +169,163 @@ describe('CalendarGridSurface', () => {
       recurring.occurrenceKey,
     ]);
     expect(runtime.listOccurrences).toHaveBeenCalledTimes(1);
+  });
+
+  it('projects selected-client occurrences only through an exact household and matter link', async () => {
+    runtime.enabled = true;
+    const exactPair = occurrence({
+      title: 'Adams review',
+      contextRef: {
+        kind: 'household',
+        id: CLIENT_A_SCOPE.householdRef,
+        matterId: CLIENT_A_SCOPE.matterId,
+      },
+    });
+    const sameMatterOtherHousehold = occurrence({
+      occurrenceKey: 'event-2@2026-08-05T10:00:00Z',
+      sourceEventId: 'event-2',
+      title: 'Bennett private review',
+      contextRef: {
+        kind: 'household',
+        id: CLIENT_B_SCOPE.householdRef,
+        matterId: CLIENT_A_SCOPE.matterId,
+      },
+    });
+    const sameHouseholdOtherMatter = occurrence({
+      occurrenceKey: 'event-3@2026-08-05T11:00:00Z',
+      sourceEventId: 'event-3',
+      title: 'Other matter review',
+      contextRef: {
+        kind: 'household',
+        id: CLIENT_A_SCOPE.householdRef,
+        matterId: 'other-matter',
+      },
+    });
+    const matterOnlyRecord = occurrence({
+      occurrenceKey: 'event-4@2026-08-05T12:00:00Z',
+      sourceEventId: 'event-4',
+      title: 'Matter-only record link',
+      contextRef: {
+        kind: 'record',
+        id: CLIENT_A_SCOPE.householdRef,
+        matterId: CLIENT_A_SCOPE.matterId,
+      },
+    });
+    const householdWithoutMatter = occurrence({
+      occurrenceKey: 'event-5@2026-08-05T13:00:00Z',
+      sourceEventId: 'event-5',
+      title: 'Household without matter',
+      contextRef: { kind: 'household', id: CLIENT_A_SCOPE.householdRef },
+    });
+    const unlinked = occurrence({
+      occurrenceKey: 'event-6@2026-08-05T14:00:00Z',
+      sourceEventId: 'event-6',
+      title: 'Unlinked firm event',
+    });
+    runtime.listOccurrences.mockResolvedValue([
+      sameMatterOtherHousehold,
+      sameHouseholdOtherMatter,
+      matterOnlyRecord,
+      householdWithoutMatter,
+      unlinked,
+      exactPair,
+    ]);
+
+    render(<CalendarGridSurface now={ANCHOR} clientScope={CLIENT_A_SCOPE} />);
+
+    expect(await screen.findByText('Adams review')).toBeTruthy();
+    expect(screen.queryByText('Bennett private review')).toBeNull();
+    expect(screen.queryByText('Other matter review')).toBeNull();
+    expect(screen.queryByText('Matter-only record link')).toBeNull();
+    expect(screen.queryByText('Household without matter')).toBeNull();
+    expect(screen.queryByText('Unlinked firm event')).toBeNull();
+  });
+
+  it('keeps null as the explicit whole-firm projection', async () => {
+    runtime.enabled = true;
+    const clientEvent = occurrence({
+      title: 'Linked client event',
+      contextRef: {
+        kind: 'household',
+        id: CLIENT_A_SCOPE.householdRef,
+        matterId: CLIENT_A_SCOPE.matterId,
+      },
+    });
+    const firmEvent = occurrence({
+      occurrenceKey: 'event-2@2026-08-05T10:00:00Z',
+      sourceEventId: 'event-2',
+      title: 'Unlinked firm event',
+    });
+    runtime.listOccurrences.mockResolvedValue([clientEvent, firmEvent]);
+
+    render(<CalendarGridSurface now={ANCHOR} clientScope={null} />);
+
+    expect(await screen.findByText('Linked client event')).toBeTruthy();
+    expect(screen.getByText('Unlinked firm event')).toBeTruthy();
+  });
+
+  it('clears the prior household synchronously when either half of the selection key changes', async () => {
+    runtime.enabled = true;
+    const clientAEvent = occurrence({
+      title: 'Adams private review',
+      contextRef: {
+        kind: 'household',
+        id: CLIENT_A_SCOPE.householdRef,
+        matterId: CLIENT_A_SCOPE.matterId,
+      },
+    });
+    const clientBEvent = occurrence({
+      occurrenceKey: 'event-2@2026-08-05T10:00:00Z',
+      sourceEventId: 'event-2',
+      title: 'Bennett private review',
+      contextRef: {
+        kind: 'household',
+        id: CLIENT_B_SCOPE.householdRef,
+        matterId: CLIENT_B_SCOPE.matterId,
+      },
+    });
+    let resolveClientB: ((value: readonly CalendarOccurrence[]) => void) | undefined;
+    let resolveClientBOtherMatter: ((value: readonly CalendarOccurrence[]) => void) | undefined;
+    runtime.listOccurrences
+      .mockResolvedValueOnce([clientAEvent])
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveClientB = resolve; }))
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        resolveClientBOtherMatter = resolve;
+      }));
+    const { rerender } = render(
+      <CalendarGridSurface now={ANCHOR} clientScope={CLIENT_A_SCOPE} />
+    );
+    await screen.findByText('Adams private review');
+
+    rerender(<CalendarGridSurface now={ANCHOR} clientScope={CLIENT_B_SCOPE} />);
+
+    expect(screen.queryByText('Adams private review')).toBeNull();
+    expect(screen.getByTestId('calendar-grid-loading')).toBeTruthy();
+    expect(screen.queryByText('Bennett private review')).toBeNull();
+
+    resolveClientB?.([clientAEvent, clientBEvent]);
+    expect(await screen.findByText('Bennett private review')).toBeTruthy();
+    expect(screen.queryByText('Adams private review')).toBeNull();
+
+    rerender(
+      <CalendarGridSurface now={ANCHOR} clientScope={CLIENT_B_OTHER_MATTER_SCOPE} />
+    );
+
+    expect(screen.queryByText('Bennett private review')).toBeNull();
+    expect(screen.getByTestId('calendar-grid-loading')).toBeTruthy();
+    resolveClientBOtherMatter?.([clientAEvent, clientBEvent]);
+    expect(await screen.findByTestId('calendar-grid-empty')).toHaveTextContent('Bennett household');
+  });
+
+  it('names the selected client and the active filter when its projection is empty', async () => {
+    runtime.enabled = true;
+    runtime.listOccurrences.mockResolvedValue([]);
+
+    render(<CalendarGridSurface now={ANCHOR} clientScope={CLIENT_A_SCOPE} />);
+
+    const empty = await screen.findByTestId('calendar-grid-empty');
+    expect(empty).toHaveTextContent('Adams household');
+    expect(empty).toHaveTextContent('filtered to this client');
   });
 
   it('renders seven week columns with hourly lanes and places occurrences in the matching lane', async () => {
@@ -309,8 +485,27 @@ describe('CalendarGridSurface', () => {
 
     render(<>{calendarGridSchedulingSurface.mount({ ...schedulingRuntime, onOpenWorkspace })}</>);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Open workspace' }));
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Open a workspace to view calendar events.');
+    expect(alert).not.toHaveTextContent('before using the calendar');
+    fireEvent.click(screen.getByRole('button', { name: 'Open workspace' }));
     expect(onOpenWorkspace).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps raw read failures local and shows translated recovery copy', async () => {
+    runtime.enabled = true;
+    runtime.listOccurrences.mockRejectedValue(
+      new Error('SQLCipher failed at /secret/client-a/calendar.db')
+    );
+
+    render(<CalendarGridSurface now={ANCHOR} clientScope={CLIENT_A_SCOPE} />);
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Calendar events could not be loaded. Try again.');
+    expect(alert).not.toHaveTextContent('SQLCipher');
+    expect(alert).not.toHaveTextContent('/secret/client-a');
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy();
+    expect(screen.queryByTestId('calendar-grid-empty')).toBeNull();
   });
 
   it('keeps the calendar frame during a real pending read instead of calling it empty', async () => {
