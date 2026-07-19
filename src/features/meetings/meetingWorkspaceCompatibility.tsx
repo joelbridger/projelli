@@ -7,7 +7,6 @@ import {
   Send,
   Trash2,
 } from 'lucide-react';
-import { MeetingNotesReview } from '@/platform/meetingNotesReview/MeetingNotesReview';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,6 +19,7 @@ import { MeetingTemplatePanel } from './MeetingTemplatePanel';
 import { createPreparedMeetingTemplateFillProvider } from './meetingTemplateAi';
 import { SpeakerNamesPanel } from './SpeakerNamesPanel';
 import { TranscriptViewer } from './TranscriptViewer';
+import { StructuredMeetingSummaryPanel } from './StructuredMeetingSummaryPanel';
 import type {
   MeetingHeaderActionDescriptor,
   MeetingPanelContext,
@@ -221,115 +221,7 @@ export const legacyMeetingPanels: readonly MeetingPanelDescriptor[] = [
     id: 'summary',
     order: 30,
     labelKey: 'meetings.entry.tab-summary',
-    mount: (context) => (
-      <div
-        data-testid="meeting-summary-tab"
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 'var(--kp-space-md)',
-        }}
-      >
-        {context.summaryReady ? (
-          <>
-            <MeetingNotesReview
-              meetingDir={context.meetingDir}
-              matterId={context.matterId}
-              summaryText={context.summaryText}
-              summaryHtml={context.summaryExtraction?.html ?? ''}
-              workspaceService={context.workspaceService}
-              {...(context.crmBlockedReason
-                ? {
-                    crmBlockedReason:
-                      'Mark this meeting reviewed before sending a CRM update.',
-                  }
-                : {})}
-            />
-            <pre
-              data-testid="meeting-summary-text"
-              style={{
-                whiteSpace: 'pre-wrap',
-                margin: 0,
-                fontFamily: 'inherit',
-                color: 'var(--kp-navy)',
-                fontSize: 'var(--kp-font-sm)',
-                lineHeight: 1.6,
-              }}
-            >
-              {context.summaryText.trim()}
-            </pre>
-          </>
-        ) : context.hasNotes ? (
-          <div
-            data-testid="meeting-entry-summary-not-ready"
-            style={{
-              color: 'var(--color-muted-foreground)',
-              fontSize: 'var(--kp-font-sm)',
-            }}
-          >
-            {context.t('meetings.entry.summary-not-ready')}
-          </div>
-        ) : context.meta?.notesError ? (
-          <div
-            data-testid="meeting-entry-notes-failed"
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 'var(--kp-space-sm)',
-            }}
-          >
-            <div
-              style={{
-                color: 'var(--kp-navy)',
-                fontSize: 'var(--kp-font-sm)',
-              }}
-            >
-              {context.meta.notesError.kind === 'gate-blocked' &&
-                context.t('meetings.entry.notes-failed-blocked')}
-              {context.meta.notesError.kind === 'timeout' &&
-                context.t('meetings.entry.notes-failed-timeout')}
-              {context.meta.notesError.kind === 'error' &&
-                context.t('meetings.entry.notes-failed-error')}
-            </div>
-            <button
-              type="button"
-              data-testid="meeting-entry-retry-notes"
-              onClick={() => {
-                context.onRetryNotes();
-              }}
-              disabled={context.retryingNotes}
-              style={{
-                alignSelf: 'flex-start',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                border: '1px solid var(--kp-divider)',
-                background: 'transparent',
-                borderRadius: 'var(--radius-md)',
-                padding: '6px 10px',
-                fontSize: 'var(--kp-font-xs)',
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-              }}
-            >
-              {context.retryingNotes
-                ? context.t('meetings.entry.retrying-notes')
-                : context.t('meetings.tab.retry-button')}
-            </button>
-          </div>
-        ) : (
-          <div
-            data-testid="meeting-entry-notes-pending"
-            style={{
-              color: 'var(--color-muted-foreground)',
-              fontSize: 'var(--kp-font-sm)',
-            }}
-          >
-            {context.t('meetings.entry.notes-pending')}
-          </div>
-        )}
-      </div>
-    ),
+    mount: (context) => <StructuredMeetingSummaryPanel context={context} />,
   },
 ];
 

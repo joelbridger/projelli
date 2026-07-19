@@ -16,10 +16,7 @@ function sealedBoundary(
   return { householdRef, matterId } as SealedMeetingClientBoundary;
 }
 
-function draft(
-  householdRef: string,
-  ownerRef: string
-): CreateMeetingDraft {
+function draft(householdRef: string, ownerRef: string): CreateMeetingDraft {
   return {
     workspaceId: 'workspace-1',
     householdRef,
@@ -42,11 +39,11 @@ function harness() {
     workspaceRoot: '/workspace',
     error: null,
     getActiveClientBoundary: () => active,
-    save: async (record) => {
+    save: (record) => {
       records = records.some((item) => item.id === record.id)
         ? records.map((item) => (item.id === record.id ? record : item))
         : [...records, record];
-      return record;
+      return Promise.resolve(record);
     },
     reloadRecords: () => Promise.resolve(records),
   };
@@ -66,7 +63,9 @@ describe('createStructuredMeetingSummaryReader', () => {
     const boundaryA = sealedBoundary('household-a', 'shared-matter');
     const boundaryB = sealedBoundary('household-b', 'shared-matter');
 
-    const meetingA = await meetings.createDraft(draft('household-a', 'owner-a'));
+    const meetingA = await meetings.createDraft(
+      draft('household-a', 'owner-a')
+    );
     await artifacts.append({
       meetingId: meetingA.id,
       kind: 'summary',
@@ -91,7 +90,9 @@ describe('createStructuredMeetingSummaryReader', () => {
     });
 
     live.setActive(boundaryB);
-    const meetingB = await meetings.createDraft(draft('household-b', 'owner-b'));
+    const meetingB = await meetings.createDraft(
+      draft('household-b', 'owner-b')
+    );
     await artifacts.append({
       meetingId: meetingB.id,
       kind: 'summary',
@@ -124,6 +125,16 @@ describe('createStructuredMeetingSummaryReader', () => {
       },
     });
     await expect(reader.read(meetingB)).resolves.toEqual({ kind: 'refused' });
+
+    await artifacts.approve(newestA.id, {
+      from: 'produced',
+      to: 'approved',
+      at: '2026-07-20T10:04:00.000Z',
+    });
+    await expect(reader.read(meetingA)).resolves.toMatchObject({
+      kind: 'ready',
+      summary: { artifactId: newestA.id, reviewState: 'reviewed' },
+    });
   });
 
   it('does not fall back to an older artifact when the newest summary is malformed', async () => {

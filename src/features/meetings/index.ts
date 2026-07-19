@@ -22,6 +22,13 @@ export {
   type StructuredMeetingSummaryReader,
 } from './structuredMeetingSummary';
 export { RecordPill } from './RecordPill';
+export {
+  StructuredMeetingSummaryPanel,
+  structuredSummaryFromText,
+  type StructuredMeetingSummaryContent,
+  type StructuredMeetingSummaryLoader,
+  type StructuredMeetingSummaryPanelLoadResult,
+} from './StructuredMeetingSummaryPanel';
 export { ClientMeetingsTab, listClientMeetings } from './ClientMeetingsTab';
 export type { MeetingSummary } from './ClientMeetingsTab';
 export { MeetingEntry } from './MeetingEntry';

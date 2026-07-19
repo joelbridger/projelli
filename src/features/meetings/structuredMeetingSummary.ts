@@ -34,9 +34,7 @@ export type StructuredMeetingSummaryReadResult =
   | { readonly kind: 'error' };
 
 export interface StructuredMeetingSummaryReader {
-  read(
-    meeting: MeetingProjection
-  ): Promise<StructuredMeetingSummaryReadResult>;
+  read(meeting: MeetingProjection): Promise<StructuredMeetingSummaryReadResult>;
 }
 
 function sameBoundary(
@@ -98,10 +96,7 @@ function projectStructuredSummary(
   };
 }
 
-function newestFirst(
-  left: MeetingArtifact,
-  right: MeetingArtifact
-): number {
+function newestFirst(left: MeetingArtifact, right: MeetingArtifact): number {
   return (
     right.producedAt.localeCompare(left.producedAt) ||
     right.createdAt.localeCompare(left.createdAt) ||
@@ -128,8 +123,10 @@ export function createStructuredMeetingSummaryReader(
   ]);
 
   return {
-    read: async (meeting) => {
-      if (!sameBoundary(meeting, boundary)) return { kind: 'refused' };
+    read: (meeting) => {
+      if (!sameBoundary(meeting, boundary)) {
+        return Promise.resolve({ kind: 'refused' });
+      }
 
       const candidates = scoped
         .listForMeeting(meeting.id, ['summary'])
@@ -141,11 +138,12 @@ export function createStructuredMeetingSummaryReader(
         )
         .sort(newestFirst);
       const newest = candidates[0];
-      if (!newest) return { kind: 'empty' };
+      if (!newest) return Promise.resolve({ kind: 'empty' });
 
       const summary = projectStructuredSummary(newest);
-      return summary ? { kind: 'ready', summary } : { kind: 'error' };
+      return Promise.resolve(
+        summary ? { kind: 'ready', summary } : { kind: 'error' }
+      );
     },
   };
 }
-
