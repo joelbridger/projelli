@@ -13,6 +13,14 @@ export {
 export type { MeetingMeta, StartOpts } from './meetingStore';
 export { readApprovedMeetingArtifacts } from './askArtifacts';
 export { readReviewNeededMeetingArtifacts } from './reviewArtifacts';
+export {
+  STRUCTURED_MEETING_SUMMARY_SCHEMA_VERSION,
+  createStructuredMeetingSummaryReader,
+  type StructuredMeetingSummary,
+  type StructuredMeetingSummaryPayload,
+  type StructuredMeetingSummaryReadResult,
+  type StructuredMeetingSummaryReader,
+} from './structuredMeetingSummary';
 export { RecordPill } from './RecordPill';
 export { ClientMeetingsTab, listClientMeetings } from './ClientMeetingsTab';
 export type { MeetingSummary } from './ClientMeetingsTab';
