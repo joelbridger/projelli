@@ -1,6 +1,7 @@
 import { createElement } from 'react';
 import { Home } from 'lucide-react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { BLESSED_PRIMARY_RAIL_IDENTITIES } from '@/app/shell/registry/legacyAppSurfaceDescriptors';
 import {
   appSurfaceRegistry,
   getAvailableAppSurfaceDescriptors,
@@ -69,6 +70,46 @@ describe('appSurfaceRegistry', () => {
       'home',
       'matters',
       'search',
+    ]);
+  });
+
+  it('keeps the blessed rail names in their fixed product order without changing saved ids', () => {
+    expect(BLESSED_PRIMARY_RAIL_IDENTITIES).toEqual([
+      {
+        id: 'home',
+        labelKey: 'app-surface.rail.today',
+        label: 'Today',
+        order: 10,
+      },
+      {
+        id: 'matters',
+        labelKey: 'app-surface.rail.crm',
+        label: 'CRM',
+        order: 20,
+      },
+      {
+        id: 'meetings',
+        labelKey: 'app-surface.rail.meetings',
+        label: 'Meetings',
+        order: 25,
+      },
+      {
+        id: 'search',
+        labelKey: 'app-surface.rail.ask',
+        label: 'Ask',
+        order: 30,
+      },
+    ]);
+
+    expect(
+      getOrderedAppSurfaces('primary').map(({ id, labelKey }) => ({
+        id,
+        labelKey,
+      }))
+    ).toEqual([
+      { id: 'home', labelKey: 'app-surface.rail.today' },
+      { id: 'matters', labelKey: 'app-surface.rail.crm' },
+      { id: 'search', labelKey: 'app-surface.rail.ask' },
     ]);
   });
 

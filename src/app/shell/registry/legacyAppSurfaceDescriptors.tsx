@@ -50,14 +50,41 @@ function legacySurface(options: LegacyDescriptorOptions): AppSurfaceDescriptor {
 }
 
 /**
+ * The public rail names are product language, not persisted navigation names.
+ * Keep this mapping here with the app-owned descriptors so a surface can change
+ * its visible name without changing its saved id or route.
+ *
+ * `meetings` is reserved for the Meetings descriptor that joins this registry
+ * during shell integration. The foundation intentionally does not register or
+ * render that surface itself.
+ */
+export const BLESSED_PRIMARY_RAIL_IDENTITIES = [
+  { id: 'home', labelKey: 'app-surface.rail.today', label: 'Today', order: 10 },
+  { id: 'matters', labelKey: 'app-surface.rail.crm', label: 'CRM', order: 20 },
+  {
+    id: 'meetings',
+    labelKey: 'app-surface.rail.meetings',
+    label: 'Meetings',
+    order: 25,
+  },
+  { id: 'search', labelKey: 'app-surface.rail.ask', label: 'Ask', order: 30 },
+] as const;
+
+const PRIMARY_RAIL_IDENTITY = Object.fromEntries(
+  BLESSED_PRIMARY_RAIL_IDENTITIES.map((identity) => [identity.id, identity])
+) as Record<
+  (typeof BLESSED_PRIMARY_RAIL_IDENTITIES)[number]['id'],
+  (typeof BLESSED_PRIMARY_RAIL_IDENTITIES)[number]
+>;
+
+/**
  * Compatibility descriptors for the pre-registry shell. They stay beside the
  * legacy runtime adapter; appSurfaceRegistry remains the one ordered mount
  * list. New surfaces own their descriptor in their feature module.
  */
 export const legacyHomeSurface = legacySurface({
   id: 'home',
-  labelKey: 'spine.nav.home',
-  legacyLabel: 'Home',
+  labelKey: PRIMARY_RAIL_IDENTITY.home.labelKey,
   icon: Home,
   placement: 'primary',
   order: 10,
@@ -77,8 +104,7 @@ export const legacyHomeSurface = legacySurface({
 
 export const legacyClientsSurface = legacySurface({
   id: 'matters',
-  labelKey: 'spine.nav.clients',
-  legacyLabel: 'Clients',
+  labelKey: PRIMARY_RAIL_IDENTITY.matters.labelKey,
   icon: MapIcon,
   placement: 'primary',
   order: 20,
@@ -89,7 +115,7 @@ export const legacyClientsSurface = legacySurface({
 
 export const legacyAskSurface = legacySurface({
   id: 'search',
-  labelKey: 'spine.nav.ask',
+  labelKey: PRIMARY_RAIL_IDENTITY.search.labelKey,
   icon: Sparkles,
   placement: 'primary',
   order: 30,
