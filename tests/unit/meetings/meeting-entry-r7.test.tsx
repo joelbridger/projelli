@@ -142,18 +142,18 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
   it('renders a registered panel contribution in the real host composition', async () => {
     // A dependent registers a panel through the public weave path.
     const unregister = registerMeetingPanel({
-      id: 'woven-signals' as MeetingPanelId,
+      id: 'agenda' as MeetingPanelId,
       order: 25,
       labelKey: 'meetings.woven.tab',
       mount: () => (
-        <div data-testid="woven-signals-body">woven contribution</div>
+        <div data-testid="agenda-body">woven contribution</div>
       ),
     });
     try {
       // The outside host getter now includes the contribution...
       expect(
         getMeetingPanelComposition().panels.map((panel) => panel.id)
-      ).toContain('woven-signals');
+      ).toContain('agenda');
 
       const ws = makeWorkspace();
       setMeetingsWorkspaceService(ws as never);
@@ -161,7 +161,7 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
 
       // ...and the real host actually renders that woven tab.
       expect(
-        await screen.findByTestId('meeting-subtab-woven-signals')
+        await screen.findByTestId('meeting-subtab-agenda')
       ).toBeInTheDocument();
       // The host-rendered tab order equals the outside composition order.
       const hostTabs = screen
@@ -178,7 +178,7 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
     // After unregister the host is back to the base tabs.
     expect(
       getMeetingPanelComposition().panels.map((panel) => panel.id)
-    ).not.toContain('woven-signals');
+    ).not.toContain('agenda');
   });
 
   it('mounts speaker naming and firm templates together in the transcript tab', async () => {
@@ -204,17 +204,17 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
 
     await waitFor(() => expect(screen.getByTestId('notice-trail')).toBeInTheDocument());
 
-    const recordingTab = screen.getByTestId('meeting-subtab-recording');
-    const transcriptTab = screen.getByTestId('meeting-subtab-transcript');
+    const prepTab = screen.getByTestId('meeting-subtab-prep');
     const summaryTab = screen.getByTestId('meeting-subtab-summary');
-    expect([recordingTab, transcriptTab, summaryTab].map((tab) => tab.textContent)).toEqual([
-      'Recording', 'Transcript', 'Summary',
+    const transcriptTab = screen.getByTestId('meeting-subtab-transcript');
+    expect([prepTab, summaryTab, transcriptTab].map((tab) => tab.textContent)).toEqual([
+      'Recording', 'Summary', 'Transcript',
     ]);
     // Send left the tab row (item 1).
     expect(screen.queryByTestId('meeting-subtab-send-to-team')).not.toBeInTheDocument();
     for (const [left, right] of [
-      [recordingTab, transcriptTab],
-      [transcriptTab, summaryTab],
+      [prepTab, summaryTab],
+      [summaryTab, transcriptTab],
     ] as const) {
       expect(left.compareDocumentPosition(right) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     }
@@ -240,7 +240,7 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
 
     render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
 
-    expect(screen.getByTestId('meeting-subtab-recording')).toBeTruthy();
+    expect(screen.getByTestId('meeting-subtab-prep')).toBeTruthy();
     expect(screen.getByTestId('meeting-subtab-transcript')).toBeTruthy();
     expect(screen.getByTestId('meeting-subtab-summary')).toBeTruthy();
 
