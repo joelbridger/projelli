@@ -1,5 +1,28 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
+
+const activePrepClient = vi.hoisted(() => ({
+  householdRef: 'household-a',
+  matterId: 'matter-a',
+}));
+
+vi.mock('@/platform/client-context', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/platform/client-context')>();
+  return {
+    ...actual,
+    readSelectionOperationDecision: () => ({
+      kind: 'matter' as const,
+      sourceKind: 'matter' as const,
+      matter: { id: activePrepClient.matterId },
+      client: {
+        provider: 'wealthbox' as const,
+        householdId: activePrepClient.householdRef,
+        displayName: activePrepClient.householdRef,
+      },
+    }),
+  };
+});
 import type {
   MeetingProjection,
   MeetingSurfaceFacts,
@@ -14,6 +37,11 @@ import {
 } from './briefStore';
 
 const NOW = '2026-07-20T08:00:00.000Z';
+
+function selectTarget(value: ExactMeetingBriefTarget): void {
+  activePrepClient.householdRef = value.clientBoundary.householdRef;
+  activePrepClient.matterId = value.clientBoundary.matterId;
+}
 
 function target(suffix: string): ExactMeetingBriefTarget {
   const client = {
@@ -97,6 +125,7 @@ afterEach(() => {
 describe('MeetingPrepPanel', () => {
   it('projects the real brief, exact client match, source count, readiness, and handoffs', () => {
     const value = target('a');
+    selectTarget(value);
     useBriefStore.setState({ briefs: { a: brief('a') } });
     const join = vi.fn();
     const record = vi.fn();
@@ -139,6 +168,7 @@ describe('MeetingPrepPanel', () => {
 
   it('renders distinct loading, empty, and error states without borrowing another brief', () => {
     const value = target('a');
+    selectTarget(value);
     useBriefStore.setState({
       briefs: { a: brief('a', { status: 'generating' }) },
     });
@@ -161,8 +191,10 @@ describe('MeetingPrepPanel', () => {
       'Local model unavailable.'
     );
 
+    const clientB = target('b');
+    selectTarget(clientB);
     view.rerender(
-      <MeetingPrepPanel target={target('b')} surfaceFacts={[]} nowUtc={NOW} />
+      <MeetingPrepPanel target={clientB} surfaceFacts={[]} nowUtc={NOW} />
     );
     expect(screen.getByTestId('meeting-prep-empty')).toBeInTheDocument();
     expect(screen.queryByText(/Annual review a/)).not.toBeInTheDocument();
@@ -171,6 +203,7 @@ describe('MeetingPrepPanel', () => {
   it('clears client A content immediately when the event, household, and matter target changes', () => {
     const clientA = target('a');
     const clientB = target('b');
+    selectTarget(clientA);
     useBriefStore.setState({ briefs: { a: brief('a') } });
     const view = render(
       <MeetingPrepPanel
@@ -181,6 +214,7 @@ describe('MeetingPrepPanel', () => {
     );
     expect(screen.getByText('Annual review a')).toBeInTheDocument();
 
+    selectTarget(clientB);
     view.rerender(
       <MeetingPrepPanel
         target={clientB}
@@ -205,6 +239,7 @@ describe('MeetingPrepPanel', () => {
         matterId: householdA.clientBoundary.matterId,
       } as SealedMeetingClientBoundary,
     };
+    selectTarget(householdA);
     useBriefStore.setState({ briefs: { a: brief('a') } });
     const view = render(
       <MeetingPrepPanel
@@ -215,6 +250,7 @@ describe('MeetingPrepPanel', () => {
     );
     expect(screen.getByText('Annual review a')).toBeInTheDocument();
 
+    selectTarget(householdB);
     view.rerender(
       <MeetingPrepPanel
         target={householdB}
@@ -228,6 +264,7 @@ describe('MeetingPrepPanel', () => {
 
   it('does not claim join or record readiness from wrong-pair facts', () => {
     const value = target('a');
+    selectTarget(value);
     const exactFacts = facts(value);
     const exactFact = exactFacts[0];
     if (!exactFact) throw new Error('expected exact meeting facts');

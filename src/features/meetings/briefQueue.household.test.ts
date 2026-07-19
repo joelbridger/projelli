@@ -2,6 +2,29 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import type { CalendarEventDto } from '@/platform/utils/calendar-commands';
+
+const activeQueueClient = vi.hoisted(() => ({
+  householdRef: 'household-a',
+  matterId: 'matter-shared',
+}));
+
+vi.mock('@/platform/client-context', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/platform/client-context')>();
+  return {
+    ...actual,
+    readSelectionOperationDecision: () => ({
+      kind: 'matter' as const,
+      sourceKind: 'matter' as const,
+      matter: { id: activeQueueClient.matterId },
+      client: {
+        provider: 'wealthbox' as const,
+        householdId: activeQueueClient.householdRef,
+        displayName: activeQueueClient.householdRef,
+      },
+    }),
+  };
+});
 import { cancelBriefQueue, enqueueBriefs } from './briefQueue';
 import {
   selectExactMeetingBrief,
@@ -56,6 +79,11 @@ function target(householdRef: string): ExactMeetingBriefTarget {
   return { eventId: event.id, meeting, clientBoundary };
 }
 
+function selectTarget(value: ExactMeetingBriefTarget): void {
+  activeQueueClient.householdRef = value.clientBoundary.householdRef;
+  activeQueueClient.matterId = value.clientBoundary.matterId;
+}
+
 afterEach(() => {
   cancelBriefQueue();
   useBriefStore.setState({ briefs: {} });
@@ -65,6 +93,7 @@ describe('brief queue household isolation', () => {
   it('writes and reads only the generated brief for the sealed household', async () => {
     const householdA = target('household-a');
     const householdB = target('household-b');
+    selectTarget(householdA);
     enqueueBriefs([{ clientBoundary: householdA.clientBoundary, event }]);
     await waitFor(() => {
       expect(
@@ -83,6 +112,7 @@ describe('brief queue household isolation', () => {
       })
     );
     expect(screen.getByText(/Generated for Annual review/)).toBeInTheDocument();
+    selectTarget(householdB);
     view.rerender(
       createElement(MeetingPrepPanel, {
         target: householdB,
@@ -94,9 +124,11 @@ describe('brief queue household isolation', () => {
     expect(
       screen.queryByText(/Generated for Annual review/)
     ).not.toBeInTheDocument();
-    const briefA = selectExactMeetingBrief(
-      useBriefStore.getState().briefs,
-      householdA
+    expect(
+      selectExactMeetingBrief(useBriefStore.getState().briefs, householdA)
+    ).toBeNull();
+    const briefA = Object.values(useBriefStore.getState().briefs).find(
+      (candidate) => candidate.householdRef === householdA.clientBoundary.householdRef
     );
     expect(briefA?.householdRef).toBe('household-a');
 
@@ -116,10 +148,11 @@ describe('brief queue household isolation', () => {
       householdA
     );
     expect(briefBAfterSwitch?.householdRef).toBe('household-b');
-    expect(briefAAfterSwitch).toEqual(briefA);
-    expect(briefAAfterSwitch?.key).not.toBe(briefBAfterSwitch?.key);
+    expect(briefAAfterSwitch).toBeNull();
+    expect(briefA?.key).not.toBe(briefBAfterSwitch?.key);
     expect(Object.keys(useBriefStore.getState().briefs)).toHaveLength(2);
     expect(screen.getByText(/Generated for Annual review/)).toBeInTheDocument();
+    selectTarget(householdA);
     view.rerender(
       createElement(MeetingPrepPanel, {
         target: householdA,

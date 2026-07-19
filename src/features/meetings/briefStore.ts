@@ -13,6 +13,7 @@ import type {
   MeetingProjection,
   SealedMeetingClientBoundary,
 } from './foundation/contract';
+import { readActiveMeetingClientBoundary } from './foundation/contract';
 
 export type BriefStatus = 'pending' | 'generating' | 'ready' | 'failed';
 
@@ -173,6 +174,14 @@ export function selectExactMeetingBrief(
       'matter id'
     );
   } catch {
+    return null;
+  }
+  const activeClientBoundary = readActiveMeetingClientBoundary();
+  if (
+    !activeClientBoundary ||
+    activeClientBoundary.householdRef !== householdRef ||
+    activeClientBoundary.matterId !== matterId
+  ) {
     return null;
   }
   const { meeting } = target;
