@@ -1,0 +1,117 @@
+{
+  "meetings": {
+    "shell": {
+      "title": "Besprechungen",
+      "navigation": "Besprechungsnavigation",
+      "views": {
+        "upcoming": "Bevorstehend",
+        "past": "Vergangen",
+        "actions": "Aktionen",
+        "templates": "Vorlagen",
+        "automations": "Automatisierungen",
+        "calendar": "Kalender"
+      },
+      "manage": { "label": "Besprechungseinrichtung verwalten" },
+      "scope": {
+        "firm": "Kalendertermine und Prüfungen für die gesamte Praxis",
+        "client": "Gefiltert nach {{client}}"
+      },
+      "actions": {
+        "new-meeting": "Neue Besprechung",
+        "open": "Öffnen",
+        "review": "Prüfen",
+        "retry": "Erneut versuchen",
+        "show-upcoming": "Bevorstehende Besprechungen zeigen"
+      },
+      "columns": {
+        "meeting": "Besprechung",
+        "when": "Wann",
+        "client": "Kundenzuordnung",
+        "status": "Status",
+        "open": "Besprechung öffnen",
+        "action": "Aktion",
+        "review": "Aktion prüfen"
+      },
+      "link": {
+        "linked": "Mit Kunde verknüpft",
+        "folder-only": "Nicht mit einem Kunden verknüpft"
+      },
+      "status": { "needs-review": "Prüfung nötig" },
+      "empty": {
+        "upcoming": "Keine bevorstehenden Besprechungen.",
+        "past": "Noch keine verarbeiteten Besprechungen.",
+        "actions": "Nichts wartet auf Sie."
+      },
+      "loading": {
+        "meetings": "Besprechungen werden geladen…",
+        "actions": "Prüfungen werden geladen…",
+        "templates": "Besprechungsvorlage wird geladen…"
+      },
+      "errors": {
+        "load": "Besprechungen konnten gerade nicht geladen werden.",
+        "actions": "Besprechungsprüfungen konnten gerade nicht geladen werden.",
+        "selection-blocked": "Wählen Sie einen gültigen Kunden oder die Praxisansicht, bevor Sie Besprechungen öffnen."
+      },
+      "navigation-result": {
+        "folder-only": "Diese Besprechung ist keinem Kunden zugeordnet. Daher gibt es keine Kundenseite zum Öffnen.",
+        "refused": "Diese Besprechung konnte nicht geprüft werden. Es wurde nichts geöffnet.",
+        "open-failed": "Die verknüpfte Besprechung konnte nicht geöffnet werden. Daten anderer Kunden wurden nicht gezeigt."
+      },
+      "tools": {
+        "owner": "Besprechungsverantwortlicher",
+        "all": "Alle Berater",
+        "mine": "Meine Besprechungen"
+      },
+      "filters": {
+        "view": "Ansicht",
+        "type": "Typ",
+        "owner": "Verantwortlich",
+        "need-attention": "Zu prüfen",
+        "all": "Alle",
+        "archived": "Archiviert",
+        "all-types": "Alle Typen",
+        "tasks": "Aufgabenvorschläge",
+        "crm-updates": "CRM-Änderungsvorschläge",
+        "follow-ups": "Nachfassentwürfe",
+        "speaker-confirmations": "Sprecherbestätigungen",
+        "unmatched-attendees": "Nicht zugeordnete Teilnehmer",
+        "all-owners": "Alle Verantwortlichen",
+        "mine": "Meine",
+        "unassigned": "Nicht zugewiesen"
+      },
+      "fixture": {
+        "list": "Externe Besprechungsansicht",
+        "tool": "Externes Besprechungswerkzeug",
+        "artifact": "Externes Besprechungsartefakt",
+        "notice": "Externer Nachweis des Hinweises"
+      },
+      "artifact": {
+        "action-update-proposal": "Aufgaben oder CRM-Änderung prüfen",
+        "follow-up-draft": "Nachfassentwurf prüfen",
+        "diarization": "Sprechernamen bestätigen"
+      },
+      "templates": {
+        "choose-meeting": "Öffnen Sie zuerst eine verknüpfte Besprechung und kehren Sie dann hierher zurück, um die echte Vorlage zu verwalten.",
+        "no-transcript": "Für diese Besprechung gibt es noch keinen vorlagenfähigen Transkriptbereich."
+      },
+      "automations": {
+        "description": "Aktive Kalenderregeln für Besprechungen, denen diese App beitreten kann."
+      },
+      "new-meeting": { "choose-client": "Wählen Sie einen Kunden, bevor Sie eine Besprechung starten." },
+      "fallback": { "meeting": "Besprechung" },
+      "detail-tabs": {
+        "prep": "Vorbereitung",
+        "agenda": "Agenda",
+        "summary": "Zusammenfassung",
+        "transcript": "Transkript",
+        "tasks": "Aufgaben",
+        "crm-update": "CRM-Änderung",
+        "follow-up": "Nachfassen",
+        "agenda-empty": "Für diese Besprechung ist noch keine Agenda hinterlegt.",
+        "review-empty": "Prüfungen erscheinen, sobald die Zusammenfassung bereit ist.",
+        "follow-up-empty": "Ein Nachfassen wird nach der Prüfung der Besprechung verfügbar.",
+        "open-follow-up": "Nachfassentwurf öffnen"
+      }
+    }
+  }
+}

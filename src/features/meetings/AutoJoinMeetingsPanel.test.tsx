@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CalendarEventDto } from '@/platform/utils/calendar-commands';
 import type { Matter } from '@/platform/types/matter';
 import type { SelectionOperationDecision } from '@/platform/client-context';
@@ -112,12 +112,17 @@ function selectedDecision(
   };
 }
 
+beforeEach(() => {
+  vi.spyOn(Date, 'now').mockReturnValue(NOW);
+});
+
 afterEach(() => {
   cleanup();
   matters = [];
   selection = { kind: 'all-matters', client: null };
   activeClient = null;
   calendarListEvents.mockReset();
+  vi.restoreAllMocks();
 });
 
 describe('AutoJoinMeetingsPanel pair-aware management', () => {

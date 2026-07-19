@@ -3,9 +3,14 @@ import {
   getNavigationTargetDescriptors,
   navigationTargetRegistry,
   resolveNavigationTargetDescriptor,
+  resolveNavigationTargetRegistry,
   validateNavigationTargetDescriptors,
   type NavigationTargetDescriptor,
 } from '@/app/commands/registry/navigationTargetRegistry';
+import {
+  getAppSurfaceDescriptors,
+  getKnownAppSurfaceDescriptors,
+} from '@/app/shell/registry/appSurfaceRegistry';
 import type { AppSurfaceId } from '@/app/shell/registry/types';
 
 function descriptor(
@@ -20,7 +25,9 @@ function descriptor(
 }
 
 describe('navigationTargetRegistry', () => {
-  it('owns every existing matter-launch alias', () => {
+  it('owns every existing matter-launch alias and accepts the dark Meetings surface', async () => {
+    await resolveNavigationTargetRegistry();
+
     expect(navigationTargetRegistry).toHaveLength(8);
     expect(getNavigationTargetDescriptors().map(({ id }) => id)).toEqual([
       'home',
@@ -32,6 +39,15 @@ describe('navigationTargetRegistry', () => {
       'privacy',
       'matters',
     ]);
+    expect(
+      getKnownAppSurfaceDescriptors().find(({ id }) => id === 'meetings')
+    ).toMatchObject({
+      id: 'meetings',
+      availabilityFlag: 'meetings-shell-v1',
+    });
+    expect(getAppSurfaceDescriptors().map(({ id }) => id)).not.toContain(
+      'meetings'
+    );
   });
 
   it('rejects duplicate target ids', () => {
@@ -40,7 +56,9 @@ describe('navigationTargetRegistry', () => {
     }).toThrow('duplicate target id: example-target');
   });
 
-  it('rejects targets that do not resolve to an app-surface descriptor', () => {
+  it('rejects targets that do not resolve to an app-surface descriptor', async () => {
+    await resolveNavigationTargetRegistry();
+
     expect(() => {
       validateNavigationTargetDescriptors([
         descriptor({ appSurfaceId: 'missing' as AppSurfaceId }),
@@ -48,12 +66,14 @@ describe('navigationTargetRegistry', () => {
     }).toThrow('unknown app surface: missing');
   });
 
-  it('returns no descriptor for an unknown alias so the router can refuse it', () => {
-    expect(
-      resolveNavigationTargetDescriptor({
-        matterId: 'missing-client',
-        surface: 'not-registered',
-      })
-    ).toBeUndefined();
+  it('returns no descriptor for an unknown alias so the router can refuse it', async () => {
+    await expect(
+      Promise.resolve(
+        resolveNavigationTargetDescriptor({
+          matterId: 'missing-client',
+          surface: 'not-registered',
+        })
+      )
+    ).resolves.toBeUndefined();
   });
 });

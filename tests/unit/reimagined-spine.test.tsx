@@ -46,13 +46,16 @@ describe('Spine', () => {
     expect(nav.textContent).not.toMatch(/ai.?assistant/i);
   });
 
-  it('shows the 3 primary nav items: Home, Clients, Ask', () => {
+  it('shows the three flag-available primary nav items', () => {
     render(<Spine />);
     const navEl = screen.getByTestId('spine-nav');
     expect(navEl).toBeTruthy();
     expect(screen.getByTestId('spine-nav-home')).toBeTruthy();
     expect(screen.getByTestId('spine-nav-matters')).toBeTruthy();
     expect(screen.getByTestId('spine-nav-search')).toBeTruthy();
+    expect(screen.getByTestId('spine-nav-home')).toHaveTextContent('Today');
+    expect(screen.getByTestId('spine-nav-matters')).toHaveTextContent('CRM');
+    expect(screen.getByTestId('spine-nav-search')).toHaveTextContent('Ask');
     expect(screen.queryByTestId('spine-nav-workflows')).toBeNull();
   });
 

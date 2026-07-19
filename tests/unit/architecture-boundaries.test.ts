@@ -68,6 +68,7 @@ const ALLOWED_FEATURE_EDGES = new Set<string>([
   'matters->intake', // MatterHub hosts the Onboarding tab (OnboardingTab) and NewClientDialog composes the intake New-household checklist (newHouseholdTemplate) — client onboarding lives on the matters/Client Map surfaces (Intake Wave 1), same pattern as matters->meetings
   'meetings->dictation', // MeetingEntry (Wave 3c) reuses the existing AudioPlayer for the meeting audio scrubber instead of building a second audio player
   'meetings->documents', // MeetingEntry (Wave 3c) reuses the existing DocxEditor to show notes.docx inline instead of a second docx renderer
+  'meetings->calendar-grid', // The Meetings shell composes CalendarGridSurface through the calendar-grid feature's public doorway.
   'meetings->email', // Follow-up composes Email's public Outlook Drafts-only capability; the mode cannot send and receives the sealed meeting + household/matter identity.
   'meetings->workflows', // generateBrief.ts runs the existing MeetingPrepAndSuitabilityNotes template headlessly via the workflow engine, instead of duplicating template-execution logic in the meetings feature
   'onboarding->firm', // onboarding explains firm/SSO setup

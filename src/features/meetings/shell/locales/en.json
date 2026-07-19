@@ -1,0 +1,119 @@
+{
+  "meetings": {
+    "shell": {
+      "title": "Meetings",
+      "navigation": "Meetings navigation",
+      "views": {
+        "upcoming": "Upcoming",
+        "past": "Past",
+        "actions": "Actions",
+        "templates": "Templates",
+        "automations": "Automations",
+        "calendar": "Calendar"
+      },
+      "manage": { "label": "Manage meeting setup" },
+      "scope": {
+        "firm": "Calendar-linked meetings and review work across your practice",
+        "client": "Filtered to {{client}}"
+      },
+      "actions": {
+        "new-meeting": "New meeting",
+        "open": "Open",
+        "review": "Review",
+        "retry": "Try again",
+        "show-upcoming": "Show upcoming meetings"
+      },
+      "columns": {
+        "meeting": "Meeting",
+        "when": "When",
+        "client": "Client match",
+        "status": "Status",
+        "open": "Open meeting",
+        "action": "Action",
+        "review": "Review action"
+      },
+      "link": {
+        "linked": "Linked to client",
+        "folder-only": "Not linked to a client"
+      },
+      "status": { "needs-review": "Needs review" },
+      "empty": {
+        "upcoming": "No upcoming meetings.",
+        "past": "No processed meetings yet.",
+        "actions": "Nothing waiting on you."
+      },
+      "loading": {
+        "meetings": "Loading meetings…",
+        "actions": "Loading review work…",
+        "templates": "Loading the meeting template…"
+      },
+      "errors": {
+        "load": "Meetings could not be loaded right now.",
+        "actions": "Meeting review work could not be loaded right now.",
+        "selection-blocked": "Choose a valid client or the whole-practice view before opening Meetings."
+      },
+      "navigation-result": {
+        "folder-only": "This meeting is not linked to a client, so there is no client meeting page to open.",
+        "refused": "That meeting could not be verified. Nothing was opened.",
+        "open-failed": "The linked meeting could not be opened. Nothing from another client was shown."
+      },
+      "tools": {
+        "owner": "Meeting owner",
+        "all": "All advisors",
+        "mine": "My meetings"
+      },
+      "filters": {
+        "view": "View",
+        "type": "Type",
+        "owner": "Owner",
+        "need-attention": "Needs attention",
+        "all": "All",
+        "archived": "Archived",
+        "all-types": "All types",
+        "tasks": "Task proposals",
+        "crm-updates": "CRM update proposals",
+        "follow-ups": "Follow-up drafts",
+        "speaker-confirmations": "Speaker confirmations",
+        "unmatched-attendees": "Unmatched attendees",
+        "all-owners": "All owners",
+        "mine": "Mine",
+        "unassigned": "Unassigned"
+      },
+      "fixture": {
+        "list": "Outside meeting view",
+        "tool": "Outside meeting tool",
+        "artifact": "Outside meeting artifact",
+        "notice": "Outside notice evidence"
+      },
+      "artifact": {
+        "action-update-proposal": "Review proposed tasks or CRM update",
+        "follow-up-draft": "Review follow-up draft",
+        "diarization": "Confirm speaker names"
+      },
+      "templates": {
+        "choose-meeting": "Open a linked meeting first, then return here to manage its real template and transcript-backed note.",
+        "no-transcript": "This meeting does not have a transcript-backed template workspace yet."
+      },
+      "automations": {
+        "description": "Live calendar rules for meetings this app is prepared to join."
+      },
+      "new-meeting": {
+        "choose-client": "Choose one client before starting a meeting."
+      },
+      "fallback": { "meeting": "Meeting" },
+      "detail-tabs": {
+        "prep": "Prep",
+        "agenda": "Agenda",
+        "summary": "Summary",
+        "transcript": "Transcript",
+        "tasks": "Tasks",
+        "crm-update": "CRM update",
+        "follow-up": "Follow-up",
+        "agenda-empty": "No agenda artifact is attached to this meeting yet.",
+        "review-empty": "Review work appears here after the meeting summary is ready.",
+        "follow-up-empty": "A follow-up becomes available after the meeting has been reviewed.",
+        "open-follow-up": "Open follow-up draft"
+      }
+    }
+  }
+}

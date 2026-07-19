@@ -1,0 +1,117 @@
+{
+  "meetings": {
+    "shell": {
+      "title": "Reuniones",
+      "navigation": "Navegación de reuniones",
+      "views": {
+        "upcoming": "Próximas",
+        "past": "Anteriores",
+        "actions": "Acciones",
+        "templates": "Plantillas",
+        "automations": "Automatizaciones",
+        "calendar": "Calendario"
+      },
+      "manage": { "label": "Administrar la preparación de reuniones" },
+      "scope": {
+        "firm": "Reuniones del calendario y revisiones de toda la práctica",
+        "client": "Filtrado por {{client}}"
+      },
+      "actions": {
+        "new-meeting": "Nueva reunión",
+        "open": "Abrir",
+        "review": "Revisar",
+        "retry": "Intentar de nuevo",
+        "show-upcoming": "Mostrar próximas reuniones"
+      },
+      "columns": {
+        "meeting": "Reunión",
+        "when": "Cuándo",
+        "client": "Cliente vinculado",
+        "status": "Estado",
+        "open": "Abrir reunión",
+        "action": "Acción",
+        "review": "Revisar acción"
+      },
+      "link": {
+        "linked": "Vinculada al cliente",
+        "folder-only": "No vinculada a un cliente"
+      },
+      "status": { "needs-review": "Necesita revisión" },
+      "empty": {
+        "upcoming": "No hay próximas reuniones.",
+        "past": "Aún no hay reuniones procesadas.",
+        "actions": "Nada espera tu revisión."
+      },
+      "loading": {
+        "meetings": "Cargando reuniones…",
+        "actions": "Cargando revisiones…",
+        "templates": "Cargando la plantilla…"
+      },
+      "errors": {
+        "load": "No se pudieron cargar las reuniones.",
+        "actions": "No se pudieron cargar las revisiones de reuniones.",
+        "selection-blocked": "Elige un cliente válido o la vista de toda la práctica antes de abrir Reuniones."
+      },
+      "navigation-result": {
+        "folder-only": "Esta reunión no está vinculada a un cliente, por lo que no hay una página de reunión para abrir.",
+        "refused": "No se pudo verificar esa reunión. No se abrió nada.",
+        "open-failed": "No se pudo abrir la reunión vinculada. No se mostró información de otro cliente."
+      },
+      "tools": {
+        "owner": "Responsable de la reunión",
+        "all": "Todos los asesores",
+        "mine": "Mis reuniones"
+      },
+      "filters": {
+        "view": "Vista",
+        "type": "Tipo",
+        "owner": "Responsable",
+        "need-attention": "Necesita atención",
+        "all": "Todo",
+        "archived": "Archivado",
+        "all-types": "Todos los tipos",
+        "tasks": "Propuestas de tareas",
+        "crm-updates": "Propuestas de actualización del CRM",
+        "follow-ups": "Borradores de seguimiento",
+        "speaker-confirmations": "Confirmaciones de hablantes",
+        "unmatched-attendees": "Asistentes sin identificar",
+        "all-owners": "Todos los responsables",
+        "mine": "Míos",
+        "unassigned": "Sin asignar"
+      },
+      "fixture": {
+        "list": "Vista externa de reuniones",
+        "tool": "Herramienta externa de reuniones",
+        "artifact": "Artefacto externo de reunión",
+        "notice": "Evidencia externa de aviso"
+      },
+      "artifact": {
+        "action-update-proposal": "Revisar tareas o cambio de CRM",
+        "follow-up-draft": "Revisar borrador de seguimiento",
+        "diarization": "Confirmar nombres de hablantes"
+      },
+      "templates": {
+        "choose-meeting": "Abre primero una reunión vinculada y vuelve aquí para administrar su plantilla real.",
+        "no-transcript": "Esta reunión aún no tiene un espacio de plantilla basado en la transcripción."
+      },
+      "automations": {
+        "description": "Reglas de calendario activas para reuniones a las que esta aplicación está lista para unirse."
+      },
+      "new-meeting": { "choose-client": "Elige un cliente antes de iniciar una reunión." },
+      "fallback": { "meeting": "Reunión" },
+      "detail-tabs": {
+        "prep": "Preparación",
+        "agenda": "Agenda",
+        "summary": "Resumen",
+        "transcript": "Transcripción",
+        "tasks": "Tareas",
+        "crm-update": "Cambio de CRM",
+        "follow-up": "Seguimiento",
+        "agenda-empty": "Aún no hay una agenda adjunta a esta reunión.",
+        "review-empty": "Las revisiones aparecen cuando el resumen está listo.",
+        "follow-up-empty": "El seguimiento aparece después de revisar la reunión.",
+        "open-follow-up": "Abrir borrador de seguimiento"
+      }
+    }
+  }
+}

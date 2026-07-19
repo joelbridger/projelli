@@ -18,7 +18,7 @@ vi.mock('@/platform/rag/matterResolver', () => ({
 
 describe('Spine — 3-tab shell', () => {
 
-  it('renders exactly the 3 primary tabs: Home, Clients, Ask (D11)', () => {
+  it('renders the three flag-available primary tabs while Meetings stays dark', () => {
     render(<Spine activeTab="matters" />);
     expect(screen.getByTestId('spine-nav-home')).toBeTruthy();
     expect(screen.getByTestId('spine-nav-matters')).toBeTruthy();
@@ -26,14 +26,11 @@ describe('Spine — 3-tab shell', () => {
     expect(screen.queryByTestId('spine-nav-workflows')).toBeNull();
   });
 
-  it('relabels the tabs (Home / Clients / Ask) while keeping internal ids', () => {
+  it('uses the blessed rail labels while keeping the long-lived internal ids', () => {
     render(<Spine activeTab="matters" />);
-    // Home/Clients are plain labels for now (their catalog keys land with the
-    // flagged translation-catalog work); Ask still goes through t(), and
-    // react-i18next is mocked to `t = (key) => key` in this suite.
-    expect(screen.getByTestId('spine-nav-home').textContent).toBe('Home');
-    expect(screen.getByTestId('spine-nav-matters').textContent).toBe('Clients');
-    expect(screen.getByTestId('spine-nav-search').textContent).toBe('spine.nav.ask');
+    expect(screen.getByTestId('spine-nav-home').textContent).toBe('Today');
+    expect(screen.getByTestId('spine-nav-matters').textContent).toBe('CRM');
+    expect(screen.getByTestId('spine-nav-search').textContent).toBe('Ask');
   });
 
   it('does NOT render the demoted surfaces as rail tabs (files/email/audit/privacy/settings)', () => {

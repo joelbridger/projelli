@@ -8,6 +8,7 @@ import {
 import {
   getAppSurfaceDescriptor,
   getAppSurfaceDescriptors,
+  getKnownAppSurfaceDescriptors,
   getOrderedAppSurfaces,
 } from '@/app/shell/registry/appSurfaceRegistry';
 import { V1ShellFrameFlagGate } from '@/app/shell/v1-frame/V1ShellFrame';
@@ -136,6 +137,7 @@ function CrmRouteHarness() {
 function setShellFlags(crmShellEnabled: boolean | undefined) {
   setDevFlagOverride('v1-shell-frame', true);
   setDevFlagOverride('crm-shell-v1', crmShellEnabled);
+  setDevFlagOverride('meetings-shell-v1', false);
 }
 
 describe('real CRM surface flag-gated swap', () => {
@@ -147,6 +149,7 @@ describe('real CRM surface flag-gated swap', () => {
     cleanup();
     setDevFlagOverride('v1-shell-frame', undefined);
     setDevFlagOverride('crm-shell-v1', undefined);
+    setDevFlagOverride('meetings-shell-v1', undefined);
   });
 
   it('keeps the legacy CRM mounted through the existing registry, main navigation, and router while dark', async () => {
@@ -164,10 +167,21 @@ describe('real CRM surface flag-gated swap', () => {
     expect(screen.getByTestId('v1-shell-nav-home')).toBeInTheDocument();
     expect(screen.queryByTestId('v1-shell-nav-crm')).not.toBeInTheDocument();
     expect(await screen.findByTestId('crm-home')).toBeInTheDocument();
+    expect(
+      getKnownAppSurfaceDescriptors().find(({ id }) => id === 'meetings')
+    ).toMatchObject({
+      id: 'meetings',
+      availabilityFlag: 'meetings-shell-v1',
+    });
+    expect(getOrderedAppSurfaces('primary').map(({ id }) => id)).toEqual([
+      'home',
+      'matters',
+      'search',
+    ]);
     expect(screen.queryByTestId('crm-shell-frame')).not.toBeInTheDocument();
-    // The unchanged legacy CRM still owns its normal live-record load. The
-    // dark v1 frame contributes no additional CRM destination/data work.
-    expect(useLiveCrmRecords).toHaveBeenCalledOnce();
+    // Resolving the newly lazy surface registry re-renders the unchanged CRM
+    // once. Meetings stays dark and never mounts its own live-record consumer.
+    expect(useLiveCrmRecords).toHaveBeenCalledTimes(2);
   });
 
   it('uses that same Home route to render real, live registry destinations without exposing dark destinations', async () => {
