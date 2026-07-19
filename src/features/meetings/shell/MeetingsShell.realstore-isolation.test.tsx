@@ -400,7 +400,7 @@ describe('Gate 3 — every real panel reader fails closed after Alpha → Beta',
       matterId: SHARED_MATTER_ID,
     });
 
-    expect.soft(
+    expect(
       selectExactMeetingBrief(
         useBriefStore.getState().briefs,
         fixture.briefTargetA
@@ -423,7 +423,7 @@ describe('Gate 3 — every real panel reader fails closed after Alpha → Beta',
     ).resolves.toEqual({ kind: 'refused' });
 
     const actions = await fixture.inbox.readForClient(fixture.boundaryA);
-    expect.soft(
+    expect(
       actions,
       'Actions/F9 returned Alpha rows after Beta became active.'
     ).toMatchObject({ kind: 'ready-empty', items: [], badgeMeetingCount: 0 });
