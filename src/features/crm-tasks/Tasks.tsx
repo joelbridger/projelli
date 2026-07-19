@@ -179,6 +179,16 @@ export function Tasks({
     item.title.toLowerCase().includes(filter.toLowerCase())
   );
   const workItems = dailyWorkItems(filtered, filteredWorkflowSteps);
+  const orderedWorkItems = [
+    ...buildCapacityTriage(workItems, []).ranked,
+    ...workItems.filter(
+      (item) => item.status === 'done' || item.status === 'cancelled'
+    ),
+  ];
+  const filteredTasksById = new Map(filtered.map((task) => [task.id, task]));
+  const filteredWorkflowStepsById = new Map(
+    filteredWorkflowSteps.map((item) => [item.id, item])
+  );
   const plan = buildCapacityTriage(
     dailyWorkItems(tasks, workflowWorkItems),
     firmMembers.map((member) => member.userId)
@@ -395,46 +405,52 @@ export function Tasks({
               </p>
             ) : (
               <>
-                {filtered.map((task) => (
-                  <TaskRow
-                    key={task.id}
-                    task={task}
-                    onComplete={() => {
-                      advance(task);
-                    }}
-                    onOpen={() => {
-                      setEditing(task);
-                    }}
-                    onDuplicate={() => {
-                      void duplicateTask(task).catch((reason: unknown) => {
-                        setTaskActionError(
-                          reason instanceof Error
-                            ? reason.message
-                            : 'The task could not be duplicated.'
-                        );
-                      });
-                    }}
-                    onDelete={() => {
-                      void deleteTask(task).catch((reason: unknown) => {
-                        setTaskActionError(
-                          reason instanceof Error
-                            ? reason.message
-                            : 'The task could not be deleted.'
-                        );
-                      });
-                    }}
-                    actionPending={pendingTaskActionId === task.id}
-                  />
-                ))}
-                {filteredWorkflowSteps.map((item) => (
-                  <WorkflowWorkRow
-                    key={item.id}
-                    item={item}
-                    onComplete={() => {
-                      void onCompleteWorkflowWorkItem(item);
-                    }}
-                  />
-                ))}
+                {orderedWorkItems.map((item) => {
+                  if (item.kind === 'task') {
+                    const task = filteredTasksById.get(item.id);
+                    return task ? (
+                      <TaskRow
+                        key={task.id}
+                        task={task}
+                        onComplete={() => {
+                          advance(task);
+                        }}
+                        onOpen={() => {
+                          setEditing(task);
+                        }}
+                        onDuplicate={() => {
+                          void duplicateTask(task).catch((reason: unknown) => {
+                            setTaskActionError(
+                              reason instanceof Error
+                                ? reason.message
+                                : 'The task could not be duplicated.'
+                            );
+                          });
+                        }}
+                        onDelete={() => {
+                          void deleteTask(task).catch((reason: unknown) => {
+                            setTaskActionError(
+                              reason instanceof Error
+                                ? reason.message
+                                : 'The task could not be deleted.'
+                            );
+                          });
+                        }}
+                        actionPending={pendingTaskActionId === task.id}
+                      />
+                    ) : null;
+                  }
+                  const workflowStep = filteredWorkflowStepsById.get(item.id);
+                  return workflowStep ? (
+                    <WorkflowWorkRow
+                      key={workflowStep.id}
+                      item={workflowStep}
+                      onComplete={() => {
+                        void onCompleteWorkflowWorkItem(workflowStep);
+                      }}
+                    />
+                  ) : null;
+                })}
               </>
             )}
           </div>
@@ -538,7 +554,7 @@ function TaskRow({
         <strong data-testid={`crm-task-title-${task.id}`}>{task.title}</strong>
         <span style={mutedStyle}>
           {' '}
-          · {task.householdLabel ?? 'No client'} ·{' '}
+          · Task · {task.householdLabel ?? 'No client'} ·{' '}
           <PriorityBadge
             priority={task.priority}
             testId={`crm-task-priority-label-${task.id}`}
