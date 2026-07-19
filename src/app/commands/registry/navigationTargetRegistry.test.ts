@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
   getNavigationTargetDescriptors,
   navigationTargetRegistry,
@@ -11,6 +11,7 @@ import {
   getAppSurfaceDescriptors,
   getKnownAppSurfaceDescriptors,
 } from '@/app/shell/registry/appSurfaceRegistry';
+import { setDevFlagOverride } from '@/platform/flags';
 import type { AppSurfaceId } from '@/app/shell/registry/types';
 
 function descriptor(
@@ -25,7 +26,12 @@ function descriptor(
 }
 
 describe('navigationTargetRegistry', () => {
-  it('owns every existing matter-launch alias and accepts the live Meetings surface', async () => {
+  afterEach(() => {
+    setDevFlagOverride('meetings-shell-v1', undefined);
+  });
+
+  it('owns every existing matter-launch alias and accepts Meetings while its flag is on', async () => {
+    setDevFlagOverride('meetings-shell-v1', true);
     await resolveNavigationTargetRegistry();
 
     expect(navigationTargetRegistry).toHaveLength(8);
@@ -46,6 +52,21 @@ describe('navigationTargetRegistry', () => {
       availabilityFlag: 'meetings-shell-v1',
     });
     expect(getAppSurfaceDescriptors().map(({ id }) => id)).toContain(
+      'meetings'
+    );
+  });
+
+  it('keeps Meetings registered but unavailable while its flag is off', async () => {
+    setDevFlagOverride('meetings-shell-v1', false);
+    await resolveNavigationTargetRegistry();
+
+    expect(
+      getKnownAppSurfaceDescriptors().find(({ id }) => id === 'meetings')
+    ).toMatchObject({
+      id: 'meetings',
+      availabilityFlag: 'meetings-shell-v1',
+    });
+    expect(getAppSurfaceDescriptors().map(({ id }) => id)).not.toContain(
       'meetings'
     );
   });
