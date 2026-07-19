@@ -1,17 +1,30 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import type { TFunction } from 'i18next';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DraftFollowUpModal } from '@/features/email';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type {
+  MeetingArtifact,
+  MeetingArtifactInput,
+  MeetingArtifactReader,
+  MeetingArtifactStore,
   MeetingProjection,
+  MeetingStore,
   SealedMeetingClientBoundary,
 } from '../foundation/contract';
 import type { MeetingPanelContext } from '../meetingWorkspaceTypes';
 import { MeetingFollowUpPanel } from './MeetingFollowUpPanel';
-import type {
-  MeetingFollowUpRecap,
-  MeetingFollowUpStore,
+import {
+  createMeetingFollowUpStore,
+  type MeetingFollowUpRecap,
+  type MeetingFollowUpStore,
+  type MeetingFollowUpTarget,
 } from './meetingFollowUpStore';
 
 const mail = vi.hoisted(() => ({
@@ -46,6 +59,8 @@ const translations: Record<string, string> = {
   'meetings.entry.follow-up.local-error': 'Could not load follow-up',
   'meetings.entry.follow-up.retry': 'Try again',
   'meetings.entry.follow-up.description': 'Edit and save to Outlook Drafts.',
+  'meetings.entry.tab-follow-up': 'Follow-up',
+  'common.actions.create': 'Create',
 };
 
 function boundary(householdRef = 'household-a'): SealedMeetingClientBoundary {
@@ -119,6 +134,54 @@ function recap(
   };
 }
 
+function productionStoreHarness() {
+  const client = boundary();
+  const meetings: MeetingStore = {
+    list: [meeting(client)],
+    error: null,
+    get: vi.fn(),
+    createDraft: vi.fn(),
+    update: vi.fn(),
+    transition: vi.fn(),
+  };
+  const records: MeetingArtifact[] = [];
+  const artifacts: MeetingArtifactStore = {
+    readerFor: (_meetings, requestedClient): MeetingArtifactReader => ({
+      listForMeeting: (meetingId, kinds) =>
+        records.filter(
+          (artifact) =>
+            artifact.meetingId === meetingId &&
+            artifact.householdRef === requestedClient.householdRef &&
+            artifact.matterId === requestedClient.matterId &&
+            (!kinds || kinds.includes(artifact.kind))
+        ),
+      get: (id) => records.find((artifact) => artifact.id === id) ?? null,
+    }),
+    append: vi.fn((input: MeetingArtifactInput) => {
+      const artifact: MeetingArtifact = {
+        ...input,
+        id: `artifact-${String(records.length + 1)}`,
+        householdRef: client.householdRef,
+        matterId: client.matterId,
+        state: 'produced',
+        createdAt: input.producedAt,
+      };
+      records.push(artifact);
+      return Promise.resolve(artifact);
+    }),
+    approve: vi.fn(),
+  };
+  const target: MeetingFollowUpTarget = {
+    meetingId: 'meeting-a',
+    client,
+  };
+  return {
+    records,
+    store: createMeetingFollowUpStore(meetings, artifacts),
+    target,
+  };
+}
+
 describe('Meeting follow-up Outlook Drafts-only panel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -139,6 +202,7 @@ describe('Meeting follow-up Outlook Drafts-only panel', () => {
     );
     const store: MeetingFollowUpStore = {
       read,
+      start: vi.fn(),
       save: vi.fn(),
     };
     render(<MeetingFollowUpPanel context={context()} store={store} />);
@@ -155,12 +219,82 @@ describe('Meeting follow-up Outlook Drafts-only panel', () => {
     ).toHaveTextContent('Follow-up not produced');
   });
 
+  it('runs not-produced through a real edited artifact and into Outlook Drafts', async () => {
+    const lane = productionStoreHarness();
+    await expect(lane.store.read(lane.target)).resolves.toEqual({
+      kind: 'not-produced',
+    });
+
+    render(<MeetingFollowUpPanel context={context()} store={lane.store} />);
+    await screen.findByTestId('meeting-follow-up-not-produced');
+    const start = screen.getByTestId('meeting-follow-up-start');
+    expect(start).toHaveTextContent('Create Follow-up');
+    fireEvent.click(start);
+
+    const body = await screen.findByTestId('followup-body');
+    expect(lane.records).toHaveLength(1);
+    expect(lane.records[0]).toMatchObject({
+      meetingId: 'meeting-a',
+      householdRef: 'household-a',
+      matterId: 'matter-shared',
+      kind: 'follow-up-draft',
+      payload: {
+        to: '',
+        subject: '',
+        body: '',
+        deliveryState: 'edited',
+      },
+    });
+    await expect(lane.store.read(lane.target)).resolves.toMatchObject({
+      kind: 'ready',
+      recap: {
+        meetingId: 'meeting-a',
+        householdRef: 'household-a',
+        matterId: 'matter-shared',
+        state: 'edited',
+      },
+    });
+
+    fireEvent.change(screen.getByTestId('followup-to'), {
+      target: { value: 'client@example.test' },
+    });
+    fireEvent.change(screen.getByTestId('followup-subject'), {
+      target: { value: 'Annual review recap' },
+    });
+    fireEvent.change(body, {
+      target: { value: 'Edited exact-meeting recap.' },
+    });
+    expect(screen.queryByTestId('followup-send')).toBeNull();
+    fireEvent.click(screen.getByTestId('followup-save-drafts'));
+
+    expect(
+      await screen.findByTestId('meeting-follow-up-saved')
+    ).toHaveTextContent('Nothing was sent');
+    expect(mail.saveDraft).toHaveBeenCalledTimes(1);
+    expect(mail.send).not.toHaveBeenCalled();
+    expect(lane.records).toHaveLength(2);
+    expect(lane.records[1]).toMatchObject({
+      meetingId: 'meeting-a',
+      householdRef: 'household-a',
+      matterId: 'matter-shared',
+      payload: {
+        body: 'Edited exact-meeting recap.',
+        deliveryState: 'saved-to-drafts',
+        outlookDraftId: 'outlook-draft-1',
+      },
+    });
+  });
+
   it('keeps a local read failure generic and retries without exposing raw errors', async () => {
     const read = vi
       .fn<MeetingFollowUpStore['read']>()
       .mockResolvedValueOnce({ kind: 'error' })
       .mockResolvedValueOnce({ kind: 'ready', recap: recap() });
-    const store: MeetingFollowUpStore = { read, save: vi.fn() };
+    const store: MeetingFollowUpStore = {
+      read,
+      start: vi.fn(),
+      save: vi.fn(),
+    };
     render(<MeetingFollowUpPanel context={context()} store={store} />);
     expect(
       await screen.findByTestId('meeting-follow-up-local-error')
@@ -192,6 +326,7 @@ describe('Meeting follow-up Outlook Drafts-only panel', () => {
       read: vi.fn<MeetingFollowUpStore['read']>(() =>
         Promise.resolve({ kind: 'ready', recap: recap() })
       ),
+      start: vi.fn(),
       save,
     };
     render(<MeetingFollowUpPanel context={context()} store={store} />);
@@ -237,6 +372,7 @@ describe('Meeting follow-up Outlook Drafts-only panel', () => {
       read: vi.fn<MeetingFollowUpStore['read']>(() =>
         Promise.resolve({ kind: 'ready', recap: recap() })
       ),
+      start: vi.fn(),
       save: vi.fn(),
     };
     render(<MeetingFollowUpPanel context={context()} store={store} />);

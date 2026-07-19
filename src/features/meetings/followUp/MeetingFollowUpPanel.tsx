@@ -80,6 +80,24 @@ export function MeetingFollowUpPanel({
   const readToken = useRef(0);
   const [retry, setRetry] = useState(0);
 
+  const startRecap = () => {
+    if (!target || !store) {
+      setState({ kind: target ? 'error' : 'refused' });
+      return;
+    }
+    const token = ++readToken.current;
+    setState({ kind: 'loading' });
+    void store
+      .start(target)
+      .then((result) => {
+        if (readToken.current !== token) return;
+        setState(stateFromRead(result, target));
+      })
+      .catch(() => {
+        if (readToken.current === token) setState({ kind: 'error' });
+      });
+  };
+
   useEffect(() => {
     const token = ++readToken.current;
     void Promise.resolve()
@@ -112,8 +130,20 @@ export function MeetingFollowUpPanel({
   }
   if (state.kind === 'not-produced') {
     return (
-      <div data-testid="meeting-follow-up-not-produced">
-        {context.t('meetings.entry.follow-up.not-produced')}
+      <div
+        data-testid="meeting-follow-up-not-produced"
+        style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
+      >
+        <span>{context.t('meetings.entry.follow-up.not-produced')}</span>
+        <button
+          type="button"
+          data-testid="meeting-follow-up-start"
+          onClick={startRecap}
+          style={{ alignSelf: 'flex-start' }}
+        >
+          {context.t('common.actions.create')}{' '}
+          {context.t('meetings.entry.tab-follow-up')}
+        </button>
       </div>
     );
   }

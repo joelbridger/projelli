@@ -171,12 +171,15 @@ describe('meeting follow-up exact-pair store', () => {
       // prettier-ignore
       // @ts-expect-error follow-up reads require householdRef plus matterId.
       const read = store.read({ meetingId: 'meeting-a', client: { matterId: 'matter-shared' } });
+      // prettier-ignore
+      // @ts-expect-error follow-up starts require householdRef plus matterId.
+      const start = store.start({ meetingId: 'meeting-a', client: { matterId: 'matter-shared' } });
       const write = store.save(
         // @ts-expect-error follow-up writes require householdRef plus matterId.
         { meetingId: 'meeting-a', client: { matterId: 'matter-shared' } },
         { to: '', subject: '', body: 'recap', state: 'edited' }
       );
-      return Promise.all([read, write]);
+      return Promise.all([read, start, write]);
     }
     expect(matterOnlyAccessMustNotCompile).toBeTypeOf('function');
   });

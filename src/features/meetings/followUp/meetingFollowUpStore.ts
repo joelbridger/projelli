@@ -52,6 +52,7 @@ export type MeetingFollowUpWriteResult =
 
 export interface MeetingFollowUpStore {
   read(target: MeetingFollowUpTarget): Promise<MeetingFollowUpReadResult>;
+  start(target: MeetingFollowUpTarget): Promise<MeetingFollowUpWriteResult>;
   save(
     target: MeetingFollowUpTarget,
     input: MeetingFollowUpDraft &
@@ -154,19 +155,30 @@ function newestFirst(left: MeetingArtifact, right: MeetingArtifact): number {
   );
 }
 
-function validDraft(input: {
+function validEditedDraft(input: {
   readonly to: unknown;
   readonly subject: unknown;
   readonly body: unknown;
-}): boolean {
+}): input is MeetingFollowUpDraft {
   return (
     typeof input.to === 'string' &&
     input.to.length <= MAX_RECIPIENTS_LENGTH &&
     typeof input.subject === 'string' &&
     input.subject.length <= MAX_SUBJECT_LENGTH &&
     typeof input.body === 'string' &&
-    input.body.trim().length > 0 &&
     input.body.length <= MAX_BODY_LENGTH
+  );
+}
+
+function validOutlookDraft(input: {
+  readonly to: unknown;
+  readonly subject: unknown;
+  readonly body: unknown;
+}): boolean {
+  return (
+    validEditedDraft(input) &&
+    typeof input.body === 'string' &&
+    input.body.trim().length > 0
   );
 }
 
@@ -190,12 +202,7 @@ function projectRecap(
     subject: artifact.payload['subject'],
     body: artifact.payload['body'],
   };
-  if (
-    typeof draft.to !== 'string' ||
-    typeof draft.subject !== 'string' ||
-    typeof draft.body !== 'string' ||
-    !validDraft(draft)
-  ) {
+  if (!validEditedDraft(draft)) {
     return null;
   }
   const validatedDraft: MeetingFollowUpDraft = {
@@ -205,6 +212,8 @@ function projectRecap(
   };
   const state = artifact.payload['deliveryState'];
   if (state !== 'edited' && state !== 'saved-to-drafts') return null;
+  if (state === 'saved-to-drafts' && !validOutlookDraft(validatedDraft))
+    return null;
   const outlookDraftId = cleanIdentity(artifact.payload['outlookDraftId']);
   if (state === 'saved-to-drafts' && !outlookDraftId) return null;
   if (state === 'edited' && outlookDraftId) return null;
@@ -272,43 +281,56 @@ export function createMeetingFollowUpStore(
     }
   };
 
+  const save: MeetingFollowUpStore['save'] = async (target, input) => {
+    if (
+      !hasCompleteTarget(target) ||
+      !ownsExactCanonicalMeeting(meetings, target) ||
+      !validEditedDraft(input) ||
+      (input.state === 'saved-to-drafts' &&
+        (!validOutlookDraft(input) || !cleanIdentity(input.outlookDraftId)))
+    ) {
+      return { kind: 'refused' };
+    }
+    try {
+      const recapKey = await deriveMeetingFollowUpRecapKey(target);
+      const artifact = await artifacts.append({
+        meetingId: target.meetingId,
+        kind: 'follow-up-draft',
+        schemaVersion: MEETING_FOLLOW_UP_SCHEMA_VERSION,
+        producedAt: new Date().toISOString(),
+        sourceRefs: [],
+        provenance: 'local-entry',
+        payload: {
+          recapKey,
+          to: input.to,
+          subject: input.subject,
+          body: input.body,
+          deliveryState: input.state,
+          ...(input.state === 'saved-to-drafts'
+            ? { outlookDraftId: input.outlookDraftId }
+            : {}),
+        },
+      });
+      const recap = projectRecap(artifact, target, recapKey);
+      return recap ? { kind: 'ready', recap } : { kind: 'refused' };
+    } catch {
+      return { kind: 'error' };
+    }
+  };
+
   return {
     read,
-    save: async (target, input) => {
-      if (
-        !hasCompleteTarget(target) ||
-        !ownsExactCanonicalMeeting(meetings, target) ||
-        !validDraft(input) ||
-        (input.state === 'saved-to-drafts' &&
-          !cleanIdentity(input.outlookDraftId))
-      ) {
-        return { kind: 'refused' };
-      }
-      try {
-        const recapKey = await deriveMeetingFollowUpRecapKey(target);
-        const artifact = await artifacts.append({
-          meetingId: target.meetingId,
-          kind: 'follow-up-draft',
-          schemaVersion: MEETING_FOLLOW_UP_SCHEMA_VERSION,
-          producedAt: new Date().toISOString(),
-          sourceRefs: [],
-          provenance: 'local-entry',
-          payload: {
-            recapKey,
-            to: input.to,
-            subject: input.subject,
-            body: input.body,
-            deliveryState: input.state,
-            ...(input.state === 'saved-to-drafts'
-              ? { outlookDraftId: input.outlookDraftId }
-              : {}),
-          },
-        });
-        const recap = projectRecap(artifact, target, recapKey);
-        return recap ? { kind: 'ready', recap } : { kind: 'refused' };
-      } catch {
-        return { kind: 'error' };
-      }
+    start: async (target) => {
+      const current = await read(target);
+      if (current.kind === 'ready') return current;
+      if (current.kind !== 'not-produced') return current;
+      return save(target, {
+        to: '',
+        subject: '',
+        body: '',
+        state: 'edited',
+      });
     },
+    save,
   };
 }
