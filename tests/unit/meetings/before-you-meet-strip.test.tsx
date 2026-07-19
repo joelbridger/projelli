@@ -29,6 +29,12 @@ vi.mock('@/features/meetings/agendaExport', () => ({
 vi.mock('@/features/meetings/generateBrief', () => ({
   generateMeetingBrief: (...a: unknown[]) => generateBrief(...a),
 }));
+vi.mock('@/features/meetings/foundation/contract', () => ({
+  useActiveMeetingClientBoundary: () => ({
+    householdRef: 'household-1',
+    matterId: 'm-1',
+  }),
+}));
 
 import { BeforeYouMeetStrip } from '@/features/meetings/BeforeYouMeetStrip';
 import {
@@ -36,7 +42,17 @@ import {
   localDay,
   useBriefStore,
 } from '@/features/meetings/briefStore';
+import type { SealedMeetingClientBoundary } from '@/features/meetings';
 import { useMatterStore } from '@/platform/matter/matterStore';
+
+const clientBoundary = {
+  householdRef: 'household-1',
+  matterId: 'm-1',
+} as SealedMeetingClientBoundary;
+
+function keyFor(eventId = 'e1'): string {
+  return briefKey({ clientBoundary, eventId, day: localDay() });
+}
 
 function openBrief(): void {
   fireEvent.click(screen.getByTestId('brief-collapse-toggle'));
@@ -61,6 +77,7 @@ describe('BeforeYouMeetStrip', () => {
           name: 'Henderson',
           client: 'Kim Henderson',
           folderPaths: [],
+          crmHouseholdKeys: [clientBoundary.householdRef],
           createdAt: '2024-01-01T00:00:00Z',
         },
       ],
@@ -75,12 +92,13 @@ describe('BeforeYouMeetStrip', () => {
   });
 
   it('renders a ready brief with source chips and exports .docx', async () => {
-    const key = briefKey(localDay(), 'e1', 'm-1');
+    const key = keyFor();
     useBriefStore.setState({
       briefs: {
         [key]: {
           key,
           eventId: 'e1',
+          householdRef: clientBoundary.householdRef,
           matterId: 'm-1',
           day: localDay(),
           status: 'ready',
@@ -110,12 +128,13 @@ describe('BeforeYouMeetStrip', () => {
   });
 
   it('renders per-bullet citation chips with a hover popover quoting the exact source line (P0 prototype fidelity)', () => {
-    const key = briefKey(localDay(), 'e1', 'm-1');
+    const key = keyFor();
     useBriefStore.setState({
       briefs: {
         [key]: {
           key,
           eventId: 'e1',
+          householdRef: clientBoundary.householdRef,
           matterId: 'm-1',
           day: localDay(),
           status: 'ready',
@@ -148,12 +167,13 @@ describe('BeforeYouMeetStrip', () => {
   });
 
   it('falls back to the flat markdown + citation row when bullets is empty (degraded generation, or a pre-existing persisted brief)', () => {
-    const key = briefKey(localDay(), 'e1', 'm-1');
+    const key = keyFor();
     useBriefStore.setState({
       briefs: {
         [key]: {
           key,
           eventId: 'e1',
+          householdRef: clientBoundary.householdRef,
           matterId: 'm-1',
           day: localDay(),
           status: 'ready',
@@ -169,17 +189,20 @@ describe('BeforeYouMeetStrip', () => {
     render(<BeforeYouMeetStrip matterId="m-1" />);
     openBrief();
     expect(screen.queryByTestId('brief-bullets')).toBeNull();
-    expect(screen.getByTestId('before-you-meet').textContent).toContain('Cash position');
+    expect(screen.getByTestId('before-you-meet').textContent).toContain(
+      'Cash position'
+    );
     expect(screen.getByText('estate-plan.pdf')).toBeTruthy();
   });
 
   it('shows the stale chip and collapses', () => {
-    const key = briefKey(localDay(), 'e1', 'm-1');
+    const key = keyFor();
     useBriefStore.setState({
       briefs: {
         [key]: {
           key,
           eventId: 'e1',
+          householdRef: clientBoundary.householdRef,
           matterId: 'm-1',
           day: localDay(),
           status: 'ready',
@@ -199,12 +222,13 @@ describe('BeforeYouMeetStrip', () => {
   });
 
   it('exports the client-facing agenda via a second button', async () => {
-    const key = briefKey(localDay(), 'e1', 'm-1');
+    const key = keyFor();
     useBriefStore.setState({
       briefs: {
         [key]: {
           key,
           eventId: 'e1',
+          householdRef: clientBoundary.householdRef,
           matterId: 'm-1',
           day: localDay(),
           status: 'ready',
@@ -237,12 +261,13 @@ describe('BeforeYouMeetStrip', () => {
     // briefing…" forever. This test uses the REAL briefQueue.ts/briefStore.ts
     // (not mocked) so that real skip-check actually runs; only the leaf
     // generateMeetingBrief call is mocked.
-    const key = briefKey(localDay(), 'e1', 'm-1');
+    const key = keyFor();
     useBriefStore.setState({
       briefs: {
         [key]: {
           key,
           eventId: 'e1',
+          householdRef: clientBoundary.householdRef,
           matterId: 'm-1',
           day: localDay(),
           status: 'ready',
