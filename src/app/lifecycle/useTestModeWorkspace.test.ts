@@ -61,7 +61,7 @@ describe('useTestModeWorkspace recording setup', () => {
     const expandAllFolders = vi.fn();
     const openFile = vi.fn();
 
-    const { unmount } = renderHook(() =>
+    const { unmount } = renderHook(() => {
       useTestModeWorkspace({
         isTestMode: true,
         rootPath: null,
@@ -72,11 +72,13 @@ describe('useTestModeWorkspace recording setup', () => {
         workspaceServiceRef: {
           current: { writeFile } as unknown as WorkspaceService,
         },
-      })
-    );
+      });
+    });
 
     await act(async () => {
-      resolveWrites.forEach((resolve) => resolve());
+      resolveWrites.forEach((resolve) => {
+        resolve();
+      });
       await Promise.all(writes);
     });
 
@@ -103,7 +105,7 @@ describe('useTestModeWorkspace recording setup', () => {
     const expandAllFolders = vi.fn();
     const openFile = vi.fn();
 
-    const { unmount } = renderHook(() =>
+    const { unmount } = renderHook(() => {
       useTestModeWorkspace({
         isTestMode: true,
         rootPath: null,
@@ -114,14 +116,16 @@ describe('useTestModeWorkspace recording setup', () => {
         workspaceServiceRef: {
           current: { writeFile } as unknown as WorkspaceService,
         },
-      })
-    );
+      });
+    });
 
     expect(writeFile).toHaveBeenCalledTimes(5);
     unmount();
 
     await act(async () => {
-      resolveWrites.forEach((resolve) => resolve());
+      resolveWrites.forEach((resolve) => {
+        resolve();
+      });
       await Promise.all(writes);
     });
 
