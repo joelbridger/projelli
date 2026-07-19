@@ -1,6 +1,5 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
-import { createRef } from 'react';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import {
   createTestModeWorkspaceMock,
@@ -71,8 +70,8 @@ describe('useTestModeWorkspace recording setup', () => {
         setFileTree,
         expandAllFolders,
         workspaceServiceRef: {
-          current: { writeFile },
-        } as ReturnType<typeof createRef<WorkspaceService>>,
+          current: { writeFile } as unknown as WorkspaceService,
+        },
       })
     );
 
@@ -113,8 +112,8 @@ describe('useTestModeWorkspace recording setup', () => {
         setFileTree,
         expandAllFolders,
         workspaceServiceRef: {
-          current: { writeFile },
-        } as ReturnType<typeof createRef<WorkspaceService>>,
+          current: { writeFile } as unknown as WorkspaceService,
+        },
       })
     );
 
