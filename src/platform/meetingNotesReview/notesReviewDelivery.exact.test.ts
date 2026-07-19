@@ -7,6 +7,7 @@ import {
   type ExactMeetingTaskDelivery,
   type NotesReviewCrmDelivery,
 } from './notesReviewDelivery';
+import type { ExactMeetingTaskReviewItem } from '@/ui/notesReview';
 
 const client = {
   householdRef: 'household-a',
@@ -70,7 +71,11 @@ function crmArtifact(
 }
 
 function ports(
-  records: readonly ExactMeetingReviewArtifact[] = [artifact(), crmArtifact()]
+  records: readonly ExactMeetingReviewArtifact[] = [artifact(), crmArtifact()],
+  identity: {
+    readonly meetingId: string;
+    readonly client: typeof client;
+  } = { meetingId: 'meeting-a', client }
 ) {
   const events: string[] = [];
   const listForMeeting = vi.fn(() => records);
@@ -111,8 +116,8 @@ function ports(
     return Promise.resolve(artifact({ state: 'approved' }));
   });
   const repository = makeExactMeetingNotesReviewRepository({
-    meetingId: 'meeting-a',
-    client,
+    meetingId: identity.meetingId,
+    client: identity.client,
     artifacts: reader,
     approveArtifact,
     taskDelivery: task,
@@ -123,6 +128,7 @@ function ports(
     repository,
     listForMeeting,
     taskCreate,
+    crmIsConnected,
     crmSaveProposal,
     crmPrepareProposal,
     crmApproveProposal,
@@ -131,9 +137,71 @@ function ports(
   };
 }
 
+const proposedTask: ExactMeetingTaskReviewItem<typeof client> = {
+  id: 'task-a',
+  artifactId: 'artifact-a',
+  meetingId: 'meeting-a',
+  client,
+  kind: 'task',
+  title: 'Call the CPA',
+  detail: 'Confirm estimated taxes.',
+  ownerRef: 'advisor-a',
+  dueDate: '2026-08-01',
+  transcriptRef: 'meeting:meeting-a#42000',
+  approvalState: 'proposed',
+};
+
+const incompleteIdentities = [
+  ['empty meeting ID', '', 'household-a', 'matter-shared'],
+  ['empty household', 'meeting-a', '', 'matter-shared'],
+  ['empty matter', 'meeting-a', 'household-a', ''],
+  ['empty meeting and household', '', '', 'matter-shared'],
+  ['empty meeting and matter', '', 'household-a', ''],
+  ['empty household and matter', 'meeting-a', '', ''],
+  ['all identity values empty', '', '', ''],
+  ['whitespace-only identity values', '  ', '\t', '\n'],
+] as const;
+
 describe('exact meeting notes review reader', () => {
+  it.each(incompleteIdentities)(
+    'fails closed for %s before any read, approval, task, or CRM call',
+    async (_label, meetingId, householdRef, matterId) => {
+      const malformedClient = { ...client, householdRef, matterId };
+      const lane = ports(undefined, {
+        meetingId,
+        client: malformedClient,
+      });
+      const malformedItem = {
+        ...proposedTask,
+        meetingId,
+        client: malformedClient,
+      };
+
+      await expect(lane.repository.readFacts()).rejects.toThrow(
+        'missing its complete meeting and client identity'
+      );
+      await expect(lane.repository.list('task')).rejects.toThrow(
+        'missing its complete meeting and client identity'
+      );
+      await expect(lane.repository.approve(malformedItem)).rejects.toThrow(
+        'missing its complete meeting and client identity'
+      );
+
+      expect(lane.listForMeeting).not.toHaveBeenCalled();
+      expect(lane.approveArtifact).not.toHaveBeenCalled();
+      expect(lane.taskCreate).not.toHaveBeenCalled();
+      expect(lane.crmIsConnected).not.toHaveBeenCalled();
+      expect(lane.crmSaveProposal).not.toHaveBeenCalled();
+      expect(lane.crmPrepareProposal).not.toHaveBeenCalled();
+      expect(lane.crmApproveProposal).not.toHaveBeenCalled();
+    }
+  );
+
   it('joins only the exact meeting plus household/matter pair and exposes the same facts to Actions', async () => {
-    const wrongMeeting = artifact({ id: 'wrong-meeting', meetingId: 'meeting-b' });
+    const wrongMeeting = artifact({
+      id: 'wrong-meeting',
+      meetingId: 'meeting-b',
+    });
     const wrongHousehold = artifact({
       id: 'wrong-household',
       householdRef: 'household-b',

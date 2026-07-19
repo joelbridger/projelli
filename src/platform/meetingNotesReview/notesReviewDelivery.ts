@@ -456,6 +456,30 @@ function isStoredItem(value: unknown): value is StoredItem {
 
 export const EXACT_MEETING_REVIEW_SCHEMA_VERSION = 2 as const;
 
+/**
+ * Runtime fail-closed guard for the exact meeting plus client pair. The type
+ * contract requires all three values, but persisted or bridged data can still
+ * arrive malformed at runtime.
+ */
+export function hasCompleteExactMeetingReviewIdentity(
+  meetingId: unknown,
+  client:
+    | {
+        readonly householdRef?: unknown;
+        readonly matterId?: unknown;
+      }
+    | null
+    | undefined
+): boolean {
+  return (
+    hasNonEmptyIdentityPart(meetingId) &&
+    client !== null &&
+    client !== undefined &&
+    hasNonEmptyIdentityPart(client.householdRef) &&
+    hasNonEmptyIdentityPart(client.matterId)
+  );
+}
+
 export interface ExactMeetingTaskProposalPayload {
   readonly id: string;
   readonly kind: 'task';
@@ -588,8 +612,18 @@ export function makeExactMeetingNotesReviewRepository<
 ): ExactMeetingNotesReviewRepository<Client> {
   const now = input.now ?? (() => new Date().toISOString());
 
+  const assertCompleteIdentity = (): void => {
+    if (!hasCompleteExactMeetingReviewIdentity(input.meetingId, input.client)) {
+      throw new Error(
+        'This meeting proposal is missing its complete meeting and client identity. Nothing was read or changed.'
+      );
+    }
+  };
+
   function readFacts(): Promise<ExactMeetingReviewFacts<Client>> {
     return Promise.resolve().then(() => {
+      // Reject before the artifact reader can see an empty or partial scope.
+      assertCompleteIdentity();
       const artifacts = input.artifacts.listForMeeting(input.meetingId, [
         'action-update-proposal',
       ]);
@@ -617,12 +651,10 @@ export function makeExactMeetingNotesReviewRepository<
         client: input.client,
         tasks,
         crmUpdates,
-        proposedCount: items.filter(
-          (item) => item.approvalState === 'proposed'
-        ).length,
-        approvedCount: items.filter(
-          (item) => item.approvalState === 'approved'
-        ).length,
+        proposedCount: items.filter((item) => item.approvalState === 'proposed')
+          .length,
+        approvedCount: items.filter((item) => item.approvalState === 'approved')
+          .length,
       };
     });
   }
@@ -637,6 +669,8 @@ export function makeExactMeetingNotesReviewRepository<
   async function approve(
     edited: ExactMeetingNotesReviewItem<Client>
   ): Promise<NotesReviewReceipt> {
+    // Approval must fail before even re-reading when its scope is incomplete.
+    assertCompleteIdentity();
     const facts = await readFacts();
     const source = [...facts.tasks, ...facts.crmUpdates].find(
       (item) => item.id === edited.id
@@ -653,6 +687,7 @@ export function makeExactMeetingNotesReviewRepository<
 
     // Connectivity is a read-only preflight. A known disconnected provider
     // should not consume the one legal approval transition.
+    assertCompleteIdentity();
     if (
       validated.kind === 'crm-update' &&
       !(await input.crmDelivery.isConnected())
@@ -664,6 +699,7 @@ export function makeExactMeetingNotesReviewRepository<
 
     // The append-only approval transition is the authorization token. No task
     // or CRM destination is touched until this exact artifact accepts it.
+    assertCompleteIdentity();
     await input.approveArtifact(source.artifactId, {
       from: 'produced',
       to: 'approved',
@@ -671,6 +707,7 @@ export function makeExactMeetingNotesReviewRepository<
     });
 
     try {
+      assertCompleteIdentity();
       return validated.kind === 'task'
         ? await deliverExactTask(validated, input.taskDelivery)
         : await deliverExactCrm(validated, input.crmDelivery);
@@ -725,7 +762,9 @@ function proposalFromUnknown<Client extends NotesReviewClientPair>(
       ? { sourceLabel: optionalText(proposal['sourceLabel']) as string }
       : {}),
     approvalState:
-      artifact.state === 'approved' ? ('approved' as const) : ('proposed' as const),
+      artifact.state === 'approved'
+        ? ('approved' as const)
+        : ('proposed' as const),
   };
   if (proposal['kind'] === 'task') {
     return {
@@ -738,7 +777,9 @@ function proposalFromUnknown<Client extends NotesReviewClientPair>(
   if (proposal['kind'] === 'crm-update') {
     const fields = proposal['fields'];
     if (!Array.isArray(fields) || fields.length === 0)
-      throw new Error('A CRM update must include at least one before/after field.');
+      throw new Error(
+        'A CRM update must include at least one before/after field.'
+      );
     return {
       ...common,
       kind: 'crm-update',
@@ -797,11 +838,10 @@ function validateEditedProposal<Client extends NotesReviewClientPair>(
         field.before !== candidate.before
       );
     });
-    if (
-      source.fields.length !== edited.fields.length ||
-      fieldsChanged
-    ) {
-      throw new Error('CRM before values and field identities cannot be changed.');
+    if (source.fields.length !== edited.fields.length || fieldsChanged) {
+      throw new Error(
+        'CRM before values and field identities cannot be changed.'
+      );
     }
     return {
       ...source,
@@ -809,8 +849,7 @@ function validateEditedProposal<Client extends NotesReviewClientPair>(
       detail: requiredText(edited.detail, 'CRM proposal detail'),
       fields: source.fields.map((field, index) => {
         const candidate = edited.fields.at(index);
-        if (!candidate)
-          throw new Error('CRM field changes cannot be removed.');
+        if (!candidate) throw new Error('CRM field changes cannot be removed.');
         return {
           ...field,
           proposed: crmValue(candidate.proposed, field.valueType),
@@ -907,7 +946,9 @@ function assertUniqueProposalIds(
   const seen = new Set<string>();
   for (const item of items) {
     if (seen.has(item.id))
-      throw new Error('Meeting proposal IDs must be unique within one meeting.');
+      throw new Error(
+        'Meeting proposal IDs must be unique within one meeting.'
+      );
     seen.add(item.id);
   }
 }
@@ -922,6 +963,10 @@ function requiredText(value: unknown, label: string): string {
   if (typeof value !== 'string' || !value.trim())
     throw new Error(`${label} is required.`);
   return value.trim();
+}
+
+function hasNonEmptyIdentityPart(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
 }
 
 function optionalText(value: unknown): string | null {

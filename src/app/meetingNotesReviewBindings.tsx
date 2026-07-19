@@ -9,9 +9,13 @@ import {
   type MeetingPanelContext,
 } from '@/features/meetings';
 import { useTaskRecordStore } from '@/features/crm-tasks';
-import { MeetingNotesReview, productionMeetingNotesReviewCrmDelivery } from '@/platform/meetingNotesReview/MeetingNotesReview';
+import {
+  MeetingNotesReview,
+  productionMeetingNotesReviewCrmDelivery,
+} from '@/platform/meetingNotesReview/MeetingNotesReview';
 import {
   EXACT_MEETING_REVIEW_SCHEMA_VERSION,
+  hasCompleteExactMeetingReviewIdentity,
   makeExactMeetingNotesReviewRepository,
   type ExactMeetingReviewArtifact,
 } from '@/platform/meetingNotesReview/notesReviewDelivery';
@@ -24,7 +28,9 @@ const CRM_UPDATE_PANEL_ID = BLESSED_MEETING_PANEL_IDS[5];
 
 function exactArtifact(artifact: MeetingArtifact): ExactMeetingReviewArtifact {
   if (artifact.kind !== 'action-update-proposal') {
-    throw new Error('The meeting proposal reader returned the wrong artifact kind.');
+    throw new Error(
+      'The meeting proposal reader returned the wrong artifact kind.'
+    );
   }
   return {
     id: artifact.id,
@@ -39,6 +45,32 @@ function exactArtifact(artifact: MeetingArtifact): ExactMeetingReviewArtifact {
   };
 }
 
+export function hasMatchingCompleteMeetingReviewIdentity(
+  meeting:
+    | {
+        readonly id?: unknown;
+        readonly householdRef?: unknown;
+        readonly matterId?: unknown;
+      }
+    | null
+    | undefined,
+  client:
+    | {
+        readonly householdRef?: unknown;
+        readonly matterId?: unknown;
+      }
+    | null
+    | undefined
+): boolean {
+  return Boolean(
+    meeting &&
+    client &&
+    hasCompleteExactMeetingReviewIdentity(meeting.id, client) &&
+    meeting.householdRef === client.householdRef &&
+    meeting.matterId === client.matterId
+  );
+}
+
 function ExactMeetingReviewPanel({
   context,
   reviewKind,
@@ -51,11 +83,9 @@ function ExactMeetingReviewPanel({
   const tasks = useTaskRecordStore();
   const meeting = context.canonicalMeeting ?? null;
   const client = context.clientBoundary ?? null;
-  const identityMatches = Boolean(
-    meeting &&
-      client &&
-      meeting.householdRef === client.householdRef &&
-      meeting.matterId === client.matterId
+  const identityMatches = hasMatchingCompleteMeetingReviewIdentity(
+    meeting,
+    client
   );
   const repository = useMemo(() => {
     if (!meeting || !client || !identityMatches) return null;
