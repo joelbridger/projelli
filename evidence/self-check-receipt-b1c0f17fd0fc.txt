@@ -1,0 +1,19 @@
+SELF-CHECK RECEIPT (machine-generated; DO NOT EDIT — a hand-edit is fabrication)
+format_version: 3
+repo: /home/jameson/lantern/app/integration/.worktrees/v1/task-row-actions
+sha: b1c0f17fd0fca222c19cb57f8c2eb6c8aa09217b
+tree: dd0f3e1b81c6f4254e0369d3f15dc19dc1572dfd
+gate_base: a197c9c2073f1b561070db9be52d6a7f35f4847d
+tool_blob: 2cdbd4254c388970d44b9a674dc793caf823040d
+utc: 2026-07-18T17:42:02Z
+step_timeout_seconds: 300
+loadavg: 5.27 6.85 7.15
+running_vitest_eslint_procs: 1
+step: gate:changed | status=INCONCLUSIVE-UNDER-LOAD | exit=124 | 17:42:02Z..17:47:02Z | bytes=87737 | sha256=e1679cf2aa98f38622f19a2331bbef1a9a938ff9f4fa7621336fbb01359ddbd0 | tail: e.test.ts [2m([22m[2m0 test[22m[2m)[22m [31m[39m src/features/intake/__tests__/OnboardingBoardContainer.test.tsx [2m([22m[2m0 test[22m[2m)[22m [31m[39m tests/unit/tts/tts-settings.test.ts [2m([22m[2m0 test[22m[2m)[22m
+step: typecheck | status=PASS | exit=0 | 17:47:02Z..17:47:32Z | bytes=53 | sha256=0cb20470af3131a9339183a7ea4a056e66c088f0df43e068a5ea40a2a2a8c9fc | tail:  > advisor-prep-hero@3.3.5 typecheck > tsc --noEmit
+step: typecheck:tests | status=PASS | exit=0 | 17:47:32Z..17:48:12Z | bytes=81 | sha256=4232b1e44d685ea74bf07a84d18a642e1c57ed0f9318cd4993d8a16d03448fc4 | tail:  > advisor-prep-hero@3.3.5 typecheck:tests > tsc -p tsconfig.test.json --noEmit
+step: handle-guard | status=PASS | exit=0 | 17:48:12Z..17:48:12Z | bytes=1368 | sha256=cec19ba8af9a62d29fba16ca4bb60eb54fb8d980479f6be874f1f37fc9c5a68c | tail: booking-page-hosted-link + booking-page-hosted-link-rail + booking-page-preview-button +498 more Handle guard passed no permanent handle vanished, and no new ambiguous (duplicate) handles (64 frozen).
+step: arch-dag-guard | status=FAIL | exit=127 | 17:48:12Z..17:48:12Z | bytes=85 | sha256=7821565baccde2d2aac6cef7e8ed58d24aa6eebf64e0109a74c9625ca035f071 | tail: timeout: failed to run command 'node_modules/.bin/vitest': No such file or directory
+step: i18n-snapshot | status=FAIL | exit=127 | 17:48:12Z..17:48:12Z | bytes=85 | sha256=7821565baccde2d2aac6cef7e8ed58d24aa6eebf64e0109a74c9625ca035f071 | tail: timeout: failed to run command 'node_modules/.bin/vitest': No such file or directory
+step: boundaries:check | status=PASS | exit=0 | 17:48:12Z..17:48:15Z | bytes=151 | sha256=28937977f27fc438a6e9ae1a771d2ae8ca85765df3e4cac8a3f0e4e4aaffa5bc | tail:  > advisor-prep-hero@3.3.5 boundaries:check > node scripts/check-boundaries.mjs No feature-boundary regression (599 current baseline finding(s)).
+overall: INCONCLUSIVE

@@ -2,6 +2,8 @@
 import { useState } from 'react';
 import { ListChecks } from 'lucide-react';
 import { Button } from '@/ui/kp';
+import { ConfirmDialog } from '@/ui/ConfirmDialog';
+import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { buildCapacityTriage } from '@/platform/crm/tasks';
 import {
   AskBar,
@@ -20,6 +22,11 @@ import type {
 } from '@/features/crm-home/types';
 import { useCrmHomeSurfaceContext } from '@/features/crm-home/surfaceContext';
 import type { CrmHouseholdAddRequest } from '@/features/crm-home/routes';
+import {
+  useTaskRecordStore,
+  type CreateTaskRecordInput,
+  type TaskRecord,
+} from '@/features/crm-tasks';
 import {
   getTaskTemplates,
   mountTaskActions,
@@ -64,6 +71,23 @@ const PRIORITY_PRESENTATION: Record<
 
 function normalizeTaskPriority(priority: unknown): TaskPriority {
   return priority === 'high' || priority === 'low' ? priority : 'normal';
+}
+
+function duplicateTaskInput(source: TaskRecord): CreateTaskRecordInput {
+  return {
+    title: source.title,
+    body: source.body,
+    householdRef: source.householdRef ? { ...source.householdRef } : null,
+    assigneeUserId: source.assigneeUserId,
+    status: 'open',
+    ...(source.due ? { due: source.due } : {}),
+    ...(source.dueTime ? { dueTime: source.dueTime } : {}),
+    ...(source.recurrence ? { recurrence: { ...source.recurrence } } : {}),
+    priority: source.priority,
+    ...(source.category ? { category: source.category } : {}),
+    tagIds: [...source.tagIds],
+    contextRefs: source.contextRefs.map((ref) => ({ ...ref })),
+  };
 }
 
 function PriorityBadge({
@@ -134,12 +158,20 @@ export function Tasks({
   const [filter, setFilter] = useState('');
   const [addRequestDraft] = useState<CrmTask | null>(() =>
     addRequest?.kind === 'task'
-      ? (getTaskTemplates().find((descriptor) => descriptor.create)?.create?.(addRequest) ?? null)
+      ? (getTaskTemplates()
+          .find((descriptor) => descriptor.create)
+          ?.create?.(addRequest) ?? null)
       : null
   );
   const [editing, setEditing] = useState<CrmTask | null>(addRequestDraft);
   const [savingView, setSavingView] = useState(false);
   const [viewName, setViewName] = useState('');
+  const [pendingTaskActionId, setPendingTaskActionId] = useState<string | null>(
+    null
+  );
+  const [taskActionError, setTaskActionError] = useState<string | null>(null);
+  const taskStore = useTaskRecordStore();
+  const { confirm, dialogProps: confirmDialogProps } = useConfirmDialog();
   const filtered = tasks.filter((task) =>
     task.title.toLowerCase().includes(filter.toLowerCase())
   );
@@ -157,6 +189,57 @@ export function Tasks({
       status: task.status === 'done' ? 'open' : 'done',
     });
   };
+  const duplicateTask = async (task: CrmTask) => {
+    setTaskActionError(null);
+    setPendingTaskActionId(task.id);
+    try {
+      const source = await taskStore.get(task.id);
+      if (!source) throw new Error('That task no longer exists.');
+      const duplicate = await taskStore.create(duplicateTaskInput(source));
+      setEditing({
+        ...task,
+        id: duplicate.id,
+        title: duplicate.title,
+        body: duplicate.body,
+        assigneeUserId: duplicate.assigneeUserId,
+        status: 'open',
+        priority: duplicate.priority,
+        tagIds: [...duplicate.tagIds],
+      });
+    } catch (reason: unknown) {
+      setTaskActionError(
+        reason instanceof Error
+          ? reason.message
+          : 'The task could not be duplicated.'
+      );
+    } finally {
+      setPendingTaskActionId(null);
+    }
+  };
+  const deleteTask = async (task: CrmTask) => {
+    const confirmed = await confirm(`Move "${task.title}" to Trash?`, {
+      title: 'Delete task',
+      description:
+        'The task will move to Trash, where it can be restored for 30 days.',
+      confirmLabel: 'Delete',
+      variant: 'destructive',
+    });
+    if (!confirmed) return;
+    setTaskActionError(null);
+    setPendingTaskActionId(task.id);
+    try {
+      await taskStore.remove(task.id);
+      setEditing((current) => (current?.id === task.id ? null : current));
+    } catch (reason: unknown) {
+      setTaskActionError(
+        reason instanceof Error
+          ? reason.message
+          : 'The task could not be deleted.'
+      );
+    } finally {
+      setPendingTaskActionId(null);
+    }
+  };
   return (
     <Screen
       title="Tasks"
@@ -166,7 +249,9 @@ export function Tasks({
         ...(addRequest ? { addRequest } : {}),
         ...(onAddRequestConsumed ? { onAddRequestConsumed } : {}),
         onApplied: () => {
-          setEditing((current) => current?.id === addRequestDraft?.id ? null : current);
+          setEditing((current) =>
+            current?.id === addRequestDraft?.id ? null : current
+          );
         },
         onCreate: setEditing,
       })}
@@ -294,6 +379,11 @@ export function Tasks({
         </strong>
       </section>
       <FreshnessBanner freshness={freshness} />
+      {taskActionError && (
+        <p data-testid="crm-task-action-error" role="alert" style={mutedStyle}>
+          {taskActionError}
+        </p>
+      )}
       {view === 'list' ? (
         <section data-testid="crm-unified-work-list">
           <div data-testid="crm-task-list" style={panelStyle}>
@@ -315,6 +405,25 @@ export function Tasks({
                     onOpen={() => {
                       setEditing(task);
                     }}
+                    onDuplicate={() => {
+                      void duplicateTask(task).catch((reason: unknown) => {
+                        setTaskActionError(
+                          reason instanceof Error
+                            ? reason.message
+                            : 'The task could not be duplicated.'
+                        );
+                      });
+                    }}
+                    onDelete={() => {
+                      void deleteTask(task).catch((reason: unknown) => {
+                        setTaskActionError(
+                          reason instanceof Error
+                            ? reason.message
+                            : 'The task could not be deleted.'
+                        );
+                      });
+                    }}
+                    actionPending={pendingTaskActionId === task.id}
                   />
                 ))}
                 {filteredWorkflowSteps.map((item) => (
@@ -351,6 +460,10 @@ export function Tasks({
           onSave={onUpdateTask}
         />
       )}
+      <ConfirmDialog
+        {...confirmDialogProps}
+        data-testid="crm-task-delete-confirmation"
+      />
     </Screen>
   );
 }
@@ -381,10 +494,16 @@ function TaskRow({
   task,
   onComplete,
   onOpen,
+  onDuplicate,
+  onDelete,
+  actionPending,
 }: {
   task: CrmTask;
   onComplete: () => void;
   onOpen: () => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
+  actionPending: boolean;
 }) {
   return (
     <div
@@ -436,6 +555,42 @@ function TaskRow({
           )}
         </span>
       </button>
+      <div
+        role="group"
+        aria-label={`Actions for ${task.title}`}
+        style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}
+      >
+        <Button
+          size="sm"
+          variant="secondary"
+          data-testid={`crm-task-edit-${task.id}`}
+          aria-label={`Edit ${task.title}`}
+          disabled={actionPending}
+          onClick={onOpen}
+        >
+          Edit
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          data-testid={`crm-task-duplicate-${task.id}`}
+          aria-label={`Duplicate ${task.title}`}
+          disabled={actionPending}
+          onClick={onDuplicate}
+        >
+          Duplicate
+        </Button>
+        <Button
+          size="sm"
+          variant="danger"
+          data-testid={`crm-task-delete-${task.id}`}
+          aria-label={`Delete ${task.title}`}
+          disabled={actionPending}
+          onClick={onDelete}
+        >
+          Delete
+        </Button>
+      </div>
     </div>
   );
 }
