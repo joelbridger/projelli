@@ -10,6 +10,12 @@ import { useMatterStore } from '@/platform/matter/matterStore';
 vi.mock('@/platform/utils/docx-io', () => ({
   markdownToDocxBytes: vi.fn(async () => new Uint8Array([80, 75, 3, 4])),
 }));
+vi.mock('@/features/meetings/foundation/contract', () => ({
+  useActiveMeetingClientBoundary: () => ({
+    householdRef: 'sample-hendricks-household',
+    matterId: 'sample-matter',
+  }),
+}));
 
 function makeWorkspace() {
   return {
@@ -45,13 +51,17 @@ describe('seedSampleGoldenPath BeforeYouMeetStrip behavior', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-07-09T12:00:00.000Z'));
 
-    await seedSampleGoldenPath(makeWorkspace() as never, '/workspace', 'sample-matter');
+    await seedSampleGoldenPath(
+      makeWorkspace() as never,
+      '/workspace',
+      'sample-matter'
+    );
 
     vi.setSystemTime(new Date('2026-07-10T12:00:00.000Z'));
     render(<BeforeYouMeetStrip matterId="sample-matter" />);
 
     expect(screen.getByTestId('before-you-meet').textContent).toContain(
-      'Hendricks planning check-in',
+      'Hendricks planning check-in'
     );
   });
 });

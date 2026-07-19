@@ -14,6 +14,7 @@ import {
   localDay,
   useBriefStore,
 } from '@/features/meetings/briefStore';
+import type { SealedMeetingClientBoundary } from '@/features/meetings';
 
 const event = (id: string) => ({
   id,
@@ -25,6 +26,25 @@ const event = (id: string) => ({
   organizerEmail: '',
 });
 
+function clientBoundary(matterId: string): SealedMeetingClientBoundary {
+  return {
+    householdRef: `household-${matterId}`,
+    matterId,
+  } as SealedMeetingClientBoundary;
+}
+
+function job(matterId: string, eventId: string) {
+  return { clientBoundary: clientBoundary(matterId), event: event(eventId) };
+}
+
+function keyFor(matterId: string, eventId: string): string {
+  return briefKey({
+    clientBoundary: clientBoundary(matterId),
+    eventId,
+    day: localDay(),
+  });
+}
+
 function flush() {
   return new Promise((r) => setTimeout(r, 0));
 }
@@ -32,6 +52,7 @@ function flush() {
 describe('brief queue', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    cancelBriefQueue();
     useBriefStore.setState({ briefs: {} });
   });
 
@@ -44,14 +65,11 @@ describe('brief queue', () => {
       running -= 1;
       return { markdown: '# B', citations: [], generatedAt: 'now' };
     });
-    enqueueBriefs([
-      { matterId: 'm-1', event: event('e1') },
-      { matterId: 'm-2', event: event('e2') },
-    ]);
+    enqueueBriefs([job('m-1', 'e1'), job('m-2', 'e2')]);
     await vi.waitFor(() => {
       const briefs = useBriefStore.getState().briefs;
-      const k1 = briefKey(localDay(), 'e1', 'm-1');
-      const k2 = briefKey(localDay(), 'e2', 'm-2');
+      const k1 = keyFor('m-1', 'e1');
+      const k2 = keyFor('m-2', 'e2');
       expect(briefs[k1]?.status).toBe('ready');
       expect(briefs[k2]?.status).toBe('ready');
     });
@@ -64,14 +82,13 @@ describe('brief queue', () => {
       citations: [],
       generatedAt: 'now',
     });
-    enqueueBriefs([{ matterId: 'm-1', event: event('e1') }]);
+    enqueueBriefs([job('m-1', 'e1')]);
     await vi.waitFor(() =>
-      expect(
-        useBriefStore.getState().briefs[briefKey(localDay(), 'e1', 'm-1')]
-          ?.status
-      ).toBe('ready')
+      expect(useBriefStore.getState().briefs[keyFor('m-1', 'e1')]?.status).toBe(
+        'ready'
+      )
     );
-    enqueueBriefs([{ matterId: 'm-1', event: event('e1') }]);
+    enqueueBriefs([job('m-1', 'e1')]);
     await flush();
     expect(generate).toHaveBeenCalledTimes(1);
   });
@@ -85,25 +102,21 @@ describe('brief queue', () => {
             resolve({ markdown: '# B', citations: [], generatedAt: 'now' });
         })
     );
-    enqueueBriefs([
-      { matterId: 'm-1', event: event('e1') },
-      { matterId: 'm-2', event: event('e2') },
-    ]);
+    enqueueBriefs([job('m-1', 'e1'), job('m-2', 'e2')]);
     await flush();
     cancelBriefQueue();
     release();
     await flush();
     expect(generate).toHaveBeenCalledTimes(1); // e2 never started
-    const k2 = briefKey(localDay(), 'e2', 'm-2');
+    const k2 = keyFor('m-2', 'e2');
     expect(useBriefStore.getState().briefs[k2]?.status).not.toBe('ready');
   });
 
   it('marks a failed brief failed with its error', async () => {
     generate.mockRejectedValue(new Error('provider down'));
-    enqueueBriefs([{ matterId: 'm-1', event: event('e1') }]);
+    enqueueBriefs([job('m-1', 'e1')]);
     await vi.waitFor(() => {
-      const b =
-        useBriefStore.getState().briefs[briefKey(localDay(), 'e1', 'm-1')];
+      const b = useBriefStore.getState().briefs[keyFor('m-1', 'e1')];
       expect(b?.status).toBe('failed');
       expect(b?.error).toContain('provider down');
     });

@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { seedSampleGoldenPath, SAMPLE_GOLDEN_PATH } from '@/features/onboarding/seedSampleGoldenPath';
+import {
+  seedSampleGoldenPath,
+  SAMPLE_GOLDEN_PATH,
+} from '@/features/onboarding/seedSampleGoldenPath';
 import { useBriefStore } from '@/features/meetings/briefStore';
 import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
@@ -65,13 +68,16 @@ describe('seedSampleGoldenPath', () => {
     expect(meta.reviewedAt).toBeTruthy();
     expect(meta.calendarEvent?.id).toBe(SAMPLE_GOLDEN_PATH.completedEventId);
 
-    const transcript = JSON.parse(textWrites.get(transcriptPath) ?? '{}') as TranscriptFile;
+    const transcript = JSON.parse(
+      textWrites.get(transcriptPath) ?? '{}'
+    ) as TranscriptFile;
     expect(transcript.segments.length).toBeGreaterThan(0);
     expect(transcript.meta.matterId).toBe('sample-matter');
 
     const briefs = Object.values(useBriefStore.getState().briefs);
     expect(briefs).toHaveLength(1);
     expect(briefs[0]?.status).toBe('ready');
+    expect(briefs[0]?.householdRef).toBe(SAMPLE_GOLDEN_PATH.crmHouseholdKey);
     expect(briefs[0]?.eventId).toBe(SAMPLE_GOLDEN_PATH.briefEventId);
     expect(briefs[0]?.eventId).not.toBe(meta.calendarEvent?.id);
     expect(briefs[0]?.eventTitle).toBe('Hendricks planning check-in');
@@ -83,16 +89,28 @@ describe('seedSampleGoldenPath', () => {
     expect(queueItems[0]?.status).toBe('proposed');
     expect(queueItems[0]?.sourceRef).toBe(SAMPLE_GOLDEN_PATH.crmSourceRef);
 
-    const matter = useMatterStore.getState().matters.find((m) => m.id === 'sample-matter');
-    expect(matter?.crmHouseholdKeys).toContain(SAMPLE_GOLDEN_PATH.crmHouseholdKey);
+    const matter = useMatterStore
+      .getState()
+      .matters.find((m) => m.id === 'sample-matter');
+    expect(matter?.crmHouseholdKeys).toContain(
+      SAMPLE_GOLDEN_PATH.crmHouseholdKey
+    );
   });
 
   it('does not duplicate the pending CRM approval when re-seeded', async () => {
     const first = makeWorkspace();
     const second = makeWorkspace();
 
-    await seedSampleGoldenPath(first.service as never, '/workspace', 'sample-matter');
-    await seedSampleGoldenPath(second.service as never, '/workspace', 'sample-matter');
+    await seedSampleGoldenPath(
+      first.service as never,
+      '/workspace',
+      'sample-matter'
+    );
+    await seedSampleGoldenPath(
+      second.service as never,
+      '/workspace',
+      'sample-matter'
+    );
 
     expect(useCrmWriteQueueStore.getState().items).toHaveLength(1);
   });

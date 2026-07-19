@@ -11,7 +11,11 @@ vi.mock('@/platform/utils/calendar-commands', () => ({
   calendarListEvents: (...args: unknown[]) => listEvents(...args),
 }));
 
-import { useMeetingAutoprep, useAutoprepRescan, RESCAN_INTERVAL_MS } from '@/features/meetings/useMeetingAutoprep';
+import {
+  useMeetingAutoprep,
+  useAutoprepRescan,
+  RESCAN_INTERVAL_MS,
+} from '@/features/meetings/useMeetingAutoprep';
 import type { Matter } from '@/platform/types/matter';
 
 const matter: Matter = {
@@ -21,6 +25,7 @@ const matter: Matter = {
   folderPaths: [],
   createdAt: '2024-01-01T00:00:00Z',
   meetingKeys: ['kim@henderson.com'],
+  crmHouseholdKeys: ['household-hend'],
 };
 
 const baseEvent = {
@@ -62,7 +67,13 @@ describe('useMeetingAutoprep', () => {
 
     expect(enqueue).toHaveBeenCalledTimes(2);
     expect(enqueue).toHaveBeenLastCalledWith([
-      { matterId: 'm-hend', event: changedEvent },
+      {
+        clientBoundary: {
+          householdRef: 'household-hend',
+          matterId: 'm-hend',
+        },
+        event: changedEvent,
+      },
     ]);
   });
 });
@@ -85,9 +96,14 @@ describe('useAutoprepRescan', () => {
     listEvents.mockRejectedValue(new Error('calendar backend unreachable'));
     const onError = vi.fn();
 
-    renderHook(({ matters }) => { useAutoprepRescan(matters, onError); }, {
-      initialProps: { matters: [matter] },
-    });
+    renderHook(
+      ({ matters }) => {
+        useAutoprepRescan(matters, onError);
+      },
+      {
+        initialProps: { matters: [matter] },
+      }
+    );
 
     await vi.advanceTimersByTimeAsync(RESCAN_INTERVAL_MS);
     expect(onError).toHaveBeenCalledTimes(1);
@@ -98,9 +114,14 @@ describe('useAutoprepRescan', () => {
     listEvents.mockResolvedValue([]);
     const onError = vi.fn();
 
-    renderHook(({ matters }) => { useAutoprepRescan(matters, onError); }, {
-      initialProps: { matters: [matter] },
-    });
+    renderHook(
+      ({ matters }) => {
+        useAutoprepRescan(matters, onError);
+      },
+      {
+        initialProps: { matters: [matter] },
+      }
+    );
 
     await vi.advanceTimersByTimeAsync(RESCAN_INTERVAL_MS);
     expect(onError).not.toHaveBeenCalled();

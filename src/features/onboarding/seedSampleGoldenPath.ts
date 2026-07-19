@@ -1,7 +1,13 @@
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
-import { useBriefStore, briefKey, localDay, type MeetingBrief } from '@/features/meetings/briefStore';
+import {
+  useBriefStore,
+  localDay,
+  type ExactMeetingBriefIdentity,
+  type MeetingBriefDraft,
+} from '@/features/meetings/briefStore';
 import type { MeetingMeta } from '@/features/meetings/meetingStore';
 import type { MeetingBriefBullet } from '@/features/meetings/generateBrief';
+import type { SealedMeetingClientBoundary } from '@/features/meetings';
 import type { TranscriptFile } from '@/platform/types/meeting';
 import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
@@ -21,7 +27,10 @@ const SAMPLE_CRM_SOURCE_REF = 'meeting:sample-hendricks-annual-review';
 const SAMPLE_CRM_HOUSEHOLD_KEY = 'sample-hendricks-household';
 
 function exactBuffer(bytes: Uint8Array): ArrayBuffer {
-  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+  return bytes.buffer.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength
+  );
 }
 
 function abs(workspaceRoot: string, filename: string): string {
@@ -87,7 +96,7 @@ function sampleTranscript(matterId: string): TranscriptFile {
         endMs: 92_000,
         channel: 'mic',
         speaker: 'Advisor',
-        text: 'I will prepare the Schwab Roth authorization, check Robert\'s consulting 401(k) beneficiaries, and revisit 529 funding in October.',
+        text: "I will prepare the Schwab Roth authorization, check Robert's consulting 401(k) beneficiaries, and revisit 529 funding in October.",
       },
     ],
     meta: {
@@ -117,12 +126,12 @@ function sampleMeetingNotesMarkdown(): string {
     '## Follow-ups',
     '',
     '- Prepare Schwab Roth conversion authorization documents for Q4.',
-    '- Confirm Robert\'s consulting 401(k) beneficiary designations.',
-    '- Schedule the long-term care specialist call before Susan\'s school district coverage lapses.',
+    "- Confirm Robert's consulting 401(k) beneficiary designations.",
+    "- Schedule the long-term care specialist call before Susan's school district coverage lapses.",
     '',
     '## CRM note draft',
     '',
-    'Annual review completed. Roth conversion remains planned for Q4 at about $48,000, subject to final tax projection. Beneficiary clean-up is mostly complete; confirm Robert\'s consulting 401(k) and Susan\'s school 403(b). 529 funding deferred to October review.',
+    "Annual review completed. Roth conversion remains planned for Q4 at about $48,000, subject to final tax projection. Beneficiary clean-up is mostly complete; confirm Robert's consulting 401(k) and Susan's school 403(b). 529 funding deferred to October review.",
   ].join('\n');
 }
 
@@ -132,13 +141,15 @@ function sampleBriefBullets(workspaceRoot: string): MeetingBriefBullet[] {
       id: 'sample-brief-b1',
       text: 'Roth conversion target is about $48,000, filling the 24% bracket without crossing into 32%.',
       sourcePath: abs(workspaceRoot, SAMPLE_FILE_PLAN_SUMMARY),
-      quote: '2024 target conversion: $48,000 (fills the 24% bracket based on projected income).',
+      quote:
+        '2024 target conversion: $48,000 (fills the 24% bracket based on projected income).',
     },
     {
       id: 'sample-brief-b2',
       text: 'Beneficiary clean-up is mostly done, but the consulting 401(k) and school 403(b) still need confirmation.',
       sourcePath: abs(workspaceRoot, SAMPLE_FILE_BENEFICIARY_ESTATE),
-      quote: 'Confirm Robert\'s consulting 401(k) beneficiary designations match the intended primary/contingent lineup.',
+      quote:
+        "Confirm Robert's consulting 401(k) beneficiary designations match the intended primary/contingent lineup.",
     },
     {
       id: 'sample-brief-b3',
@@ -149,53 +160,68 @@ function sampleBriefBullets(workspaceRoot: string): MeetingBriefBullet[] {
   ];
 }
 
-function sampleBrief(workspaceRoot: string, matterId: string): MeetingBrief {
+function sampleBrief(
+  workspaceRoot: string,
+  matterId: string
+): {
+  readonly identity: ExactMeetingBriefIdentity;
+  readonly brief: MeetingBriefDraft;
+} {
   const day = localDay();
-  const key = briefKey(day, SAMPLE_BRIEF_EVENT_ID, matterId);
-  return {
-    key,
-    eventId: SAMPLE_BRIEF_EVENT_ID,
+  const clientBoundary = {
+    householdRef: SAMPLE_CRM_HOUSEHOLD_KEY,
     matterId,
-    day,
-    status: 'ready',
-    eventTitle: SAMPLE_BRIEF_EVENT_TITLE,
-    generatedAt: new Date().toISOString(),
-    stale: false,
-    isSample: true,
-    markdown: [
-      `# Before you meet: ${SAMPLE_BRIEF_EVENT_TITLE}`,
-      '',
-      '- Robert wants the Roth conversion to stay near the top of the 24% bracket without creating IRMAA exposure.',
-      '- Susan wants to revisit 529 funding after retirement cash flow is clearer.',
-      '- Beneficiary clean-up is mostly done, but Robert\'s consulting 401(k) and Susan\'s school 403(b) still need confirmation.',
-      '',
-      '## Suggested agenda',
-      '',
-      '1. Confirm Roth conversion ceiling.',
-      '2. Review beneficiary follow-ups.',
-      '3. Decide whether to move the 529 conversation to October.',
-    ].join('\n'),
-    citations: [
-      { path: abs(workspaceRoot, SAMPLE_FILE_PLAN_SUMMARY), score: 0.96 },
-      { path: abs(workspaceRoot, SAMPLE_FILE_BENEFICIARY_ESTATE), score: 0.94 },
-      { path: abs(workspaceRoot, SAMPLE_FILE_MEETING_NOTES), score: 0.9 },
-    ],
-    bullets: sampleBriefBullets(workspaceRoot),
+  } as SealedMeetingClientBoundary;
+  return {
+    identity: {
+      clientBoundary,
+      eventId: SAMPLE_BRIEF_EVENT_ID,
+      day,
+    },
+    brief: {
+      status: 'ready',
+      eventTitle: SAMPLE_BRIEF_EVENT_TITLE,
+      generatedAt: new Date().toISOString(),
+      stale: false,
+      isSample: true,
+      markdown: [
+        `# Before you meet: ${SAMPLE_BRIEF_EVENT_TITLE}`,
+        '',
+        '- Robert wants the Roth conversion to stay near the top of the 24% bracket without creating IRMAA exposure.',
+        '- Susan wants to revisit 529 funding after retirement cash flow is clearer.',
+        "- Beneficiary clean-up is mostly done, but Robert's consulting 401(k) and Susan's school 403(b) still need confirmation.",
+        '',
+        '## Suggested agenda',
+        '',
+        '1. Confirm Roth conversion ceiling.',
+        '2. Review beneficiary follow-ups.',
+        '3. Decide whether to move the 529 conversation to October.',
+      ].join('\n'),
+      citations: [
+        { path: abs(workspaceRoot, SAMPLE_FILE_PLAN_SUMMARY), score: 0.96 },
+        {
+          path: abs(workspaceRoot, SAMPLE_FILE_BENEFICIARY_ESTATE),
+          score: 0.94,
+        },
+        { path: abs(workspaceRoot, SAMPLE_FILE_MEETING_NOTES), score: 0.9 },
+      ],
+      bullets: sampleBriefBullets(workspaceRoot),
+    },
   };
 }
 
 function seedSampleCrmApproval(matterId: string): void {
   const store = useCrmWriteQueueStore.getState();
   const existing = store.items.some(
-    (item) => item.matterId === matterId && item.sourceRef === SAMPLE_CRM_SOURCE_REF,
+    (item) =>
+      item.matterId === matterId && item.sourceRef === SAMPLE_CRM_SOURCE_REF
   );
   if (existing) return;
   store.enqueue({
     kind: 'note',
     matterId,
     title: 'Annual review follow-ups',
-    body:
-      'Annual review completed. Prepare Q4 Roth conversion authorization, confirm remaining beneficiary designations, and revisit 529 funding at the October review.',
+    body: 'Annual review completed. Prepare Q4 Roth conversion authorization, confirm remaining beneficiary designations, and revisit 529 funding at the October review.',
     sourceRef: SAMPLE_CRM_SOURCE_REF,
     aiSource: { kind: 'meeting', date: '2026-07-02' },
   });
@@ -205,23 +231,37 @@ function seedSampleCrmLink(matterId: string): void {
   const store = useMatterStore.getState();
   const matter = store.matters.find((m) => m.id === matterId);
   if (!matter) return;
-  if ((matter.crmHouseholdKeys ?? []).includes(SAMPLE_CRM_HOUSEHOLD_KEY)) return;
+  if ((matter.crmHouseholdKeys ?? []).includes(SAMPLE_CRM_HOUSEHOLD_KEY))
+    return;
   store.addCrmHouseholdKey(matterId, SAMPLE_CRM_HOUSEHOLD_KEY);
 }
 
 export async function seedSampleGoldenPath(
   workspace: WorkspaceService,
   workspaceRoot: string,
-  matterId: string,
+  matterId: string
 ): Promise<void> {
   const meetingDir = `${workspaceRoot.replace(/[\\/]+$/, '')}/Meetings/${SAMPLE_MEETING_FOLDER}`;
-  await workspace.writeFile(`${meetingDir}/meeting.json`, JSON.stringify(sampleMeetingMeta(matterId), null, 2));
-  await workspace.writeFile(`${meetingDir}/transcript.json`, JSON.stringify(sampleTranscript(matterId), null, 2));
-  const notesBytes = await markdownToDocxBytes(sampleMeetingNotesMarkdown(), 'notes.docx');
-  await workspace.writeFileBinary(`${meetingDir}/notes.docx`, exactBuffer(notesBytes));
+  await workspace.writeFile(
+    `${meetingDir}/meeting.json`,
+    JSON.stringify(sampleMeetingMeta(matterId), null, 2)
+  );
+  await workspace.writeFile(
+    `${meetingDir}/transcript.json`,
+    JSON.stringify(sampleTranscript(matterId), null, 2)
+  );
+  const notesBytes = await markdownToDocxBytes(
+    sampleMeetingNotesMarkdown(),
+    'notes.docx'
+  );
+  await workspace.writeFileBinary(
+    `${meetingDir}/notes.docx`,
+    exactBuffer(notesBytes)
+  );
 
-  useBriefStore.getState().upsert(sampleBrief(workspaceRoot, matterId));
   seedSampleCrmLink(matterId);
+  const sample = sampleBrief(workspaceRoot, matterId);
+  useBriefStore.getState().upsert(sample.identity, sample.brief);
   seedSampleCrmApproval(matterId);
 }
 

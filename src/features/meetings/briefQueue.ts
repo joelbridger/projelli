@@ -7,14 +7,25 @@
 
 import type { CalendarEventDto } from '@/platform/utils/calendar-commands';
 import { generateMeetingBrief } from './generateBrief';
-import { briefKey, localDay, useBriefStore } from './briefStore';
+import {
+  briefKey,
+  isValidMeetingBrief,
+  localDay,
+  useBriefStore,
+  type ExactMeetingBriefIdentity,
+} from './briefStore';
+import type { SealedMeetingClientBoundary } from './foundation/contract';
 
 export interface BriefJob {
-  matterId: string;
-  event: CalendarEventDto;
+  readonly clientBoundary: SealedMeetingClientBoundary;
+  readonly event: CalendarEventDto;
 }
 
-let pending: BriefJob[] = [];
+interface QueuedBriefJob extends BriefJob {
+  readonly identity: ExactMeetingBriefIdentity;
+}
+
+let pending: QueuedBriefJob[] = [];
 let running = false;
 let generation = 0; // bumped on cancel; stale completions are ignored
 
@@ -26,27 +37,41 @@ export function cancelBriefQueue(): void {
 export function enqueueBriefs(jobs: BriefJob[]): void {
   const store = useBriefStore.getState();
   const day = localDay();
-  for (const job of jobs) {
-    const key = briefKey(day, job.event.id, job.matterId);
+  // Validate the whole batch before the first write. A missing/partial/empty
+  // pair or event therefore rejects the call without leaving half a batch in
+  // the store.
+  const exactJobs: QueuedBriefJob[] = jobs.map((job) => {
+    const identity: ExactMeetingBriefIdentity = {
+      clientBoundary: job.clientBoundary,
+      eventId: job.event.id,
+      day,
+    };
+    void briefKey(identity);
+    return { ...job, identity };
+  });
+  for (const job of exactJobs) {
+    const key = briefKey(job.identity);
     const existing = store.briefs[key];
-    if (existing && existing.status === 'ready' && !existing.stale) continue;
     if (
       existing &&
+      isValidMeetingBrief(existing) &&
+      existing.status === 'ready' &&
+      !existing.stale
+    )
+      continue;
+    if (
+      existing &&
+      isValidMeetingBrief(existing) &&
       (existing.status === 'pending' || existing.status === 'generating')
     )
       continue;
-    if (pending.some((j) => briefKey(day, j.event.id, j.matterId) === key))
-      continue;
-    useBriefStore.getState().upsert({
-      key,
-      eventId: job.event.id,
-      matterId: job.matterId,
-      day,
+    if (pending.some((queued) => briefKey(queued.identity) === key)) continue;
+    useBriefStore.getState().upsert(job.identity, {
       status: 'pending',
-      markdown: existing?.markdown ?? '',
-      citations: existing?.citations ?? [],
-      bullets: existing?.bullets ?? [],
-      generatedAt: existing?.generatedAt ?? '',
+      markdown: isValidMeetingBrief(existing) ? existing.markdown : '',
+      citations: isValidMeetingBrief(existing) ? existing.citations : [],
+      bullets: isValidMeetingBrief(existing) ? (existing.bullets ?? []) : [],
+      generatedAt: isValidMeetingBrief(existing) ? existing.generatedAt : '',
       stale: false,
       eventTitle: job.event.title,
     });
@@ -63,16 +88,14 @@ async function pump(): Promise<void> {
       const job = pending.shift();
       if (!job) break;
       const gen = generation;
-      const key = briefKey(localDay(), job.event.id, job.matterId);
-      useBriefStore.getState().setStatus(key, 'generating');
+      useBriefStore.getState().setStatus(job.identity, 'generating');
       try {
-        const result = await generateMeetingBrief(job.matterId, job.event);
+        const result = await generateMeetingBrief(
+          job.clientBoundary.matterId,
+          job.event
+        );
         if (gen !== generation) return; // cancelled while in flight
-        useBriefStore.getState().upsert({
-          key,
-          eventId: job.event.id,
-          matterId: job.matterId,
-          day: localDay(),
+        useBriefStore.getState().upsert(job.identity, {
           status: 'ready',
           markdown: result.markdown,
           citations: result.citations,
@@ -86,7 +109,7 @@ async function pump(): Promise<void> {
         useBriefStore
           .getState()
           .setStatus(
-            key,
+            job.identity,
             'failed',
             err instanceof Error ? err.message : String(err)
           );

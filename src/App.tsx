@@ -44,6 +44,7 @@ import { TrustBar } from '@/app/shell/layout/TrustBar';
 import { StatusBar } from '@/app/shell/layout/StatusBar';
 import { AppDialogs } from '@/app/shell/AppDialogs';
 import { AppSurfaceRouter } from '@/app/shell/AppSurfaceRouter';
+import '@/app/shell/meetingPrepCompatibility';
 import { AppSurfaceRuntimeProvider } from '@/app/shell/runtime/AppSurfaceRuntimeProvider';
 import type { AppSurfaceCapabilities } from '@/app/shell/runtime/AppSurfaceRuntime';
 import { getAppSurfaceDescriptor } from '@/app/shell/registry/appSurfaceRegistry';
