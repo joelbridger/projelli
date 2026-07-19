@@ -97,9 +97,13 @@ import { clearLiveRecordRelay } from '@/platform/crm/liveRecordRelay';
 import {
   useMeetingArtifactStore,
   useMeetingFoundationStore,
+  type SealedMeetingClientBoundary,
 } from './contract';
 
-const client = { householdRef: 'household-1', matterId: 'local-matter-1' };
+const client = {
+  householdRef: 'household-1',
+  matterId: 'local-matter-1',
+} as SealedMeetingClientBoundary;
 
 const peerMeeting: LiveCrmRecord = {
   id: 'peer-meeting-1',

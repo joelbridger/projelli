@@ -53,7 +53,7 @@ const MEETING_ARTIFACT_KINDS: readonly MeetingArtifactKind[] = [
 ];
 
 const MEETINGS_SELECTION_REQUEST = {
-  operationClass: 'matter-scoped',
+  operationClass: 'client-scoped',
   allowAllMatters: false,
   requireFollowerAgreement: true,
 } as const;
@@ -68,9 +68,21 @@ function readAuthoritativeMeetingSelection() {
   return readSelectionOperationDecision(MEETINGS_SELECTION_REQUEST);
 }
 
-function readAuthoritativeMeetingMatterId(): string | null {
+function boundaryFromSelection(
+  selection: ReturnType<typeof readAuthoritativeMeetingSelection>
+): SealedMeetingClientBoundary | null {
+  if (selection.kind !== 'matter' || !selection.client) return null;
+  return Object.freeze({
+    householdRef: selection.client.householdId,
+    matterId: selection.matter.id,
+    displayName: selection.client.displayName,
+  }) as SealedMeetingClientBoundary;
+}
+
+/** Read the live, authority-proven household + matter pair. */
+export function readActiveMeetingClientBoundary(): SealedMeetingClientBoundary | null {
   const selection = readAuthoritativeMeetingSelection();
-  return selection.kind === 'matter' ? selection.matter.id : null;
+  return boundaryFromSelection(selection);
 }
 
 function readAuthoritativeMeetingSelectionError(): string | null {
@@ -90,6 +102,24 @@ export interface ClientBoundary {
   readonly householdRef: string;
   readonly matterId: string;
   readonly displayName?: string;
+}
+
+declare const sealedMeetingClientBoundaryBrand: unique symbol;
+
+/**
+ * The selected-client store capability. Both fields are required as one typed
+ * value, so `{ matterId }` and optional-pair call shapes fail typechecking. The
+ * production resolver above derives and freezes both values from live authority.
+ */
+export interface SealedMeetingClientBoundary extends Readonly<ClientBoundary> {
+  /** Compile-time seal: ordinary household/matter objects are not store authority. */
+  readonly [sealedMeetingClientBoundaryBrand]: true;
+}
+
+/** Reactive companion to {@link readActiveMeetingClientBoundary}. */
+export function useActiveMeetingClientBoundary(): SealedMeetingClientBoundary | null {
+  const selection = useSelectionOperationDecision(MEETINGS_SELECTION_REQUEST);
+  return boundaryFromSelection(selection);
 }
 
 /**
@@ -312,7 +342,7 @@ const sealedOpenTargets = new WeakSet();
 export interface MeetingOpenTarget {
   readonly kind: 'linked-legacy-meeting';
   readonly meeting: MeetingProjection;
-  readonly client: ClientBoundary;
+  readonly client: SealedMeetingClientBoundary;
   readonly legacyLink: LegacyMeetingLink;
   /** Absolute local folder path, checked immediately before opening. */
   readonly meetingDir: string;
@@ -392,9 +422,40 @@ export interface FirmMeetingDirectoryGrant {
   readonly [firmGrantBrand]: true;
 }
 
+declare const firmDirectoryReadyBrand: unique symbol;
+const sealedFirmDirectoryReadyResults = new WeakSet();
+
+export type FirmMeetingDirectoryReadResult =
+  | { readonly kind: 'loading' }
+  | {
+      readonly kind: 'ready';
+      readonly meetings: readonly MeetingProjection[];
+      readonly [firmDirectoryReadyBrand]: true;
+    }
+  | {
+      readonly kind: 'refused';
+      readonly reason: 'authority-refused' | 'selection-blocked';
+      readonly message: string;
+    }
+  | {
+      readonly kind: 'error';
+      readonly message: string;
+    };
+
+export type FirmMeetingDirectoryLookupResult =
+  | Exclude<FirmMeetingDirectoryReadResult, { readonly kind: 'ready' }>
+  | {
+      readonly kind: 'ready';
+      readonly meeting: MeetingProjection | null;
+      readonly [firmDirectoryReadyBrand]: true;
+    };
+
+export const FIRM_MEETING_DIRECTORY_LOADING: FirmMeetingDirectoryReadResult =
+  Object.freeze({ kind: 'loading' });
+
 export interface FirmMeetingDirectoryReader {
-  list(): Promise<readonly MeetingProjection[]>;
-  get(id: MeetingRef): Promise<MeetingProjection | undefined>;
+  list(): Promise<FirmMeetingDirectoryReadResult>;
+  get(id: MeetingRef): Promise<FirmMeetingDirectoryLookupResult>;
 }
 
 export interface MeetingArtifactInput {
@@ -476,7 +537,7 @@ export interface ReviewNeededMeetingArtifactReader {
 export interface MeetingArtifactStore {
   readerFor(
     meetings: MeetingStore,
-    client: ClientBoundary,
+    client: SealedMeetingClientBoundary,
     requirements: readonly MeetingArtifactRequirement[]
   ): MeetingArtifactReader;
   append(input: MeetingArtifactInput): Promise<MeetingArtifact>;
@@ -526,7 +587,8 @@ export interface CitedMeetingInsight {
 
 export interface MeetingListProjection {
   readonly meetings: readonly MeetingProjection[];
-  readonly scope: 'firm' | 'household' | 'owner';
+  /** Legacy selected-client helper only; firm rows use MeetingSurfaceProjectionResult. */
+  readonly scope: 'household' | 'owner';
 }
 
 export interface MeetingIntelligenceSettingsProjection {
@@ -606,7 +668,7 @@ export interface MeetingDeferredDescriptor {
 }
 export interface MeetingSourceAdapter {
   listApprovedForClient(
-    client: ClientBoundary
+    client: SealedMeetingClientBoundary
   ): Promise<readonly CitedMeetingInsight[]>;
 }
 // Settings and CRM-clients own their composition contracts. This package does
@@ -619,26 +681,30 @@ type LivePort = Pick<
 > & {
   readonly sharedMatterId?: string | null;
   readonly sharedLocalMatterId?: string | null;
+  /** Optional only for generic ports; firm readers refuse when it is absent. */
+  readonly getFirmSelectionError?: () => string | null;
   reloadRecords(): Promise<readonly LiveCrmRecord[] | undefined>;
 };
 
 /**
  * The port required to build a CLIENT-SCOPED store (`createMeetingStore`,
- * `createMeetingArtifactStore`). `getActiveMatterId` is MANDATORY — a store
- * cannot be constructed without live client isolation, so the isolation-less
- * shape is a compile error, not a silent leak.
+ * `createMeetingArtifactStore`). `getActiveClientBoundary` is MANDATORY and
+ * returns one branded household + matter pair. A matter-only or optional-pair
+ * store shape is a compile error, not a silent leak.
  *
- * `getActiveMatterId` MUST resolve the LIVE authoritative selection at call
+ * `getActiveClientBoundary` MUST resolve the LIVE authoritative selection at call
  * time (it is re-read at every operation). The production adapter uses the
  * four-arm selection reader and treats follower disagreement only as refusal.
  * Passing a value captured once (a snapshot) reintroduces the stale-client leak.
- * A resolver returning `null`/`undefined` (no active client) FAILS CLOSED:
+ * A resolver returning `null` (no active client) FAILS CLOSED:
  * nothing is listed, read in full, mutated, appended, approved, or read through
- * a client-bound artifact reader. `matterId` is the durable per-client scope key
- * (one matter is one client engagement).
+ * a client-bound artifact reader. Both household and matter are checked; one
+ * field alone is never ownership proof.
  */
 export type ClientScopedLivePort = LivePort & {
-  readonly getActiveMatterId: () => string | null | undefined;
+  readonly getActiveClientBoundary: () =>
+    | SealedMeetingClientBoundary
+    | null;
   /** Production supplies the exact surfaced four-arm refusal. Test ports may omit it. */
   readonly getSelectionError?: () => string | null;
   /**
@@ -649,30 +715,77 @@ export type ClientScopedLivePort = LivePort & {
 };
 
 interface ClientScope {
-  /** True when a specific record's matter may be listed / read / mutated now. */
-  owns(matterId: unknown): boolean;
-  /** Throw a fail-closed error when the record is not the active client's. */
-  assertOwns(matterId: unknown, subject: string): void;
+  /** Read and validate the complete live pair, or fail closed. */
+  current(): SealedMeetingClientBoundary | null;
+  /** Require one complete pair while preserving the authority reader's refusal. */
+  requireCurrent(subject: string): SealedMeetingClientBoundary;
+  /** True only when both record fields equal the complete live pair. */
+  owns(boundary: ClientBoundary): boolean;
+  /** Throw when the record pair is not the active client's. */
+  assertOwns(boundary: ClientBoundary, subject: string): SealedMeetingClientBoundary;
+  /** Recheck a captured pair after asynchronous work. */
+  assertStable(
+    expected: SealedMeetingClientBoundary,
+    subject: string
+  ): SealedMeetingClientBoundary;
+}
+
+function sameClientBoundary(
+  left: ClientBoundary | null | undefined,
+  right: ClientBoundary | null | undefined
+): boolean {
+  return !!left && !!right &&
+    left.householdRef === right.householdRef &&
+    left.matterId === right.matterId;
 }
 
 function clientScope(port: ClientScopedLivePort): ClientScope {
   const scope: ClientScope = {
-    owns(matterId) {
+    current() {
       // Resolve the active client at CALL time, never construction time, so the
       // same held store fails closed the instant the active client changes.
-      const current = port.getActiveMatterId();
-      // No active client (null/undefined) → fail closed. There is no unscoped
+      const current = port.getActiveClientBoundary();
+      // No active client (null, or an invalid runtime value) → fail closed. There is no unscoped
       // escape hatch: a store without a live client resolver cannot be built.
-      if (current === null || current === undefined) return false;
-      return typeof matterId === 'string' && matterId === current;
+      if (!current) return null;
+      if (
+        typeof current.householdRef !== 'string' ||
+        !current.householdRef.trim() ||
+        typeof current.matterId !== 'string' ||
+        !current.matterId.trim()
+      ) return null;
+      return current;
     },
-    assertOwns(matterId, subject) {
+    requireCurrent(subject) {
       const selectionError = port.getSelectionError?.();
       if (selectionError) throw new Error(selectionError);
-      if (!scope.owns(matterId))
+      const current = scope.current();
+      if (!current)
         throw new Error(
           `${subject} belongs to a different client than the active one.`
         );
+      return current;
+    },
+    owns(boundary) {
+      return sameClientBoundary(scope.current(), boundary);
+    },
+    assertOwns(boundary, subject) {
+      const selectionError = port.getSelectionError?.();
+      if (selectionError) throw new Error(selectionError);
+      const current = scope.current();
+      if (!sameClientBoundary(current, boundary))
+        throw new Error(
+          `${subject} belongs to a different client than the active one.`
+        );
+      return current as SealedMeetingClientBoundary;
+    },
+    assertStable(expected, subject) {
+      const selectionError = port.getSelectionError?.();
+      if (selectionError) throw new Error(selectionError);
+      const current = scope.current();
+      if (!sameClientBoundary(current, expected))
+        throw new Error(`${subject} client changed while data reloaded.`);
+      return current as SealedMeetingClientBoundary;
     },
   };
   return scope;
@@ -1004,11 +1117,19 @@ export async function validateLegacyMeetingLink(
  */
 export async function resolveMeetingOpenTarget(
   store: MeetingStore,
-  meetingId: MeetingRef
+  meetingId: MeetingRef,
+  getActiveClientBoundary: () =>
+    | SealedMeetingClientBoundary
+    | null
 ): Promise<MeetingOpenTarget> {
+  const expected = getActiveClientBoundary();
+  if (!expected)
+    throw new Error('A confirmed client is required to open a meeting.');
   const meeting = await store.get(nonEmpty(meetingId, 'Meeting ID'));
   if (!meeting)
     throw new Error('That meeting is unavailable to the active client.');
+  if (!sameClientBoundary(meeting, expected))
+    throw new Error('That meeting belongs to a different client.');
   if (!meeting.legacyLink)
     throw new Error('This canonical meeting has no linked legacy detail.');
   const authority = deriveMeetingLinkAuthority();
@@ -1017,10 +1138,12 @@ export async function resolveMeetingOpenTarget(
     { meetingDir: meeting.legacyLink.meetingDir },
     authority
   );
+  if (!sameClientBoundary(getActiveClientBoundary(), expected))
+    throw new Error('Active client changed while the meeting opened.');
   return sealMeetingOpenTarget({
     kind: 'linked-legacy-meeting',
     meeting,
-    client: { householdRef: meeting.householdRef, matterId: meeting.matterId },
+    client: expected,
     legacyLink: meeting.legacyLink,
     meetingDir: resolvedDir,
   });
@@ -1142,8 +1265,13 @@ export function verifyLegacyMeetingLinkStatus(
   return !!value && sealedLegacyMeetingLinkStatuses.has(value);
 }
 
-function activeMatterIdForLegacyLinkStatus(port: ClientScopedLivePort): string {
-  return nonEmpty(port.getActiveMatterId(), 'Active client');
+function activeBoundaryForLegacyLinkStatus(
+  port: ClientScopedLivePort
+): SealedMeetingClientBoundary {
+  const boundary = port.getActiveClientBoundary();
+  if (!boundary?.householdRef || !boundary.matterId)
+    throw new Error('Active client is required.');
+  return boundary;
 }
 
 /**
@@ -1165,7 +1293,7 @@ export function createLegacyMeetingLinkStatusReader(
         normalizedPath(legacy.meetingDir, 'Legacy meeting folder')
       )
     );
-    const activeMatterId = activeMatterIdForLegacyLinkStatus(port);
+    const activeBoundary = activeBoundaryForLegacyLinkStatus(port);
     requireAvailable(port);
     // This is intentionally the trusted workspace derivation, not port data or
     // a caller-provided root. Status needs no folder contents, only proof that
@@ -1178,7 +1306,12 @@ export function createLegacyMeetingLinkStatusReader(
         'Meeting link status is unavailable until CRM records reload.'
       );
     requireAvailable(port);
-    if (activeMatterIdForLegacyLinkStatus(port) !== activeMatterId)
+    if (
+      !sameClientBoundary(
+        activeBoundaryForLegacyLinkStatus(port),
+        activeBoundary
+      )
+    )
       throw new Error(
         'Active client changed while meeting link status reloaded.'
       );
@@ -1189,7 +1322,10 @@ export function createLegacyMeetingLinkStatusReader(
       const rawLink = record['legacyMeetingLink'];
       if (rawLink === undefined) continue;
 
-      if (record.matterId !== activeMatterId) {
+      if (
+        record.matterId !== activeBoundary.matterId ||
+        record['householdRef'] !== activeBoundary.householdRef
+      ) {
         // Do not inspect another client's canonical data wholesale. We only
         // look for a raw exact-path collision, then reject it rather than
         // presenting a possibly-dangerous folder-only action.
@@ -1299,6 +1435,15 @@ function serializeLink<T>(critical: () => Promise<T>): Promise<T> {
   );
   return run;
 }
+
+function recordClientBoundary(record: LiveCrmRecord): ClientBoundary {
+  return {
+    householdRef:
+      typeof record['householdRef'] === 'string' ? record['householdRef'] : '',
+    matterId: typeof record.matterId === 'string' ? record.matterId : '',
+  };
+}
+
 export function createMeetingStore(port: ClientScopedLivePort): MeetingStore {
   const scope = clientScope(port);
   let raw = port.records.filter((record) => record.kind === 'meeting');
@@ -1306,20 +1451,28 @@ export function createMeetingStore(port: ClientScopedLivePort): MeetingStore {
     meetingRecords(raw)
       // Fail-closed list: only the active client's meetings are visible, so a
       // held store shows nothing from a prior client after a switch (or none).
-      .filter((meeting) => scope.owns(meeting.matterId))
+      .filter((meeting) => scope.owns(meeting))
       .sort((left, right) =>
         left.scheduledStartUtc.localeCompare(right.scheduledStartUtc)
       );
   const getRaw = (id: string) => raw.find((record) => record.id === id);
-  const persist = async (record: LiveCrmRecord) => {
+  const persist = async (
+    record: LiveCrmRecord,
+    expected: SealedMeetingClientBoundary
+  ) => {
+    scope.assertStable(expected, 'Meeting');
+    scope.assertOwns(recordClientBoundary(record), 'Meeting');
     await port.save(record);
+    scope.assertStable(expected, 'Meeting');
     const fresh = await port.reloadRecords();
+    scope.assertStable(expected, 'Meeting');
     raw = (fresh ?? []).filter((candidate) => candidate.kind === 'meeting');
     const saved = getRaw(record.id);
     if (!saved)
       throw new Error(
         'The saved meeting was missing after its canonical reload.'
       );
+    scope.assertOwns(recordClientBoundary(saved), 'Meeting');
     return saved;
   };
   const store: LinkableMeetingStore = {
@@ -1331,19 +1484,22 @@ export function createMeetingStore(port: ClientScopedLivePort): MeetingStore {
     },
     get: (id) =>
       Promise.resolve().then(async () => {
+        const expected = scope.current();
+        if (!expected) return undefined;
         requireAvailable(port);
         const fresh = await port.reloadRecords();
+        scope.assertStable(expected, 'Meeting');
         raw = (fresh ?? []).filter((candidate) => candidate.kind === 'meeting');
         const record = getRaw(id);
         // Fail-closed read: a record from another (or no) active client is not
         // readable in full here, even with a valid id captured before a switch.
-        if (!record || !scope.owns(record.matterId)) return undefined;
+        if (!record || !scope.owns(recordClientBoundary(record))) return undefined;
         return projectMeetingRecord(record);
       }),
     createDraft: async (input) => {
-      requireAvailable(port);
       const draft = validateMeetingDraft(input);
-      scope.assertOwns(draft.matterId, 'Meeting');
+      const expected = scope.assertOwns(draft, 'Meeting');
+      requireAvailable(port);
       if (port.sharedMatterId && port.sharedLocalMatterId !== draft.matterId)
         throw new Error(
           'Meeting matter must match the active shared client before relay.'
@@ -1369,15 +1525,17 @@ export function createMeetingStore(port: ClientScopedLivePort): MeetingStore {
           ? { visibilityPolicyId: draft.visibilityPolicyId }
           : {}),
       };
-      return projectMeetingRecord(await persist(record));
+      return projectMeetingRecord(await persist(record, expected));
     },
     update: async (id, patch) => {
+      const expected = scope.requireCurrent('Meeting');
       requireAvailable(port);
       const fresh = await port.reloadRecords();
+      scope.assertStable(expected, 'Meeting');
       raw = (fresh ?? []).filter((candidate) => candidate.kind === 'meeting');
       const rawRecord = getRaw(id);
       if (!rawRecord) throw new Error('That meeting no longer exists.');
-      scope.assertOwns(rawRecord.matterId, 'Meeting');
+      scope.assertOwns(recordClientBoundary(rawRecord), 'Meeting');
       const current = projectMeetingRecord(rawRecord);
       const draft = validateMeetingDraft({
         ...current,
@@ -1416,15 +1574,17 @@ export function createMeetingStore(port: ClientScopedLivePort): MeetingStore {
       if (patch.visibilityPolicyId === null) delete next['visibilityPolicyId'];
       else if (draft.visibilityPolicyId)
         next['visibilityPolicyId'] = draft.visibilityPolicyId;
-      return projectMeetingRecord(await persist(next));
+      return projectMeetingRecord(await persist(next, expected));
     },
     transition: async (id, transition) => {
+      const expected = scope.requireCurrent('Meeting');
       requireAvailable(port);
       const fresh = await port.reloadRecords();
+      scope.assertStable(expected, 'Meeting');
       raw = (fresh ?? []).filter((candidate) => candidate.kind === 'meeting');
       const rawRecord = getRaw(id);
       if (!rawRecord) throw new Error('That meeting no longer exists.');
-      scope.assertOwns(rawRecord.matterId, 'Meeting');
+      scope.assertOwns(recordClientBoundary(rawRecord), 'Meeting');
       const current = projectMeetingRecord(rawRecord);
       // Fail-closed precondition: the caller's stated `from` must match the
       // record's real current state. A stale caller (acting on a state this
@@ -1436,11 +1596,14 @@ export function createMeetingStore(port: ClientScopedLivePort): MeetingStore {
           `This meeting is ${current.state}, not ${valid.from}; refusing a stale transition.`
         );
       return projectMeetingRecord(
-        await persist({
-          ...rawRecord,
-          state: valid.to,
-          updatedAt: valid.at,
-        })
+        await persist(
+          {
+            ...rawRecord,
+            state: valid.to,
+            updatedAt: valid.at,
+          },
+          expected
+        )
       );
     },
     linkLegacy: (id, input) =>
@@ -1449,12 +1612,14 @@ export function createMeetingStore(port: ClientScopedLivePort): MeetingStore {
       // read and the save. This is what makes first-linking atomic against the
       // last-writer-wins port (see `serializeLink`).
       serializeLink(async () => {
+        const expected = scope.requireCurrent('Meeting');
         requireAvailable(port);
         const fresh = await port.reloadRecords();
+        scope.assertStable(expected, 'Meeting');
         raw = (fresh ?? []).filter((candidate) => candidate.kind === 'meeting');
         const rawRecord = getRaw(id);
         if (!rawRecord) throw new Error('That meeting no longer exists.');
-        scope.assertOwns(rawRecord.matterId, 'Meeting');
+        scope.assertOwns(recordClientBoundary(rawRecord), 'Meeting');
         const current = projectMeetingRecord(rawRecord);
         const existing = current.legacyLink;
         const requestedDir = normalizedPath(
@@ -1470,14 +1635,19 @@ export function createMeetingStore(port: ClientScopedLivePort): MeetingStore {
           // folder must not be reported as linked merely because an old record
           // happened to contain the same string.
           await validateLegacyMeetingLink(current, input);
+          scope.assertStable(expected, 'Meeting');
           return current;
         }
         const link = await validateLegacyMeetingLink(current, input);
-        const saved = await persist({
-          ...rawRecord,
-          updatedAt: now(),
-          legacyMeetingLink: link,
-        });
+        scope.assertStable(expected, 'Meeting');
+        const saved = await persist(
+          {
+            ...rawRecord,
+            updatedAt: now(),
+            legacyMeetingLink: link,
+          },
+          expected
+        );
         // Concurrent-first-link guard (defense-in-depth beyond the mutex): the
         // port is last-writer-wins, so re-read the just-persisted record and
         // refuse if the durable link is not the one we wrote — a competing link
@@ -1508,7 +1678,12 @@ export function createMeetingPopulationService(
       return store.linkLegacy(created.id, legacy);
     },
     linkLegacy: (meetingId, legacy) => store.linkLegacy(meetingId, legacy),
-    openTarget: (meetingId) => resolveMeetingOpenTarget(store, meetingId),
+    openTarget: (meetingId) =>
+      resolveMeetingOpenTarget(
+        store,
+        meetingId,
+        port.getActiveClientBoundary
+      ),
   };
 }
 
@@ -1526,6 +1701,7 @@ export function grantFirmMeetingDirectoryAccess(
 ): FirmMeetingDirectoryGrant | null {
   const ownerMatterIds = new Set(
     getMatters()
+      .filter((matter) => !matter.archived)
       .map((matter) => matter.id)
       .filter((id): id is string => typeof id === 'string' && !!id.trim())
   );
@@ -1553,6 +1729,29 @@ export function grantFirmMeetingDirectoryAccess(
   return grant;
 }
 
+function permittedFirmMatterIds(
+  grant: FirmMeetingDirectoryGrant
+): ReadonlySet<string> | null {
+  if (!sealedFirmGrants.has(grant)) return null;
+  const ids: unknown = grant.allowedMatterIds;
+  if (
+    !Array.isArray(ids) ||
+    ids.some((id) => typeof id !== 'string' || !id.trim())
+  )
+    return null;
+  const currentOwnerMatterIds = new Set(
+    getMatters()
+      .filter((matter) => !matter.archived)
+      .map((matter) => matter.id)
+      .filter((id): id is string => typeof id === 'string' && !!id.trim())
+  );
+  return new Set(
+    ids
+      .filter((id): id is string => typeof id === 'string')
+      .filter((id) => currentOwnerMatterIds.has(id))
+  );
+}
+
 /**
  * An explicit cross-client reader. It reads ONLY through an owner-issued,
  * un-forgeable {@link FirmMeetingDirectoryGrant} (minted by
@@ -1563,44 +1762,84 @@ export function createFirmMeetingDirectoryReader(
   port: LivePort,
   grant: FirmMeetingDirectoryGrant
 ): FirmMeetingDirectoryReader {
-  const permitted = () => {
-    // Un-forgeable check: only a grant minted by the trusted path is honoured.
-    // `.has` safely returns false for a forged, null, or non-object value.
-    if (!sealedFirmGrants.has(grant)) return null;
-    const ids = grant.allowedMatterIds;
-    if (
-      !Array.isArray(ids) ||
-      ids.some((id) => typeof id !== 'string' || !id.trim())
-    )
-      return null;
-    return new Set(ids);
+  // A grant is bounded, not a permanent snapshot of ownership. Intersect it
+  // with current owner truth before AND after every reload.
+  const permitted = () => permittedFirmMatterIds(grant);
+  const refused = (
+    reason: 'authority-refused' | 'selection-blocked',
+    message: string
+  ): FirmMeetingDirectoryReadResult => ({ kind: 'refused', reason, message });
+  const error = (message: string): FirmMeetingDirectoryReadResult => ({
+    kind: 'error',
+    message,
+  });
+  const ready = (
+    meetings: readonly MeetingProjection[]
+  ): FirmMeetingDirectoryReadResult => {
+    const result = deepFreezeAuthority({
+      kind: 'ready',
+      meetings,
+    }) as Extract<FirmMeetingDirectoryReadResult, { kind: 'ready' }>;
+    sealedFirmDirectoryReadyResults.add(result);
+    return result;
   };
-  const read = async () => {
+  const read = async (): Promise<FirmMeetingDirectoryReadResult> => {
+    if (!port.getFirmSelectionError)
+      return refused(
+        'selection-blocked',
+        'The firm meeting selection is unavailable.'
+      );
+    const selectionError = port.getFirmSelectionError();
+    if (selectionError)
+      return refused('selection-blocked', selectionError);
     if (!port.workspaceRoot || port.error)
-      return [] as readonly MeetingProjection[];
+      return error('Meeting records are unavailable until they reload.');
     const allowed = permitted();
     if (!allowed || allowed.size === 0)
-      return [] as readonly MeetingProjection[];
+      return refused(
+        'authority-refused',
+        'Firm meeting directory access was not authorized.'
+      );
     let records: readonly LiveCrmRecord[];
     try {
-      records = (await port.reloadRecords()) ?? [];
+      const reloaded = await port.reloadRecords();
+      if (!reloaded)
+        return error('Meeting records are unavailable until they reload.');
+      records = reloaded;
     } catch {
-      return [] as readonly MeetingProjection[];
+      return error('Meeting records are unavailable until they reload.');
     }
-    // Check authorization after the asynchronous reload as well. A permission
-    // revoke while the read is in flight must not leak the loaded result.
+    // Check BOTH gates after the asynchronous reload. A selection change or a
+    // permission revoke while the read is in flight must not leak loaded rows.
+    const freshSelectionError = port.getFirmSelectionError();
+    if (freshSelectionError)
+      return refused('selection-blocked', freshSelectionError);
     const stillAllowed = permitted();
     if (!stillAllowed || stillAllowed.size === 0)
-      return [] as readonly MeetingProjection[];
-    return meetingRecords(records)
-      .filter((meeting) => stillAllowed.has(meeting.matterId))
-      .sort((left, right) =>
-        left.scheduledStartUtc.localeCompare(right.scheduledStartUtc)
+      return refused(
+        'authority-refused',
+        'Firm meeting directory access was not authorized.'
       );
+    return ready(
+      meetingRecords(records)
+        .filter((meeting) => stillAllowed.has(meeting.matterId))
+        .sort((left, right) =>
+          left.scheduledStartUtc.localeCompare(right.scheduledStartUtc)
+        )
+    );
   };
   return {
     list: read,
-    get: async (id) => (await read()).find((meeting) => meeting.id === id),
+    get: async (id) => {
+      const result = await read();
+      if (result.kind !== 'ready') return result;
+      const lookup = deepFreezeAuthority({
+        kind: 'ready',
+        meeting: result.meetings.find((meeting) => meeting.id === id) ?? null,
+      }) as Extract<FirmMeetingDirectoryLookupResult, { kind: 'ready' }>;
+      sealedFirmDirectoryReadyResults.add(lookup);
+      return lookup;
+    },
   };
 }
 
@@ -1688,9 +1927,16 @@ export function createMeetingArtifactStore(
           return [];
         }
       });
-  const persist = async (record: LiveCrmRecord) => {
+  const persist = async (
+    record: LiveCrmRecord,
+    expected: SealedMeetingClientBoundary
+  ) => {
+    scope.assertStable(expected, 'Meeting artifact');
+    scope.assertOwns(recordClientBoundary(record), 'Meeting artifact');
     await port.save(record);
+    scope.assertStable(expected, 'Meeting artifact');
     const fresh = await port.reloadRecords();
+    scope.assertStable(expected, 'Meeting artifact');
     raw = (fresh ?? []).filter(
       (candidate) =>
         candidate.kind === 'meeting_artifact' ||
@@ -1701,6 +1947,7 @@ export function createMeetingArtifactStore(
       throw new Error(
         'The saved meeting artifact was missing after its canonical reload.'
       );
+    scope.assertOwns(recordClientBoundary(saved), 'Meeting artifact');
     return saved;
   };
   const reader: MeetingArtifactReader = {
@@ -1722,7 +1969,7 @@ export function createMeetingArtifactStore(
       // Fail-closed read: the requested client must be the active one. A reader
       // built for client A while B (or none) is active returns nothing, so a
       // stale-A boundary cannot pull A's artifacts after a switch.
-      if (!scope.owns(client.matterId)) return emptyReader;
+      if (!scope.owns(client)) return emptyReader;
       const ownsMeeting = (meetingId: MeetingRef) =>
         meetings.list.some(
           (meeting) =>
@@ -1738,12 +1985,14 @@ export function createMeetingArtifactStore(
           (minimumVersion.get(artifact.kind) ?? Infinity);
       return {
         listForMeeting: (meeting, requestedKinds) => {
+          if (!scope.owns(client)) return [];
           if (!ownsMeeting(meeting)) return [];
           const kinds = requestedKinds ?? [...minimumVersion.keys()];
           if (kinds.some((kind) => !minimumVersion.has(kind))) return [];
           return reader.listForMeeting(meeting, kinds).filter(allowedArtifact);
         },
         get: (id) => {
+          if (!scope.owns(client)) return null;
           const artifact = reader.get(id);
           return artifact && allowedArtifact(artifact) ? artifact : null;
         },
@@ -1752,16 +2001,7 @@ export function createMeetingArtifactStore(
     reviewNeededForFirm: (grant, requirements) => {
       const minimumVersion = artifactMinimumVersions(requirements);
       const kinds = [...minimumVersion.keys()];
-      const permitted = () => {
-        if (!sealedFirmGrants.has(grant)) return null;
-        const ids = grant.allowedMatterIds;
-        if (
-          !Array.isArray(ids) ||
-          ids.some((id) => typeof id !== 'string' || !id.trim())
-        )
-          return null;
-        return new Set(ids);
-      };
+      const permitted = () => permittedFirmMatterIds(grant);
       const refused = (
         reason: Extract<
           ReviewNeededMeetingArtifactsReadResult,
@@ -1798,7 +2038,13 @@ export function createMeetingArtifactStore(
 
           let fresh: readonly LiveCrmRecord[];
           try {
-            fresh = (await port.reloadRecords()) ?? [];
+            const reloaded = await port.reloadRecords();
+            if (!reloaded)
+              return refused(
+                'records-unavailable',
+                'Meeting artifacts are unavailable until records reload.'
+              );
+            fresh = reloaded;
           } catch {
             return refused(
               'records-unavailable',
@@ -1852,8 +2098,10 @@ export function createMeetingArtifactStore(
       };
     },
     append: async (input) => {
+      const expected = scope.requireCurrent('Meeting');
       requireAvailable(port);
       const freshRecords = await port.reloadRecords();
+      scope.assertStable(expected, 'Meeting artifact');
       raw = (freshRecords ?? []).filter(
         (candidate) =>
           candidate.kind === 'meeting_artifact' ||
@@ -1884,7 +2132,7 @@ export function createMeetingArtifactStore(
         throw new Error('Artifacts must belong to an existing meeting.');
       // Fail-closed write: an artifact can only be appended to a meeting owned
       // by the active client, so B cannot append onto A's meeting after a switch.
-      scope.assertOwns(parent.matterId, 'Meeting');
+      scope.assertOwns(recordClientBoundary(parent), 'Meeting');
       const record: LiveCrmRecord = {
         id: recordId('meeting-artifact'),
         kind: 'meeting_artifact',
@@ -1904,18 +2152,24 @@ export function createMeetingArtifactStore(
         provenance: input.provenance,
         payload: input.payload,
       };
-      const saved = projectArtifact(await persist(record), raw);
+      const saved = projectArtifact(await persist(record, expected), raw);
       return approvedAt
-        ? approveArtifact(saved, {
-            from: 'produced',
-            to: 'approved',
-            at: approvedAt,
-          })
+        ? approveArtifact(
+            saved,
+            {
+              from: 'produced',
+              to: 'approved',
+              at: approvedAt,
+            },
+            expected
+          )
         : saved;
     },
     approve: async (id, transition) => {
+      const expected = scope.requireCurrent('Artifact');
       requireAvailable(port);
       const fresh = await port.reloadRecords();
+      scope.assertStable(expected, 'Meeting artifact');
       raw = (fresh ?? []).filter(
         (candidate) =>
           candidate.kind === 'meeting_artifact' ||
@@ -1927,20 +2181,21 @@ export function createMeetingArtifactStore(
       // `from` must match the stored state. This is the real transition contract
       // — an approved -> approved (or stale produced -> approved) claim against a
       // mismatched state is refused, never coerced to the stored state.
-      scope.assertOwns(current.matterId, 'Artifact');
+      scope.assertOwns(recordClientBoundary(current), 'Artifact');
       const projected = projectArtifact(current, raw);
       const valid = validateMeetingArtifactTransition(transition);
       if (valid.from !== projected.state)
         throw new Error(
           `This artifact is ${projected.state}, not ${valid.from}; refusing a stale approval.`
         );
-      return approveArtifact(projected, valid);
+      return approveArtifact(projected, valid, expected);
     },
   };
 
   async function approveArtifact(
     artifact: MeetingArtifact,
-    transition: MeetingArtifactTransition
+    transition: MeetingArtifactTransition,
+    expected: SealedMeetingClientBoundary
   ): Promise<MeetingArtifact> {
     const valid = validateMeetingArtifactTransition(transition);
     if (Date.parse(valid.at) < Date.parse(artifact.producedAt))
@@ -1950,21 +2205,24 @@ export function createMeetingArtifactStore(
         candidate.kind === 'meeting_artifact' && candidate.id === artifact.id
     );
     if (!base) throw new Error('The artifact disappeared before approval.');
-    await persist({
-      id: recordId('meeting-artifact-transition'),
-      kind: 'meeting_artifact_transition',
-      matterId: artifact.matterId,
-      householdRef: artifact.householdRef,
-      ...(typeof base['relayMatterId'] === 'string'
-        ? { relayMatterId: base['relayMatterId'] }
-        : {}),
-      createdAt: valid.at,
-      updatedAt: valid.at,
-      artifactId: artifact.id,
-      fromState: valid.from,
-      toState: valid.to,
-      transitionAt: valid.at,
-    });
+    await persist(
+      {
+        id: recordId('meeting-artifact-transition'),
+        kind: 'meeting_artifact_transition',
+        matterId: artifact.matterId,
+        householdRef: artifact.householdRef,
+        ...(typeof base['relayMatterId'] === 'string'
+          ? { relayMatterId: base['relayMatterId'] }
+          : {}),
+        createdAt: valid.at,
+        updatedAt: valid.at,
+        artifactId: artifact.id,
+        fromState: valid.from,
+        toState: valid.to,
+        transitionAt: valid.at,
+      },
+      expected
+    );
     const reloadedBase = raw.find(
       (candidate) =>
         candidate.kind === 'meeting_artifact' && candidate.id === artifact.id
@@ -2004,7 +2262,7 @@ function artifactMinimumVersions(
 export function meetingArtifactsForClient(
   meetings: MeetingStore,
   store: MeetingArtifactStore,
-  client: ClientBoundary,
+  client: SealedMeetingClientBoundary,
   requirements: readonly MeetingArtifactRequirement[]
 ): MeetingArtifactReader {
   return store.readerFor(meetings, client, requirements);
@@ -2013,7 +2271,7 @@ export function meetingArtifactsForClient(
 export function approvedMeetingArtifactsForClient(
   meetings: MeetingStore,
   store: MeetingArtifactStore,
-  client: ClientBoundary,
+  client: SealedMeetingClientBoundary,
   requirements: readonly MeetingArtifactRequirement[]
 ): ApprovedMeetingArtifactReader {
   const kinds = [...new Set(requirements.map((item) => item.kind))];
@@ -2095,21 +2353,486 @@ export async function appendNoticeEvidence(
   });
 }
 
+declare const directClientMeetingTargetBrand: unique symbol;
+const sealedDirectClientMeetingTargets = new WeakSet();
+
+export interface DirectClientMeetingDescriptor {
+  readonly dir: string;
+  readonly folderName: string;
+  readonly startMs?: number;
+}
+
+export interface DirectClientMeetingTarget {
+  readonly kind: 'direct-client-meeting';
+  readonly client: SealedMeetingClientBoundary;
+  readonly meetingDir: string;
+  readonly folderName: string;
+  readonly startMs?: number;
+  readonly [directClientMeetingTargetBrand]: true;
+}
+
+export interface PairBoundDirectClientMeeting<
+  Row extends DirectClientMeetingDescriptor
+> {
+  readonly meeting: Row;
+  readonly target: DirectClientMeetingTarget;
+}
+
+export type DirectClientMeetingsReadResult<
+  Row extends DirectClientMeetingDescriptor
+> =
+  | { readonly kind: 'loading' }
+  | {
+      readonly kind: 'ready';
+      readonly meetings: readonly PairBoundDirectClientMeeting<Row>[];
+    }
+  | { readonly kind: 'refused'; readonly message: string }
+  | { readonly kind: 'error'; readonly message: string };
+
+export interface DirectClientMeetingsAdapter<
+  Row extends DirectClientMeetingDescriptor
+> {
+  list(): Promise<DirectClientMeetingsReadResult<Row>>;
+  resolveTarget(
+    result: DirectClientMeetingsReadResult<Row>,
+    request: DirectClientMeetingDescriptor | null | undefined
+  ): DirectClientMeetingTarget | null;
+}
+
+function normalizedDirectoryIdentity(path: string): string {
+  return normalizedAbsolutePath(path, 'Client meeting folder').replace(/\/$/, '');
+}
+
+function validatedMeetingDirectoryIdentity(
+  meetingDir: string,
+  authorizedFolder: string
+): string | null {
+  try {
+    const absolute = normalizedDirectoryIdentity(meetingDir);
+    return isInsidePath(absolute, authorizedFolder) ? absolute : null;
+  } catch {
+    // WorkspaceService list results are workspace-relative on desktop. Prove
+    // the relative ancestor is exactly the suffix of the sanctioned absolute
+    // client folder; a similar display name or arbitrary folder is insufficient.
+    let relative: string;
+    try {
+      relative = normalizedPath(meetingDir, 'Client meeting folder');
+    } catch {
+      return null;
+    }
+    const marker = '/Meetings/';
+    const markerIndex = `/${relative}`.indexOf(marker);
+    if (markerIndex <= 0) return null;
+    const clientRelative = relative.slice(0, markerIndex - 1);
+    const normalizedAuthorized = authorizedFolder.replace(/\\/g, '/');
+    return normalizedAuthorized.endsWith(`/${clientRelative}`) ? relative : null;
+  }
+}
+
+const NO_DIRECT_CLIENT_FOLDER = 'meeting-client-has-no-folder' as const;
+
+function authorizedDirectClientFolder(
+  client: SealedMeetingClientBoundary,
+  requestedFolder: string
+): string | null {
+  const candidates = getMatters().filter(
+    (matter) =>
+      !matter.archived &&
+      matter.id === client.matterId &&
+      (matter.crmHouseholdKeys ?? []).some(
+        (householdRef) => householdRef.trim() === client.householdRef
+      )
+  );
+  if (candidates.length !== 1) return null;
+  if (!requestedFolder.trim())
+    return candidates[0]?.folderPaths.length === 0
+      ? NO_DIRECT_CLIENT_FOLDER
+      : null;
+  let requested: string;
+  try {
+    requested = normalizedDirectoryIdentity(requestedFolder);
+  } catch {
+    return null;
+  }
+  const authorized = candidates[0]?.folderPaths.flatMap((folder) => {
+    try {
+      return [normalizedDirectoryIdentity(folder)];
+    } catch {
+      return [];
+    }
+  }) ?? [];
+  return authorized.includes(requested) ? requested : null;
+}
+
+/**
+ * The one direct-client filesystem doorway. It proves the exact live pair and
+ * sanctioned matter folder before scanning, then proves both again after the
+ * asynchronous scan before returning any row or target.
+ */
+export function createDirectClientMeetingsAdapter<
+  Row extends DirectClientMeetingDescriptor
+>(input: {
+  readonly client: SealedMeetingClientBoundary;
+  readonly getActiveClientBoundary: () =>
+    | SealedMeetingClientBoundary
+    | null;
+  readonly matterFolder: string;
+  readonly scan: (authorizedMatterFolder: string) => Promise<{
+    readonly meetings: readonly Row[];
+    readonly scanFailed: boolean;
+  }>;
+}): DirectClientMeetingsAdapter<Row> {
+  const stillAuthorized = (): string | null => {
+    const active = input.getActiveClientBoundary();
+    if (!sameClientBoundary(active, input.client)) return null;
+    return authorizedDirectClientFolder(input.client, input.matterFolder);
+  };
+  const list = async (): Promise<DirectClientMeetingsReadResult<Row>> => {
+    const folderBefore = stillAuthorized();
+    if (!folderBefore)
+      return {
+        kind: 'refused',
+        message: 'This client meeting folder is not authorized.',
+      };
+    let scanned: { readonly meetings: readonly Row[]; readonly scanFailed: boolean };
+    try {
+      scanned =
+        folderBefore === NO_DIRECT_CLIENT_FOLDER
+          ? { meetings: [], scanFailed: false }
+          : await input.scan(folderBefore);
+    } catch {
+      return { kind: 'error', message: 'Client meetings could not be loaded.' };
+    }
+    const folderAfter = stillAuthorized();
+    if (!folderAfter || folderAfter !== folderBefore)
+      return {
+        kind: 'refused',
+        message: 'The selected client changed while meetings loaded.',
+      };
+    if (scanned.scanFailed)
+      return { kind: 'error', message: 'Client meetings could not be loaded.' };
+    const bounded: PairBoundDirectClientMeeting<Row>[] = [];
+    for (const meeting of scanned.meetings) {
+      if (folderAfter === NO_DIRECT_CLIENT_FOLDER)
+        return { kind: 'error', message: 'A client meeting folder was invalid.' };
+      const meetingDir = validatedMeetingDirectoryIdentity(
+        meeting.dir,
+        folderAfter
+      );
+      if (!meetingDir)
+        return { kind: 'error', message: 'A client meeting folder was invalid.' };
+      const target = deepFreezeAuthority({
+        kind: 'direct-client-meeting',
+        client: input.client,
+        meetingDir,
+        folderName: meeting.folderName,
+        ...(meeting.startMs !== undefined ? { startMs: meeting.startMs } : {}),
+      }) as DirectClientMeetingTarget;
+      sealedDirectClientMeetingTargets.add(target);
+      bounded.push({ meeting, target });
+    }
+    return { kind: 'ready', meetings: bounded };
+  };
+  return {
+    list,
+    resolveTarget: (result, request) => {
+      if (!request || result.kind !== 'ready' || !stillAuthorized()) return null;
+      const folder = stillAuthorized();
+      if (!folder || folder === NO_DIRECT_CLIENT_FOLDER) return null;
+      const requestedDir = validatedMeetingDirectoryIdentity(request.dir, folder);
+      if (!requestedDir) return null;
+      const match = result.meetings.find(
+        (candidate) => candidate.target.meetingDir === requestedDir
+      );
+      return match &&
+        sealedDirectClientMeetingTargets.has(match.target) &&
+        sameClientBoundary(match.target.client, input.client)
+        ? match.target
+        : null;
+    },
+  };
+}
+
+export function verifyDirectClientMeetingTarget(
+  target: DirectClientMeetingTarget | null | undefined,
+  active: SealedMeetingClientBoundary | null | undefined
+): boolean {
+  return !!target &&
+    sealedDirectClientMeetingTargets.has(target) &&
+    sameClientBoundary(target.client, active);
+}
+
+export type MeetingPlatform =
+  | 'zoom'
+  | 'teams'
+  | 'google-meet'
+  | 'phone'
+  | 'in-person'
+  | 'other'
+  | 'unknown';
+export type MeetingBriefStatus =
+  | 'not-available'
+  | 'processing'
+  | 'needs-review'
+  | 'available';
+export type MeetingRecordingStatus =
+  | 'not-recorded'
+  | 'recording'
+  | 'processing'
+  | 'available'
+  | 'unavailable';
+export type PastMeetingStatusFilter =
+  | 'needs-review'
+  | 'processing'
+  | 'complete';
+export type MeetingProcessingStatus = PastMeetingStatusFilter | 'unknown';
+
+/**
+ * Facts may join a row only when the canonical meeting id AND sealed client
+ * pair agree. Every readiness/status value is explicit owner truth; the
+ * projector never upgrades a row to "available" merely because it exists.
+ */
+export interface MeetingSurfaceFacts {
+  readonly meetingId: MeetingRef;
+  readonly householdRef: string;
+  readonly matterId: string;
+  readonly title?: string;
+  readonly platform?: MeetingPlatform;
+  readonly joinUrl?: string;
+  readonly participants?: readonly {
+    readonly name?: string;
+    readonly email?: string;
+  }[];
+  readonly briefStatus?: MeetingBriefStatus;
+  readonly recordingStatus?: MeetingRecordingStatus;
+  readonly processingStatus?: MeetingProcessingStatus;
+  readonly artifacts?: readonly MeetingArtifact[];
+}
+
+export interface MeetingSurfaceRow {
+  readonly id: MeetingRef;
+  readonly clientLink: ClientBoundary;
+  readonly title: string;
+  readonly typeId: string;
+  readonly platform: MeetingPlatform;
+  readonly scheduledStartUtc: string;
+  readonly scheduledEndUtc: string;
+  readonly timezone: string;
+  readonly relativeContext:
+    | { readonly kind: 'starts-in'; readonly minutes: number }
+    | { readonly kind: 'in-progress'; readonly minutesRemaining: number }
+    | { readonly kind: 'ended-ago'; readonly minutes: number };
+  readonly participantCue: {
+    readonly count: number;
+    readonly names: readonly string[];
+  };
+  readonly briefStatus: MeetingBriefStatus;
+  readonly joinReadiness: 'available' | 'unavailable';
+  readonly recordingStatus: MeetingRecordingStatus;
+  readonly processingStatus: MeetingProcessingStatus;
+  readonly outputs: {
+    readonly transcript: boolean;
+    readonly summary: boolean;
+    readonly tasks: boolean;
+    readonly followUp: boolean;
+  };
+}
+
+export interface MeetingPastFilters {
+  readonly statuses: readonly PastMeetingStatusFilter[];
+  readonly typeIds: readonly string[];
+}
+
+export type MeetingSurfaceProjectionResult =
+  | { readonly kind: 'loading' }
+  | {
+      readonly kind: 'refused';
+      readonly message: string;
+    }
+  | { readonly kind: 'error'; readonly message: string }
+  | {
+      readonly kind: 'ready';
+      readonly upcoming: readonly MeetingSurfaceRow[];
+      readonly past: readonly MeetingSurfaceRow[];
+      readonly pastFilters: MeetingPastFilters;
+      readonly emptyCopy: {
+        readonly upcoming: string;
+        readonly past: string;
+      };
+    };
+
+export type MeetingSurfaceProjectionSource =
+  | {
+      readonly kind: 'selected-client';
+      readonly client: SealedMeetingClientBoundary;
+      readonly meetings: readonly MeetingProjection[];
+    }
+  | {
+      readonly kind: 'whole-firm';
+      readonly directory: FirmMeetingDirectoryReadResult;
+    };
+
+const PAST_MEETING_STATUS_FILTERS = Object.freeze([
+  'needs-review',
+  'processing',
+  'complete',
+] as const);
+
+function meetingRelativeContext(
+  meeting: MeetingProjection,
+  nowMs: number
+): MeetingSurfaceRow['relativeContext'] {
+  const start = Date.parse(meeting.scheduledStartUtc);
+  const end = Date.parse(meeting.scheduledEndUtc);
+  if (nowMs < start)
+    return { kind: 'starts-in', minutes: Math.max(0, Math.ceil((start - nowMs) / 60_000)) };
+  if (nowMs < end)
+    return {
+      kind: 'in-progress',
+      minutesRemaining: Math.max(0, Math.ceil((end - nowMs) / 60_000)),
+    };
+  return { kind: 'ended-ago', minutes: Math.max(0, Math.floor((nowMs - end) / 60_000)) };
+}
+
+/**
+ * The only list-row join. Selected mode accepts one required sealed pair;
+ * whole-firm mode accepts only a ready result minted by the firm reader.
+ */
+export function projectMeetingSurface(
+  source: MeetingSurfaceProjectionSource,
+  facts: readonly MeetingSurfaceFacts[],
+  nowUtc: string
+): MeetingSurfaceProjectionResult {
+  const nowMs = Date.parse(timestamp(nowUtc, 'Projection time'));
+  if (source.kind === 'whole-firm') {
+    if (source.directory.kind === 'loading') return { kind: 'loading' };
+    if (source.directory.kind === 'error') return source.directory;
+    if (source.directory.kind === 'refused')
+      return { kind: 'refused', message: source.directory.message };
+    if (!sealedFirmDirectoryReadyResults.has(source.directory))
+      return {
+        kind: 'refused',
+        message: 'Firm meeting directory access was not authorized.',
+      };
+  }
+
+  let meetings: readonly MeetingProjection[];
+  if (source.kind === 'selected-client') {
+    meetings = source.meetings.filter((meeting) =>
+      sameClientBoundary(meeting, source.client)
+    );
+  } else {
+    if (source.directory.kind !== 'ready')
+      return { kind: 'error', message: 'Meeting directory state was invalid.' };
+    meetings = source.directory.meetings;
+  }
+  const rows = meetings.map((meeting): MeetingSurfaceRow => {
+    const matchingFacts = facts.filter(
+      (candidate) =>
+        candidate.meetingId === meeting.id &&
+        candidate.householdRef === meeting.householdRef &&
+        candidate.matterId === meeting.matterId
+    );
+    // Duplicate or mismatched facts are not trusted. The row remains truthful
+    // with conservative unavailable/default states instead of choosing one.
+    const joined = matchingFacts.length === 1 ? matchingFacts[0] : undefined;
+    const artifacts = (joined?.artifacts ?? []).filter(
+      (artifact) =>
+        artifact.meetingId === meeting.id &&
+        artifact.householdRef === meeting.householdRef &&
+        artifact.matterId === meeting.matterId
+    );
+    const has = (kind: MeetingArtifactKind) =>
+      artifacts.some((artifact) => artifact.kind === kind);
+    const participantNames = (joined?.participants ?? [])
+      .map((participant) => participant.name?.trim() ?? '')
+      .filter((name) => !!name);
+    return {
+      id: meeting.id,
+      clientLink: {
+        householdRef: meeting.householdRef,
+        matterId: meeting.matterId,
+        ...(source.kind === 'selected-client' && source.client.displayName
+          ? { displayName: source.client.displayName }
+          : {}),
+      },
+      title: joined?.title?.trim() || meeting.typeId,
+      typeId: meeting.typeId,
+      platform: joined?.platform ?? 'unknown',
+      scheduledStartUtc: meeting.scheduledStartUtc,
+      scheduledEndUtc: meeting.scheduledEndUtc,
+      timezone: meeting.timezone,
+      relativeContext: meetingRelativeContext(meeting, nowMs),
+      participantCue: {
+        count: joined?.participants?.length ?? 0,
+        names: participantNames,
+      },
+      briefStatus: joined?.briefStatus ?? 'not-available',
+      joinReadiness:
+        joined?.joinUrl?.trim() && joined.platform && joined.platform !== 'unknown'
+          ? 'available'
+          : 'unavailable',
+      recordingStatus: joined?.recordingStatus ?? 'unavailable',
+      processingStatus: joined?.processingStatus ?? 'unknown',
+      outputs: {
+        transcript: has('transcript'),
+        summary: has('summary'),
+        tasks: has('action-update-proposal'),
+        followUp: has('follow-up-draft'),
+      },
+    };
+  });
+  const sorted = [...rows].sort((left, right) =>
+    left.scheduledStartUtc.localeCompare(right.scheduledStartUtc)
+  );
+  const upcoming = sorted.filter(
+    (row) => Date.parse(row.scheduledEndUtc) >= nowMs
+  );
+  const past = sorted.filter((row) => Date.parse(row.scheduledEndUtc) < nowMs);
+  const selectedName =
+    source.kind === 'selected-client'
+      ? source.client.displayName?.trim() || source.client.householdRef
+      : null;
+  return {
+    kind: 'ready',
+    upcoming,
+    past,
+    pastFilters: {
+      statuses: PAST_MEETING_STATUS_FILTERS,
+      typeIds: [...new Set(past.map((row) => row.typeId))].sort(),
+    },
+    emptyCopy: selectedName
+      ? {
+          upcoming: `No upcoming meetings for ${selectedName}. This view is filtered to ${selectedName}.`,
+          past: `No past meetings for ${selectedName}. This view is filtered to ${selectedName}.`,
+        }
+      : {
+          upcoming: 'No upcoming meetings.',
+          past: 'No past meetings yet.',
+        },
+  };
+}
+
 export function projectMeetingList(
   records: readonly MeetingProjection[],
-  scope: MeetingListProjection['scope'],
-  client?: ClientBoundary | null,
-  ownerId?: string | null
+  selection:
+    | {
+        readonly kind: 'client';
+        readonly client: SealedMeetingClientBoundary;
+      }
+    | {
+        readonly kind: 'owner';
+        readonly client: SealedMeetingClientBoundary;
+        readonly ownerId: string;
+      }
 ): MeetingListProjection {
   const selected = records.filter(
     (meeting) =>
-      (!client ||
-        (meeting.householdRef === client.householdRef &&
-          meeting.matterId === client.matterId)) &&
-      (!ownerId || meeting.ownerRef === ownerId)
+      sameClientBoundary(meeting, selection.client) &&
+      (selection.kind !== 'owner' || meeting.ownerRef === selection.ownerId)
   );
   return {
-    scope,
+    scope: selection.kind === 'owner' ? 'owner' : 'household',
     meetings: [...selected].sort((left, right) =>
       left.scheduledStartUtc.localeCompare(right.scheduledStartUtc)
     ),
@@ -2117,7 +2840,7 @@ export function projectMeetingList(
 }
 export function listForHousehold(
   store: MeetingStore,
-  client: ClientBoundary
+  client: SealedMeetingClientBoundary
 ): readonly MeetingProjection[] {
   return store.list.filter(
     (meeting) =>
@@ -2127,7 +2850,7 @@ export function listForHousehold(
 }
 export function listPrepForHousehold(
   store: MeetingStore,
-  client: ClientBoundary
+  client: SealedMeetingClientBoundary
 ): readonly MeetingProjection[] {
   return listForHousehold(store, client).filter(
     (meeting) => meeting.state === 'draft' || meeting.state === 'scheduled'
@@ -2520,7 +3243,7 @@ export function createMeetingFoundationPreferencesStore(
 /** Reactive adapter over the canonical encrypted live-record route. */
 export function useMeetingFoundationStore(): MeetingStore {
   const live = useLiveCrmRecords();
-  // Subscribe to the active matter so a client switch re-renders and
+  // Subscribe to the active pair so a client switch re-renders and
   // re-projects the UI — but do NOT capture that value into the store. The
   // resolver reads the LIVE active matter from the store's source at every
   // operation, so a store held across an async client switch (e.g. click
@@ -2534,7 +3257,7 @@ export function useMeetingFoundationStore(): MeetingStore {
     save: live.save,
     sharedMatterId: live.sharedMatterId,
     sharedLocalMatterId: live.sharedLocalMatterId,
-    getActiveMatterId: readAuthoritativeMeetingMatterId,
+    getActiveClientBoundary: readActiveMeetingClientBoundary,
     getSelectionError: readAuthoritativeMeetingSelectionError,
     reloadRecords: () => loadLiveCrmRecords(live.workspaceRoot),
   });
@@ -2547,7 +3270,7 @@ export function useMeetingArtifactStore(): FirmReadableMeetingArtifactStore {
     workspaceRoot: live.workspaceRoot,
     error: live.error,
     save: live.save,
-    getActiveMatterId: readAuthoritativeMeetingMatterId,
+    getActiveClientBoundary: readActiveMeetingClientBoundary,
     getSelectionError: readAuthoritativeMeetingSelectionError,
     getFirmSelectionError: readAuthoritativeFirmMeetingSelectionError,
     reloadRecords: () => loadLiveCrmRecords(live.workspaceRoot),

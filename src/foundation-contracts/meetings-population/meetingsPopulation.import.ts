@@ -66,7 +66,8 @@ export async function proveMeetingsPopulationPavedPath(
   const reader: FirmMeetingDirectoryReader | null = grant
     ? createFirmMeetingDirectoryReader(port, grant)
     : null;
-  const firmListCount = reader ? (await reader.list()).length : 0;
+  const directory = reader ? await reader.list() : null;
+  const firmListCount = directory?.kind === 'ready' ? directory.meetings.length : 0;
 
   return {
     linkedMeetingId: linked.id,

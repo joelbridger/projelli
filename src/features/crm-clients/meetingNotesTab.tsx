@@ -5,7 +5,11 @@ import type { HouseholdTabDescriptor, HouseholdTabSurfaceProps } from './tabRegi
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import { useMatters, useMatterStore } from '@/platform/matter/matterStore';
 import { getActiveWorkspaceService } from '@/platform/fs/activeWorkspaceService';
-import { ClientMeetingsTab } from '@/features/meetings/ClientMeetingsTab';
+import {
+  ClientMeetingsTab,
+  readActiveMeetingClientBoundary,
+  useActiveMeetingClientBoundary,
+} from '@/features/meetings';
 
 /**
  * The household Meeting Notes tab: recording, transcript, and notes-review
@@ -27,6 +31,12 @@ function HouseholdMeetingNotesTab({ household }: HouseholdTabSurfaceProps) {
     return household.id;
   }, [household.id, live.records, matters]);
   const matter = matters.find((candidate) => candidate.id === matterId) ?? null;
+  const activeClientBoundary = useActiveMeetingClientBoundary();
+  const clientBoundary =
+    activeClientBoundary?.matterId === matterId &&
+    activeClientBoundary.householdRef === household.id
+      ? activeClientBoundary
+      : null;
 
   // A meeting-sourced Client Map/Ask citation or Activity entry names an exact
   // meeting to open (`pendingMeetingOpen`) — the same one-shot MatterHub used
@@ -68,15 +78,16 @@ function HouseholdMeetingNotesTab({ household }: HouseholdTabSurfaceProps) {
   const effectiveInitialSelectedMeeting =
     meetingRequestMatterId === matterId ? initialSelectedMeeting : null;
 
-  return (
+  return clientBoundary ? (
     <ClientMeetingsTab
-      key={matterId}
-      matterId={matterId}
+      key={`${clientBoundary.householdRef}:${clientBoundary.matterId}`}
+      clientBoundary={clientBoundary}
+      getActiveClientBoundary={readActiveMeetingClientBoundary}
       matterFolder={matter?.folderPaths[0] ?? ''}
       workspaceService={getActiveWorkspaceService()}
       {...(effectiveInitialSelectedMeeting ? { initialSelectedMeeting: effectiveInitialSelectedMeeting } : {})}
     />
-  );
+  ) : null;
 }
 
 export const meetingNotesTab: HouseholdTabDescriptor = {

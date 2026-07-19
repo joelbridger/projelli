@@ -31,28 +31,30 @@ await meetings.update(meeting.id, { references: ['document-1'] });
 
 Outside a React render (a service, a test) construct the store directly — but
 `createMeetingStore` / `createMeetingArtifactStore` **require** a live
-`getActiveMatterId` resolver, so a store with no client isolation **is a compile
-error, not a silent leak**. The resolver MUST read the LIVE active client at call
-time; a captured snapshot reintroduces the stale-client leak, and a resolver
-returning `null`/`undefined` (no active client) fails closed.
+`getActiveClientBoundary` resolver that returns the sealed household + matter
+pair, so a matter-only store **is a compile error, not a silent leak**. The
+resolver MUST read the LIVE active client at call time; a captured snapshot
+reintroduces the stale-client leak, and a resolver returning `null`/`undefined`
+(no active client) fails closed.
 
 ```ts
 import {
   approvedMeetingArtifactsForClient,
   createMeetingArtifactStore,
   createMeetingStore,
+  readActiveMeetingClientBoundary,
   type ClientScopedLivePort,
 } from '@/features/meetings';
-import { useMatterStore } from '@/platform/matter/matterStore';
 
 // livePort supplies records / workspaceRoot / error / save / reloadRecords.
 const scopedPort: ClientScopedLivePort = {
   ...livePort,
-  getActiveMatterId: () => useMatterStore.getState().activeMatterId, // LIVE
+  getActiveClientBoundary: readActiveMeetingClientBoundary, // LIVE sealed pair
 };
 const meetings = createMeetingStore(scopedPort);
 const artifacts = createMeetingArtifactStore(scopedPort);
-// createMeetingStore({ ...livePort }) // ← compile error: getActiveMatterId is required
+// createMeetingStore({ ...livePort, getActiveMatterId: () => 'matter-1' })
+// ↑ compile error: matter-only authority cannot replace getActiveClientBoundary
 
 const notes = await artifacts.append({
   meetingId: 'meeting-1',

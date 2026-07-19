@@ -27,6 +27,16 @@ import type { HouseholdRecord } from './adapters';
 const liveCrm = vi.hoisted(() => ({
   records: [] as Array<Record<string, unknown>>,
 }));
+const meetingSelection = vi.hoisted(() => ({
+  boundary: {
+    householdRef: 'household-diaz',
+    matterId: 'matter-diaz',
+  } as { householdRef: string; matterId: string } | null,
+}));
+
+vi.mock('@/features/meetings/foundation/contract', () => ({
+  useActiveMeetingClientBoundary: () => meetingSelection.boundary,
+}));
 
 vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
   useLiveCrmRecords: () => ({
@@ -42,15 +52,16 @@ vi.mock('@/platform/crm/useLiveCrmRecords', () => ({
 
 vi.mock('@/features/meetings/ClientMeetingsTab', () => ({
   ClientMeetingsTab: ({
-    matterId,
+    clientBoundary,
     initialSelectedMeeting,
   }: {
-    matterId: string;
+    clientBoundary: { householdRef: string; matterId: string };
     initialSelectedMeeting?: { dir: string };
   }) => (
     <div
       data-testid="client-meetings-tab"
-      data-matter-id={matterId}
+      data-matter-id={clientBoundary.matterId}
+      data-household-ref={clientBoundary.householdRef}
       data-initial-meeting-dir={initialSelectedMeeting?.dir ?? ''}
     />
   ),
@@ -88,6 +99,10 @@ const householdB: HouseholdRecord = {
 
 describe('client surface Meeting Notes entry point', () => {
   beforeEach(() => {
+    meetingSelection.boundary = {
+      householdRef: 'household-diaz',
+      matterId: 'matter-diaz',
+    };
     liveCrm.records = [
       {
         id: household.id,
@@ -217,6 +232,10 @@ describe('client surface Meeting Notes entry point', () => {
     act(() => {
       useMatterStore.getState().setActiveMatter('matter-second');
       useMatterStore.getState().setClientMapHubId('matter-second');
+      meetingSelection.boundary = {
+        householdRef: 'household-second',
+        matterId: 'matter-second',
+      };
     });
     rerender(<HouseholdRecordSurface household={householdB} />);
 

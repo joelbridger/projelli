@@ -43,9 +43,13 @@ function selectionDecision(request: Record<string, unknown>) {
   return active
     ? {
         kind: 'matter' as const,
-        sourceKind: 'matter-only' as const,
+        sourceKind: 'matter' as const,
         matter: { id: active },
-        client: null,
+        client: {
+          provider: 'wealthbox' as const,
+          householdId: `household-${active.replace(/^matter-/, '')}`,
+          displayName: active,
+        },
       }
     : request['allowAllMatters'] === true
       ? {
@@ -106,6 +110,7 @@ import {
   useMeetingArtifactStore,
   useMeetingFoundationStore,
   useMeetingKeywordCatalogueStore,
+  type SealedMeetingClientBoundary,
 } from './contract';
 
 const draft = {
@@ -119,7 +124,10 @@ const draft = {
   timezone: 'America/Chicago',
   references: ['existing'],
 };
-const clientA = { householdRef: 'household-1', matterId: 'matter-1' };
+const clientA = {
+  householdRef: 'household-1',
+  matterId: 'matter-1',
+} as SealedMeetingClientBoundary;
 
 describe('meetings hook-layer client isolation', () => {
   beforeEach(() => {
@@ -252,7 +260,7 @@ describe('meetings hook-layer client isolation', () => {
       at: '2026-07-20T10:06:00.000Z',
     });
     matter.state.activeMatterId = 'matter-2';
-    await expect(pending).rejects.toThrow('different client');
+    await expect(pending).rejects.toThrow('client changed while data reloaded');
 
     // A's artifact never became approved; no transition record was written.
     matter.state.activeMatterId = 'matter-1';

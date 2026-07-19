@@ -38,6 +38,13 @@ import {
   resolveNoticeEvidenceRule,
 } from './noticeCard/noticeCardSettings';
 import { deriveNoticeCardEvidence, type NoticeCardEvidence } from './noticeCard/noticeCardEvidence';
+import {
+  createDirectClientMeetingsAdapter,
+  useActiveMeetingClientBoundary,
+  verifyDirectClientMeetingTarget,
+  type DirectClientMeetingsReadResult,
+  type SealedMeetingClientBoundary,
+} from './foundation/contract';
 
 export interface MeetingSummary {
   dir: string;
@@ -48,7 +55,7 @@ export interface MeetingSummary {
   hasTranscript: boolean;
 }
 
-interface ListableWorkspace {
+export interface ListableWorkspace {
   list(path: string): Promise<{ name: string; path: string; type: 'file' | 'folder' }[]>;
   readFile(path: string): Promise<string>;
   writeFile(path: string, content: string): Promise<void>;
@@ -102,7 +109,7 @@ function delay(ms: number): Promise<void> {
  *  newest-first. A genuinely absent Meetings folder yields an empty,
  *  non-failed result (no meetings recorded yet); a folder that exists but
  *  can't be listed is retried before being reported as `scanFailed`. */
-export async function listClientMeetings(
+async function scanClientMeetingsFolder(
   matterFolder: string,
   ws: ListableWorkspace,
   opts?: { retryDelayMs?: number },
@@ -165,8 +172,36 @@ export async function listClientMeetings(
   };
 }
 
+/** Public direct-client list doorway. A matter folder by itself cannot call it. */
+export function listClientMeetings(input: {
+  readonly clientBoundary: SealedMeetingClientBoundary;
+  readonly getActiveClientBoundary: () =>
+    | SealedMeetingClientBoundary
+    | null;
+  readonly matterFolder: string;
+  readonly workspaceService: ListableWorkspace;
+  readonly retryDelayMs?: number;
+}): Promise<DirectClientMeetingsReadResult<MeetingSummary>> {
+  return createDirectClientMeetingsAdapter<MeetingSummary>({
+    client: input.clientBoundary,
+    getActiveClientBoundary: input.getActiveClientBoundary,
+    matterFolder: input.matterFolder,
+    scan: (authorizedMatterFolder) =>
+      scanClientMeetingsFolder(authorizedMatterFolder, input.workspaceService, {
+        ...(input.retryDelayMs !== undefined
+          ? { retryDelayMs: input.retryDelayMs }
+          : {}),
+      }),
+  }).list();
+}
+
 export interface ClientMeetingsTabProps {
-  matterId: string;
+  /** Required sealed household + matter identity; matter/folder alone is illegal. */
+  clientBoundary: SealedMeetingClientBoundary;
+  /** Required live resolver; a captured pair is not enough across async scans. */
+  getActiveClientBoundary: () =>
+    | SealedMeetingClientBoundary
+    | null;
   matterFolder: string;
   /** Injected by MatterHub (ultimately the app-layer active WorkspaceService) —
    *  features must not reach for the app-layer singleton themselves, per
@@ -177,11 +212,18 @@ export interface ClientMeetingsTabProps {
   initialSelectedMeeting?: { dir: string; folderName: string; startMs?: number };
 }
 
-export function ClientMeetingsTab({ matterId, matterFolder, workspaceService, initialSelectedMeeting }: ClientMeetingsTabProps) {
+export function ClientMeetingsTab({ clientBoundary, getActiveClientBoundary, matterFolder, workspaceService, initialSelectedMeeting }: ClientMeetingsTabProps) {
   const { t, i18n } = useTranslation();
+  const matterId = clientBoundary.matterId;
+  useActiveMeetingClientBoundary();
+  const activeClientBoundary = getActiveClientBoundary();
+  const hasLiveClientBoundary =
+    activeClientBoundary?.householdRef === clientBoundary.householdRef &&
+    activeClientBoundary.matterId === clientBoundary.matterId;
   const [meetings, setMeetings] = useState<MeetingSummary[]>([]);
-  const [selectedMeetingDir, setSelectedMeetingDir] = useState<string | null>(() => initialSelectedMeeting?.dir ?? null);
+  const [selectedMeetingDir, setSelectedMeetingDir] = useState<string | null>(null);
   const [directOpenMeeting, setDirectOpenMeeting] = useState(initialSelectedMeeting ?? null);
+  const [directRead, setDirectRead] = useState<DirectClientMeetingsReadResult<MeetingSummary>>({ kind: 'loading' });
   const [meetingSearchQuery, setMeetingSearchQuery] = useState('');
   const [railCollapsed, setRailCollapsed] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -227,25 +269,50 @@ export function ClientMeetingsTab({ matterId, matterFolder, workspaceService, in
   // the dialog's wording conditional rather than asserting the law.
   const consentMode = consentModeFor(null);
 
+  const directAdapter = useMemo(
+    () =>
+      createDirectClientMeetingsAdapter<MeetingSummary>({
+        client: clientBoundary,
+        getActiveClientBoundary,
+        matterFolder,
+        scan: (authorizedMatterFolder) =>
+          workspaceService
+            ? scanClientMeetingsFolder(authorizedMatterFolder, workspaceService)
+            : Promise.resolve({ meetings: [], scanFailed: false }),
+      }),
+    [clientBoundary, getActiveClientBoundary, matterFolder, workspaceService]
+  );
+
   const refresh = useCallback(async () => {
     const ws = workspaceService;
     if (!ws) {
       setMeetings([]);
       setSelectedMeetingDir(null);
+      setDirectRead({ kind: 'ready', meetings: [] });
       setScanFailed(false);
       setLoading(false);
       return;
     }
     setLoading(true);
-    const { meetings: list, scanFailed: failed } = await listClientMeetings(matterFolder, ws);
+    const result = await directAdapter.list();
+    setDirectRead(result);
+    if (result.kind !== 'ready') {
+      setMeetings([]);
+      setSelectedMeetingDir(null);
+      setScanFailed(result.kind === 'error');
+      setLoading(false);
+      return;
+    }
+    const list = result.meetings.map((entry) => entry.meeting);
     setMeetings(list);
     setSelectedMeetingDir((current) => {
-      if (current && directOpenMeeting?.dir === current) return current;
+      const directTarget = directAdapter.resolveTarget(result, directOpenMeeting);
+      if (directTarget) return directTarget.meetingDir;
       if (list.length === 0) return null;
       if (current && list.some((meeting) => meeting.dir === current)) return current;
       return list[0]?.dir ?? null;
     });
-    setScanFailed(failed);
+    setScanFailed(false);
     // Recording Notice Kit — one ledger read, grouped by meeting dir, so each
     // row can reflect its notice state (verified / needs-review / quarantined).
     try {
@@ -268,7 +335,7 @@ export function ClientMeetingsTab({ matterId, matterFolder, workspaceService, in
       setNoticeCardEvidence({});
     }
     setLoading(false);
-  }, [matterFolder, workspaceService, directOpenMeeting?.dir]);
+  }, [directAdapter, matterFolder, workspaceService, directOpenMeeting]);
 
   const runRefresh = useCallback(() => {
     void refresh().catch(() => {
@@ -308,7 +375,6 @@ export function ClientMeetingsTab({ matterId, matterFolder, workspaceService, in
   useEffect(() => {
     if (!initialSelectedMeeting) return;
     setDirectOpenMeeting(initialSelectedMeeting);
-    setSelectedMeetingDir(initialSelectedMeeting.dir);
   }, [initialSelectedMeeting]);
 
   // Refresh once a recording for this client finishes AND its post-stop
@@ -444,18 +510,20 @@ export function ClientMeetingsTab({ matterId, matterFolder, workspaceService, in
   // error must read as "couldn't check," never as "your recordings are gone."
   const showScanError = !loading && !busy && scanFailed;
   const showEmpty = !loading && !busy && !scanFailed && meetings.length === 0;
+  const selectedPairBoundMeeting =
+    directRead.kind === 'ready'
+      ? directRead.meetings.find(
+          (entry) => entry.target.meetingDir === selectedMeetingDir
+        ) ?? null
+      : null;
   const selectedMeeting =
-    meetings.find((meeting) => meeting.dir === selectedMeetingDir) ??
-    (directOpenMeeting && selectedMeetingDir === directOpenMeeting.dir
-      ? {
-          dir: directOpenMeeting.dir,
-          folderName: directOpenMeeting.folderName,
-          meta: null,
-          hasNotes: false,
-          hasAudio: false,
-          hasTranscript: false,
-        }
-      : null);
+    selectedPairBoundMeeting &&
+    verifyDirectClientMeetingTarget(
+      selectedPairBoundMeeting.target,
+      activeClientBoundary
+    )
+      ? selectedPairBoundMeeting.meeting
+      : null;
   const selectedMeetingInitialSeekMs =
     selectedMeeting && directOpenMeeting?.dir === selectedMeeting.dir
       ? directOpenMeeting.startMs
@@ -649,6 +717,11 @@ export function ClientMeetingsTab({ matterId, matterFolder, workspaceService, in
     }
     return null;
   })();
+
+  // The direct route itself disappears on either pair-field change. Its scan
+  // already refuses before touching the filesystem; this also removes every
+  // matter-only action button while the parent catches up or has no client.
+  if (!hasLiveClientBoundary) return null;
 
   return (
     <div

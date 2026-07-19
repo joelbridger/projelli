@@ -1,6 +1,6 @@
 import {
   readApprovedMeetingArtifacts,
-  type ClientBoundary,
+  type SealedMeetingClientBoundary,
   type MeetingArtifactRequirement,
   type MeetingArtifactStore,
   type MeetingStore,
@@ -10,10 +10,10 @@ export function compileAskMeetingProducerImport(
   meetings: MeetingStore,
   artifacts: MeetingArtifactStore
 ): void {
-  const boundary: ClientBoundary = {
+  const boundary = {
     householdRef: 'fixture-client',
     matterId: 'fixture-matter',
-  };
+  } as SealedMeetingClientBoundary;
   const requirements: readonly MeetingArtifactRequirement[] = [
     { kind: 'summary', minimumSchemaVersion: 1 },
   ];

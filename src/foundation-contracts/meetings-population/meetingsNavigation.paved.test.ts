@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createMeetingStore,
+  readActiveMeetingClientBoundary,
   resolveMeetingNavigation,
   type ClientScopedLivePort,
 } from '@/features/meetings';
@@ -95,11 +96,6 @@ function resetToAllMatters(): void {
     kind: 'persisted-hint',
     value: { version: 1, source: 'explicit-all-matters' },
   });
-}
-
-function activeAuthoritativeMatterId(): string | null {
-  const scope = readAuthoritativeMatterScope();
-  return scope.kind === 'matter' ? scope.matterId : null;
 }
 
 beforeEach(() => {
@@ -283,7 +279,7 @@ describe('firm-wide meeting navigation public doorway', () => {
       error: null,
       save: (record) => Promise.resolve(record),
       reloadRecords: () => Promise.resolve([canonicalMeeting]),
-      getActiveMatterId: activeAuthoritativeMatterId,
+      getActiveClientBoundary: readActiveMeetingClientBoundary,
     };
     const store = createMeetingStore(live);
 
@@ -302,6 +298,16 @@ describe('firm-wide meeting navigation public doorway', () => {
     await expect(
       requestSharedClientSelection(resolved.clientBoundary)
     ).resolves.toMatchObject({ kind: 'selected', client: clientA });
+
+    // The source selection is written first and its old matter follower catches
+    // up on the next microtask. Client-scoped reads stay closed during that tiny
+    // disagreement window, then open only when the complete pair agrees.
+    await vi.waitFor(() => {
+      expect(readActiveMeetingClientBoundary()).toMatchObject({
+        householdRef: 'household-a',
+        matterId: 'matter-a',
+      });
+    });
 
     await expect(store.get('meeting-a')).resolves.toMatchObject({
       id: 'meeting-a',

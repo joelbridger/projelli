@@ -1,12 +1,30 @@
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClientMeetingsTab } from '@/features/meetings/ClientMeetingsTab';
+import type { SealedMeetingClientBoundary } from '@/features/meetings';
+import { useMatterStore } from '@/platform/matter/matterStore';
+
+const clientBoundary = {
+  householdRef: 'household-acme',
+  matterId: 'm1',
+} as SealedMeetingClientBoundary;
+
+beforeEach(() => {
+  useMatterStore.setState({
+    matters: [{
+      id: 'm1',
+      name: 'Acme',
+      client: 'Acme',
+      folderPaths: ['C:/WS/Clients/Acme'],
+      crmHouseholdKeys: ['household-acme'],
+      createdAt: '2026-07-04T00:00:00.000Z',
+    }],
+  });
+});
+
+afterEach(() => {
+  useMatterStore.setState({ matters: [] });
+});
 
 const baseMeta = {
   matterId: 'm1',
@@ -80,7 +98,8 @@ describe('ClientMeetingsTab — master-detail rail', () => {
   it('puts meetings in the left rail and shows the selected meeting detail on the right', async () => {
     render(
       <ClientMeetingsTab
-        matterId="m1"
+        clientBoundary={clientBoundary}
+        getActiveClientBoundary={() => clientBoundary}
         matterFolder="C:/WS/Clients/Acme"
         workspaceService={makeWorkspace() as never}
       />
@@ -132,7 +151,8 @@ describe('ClientMeetingsTab — master-detail rail', () => {
   it('opens a direct requested meeting inside the rail with no embedded back arrow', async () => {
     render(
       <ClientMeetingsTab
-        matterId="m1"
+        clientBoundary={clientBoundary}
+        getActiveClientBoundary={() => clientBoundary}
         matterFolder="C:/WS/Clients/Acme"
         workspaceService={makeWorkspace() as never}
         initialSelectedMeeting={{
@@ -157,5 +177,27 @@ describe('ClientMeetingsTab — master-detail rail', () => {
       'aria-selected',
       'true'
     );
+  });
+
+  it('removes the direct client route when only the household half changes', async () => {
+    let active = clientBoundary;
+    const renderTab = () => (
+      <ClientMeetingsTab
+        clientBoundary={clientBoundary}
+        getActiveClientBoundary={() => active}
+        matterFolder="C:/WS/Clients/Acme"
+        workspaceService={makeWorkspace() as never}
+      />
+    );
+    const view = render(renderTab());
+    await screen.findByTestId('client-meetings-tab');
+
+    active = {
+      householdRef: 'household-other',
+      matterId: clientBoundary.matterId,
+    } as SealedMeetingClientBoundary;
+    view.rerender(renderTab());
+
+    expect(screen.queryByTestId('client-meetings-tab')).toBeNull();
   });
 });

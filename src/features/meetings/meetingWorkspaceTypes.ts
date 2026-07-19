@@ -5,7 +5,10 @@ import type { UseFirmResult } from '@/platform/hooks/useFirm';
 import type { TranscriptFile } from '@/platform/types/meeting';
 import type { DocxTextExtraction } from '@/platform/utils/docx-io';
 import type { MeetingMeta } from './meetingStore';
-import type { ClientBoundary, MeetingProjection } from './foundation/contract';
+import type {
+  MeetingProjection,
+  SealedMeetingClientBoundary,
+} from './foundation/contract';
 
 /** Feature modules augment these maps beside their descriptors. No string fallback is intentional. */
 export interface MeetingPanelIdMap {}
@@ -25,7 +28,7 @@ export interface MeetingPanelContext {
   /** Resolved by the opener; never derived from `meetingDir` by this host. */
   canonicalMeeting?: MeetingProjection | null;
   /** Resolved with the canonical meeting; paths never grant this boundary. */
-  clientBoundary?: ClientBoundary | null;
+  clientBoundary?: SealedMeetingClientBoundary | null;
   meetingDir: string;
   clientName: string;
   workspaceRoot: string;
@@ -64,7 +67,7 @@ export type MeetingHeaderActionPlacement = 'primary' | 'secondary' | 'menu';
 export interface MeetingHeaderActionContext {
   t: TFunction;
   canonicalMeeting?: MeetingProjection | null;
-  clientBoundary?: ClientBoundary | null;
+  clientBoundary?: SealedMeetingClientBoundary | null;
   meta: MeetingMeta | null;
   transcript: TranscriptFile | null;
   summaryText: string;
@@ -109,7 +112,7 @@ export interface MeetingInsightArtifact {
 export interface MeetingInsightArtifactContext {
   matterId: string;
   canonicalMeeting?: MeetingProjection | null;
-  clientBoundary?: ClientBoundary | null;
+  clientBoundary?: SealedMeetingClientBoundary | null;
   meetingDir: string;
   workspaceService: WorkspaceService | null;
 }

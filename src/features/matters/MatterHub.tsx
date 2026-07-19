@@ -18,7 +18,11 @@
 import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ClipboardList, Lock, FileText, Mail, Clock, Loader2, Map, Mic, MoreVertical } from 'lucide-react';
-import { ClientMeetingsTab } from '@/features/meetings/ClientMeetingsTab';
+import {
+  ClientMeetingsTab,
+  readActiveMeetingClientBoundary,
+  useActiveMeetingClientBoundary,
+} from '@/features/meetings';
 import { ClientRequestsTab } from '@/features/intake/ClientRequestsTab';
 import { isTauri } from '@tauri-apps/api/core';
 import { useMatters, useActiveMatterPrivileged, useMatterStore, SAMPLE_MATTER_ID, type ClientMapHubTab } from '@/platform/matter/matterStore';
@@ -191,6 +195,7 @@ async function saveIntakeLinkSecretWithRetry(intakeId: string, linkSecretB64: st
 export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, renderEmail, renderActivity, workspaceService }: MatterHubProps) {
   const { t } = useTranslation();
   const selection = useSelectionPresentation();
+  const activeMeetingClientBoundary = useActiveMeetingClientBoundary();
   // ── Client Map wiring ────────────────────────────────────────────────────
   // Declare client map hook at component top — must not be inside a condition.
   // autoBuild: a client's Client Map builds automatically the first time the
@@ -988,12 +993,15 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
 
         {subTab === 'meetings' && (
           <div data-testid="hub-subtab-panel-meetings" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-            <ClientMeetingsTab
-              matterId={matterId}
-              matterFolder={matter.folderPaths[0] ?? ''}
-              workspaceService={workspaceService ?? null}
-              {...(initialSelectedMeeting ? { initialSelectedMeeting } : {})}
-            />
+            {activeMeetingClientBoundary?.matterId === matterId ? (
+              <ClientMeetingsTab
+                clientBoundary={activeMeetingClientBoundary}
+                getActiveClientBoundary={readActiveMeetingClientBoundary}
+                matterFolder={matter.folderPaths[0] ?? ''}
+                workspaceService={workspaceService ?? null}
+                {...(initialSelectedMeeting ? { initialSelectedMeeting } : {})}
+              />
+            ) : null}
           </div>
         )}
 
