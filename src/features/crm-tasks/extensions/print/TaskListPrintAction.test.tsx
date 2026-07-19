@@ -25,6 +25,7 @@ const workflowWorkItem: CrmWorkflowWorkItem = Object.freeze({
   instanceId: 'workflow-1',
   stepId: 'prepare',
   title: 'Prepare review packet',
+  workflowLabel: 'Review packet',
   householdId: 'household-1',
   householdLabel: 'Morgan household',
   assigneeUserId: null,
