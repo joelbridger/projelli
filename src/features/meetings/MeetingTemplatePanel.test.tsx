@@ -4,6 +4,39 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TranscriptFile } from '@/platform/types/meeting';
 import type { Matter } from '@/platform/types/matter';
 import { useMatterStore } from '@/platform/matter/matterStore';
+
+const meetingBoundaryMint = vi.hoisted(() => ({
+  selection: null as null | {
+    householdRef: string;
+    matterId: string;
+    displayName?: string;
+  },
+}));
+
+vi.mock('@/platform/client-context', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/platform/client-context')>();
+  return {
+    ...actual,
+    readSelectionOperationDecision: (
+      request: Parameters<typeof actual.readSelectionOperationDecision>[0]
+    ) => {
+      const selection = meetingBoundaryMint.selection;
+      return selection
+        ? {
+            kind: 'matter' as const,
+            sourceKind: 'matter' as const,
+            matter: { id: selection.matterId } as Matter,
+            client: {
+              provider: 'wealthbox' as const,
+              householdId: selection.householdRef,
+              displayName: selection.displayName ?? selection.householdRef,
+            },
+          }
+        : actual.readSelectionOperationDecision(request);
+    },
+  };
+});
+
 import {
   createFirmOwnedMeetingTemplate,
   renderClientFacingMeetingNote,
@@ -11,6 +44,7 @@ import {
 } from '@/platform/meetingTemplates';
 import {
   createDirectClientMeetingsAdapter,
+  readActiveMeetingClientBoundary,
   type SealedMeetingClientBoundary,
 } from './foundation/contract';
 import {
@@ -41,16 +75,27 @@ const transcript: TranscriptFile = {
   },
 };
 
-const clientA = {
-  householdRef: 'household-a',
-  matterId: 'matter-shared',
-  displayName: 'Ada',
-} as SealedMeetingClientBoundary;
-const clientB = {
-  householdRef: 'household-b',
-  matterId: 'matter-shared',
-  displayName: 'Bea',
-} as SealedMeetingClientBoundary;
+function mintedBoundary(
+  householdRef: string,
+  matterId: string,
+  displayName?: string
+): SealedMeetingClientBoundary {
+  meetingBoundaryMint.selection = {
+    householdRef,
+    matterId,
+    ...(displayName !== undefined ? { displayName } : {}),
+  };
+  try {
+    const boundary = readActiveMeetingClientBoundary();
+    if (!boundary) throw new Error('expected live-authority meeting boundary');
+    return boundary;
+  } finally {
+    meetingBoundaryMint.selection = null;
+  }
+}
+
+const clientA = mintedBoundary('household-a', 'matter-shared', 'Ada');
+const clientB = mintedBoundary('household-b', 'matter-shared', 'Bea');
 const clientFolder = '/workspace/Clients/Ada';
 const meetingDir = 'Clients/Ada/Meetings/2026-07-12-review';
 

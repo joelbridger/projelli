@@ -1,12 +1,46 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import type { Matter } from '@/platform/types/matter';
+
+const meetingBoundaryMint = vi.hoisted(() => ({
+  selection: null as null | {
+    householdRef: string;
+    matterId: string;
+    displayName: string;
+  },
+}));
+
+vi.mock('@/platform/client-context', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/platform/client-context')>();
+  return {
+    ...actual,
+    readSelectionOperationDecision: (
+      request: Parameters<typeof actual.readSelectionOperationDecision>[0]
+    ) => {
+      const selection = meetingBoundaryMint.selection;
+      return selection
+        ? {
+            kind: 'matter' as const,
+            sourceKind: 'matter' as const,
+            matter: { id: selection.matterId } as Matter,
+            client: {
+              provider: 'wealthbox' as const,
+              householdId: selection.householdRef,
+              displayName: selection.displayName,
+            },
+          }
+        : actual.readSelectionOperationDecision(request);
+    },
+  };
+});
+
 import {
   createFirmMeetingDirectoryReader,
   createMeetingArtifactStore,
   createMeetingStore,
   grantFirmMeetingDirectoryAccess,
+  readActiveMeetingClientBoundary,
   type MeetingArtifactInput,
   type MeetingOwnerProjection,
   type MeetingSurfaceFacts,
@@ -28,11 +62,14 @@ function sealedClient(
   householdRef: string,
   displayName: string
 ): SealedMeetingClientBoundary {
-  return {
-    householdRef,
-    matterId,
-    displayName,
-  } as SealedMeetingClientBoundary;
+  meetingBoundaryMint.selection = { householdRef, matterId, displayName };
+  try {
+    const boundary = readActiveMeetingClientBoundary();
+    if (!boundary) throw new Error('expected live-authority meeting boundary');
+    return boundary;
+  } finally {
+    meetingBoundaryMint.selection = null;
+  }
 }
 
 function canonicalPort() {
