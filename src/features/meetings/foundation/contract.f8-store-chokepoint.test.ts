@@ -2,14 +2,48 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import type { Matter } from '@/platform/types/matter';
+
+const meetingBoundaryMint = vi.hoisted(() => ({
+  selection: null as null | {
+    householdRef: string;
+    matterId: string;
+    displayName?: string;
+  },
+}));
+
+vi.mock('@/platform/client-context', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/platform/client-context')>();
+  return {
+    ...actual,
+    readSelectionOperationDecision: (
+      request: Parameters<typeof actual.readSelectionOperationDecision>[0]
+    ) => {
+      const selection = meetingBoundaryMint.selection;
+      return selection
+        ? {
+            kind: 'matter' as const,
+            sourceKind: 'matter' as const,
+            matter: { id: selection.matterId } as Matter,
+            client: {
+              provider: 'wealthbox' as const,
+              householdId: selection.householdRef,
+              displayName: selection.displayName ?? selection.householdRef,
+            },
+          }
+        : actual.readSelectionOperationDecision(request);
+    },
+  };
+});
 import {
   createDirectClientMeetingsAdapter,
   createFirmMeetingDirectoryReader,
+  createLegacyMeetingLinkStatusReader,
   createMeetingArtifactStore,
   createMeetingStore,
   grantFirmMeetingDirectoryAccess,
   projectMeetingList,
   projectMeetingSurface,
+  readActiveMeetingClientBoundary,
   verifyDirectClientMeetingTarget,
   type FirmMeetingDirectoryReadResult,
   type MeetingArtifact,
@@ -17,16 +51,27 @@ import {
   type SealedMeetingClientBoundary,
 } from './contract';
 
-const clientA = {
-  householdRef: 'household-a',
-  matterId: 'matter-shared',
-  displayName: 'Alpha Household',
-} as SealedMeetingClientBoundary;
-const clientB = {
-  householdRef: 'household-b',
-  matterId: 'matter-shared',
-  displayName: 'Beta Household',
-} as SealedMeetingClientBoundary;
+function mintedBoundary(
+  householdRef: string,
+  matterId: string,
+  displayName?: string
+): SealedMeetingClientBoundary {
+  meetingBoundaryMint.selection = {
+    householdRef,
+    matterId,
+    ...(displayName !== undefined ? { displayName } : {}),
+  };
+  try {
+    const boundary = readActiveMeetingClientBoundary();
+    if (!boundary) throw new Error('expected live-authority meeting boundary');
+    return boundary;
+  } finally {
+    meetingBoundaryMint.selection = null;
+  }
+}
+
+const clientA = mintedBoundary('household-a', 'matter-shared', 'Alpha Household');
+const clientB = mintedBoundary('household-b', 'matter-shared', 'Beta Household');
 const clientFolder = '/workspace/Clients/Alpha';
 
 function meetingRecord(
@@ -152,6 +197,74 @@ describe('F8 sealed-pair store chokepoint', () => {
     });
     expect(verifyDirectClientMeetingTarget(target, clientA)).toBe(true);
     expect(verifyDirectClientMeetingTarget(target, clientB)).toBe(false);
+  });
+
+  it('refuses forged and malformed runtime pairs before store, status, or adapter access', async () => {
+    seedMatter();
+    const forgedA = {
+      householdRef: clientA.householdRef,
+      matterId: clientA.matterId,
+    } as SealedMeetingClientBoundary;
+    const malformed = {
+      householdRef: {},
+      matterId: clientA.matterId,
+    } as unknown as SealedMeetingClientBoundary;
+    const record = meetingRecord();
+
+    for (const active of [forgedA, malformed, undefined]) {
+      const reloadRecords = vi.fn(() => Promise.resolve([record]));
+      const port = {
+        records: [record],
+        workspaceRoot: '/workspace',
+        error: null,
+        save: vi.fn((saved: LiveCrmRecord) => Promise.resolve(saved)),
+        getActiveClientBoundary: () =>
+          active as SealedMeetingClientBoundary | null,
+        reloadRecords,
+      };
+
+      const store = createMeetingStore(port);
+      expect(store.list).toEqual([]);
+      await expect(store.get(record.id)).resolves.toBeUndefined();
+      expect(reloadRecords).not.toHaveBeenCalled();
+
+      await expect(
+        createLegacyMeetingLinkStatusReader(port).read({
+          meetingDir: 'Clients/Alpha/Meetings/meeting-a',
+        })
+      ).rejects.toThrow('Active client');
+      expect(reloadRecords).not.toHaveBeenCalled();
+    }
+
+    const scan = vi.fn(() =>
+      Promise.resolve({
+        meetings: [
+          {
+            dir: `${clientFolder}/Meetings/meeting-a`,
+            folderName: 'meeting-a',
+          },
+        ],
+        scanFailed: false,
+      })
+    );
+    const forgedBridge = createDirectClientMeetingsAdapter({
+      client: clientA,
+      // Models a bridge claiming A while the real same-matter selection is B.
+      getActiveClientBoundary: () => forgedA,
+      matterFolder: clientFolder,
+      scan,
+    });
+    await expect(forgedBridge.list()).resolves.toMatchObject({ kind: 'refused' });
+    expect(scan).not.toHaveBeenCalled();
+
+    const forgedInput = createDirectClientMeetingsAdapter({
+      client: forgedA,
+      getActiveClientBoundary: () => clientA,
+      matterFolder: clientFolder,
+      scan,
+    });
+    await expect(forgedInput.list()).resolves.toMatchObject({ kind: 'refused' });
+    expect(scan).not.toHaveBeenCalled();
   });
 
   it("refuses a ready result minted by another client's adapter", async () => {

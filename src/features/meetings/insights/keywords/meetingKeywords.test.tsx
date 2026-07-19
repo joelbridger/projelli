@@ -1,12 +1,43 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
+import type { Matter } from '@/platform/types/matter';
 import { setDevFlagOverride } from '@/platform/flags';
 import { LIVE_CRM_RECORDS_CHANGED } from '@/platform/crm/useLiveCrmRecords';
+
+const meetingBoundaryMint = vi.hoisted(() => ({
+  selection: null as null | { householdRef: string; matterId: string },
+}));
+
+vi.mock('@/platform/client-context', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/platform/client-context')>();
+  return {
+    ...actual,
+    readSelectionOperationDecision: (
+      request: Parameters<typeof actual.readSelectionOperationDecision>[0]
+    ) => {
+      const selection = meetingBoundaryMint.selection;
+      return selection
+        ? {
+            kind: 'matter' as const,
+            sourceKind: 'matter' as const,
+            matter: { id: selection.matterId } as Matter,
+            client: {
+              provider: 'wealthbox' as const,
+              householdId: selection.householdRef,
+              displayName: selection.householdRef,
+            },
+          }
+        : actual.readSelectionOperationDecision(request);
+    },
+  };
+});
+
 import {
   approvedMeetingArtifactsForClient,
   createMeetingArtifactStore,
   createMeetingStore,
+  readActiveMeetingClientBoundary,
   type SealedMeetingClientBoundary,
   type MeetingKeywordCatalogueStore,
 } from '../../foundation/contract';
@@ -17,16 +48,30 @@ import {
   MEETING_KEYWORD_ARTIFACT_REQUIREMENTS,
 } from './meetingKeywords';
 
+function mintedBoundary(
+  householdRef: string,
+  matterId: string
+): SealedMeetingClientBoundary {
+  meetingBoundaryMint.selection = { householdRef, matterId };
+  try {
+    const boundary = readActiveMeetingClientBoundary();
+    if (!boundary) throw new Error('expected live-authority meeting boundary');
+    return boundary;
+  } finally {
+    meetingBoundaryMint.selection = null;
+  }
+}
+
 function livePort() {
   let records: LiveCrmRecord[] = [];
   let activeMatterId: string | null = 'matter-a';
   return {
     getActiveClientBoundary: () =>
       activeMatterId
-        ? ({
-            householdRef: `household-${activeMatterId.replace(/^matter-/, '')}`,
-            matterId: activeMatterId,
-          } as SealedMeetingClientBoundary)
+        ? mintedBoundary(
+            `household-${activeMatterId.replace(/^matter-/, '')}`,
+            activeMatterId
+          )
         : null,
     setActiveMatterId: (next: string | null) => {
       activeMatterId = next;
@@ -46,10 +91,7 @@ function livePort() {
   };
 }
 
-const clientA = {
-  householdRef: 'household-a',
-  matterId: 'matter-a',
-} as SealedMeetingClientBoundary;
+const clientA = mintedBoundary('household-a', 'matter-a');
 
 describe('meeting keywords', () => {
   afterEach(() => {
