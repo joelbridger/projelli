@@ -10,7 +10,6 @@ import { CalendarDays, ChevronLeft, Mic, Plus } from 'lucide-react';
 import { CalendarGridSurface } from '@/features/calendar-grid';
 import {
   readSelectionOperationDecision,
-  useClientContextStore,
   useSelectionPresentation,
 } from '@/platform/client-context';
 import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
@@ -26,9 +25,9 @@ import {
   createMeetingPopulationService,
   grantFirmMeetingDirectoryAccess,
   projectMeetingList,
+  useActiveMeetingClientBoundary,
   useMeetingArtifactStore,
   useMeetingFoundationStore,
-  type ClientBoundary,
   type MeetingArtifactKind,
   type MeetingOpenTarget,
   type MeetingProjection,
@@ -323,7 +322,7 @@ export function MeetingsWorkspace({ runtime }: { runtime: MeetingsWorkspaceRunti
   const { t } = useTranslation();
   const live = useLiveCrmRecords();
   const selection = useSelectionPresentation();
-  const selectedClient = useClientContextStore((state) => state.client);
+  const activeClientBoundary = useActiveMeetingClientBoundary();
   const matters = useMatterStore((state) => state.matters);
   const currentMemberId = useFirmStore((state) => state.session?.userId ?? null);
   const calendarEnabled = useFlag('calendar-grid');
@@ -403,7 +402,19 @@ export function MeetingsWorkspace({ runtime }: { runtime: MeetingsWorkspaceRunti
       .list()
       .then((next) => {
         if (!current) return;
-        setDirectoryState({ key: directoryKey, status: 'ready', records: next });
+        if (next.kind === 'ready') {
+          setDirectoryState({
+            key: directoryKey,
+            status: 'ready',
+            records: next.meetings,
+          });
+          return;
+        }
+        setDirectoryState({
+          key: directoryKey,
+          status: next.kind === 'loading' ? 'loading' : 'error',
+          records: [],
+        });
       })
       .catch(() => {
         if (!current) return;
@@ -444,40 +455,34 @@ export function MeetingsWorkspace({ runtime }: { runtime: MeetingsWorkspaceRunti
     return () => { current = false; };
   }, [directoryKey, grant, selection.blocked]);
 
-  const clientBoundary = useMemo<ClientBoundary | null>(
-    () =>
-      selectedClient && selection.matterId
-        ? {
-            householdRef: selectedClient.householdId,
-            matterId: selection.matterId,
-            displayName: selectedClient.displayName,
-          }
-        : null,
-    [selectedClient, selection.matterId]
-  );
   const scopedMeetings = useMemo(
-    () =>
-      projectMeetingList(
-        records,
-        clientBoundary ? 'household' : ownerFilter ? 'owner' : 'firm',
-        clientBoundary,
-        ownerFilter
-      ).meetings,
-    [clientBoundary, ownerFilter, records]
+    () => activeClientBoundary
+      ? projectMeetingList(
+          records,
+          ownerFilter
+            ? {
+                kind: 'owner',
+                client: activeClientBoundary,
+                ownerId: ownerFilter,
+              }
+            : { kind: 'client', client: activeClientBoundary }
+        ).meetings
+      : [],
+    [activeClientBoundary, ownerFilter, records]
   );
   const scopedReviewResult = useMemo<ReviewNeededMeetingArtifactsReadResult | null>(() => {
-    if (!reviewResult || reviewResult.kind === 'refused' || !clientBoundary) {
+    if (!reviewResult || reviewResult.kind === 'refused' || !activeClientBoundary) {
       return reviewResult;
     }
     return {
       kind: 'ready',
       artifacts: reviewResult.artifacts.filter(
         (artifact) =>
-          artifact.matterId === clientBoundary.matterId &&
-          artifact.householdRef === clientBoundary.householdRef
+          artifact.matterId === activeClientBoundary.matterId &&
+          artifact.householdRef === activeClientBoundary.householdRef
       ),
     };
-  }, [clientBoundary, reviewResult]);
+  }, [activeClientBoundary, reviewResult]);
   const reviewMeetingCount =
     scopedReviewResult?.kind === 'ready'
       ? new Set(scopedReviewResult.artifacts.map((artifact) => artifact.meetingId)).size
@@ -543,7 +548,7 @@ export function MeetingsWorkspace({ runtime }: { runtime: MeetingsWorkspaceRunti
     [runtime]
   );
   const listContext: MeetingListContext = {
-    client: clientBoundary,
+    client: activeClientBoundary,
     meetings: scopedMeetings,
     reviewResult: scopedReviewResult,
     reviewLoading,
@@ -643,8 +648,8 @@ export function MeetingsWorkspace({ runtime }: { runtime: MeetingsWorkspaceRunti
                     : t('meetings.shell.title')}
             </h2>
             <p>
-              {clientBoundary
-                ? t('meetings.shell.scope.client', { client: clientBoundary.displayName ?? clientBoundary.householdRef })
+              {activeClientBoundary
+                ? t('meetings.shell.scope.client', { client: activeClientBoundary.displayName ?? activeClientBoundary.householdRef })
                 : t('meetings.shell.scope.firm')}
             </p>
           </div>
