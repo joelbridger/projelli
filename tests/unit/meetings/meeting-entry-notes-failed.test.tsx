@@ -124,7 +124,7 @@ describe('MeetingEntry — honest notes-failed state (QA-31)', () => {
   // docx bytes even though the file is right there on disk — which, before
   // this fix, meant a SUCCESSFUL retry could still fall back to "notes are
   // being written" forever, recreating the exact confusion QA-31 fixed.
-  it('flips to hasNotes and loads the summary text after a successful retry even though notes.docx cannot be decoded as text (binary content)', async () => {
+  it('flips to hasNotes after a successful retry but keeps folder summary text hidden', async () => {
     retryMeetingNotesMock.mockClear();
     let retried = false;
     retryMeetingNotesMock.mockImplementationOnce(async () => { retried = true; });
@@ -160,7 +160,8 @@ describe('MeetingEntry — honest notes-failed state (QA-31)', () => {
     await waitFor(() => {
       expect(screen.queryByTestId('meeting-entry-notes-pending')).toBeNull();
       expect(screen.queryByTestId('meeting-entry-notes-failed')).toBeNull();
-      expect(screen.getByTestId('meeting-summary-text').textContent).toContain('Retried summary');
+      expect(screen.getByTestId('meeting-entry-summary-not-ready')).toBeTruthy();
+      expect(screen.queryByTestId('meeting-summary-text')).toBeNull();
     });
   });
 

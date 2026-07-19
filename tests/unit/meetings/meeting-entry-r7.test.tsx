@@ -133,7 +133,7 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
     };
   });
 
-  it('shows Word-native action items in the Summary review checklist', async () => {
+  it('does not show Word-native folder content without a sealed summary artifact', async () => {
     docxExtraction.current = {
       html: [
         '<h2>Action items</h2>',
@@ -162,10 +162,13 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
     render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
     fireEvent.click(screen.getByTestId('meeting-subtab-summary'));
 
-    expect(await screen.findByTestId('notes-review-panel')).toBeInTheDocument();
-    expect(screen.getAllByText('Start the rollover paperwork.')).toHaveLength(
-      2
-    );
+    expect(
+      await screen.findByTestId('meeting-entry-summary-not-ready')
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId('notes-review-panel')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Start the rollover paperwork.')
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByText('The next review is in fall.')
     ).not.toBeInTheDocument();
@@ -395,7 +398,7 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
     );
   });
 
-  it('clears loaded meeting state before a different meeting can export stale notes', async () => {
+  it('keeps folder summaries hidden while clearing export state for a different meeting', async () => {
     const files = new Map<string, string>();
     files.set(
       '/ws/C/Meetings/A/meeting.json',
@@ -467,8 +470,9 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
     );
     fireEvent.click(screen.getByTestId('meeting-subtab-summary'));
     await waitFor(() =>
-      expect(screen.getByTestId('meeting-summary-text')).toBeTruthy()
+      expect(screen.getByTestId('meeting-entry-summary-not-ready')).toBeTruthy()
     );
+    expect(screen.queryByTestId('meeting-summary-text')).toBeNull();
 
     rerender(
       <MeetingEntry
@@ -480,10 +484,11 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
     );
 
     // Meeting B has no notes: the summary export in the actions menu is disabled
-    // and writes nothing.
+    // and writes nothing. Neither meeting's folder summary enters the panel.
     await waitFor(() =>
-      expect(screen.queryByTestId('meeting-summary-text')).toBeNull()
+      expect(screen.getByTestId('meeting-entry-notes-pending')).toBeTruthy()
     );
+    expect(screen.queryByTestId('meeting-summary-text')).toBeNull();
     await openActionsMenu();
     expect(
       await screen.findByTestId('meeting-summary-export-docx')

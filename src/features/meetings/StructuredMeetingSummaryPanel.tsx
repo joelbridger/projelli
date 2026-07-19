@@ -7,6 +7,7 @@ import {
   type MeetingProjection,
   type SealedMeetingClientBoundary,
 } from './foundation/contract';
+import type { MeetingNotesError } from './meetingStore';
 import type { MeetingPanelContext } from './meetingWorkspaceTypes';
 import {
   createStructuredMeetingSummaryReader,
@@ -27,6 +28,7 @@ export type StructuredMeetingSummaryPanelLoadResult =
     }
   | { readonly kind: 'empty' }
   | { readonly kind: 'not-ready' }
+  | { readonly kind: 'notes-error'; readonly error: MeetingNotesError['kind'] }
   | { readonly kind: 'pending' }
   | { readonly kind: 'refused' }
   | { readonly kind: 'error' };
@@ -206,6 +208,37 @@ function SummaryState({
         }}
       >
         {context.t('meetings.entry.summary-not-ready')}
+      </div>
+    );
+  }
+  if (result.kind === 'notes-error') {
+    const errorKey =
+      result.error === 'gate-blocked'
+        ? 'meetings.entry.notes-failed-blocked'
+        : `meetings.entry.notes-failed-${result.error}`;
+    return (
+      <div
+        data-testid="meeting-entry-notes-failed"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--kp-space-sm)',
+        }}
+      >
+        <div style={{ color: 'var(--kp-navy)', fontSize: 'var(--kp-font-sm)' }}>
+          {context.t(errorKey)}
+        </div>
+        <button
+          type="button"
+          data-testid="meeting-entry-retry-notes"
+          onClick={context.onRetryNotes}
+          disabled={context.retryingNotes}
+          style={quietButtonStyle}
+        >
+          {context.retryingNotes
+            ? context.t('meetings.entry.retrying-notes')
+            : context.t('meetings.tab.retry-button')}
+        </button>
       </div>
     );
   }
@@ -400,10 +433,17 @@ function LegacySummaryCompatibility({
 }: {
   context: MeetingPanelContext;
 }) {
+  const result: StructuredMeetingSummaryPanelLoadResult = context.summaryReady
+    ? { kind: 'empty' }
+    : context.hasNotes
+      ? { kind: 'not-ready' }
+      : context.meta?.notesError
+        ? { kind: 'notes-error', error: context.meta.notesError.kind }
+        : { kind: 'pending' };
   return (
     <SummaryState
       context={context}
-      result={{ kind: 'empty' }}
+      result={result}
       onRetryRead={() => undefined}
     />
   );
