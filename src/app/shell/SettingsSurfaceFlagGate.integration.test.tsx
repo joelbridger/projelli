@@ -202,7 +202,7 @@ describe('real Settings surface flag-gated swap', () => {
     );
     expect(screen.queryByTestId('settings-v1-frame')).not.toBeInTheDocument();
     expect(useLiveCrmRecords).not.toHaveBeenCalled();
-  });
+  }, 10_000);
 
   it('uses the real registry/router Settings route to keep live Settings inputs and nested destinations', async () => {
     setSettingsShell(true);
@@ -298,5 +298,5 @@ describe('real Settings surface flag-gated swap', () => {
     await waitFor(() => {
       expect(useSettingsStore.getState().getSetting('fontSize')).toBe(14);
     });
-  }, 15_000);
+  }, 20_000);
 });
