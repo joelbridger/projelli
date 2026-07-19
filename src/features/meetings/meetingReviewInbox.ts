@@ -119,7 +119,10 @@ export type MeetingReviewInboxResult =
     }
   | {
       readonly kind: 'refused';
-      readonly reason: 'authority-refused' | 'selection-blocked';
+      readonly reason:
+        | 'authority-refused'
+        | 'selection-blocked'
+        | 'invalid-client-pair';
       readonly message: string;
       readonly retry: 'not-available';
     }
@@ -583,7 +586,22 @@ export function createMeetingReviewInboxReader(
 
   return {
     read: (filter) => read(null, filter),
-    readForClient: (client, filter) => read(client, filter),
+    readForClient: (client, filter) => {
+      if (
+        !client ||
+        typeof client.householdRef !== 'string' ||
+        client.householdRef.trim().length === 0 ||
+        typeof client.matterId !== 'string' ||
+        client.matterId.trim().length === 0
+      )
+        return Promise.resolve({
+          kind: 'refused',
+          reason: 'invalid-client-pair',
+          message: 'A complete client selection is required.',
+          retry: 'not-available',
+        });
+      return read(client, filter);
+    },
     transitionArchive: (id, scope, transition) =>
       source.reviews.transitionArchive(id, scope, transition),
   };

@@ -254,6 +254,23 @@ describe('meeting Actions inbox', () => {
     expect(result.kind).toBe('ready-populated');
   });
 
+  it('refuses malformed selected-client pairs without exposing firm rows or badges', async () => {
+    const { inbox } = await fixture();
+    const refused = {
+      kind: 'refused',
+      reason: 'invalid-client-pair',
+      message: 'A complete client selection is required.',
+      retry: 'not-available',
+    } as const;
+
+    await expect(
+      inbox.readForClient(undefined as unknown as SealedMeetingClientBoundary)
+    ).resolves.toEqual(refused);
+    await expect(
+      inbox.readForClient({ matterId: 'm' } as SealedMeetingClientBoundary)
+    ).resolves.toEqual(refused);
+  });
+
   it('isolates rows and unique-meeting badges by household plus matter', async () => {
     const { inbox, meetingA, meetingB } = await fixture();
     const firm = await inbox.read();
