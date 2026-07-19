@@ -17,22 +17,47 @@ export type TaskListPrintResult =
 const PRINT_WINDOW_FEATURES =
   'width=900,height=700,menubar=no,toolbar=no,location=no,status=no';
 
+const PRINT_COLOR_TOKENS = [
+  '--kp-surface-card',
+  '--kp-print-foreground',
+  '--kp-print-heading-rule',
+  '--kp-tag-slate',
+  '--kp-print-list-rule',
+] as const;
+
 const PRINT_CSS = `
   @page { size: letter; margin: 0.7in; }
   *, *::before, *::after { box-sizing: border-box; }
-  html, body { background: #fff; color: #172033; }
+  html, body { background: var(--kp-surface-card); color: var(--kp-print-foreground); }
   body { font-family: Arial, sans-serif; font-size: 10.5pt; line-height: 1.45; margin: 0; }
-  h1 { border-bottom: 2px solid #d8dee9; font-size: 20pt; margin: 0 0 8pt; padding-bottom: 8pt; }
-  .summary { color: #475569; margin: 0 0 18pt; }
+  h1 { border-bottom: 2px solid var(--kp-print-heading-rule); font-size: 20pt; margin: 0 0 8pt; padding-bottom: 8pt; }
+  .summary { color: var(--kp-tag-slate); margin: 0 0 18pt; }
   ol { margin: 0; padding-left: 22pt; }
-  li { break-inside: avoid; border-bottom: 1px solid #e5e7eb; margin: 0 0 12pt; padding: 0 0 12pt 2pt; }
+  li { break-inside: avoid; border-bottom: 1px solid var(--kp-print-list-rule); margin: 0 0 12pt; padding: 0 0 12pt 2pt; }
   h2 { font-size: 12pt; margin: 0 0 4pt; }
-  .kind { color: #475569; font-size: 9pt; font-weight: 700; margin: 0 0 5pt; text-transform: uppercase; }
+  .kind { color: var(--kp-tag-slate); font-size: 9pt; font-weight: 700; margin: 0 0 5pt; text-transform: uppercase; }
   dl { display: grid; grid-template-columns: 72pt 1fr; margin: 0; row-gap: 2pt; }
-  dt { color: #475569; font-weight: 700; }
+  dt { color: var(--kp-tag-slate); font-weight: 700; }
   dd { margin: 0; overflow-wrap: anywhere; }
-  .empty { border: 1px solid #d8dee9; border-radius: 6pt; color: #475569; padding: 14pt; }
+  .empty { border: 1px solid var(--kp-print-heading-rule); border-radius: 6pt; color: var(--kp-tag-slate); padding: 14pt; }
 `.trim();
+
+/**
+ * A popup starts with a fresh document, so copy the app theme's resolved print
+ * colours into it before using the shared token names in PRINT_CSS.
+ */
+function createPrintCss(tokenSourceDocument: Document): string {
+  const sourceWindow = tokenSourceDocument.defaultView;
+  const sourceStyles = sourceWindow
+    ? sourceWindow.getComputedStyle(tokenSourceDocument.documentElement)
+    : null;
+  const tokenDefinitions = PRINT_COLOR_TOKENS.flatMap((token) => {
+    const value = sourceStyles?.getPropertyValue(token).trim();
+    return value ? [`${token}: ${value};`] : [];
+  }).join('');
+
+  return `:root { ${tokenDefinitions} }\n${PRINT_CSS}`;
+}
 
 function isWorkflowWorkItem(
   item: PrintableItem
@@ -109,7 +134,8 @@ export function populateTaskListPrintDocument(
   document: Document,
   context: PrintableTaskContext,
   t: TFunction,
-  language: string
+  language: string,
+  tokenSourceDocument: Document = document
 ): number {
   const items: readonly PrintableItem[] = [
     ...context.tasks,
@@ -129,7 +155,12 @@ export function populateTaskListPrintDocument(
     'title',
     t('taskListPrint.documentTitle')
   );
-  appendTextElement(document, document.head, 'style', PRINT_CSS);
+  appendTextElement(
+    document,
+    document.head,
+    'style',
+    createPrintCss(tokenSourceDocument)
+  );
 
   appendTextElement(document, document.body, 'h1', t('taskListPrint.heading'));
   appendTextElement(
@@ -212,7 +243,8 @@ export function printSuppliedTaskList(
       printWindow.document,
       context,
       t,
-      language
+      language,
+      window.document
     );
     printWindow.focus();
     printWindow.print();

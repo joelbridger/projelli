@@ -44,6 +44,9 @@
   --kp-text-dim: rgba(var(--kp-navy-rgb),0.70);        /* dim secondary body text — 0.70 clears WCAG AA 4.5:1 on white with headroom above --kp-text-faint */
   --kp-bg-soft: #f3f6fb;                         /* soft panel tint (e.g. the Ask source panel) */
   --kp-surface-card: #fff;                       /* raised/outlined cards on the light app canvas */
+  --kp-print-foreground: #172033;                /* standalone printed task-list body text */
+  --kp-print-heading-rule: #d8dee9;              /* standalone printed task-list heading and empty-state rule */
+  --kp-print-list-rule: #e5e7eb;                 /* standalone printed task-list item rule */
 
   /* ACTION style — the single light-blue treatment for primary buttons + active
      selections (matches the active tabs / left nav). NO dark navy fills anymore;
