@@ -14,6 +14,7 @@ export function TranscriptCompatibilityPanel({
 }) {
   const [query, setQuery] = useState('');
   const transcript = context.transcript;
+  const hostIdentity = context.hostIdentity;
 
   if (!transcript) return null;
 
@@ -104,16 +105,23 @@ export function TranscriptCompatibilityPanel({
           workspace={context.workspaceService}
           firmId={context.firm.org.org_id}
           canManageTemplates={context.firm.role === 'admin'}
-          meetingDir={context.meetingDir}
-          transcript={transcript}
-          clientName={context.clientName}
-          getProvider={async () => {
-            const resolved = await buildResolvedProviderForGlance();
-            return createPreparedMeetingTemplateFillProvider({
-              matterId: context.matterId,
-              resolved,
-            });
-          }}
+          {...(hostIdentity
+            ? {
+                fill: {
+                  activeClientBoundary: hostIdentity.clientBoundary,
+                  target: hostIdentity.target,
+                  transcript,
+                  clientName: context.clientName,
+                  getProvider: async () => {
+                    const resolved = await buildResolvedProviderForGlance();
+                    return createPreparedMeetingTemplateFillProvider({
+                      matterId: hostIdentity.matterId,
+                      resolved,
+                    });
+                  },
+                },
+              }
+            : {})}
         />
       )}
     </>
