@@ -40,8 +40,8 @@ function chronological(occurrences: readonly CalendarOccurrence[]): readonly Cal
     left.startUtc.localeCompare(right.startUtc) || left.occurrenceKey.localeCompare(right.occurrenceKey));
 }
 
-function isStableScopeValue(value: string): boolean {
-  return value.length > 0 && value === value.trim();
+function isStableScopeValue(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value === value.trim();
 }
 
 /**
@@ -153,10 +153,13 @@ function CalendarGridSurfaceEnabled({
   const scopeHouseholdRef = clientScope?.householdRef ?? null;
   const scopeMatterId = clientScope?.matterId ?? null;
   const projectionScope = useMemo<CalendarGridClientPair | null>(
-    () => scopeHouseholdRef === null || scopeMatterId === null
+    () => clientScope === null
       ? null
-      : { householdRef: scopeHouseholdRef, matterId: scopeMatterId },
-    [scopeHouseholdRef, scopeMatterId]
+      : {
+          householdRef: scopeHouseholdRef ?? '',
+          matterId: scopeMatterId ?? '',
+        },
+    [clientScope, scopeHouseholdRef, scopeMatterId]
   );
   const clientSelectionKey = clientScope === null
     ? 'whole-firm'

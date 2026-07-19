@@ -264,6 +264,45 @@ describe('CalendarGridSurface', () => {
     expect(screen.getByText('Unlinked firm event')).toBeTruthy();
   });
 
+  it.each([
+    {
+      missingField: 'matterId',
+      scope: {
+        householdRef: CLIENT_A_SCOPE.householdRef,
+        displayName: CLIENT_A_SCOPE.displayName,
+      } as CalendarGridClientScope,
+    },
+    {
+      missingField: 'householdRef',
+      scope: {
+        matterId: CLIENT_A_SCOPE.matterId,
+        displayName: CLIENT_A_SCOPE.displayName,
+      } as CalendarGridClientScope,
+    },
+  ])('fails closed in the rendered grid when a non-null scope is missing $missingField', async ({ scope }) => {
+    runtime.enabled = true;
+    const linkedClientEvent = occurrence({
+      title: 'Linked client event',
+      contextRef: {
+        kind: 'household',
+        id: CLIENT_A_SCOPE.householdRef,
+        matterId: CLIENT_A_SCOPE.matterId,
+      },
+    });
+    const wholeFirmEvent = occurrence({
+      occurrenceKey: 'event-2@2026-08-05T10:00:00Z',
+      sourceEventId: 'event-2',
+      title: 'Unlinked whole-firm event',
+    });
+    runtime.listOccurrences.mockResolvedValue([linkedClientEvent, wholeFirmEvent]);
+
+    render(<CalendarGridSurface now={ANCHOR} clientScope={scope} />);
+
+    expect(await screen.findByTestId('calendar-grid-empty')).toBeTruthy();
+    expect(screen.queryByText('Linked client event')).toBeNull();
+    expect(screen.queryByText('Unlinked whole-firm event')).toBeNull();
+  });
+
   it('clears the prior household synchronously when either half of the selection key changes', async () => {
     runtime.enabled = true;
     const clientAEvent = occurrence({
