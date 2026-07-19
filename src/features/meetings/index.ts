@@ -17,6 +17,18 @@ export { RecordPill } from './RecordPill';
 export { ClientMeetingsTab, listClientMeetings } from './ClientMeetingsTab';
 export type { MeetingSummary } from './ClientMeetingsTab';
 export { MeetingEntry } from './MeetingEntry';
+export {
+  MeetingPrepPanel,
+  projectMeetingPrepSections,
+  type MeetingPrepHandoffs,
+  type MeetingPrepPanelProps,
+  type MeetingPrepSections,
+} from './MeetingPrepPanel';
+export {
+  selectExactMeetingBrief,
+  type ExactMeetingBriefTarget,
+  type MeetingBrief,
+} from './briefStore';
 export { TranscriptViewer, renderNoteWithCitations } from './TranscriptViewer';
 export { meetingSourceRef, parseMeetingRef, mmss } from './meetingSources';
 export { meetingNoteFromTranscript } from './meetingNoteTemplate';
@@ -35,6 +47,7 @@ export {
   BUILT_IN_TYPES,
 } from './meetingTypes';
 export { ConsentDialog, isMacPermissionError } from './ConsentDialog';
+export { detectPlatform } from './noticeCard/meetingPlatform';
 export { makeConsentLedger } from './consentLedger';
 export type { ConsentEntry } from './consentLedger';
 export { consentModeFor, TWO_PARTY_STATES } from './recordingConsentLaw';
